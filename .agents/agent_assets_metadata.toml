@@ -30,3 +30,57 @@ id = "SHom6vDzZ6esLavLGszOB"
 uri = "file://artifacts/kiwi/assets/images/groceries.png"
 type = "image"
 title = "fresh produce"
+
+[[generated]]
+id = "DaWuys_ruuL0cNL29EdgP"
+uri = "file://artifacts/kiwi/assets/images/meal-tacos.png"
+type = "image"
+title = "beef tacos"
+
+[[generated]]
+id = "jWVWGoZ5YncbVxyszhz6F"
+uri = "file://artifacts/kiwi/assets/images/meal-pasta.png"
+type = "image"
+title = "mushroom pasta"
+
+[[generated]]
+id = "UF5rPaqa0xGG0GtI7mg5l"
+uri = "file://artifacts/kiwi/assets/images/meal-stew.png"
+type = "image"
+title = "lentil stew"
+
+[[generated]]
+id = "8pZdEEg_x00eD2fcmA8Oj"
+uri = "file://artifacts/kiwi/assets/images/meal-tofu.png"
+type = "image"
+title = "teriyaki tofu"
+
+[[generated]]
+id = "Z47ft4vTXw5FL-8b0ZbNQ"
+uri = "file://artifacts/kiwi/assets/images/meal-pizza.png"
+type = "image"
+title = "margherita pizza"
+
+[[generated]]
+id = "knzZzgPQ3XWSbsT_OAdUu"
+uri = "file://artifacts/kiwi/assets/images/meal-curry.png"
+type = "image"
+title = "chickpea curry"
+
+[[generated]]
+id = "fSGpir5nZ5tAJQL5zpJc4"
+uri = "file://artifacts/kiwi/assets/images/meal-buddha.png"
+type = "image"
+title = "buddha bowl"
+
+[[generated]]
+id = "2RfsoDyV3S0cXpuZZW2O6"
+uri = "file://artifacts/kiwi/assets/images/meal-shrimp.png"
+type = "image"
+title = "shrimp scampi"
+
+[[generated]]
+id = "SFoAMYHSoThjox3hY2R-A"
+uri = "file://artifacts/kiwi/assets/images/meal-greek.png"
+type = "image"
+title = "greek salad"

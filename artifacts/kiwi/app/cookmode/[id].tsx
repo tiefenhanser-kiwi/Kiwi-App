@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -8,6 +8,7 @@ import * as Haptics from "expo-haptics";
 import { Button } from "@/components/Button";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { getRecipe } from "@/lib/mockData";
+import { detectStepSeconds, formatTimer } from "@/lib/cookTimer";
 
 export default function CookMode() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -16,6 +17,41 @@ export default function CookMode() {
   const recipe = id ? getRecipe(id) : undefined;
 
   const [step, setStep] = useState(0);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [running, setRunning] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stepText = recipe?.steps[step] ?? "";
+  const suggested = stepText ? detectStepSeconds(stepText) : null;
+
+  useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setRemaining(suggested);
+    setRunning(false);
+  }, [step, suggested]);
+
+  useEffect(() => {
+    if (!running) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+    intervalRef.current = setInterval(() => {
+      setRemaining((cur) => {
+        if (cur === null || cur <= 1) {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          setRunning(false);
+          Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Success,
+          ).catch(() => {});
+          return 0;
+        }
+        return cur - 1;
+      });
+    }, 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [running]);
 
   if (!recipe) {
     return (
@@ -42,6 +78,22 @@ export default function CookMode() {
     setStep((x) => Math.max(0, x - 1));
   };
 
+  const toggleTimer = () => {
+    Haptics.selectionAsync().catch(() => {});
+    if (remaining === 0 || remaining === null) {
+      setRemaining(suggested ?? 60);
+      setRunning(true);
+      return;
+    }
+    setRunning((r) => !r);
+  };
+
+  const resetTimer = () => {
+    Haptics.selectionAsync().catch(() => {});
+    setRemaining(suggested ?? 60);
+    setRunning(false);
+  };
+
   return (
     <View style={[s.bg, { paddingTop: insets.top }]}>
       <View style={s.topBar}>
@@ -65,7 +117,39 @@ export default function CookMode() {
         <Text style={s.stepLabel}>
           Step {step + 1} of {total}
         </Text>
-        <Text style={s.stepText}>{recipe.steps[step]}</Text>
+        <Text style={s.stepText}>{stepText}</Text>
+
+        {suggested !== null && (
+          <View style={s.timerCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.timerLabel}>Timer</Text>
+              <Text style={s.timerValue}>
+                {formatTimer(remaining ?? suggested)}
+              </Text>
+            </View>
+            <Pressable
+              onPress={resetTimer}
+              hitSlop={10}
+              style={({ pressed }) => [s.timerBtn, pressed && { opacity: 0.6 }]}
+            >
+              <Feather name="rotate-ccw" size={18} color="#fff" />
+            </Pressable>
+            <Pressable
+              onPress={toggleTimer}
+              hitSlop={10}
+              style={({ pressed }) => [
+                s.timerPlay,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Feather
+                name={running ? "pause" : "play"}
+                size={20}
+                color={KColors.sage[900]}
+              />
+            </Pressable>
+          </View>
+        )}
       </View>
 
       <View
@@ -130,11 +214,11 @@ const s = StyleSheet.create({
   },
   progressFill: { height: "100%", backgroundColor: KColors.terracotta[400] },
   imageWrap: {
-    marginTop: KSpacing.xl,
+    marginTop: KSpacing.lg,
     marginHorizontal: KSpacing.lg,
     borderRadius: KRadius.xl,
     overflow: "hidden",
-    height: 220,
+    height: 180,
   },
   image: { width: "100%", height: "100%" },
   imageOverlay: {
@@ -157,6 +241,50 @@ const s = StyleSheet.create({
     marginTop: KSpacing.md,
     fontWeight: "500",
     fontFamily: "Inter_500Medium",
+  },
+  timerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.md,
+    marginTop: KSpacing.xl,
+    padding: KSpacing.md,
+    borderRadius: KRadius.lg,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  timerLabel: {
+    fontSize: KType.size.xs,
+    color: KColors.terracotta[400],
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
+  },
+  timerValue: {
+    fontSize: 28,
+    color: "#fff",
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+    fontFamily: "Inter_700Bold",
+    marginTop: 2,
+  },
+  timerBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  timerPlay: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: KColors.terracotta[400],
   },
   footer: {
     flexDirection: "row",

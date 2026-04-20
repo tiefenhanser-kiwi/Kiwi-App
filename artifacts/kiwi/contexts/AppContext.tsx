@@ -11,13 +11,16 @@ import { loadJSON, saveJSON } from "@/lib/storage";
 import {
   buildGroceryList,
   defaultPlan,
+  getRecipe,
   GroceryItem,
   MealPlan,
+  MealSlot,
+  RECIPES,
 } from "@/lib/mockData";
 
 export interface UserPrefs {
   household: number;
-  diet: string[]; // e.g. ["vegetarian"]
+  diet: string[];
   allergies: string[];
   dislikes: string[];
   cuisines: string[];
@@ -48,9 +51,15 @@ interface AppState {
   currentPlan: MealPlan | null;
   savePlan: (plan: MealPlan) => Promise<void>;
   setCurrentPlan: (id: string) => Promise<void>;
+  swapMealInCurrentPlan: (
+    slotIndex: number,
+    newRecipeId: string,
+  ) => Promise<void>;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
   togglePantry: (id: string) => Promise<void>;
+  addPantryItem: (name: string) => Promise<void>;
+  removePantryItem: (name: string) => Promise<void>;
   pantry: string[];
   isPremium: boolean;
   setPremium: (v: boolean) => Promise<void>;
@@ -95,7 +104,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (groceriesToUse.length === 0 && curId) {
         const cp = plansToUse.find((x) => x.id === curId);
         if (cp) {
-          groceriesToUse = buildGroceryList(cp);
+          groceriesToUse = buildGroceryList(cp, pan);
+          await saveJSON("groceries", groceriesToUse);
+        }
+      } else if (groceriesToUse.length > 0) {
+        // Reconcile inPantry flags against the persisted pantry so the
+        // two stores never drift out of sync after schema changes.
+        const pantrySet = new Set(pan.map((x) => x.toLowerCase()));
+        const reconciled = groceriesToUse.map((row) => ({
+          ...row,
+          inPantry: pantrySet.has(row.name.toLowerCase()),
+        }));
+        const drift = reconciled.some(
+          (r, i) => r.inPantry !== groceriesToUse[i].inPantry,
+        );
+        if (drift) {
+          groceriesToUse = reconciled;
           await saveJSON("groceries", groceriesToUse);
         }
       }
@@ -114,20 +138,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await saveJSON("prefs", p);
   }, []);
 
+  const persistGroceriesFor = useCallback(
+    async (plan: MealPlan, currentPantry: string[]) => {
+      const ng = buildGroceryList(plan, currentPantry);
+      setGroceries(ng);
+      await saveJSON("groceries", ng);
+    },
+    [],
+  );
+
   const savePlan = useCallback(
     async (plan: MealPlan) => {
       const updated = [plan, ...plans.filter((p) => p.id !== plan.id)];
       setPlans(updated);
       setCurrentPlanIdState(plan.id);
-      const newGroceries = buildGroceryList(plan);
-      setGroceries(newGroceries);
       await Promise.all([
         saveJSON("plans", updated),
         saveJSON("currentPlanId", plan.id),
-        saveJSON("groceries", newGroceries),
       ]);
+      await persistGroceriesFor(plan, pantry);
     },
-    [plans],
+    [plans, pantry, persistGroceriesFor],
   );
 
   const setCurrentPlan = useCallback(
@@ -135,13 +166,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCurrentPlanIdState(id);
       await saveJSON("currentPlanId", id);
       const plan = plans.find((p) => p.id === id);
-      if (plan) {
-        const ng = buildGroceryList(plan);
-        setGroceries(ng);
-        await saveJSON("groceries", ng);
-      }
+      if (plan) await persistGroceriesFor(plan, pantry);
     },
-    [plans],
+    [plans, pantry, persistGroceriesFor],
+  );
+
+  const swapMealInCurrentPlan = useCallback(
+    async (slotIndex: number, newRecipeId: string) => {
+      const plan = plans.find((p) => p.id === currentPlanId);
+      if (!plan) return;
+      if (!getRecipe(newRecipeId)) return;
+      const newMeals: MealSlot[] = plan.meals.map((m, i) =>
+        i === slotIndex ? { ...m, recipeId: newRecipeId, reason: undefined } : m,
+      );
+      const updatedPlan: MealPlan = { ...plan, meals: newMeals };
+      const updatedPlans = plans.map((p) =>
+        p.id === plan.id ? updatedPlan : p,
+      );
+      setPlans(updatedPlans);
+      await saveJSON("plans", updatedPlans);
+      await persistGroceriesFor(updatedPlan, pantry);
+    },
+    [plans, currentPlanId, pantry, persistGroceriesFor],
   );
 
   const toggleGrocery = useCallback(
@@ -157,20 +203,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const togglePantry = useCallback(
     async (id: string) => {
-      const updated = groceries.map((g) =>
-        g.id === id ? { ...g, inPantry: !g.inPantry } : g,
+      const target = groceries.find((g) => g.id === id);
+      if (!target) return;
+      const nextInPantry = !target.inPantry;
+      const updatedGroceries = groceries.map((g) =>
+        g.id === id ? { ...g, inPantry: nextInPantry } : g,
       );
-      setGroceries(updated);
-      const newPantry = updated
-        .filter((g) => g.inPantry)
-        .map((g) => g.name);
+      setGroceries(updatedGroceries);
+
+      // Surgically add/remove this single item — never rebuild pantry from
+      // groceries alone (would silently drop manually added pantry items).
+      const lower = target.name.toLowerCase();
+      let newPantry: string[];
+      if (nextInPantry) {
+        newPantry = pantry.some((p) => p.toLowerCase() === lower)
+          ? pantry
+          : [...pantry, target.name];
+      } else {
+        newPantry = pantry.filter((p) => p.toLowerCase() !== lower);
+      }
       setPantry(newPantry);
       await Promise.all([
-        saveJSON("groceries", updated),
+        saveJSON("groceries", updatedGroceries),
         saveJSON("pantry", newPantry),
       ]);
     },
-    [groceries],
+    [groceries, pantry],
+  );
+
+  const addPantryItem = useCallback(
+    async (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      if (pantry.some((p) => p.toLowerCase() === trimmed.toLowerCase())) return;
+      const newPantry = [...pantry, trimmed];
+      setPantry(newPantry);
+      await saveJSON("pantry", newPantry);
+      const updatedGroceries = groceries.map((g) =>
+        g.name.toLowerCase() === trimmed.toLowerCase()
+          ? { ...g, inPantry: true }
+          : g,
+      );
+      setGroceries(updatedGroceries);
+      await saveJSON("groceries", updatedGroceries);
+    },
+    [pantry, groceries],
+  );
+
+  const removePantryItem = useCallback(
+    async (name: string) => {
+      const newPantry = pantry.filter(
+        (p) => p.toLowerCase() !== name.toLowerCase(),
+      );
+      setPantry(newPantry);
+      await saveJSON("pantry", newPantry);
+      const updatedGroceries = groceries.map((g) =>
+        g.name.toLowerCase() === name.toLowerCase()
+          ? { ...g, inPantry: false }
+          : g,
+      );
+      setGroceries(updatedGroceries);
+      await saveJSON("groceries", updatedGroceries);
+    },
+    [pantry, groceries],
   );
 
   const setPremium = useCallback(async (v: boolean) => {
@@ -197,9 +292,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     currentPlan,
     savePlan,
     setCurrentPlan,
+    swapMealInCurrentPlan,
     groceries,
     toggleGrocery,
     togglePantry,
+    addPantryItem,
+    removePantryItem,
     pantry,
     isPremium,
     setPremium,
@@ -215,3 +313,5 @@ export function useApp(): AppState {
   if (!ctx) throw new Error("useApp must be used inside AppProvider");
   return ctx;
 }
+
+export const ALL_RECIPE_IDS = RECIPES.map((r) => r.id);

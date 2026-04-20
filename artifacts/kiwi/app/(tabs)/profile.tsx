@@ -58,6 +58,11 @@ export default function ProfileTab() {
             onPress={() => router.push("/onboarding-prefs")}
           />
           <Row
+            icon="package"
+            label="My Pantry"
+            onPress={() => router.push("/pantry")}
+          />
+          <Row
             icon="star"
             label={isPremium ? "Manage Premium" : "Upgrade to Premium"}
             onPress={() => router.push("/upgrade")}

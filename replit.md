@@ -38,15 +38,28 @@ app/
 └── upgrade.tsx                 Premium upsell (sets local flag for now)
 ```
 
-## Mock data
+## Recipe library
 
-`lib/mockData.ts` ships with three richly-detailed seed recipes (Mediterranean Grain Bowl, Lemon Herb Salmon, Chicken Veggie Stir-fry) backed by AI-generated photos in `assets/images/`. The wizard and Tell Kiwi flows currently produce deterministic plans from these recipes; they're designed to swap to a real `/api/plans/generate` call once the Anthropic key lands.
+`lib/mockData.ts` ships with **12 richly-detailed seed recipes** (grain bowl, salmon, stir-fry, beef tacos, mushroom pasta, lentil stew, teriyaki tofu, margherita pizza, chickpea curry, buddha bowl, shrimp scampi, Greek salad) each with full ingredient lists, step-by-step instructions, and AI-generated photos in `assets/images/`. The catalog is also mirrored server-side in `artifacts/api-server/src/lib/recipeCatalog.ts` as the authoritative source for AI plan generation.
+
+## AI plan generation (live)
+
+- **`POST /api/plans/generate`** in the api-server calls `claude-sonnet-4-6` via Replit AI Integrations for Anthropic (no user key required, billed against Replit credits).
+- Server owns the recipe catalog — clients cannot inject IDs. Output is strictly normalized (valid days/slots/IDs, exact night count).
+- Per-IP token-bucket rate limiter at `lib/rateLimit.ts` (8 burst, ~1/7.5s sustained) guards the LLM endpoint against cost abuse.
+- Falls back to a deterministic plan if Anthropic is unavailable or the response can't be parsed.
+- `wizard.tsx` (multi-step: nights → time → style → notes) and `tellkiwi.tsx` (free-text prompt with suggestion chips) both call `lib/api.ts` → `generatePlan()`.
+
+## Other Kiwi features now live
+
+- **Pantry screen** (`app/pantry.tsx`, linked from Profile) — add/remove items, quick-add chips, pantry items get sent to AI to bias recipe choices and pre-checked on grocery lists.
+- **Meal swap** (`components/SwapSheet.tsx`) — bottom-sheet on plan-results lets users replace any meal in the current plan; grocery list auto-rebuilds.
+- **Cook-mode timers** (`lib/cookTimer.ts`) — auto-detects durations like "Simmer for 15 minutes" from step text and shows a play/pause/reset timer with success haptic when complete.
 
 ## Pending integrations
 
 These flows have hooks in the UI but use stubs until keys are provisioned:
 
-- **Anthropic** — `wizard.tsx` and `tellkiwi.tsx` build local plans. Replace `defaultPlan()` with an API call.
 - **Stripe / RevenueCat** — `upgrade.tsx` flips a local `isPremium` flag instead of charging.
 - **Instacart / Whole Foods** — `groceries.tsx` "Send to Instacart" shows an alert. Adapter contracts are in `attached_assets/adapters_*.ts`.
 - **Twilio / Resend / Unsplash** — not yet referenced in app code.
@@ -55,6 +68,7 @@ These flows have hooks in the UI but use stubs until keys are provisioned:
 
 - `CLERK_PUBLISHABLE_KEY` is provisioned and forwarded to Metro as `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` via the `dev` script and `scripts/build.js`.
 - `EXPO_PUBLIC_CLERK_PROXY_URL` is forwarded for production builds (currently unset).
+- `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` + `AI_INTEGRATIONS_ANTHROPIC_API_KEY` set automatically by Replit AI Integrations — used only by the api-server.
 
 ## Locked references
 
@@ -63,5 +77,5 @@ These flows have hooks in the UI but use stubs until keys are provisioned:
 ## Workflows
 
 - `artifacts/kiwi: expo` — Expo dev server on port 23406, Web preview reachable through `$REPLIT_EXPO_DEV_DOMAIN`.
-- `artifacts/api-server: API Server` — Fastify on 8080 (placeholder; no Kiwi routes yet).
+- `artifacts/api-server: API Server` — Express on 8080. Routes: `/api/healthz`, `/api/plans/generate`.
 - `artifacts/mockup-sandbox` — Vite preview (template; not used by Kiwi).
