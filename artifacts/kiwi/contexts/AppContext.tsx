@@ -61,6 +61,9 @@ interface AppState {
   addPantryItem: (name: string) => Promise<void>;
   removePantryItem: (name: string) => Promise<void>;
   pantry: string[];
+  favorites: string[];
+  toggleFavorite: (recipeId: string) => Promise<void>;
+  isFavorite: (recipeId: string) => boolean;
   isPremium: boolean;
   setPremium: (v: boolean) => Promise<void>;
   onboardingComplete: boolean;
@@ -76,17 +79,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentPlanId, setCurrentPlanIdState] = useState<string | null>(null);
   const [groceries, setGroceries] = useState<GroceryItem[]>([]);
   const [pantry, setPantry] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>([]);
   const [isPremium, setIsPremiumState] = useState(false);
   const [onboardingComplete, setOnboardingCompleteState] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const [p, pl, cur, g, pan, prem, ob] = await Promise.all([
+      const [p, pl, cur, g, pan, fav, prem, ob] = await Promise.all([
         loadJSON<UserPrefs>("prefs", DEFAULT_PREFS),
         loadJSON<MealPlan[]>("plans", []),
         loadJSON<string | null>("currentPlanId", null),
         loadJSON<GroceryItem[]>("groceries", []),
         loadJSON<string[]>("pantry", []),
+        loadJSON<string[]>("favorites", []),
         loadJSON<boolean>("premium", false),
         loadJSON<boolean>("onboardingComplete", false),
       ]);
@@ -127,6 +132,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCurrentPlanIdState(curId);
       setGroceries(groceriesToUse);
       setPantry(pan);
+      setFavorites(fav);
       setIsPremiumState(prem);
       setOnboardingCompleteState(ob);
       setReady(true);
@@ -268,6 +274,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [pantry, groceries],
   );
 
+  const toggleFavorite = useCallback(async (recipeId: string) => {
+    // Functional update so rapid taps from any source don't drop toggles.
+    let computed: string[] = [];
+    setFavorites((prev) => {
+      computed = prev.includes(recipeId)
+        ? prev.filter((x) => x !== recipeId)
+        : [...prev, recipeId];
+      return computed;
+    });
+    await saveJSON("favorites", computed);
+  }, []);
+
+  const isFavorite = useCallback(
+    (recipeId: string) => favorites.includes(recipeId),
+    [favorites],
+  );
+
   const setPremium = useCallback(async (v: boolean) => {
     setIsPremiumState(v);
     await saveJSON("premium", v);
@@ -299,6 +322,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addPantryItem,
     removePantryItem,
     pantry,
+    favorites,
+    toggleFavorite,
+    isFavorite,
     isPremium,
     setPremium,
     onboardingComplete,

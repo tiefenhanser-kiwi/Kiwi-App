@@ -17,9 +17,11 @@ interface Options {
 const STORE = new Map<string, Bucket>();
 
 function clientIp(req: Request): string {
-  const xf = (req.headers["x-forwarded-for"] as string | undefined) ?? "";
-  const first = xf.split(",")[0]?.trim();
-  return first || req.ip || req.socket.remoteAddress || "unknown";
+  // Only trust the TCP peer address — never `x-forwarded-for`, which any
+  // attacker can spoof to rotate identities and bypass the bucket. On a
+  // proxied host this collapses to a global limit, which is the safe default
+  // until the app explicitly configures `trust proxy` against known hops.
+  return req.socket.remoteAddress || "unknown";
 }
 
 export function rateLimit(opts: Options) {

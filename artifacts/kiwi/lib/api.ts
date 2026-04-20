@@ -22,6 +22,30 @@ export interface GeneratedPlanResponse {
   }>;
 }
 
+export interface ScaleIngredient {
+  name: string;
+  amount: string;
+}
+
+export async function scaleIngredients(input: {
+  recipeTitle: string;
+  fromServings: number;
+  toServings: number;
+  ingredients: ScaleIngredient[];
+}): Promise<ScaleIngredient[]> {
+  const url = `${apiBase}/api/recipes/scale`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Scaling failed (${res.status})`);
+  }
+  const data = (await res.json()) as { scaled: ScaleIngredient[] };
+  return data.scaled;
+}
+
 export interface GeneratePlanInput {
   prompt?: string;
   nights: number;

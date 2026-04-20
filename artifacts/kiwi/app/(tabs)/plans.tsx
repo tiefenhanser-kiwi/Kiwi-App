@@ -33,6 +33,14 @@ export default function PlansTab() {
             body="Just describe what you want — let Kiwi figure it out."
           />
         </Card>
+        <View style={{ height: KSpacing.md }} />
+        <Card padded onPress={() => router.push("/library")}>
+          <Action
+            icon="book"
+            title="Browse recipes"
+            body="Search the recipe library and save favorites."
+          />
+        </Card>
 
         <Text style={styles.section}>Your plans</Text>
 

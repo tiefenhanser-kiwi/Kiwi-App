@@ -109,6 +109,20 @@ export default function HomeTab() {
             onPress={() => router.push("/tellkiwi")}
           />
         </Card>
+
+        <View style={{ height: KSpacing.md }} />
+        <Card padded onPress={() => router.push("/library")}>
+          <View style={styles.quickRow}>
+            <Feather name="book" size={20} color={KColors.sage[700]} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.quickTitle}>Recipe library</Text>
+              <Text style={styles.quickBody}>
+                Browse all recipes and save the ones you love.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={KColors.neutral[600]} />
+          </View>
+        </Card>
       </Screen>
     </View>
   );

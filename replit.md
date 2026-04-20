@@ -53,6 +53,9 @@ app/
 ## Other Kiwi features now live
 
 - **Pantry screen** (`app/pantry.tsx`, linked from Profile) — add/remove items, quick-add chips, pantry items get sent to AI to bias recipe choices and pre-checked on grocery lists.
+- **Recipe library** (`app/library.tsx`, linked from Home and Plans) — tile-grid browser of all 12 recipes with search bar, filter chips (All / Favorites / Quick / Vegan / Comfort), and tap-to-favorite hearts.
+- **Favorites** (in `AppContext`) — heart toggle on recipe detail header and library tiles; persisted to AsyncStorage with race-safe functional updates.
+- **AI ingredient scaler** (`POST /api/recipes/scale`) — recipe detail has a servings stepper that calls Claude to rewrite ingredient amounts in friendly cooking measures ("1 1/2 tbsp" not "1.5 tbsp", "1 can" → "2 cans"). Aligns positionally so duplicate ingredient names don't collapse. Falls back to linear scaling on AI failure. Stale responses are discarded via request-sequence ref.
 - **Meal swap** (`components/SwapSheet.tsx`) — bottom-sheet on plan-results lets users replace any meal in the current plan; grocery list auto-rebuilds.
 - **Cook-mode timers** (`lib/cookTimer.ts`) — auto-detects durations like "Simmer for 15 minutes" from step text and shows a play/pause/reset timer with success haptic when complete.
 
@@ -77,5 +80,5 @@ These flows have hooks in the UI but use stubs until keys are provisioned:
 ## Workflows
 
 - `artifacts/kiwi: expo` — Expo dev server on port 23406, Web preview reachable through `$REPLIT_EXPO_DEV_DOMAIN`.
-- `artifacts/api-server: API Server` — Express on 8080. Routes: `/api/healthz`, `/api/plans/generate`.
+- `artifacts/api-server: API Server` — Express on 8080. Routes: `/api/healthz`, `/api/plans/generate`, `/api/recipes/scale`.
 - `artifacts/mockup-sandbox` — Vite preview (template; not used by Kiwi).
