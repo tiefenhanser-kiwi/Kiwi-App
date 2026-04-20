@@ -1,0 +1,577 @@
+// kiwi/server/prisma/schema.prisma
+// Complete database schema matching the D2 data model.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── ENUMS ──
+
+enum AccountStatus {
+  active
+  paused
+  deleted
+  blocked
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+  none
+}
+
+enum SubscriptionPlan {
+  free
+  premium_monthly
+  premium_annual
+}
+
+enum MealType {
+  breakfast
+  lunch
+  dinner
+  snack
+  mixed
+}
+
+enum SourceType {
+  wizard
+  directed
+  imported_url
+  uploaded_image
+  manual
+  curated
+}
+
+enum DifficultyLevel {
+  easy
+  medium
+  fancy
+}
+
+enum WeeklyPacing {
+  mostly_easy
+  mixed
+  one_fancy_night
+  minimal_effort
+}
+
+enum PlanStatus {
+  this_week
+  next_week
+  upcoming
+  past
+  draft
+}
+
+enum GroceryListStatus {
+  draft
+  active
+  ordered
+  archived
+}
+
+enum IntegrationType {
+  api
+  rpa
+  hybrid
+  affiliate
+}
+
+enum StepPhase {
+  prep
+  cook
+  rest
+  preheat
+  assemble
+  hold
+}
+
+enum DishRole {
+  main
+  side
+  sauce
+  topping
+  base
+  optional
+}
+
+enum StoreSection {
+  produce
+  meat_seafood
+  dairy_eggs
+  bakery_bread
+  pantry
+  canned
+  frozen
+  snacks
+  household
+  other
+}
+
+enum RestockCadence {
+  always_stocked
+  weekly
+  monthly
+  remind_when_low
+}
+
+enum ActivityEventType {
+  login
+  view_plan
+  cook_meal
+  generate_grocery
+  order_groceries
+  wizard_start
+  wizard_complete
+  plan_created
+  plan_deleted
+  upgrade_started
+  upgrade_completed
+  trial_started
+  trial_expired
+}
+
+// ── MODELS ──
+
+model User {
+  id                  String            @id @default(uuid())
+  email               String            @unique
+  passwordHash        String?
+  firstName           String
+  lastName            String
+  phone               String?
+  zipCode             String?
+  timezone            String            @default("America/New_York")
+  accountStatus       AccountStatus     @default(active)
+  subscriptionStatus  SubscriptionStatus @default(trialing)
+  defaultHouseholdSize Int              @default(2)
+  customerStartDate   DateTime          @default(now())
+  customerEndDate     DateTime?
+  lastLoginAt         DateTime?
+  lastActiveAt        DateTime?
+  loginCountTotal     Int               @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  // Relations
+  preferences         UserPreferences?
+  pantryStaples       PantryStaple[]
+  planTemplates       MealPlanTemplate[]
+  planInstances       MealPlanInstance[]
+  meals               Meal[]
+  dishes              Dish[]
+  groceryLists        GroceryList[]
+  retailerConnections RetailerConnection[]
+  orderSessions       OrderSession[]
+  subscription        Subscription?
+  activities          UserActivity[]
+
+  @@map("users")
+}
+
+model UserPreferences {
+  id                    String    @id @default(uuid())
+  userId                String    @unique
+  householdSize         Int       @default(2)
+  wantsLeftovers        Boolean   @default(true)
+  difficultyDefault     DifficultyLevel @default(easy)
+  weeklyPacingDefault   WeeklyPacing    @default(mostly_easy)
+  dietaryRestrictions   String[]  @default([])
+  cuisinePreferences    String[]  @default([])
+  breakfastDefaults     String?
+  lunchDefaults         String?
+  macroPref             String[]  @default([])
+  notificationsEnabled  Boolean   @default(true)
+  emailMarketingConsent Boolean   @default(false)
+  smsMarketingConsent   Boolean   @default(false)
+  lastUsedRetailerId    String?
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model PantryStaple {
+  id             String         @id @default(uuid())
+  userId         String
+  ingredientName String
+  restockCadence RestockCadence @default(always_stocked)
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ingredientName])
+  @@map("pantry_staples")
+}
+
+model Ingredient {
+  id                    String   @id @default(uuid())
+  canonicalName         String   @unique
+  displayName           String
+  category              String
+  subcategory           String?
+  defaultUnit           String
+  nutritionRefPerUnit   Json?
+  aliases               String[] @default([])
+  isOptionalDefault     Boolean  @default(false)
+
+  dishIngredients DishIngredient[]
+  groceryItems    GroceryListItem[]
+
+  @@map("ingredients")
+}
+
+model Dish {
+  id                   String          @id @default(uuid())
+  userId               String?
+  title                String
+  description          String?
+  sourceType           SourceType      @default(manual)
+  estimatedTimeMinutes Int             @default(30)
+  difficulty           DifficultyLevel @default(easy)
+  imageUrl             String?
+  servingsDefault      Int             @default(4)
+  tags                 String[]        @default([])
+  caloriesPerServing   Float           @default(0)
+  proteinGPerServing   Float           @default(0)
+  carbsGPerServing     Float           @default(0)
+  fatGPerServing       Float           @default(0)
+  timesCooked          Int             @default(0)
+  lastUsedAt           DateTime?
+  isArchived           Boolean         @default(false)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  user            User?            @relation(fields: [userId], references: [id])
+  dishIngredients DishIngredient[]
+  mealLinks       MealDishLink[]
+  recipeSteps     RecipeInstructionStep[]
+
+  @@map("dishes")
+}
+
+model DishIngredient {
+  id              String     @id @default(uuid())
+  dishId          String
+  ingredientId    String
+  quantity        Float
+  unit            String
+  preparationNote String?
+  isOptional      Boolean    @default(false)
+  positionIndex   Int        @default(0)
+
+  dish       Dish       @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@map("dish_ingredients")
+}
+
+model Meal {
+  id                   String          @id @default(uuid())
+  userId               String?
+  title                String
+  description          String?
+  mealType             MealType        @default(dinner)
+  sourceType           SourceType      @default(manual)
+  cuisineType          String?
+  difficulty           DifficultyLevel @default(easy)
+  estimatedTimeMinutes Int             @default(30)
+  imageUrl             String?
+  servingsDefault      Int             @default(4)
+  tags                 String[]        @default([])
+  caloriesPerServing   Float           @default(0)
+  proteinGPerServing   Float           @default(0)
+  carbsGPerServing     Float           @default(0)
+  fatGPerServing       Float           @default(0)
+  timesCooked          Int             @default(0)
+  lastUsedAt           DateTime?
+  isArchived           Boolean         @default(false)
+  isPublic             Boolean         @default(false)
+  likeCount            Int             @default(0)
+  saveCount            Int             @default(0)
+  useCount             Int             @default(0)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  user         User?          @relation(fields: [userId], references: [id])
+  dishLinks    MealDishLink[]
+  planItems    MealPlanItem[]
+  recipeSteps  RecipeInstructionStep[]
+
+  @@map("meals")
+}
+
+model MealDishLink {
+  id            String   @id @default(uuid())
+  mealId        String
+  dishId        String
+  positionIndex Int      @default(0)
+  roleLabel     DishRole @default(main)
+
+  meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  dish Dish @relation(fields: [dishId], references: [id])
+
+  @@unique([mealId, dishId])
+  @@map("meal_dish_links")
+}
+
+model RecipeInstructionStep {
+  id                  String     @id @default(uuid())
+  ownerType           String     // 'meal' | 'dish'
+  ownerId             String
+  stepIndex           Int
+  stepTextRaw         String
+  stepTextTranslated  String
+  estimatedMinutes    Int        @default(1)
+  phaseType           StepPhase  @default(cook)
+  parallelGroup       String?
+  requiresPreheat     Boolean    @default(false)
+  requiresRest        Boolean    @default(false)
+  requiresMarination  Boolean    @default(false)
+  isTimingSensitive   Boolean    @default(false)
+
+  meal Meal? @relation(fields: [ownerId], references: [id], map: "recipe_meal_fk")
+  dish Dish? @relation(fields: [ownerId], references: [id], map: "recipe_dish_fk")
+
+  @@map("recipe_instruction_steps")
+}
+
+model MealPlanTemplate {
+  id                  String     @id @default(uuid())
+  userId              String
+  title               String
+  description         String?
+  sourceType          SourceType @default(wizard)
+  isFeaturedSnapshot  Boolean    @default(false)
+  defaultDaysCount    Int        @default(5)
+  tags                String[]   @default([])
+  imageUrl            String?
+  isArchived          Boolean    @default(false)
+  isPublic            Boolean    @default(false)
+  likeCount           Int        @default(0)
+  saveCount           Int        @default(0)
+  useCount            Int        @default(0)
+  deletedPlanCount    Int        @default(0) // free tier conversion signal
+  lastUsedAt          DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  user      User               @relation(fields: [userId], references: [id])
+  instances MealPlanInstance[]
+
+  @@map("meal_plan_templates")
+}
+
+model MealPlanInstance {
+  id                   String     @id @default(uuid())
+  userId               String
+  mealPlanTemplateId   String
+  titleOverride        String?
+  startDate            DateTime?
+  endDate              DateTime?
+  status               PlanStatus @default(draft)
+  isActiveThisWeek     Boolean    @default(false)
+  lastCooked           DateTime?
+  timesCooked          Int        @default(0)
+  notes                String?
+  breakfastDefaults    String?
+  lunchDefaults        String?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  user         User             @relation(fields: [userId], references: [id])
+  template     MealPlanTemplate @relation(fields: [mealPlanTemplateId], references: [id])
+  items        MealPlanItem[]
+  groceryLists GroceryList[]
+
+  @@map("meal_plan_instances")
+}
+
+model MealPlanItem {
+  id                   String    @id @default(uuid())
+  mealPlanInstanceId   String
+  mealId               String
+  positionIndex        Int       @default(0)
+  assignedDayOfWeek    String?
+  assignedDate         DateTime?
+  servingsOverride     Int?
+  ingredientOverrides  Json?     // IngredientOverride[]
+  isBreakfast          Boolean   @default(false)
+  isLunch              Boolean   @default(false)
+  isDinner             Boolean   @default(true)
+  lastCooked           DateTime?
+  timesCooked          Int       @default(0)
+  notes                String?
+
+  planInstance MealPlanInstance @relation(fields: [mealPlanInstanceId], references: [id], onDelete: Cascade)
+  meal         Meal             @relation(fields: [mealId], references: [id])
+
+  @@map("meal_plan_items")
+}
+
+model GroceryList {
+  id                  String            @id @default(uuid())
+  userId              String
+  title               String
+  mealPlanInstanceId  String?
+  sourceType          String            @default("plan")
+  status              GroceryListStatus @default(draft)
+  lastUsedAt          DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id])
+  planInstance MealPlanInstance? @relation(fields: [mealPlanInstanceId], references: [id])
+  items        GroceryListItem[]
+
+  @@map("grocery_lists")
+}
+
+model GroceryListItem {
+  id             String       @id @default(uuid())
+  groceryListId  String
+  ingredientId   String?
+  displayName    String
+  quantity       Float        @default(1)
+  unit           String       @default("")
+  storeSection   StoreSection @default(other)
+  isChecked      Boolean      @default(false)
+  isOptional     Boolean      @default(false)
+  wasAiInferred  Boolean      @default(false)
+  isAmbiguous    Boolean      @default(false)
+  sourceMealId   String?
+  sourceDishId   String?
+  notes          String?
+
+  groceryList GroceryList @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  ingredient  Ingredient? @relation(fields: [ingredientId], references: [id])
+
+  @@map("grocery_list_items")
+}
+
+model Retailer {
+  id                          String           @id @default(uuid())
+  name                        String
+  slug                        String           @unique
+  integrationType             IntegrationType  @default(api)
+  isEnabled                   Boolean          @default(true)
+  logoUrl                     String?
+  supportsAuth                Boolean          @default(true)
+  supportsCartAdd             Boolean          @default(true)
+  supportsAvailabilityLookup  Boolean          @default(false)
+
+  connections   RetailerConnection[]
+  orderSessions OrderSession[]
+
+  @@map("retailers")
+}
+
+model RetailerConnection {
+  id            String   @id @default(uuid())
+  userId        String
+  retailerId    String
+  status        String   @default("connected")
+  authReference String?  // encrypted token reference — never store raw credentials
+  lastUsedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id])
+  retailer Retailer @relation(fields: [retailerId], references: [id])
+
+  @@unique([userId, retailerId])
+  @@map("retailer_connections")
+}
+
+model OrderSession {
+  id             String   @id @default(uuid())
+  userId         String
+  retailerId     String
+  groceryListId  String
+  status         String   @default("pending")
+  resultMessage  String?
+  cartUrl        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+  retailer  Retailer @relation(fields: [retailerId], references: [id])
+
+  @@map("order_sessions")
+}
+
+model Subscription {
+  id                    String             @id @default(uuid())
+  userId                String             @unique
+  planCode              SubscriptionPlan   @default(free)
+  status                SubscriptionStatus @default(trialing)
+  trialEndsAt           DateTime?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  stripeSubscriptionId  String?            @unique
+  stripeCustomerId      String?
+  promoCodeId           String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  promoCode PromoCode? @relation(fields: [promoCodeId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model PromoCode {
+  id               String    @id @default(uuid())
+  code             String    @unique
+  discountType     String    // 'percent' | 'fixed'
+  discountValue    Float
+  validFrom        DateTime
+  validTo          DateTime?
+  maxRedemptions   Int?
+  redemptionCount  Int       @default(0)
+  isActive         Boolean   @default(true)
+
+  subscriptions Subscription[]
+
+  @@map("promo_codes")
+}
+
+model NotificationPreference {
+  id                           String   @id @default(uuid())
+  userId                       String   @unique
+  prepRemindersEnabled         Boolean  @default(false)
+  cookRemindersEnabled         Boolean  @default(false)
+  groceryRemindersEnabled      Boolean  @default(true)
+  weeklyPlanningRemindersEnabled Boolean @default(true)
+  preferredGroceryReminderDay  String?  @default("saturday")
+  preferredPrepReminderDay     String?  @default("sunday")
+  preferredTimeOfDay           String?  @default("09:00")
+
+  @@map("notification_preferences")
+}
+
+model UserActivity {
+  id          String            @id @default(uuid())
+  userId      String
+  eventType   ActivityEventType
+  entityId    String?
+  entityType  String?
+  platform    String?
+  createdAt   DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("user_activities")
+}

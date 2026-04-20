@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Kiwi"
+version = "1.0.0"
+id = "artifacts/kiwi"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 23406
+
+[services.development]
+run = "pnpm --filter @workspace/kiwi run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/kiwi", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/kiwi", "run", "serve" ]
+
+[services.env]
+PORT = "23406"
+BASE_PATH = "/"

@@ -1,0 +1,32 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "RW6igWfJfs_ngDa-Cj7fi"
+uri = "file://artifacts/kiwi/assets/images/icon.png"
+type = "image"
+title = "kiwi app icon"
+
+[[generated]]
+id = "vps0dmJdY3y8_TM7M9G_Z"
+uri = "file://artifacts/kiwi/assets/images/meal-1.png"
+type = "image"
+title = "grain bowl meal"
+
+[[generated]]
+id = "DZMsYQxxmAEBab4KCRtqI"
+uri = "file://artifacts/kiwi/assets/images/meal-2.png"
+type = "image"
+title = "salmon dinner"
+
+[[generated]]
+id = "WxtIaYGC9Cr35SU47QvFy"
+uri = "file://artifacts/kiwi/assets/images/meal-3.png"
+type = "image"
+title = "stir fry meal"
+
+[[generated]]
+id = "SHom6vDzZ6esLavLGszOB"
+uri = "file://artifacts/kiwi/assets/images/groceries.png"
+type = "image"
+title = "fresh produce"

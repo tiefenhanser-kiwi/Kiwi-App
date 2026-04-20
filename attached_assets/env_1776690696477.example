@@ -1,0 +1,68 @@
+# kiwi/.env.example
+# Copy this to .env and fill in all values.
+# Never commit .env to version control.
+# In Replit: use Secrets (the lock icon) for all values below.
+
+# ── DATABASE ──
+DATABASE_URL=postgresql://user:password@host:5432/kiwi_db
+
+# ── REDIS ──
+REDIS_URL=redis://localhost:6379
+
+# ── AUTH ──
+JWT_SECRET=replace-with-a-long-random-string-at-least-64-chars
+JWT_EXPIRES_IN=7d
+
+# ── ANTHROPIC (AI) ──
+# Get from: console.anthropic.com
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-opus-4-6
+
+# ── STRIPE (Payments) ──
+# Get from: dashboard.stripe.com
+# Use test keys (sk_test_...) during development, live keys for production
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+# Create these products in Stripe dashboard first, then paste Price IDs here
+STRIPE_PREMIUM_PRICE_ID_MONTHLY=price_...
+STRIPE_PREMIUM_PRICE_ID_ANNUAL=price_...
+
+# ── TWILIO (SMS OTP) ──
+# Get from: console.twilio.com
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_PHONE_NUMBER=+15550000000
+
+# ── EMAIL (Resend) ──
+# Get from: resend.com
+RESEND_API_KEY=re_...
+EMAIL_FROM=hello@getkiwi.app
+
+# ── INSTACART ──
+# Apply for access at: instacart.com/business/partnerships
+# Leave blank until approved — Whole Foods RPA will be primary in the meantime
+INSTACART_API_KEY=
+INSTACART_API_URL=https://api.instacart.com/v2
+
+# ── IMAGES (Unsplash — Beta Only) ──
+# Get from: unsplash.com/developers
+# Replace with Getty/Shutterstock license for production
+UNSPLASH_ACCESS_KEY=...
+
+# ── APP CONFIG ──
+NODE_ENV=development
+PORT=3001
+APP_URL=https://your-replit-url.repl.co
+MOBILE_DEEP_LINK_SCHEME=kiwi
+
+# ── TRIAL CONFIG ──
+# Set to 0 to disable trials (all new users start on Free tier)
+DEFAULT_TRIAL_DAYS=30
+FREE_TIER_MAX_PLANS=4
+
+# ── FEATURE FLAGS ──
+# Set to 'true' to enable, 'false' to disable
+ENABLE_INSTACART=false
+ENABLE_WHOLEFOOODS_RPA=true
+ENABLE_PEAPOD_RPA=false
