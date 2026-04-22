@@ -252,10 +252,9 @@ model Dish {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
-  user            User?                   @relation(fields: [userId], references: [id])
+  user            User?            @relation(fields: [userId], references: [id])
   dishIngredients DishIngredient[]
   mealLinks       MealDishLink[]
-  recipeSteps     RecipeInstructionStep[]
 
   @@map("dishes")
 }
@@ -303,10 +302,9 @@ model Meal {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
-  user        User?                   @relation(fields: [userId], references: [id])
-  dishLinks   MealDishLink[]
-  planItems   MealPlanItem[]
-  recipeSteps RecipeInstructionStep[]
+  user      User?          @relation(fields: [userId], references: [id])
+  dishLinks MealDishLink[]
+  planItems MealPlanItem[]
 
   @@map("meals")
 }
@@ -327,8 +325,8 @@ model MealDishLink {
 
 model RecipeInstructionStep {
   id                 String    @id @default(uuid())
-  ownerType          String // 'meal' | 'dish'
-  ownerId            String
+  ownerType          String // 'meal' | 'dish' — discriminator; enforced at application layer
+  ownerId            String // FK enforced at application layer, not DB (Postgres cannot conditionally reference two tables)
   stepIndex          Int
   stepTextRaw        String
   stepTextTranslated String
@@ -340,9 +338,7 @@ model RecipeInstructionStep {
   requiresMarination Boolean   @default(false)
   isTimingSensitive  Boolean   @default(false)
 
-  meal Meal? @relation(fields: [ownerId], references: [id], map: "recipe_meal_fk")
-  dish Dish? @relation(fields: [ownerId], references: [id], map: "recipe_dish_fk")
-
+  @@index([ownerType, ownerId])
   @@map("recipe_instruction_steps")
 }
 
