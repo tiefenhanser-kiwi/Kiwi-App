@@ -423,39 +423,43 @@ const RECIPES: SeedRecipe[] = [
 // ── main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  await prisma.$transaction(
-    async (tx) => {
-      // Step 1: deduplicate and upsert all ingredients globally, build ID map
-      const seen = new Map<string, SeedIngredient>();
-      for (const recipe of RECIPES) {
-        for (const ing of recipe.ingredients) {
-          const key = canonicalize(ing.name);
-          if (!seen.has(key)) seen.set(key, ing);
-        }
-      }
+  // Pass 1: deduplicate and upsert all ingredients globally (no transaction —
+  // Ingredient.canonicalName is @unique so upserts are idempotent on retry).
+  const seen = new Map<string, SeedIngredient>();
+  for (const recipe of RECIPES) {
+    for (const ing of recipe.ingredients) {
+      const key = canonicalize(ing.name);
+      if (!seen.has(key)) seen.set(key, ing);
+    }
+  }
 
-      const ingredientIdMap = new Map<string, string>();
-      for (const [key, ing] of seen) {
-        const { unit } = parseAmount(ing.amount);
-        const rec = await tx.ingredient.upsert({
-          where: { canonicalName: key },
-          update: {},
-          create: {
-            canonicalName: key,
-            displayName: ing.name,
-            category: ing.category,
-            defaultUnit: unit || "each",
-          },
-          select: { id: true },
-        });
-        ingredientIdMap.set(key, rec.id);
-      }
+  const ingredientIdMap = new Map<string, string>();
+  for (const [key, ing] of seen) {
+    const { unit } = parseAmount(ing.amount);
+    const rec = await prisma.ingredient.upsert({
+      where: { canonicalName: key },
+      update: {},
+      create: {
+        canonicalName: key,
+        displayName: ing.name,
+        category: ing.category,
+        defaultUnit: unit || "each",
+      },
+      select: { id: true },
+    });
+    ingredientIdMap.set(key, rec.id);
+  }
 
-      // Step 2: upsert each recipe
-      for (const recipe of RECIPES) {
-        const mealId = recipe.id;
-        const dishId = mealId.replace(/^r-/, "d-");
+  console.log(`seeded ${ingredientIdMap.size} unique ingredients`);
 
+  // Pass 2: per-recipe transactions. Each recipe is atomic; failure of one
+  // recipe rolls back only that recipe's rows.
+  for (const recipe of RECIPES) {
+    const mealId = recipe.id;
+    const dishId = mealId.replace(/^r-/, "d-");
+
+    await prisma.$transaction(
+      async (tx) => {
         await tx.meal.upsert({
           where: { id: mealId },
           update: {},
@@ -532,10 +536,10 @@ async function main() {
         console.log(
           `seeded ${mealId}: ${recipe.ingredients.length} ingredients, ${recipe.steps.length} steps`,
         );
-      }
-    },
-    { timeout: 30_000 },
-  );
+      },
+      { timeout: 30_000 },
+    );
+  }
 }
 
 main()
