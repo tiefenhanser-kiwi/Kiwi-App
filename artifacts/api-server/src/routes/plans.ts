@@ -2,8 +2,8 @@ import { Router, type IRouter } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 
 import { logger } from "../lib/logger";
+import { prisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
-import { SERVER_RECIPES, SERVER_RECIPE_IDS } from "../lib/recipeCatalog";
 
 const router: IRouter = Router();
 
@@ -44,6 +44,35 @@ interface GeneratedPlan {
   meals: GeneratedSlot[];
 }
 
+interface ServerRecipe {
+  id: string;
+  title: string;
+  cuisine: string;
+  minutes: number;
+  tags: string[];
+}
+
+async function fetchServerRecipes(): Promise<ServerRecipe[]> {
+  const meals = await prisma.meal.findMany({
+    where: { isArchived: false, isPublic: true },
+    select: {
+      id: true,
+      title: true,
+      cuisineType: true,
+      estimatedTimeMinutes: true,
+      tags: true,
+    },
+    orderBy: { title: "asc" },
+  });
+  return meals.map((m) => ({
+    id: m.id,
+    title: m.title,
+    cuisine: m.cuisineType ?? "",
+    minutes: m.estimatedTimeMinutes,
+    tags: m.tags,
+  }));
+}
+
 const SYSTEM_PROMPT = `You are Kiwi, a warm, practical meal-planning assistant.
 Given a list of available recipes and the user's preferences, build a weekly dinner plan.
 
@@ -79,9 +108,12 @@ router.post("/plans/generate", limiter, async (req, res) => {
     .filter(Boolean)
     .slice(0, 50);
 
+  const serverRecipes = await fetchServerRecipes();
+  const serverRecipeIds = new Set(serverRecipes.map((r) => r.id));
+
   if (!anthropic) {
     logger.warn("Anthropic not configured, returning deterministic fallback plan");
-    return res.json(buildFallbackPlan(nights));
+    return res.json(buildFallbackPlan(nights, serverRecipes));
   }
 
   const userMessage = JSON.stringify(
@@ -94,7 +126,7 @@ router.post("/plans/generate", limiter, async (req, res) => {
       preferredCuisines: cleanStrArr(prefs.cuisines, 12, 40),
       cookSkill: sanitizeText(prefs.cookSkill, 30) || "intermediate",
       pantry,
-      recipes: SERVER_RECIPES, // server-authoritative catalog
+      recipes: serverRecipes, // server-authoritative catalog
     },
     null,
     2,
@@ -117,15 +149,15 @@ router.post("/plans/generate", limiter, async (req, res) => {
       parsed = JSON.parse(cleaned);
     } catch (err) {
       logger.error({ err, text: cleaned }, "Failed to parse plan JSON");
-      return res.json(buildFallbackPlan(nights));
+      return res.json(buildFallbackPlan(nights, serverRecipes));
     }
 
-    const plan = normalizePlan(parsed, nights);
-    if (!plan) return res.json(buildFallbackPlan(nights));
+    const plan = normalizePlan(parsed, nights, serverRecipes, serverRecipeIds);
+    if (!plan) return res.json(buildFallbackPlan(nights, serverRecipes));
     return res.json(plan);
   } catch (err) {
     logger.error({ err }, "Anthropic plan generation failed");
-    return res.json(buildFallbackPlan(nights));
+    return res.json(buildFallbackPlan(nights, serverRecipes));
   }
 });
 
@@ -156,7 +188,12 @@ function clampInt(v: unknown, min: number, max: number, fallback: number): numbe
   return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
-function normalizePlan(raw: unknown, nights: number): GeneratedPlan | null {
+function normalizePlan(
+  raw: unknown,
+  nights: number,
+  recipes: ServerRecipe[],
+  recipeIds: Set<string>,
+): GeneratedPlan | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
   const meals = Array.isArray(obj.meals) ? obj.meals : [];
@@ -169,7 +206,7 @@ function normalizePlan(raw: unknown, nights: number): GeneratedPlan | null {
     const recipeId = (m as Record<string, unknown>).recipeId;
     const reason = (m as Record<string, unknown>).reason;
 
-    if (typeof recipeId !== "string" || !SERVER_RECIPE_IDS.has(recipeId)) continue;
+    if (typeof recipeId !== "string" || !recipeIds.has(recipeId)) continue;
     const safeSlot: SlotKey = VALID_SLOTS.includes(slot as SlotKey)
       ? (slot as SlotKey)
       : "Dinner";
@@ -192,7 +229,7 @@ function normalizePlan(raw: unknown, nights: number): GeneratedPlan | null {
   while (valid.length < nights) {
     const idx = valid.length;
     const dayIdx = idx % 7;
-    const recipeId = SERVER_RECIPES[idx % SERVER_RECIPES.length].id;
+    const recipeId = recipes[idx % recipes.length].id;
     valid.push({
       day: VALID_DAYS[dayIdx],
       slot: "Dinner",
@@ -214,14 +251,14 @@ function normalizePlan(raw: unknown, nights: number): GeneratedPlan | null {
   };
 }
 
-function buildFallbackPlan(nights: number): GeneratedPlan {
+function buildFallbackPlan(nights: number, recipes: ServerRecipe[]): GeneratedPlan {
   return {
     name: `${nights}-night plan`,
     notes: "A balanced rotation of your saved recipes.",
     meals: Array.from({ length: nights }).map((_, i) => ({
       day: VALID_DAYS[i % 7],
       slot: "Dinner",
-      recipeId: SERVER_RECIPES[i % SERVER_RECIPES.length].id,
+      recipeId: recipes[i % recipes.length].id,
       reason: "Variety pick",
     })),
   };
