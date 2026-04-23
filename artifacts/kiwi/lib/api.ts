@@ -2,7 +2,7 @@
 // Targets /api/* — uses the public Replit dev domain so the app can reach
 // the api-server from inside the Expo Go iframe / native devices.
 
-import { DayKey, MealSlot } from "./mockData";
+import type { DayKey, MealSlot } from "./types";
 import type { UserPrefs } from "@/contexts/AppContext";
 
 const apiBase =

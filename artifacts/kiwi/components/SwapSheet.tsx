@@ -12,7 +12,8 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { RECIPES, Recipe } from "@/lib/mockData";
+import { RECIPES } from "@/lib/stubs";
+import type { Recipe } from "@/lib/types";
 
 interface Props {
   visible: boolean;

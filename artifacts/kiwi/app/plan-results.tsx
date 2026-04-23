@@ -10,7 +10,7 @@ import { Screen } from "@/components/Screen";
 import { SwapSheet } from "@/components/SwapSheet";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { getRecipe } from "@/lib/mockData";
+import { getRecipe } from "@/lib/stubs";
 
 export default function PlanResults() {
   const { id } = useLocalSearchParams<{ id: string }>();

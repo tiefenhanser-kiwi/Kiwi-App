@@ -8,7 +8,8 @@ import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { getMondayISO, MealPlan } from "@/lib/mockData";
+import { getMondayISO } from "@/lib/domain";
+import type { MealPlan } from "@/lib/types";
 import { newId } from "@/lib/storage";
 import { generatePlan } from "@/lib/api";
 

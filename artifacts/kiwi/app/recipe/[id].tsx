@@ -18,7 +18,7 @@ import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { getRecipe } from "@/lib/mockData";
+import { getRecipe } from "@/lib/stubs";
 import { scaleIngredients, type ScaleIngredient } from "@/lib/api";
 
 export default function RecipeDetail() {

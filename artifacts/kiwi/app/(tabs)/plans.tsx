@@ -8,7 +8,7 @@ import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KFeatures, KSpacing, KType } from "@/constants/tokens";
-import { getRecipe } from "@/lib/mockData";
+import { getRecipe } from "@/lib/stubs";
 
 export default function PlansTab() {
   const router = useRouter();

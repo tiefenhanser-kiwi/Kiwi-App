@@ -15,7 +15,7 @@ import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { RECIPES } from "@/lib/mockData";
+import { RECIPES } from "@/lib/stubs";
 
 const FILTERS = ["All", "Favorites", "Quick", "Vegan", "Comfort"] as const;
 type Filter = (typeof FILTERS)[number];

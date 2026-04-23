@@ -9,7 +9,7 @@ import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { GroceryItem } from "@/lib/mockData";
+import type { GroceryItem } from "@/lib/types";
 
 const CATEGORY_ORDER: GroceryItem["category"][] = [
   "Produce",

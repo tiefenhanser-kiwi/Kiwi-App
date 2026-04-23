@@ -10,7 +10,7 @@ import { MealCard } from "@/components/MealCard";
 import { Screen } from "@/components/Screen";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KSpacing, KType } from "@/constants/tokens";
-import { getRecipe } from "@/lib/mockData";
+import { getRecipe } from "@/lib/stubs";
 
 export default function HomeTab() {
   const router = useRouter();

@@ -7,7 +7,7 @@ import * as Haptics from "expo-haptics";
 
 import { Button } from "@/components/Button";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { getRecipe } from "@/lib/mockData";
+import { getRecipe } from "@/lib/stubs";
 import { detectStepSeconds, formatTimer } from "@/lib/cookTimer";
 
 export default function CookMode() {

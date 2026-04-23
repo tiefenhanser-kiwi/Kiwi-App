@@ -12,11 +12,12 @@ import {
   buildGroceryList,
   defaultPlan,
   getRecipe,
+} from "@/lib/stubs";
+import type {
   GroceryItem,
   MealPlan,
   MealSlot,
-  RECIPES,
-} from "@/lib/mockData";
+} from "@/lib/types";
 
 export interface UserPrefs {
   household: number;
@@ -340,4 +341,3 @@ export function useApp(): AppState {
   return ctx;
 }
 
-export const ALL_RECIPE_IDS = RECIPES.map((r) => r.id);

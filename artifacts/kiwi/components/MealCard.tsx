@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
 import { KColors, KRadius, KShadow, KSpacing, KType } from "@/constants/tokens";
-import { Recipe } from "@/lib/mockData";
+import type { Recipe } from "@/lib/types";
 
 interface Props {
   recipe: Recipe;
