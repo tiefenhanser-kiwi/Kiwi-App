@@ -13,9 +13,11 @@
     "@anthropic-ai/sdk": "^0.90.0",
     "@prisma/client": "^6.19.3",
     "@workspace/api-zod": "workspace:*",
+    "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "express": "^5",
+    "jsonwebtoken": "^9.0.3",
     "pino": "^9",
     "pino-http": "^10"
   },
@@ -23,9 +25,11 @@
     "seed": "tsx prisma/seed.ts"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "catalog:",
     "esbuild": "^0.27.3",
     "esbuild-plugin-pino": "^2.3.3",
