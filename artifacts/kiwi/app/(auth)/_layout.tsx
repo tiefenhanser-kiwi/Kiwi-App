@@ -1,7 +1,17 @@
-import { Stack } from "expo-router";
+import { Redirect, Stack } from "expo-router";
 
-// TODO(WS2-E): Restore auth guard. During Phase 2A-D, any (auth) screen
-// is reachable. Phase 2E will add JWT-based redirect if token is present.
+import { useAuth } from "@/contexts/AuthContext";
+
 export default function AuthLayout() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (isAuthenticated) {
+    return <Redirect href="/(tabs)" />;
+  }
+
   return <Stack screenOptions={{ headerShown: false }} />;
 }

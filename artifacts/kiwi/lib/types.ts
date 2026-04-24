@@ -50,3 +50,17 @@ export interface GroceryItem {
   checked: boolean;
   inPantry: boolean;
 }
+
+export interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  zipCode: string | null;
+  timezone: string;
+  accountStatus: string;
+  subscriptionStatus: string;
+  defaultHouseholdSize: number;
+  createdAt: string;
+}

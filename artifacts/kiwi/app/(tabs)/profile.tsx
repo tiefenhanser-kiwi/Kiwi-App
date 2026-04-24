@@ -7,14 +7,18 @@ import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { KColors, KSpacing, KType } from "@/constants/tokens";
-
-// TODO(WS2-E): Restore real user display from GET /auth/me.
-// Placeholder values shown during WS2 Clerk rip.
 
 export default function ProfileTab() {
   const router = useRouter();
+  const { user, logout } = useAuth();
   const { prefs, isPremium, plans, pantry } = useApp();
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/(auth)/welcome");
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
@@ -23,10 +27,14 @@ export default function ProfileTab() {
         <Card padded>
           <View style={styles.userRow}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>G</Text>
+              <Text style={styles.avatarText}>
+                {user?.firstName?.charAt(0).toUpperCase() ?? "?"}
+              </Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>Guest</Text>
+              <Text style={styles.name}>
+                {user ? `${user.firstName} ${user.lastName}` : "—"}
+              </Text>
               <View style={styles.plan}>
                 <Feather
                   name={isPremium ? "star" : "circle"}
@@ -66,12 +74,12 @@ export default function ProfileTab() {
         </Section>
 
         <Section title="Account">
-          <Row icon="mail" label="—" />
+          <Row icon="mail" label={user?.email ?? "—"} />
           <Row
             icon="log-out"
             label="Sign out"
             destructive
-            onPress={() => router.replace("/(auth)/welcome")}
+            onPress={handleLogout}
           />
         </Section>
       </Screen>
