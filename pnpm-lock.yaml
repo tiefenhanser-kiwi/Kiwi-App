@@ -161,7 +161,7 @@ importers:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.90.0
-        version: 0.90.0(zod@4.3.6)
+        version: 0.90.0(zod@3.25.76)
       '@prisma/client':
         specifier: ^6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
@@ -189,6 +189,9 @@ importers:
       pino-http:
         specifier: ^10
         version: 10.5.0
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@types/bcryptjs':
         specifier: ^3.0.0
@@ -5686,11 +5689,11 @@ snapshots:
 
   '@0no-co/graphql.web@1.2.0': {}
 
-  '@anthropic-ai/sdk@0.90.0(zod@4.3.6)':
+  '@anthropic-ai/sdk@0.90.0(zod@3.25.76)':
     dependencies:
       json-schema-to-ts: 3.1.1
     optionalDependencies:
-      zod: 4.3.6
+      zod: 3.25.76
 
   '@babel/code-frame@7.10.4':
     dependencies:
