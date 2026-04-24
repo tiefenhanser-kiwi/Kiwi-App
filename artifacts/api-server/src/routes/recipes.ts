@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "../lib/logger";
 import { prisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
+import { requireAuth } from "../middleware/auth";
 
 const router: IRouter = Router();
 
@@ -41,7 +42,7 @@ Rules:
 const limiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 });
 const catalogLimiter = rateLimit({ capacity: 30, refillPerSec: 30 / 60 }); // 30 burst, ~1 every 2s
 
-router.post("/recipes/scale", limiter, async (req, res) => {
+router.post("/recipes/scale", requireAuth, limiter, async (req, res) => {
   const body = (req.body ?? {}) as ScaleRequest;
   const fromServings = clampInt(body.fromServings, 1, 20, 2);
   const toServings = clampInt(body.toServings, 1, 20, 2);
@@ -117,7 +118,7 @@ router.post("/recipes/scale", limiter, async (req, res) => {
   }
 });
 
-router.get("/recipes", catalogLimiter, async (req, res) => {
+router.get("/recipes", requireAuth, catalogLimiter, async (req, res) => {
   const limit = Math.min(
     100,
     Math.max(1, Number(req.query.limit) || 20),
@@ -162,9 +163,7 @@ router.get("/recipes", catalogLimiter, async (req, res) => {
   }
 });
 
-// TODO(WS2): add auth middleware to GET /recipes and GET /recipes/:id.
-
-router.get("/recipes/:id", catalogLimiter, async (req, res) => {
+router.get("/recipes/:id", requireAuth, catalogLimiter, async (req, res) => {
   const id = req.params.id;
   if (typeof id !== "string" || id.length === 0 || id.length > 100) {
     return res.status(400).json({ error: "invalid recipe id" });

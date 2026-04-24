@@ -241,7 +241,7 @@ router.post("/auth/password-reset/confirm", authLimiter, async (req, res) => {
 });
 
 // GET /auth/me
-router.get("/auth/me", meLimiter, requireAuth, async (req, res) => {
+router.get("/auth/me", requireAuth, meLimiter, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user) {

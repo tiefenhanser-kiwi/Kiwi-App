@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "../lib/logger";
 import { prisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
+import { requireAuth } from "../middleware/auth";
 
 const router: IRouter = Router();
 
@@ -96,7 +97,7 @@ Rules:
 
 const limiter = rateLimit({ capacity: 8, refillPerSec: 8 / 60 }); // 8 burst, ~1 every 7.5s
 
-router.post("/plans/generate", limiter, async (req, res) => {
+router.post("/plans/generate", requireAuth, limiter, async (req, res) => {
   const body = (req.body ?? {}) as GenerateRequest;
   const nights = Math.min(7, Math.max(1, Number(body.nights) || 5));
   const prefs = body.prefs ?? {};
