@@ -5,18 +5,17 @@ Mobile-first meal planning app built with Expo + Expo Router, designed to ship t
 ## Stack
 
 - **Mobile shell:** Expo SDK 54, expo-router (typed routes), React Native 0.81, React 19, React Compiler enabled.
-- **Auth:** Clerk (`@clerk/expo`) wired through `ClerkProvider` in `app/_layout.tsx` with email + password verification flow.
 - **State:** React Context (`contexts/AppContext.tsx`) backed by AsyncStorage (`lib/storage.ts`, `kiwi:` key prefix).
 - **Design system:** `constants/tokens.ts` defines the locked sage + terracotta palette, spacing, radius, shadows, type scale, and brand copy (Compost / Build / Kiwi is thinking).
 - **Components:** `components/Button`, `Card`, `Chip`, `MealCard`, `Header`, `Screen`, plus the existing `ErrorBoundary` and `KeyboardAwareScrollViewCompat`.
 - **Fonts:** Inter (400/500/600/700) via `@expo-google-fonts/inter`.
-- **Backend artifact:** `artifacts/api-server` (Fastify) is reserved for the eventual `/api/plans/*`, `/api/groceries/*`, `/api/cook/*`, and Clerk-proxy endpoints once API keys arrive.
+- **Backend artifact:** `artifacts/api-server` (Fastify) is reserved for the eventual `/api/plans/*`, `/api/groceries/*`, `/api/cook/*`, and auth and integration endpoints once API keys arrive.
 
 ## Screen map
 
 ```
 app/
-├── _layout.tsx                 ClerkProvider + AppProvider + Stack
+├── _layout.tsx                 AppProvider + Stack
 ├── index.tsx                   Auth/onboarding router redirect
 ├── (auth)/
 │   ├── _layout.tsx             Redirects to /(tabs) when signed in
@@ -69,8 +68,6 @@ These flows have hooks in the UI but use stubs until keys are provisioned:
 
 ## Environment
 
-- `CLERK_PUBLISHABLE_KEY` is provisioned and forwarded to Metro as `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` via the `dev` script and `scripts/build.js`.
-- `EXPO_PUBLIC_CLERK_PROXY_URL` is forwarded for production builds (currently unset).
 - `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` + `AI_INTEGRATIONS_ANTHROPIC_API_KEY` set automatically by Replit AI Integrations — used only by the api-server.
 
 ## Locked references

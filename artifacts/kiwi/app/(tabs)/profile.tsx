@@ -2,7 +2,6 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useAuth, useUser } from "@clerk/expo";
 
 import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
@@ -10,10 +9,11 @@ import { Screen } from "@/components/Screen";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KSpacing, KType } from "@/constants/tokens";
 
+// TODO(WS2-E): Restore real user display from GET /auth/me.
+// Placeholder values shown during WS2 Clerk rip.
+
 export default function ProfileTab() {
   const router = useRouter();
-  const { user } = useUser();
-  const { signOut } = useAuth();
   const { prefs, isPremium, plans, pantry } = useApp();
 
   return (
@@ -23,14 +23,10 @@ export default function ProfileTab() {
         <Card padded>
           <View style={styles.userRow}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {(user?.emailAddresses?.[0]?.emailAddress || "K")[0].toUpperCase()}
-              </Text>
+              <Text style={styles.avatarText}>G</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>
-                {user?.firstName || user?.emailAddresses?.[0]?.emailAddress || "Kiwi cook"}
-              </Text>
+              <Text style={styles.name}>Guest</Text>
               <View style={styles.plan}>
                 <Feather
                   name={isPremium ? "star" : "circle"}
@@ -70,12 +66,12 @@ export default function ProfileTab() {
         </Section>
 
         <Section title="Account">
-          <Row icon="mail" label={user?.emailAddresses?.[0]?.emailAddress || "—"} />
+          <Row icon="mail" label="—" />
           <Row
             icon="log-out"
             label="Sign out"
             destructive
-            onPress={() => signOut()}
+            onPress={() => router.replace("/(auth)/welcome")}
           />
         </Section>
       </Screen>
