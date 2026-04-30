@@ -51,6 +51,13 @@ export interface GroceryItem {
   inPantry: boolean;
 }
 
+export type Subscription = {
+  status: "trialing" | "active" | "past_due" | "canceled" | "none";
+  planCode: "free" | "premium_monthly" | "premium_annual";
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+};
+
 export interface User {
   id: string;
   email: string;
@@ -62,5 +69,8 @@ export interface User {
   accountStatus: string;
   subscriptionStatus: string;
   defaultHouseholdSize: number;
+  lastPlanDiscoveryFilters: string[];
+  lastPlansFilters: string[];
+  subscription: Subscription | null;
   createdAt: string;
 }

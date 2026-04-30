@@ -48,6 +48,8 @@ function toUserShape(u: {
   accountStatus: string;
   subscriptionStatus: string;
   defaultHouseholdSize: number;
+  lastPlanDiscoveryFilters: string[];
+  lastPlansFilters: string[];
   createdAt: Date;
 }) {
   return {
@@ -61,7 +63,23 @@ function toUserShape(u: {
     accountStatus: u.accountStatus,
     subscriptionStatus: u.subscriptionStatus,
     defaultHouseholdSize: u.defaultHouseholdSize,
+    lastPlanDiscoveryFilters: u.lastPlanDiscoveryFilters,
+    lastPlansFilters: u.lastPlansFilters,
     createdAt: u.createdAt.toISOString(),
+  };
+}
+
+function toSubscriptionShape(s: {
+  status: string;
+  planCode: string;
+  trialEndsAt: Date | null;
+  currentPeriodEnd: Date | null;
+}) {
+  return {
+    status: s.status,
+    planCode: s.planCode,
+    trialEndsAt: s.trialEndsAt ? s.trialEndsAt.toISOString() : null,
+    currentPeriodEnd: s.currentPeriodEnd ? s.currentPeriodEnd.toISOString() : null,
   };
 }
 
@@ -243,12 +261,22 @@ router.post("/auth/password-reset/confirm", authLimiter, async (req, res) => {
 // GET /auth/me
 router.get("/auth/me", requireAuth, meLimiter, async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      include: { subscription: true },
+    });
     if (!user) {
       // Token valid but user deleted — client should treat as logout.
       return res.status(401).json({ error: "user not found" });
     }
-    return res.json({ user: toUserShape(user) });
+    return res.json({
+      user: {
+        ...toUserShape(user),
+        subscription: user.subscription
+          ? toSubscriptionShape(user.subscription)
+          : null,
+      },
+    });
   } catch (err) {
     logger.error({ err, userId: req.userId }, "Fetch /auth/me failed");
     return res.status(500).json({ error: "failed to fetch user" });

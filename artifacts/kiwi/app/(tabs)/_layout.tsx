@@ -28,8 +28,15 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "This Week",
+          title: "Home",
           tabBarIcon: ({ color }) => <Feather name="calendar" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="meals"
+        options={{
+          title: "My Meals",
+          tabBarIcon: ({ color }) => <Feather name="bookmark" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
