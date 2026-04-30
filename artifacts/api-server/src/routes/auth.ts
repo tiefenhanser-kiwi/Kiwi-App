@@ -115,7 +115,7 @@ router.post("/auth/signup", authLimiter, async (req, res) => {
           timezone: timezone ?? "America/New_York",
         },
       });
-      await tx.subscription.create({
+      const subscription = await tx.subscription.create({
         data: {
           userId: newUser.id,
           planCode: "free",
@@ -123,13 +123,16 @@ router.post("/auth/signup", authLimiter, async (req, res) => {
           trialEndsAt,
         },
       });
-      return newUser;
+      return { ...newUser, subscription };
     });
 
     const token = signToken(user.id);
     logger.info({ userId: user.id }, "User signed up");
     return res.status(201).json({
-      user: toUserShape(user),
+      user: {
+        ...toUserShape(user),
+        subscription: toSubscriptionShape(user.subscription),
+      },
       authToken: token,
       onboardingRequired: true,
     });
@@ -149,7 +152,10 @@ router.post("/auth/login", authLimiter, async (req, res) => {
   const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      include: { subscription: true },
+    });
     if (!user || !user.passwordHash) {
       return res.status(401).json({ error: "invalid credentials" });
     }
@@ -178,7 +184,12 @@ router.post("/auth/login", authLimiter, async (req, res) => {
     const token = signToken(user.id);
     logger.info({ userId: user.id }, "User logged in");
     return res.json({
-      user: toUserShape(user),
+      user: {
+        ...toUserShape(user),
+        subscription: user.subscription
+          ? toSubscriptionShape(user.subscription)
+          : null,
+      },
       authToken: token,
     });
   } catch (err) {

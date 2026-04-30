@@ -2,7 +2,7 @@ import * as SecureStore from "expo-secure-store";
 
 import type { User } from "./types";
 
-const TOKEN_KEY = "kiwi:authToken";
+const TOKEN_KEY = "kiwi_authToken";
 
 // ── Token storage ─────────────────────────────────────────────────────────
 

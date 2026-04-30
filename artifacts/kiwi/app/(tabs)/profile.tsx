@@ -10,10 +10,31 @@ import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { KColors, KSpacing, KType } from "@/constants/tokens";
 
+function planLabel(
+  subscription: { status?: string; trialEndsAt?: string | null } | null | undefined,
+): { label: string; isPremium: boolean } {
+  const status = subscription?.status;
+  if (status === "active") return { label: "Premium plan", isPremium: true };
+  if (status === "trialing") {
+    const trialEndsAt = subscription?.trialEndsAt ?? null;
+    if (!trialEndsAt) return { label: "Premium trial", isPremium: true };
+    const msLeft = new Date(trialEndsAt).getTime() - Date.now();
+    const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+    if (daysLeft <= 0) return { label: "Free plan", isPremium: false };
+    return {
+      label: `Premium trial · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left`,
+      isPremium: true,
+    };
+  }
+  return { label: "Free plan", isPremium: false };
+}
+
 export default function ProfileTab() {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { prefs, isPremium, plans, pantry } = useApp();
+  const { prefs, plans } = useApp();
+  const { label: planText, isPremium } = planLabel(user?.subscription ?? null);
+  const isActiveSub = user?.subscription?.status === "active";
 
   const handleLogout = async () => {
     await logout();
@@ -41,9 +62,7 @@ export default function ProfileTab() {
                   size={12}
                   color={isPremium ? KColors.terracotta[400] : KColors.neutral[600]}
                 />
-                <Text style={styles.planText}>
-                  {isPremium ? "Kiwi Premium" : "Free plan"}
-                </Text>
+                <Text style={styles.planText}>{planText}</Text>
               </View>
             </View>
           </View>
@@ -51,7 +70,6 @@ export default function ProfileTab() {
 
         <View style={styles.statsRow}>
           <Stat label="Plans" value={plans.length} />
-          <Stat label="Pantry" value={pantry.length} />
           <Stat label="Household" value={prefs.household} />
         </View>
 
@@ -62,13 +80,8 @@ export default function ProfileTab() {
             onPress={() => router.push("/onboarding-prefs")}
           />
           <Row
-            icon="package"
-            label="My Pantry"
-            onPress={() => router.push("/pantry")}
-          />
-          <Row
             icon="star"
-            label={isPremium ? "Manage Premium" : "Upgrade to Premium"}
+            label={isActiveSub ? "Manage Premium" : "Upgrade to Premium"}
             onPress={() => router.push("/upgrade")}
           />
         </Section>
