@@ -5,11 +5,12 @@
 import type { DayKey, MealSlot } from "./types";
 import type { UserPrefs } from "@/contexts/AppContext";
 
+// Convention: apiBase includes /api. Endpoint paths do NOT prefix /api.
 const apiBase =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   (process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : "");
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+    : "http://localhost:3000/api");
 
 export interface GeneratedPlanResponse {
   name: string;
@@ -33,7 +34,7 @@ export async function scaleIngredients(input: {
   toServings: number;
   ingredients: ScaleIngredient[];
 }): Promise<ScaleIngredient[]> {
-  const url = `${apiBase}/api/recipes/scale`;
+  const url = `${apiBase}/recipes/scale`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -55,7 +56,7 @@ export interface GeneratePlanInput {
 export async function generatePlan(
   input: GeneratePlanInput,
 ): Promise<GeneratedPlanResponse> {
-  const url = `${apiBase}/api/plans/generate`;
+  const url = `${apiBase}/plans/generate`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
