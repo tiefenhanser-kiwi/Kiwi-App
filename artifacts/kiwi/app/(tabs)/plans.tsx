@@ -38,7 +38,7 @@ function asPlanFilters(arr: string[] | undefined): PlanDiscoveryFilter[] {
 
 export default function PlansTab() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, setUiState } = useAuth();
   const { plans, currentPlan } = useApp();
 
   const hasAnyRealMeal = useMemo(() => {
@@ -93,9 +93,13 @@ export default function PlansTab() {
   }, []);
 
   const toggleFilter = (key: PlanDiscoveryFilter) => {
-    setFilters((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
+    setFilters((prev) => {
+      const next = prev.includes(key)
+        ? prev.filter((k) => k !== key)
+        : [...prev, key];
+      setUiState({ lastPlansFilters: next });
+      return next;
+    });
   };
 
   // OR semantics across selected chips, then substring search, then sort.

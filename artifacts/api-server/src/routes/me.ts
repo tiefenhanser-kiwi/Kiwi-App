@@ -9,7 +9,10 @@ const FILTER_KEYS = ["my_plans", "featured", "top_rated", "hosting_events"] as c
 
 const uiStateSchema = z.object({
   lastPlanDiscoveryFilters: z.array(z.enum(FILTER_KEYS)).optional(),
-  // Per D-WS3-006: WS4 will additively add lastPlansFilters here.
+  lastPlansFilters: z.array(z.enum(FILTER_KEYS)).optional(),
+  // At-least-one-field requirement is enforced below by the runtime
+  // Object.keys length check, so Zod's .optional() on every field is
+  // intentional. Same shape extends to lastMealsFilters in WS4-4G.
 });
 
 const router: IRouter = Router();

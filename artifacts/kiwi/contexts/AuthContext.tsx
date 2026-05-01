@@ -30,6 +30,7 @@ interface AuthContextValue {
   clearError: () => void;
   setUiState: (updates: {
     lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
+    lastPlansFilters?: PlanDiscoveryFilter[];
   }) => void;
 }
 
@@ -147,7 +148,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // local state stays where they put it and a future retry layer (WS9+)
   // can reconcile.
   const setUiState = React.useCallback(
-    (updates: { lastPlanDiscoveryFilters?: PlanDiscoveryFilter[] }) => {
+    (updates: {
+      lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
+      lastPlansFilters?: PlanDiscoveryFilter[];
+    }) => {
       setUser((prev) => (prev ? { ...prev, ...updates } : prev));
 
       if (uiStateTimerRef.current) clearTimeout(uiStateTimerRef.current);

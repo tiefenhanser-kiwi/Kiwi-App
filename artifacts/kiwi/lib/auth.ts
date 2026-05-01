@@ -111,7 +111,10 @@ export type PlanDiscoveryFilter = (typeof FILTER_KEYS)[number];
 
 export async function patchUiState(
   token: string,
-  body: { lastPlanDiscoveryFilters?: PlanDiscoveryFilter[] },
+  body: {
+    lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
+    lastPlansFilters?: PlanDiscoveryFilter[];
+  },
 ): Promise<void> {
   const res = await fetch(`${apiBase}/me/ui-state`, {
     method: "PATCH",
