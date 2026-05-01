@@ -24,6 +24,11 @@ type Props<K extends string> = {
   onToggle: (key: K) => void;
 };
 
+// Single-select semantics (4H-2): tapping a chip selects only that chip;
+// tapping the already-selected chip is a no-op (the component
+// short-circuits so consumers don't fire spurious onToggle / persistence
+// calls). The array-based `selected` prop is preserved for back-compat
+// with persisted arrays — by convention always length 1+ now.
 export function FilterChipRow<K extends string>({
   options,
   selected,
@@ -40,11 +45,14 @@ export function FilterChipRow<K extends string>({
         return (
           <Pressable
             key={opt.key}
-            onPress={() => onToggle(opt.key)}
+            onPress={() => {
+              if (isOn) return;
+              onToggle(opt.key);
+            }}
             style={({ pressed }) => [
               styles.chip,
               isOn ? styles.chipOn : styles.chipOff,
-              pressed && { opacity: 0.7 },
+              pressed && !isOn && { opacity: 0.7 },
             ]}
           >
             <Text style={isOn ? styles.textOn : styles.textOff}>

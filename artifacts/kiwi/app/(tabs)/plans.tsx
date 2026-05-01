@@ -50,12 +50,14 @@ export default function PlansTab() {
     );
   }, [currentPlan]);
 
-  // Initial filter state — persisted user value if present, else PRD §9.2.2
-  // defaults (Featured for users with no saved plans; My Plans otherwise).
-  // Computed once at mount; setFilters takes over after.
+  // Single-select (4H-2): always exactly one filter active. Persisted user
+  // value first, else PRD §9.2.2 defaults (Featured for users with no saved
+  // plans; My Plans otherwise). Take the first element of any persisted
+  // multi-select array as a graceful migration. Computed once at mount;
+  // setFilters takes over after.
   const initialFilters = useMemo<PlanDiscoveryFilter[]>(() => {
     const persisted = asPlanFilters(user?.lastPlansFilters);
-    if (persisted.length > 0) return persisted;
+    if (persisted.length > 0) return [persisted[0]];
     return plans.length > 0 ? ["my_plans"] : ["featured"];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -93,13 +95,9 @@ export default function PlansTab() {
   }, []);
 
   const toggleFilter = (key: PlanDiscoveryFilter) => {
-    setFilters((prev) => {
-      const next = prev.includes(key)
-        ? prev.filter((k) => k !== key)
-        : [...prev, key];
-      setUiState({ lastPlansFilters: next });
-      return next;
-    });
+    const next: PlanDiscoveryFilter[] = [key];
+    setFilters(next);
+    setUiState({ lastPlansFilters: next });
   };
 
   // OR semantics across selected chips, then substring search, then sort.

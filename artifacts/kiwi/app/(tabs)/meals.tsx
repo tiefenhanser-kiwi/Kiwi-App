@@ -38,13 +38,15 @@ function asMealsFilters(arr: string[] | undefined): MealsFilter[] {
 export default function MealsTab() {
   const { user, setUiState } = useAuth();
 
-  // Initial filter state — persisted user value if present, else PRD §9.3.2
-  // default ("All Meals" for users with no saved meals; "My Meals" otherwise).
-  // Stub data is empty so we always default to "all_meals" today; WS7 wires
-  // a real saved-meals count here.
+  // Single-select (4H-2): always exactly one filter active. Persisted user
+  // value first, else PRD §9.3.2 default ("All Meals" for users with no
+  // saved meals; "My Meals" otherwise). Take the first element of any
+  // persisted multi-select array as a graceful migration. Stub data is
+  // empty so we always default to "all_meals" today; WS7 wires a real
+  // saved-meals count here.
   const initialFilters = useMemo<MealsFilter[]>(() => {
     const persisted = asMealsFilters(user?.lastMealsFilters);
-    if (persisted.length > 0) return persisted;
+    if (persisted.length > 0) return [persisted[0]];
     return ["all_meals"];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -81,13 +83,9 @@ export default function MealsTab() {
   }, []);
 
   const toggleFilter = (key: MealsFilter) => {
-    setFilters((prev) => {
-      const next = prev.includes(key)
-        ? prev.filter((k) => k !== key)
-        : [...prev, key];
-      setUiState({ lastMealsFilters: next });
-      return next;
-    });
+    const next: MealsFilter[] = [key];
+    setFilters(next);
+    setUiState({ lastMealsFilters: next });
   };
 
   // "All Meals" matches everything; otherwise filter to my_meals only.

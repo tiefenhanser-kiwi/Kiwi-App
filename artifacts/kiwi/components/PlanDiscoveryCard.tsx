@@ -23,8 +23,12 @@ export function PlanDiscoveryCard({
 }: Props) {
   const { setUiState } = useAuth();
   const [expanded, setExpanded] = useState(defaultExpanded);
+  // Single-select (4H-2): always exactly one filter active. Take the first
+  // element of any persisted multi-select array as a graceful migration.
   const [filters, setFilters] = useState<PlanDiscoveryFilter[]>(
-    initialFilters ?? ["featured"],
+    initialFilters && initialFilters.length > 0
+      ? [initialFilters[0]]
+      : ["featured"],
   );
   const [cards, setCards] = useState<PlanDiscoveryCard[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,13 +51,9 @@ export function PlanDiscoveryCard({
   }, []);
 
   const toggleFilter = (key: PlanDiscoveryFilter) => {
-    setFilters((prev) => {
-      const next = prev.includes(key)
-        ? prev.filter((k) => k !== key)
-        : [...prev, key];
-      setUiState({ lastPlanDiscoveryFilters: next });
-      return next;
-    });
+    const next: PlanDiscoveryFilter[] = [key];
+    setFilters(next);
+    setUiState({ lastPlanDiscoveryFilters: next });
   };
 
   // OR semantics per PRD §4.2.5: a card matches if ANY of its badge or
