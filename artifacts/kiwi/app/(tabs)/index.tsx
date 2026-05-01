@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 
 import { CookNowCtaCard } from "@/components/CookNowCtaCard";
 import { HomeHeader } from "@/components/HomeHeader";
+import { PlanDiscoveryCard } from "@/components/PlanDiscoveryCard";
 import { Screen } from "@/components/Screen";
 import { WizardCtaCard } from "@/components/WizardCtaCard";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +35,11 @@ export default function HomeTab() {
     if (!status) return false; // still loading — don't lock
     return status !== "trialing" && status !== "active";
   }, [user?.subscription?.status]);
+
+  const isFirstArrival = useMemo(() => {
+    const filters = user?.lastPlanDiscoveryFilters;
+    return !filters || filters.length === 0;
+  }, [user?.lastPlanDiscoveryFilters]);
 
   const handleWizardCtaPress = (route: "/wizard" | "/tellkiwi") => {
     if (isLocked) {
@@ -96,6 +102,10 @@ export default function HomeTab() {
           <CookNowCtaCard
             onPress={handleCookNowPress}
             locked={isLocked}
+          />
+          <PlanDiscoveryCard
+            defaultExpanded={isFirstArrival}
+            initialFilters={user?.lastPlanDiscoveryFilters as any}
           />
         </View>
       </Screen>

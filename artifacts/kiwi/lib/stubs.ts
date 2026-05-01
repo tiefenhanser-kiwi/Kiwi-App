@@ -42,3 +42,31 @@ export function buildGroceryList(
 ): GroceryItem[] {
   return [];
 }
+
+// ── Plan Discovery (PRD §4.2.5) ──
+// WS3-3E adds these so the Home Plan Discovery card renders against
+// stubbed data. WS7 swaps getHomePayload to a real fetch.
+
+export type PlanDiscoveryFilter =
+  | "my_plans"
+  | "featured"
+  | "top_rated"
+  | "hosting_events";
+
+export type PlanDiscoveryCard = {
+  planId: string;
+  title: string;
+  imageUrl: string | null;
+  tags: string[];
+  badge: PlanDiscoveryFilter | null;
+  mealPreviewTitles: string[];
+  canExpand: boolean;
+};
+
+export type HomePayload = {
+  planDiscoveryCards: PlanDiscoveryCard[];
+};
+
+export async function getHomePayload(): Promise<HomePayload> {
+  return { planDiscoveryCards: [] };
+}
