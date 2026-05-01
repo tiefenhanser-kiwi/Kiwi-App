@@ -4,31 +4,38 @@ import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
 import type { PlanDiscoveryFilter } from "@/lib/stubs";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 
-type FilterOption = {
-  key: PlanDiscoveryFilter;
+export type FilterChipOption<K extends string> = {
+  key: K;
   label: string;
 };
 
-const FILTER_OPTIONS: FilterOption[] = [
+// PRD §4.2.5 + §9.2.2 — same four-key set used by Home Plan Discovery
+// and the Plans tab. Exported so call sites don't redeclare.
+export const PLAN_DISCOVERY_FILTER_OPTIONS: FilterChipOption<PlanDiscoveryFilter>[] = [
   { key: "my_plans", label: "My Plans" },
   { key: "featured", label: "Featured" },
   { key: "top_rated", label: "Top Rated" },
   { key: "hosting_events", label: "Hosting & Events" },
 ];
 
-type Props = {
-  selected: PlanDiscoveryFilter[];
-  onToggle: (key: PlanDiscoveryFilter) => void;
+type Props<K extends string> = {
+  options: FilterChipOption<K>[];
+  selected: K[];
+  onToggle: (key: K) => void;
 };
 
-export function FilterChipRow({ selected, onToggle }: Props) {
+export function FilterChipRow<K extends string>({
+  options,
+  selected,
+  onToggle,
+}: Props<K>) {
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.row}
     >
-      {FILTER_OPTIONS.map((opt) => {
+      {options.map((opt) => {
         const isOn = selected.includes(opt.key);
         return (
           <Pressable

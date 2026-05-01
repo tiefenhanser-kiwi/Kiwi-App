@@ -9,6 +9,7 @@ import {
   readToken,
   signupRequest,
   storeToken,
+  type MealsFilter,
   type PlanDiscoveryFilter,
 } from "@/lib/auth";
 import type { User } from "@/lib/types";
@@ -31,6 +32,7 @@ interface AuthContextValue {
   setUiState: (updates: {
     lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
     lastPlansFilters?: PlanDiscoveryFilter[];
+    lastMealsFilters?: MealsFilter[];
   }) => void;
 }
 
@@ -151,6 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (updates: {
       lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
       lastPlansFilters?: PlanDiscoveryFilter[];
+      lastMealsFilters?: MealsFilter[];
     }) => {
       setUser((prev) => (prev ? { ...prev, ...updates } : prev));
 

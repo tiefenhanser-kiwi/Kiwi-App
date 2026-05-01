@@ -107,13 +107,16 @@ export async function fetchMe(token: string): Promise<User | null> {
 // always-shipped file would be the wrong direction. WS7 consolidates.
 
 const FILTER_KEYS = ["my_plans", "featured", "top_rated", "hosting_events"] as const;
+const MEALS_FILTER_KEYS = ["my_meals", "all_meals"] as const;
 export type PlanDiscoveryFilter = (typeof FILTER_KEYS)[number];
+export type MealsFilter = (typeof MEALS_FILTER_KEYS)[number];
 
 export async function patchUiState(
   token: string,
   body: {
     lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
     lastPlansFilters?: PlanDiscoveryFilter[];
+    lastMealsFilters?: MealsFilter[];
   },
 ): Promise<void> {
   const res = await fetch(`${apiBase}/me/ui-state`, {

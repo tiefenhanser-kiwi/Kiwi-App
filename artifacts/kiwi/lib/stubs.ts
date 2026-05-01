@@ -83,3 +83,21 @@ export type PlanRowData = {
 export async function getPlansPayload(): Promise<{ plans: PlanRowData[] }> {
   return { plans: [] };
 }
+
+// ── My Meals tab (PRD §9.3) ──
+// WS7 fills this. Same seam pattern as getHomePayload and getPlansPayload.
+
+export type MealsFilterGroup = "my_meals" | "all_meals";
+
+export type MealRowData = {
+  id: string;
+  title: string;
+  thumbnailUrl: string | null;
+  meta: string;
+  cuisineTag: string | null;
+  filterGroup: MealsFilterGroup;
+};
+
+export async function getMealsPayload(): Promise<{ meals: MealRowData[] }> {
+  return { meals: [] };
+}

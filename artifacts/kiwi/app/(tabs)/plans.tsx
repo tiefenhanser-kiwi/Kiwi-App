@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
-import { FilterChipRow } from "@/components/FilterChipRow";
+import { FilterChipRow, PLAN_DISCOVERY_FILTER_OPTIONS } from "@/components/FilterChipRow";
 import { Header } from "@/components/Header";
 import { PlanRow } from "@/components/PlanRow";
 import { Screen } from "@/components/Screen";
@@ -146,7 +146,11 @@ export default function PlansTab() {
         )}
 
         <View style={s.filterWrap}>
-          <FilterChipRow selected={filters} onToggle={toggleFilter} />
+          <FilterChipRow
+            options={PLAN_DISCOVERY_FILTER_OPTIONS}
+            selected={filters}
+            onToggle={toggleFilter}
+          />
         </View>
 
         <View style={s.controlsRow}>

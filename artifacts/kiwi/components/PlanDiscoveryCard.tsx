@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { FilterChipRow } from "@/components/FilterChipRow";
+import { FilterChipRow, PLAN_DISCOVERY_FILTER_OPTIONS } from "@/components/FilterChipRow";
 import { PlanCardSmall } from "@/components/PlanCardSmall";
 import { useAuth } from "@/contexts/AuthContext";
 import { getHomePayload, type PlanDiscoveryCard, type PlanDiscoveryFilter }
@@ -90,7 +90,11 @@ export function PlanDiscoveryCard({
 
       {expanded && (
         <View style={styles.body}>
-          <FilterChipRow selected={filters} onToggle={toggleFilter} />
+          <FilterChipRow
+            options={PLAN_DISCOVERY_FILTER_OPTIONS}
+            selected={filters}
+            onToggle={toggleFilter}
+          />
           <View style={styles.cardList}>
             {loading ? (
               <Text style={styles.emptyText}>Loading…</Text>

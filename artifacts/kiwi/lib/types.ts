@@ -57,6 +57,8 @@ export type Subscription = {
   currentPeriodEnd: string | null;
 };
 
+export type MealsFilter = "my_meals" | "all_meals";
+
 export interface User {
   id: string;
   email: string;
@@ -70,6 +72,7 @@ export interface User {
   defaultHouseholdSize: number;
   lastPlanDiscoveryFilters: string[];
   lastPlansFilters: string[];
+  lastMealsFilters: string[];
   subscription: Subscription | null;
   createdAt: string;
 }

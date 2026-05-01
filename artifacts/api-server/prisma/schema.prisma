@@ -160,6 +160,7 @@ model User {
   loginCountTotal      Int                @default(0)
   lastPlanDiscoveryFilters String[]       @default([])
   lastPlansFilters         String[]       @default([])
+  lastMealsFilters         String[]       @default([])
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 

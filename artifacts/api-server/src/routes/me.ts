@@ -6,13 +6,15 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 
 const FILTER_KEYS = ["my_plans", "featured", "top_rated", "hosting_events"] as const;
+const MEALS_FILTER_KEYS = ["my_meals", "all_meals"] as const;
 
 const uiStateSchema = z.object({
   lastPlanDiscoveryFilters: z.array(z.enum(FILTER_KEYS)).optional(),
   lastPlansFilters: z.array(z.enum(FILTER_KEYS)).optional(),
+  lastMealsFilters: z.array(z.enum(MEALS_FILTER_KEYS)).optional(),
   // At-least-one-field requirement is enforced below by the runtime
   // Object.keys length check, so Zod's .optional() on every field is
-  // intentional. Same shape extends to lastMealsFilters in WS4-4G.
+  // intentional.
 });
 
 const router: IRouter = Router();
