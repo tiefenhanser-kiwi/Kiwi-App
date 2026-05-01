@@ -5,9 +5,11 @@ import {
   fetchMe,
   loginRequest,
   logoutRequest,
+  patchUiState,
   readToken,
   signupRequest,
   storeToken,
+  type PlanDiscoveryFilter,
 } from "@/lib/auth";
 import type { User } from "@/lib/types";
 
@@ -26,6 +28,9 @@ interface AuthContextValue {
   ) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
+  setUiState: (updates: {
+    lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
+  }) => void;
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -35,6 +40,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const uiStateTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // On app boot: read stored token, hit /auth/me to validate + populate user.
   React.useEffect(() => {
@@ -133,6 +141,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
   }, []);
 
+  // Optimistic local update + debounced server sync. UI updates immediately
+  // (snappy chip toggles); the PATCH lands ~400ms after the user stops
+  // poking. Per D-WS3-007 we don't roll back on server failure — the user's
+  // local state stays where they put it and a future retry layer (WS9+)
+  // can reconcile.
+  const setUiState = React.useCallback(
+    (updates: { lastPlanDiscoveryFilters?: PlanDiscoveryFilter[] }) => {
+      setUser((prev) => (prev ? { ...prev, ...updates } : prev));
+
+      if (uiStateTimerRef.current) clearTimeout(uiStateTimerRef.current);
+      uiStateTimerRef.current = setTimeout(() => {
+        uiStateTimerRef.current = null;
+        if (!token) return;
+        patchUiState(token, updates).catch((err) => {
+          console.warn("patchUiState sync failed:", err);
+        });
+      }, 400);
+    },
+    [token],
+  );
+
   const value: AuthContextValue = {
     user,
     token,
@@ -143,6 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signup,
     logout,
     clearError,
+    setUiState,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

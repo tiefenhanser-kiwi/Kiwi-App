@@ -100,3 +100,29 @@ export async function fetchMe(token: string): Promise<User | null> {
   const body = (await res.json()) as { user: User };
   return body.user;
 }
+
+// ── UI state (PRD §4.2.5) ─────────────────────────────────────────────────
+// PlanDiscoveryFilter is duplicated from lib/stubs.ts intentionally:
+// stubs.ts is deletable when WS7 lands, and depending on it from this
+// always-shipped file would be the wrong direction. WS7 consolidates.
+
+const FILTER_KEYS = ["my_plans", "featured", "top_rated", "hosting_events"] as const;
+export type PlanDiscoveryFilter = (typeof FILTER_KEYS)[number];
+
+export async function patchUiState(
+  token: string,
+  body: { lastPlanDiscoveryFilters?: PlanDiscoveryFilter[] },
+): Promise<void> {
+  const res = await fetch(`${apiBase}/me/ui-state`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`patchUiState failed: ${res.status} ${text}`);
+  }
+}

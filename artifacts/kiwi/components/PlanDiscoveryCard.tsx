@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { FilterChipRow } from "@/components/FilterChipRow";
 import { PlanCardSmall } from "@/components/PlanCardSmall";
+import { useAuth } from "@/contexts/AuthContext";
 import { getHomePayload, type PlanDiscoveryCard, type PlanDiscoveryFilter }
   from "@/lib/stubs";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
@@ -20,6 +21,7 @@ export function PlanDiscoveryCard({
   defaultExpanded = false,
   initialFilters,
 }: Props) {
+  const { setUiState } = useAuth();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [filters, setFilters] = useState<PlanDiscoveryFilter[]>(
     initialFilters ?? ["featured"],
@@ -45,9 +47,13 @@ export function PlanDiscoveryCard({
   }, []);
 
   const toggleFilter = (key: PlanDiscoveryFilter) => {
-    setFilters((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
+    setFilters((prev) => {
+      const next = prev.includes(key)
+        ? prev.filter((k) => k !== key)
+        : [...prev, key];
+      setUiState({ lastPlanDiscoveryFilters: next });
+      return next;
+    });
   };
 
   // OR semantics per PRD §4.2.5: a card matches if ANY of its badge or
