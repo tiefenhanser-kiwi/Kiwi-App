@@ -2,6 +2,7 @@
 // Targets /api/* — uses the public Replit dev domain so the app can reach
 // the api-server from inside the Expo Go iframe / native devices.
 
+import { readToken } from "./auth";
 import type { DayKey, MealSlot } from "./types";
 import type { UserPrefs } from "@/contexts/AppContext";
 
@@ -35,9 +36,16 @@ export async function scaleIngredients(input: {
   ingredients: ScaleIngredient[];
 }): Promise<ScaleIngredient[]> {
   const url = `${apiBase}/recipes/scale`;
+  const token = await readToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(input),
   });
   if (!res.ok) {
@@ -57,9 +65,16 @@ export async function generatePlan(
   input: GeneratePlanInput,
 ): Promise<GeneratedPlanResponse> {
   const url = `${apiBase}/plans/generate`;
+  const token = await readToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       prompt: input.prompt,
       nights: input.nights,
