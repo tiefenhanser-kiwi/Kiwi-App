@@ -22,7 +22,7 @@ const CATEGORY_ORDER: GroceryItem["category"][] = [
 
 export default function GroceriesTab() {
   const router = useRouter();
-  const { groceries, toggleGrocery, togglePantry, isPremium } = useApp();
+  const { groceries, toggleGrocery, isPremium } = useApp();
 
   const grouped = useMemo(() => {
     const map: Record<string, GroceryItem[]> = {};
@@ -31,8 +31,7 @@ export default function GroceriesTab() {
     return map;
   }, [groceries]);
 
-  const remaining = groceries.filter((g) => !g.checked && !g.inPantry).length;
-  const inPantry = groceries.filter((g) => g.inPantry).length;
+  const remaining = groceries.filter((g) => !g.checked).length;
 
   const handleSendToRetailer = () => {
     if (!isPremium) {
@@ -48,7 +47,7 @@ export default function GroceriesTab() {
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
       <Header
         title="Groceries"
-        subtitle={`${remaining} to buy · ${inPantry} in pantry`}
+        subtitle={`${remaining} to buy`}
       />
       <Screen>
         <Card padded style={styles.summary}>
@@ -84,7 +83,6 @@ export default function GroceriesTab() {
                     item={item}
                     isLast={idx === items.length - 1}
                     onToggle={() => toggleGrocery(item.id)}
-                    onPantry={() => togglePantry(item.id)}
                   />
                 ))}
               </Card>
@@ -100,14 +98,12 @@ function Row({
   item,
   isLast,
   onToggle,
-  onPantry,
 }: {
   item: GroceryItem;
   isLast: boolean;
   onToggle: () => void;
-  onPantry: () => void;
 }) {
-  const dimmed = item.checked || item.inPantry;
+  const dimmed = item.checked;
   return (
     <Pressable onPress={onToggle} style={[styles.row, !isLast && styles.rowBorder]}>
       <View
@@ -135,21 +131,6 @@ function Row({
         </Text>
         <Text style={styles.itemAmount}>{item.amount}</Text>
       </View>
-      <Pressable onPress={onPantry} hitSlop={10} style={styles.pantryBtn}>
-        <Feather
-          name="archive"
-          size={16}
-          color={item.inPantry ? KColors.terracotta[400] : KColors.neutral[600]}
-        />
-        <Text
-          style={[
-            styles.pantryText,
-            item.inPantry && { color: KColors.terracotta[400] },
-          ]}
-        >
-          {item.inPantry ? "In pantry" : "Have it"}
-        </Text>
-      </Pressable>
     </Pressable>
   );
 }
@@ -217,19 +198,5 @@ const styles = StyleSheet.create({
     color: KColors.neutral[700],
     marginTop: 2,
     fontFamily: "Inter_400Regular",
-  },
-  pantryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: 4,
-    borderRadius: KRadius.pill,
-  },
-  pantryText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_500Medium",
-    fontWeight: "500",
   },
 });

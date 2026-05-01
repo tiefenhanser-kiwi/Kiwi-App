@@ -65,7 +65,7 @@ const BULLETS = [
   },
   {
     title: "Smart grocery lists",
-    body: "Auto-built from your plan and pantry. Send straight to Instacart or Whole Foods.",
+    body: "Auto-built from your plan. Send straight to Instacart or Whole Foods.",
   },
   {
     title: "Cook with confidence",

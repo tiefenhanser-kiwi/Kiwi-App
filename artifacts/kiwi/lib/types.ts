@@ -48,7 +48,6 @@ export interface GroceryItem {
   amount: string;
   category: Ingredient["category"];
   checked: boolean;
-  inPantry: boolean;
 }
 
 export type Subscription = {

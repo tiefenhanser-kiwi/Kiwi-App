@@ -58,10 +58,6 @@ interface AppState {
   ) => Promise<void>;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
-  togglePantry: (id: string) => Promise<void>;
-  addPantryItem: (name: string) => Promise<void>;
-  removePantryItem: (name: string) => Promise<void>;
-  pantry: string[];
   favorites: string[];
   toggleFavorite: (recipeId: string) => Promise<void>;
   isFavorite: (recipeId: string) => boolean;
@@ -79,19 +75,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [plans, setPlans] = useState<MealPlan[]>([]);
   const [currentPlanId, setCurrentPlanIdState] = useState<string | null>(null);
   const [groceries, setGroceries] = useState<GroceryItem[]>([]);
-  const [pantry, setPantry] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [isPremium, setIsPremiumState] = useState(false);
   const [onboardingComplete, setOnboardingCompleteState] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const [p, pl, cur, g, pan, fav, prem, ob] = await Promise.all([
+      const [p, pl, cur, g, fav, prem, ob] = await Promise.all([
         loadJSON<UserPrefs>("prefs", DEFAULT_PREFS),
         loadJSON<MealPlan[]>("plans", []),
         loadJSON<string | null>("currentPlanId", null),
         loadJSON<GroceryItem[]>("groceries", []),
-        loadJSON<string[]>("pantry", []),
         loadJSON<string[]>("favorites", []),
         loadJSON<boolean>("premium", false),
         loadJSON<boolean>("onboardingComplete", false),
@@ -110,29 +104,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (groceriesToUse.length === 0 && curId) {
         const cp = plansToUse.find((x) => x.id === curId);
         if (cp) {
-          groceriesToUse = buildGroceryList(cp, pan);
-          await saveJSON("groceries", groceriesToUse);
-        }
-      } else if (groceriesToUse.length > 0) {
-        // Reconcile inPantry flags against the persisted pantry so the
-        // two stores never drift out of sync after schema changes.
-        const pantrySet = new Set(pan.map((x) => x.toLowerCase()));
-        const reconciled = groceriesToUse.map((row) => ({
-          ...row,
-          inPantry: pantrySet.has(row.name.toLowerCase()),
-        }));
-        const drift = reconciled.some(
-          (r, i) => r.inPantry !== groceriesToUse[i].inPantry,
-        );
-        if (drift) {
-          groceriesToUse = reconciled;
+          groceriesToUse = buildGroceryList(cp);
           await saveJSON("groceries", groceriesToUse);
         }
       }
       setPlans(plansToUse);
       setCurrentPlanIdState(curId);
       setGroceries(groceriesToUse);
-      setPantry(pan);
       setFavorites(fav);
       setIsPremiumState(prem);
       setOnboardingCompleteState(ob);
@@ -146,8 +124,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const persistGroceriesFor = useCallback(
-    async (plan: MealPlan, currentPantry: string[]) => {
-      const ng = buildGroceryList(plan, currentPantry);
+    async (plan: MealPlan) => {
+      const ng = buildGroceryList(plan);
       setGroceries(ng);
       await saveJSON("groceries", ng);
     },
@@ -163,9 +141,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         saveJSON("plans", updated),
         saveJSON("currentPlanId", plan.id),
       ]);
-      await persistGroceriesFor(plan, pantry);
+      await persistGroceriesFor(plan);
     },
-    [plans, pantry, persistGroceriesFor],
+    [plans, persistGroceriesFor],
   );
 
   const setCurrentPlan = useCallback(
@@ -173,9 +151,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCurrentPlanIdState(id);
       await saveJSON("currentPlanId", id);
       const plan = plans.find((p) => p.id === id);
-      if (plan) await persistGroceriesFor(plan, pantry);
+      if (plan) await persistGroceriesFor(plan);
     },
-    [plans, pantry, persistGroceriesFor],
+    [plans, persistGroceriesFor],
   );
 
   const swapMealInCurrentPlan = useCallback(
@@ -192,9 +170,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       );
       setPlans(updatedPlans);
       await saveJSON("plans", updatedPlans);
-      await persistGroceriesFor(updatedPlan, pantry);
+      await persistGroceriesFor(updatedPlan);
     },
-    [plans, currentPlanId, pantry, persistGroceriesFor],
+    [plans, currentPlanId, persistGroceriesFor],
   );
 
   const toggleGrocery = useCallback(
@@ -206,73 +184,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await saveJSON("groceries", updated);
     },
     [groceries],
-  );
-
-  const togglePantry = useCallback(
-    async (id: string) => {
-      const target = groceries.find((g) => g.id === id);
-      if (!target) return;
-      const nextInPantry = !target.inPantry;
-      const updatedGroceries = groceries.map((g) =>
-        g.id === id ? { ...g, inPantry: nextInPantry } : g,
-      );
-      setGroceries(updatedGroceries);
-
-      // Surgically add/remove this single item — never rebuild pantry from
-      // groceries alone (would silently drop manually added pantry items).
-      const lower = target.name.toLowerCase();
-      let newPantry: string[];
-      if (nextInPantry) {
-        newPantry = pantry.some((p) => p.toLowerCase() === lower)
-          ? pantry
-          : [...pantry, target.name];
-      } else {
-        newPantry = pantry.filter((p) => p.toLowerCase() !== lower);
-      }
-      setPantry(newPantry);
-      await Promise.all([
-        saveJSON("groceries", updatedGroceries),
-        saveJSON("pantry", newPantry),
-      ]);
-    },
-    [groceries, pantry],
-  );
-
-  const addPantryItem = useCallback(
-    async (name: string) => {
-      const trimmed = name.trim();
-      if (!trimmed) return;
-      if (pantry.some((p) => p.toLowerCase() === trimmed.toLowerCase())) return;
-      const newPantry = [...pantry, trimmed];
-      setPantry(newPantry);
-      await saveJSON("pantry", newPantry);
-      const updatedGroceries = groceries.map((g) =>
-        g.name.toLowerCase() === trimmed.toLowerCase()
-          ? { ...g, inPantry: true }
-          : g,
-      );
-      setGroceries(updatedGroceries);
-      await saveJSON("groceries", updatedGroceries);
-    },
-    [pantry, groceries],
-  );
-
-  const removePantryItem = useCallback(
-    async (name: string) => {
-      const newPantry = pantry.filter(
-        (p) => p.toLowerCase() !== name.toLowerCase(),
-      );
-      setPantry(newPantry);
-      await saveJSON("pantry", newPantry);
-      const updatedGroceries = groceries.map((g) =>
-        g.name.toLowerCase() === name.toLowerCase()
-          ? { ...g, inPantry: false }
-          : g,
-      );
-      setGroceries(updatedGroceries);
-      await saveJSON("groceries", updatedGroceries);
-    },
-    [pantry, groceries],
   );
 
   const toggleFavorite = useCallback(async (recipeId: string) => {
@@ -319,10 +230,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     swapMealInCurrentPlan,
     groceries,
     toggleGrocery,
-    togglePantry,
-    addPantryItem,
-    removePantryItem,
-    pantry,
     favorites,
     toggleFavorite,
     isFavorite,

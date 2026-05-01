@@ -27,7 +27,7 @@ const STEPS = ["nights", "time", "style", "notes"] as const;
 
 export default function Wizard() {
   const router = useRouter();
-  const { savePlan, prefs, pantry } = useApp();
+  const { savePlan, prefs } = useApp();
 
   const [stepIdx, setStepIdx] = useState(0);
   const [nights, setNights] = useState(5);
@@ -61,7 +61,6 @@ export default function Wizard() {
         prompt: buildPrompt(),
         nights,
         prefs,
-        pantry,
       });
       const plan: MealPlan = {
         id: newId(),
@@ -181,7 +180,6 @@ export default function Wizard() {
             {prefs.allergies.length > 0
               ? ` · avoiding ${prefs.allergies.join(", ")}`
               : ""}
-            {pantry.length > 0 ? ` · ${pantry.length} pantry items` : ""}
           </Text>
         </View>
 

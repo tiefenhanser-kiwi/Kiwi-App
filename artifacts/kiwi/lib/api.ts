@@ -50,7 +50,6 @@ export interface GeneratePlanInput {
   prompt?: string;
   nights: number;
   prefs: UserPrefs;
-  pantry: string[];
 }
 
 export async function generatePlan(
@@ -70,7 +69,6 @@ export async function generatePlan(
         cuisines: input.prefs.cuisines,
         cookSkill: input.prefs.cookSkill,
       },
-      pantry: input.pantry,
     }),
   });
   if (!res.ok) {

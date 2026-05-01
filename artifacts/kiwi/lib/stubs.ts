@@ -36,10 +36,7 @@ export function defaultPlan(): MealPlan {
 }
 
 // Returns empty grocery list until WS7 wires the real derivation.
-export function buildGroceryList(
-  _plan: MealPlan,
-  _pantry: string[] = [],
-): GroceryItem[] {
+export function buildGroceryList(_plan: MealPlan): GroceryItem[] {
   return [];
 }
 

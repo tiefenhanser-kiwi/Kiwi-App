@@ -17,12 +17,11 @@ const SUGGESTIONS = [
   "Quick weeknight dinners under 30 minutes",
   "Mediterranean meals with lots of vegetables",
   "Kid-friendly week, easy on the spice",
-  "Use what's already in my pantry",
 ];
 
 export default function TellKiwi() {
   const router = useRouter();
-  const { savePlan, prefs, pantry } = useApp();
+  const { savePlan, prefs } = useApp();
   const [text, setText] = useState("");
   const [building, setBuilding] = useState(false);
 
@@ -35,7 +34,6 @@ export default function TellKiwi() {
         prompt,
         nights: 5,
         prefs,
-        pantry,
       });
       const plan: MealPlan = {
         id: newId(),
@@ -66,8 +64,8 @@ export default function TellKiwi() {
         <View style={s.intro}>
           <Feather name="message-circle" size={20} color={KColors.terracotta[400]} />
           <Text style={s.introText}>
-            Just type what's on your mind — Kiwi reads your preferences and
-            pantry, then builds a plan that fits.
+            Just type what's on your mind — Kiwi reads your preferences,
+            then builds a plan that fits.
           </Text>
         </View>
 
