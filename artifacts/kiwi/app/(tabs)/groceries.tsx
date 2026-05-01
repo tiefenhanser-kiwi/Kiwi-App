@@ -8,7 +8,7 @@ import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { useApp } from "@/contexts/AppContext";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KSpacing, KType } from "@/constants/tokens";
 import type { GroceryItem } from "@/lib/types";
 
 const CATEGORY_ORDER: GroceryItem["category"][] = [
