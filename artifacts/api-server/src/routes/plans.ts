@@ -29,7 +29,6 @@ interface GenerateRequest {
     cuisines?: string[];
     cookSkill?: string;
   };
-  pantry?: string[];
 }
 
 interface GeneratedSlot {
@@ -92,7 +91,6 @@ Rules:
 - Slot must be one of: Breakfast, Lunch, Dinner. Default to "Dinner" unless asked otherwise.
 - Vary cuisines and ingredients across the week.
 - Respect dietary restrictions and allergies strictly.
-- If pantry items are listed, prefer recipes that reuse them.
 - Generate exactly the number of nights requested.`;
 
 const limiter = rateLimit({ capacity: 8, refillPerSec: 8 / 60 }); // 8 burst, ~1 every 7.5s
@@ -103,11 +101,6 @@ router.post("/plans/generate", requireAuth, limiter, async (req, res) => {
   const prefs = body.prefs ?? {};
   // Sanitize text fields so prompt-injected payloads don't go straight to the model
   const prompt = sanitizeText(body.prompt, 500);
-  const pantry = (body.pantry ?? [])
-    .filter((p): p is string => typeof p === "string")
-    .map((p) => sanitizeText(p, 60))
-    .filter(Boolean)
-    .slice(0, 50);
 
   const serverRecipes = await fetchServerRecipes();
   const serverRecipeIds = new Set(serverRecipes.map((r) => r.id));
@@ -126,7 +119,6 @@ router.post("/plans/generate", requireAuth, limiter, async (req, res) => {
       allergies: cleanStrArr(prefs.allergies, 12, 40),
       preferredCuisines: cleanStrArr(prefs.cuisines, 12, 40),
       cookSkill: sanitizeText(prefs.cookSkill, 30) || "intermediate",
-      pantry,
       recipes: serverRecipes, // server-authoritative catalog
     },
     null,
