@@ -30,6 +30,7 @@ function RootLayoutNav() {
       <Stack.Screen name="onboarding-prefs" options={{ presentation: "modal" }} />
       <Stack.Screen name="wizard" options={{ presentation: "modal" }} />
       <Stack.Screen name="tellkiwi" options={{ presentation: "modal" }} />
+      <Stack.Screen name="cook-now" options={{ presentation: "modal" }} />
       <Stack.Screen name="plan-results" />
       <Stack.Screen name="recipe/[id]" />
       <Stack.Screen name="cookmode/[id]" options={{ presentation: "fullScreenModal" }} />

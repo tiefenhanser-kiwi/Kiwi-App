@@ -1,8 +1,11 @@
 import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 
+import { CookNowCtaCard } from "@/components/CookNowCtaCard";
 import { HomeHeader } from "@/components/HomeHeader";
 import { Screen } from "@/components/Screen";
+import { WizardCtaCard } from "@/components/WizardCtaCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KSpacing, KType } from "@/constants/tokens";
@@ -15,6 +18,7 @@ function timeOfDayGreeting(): string {
 }
 
 export default function HomeTab() {
+  const router = useRouter();
   const { user } = useAuth();
   const { currentPlan } = useApp();
 
@@ -23,6 +27,31 @@ export default function HomeTab() {
     const name = user?.firstName ?? "there";
     return `${tod}, ${name}`;
   }, [user?.firstName]);
+
+  const isLocked = useMemo(() => {
+    const status = user?.subscription?.status;
+    // Locked when not trialing AND not active. Free-tier-post-trial path.
+    if (!status) return false; // still loading — don't lock
+    return status !== "trialing" && status !== "active";
+  }, [user?.subscription?.status]);
+
+  const handleWizardCtaPress = (route: "/wizard" | "/tellkiwi") => {
+    if (isLocked) {
+      // Per D-WS3-002 — simplified upgrade redirect. Modal overlay
+      // deferred to WS6/pre-launch polish.
+      router.push("/upgrade");
+      return;
+    }
+    router.push(route);
+  };
+
+  const handleCookNowPress = () => {
+    if (isLocked) {
+      router.push("/upgrade");
+      return;
+    }
+    router.push("/cook-now");
+  };
 
   const statusText = useMemo(() => {
     if (!currentPlan) return "Ready to cook?";
@@ -48,6 +77,27 @@ export default function HomeTab() {
           <Text style={styles.greeting}>{greeting}</Text>
           <Text style={styles.status}>{statusText}</Text>
         </View>
+
+        <View style={styles.ctaBlock}>
+          <View style={styles.wizardRow}>
+            <WizardCtaCard
+              icon="preferences"
+              subLabel="Set Preferences, Get Food"
+              onPress={() => handleWizardCtaPress("/wizard")}
+              locked={isLocked}
+            />
+            <WizardCtaCard
+              icon="freeform"
+              subLabel="Just Say What You Want to Eat"
+              onPress={() => handleWizardCtaPress("/tellkiwi")}
+              locked={isLocked}
+            />
+          </View>
+          <CookNowCtaCard
+            onPress={handleCookNowPress}
+            locked={isLocked}
+          />
+        </View>
       </Screen>
     </View>
   );
@@ -69,5 +119,13 @@ const styles = StyleSheet.create({
     color: KColors.neutral[700],
     marginTop: KSpacing.xs,
     fontFamily: "Inter_400Regular",
+  },
+  ctaBlock: {
+    marginTop: KSpacing.md,
+    gap: KSpacing.md,
+  },
+  wizardRow: {
+    flexDirection: "row",
+    gap: KSpacing.md,
   },
 });
