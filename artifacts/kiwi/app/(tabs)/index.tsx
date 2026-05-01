@@ -1,8 +1,10 @@
 import React, { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import Svg, { Circle, Path } from "react-native-svg";
 
 import { CookNowCtaCard } from "@/components/CookNowCtaCard";
+import { HomeActionButton } from "@/components/HomeActionButton";
 import { HomeHeader } from "@/components/HomeHeader";
 import { PlanDiscoveryCard } from "@/components/PlanDiscoveryCard";
 import { Screen } from "@/components/Screen";
@@ -59,6 +61,63 @@ export default function HomeTab() {
     router.push("/cook-now");
   };
 
+  // Per PRD §4.2.6 — Get Groceries tap behavior:
+  //   - has plan + has list → /groceries
+  //   - has plan + no list  → /groceries (groceries tab handles empty
+  //                            current-plan state and its own
+  //                            list-generation flow; WS4 will refine)
+  //   - no plan             → prompt user to pick or create
+  //
+  // We don't generate the grocery list ourselves here — that's a server
+  // concern WS7 wires up. For WS3, "go to groceries tab" is the right
+  // routing for both "has list" and "has plan no list" cases. The empty
+  // prompt is the only branch we own visually.
+  const handleGetGroceriesPress = () => {
+    if (isEmptyState) {
+      Alert.alert(
+        "Create or pick a plan first",
+        "You need a meal plan before Kiwi can build your grocery list.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Use Kitchen Wizard",
+            onPress: () => router.push("/wizard"),
+          },
+        ],
+      );
+      return;
+    }
+    router.push("/groceries");
+  };
+
+  // Per PRD §4.2.6 — Prep and Cook tap behavior:
+  //   - has plan with today's meal → Cook Mode for that meal
+  //   - has plan no today's meal   → Prep & Cook Hub (route to plan-results
+  //                                   for now; WS5/WS6 builds the proper hub)
+  //   - no plan                    → prompt user to pick or create
+  //
+  // WS3 doesn't have today's-meal recipe lookup wired (D-WS3-013 covers
+  // that for WS7). For now we route to /plan-results when a plan exists,
+  // regardless of whether today has a meal. The Prep & Cook Hub UX is
+  // not built yet either; /plan-results is the closest existing screen.
+  const handlePrepAndCookPress = () => {
+    if (isEmptyState) {
+      Alert.alert(
+        "Create or pick a plan first",
+        "Pick a plan or let the Kitchen Wizard build one to start cooking.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Use Kitchen Wizard",
+            onPress: () => router.push("/wizard"),
+          },
+        ],
+      );
+      return;
+    }
+    router.push("/plan-results");
+  };
+
   const statusText = useMemo(() => {
     if (!currentPlan) return "Ready to cook?";
 
@@ -75,13 +134,34 @@ export default function HomeTab() {
     return `This week: ${currentPlan.name}`;
   }, [currentPlan]);
 
+  const isEmptyState = useMemo(() => {
+    if (!currentPlan) return true;
+    const hasAnyRealMeal =
+      currentPlan.meals?.some(
+        (m: { recipeId?: string }) => m.recipeId && m.recipeId !== "",
+      ) ?? false;
+    return !hasAnyRealMeal;
+  }, [currentPlan]);
+
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
       <HomeHeader />
       <Screen>
         <View style={styles.greetingBlock}>
-          <Text style={styles.greeting}>{greeting}</Text>
-          <Text style={styles.status}>{statusText}</Text>
+          {isEmptyState ? (
+            <>
+              <Text style={styles.greeting}>{greeting}</Text>
+              <Text style={styles.status}>
+                Welcome to Kiwi! Pick a plan or let the Kitchen Wizard build
+                one for you.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.greeting}>{greeting}</Text>
+              <Text style={styles.status}>{statusText}</Text>
+            </>
+          )}
         </View>
 
         <View style={styles.ctaBlock}>
@@ -107,6 +187,41 @@ export default function HomeTab() {
             defaultExpanded={isFirstArrival}
             initialFilters={user?.lastPlanDiscoveryFilters as any}
           />
+
+          <View style={styles.actionRow}>
+            <HomeActionButton
+              icon={
+                <Svg width={18} height={18} viewBox="0 0 16 16" fill="none">
+                  <Path
+                    d="M2 2h12l-1.5 9H3.5L2 2z"
+                    fill={KColors.sage[700]}
+                  />
+                  <Circle cx="6" cy="14.2" r="1.2" fill={KColors.sage[700]} />
+                  <Circle cx="11" cy="14.2" r="1.2" fill={KColors.sage[700]} />
+                </Svg>
+              }
+              label="Get Groceries"
+              subLabel="Send to store or print"
+              onPress={handleGetGroceriesPress}
+            />
+            <HomeActionButton
+              icon={
+                <Svg width={18} height={18} viewBox="0 0 16 16" fill="none">
+                  <Circle cx="8" cy="5" r="2.8" fill={KColors.sage[700]} />
+                  <Path
+                    d="M3 13.5c0-2.8 2.2-5 5-5s5 2.2 5 5"
+                    stroke={KColors.sage[700]}
+                    strokeWidth={1.3}
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                </Svg>
+              }
+              label="Prep and Cook"
+              subLabel="Step-by-step guidance"
+              onPress={handlePrepAndCookPress}
+            />
+          </View>
         </View>
       </Screen>
     </View>
@@ -135,6 +250,10 @@ const styles = StyleSheet.create({
     gap: KSpacing.md,
   },
   wizardRow: {
+    flexDirection: "row",
+    gap: KSpacing.md,
+  },
+  actionRow: {
     flexDirection: "row",
     gap: KSpacing.md,
   },
