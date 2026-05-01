@@ -7,7 +7,7 @@
 // When any of those workstreams lands, update consumers to call the
 // API via lib/api.ts and delete the corresponding stub from this file.
 
-import type { GroceryItem, MealPlan, Recipe } from "./types";
+import type { GroceryItem, MealPlan, MealsFilter, Recipe } from "./types";
 import { DAYS, getMondayISO } from "./domain";
 
 // Empty recipe list. Replaces the hardcoded 12-recipe array.
@@ -49,6 +49,38 @@ export type PlanDiscoveryFilter =
   | "featured"
   | "top_rated"
   | "hosting_events";
+
+export const PLAN_DISCOVERY_FILTER_KEYS: readonly PlanDiscoveryFilter[] = [
+  "my_plans",
+  "featured",
+  "top_rated",
+  "hosting_events",
+];
+
+// Narrows a server-supplied string[] (e.g. user.lastPlanDiscoveryFilters)
+// to the typed union, dropping unknown values silently.
+export function asPlanDiscoveryFilters(
+  arr: string[] | undefined | null,
+): PlanDiscoveryFilter[] {
+  if (!arr) return [];
+  return arr.filter((k): k is PlanDiscoveryFilter =>
+    (PLAN_DISCOVERY_FILTER_KEYS as readonly string[]).includes(k),
+  );
+}
+
+export const MEALS_FILTER_KEYS: readonly MealsFilter[] = [
+  "my_meals",
+  "all_meals",
+];
+
+export function asMealsFilters(
+  arr: string[] | undefined | null,
+): MealsFilter[] {
+  if (!arr) return [];
+  return arr.filter((k): k is MealsFilter =>
+    (MEALS_FILTER_KEYS as readonly string[]).includes(k),
+  );
+}
 
 export type PlanDiscoveryCard = {
   planId: string;

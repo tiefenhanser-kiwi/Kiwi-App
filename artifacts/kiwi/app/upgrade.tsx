@@ -8,8 +8,10 @@ import { Button } from "@/components/Button";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 
-const FEATURES = [
-  { icon: "infinity", title: "Unlimited plans", body: "Save and rotate as many weekly plans as you want." },
+type FeatherIconName = keyof typeof Feather.glyphMap;
+
+const FEATURES: { icon: FeatherIconName; title: string; body: string }[] = [
+  { icon: "repeat", title: "Unlimited plans", body: "Save and rotate as many weekly plans as you want." },
   { icon: "send", title: "One-tap grocery delivery", body: "Send your list straight to Instacart or Whole Foods." },
   { icon: "zap", title: "Full Cook Intelligence", body: "Smart timers, prep-ahead steps, and substitutions." },
   { icon: "x-circle", title: "No ads", body: "Just you and the food." },
@@ -52,7 +54,7 @@ export default function Upgrade() {
         {FEATURES.map((f) => (
           <View key={f.title} style={s.feature}>
             <View style={s.featureIcon}>
-              <Feather name={f.icon as any} size={18} color={KColors.terracotta[400]} />
+              <Feather name={f.icon} size={18} color={KColors.terracotta[400]} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.featureTitle}>{f.title}</Text>

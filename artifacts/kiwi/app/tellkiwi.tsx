@@ -47,10 +47,11 @@ export default function TellKiwi() {
       };
       await savePlan(plan);
       router.replace({ pathname: "/plan-results", params: { id: plan.id } });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
       Alert.alert(
         "Couldn't reach Kiwi",
-        err?.message || "Try again in a moment.",
+        message || "Try again in a moment.",
       );
     } finally {
       setBuilding(false);

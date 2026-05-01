@@ -17,24 +17,11 @@ import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
+  asPlanDiscoveryFilters,
   getPlansPayload,
   type PlanDiscoveryFilter,
   type PlanRowData,
 } from "@/lib/stubs";
-
-const FILTER_KEYS: readonly PlanDiscoveryFilter[] = [
-  "my_plans",
-  "featured",
-  "top_rated",
-  "hosting_events",
-];
-
-function asPlanFilters(arr: string[] | undefined): PlanDiscoveryFilter[] {
-  if (!arr) return [];
-  return arr.filter((x): x is PlanDiscoveryFilter =>
-    (FILTER_KEYS as readonly string[]).includes(x),
-  );
-}
 
 export default function PlansTab() {
   const router = useRouter();
@@ -56,7 +43,7 @@ export default function PlansTab() {
   // multi-select array as a graceful migration. Computed once at mount;
   // setFilters takes over after.
   const initialFilters = useMemo<PlanDiscoveryFilter[]>(() => {
-    const persisted = asPlanFilters(user?.lastPlansFilters);
+    const persisted = asPlanDiscoveryFilters(user?.lastPlansFilters);
     if (persisted.length > 0) return [persisted[0]];
     return plans.length > 0 ? ["my_plans"] : ["featured"];
     // eslint-disable-next-line react-hooks/exhaustive-deps

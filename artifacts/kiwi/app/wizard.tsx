@@ -72,10 +72,11 @@ export default function Wizard() {
       };
       await savePlan(plan);
       router.replace({ pathname: "/plan-results", params: { id: plan.id } });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
       Alert.alert(
         "Couldn't reach Kiwi",
-        err?.message ||
+        message ||
           "Plan generation failed. Please try again in a moment.",
       );
     } finally {

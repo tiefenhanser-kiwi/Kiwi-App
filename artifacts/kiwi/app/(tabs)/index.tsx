@@ -11,6 +11,7 @@ import { Screen } from "@/components/Screen";
 import { WizardCtaCard } from "@/components/WizardCtaCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useApp } from "@/contexts/AppContext";
+import { asPlanDiscoveryFilters } from "@/lib/stubs";
 import { KColors, KSpacing, KType } from "@/constants/tokens";
 
 function timeOfDayGreeting(): string {
@@ -185,7 +186,7 @@ export default function HomeTab() {
           />
           <PlanDiscoveryCard
             defaultExpanded={isFirstArrival}
-            initialFilters={user?.lastPlanDiscoveryFilters as any}
+            initialFilters={asPlanDiscoveryFilters(user?.lastPlanDiscoveryFilters)}
           />
 
           <View style={styles.actionRow}>

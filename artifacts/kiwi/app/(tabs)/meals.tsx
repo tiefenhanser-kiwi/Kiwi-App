@@ -18,22 +18,17 @@ import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { useAuth } from "@/contexts/AuthContext";
 import { type MealsFilter } from "@/lib/auth";
-import { getMealsPayload, type MealRowData } from "@/lib/stubs";
+import {
+  asMealsFilters,
+  getMealsPayload,
+  type MealRowData,
+} from "@/lib/stubs";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-
-const MEALS_FILTER_KEYS: readonly MealsFilter[] = ["my_meals", "all_meals"];
 
 const MEALS_FILTER_OPTIONS: FilterChipOption<MealsFilter>[] = [
   { key: "my_meals", label: "My Meals" },
   { key: "all_meals", label: "All Meals" },
 ];
-
-function asMealsFilters(arr: string[] | undefined): MealsFilter[] {
-  if (!arr) return [];
-  return arr.filter((x): x is MealsFilter =>
-    (MEALS_FILTER_KEYS as readonly string[]).includes(x),
-  );
-}
 
 export default function MealsTab() {
   const { user, setUiState } = useAuth();
