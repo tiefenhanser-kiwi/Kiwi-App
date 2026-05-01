@@ -67,3 +67,19 @@ export type HomePayload = {
 export async function getHomePayload(): Promise<HomePayload> {
   return { planDiscoveryCards: [] };
 }
+
+// ── Plans tab (PRD §9.2) ──
+// WS7 fills this. Same seam pattern as getHomePayload.
+
+export type PlanRowData = {
+  id: string;
+  title: string;
+  thumbnailUrl: string | null;
+  meta: string;
+  tags: string[];
+  filterGroup: PlanDiscoveryFilter;
+};
+
+export async function getPlansPayload(): Promise<{ plans: PlanRowData[] }> {
+  return { plans: [] };
+}
