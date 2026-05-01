@@ -50,6 +50,7 @@ function toUserShape(u: {
   defaultHouseholdSize: number;
   lastPlanDiscoveryFilters: string[];
   lastPlansFilters: string[];
+  lastMealsFilters: string[];
   createdAt: Date;
 }) {
   return {
@@ -65,6 +66,7 @@ function toUserShape(u: {
     defaultHouseholdSize: u.defaultHouseholdSize,
     lastPlanDiscoveryFilters: u.lastPlanDiscoveryFilters,
     lastPlansFilters: u.lastPlansFilters,
+    lastMealsFilters: u.lastMealsFilters,
     createdAt: u.createdAt.toISOString(),
   };
 }
