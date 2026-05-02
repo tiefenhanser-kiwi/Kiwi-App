@@ -411,6 +411,7 @@ model MealPlanItem {
   assignedDate        DateTime?
   servingsOverride    Int?
   ingredientOverrides Json? // IngredientOverride[]
+  recipeOverrideJson  Json? // RecipeOverride per PRD §8.4.3 — plan-instance recipe override; null = use Meal's default recipe
   isBreakfast         Boolean   @default(false)
   isLunch             Boolean   @default(false)
   isDinner            Boolean   @default(true)
