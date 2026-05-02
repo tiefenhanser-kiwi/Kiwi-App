@@ -276,7 +276,7 @@ const s = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: KSpacing.lg,
     paddingTop: KSpacing.md,
-    paddingBottom: KSpacing.xxxl,
+    paddingBottom: 200, // keyboard clearance for bottommost TextInputs
   },
   savedPill: {
     backgroundColor: KColors.sage[100],
