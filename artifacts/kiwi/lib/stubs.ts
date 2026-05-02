@@ -7,7 +7,13 @@
 // When any of those workstreams lands, update consumers to call the
 // API via lib/api.ts and delete the corresponding stub from this file.
 
-import type { GroceryItem, MealPlan, MealsFilter, Recipe } from "./types";
+import type {
+  GroceryItem,
+  MealPlan,
+  MealsFilter,
+  Recipe,
+  ReviewPlan,
+} from "./types";
 import { DAYS, getMondayISO } from "./domain";
 
 // Empty recipe list. Replaces the hardcoded 12-recipe array.
@@ -132,4 +138,34 @@ export type MealRowData = {
 
 export async function getMealsPayload(): Promise<{ meals: MealRowData[] }> {
   return { meals: [] };
+}
+
+// ── Plan Review (PRD §8) ──
+// WS7 fills this. Same seam pattern as the other payload getters above.
+
+/**
+ * PRD §8 Plan Review payload stub.
+ * Real data ships in WS7 (composite endpoint, server-resolved).
+ * For WS5, returns an empty review plan — exercises the §8.6
+ * "no meals in this plan yet" valid empty state.
+ *
+ * @param _planId MealPlanInstance.id (unused at stub stage)
+ */
+export function getReviewPlan(_planId: string): ReviewPlan {
+  return {
+    id: _planId,
+    name: "",
+    prepStatus: "not_prepped",
+    optimizationNotes: [],
+    macroDailyAverage: {
+      caloriesPerDay: 0,
+      proteinGPerDay: 0,
+      carbsGPerDay: 0,
+      fatGPerDay: 0,
+    },
+    scheduledMeals: [],
+    unscheduledMeals: [],
+    breakfastDefaults: "",
+    lunchDefaults: "",
+  };
 }

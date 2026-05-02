@@ -14,9 +14,11 @@ import {
   getRecipe,
 } from "@/lib/stubs";
 import type {
+  DayOfWeek,
   GroceryItem,
   MealPlan,
   MealSlot,
+  RecipeOverride,
 } from "@/lib/types";
 
 export interface UserPrefs {
@@ -56,6 +58,50 @@ interface AppState {
     slotIndex: number,
     newRecipeId: string,
   ) => Promise<void>;
+  // ─────────────────────────────────────────────────────────────────
+  // PRD §8 Plan Review mutations (WS5+; client-side until WS7)
+  // ─────────────────────────────────────────────────────────────────
+  /** PRD §8.3.6 — assign a meal to a specific day in the plan. */
+  assignDayToPlanItem: (
+    planId: string,
+    planItemId: string,
+    day: DayOfWeek,
+  ) => Promise<void>;
+  /** PRD §8.3.6 — clear day assignment; meal moves to Unscheduled cluster. */
+  unassignDayFromPlanItem: (
+    planId: string,
+    planItemId: string,
+  ) => Promise<void>;
+  /** PRD §8.3.8 — add a meal (existing Meal id) to a plan, optionally with day. */
+  addMealToPlan: (
+    planId: string,
+    mealId: string,
+    day?: DayOfWeek,
+  ) => Promise<void>;
+  /** PRD §8.4.5 — Compost from plan: removes MealPlanItem; Meal stays in My Meals. */
+  removeMealFromPlan: (
+    planId: string,
+    planItemId: string,
+  ) => Promise<void>;
+  /** PRD §8.4.2 — Change Meal: repoint planItem.mealId to a different Meal. */
+  changeMealForPlanItem: (
+    planId: string,
+    planItemId: string,
+    newMealId: string,
+  ) => Promise<void>;
+  /** PRD §8.4.3 — Change Recipe (this-week-only): writes recipeOverrideJson; mealId unchanged. */
+  changeRecipeForPlanItem: (
+    planId: string,
+    planItemId: string,
+    override: RecipeOverride,
+  ) => Promise<void>;
+  /** PRD §2.5 + §8.4.3 — promote a plan-item's recipeOverrideJson into the underlying Meal record. Clears the override after promotion. */
+  promoteRecipeOverrideToMeal: (
+    planId: string,
+    planItemId: string,
+  ) => Promise<void>;
+  /** PRD §8.4.x (NEW per WS5) — Find Similar: returns Meal candidates matching cuisine of the source mealId. MVP: cuisine match only. */
+  findSimilarMeals: (mealId: string) => Promise<string[]>;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
   favorites: string[];
@@ -175,6 +221,78 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [plans, currentPlanId, persistGroceriesFor],
   );
 
+  // ─────────────────────────────────────────────────────────────────
+  // PRD §8 Plan Review mutation scaffolds (WS5+; real wiring in WS7)
+  // ─────────────────────────────────────────────────────────────────
+
+  const assignDayToPlanItem = async (
+    planId: string,
+    planItemId: string,
+    day: DayOfWeek,
+  ): Promise<void> => {
+    // TODO(WS7): wire to PATCH /plans/:planId/items/:planItemId
+    console.log("[stub] assignDayToPlanItem", { planId, planItemId, day });
+  };
+
+  const unassignDayFromPlanItem = async (
+    planId: string,
+    planItemId: string,
+  ): Promise<void> => {
+    // TODO(WS7): wire to PATCH /plans/:planId/items/:planItemId
+    console.log("[stub] unassignDayFromPlanItem", { planId, planItemId });
+  };
+
+  const addMealToPlan = async (
+    planId: string,
+    mealId: string,
+    day?: DayOfWeek,
+  ): Promise<void> => {
+    // TODO(WS7): wire to POST /plans/:planId/items
+    console.log("[stub] addMealToPlan", { planId, mealId, day });
+  };
+
+  const removeMealFromPlan = async (
+    planId: string,
+    planItemId: string,
+  ): Promise<void> => {
+    // TODO(WS7): wire to DELETE /plans/:planId/items/:planItemId
+    console.log("[stub] removeMealFromPlan", { planId, planItemId });
+  };
+
+  const changeMealForPlanItem = async (
+    planId: string,
+    planItemId: string,
+    newMealId: string,
+  ): Promise<void> => {
+    // TODO(WS7): wire to PATCH /plans/:planId/items/:planItemId (mealId)
+    console.log("[stub] changeMealForPlanItem", { planId, planItemId, newMealId });
+  };
+
+  const changeRecipeForPlanItem = async (
+    planId: string,
+    planItemId: string,
+    override: RecipeOverride,
+  ): Promise<void> => {
+    // TODO(WS7): wire to PATCH /plans/:planId/items/:planItemId (recipeOverrideJson)
+    console.log("[stub] changeRecipeForPlanItem", { planId, planItemId, override });
+  };
+
+  const promoteRecipeOverrideToMeal = async (
+    planId: string,
+    planItemId: string,
+  ): Promise<void> => {
+    // TODO(WS7): wire to POST /plans/:planId/items/:planItemId/promote-override
+    console.log("[stub] promoteRecipeOverrideToMeal", { planId, planItemId });
+  };
+
+  const findSimilarMeals = async (mealId: string): Promise<string[]> => {
+    // TODO(WS7): wire to GET /meals/:mealId/similar
+    // MVP: cuisine-match-only (PRD §8.4.x WS5 amendment); AI semantic
+    // similarity deferred to WS6+ (logged as D-WS5-XXX in handoff).
+    console.log("[stub] findSimilarMeals", { mealId });
+    return [];
+  };
+
   const toggleGrocery = useCallback(
     async (id: string) => {
       const updated = groceries.map((g) =>
@@ -228,6 +346,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     savePlan,
     setCurrentPlan,
     swapMealInCurrentPlan,
+    assignDayToPlanItem,
+    unassignDayFromPlanItem,
+    addMealToPlan,
+    removeMealFromPlan,
+    changeMealForPlanItem,
+    changeRecipeForPlanItem,
+    promoteRecipeOverrideToMeal,
+    findSimilarMeals,
     groceries,
     toggleGrocery,
     favorites,

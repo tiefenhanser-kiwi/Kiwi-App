@@ -76,3 +76,123 @@ export interface User {
   subscription: Subscription | null;
   createdAt: string;
 }
+
+// ─────────────────────────────────────────────────────────────────
+// PRD-aligned plan review types (WS5+)
+// Parallel to legacy MealPlan/MealSlot above; collapses in WS7.
+// ─────────────────────────────────────────────────────────────────
+
+/** PRD §2.4 — server schema mirror. Day strip uses these labels. */
+export type DayOfWeek =
+  | "Sunday" | "Monday" | "Tuesday" | "Wednesday"
+  | "Thursday" | "Friday" | "Saturday";
+
+/** Short-form for the day strip pills in PlanReviewMealRow. */
+export const DAY_SHORT: Record<DayOfWeek, string> = {
+  Sunday: "S", Monday: "M", Tuesday: "T", Wednesday: "W",
+  Thursday: "T", Friday: "F", Saturday: "S",
+};
+
+/** Daily macro averages displayed on Plan Review per PRD §8.3.5. */
+export interface MacroDailyAverage {
+  caloriesPerDay: number;
+  proteinGPerDay: number;
+  carbsGPerDay: number;
+  fatGPerDay: number;
+}
+
+/**
+ * Per-instance recipe override per PRD §8.4.3.
+ * Serialized into MealPlanItem.recipeOverrideJson (WS5-5B schema).
+ * When present, this overrides the linked Meal's recipe for THIS
+ * plan instance only. Promote to Meal record via the §2.5
+ * "save to my meal forever" path.
+ */
+export interface RecipeOverride {
+  /** Display title; falls back to Meal.title if omitted. */
+  titleOverride?: string;
+  /** Override ingredients per dish, by dish position index. */
+  dishes: RecipeOverrideDish[];
+  /** Optional override for full step list. */
+  steps?: string[];
+  /** ISO timestamp when override was created. */
+  createdAt: string;
+}
+
+export interface RecipeOverrideDish {
+  name: string;
+  ingredients: RecipeOverrideIngredient[];
+}
+
+export interface RecipeOverrideIngredient {
+  name: string;
+  quantity: number;
+  unit: string;
+}
+
+/** Day strip pill state for PlanReviewMealRow. */
+export interface DayAssignment {
+  day: DayOfWeek;
+  /** Date number to display (e.g., 14 for "Tuesday the 14th"). */
+  dateNumber?: number;
+  isAssigned: boolean;
+}
+
+/** Single meal row on the Plan Review screen per PRD §8.3.6. */
+export interface ReviewPlanMealRow {
+  /** MealPlanItem.id — stable identifier for mutations. */
+  planItemId: string;
+  /** Meal.id — what mealId points to in the schema. */
+  mealId: string;
+  title: string;
+  thumbnailUrl?: string;
+  /** "Easy · 30 min · serves 4" */
+  metaLine: string;
+  /** Per-serving display values for the meta line. */
+  caloriesPerServing?: number;
+  /** Day strip — 7 entries Sun-Sat with assignment state. */
+  dayStrip: DayAssignment[];
+  /** True when this row's MealPlanItem has a recipeOverrideJson set. */
+  hasRecipeOverride: boolean;
+}
+
+/** Optimization panel bullet per PRD §8.3.4. */
+export interface OptimizationNote {
+  type: "prep" | "cost";
+  text: string;
+}
+
+/** Prep status indicator state per PRD §8.3.3. */
+export type PrepStatus = "not_prepped" | "prepped" | "partially_prepped";
+
+/**
+ * Full Plan Review payload — what getReviewPlan(planId) returns.
+ * Mirrors the server-side composite endpoint that lands in WS7.
+ */
+export interface ReviewPlan {
+  /** MealPlanInstance.id */
+  id: string;
+  name: string;
+  prepStatus: PrepStatus;
+  optimizationNotes: OptimizationNote[];
+  macroDailyAverage: MacroDailyAverage;
+  /** Dinners + any other scheduled meals, with day strip state. */
+  scheduledMeals: ReviewPlanMealRow[];
+  /** Meals with no day assignment per PRD §8.3.6. */
+  unscheduledMeals: ReviewPlanMealRow[];
+  /** User-level breakfast defaults per PRD §8.3.7 (text suggestions). */
+  breakfastDefaults: string;
+  /** User-level lunch defaults per PRD §8.3.7. */
+  lunchDefaults: string;
+}
+
+/**
+ * Action keys for PlanReviewMealRow inline buttons per PRD §8.4.1
+ * (amended to 5 actions per WS5 product decision).
+ */
+export type PlanReviewMealAction =
+  | "view_details"
+  | "change_meal"
+  | "change_recipe"
+  | "find_similar"
+  | "compost";
