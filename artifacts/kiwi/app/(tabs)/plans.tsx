@@ -122,7 +122,9 @@ export default function PlansTab() {
               </Text>
             </View>
             <Pressable
-              onPress={() => router.push("/plan-results")}
+              onPress={() => {
+                if (currentPlan) router.push(`/plan/${currentPlan.id}`);
+              }}
               style={({ pressed }) => [s.openBtn, pressed && { opacity: 0.7 }]}
             >
               <Text style={s.openText}>Open</Text>
