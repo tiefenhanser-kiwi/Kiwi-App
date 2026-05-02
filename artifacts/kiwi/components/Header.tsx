@@ -12,9 +12,17 @@ interface Props {
   showBack?: boolean;
   rightIcon?: keyof typeof Feather.glyphMap;
   onRightPress?: () => void;
+  rightContent?: React.ReactNode;
 }
 
-export function Header({ title, subtitle, showBack, rightIcon, onRightPress }: Props) {
+export function Header({
+  title,
+  subtitle,
+  showBack,
+  rightIcon,
+  onRightPress,
+  rightContent,
+}: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   return (
@@ -35,7 +43,9 @@ export function Header({ title, subtitle, showBack, rightIcon, onRightPress }: P
           {title ? <Text style={styles.title}>{title}</Text> : null}
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
-        {rightIcon ? (
+        {rightContent ? (
+          <View style={styles.rightSlot}>{rightContent}</View>
+        ) : rightIcon ? (
           <Pressable onPress={onRightPress} hitSlop={12} style={styles.iconBtn}>
             <Feather name={rightIcon} size={22} color={KColors.sage[700]} />
           </Pressable>
@@ -65,6 +75,12 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  rightSlot: {
+    minHeight: 40,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    paddingHorizontal: KSpacing.xs,
   },
   titleWrap: { flex: 1, alignItems: "center" },
   title: {

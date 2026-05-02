@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
+  Keyboard,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -13,16 +13,24 @@ import { useLocalSearchParams } from "expo-router";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { useApp } from "@/contexts/AppContext";
 import { getReviewPlan } from "@/lib/stubs";
 
 export default function PlanReviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const planId = id ?? "";
+  const { plans } = useApp();
   // Option A (locked): screen owns the ReviewPlan in local state.
   // Future action sheets (5J/5K/5L/5M) optimistically update via setReviewPlan;
   // AppContext mutators stay log-only stubs until WS7 wires real persistence.
   const [reviewPlan, _setReviewPlan] = useState(() => getReviewPlan(planId));
+
+  // Until WS7 wires real ReviewPlan data, the authoritative plan name lives
+  // on the legacy MealPlan in AppContext.plans (recipe-id-based per WS5-5A).
+  const plan = plans.find((p) => p.id === planId);
+  const planName = plan?.name ?? reviewPlan.name ?? "Untitled plan";
 
   const [breakfastOpen, setBreakfastOpen] = useState(false);
   const [breakfastDraft, setBreakfastDraft] = useState(
@@ -35,10 +43,6 @@ export default function PlanReviewScreen() {
     console.log("[plan-review] add-meals tapped", { planId });
   };
 
-  const headerTitle = reviewPlan.name && reviewPlan.name.length > 0
-    ? reviewPlan.name
-    : "Untitled plan";
-
   const hasMeals =
     reviewPlan.scheduledMeals.length > 0 ||
     reviewPlan.unscheduledMeals.length > 0;
@@ -46,32 +50,30 @@ export default function PlanReviewScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
       {/* §8.3.1 — Header with back button, plan name, passive Saved pill */}
-      <Header showBack title={headerTitle} />
+      <Header
+        showBack
+        title={planName}
+        rightContent={
+          <View style={s.savedPill}>
+            <Text style={s.savedPillText}>Saved</Text>
+          </View>
+        }
+      />
 
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* §8.3.1 (cont.) — Saved pill row */}
-        <View style={s.savedRow}>
-          <View style={s.savedPill}>
-            <Feather name="check" size={11} color={KColors.sage[700]} />
-            <Text style={s.savedPillText}>Saved</Text>
-          </View>
-        </View>
-
-        {/* §8.3.2 — Sticky-near-top action bar */}
+        {/* §8.3.2 — Sticky-near-top action bar (1+2 stack) */}
         <View style={s.actionBar}>
+          <Button
+            label="Prep and Cook"
+            variant="primary"
+            onPress={() => {
+              console.log("[plan-review] prep-and-cook tapped", { planId });
+            }}
+          />
           <View style={s.actionRow}>
-            <View style={s.actionCol}>
-              <Button
-                label="Prep and Cook"
-                variant="primary"
-                onPress={() => {
-                  console.log("[plan-review] prep-and-cook tapped", { planId });
-                }}
-              />
-            </View>
             <View style={s.actionCol}>
               <Button
                 label="Get Groceries Online"
@@ -95,16 +97,11 @@ export default function PlanReviewScreen() {
               />
             </View>
           </View>
-          <Pressable
-            onPress={onAddMeals}
-            style={({ pressed }) => [
-              s.addMealsLink,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Feather name="plus" size={14} color={KColors.sage[700]} />
-            <Text style={s.addMealsText}>Add Meals</Text>
-          </Pressable>
+        </View>
+
+        {/* §8.3.2 (cont.) — single Add Meals affordance */}
+        <View style={s.addMealsWrap}>
+          <Button label="Add Meals" variant="ghost" onPress={onAddMeals} />
         </View>
 
         {/* §8.3.3 — Prep status indicator */}
@@ -199,12 +196,6 @@ export default function PlanReviewScreen() {
               <Text style={s.emptyMealsText}>
                 No meals in this plan yet. Add some?
               </Text>
-              <Button
-                label="Add Meals"
-                variant="primary"
-                fullWidth={false}
-                onPress={onAddMeals}
-              />
             </View>
           ) : (
             <>
@@ -240,6 +231,9 @@ export default function PlanReviewScreen() {
               placeholderTextColor={KColors.neutral[600]}
               style={s.collapseInput}
               multiline
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
             />
           )}
         </View>
@@ -267,10 +261,13 @@ export default function PlanReviewScreen() {
               placeholderTextColor={KColors.neutral[600]}
               style={s.collapseInput}
               multiline
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
             />
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }
@@ -281,19 +278,11 @@ const s = StyleSheet.create({
     paddingTop: KSpacing.md,
     paddingBottom: KSpacing.xxxl,
   },
-  savedRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginBottom: KSpacing.sm,
-  },
   savedPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
     backgroundColor: KColors.sage[100],
     borderRadius: KRadius.pill,
     paddingHorizontal: KSpacing.sm,
-    paddingVertical: 4,
+    paddingVertical: KSpacing.xs,
   },
   savedPillText: {
     fontSize: KType.size.xs,
@@ -314,19 +303,8 @@ const s = StyleSheet.create({
     gap: KSpacing.sm,
   },
   actionCol: { flex: 1 },
-  addMealsLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "center",
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: KSpacing.sm,
-  },
-  addMealsText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+  addMealsWrap: {
+    marginTop: KSpacing.sm,
   },
   section: {
     marginTop: KSpacing.lg,
