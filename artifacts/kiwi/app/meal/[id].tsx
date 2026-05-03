@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
@@ -56,6 +56,7 @@ function formatQuantity(qty: number, unit: string): string {
 }
 
 export default function MealDetailScreen() {
+  const router = useRouter();
   const { id, planId, planItemId } = useLocalSearchParams<{
     id: string;
     planId?: string;
@@ -117,10 +118,10 @@ export default function MealDetailScreen() {
 
   const onEdit = () => {
     console.log("[meal-detail] edit tapped", { mealId: meal.id });
-    Alert.alert(
-      "Coming in WS6/WS7",
-      "Editing meal ingredients/steps will be wired when AI orchestration (WS6) and the API layer (WS7) land.",
-    );
+    router.push({
+      pathname: "/meal-builder",
+      params: { mealId: meal.id },
+    });
   };
 
   const onCompost = () => {

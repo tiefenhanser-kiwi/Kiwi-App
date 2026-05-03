@@ -1,0 +1,1247 @@
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { useLocalSearchParams } from "expo-router";
+
+import { Button } from "@/components/Button";
+import { Header } from "@/components/Header";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import {
+  KColors,
+  KRadius,
+  KSpacing,
+  KType,
+} from "@/constants/tokens";
+import { getMealById, getSavedDishes } from "@/lib/stubs";
+import type { SavedDish } from "@/lib/types";
+
+type Mode = "manual" | "combine" | "ai" | null;
+type Difficulty = "easy" | "medium" | "hard";
+
+interface BuilderIngredient {
+  uid: number;
+  quantity: string;
+  unit: string;
+  name: string;
+}
+
+interface BuilderDish {
+  uid: number;
+  name: string;
+  ingredients: BuilderIngredient[];
+}
+
+interface BuilderStep {
+  uid: number;
+  text: string;
+  estimatedMinutes: string;
+}
+
+const SERVINGS_MIN = 1;
+const SERVINGS_MAX = 12;
+
+let nextUid = 1;
+const allocUid = () => nextUid++;
+
+const newIngredient = (
+  partial?: Partial<Omit<BuilderIngredient, "uid">>,
+): BuilderIngredient => ({
+  uid: allocUid(),
+  quantity: partial?.quantity ?? "",
+  unit: partial?.unit ?? "",
+  name: partial?.name ?? "",
+});
+
+const newDish = (
+  partial?: Partial<Omit<BuilderDish, "uid" | "ingredients">> & {
+    ingredients?: BuilderIngredient[];
+  },
+): BuilderDish => ({
+  uid: allocUid(),
+  name: partial?.name ?? "",
+  ingredients: partial?.ingredients ?? [newIngredient()],
+});
+
+const newStep = (
+  partial?: Partial<Omit<BuilderStep, "uid">>,
+): BuilderStep => ({
+  uid: allocUid(),
+  text: partial?.text ?? "",
+  estimatedMinutes: partial?.estimatedMinutes ?? "",
+});
+
+export default function MealBuilderScreen() {
+  const { mealId, mode: modeParam } = useLocalSearchParams<{
+    mealId?: string;
+    mode?: "manual" | "combine" | "ai";
+  }>();
+
+  const sourceMeal = useMemo(
+    () => (mealId ? getMealById(mealId) : null),
+    [mealId],
+  );
+
+  const [mode, setModeState] = useState<Mode>(() => {
+    if (mealId) return "manual";
+    if (modeParam === "manual" || modeParam === "combine") return modeParam;
+    return null;
+  });
+
+  // ── Manual-mode state ───────────────────────────────────────────
+  const [mealName, setMealName] = useState("");
+  const [cuisineType, setCuisineType] = useState("");
+  const [difficulty, setDifficulty] = useState<Difficulty>("easy");
+  const [estimatedTimeMinutes, setEstimatedTimeMinutes] = useState("30");
+  const [servingsDefault, setServingsDefault] = useState(4);
+  const [dishes, setDishes] = useState<BuilderDish[]>(() => [newDish()]);
+  const [steps, setSteps] = useState<BuilderStep[]>(() => [newStep()]);
+  const [notes, setNotes] = useState("");
+
+  // ── Combine-mode state ──────────────────────────────────────────
+  const savedDishes = useMemo(() => getSavedDishes(), []);
+  const [selectedDishIds, setSelectedDishIds] = useState<string[]>([]);
+  const [combineReview, setCombineReview] = useState(false);
+
+  // Pre-population from existing meal (one-shot on mount when mealId present).
+  useEffect(() => {
+    if (!sourceMeal) return;
+    setMealName(sourceMeal.title);
+    setCuisineType(sourceMeal.cuisineType ?? "");
+    setDifficulty(sourceMeal.difficulty);
+    setEstimatedTimeMinutes(String(sourceMeal.estimatedTimeMinutes));
+    setServingsDefault(sourceMeal.servingsDefault);
+    setDishes(
+      sourceMeal.dishes.map((d) =>
+        newDish({
+          name: d.name,
+          ingredients:
+            d.ingredients.length > 0
+              ? d.ingredients.map((ing) =>
+                  newIngredient({
+                    quantity: String(ing.quantity),
+                    unit: ing.unit,
+                    name: ing.name,
+                  }),
+                )
+              : [newIngredient()],
+        }),
+      ),
+    );
+    setSteps(
+      sourceMeal.steps.length > 0
+        ? sourceMeal.steps.map((st) =>
+            newStep({
+              text: st.text,
+              estimatedMinutes:
+                st.estimatedMinutes !== undefined
+                  ? String(st.estimatedMinutes)
+                  : "",
+            }),
+          )
+        : [newStep()],
+    );
+    setNotes(sourceMeal.notes ?? "");
+  }, [sourceMeal]);
+
+  const headerTitle = sourceMeal
+    ? `Edit Meal: ${sourceMeal.title}`
+    : "Create Meal";
+
+  // ── Mode switching with unsaved-data guard ──────────────────────
+  const hasManualData = (): boolean => {
+    if (mealName.trim().length > 0) return true;
+    if (cuisineType.trim().length > 0) return true;
+    if (notes.trim().length > 0) return true;
+    if (dishes.some((d) => d.name.trim() || d.ingredients.some((i) => i.quantity || i.unit || i.name))) {
+      return true;
+    }
+    if (steps.some((st) => st.text.trim())) return true;
+    return false;
+  };
+
+  const hasCombineData = (): boolean => selectedDishIds.length > 0;
+
+  const trySetMode = (next: Mode) => {
+    if (next === mode) return;
+    const dirty =
+      (mode === "manual" && hasManualData()) ||
+      (mode === "combine" && hasCombineData());
+    if (dirty) {
+      Alert.alert(
+        "Switch modes?",
+        "You'll lose any unsaved work in the current mode.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Switch",
+            style: "destructive",
+            onPress: () => {
+              Keyboard.dismiss();
+              setModeState(next);
+            },
+          },
+        ],
+      );
+    } else {
+      Keyboard.dismiss();
+      setModeState(next);
+    }
+  };
+
+  // ── Manual-mode mutators ────────────────────────────────────────
+  const addDish = () => setDishes((prev) => [...prev, newDish()]);
+  const removeDish = (uid: number) =>
+    setDishes((prev) => prev.filter((d) => d.uid !== uid));
+  const updateDishName = (uid: number, name: string) =>
+    setDishes((prev) =>
+      prev.map((d) => (d.uid === uid ? { ...d, name } : d)),
+    );
+  const addIngredient = (dishUid: number) =>
+    setDishes((prev) =>
+      prev.map((d) =>
+        d.uid === dishUid
+          ? { ...d, ingredients: [...d.ingredients, newIngredient()] }
+          : d,
+      ),
+    );
+  const removeIngredient = (dishUid: number, ingUid: number) =>
+    setDishes((prev) =>
+      prev.map((d) =>
+        d.uid === dishUid
+          ? {
+              ...d,
+              ingredients: d.ingredients.filter((i) => i.uid !== ingUid),
+            }
+          : d,
+      ),
+    );
+  const updateIngredient = (
+    dishUid: number,
+    ingUid: number,
+    patch: Partial<Omit<BuilderIngredient, "uid">>,
+  ) =>
+    setDishes((prev) =>
+      prev.map((d) =>
+        d.uid === dishUid
+          ? {
+              ...d,
+              ingredients: d.ingredients.map((i) =>
+                i.uid === ingUid ? { ...i, ...patch } : i,
+              ),
+            }
+          : d,
+      ),
+    );
+
+  const addStep = () => setSteps((prev) => [...prev, newStep()]);
+  const removeStep = (uid: number) =>
+    setSteps((prev) => prev.filter((st) => st.uid !== uid));
+  const updateStep = (
+    uid: number,
+    patch: Partial<Omit<BuilderStep, "uid">>,
+  ) =>
+    setSteps((prev) =>
+      prev.map((st) => (st.uid === uid ? { ...st, ...patch } : st)),
+    );
+
+  const toggleSelectedDish = (id: string) => {
+    setSelectedDishIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  // ── Save (stub) ─────────────────────────────────────────────────
+  const manualSaveDisabled =
+    mealName.trim().length === 0 ||
+    !dishes.some((d) =>
+      d.ingredients.some(
+        (i) => i.name.trim().length > 0 || i.quantity.trim().length > 0,
+      ),
+    );
+  const combineSaveDisabled =
+    mealName.trim().length === 0 || selectedDishIds.length === 0;
+
+  const onSave = () => {
+    if (mode === "manual") {
+      const ingredientCount = dishes.reduce(
+        (acc, d) => acc + d.ingredients.length,
+        0,
+      );
+      console.log("[meal-builder] save tapped", {
+        mode,
+        mealName,
+        mealId: sourceMeal?.id,
+        dishCount: dishes.length,
+        ingredientCount,
+      });
+    } else if (mode === "combine") {
+      console.log("[meal-builder] save tapped", {
+        mode,
+        mealName,
+        mealId: sourceMeal?.id,
+        dishCount: selectedDishIds.length,
+      });
+    }
+    Alert.alert(
+      "Coming in WS7",
+      "Saving meals requires the API client. This action will be wired in WS7. Your work is preserved on this screen until you navigate away.",
+    );
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <Header showBack title={headerTitle} />
+      <KeyboardAwareScrollViewCompat
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Mode picker */}
+        <Text style={s.sectionHeader}>How would you like to build it?</Text>
+        <ModeCard
+          icon="edit-3"
+          title="Build manually"
+          subtitle="Type ingredients and steps yourself"
+          selected={mode === "manual"}
+          onPress={() => trySetMode("manual")}
+        />
+        <ModeCard
+          icon="layers"
+          title="Combine saved dishes"
+          subtitle="Mix and match dishes you've already saved"
+          selected={mode === "combine"}
+          onPress={() => trySetMode("combine")}
+        />
+        <ModeCard
+          icon="type"
+          title="Paste recipe text"
+          subtitle="Premium · Coming in WS6 — Kiwi will parse it for you"
+          selected={false}
+          locked
+          onPress={() => {
+            Alert.alert(
+              "Coming in WS6 — AI orchestration",
+              "Pasting recipe text and having Kiwi parse it requires the AI layer. This will be wired in WS6.",
+            );
+          }}
+        />
+
+        {/* Mode-specific content */}
+        {mode === "manual" && (
+          <ManualEditor
+            mealName={mealName}
+            setMealName={setMealName}
+            cuisineType={cuisineType}
+            setCuisineType={setCuisineType}
+            difficulty={difficulty}
+            setDifficulty={setDifficulty}
+            estimatedTimeMinutes={estimatedTimeMinutes}
+            setEstimatedTimeMinutes={setEstimatedTimeMinutes}
+            servingsDefault={servingsDefault}
+            setServingsDefault={setServingsDefault}
+            dishes={dishes}
+            addDish={addDish}
+            removeDish={removeDish}
+            updateDishName={updateDishName}
+            addIngredient={addIngredient}
+            removeIngredient={removeIngredient}
+            updateIngredient={updateIngredient}
+            steps={steps}
+            addStep={addStep}
+            removeStep={removeStep}
+            updateStep={updateStep}
+            notes={notes}
+            setNotes={setNotes}
+          />
+        )}
+
+        {mode === "combine" && !combineReview && (
+          <CombinePicker
+            mealName={mealName}
+            setMealName={setMealName}
+            cuisineType={cuisineType}
+            setCuisineType={setCuisineType}
+            difficulty={difficulty}
+            setDifficulty={setDifficulty}
+            estimatedTimeMinutes={estimatedTimeMinutes}
+            setEstimatedTimeMinutes={setEstimatedTimeMinutes}
+            servingsDefault={servingsDefault}
+            setServingsDefault={setServingsDefault}
+            savedDishes={savedDishes}
+            selectedDishIds={selectedDishIds}
+            onToggle={toggleSelectedDish}
+            onContinue={() => {
+              Keyboard.dismiss();
+              setCombineReview(true);
+            }}
+          />
+        )}
+
+        {mode === "combine" && combineReview && (
+          <CombineReview
+            savedDishes={savedDishes}
+            selectedDishIds={selectedDishIds}
+            onBack={() => setCombineReview(false)}
+          />
+        )}
+      </KeyboardAwareScrollViewCompat>
+
+      {(mode === "manual" || (mode === "combine" && combineReview)) && (
+        <View style={s.saveBar}>
+          <Button
+            label="Save meal"
+            variant="primary"
+            disabled={
+              mode === "manual" ? manualSaveDisabled : combineSaveDisabled
+            }
+            onPress={onSave}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Mode picker card
+// ─────────────────────────────────────────────────────────────────
+
+interface ModeCardProps {
+  icon: keyof typeof Feather.glyphMap;
+  title: string;
+  subtitle: string;
+  selected: boolean;
+  locked?: boolean;
+  onPress: () => void;
+}
+
+function ModeCard({
+  icon,
+  title,
+  subtitle,
+  selected,
+  locked,
+  onPress,
+}: ModeCardProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.modeCard,
+        selected && s.modeCardSelected,
+        locked && s.modeCardLocked,
+        pressed && { opacity: 0.85 },
+      ]}
+    >
+      <View style={s.modeIconWrap}>
+        <Feather
+          name={icon}
+          size={20}
+          color={
+            locked
+              ? KColors.neutral[600]
+              : selected
+                ? KColors.sage[700]
+                : KColors.neutral[800]
+          }
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[s.modeTitle, locked && { color: KColors.neutral[700] }]}>
+          {title}
+        </Text>
+        <Text style={s.modeSubtitle}>{subtitle}</Text>
+      </View>
+      {locked && (
+        <View style={s.premiumPill}>
+          <Feather name="lock" size={10} color={KColors.terracotta[700]} />
+          <Text style={s.premiumPillText}>Premium</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Shared meta fields (Mode B + Mode C)
+// ─────────────────────────────────────────────────────────────────
+
+interface MetaFieldsProps {
+  mealName: string;
+  setMealName: (v: string) => void;
+  cuisineType: string;
+  setCuisineType: (v: string) => void;
+  difficulty: Difficulty;
+  setDifficulty: (v: Difficulty) => void;
+  estimatedTimeMinutes: string;
+  setEstimatedTimeMinutes: (v: string) => void;
+  servingsDefault: number;
+  setServingsDefault: (v: number) => void;
+}
+
+function MetaFields(p: MetaFieldsProps) {
+  const decServings = () =>
+    p.setServingsDefault(Math.max(SERVINGS_MIN, p.servingsDefault - 1));
+  const incServings = () =>
+    p.setServingsDefault(Math.min(SERVINGS_MAX, p.servingsDefault + 1));
+
+  return (
+    <View style={{ gap: KSpacing.md }}>
+      <View>
+        <Text style={s.fieldLabel}>Meal name</Text>
+        <TextInput
+          value={p.mealName}
+          onChangeText={p.setMealName}
+          placeholder="Meal name (e.g., Salmon Teriyaki)"
+          placeholderTextColor={KColors.neutral[600]}
+          style={s.textInput}
+          returnKeyType="next"
+        />
+      </View>
+      <View>
+        <Text style={s.fieldLabel}>Cuisine</Text>
+        <TextInput
+          value={p.cuisineType}
+          onChangeText={p.setCuisineType}
+          placeholder="Cuisine (Italian, Japanese, etc.)"
+          placeholderTextColor={KColors.neutral[600]}
+          style={s.textInput}
+          returnKeyType="next"
+        />
+      </View>
+      <View>
+        <Text style={s.fieldLabel}>Difficulty</Text>
+        <View style={s.difficultyRow}>
+          {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
+            <Pressable
+              key={d}
+              onPress={() => p.setDifficulty(d)}
+              style={({ pressed }) => [
+                s.difficultyBtn,
+                p.difficulty === d && s.difficultyBtnOn,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text
+                style={
+                  p.difficulty === d
+                    ? s.difficultyBtnTextOn
+                    : s.difficultyBtnTextOff
+                }
+              >
+                {d.charAt(0).toUpperCase() + d.slice(1)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+      <View style={s.timeServingsRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.fieldLabel}>Estimated time</Text>
+          <View style={s.suffixRow}>
+            <TextInput
+              value={p.estimatedTimeMinutes}
+              onChangeText={(v) =>
+                p.setEstimatedTimeMinutes(v.replace(/[^0-9]/g, ""))
+              }
+              keyboardType="number-pad"
+              placeholder="30"
+              placeholderTextColor={KColors.neutral[600]}
+              style={[s.textInput, { flex: 1 }]}
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
+            />
+            <Text style={s.suffixLabel}>min</Text>
+          </View>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.fieldLabel}>Default servings</Text>
+          <View style={s.stepperRow}>
+            <Pressable
+              onPress={decServings}
+              disabled={p.servingsDefault <= SERVINGS_MIN}
+              hitSlop={6}
+              style={({ pressed }) => [
+                s.stepperBtn,
+                p.servingsDefault <= SERVINGS_MIN && { opacity: 0.4 },
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Feather name="minus" size={16} color={KColors.sage[700]} />
+            </Pressable>
+            <Text style={s.stepperValue}>{p.servingsDefault}</Text>
+            <Pressable
+              onPress={incServings}
+              disabled={p.servingsDefault >= SERVINGS_MAX}
+              hitSlop={6}
+              style={({ pressed }) => [
+                s.stepperBtn,
+                p.servingsDefault >= SERVINGS_MAX && { opacity: 0.4 },
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Feather name="plus" size={16} color={KColors.sage[700]} />
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Mode B — Manual editor
+// ─────────────────────────────────────────────────────────────────
+
+interface ManualEditorProps extends MetaFieldsProps {
+  dishes: BuilderDish[];
+  addDish: () => void;
+  removeDish: (uid: number) => void;
+  updateDishName: (uid: number, name: string) => void;
+  addIngredient: (dishUid: number) => void;
+  removeIngredient: (dishUid: number, ingUid: number) => void;
+  updateIngredient: (
+    dishUid: number,
+    ingUid: number,
+    patch: Partial<Omit<BuilderIngredient, "uid">>,
+  ) => void;
+  steps: BuilderStep[];
+  addStep: () => void;
+  removeStep: (uid: number) => void;
+  updateStep: (uid: number, patch: Partial<Omit<BuilderStep, "uid">>) => void;
+  notes: string;
+  setNotes: (v: string) => void;
+}
+
+function ManualEditor(p: ManualEditorProps) {
+  const moreThanOneDish = p.dishes.length > 1;
+  return (
+    <View style={{ marginTop: KSpacing.lg, gap: KSpacing.lg }}>
+      <MetaFields {...p} />
+
+      {/* Ingredients */}
+      <View style={{ gap: KSpacing.sm }}>
+        <View style={s.subHeaderRow}>
+          <Text style={s.subHeader}>Ingredients</Text>
+          <Pressable
+            onPress={p.addDish}
+            hitSlop={6}
+            style={({ pressed }) => [
+              s.addLinkBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Feather name="plus" size={14} color={KColors.sage[700]} />
+            <Text style={s.addLinkText}>Add dish</Text>
+          </Pressable>
+        </View>
+        {p.dishes.map((dish) => (
+          <View key={dish.uid} style={s.dishCard}>
+            <View style={s.dishHeaderRow}>
+              <TextInput
+                value={dish.name}
+                onChangeText={(v) => p.updateDishName(dish.uid, v)}
+                placeholder="Dish name (optional)"
+                placeholderTextColor={KColors.neutral[600]}
+                style={[s.textInput, { flex: 1 }]}
+                returnKeyType="next"
+              />
+              {moreThanOneDish && (
+                <Pressable
+                  onPress={() => p.removeDish(dish.uid)}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    s.removeIconBtn,
+                    pressed && { opacity: 0.6 },
+                  ]}
+                >
+                  <Feather name="trash-2" size={16} color={KColors.terracotta[600]} />
+                </Pressable>
+              )}
+            </View>
+            <View style={{ gap: KSpacing.xs, marginTop: KSpacing.sm }}>
+              {dish.ingredients.map((ing) => (
+                <View key={ing.uid} style={s.ingredientRow}>
+                  <TextInput
+                    value={ing.quantity}
+                    onChangeText={(v) =>
+                      p.updateIngredient(dish.uid, ing.uid, { quantity: v })
+                    }
+                    placeholder="Qty"
+                    placeholderTextColor={KColors.neutral[600]}
+                    style={[s.textInput, s.ingQty]}
+                    keyboardType="decimal-pad"
+                    returnKeyType="next"
+                  />
+                  <TextInput
+                    value={ing.unit}
+                    onChangeText={(v) =>
+                      p.updateIngredient(dish.uid, ing.uid, { unit: v })
+                    }
+                    placeholder="Unit"
+                    placeholderTextColor={KColors.neutral[600]}
+                    style={[s.textInput, s.ingUnit]}
+                    returnKeyType="next"
+                    autoCapitalize="none"
+                  />
+                  <TextInput
+                    value={ing.name}
+                    onChangeText={(v) =>
+                      p.updateIngredient(dish.uid, ing.uid, { name: v })
+                    }
+                    placeholder="Ingredient"
+                    placeholderTextColor={KColors.neutral[600]}
+                    style={[s.textInput, { flex: 1 }]}
+                    returnKeyType="next"
+                  />
+                  <Pressable
+                    onPress={() => p.removeIngredient(dish.uid, ing.uid)}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      s.removeIconBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                  >
+                    <Feather name="x" size={16} color={KColors.neutral[700]} />
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable
+                onPress={() => p.addIngredient(dish.uid)}
+                hitSlop={6}
+                style={({ pressed }) => [
+                  s.addLinkBtn,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Feather name="plus" size={14} color={KColors.sage[700]} />
+                <Text style={s.addLinkText}>Add ingredient</Text>
+              </Pressable>
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {/* Steps */}
+      <View style={{ gap: KSpacing.sm }}>
+        <View style={s.subHeaderRow}>
+          <Text style={s.subHeader}>Recipe steps</Text>
+          <Pressable
+            onPress={p.addStep}
+            hitSlop={6}
+            style={({ pressed }) => [
+              s.addLinkBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Feather name="plus" size={14} color={KColors.sage[700]} />
+            <Text style={s.addLinkText}>Add step</Text>
+          </Pressable>
+        </View>
+        {p.steps.map((step, i) => (
+          <View key={step.uid} style={s.stepRow}>
+            <View style={s.stepCircle}>
+              <Text style={s.stepCircleText}>{i + 1}</Text>
+            </View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <TextInput
+                value={step.text}
+                onChangeText={(v) => p.updateStep(step.uid, { text: v })}
+                placeholder="Step description"
+                placeholderTextColor={KColors.neutral[600]}
+                style={[s.textInput, s.stepTextInput]}
+                multiline
+              />
+              <View style={s.suffixRow}>
+                <TextInput
+                  value={step.estimatedMinutes}
+                  onChangeText={(v) =>
+                    p.updateStep(step.uid, {
+                      estimatedMinutes: v.replace(/[^0-9]/g, ""),
+                    })
+                  }
+                  placeholder="0"
+                  placeholderTextColor={KColors.neutral[600]}
+                  style={[s.textInput, { width: 56 }]}
+                  keyboardType="number-pad"
+                  returnKeyType="done"
+                  blurOnSubmit
+                  onSubmitEditing={Keyboard.dismiss}
+                />
+                <Text style={s.suffixLabel}>min</Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => p.removeStep(step.uid)}
+              hitSlop={8}
+              style={({ pressed }) => [
+                s.removeIconBtn,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Feather name="x" size={16} color={KColors.neutral[700]} />
+            </Pressable>
+          </View>
+        ))}
+      </View>
+
+      {/* Notes */}
+      <View style={{ gap: KSpacing.sm }}>
+        <Text style={s.subHeader}>Notes (optional)</Text>
+        <TextInput
+          value={p.notes}
+          onChangeText={p.setNotes}
+          placeholder="Add any notes about this meal..."
+          placeholderTextColor={KColors.neutral[600]}
+          style={[s.textInput, s.notesInput]}
+          multiline
+        />
+      </View>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Mode C — Combine picker
+// ─────────────────────────────────────────────────────────────────
+
+interface CombinePickerProps extends MetaFieldsProps {
+  savedDishes: SavedDish[];
+  selectedDishIds: string[];
+  onToggle: (id: string) => void;
+  onContinue: () => void;
+}
+
+function CombinePicker(p: CombinePickerProps) {
+  return (
+    <View style={{ marginTop: KSpacing.lg, gap: KSpacing.lg }}>
+      <MetaFields {...p} />
+      <View style={{ gap: KSpacing.sm }}>
+        <Text style={s.subHeader}>Pick dishes to combine</Text>
+        <Text style={s.helperText}>
+          Selected dishes will become this meal&apos;s components. You can edit
+          ingredients afterward.
+        </Text>
+        {p.savedDishes.map((dish) => {
+          const selected = p.selectedDishIds.includes(dish.id);
+          return (
+            <Pressable
+              key={dish.id}
+              onPress={() => p.onToggle(dish.id)}
+              style={({ pressed }) => [
+                s.dishPickerRow,
+                selected && s.dishPickerRowSelected,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Feather
+                name={selected ? "check-square" : "square"}
+                size={20}
+                color={selected ? KColors.sage[700] : KColors.neutral[600]}
+              />
+              <View style={[s.dishThumb, !dish.imageUrl && s.dishThumbFallback]} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.dishPickerName}>{dish.name}</Text>
+                <Text style={s.dishPickerMeta}>
+                  {[dish.cuisineType, `${dish.caloriesPerServing} cal/serving`]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Text>
+              </View>
+              {dish.useCount !== undefined && (
+                <Text style={s.dishPickerUse}>
+                  Used in {dish.useCount} meals
+                </Text>
+              )}
+            </Pressable>
+          );
+        })}
+        <Button
+          label="Continue with selected"
+          variant="primary"
+          disabled={p.selectedDishIds.length === 0}
+          onPress={p.onContinue}
+        />
+      </View>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Mode C — Combine review
+// ─────────────────────────────────────────────────────────────────
+
+interface CombineReviewProps {
+  savedDishes: SavedDish[];
+  selectedDishIds: string[];
+  onBack: () => void;
+}
+
+function CombineReview({
+  savedDishes,
+  selectedDishIds,
+  onBack,
+}: CombineReviewProps) {
+  const selected = savedDishes.filter((d) => selectedDishIds.includes(d.id));
+  return (
+    <View style={{ marginTop: KSpacing.lg, gap: KSpacing.md }}>
+      <View style={s.subHeaderRow}>
+        <Text style={s.subHeader}>Review combined meal</Text>
+        <Pressable
+          onPress={onBack}
+          hitSlop={6}
+          style={({ pressed }) => [
+            s.addLinkBtn,
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Feather name="chevron-left" size={14} color={KColors.sage[700]} />
+          <Text style={s.addLinkText}>Back to picker</Text>
+        </Pressable>
+      </View>
+      <Text style={s.helperText}>
+        After saving, you can edit any dish or ingredient individually.
+      </Text>
+      {selected.map((dish) => (
+        <View key={dish.id} style={s.reviewDish}>
+          <Text style={s.reviewDishHeader}>{dish.name}</Text>
+          {dish.ingredients.map((ing, i) => (
+            <Text key={i} style={s.reviewIngredient}>
+              {ing.quantity} {ing.unit} {ing.name}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  scrollContent: {
+    paddingHorizontal: KSpacing.lg,
+    paddingTop: KSpacing.md,
+    paddingBottom: 240,
+  },
+  saveBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: KSpacing.lg,
+    paddingTop: KSpacing.md,
+    paddingBottom: KSpacing.xl,
+    backgroundColor: KColors.neutral[100],
+    borderTopWidth: 1,
+    borderTopColor: KColors.neutral[400],
+  },
+  sectionHeader: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: KSpacing.sm,
+  },
+  modeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.md,
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.lg,
+    borderWidth: 1,
+    borderColor: KColors.neutral[400],
+    padding: KSpacing.md,
+    marginBottom: KSpacing.sm,
+  },
+  modeCardSelected: {
+    backgroundColor: KColors.sage[100],
+    borderColor: KColors.sage[300],
+  },
+  modeCardLocked: {
+    opacity: 0.85,
+    backgroundColor: KColors.neutral[50],
+  },
+  modeIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: KRadius.md,
+    backgroundColor: KColors.neutral[100],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modeTitle: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  modeSubtitle: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  premiumPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: KColors.terracotta[100],
+    borderRadius: KRadius.pill,
+    paddingHorizontal: KSpacing.sm,
+    paddingVertical: 4,
+  },
+  premiumPillText: {
+    fontSize: KType.size.xs,
+    color: KColors.terracotta[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  fieldLabel: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 4,
+  },
+  textInput: {
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.sm,
+    fontSize: KType.size.sm,
+    color: KColors.neutral[900],
+    fontFamily: "Inter_400Regular",
+  },
+  notesInput: {
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  difficultyRow: {
+    flexDirection: "row",
+    gap: KSpacing.xs,
+  },
+  difficultyBtn: {
+    flex: 1,
+    paddingVertical: KSpacing.sm,
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    backgroundColor: KColors.neutral[0],
+    alignItems: "center",
+  },
+  difficultyBtnOn: {
+    backgroundColor: KColors.sage[700],
+    borderColor: KColors.sage[700],
+  },
+  difficultyBtnTextOn: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[0],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  difficultyBtnTextOff: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[800],
+    fontWeight: KType.weight.medium,
+    fontFamily: "Inter_500Medium",
+  },
+  timeServingsRow: {
+    flexDirection: "row",
+    gap: KSpacing.md,
+  },
+  suffixRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+  },
+  suffixLabel: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+  },
+  stepperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    paddingHorizontal: KSpacing.sm,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+  },
+  stepperBtn: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperValue: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    minWidth: 20,
+    textAlign: "center",
+  },
+  subHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  subHeader: {
+    fontSize: KType.size.lg,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  addLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: KSpacing.xs,
+  },
+  addLinkText: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  dishCard: {
+    backgroundColor: KColors.neutral[50],
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.sm,
+  },
+  dishHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+  },
+  ingredientRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.xs,
+  },
+  ingQty: {
+    width: 56,
+    paddingHorizontal: KSpacing.sm,
+  },
+  ingUnit: {
+    width: 64,
+    paddingHorizontal: KSpacing.sm,
+  },
+  removeIconBtn: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: KSpacing.sm,
+  },
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: KColors.sage[100],
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  stepCircleText: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  stepTextInput: {
+    minHeight: 60,
+    textAlignVertical: "top",
+  },
+  helperText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    lineHeight: 18,
+  },
+  dishPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.md,
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.sm,
+  },
+  dishPickerRowSelected: {
+    backgroundColor: KColors.sage[50],
+    borderColor: KColors.sage[300],
+  },
+  dishThumb: {
+    width: 40,
+    height: 40,
+    borderRadius: KRadius.sm,
+    backgroundColor: KColors.neutral[200],
+  },
+  dishThumbFallback: {
+    backgroundColor: KColors.sage[100],
+  },
+  dishPickerName: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  dishPickerMeta: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  dishPickerUse: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+  },
+  reviewDish: {
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.md,
+    gap: 4,
+  },
+  reviewDishHeader: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 4,
+  },
+  reviewIngredient: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[800],
+    fontFamily: "Inter_400Regular",
+    lineHeight: 20,
+  },
+});

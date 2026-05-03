@@ -16,6 +16,7 @@ import type {
   Recipe,
   ReviewMeal,
   ReviewPlan,
+  SavedDish,
 } from "./types";
 import { DAYS, getMondayISO } from "./domain";
 
@@ -479,4 +480,96 @@ export function getMealById(
     };
   }
   return null;
+}
+
+// ── Saved Dishes (PRD §10.5 Mode C) ──
+
+/**
+ * PRD §10.5 Mode C: saved dishes for combine-into-meal flow.
+ * Real data ships in WS7.
+ */
+export function getSavedDishes(): SavedDish[] {
+  // TODO(WS7): Replace with real GET /me/dishes call
+  return [
+    {
+      id: "demo-dish-1",
+      name: "Jasmine Rice",
+      cuisineType: "Asian",
+      ingredients: [
+        { quantity: 1, unit: "cup", name: "jasmine rice" },
+        { quantity: 2, unit: "cup", name: "water" },
+        { quantity: 0.5, unit: "tsp", name: "salt" },
+      ],
+      caloriesPerServing: 220,
+      proteinGPerServing: 4,
+      carbsGPerServing: 48,
+      fatGPerServing: 1,
+      useCount: 5,
+    },
+    {
+      id: "demo-dish-2",
+      name: "Roasted Broccoli",
+      cuisineType: "American",
+      ingredients: [
+        { quantity: 1, unit: "lb", name: "broccoli florets" },
+        { quantity: 2, unit: "tbsp", name: "olive oil" },
+        { quantity: 1, unit: "tsp", name: "salt" },
+        { quantity: 0.5, unit: "tsp", name: "black pepper" },
+      ],
+      caloriesPerServing: 110,
+      proteinGPerServing: 4,
+      carbsGPerServing: 8,
+      fatGPerServing: 7,
+      useCount: 3,
+    },
+    {
+      id: "demo-dish-3",
+      name: "Garlic Green Beans",
+      cuisineType: "American",
+      ingredients: [
+        { quantity: 1, unit: "lb", name: "green beans, trimmed" },
+        { quantity: 2, unit: "tbsp", name: "olive oil" },
+        { quantity: 3, unit: "clove", name: "garlic, minced" },
+        { quantity: 0.5, unit: "tsp", name: "salt" },
+      ],
+      caloriesPerServing: 95,
+      proteinGPerServing: 3,
+      carbsGPerServing: 12,
+      fatGPerServing: 5,
+      useCount: 2,
+    },
+    {
+      id: "demo-dish-4",
+      name: "Mashed Potatoes",
+      cuisineType: "American",
+      ingredients: [
+        { quantity: 2, unit: "lb", name: "yukon gold potatoes" },
+        { quantity: 0.5, unit: "cup", name: "butter" },
+        { quantity: 0.5, unit: "cup", name: "milk" },
+        { quantity: 1, unit: "tsp", name: "salt" },
+      ],
+      caloriesPerServing: 285,
+      proteinGPerServing: 5,
+      carbsGPerServing: 36,
+      fatGPerServing: 14,
+      useCount: 4,
+    },
+    {
+      id: "demo-dish-5",
+      name: "Simple Green Salad",
+      cuisineType: "American",
+      ingredients: [
+        { quantity: 8, unit: "cup", name: "mixed greens" },
+        { quantity: 0.25, unit: "cup", name: "olive oil" },
+        { quantity: 2, unit: "tbsp", name: "lemon juice" },
+        { quantity: 0.5, unit: "tsp", name: "salt" },
+        { quantity: 0.25, unit: "tsp", name: "black pepper" },
+      ],
+      caloriesPerServing: 120,
+      proteinGPerServing: 1,
+      carbsGPerServing: 5,
+      fatGPerServing: 12,
+      useCount: 6,
+    },
+  ];
 }

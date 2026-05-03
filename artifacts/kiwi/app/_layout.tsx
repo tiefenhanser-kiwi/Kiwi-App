@@ -34,6 +34,7 @@ function RootLayoutNav() {
       <Stack.Screen name="plan-results" />
       <Stack.Screen name="plan/[id]" />
       <Stack.Screen name="meal/[id]" />
+      <Stack.Screen name="meal-builder" />
       <Stack.Screen name="recipe/[id]" />
       <Stack.Screen name="cookmode/[id]" options={{ presentation: "fullScreenModal" }} />
       <Stack.Screen name="upgrade" options={{ presentation: "modal" }} />

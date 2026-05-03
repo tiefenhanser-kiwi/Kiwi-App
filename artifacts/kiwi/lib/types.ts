@@ -248,3 +248,28 @@ export interface ReviewMealStep {
   /** Optional: timing-sensitive steps render in terracotta per PRD §10.6.1 */
   isTimingSensitive?: boolean;
 }
+
+/**
+ * Saved dish for Meal Builder Mode C (combine saved dishes).
+ * Real data ships in WS7 from /me/dishes endpoint.
+ */
+export interface SavedDish {
+  id: string;
+  name: string;
+  cuisineType?: string;
+  imageUrl?: string;
+  ingredients: SavedDishIngredient[];
+  /** Per-serving values; default servings is 4. */
+  caloriesPerServing: number;
+  proteinGPerServing: number;
+  carbsGPerServing: number;
+  fatGPerServing: number;
+  /** Number of meals this dish appears in. */
+  useCount?: number;
+}
+
+export interface SavedDishIngredient {
+  quantity: number;
+  unit: string;
+  name: string;
+}
