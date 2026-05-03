@@ -8,6 +8,8 @@
 // API via lib/api.ts and delete the corresponding stub from this file.
 
 import type {
+  DayAssignment,
+  DayOfWeek,
   GroceryItem,
   MealPlan,
   MealsFilter,
@@ -152,6 +154,81 @@ export async function getMealsPayload(): Promise<{ meals: MealRowData[] }> {
  * @param _planId MealPlanInstance.id (unused at stub stage)
  */
 export function getReviewPlan(_planId: string): ReviewPlan {
+  // TODO(WS7): Remove this demo branch when getReviewPlan wires to
+  // real data. Used for WS5 smoke testing of meal row component.
+  if (_planId === "demo") {
+    const buildDayStrip = (assignedDay: DayOfWeek | null): DayAssignment[] => {
+      const days: DayOfWeek[] = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
+      return days.map((day) => ({ day, isAssigned: assignedDay === day }));
+    };
+
+    return {
+      id: _planId,
+      name: "Demo Plan",
+      prepStatus: "not_prepped",
+      optimizationNotes: [
+        {
+          type: "prep",
+          text: "Chicken used in 2 meals — prep both portions at once.",
+        },
+        {
+          type: "cost",
+          text: "Garlic shared across 3 meals — buy one head, use it all.",
+        },
+      ],
+      macroDailyAverage: {
+        caloriesPerDay: 2100,
+        proteinGPerDay: 130,
+        carbsGPerDay: 210,
+        fatGPerDay: 75,
+      },
+      scheduledMeals: [
+        {
+          planItemId: "demo-item-1",
+          mealId: "demo-meal-1",
+          title: "Salmon Teriyaki",
+          thumbnailUrl: undefined,
+          metaLine: "Easy · 30 min · serves 4",
+          caloriesPerServing: 540,
+          dayStrip: buildDayStrip("Tuesday"),
+          hasRecipeOverride: false,
+        },
+        {
+          planItemId: "demo-item-2",
+          mealId: "demo-meal-2",
+          title: "Chicken Stir Fry",
+          thumbnailUrl: undefined,
+          metaLine: "Easy · 25 min · serves 4",
+          caloriesPerServing: 480,
+          dayStrip: buildDayStrip("Thursday"),
+          hasRecipeOverride: false,
+        },
+      ],
+      unscheduledMeals: [
+        {
+          planItemId: "demo-item-3",
+          mealId: "demo-meal-3",
+          title: "Pasta Primavera",
+          thumbnailUrl: undefined,
+          metaLine: "Medium · 40 min · serves 4",
+          caloriesPerServing: 620,
+          dayStrip: buildDayStrip(null),
+          hasRecipeOverride: false,
+        },
+      ],
+      breakfastDefaults: "",
+      lunchDefaults: "",
+    };
+  }
+
   return {
     id: _planId,
     name: "",

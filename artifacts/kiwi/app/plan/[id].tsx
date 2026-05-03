@@ -15,6 +15,7 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { getReviewPlan } from "@/lib/stubs";
@@ -242,9 +243,16 @@ export default function PlanReviewScreen() {
             </View>
           ) : (
             <>
-              <Text style={s.placeholder}>(meal rows render here in 5E)</Text>
+              {reviewPlan.scheduledMeals.map((row) => (
+                <PlanReviewMealRow key={row.planItemId} row={row} />
+              ))}
               {reviewPlan.unscheduledMeals.length > 0 && (
-                <Text style={s.subSectionHeader}>Unscheduled</Text>
+                <>
+                  <Text style={s.subSectionHeader}>Unscheduled</Text>
+                  {reviewPlan.unscheduledMeals.map((row) => (
+                    <PlanReviewMealRow key={row.planItemId} row={row} />
+                  ))}
+                </>
               )}
             </>
           )}
@@ -443,11 +451,12 @@ const s = StyleSheet.create({
     marginBottom: KSpacing.sm,
   },
   subSectionHeader: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
-    marginTop: KSpacing.md,
+    fontSize: KType.size.md,
+    color: KColors.neutral[800],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    marginTop: KSpacing.lg,
+    marginBottom: KSpacing.sm,
   },
   placeholder: {
     fontSize: KType.size.sm,
