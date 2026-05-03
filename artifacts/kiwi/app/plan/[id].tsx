@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Keyboard,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -39,6 +40,47 @@ export default function PlanReviewScreen() {
   const [lunchOpen, setLunchOpen] = useState(false);
   const [lunchDraft, setLunchDraft] = useState(reviewPlan.lunchDefaults);
 
+  // Imperative scroll handle on the keyboard-aware scroll container plus
+  // captured Y positions for the Breakfast/Lunch sections so toggles can
+  // scroll the freshly-expanded section into view.
+  const scrollRef = useRef<ScrollView>(null);
+  const breakfastYRef = useRef(0);
+  const lunchYRef = useRef(0);
+
+  const toggleBreakfast = () => {
+    Keyboard.dismiss();
+    setBreakfastOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        // Defer scroll until after expand pushes new content into the layout
+        // tree — without the delay scrollTo lands on the pre-expand Y.
+        setTimeout(() => {
+          scrollRef.current?.scrollTo({
+            y: breakfastYRef.current,
+            animated: true,
+          });
+        }, 100);
+      }
+      return next;
+    });
+  };
+
+  const toggleLunch = () => {
+    Keyboard.dismiss();
+    setLunchOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setTimeout(() => {
+          scrollRef.current?.scrollTo({
+            y: lunchYRef.current,
+            animated: true,
+          });
+        }, 100);
+      }
+      return next;
+    });
+  };
+
   const onAddMeals = () => {
     console.log("[plan-review] add-meals tapped", { planId });
   };
@@ -61,6 +103,7 @@ export default function PlanReviewScreen() {
       />
 
       <KeyboardAwareScrollViewCompat
+        ref={scrollRef}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -208,9 +251,15 @@ export default function PlanReviewScreen() {
         </View>
 
         {/* §8.3.7 — Breakfast & Lunch defaults (collapsed by default) */}
-        <View style={s.section}>
+        <View
+          style={s.section}
+          onLayout={(e) => {
+            breakfastYRef.current = e.nativeEvent.layout.y;
+          }}
+        >
           <Pressable
-            onPress={() => setBreakfastOpen((v) => !v)}
+            onPress={toggleBreakfast}
+            hitSlop={10}
             style={({ pressed }) => [
               s.collapseHeader,
               pressed && { opacity: 0.7 },
@@ -238,9 +287,15 @@ export default function PlanReviewScreen() {
           )}
         </View>
 
-        <View style={s.section}>
+        <View
+          style={s.section}
+          onLayout={(e) => {
+            lunchYRef.current = e.nativeEvent.layout.y;
+          }}
+        >
           <Pressable
-            onPress={() => setLunchOpen((v) => !v)}
+            onPress={toggleLunch}
+            hitSlop={10}
             style={({ pressed }) => [
               s.collapseHeader,
               pressed && { opacity: 0.7 },
