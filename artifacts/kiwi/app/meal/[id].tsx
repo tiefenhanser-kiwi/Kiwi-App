@@ -118,9 +118,14 @@ export default function MealDetailScreen() {
 
   const onEdit = () => {
     console.log("[meal-detail] edit tapped", { mealId: meal.id });
+    // Forward plan context (when present) so Meal Builder's Save flow can
+    // surface the §2.5 prompt for edit-from-plan vs. global save.
     router.push({
       pathname: "/meal-builder",
-      params: { mealId: meal.id },
+      params: {
+        mealId: meal.id,
+        ...(planId && planItemId ? { planId, planItemId } : {}),
+      },
     });
   };
 

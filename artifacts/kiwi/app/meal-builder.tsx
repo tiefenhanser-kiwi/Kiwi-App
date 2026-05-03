@@ -12,6 +12,7 @@ import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/Button";
+import { DishChooserSheet } from "@/components/DishChooserSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import {
@@ -113,10 +114,14 @@ const newStep = (
 });
 
 export default function MealBuilderScreen() {
-  const { mealId, mode: modeParam } = useLocalSearchParams<{
-    mealId?: string;
-    mode?: "manual" | "combine" | "ai";
-  }>();
+  const { mealId, planId, planItemId, mode: modeParam } =
+    useLocalSearchParams<{
+      mealId?: string;
+      planId?: string;
+      planItemId?: string;
+      mode?: "manual" | "combine" | "ai";
+    }>();
+  const isEditFromPlanContext = !!(mealId && planId && planItemId);
 
   const sourceMeal = useMemo(
     () => (mealId ? getMealById(mealId) : null),
@@ -143,6 +148,9 @@ export default function MealBuilderScreen() {
   const savedDishes = useMemo(() => getSavedDishes(), []);
   const [selectedDishIds, setSelectedDishIds] = useState<string[]>([]);
   const [combineReview, setCombineReview] = useState(false);
+
+  // ── Dish chooser sheet (Mode B "+ Add Dish") ────────────────────
+  const [dishChooserVisible, setDishChooserVisible] = useState(false);
 
   // Pre-population from existing meal (one-shot on mount when mealId present).
   useEffect(() => {
@@ -231,7 +239,6 @@ export default function MealBuilderScreen() {
   };
 
   // ── Manual-mode mutators ────────────────────────────────────────
-  const addDish = () => setDishes((prev) => [...prev, newDish()]);
   const removeDish = (uid: number) =>
     setDishes((prev) => prev.filter((d) => d.uid !== uid));
   const updateDishName = (uid: number, name: string) =>
@@ -326,10 +333,50 @@ export default function MealBuilderScreen() {
         dishCount: selectedDishIds.length,
       });
     }
-    Alert.alert(
-      "Coming in WS7",
-      "Saving meals requires the API client. This action will be wired in WS7. Your work is preserved on this screen until you navigate away.",
-    );
+    // §2.5 prompt only when editing an existing meal AND that edit was opened
+    // from a plan context (planId + planItemId in route params).
+    if (isEditFromPlanContext) {
+      Alert.alert(
+        "Save changes",
+        "Apply changes to just this plan, or update your saved meal so future plans use the new recipe?",
+        [
+          {
+            text: "Just for this plan",
+            onPress: () => {
+              console.log("[meal-builder] save (just-this-plan) tapped", {
+                mealId,
+                planId,
+                planItemId,
+              });
+              Alert.alert(
+                "Coming in WS7",
+                "Saving plan-instance overrides requires the API client. This will be wired in WS7.",
+              );
+            },
+          },
+          {
+            text: "Save to my saved meal forever",
+            onPress: () => {
+              console.log("[meal-builder] save (save-globally) tapped", {
+                mealId,
+                planId,
+                planItemId,
+              });
+              Alert.alert(
+                "Coming in WS7",
+                "Saving meals globally requires the API client. This will be wired in WS7.",
+              );
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
+    } else {
+      Alert.alert(
+        "Coming in WS7",
+        "Saving meals requires the API client. This action will be wired in WS7. Your work is preserved on this screen until you navigate away.",
+      );
+    }
   };
 
   return (
@@ -339,35 +386,50 @@ export default function MealBuilderScreen() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Mode picker */}
-        <Text style={s.sectionHeader}>How would you like to build it?</Text>
-        <ModeCard
-          icon="edit-3"
-          title="Build manually"
-          subtitle="Type ingredients and steps yourself"
-          selected={mode === "manual"}
-          onPress={() => trySetMode("manual")}
-        />
-        <ModeCard
-          icon="layers"
-          title="Combine saved dishes"
-          subtitle="Mix and match dishes you've already saved"
-          selected={mode === "combine"}
-          onPress={() => trySetMode("combine")}
-        />
-        <ModeCard
-          icon="type"
-          title="Paste recipe text"
-          subtitle="Premium · Coming in WS6 — Kiwi will parse it for you"
-          selected={false}
-          locked
-          onPress={() => {
-            Alert.alert(
-              "Coming in WS6 — AI orchestration",
-              "Pasting recipe text and having Kiwi parse it requires the AI layer. This will be wired in WS6.",
-            );
-          }}
-        />
+        {/* Edit-context info card: surfaces the §2.5 plan-vs-global save framing */}
+        {mealId && (
+          <View style={s.contextInfo}>
+            <Text style={s.contextInfoText}>
+              Adjust ingredients, steps, or dishes in this meal. You can make
+              changes for cooking just this time or apply changes to your saved
+              recipe.
+            </Text>
+          </View>
+        )}
+
+        {/* Mode picker — create-context only */}
+        {!mealId && (
+          <View>
+            <Text style={s.sectionHeader}>How do you want to build this meal?</Text>
+            <ModeCard
+              icon="edit-3"
+              title="Create manually"
+              subtitle="Add dishes, ingredients, and steps directly"
+              selected={mode === "manual"}
+              onPress={() => trySetMode("manual")}
+            />
+            <ModeCard
+              icon="layers"
+              title="Use dishes you've saved"
+              subtitle="Mix dishes from your library into a new meal"
+              selected={mode === "combine"}
+              onPress={() => trySetMode("combine")}
+            />
+            <ModeCard
+              icon="type"
+              title="Tell Kiwi what you want"
+              subtitle="Premium · coming in WS6 — paste a recipe or describe a dish, Kiwi parses it"
+              selected={false}
+              locked
+              onPress={() => {
+                Alert.alert(
+                  "Coming in WS6 — AI orchestration",
+                  "Pasting recipe text and having Kiwi parse it requires the AI layer. This will be wired in WS6.",
+                );
+              }}
+            />
+          </View>
+        )}
 
         {/* Mode-specific content */}
         {mode === "manual" && (
@@ -383,7 +445,7 @@ export default function MealBuilderScreen() {
             servingsDefault={servingsDefault}
             setServingsDefault={setServingsDefault}
             dishes={dishes}
-            addDish={addDish}
+            onOpenDishChooser={() => setDishChooserVisible(true)}
             removeDish={removeDish}
             updateDishName={updateDishName}
             addIngredient={addIngredient}
@@ -441,6 +503,29 @@ export default function MealBuilderScreen() {
           />
         </View>
       )}
+
+      <DishChooserSheet
+        visible={dishChooserVisible}
+        onClose={() => setDishChooserVisible(false)}
+        onPickSavedDish={(dish) => {
+          const next = newDish({
+            name: dish.name,
+            ingredients: dish.ingredients.map((ing) =>
+              newIngredient({
+                quantity: String(ing.quantity),
+                unit: ing.unit,
+                name: ing.name,
+              }),
+            ),
+          });
+          setDishes((prev) => [...prev, next]);
+        }}
+        onAddManualDish={() => {
+          // Default newDish() seeds one empty ingredient row so the user has
+          // something to type into immediately.
+          setDishes((prev) => [...prev, newDish()]);
+        }}
+      />
     </View>
   );
 }
@@ -643,7 +728,8 @@ function MetaFields(p: MetaFieldsProps) {
 
 interface ManualEditorProps extends MetaFieldsProps {
   dishes: BuilderDish[];
-  addDish: () => void;
+  /** Opens DishChooserSheet — replaces the inline "+ Add dish" link. */
+  onOpenDishChooser: () => void;
   removeDish: (uid: number) => void;
   updateDishName: (uid: number, name: string) => void;
   addIngredient: (dishUid: number) => void;
@@ -669,20 +755,7 @@ function ManualEditor(p: ManualEditorProps) {
 
       {/* Ingredients */}
       <View style={{ gap: KSpacing.sm }}>
-        <View style={s.subHeaderRow}>
-          <Text style={s.subHeader}>Ingredients</Text>
-          <Pressable
-            onPress={p.addDish}
-            hitSlop={6}
-            style={({ pressed }) => [
-              s.addLinkBtn,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Feather name="plus" size={14} color={KColors.sage[700]} />
-            <Text style={s.addLinkText}>Add dish</Text>
-          </Pressable>
-        </View>
+        <Text style={s.subHeader}>Ingredients</Text>
         {p.dishes.map((dish) => (
           <View key={dish.uid} style={s.dishCard}>
             <View style={s.dishHeaderRow}>
@@ -799,6 +872,13 @@ function ManualEditor(p: ManualEditorProps) {
             </View>
           </View>
         ))}
+        <View style={s.addDishWrap}>
+          <Button
+            label="+ Add Dish"
+            variant="ghost"
+            onPress={p.onOpenDishChooser}
+          />
+        </View>
       </View>
 
       {/* Steps */}
@@ -1056,6 +1136,24 @@ const s = StyleSheet.create({
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
     marginBottom: KSpacing.sm,
+  },
+  contextInfo: {
+    backgroundColor: KColors.sage[50],
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.sage[300],
+    padding: KSpacing.md,
+    marginBottom: KSpacing.md,
+  },
+  contextInfoText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[900],
+    fontFamily: "Inter_400Regular",
+    lineHeight: 18,
+  },
+  addDishWrap: {
+    marginTop: KSpacing.md,
+    marginBottom: KSpacing.lg,
   },
   modeCard: {
     flexDirection: "row",
