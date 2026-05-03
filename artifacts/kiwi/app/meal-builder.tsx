@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -50,6 +50,40 @@ const SERVINGS_MAX = 12;
 
 let nextUid = 1;
 const allocUid = () => nextUid++;
+
+/**
+ * Parse a quantity string supporting fractions and decimals.
+ * Returns null for invalid input.
+ * Examples: "1.5" → 1.5, "1/2" → 0.5, "1 1/2" → 1.5, "abc" → null
+ */
+export function parseQuantity(input: string): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  // Plain decimal: "1.5", "0.25", "2"
+  const decimal = Number(trimmed);
+  if (!isNaN(decimal) && isFinite(decimal)) return decimal;
+
+  // Mixed fraction: "1 1/2", "2 3/4"
+  const mixedMatch = trimmed.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (mixedMatch) {
+    const [, whole, num, den] = mixedMatch;
+    const denN = Number(den);
+    if (denN === 0) return null;
+    return Number(whole) + Number(num) / denN;
+  }
+
+  // Pure fraction: "1/2", "3/4", "1/8"
+  const fracMatch = trimmed.match(/^(\d+)\/(\d+)$/);
+  if (fracMatch) {
+    const [, num, den] = fracMatch;
+    const denN = Number(den);
+    if (denN === 0) return null;
+    return Number(num) / denN;
+  }
+
+  return null;
+}
 
 const newIngredient = (
   partial?: Partial<Omit<BuilderIngredient, "uid">>,
@@ -177,12 +211,12 @@ export default function MealBuilderScreen() {
     if (dirty) {
       Alert.alert(
         "Switch modes?",
-        "You'll lose any unsaved work in the current mode.",
+        "Your current entries will be set aside but kept. You can switch back without losing anything.",
         [
           { text: "Cancel", style: "cancel" },
           {
             text: "Switch",
-            style: "destructive",
+            style: "default",
             onPress: () => {
               Keyboard.dismiss();
               setModeState(next);
@@ -252,11 +286,13 @@ export default function MealBuilderScreen() {
       prev.map((st) => (st.uid === uid ? { ...st, ...patch } : st)),
     );
 
-  const toggleSelectedDish = (id: string) => {
+  // Stable identity so DishPickerRow's memoization holds across parent re-renders
+  // (e.g. while user types in MetaFields above the picker).
+  const toggleSelectedDish = useCallback((id: string) => {
     setSelectedDishIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
-  };
+  }, []);
 
   // ── Save (stub) ─────────────────────────────────────────────────
   const manualSaveDisabled =
@@ -502,7 +538,9 @@ function MetaFields(p: MetaFieldsProps) {
           placeholder="Meal name (e.g., Salmon Teriyaki)"
           placeholderTextColor={KColors.neutral[600]}
           style={s.textInput}
-          returnKeyType="next"
+          returnKeyType="done"
+          blurOnSubmit
+          onSubmitEditing={Keyboard.dismiss}
         />
       </View>
       <View>
@@ -513,7 +551,9 @@ function MetaFields(p: MetaFieldsProps) {
           placeholder="Cuisine (Italian, Japanese, etc.)"
           placeholderTextColor={KColors.neutral[600]}
           style={s.textInput}
-          returnKeyType="next"
+          returnKeyType="done"
+          blurOnSubmit
+          onSubmitEditing={Keyboard.dismiss}
         />
       </View>
       <View>
@@ -652,7 +692,9 @@ function ManualEditor(p: ManualEditorProps) {
                 placeholder="Dish name (optional)"
                 placeholderTextColor={KColors.neutral[600]}
                 style={[s.textInput, { flex: 1 }]}
-                returnKeyType="next"
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={Keyboard.dismiss}
               />
               {moreThanOneDish && (
                 <Pressable
@@ -668,52 +710,81 @@ function ManualEditor(p: ManualEditorProps) {
               )}
             </View>
             <View style={{ gap: KSpacing.xs, marginTop: KSpacing.sm }}>
-              {dish.ingredients.map((ing) => (
-                <View key={ing.uid} style={s.ingredientRow}>
-                  <TextInput
-                    value={ing.quantity}
-                    onChangeText={(v) =>
-                      p.updateIngredient(dish.uid, ing.uid, { quantity: v })
-                    }
-                    placeholder="Qty"
-                    placeholderTextColor={KColors.neutral[600]}
-                    style={[s.textInput, s.ingQty]}
-                    keyboardType="decimal-pad"
-                    returnKeyType="next"
-                  />
-                  <TextInput
-                    value={ing.unit}
-                    onChangeText={(v) =>
-                      p.updateIngredient(dish.uid, ing.uid, { unit: v })
-                    }
-                    placeholder="Unit"
-                    placeholderTextColor={KColors.neutral[600]}
-                    style={[s.textInput, s.ingUnit]}
-                    returnKeyType="next"
-                    autoCapitalize="none"
-                  />
-                  <TextInput
-                    value={ing.name}
-                    onChangeText={(v) =>
-                      p.updateIngredient(dish.uid, ing.uid, { name: v })
-                    }
-                    placeholder="Ingredient"
-                    placeholderTextColor={KColors.neutral[600]}
-                    style={[s.textInput, { flex: 1 }]}
-                    returnKeyType="next"
-                  />
-                  <Pressable
-                    onPress={() => p.removeIngredient(dish.uid, ing.uid)}
-                    hitSlop={8}
-                    style={({ pressed }) => [
-                      s.removeIconBtn,
-                      pressed && { opacity: 0.6 },
-                    ]}
-                  >
-                    <Feather name="x" size={16} color={KColors.neutral[700]} />
-                  </Pressable>
-                </View>
-              ))}
+              {dish.ingredients.map((ing) => {
+                // Quantity supports decimals + fractions ("1/2", "1 1/2").
+                // Invalid only when non-empty AND parser rejects.
+                const qtyInvalid =
+                  ing.quantity.trim().length > 0 &&
+                  parseQuantity(ing.quantity) === null;
+                return (
+                  <View key={ing.uid}>
+                    <View style={s.ingredientRow}>
+                      <TextInput
+                        value={ing.quantity}
+                        onChangeText={(v) =>
+                          p.updateIngredient(dish.uid, ing.uid, { quantity: v })
+                        }
+                        placeholder="Qty"
+                        placeholderTextColor={KColors.neutral[600]}
+                        style={[
+                          s.textInput,
+                          s.ingQty,
+                          qtyInvalid && s.inputInvalid,
+                        ]}
+                        // Default keyboard so users can type "/" for fractions.
+                        autoCapitalize="none"
+                        returnKeyType="done"
+                        blurOnSubmit
+                        onSubmitEditing={Keyboard.dismiss}
+                      />
+                      <TextInput
+                        value={ing.unit}
+                        onChangeText={(v) =>
+                          p.updateIngredient(dish.uid, ing.uid, { unit: v })
+                        }
+                        placeholder="Unit"
+                        placeholderTextColor={KColors.neutral[600]}
+                        style={[s.textInput, s.ingUnit]}
+                        autoCapitalize="none"
+                        returnKeyType="done"
+                        blurOnSubmit
+                        onSubmitEditing={Keyboard.dismiss}
+                      />
+                      <TextInput
+                        value={ing.name}
+                        onChangeText={(v) =>
+                          p.updateIngredient(dish.uid, ing.uid, { name: v })
+                        }
+                        placeholder="Ingredient"
+                        placeholderTextColor={KColors.neutral[600]}
+                        style={[s.textInput, { flex: 1 }]}
+                        returnKeyType="done"
+                        blurOnSubmit
+                        onSubmitEditing={Keyboard.dismiss}
+                      />
+                      <Pressable
+                        onPress={() => p.removeIngredient(dish.uid, ing.uid)}
+                        hitSlop={8}
+                        style={({ pressed }) => [
+                          s.removeIconBtn,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Feather
+                          name="x"
+                          size={16}
+                          color={KColors.neutral[700]}
+                        />
+                      </Pressable>
+                    </View>
+                    {qtyInvalid && (
+                      <Text style={s.invalidBadge}>
+                        Invalid quantity (try 1, 1.5, 1/2, or 1 1/2)
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
               <Pressable
                 onPress={() => p.addIngredient(dish.uid)}
                 hitSlop={6}
@@ -759,6 +830,8 @@ function ManualEditor(p: ManualEditorProps) {
                 placeholderTextColor={KColors.neutral[600]}
                 style={[s.textInput, s.stepTextInput]}
                 multiline
+                returnKeyType="default"
+                blurOnSubmit={false}
               />
               <View style={s.suffixRow}>
                 <TextInput
@@ -803,6 +876,8 @@ function ManualEditor(p: ManualEditorProps) {
           placeholderTextColor={KColors.neutral[600]}
           style={[s.textInput, s.notesInput]}
           multiline
+          returnKeyType="default"
+          blurOnSubmit={false}
         />
       </View>
     </View>
@@ -821,6 +896,13 @@ interface CombinePickerProps extends MetaFieldsProps {
 }
 
 function CombinePicker(p: CombinePickerProps) {
+  // Set-based lookup so each row check is O(1) instead of O(n) on
+  // p.selectedDishIds. Recomputed only when the selection changes.
+  const selectedSet = useMemo(
+    () => new Set(p.selectedDishIds),
+    [p.selectedDishIds],
+  );
+
   return (
     <View style={{ marginTop: KSpacing.lg, gap: KSpacing.lg }}>
       <MetaFields {...p} />
@@ -830,40 +912,14 @@ function CombinePicker(p: CombinePickerProps) {
           Selected dishes will become this meal&apos;s components. You can edit
           ingredients afterward.
         </Text>
-        {p.savedDishes.map((dish) => {
-          const selected = p.selectedDishIds.includes(dish.id);
-          return (
-            <Pressable
-              key={dish.id}
-              onPress={() => p.onToggle(dish.id)}
-              style={({ pressed }) => [
-                s.dishPickerRow,
-                selected && s.dishPickerRowSelected,
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Feather
-                name={selected ? "check-square" : "square"}
-                size={20}
-                color={selected ? KColors.sage[700] : KColors.neutral[600]}
-              />
-              <View style={[s.dishThumb, !dish.imageUrl && s.dishThumbFallback]} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.dishPickerName}>{dish.name}</Text>
-                <Text style={s.dishPickerMeta}>
-                  {[dish.cuisineType, `${dish.caloriesPerServing} cal/serving`]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </Text>
-              </View>
-              {dish.useCount !== undefined && (
-                <Text style={s.dishPickerUse}>
-                  Used in {dish.useCount} meals
-                </Text>
-              )}
-            </Pressable>
-          );
-        })}
+        {p.savedDishes.map((dish) => (
+          <DishPickerRow
+            key={dish.id}
+            dish={dish}
+            isSelected={selectedSet.has(dish.id)}
+            onToggle={p.onToggle}
+          />
+        ))}
         <Button
           label="Continue with selected"
           variant="primary"
@@ -874,6 +930,54 @@ function CombinePicker(p: CombinePickerProps) {
     </View>
   );
 }
+
+interface DishPickerRowProps {
+  dish: SavedDish;
+  isSelected: boolean;
+  onToggle: (id: string) => void;
+}
+
+// Memoized so typing in MetaFields above doesn't re-render every dish row —
+// only the row whose isSelected flips on toggle re-renders. Combined with
+// useCallback'd onToggle in the parent, this kills the first-render tap
+// latency from selection-state churn.
+const DishPickerRow = memo(function DishPickerRow({
+  dish,
+  isSelected,
+  onToggle,
+}: DishPickerRowProps) {
+  const handlePress = useCallback(() => onToggle(dish.id), [dish.id, onToggle]);
+  return (
+    <Pressable
+      onPress={handlePress}
+      style={({ pressed }) => [
+        s.dishPickerRow,
+        isSelected && s.dishPickerRowSelected,
+        pressed && { opacity: 0.85 },
+      ]}
+    >
+      <Feather
+        name={isSelected ? "check-square" : "square"}
+        size={20}
+        color={isSelected ? KColors.sage[700] : KColors.neutral[600]}
+      />
+      <View style={[s.dishThumb, !dish.imageUrl && s.dishThumbFallback]} />
+      <View style={{ flex: 1 }}>
+        <Text style={s.dishPickerName}>{dish.name}</Text>
+        <Text style={s.dishPickerMeta}>
+          {[dish.cuisineType, `${dish.caloriesPerServing} cal/serving`]
+            .filter(Boolean)
+            .join(" · ")}
+        </Text>
+      </View>
+      {dish.useCount !== undefined && (
+        <Text style={s.dishPickerUse}>
+          Used in {dish.useCount} meals
+        </Text>
+      )}
+    </Pressable>
+  );
+});
 
 // ─────────────────────────────────────────────────────────────────
 // Mode C — Combine review
@@ -1024,6 +1128,16 @@ const s = StyleSheet.create({
     fontSize: KType.size.sm,
     color: KColors.neutral[900],
     fontFamily: "Inter_400Regular",
+  },
+  inputInvalid: {
+    borderColor: KColors.terracotta[400],
+  },
+  invalidBadge: {
+    fontSize: KType.size.xs,
+    color: KColors.terracotta[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+    marginLeft: 4,
   },
   notesInput: {
     minHeight: 80,
