@@ -14,6 +14,7 @@ import type {
   MealPlan,
   MealsFilter,
   Recipe,
+  ReviewMeal,
   ReviewPlan,
 } from "./types";
 import { DAYS, getMondayISO } from "./domain";
@@ -245,4 +246,237 @@ export function getReviewPlan(_planId: string): ReviewPlan {
     breakfastDefaults: "",
     lunchDefaults: "",
   };
+}
+
+// ── Meal Detail (PRD §10.6) ──
+
+/**
+ * PRD §10.6 Meal Detail page payload stub.
+ * Real data ships in WS7.
+ * Demo branch matches getReviewPlan's demo rows for smoke testing.
+ *
+ * @param _mealId Meal.id
+ * @param overrideContext Optional: when present, signals
+ *   hasActivePlanOverride=true for the §2.5 banner.
+ */
+export function getMealById(
+  _mealId: string,
+  overrideContext?: { planId: string; planItemId: string },
+): ReviewMeal | null {
+  // TODO(WS7): Replace with real API call to GET /meals/:id
+  if (_mealId === "demo-meal-1") {
+    return {
+      id: "demo-meal-1",
+      title: "Salmon Teriyaki",
+      description:
+        "Pan-seared salmon glazed with a homemade teriyaki sauce. Quick weeknight dinner.",
+      cuisineType: "Japanese",
+      difficulty: "easy",
+      estimatedTimeMinutes: 30,
+      servingsDefault: 4,
+      tags: ["seafood", "weeknight", "quick"],
+      caloriesPerServing: 540,
+      proteinGPerServing: 38,
+      carbsGPerServing: 32,
+      fatGPerServing: 24,
+      dishes: [
+        {
+          name: "Salmon",
+          ingredients: [
+            { quantity: 1.5, unit: "lb", name: "salmon fillets, skin on" },
+            { quantity: 2, unit: "tbsp", name: "soy sauce" },
+            { quantity: 2, unit: "tbsp", name: "mirin" },
+            { quantity: 1, unit: "tbsp", name: "brown sugar" },
+            { quantity: 1, unit: "tsp", name: "fresh ginger, grated" },
+          ],
+        },
+        {
+          name: "Rice",
+          ingredients: [
+            { quantity: 1, unit: "cup", name: "jasmine rice" },
+            { quantity: 2, unit: "cup", name: "water" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Rinse rice and combine with water in a saucepan. Bring to a boil, reduce to low, cover and simmer 18 minutes.",
+          estimatedMinutes: 20,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 2,
+          text: "Whisk soy sauce, mirin, brown sugar, and ginger in a small bowl.",
+          estimatedMinutes: 2,
+        },
+        {
+          stepNumber: 3,
+          text: "Heat a non-stick pan over medium-high. Cook salmon skin-side down 4 minutes until skin is crisp.",
+          estimatedMinutes: 4,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 4,
+          text: "Flip salmon and pour teriyaki sauce over. Cook 3 more minutes, basting with sauce.",
+          estimatedMinutes: 3,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 5,
+          text: "Plate over rice; spoon any pan sauce over the top.",
+          estimatedMinutes: 1,
+        },
+      ],
+      notes: "Doubled the ginger last time — was great.",
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "demo-meal-2") {
+    return {
+      id: "demo-meal-2",
+      title: "Chicken Stir Fry",
+      description:
+        "Quick pan stir fry with bell peppers and a garlic-soy sauce.",
+      cuisineType: "Chinese",
+      difficulty: "easy",
+      estimatedTimeMinutes: 25,
+      servingsDefault: 4,
+      tags: ["weeknight", "quick", "chicken"],
+      caloriesPerServing: 480,
+      proteinGPerServing: 35,
+      carbsGPerServing: 38,
+      fatGPerServing: 18,
+      dishes: [
+        {
+          name: "Stir Fry",
+          ingredients: [
+            { quantity: 1.25, unit: "lb", name: "chicken breast, sliced thin" },
+            { quantity: 2, unit: "tbsp", name: "soy sauce" },
+            { quantity: 1, unit: "tbsp", name: "cornstarch" },
+            { quantity: 2, unit: "tbsp", name: "vegetable oil" },
+            { quantity: 3, unit: "clove", name: "garlic, minced" },
+            { quantity: 2, unit: "whole", name: "bell peppers, sliced" },
+          ],
+        },
+        {
+          name: "Rice",
+          ingredients: [
+            { quantity: 1, unit: "cup", name: "jasmine rice" },
+            { quantity: 2, unit: "cup", name: "water" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Toss chicken with 1 tbsp soy sauce + cornstarch. Set aside 10 min.",
+          estimatedMinutes: 10,
+        },
+        {
+          stepNumber: 2,
+          text: "Cook rice (rinse, combine with water, simmer covered 18 min).",
+          estimatedMinutes: 20,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 3,
+          text: "Heat oil in wok over high heat. Sear chicken 3 min until just cooked through; remove.",
+          estimatedMinutes: 3,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 4,
+          text: "Add garlic and bell peppers. Stir fry 2 minutes.",
+          estimatedMinutes: 2,
+        },
+        {
+          stepNumber: 5,
+          text: "Return chicken; add remaining 1 tbsp soy sauce. Toss 1 minute.",
+          estimatedMinutes: 1,
+        },
+        {
+          stepNumber: 6,
+          text: "Serve over rice.",
+          estimatedMinutes: 1,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "demo-meal-3") {
+    return {
+      id: "demo-meal-3",
+      title: "Pasta Primavera",
+      description: "Spring vegetable pasta with garlic, lemon, and parmesan.",
+      cuisineType: "Italian",
+      difficulty: "medium",
+      estimatedTimeMinutes: 40,
+      servingsDefault: 4,
+      tags: ["vegetarian", "pasta"],
+      caloriesPerServing: 620,
+      proteinGPerServing: 22,
+      carbsGPerServing: 78,
+      fatGPerServing: 22,
+      dishes: [
+        {
+          name: "Pasta",
+          ingredients: [
+            { quantity: 1, unit: "lb", name: "fettuccine" },
+            { quantity: 1, unit: "tbsp", name: "salt (for pasta water)" },
+          ],
+        },
+        {
+          name: "Sauce",
+          ingredients: [
+            { quantity: 3, unit: "tbsp", name: "olive oil" },
+            { quantity: 4, unit: "clove", name: "garlic, minced" },
+            { quantity: 1, unit: "cup", name: "asparagus, cut 1-inch" },
+            { quantity: 1, unit: "cup", name: "cherry tomatoes, halved" },
+            { quantity: 1, unit: "whole", name: "lemon, zested and juiced" },
+            { quantity: 0.5, unit: "cup", name: "parmesan, grated" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Bring a large pot of salted water to a boil.",
+          estimatedMinutes: 8,
+        },
+        {
+          stepNumber: 2,
+          text: "Cook fettuccine al dente per package; reserve 1 cup pasta water before draining.",
+          estimatedMinutes: 12,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 3,
+          text: "Heat olive oil in a large pan over medium. Add garlic, cook 30 sec.",
+          estimatedMinutes: 1,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 4,
+          text: "Add asparagus; cook 3 min. Add tomatoes; cook 2 min more.",
+          estimatedMinutes: 5,
+        },
+        {
+          stepNumber: 5,
+          text: "Add drained pasta to the pan with lemon zest, juice, and parmesan. Toss with reserved pasta water until creamy.",
+          estimatedMinutes: 2,
+        },
+        {
+          stepNumber: 6,
+          text: "Plate; garnish with extra parmesan.",
+          estimatedMinutes: 1,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  return null;
 }

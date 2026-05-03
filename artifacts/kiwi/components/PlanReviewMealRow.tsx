@@ -1,5 +1,6 @@
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 
 import {
   KColors,
@@ -13,14 +14,25 @@ import { DAY_SHORT, type ReviewPlanMealRow } from "@/lib/types";
 
 interface Props {
   row: ReviewPlanMealRow;
+  planId: string;
 }
 
-export function PlanReviewMealRow({ row }: Props) {
+export function PlanReviewMealRow({ row, planId }: Props) {
+  const router = useRouter();
+
+  const navigateToDetail = () => {
+    router.push({
+      pathname: "/meal/[id]",
+      params: { id: row.mealId, planId, planItemId: row.planItemId },
+    });
+  };
+
   const onRowTap = () => {
     console.log("[meal-row] row tapped (→ Meal Detail)", {
       planItemId: row.planItemId,
       mealId: row.mealId,
     });
+    navigateToDetail();
   };
 
   return (
@@ -87,6 +99,7 @@ export function PlanReviewMealRow({ row }: Props) {
               planItemId: row.planItemId,
               mealId: row.mealId,
             });
+            navigateToDetail();
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >

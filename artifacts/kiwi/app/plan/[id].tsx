@@ -244,13 +244,13 @@ export default function PlanReviewScreen() {
           ) : (
             <>
               {reviewPlan.scheduledMeals.map((row) => (
-                <PlanReviewMealRow key={row.planItemId} row={row} />
+                <PlanReviewMealRow key={row.planItemId} row={row} planId={planId} />
               ))}
               {reviewPlan.unscheduledMeals.length > 0 && (
                 <>
                   <Text style={s.subSectionHeader}>Unscheduled</Text>
                   {reviewPlan.unscheduledMeals.map((row) => (
-                    <PlanReviewMealRow key={row.planItemId} row={row} />
+                    <PlanReviewMealRow key={row.planItemId} row={row} planId={planId} />
                   ))}
                 </>
               )}

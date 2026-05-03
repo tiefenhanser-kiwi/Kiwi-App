@@ -196,3 +196,55 @@ export type PlanReviewMealAction =
   | "change_recipe"
   | "find_similar"
   | "compost";
+
+/**
+ * Full meal detail per PRD §10.6.
+ * What getMealById returns; what app/meal/[id].tsx renders.
+ */
+export interface ReviewMeal {
+  id: string;
+  title: string;
+  description?: string;
+  cuisineType?: string;
+  difficulty: "easy" | "medium" | "hard";
+  estimatedTimeMinutes: number;
+  servingsDefault: number;
+  imageUrl?: string;
+  tags: string[];
+  /** Per-serving macros. */
+  caloriesPerServing: number;
+  proteinGPerServing: number;
+  carbsGPerServing: number;
+  fatGPerServing: number;
+  /** Ingredients grouped by sub-dish (per PRD §10.6.1). */
+  dishes: ReviewMealDish[];
+  /** Recipe steps, ordered. */
+  steps: ReviewMealStep[];
+  /** User notes (free text). */
+  notes?: string;
+  /** True when accessed from a plan context AND that plan-item has
+   *  a recipeOverrideJson active — drives the §2.5 banner. */
+  hasActivePlanOverride?: boolean;
+  /** When hasActivePlanOverride is true, the planId + planItemId
+   *  context for the override (so promote/dismiss know what to act on). */
+  overrideContext?: { planId: string; planItemId: string };
+}
+
+export interface ReviewMealDish {
+  name: string;
+  ingredients: ReviewMealIngredient[];
+}
+
+export interface ReviewMealIngredient {
+  quantity: number;
+  unit: string;
+  name: string;
+}
+
+export interface ReviewMealStep {
+  stepNumber: number;
+  text: string;
+  estimatedMinutes?: number;
+  /** Optional: timing-sensitive steps render in terracotta per PRD §10.6.1 */
+  isTimingSensitive?: boolean;
+}
