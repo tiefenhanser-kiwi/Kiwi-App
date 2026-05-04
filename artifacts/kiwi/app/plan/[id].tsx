@@ -13,6 +13,7 @@ import { useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { ChangeMealSheet } from "@/components/ChangeMealSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
@@ -20,14 +21,23 @@ import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { getReviewPlan } from "@/lib/stubs";
 
+const capitalize = (s: string) =>
+  s.charAt(0).toUpperCase() + s.slice(1);
+
 export default function PlanReviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const planId = id ?? "";
-  const { plans } = useApp();
+  const { plans, changeMealForPlanItem } = useApp();
   // Option A (locked): screen owns the ReviewPlan in local state.
   // Future action sheets (5J/5K/5L/5M) optimistically update via setReviewPlan;
   // AppContext mutators stay log-only stubs until WS7 wires real persistence.
-  const [reviewPlan, _setReviewPlan] = useState(() => getReviewPlan(planId));
+  const [reviewPlan, setReviewPlan] = useState(() => getReviewPlan(planId));
+
+  // Sheet state for §8.4.2 Change Meal flow.
+  const [changeMealForRow, setChangeMealForRow] = useState<{
+    planItemId: string;
+    currentMealId: string;
+  } | null>(null);
 
   // Until WS7 wires real ReviewPlan data, the authoritative plan name lives
   // on the legacy MealPlan in AppContext.plans (recipe-id-based per WS5-5A).
@@ -244,13 +254,27 @@ export default function PlanReviewScreen() {
           ) : (
             <>
               {reviewPlan.scheduledMeals.map((row) => (
-                <PlanReviewMealRow key={row.planItemId} row={row} planId={planId} />
+                <PlanReviewMealRow
+                  key={row.planItemId}
+                  row={row}
+                  planId={planId}
+                  onChangeMeal={(planItemId, currentMealId) =>
+                    setChangeMealForRow({ planItemId, currentMealId })
+                  }
+                />
               ))}
               {reviewPlan.unscheduledMeals.length > 0 && (
                 <>
                   <Text style={s.subSectionHeader}>Unscheduled</Text>
                   {reviewPlan.unscheduledMeals.map((row) => (
-                    <PlanReviewMealRow key={row.planItemId} row={row} planId={planId} />
+                    <PlanReviewMealRow
+                      key={row.planItemId}
+                      row={row}
+                      planId={planId}
+                      onChangeMeal={(planItemId, currentMealId) =>
+                        setChangeMealForRow({ planItemId, currentMealId })
+                      }
+                    />
                   ))}
                 </>
               )}
@@ -331,6 +355,53 @@ export default function PlanReviewScreen() {
           )}
         </View>
       </KeyboardAwareScrollViewCompat>
+
+      <ChangeMealSheet
+        visible={changeMealForRow !== null}
+        currentMealId={changeMealForRow?.currentMealId ?? ""}
+        onClose={() => setChangeMealForRow(null)}
+        onPickReplacement={(newMeal) => {
+          if (!changeMealForRow) return;
+          const targetPlanItemId = changeMealForRow.planItemId;
+          const newMetaLine = `${capitalize(newMeal.difficulty)} · ${newMeal.estimatedTimeMinutes} min · serves ${newMeal.servingsDefault}`;
+          setReviewPlan((prev) => ({
+            ...prev,
+            scheduledMeals: prev.scheduledMeals.map((m) =>
+              m.planItemId === targetPlanItemId
+                ? {
+                    ...m,
+                    mealId: newMeal.id,
+                    title: newMeal.title,
+                    metaLine: newMetaLine,
+                    caloriesPerServing: newMeal.caloriesPerServing,
+                    proteinGPerServing: newMeal.proteinGPerServing,
+                    carbsGPerServing: newMeal.carbsGPerServing,
+                    fatGPerServing: newMeal.fatGPerServing,
+                    hasRecipeOverride: false,
+                  }
+                : m,
+            ),
+            unscheduledMeals: prev.unscheduledMeals.map((m) =>
+              m.planItemId === targetPlanItemId
+                ? {
+                    ...m,
+                    mealId: newMeal.id,
+                    title: newMeal.title,
+                    metaLine: newMetaLine,
+                    caloriesPerServing: newMeal.caloriesPerServing,
+                    proteinGPerServing: newMeal.proteinGPerServing,
+                    carbsGPerServing: newMeal.carbsGPerServing,
+                    fatGPerServing: newMeal.fatGPerServing,
+                    hasRecipeOverride: false,
+                  }
+                : m,
+            ),
+          }));
+          // Log-only stub for WS7 wiring.
+          void changeMealForPlanItem(planId, targetPlanItemId, newMeal.id);
+          setChangeMealForRow(null);
+        }}
+      />
     </View>
   );
 }

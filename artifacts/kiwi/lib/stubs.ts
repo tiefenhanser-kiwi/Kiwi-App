@@ -14,6 +14,7 @@ import type {
   GroceryItem,
   MealPlan,
   MealsFilter,
+  MealSummary,
   Recipe,
   ReviewMeal,
   ReviewPlan,
@@ -489,6 +490,449 @@ export function getMealById(
       overrideContext,
     };
   }
+  if (_mealId === "demo-meal-4") {
+    return {
+      id: "demo-meal-4",
+      title: "Beef Tacos",
+      description:
+        "Quick weeknight ground beef tacos with crisp lettuce, cheese, and salsa.",
+      cuisineType: "Mexican",
+      difficulty: "easy",
+      estimatedTimeMinutes: 30,
+      servingsDefault: 4,
+      tags: ["weeknight", "beef", "tacos"],
+      caloriesPerServing: 510,
+      proteinGPerServing: 32,
+      carbsGPerServing: 42,
+      fatGPerServing: 24,
+      dishes: [
+        {
+          name: "Seasoned Beef",
+          ingredients: [
+            { quantity: 1, unit: "lb", name: "ground beef (85/15)" },
+            { quantity: 1, unit: "tbsp", name: "olive oil" },
+            { quantity: 1, unit: "tsp", name: "chili powder" },
+            { quantity: 1, unit: "tsp", name: "cumin" },
+            { quantity: 0.5, unit: "tsp", name: "garlic powder" },
+            { quantity: 0.5, unit: "tsp", name: "salt" },
+          ],
+        },
+        {
+          name: "Toppings",
+          ingredients: [
+            { quantity: 8, unit: "whole", name: "small flour or corn tortillas" },
+            { quantity: 1, unit: "cup", name: "shredded cheddar" },
+            { quantity: 2, unit: "cup", name: "shredded lettuce" },
+            { quantity: 1, unit: "cup", name: "fresh salsa" },
+            { quantity: 1, unit: "whole", name: "lime, cut in wedges" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Heat olive oil in a skillet over medium-high heat.",
+          estimatedMinutes: 2,
+        },
+        {
+          stepNumber: 2,
+          text: "Add ground beef and cook, breaking up, until browned, about 6-8 minutes.",
+          estimatedMinutes: 8,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 3,
+          text: "Stir in chili powder, cumin, garlic powder, salt. Cook 1 minute more.",
+          estimatedMinutes: 1,
+        },
+        {
+          stepNumber: 4,
+          text: "Warm tortillas in a dry skillet or microwave.",
+          estimatedMinutes: 3,
+        },
+        {
+          stepNumber: 5,
+          text: "Assemble tacos with beef, cheese, lettuce, salsa, lime.",
+          estimatedMinutes: 5,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "demo-meal-5") {
+    return {
+      id: "demo-meal-5",
+      title: "Greek Salad with Grilled Chicken",
+      description:
+        "Crunchy Mediterranean salad with grilled chicken, feta, olives, and a lemon-oregano dressing.",
+      cuisineType: "Mediterranean",
+      difficulty: "easy",
+      estimatedTimeMinutes: 25,
+      servingsDefault: 4,
+      tags: ["salad", "weeknight", "high-protein"],
+      caloriesPerServing: 420,
+      proteinGPerServing: 36,
+      carbsGPerServing: 18,
+      fatGPerServing: 22,
+      dishes: [
+        {
+          name: "Grilled Chicken",
+          ingredients: [
+            { quantity: 1.25, unit: "lb", name: "boneless skinless chicken breast" },
+            { quantity: 2, unit: "tbsp", name: "olive oil" },
+            { quantity: 1, unit: "tsp", name: "dried oregano" },
+            { quantity: 0.5, unit: "tsp", name: "salt" },
+            { quantity: 0.25, unit: "tsp", name: "black pepper" },
+          ],
+        },
+        {
+          name: "Salad",
+          ingredients: [
+            { quantity: 1, unit: "whole", name: "English cucumber, diced" },
+            { quantity: 2, unit: "whole", name: "Roma tomatoes, diced" },
+            { quantity: 0.5, unit: "whole", name: "red onion, thinly sliced" },
+            { quantity: 0.5, unit: "cup", name: "kalamata olives, pitted" },
+            { quantity: 0.75, unit: "cup", name: "feta, crumbled" },
+          ],
+        },
+        {
+          name: "Dressing",
+          ingredients: [
+            { quantity: 3, unit: "tbsp", name: "olive oil" },
+            { quantity: 1, unit: "whole", name: "lemon, juiced" },
+            { quantity: 1, unit: "tsp", name: "dried oregano" },
+            { quantity: 0.25, unit: "tsp", name: "salt" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Toss chicken with olive oil, oregano, salt, and pepper.",
+          estimatedMinutes: 3,
+        },
+        {
+          stepNumber: 2,
+          text: "Heat a grill pan or skillet over medium-high. Grill chicken 5-6 minutes per side until cooked through.",
+          estimatedMinutes: 12,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 3,
+          text: "While chicken cooks, combine cucumber, tomatoes, onion, olives, and feta in a large bowl.",
+          estimatedMinutes: 5,
+        },
+        {
+          stepNumber: 4,
+          text: "Whisk dressing ingredients together; toss with salad.",
+          estimatedMinutes: 2,
+        },
+        {
+          stepNumber: 5,
+          text: "Slice rested chicken and arrange over salad. Serve.",
+          estimatedMinutes: 3,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "featured-meal-1") {
+    return {
+      id: "featured-meal-1",
+      title: "Mushroom Risotto",
+      description:
+        "Creamy parmesan risotto with mixed mushrooms, white wine, and fresh thyme.",
+      cuisineType: "Italian",
+      difficulty: "medium",
+      estimatedTimeMinutes: 50,
+      servingsDefault: 4,
+      tags: ["vegetarian", "italian", "weekend"],
+      caloriesPerServing: 580,
+      proteinGPerServing: 18,
+      carbsGPerServing: 78,
+      fatGPerServing: 22,
+      dishes: [
+        {
+          name: "Risotto",
+          ingredients: [
+            { quantity: 1.5, unit: "cup", name: "arborio rice" },
+            { quantity: 6, unit: "cup", name: "warm chicken or vegetable stock" },
+            { quantity: 0.5, unit: "cup", name: "dry white wine" },
+            { quantity: 1, unit: "whole", name: "shallot, minced" },
+            { quantity: 2, unit: "tbsp", name: "butter" },
+            { quantity: 0.75, unit: "cup", name: "parmesan, grated" },
+          ],
+        },
+        {
+          name: "Mushrooms",
+          ingredients: [
+            { quantity: 1, unit: "lb", name: "mixed mushrooms (cremini, shiitake), sliced" },
+            { quantity: 2, unit: "tbsp", name: "olive oil" },
+            { quantity: 2, unit: "clove", name: "garlic, minced" },
+            { quantity: 4, unit: "sprig", name: "fresh thyme, leaves picked" },
+            { quantity: 0.5, unit: "tsp", name: "salt" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Heat olive oil in a wide skillet over medium-high. Sear mushrooms in a single layer until golden, 6-8 minutes.",
+          estimatedMinutes: 8,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 2,
+          text: "Add garlic, thyme, and salt to mushrooms. Cook 1 minute. Transfer to a plate.",
+          estimatedMinutes: 2,
+        },
+        {
+          stepNumber: 3,
+          text: "Melt 1 tbsp butter in the pan; sauté shallot 2 minutes. Add rice and toast 1 minute.",
+          estimatedMinutes: 4,
+        },
+        {
+          stepNumber: 4,
+          text: "Pour in wine; stir until absorbed. Add warm stock one ladle at a time, stirring until each ladle is absorbed before the next, about 18-22 minutes.",
+          estimatedMinutes: 22,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 5,
+          text: "Stir in remaining butter, parmesan, and seared mushrooms. Season to taste and serve.",
+          estimatedMinutes: 3,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "featured-meal-2") {
+    return {
+      id: "featured-meal-2",
+      title: "Sheet Pan Lemon Herb Chicken",
+      description:
+        "One-pan roasted chicken thighs with lemon, garlic, and root vegetables.",
+      cuisineType: "Mediterranean",
+      difficulty: "easy",
+      estimatedTimeMinutes: 45,
+      servingsDefault: 4,
+      tags: ["one-pan", "chicken", "weeknight"],
+      caloriesPerServing: 460,
+      proteinGPerServing: 42,
+      carbsGPerServing: 28,
+      fatGPerServing: 22,
+      dishes: [
+        {
+          name: "Chicken & Vegetables",
+          ingredients: [
+            { quantity: 8, unit: "whole", name: "bone-in skin-on chicken thighs" },
+            { quantity: 1, unit: "lb", name: "baby potatoes, halved" },
+            { quantity: 2, unit: "whole", name: "carrots, cut into 1-inch pieces" },
+            { quantity: 1, unit: "whole", name: "lemon, sliced" },
+            { quantity: 4, unit: "clove", name: "garlic, smashed" },
+            { quantity: 3, unit: "tbsp", name: "olive oil" },
+            { quantity: 1, unit: "tbsp", name: "Italian seasoning" },
+            { quantity: 1, unit: "tsp", name: "kosher salt" },
+            { quantity: 0.5, unit: "tsp", name: "black pepper" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Preheat oven to 425°F. Line a sheet pan with parchment.",
+          estimatedMinutes: 5,
+        },
+        {
+          stepNumber: 2,
+          text: "Toss potatoes and carrots with 1 tbsp olive oil, salt, and pepper. Spread on sheet pan.",
+          estimatedMinutes: 4,
+        },
+        {
+          stepNumber: 3,
+          text: "Pat chicken dry. Rub with remaining olive oil, Italian seasoning, salt, and pepper. Nestle on the pan with lemon slices and garlic.",
+          estimatedMinutes: 5,
+        },
+        {
+          stepNumber: 4,
+          text: "Roast 30-35 minutes until chicken reaches 175°F at the thigh and skin is crisp.",
+          estimatedMinutes: 35,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 5,
+          text: "Rest 5 minutes; serve directly from the pan.",
+          estimatedMinutes: 5,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "featured-meal-3") {
+    return {
+      id: "featured-meal-3",
+      title: "Thai Basil Beef",
+      description:
+        "Quick stir fry of ground beef, garlic, chilies, and fresh Thai basil over jasmine rice.",
+      cuisineType: "Thai",
+      difficulty: "medium",
+      estimatedTimeMinutes: 30,
+      servingsDefault: 4,
+      tags: ["weeknight", "beef", "stir-fry"],
+      caloriesPerServing: 520,
+      proteinGPerServing: 36,
+      carbsGPerServing: 38,
+      fatGPerServing: 24,
+      dishes: [
+        {
+          name: "Beef Stir Fry",
+          ingredients: [
+            { quantity: 1, unit: "lb", name: "ground beef (or sliced flank)" },
+            { quantity: 2, unit: "tbsp", name: "vegetable oil" },
+            { quantity: 5, unit: "clove", name: "garlic, minced" },
+            { quantity: 2, unit: "whole", name: "Thai chilies, minced (or 1 serrano)" },
+            { quantity: 2, unit: "tbsp", name: "oyster sauce" },
+            { quantity: 1, unit: "tbsp", name: "fish sauce" },
+            { quantity: 1, unit: "tbsp", name: "soy sauce" },
+            { quantity: 1, unit: "tsp", name: "sugar" },
+            { quantity: 1, unit: "cup", name: "Thai basil leaves, packed" },
+          ],
+        },
+        {
+          name: "Rice",
+          ingredients: [
+            { quantity: 1.5, unit: "cup", name: "jasmine rice" },
+            { quantity: 3, unit: "cup", name: "water" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Rinse rice; combine with water in a saucepan. Bring to a boil, reduce to low, cover and simmer 18 minutes.",
+          estimatedMinutes: 20,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 2,
+          text: "Whisk oyster sauce, fish sauce, soy sauce, and sugar in a small bowl.",
+          estimatedMinutes: 2,
+        },
+        {
+          stepNumber: 3,
+          text: "Heat oil in a wok over high heat. Add garlic and chilies; stir-fry 30 seconds until fragrant.",
+          estimatedMinutes: 1,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 4,
+          text: "Add beef; stir-fry, breaking up, until browned, 4-5 minutes.",
+          estimatedMinutes: 5,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 5,
+          text: "Pour in sauce; toss to coat. Stir in basil; cook just until wilted, about 30 seconds.",
+          estimatedMinutes: 1,
+        },
+        {
+          stepNumber: 6,
+          text: "Serve over rice.",
+          estimatedMinutes: 1,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "featured-meal-4") {
+    return {
+      id: "featured-meal-4",
+      title: "Roasted Vegetable Buddha Bowl",
+      description:
+        "Hearty bowl of roasted sweet potato, chickpeas, and broccoli over quinoa with a tahini-lemon drizzle.",
+      cuisineType: "American",
+      difficulty: "easy",
+      estimatedTimeMinutes: 40,
+      servingsDefault: 4,
+      tags: ["vegetarian", "vegan", "meal-prep"],
+      caloriesPerServing: 480,
+      proteinGPerServing: 18,
+      carbsGPerServing: 62,
+      fatGPerServing: 18,
+      dishes: [
+        {
+          name: "Roasted Vegetables",
+          ingredients: [
+            { quantity: 1, unit: "lb", name: "sweet potato, cut into 1-inch cubes" },
+            { quantity: 1, unit: "head", name: "broccoli, cut into florets" },
+            { quantity: 1, unit: "can", name: "chickpeas (15 oz), drained and rinsed" },
+            { quantity: 3, unit: "tbsp", name: "olive oil" },
+            { quantity: 1, unit: "tsp", name: "smoked paprika" },
+            { quantity: 1, unit: "tsp", name: "cumin" },
+            { quantity: 0.75, unit: "tsp", name: "salt" },
+          ],
+        },
+        {
+          name: "Quinoa",
+          ingredients: [
+            { quantity: 1, unit: "cup", name: "quinoa, rinsed" },
+            { quantity: 2, unit: "cup", name: "water" },
+            { quantity: 0.25, unit: "tsp", name: "salt" },
+          ],
+        },
+        {
+          name: "Tahini Drizzle",
+          ingredients: [
+            { quantity: 0.25, unit: "cup", name: "tahini" },
+            { quantity: 1, unit: "whole", name: "lemon, juiced" },
+            { quantity: 1, unit: "clove", name: "garlic, grated" },
+            { quantity: 3, unit: "tbsp", name: "warm water" },
+            { quantity: 0.25, unit: "tsp", name: "salt" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Preheat oven to 425°F.",
+          estimatedMinutes: 5,
+        },
+        {
+          stepNumber: 2,
+          text: "Toss sweet potato, broccoli, and chickpeas with olive oil, paprika, cumin, and salt. Spread on a sheet pan.",
+          estimatedMinutes: 5,
+        },
+        {
+          stepNumber: 3,
+          text: "Roast 25-30 minutes, stirring once, until vegetables are tender and chickpeas are crisp.",
+          estimatedMinutes: 30,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 4,
+          text: "Meanwhile, combine quinoa, water, and salt in a saucepan. Bring to a boil, reduce to low, cover and cook 15 minutes. Fluff with a fork.",
+          estimatedMinutes: 15,
+        },
+        {
+          stepNumber: 5,
+          text: "Whisk tahini, lemon juice, garlic, water, and salt until smooth. Adjust with more water for drizzling consistency.",
+          estimatedMinutes: 3,
+        },
+        {
+          stepNumber: 6,
+          text: "Divide quinoa into bowls; top with roasted vegetables and chickpeas. Drizzle with tahini sauce.",
+          estimatedMinutes: 3,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
   return null;
 }
 
@@ -786,6 +1230,152 @@ export function getSavedDishes(): SavedDish[] {
       createdAt: "2026-04-01T08:45:00.000Z",
       lastCookedAt: "2026-05-01T18:00:00.000Z",
       estimatedTimeMinutes: 10,
+    },
+  ];
+}
+
+// ── Saved Meals (PRD §8.4.2 / §8.3.8) ──
+
+export function getSavedMeals(): MealSummary[] {
+  return [
+    {
+      id: "demo-meal-1",
+      title: "Salmon Teriyaki",
+      cuisineType: "Japanese",
+      difficulty: "easy",
+      estimatedTimeMinutes: 30,
+      servingsDefault: 4,
+      caloriesPerServing: 540,
+      proteinGPerServing: 38,
+      carbsGPerServing: 32,
+      fatGPerServing: 24,
+      source: "saved",
+      timesCooked: 6,
+      lastCookedAt: "2026-04-12T18:00:00.000Z",
+      createdAt: "2025-11-08T10:00:00.000Z",
+    },
+    {
+      id: "demo-meal-2",
+      title: "Chicken Stir Fry",
+      cuisineType: "Chinese",
+      difficulty: "easy",
+      estimatedTimeMinutes: 25,
+      servingsDefault: 4,
+      caloriesPerServing: 480,
+      proteinGPerServing: 35,
+      carbsGPerServing: 38,
+      fatGPerServing: 18,
+      source: "saved",
+      timesCooked: 9,
+      lastCookedAt: "2026-04-22T18:30:00.000Z",
+      createdAt: "2025-09-14T10:00:00.000Z",
+    },
+    {
+      id: "demo-meal-3",
+      title: "Pasta Primavera",
+      cuisineType: "Italian",
+      difficulty: "medium",
+      estimatedTimeMinutes: 40,
+      servingsDefault: 4,
+      caloriesPerServing: 620,
+      proteinGPerServing: 22,
+      carbsGPerServing: 78,
+      fatGPerServing: 22,
+      source: "saved",
+      timesCooked: 3,
+      lastCookedAt: "2026-03-30T18:30:00.000Z",
+      createdAt: "2025-12-01T10:00:00.000Z",
+    },
+    {
+      id: "demo-meal-4",
+      title: "Beef Tacos",
+      cuisineType: "Mexican",
+      difficulty: "easy",
+      estimatedTimeMinutes: 30,
+      servingsDefault: 4,
+      caloriesPerServing: 510,
+      proteinGPerServing: 32,
+      carbsGPerServing: 42,
+      fatGPerServing: 24,
+      source: "saved",
+      timesCooked: 12,
+      lastCookedAt: "2026-04-25T19:00:00.000Z",
+      createdAt: "2025-08-20T10:00:00.000Z",
+    },
+    {
+      id: "demo-meal-5",
+      title: "Greek Salad with Grilled Chicken",
+      cuisineType: "Mediterranean",
+      difficulty: "easy",
+      estimatedTimeMinutes: 25,
+      servingsDefault: 4,
+      caloriesPerServing: 420,
+      proteinGPerServing: 36,
+      carbsGPerServing: 18,
+      fatGPerServing: 22,
+      source: "saved",
+      timesCooked: 4,
+      lastCookedAt: "2026-04-08T18:00:00.000Z",
+      createdAt: "2026-01-15T10:00:00.000Z",
+    },
+  ];
+}
+
+// ── Featured Meals (curated catalog — PRD §8.4.2) ──
+
+export function getFeaturedMeals(): MealSummary[] {
+  return [
+    {
+      id: "featured-meal-1",
+      title: "Mushroom Risotto",
+      cuisineType: "Italian",
+      difficulty: "medium",
+      estimatedTimeMinutes: 50,
+      servingsDefault: 4,
+      caloriesPerServing: 580,
+      proteinGPerServing: 18,
+      carbsGPerServing: 78,
+      fatGPerServing: 22,
+      source: "featured",
+    },
+    {
+      id: "featured-meal-2",
+      title: "Sheet Pan Lemon Herb Chicken",
+      cuisineType: "Mediterranean",
+      difficulty: "easy",
+      estimatedTimeMinutes: 45,
+      servingsDefault: 4,
+      caloriesPerServing: 460,
+      proteinGPerServing: 42,
+      carbsGPerServing: 28,
+      fatGPerServing: 22,
+      source: "featured",
+    },
+    {
+      id: "featured-meal-3",
+      title: "Thai Basil Beef",
+      cuisineType: "Thai",
+      difficulty: "medium",
+      estimatedTimeMinutes: 30,
+      servingsDefault: 4,
+      caloriesPerServing: 520,
+      proteinGPerServing: 36,
+      carbsGPerServing: 38,
+      fatGPerServing: 24,
+      source: "featured",
+    },
+    {
+      id: "featured-meal-4",
+      title: "Roasted Vegetable Buddha Bowl",
+      cuisineType: "American",
+      difficulty: "easy",
+      estimatedTimeMinutes: 40,
+      servingsDefault: 4,
+      caloriesPerServing: 480,
+      proteinGPerServing: 18,
+      carbsGPerServing: 62,
+      fatGPerServing: 18,
+      source: "featured",
     },
   ];
 }

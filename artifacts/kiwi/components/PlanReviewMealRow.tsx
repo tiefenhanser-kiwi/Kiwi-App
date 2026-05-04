@@ -15,9 +15,12 @@ import { DAY_SHORT, type ReviewPlanMealRow } from "@/lib/types";
 interface Props {
   row: ReviewPlanMealRow;
   planId: string;
+  /** Fired when the row's "Change Meal" action button is tapped — the
+   *  parent screen owns the sheet + optimistic update (PRD §8.4.2). */
+  onChangeMeal?: (planItemId: string, currentMealId: string) => void;
 }
 
-export function PlanReviewMealRow({ row, planId }: Props) {
+export function PlanReviewMealRow({ row, planId, onChangeMeal }: Props) {
   const router = useRouter();
 
   const navigateToDetail = () => {
@@ -144,6 +147,7 @@ export function PlanReviewMealRow({ row, planId }: Props) {
             console.log("[meal-row] change-meal tapped", {
               planItemId: row.planItemId,
             });
+            onChangeMeal?.(row.planItemId, row.mealId);
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >

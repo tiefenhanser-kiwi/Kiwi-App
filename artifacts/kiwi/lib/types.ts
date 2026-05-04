@@ -287,6 +287,32 @@ export interface SavedDishIngredient {
 }
 
 /**
+ * Compact meal summary for picker lists (Change Meal, Add Meals).
+ * Subset of ReviewMeal — just what's needed to render a row +
+ * round-trip through changeMealForPlanItem.
+ */
+export interface MealSummary {
+  id: string;
+  title: string;
+  cuisineType?: string;
+  difficulty: "easy" | "medium" | "hard";
+  estimatedTimeMinutes: number;
+  servingsDefault: number;
+  imageUrl?: string;
+  caloriesPerServing: number;
+  proteinGPerServing: number;
+  carbsGPerServing: number;
+  fatGPerServing: number;
+  /** "saved" = user's library; "featured" = curated catalog. */
+  source: "saved" | "featured";
+  /** Times the user has cooked this meal (saved meals only). */
+  timesCooked?: number;
+  /** ISO timestamp; saved meals only. */
+  lastCookedAt?: string;
+  createdAt?: string;
+}
+
+/**
  * Parsed-but-not-yet-saved meal data, passed from Import URL /
  * Import Image / future paste-text flows to Meal Builder for
  * review and edit before save.
