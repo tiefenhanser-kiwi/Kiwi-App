@@ -8,8 +8,6 @@
 // API via lib/api.ts and delete the corresponding stub from this file.
 
 import type {
-  DayAssignment,
-  DayOfWeek,
   DraftMeal,
   GroceryItem,
   MealPlan,
@@ -20,7 +18,7 @@ import type {
   ReviewPlan,
   SavedDish,
 } from "./types";
-import { DAYS, getMondayISO } from "./domain";
+import { buildDayStrip, DAYS, getMondayISO } from "./domain";
 
 // Empty recipe list. Replaces the hardcoded 12-recipe array.
 export const RECIPES: Recipe[] = [];
@@ -161,19 +159,6 @@ export function getReviewPlan(_planId: string): ReviewPlan {
   // TODO(WS7): Remove this demo branch when getReviewPlan wires to
   // real data. Used for WS5 smoke testing of meal row component.
   if (_planId === "demo") {
-    const buildDayStrip = (assignedDay: DayOfWeek | null): DayAssignment[] => {
-      const days: DayOfWeek[] = [
-        "Sunday",
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-      ];
-      return days.map((day) => ({ day, isAssigned: assignedDay === day }));
-    };
-
     return {
       id: _planId,
       name: "Demo Plan",

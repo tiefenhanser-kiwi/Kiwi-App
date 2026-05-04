@@ -24,19 +24,21 @@ import {
 } from "@/lib/stubs";
 import type { MealSummary } from "@/lib/types";
 
-export interface ChangeMealSheetProps {
+export interface AddMealsSheetProps {
   visible: boolean;
-  /** The meal currently being replaced — excluded from the My Meals list. */
-  currentMealId: string;
+  /** Current plan id — passed through to import/builder flows via
+   *  addToPlanId so WS7 can auto-add the saved meal to this plan. */
+  planId: string;
   onClose: () => void;
-  /** Called when user picks a replacement. The screen handles the
-   *  optimistic update + AppContext mutator call. */
-  onPickReplacement: (newMeal: MealSummary) => void;
+  /** Called when user picks an existing meal from the list. The
+   *  parent screen handles the optimistic add to the unscheduled
+   *  cluster (PRD §8.3.8 — new meals land unscheduled). */
+  onPickExistingMeal: (meal: MealSummary) => void;
 }
 
-type ChangeMealFilter = "featured" | "my_meals" | "top_rated" | "hosting";
+type AddMealsFilter = "featured" | "my_meals" | "top_rated" | "hosting";
 
-const FILTER_OPTIONS: { key: ChangeMealFilter; label: string }[] = [
+const FILTER_OPTIONS: { key: AddMealsFilter; label: string }[] = [
   { key: "featured", label: "Featured" },
   { key: "my_meals", label: "My Meals" },
   { key: "top_rated", label: "Top Rated" },
@@ -47,25 +49,23 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export function ChangeMealSheet({
+export function AddMealsSheet({
   visible,
-  currentMealId,
+  planId,
   onClose,
-  onPickReplacement,
-}: ChangeMealSheetProps) {
+  onPickExistingMeal,
+}: AddMealsSheetProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  // Default to My Meals — most useful chip when swapping a known meal.
   const [activeFilter, setActiveFilter] =
-    useState<ChangeMealFilter>("my_meals");
-  // PRD: A-Z is the default sort across all sortable surfaces.
+    useState<AddMealsFilter>("my_meals");
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
 
   const visibleMeals = useMemo(() => {
     let source: MealSummary[];
     switch (activeFilter) {
       case "my_meals":
-        source = getSavedMeals().filter((m) => m.id !== currentMealId);
+        source = getSavedMeals();
         break;
       case "featured":
         source = getFeaturedMeals();
@@ -78,17 +78,24 @@ export function ChangeMealSheet({
         break;
     }
     return sortMeals(source, sortKey);
-  }, [activeFilter, currentMealId, sortKey]);
+  }, [activeFilter, sortKey]);
 
   const handlePick = (meal: MealSummary) => {
-    onPickReplacement(meal);
+    onPickExistingMeal(meal);
     onClose();
+  };
+
+  const handleWizard = () => {
+    Alert.alert(
+      "Coming in WS6 — AI orchestration",
+      "Running Kitchen Wizard for a single meal requires the AI layer. This will be wired in WS6.",
+    );
   };
 
   const handleAskKiwi = () => {
     Alert.alert(
       "Coming in WS6 — AI orchestration",
-      "Kiwi will suggest similar meals when AI orchestration ships.",
+      "Searching online recipes requires the AI layer. This will be wired in WS6.",
     );
   };
 
@@ -97,9 +104,15 @@ export function ChangeMealSheet({
   ) => {
     onClose();
     // Defer so the sheet's slide-out animation completes before the
-    // destination screen mounts; otherwise users see the new screen
-    // appear behind a still-collapsing modal.
-    setTimeout(() => router.push(path), 150);
+    // destination screen mounts.
+    setTimeout(
+      () =>
+        router.push({
+          pathname: path,
+          params: { addToPlanId: planId },
+        }),
+      150,
+    );
   };
 
   return (
@@ -113,7 +126,7 @@ export function ChangeMealSheet({
       <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
         <View style={s.handle} />
         <View style={s.header}>
-          <Text style={s.title}>Change meal</Text>
+          <Text style={s.title}>Add a meal</Text>
           <Pressable onPress={onClose} hitSlop={12}>
             <Feather name="x" size={22} color={KColors.neutral[800]} />
           </Pressable>
@@ -124,23 +137,24 @@ export function ChangeMealSheet({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Section 1: Filter chips (single-select per FilterChipRow contract) */}
-          <FilterChipRow<ChangeMealFilter>
-            options={FILTER_OPTIONS}
-            selected={[activeFilter]}
-            onToggle={(key) => setActiveFilter(key)}
-          />
-
-          {/* Section 2: Sortable list driven by activeFilter */}
+          {/* Section 1: Pick from your meals */}
+          <Text style={s.sectionTitle}>Pick from your meals</Text>
+          <View style={{ marginTop: KSpacing.sm }}>
+            <FilterChipRow<AddMealsFilter>
+              options={FILTER_OPTIONS}
+              selected={[activeFilter]}
+              onToggle={(key) => setActiveFilter(key)}
+            />
+          </View>
           <View style={[s.sectionTitleRow, { marginTop: KSpacing.sm }]}>
-            <Text style={s.sectionTitle}>
+            <Text style={s.sectionLabel}>
               {FILTER_OPTIONS.find((o) => o.key === activeFilter)?.label}
             </Text>
             <SortDropdown value={sortKey} onChange={setSortKey} />
           </View>
           <View style={s.list}>
             {visibleMeals.length === 0 ? (
-              <Text style={s.emptyText}>No other meals here yet.</Text>
+              <Text style={s.emptyText}>No meals here yet.</Text>
             ) : (
               visibleMeals.map((meal) => (
                 <MealRow
@@ -152,39 +166,17 @@ export function ChangeMealSheet({
             )}
           </View>
 
-          {/* Section 3: Ask Kiwi for a recommendation (premium-locked) */}
-          <Pressable
-            onPress={handleAskKiwi}
-            style={({ pressed }) => [
-              s.askSection,
-              s.sectionGap,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <View style={s.askHeader}>
-              <Text style={s.sectionTitle}>
-                Ask Kiwi for a recommendation
-              </Text>
-              <View style={s.premiumPill}>
-                <Feather
-                  name="lock"
-                  size={10}
-                  color={KColors.terracotta[700]}
-                />
-                <Text style={s.premiumPillText}>Premium</Text>
-              </View>
-            </View>
-            <Text style={s.sectionSubtitle}>
-              Premium · coming in WS6 — Kiwi will suggest a replacement based
-              on this meal's ingredients and your prefs
-            </Text>
-          </Pressable>
-
-          {/* Section 4: Bring in something new */}
+          {/* Section 2: Bring in something new */}
           <Text style={[s.sectionTitle, s.sectionGap]}>
             Bring in something new
           </Text>
           <View style={s.list}>
+            <PremiumSourceCard
+              icon="zap"
+              title="Run Kitchen Wizard for one meal"
+              subtitle="Premium · coming in WS6 — Kiwi will design a meal that fits this plan"
+              onPress={handleWizard}
+            />
             <NewSourceCard
               icon="link"
               title="Import from URL"
@@ -204,6 +196,34 @@ export function ChangeMealSheet({
               onPress={() => navigateAfterClose("/meal-builder")}
             />
           </View>
+
+          {/* Section 3: Ask Kiwi for a recommendation (premium-locked) */}
+          <Pressable
+            onPress={handleAskKiwi}
+            style={({ pressed }) => [
+              s.askSection,
+              s.sectionGap,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <View style={s.askHeader}>
+              <Text style={s.sectionTitle}>
+                Ask Kiwi for a meal recommendation
+              </Text>
+              <View style={s.premiumPill}>
+                <Feather
+                  name="lock"
+                  size={10}
+                  color={KColors.terracotta[700]}
+                />
+                <Text style={s.premiumPillText}>Premium</Text>
+              </View>
+            </View>
+            <Text style={s.sectionSubtitle}>
+              Premium · coming in WS6 — Kiwi will suggest a meal based on
+              this plan and your preferences
+            </Text>
+          </Pressable>
         </ScrollView>
       </View>
     </Modal>
@@ -275,6 +295,43 @@ function NewSourceCard({
   );
 }
 
+function PremiumSourceCard({
+  icon,
+  title,
+  subtitle,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [s.premiumCard, pressed && { opacity: 0.85 }]}
+    >
+      <View style={s.premiumIcon}>
+        <Feather name={icon} size={18} color={KColors.sage[700]} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={s.premiumTitleRow}>
+          <Text style={s.sourceTitle}>{title}</Text>
+          <View style={s.premiumPill}>
+            <Feather
+              name="lock"
+              size={10}
+              color={KColors.terracotta[700]}
+            />
+            <Text style={s.premiumPillText}>Premium</Text>
+          </View>
+        </View>
+        <Text style={s.sourceSubtitle}>{subtitle}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 const s = StyleSheet.create({
   backdrop: {
     flex: 1,
@@ -326,6 +383,12 @@ const s = StyleSheet.create({
   sectionTitle: {
     fontSize: KType.size.md,
     color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  sectionLabel: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[800],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
   },
@@ -450,5 +513,29 @@ const s = StyleSheet.create({
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
     marginTop: 2,
+  },
+  premiumCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.md,
+    backgroundColor: KColors.sage[50],
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.sage[300],
+    padding: KSpacing.md,
+  },
+  premiumIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: KRadius.sm,
+    backgroundColor: KColors.neutral[0],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  premiumTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: KSpacing.sm,
   },
 });

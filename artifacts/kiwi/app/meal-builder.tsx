@@ -128,6 +128,7 @@ export default function MealBuilderScreen() {
     draftSource,
     draftJson,
     source,
+    addToPlanId,
   } = useLocalSearchParams<{
     mealId?: string;
     planId?: string;
@@ -136,6 +137,7 @@ export default function MealBuilderScreen() {
     draftSource?: "url" | "image" | "text";
     draftJson?: string;
     source?: "change-recipe";
+    addToPlanId?: string;
   }>();
   const isEditFromPlanContext = !!(mealId && planId && planItemId);
   const isChangeRecipe = source === "change-recipe" && !!mealId;
@@ -454,12 +456,16 @@ export default function MealBuilderScreen() {
     } else if (draftMeal) {
       Alert.alert(
         "Coming in WS7",
-        "Saving imported recipes requires the API client. This will be wired in WS7.",
+        addToPlanId
+          ? "Saving imported recipes requires the API client. When wired, this meal will save to your library and add to your plan."
+          : "Saving imported recipes requires the API client. This will be wired in WS7.",
       );
     } else {
       Alert.alert(
         "Coming in WS7",
-        "Saving meals requires the API client. This action will be wired in WS7. Your work is preserved on this screen until you navigate away.",
+        addToPlanId
+          ? "Saving meals requires the API client. When wired, this meal will save to your library and add to your plan."
+          : "Saving meals requires the API client. This action will be wired in WS7. Your work is preserved on this screen until you navigate away.",
       );
     }
   };

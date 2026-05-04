@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 
 import { Header } from "@/components/Header";
@@ -19,6 +19,7 @@ type Phase = "input" | "loading";
 
 export default function ImportImageScreen() {
   const router = useRouter();
+  const { addToPlanId } = useLocalSearchParams<{ addToPlanId?: string }>();
   const [phase, setPhase] = useState<Phase>("input");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -74,6 +75,7 @@ export default function ImportImageScreen() {
         params: {
           draftSource: "image",
           draftJson: JSON.stringify(draft),
+          ...(addToPlanId ? { addToPlanId } : {}),
         },
       });
       setPhase("input");

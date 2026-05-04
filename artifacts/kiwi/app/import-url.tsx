@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
@@ -44,6 +44,7 @@ function normalizeUrl(input: string): string | null {
 
 export default function ImportUrlScreen() {
   const router = useRouter();
+  const { addToPlanId } = useLocalSearchParams<{ addToPlanId?: string }>();
   const [phase, setPhase] = useState<Phase>("input");
   const [url, setUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -72,6 +73,7 @@ export default function ImportUrlScreen() {
         params: {
           draftSource: "url",
           draftJson: JSON.stringify(draft),
+          ...(addToPlanId ? { addToPlanId } : {}),
         },
       });
       // Reset phase so screen is fresh if user comes back via back nav

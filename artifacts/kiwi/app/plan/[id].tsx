@@ -14,6 +14,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 
+import { AddMealsSheet } from "@/components/AddMealsSheet";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { ChangeMealSheet } from "@/components/ChangeMealSheet";
@@ -23,9 +24,9 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
+import { buildDayStrip } from "@/lib/domain";
 import { getMealById, getReviewPlan } from "@/lib/stubs";
 import type {
-  DayAssignment,
   DayOfWeek,
   MealSummary,
   ReviewPlan,
@@ -61,13 +62,10 @@ function applyDayAssignment(
   const row = allRows.find((r) => r.planItemId === planItemId);
   if (!row) return plan;
 
-  // Only one day can be assigned at a time.
-  const newDayStrip: DayAssignment[] = row.dayStrip.map((d) => ({
-    ...d,
-    isAssigned: newDay !== null && d.day === newDay,
-  }));
-
-  const updatedRow: ReviewPlanMealRow = { ...row, dayStrip: newDayStrip };
+  const updatedRow: ReviewPlanMealRow = {
+    ...row,
+    dayStrip: buildDayStrip(newDay),
+  };
   const isNowScheduled = newDay !== null;
 
   const filteredScheduled = plan.scheduledMeals.filter(
@@ -98,6 +96,7 @@ export default function PlanReviewScreen() {
     changeMealForPlanItem,
     assignDayToPlanItem,
     unassignDayFromPlanItem,
+    addMealToPlan,
   } = useApp();
   // Option A (locked): screen owns the ReviewPlan in local state.
   // Future action sheets (5J/5K/5L/5M) optimistically update via setReviewPlan;
@@ -117,6 +116,9 @@ export default function PlanReviewScreen() {
     sourceMealTitle?: string;
     sourceCuisine?: string;
   } | null>(null);
+
+  // Sheet state for §8.3.8 Add Meals flow.
+  const [addMealsVisible, setAddMealsVisible] = useState(false);
 
   // Until WS7 wires real ReviewPlan data, the authoritative plan name lives
   // on the legacy MealPlan in AppContext.plans (recipe-id-based per WS5-5A).
@@ -173,6 +175,7 @@ export default function PlanReviewScreen() {
 
   const onAddMeals = () => {
     console.log("[plan-review] add-meals tapped", { planId });
+    setAddMealsVisible(true);
   };
 
   const hasMeals =
@@ -478,6 +481,13 @@ export default function PlanReviewScreen() {
           setFindSimilarForRow(null);
         }}
       />
+
+      <AddMealsSheet
+        visible={addMealsVisible}
+        planId={planId}
+        onClose={() => setAddMealsVisible(false)}
+        onPickExistingMeal={addExistingMealToPlan}
+      />
     </View>
   );
 
@@ -523,6 +533,33 @@ export default function PlanReviewScreen() {
     } else {
       void assignDayToPlanItem(planId, planItemId, newDay);
     }
+  }
+
+  // ── Add Meals → existing-meal pick (PRD §8.3.8). Lands in the
+  //    unscheduled cluster; user can tap a day-pill to schedule.
+  //    The planItemId is a stub — WS7 will overwrite with a server
+  //    id when the persistence call returns. ──
+  function addExistingMealToPlan(meal: MealSummary) {
+    const newRow: ReviewPlanMealRow = {
+      planItemId: `pi-${Date.now()}`,
+      mealId: meal.id,
+      title: meal.title,
+      thumbnailUrl: meal.imageUrl,
+      metaLine: `${capitalize(meal.difficulty)} · ${meal.estimatedTimeMinutes} min · serves ${meal.servingsDefault}`,
+      caloriesPerServing: meal.caloriesPerServing,
+      proteinGPerServing: meal.proteinGPerServing,
+      carbsGPerServing: meal.carbsGPerServing,
+      fatGPerServing: meal.fatGPerServing,
+      dayStrip: buildDayStrip(null),
+      hasRecipeOverride: false,
+    };
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setReviewPlan((prev) => ({
+      ...prev,
+      unscheduledMeals: [...prev.unscheduledMeals, newRow],
+    }));
+    void addMealToPlan(planId, meal.id);
+    setAddMealsVisible(false);
   }
 }
 

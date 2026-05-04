@@ -11,6 +11,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { findSimilarMealsByCuisine } from "@/lib/stubs";
@@ -27,45 +28,6 @@ export interface FindSimilarSheetProps {
   onClose: () => void;
   /** Called when user picks a similar meal. */
   onPickReplacement: (newMeal: MealSummary) => void;
-}
-
-const FALLBACK_DATE = "1970-01-01T00:00:00.000Z";
-
-// Duplicated from ChangeMealSheet — see WS5-5K-bis report. Two
-// consumers is the threshold for extraction in stable code, but
-// SortKey lives in components/ and the helper would invert layering
-// if pulled into lib/. Revisit when a third picker (Add Meals) lands.
-function sortMeals(list: MealSummary[], key: SortKey): MealSummary[] {
-  const out = [...list];
-  switch (key) {
-    case "last_cooked":
-      out.sort((a, b) => {
-        const av = a.lastCookedAt ?? "";
-        const bv = b.lastCookedAt ?? "";
-        if (!av && !bv) return 0;
-        if (!av) return 1;
-        if (!bv) return -1;
-        return bv.localeCompare(av);
-      });
-      return out;
-    case "times_cooked":
-      out.sort((a, b) => (b.timesCooked ?? 0) - (a.timesCooked ?? 0));
-      return out;
-    case "date_created":
-      out.sort((a, b) =>
-        (b.createdAt ?? FALLBACK_DATE).localeCompare(
-          a.createdAt ?? FALLBACK_DATE,
-        ),
-      );
-      return out;
-    case "alpha":
-      out.sort((a, b) => a.title.localeCompare(b.title));
-      return out;
-    case "cook_time":
-      out.sort((a, b) => a.estimatedTimeMinutes - b.estimatedTimeMinutes);
-      return out;
-  }
-  return out;
 }
 
 function capitalize(s: string) {
