@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import {
+  Alert,
   Keyboard,
   LayoutAnimation,
   Platform,
@@ -97,6 +98,7 @@ export default function PlanReviewScreen() {
     assignDayToPlanItem,
     unassignDayFromPlanItem,
     addMealToPlan,
+    removeMealFromPlan,
   } = useApp();
   // Option A (locked): screen owns the ReviewPlan in local state.
   // Future action sheets (5J/5K/5L/5M) optimistically update via setReviewPlan;
@@ -353,6 +355,7 @@ export default function PlanReviewScreen() {
                     });
                   }}
                   onAssignDay={handleAssignDay}
+                  onCompost={handleCompostFromPlan}
                 />
               ))}
               {reviewPlan.unscheduledMeals.length > 0 && (
@@ -376,6 +379,7 @@ export default function PlanReviewScreen() {
                         });
                       }}
                       onAssignDay={handleAssignDay}
+                      onCompost={handleCompostFromPlan}
                     />
                   ))}
                 </>
@@ -533,6 +537,39 @@ export default function PlanReviewScreen() {
     } else {
       void assignDayToPlanItem(planId, planItemId, newDay);
     }
+  }
+
+  // ── Compost from plan (PRD §8.4.5). Confirmation alert with a
+  //    destructive primary action; on confirm, optimistically drop
+  //    the row from whichever cluster holds it. AppContext mutator
+  //    is log-only; real persistence lands WS7. ──
+  function handleCompostFromPlan(planItemId: string, title: string) {
+    Alert.alert(
+      "Compost meal",
+      `Compost ${title} from your plan? You can add it back later.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Compost",
+          style: "destructive",
+          onPress: () => {
+            LayoutAnimation.configureNext(
+              LayoutAnimation.Presets.easeInEaseOut,
+            );
+            setReviewPlan((prev) => ({
+              ...prev,
+              scheduledMeals: prev.scheduledMeals.filter(
+                (m) => m.planItemId !== planItemId,
+              ),
+              unscheduledMeals: prev.unscheduledMeals.filter(
+                (m) => m.planItemId !== planItemId,
+              ),
+            }));
+            void removeMealFromPlan(planId, planItemId);
+          },
+        },
+      ],
+    );
   }
 
   // ── Add Meals → existing-meal pick (PRD §8.3.8). Lands in the

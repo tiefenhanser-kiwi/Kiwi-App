@@ -31,6 +31,9 @@ interface Props {
   ) => void;
   /** Fired when a day pill is tapped (PRD §8.3.6). null = unassign. */
   onAssignDay?: (planItemId: string, day: DayOfWeek | null) => void;
+  /** Fired when the row's "Compost" action is tapped — parent owns
+   *  the confirmation alert + optimistic remove (PRD §8.4.5). */
+  onCompost?: (planItemId: string, title: string) => void;
 }
 
 export function PlanReviewMealRow({
@@ -39,6 +42,7 @@ export function PlanReviewMealRow({
   onChangeMeal,
   onFindSimilar,
   onAssignDay,
+  onCompost,
 }: Props) {
   const router = useRouter();
 
@@ -212,6 +216,7 @@ export function PlanReviewMealRow({
             console.log("[meal-row] compost tapped", {
               planItemId: row.planItemId,
             });
+            onCompost?.(row.planItemId, row.title);
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >

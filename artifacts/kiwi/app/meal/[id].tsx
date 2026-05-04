@@ -132,8 +132,31 @@ export default function MealDetailScreen() {
   const onCompost = () => {
     console.log("[meal-detail] compost tapped", { mealId: meal.id });
     Alert.alert(
-      "Coming in WS5-5M",
-      "Compost-from-Meal-Detail confirmation modal lands in 5M.",
+      "Compost meal",
+      `Compost ${meal.title}? It'll be removed from your meals and any plans it's in.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Compost",
+          style: "destructive",
+          onPress: () => {
+            // For WS5: confirmation flow only — real soft-delete +
+            // active-plan cleanup requires the API client (WS7).
+            // The double-alert pattern keeps the flow feeling real
+            // for smoke testing. WS7 reviewer: replace the inner
+            // "Coming in WS7" alert with deleteMealAndCleanup() →
+            // router.back().
+            console.log("[meal-detail] compost confirmed", {
+              mealId: meal.id,
+            });
+            Alert.alert(
+              "Coming in WS7",
+              "Soft-deleting the meal record and removing from active plans requires the API client. The action will fully wire in WS7.",
+              [{ text: "OK", onPress: () => router.back() }],
+            );
+          },
+        },
+      ],
     );
   };
 
