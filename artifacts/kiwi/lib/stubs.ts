@@ -579,6 +579,110 @@ export function getDraftMealForUrl(url: string): DraftMeal {
   };
 }
 
+// ── Import Image parse stub (PRD §10.4) ──
+
+/**
+ * PRD §10.4 — stubbed image parse result for WS5 smoke testing.
+ * Real OCR + AI vision parse lands in WS6 (AI orchestration).
+ * Returns a different demo recipe than getDraftMealForUrl so
+ * smoke tests can distinguish the two paths.
+ *
+ * @param _imageUri Local URI of the picked image (not actually
+ *   processed at the stub stage).
+ */
+export function getDraftMealForImage(_imageUri: string): DraftMeal {
+  // TODO(WS6): Replace with real OCR + AI vision parse pipeline
+  return {
+    title: "BBQ Pulled Pork",
+    description:
+      "Slow-cooked pork shoulder with a smoky-sweet BBQ rub, shredded and tossed in tangy vinegar BBQ sauce. Imported from photo.",
+    cuisineType: "American",
+    difficulty: "medium",
+    estimatedTimeMinutes: 480, // 8 hours including slow cook
+    servingsDefault: 8,
+    tags: ["pork", "bbq", "weekend", "slow-cook"],
+    caloriesPerServing: 520,
+    proteinGPerServing: 42,
+    carbsGPerServing: 18,
+    fatGPerServing: 28,
+    dishes: [
+      {
+        name: "Pulled Pork",
+        ingredients: [
+          { quantity: 4, unit: "lb", name: "pork shoulder, bone-in" },
+          { quantity: 2, unit: "tbsp", name: "brown sugar" },
+          { quantity: 1, unit: "tbsp", name: "smoked paprika" },
+          { quantity: 1, unit: "tbsp", name: "kosher salt" },
+          { quantity: 2, unit: "tsp", name: "black pepper" },
+          { quantity: 2, unit: "tsp", name: "garlic powder" },
+          { quantity: 2, unit: "tsp", name: "onion powder" },
+          { quantity: 1, unit: "tsp", name: "cayenne" },
+        ],
+      },
+      {
+        name: "Vinegar BBQ Sauce",
+        ingredients: [
+          { quantity: 1, unit: "cup", name: "apple cider vinegar" },
+          { quantity: 0.5, unit: "cup", name: "ketchup" },
+          { quantity: 0.25, unit: "cup", name: "brown sugar" },
+          { quantity: 1, unit: "tbsp", name: "Worcestershire sauce" },
+          { quantity: 1, unit: "tsp", name: "red pepper flakes" },
+          { quantity: 0.5, unit: "tsp", name: "salt" },
+        ],
+      },
+      {
+        name: "Slaw",
+        ingredients: [
+          { quantity: 1, unit: "whole", name: "green cabbage, shredded" },
+          { quantity: 0.5, unit: "cup", name: "mayonnaise" },
+          { quantity: 2, unit: "tbsp", name: "apple cider vinegar" },
+          { quantity: 1, unit: "tbsp", name: "sugar" },
+          { quantity: 0.5, unit: "tsp", name: "salt" },
+        ],
+      },
+    ],
+    steps: [
+      {
+        stepNumber: 1,
+        text: "Combine brown sugar, paprika, salt, pepper, garlic powder, onion powder, and cayenne. Rub all over pork shoulder. Refrigerate at least 4 hours, ideally overnight.",
+        estimatedMinutes: 10,
+      },
+      {
+        stepNumber: 2,
+        text: "Preheat oven to 275°F. Place pork on a rack in a roasting pan, fat side up.",
+        estimatedMinutes: 10,
+      },
+      {
+        stepNumber: 3,
+        text: "Roast 6-8 hours until internal temp reaches 200°F and meat is fork-tender.",
+        estimatedMinutes: 420,
+        isTimingSensitive: true,
+      },
+      {
+        stepNumber: 4,
+        text: "While pork rests, whisk together vinegar BBQ sauce ingredients in a saucepan. Simmer 5 minutes.",
+        estimatedMinutes: 10,
+      },
+      {
+        stepNumber: 5,
+        text: "Combine cabbage, mayo, vinegar, sugar, and salt in a bowl. Toss and refrigerate.",
+        estimatedMinutes: 10,
+      },
+      {
+        stepNumber: 6,
+        text: "Shred pork with two forks, discarding fat and bone. Toss with sauce.",
+        estimatedMinutes: 15,
+      },
+      {
+        stepNumber: 7,
+        text: "Pile shredded pork on buns, top with slaw, and serve.",
+        estimatedMinutes: 5,
+      },
+    ],
+    // No sourceUrl since this came from an image
+  };
+}
+
 // ── Saved Dishes (PRD §10.5 Mode C) ──
 
 /**

@@ -14,7 +14,11 @@
       "backgroundColor": "#3a5235"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Kiwi to access your camera to import recipe images.",
+        "NSPhotoLibraryUsageDescription": "Allow Kiwi to access your photos to import recipe images."
+      }
     },
     "android": {},
     "web": {
@@ -29,7 +33,14 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Kiwi to access your photos to import recipe images.",
+          "cameraPermission": "Allow Kiwi to access your camera to import recipe images."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
