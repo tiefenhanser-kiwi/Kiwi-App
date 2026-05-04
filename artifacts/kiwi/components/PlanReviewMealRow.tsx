@@ -158,6 +158,15 @@ export function PlanReviewMealRow({ row, planId, onChangeMeal }: Props) {
             console.log("[meal-row] change-recipe tapped", {
               planItemId: row.planItemId,
             });
+            router.push({
+              pathname: "/meal-builder",
+              params: {
+                mealId: row.mealId,
+                planId,
+                planItemId: row.planItemId,
+                source: "change-recipe",
+              },
+            });
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >

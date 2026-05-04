@@ -127,6 +127,7 @@ export default function MealBuilderScreen() {
     mode: modeParam,
     draftSource,
     draftJson,
+    source,
   } = useLocalSearchParams<{
     mealId?: string;
     planId?: string;
@@ -134,8 +135,10 @@ export default function MealBuilderScreen() {
     mode?: "manual" | "combine" | "ai";
     draftSource?: "url" | "image" | "text";
     draftJson?: string;
+    source?: "change-recipe";
   }>();
   const isEditFromPlanContext = !!(mealId && planId && planItemId);
+  const isChangeRecipe = source === "change-recipe" && !!mealId;
 
   const sourceMeal = useMemo(
     () => (mealId ? getMealById(mealId) : null),
@@ -264,11 +267,13 @@ export default function MealBuilderScreen() {
     setNotes(draftMeal.notes ?? "");
   }, [draftMeal, sourceMeal]);
 
-  const headerTitle = sourceMeal
-    ? `Edit Meal: ${sourceMeal.title}`
-    : draftMeal
-      ? "Review imported recipe"
-      : "Create Meal";
+  const headerTitle = isChangeRecipe && sourceMeal
+    ? `Change recipe: ${sourceMeal.title}`
+    : sourceMeal
+      ? `Edit Meal: ${sourceMeal.title}`
+      : draftMeal
+        ? "Review imported recipe"
+        : "Create Meal";
 
   // ── Mode switching with unsaved-data guard ──────────────────────
   const hasManualData = (): boolean => {
@@ -466,8 +471,19 @@ export default function MealBuilderScreen() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Change-Recipe context (PRD §8.4.3): plan-scoped framing */}
+        {isChangeRecipe && (
+          <View style={s.contextInfo}>
+            <Text style={s.contextInfoText}>
+              You're adjusting the recipe just for this week's plan. When you
+              save, you can apply changes to only this plan or update your
+              saved recipe for future cooking.
+            </Text>
+          </View>
+        )}
+
         {/* Edit-context info card: surfaces the §2.5 plan-vs-global save framing */}
-        {mealId && (
+        {mealId && !isChangeRecipe && (
           <View style={s.contextInfo}>
             <Text style={s.contextInfoText}>
               Adjust ingredients, steps, or dishes in this meal. You can make
