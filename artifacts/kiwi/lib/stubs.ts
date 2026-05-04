@@ -1980,3 +1980,38 @@ export function getHostingMeals(): MealSummary[] {
     },
   ];
 }
+
+// ── Find Similar (PRD §8.4.x WS5 amendment) ──
+
+/**
+ * Returns meals matching the source meal's cuisine, drawn from
+ * all four catalogs (saved / featured / top rated / hosting).
+ * Excludes the source meal itself.
+ *
+ * MVP: cuisine match only (deterministic, no AI). AI-driven semantic
+ * similarity is logged for WS6+ (D-WS5-XXX in handoff).
+ *
+ * @param sourceMealId The meal being matched against.
+ * @returns MealSummary[] with cuisine matching the source. Empty
+ *   array if source not found or no matches.
+ */
+export function findSimilarMealsByCuisine(
+  sourceMealId: string,
+): MealSummary[] {
+  const sourceMeal = getMealById(sourceMealId);
+  if (!sourceMeal || !sourceMeal.cuisineType) {
+    return [];
+  }
+  const targetCuisine = sourceMeal.cuisineType;
+
+  const allMeals: MealSummary[] = [
+    ...getSavedMeals(),
+    ...getFeaturedMeals(),
+    ...getTopRatedMeals(),
+    ...getHostingMeals(),
+  ];
+
+  return allMeals.filter(
+    (m) => m.cuisineType === targetCuisine && m.id !== sourceMealId,
+  );
+}

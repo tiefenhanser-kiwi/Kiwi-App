@@ -14,12 +14,14 @@ import { useLocalSearchParams } from "expo-router";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { ChangeMealSheet } from "@/components/ChangeMealSheet";
+import { FindSimilarSheet } from "@/components/FindSimilarSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
-import { getReviewPlan } from "@/lib/stubs";
+import { getMealById, getReviewPlan } from "@/lib/stubs";
+import type { MealSummary, ReviewPlanMealRow } from "@/lib/types";
 
 const capitalize = (s: string) =>
   s.charAt(0).toUpperCase() + s.slice(1);
@@ -37,6 +39,14 @@ export default function PlanReviewScreen() {
   const [changeMealForRow, setChangeMealForRow] = useState<{
     planItemId: string;
     currentMealId: string;
+  } | null>(null);
+
+  // Sheet state for §8.4.x Find Similar flow (WS5 amendment).
+  const [findSimilarForRow, setFindSimilarForRow] = useState<{
+    planItemId: string;
+    sourceMealId: string;
+    sourceMealTitle?: string;
+    sourceCuisine?: string;
   } | null>(null);
 
   // Until WS7 wires real ReviewPlan data, the authoritative plan name lives
@@ -261,6 +271,15 @@ export default function PlanReviewScreen() {
                   onChangeMeal={(planItemId, currentMealId) =>
                     setChangeMealForRow({ planItemId, currentMealId })
                   }
+                  onFindSimilar={(planItemId, sourceMealId, title) => {
+                    const meal = getMealById(sourceMealId);
+                    setFindSimilarForRow({
+                      planItemId,
+                      sourceMealId,
+                      sourceMealTitle: title,
+                      sourceCuisine: meal?.cuisineType,
+                    });
+                  }}
                 />
               ))}
               {reviewPlan.unscheduledMeals.length > 0 && (
@@ -274,6 +293,15 @@ export default function PlanReviewScreen() {
                       onChangeMeal={(planItemId, currentMealId) =>
                         setChangeMealForRow({ planItemId, currentMealId })
                       }
+                      onFindSimilar={(planItemId, sourceMealId, title) => {
+                        const meal = getMealById(sourceMealId);
+                        setFindSimilarForRow({
+                          planItemId,
+                          sourceMealId,
+                          sourceMealTitle: title,
+                          sourceCuisine: meal?.cuisineType,
+                        });
+                      }}
                     />
                   ))}
                 </>
@@ -362,48 +390,56 @@ export default function PlanReviewScreen() {
         onClose={() => setChangeMealForRow(null)}
         onPickReplacement={(newMeal) => {
           if (!changeMealForRow) return;
-          const targetPlanItemId = changeMealForRow.planItemId;
-          const newMetaLine = `${capitalize(newMeal.difficulty)} · ${newMeal.estimatedTimeMinutes} min · serves ${newMeal.servingsDefault}`;
-          setReviewPlan((prev) => ({
-            ...prev,
-            scheduledMeals: prev.scheduledMeals.map((m) =>
-              m.planItemId === targetPlanItemId
-                ? {
-                    ...m,
-                    mealId: newMeal.id,
-                    title: newMeal.title,
-                    metaLine: newMetaLine,
-                    caloriesPerServing: newMeal.caloriesPerServing,
-                    proteinGPerServing: newMeal.proteinGPerServing,
-                    carbsGPerServing: newMeal.carbsGPerServing,
-                    fatGPerServing: newMeal.fatGPerServing,
-                    hasRecipeOverride: false,
-                  }
-                : m,
-            ),
-            unscheduledMeals: prev.unscheduledMeals.map((m) =>
-              m.planItemId === targetPlanItemId
-                ? {
-                    ...m,
-                    mealId: newMeal.id,
-                    title: newMeal.title,
-                    metaLine: newMetaLine,
-                    caloriesPerServing: newMeal.caloriesPerServing,
-                    proteinGPerServing: newMeal.proteinGPerServing,
-                    carbsGPerServing: newMeal.carbsGPerServing,
-                    fatGPerServing: newMeal.fatGPerServing,
-                    hasRecipeOverride: false,
-                  }
-                : m,
-            ),
-          }));
-          // Log-only stub for WS7 wiring.
-          void changeMealForPlanItem(planId, targetPlanItemId, newMeal.id);
+          applyMealReplacement(changeMealForRow.planItemId, newMeal);
           setChangeMealForRow(null);
+        }}
+      />
+
+      <FindSimilarSheet
+        visible={findSimilarForRow !== null}
+        sourceMealId={findSimilarForRow?.sourceMealId ?? ""}
+        sourceMealTitle={findSimilarForRow?.sourceMealTitle}
+        sourceCuisine={findSimilarForRow?.sourceCuisine}
+        onClose={() => setFindSimilarForRow(null)}
+        onPickReplacement={(newMeal) => {
+          if (!findSimilarForRow) return;
+          applyMealReplacement(findSimilarForRow.planItemId, newMeal);
+          setFindSimilarForRow(null);
         }}
       />
     </View>
   );
+
+  // ── Optimistic-update helper shared by Change Meal (5J) and Find
+  //    Similar (5K-bis). Both repoint planItem.mealId to a different
+  //    Meal record and refresh the row's display copy + macros. The
+  //    AppContext mutator stays log-only until WS7. ──
+  function applyMealReplacement(
+    targetPlanItemId: string,
+    newMeal: MealSummary,
+  ) {
+    const newMetaLine = `${capitalize(newMeal.difficulty)} · ${newMeal.estimatedTimeMinutes} min · serves ${newMeal.servingsDefault}`;
+    const replaceRow = (m: ReviewPlanMealRow): ReviewPlanMealRow =>
+      m.planItemId === targetPlanItemId
+        ? {
+            ...m,
+            mealId: newMeal.id,
+            title: newMeal.title,
+            metaLine: newMetaLine,
+            caloriesPerServing: newMeal.caloriesPerServing,
+            proteinGPerServing: newMeal.proteinGPerServing,
+            carbsGPerServing: newMeal.carbsGPerServing,
+            fatGPerServing: newMeal.fatGPerServing,
+            hasRecipeOverride: false,
+          }
+        : m;
+    setReviewPlan((prev) => ({
+      ...prev,
+      scheduledMeals: prev.scheduledMeals.map(replaceRow),
+      unscheduledMeals: prev.unscheduledMeals.map(replaceRow),
+    }));
+    void changeMealForPlanItem(planId, targetPlanItemId, newMeal.id);
+  }
 }
 
 const s = StyleSheet.create({

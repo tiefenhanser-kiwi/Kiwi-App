@@ -18,9 +18,21 @@ interface Props {
   /** Fired when the row's "Change Meal" action button is tapped — the
    *  parent screen owns the sheet + optimistic update (PRD §8.4.2). */
   onChangeMeal?: (planItemId: string, currentMealId: string) => void;
+  /** Fired when the row's "Find Similar" action is tapped — parent
+   *  screen owns the sheet + optimistic update (PRD §8.4.x WS5 amend.). */
+  onFindSimilar?: (
+    planItemId: string,
+    sourceMealId: string,
+    title: string,
+  ) => void;
 }
 
-export function PlanReviewMealRow({ row, planId, onChangeMeal }: Props) {
+export function PlanReviewMealRow({
+  row,
+  planId,
+  onChangeMeal,
+  onFindSimilar,
+}: Props) {
   const router = useRouter();
 
   const navigateToDetail = () => {
@@ -178,6 +190,7 @@ export function PlanReviewMealRow({ row, planId, onChangeMeal }: Props) {
               planItemId: row.planItemId,
               mealId: row.mealId,
             });
+            onFindSimilar?.(row.planItemId, row.mealId, row.title);
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >
