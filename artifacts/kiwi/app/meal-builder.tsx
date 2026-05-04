@@ -141,7 +141,9 @@ export default function MealBuilderScreen() {
   const [estimatedTimeMinutes, setEstimatedTimeMinutes] = useState("30");
   const [servingsDefault, setServingsDefault] = useState(4);
   const [dishes, setDishes] = useState<BuilderDish[]>(() => [newDish()]);
-  const [steps, setSteps] = useState<BuilderStep[]>(() => [newStep()]);
+  // Steps are optional per PRD §10.5 — start empty so the empty-state copy
+  // surfaces and users aren't forced into a forms-y experience for simple dishes.
+  const [steps, setSteps] = useState<BuilderStep[]>([]);
   const [notes, setNotes] = useState("");
 
   // ── Combine-mode state ──────────────────────────────────────────
@@ -188,7 +190,7 @@ export default function MealBuilderScreen() {
                   : "",
             }),
           )
-        : [newStep()],
+        : [],
     );
     setNotes(sourceMeal.notes ?? "");
   }, [sourceMeal]);
@@ -338,10 +340,10 @@ export default function MealBuilderScreen() {
     if (isEditFromPlanContext) {
       Alert.alert(
         "Save changes",
-        "Apply changes to just this plan, or update your saved meal so future plans use the new recipe?",
+        "How do you want to apply your edits?",
         [
           {
-            text: "Just for this plan",
+            text: "Save changes only on this plan",
             onPress: () => {
               console.log("[meal-builder] save (just-this-plan) tapped", {
                 mealId,
@@ -355,7 +357,7 @@ export default function MealBuilderScreen() {
             },
           },
           {
-            text: "Save to my saved meal forever",
+            text: "Save edits for this meal",
             onPress: () => {
               console.log("[meal-builder] save (save-globally) tapped", {
                 mealId,
@@ -881,22 +883,17 @@ function ManualEditor(p: ManualEditorProps) {
         </View>
       </View>
 
-      {/* Steps */}
+      {/* Steps — optional per PRD §10.5 */}
       <View style={{ gap: KSpacing.sm }}>
-        <View style={s.subHeaderRow}>
-          <Text style={s.subHeader}>Recipe steps</Text>
-          <Pressable
-            onPress={p.addStep}
-            hitSlop={6}
-            style={({ pressed }) => [
-              s.addLinkBtn,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Feather name="plus" size={14} color={KColors.sage[700]} />
-            <Text style={s.addLinkText}>Add step</Text>
-          </Pressable>
-        </View>
+        <Text style={s.subHeader}>Recipe steps</Text>
+        {p.steps.length === 0 && (
+          <View style={s.stepsEmptyState}>
+            <Text style={s.stepsEmptyText}>
+              Cooking steps are optional. Some dishes don&apos;t need them
+              (store-bought sides, leftovers, simple plating).
+            </Text>
+          </View>
+        )}
         {p.steps.map((step, i) => (
           <View key={step.uid} style={s.stepRow}>
             <View style={s.stepCircle}>
@@ -944,6 +941,35 @@ function ManualEditor(p: ManualEditorProps) {
             </Pressable>
           </View>
         ))}
+        <View style={s.stepsActionsRow}>
+          <View style={s.stepsActionCol}>
+            <Button
+              label="+ Add step"
+              variant="ghost"
+              onPress={p.addStep}
+            />
+          </View>
+          <View style={s.stepsActionCol}>
+            <Button
+              label="Have Kiwi suggest steps"
+              variant="ghost"
+              iconLeft={
+                <Feather
+                  name="lock"
+                  size={12}
+                  color={KColors.terracotta[600]}
+                />
+              }
+              onPress={() => {
+                Keyboard.dismiss();
+                Alert.alert(
+                  "Coming in WS6 — AI orchestration",
+                  "Kiwi will suggest cooking steps from your dish name and ingredients when AI orchestration ships.",
+                );
+              }}
+            />
+          </View>
+        </View>
       </View>
 
       {/* Notes */}
@@ -1154,6 +1180,30 @@ const s = StyleSheet.create({
   addDishWrap: {
     marginTop: KSpacing.md,
     marginBottom: KSpacing.lg,
+  },
+  stepsEmptyState: {
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.md,
+    alignItems: "center",
+  },
+  stepsEmptyText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+    fontStyle: "italic",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  stepsActionsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: KSpacing.sm,
+    marginTop: KSpacing.sm,
+  },
+  stepsActionCol: {
+    flexBasis: 0,
+    flexGrow: 1,
+    minWidth: 140,
   },
   modeCard: {
     flexDirection: "row",

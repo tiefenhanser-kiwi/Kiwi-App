@@ -2,7 +2,9 @@ import React, { useState } from "react";
 import {
   Alert,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -41,7 +43,16 @@ export function DishChooserSheet({
   const dishes = getSavedDishes();
   const [askPrompt, setAskPrompt] = useState("");
 
+  // Modal renders outside the parent's KeyboardAwareScrollViewCompat tree, so
+  // any sheet TextInput needs its own keyboard avoidance + explicit dismissal
+  // on close — otherwise the keyboard can persist after the sheet hides.
+  const handleClose = () => {
+    Keyboard.dismiss();
+    onClose();
+  };
+
   const handlePickSaved = (dish: SavedDish) => {
+    Keyboard.dismiss();
     onPickSavedDish(dish);
     onClose();
   };
@@ -62,6 +73,7 @@ export function DishChooserSheet({
   };
 
   const handleAddManual = () => {
+    Keyboard.dismiss();
     onAddManualDish();
     onClose();
   };
@@ -71,22 +83,27 @@ export function DishChooserSheet({
       visible={visible}
       animationType="slide"
       transparent
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
-        <View style={s.handle} />
-        <View style={s.header}>
-          <Text style={s.title}>Add a dish</Text>
-          <Pressable onPress={onClose} hitSlop={12}>
-            <Feather name="x" size={22} color={KColors.neutral[800]} />
-          </Pressable>
-        </View>
+      <Pressable style={s.backdrop} onPress={handleClose} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={s.kbAvoidWrap}
+        pointerEvents="box-none"
+      >
+        <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
+          <View style={s.handle} />
+          <View style={s.header}>
+            <Text style={s.title}>Add a dish</Text>
+            <Pressable onPress={handleClose} hitSlop={12}>
+              <Feather name="x" size={22} color={KColors.neutral[800]} />
+            </Pressable>
+          </View>
 
-        <ScrollView
-          contentContainerStyle={s.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
+          <ScrollView
+            contentContainerStyle={s.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
           {/* Section 1: Search my dishes */}
           <Text style={s.sectionTitle}>Search my dishes</Text>
           <Text style={s.sectionSubtitle}>
@@ -168,8 +185,9 @@ export function DishChooserSheet({
               <Text style={s.addManualBtnText}>Add empty dish</Text>
             </Pressable>
           </View>
-        </ScrollView>
-      </View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -179,11 +197,13 @@ const s = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(20,35,18,0.5)",
   },
-  sheet: {
+  kbAvoidWrap: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
+  },
+  sheet: {
     maxHeight: "88%",
     backgroundColor: KColors.neutral[100],
     borderTopLeftRadius: KRadius.xl,
