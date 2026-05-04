@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import {
@@ -35,14 +35,55 @@ export function PlanReviewMealRow({ row, planId }: Props) {
     navigateToDetail();
   };
 
+  const onCookNow = () => {
+    console.log("[meal-row] cook-now tapped", {
+      planItemId: row.planItemId,
+      mealId: row.mealId,
+    });
+    Alert.alert(
+      "Coming with Prep & Cook Hub",
+      "Cook Now lands when the Prep & Cook Hub workstream ships (post-WS6 AI orchestration). For now, view the meal details to see ingredients and steps.",
+    );
+  };
+
+  // Macros line — only render when at least caloriesPerServing exists.
+  // Missing individual macros render as 0 to keep the line shape consistent.
+  const macrosLine =
+    row.caloriesPerServing !== undefined
+      ? `${row.caloriesPerServing} cal · ${row.proteinGPerServing ?? 0}g P · ${row.carbsGPerServing ?? 0}g C · ${row.fatGPerServing ?? 0}g F`
+      : null;
+
   return (
     <View style={styles.card}>
-      {/* Top section: thumbnail + text column.
-          Wrapping only this region in the Pressable keeps day-pill and
-          action-button taps from bubbling up to the row-tap handler. */}
+      {/* Header row: title + Cook Now button.
+          Title-tap also navigates to detail; Cook Now is its own action. */}
+      <View style={styles.headerRow}>
+        <Pressable
+          onPress={onRowTap}
+          style={({ pressed }) => [
+            styles.titlePressable,
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+            {row.title}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={onCookNow}
+          style={({ pressed }) => [
+            styles.cookNowBtn,
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Text style={styles.cookNowText}>Cook Now</Text>
+        </Pressable>
+      </View>
+
+      {/* Body row: thumbnail + meta + macros. Tapping body also navigates. */}
       <Pressable
         onPress={onRowTap}
-        style={({ pressed }) => [styles.topRow, pressed && { opacity: 0.85 }]}
+        style={({ pressed }) => [styles.bodyRow, pressed && { opacity: 0.85 }]}
       >
         {row.thumbnailUrl ? (
           <Image source={{ uri: row.thumbnailUrl }} style={styles.thumb} />
@@ -50,15 +91,8 @@ export function PlanReviewMealRow({ row, planId }: Props) {
           <View style={[styles.thumb, styles.thumbFallback]} />
         )}
         <View style={styles.textCol}>
-          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-            {row.title}
-          </Text>
           <Text style={styles.metaLine}>{row.metaLine}</Text>
-          {row.caloriesPerServing !== undefined && (
-            <Text style={styles.calories}>
-              {row.caloriesPerServing} cal/serving
-            </Text>
-          )}
+          {macrosLine && <Text style={styles.macros}>{macrosLine}</Text>}
         </View>
       </Pressable>
 
@@ -161,10 +195,19 @@ const styles = StyleSheet.create({
     marginBottom: KSpacing.sm,
     ...KShadow.card,
   },
-  topRow: {
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+  },
+  titlePressable: {
+    flex: 1,
+  },
+  bodyRow: {
     flexDirection: "row",
     gap: KSpacing.md,
     alignItems: "center",
+    marginTop: KSpacing.sm,
   },
   thumb: {
     width: 56,
@@ -190,10 +233,22 @@ const styles = StyleSheet.create({
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
   },
-  calories: {
+  macros: {
     fontSize: KType.size.xs,
     color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
+  },
+  cookNowBtn: {
+    backgroundColor: KColors.sage[700],
+    paddingHorizontal: KSpacing.sm,
+    paddingVertical: KSpacing.xs,
+    borderRadius: KRadius.md,
+  },
+  cookNowText: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[0],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
   },
   dayStrip: {
     flexDirection: "row",

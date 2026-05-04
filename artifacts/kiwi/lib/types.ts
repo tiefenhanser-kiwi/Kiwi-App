@@ -148,8 +148,11 @@ export interface ReviewPlanMealRow {
   thumbnailUrl?: string;
   /** "Easy · 30 min · serves 4" */
   metaLine: string;
-  /** Per-serving display values for the meta line. */
+  /** Per-serving display values for the row's macros line. */
   caloriesPerServing?: number;
+  proteinGPerServing?: number;
+  carbsGPerServing?: number;
+  fatGPerServing?: number;
   /** Day strip — 7 entries Sun-Sat with assignment state. */
   dayStrip: DayAssignment[];
   /** True when this row's MealPlanItem has a recipeOverrideJson set. */
