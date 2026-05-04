@@ -80,7 +80,8 @@ export function DishChooserSheet({
 }: DishChooserSheetProps) {
   const insets = useSafeAreaInsets();
   const [askPrompt, setAskPrompt] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("date_created");
+  // PRD: A-Z is the default sort across all sortable surfaces.
+  const [sortKey, setSortKey] = useState<SortKey>("alpha");
 
   // Newly-added Simple Dishes — held inside the sheet so the parent
   // (Meal Builder) doesn't need to know. Resets on each visible cycle
@@ -354,9 +355,13 @@ const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    // Anchor the sheet at ~85% of screen so the picker isn't a tiny
+    // strip when content is short. Keyboard avoidance still pushes
+    // the keyboard-relevant content up via KeyboardAvoidingView.
+    height: "85%",
   },
   sheet: {
-    maxHeight: "88%",
+    flex: 1,
     backgroundColor: KColors.neutral[100],
     borderTopLeftRadius: KRadius.xl,
     borderTopRightRadius: KRadius.xl,

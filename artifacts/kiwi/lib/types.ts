@@ -303,8 +303,8 @@ export interface MealSummary {
   proteinGPerServing: number;
   carbsGPerServing: number;
   fatGPerServing: number;
-  /** "saved" = user's library; "featured" = curated catalog. */
-  source: "saved" | "featured";
+  /** Catalog source for the picker chip row (PRD §4.2.5). */
+  source: "saved" | "featured" | "top_rated" | "hosting";
   /** Times the user has cooked this meal (saved meals only). */
   timesCooked?: number;
   /** ISO timestamp; saved meals only. */

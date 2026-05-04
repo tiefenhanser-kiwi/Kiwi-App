@@ -849,6 +849,515 @@ export function getMealById(
       overrideContext,
     };
   }
+  if (_mealId === "top-rated-meal-1") {
+    return {
+      id: "top-rated-meal-1",
+      title: "Classic Lasagna Bolognese",
+      description:
+        "Slow-simmered Bolognese ragu layered with pasta, béchamel, and parmesan. Family weekend project.",
+      cuisineType: "Italian",
+      difficulty: "medium",
+      estimatedTimeMinutes: 90,
+      servingsDefault: 6,
+      tags: ["italian", "weekend", "family"],
+      caloriesPerServing: 680,
+      proteinGPerServing: 38,
+      carbsGPerServing: 52,
+      fatGPerServing: 32,
+      dishes: [
+        {
+          name: "Bolognese Ragu",
+          ingredients: [
+            { quantity: 1, unit: "lb", name: "ground beef (80/20)" },
+            { quantity: 0.5, unit: "lb", name: "ground pork" },
+            { quantity: 1, unit: "whole", name: "yellow onion, finely diced" },
+            { quantity: 2, unit: "whole", name: "carrots, finely diced" },
+            { quantity: 2, unit: "stalk", name: "celery, finely diced" },
+            { quantity: 4, unit: "clove", name: "garlic, minced" },
+            { quantity: 1, unit: "can", name: "whole peeled tomatoes (28 oz)" },
+            { quantity: 0.5, unit: "cup", name: "whole milk" },
+            { quantity: 0.5, unit: "cup", name: "dry red wine" },
+            { quantity: 2, unit: "tbsp", name: "olive oil" },
+            { quantity: 1, unit: "tsp", name: "salt" },
+          ],
+        },
+        {
+          name: "Béchamel",
+          ingredients: [
+            { quantity: 4, unit: "tbsp", name: "butter" },
+            { quantity: 4, unit: "tbsp", name: "flour" },
+            { quantity: 3, unit: "cup", name: "warm whole milk" },
+            { quantity: 1, unit: "pinch", name: "nutmeg, grated" },
+            { quantity: 0.5, unit: "tsp", name: "salt" },
+          ],
+        },
+        {
+          name: "Assembly",
+          ingredients: [
+            { quantity: 1, unit: "lb", name: "lasagna noodles, no-boil" },
+            { quantity: 2, unit: "cup", name: "parmesan, grated" },
+            { quantity: 1, unit: "cup", name: "mozzarella, shredded" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Heat olive oil in a Dutch oven over medium-high. Sear beef and pork, breaking up, until browned, 8-10 minutes.",
+          estimatedMinutes: 10,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 2,
+          text: "Reduce heat to medium. Add onion, carrot, celery, garlic. Cook 8 minutes until softened.",
+          estimatedMinutes: 8,
+        },
+        {
+          stepNumber: 3,
+          text: "Pour in wine; simmer 3 minutes. Add milk; simmer 3 minutes. Crush tomatoes by hand into pot. Add salt.",
+          estimatedMinutes: 8,
+        },
+        {
+          stepNumber: 4,
+          text: "Reduce to low; partially cover and simmer 45 minutes, stirring occasionally, until thickened.",
+          estimatedMinutes: 45,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 5,
+          text: "Make béchamel: melt butter, whisk in flour, cook 1 min. Slowly whisk in warm milk; cook until thickened, 5 minutes. Season with nutmeg and salt.",
+          estimatedMinutes: 8,
+        },
+        {
+          stepNumber: 6,
+          text: "Preheat oven to 375°F. Layer ragu, noodles, béchamel, and parmesan in a 9×13 dish. Repeat 3-4 layers, top with mozzarella. Bake 35-40 minutes until bubbling and golden. Rest 10 minutes before serving.",
+          estimatedMinutes: 50,
+          isTimingSensitive: true,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "top-rated-meal-2") {
+    return {
+      id: "top-rated-meal-2",
+      title: "Crispy Korean Fried Chicken",
+      description:
+        "Double-fried chicken pieces tossed in a sweet-spicy gochujang glaze. Crispy with a sticky bite.",
+      cuisineType: "Korean",
+      difficulty: "medium",
+      estimatedTimeMinutes: 60,
+      servingsDefault: 4,
+      tags: ["korean", "fried", "spicy"],
+      caloriesPerServing: 620,
+      proteinGPerServing: 42,
+      carbsGPerServing: 38,
+      fatGPerServing: 28,
+      dishes: [
+        {
+          name: "Fried Chicken",
+          ingredients: [
+            { quantity: 2, unit: "lb", name: "chicken wings or boneless thighs, cut into 2-inch pieces" },
+            { quantity: 1, unit: "tsp", name: "salt" },
+            { quantity: 0.5, unit: "tsp", name: "black pepper" },
+            { quantity: 1, unit: "cup", name: "potato starch" },
+            { quantity: 0.5, unit: "cup", name: "all-purpose flour" },
+            { quantity: 1, unit: "quart", name: "neutral oil for frying" },
+          ],
+        },
+        {
+          name: "Gochujang Glaze",
+          ingredients: [
+            { quantity: 3, unit: "tbsp", name: "gochujang (Korean chili paste)" },
+            { quantity: 3, unit: "tbsp", name: "soy sauce" },
+            { quantity: 3, unit: "tbsp", name: "honey" },
+            { quantity: 2, unit: "tbsp", name: "rice vinegar" },
+            { quantity: 4, unit: "clove", name: "garlic, grated" },
+            { quantity: 1, unit: "tbsp", name: "sesame oil" },
+            { quantity: 1, unit: "tbsp", name: "toasted sesame seeds" },
+            { quantity: 2, unit: "whole", name: "scallions, thinly sliced" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Pat chicken dry. Season with salt and pepper. Toss with potato starch and flour to coat thoroughly.",
+          estimatedMinutes: 10,
+        },
+        {
+          stepNumber: 2,
+          text: "Heat oil to 325°F in a deep pot. Fry chicken in batches for 7-8 minutes until pale and cooked through. Drain on a rack. Let oil come back up to temp between batches.",
+          estimatedMinutes: 20,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 3,
+          text: "Increase oil to 375°F. Fry chicken a second time for 3-4 minutes per batch until deep golden and shatter-crisp. Drain on rack.",
+          estimatedMinutes: 12,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 4,
+          text: "Whisk all glaze ingredients in a wide bowl until smooth.",
+          estimatedMinutes: 3,
+        },
+        {
+          stepNumber: 5,
+          text: "Toss hot chicken in glaze until evenly coated. Top with sesame seeds and scallions. Serve immediately.",
+          estimatedMinutes: 3,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "top-rated-meal-3") {
+    return {
+      id: "top-rated-meal-3",
+      title: "Smashburger with Special Sauce",
+      description:
+        "Cast-iron smashburgers with crispy lacy edges, melty cheese, and a tangy special sauce.",
+      cuisineType: "American",
+      difficulty: "easy",
+      estimatedTimeMinutes: 25,
+      servingsDefault: 4,
+      tags: ["weeknight", "burger", "beef"],
+      caloriesPerServing: 720,
+      proteinGPerServing: 38,
+      carbsGPerServing: 42,
+      fatGPerServing: 42,
+      dishes: [
+        {
+          name: "Burgers",
+          ingredients: [
+            { quantity: 1.25, unit: "lb", name: "ground beef (80/20), divided into 8 loose 2.5 oz balls" },
+            { quantity: 1, unit: "tsp", name: "kosher salt" },
+            { quantity: 0.5, unit: "tsp", name: "black pepper" },
+            { quantity: 8, unit: "slice", name: "American cheese" },
+            { quantity: 4, unit: "whole", name: "potato buns" },
+            { quantity: 1, unit: "tbsp", name: "butter, softened" },
+          ],
+        },
+        {
+          name: "Special Sauce",
+          ingredients: [
+            { quantity: 0.25, unit: "cup", name: "mayonnaise" },
+            { quantity: 2, unit: "tbsp", name: "ketchup" },
+            { quantity: 2, unit: "tbsp", name: "dill pickle relish" },
+            { quantity: 1, unit: "tsp", name: "yellow mustard" },
+            { quantity: 1, unit: "tsp", name: "white vinegar" },
+            { quantity: 0.5, unit: "tsp", name: "smoked paprika" },
+          ],
+        },
+        {
+          name: "Toppings",
+          ingredients: [
+            { quantity: 4, unit: "leaf", name: "iceberg lettuce" },
+            { quantity: 1, unit: "whole", name: "ripe tomato, sliced" },
+            { quantity: 12, unit: "slice", name: "dill pickles" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Whisk all special sauce ingredients in a small bowl. Refrigerate until needed.",
+          estimatedMinutes: 3,
+        },
+        {
+          stepNumber: 2,
+          text: "Butter cut sides of buns. Toast in a dry cast-iron skillet over medium until golden.",
+          estimatedMinutes: 4,
+        },
+        {
+          stepNumber: 3,
+          text: "Heat cast iron over high heat until smoking. Place 2 beef balls on the pan; immediately smash flat with a sturdy spatula. Season tops with salt and pepper.",
+          estimatedMinutes: 2,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 4,
+          text: "Sear 90 seconds for a deep crust. Flip; top each patty with a slice of cheese. Cook 30 seconds more until cheese melts.",
+          estimatedMinutes: 3,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 5,
+          text: "Repeat with remaining patties.",
+          estimatedMinutes: 6,
+        },
+        {
+          stepNumber: 6,
+          text: "Build burgers: bottom bun, sauce, lettuce, tomato, two stacked patties, pickles, top bun.",
+          estimatedMinutes: 4,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "hosting-meal-1") {
+    return {
+      id: "hosting-meal-1",
+      title: "Roast Turkey with All the Fixings",
+      description:
+        "Herb-butter roasted whole turkey with classic gravy, mashed potatoes, and stuffing for a holiday spread.",
+      cuisineType: "American",
+      difficulty: "hard",
+      estimatedTimeMinutes: 240,
+      servingsDefault: 8,
+      tags: ["holiday", "hosting", "turkey"],
+      caloriesPerServing: 740,
+      proteinGPerServing: 58,
+      carbsGPerServing: 48,
+      fatGPerServing: 36,
+      dishes: [
+        {
+          name: "Roast Turkey",
+          ingredients: [
+            { quantity: 1, unit: "whole", name: "turkey (12-14 lb), thawed and patted dry" },
+            { quantity: 8, unit: "tbsp", name: "butter, softened" },
+            { quantity: 4, unit: "sprig", name: "fresh thyme, leaves picked" },
+            { quantity: 4, unit: "sprig", name: "fresh sage, chopped" },
+            { quantity: 4, unit: "clove", name: "garlic, grated" },
+            { quantity: 1, unit: "tbsp", name: "kosher salt" },
+            { quantity: 1, unit: "tsp", name: "black pepper" },
+            { quantity: 1, unit: "whole", name: "lemon, halved" },
+            { quantity: 1, unit: "whole", name: "yellow onion, quartered" },
+          ],
+        },
+        {
+          name: "Pan Gravy",
+          ingredients: [
+            { quantity: 3, unit: "tbsp", name: "all-purpose flour" },
+            { quantity: 3, unit: "cup", name: "turkey or chicken stock, warm" },
+            { quantity: 1, unit: "tbsp", name: "Worcestershire sauce" },
+            { quantity: 0.5, unit: "tsp", name: "salt" },
+          ],
+        },
+        {
+          name: "Sides",
+          ingredients: [
+            { quantity: 3, unit: "lb", name: "Yukon Gold potatoes, peeled and cubed" },
+            { quantity: 0.5, unit: "cup", name: "butter" },
+            { quantity: 1, unit: "cup", name: "warm whole milk" },
+            { quantity: 1, unit: "loaf", name: "day-old crusty bread, cubed (for stuffing)" },
+            { quantity: 2, unit: "cup", name: "stock (for stuffing)" },
+            { quantity: 2, unit: "stalk", name: "celery, diced" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Preheat oven to 425°F. Combine softened butter with thyme, sage, garlic, salt, and pepper.",
+          estimatedMinutes: 10,
+        },
+        {
+          stepNumber: 2,
+          text: "Loosen turkey skin and rub herb butter under and over the skin. Stuff cavity with lemon and onion. Place breast-side up on a rack in a roasting pan.",
+          estimatedMinutes: 15,
+        },
+        {
+          stepNumber: 3,
+          text: "Roast 30 minutes at 425°F. Reduce to 325°F and continue roasting until thigh registers 165°F, about 2.5 hours total. Tent with foil if browning too fast.",
+          estimatedMinutes: 165,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 4,
+          text: "Meanwhile, boil potatoes until fork tender, 18-20 minutes. Drain, mash with butter and warm milk; season.",
+          estimatedMinutes: 25,
+        },
+        {
+          stepNumber: 5,
+          text: "Toss bread cubes with sautéed celery, herbs, and stock. Bake at 350°F for 35 minutes until crisp on top.",
+          estimatedMinutes: 40,
+        },
+        {
+          stepNumber: 6,
+          text: "Rest turkey 30 minutes. Pour pan drippings into a saucepan, whisk in flour, then warm stock and Worcestershire. Simmer until thickened. Carve and serve with gravy and sides.",
+          estimatedMinutes: 35,
+          isTimingSensitive: true,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "hosting-meal-2") {
+    return {
+      id: "hosting-meal-2",
+      title: "Beef Tenderloin with Red Wine Reduction",
+      description:
+        "Whole roasted beef tenderloin with a glossy red wine pan sauce. Restaurant-grade centerpiece.",
+      cuisineType: "French",
+      difficulty: "hard",
+      estimatedTimeMinutes: 90,
+      servingsDefault: 6,
+      tags: ["hosting", "beef", "celebration"],
+      caloriesPerServing: 620,
+      proteinGPerServing: 48,
+      carbsGPerServing: 12,
+      fatGPerServing: 38,
+      dishes: [
+        {
+          name: "Tenderloin",
+          ingredients: [
+            { quantity: 3, unit: "lb", name: "center-cut beef tenderloin, trimmed and tied" },
+            { quantity: 2, unit: "tbsp", name: "olive oil" },
+            { quantity: 2, unit: "tsp", name: "kosher salt" },
+            { quantity: 1, unit: "tsp", name: "cracked black pepper" },
+            { quantity: 4, unit: "sprig", name: "fresh thyme" },
+            { quantity: 3, unit: "tbsp", name: "butter" },
+          ],
+        },
+        {
+          name: "Red Wine Reduction",
+          ingredients: [
+            { quantity: 2, unit: "whole", name: "shallots, finely minced" },
+            { quantity: 2, unit: "clove", name: "garlic, minced" },
+            { quantity: 1.5, unit: "cup", name: "dry red wine (Cabernet or Bordeaux)" },
+            { quantity: 1.5, unit: "cup", name: "beef stock" },
+            { quantity: 1, unit: "tbsp", name: "tomato paste" },
+            { quantity: 2, unit: "tbsp", name: "cold butter, cubed" },
+            { quantity: 0.5, unit: "tsp", name: "salt" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Take tenderloin out of fridge 45 minutes before cooking. Pat dry; rub with olive oil, salt, and pepper. Preheat oven to 425°F.",
+          estimatedMinutes: 50,
+        },
+        {
+          stepNumber: 2,
+          text: "Heat a large oven-safe skillet over high heat. Sear tenderloin on all sides until deeply browned, 8-10 minutes total.",
+          estimatedMinutes: 10,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 3,
+          text: "Add butter and thyme to the pan; baste tenderloin. Transfer pan to oven; roast until internal temp reaches 125°F for medium-rare, 18-22 minutes.",
+          estimatedMinutes: 22,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 4,
+          text: "Transfer tenderloin to a board; tent loosely with foil. Pour off all but 1 tbsp fat from skillet.",
+          estimatedMinutes: 2,
+        },
+        {
+          stepNumber: 5,
+          text: "Sauté shallots and garlic in skillet 2 minutes. Stir in tomato paste; cook 1 minute. Pour in wine; reduce by half over high heat. Add stock; reduce until syrupy, about 8 minutes.",
+          estimatedMinutes: 12,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 6,
+          text: "Off heat, swirl in cold butter cubes one at a time until glossy. Season. Slice rested tenderloin and spoon sauce over.",
+          estimatedMinutes: 5,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
+  if (_mealId === "hosting-meal-3") {
+    return {
+      id: "hosting-meal-3",
+      title: "Cinco de Mayo Carnitas Spread",
+      description:
+        "Slow-braised pork carnitas with warm tortillas, salsa verde, pickled onions, and toppings bar.",
+      cuisineType: "Mexican",
+      difficulty: "medium",
+      estimatedTimeMinutes: 180,
+      servingsDefault: 8,
+      tags: ["hosting", "mexican", "celebration"],
+      caloriesPerServing: 580,
+      proteinGPerServing: 38,
+      carbsGPerServing: 42,
+      fatGPerServing: 26,
+      dishes: [
+        {
+          name: "Carnitas",
+          ingredients: [
+            { quantity: 4, unit: "lb", name: "pork shoulder, cut into 3-inch chunks" },
+            { quantity: 2, unit: "tbsp", name: "kosher salt" },
+            { quantity: 1, unit: "tbsp", name: "cumin" },
+            { quantity: 1, unit: "tbsp", name: "oregano" },
+            { quantity: 1, unit: "whole", name: "yellow onion, halved" },
+            { quantity: 6, unit: "clove", name: "garlic, smashed" },
+            { quantity: 2, unit: "whole", name: "oranges, halved" },
+            { quantity: 2, unit: "whole", name: "bay leaves" },
+            { quantity: 1, unit: "cup", name: "lard or neutral oil" },
+          ],
+        },
+        {
+          name: "Salsa Verde",
+          ingredients: [
+            { quantity: 1, unit: "lb", name: "tomatillos, husked" },
+            { quantity: 2, unit: "whole", name: "jalapeños, stemmed" },
+            { quantity: 0.5, unit: "whole", name: "white onion" },
+            { quantity: 2, unit: "clove", name: "garlic" },
+            { quantity: 0.5, unit: "cup", name: "cilantro" },
+            { quantity: 1, unit: "whole", name: "lime, juiced" },
+            { quantity: 0.5, unit: "tsp", name: "salt" },
+          ],
+        },
+        {
+          name: "Spread",
+          ingredients: [
+            { quantity: 24, unit: "whole", name: "small corn tortillas, warmed" },
+            { quantity: 1, unit: "whole", name: "red onion, thinly sliced and pickled" },
+            { quantity: 1, unit: "bunch", name: "cilantro, leaves picked" },
+            { quantity: 4, unit: "whole", name: "limes, cut in wedges" },
+            { quantity: 1, unit: "cup", name: "queso fresco, crumbled" },
+          ],
+        },
+      ],
+      steps: [
+        {
+          stepNumber: 1,
+          text: "Preheat oven to 300°F. Toss pork with salt, cumin, and oregano in a Dutch oven.",
+          estimatedMinutes: 8,
+        },
+        {
+          stepNumber: 2,
+          text: "Tuck in onion, garlic, oranges (juice squeezed in), bay leaves. Pour lard over. Cover and braise 2.5 hours until pork is fork-tender.",
+          estimatedMinutes: 150,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 3,
+          text: "Char tomatillos, jalapeños, onion, and garlic under the broiler 5-6 minutes. Blend with cilantro, lime juice, and salt.",
+          estimatedMinutes: 10,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 4,
+          text: "Lift pork from braise; shred with two forks, discarding bones and aromatics.",
+          estimatedMinutes: 10,
+        },
+        {
+          stepNumber: 5,
+          text: "Spread shredded pork on a sheet pan; spoon some braising fat over. Broil 4-5 minutes until edges crisp.",
+          estimatedMinutes: 6,
+          isTimingSensitive: true,
+        },
+        {
+          stepNumber: 6,
+          text: "Arrange carnitas, warm tortillas, salsa verde, pickled onions, cilantro, lime, and queso fresco on a platter for guests to build their own tacos.",
+          estimatedMinutes: 8,
+        },
+      ],
+      hasActivePlanOverride: !!overrideContext,
+      overrideContext,
+    };
+  }
   if (_mealId === "featured-meal-4") {
     return {
       id: "featured-meal-4",
@@ -1376,6 +1885,98 @@ export function getFeaturedMeals(): MealSummary[] {
       carbsGPerServing: 62,
       fatGPerServing: 18,
       source: "featured",
+    },
+  ];
+}
+
+// ── Top Rated Meals (PRD §4.2.5 + §15.6.4) ──
+
+export function getTopRatedMeals(): MealSummary[] {
+  return [
+    {
+      id: "top-rated-meal-1",
+      title: "Classic Lasagna Bolognese",
+      cuisineType: "Italian",
+      difficulty: "medium",
+      estimatedTimeMinutes: 90,
+      servingsDefault: 6,
+      caloriesPerServing: 680,
+      proteinGPerServing: 38,
+      carbsGPerServing: 52,
+      fatGPerServing: 32,
+      source: "top_rated",
+    },
+    {
+      id: "top-rated-meal-2",
+      title: "Crispy Korean Fried Chicken",
+      cuisineType: "Korean",
+      difficulty: "medium",
+      estimatedTimeMinutes: 60,
+      servingsDefault: 4,
+      caloriesPerServing: 620,
+      proteinGPerServing: 42,
+      carbsGPerServing: 38,
+      fatGPerServing: 28,
+      source: "top_rated",
+    },
+    {
+      id: "top-rated-meal-3",
+      title: "Smashburger with Special Sauce",
+      cuisineType: "American",
+      difficulty: "easy",
+      estimatedTimeMinutes: 25,
+      servingsDefault: 4,
+      caloriesPerServing: 720,
+      proteinGPerServing: 38,
+      carbsGPerServing: 42,
+      fatGPerServing: 42,
+      source: "top_rated",
+    },
+  ];
+}
+
+// ── Hosting & Events Meals (PRD §15.6.2) ──
+
+export function getHostingMeals(): MealSummary[] {
+  return [
+    {
+      id: "hosting-meal-1",
+      title: "Roast Turkey with All the Fixings",
+      cuisineType: "American",
+      difficulty: "hard",
+      estimatedTimeMinutes: 240,
+      servingsDefault: 8,
+      caloriesPerServing: 740,
+      proteinGPerServing: 58,
+      carbsGPerServing: 48,
+      fatGPerServing: 36,
+      source: "hosting",
+    },
+    {
+      id: "hosting-meal-2",
+      title: "Beef Tenderloin with Red Wine Reduction",
+      cuisineType: "French",
+      difficulty: "hard",
+      estimatedTimeMinutes: 90,
+      servingsDefault: 6,
+      caloriesPerServing: 620,
+      proteinGPerServing: 48,
+      carbsGPerServing: 12,
+      fatGPerServing: 38,
+      source: "hosting",
+    },
+    {
+      id: "hosting-meal-3",
+      title: "Cinco de Mayo Carnitas Spread",
+      cuisineType: "Mexican",
+      difficulty: "medium",
+      estimatedTimeMinutes: 180,
+      servingsDefault: 8,
+      caloriesPerServing: 580,
+      proteinGPerServing: 38,
+      carbsGPerServing: 42,
+      fatGPerServing: 26,
+      source: "hosting",
     },
   ];
 }

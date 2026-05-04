@@ -49,7 +49,7 @@ export default function MealsTab() {
   const [filters, setFilters] = useState<MealsFilter[]>(initialFilters);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("last_cooked");
+  const [sortKey, setSortKey] = useState<SortKey>("alpha");
   const [rows, setRows] = useState<MealRowData[]>([]);
   const [loading, setLoading] = useState(false);
 

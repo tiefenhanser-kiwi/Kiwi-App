@@ -12,9 +12,15 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { FilterChipRow } from "@/components/FilterChipRow";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { getFeaturedMeals, getSavedMeals } from "@/lib/stubs";
+import {
+  getFeaturedMeals,
+  getHostingMeals,
+  getSavedMeals,
+  getTopRatedMeals,
+} from "@/lib/stubs";
 import type { MealSummary } from "@/lib/types";
 
 export interface ChangeMealSheetProps {
@@ -26,6 +32,15 @@ export interface ChangeMealSheetProps {
    *  optimistic update + AppContext mutator call. */
   onPickReplacement: (newMeal: MealSummary) => void;
 }
+
+type ChangeMealFilter = "featured" | "my_meals" | "top_rated" | "hosting";
+
+const FILTER_OPTIONS: { key: ChangeMealFilter; label: string }[] = [
+  { key: "featured", label: "Featured" },
+  { key: "my_meals", label: "My Meals" },
+  { key: "top_rated", label: "Top Rated" },
+  { key: "hosting", label: "Hosting & Events" },
+];
 
 const FALLBACK_DATE = "1970-01-01T00:00:00.000Z";
 
@@ -74,18 +89,30 @@ export function ChangeMealSheet({
 }: ChangeMealSheetProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [sortKey, setSortKey] = useState<SortKey>("last_cooked");
+  // Default to My Meals — most useful chip when swapping a known meal.
+  const [activeFilter, setActiveFilter] =
+    useState<ChangeMealFilter>("my_meals");
+  // PRD: A-Z is the default sort across all sortable surfaces.
+  const [sortKey, setSortKey] = useState<SortKey>("alpha");
 
-  const myMeals = useMemo(
-    () =>
-      sortMeals(
-        getSavedMeals().filter((m) => m.id !== currentMealId),
-        sortKey,
-      ),
-    [currentMealId, sortKey],
-  );
-
-  const featuredMeals = useMemo(() => getFeaturedMeals(), []);
+  const visibleMeals = useMemo(() => {
+    let source: MealSummary[];
+    switch (activeFilter) {
+      case "my_meals":
+        source = getSavedMeals().filter((m) => m.id !== currentMealId);
+        break;
+      case "featured":
+        source = getFeaturedMeals();
+        break;
+      case "top_rated":
+        source = getTopRatedMeals();
+        break;
+      case "hosting":
+        source = getHostingMeals();
+        break;
+    }
+    return sortMeals(source, sortKey);
+  }, [activeFilter, currentMealId, sortKey]);
 
   const handlePick = (meal: MealSummary) => {
     onPickReplacement(meal);
@@ -99,7 +126,9 @@ export function ChangeMealSheet({
     );
   };
 
-  const navigateAfterClose = (path: "/import-url" | "/import-image" | "/meal-builder") => {
+  const navigateAfterClose = (
+    path: "/import-url" | "/import-image" | "/meal-builder",
+  ) => {
     onClose();
     // Defer so the sheet's slide-out animation completes before the
     // destination screen mounts; otherwise users see the new screen
@@ -115,107 +144,101 @@ export function ChangeMealSheet({
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={s.kbAvoidWrap} pointerEvents="box-none">
-        <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
-          <View style={s.handle} />
-          <View style={s.header}>
-            <Text style={s.title}>Change meal</Text>
-            <Pressable onPress={onClose} hitSlop={12}>
-              <Feather name="x" size={22} color={KColors.neutral[800]} />
-            </Pressable>
+      <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
+        <View style={s.handle} />
+        <View style={s.header}>
+          <Text style={s.title}>Change meal</Text>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <Feather name="x" size={22} color={KColors.neutral[800]} />
+          </Pressable>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={s.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Section 1: Filter chips (single-select per FilterChipRow contract) */}
+          <FilterChipRow<ChangeMealFilter>
+            options={FILTER_OPTIONS}
+            selected={[activeFilter]}
+            onToggle={(key) => setActiveFilter(key)}
+          />
+
+          {/* Section 2: Sortable list driven by activeFilter */}
+          <View style={[s.sectionTitleRow, { marginTop: KSpacing.sm }]}>
+            <Text style={s.sectionTitle}>
+              {FILTER_OPTIONS.find((o) => o.key === activeFilter)?.label}
+            </Text>
+            <SortDropdown value={sortKey} onChange={setSortKey} />
           </View>
-
-          <ScrollView
-            contentContainerStyle={s.scrollContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Section 1: My Meals (sortable) */}
-            <View style={s.sectionTitleRow}>
-              <Text style={s.sectionTitle}>My Meals</Text>
-              <SortDropdown value={sortKey} onChange={setSortKey} />
-            </View>
-            <View style={s.list}>
-              {myMeals.length === 0 ? (
-                <Text style={s.emptyText}>
-                  No other meals in your library yet.
-                </Text>
-              ) : (
-                myMeals.map((meal) => (
-                  <MealRow
-                    key={meal.id}
-                    meal={meal}
-                    onPress={() => handlePick(meal)}
-                  />
-                ))
-              )}
-            </View>
-
-            {/* Section 2: Featured (curated) */}
-            <Text style={[s.sectionTitle, s.sectionGap]}>Featured</Text>
-            <View style={s.list}>
-              {featuredMeals.map((meal) => (
+          <View style={s.list}>
+            {visibleMeals.length === 0 ? (
+              <Text style={s.emptyText}>No other meals here yet.</Text>
+            ) : (
+              visibleMeals.map((meal) => (
                 <MealRow
                   key={meal.id}
                   meal={meal}
                   onPress={() => handlePick(meal)}
                 />
-              ))}
-            </View>
+              ))
+            )}
+          </View>
 
-            {/* Section 3: Ask Kiwi for a recommendation (premium-locked) */}
-            <Pressable
-              onPress={handleAskKiwi}
-              style={({ pressed }) => [
-                s.askSection,
-                s.sectionGap,
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <View style={s.askHeader}>
-                <Text style={s.sectionTitle}>
-                  Ask Kiwi for a recommendation
-                </Text>
-                <View style={s.premiumPill}>
-                  <Feather
-                    name="lock"
-                    size={10}
-                    color={KColors.terracotta[700]}
-                  />
-                  <Text style={s.premiumPillText}>Premium</Text>
-                </View>
-              </View>
-              <Text style={s.sectionSubtitle}>
-                Premium · coming in WS6 — Kiwi will suggest a replacement based
-                on this meal's ingredients and your prefs
+          {/* Section 3: Ask Kiwi for a recommendation (premium-locked) */}
+          <Pressable
+            onPress={handleAskKiwi}
+            style={({ pressed }) => [
+              s.askSection,
+              s.sectionGap,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <View style={s.askHeader}>
+              <Text style={s.sectionTitle}>
+                Ask Kiwi for a recommendation
               </Text>
-            </Pressable>
-
-            {/* Section 4: Bring in something new */}
-            <Text style={[s.sectionTitle, s.sectionGap]}>
-              Bring in something new
-            </Text>
-            <View style={s.list}>
-              <NewSourceCard
-                icon="link"
-                title="Import from URL"
-                subtitle="Paste a recipe link"
-                onPress={() => navigateAfterClose("/import-url")}
-              />
-              <NewSourceCard
-                icon="image"
-                title="Import from photo"
-                subtitle="Take a photo or pick from your library"
-                onPress={() => navigateAfterClose("/import-image")}
-              />
-              <NewSourceCard
-                icon="edit-3"
-                title="Create manually"
-                subtitle="Build a new meal from scratch"
-                onPress={() => navigateAfterClose("/meal-builder")}
-              />
+              <View style={s.premiumPill}>
+                <Feather
+                  name="lock"
+                  size={10}
+                  color={KColors.terracotta[700]}
+                />
+                <Text style={s.premiumPillText}>Premium</Text>
+              </View>
             </View>
-          </ScrollView>
-        </View>
+            <Text style={s.sectionSubtitle}>
+              Premium · coming in WS6 — Kiwi will suggest a replacement based
+              on this meal's ingredients and your prefs
+            </Text>
+          </Pressable>
+
+          {/* Section 4: Bring in something new */}
+          <Text style={[s.sectionTitle, s.sectionGap]}>
+            Bring in something new
+          </Text>
+          <View style={s.list}>
+            <NewSourceCard
+              icon="link"
+              title="Import from URL"
+              subtitle="Paste a recipe link"
+              onPress={() => navigateAfterClose("/import-url")}
+            />
+            <NewSourceCard
+              icon="image"
+              title="Import from photo"
+              subtitle="Take a photo or pick from your library"
+              onPress={() => navigateAfterClose("/import-image")}
+            />
+            <NewSourceCard
+              icon="edit-3"
+              title="Create manually"
+              subtitle="Build a new meal from scratch"
+              onPress={() => navigateAfterClose("/meal-builder")}
+            />
+          </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -281,28 +304,22 @@ function NewSourceCard({
         <Text style={s.sourceTitle}>{title}</Text>
         <Text style={s.sourceSubtitle}>{subtitle}</Text>
       </View>
-      <Feather
-        name="chevron-right"
-        size={18}
-        color={KColors.neutral[600]}
-      />
+      <Feather name="chevron-right" size={18} color={KColors.neutral[600]} />
     </Pressable>
   );
 }
 
 const s = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     backgroundColor: "rgba(20,35,18,0.5)",
   },
-  kbAvoidWrap: {
+  sheet: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-  },
-  sheet: {
-    maxHeight: "88%",
+    height: "85%",
     backgroundColor: KColors.neutral[100],
     borderTopLeftRadius: KRadius.xl,
     borderTopRightRadius: KRadius.xl,

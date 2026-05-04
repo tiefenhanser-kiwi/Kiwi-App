@@ -52,7 +52,7 @@ export default function PlansTab() {
   const [filters, setFilters] = useState<PlanDiscoveryFilter[]>(initialFilters);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("last_cooked");
+  const [sortKey, setSortKey] = useState<SortKey>("alpha");
   const [rows, setRows] = useState<PlanRowData[]>([]);
   const [loading, setLoading] = useState(false);
 
