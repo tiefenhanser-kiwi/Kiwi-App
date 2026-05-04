@@ -32,7 +32,9 @@ export default function ImportImageScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
+      // allowsEditing intentionally omitted — the system edit/crop screen
+      // is flaky on Android (missing Done button blocks progression). For
+      // OCR the full as-shot frame is better anyway (more text for AI).
       quality: 0.8,
     });
     if (!result.canceled && result.assets && result.assets[0]) {
@@ -53,7 +55,7 @@ export default function ImportImageScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       // SDK 54 / image-picker 17 uses the MediaType union; MediaTypeOptions is deprecated.
       mediaTypes: ["images"],
-      allowsEditing: true,
+      // allowsEditing intentionally omitted — see handleCameraPick.
       quality: 0.8,
     });
     if (!result.canceled && result.assets && result.assets[0]) {
