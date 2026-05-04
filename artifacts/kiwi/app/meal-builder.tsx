@@ -22,7 +22,7 @@ import {
   KType,
 } from "@/constants/tokens";
 import { getMealById, getSavedDishes } from "@/lib/stubs";
-import type { SavedDish } from "@/lib/types";
+import type { DraftMeal, SavedDish } from "@/lib/types";
 
 type Mode = "manual" | "combine" | "ai" | null;
 type Difficulty = "easy" | "medium" | "hard";
@@ -114,13 +114,21 @@ const newStep = (
 });
 
 export default function MealBuilderScreen() {
-  const { mealId, planId, planItemId, mode: modeParam } =
-    useLocalSearchParams<{
-      mealId?: string;
-      planId?: string;
-      planItemId?: string;
-      mode?: "manual" | "combine" | "ai";
-    }>();
+  const {
+    mealId,
+    planId,
+    planItemId,
+    mode: modeParam,
+    draftSource,
+    draftJson,
+  } = useLocalSearchParams<{
+    mealId?: string;
+    planId?: string;
+    planItemId?: string;
+    mode?: "manual" | "combine" | "ai";
+    draftSource?: "url" | "image" | "text";
+    draftJson?: string;
+  }>();
   const isEditFromPlanContext = !!(mealId && planId && planItemId);
 
   const sourceMeal = useMemo(
@@ -128,8 +136,19 @@ export default function MealBuilderScreen() {
     [mealId],
   );
 
+  const draftMeal = useMemo<DraftMeal | null>(() => {
+    if (!draftJson) return null;
+    try {
+      return JSON.parse(draftJson) as DraftMeal;
+    } catch (e) {
+      console.error("[meal-builder] failed to parse draftJson", e);
+      return null;
+    }
+  }, [draftJson]);
+
   const [mode, setModeState] = useState<Mode>(() => {
     if (mealId) return "manual";
+    if (draftJson) return "manual";
     if (modeParam === "manual" || modeParam === "combine") return modeParam;
     return null;
   });
@@ -195,9 +214,53 @@ export default function MealBuilderScreen() {
     setNotes(sourceMeal.notes ?? "");
   }, [sourceMeal]);
 
+  // Pre-population from imported draft (one-shot on mount when draftJson present).
+  // Distinct from sourceMeal: no Meal record yet, so save = create.
+  useEffect(() => {
+    if (sourceMeal || !draftMeal) return;
+    setMealName(draftMeal.title);
+    setCuisineType(draftMeal.cuisineType ?? "");
+    setDifficulty(draftMeal.difficulty);
+    setEstimatedTimeMinutes(String(draftMeal.estimatedTimeMinutes));
+    setServingsDefault(draftMeal.servingsDefault);
+    setDishes(
+      draftMeal.dishes.map((d) =>
+        newDish({
+          name: d.name,
+          ingredients:
+            d.ingredients.length > 0
+              ? d.ingredients.map((ing) =>
+                  newIngredient({
+                    quantity: String(ing.quantity),
+                    unit: ing.unit,
+                    name: ing.name,
+                  }),
+                )
+              : [newIngredient()],
+        }),
+      ),
+    );
+    setSteps(
+      draftMeal.steps.length > 0
+        ? draftMeal.steps.map((st) =>
+            newStep({
+              text: st.text,
+              estimatedMinutes:
+                st.estimatedMinutes !== undefined
+                  ? String(st.estimatedMinutes)
+                  : "",
+            }),
+          )
+        : [],
+    );
+    setNotes(draftMeal.notes ?? "");
+  }, [draftMeal, sourceMeal]);
+
   const headerTitle = sourceMeal
     ? `Edit Meal: ${sourceMeal.title}`
-    : "Create Meal";
+    : draftMeal
+      ? "Review imported recipe"
+      : "Create Meal";
 
   // ── Mode switching with unsaved-data guard ──────────────────────
   const hasManualData = (): boolean => {
@@ -336,8 +399,10 @@ export default function MealBuilderScreen() {
       });
     }
     // §2.5 prompt only when editing an existing meal AND that edit was opened
-    // from a plan context (planId + planItemId in route params).
-    if (isEditFromPlanContext) {
+    // from a plan context. Drafts (no mealId yet) always go through plain
+    // create-save, even if plan params are present — there's no plan-instance
+    // to override until the Meal record exists.
+    if (isEditFromPlanContext && !draftMeal) {
       Alert.alert(
         "Save changes",
         "How do you want to apply your edits?",
@@ -373,6 +438,11 @@ export default function MealBuilderScreen() {
           { text: "Cancel", style: "cancel" },
         ],
       );
+    } else if (draftMeal) {
+      Alert.alert(
+        "Coming in WS7",
+        "Saving imported recipes requires the API client. This will be wired in WS7.",
+      );
     } else {
       Alert.alert(
         "Coming in WS7",
@@ -399,8 +469,18 @@ export default function MealBuilderScreen() {
           </View>
         )}
 
-        {/* Mode picker — create-context only */}
-        {!mealId && (
+        {/* Draft-context info card: framing for review-and-edit of an imported recipe */}
+        {!mealId && draftMeal && (
+          <View style={s.contextInfo}>
+            <Text style={s.contextInfoText}>
+              Review the imported recipe below. Edit anything Kiwi got wrong
+              before saving to your meals.
+            </Text>
+          </View>
+        )}
+
+        {/* Mode picker — create-from-scratch context only (no mealId, no draft) */}
+        {!mealId && !draftMeal && (
           <View>
             <Text style={s.sectionHeader}>How do you want to build this meal?</Text>
             <ModeCard

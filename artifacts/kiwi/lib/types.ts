@@ -285,3 +285,29 @@ export interface SavedDishIngredient {
   unit: string;
   name: string;
 }
+
+/**
+ * Parsed-but-not-yet-saved meal data, passed from Import URL /
+ * Import Image / future paste-text flows to Meal Builder for
+ * review and edit before save.
+ * Mirrors ReviewMeal but without an id (no save record yet).
+ */
+export interface DraftMeal {
+  title: string;
+  description?: string;
+  cuisineType?: string;
+  difficulty: "easy" | "medium" | "hard";
+  estimatedTimeMinutes: number;
+  servingsDefault: number;
+  imageUrl?: string;
+  tags: string[];
+  caloriesPerServing: number;
+  proteinGPerServing: number;
+  carbsGPerServing: number;
+  fatGPerServing: number;
+  dishes: ReviewMealDish[];
+  steps: ReviewMealStep[];
+  notes?: string;
+  /** Source URL (for Import URL) — populated only when source is URL parse. */
+  sourceUrl?: string;
+}

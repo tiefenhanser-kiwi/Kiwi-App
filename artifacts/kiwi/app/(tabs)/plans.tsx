@@ -152,6 +152,28 @@ export default function PlansTab() {
           </Text>
         </Pressable>
 
+        {/* TODO(WS5-5N): Remove this debug link before WS5 freeze. */}
+        <Pressable
+          onPress={() => router.push("/import-url")}
+          style={{
+            paddingVertical: KSpacing.sm,
+            paddingHorizontal: KSpacing.md,
+            backgroundColor: KColors.terracotta[100],
+            borderRadius: KRadius.md,
+            marginBottom: KSpacing.md,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: KType.size.sm,
+              color: KColors.terracotta[700],
+              fontWeight: "600",
+            }}
+          >
+            🧪 Import URL (WS5 smoke test — remove in 5N)
+          </Text>
+        </Pressable>
+
         {showThisWeek && (
           <View style={s.thisWeekCard}>
             <View style={s.thisWeekBadge}>
