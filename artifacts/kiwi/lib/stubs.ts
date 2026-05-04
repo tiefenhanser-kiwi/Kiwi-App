@@ -505,6 +505,9 @@ export function getSavedDishes(): SavedDish[] {
       carbsGPerServing: 48,
       fatGPerServing: 1,
       useCount: 5,
+      createdAt: "2026-01-12T10:00:00.000Z",
+      lastCookedAt: "2026-04-29T18:30:00.000Z",
+      estimatedTimeMinutes: 20,
     },
     {
       id: "demo-dish-2",
@@ -521,6 +524,9 @@ export function getSavedDishes(): SavedDish[] {
       carbsGPerServing: 8,
       fatGPerServing: 7,
       useCount: 3,
+      createdAt: "2026-02-04T14:22:00.000Z",
+      lastCookedAt: "2026-04-22T19:00:00.000Z",
+      estimatedTimeMinutes: 25,
     },
     {
       id: "demo-dish-3",
@@ -537,6 +543,9 @@ export function getSavedDishes(): SavedDish[] {
       carbsGPerServing: 12,
       fatGPerServing: 5,
       useCount: 2,
+      createdAt: "2026-03-15T11:10:00.000Z",
+      lastCookedAt: "2026-04-10T18:45:00.000Z",
+      estimatedTimeMinutes: 15,
     },
     {
       id: "demo-dish-4",
@@ -553,6 +562,9 @@ export function getSavedDishes(): SavedDish[] {
       carbsGPerServing: 36,
       fatGPerServing: 14,
       useCount: 4,
+      createdAt: "2025-11-20T09:30:00.000Z",
+      lastCookedAt: "2026-04-25T19:15:00.000Z",
+      estimatedTimeMinutes: 30,
     },
     {
       id: "demo-dish-5",
@@ -570,6 +582,9 @@ export function getSavedDishes(): SavedDish[] {
       carbsGPerServing: 5,
       fatGPerServing: 12,
       useCount: 6,
+      createdAt: "2026-04-01T08:45:00.000Z",
+      lastCookedAt: "2026-05-01T18:00:00.000Z",
+      estimatedTimeMinutes: 10,
     },
   ];
 }

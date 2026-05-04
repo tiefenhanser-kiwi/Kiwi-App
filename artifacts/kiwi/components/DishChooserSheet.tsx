@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -15,6 +15,8 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Button } from "@/components/Button";
+import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { getSavedDishes } from "@/lib/stubs";
 import type { SavedDish } from "@/lib/types";
@@ -22,26 +24,78 @@ import type { SavedDish } from "@/lib/types";
 export interface DishChooserSheetProps {
   visible: boolean;
   onClose: () => void;
-  /** Called when user picks a saved dish. Pass the full SavedDish. */
+  /** Called when user picks a saved dish OR adds a Simple Dish. */
   onPickSavedDish: (dish: SavedDish) => void;
-  /** Called when user wants to add an empty manual dish. */
-  onAddManualDish: () => void;
-  /** Called when user submits "Tell Kiwi" prompt — for now, fires a
-   *  "coming in WS6" alert from the parent. Pass a no-op for WS5;
-   *  component itself shows the prompt UI. */
+  /** Optional override for "Ask Kiwi" submission. WS5 default fires a
+   *  "Coming in WS6" alert. Kept for future composition. */
   onAskKiwi?: (prompt: string) => void;
+}
+
+// Fallbacks for SavedDish optional sort fields. Keep these in one place
+// so sortDishes is tolerant of legacy stub rows that predate the fields.
+const FALLBACK_DATE = "1970-01-01T00:00:00.000Z";
+
+function sortDishes(list: SavedDish[], key: SortKey): SavedDish[] {
+  const out = [...list];
+  switch (key) {
+    case "last_cooked":
+      // Most recent first; never-cooked dishes drop to the bottom.
+      out.sort((a, b) => {
+        const av = a.lastCookedAt ?? "";
+        const bv = b.lastCookedAt ?? "";
+        if (!av && !bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return bv.localeCompare(av);
+      });
+      return out;
+    case "times_cooked":
+      out.sort((a, b) => (b.useCount ?? 0) - (a.useCount ?? 0));
+      return out;
+    case "date_created":
+      out.sort((a, b) =>
+        (b.createdAt ?? FALLBACK_DATE).localeCompare(
+          a.createdAt ?? FALLBACK_DATE,
+        ),
+      );
+      return out;
+    case "alpha":
+      out.sort((a, b) => a.name.localeCompare(b.name));
+      return out;
+    case "cook_time":
+      out.sort(
+        (a, b) =>
+          (a.estimatedTimeMinutes ?? 0) - (b.estimatedTimeMinutes ?? 0),
+      );
+      return out;
+  }
+  return out;
 }
 
 export function DishChooserSheet({
   visible,
   onClose,
   onPickSavedDish,
-  onAddManualDish,
   onAskKiwi,
 }: DishChooserSheetProps) {
   const insets = useSafeAreaInsets();
-  const dishes = getSavedDishes();
   const [askPrompt, setAskPrompt] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("date_created");
+
+  // Newly-added Simple Dishes — held inside the sheet so the parent
+  // (Meal Builder) doesn't need to know. Resets on each visible cycle
+  // because the component unmounts on Modal hide; WS7 will persist
+  // these to the real saved-dishes store.
+  const [addedSimpleDishes, setAddedSimpleDishes] = useState<SavedDish[]>([]);
+
+  // Add Simple Dish inline form
+  const [simpleDishExpanded, setSimpleDishExpanded] = useState(false);
+  const [simpleDishName, setSimpleDishName] = useState("");
+
+  const allDishes = useMemo(
+    () => sortDishes([...addedSimpleDishes, ...getSavedDishes()], sortKey),
+    [addedSimpleDishes, sortKey],
+  );
 
   // Modal renders outside the parent's KeyboardAwareScrollViewCompat tree, so
   // any sheet TextInput needs its own keyboard avoidance + explicit dismissal
@@ -72,10 +126,39 @@ export function DishChooserSheet({
     setAskPrompt("");
   };
 
-  const handleAddManual = () => {
+  const handleAddSimpleDish = () => {
     Keyboard.dismiss();
-    onAddManualDish();
+    const trimmedName = simpleDishName.trim();
+    if (!trimmedName) return;
+    const newDish: SavedDish = {
+      id: `simple-dish-${Date.now()}`,
+      name: trimmedName,
+      ingredients: [{ quantity: 1, unit: "whole", name: trimmedName }],
+      caloriesPerServing: 0,
+      proteinGPerServing: 0,
+      carbsGPerServing: 0,
+      fatGPerServing: 0,
+      useCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+    setAddedSimpleDishes((prev) => [newDish, ...prev]);
+    onPickSavedDish(newDish);
+    setSimpleDishName("");
+    setSimpleDishExpanded(false);
     onClose();
+  };
+
+  const handleCancelSimpleDish = () => {
+    Keyboard.dismiss();
+    setSimpleDishName("");
+    setSimpleDishExpanded(false);
+  };
+
+  const handleHaveInMind = () => {
+    Alert.alert(
+      "Coming soon",
+      "Building a custom dish lands when the My Dishes page is built. For now, use 'Add Simple Dish' for store-bought or simple items, or 'Ask Kiwi' for AI-suggested dishes (premium).",
+    );
   };
 
   return (
@@ -104,87 +187,156 @@ export function DishChooserSheet({
             contentContainerStyle={s.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
-          {/* Section 1: Search my dishes */}
-          <Text style={s.sectionTitle}>Search my dishes</Text>
-          <Text style={s.sectionSubtitle}>
-            Pull a dish from your saved library
-          </Text>
-          <View style={{ gap: KSpacing.sm, marginTop: KSpacing.sm }}>
-            {dishes.map((dish) => (
-              <Pressable
-                key={dish.id}
-                onPress={() => handlePickSaved(dish)}
-                style={({ pressed }) => [s.dishRow, pressed && { opacity: 0.7 }]}
-              >
-                <View
-                  style={[s.thumb, !dish.imageUrl && s.thumbFallback]}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.dishName}>{dish.name}</Text>
-                  <Text style={s.dishMeta}>
-                    {[dish.cuisineType, `${dish.caloriesPerServing} cal/serving`]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </Text>
-                </View>
-                {dish.useCount !== undefined && (
-                  <Text style={s.useCount}>Used in {dish.useCount} meals</Text>
-                )}
-              </Pressable>
-            ))}
-          </View>
+            {/* Section 1: My Dishes (sortable) */}
+            <View style={s.sectionTitleRow}>
+              <Text style={s.sectionTitle}>My Dishes</Text>
+              <SortDropdown value={sortKey} onChange={setSortKey} />
+            </View>
+            <View style={{ gap: KSpacing.sm, marginTop: KSpacing.sm }}>
+              {allDishes.map((dish) => (
+                <Pressable
+                  key={dish.id}
+                  onPress={() => handlePickSaved(dish)}
+                  style={({ pressed }) => [
+                    s.dishRow,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <View
+                    style={[s.thumb, !dish.imageUrl && s.thumbFallback]}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.dishName}>{dish.name}</Text>
+                    <Text style={s.dishMeta}>
+                      {[
+                        dish.cuisineType,
+                        `${dish.caloriesPerServing} cal/serving`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </Text>
+                  </View>
+                  {dish.useCount !== undefined && (
+                    <Text style={s.useCount}>
+                      Used in {dish.useCount} meals
+                    </Text>
+                  )}
+                </Pressable>
+              ))}
+            </View>
 
-          {/* Section 2: Ask Kiwi (locked / premium) */}
-          <View style={[s.askSection, { marginTop: KSpacing.lg }]}>
-            <View style={s.askHeader}>
-              <Text style={s.sectionTitle}>Ask Kiwi</Text>
-              <View style={s.premiumPill}>
-                <Feather name="lock" size={10} color={KColors.terracotta[700]} />
-                <Text style={s.premiumPillText}>Premium</Text>
+            {/* Section 2: Ask Kiwi (locked / premium) */}
+            <View style={[s.askSection, { marginTop: KSpacing.lg }]}>
+              <View style={s.askHeader}>
+                <Text style={s.sectionTitle}>Ask Kiwi</Text>
+                <View style={s.premiumPill}>
+                  <Feather
+                    name="lock"
+                    size={10}
+                    color={KColors.terracotta[700]}
+                  />
+                  <Text style={s.premiumPillText}>Premium</Text>
+                </View>
+              </View>
+              <Text style={s.sectionSubtitle}>Coming in WS6</Text>
+              <View style={s.askRow}>
+                <TextInput
+                  value={askPrompt}
+                  onChangeText={setAskPrompt}
+                  placeholder="Describe what you want — 'roasted broccoli with garlic and lemon' — Kiwi will draft it"
+                  placeholderTextColor={KColors.neutral[600]}
+                  style={s.askInput}
+                  multiline
+                  returnKeyType="send"
+                  blurOnSubmit
+                  onSubmitEditing={handleAskSubmit}
+                />
+                <Pressable
+                  onPress={handleAskSubmit}
+                  disabled={askPrompt.trim().length === 0}
+                  style={({ pressed }) => [
+                    s.askBtn,
+                    askPrompt.trim().length === 0 && { opacity: 0.4 },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Text style={s.askBtnText}>Ask Kiwi</Text>
+                </Pressable>
               </View>
             </View>
-            <Text style={s.sectionSubtitle}>Coming in WS6</Text>
-            <View style={s.askRow}>
-              <TextInput
-                value={askPrompt}
-                onChangeText={setAskPrompt}
-                placeholder="Describe what you want — 'roasted broccoli with garlic and lemon' — Kiwi will draft it"
-                placeholderTextColor={KColors.neutral[600]}
-                style={s.askInput}
-                multiline
-                returnKeyType="send"
-                blurOnSubmit
-                onSubmitEditing={handleAskSubmit}
-              />
+
+            {/* Section 3: Add Simple Dish (inline expandable) */}
+            {!simpleDishExpanded ? (
               <Pressable
-                onPress={handleAskSubmit}
-                disabled={askPrompt.trim().length === 0}
+                onPress={() => setSimpleDishExpanded(true)}
                 style={({ pressed }) => [
-                  s.askBtn,
-                  askPrompt.trim().length === 0 && { opacity: 0.4 },
-                  pressed && { opacity: 0.7 },
+                  s.simpleDishCollapsed,
+                  pressed && { opacity: 0.85 },
                 ]}
               >
-                <Text style={s.askBtnText}>Ask Kiwi</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.sectionTitle}>Add Simple Dish</Text>
+                  <Text style={s.sectionSubtitle}>
+                    Store-bought sides, simple plating, leftovers
+                  </Text>
+                </View>
+                <Feather name="plus" size={18} color={KColors.sage[700]} />
               </Pressable>
-            </View>
-          </View>
+            ) : (
+              <View style={s.simpleDishExpanded}>
+                <Text style={s.sectionTitle}>Add Simple Dish</Text>
+                <Text style={s.sectionSubtitle}>
+                  Store-bought sides, simple plating, leftovers
+                </Text>
+                <TextInput
+                  value={simpleDishName}
+                  onChangeText={setSimpleDishName}
+                  placeholder="What is it? (e.g., Bag of Lay's Classic Chips, Leftover pizza, Trader Joe's gnocchi)"
+                  placeholderTextColor={KColors.neutral[600]}
+                  style={s.simpleDishInput}
+                  returnKeyType="done"
+                  blurOnSubmit
+                  onSubmitEditing={handleAddSimpleDish}
+                  autoFocus
+                />
+                <View style={s.simpleDishActionsRow}>
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      label="Add"
+                      variant="primary"
+                      disabled={simpleDishName.trim().length === 0}
+                      onPress={handleAddSimpleDish}
+                    />
+                  </View>
+                  <Pressable
+                    onPress={handleCancelSimpleDish}
+                    hitSlop={6}
+                    style={({ pressed }) => [
+                      s.cancelLink,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                  >
+                    <Text style={s.cancelLinkText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
 
-          {/* Section 3: Create manually */}
-          <View style={{ marginTop: KSpacing.lg }}>
-            <Text style={s.sectionTitle}>Create manually</Text>
-            <Text style={s.sectionSubtitle}>Type it in yourself</Text>
+            {/* Section 4: Have something in mind? (stub) */}
             <Pressable
-              onPress={handleAddManual}
+              onPress={handleHaveInMind}
               style={({ pressed }) => [
-                s.addManualBtn,
-                pressed && { opacity: 0.85 },
+                s.haveInMindLink,
+                pressed && { opacity: 0.7 },
               ]}
             >
-              <Feather name="plus" size={16} color={KColors.sage[700]} />
-              <Text style={s.addManualBtnText}>Add empty dish</Text>
+              <Text style={s.haveInMindTitle}>
+                Have something in mind? Add it to your saved Dishes.
+              </Text>
+              <Text style={s.haveInMindSubtitle}>
+                Build a custom dish with ingredients, steps, and macros.
+              </Text>
             </Pressable>
-          </View>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -235,6 +387,12 @@ const s = StyleSheet.create({
   scrollContent: {
     padding: KSpacing.lg,
     paddingBottom: KSpacing.xxxl,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: KSpacing.sm,
   },
   sectionTitle: {
     fontSize: KType.size.md,
@@ -349,22 +507,71 @@ const s = StyleSheet.create({
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
   },
-  addManualBtn: {
+  simpleDishCollapsed: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: KSpacing.sm,
+    gap: KSpacing.md,
     backgroundColor: KColors.neutral[0],
     borderRadius: KRadius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    paddingVertical: KSpacing.md,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.md,
+    marginTop: KSpacing.lg,
+  },
+  simpleDishExpanded: {
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.sage[300],
+    padding: KSpacing.md,
+    marginTop: KSpacing.lg,
+    gap: KSpacing.sm,
+  },
+  simpleDishInput: {
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.sm,
+    fontSize: KType.size.sm,
+    color: KColors.neutral[900],
+    fontFamily: "Inter_400Regular",
     marginTop: KSpacing.sm,
   },
-  addManualBtnText: {
+  simpleDishActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.md,
+    marginTop: KSpacing.xs,
+  },
+  cancelLink: {
+    paddingHorizontal: KSpacing.sm,
+    paddingVertical: KSpacing.sm,
+  },
+  cancelLinkText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  haveInMindLink: {
+    marginTop: KSpacing.lg,
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.md,
+  },
+  haveInMindTitle: {
     fontSize: KType.size.sm,
     color: KColors.sage[700],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
+    textAlign: "center",
+  },
+  haveInMindSubtitle: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: 4,
+    textAlign: "center",
   },
 });

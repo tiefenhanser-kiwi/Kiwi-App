@@ -522,11 +522,6 @@ export default function MealBuilderScreen() {
           });
           setDishes((prev) => [...prev, next]);
         }}
-        onAddManualDish={() => {
-          // Default newDish() seeds one empty ingredient row so the user has
-          // something to type into immediately.
-          setDishes((prev) => [...prev, newDish()]);
-        }}
       />
     </View>
   );
@@ -889,8 +884,8 @@ function ManualEditor(p: ManualEditorProps) {
         {p.steps.length === 0 && (
           <View style={s.stepsEmptyState}>
             <Text style={s.stepsEmptyText}>
-              Cooking steps are optional. Some dishes don&apos;t need them
-              (store-bought sides, leftovers, simple plating).
+              Cooking steps are optional. Add them yourself, or skip if not
+              needed (store-bought sides, leftovers, simple plating).
             </Text>
           </View>
         )}
@@ -942,33 +937,7 @@ function ManualEditor(p: ManualEditorProps) {
           </View>
         ))}
         <View style={s.stepsActionsRow}>
-          <View style={s.stepsActionCol}>
-            <Button
-              label="+ Add step"
-              variant="ghost"
-              onPress={p.addStep}
-            />
-          </View>
-          <View style={s.stepsActionCol}>
-            <Button
-              label="Have Kiwi suggest steps"
-              variant="ghost"
-              iconLeft={
-                <Feather
-                  name="lock"
-                  size={12}
-                  color={KColors.terracotta[600]}
-                />
-              }
-              onPress={() => {
-                Keyboard.dismiss();
-                Alert.alert(
-                  "Coming in WS6 — AI orchestration",
-                  "Kiwi will suggest cooking steps from your dish name and ingredients when AI orchestration ships.",
-                );
-              }}
-            />
-          </View>
+          <Button label="+ Add step" variant="ghost" onPress={p.addStep} />
         </View>
       </View>
 
@@ -1195,15 +1164,7 @@ const s = StyleSheet.create({
     lineHeight: 18,
   },
   stepsActionsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: KSpacing.sm,
     marginTop: KSpacing.sm,
-  },
-  stepsActionCol: {
-    flexBasis: 0,
-    flexGrow: 1,
-    minWidth: 140,
   },
   modeCard: {
     flexDirection: "row",
