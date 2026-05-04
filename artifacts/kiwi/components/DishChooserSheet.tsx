@@ -16,6 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
+import { sortDishes } from "@/components/dishSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { getSavedDishes } from "@/lib/stubs";
@@ -29,47 +30,6 @@ export interface DishChooserSheetProps {
   /** Optional override for "Ask Kiwi" submission. WS5 default fires a
    *  "Coming in WS6" alert. Kept for future composition. */
   onAskKiwi?: (prompt: string) => void;
-}
-
-// Fallbacks for SavedDish optional sort fields. Keep these in one place
-// so sortDishes is tolerant of legacy stub rows that predate the fields.
-const FALLBACK_DATE = "1970-01-01T00:00:00.000Z";
-
-function sortDishes(list: SavedDish[], key: SortKey): SavedDish[] {
-  const out = [...list];
-  switch (key) {
-    case "last_cooked":
-      // Most recent first; never-cooked dishes drop to the bottom.
-      out.sort((a, b) => {
-        const av = a.lastCookedAt ?? "";
-        const bv = b.lastCookedAt ?? "";
-        if (!av && !bv) return 0;
-        if (!av) return 1;
-        if (!bv) return -1;
-        return bv.localeCompare(av);
-      });
-      return out;
-    case "times_cooked":
-      out.sort((a, b) => (b.useCount ?? 0) - (a.useCount ?? 0));
-      return out;
-    case "date_created":
-      out.sort((a, b) =>
-        (b.createdAt ?? FALLBACK_DATE).localeCompare(
-          a.createdAt ?? FALLBACK_DATE,
-        ),
-      );
-      return out;
-    case "alpha":
-      out.sort((a, b) => a.name.localeCompare(b.name));
-      return out;
-    case "cook_time":
-      out.sort(
-        (a, b) =>
-          (a.estimatedTimeMinutes ?? 0) - (b.estimatedTimeMinutes ?? 0),
-      );
-      return out;
-  }
-  return out;
 }
 
 export function DishChooserSheet({

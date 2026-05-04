@@ -1,228 +1,321 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 
+import { DishRow } from "@/components/DishRow";
+import { sortDishes } from "@/components/dishSort";
 import {
   FilterChipRow,
   type FilterChipOption,
 } from "@/components/FilterChipRow";
 import { Header } from "@/components/Header";
 import { MealRow } from "@/components/MealRow";
+import { sortMeals } from "@/components/mealSort";
 import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
-import { useAuth } from "@/contexts/AuthContext";
-import { type MealsFilter } from "@/lib/auth";
+import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
-  asMealsFilters,
-  getMealsPayload,
+  getFeaturedDishes,
+  getFeaturedMeals,
+  getHostingMeals,
+  getSavedDishes,
+  getSavedMeals,
+  getTopRatedDishes,
+  getTopRatedMeals,
   type MealRowData,
 } from "@/lib/stubs";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import type { MealSummary, SavedDish } from "@/lib/types";
 
-const MEALS_FILTER_OPTIONS: FilterChipOption<MealsFilter>[] = [
+type SubTab = "meals" | "dishes";
+type MealsChip = "featured" | "my_meals" | "top_rated" | "hosting";
+type DishesChip = "featured" | "my_dishes" | "top_rated";
+
+const MEALS_CHIPS: FilterChipOption<MealsChip>[] = [
+  { key: "featured", label: "Featured" },
   { key: "my_meals", label: "My Meals" },
-  { key: "all_meals", label: "All Meals" },
+  { key: "top_rated", label: "Top Rated" },
+  { key: "hosting", label: "Hosting & Events" },
 ];
 
+const DISHES_CHIPS: FilterChipOption<DishesChip>[] = [
+  { key: "featured", label: "Featured" },
+  { key: "my_dishes", label: "My Dishes" },
+  { key: "top_rated", label: "Top Rated" },
+];
+
+const capitalize = (s: string) =>
+  s.charAt(0).toUpperCase() + s.slice(1);
+
+// Adapter: render MealSummary through the existing WS4 MealRow
+// component (which expects MealRowData). filterGroup is presentational
+// dead-code in MealRow today; "my_meals" satisfies the type. WS7 cleanup
+// can either retire MealRow in favor of a MealSummary-native row or
+// migrate MealRow to MealSummary directly.
+function summaryToRowData(meal: MealSummary): MealRowData {
+  return {
+    id: meal.id,
+    title: meal.title,
+    thumbnailUrl: meal.imageUrl ?? null,
+    meta: `${capitalize(meal.difficulty)} · ${meal.estimatedTimeMinutes} min · serves ${meal.servingsDefault}`,
+    cuisineTag: meal.cuisineType ?? null,
+    filterGroup: "my_meals",
+  };
+}
+
 export default function MealsTab() {
-  const { user, setUiState } = useAuth();
+  const router = useRouter();
+  const [subTab, setSubTab] = useState<SubTab>("meals");
 
-  // Single-select (4H-2): always exactly one filter active. Persisted user
-  // value first, else PRD §9.3.2 default ("All Meals" for users with no
-  // saved meals; "My Meals" otherwise). Take the first element of any
-  // persisted multi-select array as a graceful migration. Stub data is
-  // empty so we always default to "all_meals" today; WS7 wires a real
-  // saved-meals count here.
-  const initialFilters = useMemo<MealsFilter[]>(() => {
-    const persisted = asMealsFilters(user?.lastMealsFilters);
-    if (persisted.length > 0) return [persisted[0]];
-    return ["all_meals"];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Per-tab filter + sort state — chip selection should not bleed
+  // across tabs and per-tab persistence feels more correct.
+  const [mealFilter, setMealFilter] = useState<MealsChip>("my_meals");
+  const [dishFilter, setDishFilter] = useState<DishesChip>("my_dishes");
+  const [mealSort, setMealSort] = useState<SortKey>("alpha");
+  const [dishSortKey, setDishSortKey] = useState<SortKey>("alpha");
 
-  const [filters, setFilters] = useState<MealsFilter[]>(initialFilters);
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("alpha");
-  const [rows, setRows] = useState<MealRowData[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(
-      () => setDebouncedQuery(query.trim().toLowerCase()),
-      250,
-    );
-    return () => clearTimeout(t);
-  }, [query]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const payload = await getMealsPayload();
-        if (!cancelled) setRows(payload.meals);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const toggleFilter = (key: MealsFilter) => {
-    const next: MealsFilter[] = [key];
-    setFilters(next);
-    setUiState({ lastMealsFilters: next });
-  };
-
-  // "All Meals" matches everything; otherwise filter to my_meals only.
-  // Stub data is empty so this has no observable effect today.
-  const visibleRows = useMemo(() => {
-    if (filters.length === 0) return [];
-    let out = filters.includes("all_meals")
-      ? rows
-      : rows.filter((r) => r.filterGroup === "my_meals");
-    if (debouncedQuery) {
-      out = out.filter((r) => {
-        const hay = `${r.title} ${r.cuisineTag ?? ""}`.toLowerCase();
-        return hay.includes(debouncedQuery);
-      });
+  const visibleMeals = useMemo<MealSummary[]>(() => {
+    let source: MealSummary[];
+    switch (mealFilter) {
+      case "my_meals":
+        source = getSavedMeals();
+        break;
+      case "featured":
+        source = getFeaturedMeals();
+        break;
+      case "top_rated":
+        source = getTopRatedMeals();
+        break;
+      case "hosting":
+        source = getHostingMeals();
+        break;
     }
-    return out;
-  }, [rows, filters, debouncedQuery, sortKey]);
+    return sortMeals(source, mealSort);
+  }, [mealFilter, mealSort]);
 
-  // Add Meal flow ships in WS6 per PRD §10. Route stub for now.
+  const visibleDishes = useMemo<SavedDish[]>(() => {
+    let source: SavedDish[];
+    switch (dishFilter) {
+      case "my_dishes":
+        source = getSavedDishes();
+        break;
+      case "featured":
+        source = getFeaturedDishes();
+        break;
+      case "top_rated":
+        source = getTopRatedDishes();
+        break;
+    }
+    return sortDishes(source, dishSortKey);
+  }, [dishFilter, dishSortKey]);
+
   const handleAddMeal = () => {
+    router.push("/meal-builder");
+  };
+
+  const handleAddDish = () => {
     Alert.alert(
-      "Add Meal",
-      "Add Meal flow ships in WS6 (import a recipe or build from scratch).",
+      "Coming in WS5-5O",
+      "The Dish Builder lands in the next sub-phase.",
     );
   };
-  const handleImportRecipe = () => {
-    Alert.alert("Import a Recipe", "Recipe import ships in WS6.");
+
+  const handleOpenMeal = (mealId: string) => {
+    router.push({ pathname: "/meal/[id]", params: { id: mealId } });
   };
-  const handleCreateManually = () => {
-    Alert.alert("Create Manually", "Manual meal creation ships in WS6.");
-  };
-  const handleOpenMeal = () => {
+
+  const handleOpenDish = () => {
     Alert.alert(
-      "Meal Detail",
-      "Meal Detail page ships in WS6 alongside Cook Mode.",
+      "Coming in WS5-5O",
+      "Dish Detail lands in the next sub-phase. For now, dish editing is available via the Dish Chooser inside Meal Builder.",
     );
   };
+
   const handleCookNow = () => {
-    Alert.alert("Cook Now", "Cook Mode ships in WS6.");
+    Alert.alert(
+      "Coming with Prep & Cook Hub",
+      "Cook Now lands when the Prep & Cook Hub workstream ships.",
+    );
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
       <Header title="My Meals" />
       <Screen>
-        <View style={s.topSection}>
+        {/* Sub-tab toggle */}
+        <View style={s.toggleRow}>
           <Pressable
-            onPress={handleAddMeal}
+            onPress={() => setSubTab("meals")}
             style={({ pressed }) => [
-              s.addBtn,
+              s.toggleBtn,
+              subTab === "meals" && s.toggleBtnActive,
               pressed && { opacity: 0.85 },
             ]}
           >
-            <Text style={s.addBtnText}>+ Add Meal</Text>
+            <Text
+              style={[
+                s.toggleText,
+                subTab === "meals" && s.toggleTextActive,
+              ]}
+            >
+              Meals
+            </Text>
           </Pressable>
-          <Text style={s.topSubText}>
-            Add by importing a recipe or building one from scratch
-          </Text>
+          <Pressable
+            onPress={() => setSubTab("dishes")}
+            style={({ pressed }) => [
+              s.toggleBtn,
+              subTab === "dishes" && s.toggleBtnActive,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text
+              style={[
+                s.toggleText,
+                subTab === "dishes" && s.toggleTextActive,
+              ]}
+            >
+              Dishes
+            </Text>
+          </Pressable>
         </View>
 
-        <View style={s.filterWrap}>
-          <FilterChipRow
-            options={MEALS_FILTER_OPTIONS}
-            selected={filters}
-            onToggle={toggleFilter}
-          />
-        </View>
+        {subTab === "meals" ? (
+          <ScrollView contentContainerStyle={s.scroll}>
+            <Pressable
+              onPress={handleAddMeal}
+              style={({ pressed }) => [
+                s.addBtn,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Text style={s.addBtnText}>+ Add Meal</Text>
+            </Pressable>
 
-        <View style={s.controlsRow}>
-          <View style={s.searchWrap}>
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search meals…"
-              placeholderTextColor={KColors.neutral[600]}
-              style={s.searchInput}
-            />
-          </View>
-          <SortDropdown value={sortKey} onChange={setSortKey} />
-        </View>
-
-        <View style={s.list}>
-          {loading ? (
-            <Text style={s.loadingText}>Loading…</Text>
-          ) : visibleRows.length === 0 ? (
-            <View style={s.empty}>
-              <Text style={s.emptyText}>
-                Your meals show up here. Add one by importing a recipe,
-                building from scratch, or saving from public meals.
-              </Text>
-              <View style={s.emptyButtons}>
-                <Pressable
-                  onPress={handleImportRecipe}
-                  style={({ pressed }) => [
-                    s.btnPrimary,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Text style={s.btnPrimaryText}>Import a Recipe</Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleCreateManually}
-                  style={({ pressed }) => [
-                    s.btnSecondary,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Text style={s.btnSecondaryText}>Create Manually</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setFilters(["all_meals"])}
-                  style={({ pressed }) => [
-                    s.btnSecondary,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Text style={s.btnSecondaryText}>Browse All Meals</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            visibleRows.map((row) => (
-              <MealRow
-                key={row.id}
-                meal={row}
-                onPress={handleOpenMeal}
-                onViewDetails={handleOpenMeal}
-                onCookNow={handleCookNow}
+            <View style={s.filterWrap}>
+              <FilterChipRow<MealsChip>
+                options={MEALS_CHIPS}
+                selected={[mealFilter]}
+                onToggle={(key) => setMealFilter(key)}
               />
-            ))
-          )}
-        </View>
+            </View>
+
+            <View style={s.controlsRow}>
+              <Text style={s.sectionLabel}>
+                {MEALS_CHIPS.find((c) => c.key === mealFilter)?.label}
+              </Text>
+              <SortDropdown value={mealSort} onChange={setMealSort} />
+            </View>
+
+            <View style={s.list}>
+              {visibleMeals.length === 0 ? (
+                <View style={s.empty}>
+                  <Text style={s.emptyText}>
+                    Your saved meals will appear here. Tap + Add Meal to get
+                    started.
+                  </Text>
+                </View>
+              ) : (
+                visibleMeals.map((meal) => (
+                  <MealRow
+                    key={meal.id}
+                    meal={summaryToRowData(meal)}
+                    onPress={() => handleOpenMeal(meal.id)}
+                    onViewDetails={() => handleOpenMeal(meal.id)}
+                    onCookNow={handleCookNow}
+                  />
+                ))
+              )}
+            </View>
+          </ScrollView>
+        ) : (
+          <ScrollView contentContainerStyle={s.scroll}>
+            <Pressable
+              onPress={handleAddDish}
+              style={({ pressed }) => [
+                s.addBtn,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Text style={s.addBtnText}>+ Add Dish</Text>
+            </Pressable>
+
+            <View style={s.filterWrap}>
+              <FilterChipRow<DishesChip>
+                options={DISHES_CHIPS}
+                selected={[dishFilter]}
+                onToggle={(key) => setDishFilter(key)}
+              />
+            </View>
+
+            <View style={s.controlsRow}>
+              <Text style={s.sectionLabel}>
+                {DISHES_CHIPS.find((c) => c.key === dishFilter)?.label}
+              </Text>
+              <SortDropdown value={dishSortKey} onChange={setDishSortKey} />
+            </View>
+
+            <View style={s.list}>
+              {visibleDishes.length === 0 ? (
+                <View style={s.empty}>
+                  <Text style={s.emptyText}>
+                    Save dishes to reuse them across meals. Tap + Add Dish to
+                    get started.
+                  </Text>
+                </View>
+              ) : (
+                visibleDishes.map((dish) => (
+                  <DishRow
+                    key={dish.id}
+                    dish={dish}
+                    onPress={handleOpenDish}
+                  />
+                ))
+              )}
+            </View>
+          </ScrollView>
+        )}
       </Screen>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  topSection: {
+  toggleRow: {
+    flexDirection: "row",
+    backgroundColor: KColors.neutral[200],
+    borderRadius: KRadius.md,
+    padding: 4,
     marginTop: KSpacing.md,
-    marginBottom: KSpacing.md,
-    gap: 6,
+    gap: 4,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: KRadius.md,
+    alignItems: "center",
+  },
+  toggleBtnActive: {
+    backgroundColor: KColors.sage[700],
+  },
+  toggleText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  toggleTextActive: {
+    color: KColors.neutral[0],
+  },
+  scroll: {
+    paddingTop: KSpacing.md,
+    paddingBottom: KSpacing.xxxl,
   },
   addBtn: {
     backgroundColor: KColors.sage[700],
@@ -237,49 +330,28 @@ const s = StyleSheet.create({
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
   },
-  topSubText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-  },
   filterWrap: { marginTop: KSpacing.sm },
   controlsRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: KSpacing.sm,
     marginTop: KSpacing.md,
   },
-  searchWrap: {
-    flex: 1,
-    backgroundColor: KColors.neutral[0],
-    borderRadius: KRadius.md,
-    borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: 4,
-  },
-  searchInput: {
+  sectionLabel: {
     fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
-    paddingVertical: 6,
+    color: KColors.neutral[800],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
   },
   list: {
     marginTop: KSpacing.md,
     gap: KSpacing.sm,
   },
-  loadingText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    paddingVertical: KSpacing.lg,
-  },
   empty: {
     paddingVertical: KSpacing.xxl,
+    paddingHorizontal: KSpacing.lg,
     alignItems: "center",
-    gap: KSpacing.lg,
   },
   emptyText: {
     fontSize: KType.size.sm,
@@ -287,39 +359,5 @@ const s = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     textAlign: "center",
     lineHeight: 20,
-    paddingHorizontal: KSpacing.lg,
-  },
-  emptyButtons: {
-    gap: KSpacing.sm,
-    width: "100%",
-    paddingHorizontal: KSpacing.lg,
-  },
-  btnPrimary: {
-    backgroundColor: KColors.sage[700],
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: 12,
-    borderRadius: KRadius.md,
-    alignItems: "center",
-  },
-  btnPrimaryText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-  },
-  btnSecondary: {
-    backgroundColor: KColors.neutral[0],
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: 12,
-    borderRadius: KRadius.md,
-    borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    alignItems: "center",
-  },
-  btnSecondaryText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
   },
 });

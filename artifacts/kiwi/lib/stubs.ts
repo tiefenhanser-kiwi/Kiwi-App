@@ -1647,6 +1647,7 @@ export function getSavedDishes(): SavedDish[] {
       createdAt: "2026-01-12T10:00:00.000Z",
       lastCookedAt: "2026-04-29T18:30:00.000Z",
       estimatedTimeMinutes: 20,
+      source: "saved",
     },
     {
       id: "demo-dish-2",
@@ -1666,6 +1667,7 @@ export function getSavedDishes(): SavedDish[] {
       createdAt: "2026-02-04T14:22:00.000Z",
       lastCookedAt: "2026-04-22T19:00:00.000Z",
       estimatedTimeMinutes: 25,
+      source: "saved",
     },
     {
       id: "demo-dish-3",
@@ -1685,6 +1687,7 @@ export function getSavedDishes(): SavedDish[] {
       createdAt: "2026-03-15T11:10:00.000Z",
       lastCookedAt: "2026-04-10T18:45:00.000Z",
       estimatedTimeMinutes: 15,
+      source: "saved",
     },
     {
       id: "demo-dish-4",
@@ -1704,6 +1707,7 @@ export function getSavedDishes(): SavedDish[] {
       createdAt: "2025-11-20T09:30:00.000Z",
       lastCookedAt: "2026-04-25T19:15:00.000Z",
       estimatedTimeMinutes: 30,
+      source: "saved",
     },
     {
       id: "demo-dish-5",
@@ -1724,6 +1728,116 @@ export function getSavedDishes(): SavedDish[] {
       createdAt: "2026-04-01T08:45:00.000Z",
       lastCookedAt: "2026-05-01T18:00:00.000Z",
       estimatedTimeMinutes: 10,
+      source: "saved",
+    },
+  ];
+}
+
+// ── Featured Dishes (curated catalog, PRD §9.3 extension) ──
+
+export function getFeaturedDishes(): SavedDish[] {
+  return [
+    {
+      id: "featured-dish-1",
+      name: "Crispy Smashed Potatoes",
+      cuisineType: "American",
+      ingredients: [
+        { quantity: 2, unit: "lb", name: "baby potatoes" },
+        { quantity: 3, unit: "tbsp", name: "olive oil" },
+        { quantity: 4, unit: "clove", name: "garlic, smashed" },
+        { quantity: 4, unit: "sprig", name: "fresh rosemary" },
+        { quantity: 1, unit: "tsp", name: "kosher salt" },
+      ],
+      caloriesPerServing: 220,
+      proteinGPerServing: 4,
+      carbsGPerServing: 32,
+      fatGPerServing: 9,
+      useCount: 0,
+      estimatedTimeMinutes: 45,
+      source: "featured",
+    },
+    {
+      id: "featured-dish-2",
+      name: "Sesame Soy Glazed Bok Choy",
+      cuisineType: "Chinese",
+      ingredients: [
+        { quantity: 1.5, unit: "lb", name: "baby bok choy, halved" },
+        { quantity: 2, unit: "tbsp", name: "soy sauce" },
+        { quantity: 1, unit: "tbsp", name: "sesame oil" },
+        { quantity: 1, unit: "tbsp", name: "honey" },
+        { quantity: 1, unit: "tsp", name: "fresh ginger, grated" },
+      ],
+      caloriesPerServing: 95,
+      proteinGPerServing: 4,
+      carbsGPerServing: 12,
+      fatGPerServing: 5,
+      useCount: 0,
+      estimatedTimeMinutes: 15,
+      source: "featured",
+    },
+    {
+      id: "featured-dish-3",
+      name: "Cilantro Lime Rice",
+      cuisineType: "Mexican",
+      ingredients: [
+        { quantity: 1, unit: "cup", name: "long-grain white rice" },
+        { quantity: 2, unit: "cup", name: "water" },
+        { quantity: 0.25, unit: "cup", name: "fresh cilantro, chopped" },
+        { quantity: 1, unit: "whole", name: "lime, juiced" },
+        { quantity: 0.5, unit: "tsp", name: "salt" },
+      ],
+      caloriesPerServing: 180,
+      proteinGPerServing: 4,
+      carbsGPerServing: 38,
+      fatGPerServing: 1,
+      useCount: 0,
+      estimatedTimeMinutes: 25,
+      source: "featured",
+    },
+  ];
+}
+
+// ── Top Rated Dishes (curated, PRD §9.3 extension) ──
+
+export function getTopRatedDishes(): SavedDish[] {
+  return [
+    {
+      id: "top-rated-dish-1",
+      name: "Truffle Parmesan Mashed Potatoes",
+      cuisineType: "Italian",
+      ingredients: [
+        { quantity: 2, unit: "lb", name: "yukon gold potatoes" },
+        { quantity: 0.5, unit: "cup", name: "butter" },
+        { quantity: 0.5, unit: "cup", name: "heavy cream" },
+        { quantity: 0.5, unit: "cup", name: "grated parmesan" },
+        { quantity: 1, unit: "tsp", name: "truffle oil" },
+      ],
+      caloriesPerServing: 320,
+      proteinGPerServing: 6,
+      carbsGPerServing: 38,
+      fatGPerServing: 18,
+      useCount: 0,
+      estimatedTimeMinutes: 35,
+      source: "top_rated",
+    },
+    {
+      id: "top-rated-dish-2",
+      name: "Crispy Brussels Sprouts with Bacon",
+      cuisineType: "American",
+      ingredients: [
+        { quantity: 1.5, unit: "lb", name: "brussels sprouts, halved" },
+        { quantity: 4, unit: "slice", name: "thick-cut bacon, diced" },
+        { quantity: 2, unit: "tbsp", name: "olive oil" },
+        { quantity: 1, unit: "tbsp", name: "balsamic vinegar" },
+        { quantity: 1, unit: "tsp", name: "kosher salt" },
+      ],
+      caloriesPerServing: 180,
+      proteinGPerServing: 8,
+      carbsGPerServing: 14,
+      fatGPerServing: 12,
+      useCount: 0,
+      estimatedTimeMinutes: 30,
+      source: "top_rated",
     },
   ];
 }
