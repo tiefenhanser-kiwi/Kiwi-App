@@ -44,6 +44,11 @@ interface BuilderStep {
   uid: number;
   text: string;
   estimatedMinutes: string;
+  /** Preserved when populating from a saved meal or imported draft so the
+   *  editor can render the same terracotta-tinted step number circle that
+   *  Meal Detail uses (PRD §10.6.1). No UI affordance to toggle this on a
+   *  manually-added step in WS5 — that's a WS9 polish item. */
+  isTimingSensitive?: boolean;
 }
 
 const SERVINGS_MIN = 1;
@@ -111,6 +116,7 @@ const newStep = (
   uid: allocUid(),
   text: partial?.text ?? "",
   estimatedMinutes: partial?.estimatedMinutes ?? "",
+  isTimingSensitive: partial?.isTimingSensitive,
 });
 
 export default function MealBuilderScreen() {
@@ -207,6 +213,7 @@ export default function MealBuilderScreen() {
                 st.estimatedMinutes !== undefined
                   ? String(st.estimatedMinutes)
                   : "",
+              isTimingSensitive: st.isTimingSensitive,
             }),
           )
         : [],
@@ -249,6 +256,7 @@ export default function MealBuilderScreen() {
                 st.estimatedMinutes !== undefined
                   ? String(st.estimatedMinutes)
                   : "",
+              isTimingSensitive: st.isTimingSensitive,
             }),
           )
         : [],
@@ -971,8 +979,20 @@ function ManualEditor(p: ManualEditorProps) {
         )}
         {p.steps.map((step, i) => (
           <View key={step.uid} style={s.stepRow}>
-            <View style={s.stepCircle}>
-              <Text style={s.stepCircleText}>{i + 1}</Text>
+            <View
+              style={[
+                s.stepCircle,
+                step.isTimingSensitive && s.stepCircleTiming,
+              ]}
+            >
+              <Text
+                style={[
+                  s.stepCircleText,
+                  step.isTimingSensitive && s.stepCircleTextTiming,
+                ]}
+              >
+                {i + 1}
+              </Text>
             </View>
             <View style={{ flex: 1, gap: 4 }}>
               <TextInput
@@ -1475,6 +1495,12 @@ const s = StyleSheet.create({
     color: KColors.sage[700],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
+  },
+  stepCircleTiming: {
+    backgroundColor: KColors.terracotta[200],
+  },
+  stepCircleTextTiming: {
+    color: KColors.terracotta[700],
   },
   stepTextInput: {
     minHeight: 60,

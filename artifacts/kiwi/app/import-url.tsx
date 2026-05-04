@@ -17,8 +17,29 @@ import { getDraftMealForUrl } from "@/lib/stubs";
 
 type Phase = "input" | "loading";
 
-function isValidUrl(input: string): boolean {
-  return /^https?:\/\/.+/.test(input.trim());
+/**
+ * Normalize common URL shapes:
+ *   "https://example.com/r" → "https://example.com/r" (unchanged)
+ *   "http://example.com/r"  → "http://example.com/r"  (unchanged)
+ *   "www.example.com/r"     → "https://www.example.com/r"
+ *   "example.com/r"         → "https://example.com/r"
+ * Returns null if the input doesn't look like a URL at all.
+ */
+function normalizeUrl(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Looks like a domain: contains a dot, has a non-empty token on each side,
+  // and no whitespace anywhere.
+  if (/^[^\s]+\.[^\s]+/.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+
+  return null;
 }
 
 export default function ImportUrlScreen() {
@@ -27,13 +48,17 @@ export default function ImportUrlScreen() {
   const [url, setUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const importDisabled = !isValidUrl(url);
+  // Disable button only on empty input. We let handleImport surface a
+  // visible error message for genuinely invalid (non-URL) text — the
+  // previous behavior left users with a silently disabled button.
+  const importDisabled = url.trim().length === 0;
 
   const handleImport = () => {
     Keyboard.dismiss();
-    if (!isValidUrl(url)) {
+    const normalized = normalizeUrl(url);
+    if (!normalized) {
       setErrorMessage(
-        "Please enter a valid URL starting with http:// or https://",
+        "That doesn't look like a URL. Try something like recipesite.com/your-recipe.",
       );
       return;
     }
@@ -41,7 +66,7 @@ export default function ImportUrlScreen() {
     setPhase("loading");
     // Stub: simulate WS6 AI parse with 1500ms delay
     setTimeout(() => {
-      const draft = getDraftMealForUrl(url);
+      const draft = getDraftMealForUrl(normalized);
       router.push({
         pathname: "/meal-builder",
         params: {
