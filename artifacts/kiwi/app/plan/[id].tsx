@@ -1,11 +1,14 @@
 import React, { useRef, useState } from "react";
 import {
   Keyboard,
+  LayoutAnimation,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -21,15 +24,81 @@ import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { getMealById, getReviewPlan } from "@/lib/stubs";
-import type { MealSummary, ReviewPlanMealRow } from "@/lib/types";
+import type {
+  DayAssignment,
+  DayOfWeek,
+  MealSummary,
+  ReviewPlan,
+  ReviewPlanMealRow,
+} from "@/lib/types";
+
+// Android requires opt-in for LayoutAnimation. One-time global flag —
+// this is the only file that opts in today; safe no-op if set elsewhere.
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const capitalize = (s: string) =>
   s.charAt(0).toUpperCase() + s.slice(1);
 
+/**
+ * Apply a day-pill tap. Updates the row's dayStrip to reflect the
+ * new assignment and moves the row between scheduledMeals and
+ * unscheduledMeals if its scheduled status flipped.
+ *
+ * Pure — caller wraps the resulting state with setReviewPlan plus
+ * any animation/persistence side effects.
+ */
+function applyDayAssignment(
+  plan: ReviewPlan,
+  planItemId: string,
+  newDay: DayOfWeek | null,
+): ReviewPlan {
+  const allRows = [...plan.scheduledMeals, ...plan.unscheduledMeals];
+  const row = allRows.find((r) => r.planItemId === planItemId);
+  if (!row) return plan;
+
+  // Only one day can be assigned at a time.
+  const newDayStrip: DayAssignment[] = row.dayStrip.map((d) => ({
+    ...d,
+    isAssigned: newDay !== null && d.day === newDay,
+  }));
+
+  const updatedRow: ReviewPlanMealRow = { ...row, dayStrip: newDayStrip };
+  const isNowScheduled = newDay !== null;
+
+  const filteredScheduled = plan.scheduledMeals.filter(
+    (r) => r.planItemId !== planItemId,
+  );
+  const filteredUnscheduled = plan.unscheduledMeals.filter(
+    (r) => r.planItemId !== planItemId,
+  );
+
+  return isNowScheduled
+    ? {
+        ...plan,
+        scheduledMeals: [...filteredScheduled, updatedRow],
+        unscheduledMeals: filteredUnscheduled,
+      }
+    : {
+        ...plan,
+        scheduledMeals: filteredScheduled,
+        unscheduledMeals: [...filteredUnscheduled, updatedRow],
+      };
+}
+
 export default function PlanReviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const planId = id ?? "";
-  const { plans, changeMealForPlanItem } = useApp();
+  const {
+    plans,
+    changeMealForPlanItem,
+    assignDayToPlanItem,
+    unassignDayFromPlanItem,
+  } = useApp();
   // Option A (locked): screen owns the ReviewPlan in local state.
   // Future action sheets (5J/5K/5L/5M) optimistically update via setReviewPlan;
   // AppContext mutators stay log-only stubs until WS7 wires real persistence.
@@ -280,6 +349,7 @@ export default function PlanReviewScreen() {
                       sourceCuisine: meal?.cuisineType,
                     });
                   }}
+                  onAssignDay={handleAssignDay}
                 />
               ))}
               {reviewPlan.unscheduledMeals.length > 0 && (
@@ -302,6 +372,7 @@ export default function PlanReviewScreen() {
                           sourceCuisine: meal?.cuisineType,
                         });
                       }}
+                      onAssignDay={handleAssignDay}
                     />
                   ))}
                 </>
@@ -439,6 +510,19 @@ export default function PlanReviewScreen() {
       unscheduledMeals: prev.unscheduledMeals.map(replaceRow),
     }));
     void changeMealForPlanItem(planId, targetPlanItemId, newMeal.id);
+  }
+
+  // ── Day-pill tap (PRD §8.3.6). null = unassign. Configures the
+  //    next layout pass so the row's move between scheduled and
+  //    unscheduled clusters animates rather than snaps. ──
+  function handleAssignDay(planItemId: string, newDay: DayOfWeek | null) {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setReviewPlan((prev) => applyDayAssignment(prev, planItemId, newDay));
+    if (newDay === null) {
+      void unassignDayFromPlanItem(planId, planItemId);
+    } else {
+      void assignDayToPlanItem(planId, planItemId, newDay);
+    }
   }
 }
 

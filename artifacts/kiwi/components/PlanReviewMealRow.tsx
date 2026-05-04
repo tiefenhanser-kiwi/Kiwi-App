@@ -10,7 +10,11 @@ import {
   KSpacing,
   KType,
 } from "@/constants/tokens";
-import { DAY_SHORT, type ReviewPlanMealRow } from "@/lib/types";
+import {
+  DAY_SHORT,
+  type DayOfWeek,
+  type ReviewPlanMealRow,
+} from "@/lib/types";
 
 interface Props {
   row: ReviewPlanMealRow;
@@ -25,6 +29,8 @@ interface Props {
     sourceMealId: string,
     title: string,
   ) => void;
+  /** Fired when a day pill is tapped (PRD §8.3.6). null = unassign. */
+  onAssignDay?: (planItemId: string, day: DayOfWeek | null) => void;
 }
 
 export function PlanReviewMealRow({
@@ -32,6 +38,7 @@ export function PlanReviewMealRow({
   planId,
   onChangeMeal,
   onFindSimilar,
+  onAssignDay,
 }: Props) {
   const router = useRouter();
 
@@ -121,6 +128,10 @@ export function PlanReviewMealRow({
                 planItemId: row.planItemId,
                 day: entry.day,
               });
+              const currentlyAssigned = row.dayStrip.find((d) => d.isAssigned);
+              const next: DayOfWeek | null =
+                currentlyAssigned?.day === entry.day ? null : entry.day;
+              onAssignDay?.(row.planItemId, next);
             }}
             hitSlop={6}
             style={({ pressed }) => [
