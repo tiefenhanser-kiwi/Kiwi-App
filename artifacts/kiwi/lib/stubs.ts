@@ -138,6 +138,11 @@ export type MealRowData = {
   meta: string;
   cuisineTag: string | null;
   filterGroup: MealsFilterGroup;
+  /** Sort-aware secondary line fields (PRD §9.3 / WS5-5N-fix). All
+   *  optional — undefined values render as "Never cooked" / hide. */
+  lastCookedAt?: string;
+  timesCooked?: number;
+  createdAt?: string;
 };
 
 export async function getMealsPayload(): Promise<{ meals: MealRowData[] }> {

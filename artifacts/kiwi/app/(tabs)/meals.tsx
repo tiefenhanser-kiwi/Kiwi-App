@@ -66,6 +66,9 @@ function summaryToRowData(meal: MealSummary): MealRowData {
     meta: `${capitalize(meal.difficulty)} · ${meal.estimatedTimeMinutes} min · serves ${meal.servingsDefault}`,
     cuisineTag: meal.cuisineType ?? null,
     filterGroup: "my_meals",
+    lastCookedAt: meal.lastCookedAt,
+    timesCooked: meal.timesCooked,
+    createdAt: meal.createdAt,
   };
 }
 
@@ -227,8 +230,8 @@ export default function MealsTab() {
                     key={meal.id}
                     meal={summaryToRowData(meal)}
                     onPress={() => handleOpenMeal(meal.id)}
-                    onViewDetails={() => handleOpenMeal(meal.id)}
                     onCookNow={handleCookNow}
+                    sortKey={mealSort}
                   />
                 ))
               )}
@@ -275,6 +278,7 @@ export default function MealsTab() {
                     key={dish.id}
                     dish={dish}
                     onPress={handleOpenDish}
+                    sortKey={dishSortKey}
                   />
                 ))
               )}

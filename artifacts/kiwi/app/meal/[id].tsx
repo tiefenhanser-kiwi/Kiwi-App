@@ -129,6 +129,22 @@ export default function MealDetailScreen() {
     });
   };
 
+  const onCookNow = () => {
+    console.log("[meal-detail] cook-now tapped", { mealId: meal.id });
+    Alert.alert(
+      "Coming with Prep & Cook Hub",
+      "Cook Now lands when the Prep & Cook Hub workstream ships (post-WS6 AI orchestration). For now, view the recipe steps below.",
+    );
+  };
+
+  const onAddToPlan = () => {
+    console.log("[meal-detail] add-to-plan tapped", { mealId: meal.id });
+    Alert.alert(
+      "Coming in WS5-5N-bis",
+      "Add to Plan flow lands in the next sub-phase.",
+    );
+  };
+
   const onCompost = () => {
     console.log("[meal-detail] compost tapped", { mealId: meal.id });
     Alert.alert(
@@ -221,10 +237,16 @@ export default function MealDetailScreen() {
           <Text style={s.heroQuickStats}>{quickStatsParts.join(" · ")}</Text>
         </View>
 
-        {/* Library-context actions: Edit / Compost */}
+        {/* Primary actions per PRD §10.6: Cook Now (most prominent),
+            then Add to Plan. Secondary library actions (Edit, Compost)
+            sit below as a row. */}
+        <View style={s.primaryActionStack}>
+          <Button label="Cook Now" variant="primary" onPress={onCookNow} />
+          <Button label="Add to Plan" variant="terra" onPress={onAddToPlan} />
+        </View>
         <View style={s.actionRow}>
           <View style={{ flex: 1 }}>
-            <Button label="Edit" variant="primary" onPress={onEdit} />
+            <Button label="Edit" variant="ghost" onPress={onEdit} />
           </View>
           <View style={{ flex: 1 }}>
             <Button label={KCopy.delete} variant="ghost" onPress={onCompost} />
@@ -418,10 +440,14 @@ const s = StyleSheet.create({
     color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
   },
+  primaryActionStack: {
+    gap: KSpacing.sm,
+    marginTop: KSpacing.lg,
+  },
   actionRow: {
     flexDirection: "row",
     gap: KSpacing.sm,
-    marginTop: KSpacing.lg,
+    marginTop: KSpacing.sm,
   },
   section: {
     marginTop: KSpacing.lg,
