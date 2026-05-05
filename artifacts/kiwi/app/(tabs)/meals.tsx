@@ -149,7 +149,7 @@ export default function MealsTab() {
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
-      <Header title="My Meals" />
+      <Header title="My Recipes" />
       <Screen>
         {/* Sub-tab toggle */}
         <View style={s.toggleRow}>

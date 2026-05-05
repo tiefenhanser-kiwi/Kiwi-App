@@ -278,7 +278,7 @@ export interface SavedDish {
   /** Estimated cook time in minutes. Drives "Cook time" sort. Optional —
    *  undefined treated as 0 (e.g. simple/store-bought dishes). */
   estimatedTimeMinutes?: number;
-  /** Catalog source for the My Meals tab Dishes view chip row
+  /** Catalog source for the My Recipes tab Dishes view chip row
    *  (PRD §9.3). Optional so legacy stub rows don't break. */
   source?: "saved" | "featured" | "top_rated";
 }
