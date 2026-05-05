@@ -54,12 +54,6 @@ export function MealRow({ meal, onPress, onCookNow, sortKey }: Props) {
     );
   };
 
-  // Card tap navigates to Meal Detail (5N wiring). Add to Plan is a
-  // separate Pressable so its tap doesn't bubble. onCookNow stays a
-  // prop for parents that need it; not rendered inline today (the
-  // Cook Now action lives on the Meal Detail screen).
-  void onCookNow;
-
   return (
     <View style={styles.row}>
       <Pressable
@@ -94,15 +88,26 @@ export function MealRow({ meal, onPress, onCookNow, sortKey }: Props) {
           )}
         </View>
       </Pressable>
-      <Pressable
-        onPress={handleAddToPlan}
-        style={({ pressed }) => [
-          styles.addToPlanBtn,
-          pressed && { opacity: 0.7 },
-        ]}
-      >
-        <Text style={styles.addToPlanText}>Add to Plan</Text>
-      </Pressable>
+      <View style={styles.actionStack}>
+        <Pressable
+          onPress={onCookNow}
+          style={({ pressed }) => [
+            styles.cookNowBtn,
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Text style={styles.cookNowText}>Cook Now</Text>
+        </Pressable>
+        <Pressable
+          onPress={handleAddToPlan}
+          style={({ pressed }) => [
+            styles.addToPlanBtn,
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Text style={styles.addToPlanText}>Add to Plan</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -167,13 +172,30 @@ const styles = StyleSheet.create({
     color: KColors.sage[700],
     fontFamily: "Inter_500Medium",
   },
-  addToPlanBtn: {
+  actionStack: {
+    gap: KSpacing.xs,
+    alignItems: "stretch",
+    minWidth: 88,
+  },
+  cookNowBtn: {
     backgroundColor: KColors.sage[700],
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: KSpacing.sm,
     paddingVertical: 8,
     borderRadius: KRadius.md,
     alignItems: "center",
-    minWidth: 88,
+  },
+  cookNowText: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[0],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  addToPlanBtn: {
+    backgroundColor: KColors.terracotta[400],
+    paddingHorizontal: KSpacing.sm,
+    paddingVertical: 8,
+    borderRadius: KRadius.md,
+    alignItems: "center",
   },
   addToPlanText: {
     fontSize: KType.size.xs,

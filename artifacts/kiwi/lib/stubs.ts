@@ -1760,6 +1760,7 @@ export function getFeaturedDishes(): SavedDish[] {
       useCount: 0,
       estimatedTimeMinutes: 45,
       source: "featured",
+      createdAt: "2025-10-05T10:00:00.000Z",
     },
     {
       id: "featured-dish-2",
@@ -1779,6 +1780,7 @@ export function getFeaturedDishes(): SavedDish[] {
       useCount: 0,
       estimatedTimeMinutes: 15,
       source: "featured",
+      createdAt: "2025-12-12T10:00:00.000Z",
     },
     {
       id: "featured-dish-3",
@@ -1798,6 +1800,7 @@ export function getFeaturedDishes(): SavedDish[] {
       useCount: 0,
       estimatedTimeMinutes: 25,
       source: "featured",
+      createdAt: "2026-02-28T10:00:00.000Z",
     },
   ];
 }
@@ -1824,6 +1827,7 @@ export function getTopRatedDishes(): SavedDish[] {
       useCount: 0,
       estimatedTimeMinutes: 35,
       source: "top_rated",
+      createdAt: "2024-11-25T10:00:00.000Z",
     },
     {
       id: "top-rated-dish-2",
@@ -1843,6 +1847,7 @@ export function getTopRatedDishes(): SavedDish[] {
       useCount: 0,
       estimatedTimeMinutes: 30,
       source: "top_rated",
+      createdAt: "2025-07-10T10:00:00.000Z",
     },
   ];
 }
@@ -1950,6 +1955,7 @@ export function getFeaturedMeals(): MealSummary[] {
       carbsGPerServing: 78,
       fatGPerServing: 22,
       source: "featured",
+      createdAt: "2025-09-15T10:00:00.000Z",
     },
     {
       id: "featured-meal-2",
@@ -1963,6 +1969,7 @@ export function getFeaturedMeals(): MealSummary[] {
       carbsGPerServing: 28,
       fatGPerServing: 22,
       source: "featured",
+      createdAt: "2025-11-22T10:00:00.000Z",
     },
     {
       id: "featured-meal-3",
@@ -1976,6 +1983,7 @@ export function getFeaturedMeals(): MealSummary[] {
       carbsGPerServing: 38,
       fatGPerServing: 24,
       source: "featured",
+      createdAt: "2026-02-08T10:00:00.000Z",
     },
     {
       id: "featured-meal-4",
@@ -1989,6 +1997,7 @@ export function getFeaturedMeals(): MealSummary[] {
       carbsGPerServing: 62,
       fatGPerServing: 18,
       source: "featured",
+      createdAt: "2026-03-14T10:00:00.000Z",
     },
   ];
 }
@@ -2009,6 +2018,7 @@ export function getTopRatedMeals(): MealSummary[] {
       carbsGPerServing: 52,
       fatGPerServing: 32,
       source: "top_rated",
+      createdAt: "2024-10-08T10:00:00.000Z",
     },
     {
       id: "top-rated-meal-2",
@@ -2022,6 +2032,7 @@ export function getTopRatedMeals(): MealSummary[] {
       carbsGPerServing: 38,
       fatGPerServing: 28,
       source: "top_rated",
+      createdAt: "2025-04-19T10:00:00.000Z",
     },
     {
       id: "top-rated-meal-3",
@@ -2035,6 +2046,7 @@ export function getTopRatedMeals(): MealSummary[] {
       carbsGPerServing: 42,
       fatGPerServing: 42,
       source: "top_rated",
+      createdAt: "2025-08-30T10:00:00.000Z",
     },
   ];
 }
@@ -2055,6 +2067,7 @@ export function getHostingMeals(): MealSummary[] {
       carbsGPerServing: 48,
       fatGPerServing: 36,
       source: "hosting",
+      createdAt: "2024-11-12T10:00:00.000Z",
     },
     {
       id: "hosting-meal-2",
@@ -2068,6 +2081,7 @@ export function getHostingMeals(): MealSummary[] {
       carbsGPerServing: 12,
       fatGPerServing: 38,
       source: "hosting",
+      createdAt: "2025-12-18T10:00:00.000Z",
     },
     {
       id: "hosting-meal-3",
@@ -2081,6 +2095,7 @@ export function getHostingMeals(): MealSummary[] {
       carbsGPerServing: 42,
       fatGPerServing: 26,
       source: "hosting",
+      createdAt: "2026-04-15T10:00:00.000Z",
     },
   ];
 }

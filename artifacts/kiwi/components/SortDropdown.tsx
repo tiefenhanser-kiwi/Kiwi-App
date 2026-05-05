@@ -15,7 +15,7 @@ type SortOption = { key: SortKey; label: string };
 export const SORT_OPTIONS: SortOption[] = [
   { key: "last_cooked", label: "Last cooked" },
   { key: "times_cooked", label: "Times cooked" },
-  { key: "date_created", label: "Date created" },
+  { key: "date_created", label: "Date added" },
   { key: "alpha", label: "A–Z" },
   { key: "cook_time", label: "Cook time" },
 ];

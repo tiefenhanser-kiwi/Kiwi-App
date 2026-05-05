@@ -269,7 +269,7 @@ export interface SavedDish {
   fatGPerServing: number;
   /** Number of meals this dish appears in. */
   useCount?: number;
-  /** ISO timestamp when the dish was created. Drives "Date created" sort
+  /** ISO timestamp when the dish was created. Drives "Date added" sort
    *  (PRD §10.5 / DishChooserSheet). Optional so legacy stub rows don't break. */
   createdAt?: string;
   /** ISO timestamp of the last time this dish was cooked. Drives
