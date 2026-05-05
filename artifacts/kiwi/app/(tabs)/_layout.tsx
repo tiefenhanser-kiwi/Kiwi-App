@@ -40,7 +40,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="meals"
         options={{
-          title: "My Recipes",
+          title: "Recipes",
           tabBarIcon: ({ color }) => <Feather name="bookmark" size={22} color={color} />,
         }}
       />

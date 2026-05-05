@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
+import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { DishRow } from "@/components/DishRow";
 import { sortDishes } from "@/components/dishSort";
 import {
@@ -83,6 +84,11 @@ export default function MealsTab() {
   const [mealSort, setMealSort] = useState<SortKey>("alpha");
   const [dishSortKey, setDishSortKey] = useState<SortKey>("alpha");
 
+  const [addToPlanFor, setAddToPlanFor] = useState<{
+    mealId: string;
+    mealTitle: string;
+  } | null>(null);
+
   const visibleMeals = useMemo<MealSummary[]>(() => {
     let source: MealSummary[];
     switch (mealFilter) {
@@ -149,7 +155,24 @@ export default function MealsTab() {
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
-      <Header title="My Recipes" />
+      <AddMealToPlanSheet
+        visible={addToPlanFor !== null}
+        mealId={addToPlanFor?.mealId ?? ""}
+        mealTitle={addToPlanFor?.mealTitle}
+        onClose={() => setAddToPlanFor(null)}
+        onPickExistingPlan={(plan) => {
+          console.log("[meals] add-to-plan picked", {
+            planId: plan.id,
+            mealId: addToPlanFor?.mealId,
+          });
+          Alert.alert(
+            "Coming in WS7",
+            `When the API client lands, ${addToPlanFor?.mealTitle} will be added to "${plan.name}".`,
+          );
+          setAddToPlanFor(null);
+        }}
+      />
+      <Header title="Recipes" />
       <Screen>
         {/* Sub-tab toggle */}
         <View style={s.toggleRow}>
@@ -231,6 +254,9 @@ export default function MealsTab() {
                     meal={summaryToRowData(meal)}
                     onPress={() => handleOpenMeal(meal.id)}
                     onCookNow={handleCookNow}
+                    onAddToPlan={(mealId, mealTitle) =>
+                      setAddToPlanFor({ mealId, mealTitle })
+                    }
                     sortKey={mealSort}
                   />
                 ))

@@ -1,5 +1,5 @@
 // Display helpers for ISO date strings used in row sort-aware lines
-// (My Recipes tab, picker sheets) and elsewhere. Approximate; precision
+// (Recipes tab, picker sheets) and elsewhere. Approximate; precision
 // is a polish pass.
 
 export function formatRelative(iso: string): string {

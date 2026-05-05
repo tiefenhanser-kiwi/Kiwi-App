@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import {
-  Alert,
   Image,
   Pressable,
   StyleSheet,
@@ -17,6 +16,9 @@ type Props = {
   meal: MealRowData;
   onPress: () => void;
   onCookNow: () => void;
+  /** Fired when the row's Add to Plan button is tapped. The parent
+   *  renders the AddMealToPlanSheet at screen level. */
+  onAddToPlan: (mealId: string, mealTitle: string) => void;
   /** Optional: when set, render a sort-aware secondary line. Hidden
    *  for "alpha" / "cook_time" since those don't reveal hidden data. */
   sortKey?: SortKey;
@@ -41,18 +43,17 @@ function buildSortLine(meal: MealRowData, sortKey: SortKey): string | null {
   return null;
 }
 
-export function MealRow({ meal, onPress, onCookNow, sortKey }: Props) {
+export function MealRow({
+  meal,
+  onPress,
+  onCookNow,
+  onAddToPlan,
+  sortKey,
+}: Props) {
   const sortLine = useMemo(
     () => (sortKey ? buildSortLine(meal, sortKey) : null),
     [meal, sortKey],
   );
-
-  const handleAddToPlan = () => {
-    Alert.alert(
-      "Coming in WS5-5N-bis",
-      "Add to Plan flow lands in the next sub-phase. Until then, open the meal detail to add it to a plan.",
-    );
-  };
 
   return (
     <View style={styles.row}>
@@ -99,7 +100,7 @@ export function MealRow({ meal, onPress, onCookNow, sortKey }: Props) {
           <Text style={styles.cookNowText}>Cook Now</Text>
         </Pressable>
         <Pressable
-          onPress={handleAddToPlan}
+          onPress={() => onAddToPlan(meal.id, meal.title)}
           style={({ pressed }) => [
             styles.addToPlanBtn,
             pressed && { opacity: 0.85 },

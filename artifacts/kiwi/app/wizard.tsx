@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
@@ -28,6 +28,18 @@ const STEPS = ["nights", "time", "style", "notes"] as const;
 export default function Wizard() {
   const router = useRouter();
   const { savePlan, prefs } = useApp();
+  // PRD §9.4 — when launched from the AddMealToPlanSheet "Create a
+  // new plan" path, the meal id we should attach to the new plan
+  // arrives as a route param. WS5: param plumbing only — actual
+  // attach + redirect to /plan/{newPlanId} lands in WS7 with the
+  // real plan-creation API.
+  const params = useLocalSearchParams<{ addMealId?: string }>();
+
+  useEffect(() => {
+    if (params.addMealId) {
+      console.log("[wizard] received addMealId", params.addMealId);
+    }
+  }, [params.addMealId]);
 
   const [stepIdx, setStepIdx] = useState(0);
   const [nights, setNights] = useState(5);

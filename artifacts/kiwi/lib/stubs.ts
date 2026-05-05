@@ -17,6 +17,7 @@ import type {
   ReviewMeal,
   ReviewPlan,
   SavedDish,
+  UserPlanSummary,
 } from "./types";
 import { buildDayStrip, DAYS, getMondayISO } from "./domain";
 
@@ -2133,4 +2134,43 @@ export function findSimilarMealsByCuisine(
   return allMeals.filter(
     (m) => m.cuisineType === targetCuisine && m.id !== sourceMealId,
   );
+}
+
+// ── User Plans (PRD §9.4 / §11) ──
+
+/**
+ * PRD §9.4 — stubbed list of user's plans for the Add to Plan
+ * picker. Real persistence WS7.
+ * Sorted by createdAt descending (most recent first) by default.
+ */
+export function getUserPlans(): UserPlanSummary[] {
+  return [
+    {
+      id: "demo-plan-this-week",
+      name: "This Week",
+      weekStartDate: "2026-05-04",
+      weekEndDate: "2026-05-10",
+      status: "active",
+      mealCount: 5,
+      createdAt: "2026-05-03T10:00:00.000Z",
+    },
+    {
+      id: "demo-plan-last-week",
+      name: "Last Week",
+      weekStartDate: "2026-04-27",
+      weekEndDate: "2026-05-03",
+      status: "completed",
+      mealCount: 6,
+      createdAt: "2026-04-26T10:00:00.000Z",
+    },
+    {
+      id: "demo-plan-easter",
+      name: "Easter Family Dinner",
+      weekStartDate: "2026-04-05",
+      weekEndDate: "2026-04-05",
+      status: "completed",
+      mealCount: 8,
+      createdAt: "2026-03-30T10:00:00.000Z",
+    },
+  ];
 }

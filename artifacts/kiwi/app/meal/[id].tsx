@@ -10,6 +10,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
+import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
@@ -77,6 +78,7 @@ export default function MealDetailScreen() {
   const [displayServings, setDisplayServings] = useState(
     meal?.servingsDefault ?? 4,
   );
+  const [addToPlanVisible, setAddToPlanVisible] = useState(false);
 
   if (!meal) {
     return (
@@ -139,10 +141,7 @@ export default function MealDetailScreen() {
 
   const onAddToPlan = () => {
     console.log("[meal-detail] add-to-plan tapped", { mealId: meal.id });
-    Alert.alert(
-      "Coming in WS5-5N-bis",
-      "Add to Plan flow lands in the next sub-phase.",
-    );
+    setAddToPlanVisible(true);
   };
 
   const onCompost = () => {
@@ -192,6 +191,23 @@ export default function MealDetailScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <AddMealToPlanSheet
+        visible={addToPlanVisible}
+        mealId={meal.id}
+        mealTitle={meal.title}
+        onClose={() => setAddToPlanVisible(false)}
+        onPickExistingPlan={(plan) => {
+          console.log("[meal-detail] add-to-plan picked", {
+            planId: plan.id,
+            mealId: meal.id,
+          });
+          Alert.alert(
+            "Coming in WS7",
+            `When the API client lands, ${meal.title} will be added to "${plan.name}".`,
+          );
+          setAddToPlanVisible(false);
+        }}
+      />
       <Header showBack title={meal.title} />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}

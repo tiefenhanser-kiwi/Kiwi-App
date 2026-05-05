@@ -190,6 +190,26 @@ export interface ReviewPlan {
 }
 
 /**
+ * Compact plan summary for picker lists (Add to Plan flow).
+ * Subset of MealPlan + ReviewPlan — what's needed to render
+ * a row + identify the plan.
+ */
+export interface UserPlanSummary {
+  id: string;
+  name: string;
+  /** ISO date string. */
+  weekStartDate?: string;
+  /** ISO date string. */
+  weekEndDate?: string;
+  /** "active" | "completed" | "draft" — matches MealPlan.status */
+  status: "active" | "completed" | "draft";
+  /** Number of meals currently in this plan. */
+  mealCount: number;
+  /** ISO timestamp when plan was created. */
+  createdAt: string;
+}
+
+/**
  * Action keys for PlanReviewMealRow inline buttons per PRD §8.4.1
  * (amended to 5 actions per WS5 product decision).
  */
@@ -278,7 +298,7 @@ export interface SavedDish {
   /** Estimated cook time in minutes. Drives "Cook time" sort. Optional —
    *  undefined treated as 0 (e.g. simple/store-bought dishes). */
   estimatedTimeMinutes?: number;
-  /** Catalog source for the My Recipes tab Dishes view chip row
+  /** Catalog source for the Recipes tab Dishes view chip row
    *  (PRD §9.3). Optional so legacy stub rows don't break. */
   source?: "saved" | "featured" | "top_rated";
 }
