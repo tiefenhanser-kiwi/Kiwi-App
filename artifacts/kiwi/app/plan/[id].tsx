@@ -22,6 +22,8 @@ import { ChangeMealSheet } from "@/components/ChangeMealSheet";
 import { FindSimilarSheet } from "@/components/FindSimilarSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { PlanDateRangeEditor } from "@/components/PlanDateRangeEditor";
+import { PlanNameEditor } from "@/components/PlanNameEditor";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
@@ -102,6 +104,8 @@ export default function PlanReviewScreen() {
     unassignDayFromPlanItem,
     addMealToPlan,
     removeMealFromPlan,
+    updatePlanName,
+    updatePlanDateRange,
   } = useApp();
   // Option A (locked): screen owns the ReviewPlan in local state.
   // Future action sheets (5J/5K/5L/5M) optimistically update via setReviewPlan;
@@ -237,16 +241,32 @@ export default function PlanReviewScreen() {
     setAddMealsVisible(true);
   };
 
+  const handleSavePlanName = (newName: string) => {
+    setReviewPlan((prev) => ({ ...prev, name: newName }));
+    void updatePlanName(planId, newName);
+  };
+
+  const handleSaveDateRange = (start: string, end: string) => {
+    setReviewPlan((prev) => ({
+      ...prev,
+      weekStartDate: start,
+      weekEndDate: end,
+    }));
+    void updatePlanDateRange(planId, start, end);
+  };
+
   const hasMeals =
     reviewPlan.scheduledMeals.length > 0 ||
     reviewPlan.unscheduledMeals.length > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
-      {/* §8.3.1 — Header with back button, plan name, passive Saved pill */}
+      {/* §8.3.1 — Header with back button, page label, passive Saved pill.
+          Plan name + date range live in the editable meta strip below the
+          header (PRD §8 / §11). */}
       <Header
         showBack
-        title={planName}
+        title="Plan Review"
         rightContent={
           <View style={s.savedPill}>
             <Text style={s.savedPillText}>Saved</Text>
@@ -259,6 +279,18 @@ export default function PlanReviewScreen() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={s.planMetaSection}>
+          <PlanNameEditor
+            currentName={planName}
+            onSave={handleSavePlanName}
+          />
+          <PlanDateRangeEditor
+            startDate={reviewPlan.weekStartDate}
+            endDate={reviewPlan.weekEndDate}
+            onSave={handleSaveDateRange}
+          />
+        </View>
+
         {/* §8.3.2 — Sticky-near-top action bar (1+2 stack) */}
         <View style={s.actionBar}>
           <Button
@@ -674,6 +706,10 @@ const s = StyleSheet.create({
     color: KColors.sage[700],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
+  },
+  planMetaSection: {
+    gap: 4,
+    marginBottom: KSpacing.md,
   },
   actionBar: {
     backgroundColor: KColors.neutral[0],

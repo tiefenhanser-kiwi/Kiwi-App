@@ -187,6 +187,12 @@ export interface ReviewPlan {
   breakfastDefaults: string;
   /** User-level lunch defaults per PRD §8.3.7. */
   lunchDefaults: string;
+  /** ISO date string ("YYYY-MM-DD") for the plan's start date.
+   *  Drives the date-range editor (PRD §8 / §11). Optional so legacy
+   *  demo branches without dates don't break. */
+  weekStartDate?: string;
+  /** ISO date string ("YYYY-MM-DD") for the plan's end date. */
+  weekEndDate?: string;
 }
 
 /**

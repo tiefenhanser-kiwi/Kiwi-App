@@ -102,6 +102,14 @@ interface AppState {
   ) => Promise<void>;
   /** PRD §8.4.x (NEW per WS5) — Find Similar: returns Meal candidates matching cuisine of the source mealId. MVP: cuisine match only. */
   findSimilarMeals: (mealId: string) => Promise<string[]>;
+  /** PRD §8 / §11 — rename a plan. Real persistence WS7. */
+  updatePlanName: (planId: string, name: string) => Promise<void>;
+  /** PRD §8 / §11 — update a plan's start/end dates. Real persistence WS7. */
+  updatePlanDateRange: (
+    planId: string,
+    startDate: string,
+    endDate: string,
+  ) => Promise<void>;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
   favorites: string[];
@@ -293,6 +301,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return [];
   };
 
+  const updatePlanName = async (
+    planId: string,
+    name: string,
+  ): Promise<void> => {
+    // TODO(WS7): wire to PATCH /plans/:planId (name)
+    console.log("[stub] updatePlanName", { planId, name });
+  };
+
+  const updatePlanDateRange = async (
+    planId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<void> => {
+    // TODO(WS7): wire to PATCH /plans/:planId (weekStartDate, weekEndDate)
+    console.log("[stub] updatePlanDateRange", { planId, startDate, endDate });
+  };
+
   const toggleGrocery = useCallback(
     async (id: string) => {
       const updated = groceries.map((g) =>
@@ -354,6 +379,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     changeRecipeForPlanItem,
     promoteRecipeOverrideToMeal,
     findSimilarMeals,
+    updatePlanName,
+    updatePlanDateRange,
     groceries,
     toggleGrocery,
     favorites,
