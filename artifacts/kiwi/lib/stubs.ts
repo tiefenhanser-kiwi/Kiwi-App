@@ -233,6 +233,28 @@ export function getReviewPlan(_planId: string): ReviewPlan {
     };
   }
 
+  // PRD §11.4 — destination for wizard / tellkiwi completion in WS5.
+  // Empty plan that the user just created; meals get added next via
+  // AddMealsSheet or by routing in from the AddMealToPlanSheet.
+  if (_planId === "demo-plan-just-created") {
+    return {
+      id: _planId,
+      name: "Your New Plan",
+      prepStatus: "not_prepped",
+      optimizationNotes: [],
+      macroDailyAverage: {
+        caloriesPerDay: 0,
+        proteinGPerDay: 0,
+        carbsGPerDay: 0,
+        fatGPerDay: 0,
+      },
+      scheduledMeals: [],
+      unscheduledMeals: [],
+      breakfastDefaults: "",
+      lunchDefaults: "",
+    };
+  }
+
   return {
     id: _planId,
     name: "",

@@ -83,7 +83,13 @@ export default function Wizard() {
         meals: result.meals,
       };
       await savePlan(plan);
-      router.replace({ pathname: "/plan-results", params: { id: plan.id } });
+      // PRD §11.4 — completion lands on the new plan's review page.
+      // WS5: route to the demo "just-created" plan id so getReviewPlan
+      // returns the empty-plan shape. WS7 will use the real planId
+      // from the API response and (when params.addMealId is present)
+      // attach that meal to the new plan's unscheduled cluster.
+      console.log("[wizard] completing with addMealId", params.addMealId);
+      router.replace("/plan/demo-plan-just-created");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "";
       Alert.alert(

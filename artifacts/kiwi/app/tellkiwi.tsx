@@ -46,7 +46,10 @@ export default function TellKiwi() {
         meals: result.meals,
       };
       await savePlan(plan);
-      router.replace({ pathname: "/plan-results", params: { id: plan.id } });
+      // PRD §11.4 — completion lands on the new plan's review page.
+      // WS5: route to the demo "just-created" plan id; WS7 will use
+      // the real planId returned by the plan-creation API.
+      router.replace("/plan/demo-plan-just-created");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "";
       Alert.alert(
