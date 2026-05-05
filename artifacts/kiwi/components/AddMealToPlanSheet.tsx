@@ -73,13 +73,17 @@ export function AddMealToPlanSheet({
 
   const handleCreateNewPlan = () => {
     onClose();
+    // Per locked WS5 product decision: this entry path is "manual plan
+    // creation around this meal" — skip the wizard, drop the user
+    // directly on the new plan's review page with the meal seeded
+    // into unscheduled. Plan Review reads addMealId on mount and
+    // injects the row.
     // Defer so the sheet's slide-out animation completes before the
-    // wizard mounts; otherwise users see the new screen appear behind
-    // a still-collapsing modal.
+    // destination mounts.
     setTimeout(() => {
       router.push({
-        pathname: "/wizard",
-        params: { addMealId: mealId },
+        pathname: "/plan/[id]",
+        params: { id: "demo-plan-just-created", addMealId: mealId },
       });
     }, 150);
   };
@@ -199,7 +203,7 @@ export function AddMealToPlanSheet({
             <View style={{ flex: 1 }}>
               <Text style={s.newPlanTitle}>Create a new plan</Text>
               <Text style={s.newPlanSubtitle}>
-                Build a meal plan around this recipe
+                Start a new plan with this meal
               </Text>
             </View>
             <Feather

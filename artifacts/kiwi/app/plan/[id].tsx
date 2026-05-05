@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -90,7 +90,10 @@ function applyDayAssignment(
 }
 
 export default function PlanReviewScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, addMealId } = useLocalSearchParams<{
+    id: string;
+    addMealId?: string;
+  }>();
   const planId = id ?? "";
   const {
     plans,
@@ -104,6 +107,60 @@ export default function PlanReviewScreen() {
   // Future action sheets (5J/5K/5L/5M) optimistically update via setReviewPlan;
   // AppContext mutators stay log-only stubs until WS7 wires real persistence.
   const [reviewPlan, setReviewPlan] = useState(() => getReviewPlan(planId));
+
+  // Tracks addMealId values already injected into unscheduled so a
+  // re-render or re-navigate with the same param doesn't double-add.
+  const [consumedAddMealIds, setConsumedAddMealIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  // PRD §9.4 — when launched from AddMealToPlanSheet's "Create new plan"
+  // card, the meal id arrives as a route param. Inject the row into
+  // unscheduled on mount. Idempotent via consumedAddMealIds.
+  useEffect(() => {
+    if (!addMealId) return;
+    if (consumedAddMealIds.has(addMealId)) return;
+
+    const meal = getMealById(addMealId);
+    if (!meal) {
+      console.warn(
+        "[plan/id] addMealId param present but getMealById returned null",
+        { addMealId },
+      );
+      return;
+    }
+
+    const newRow: ReviewPlanMealRow = {
+      planItemId: `pi-${Date.now()}`,
+      mealId: meal.id,
+      title: meal.title,
+      thumbnailUrl: meal.imageUrl,
+      metaLine: `${capitalize(meal.difficulty)} · ${meal.estimatedTimeMinutes} min · serves ${meal.servingsDefault}`,
+      caloriesPerServing: meal.caloriesPerServing,
+      proteinGPerServing: meal.proteinGPerServing,
+      carbsGPerServing: meal.carbsGPerServing,
+      fatGPerServing: meal.fatGPerServing,
+      dayStrip: buildDayStrip(null),
+      hasRecipeOverride: false,
+    };
+
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setReviewPlan((prev) => ({
+      ...prev,
+      unscheduledMeals: [...prev.unscheduledMeals, newRow],
+    }));
+    setConsumedAddMealIds((prev) => {
+      const next = new Set(prev);
+      next.add(addMealId);
+      return next;
+    });
+
+    console.log("[plan/id] addMealId consumed, meal injected", {
+      addMealId,
+      title: meal.title,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addMealId]);
 
   // Sheet state for §8.4.2 Change Meal flow.
   const [changeMealForRow, setChangeMealForRow] = useState<{
