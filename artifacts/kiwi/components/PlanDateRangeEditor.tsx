@@ -25,8 +25,32 @@ type PresetKey = "this_week" | "next_week" | "custom";
 const MAX_FUTURE_DAYS = 30;
 const DURATION_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 
+/**
+ * Format a Date as YYYY-MM-DD using LOCAL time (not UTC).
+ * toISOString() converts to UTC, which can shift the date by one day
+ * depending on local timezone offset and time of day — making "this
+ * Sunday" land on Saturday in the rendered string.
+ */
+function toLocalDateString(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * Parse "YYYY-MM-DD" as a LOCAL-time Date. JS's default `new Date(iso)`
+ * treats bare-date strings as UTC midnight, which lands on the previous
+ * local day for users west of UTC and breaks downstream getDate() /
+ * toLocaleDateString() calls.
+ */
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function todayISO(): string {
-  return new Date().toISOString().split("T")[0];
+  return toLocalDateString(new Date());
 }
 
 function computeThisWeekStart(): string {
@@ -34,7 +58,7 @@ function computeThisWeekStart(): string {
   const day = today.getDay(); // 0 = Sunday
   const start = new Date(today);
   start.setDate(today.getDate() - day);
-  return start.toISOString().split("T")[0];
+  return toLocalDateString(start);
 }
 
 function computeNextWeekStart(): string {
@@ -42,23 +66,23 @@ function computeNextWeekStart(): string {
   const day = today.getDay();
   const start = new Date(today);
   start.setDate(today.getDate() + (7 - day));
-  return start.toISOString().split("T")[0];
+  return toLocalDateString(start);
 }
 
 function addDays(iso: string, days: number): string {
-  const d = new Date(iso);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d + days);
+  return toLocalDateString(date);
 }
 
 function diffDays(startISO: string, endISO: string): number {
-  const a = new Date(startISO).getTime();
-  const b = new Date(endISO).getTime();
+  const a = parseLocalDate(startISO).getTime();
+  const b = parseLocalDate(endISO).getTime();
   return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  return parseLocalDate(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
