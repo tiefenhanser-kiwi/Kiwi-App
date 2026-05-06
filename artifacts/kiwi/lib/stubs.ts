@@ -154,14 +154,14 @@ export async function getMealsPayload(): Promise<{ meals: MealRowData[] }> {
 // WS7 fills this. Same seam pattern as the other payload getters above.
 
 /**
- * PRD §8 Plan Review payload stub.
- * Real data ships in WS7 (composite endpoint, server-resolved).
- * For WS5, returns an empty review plan — exercises the §8.6
- * "no meals in this plan yet" valid empty state.
- *
- * @param _planId MealPlanInstance.id (unused at stub stage)
+ * Module-level cache of built ReviewPlan objects so that screen-local
+ * mutations (plan name edits, date range changes, meal injections)
+ * persist across navigation within an app session. Real persistence
+ * lands in WS7 — until then, the cache is wiped on app reload.
  */
-export function getReviewPlan(_planId: string): ReviewPlan {
+const reviewPlanCache: Map<string, ReviewPlan> = new Map();
+
+function buildReviewPlan(_planId: string): ReviewPlan {
   // TODO(WS7): Remove this demo branch when getReviewPlan wires to
   // real data. Used for WS5 smoke testing of meal row component.
   if (_planId === "demo") {
@@ -271,6 +271,50 @@ export function getReviewPlan(_planId: string): ReviewPlan {
     breakfastDefaults: "",
     lunchDefaults: "",
   };
+}
+
+/**
+ * PRD §8 Plan Review payload stub.
+ * Real data ships in WS7 (composite endpoint, server-resolved).
+ * For WS5, returns an empty review plan — exercises the §8.6
+ * "no meals in this plan yet" valid empty state.
+ *
+ * Cached on first build per planId so that mutations applied via
+ * updateReviewPlanName / updateReviewPlanDateRange persist across
+ * navigation within the session.
+ */
+export function getReviewPlan(planId: string): ReviewPlan {
+  const cached = reviewPlanCache.get(planId);
+  if (cached) return cached;
+  const built = buildReviewPlan(planId);
+  reviewPlanCache.set(planId, built);
+  return built;
+}
+
+/**
+ * Mutates the cached ReviewPlan's name in place. WS5 stub for plan
+ * name persistence; WS7 replaces with API call.
+ */
+export function updateReviewPlanName(planId: string, name: string): void {
+  const plan = reviewPlanCache.get(planId);
+  if (plan) {
+    plan.name = name;
+  }
+}
+
+/**
+ * Mutates the cached ReviewPlan's date range. WS5 stub.
+ */
+export function updateReviewPlanDateRange(
+  planId: string,
+  startDate: string,
+  endDate: string,
+): void {
+  const plan = reviewPlanCache.get(planId);
+  if (plan) {
+    plan.weekStartDate = startDate;
+    plan.weekEndDate = endDate;
+  }
 }
 
 // ── Meal Detail (PRD §10.6) ──

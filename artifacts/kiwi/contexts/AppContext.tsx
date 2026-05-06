@@ -12,6 +12,8 @@ import {
   buildGroceryList,
   defaultPlan,
   getRecipe,
+  updateReviewPlanDateRange,
+  updateReviewPlanName,
 } from "@/lib/stubs";
 import type {
   DayOfWeek,
@@ -307,6 +309,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ): Promise<void> => {
     // TODO(WS7): wire to PATCH /plans/:planId (name)
     console.log("[stub] updatePlanName", { planId, name });
+    updateReviewPlanName(planId, name);
   };
 
   const updatePlanDateRange = async (
@@ -316,6 +319,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ): Promise<void> => {
     // TODO(WS7): wire to PATCH /plans/:planId (weekStartDate, weekEndDate)
     console.log("[stub] updatePlanDateRange", { planId, startDate, endDate });
+    updateReviewPlanDateRange(planId, startDate, endDate);
   };
 
   const toggleGrocery = useCallback(

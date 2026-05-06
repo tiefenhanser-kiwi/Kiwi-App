@@ -160,7 +160,15 @@ function DateRangeSheet({
   const [activePreset, setActivePreset] = useState<PresetKey>(() =>
     detectPreset(initialStart, initialEnd),
   );
-  const [customStart, setCustomStart] = useState(initialStart);
+  // Clamp customStart to today on init — if the saved range starts in
+  // the past (e.g. "this week's Sunday" opened mid-week), the stepper's
+  // "candidate < today" guard would block both +/- directions and the
+  // user couldn't escape. Forward-only from today is the right floor
+  // for a date the user is *editing*, even if the underlying plan still
+  // points at a past date.
+  const [customStart, setCustomStart] = useState(() =>
+    initialStart < todayISO() ? todayISO() : initialStart,
+  );
   const [customDuration, setCustomDuration] = useState(() => {
     const dur = diffDays(initialStart, initialEnd) + 1;
     return dur >= 1 && dur <= 7 ? dur : 7;
@@ -248,6 +256,17 @@ function DateRangeSheet({
               label="Custom"
               active={activePreset === "custom"}
               onPress={() => {
+                // Snap customStart to today if it's in the past — otherwise
+                // the +/- stepper's "candidate < today" clamp blocks both
+                // directions (e.g. a stale "this week's Sunday" mid-week
+                // is already past, so neither -1 nor +1 lands on/after
+                // today). Same guard for an out-of-range duration.
+                if (!customStart || customStart < today) {
+                  setCustomStart(today);
+                }
+                if (customDuration < 1 || customDuration > 7) {
+                  setCustomDuration(7);
+                }
                 setActivePreset("custom");
                 setError(null);
               }}
