@@ -22,6 +22,7 @@ import type {
   MealPlan,
   MealSlot,
   RecipeOverride,
+  UserPreferencesData,
 } from "@/lib/types";
 
 export interface UserPrefs {
@@ -124,6 +125,8 @@ interface AppState {
   updateUserEmail: (email: string) => Promise<void>;
   /** PRD §14.9.1 — update user's phone. Real persistence WS7. */
   updateUserPhone: (phone: string) => Promise<void>;
+  /** PRD §14.9.2 — update full user preferences. Real persistence WS7. */
+  updateUserPreferences: (prefs: UserPreferencesData) => Promise<void>;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
   favorites: string[];
@@ -356,6 +359,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     console.log("[stub] updateUserPhone", { phone });
   };
 
+  const updateUserPreferences = async (
+    prefs: UserPreferencesData,
+  ): Promise<void> => {
+    // TODO(WS7): wire to PATCH /me/preferences
+    console.log("[AppContext] updateUserPreferences", prefs);
+  };
+
   const toggleGrocery = useCallback(
     async (id: string) => {
       const updated = groceries.map((g) =>
@@ -423,6 +433,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateUserName,
     updateUserEmail,
     updateUserPhone,
+    updateUserPreferences,
     groceries,
     toggleGrocery,
     favorites,

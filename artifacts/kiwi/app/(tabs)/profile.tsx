@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -39,6 +40,7 @@ function initialsFor(name: string): string {
 }
 
 export default function ProfileTab() {
+  const router = useRouter();
   const { updateUserName, updateUserEmail, updateUserPhone } = useApp();
 
   const [userInfo, setUserInfo] = useState<UserAccountInfo>(() =>
@@ -111,10 +113,7 @@ export default function ProfileTab() {
   };
 
   const handlePreferences = () => {
-    Alert.alert(
-      "Coming in 5P-bis",
-      "The full preferences editor lands in the next sub-phase.",
-    );
+    router.push("/preferences");
   };
 
   const handleSubscription = () => {

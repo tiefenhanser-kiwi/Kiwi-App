@@ -19,6 +19,7 @@ import type {
   SavedDish,
   UserAccountInfo,
   UserPlanSummary,
+  UserPreferencesData,
   WizardPlanCandidate,
 } from "./types";
 import { buildDayStrip, DAYS, getMondayISO } from "./domain";
@@ -2410,5 +2411,75 @@ export function getCurrentUserInfo(): UserAccountInfo {
     name: "Hans Tiefenthaler",
     email: "hans.tiefenthaler@gmail.com",
     phone: "+1 (555) 123-4567",
+  };
+}
+
+// ── User Preferences (PRD §14.9.2) ──
+
+/**
+ * PRD §14.9.2 — stubbed user preferences for WS5.
+ * Real data lands when WS7 wires the API client.
+ * Pre-populated with sensible "engaged user" defaults so the
+ * Preferences page shows realistic state during smoke.
+ */
+export function getCurrentUserPreferences(): UserPreferencesData {
+  return {
+    // Cuisines
+    cuisines: ["American", "Italian", "Mexican", "Asian", "Mediterranean"],
+
+    // Eating styles
+    eatingStyles: ["Healthy", "High-protein"],
+
+    // Allergies
+    allergiesAndAvoidances: [],
+
+    // Cooking skill
+    cookingSkill: "Intermediate",
+
+    // Recurring grocery items
+    recurringGroceryItems: ["Milk", "Eggs", "Bananas", "Coffee"],
+
+    // Equipment
+    cookingEquipment: [
+      "Stove",
+      "Oven",
+      "Microwave",
+      "Slow cooker",
+      "Cast iron skillet",
+      "Dutch oven",
+    ],
+    stovetopType: "Gas",
+
+    // Kids
+    kidsCount: 2,
+    kidAgeRanges: ["Elementary (6-10)", "Tween (11-12)"],
+
+    // Picky eaters
+    pickyEaterCount: 1,
+    pickyAvoidances: ["Mushrooms", "Onions"],
+
+    // Spice tolerance
+    spiceTolerance: "Medium",
+
+    // Health goals
+    healthGoals: ["General health / wellness"],
+
+    // Budget level
+    budgetLevel: "Mid-range",
+
+    // Plan defaults
+    planLengthDefault: 5,
+    householdSize: 4,
+    wantsLeftovers: true,
+
+    // Marketing consents
+    marketingConsentEmail: false,
+    marketingConsentSms: false,
+
+    // Retailer
+    defaultRetailer: "Instacart",
+
+    // Dietary notes
+    dietaryNotes: undefined,
   };
 }

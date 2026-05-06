@@ -87,6 +87,40 @@ export interface UserAccountInfo {
   phone?: string;
 }
 
+/**
+ * PRD §14.9.2 — full user preferences from §3.4 + §3.5.
+ * Real persistence WS7.
+ */
+export interface UserPreferencesData {
+  // §3.4 — onboarding step 2
+  cuisines: string[];
+  eatingStyles: string[];
+  allergiesAndAvoidances: string[];
+  cookingSkill: "Beginner" | "Intermediate" | "Advanced";
+  recurringGroceryItems: string[];
+
+  // §3.5 — onboarding step 3
+  cookingEquipment: string[];
+  stovetopType?: "Gas" | "Induction" | "Electric";
+  kidsCount: number;
+  kidAgeRanges: string[];
+  pickyEaterCount: number;
+  pickyAvoidances: string[];
+  spiceTolerance: "Mild" | "Medium" | "Hot" | "Very Hot";
+  healthGoals: string[];
+  budgetLevel: "Economy" | "Mid-range" | "Premium";
+
+  // §14.9.2 additions
+  planLengthDefault: number;       // 1-7
+  householdSize: number;           // 1-30
+  wantsLeftovers: boolean;
+  marketingConsentEmail: boolean;
+  marketingConsentSms: boolean;
+  defaultRetailer: "Instacart" | "Amazon Fresh" | "Walmart" | "Kroger" | "Other";
+  /** Free-text dietary notes (carries over from wizard's "Anything else?") */
+  dietaryNotes?: string;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // PRD-aligned plan review types (WS5+)
 // Parallel to legacy MealPlan/MealSlot above; collapses in WS7.
