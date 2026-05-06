@@ -368,6 +368,33 @@ export interface DraftMeal {
 }
 
 /**
+ * PRD §5.5 — single plan candidate from wizard plan generation.
+ * Real AI shape lands in WS6 per PRD §5.7.
+ */
+export interface WizardPlanCandidate {
+  /** Stub identifier; WS7 generates real UUIDs. */
+  id: string;
+  title: string;
+  /** Optional curated/AI-generated image URL. */
+  imageUrl?: string;
+  /** "Featured" / "Top Rated" / undefined for no badge. */
+  badge?: "featured" | "top_rated";
+  /** 3 short tags shown above the why-box. */
+  tags: string[];
+  /** 1-2 short "why this works" bullets. */
+  whyBullets: string[];
+  /** 5 meal titles for the preview list. */
+  mealTitles: string[];
+  /** Daily-average macros for the plan. */
+  dailyMacros: {
+    calories: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+  };
+}
+
+/**
  * PRD §5.3 — input shape for the Set Preferences wizard.
  * Server's POST /api/wizard/build-plans payload (WS6 / WS7).
  */

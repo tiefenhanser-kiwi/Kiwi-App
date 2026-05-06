@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -142,10 +141,10 @@ export default function Wizard() {
       additionalNotes: form.additionalNotes.trim() || undefined,
     };
     console.log("[wizard] submit", payload);
-    Alert.alert(
-      "Coming in 5N-bis-fix-wizard-results",
-      "The plan options screen lands in the next sub-phase. Your preferences are captured (see console).",
-    );
+    // PRD §5.5 — route to plan-options screen. WS5 stub returns the
+    // same 3 candidates regardless of input; WS6 will pass the prefs
+    // payload to the AI-generation endpoint and consume its results.
+    router.push("/wizard-results");
   };
 
   const cuisineSelectedCount = form.cuisines.size;

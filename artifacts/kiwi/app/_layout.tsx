@@ -32,6 +32,7 @@ function RootLayoutNav() {
       <Stack.Screen name="tellkiwi" options={{ presentation: "modal" }} />
       <Stack.Screen name="cook-now" options={{ presentation: "modal" }} />
       <Stack.Screen name="plan-results" />
+      <Stack.Screen name="wizard-results" />
       <Stack.Screen name="plan/[id]" />
       <Stack.Screen name="meal/[id]" />
       <Stack.Screen name="meal-builder" />
