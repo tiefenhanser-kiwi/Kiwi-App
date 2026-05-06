@@ -127,6 +127,9 @@ interface AppState {
   updateUserPhone: (phone: string) => Promise<void>;
   /** PRD §14.9.2 — update full user preferences. Real persistence WS7. */
   updateUserPreferences: (prefs: UserPreferencesData) => Promise<void>;
+  /** PRD §14.9.4 — initiate account deactivation. Real soft-delete +
+   *  Stripe cancellation lands in WS7. */
+  deactivateAccount: () => Promise<void>;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
   favorites: string[];
@@ -366,6 +369,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     console.log("[AppContext] updateUserPreferences", prefs);
   };
 
+  const deactivateAccount = async (): Promise<void> => {
+    // TODO(WS7): wire to POST /me/deactivate (soft-delete + Stripe cancel)
+    console.log("[AppContext] deactivateAccount initiated");
+  };
+
   const toggleGrocery = useCallback(
     async (id: string) => {
       const updated = groceries.map((g) =>
@@ -434,6 +442,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateUserEmail,
     updateUserPhone,
     updateUserPreferences,
+    deactivateAccount,
     groceries,
     toggleGrocery,
     favorites,

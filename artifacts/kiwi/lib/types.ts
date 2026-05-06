@@ -88,6 +88,18 @@ export interface UserAccountInfo {
 }
 
 /**
+ * PRD §14.7 — User's subscription state. Real data via Stripe
+ * webhook + API in WS6.
+ */
+export interface SubscriptionInfo {
+  tier: "trial" | "active" | "canceled" | "past_due" | "none";
+  /** Days remaining in trial; null if not trial. */
+  trialDaysRemaining?: number;
+  /** ISO date for renewal; null if not active. */
+  nextRenewalDate?: string;
+}
+
+/**
  * PRD §14.9.2 — full user preferences from §3.4 + §3.5.
  * Real persistence WS7.
  */

@@ -44,6 +44,7 @@ function RootLayoutNav() {
       <Stack.Screen name="cookmode/[id]" options={{ presentation: "fullScreenModal" }} />
       <Stack.Screen name="upgrade" options={{ presentation: "modal" }} />
       <Stack.Screen name="preferences" />
+      <Stack.Screen name="deactivate-account" />
     </Stack>
   );
 }

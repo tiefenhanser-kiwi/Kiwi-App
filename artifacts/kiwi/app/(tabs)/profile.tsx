@@ -11,12 +11,14 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
+import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { getCurrentUserInfo } from "@/lib/stubs";
-import type { UserAccountInfo } from "@/lib/types";
+import { getCurrentSubscription, getCurrentUserInfo } from "@/lib/stubs";
+import type { SubscriptionInfo, UserAccountInfo } from "@/lib/types";
 
 type EditableField = "name" | "email" | "phone";
 
@@ -30,6 +32,26 @@ const isValidEmail = (s: string): boolean =>
  *   "Mary Anne Smith"   → "MS" (first + last, skips middle)
  *   ""                  → "?" (fallback, shouldn't happen since name is required)
  */
+function formatSubscriptionState(sub: SubscriptionInfo): string {
+  switch (sub.tier) {
+    case "trial":
+      return sub.trialDaysRemaining != null
+        ? `Trial · ${sub.trialDaysRemaining} days remaining`
+        : "Trial";
+    case "active":
+      return sub.nextRenewalDate
+        ? `Active · renews ${sub.nextRenewalDate}`
+        : "Active";
+    case "past_due":
+      return "Past due — please update billing";
+    case "canceled":
+      return "Canceled";
+    case "none":
+    default:
+      return "No active subscription";
+  }
+}
+
 function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -42,9 +64,13 @@ function initialsFor(name: string): string {
 export default function ProfileTab() {
   const router = useRouter();
   const { updateUserName, updateUserEmail, updateUserPhone } = useApp();
+  const auth = useAuth();
 
   const [userInfo, setUserInfo] = useState<UserAccountInfo>(() =>
     getCurrentUserInfo(),
+  );
+  const [subscription] = useState<SubscriptionInfo>(() =>
+    getCurrentSubscription(),
   );
   const [editingField, setEditingField] = useState<EditableField | null>(null);
   const [draftValue, setDraftValue] = useState("");
@@ -116,18 +142,24 @@ export default function ProfileTab() {
     router.push("/preferences");
   };
 
-  const handleSubscription = () => {
+  const handleManageSubscription = () => {
     Alert.alert(
-      "Coming in 5P-tris",
-      "Subscription management lands in a future sub-phase.",
+      "Coming in WS6 — Stripe integration",
+      "Subscription management requires the Stripe Customer Portal. This will be wired in WS6.",
     );
   };
 
-  const handlePrivacy = () => {
-    Alert.alert(
-      "Coming in 5P-tris",
-      "Privacy & Data lands in a future sub-phase.",
-    );
+  const handleLogout = async () => {
+    try {
+      await auth.logout();
+    } catch {
+      console.log("[profile] logout fallback");
+    }
+    router.replace("/(auth)/welcome");
+  };
+
+  const handleDeactivate = () => {
+    router.push("/deactivate-account");
   };
 
   return (
@@ -211,19 +243,66 @@ export default function ProfileTab() {
           onPress={handlePreferences}
         />
 
-        {/* Section D: Subscription (stubbed) */}
-        <NavCard
-          title="Subscription"
-          subtitle="Manage your plan and billing"
-          onPress={handleSubscription}
-        />
+        {/* Section D: Subscription (PRD §14.7) */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Subscription</Text>
+          <Text style={s.subscriptionState}>
+            {formatSubscriptionState(subscription)}
+          </Text>
+          <Text style={s.subscriptionHint}>
+            Upgrade for unlimited Kitchen Wizard plans and AI-powered features
+          </Text>
+          <View style={{ marginTop: KSpacing.md }}>
+            <Button
+              label="Manage subscription"
+              variant="secondary"
+              onPress={handleManageSubscription}
+            />
+          </View>
+        </View>
 
-        {/* Section E: Privacy & Data (stubbed) */}
-        <NavCard
-          title="Privacy & Data"
-          subtitle="Logout and account options"
-          onPress={handlePrivacy}
-        />
+        {/* Section E: Privacy & Data (PRD §14.9.4) */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Privacy & Data</Text>
+          <Pressable
+            onPress={handleLogout}
+            style={({ pressed }) => [s.actionRow, pressed && { opacity: 0.7 }]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={s.actionLabel}>Log out</Text>
+              <Text style={s.actionSubtitle}>
+                Sign out and return to the welcome screen
+              </Text>
+            </View>
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={KColors.neutral[600]}
+            />
+          </Pressable>
+          <Pressable
+            onPress={handleDeactivate}
+            style={({ pressed }) => [
+              s.actionRow,
+              s.actionRowDestructive,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[s.actionLabel, s.actionLabelDestructive]}>
+                Deactivate account
+              </Text>
+              <Text style={s.actionSubtitle}>
+                Soft-deletes your account; admins restore within 6 months
+              </Text>
+            </View>
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={KColors.terracotta[600]}
+            />
+          </Pressable>
+        </View>
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -457,6 +536,46 @@ const s = StyleSheet.create({
     fontFamily: "Inter_700Bold",
   },
   navCardSubtitle: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  subscriptionState: {
+    fontSize: KType.size.lg,
+    color: KColors.sage[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    marginTop: 2,
+  },
+  subscriptionHint: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: KSpacing.xs,
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+    paddingVertical: KSpacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: KColors.neutral[200],
+    marginTop: KSpacing.sm,
+  },
+  actionRowDestructive: {
+    // Same divider treatment; color handled on the label/icon.
+  },
+  actionLabel: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  actionLabelDestructive: {
+    color: KColors.terracotta[600],
+  },
+  actionSubtitle: {
     fontSize: KType.size.xs,
     color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",

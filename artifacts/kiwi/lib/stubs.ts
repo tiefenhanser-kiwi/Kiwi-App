@@ -17,6 +17,7 @@ import type {
   ReviewMeal,
   ReviewPlan,
   SavedDish,
+  SubscriptionInfo,
   UserAccountInfo,
   UserPlanSummary,
   UserPreferencesData,
@@ -2411,6 +2412,20 @@ export function getCurrentUserInfo(): UserAccountInfo {
     name: "Hans Tiefenthaler",
     email: "hans.tiefenthaler@gmail.com",
     phone: "+1 (555) 123-4567",
+  };
+}
+
+// ── Subscription (PRD §14.7) ──
+
+/**
+ * PRD §14.7 — stubbed subscription state for WS5.
+ * Real data lands in WS6 (Stripe + API).
+ */
+export function getCurrentSubscription(): SubscriptionInfo {
+  return {
+    tier: "trial",
+    trialDaysRemaining: 14,
+    nextRenewalDate: undefined,
   };
 }
 
