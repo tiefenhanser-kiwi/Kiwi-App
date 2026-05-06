@@ -366,3 +366,31 @@ export interface DraftMeal {
   /** Source URL (for Import URL) — populated only when source is URL parse. */
   sourceUrl?: string;
 }
+
+/**
+ * PRD §5.3 — input shape for the Set Preferences wizard.
+ * Server's POST /api/wizard/build-plans payload (WS6 / WS7).
+ */
+export interface WizardPreferencesInput {
+  // Required
+  planDurationDays: number;
+  householdSize: number;
+  wantsLeftovers: boolean;
+
+  // Multi-select preferences (all optional, may be empty arrays)
+  cuisines: string[];
+  eatingStyles: string[];
+  allergiesAndAvoidances: string[];
+
+  // Single-select
+  difficulty: "easy" | "medium" | "fancy";
+  weeklyPacing:
+    | "mostly_easy"
+    | "mixed"
+    | "one_fancy"
+    | "minimal_effort";
+
+  // Optional free text
+  dietaryNotes?: string;
+  additionalNotes?: string;
+}
