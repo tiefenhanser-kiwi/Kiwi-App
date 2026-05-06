@@ -139,15 +139,6 @@ export const STOVETOP_TYPES = [
   "Electric",
 ] as const;
 
-/** PRD §3.5 — kid age range checkboxes. */
-export const KID_AGE_RANGES = [
-  "Toddler (1-3)",
-  "Preschool (4-5)",
-  "Elementary (6-10)",
-  "Tween (11-12)",
-  "Teen (13-17)",
-] as const;
-
 /** PRD §3.5 — picky eater avoidance chips. */
 export const PICKY_AVOIDANCES = [
   "Mushrooms",

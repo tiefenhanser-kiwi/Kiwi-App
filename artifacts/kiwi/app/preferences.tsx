@@ -30,7 +30,6 @@ import {
   DEFAULT_RETAILERS,
   EATING_STYLES,
   HEALTH_GOALS,
-  KID_AGE_RANGES,
   PICKY_AVOIDANCES,
   PLAN_DURATION_PRESETS,
   SPICE_TOLERANCE_OPTIONS,
@@ -70,7 +69,6 @@ export default function Preferences() {
       | "eatingStyles"
       | "allergiesAndAvoidances"
       | "cookingEquipment"
-      | "kidAgeRanges"
       | "pickyAvoidances"
       | "healthGoals"
       | "recurringGroceryItems",
@@ -188,40 +186,7 @@ export default function Preferences() {
             max={KIDS_MAX}
             suffix={form.kidsCount === 1 ? "kid" : "kids"}
           />
-          {form.kidsCount > 0 && (
-            <View style={{ marginTop: KSpacing.md }}>
-              <SubLabel>Kids' ages</SubLabel>
-              <View style={s.checkboxList}>
-                {KID_AGE_RANGES.map((age) => {
-                  const checked = form.kidAgeRanges.includes(age);
-                  return (
-                    <Pressable
-                      key={age}
-                      onPress={() => toggleArrayItem("kidAgeRanges", age)}
-                      style={({ pressed }) => [
-                        s.checkboxRow,
-                        pressed && { opacity: 0.7 },
-                      ]}
-                      hitSlop={6}
-                    >
-                      <View
-                        style={[s.checkbox, checked && s.checkboxChecked]}
-                      >
-                        {checked && (
-                          <Feather
-                            name="check"
-                            size={14}
-                            color={KColors.neutral[0]}
-                          />
-                        )}
-                      </View>
-                      <Text style={s.checkboxLabel}>{age}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          )}
+          {/* Kid ages sub-section removed per WS5-5P-bis-fix. */}
 
           <SubLabel style={{ marginTop: KSpacing.lg }}>
             Picky eaters
@@ -663,34 +628,6 @@ const s = StyleSheet.create({
     flex: 1,
     fontSize: KType.size.sm,
     color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-  },
-  checkboxList: {
-    gap: KSpacing.sm,
-  },
-  checkboxRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: KSpacing.sm,
-    paddingVertical: 4,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: KRadius.sm,
-    borderWidth: 2,
-    borderColor: KColors.neutral[400],
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: KColors.neutral[0],
-  },
-  checkboxChecked: {
-    backgroundColor: KColors.sage[700],
-    borderColor: KColors.sage[700],
-  },
-  checkboxLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
     fontFamily: "Inter_400Regular",
   },
   expandLink: {

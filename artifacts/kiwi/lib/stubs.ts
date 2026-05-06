@@ -2452,7 +2452,6 @@ export function getCurrentUserPreferences(): UserPreferencesData {
 
     // Kids
     kidsCount: 2,
-    kidAgeRanges: ["Elementary (6-10)", "Tween (11-12)"],
 
     // Picky eaters
     pickyEaterCount: 1,

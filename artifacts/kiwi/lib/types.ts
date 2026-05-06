@@ -103,7 +103,8 @@ export interface UserPreferencesData {
   cookingEquipment: string[];
   stovetopType?: "Gas" | "Induction" | "Electric";
   kidsCount: number;
-  kidAgeRanges: string[];
+  // Kid ages removed in WS5-5P-bis-fix per Hans (privacy concern,
+  // marginal AI value). PRD §3.5 redline pending.
   pickyEaterCount: number;
   pickyAvoidances: string[];
   spiceTolerance: "Mild" | "Medium" | "Hot" | "Very Hot";
