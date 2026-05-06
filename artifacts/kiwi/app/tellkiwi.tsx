@@ -1,182 +1,553 @@
 import React, { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useRouter } from "expo-router";
+import {
+  Alert,
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
-import { Screen } from "@/components/Screen";
-import { useApp } from "@/contexts/AppContext";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { getMondayISO } from "@/lib/domain";
-import type { MealPlan } from "@/lib/types";
-import { newId } from "@/lib/storage";
-import { generatePlan } from "@/lib/api";
+import {
+  ALLERGIES_AND_AVOIDANCES,
+  EATING_STYLES,
+} from "@/lib/domain";
+import type { TellKiwiInput } from "@/lib/types";
 
-const SUGGESTIONS = [
-  "Quick weeknight dinners under 30 minutes",
-  "Mediterranean meals with lots of vegetables",
-  "Kid-friendly week, easy on the spice",
-];
+const HOUSEHOLD_MIN = 1;
+const HOUSEHOLD_MAX = 30;
+const DESCRIPTION_MAX = 500;
+const DESCRIPTION_MIN = 5;
+
+const PLACEHOLDER =
+  "Describe what you'd like for the week. Examples: 'Comforting weeknight meals for a family of 4', 'Italian and Mediterranean only', 'burgers, mac and cheese, grilled chicken, soup, and pasta', or 'Easy meals my picky kids will eat plus one fancy night'";
+
+interface TellKiwiFormState {
+  description: string;
+  householdSize: number;
+  wantsLeftovers: boolean;
+  dietExpanded: boolean;
+  eatingStyles: Set<string>;
+  allergiesExpanded: boolean;
+  allergies: Set<string>;
+  dietaryNotes: string;
+}
+
+const INITIAL_FORM: TellKiwiFormState = {
+  description: "",
+  householdSize: 4,
+  wantsLeftovers: false,
+  dietExpanded: false,
+  eatingStyles: new Set(),
+  allergiesExpanded: false,
+  allergies: new Set(),
+  dietaryNotes: "",
+};
 
 export default function TellKiwi() {
   const router = useRouter();
-  const { savePlan, prefs } = useApp();
-  const [text, setText] = useState("");
-  const [building, setBuilding] = useState(false);
+  const [form, setForm] = useState<TellKiwiFormState>(INITIAL_FORM);
 
-  const submit = async (raw?: string) => {
-    const prompt = (raw ?? text).trim();
-    if (!prompt) return;
-    setBuilding(true);
-    try {
-      const result = await generatePlan({
-        prompt,
-        nights: 5,
-        prefs,
-      });
-      const plan: MealPlan = {
-        id: newId(),
-        name:
-          result.name ||
-          (prompt.length > 40 ? prompt.slice(0, 40) + "…" : prompt),
-        notes: result.notes,
-        createdAt: Date.now(),
-        weekStart: getMondayISO(),
-        meals: result.meals,
-      };
-      await savePlan(plan);
-      // PRD §11.4 — completion lands on the new plan's review page.
-      // WS5: route to the demo "just-created" plan id; WS7 will use
-      // the real planId returned by the plan-creation API.
-      router.replace("/plan/demo-plan-just-created");
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "";
-      Alert.alert(
-        "Couldn't reach Kiwi",
-        message || "Try again in a moment.",
-      );
-    } finally {
-      setBuilding(false);
-    }
+  const update = <K extends keyof TellKiwiFormState>(
+    key: K,
+    value: TellKiwiFormState[K],
+  ) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
   };
+
+  const toggleSetItem = (
+    key: "eatingStyles" | "allergies",
+    item: string,
+  ) => {
+    setForm((prev) => {
+      const next = new Set(prev[key]);
+      if (next.has(item)) next.delete(item);
+      else next.add(item);
+      return { ...prev, [key]: next };
+    });
+  };
+
+  const stepHousehold = (delta: number) => {
+    setForm((prev) => {
+      const next = Math.max(
+        HOUSEHOLD_MIN,
+        Math.min(HOUSEHOLD_MAX, prev.householdSize + delta),
+      );
+      return { ...prev, householdSize: next };
+    });
+  };
+
+  const handleSubmit = () => {
+    Keyboard.dismiss();
+    if (form.description.trim().length < DESCRIPTION_MIN) {
+      Alert.alert(
+        "Tell Kiwi a bit more",
+        "Describe what you'd like — at least a few words about meals, cuisines, or the kind of week you want.",
+      );
+      return;
+    }
+
+    const payload: TellKiwiInput = {
+      description: form.description.trim(),
+      householdSize: form.householdSize,
+      wantsLeftovers: form.wantsLeftovers,
+      eatingStyles: Array.from(form.eatingStyles),
+      allergiesAndAvoidances: Array.from(form.allergies),
+      dietaryNotes: form.dietaryNotes.trim() || undefined,
+    };
+
+    console.log("[tellkiwi] submit", payload);
+
+    // PRD §6.5/§6.6 — Tell Kiwi shares the plan-options screen with
+    // the wizard. Source param adapts the subtitle copy. WS5 stub
+    // returns the same 3 candidates regardless of input; WS6 will
+    // pass this payload to the AI build-from-text endpoint.
+    router.push({
+      pathname: "/wizard-results",
+      params: { source: "tellkiwi" },
+    });
+  };
+
+  const charCount = form.description.length;
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
-      <Header title="Tell Kiwi" subtitle="Describe what you want" showBack />
-      <Screen>
-        <View style={s.intro}>
-          <Feather name="message-circle" size={20} color={KColors.terracotta[400]} />
-          <Text style={s.introText}>
-            Just type what's on your mind — Kiwi reads your preferences,
-            then builds a plan that fits.
+      <Header
+        showBack
+        title="Kitchen Wizard"
+        subtitle="Just say what you want"
+      />
+      <KeyboardAwareScrollViewCompat
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Section 1: Free-text description */}
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Tell Kiwi</Text>
+          <Text style={s.cardTitle}>What do you want to eat?</Text>
+          <Text style={s.cardSubtitle}>
+            List your meals or what you're into. Kiwi builds the plan,
+            reviews ingredients, and optimizes across the week.
           </Text>
+          <View style={{ marginTop: KSpacing.md }}>
+            <TextInput
+              value={form.description}
+              onChangeText={(v) =>
+                update("description", v.slice(0, DESCRIPTION_MAX))
+              }
+              placeholder={PLACEHOLDER}
+              placeholderTextColor={KColors.neutral[600]}
+              multiline
+              maxLength={DESCRIPTION_MAX}
+              returnKeyType="default"
+              blurOnSubmit
+              style={[s.input, s.descriptionInput]}
+            />
+            <Text style={s.charCount}>
+              {charCount}/{DESCRIPTION_MAX}
+            </Text>
+          </View>
         </View>
 
-        <Text style={s.label}>What's this week looking like?</Text>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder="e.g. Plan me 4 quick dinners that use what's already in my fridge…"
-          placeholderTextColor={KColors.neutral[600]}
-          multiline
-          style={s.input}
-        />
+        {/* Section 2: Household size */}
+        <Section label="Household" title="Cooking for">
+          <Stepper
+            value={form.householdSize}
+            onDecrement={() => stepHousehold(-1)}
+            onIncrement={() => stepHousehold(1)}
+            disabledMin={form.householdSize <= HOUSEHOLD_MIN}
+            disabledMax={form.householdSize >= HOUSEHOLD_MAX}
+            suffix={form.householdSize === 1 ? "person" : "people"}
+          />
+        </Section>
 
-        <Text style={s.subLabel}>Need a starting point?</Text>
-        <View style={{ gap: KSpacing.sm }}>
-          {SUGGESTIONS.map((sug) => (
-            <Pressable
-              key={sug}
-              onPress={() => {
-                setText(sug);
+        {/* Section 3: Leftovers */}
+        <Section label="Leftovers" title="Include leftovers">
+          <View style={s.toggleRow}>
+            <Text style={s.toggleSubtitle}>
+              Kiwi sizes portions to leave planned extras
+            </Text>
+            <Switch
+              value={form.wantsLeftovers}
+              onValueChange={(v) => update("wantsLeftovers", v)}
+              trackColor={{
+                false: KColors.neutral[400],
+                true: KColors.sage[700],
               }}
-              style={({ pressed }) => [s.sug, pressed && { opacity: 0.7 }]}
-            >
-              <Feather
-                name="arrow-up-left"
-                size={14}
-                color={KColors.sage[600]}
+              thumbColor={KColors.neutral[0]}
+            />
+          </View>
+        </Section>
+
+        {/* Section 4: Diet (collapsible) */}
+        <View style={s.card}>
+          <Pressable
+            onPress={() => update("dietExpanded", !form.dietExpanded)}
+            style={({ pressed }) => [
+              s.dietHeader,
+              pressed && { opacity: 0.7 },
+            ]}
+            hitSlop={6}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={s.cardTitle}>
+                Dietary preferences & restrictions
+              </Text>
+              <Text style={s.cardSubtitle}>Optional</Text>
+            </View>
+            <Feather
+              name={form.dietExpanded ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={KColors.neutral[700]}
+            />
+          </Pressable>
+
+          {form.dietExpanded && (
+            <View style={s.dietBody}>
+              <Text style={s.subSectionLabel}>Eating styles</Text>
+              <View style={s.chipRow}>
+                {EATING_STYLES.map((e) => (
+                  <Chip
+                    key={e}
+                    label={e}
+                    selected={form.eatingStyles.has(e)}
+                    onPress={() => toggleSetItem("eatingStyles", e)}
+                  />
+                ))}
+              </View>
+
+              <Text style={[s.subSectionLabel, { marginTop: KSpacing.lg }]}>
+                Allergies & avoidances
+              </Text>
+              <ExpandLink
+                expanded={form.allergiesExpanded}
+                label="More"
+                onPress={() =>
+                  update("allergiesExpanded", !form.allergiesExpanded)
+                }
               />
-              <Text style={s.sugText}>{sug}</Text>
-            </Pressable>
-          ))}
+              {form.allergiesExpanded && (
+                <View style={[s.chipRow, { marginTop: KSpacing.sm }]}>
+                  {ALLERGIES_AND_AVOIDANCES.map((a) => (
+                    <Chip
+                      key={a}
+                      label={a}
+                      selected={form.allergies.has(a)}
+                      onPress={() => toggleSetItem("allergies", a)}
+                    />
+                  ))}
+                </View>
+              )}
+
+              <Text style={[s.subSectionLabel, { marginTop: KSpacing.lg }]}>
+                Anything else?
+              </Text>
+              <TextInput
+                value={form.dietaryNotes}
+                onChangeText={(v) => update("dietaryNotes", v)}
+                placeholder="e.g., 'no shellfish', 'low sodium'"
+                placeholderTextColor={KColors.neutral[600]}
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={Keyboard.dismiss}
+                style={s.input}
+              />
+            </View>
+          )}
         </View>
 
-        <View style={{ height: KSpacing.xl }} />
-        <Button
-          label={building ? "Kiwi is thinking…" : "Cook up a plan"}
-          variant="terra"
-          onPress={() => submit()}
-          loading={building}
-          disabled={text.trim().length === 0}
-        />
-      </Screen>
+        {/* Submit + cancel */}
+        <View style={s.footer}>
+          <Button
+            label="Build my plan"
+            variant="terra"
+            onPress={handleSubmit}
+          />
+          <Text style={s.footerHint}>
+            Kiwi cooks up your plan from what you wrote
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={6}
+            style={({ pressed }) => [
+              s.cancelLink,
+              pressed && { opacity: 0.6 },
+            ]}
+          >
+            <Text style={s.cancelText}>Cancel</Text>
+          </Pressable>
+        </View>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }
 
+function Section({
+  label,
+  title,
+  subtitle,
+  children,
+}: {
+  label: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={s.card}>
+      <Text style={s.sectionLabel}>{label}</Text>
+      <Text style={s.cardTitle}>{title}</Text>
+      {subtitle && <Text style={s.cardSubtitle}>{subtitle}</Text>}
+      <View style={{ marginTop: KSpacing.md }}>{children}</View>
+    </View>
+  );
+}
+
+function Stepper({
+  value,
+  suffix,
+  onDecrement,
+  onIncrement,
+  disabledMin,
+  disabledMax,
+}: {
+  value: number;
+  suffix?: string;
+  onDecrement: () => void;
+  onIncrement: () => void;
+  disabledMin?: boolean;
+  disabledMax?: boolean;
+}) {
+  return (
+    <View style={s.stepperWrap}>
+      <Pressable
+        onPress={onDecrement}
+        disabled={disabledMin}
+        hitSlop={8}
+        style={({ pressed }) => [
+          s.stepperBtn,
+          disabledMin && { opacity: 0.4 },
+          pressed && !disabledMin && { opacity: 0.6 },
+        ]}
+      >
+        <Feather name="minus" size={18} color={KColors.sage[700]} />
+      </Pressable>
+      <View style={s.stepperCenter}>
+        <Text style={s.stepperValue}>{value}</Text>
+        {suffix && <Text style={s.stepperSuffix}>{suffix}</Text>}
+      </View>
+      <Pressable
+        onPress={onIncrement}
+        disabled={disabledMax}
+        hitSlop={8}
+        style={({ pressed }) => [
+          s.stepperBtn,
+          disabledMax && { opacity: 0.4 },
+          pressed && !disabledMax && { opacity: 0.6 },
+        ]}
+      >
+        <Feather name="plus" size={18} color={KColors.sage[700]} />
+      </Pressable>
+    </View>
+  );
+}
+
+function ExpandLink({
+  expanded,
+  label,
+  onPress,
+}: {
+  expanded: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={6}
+      style={({ pressed }) => [
+        s.expandLink,
+        pressed && { opacity: 0.6 },
+      ]}
+    >
+      <Text style={s.expandLinkText}>{label}</Text>
+      <Feather
+        name={expanded ? "chevron-up" : "chevron-down"}
+        size={14}
+        color={KColors.sage[700]}
+      />
+    </Pressable>
+  );
+}
+
 const s = StyleSheet.create({
-  intro: {
-    flexDirection: "row",
-    gap: KSpacing.sm,
-    backgroundColor: KColors.terracotta[50],
-    borderColor: KColors.terracotta[200],
-    borderWidth: 1,
+  scrollContent: {
+    paddingHorizontal: KSpacing.lg,
+    paddingTop: KSpacing.lg,
+    paddingBottom: KSpacing.xxxl * 2,
+    gap: KSpacing.md,
+  },
+  card: {
+    backgroundColor: KColors.neutral[0],
     borderRadius: KRadius.lg,
-    padding: KSpacing.md,
-    marginBottom: KSpacing.xl,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.lg,
   },
-  introText: {
-    flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    lineHeight: 20,
-    fontFamily: "Inter_400Regular",
+  sectionLabel: {
+    fontSize: KType.size.xs,
+    color: KColors.sage[600],
+    fontWeight: KType.weight.semibold,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 6,
   },
-  label: {
+  cardTitle: {
     fontSize: KType.size.lg,
-    fontWeight: "600",
     color: KColors.neutral[900],
-    marginBottom: KSpacing.sm,
+    fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
   },
-  subLabel: {
+  cardSubtitle: {
     fontSize: KType.size.sm,
-    fontWeight: "600",
-    color: KColors.sage[600],
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    marginTop: KSpacing.xl,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+    lineHeight: 20,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.md,
+  },
+  toggleSubtitle: {
+    flex: 1,
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+  },
+  stepperWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: KColors.neutral[100],
+    borderRadius: KRadius.md,
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: 6,
+    alignSelf: "flex-start",
+    gap: KSpacing.lg,
+    minWidth: 180,
+    justifyContent: "space-between",
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperCenter: {
+    alignItems: "center",
+    minWidth: 80,
+  },
+  stepperValue: {
+    fontSize: KType.size.xl,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.bold,
+    fontFamily: "Inter_700Bold",
+  },
+  stepperSuffix: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  dietHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+  },
+  dietBody: {
+    marginTop: KSpacing.lg,
+  },
+  subSectionLabel: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[800],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
     marginBottom: KSpacing.sm,
+  },
+  expandLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: KSpacing.sm,
+    alignSelf: "flex-start",
+  },
+  expandLinkText: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
   },
   input: {
     borderWidth: 1,
     borderColor: KColors.neutral[400],
     backgroundColor: KColors.neutral[0],
-    borderRadius: KRadius.lg,
-    padding: KSpacing.md,
+    borderRadius: KRadius.md,
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.sm,
     fontSize: KType.size.md,
     color: KColors.neutral[900],
-    minHeight: 120,
-    textAlignVertical: "top",
     fontFamily: "Inter_400Regular",
+    textAlignVertical: "top",
   },
-  sug: {
-    flexDirection: "row",
+  descriptionInput: {
+    minHeight: 110,
+    maxHeight: 220,
+    paddingVertical: KSpacing.md,
+    lineHeight: 22,
+  },
+  charCount: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: KSpacing.xs,
+    textAlign: "right",
+  },
+  footer: {
+    marginTop: KSpacing.lg,
     gap: KSpacing.sm,
     alignItems: "center",
-    backgroundColor: KColors.neutral[0],
-    borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    borderRadius: KRadius.lg,
-    padding: KSpacing.md,
   },
-  sugText: {
-    flex: 1,
-    color: KColors.neutral[800],
-    fontSize: KType.size.md,
+  footerHint: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
+  cancelLink: {
+    paddingVertical: KSpacing.sm,
+    paddingHorizontal: KSpacing.md,
+    marginTop: KSpacing.xs,
+  },
+  cancelText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontWeight: KType.weight.medium,
+    fontFamily: "Inter_500Medium",
   },
 });

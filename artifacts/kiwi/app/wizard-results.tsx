@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
@@ -29,8 +29,15 @@ if (
 
 export default function WizardResultsScreen() {
   const router = useRouter();
+  // PRD §6.5/§6.6 — Tell Kiwi reuses this screen with adapted subtitle copy.
+  const { source } = useLocalSearchParams<{ source?: "tellkiwi" }>();
   const candidates = useMemo(() => getWizardPlanCandidates(), []);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const subtitle =
+    source === "tellkiwi"
+      ? "3 plans Kiwi built from your request"
+      : "3 plans Kiwi cooked up just for you";
 
   const toggleExpanded = (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -70,7 +77,7 @@ export default function WizardResultsScreen() {
       <Header
         showBack
         title="Plan options"
-        subtitle="3 plans Kiwi cooked up just for you"
+        subtitle={subtitle}
       />
       <Screen>
         <View style={s.actionRow}>

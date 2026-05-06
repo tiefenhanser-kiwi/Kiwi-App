@@ -395,6 +395,24 @@ export interface WizardPlanCandidate {
 }
 
 /**
+ * PRD §6.3 — input shape for Just Say What You Want (Tell Kiwi).
+ * Server's POST /api/wizard/build-from-text payload (WS6).
+ */
+export interface TellKiwiInput {
+  /** Multi-line description; 5-500 chars. */
+  description: string;
+
+  // Optional pref overrides (default to user's saved preferences)
+  householdSize: number;          // 1-30
+  wantsLeftovers: boolean;
+
+  // Dietary expansion (collapsed by default)
+  eatingStyles: string[];         // From EATING_STYLES catalog
+  allergiesAndAvoidances: string[]; // From ALLERGIES_AND_AVOIDANCES
+  dietaryNotes?: string;          // "no shellfish, low sodium"
+}
+
+/**
  * PRD §5.3 — input shape for the Set Preferences wizard.
  * Server's POST /api/wizard/build-plans payload (WS6 / WS7).
  */
