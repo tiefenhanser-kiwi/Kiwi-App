@@ -128,7 +128,26 @@ export default function DishDetailScreen() {
             <View style={[s.heroImage, s.heroFallback]} />
           )}
           <Text style={s.heroTitle}>{dish.name}</Text>
-          <Text style={s.heroMeta}>{metaParts.join(" · ")}</Text>
+          <View style={s.metaRow}>
+            <Text style={s.heroMeta}>{metaParts.join(" · ")}</Text>
+            <View
+              style={[
+                s.typePill,
+                dish.type === "main" ? s.typePillMain : s.typePillSide,
+              ]}
+            >
+              <Text
+                style={[
+                  s.typePillText,
+                  dish.type === "main"
+                    ? s.typePillTextMain
+                    : s.typePillTextSide,
+                ]}
+              >
+                {dish.type === "main" ? "Main" : "Side"}
+              </Text>
+            </View>
+          </View>
           <Text style={s.heroMacros}>
             {macrosAllZero
               ? "Macros not set"
@@ -255,10 +274,41 @@ const s = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     marginTop: KSpacing.sm,
   },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+  },
   heroMeta: {
+    flex: 1,
     fontSize: KType.size.sm,
     color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
+  },
+  typePill: {
+    paddingHorizontal: KSpacing.sm,
+    paddingVertical: 3,
+    borderRadius: KRadius.pill,
+    borderWidth: 1,
+  },
+  typePillSide: {
+    backgroundColor: KColors.sage[50],
+    borderColor: KColors.sage[300],
+  },
+  typePillMain: {
+    backgroundColor: KColors.terracotta[50],
+    borderColor: KColors.terracotta[300],
+  },
+  typePillText: {
+    fontSize: KType.size.xs,
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  typePillTextSide: {
+    color: KColors.sage[700],
+  },
+  typePillTextMain: {
+    color: KColors.terracotta[700],
   },
   heroMacros: {
     fontSize: KType.size.sm,

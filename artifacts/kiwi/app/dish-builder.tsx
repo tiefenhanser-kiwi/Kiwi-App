@@ -54,8 +54,12 @@ interface DishBuilderForm {
   name: string;
   cuisineType?: string;
   cuisineExpanded: boolean;
+  type: "side" | "main";
   estimatedTimeMinutes: number;
   servingsDefault: number;
+  kiwiAssistMacros: boolean;
+  kiwiAssistIngredients: boolean;
+  kiwiAssistSteps: boolean;
   caloriesPerServing: number;
   proteinGPerServing: number;
   carbsGPerServing: number;
@@ -80,8 +84,12 @@ const initialForm = (): DishBuilderForm => ({
   name: "",
   cuisineType: undefined,
   cuisineExpanded: false,
+  type: "main",
   estimatedTimeMinutes: 30,
   servingsDefault: 4,
+  kiwiAssistMacros: false,
+  kiwiAssistIngredients: false,
+  kiwiAssistSteps: false,
   caloriesPerServing: 0,
   proteinGPerServing: 0,
   carbsGPerServing: 0,
@@ -101,23 +109,22 @@ function findDishById(id: string): SavedDish | null {
 }
 
 function dishToForm(dish: SavedDish): DishBuilderForm {
-  const cuisinePreset =
-    dish.cuisineType &&
-    [...CUISINES_TIER_1, ...CUISINES_TIER_2].includes(
-      dish.cuisineType as never,
-    );
+  const isTier2 =
+    !!dish.cuisineType &&
+    (CUISINES_TIER_2 as readonly string[]).includes(dish.cuisineType);
   return {
     id: dish.id,
     name: dish.name,
     cuisineType: dish.cuisineType,
-    cuisineExpanded:
-      !!dish.cuisineType &&
-      !cuisinePreset
-        ? true
-        : !!dish.cuisineType &&
-          (CUISINES_TIER_2 as readonly string[]).includes(dish.cuisineType),
+    cuisineExpanded: isTier2,
+    type: dish.type,
     estimatedTimeMinutes: dish.estimatedTimeMinutes ?? 30,
     servingsDefault: 4,
+    // Kiwi-assist defaults to false on edit — user's existing manual
+    // content takes precedence and shouldn't be silently overwritten.
+    kiwiAssistMacros: false,
+    kiwiAssistIngredients: false,
+    kiwiAssistSteps: false,
     caloriesPerServing: dish.caloriesPerServing,
     proteinGPerServing: dish.proteinGPerServing,
     carbsGPerServing: dish.carbsGPerServing,
@@ -147,7 +154,6 @@ export default function DishBuilderScreen() {
   const { saveDish } = useApp();
   const [form, setForm] = useState<DishBuilderForm>(initialForm);
 
-  // Pre-populate on edit. Re-runs only if dishId changes.
   useEffect(() => {
     if (!dishId) return;
     const dish = findDishById(dishId);
@@ -223,30 +229,23 @@ export default function DishBuilderScreen() {
     }));
   };
 
-  const handleAiMacros = () => {
-    Alert.alert(
-      "Coming in WS6 — AI orchestration",
-      "Kiwi will determine macros from your ingredients when AI orchestration ships.",
-    );
-  };
-
-  const handleAiSteps = () => {
-    Alert.alert(
-      "Coming in WS6 — AI orchestration",
-      "Kiwi will suggest recipe steps when AI orchestration ships.",
-    );
-  };
-
   const handleSave = async () => {
     Keyboard.dismiss();
     if (!form.name.trim()) {
       Alert.alert("Add a name", "Give this dish a name to save it.");
       return;
     }
-    const cleanIngredients = form.ingredients.filter((i) => i.name.trim());
-    if (cleanIngredients.length === 0) {
-      Alert.alert("Add ingredients", "Add at least one ingredient.");
-      return;
+    // When kiwiAssistIngredients is true, AI fills in ingredients server-side
+    // (WS6); skip manual ingredient validation.
+    if (!form.kiwiAssistIngredients) {
+      const cleanIngredients = form.ingredients.filter((i) => i.name.trim());
+      if (cleanIngredients.length === 0) {
+        Alert.alert(
+          "Add ingredients",
+          "Add at least one ingredient — or check 'Have Kiwi suggest recipe'.",
+        );
+        return;
+      }
     }
 
     const draft: DishDraft = {
@@ -255,20 +254,30 @@ export default function DishBuilderScreen() {
       cuisineType: form.cuisineType,
       estimatedTimeMinutes: form.estimatedTimeMinutes,
       servingsDefault: form.servingsDefault,
-      ingredients: cleanIngredients.map((i) => ({
-        quantity: i.quantity,
-        unit: i.unit.trim(),
-        name: i.name.trim(),
-      })),
-      steps: form.steps
-        .filter((s) => s.text.trim())
-        .map((s, idx) => ({
-          stepNumber: idx + 1,
-          text: s.text.trim(),
-          estimatedMinutes:
-            s.estimatedMinutes > 0 ? s.estimatedMinutes : undefined,
-          isTimingSensitive: s.isTimingSensitive || undefined,
-        })),
+      type: form.type,
+      kiwiAssistMacros: form.kiwiAssistMacros,
+      kiwiAssistIngredients: form.kiwiAssistIngredients,
+      kiwiAssistSteps: form.kiwiAssistSteps,
+      ingredients: form.kiwiAssistIngredients
+        ? []
+        : form.ingredients
+            .filter((i) => i.name.trim())
+            .map((i) => ({
+              quantity: i.quantity,
+              unit: i.unit.trim(),
+              name: i.name.trim(),
+            })),
+      steps: form.kiwiAssistSteps
+        ? []
+        : form.steps
+            .filter((s) => s.text.trim())
+            .map((s, idx) => ({
+              stepNumber: idx + 1,
+              text: s.text.trim(),
+              estimatedMinutes:
+                s.estimatedMinutes > 0 ? s.estimatedMinutes : undefined,
+              isTimingSensitive: s.isTimingSensitive || undefined,
+            })),
       caloriesPerServing: form.caloriesPerServing,
       proteinGPerServing: form.proteinGPerServing,
       carbsGPerServing: form.carbsGPerServing,
@@ -299,9 +308,8 @@ export default function DishBuilderScreen() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Section 1: Basics */}
+        {/* Section 1: Dish Details */}
         <View style={s.card}>
-          <Text style={s.sectionLabel}>Basics</Text>
           <Text style={s.cardTitle}>Dish details</Text>
           <View style={{ marginTop: KSpacing.md, gap: KSpacing.md }}>
             <View>
@@ -326,7 +334,10 @@ export default function DishBuilderScreen() {
                     label={c}
                     selected={form.cuisineType === c}
                     onPress={() =>
-                      update("cuisineType", form.cuisineType === c ? undefined : c)
+                      update(
+                        "cuisineType",
+                        form.cuisineType === c ? undefined : c,
+                      )
                     }
                   />
                 ))}
@@ -356,16 +367,30 @@ export default function DishBuilderScreen() {
                 </View>
               )}
             </View>
+            <View>
+              <Text style={s.fieldLabel}>Type</Text>
+              <View style={s.chipRow}>
+                <Chip
+                  label="Side"
+                  selected={form.type === "side"}
+                  onPress={() => update("type", "side")}
+                />
+                <Chip
+                  label="Main"
+                  selected={form.type === "main"}
+                  onPress={() => update("type", "main")}
+                />
+              </View>
+            </View>
           </View>
         </View>
 
         {/* Section 2: Logistics */}
         <View style={s.card}>
-          <Text style={s.sectionLabel}>Logistics</Text>
-          <Text style={s.cardTitle}>Time & servings</Text>
+          <Text style={s.cardTitle}>Logistics</Text>
           <View style={{ marginTop: KSpacing.md, gap: KSpacing.lg }}>
             <View>
-              <Text style={s.fieldLabel}>Estimated cook time</Text>
+              <Text style={s.fieldLabel}>Cook time</Text>
               <Stepper
                 value={form.estimatedTimeMinutes}
                 onChange={(n) => update("estimatedTimeMinutes", n)}
@@ -376,7 +401,7 @@ export default function DishBuilderScreen() {
               />
             </View>
             <View>
-              <Text style={s.fieldLabel}>Servings default</Text>
+              <Text style={s.fieldLabel}>Servings</Text>
               <Stepper
                 value={form.servingsDefault}
                 onChange={(n) => update("servingsDefault", n)}
@@ -388,196 +413,163 @@ export default function DishBuilderScreen() {
           </View>
         </View>
 
-        {/* Section 3: Macros per serving */}
-        <View style={s.card}>
-          <Text style={s.sectionLabel}>Macros per serving</Text>
-          <Text style={s.cardTitle}>Nutrition</Text>
-          <Text style={s.cardSubtitle}>Optional</Text>
-          <View style={{ marginTop: KSpacing.md, gap: KSpacing.lg }}>
-            <View>
-              <Text style={s.fieldLabel}>Calories</Text>
-              <Stepper
-                value={form.caloriesPerServing}
-                onChange={(n) => update("caloriesPerServing", n)}
-                min={0}
-                step={5}
-                suffix="cal"
-              />
-            </View>
-            <View>
-              <Text style={s.fieldLabel}>Protein</Text>
-              <Stepper
-                value={form.proteinGPerServing}
-                onChange={(n) => update("proteinGPerServing", n)}
-                min={0}
-                step={1}
-                suffix="g"
-              />
-            </View>
-            <View>
-              <Text style={s.fieldLabel}>Carbs</Text>
-              <Stepper
-                value={form.carbsGPerServing}
-                onChange={(n) => update("carbsGPerServing", n)}
-                min={0}
-                step={1}
-                suffix="g"
-              />
-            </View>
-            <View>
-              <Text style={s.fieldLabel}>Fat</Text>
-              <Stepper
-                value={form.fatGPerServing}
-                onChange={(n) => update("fatGPerServing", n)}
-                min={0}
-                step={1}
-                suffix="g"
-              />
-            </View>
-            <Pressable
-              onPress={handleAiMacros}
-              style={({ pressed }) => [
-                s.aiBtn,
-                pressed && { opacity: 0.7 },
-              ]}
-              hitSlop={6}
-            >
-              <Feather name="zap" size={14} color={KColors.terracotta[600]} />
-              <Text style={s.aiBtnText}>Have Kiwi determine macros</Text>
-              <View style={s.premiumPill}>
-                <Feather
-                  name="lock"
-                  size={10}
-                  color={KColors.terracotta[700]}
-                />
-                <Text style={s.premiumPillText}>Premium</Text>
-              </View>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Section 4: Ingredients */}
-        <View style={s.card}>
-          <Text style={s.sectionLabel}>Ingredients</Text>
-          <Text style={s.cardTitle}>What's in this dish?</Text>
-          <View style={{ marginTop: KSpacing.md, gap: KSpacing.sm }}>
-            {form.ingredients.map((ing) => (
-              <View key={ing.uid} style={s.ingredientRow}>
-                <TextInput
-                  value={ing.quantity === 0 ? "" : String(ing.quantity)}
-                  onChangeText={(v) => {
-                    const n = parseFloat(v.replace(/[^0-9.]/g, ""));
-                    updateIngredient(ing.uid, {
-                      quantity: Number.isFinite(n) ? n : 0,
-                    });
-                  }}
-                  placeholder="Qty"
-                  placeholderTextColor={KColors.neutral[600]}
-                  keyboardType="decimal-pad"
-                  returnKeyType="done"
-                  blurOnSubmit
-                  style={[s.input, s.qtyInput]}
-                />
-                <TextInput
-                  value={ing.unit}
-                  onChangeText={(v) => updateIngredient(ing.uid, { unit: v })}
-                  placeholder="unit"
-                  placeholderTextColor={KColors.neutral[600]}
-                  returnKeyType="done"
-                  blurOnSubmit
-                  style={[s.input, s.unitInput]}
-                />
-                <TextInput
-                  value={ing.name}
-                  onChangeText={(v) => updateIngredient(ing.uid, { name: v })}
-                  placeholder="ingredient"
-                  placeholderTextColor={KColors.neutral[600]}
-                  returnKeyType="done"
-                  blurOnSubmit
-                  style={[s.input, { flex: 1 }]}
-                />
-                <Pressable
-                  onPress={() => removeIngredient(ing.uid)}
-                  hitSlop={8}
-                  style={({ pressed }) => [
-                    s.removeBtn,
-                    pressed && { opacity: 0.6 },
-                  ]}
-                >
-                  <Feather name="x" size={16} color={KColors.neutral[700]} />
-                </Pressable>
-              </View>
-            ))}
-            <Pressable
-              onPress={addIngredient}
-              style={({ pressed }) => [s.addRowBtn, pressed && { opacity: 0.7 }]}
-              hitSlop={6}
-            >
-              <Feather name="plus" size={14} color={KColors.sage[700]} />
-              <Text style={s.addRowText}>Add ingredient</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Section 5: Steps */}
-        <View style={s.card}>
-          <Text style={s.sectionLabel}>Steps</Text>
-          <Text style={s.cardTitle}>How to make it</Text>
+        {/* Section 3: Macros (per serving) — read-only display + Kiwi-assist */}
+        <View style={s.cardCompact}>
+          <Text style={s.cardTitle}>Macros (per serving)</Text>
           <Text style={s.cardSubtitle}>
-            Optional — describe how to make this dish
+            Optional — leave at 0 if you'd like Kiwi to determine
           </Text>
-          <View style={{ marginTop: KSpacing.md, gap: KSpacing.md }}>
-            {form.steps.map((step, idx) => (
-              <StepEditor
-                key={step.uid}
-                index={idx}
-                step={step}
-                onChange={(patch) => updateStep(step.uid, patch)}
-                onRemove={() => removeStep(step.uid)}
-              />
-            ))}
-            <Pressable
-              onPress={addStep}
-              style={({ pressed }) => [s.addRowBtn, pressed && { opacity: 0.7 }]}
-              hitSlop={6}
-            >
-              <Feather name="plus" size={14} color={KColors.sage[700]} />
-              <Text style={s.addRowText}>Add step</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleAiSteps}
-              style={({ pressed }) => [
-                s.aiBtn,
-                pressed && { opacity: 0.7 },
-              ]}
-              hitSlop={6}
-            >
-              <Feather name="zap" size={14} color={KColors.terracotta[600]} />
-              <Text style={s.aiBtnText}>Have Kiwi suggest steps</Text>
-              <View style={s.premiumPill}>
-                <Feather
-                  name="lock"
-                  size={10}
-                  color={KColors.terracotta[700]}
-                />
-                <Text style={s.premiumPillText}>Premium</Text>
-              </View>
-            </Pressable>
+          <View style={s.macroDisplayGrid}>
+            <MacroDisplay value={form.caloriesPerServing} unit="cal" />
+            <MacroDisplay value={form.proteinGPerServing} unit="g protein" />
+            <MacroDisplay value={form.carbsGPerServing} unit="g carbs" />
+            <MacroDisplay value={form.fatGPerServing} unit="g fat" />
           </View>
+          <CheckboxRow
+            checked={form.kiwiAssistMacros}
+            label="Have Kiwi determine macros"
+            premiumLabel="Premium · WS6"
+            onToggle={() => update("kiwiAssistMacros", !form.kiwiAssistMacros)}
+          />
+          {form.kiwiAssistMacros && (
+            <Text style={s.assistHint}>
+              Kiwi will fill in macros from your ingredients
+            </Text>
+          )}
+        </View>
+
+        {/* Section 4: What's in this dish (ingredients + Kiwi-assist) */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>What's in this dish</Text>
+          <View style={{ marginTop: KSpacing.sm }}>
+            <CheckboxRow
+              checked={form.kiwiAssistIngredients}
+              label="Have Kiwi suggest recipe"
+              premiumLabel="Premium · WS6"
+              onToggle={() =>
+                update("kiwiAssistIngredients", !form.kiwiAssistIngredients)
+              }
+            />
+          </View>
+          {form.kiwiAssistIngredients ? (
+            <Text style={[s.assistHint, { marginTop: KSpacing.sm }]}>
+              Kiwi will suggest ingredients based on the dish name and cuisine
+            </Text>
+          ) : (
+            <View style={{ marginTop: KSpacing.md, gap: KSpacing.sm }}>
+              {form.ingredients.map((ing) => (
+                <View key={ing.uid} style={s.ingredientRow}>
+                  <TextInput
+                    value={ing.quantity === 0 ? "" : String(ing.quantity)}
+                    onChangeText={(v) => {
+                      const n = parseFloat(v.replace(/[^0-9.]/g, ""));
+                      updateIngredient(ing.uid, {
+                        quantity: Number.isFinite(n) ? n : 0,
+                      });
+                    }}
+                    placeholder="Qty"
+                    placeholderTextColor={KColors.neutral[600]}
+                    keyboardType="decimal-pad"
+                    returnKeyType="done"
+                    blurOnSubmit
+                    style={[s.input, s.qtyInput]}
+                  />
+                  <TextInput
+                    value={ing.unit}
+                    onChangeText={(v) => updateIngredient(ing.uid, { unit: v })}
+                    placeholder="unit"
+                    placeholderTextColor={KColors.neutral[600]}
+                    returnKeyType="done"
+                    blurOnSubmit
+                    style={[s.input, s.unitInput]}
+                  />
+                  <TextInput
+                    value={ing.name}
+                    onChangeText={(v) => updateIngredient(ing.uid, { name: v })}
+                    placeholder="ingredient"
+                    placeholderTextColor={KColors.neutral[600]}
+                    returnKeyType="done"
+                    blurOnSubmit
+                    style={[s.input, { flex: 1 }]}
+                  />
+                  <Pressable
+                    onPress={() => removeIngredient(ing.uid)}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      s.removeBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                  >
+                    <Feather name="x" size={16} color={KColors.neutral[700]} />
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable
+                onPress={addIngredient}
+                style={({ pressed }) => [
+                  s.addRowBtn,
+                  pressed && { opacity: 0.7 },
+                ]}
+                hitSlop={6}
+              >
+                <Feather name="plus" size={14} color={KColors.sage[700]} />
+                <Text style={s.addRowText}>Add ingredient</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
+        {/* Section 5: How to make it */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>How to make it</Text>
+          <Text style={s.cardSubtitle}>Optional</Text>
+          <View style={{ marginTop: KSpacing.sm }}>
+            <CheckboxRow
+              checked={form.kiwiAssistSteps}
+              label="Have Kiwi suggest steps"
+              premiumLabel="Premium · WS6"
+              onToggle={() => update("kiwiAssistSteps", !form.kiwiAssistSteps)}
+            />
+          </View>
+          {form.kiwiAssistSteps ? (
+            <Text style={[s.assistHint, { marginTop: KSpacing.sm }]}>
+              Kiwi will write the steps from your ingredients and cuisine
+            </Text>
+          ) : (
+            <View style={{ marginTop: KSpacing.md, gap: KSpacing.md }}>
+              {form.steps.map((step, idx) => (
+                <StepEditor
+                  key={step.uid}
+                  index={idx}
+                  step={step}
+                  onChange={(patch) => updateStep(step.uid, patch)}
+                  onRemove={() => removeStep(step.uid)}
+                />
+              ))}
+              <Pressable
+                onPress={addStep}
+                style={({ pressed }) => [
+                  s.addRowBtn,
+                  pressed && { opacity: 0.7 },
+                ]}
+                hitSlop={6}
+              >
+                <Feather name="plus" size={14} color={KColors.sage[700]} />
+                <Text style={s.addRowText}>Add step</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         {/* Section 6: Notes */}
         <View style={s.card}>
-          <Text style={s.sectionLabel}>Notes</Text>
-          <Text style={s.cardTitle}>Anything else?</Text>
-          <Text style={s.cardSubtitle}>
-            Optional — anything else worth remembering
-          </Text>
+          <Text style={s.cardTitle}>Notes</Text>
+          <Text style={s.cardSubtitle}>Optional</Text>
           <View style={{ marginTop: KSpacing.md }}>
             <TextInput
               value={form.notes}
               onChangeText={(v) => update("notes", v)}
-              placeholder="e.g., 'best with fresh herbs', 'sub butter for ghee'"
+              placeholder="Anything else worth remembering"
               placeholderTextColor={KColors.neutral[600]}
               multiline
               returnKeyType="default"
@@ -615,6 +607,51 @@ export default function DishBuilderScreen() {
   );
 }
 
+function MacroDisplay({ value, unit }: { value: number; unit: string }) {
+  return (
+    <View style={s.macroCell}>
+      <Text style={s.macroValue}>{value}</Text>
+      <Text style={s.macroLabel}>{unit}</Text>
+    </View>
+  );
+}
+
+function CheckboxRow({
+  checked,
+  label,
+  premiumLabel,
+  onToggle,
+}: {
+  checked: boolean;
+  label: string;
+  premiumLabel?: string;
+  onToggle: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onToggle}
+      hitSlop={6}
+      style={({ pressed }) => [
+        s.checkboxRow,
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <Feather
+        name={checked ? "check-square" : "square"}
+        size={18}
+        color={checked ? KColors.sage[700] : KColors.neutral[600]}
+      />
+      <Text style={s.checkboxLabel}>{label}</Text>
+      {premiumLabel && (
+        <View style={s.premiumPill}>
+          <Feather name="lock" size={10} color={KColors.terracotta[700]} />
+          <Text style={s.premiumPillText}>{premiumLabel}</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
 function StepEditor({
   index,
   step,
@@ -631,9 +668,7 @@ function StepEditor({
       <View
         style={[
           s.stepCircle,
-          step.isTimingSensitive
-            ? s.stepCircleTiming
-            : s.stepCircleNormal,
+          step.isTimingSensitive ? s.stepCircleTiming : s.stepCircleNormal,
         ]}
       >
         <Text
@@ -707,10 +742,7 @@ function StepEditor({
       <Pressable
         onPress={onRemove}
         hitSlop={8}
-        style={({ pressed }) => [
-          s.removeBtn,
-          pressed && { opacity: 0.6 },
-        ]}
+        style={({ pressed }) => [s.removeBtn, pressed && { opacity: 0.6 }]}
       >
         <Feather name="x" size={16} color={KColors.neutral[700]} />
       </Pressable>
@@ -731,10 +763,7 @@ function ExpandLink({
     <Pressable
       onPress={onPress}
       hitSlop={6}
-      style={({ pressed }) => [
-        s.expandLink,
-        pressed && { opacity: 0.6 },
-      ]}
+      style={({ pressed }) => [s.expandLink, pressed && { opacity: 0.6 }]}
     >
       <Text style={s.expandLinkText}>{label}</Text>
       <Feather
@@ -760,14 +789,12 @@ const s = StyleSheet.create({
     borderColor: KColors.neutral[300],
     padding: KSpacing.lg,
   },
-  sectionLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[600],
-    fontWeight: KType.weight.semibold,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: 6,
+  cardCompact: {
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.lg,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.md,
   },
   cardTitle: {
     fontSize: KType.size.lg,
@@ -818,6 +845,67 @@ const s = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     textAlignVertical: "top",
   },
+  macroDisplayGrid: {
+    flexDirection: "row",
+    gap: KSpacing.xs,
+    marginTop: KSpacing.sm,
+    marginBottom: KSpacing.sm,
+  },
+  macroCell: {
+    flex: 1,
+    backgroundColor: KColors.neutral[100],
+    borderRadius: KRadius.md,
+    paddingVertical: KSpacing.sm,
+    paddingHorizontal: 4,
+    alignItems: "center",
+  },
+  macroValue: {
+    fontSize: KType.size.lg,
+    color: KColors.neutral[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  macroLabel: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+    textAlign: "center",
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: KType.size.sm,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.medium,
+    fontFamily: "Inter_500Medium",
+  },
+  assistHint: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    fontStyle: "italic",
+    marginTop: KSpacing.sm,
+  },
+  premiumPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: KColors.terracotta[100],
+    borderRadius: KRadius.pill,
+    paddingHorizontal: KSpacing.sm,
+    paddingVertical: 2,
+  },
+  premiumPillText: {
+    fontSize: KType.size.xs,
+    color: KColors.terracotta[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
   ingredientRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -847,39 +935,6 @@ const s = StyleSheet.create({
   addRowText: {
     fontSize: KType.size.sm,
     color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-  },
-  aiBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: KSpacing.sm,
-    backgroundColor: KColors.terracotta[50],
-    borderWidth: 1,
-    borderColor: KColors.terracotta[200],
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    alignSelf: "flex-start",
-  },
-  aiBtnText: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-  },
-  premiumPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: KColors.terracotta[100],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: 2,
-  },
-  premiumPillText: {
-    fontSize: KType.size.xs,
-    color: KColors.terracotta[700],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
   },

@@ -23,10 +23,17 @@ export const SORT_OPTIONS: SortOption[] = [
 type Props = {
   value: SortKey;
   onChange: (key: SortKey) => void;
+  /** Per-context label overrides. Dishes view passes
+   *  `{ times_cooked: "Most used" }` since the underlying field is
+   *  `mealUseCount` (number of meals using the dish), not literal
+   *  cook count. */
+  labelOverrides?: Partial<Record<SortKey, string>>;
 };
 
-export function SortDropdown({ value, onChange }: Props) {
+export function SortDropdown({ value, onChange, labelOverrides }: Props) {
   const [open, setOpen] = useState(false);
+  const labelFor = (key: SortKey, fallback: string) =>
+    labelOverrides?.[key] ?? fallback;
   const current = SORT_OPTIONS.find((o) => o.key === value) ?? SORT_OPTIONS[0];
 
   return (
@@ -36,7 +43,9 @@ export function SortDropdown({ value, onChange }: Props) {
         style={({ pressed }) => [styles.trigger, pressed && { opacity: 0.7 }]}
       >
         <Text style={styles.triggerLabel}>Sort: </Text>
-        <Text style={styles.triggerValue}>{current.label}</Text>
+        <Text style={styles.triggerValue}>
+          {labelFor(current.key, current.label)}
+        </Text>
         <Text style={styles.chev}>{open ? "▴" : "▾"}</Text>
       </Pressable>
       {open && (
@@ -57,7 +66,7 @@ export function SortDropdown({ value, onChange }: Props) {
                 ]}
               >
                 <Text style={isOn ? styles.itemTextOn : styles.itemText}>
-                  {opt.label}
+                  {labelFor(opt.key, opt.label)}
                 </Text>
               </Pressable>
             );

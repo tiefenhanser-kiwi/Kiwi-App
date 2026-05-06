@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
+import { AddDishToMealSheet } from "@/components/AddDishToMealSheet";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { DishRow } from "@/components/DishRow";
 import { sortDishes } from "@/components/dishSort";
@@ -37,6 +38,7 @@ import type { MealSummary, SavedDish } from "@/lib/types";
 type SubTab = "meals" | "dishes";
 type MealsChip = "featured" | "my_meals" | "top_rated" | "hosting";
 type DishesChip = "featured" | "my_dishes" | "top_rated";
+type DishTypeFilter = "all" | "side" | "main";
 
 const MEALS_CHIPS: FilterChipOption<MealsChip>[] = [
   { key: "featured", label: "Featured" },
@@ -50,6 +52,14 @@ const DISHES_CHIPS: FilterChipOption<DishesChip>[] = [
   { key: "my_dishes", label: "My Dishes" },
   { key: "top_rated", label: "Top Rated" },
 ];
+
+const DISH_TYPE_CHIPS: FilterChipOption<DishTypeFilter>[] = [
+  { key: "all", label: "All" },
+  { key: "side", label: "Sides" },
+  { key: "main", label: "Mains" },
+];
+
+const DISH_SORT_LABEL_OVERRIDES = { times_cooked: "Most used" };
 
 const capitalize = (s: string) =>
   s.charAt(0).toUpperCase() + s.slice(1);
@@ -81,12 +91,18 @@ export default function MealsTab() {
   // across tabs and per-tab persistence feels more correct.
   const [mealFilter, setMealFilter] = useState<MealsChip>("my_meals");
   const [dishFilter, setDishFilter] = useState<DishesChip>("my_dishes");
+  const [dishTypeFilter, setDishTypeFilter] = useState<DishTypeFilter>("all");
   const [mealSort, setMealSort] = useState<SortKey>("alpha");
   const [dishSortKey, setDishSortKey] = useState<SortKey>("alpha");
 
   const [addToPlanFor, setAddToPlanFor] = useState<{
     mealId: string;
     mealTitle: string;
+  } | null>(null);
+
+  const [addDishToMealFor, setAddDishToMealFor] = useState<{
+    dishId: string;
+    dishName: string;
   } | null>(null);
 
   const visibleMeals = useMemo<MealSummary[]>(() => {
@@ -121,15 +137,38 @@ export default function MealsTab() {
         source = getTopRatedDishes();
         break;
     }
-    return sortDishes(source, dishSortKey);
-  }, [dishFilter, dishSortKey]);
+    const typeFiltered =
+      dishTypeFilter === "all"
+        ? source
+        : source.filter((d) => d.type === dishTypeFilter);
+    return sortDishes(typeFiltered, dishSortKey);
+  }, [dishFilter, dishTypeFilter, dishSortKey]);
 
   const handleAddMeal = () => {
     router.push("/meal-builder");
   };
 
   const handleAddDish = () => {
-    router.push("/dish-builder");
+    Alert.alert(
+      "Add a dish",
+      "How do you want to add this dish?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Have Kiwi help",
+          onPress: () =>
+            Alert.alert(
+              "Coming in WS6 — AI orchestration",
+              "Kiwi will help you build a dish when AI orchestration ships.",
+            ),
+        },
+        {
+          text: "Create manually",
+          style: "default",
+          onPress: () => router.push("/dish-builder"),
+        },
+      ],
+    );
   };
 
   const handleOpenMeal = (mealId: string) => {
@@ -164,6 +203,23 @@ export default function MealsTab() {
             `When the API client lands, ${addToPlanFor?.mealTitle} will be added to "${plan.name}".`,
           );
           setAddToPlanFor(null);
+        }}
+      />
+      <AddDishToMealSheet
+        visible={addDishToMealFor !== null}
+        dishId={addDishToMealFor?.dishId ?? ""}
+        dishName={addDishToMealFor?.dishName}
+        onClose={() => setAddDishToMealFor(null)}
+        onPickExistingMeal={(meal) => {
+          console.log("[recipes-tab] add-dish-to-meal", {
+            dishId: addDishToMealFor?.dishId,
+            mealId: meal.id,
+          });
+          Alert.alert(
+            "Coming in WS7",
+            `When the API client lands, ${addDishToMealFor?.dishName} will be added to "${meal.title}".`,
+          );
+          setAddDishToMealFor(null);
         }}
       />
       <Header title="Recipes" />
@@ -277,11 +333,23 @@ export default function MealsTab() {
               />
             </View>
 
+            <View style={s.filterWrap}>
+              <FilterChipRow<DishTypeFilter>
+                options={DISH_TYPE_CHIPS}
+                selected={[dishTypeFilter]}
+                onToggle={(key) => setDishTypeFilter(key)}
+              />
+            </View>
+
             <View style={s.controlsRow}>
               <Text style={s.sectionLabel}>
                 {DISHES_CHIPS.find((c) => c.key === dishFilter)?.label}
               </Text>
-              <SortDropdown value={dishSortKey} onChange={setDishSortKey} />
+              <SortDropdown
+                value={dishSortKey}
+                onChange={setDishSortKey}
+                labelOverrides={DISH_SORT_LABEL_OVERRIDES}
+              />
             </View>
 
             <View style={s.list}>
@@ -298,6 +366,10 @@ export default function MealsTab() {
                     key={dish.id}
                     dish={dish}
                     onPress={() => handleOpenDish(dish.id)}
+                    onCookNow={handleCookNow}
+                    onAddToMeal={(dishId, dishName) =>
+                      setAddDishToMealFor({ dishId, dishName })
+                    }
                     sortKey={dishSortKey}
                   />
                 ))

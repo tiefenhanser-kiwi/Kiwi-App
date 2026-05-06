@@ -21,7 +21,12 @@ import {
   KSpacing,
   KType,
 } from "@/constants/tokens";
-import { getMealById, getSavedDishes } from "@/lib/stubs";
+import {
+  getFeaturedDishes,
+  getMealById,
+  getSavedDishes,
+  getTopRatedDishes,
+} from "@/lib/stubs";
 import type { DraftMeal, SavedDish } from "@/lib/types";
 
 type Mode = "manual" | "combine" | "ai" | null;
@@ -129,6 +134,7 @@ export default function MealBuilderScreen() {
     draftJson,
     source,
     addToPlanId,
+    addDishId,
   } = useLocalSearchParams<{
     mealId?: string;
     planId?: string;
@@ -138,6 +144,7 @@ export default function MealBuilderScreen() {
     draftJson?: string;
     source?: "change-recipe";
     addToPlanId?: string;
+    addDishId?: string;
   }>();
   const isEditFromPlanContext = !!(mealId && planId && planItemId);
   const isChangeRecipe = source === "change-recipe" && !!mealId;
@@ -268,6 +275,38 @@ export default function MealBuilderScreen() {
     );
     setNotes(draftMeal.notes ?? "");
   }, [draftMeal, sourceMeal]);
+
+  // PRD §10.5 / WS5-5O — entry from Recipes Dishes view "Add to Meal" sheet
+  // (Create-new-meal path) seeds a fresh meal with the dish injected as
+  // its first BuilderDish. Only runs in fresh-create mode (no mealId,
+  // no draftJson) so we never overwrite an existing meal's dishes.
+  useEffect(() => {
+    if (!addDishId || mealId || draftJson) return;
+    const all: SavedDish[] = [
+      ...getSavedDishes(),
+      ...getFeaturedDishes(),
+      ...getTopRatedDishes(),
+    ];
+    const dish = all.find((d) => d.id === addDishId);
+    if (!dish) {
+      console.warn("[meal-builder] addDishId not found in stubs", { addDishId });
+      return;
+    }
+    setDishes([
+      newDish({
+        name: dish.name,
+        ingredients: dish.ingredients.length
+          ? dish.ingredients.map((ing) =>
+              newIngredient({
+                quantity: String(ing.quantity),
+                unit: ing.unit,
+                name: ing.name,
+              }),
+            )
+          : [newIngredient()],
+      }),
+    ]);
+  }, [addDishId, mealId, draftJson]);
 
   const headerTitle = isChangeRecipe && sourceMeal
     ? `Change recipe: ${sourceMeal.title}`
@@ -1167,9 +1206,10 @@ const DishPickerRow = memo(function DishPickerRow({
             .join(" · ")}
         </Text>
       </View>
-      {dish.useCount !== undefined && (
+      {dish.mealUseCount > 0 && (
         <Text style={s.dishPickerUse}>
-          Used in {dish.useCount} meals
+          Used in {dish.mealUseCount}{" "}
+          {dish.mealUseCount === 1 ? "meal" : "meals"}
         </Text>
       )}
     </Pressable>

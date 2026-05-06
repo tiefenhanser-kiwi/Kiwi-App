@@ -96,12 +96,13 @@ export function DishChooserSheet({
     const newDish: SavedDish = {
       id: `simple-dish-${Date.now()}`,
       name: trimmedName,
+      type: "side",
       ingredients: [{ quantity: 1, unit: "whole", name: trimmedName }],
       caloriesPerServing: 0,
       proteinGPerServing: 0,
       carbsGPerServing: 0,
       fatGPerServing: 0,
-      useCount: 0,
+      mealUseCount: 0,
       createdAt: new Date().toISOString(),
     };
     setAddedSimpleDishes((prev) => [newDish, ...prev]);
@@ -182,9 +183,10 @@ export function DishChooserSheet({
                         .join(" · ")}
                     </Text>
                   </View>
-                  {dish.useCount !== undefined && (
+                  {dish.mealUseCount > 0 && (
                     <Text style={s.useCount}>
-                      Used in {dish.useCount} meals
+                      Used in {dish.mealUseCount}{" "}
+                      {dish.mealUseCount === 1 ? "meal" : "meals"}
                     </Text>
                   )}
                 </Pressable>

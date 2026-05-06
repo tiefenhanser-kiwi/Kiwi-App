@@ -23,7 +23,11 @@ export function sortDishes(list: SavedDish[], key: SortKey): SavedDish[] {
       });
       return out;
     case "times_cooked":
-      out.sort((a, b) => (b.useCount ?? 0) - (a.useCount ?? 0));
+      // Dishes are sorted by mealUseCount (number of saved meals
+      // containing the dish), not literal cook count. SortKey union
+      // is shared with meals; the SortDropdown surface relabels this
+      // to "Most used" in dish contexts via labelOverrides.
+      out.sort((a, b) => b.mealUseCount - a.mealUseCount);
       return out;
     case "date_created":
       out.sort((a, b) =>

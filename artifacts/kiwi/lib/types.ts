@@ -288,13 +288,18 @@ export interface SavedDish {
   cuisineType?: string;
   imageUrl?: string;
   ingredients: SavedDishIngredient[];
+  /** Side dish vs full main course. Drives Recipes tab side/main
+   *  filter chip row (WS5-5O) and informs AI plan composition. */
+  type: "side" | "main";
   /** Per-serving values; default servings is 4. */
   caloriesPerServing: number;
   proteinGPerServing: number;
   carbsGPerServing: number;
   fatGPerServing: number;
-  /** Number of meals this dish appears in. */
-  useCount?: number;
+  /** Number of saved meals containing this dish. Renamed from
+   *  the prior `useCount` per WS5-5O — drives the always-on
+   *  "Used in N meals" line on dish rows. */
+  mealUseCount: number;
   /** ISO timestamp when the dish was created. Drives "Date added" sort
    *  (PRD §10.5 / DishChooserSheet). Optional so legacy stub rows don't break. */
   createdAt?: string;
@@ -450,6 +455,11 @@ export interface WizardPreferencesInput {
  * Builder-local draft state for an in-progress dish edit.
  * Mirrors SavedDish but with optional fields that aren't yet
  * filled in. On save, transforms to SavedDish.
+ *
+ * The `kiwiAssist*` flags (WS5-5O) signal that AI should generate
+ * the corresponding field server-side at save time. When a flag
+ * is true, the manual values (ingredients/steps/macros) are
+ * ignored. WS6 wires the AI calls; WS5 just round-trips the flags.
  */
 export interface DishDraft {
   id?: string;                  // Empty for fresh-create
@@ -457,6 +467,13 @@ export interface DishDraft {
   cuisineType?: string;
   estimatedTimeMinutes?: number;
   servingsDefault: number;      // Default 4
+  /** Side dish vs full main course. */
+  type: "side" | "main";
+  /** Kiwi-assist flags — when true, AI generates the field on save. */
+  kiwiAssistMacros: boolean;
+  kiwiAssistIngredients: boolean;
+  kiwiAssistSteps: boolean;
+  /** Manual values; ignored if the corresponding kiwiAssist flag is true. */
   ingredients: Array<{ quantity: number; unit: string; name: string }>;
   steps: Array<{
     stepNumber: number;
