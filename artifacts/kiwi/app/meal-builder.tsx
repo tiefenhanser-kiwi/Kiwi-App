@@ -12,6 +12,7 @@ import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 
 import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
 import { DishChooserSheet } from "@/components/DishChooserSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -21,6 +22,7 @@ import {
   KSpacing,
   KType,
 } from "@/constants/tokens";
+import { CUISINES_TIER_1, CUISINES_TIER_2 } from "@/lib/domain";
 import {
   getFeaturedDishes,
   getMealById,
@@ -178,6 +180,7 @@ export default function MealBuilderScreen() {
   // ── Manual-mode state ───────────────────────────────────────────
   const [mealName, setMealName] = useState("");
   const [cuisineType, setCuisineType] = useState("");
+  const [cuisineExpanded, setCuisineExpanded] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [estimatedTimeMinutes, setEstimatedTimeMinutes] = useState("30");
   const [servingsDefault, setServingsDefault] = useState(4);
@@ -200,6 +203,12 @@ export default function MealBuilderScreen() {
     if (!sourceMeal) return;
     setMealName(sourceMeal.title);
     setCuisineType(sourceMeal.cuisineType ?? "");
+    if (
+      sourceMeal.cuisineType &&
+      (CUISINES_TIER_2 as readonly string[]).includes(sourceMeal.cuisineType)
+    ) {
+      setCuisineExpanded(true);
+    }
     setDifficulty(sourceMeal.difficulty);
     setEstimatedTimeMinutes(String(sourceMeal.estimatedTimeMinutes));
     setServingsDefault(sourceMeal.servingsDefault);
@@ -243,6 +252,12 @@ export default function MealBuilderScreen() {
     if (sourceMeal || !draftMeal) return;
     setMealName(draftMeal.title);
     setCuisineType(draftMeal.cuisineType ?? "");
+    if (
+      draftMeal.cuisineType &&
+      (CUISINES_TIER_2 as readonly string[]).includes(draftMeal.cuisineType)
+    ) {
+      setCuisineExpanded(true);
+    }
     setDifficulty(draftMeal.difficulty);
     setEstimatedTimeMinutes(String(draftMeal.estimatedTimeMinutes));
     setServingsDefault(draftMeal.servingsDefault);
@@ -604,6 +619,8 @@ export default function MealBuilderScreen() {
             setMealName={setMealName}
             cuisineType={cuisineType}
             setCuisineType={setCuisineType}
+            cuisineExpanded={cuisineExpanded}
+            setCuisineExpanded={setCuisineExpanded}
             difficulty={difficulty}
             setDifficulty={setDifficulty}
             estimatedTimeMinutes={estimatedTimeMinutes}
@@ -632,6 +649,8 @@ export default function MealBuilderScreen() {
             setMealName={setMealName}
             cuisineType={cuisineType}
             setCuisineType={setCuisineType}
+            cuisineExpanded={cuisineExpanded}
+            setCuisineExpanded={setCuisineExpanded}
             difficulty={difficulty}
             setDifficulty={setDifficulty}
             estimatedTimeMinutes={estimatedTimeMinutes}
@@ -760,6 +779,8 @@ interface MetaFieldsProps {
   setMealName: (v: string) => void;
   cuisineType: string;
   setCuisineType: (v: string) => void;
+  cuisineExpanded: boolean;
+  setCuisineExpanded: (v: boolean) => void;
   difficulty: Difficulty;
   setDifficulty: (v: Difficulty) => void;
   estimatedTimeMinutes: string;
@@ -789,18 +810,51 @@ function MetaFields(p: MetaFieldsProps) {
           onSubmitEditing={Keyboard.dismiss}
         />
       </View>
+      {/* TODO(WS9): Add 'Other...' chip + free-text fallback for cuisines
+          not in the catalog. Per D-WS5-XXX deferred decisions. */}
       <View>
         <Text style={s.fieldLabel}>Cuisine</Text>
-        <TextInput
-          value={p.cuisineType}
-          onChangeText={p.setCuisineType}
-          placeholder="Cuisine (Italian, Japanese, etc.)"
-          placeholderTextColor={KColors.neutral[600]}
-          style={s.textInput}
-          returnKeyType="done"
-          blurOnSubmit
-          onSubmitEditing={Keyboard.dismiss}
-        />
+        <View style={s.chipRow}>
+          {CUISINES_TIER_1.map((c) => (
+            <Chip
+              key={c}
+              label={c}
+              selected={p.cuisineType === c}
+              onPress={() =>
+                p.setCuisineType(p.cuisineType === c ? "" : c)
+              }
+            />
+          ))}
+        </View>
+        <Pressable
+          onPress={() => p.setCuisineExpanded(!p.cuisineExpanded)}
+          hitSlop={6}
+          style={({ pressed }) => [
+            s.expandLink,
+            pressed && { opacity: 0.6 },
+          ]}
+        >
+          <Text style={s.expandLinkText}>More cuisines</Text>
+          <Feather
+            name={p.cuisineExpanded ? "chevron-up" : "chevron-down"}
+            size={14}
+            color={KColors.sage[700]}
+          />
+        </Pressable>
+        {p.cuisineExpanded && (
+          <View style={[s.chipRow, { marginTop: KSpacing.sm }]}>
+            {CUISINES_TIER_2.map((c) => (
+              <Chip
+                key={c}
+                label={c}
+                selected={p.cuisineType === c}
+                onPress={() =>
+                  p.setCuisineType(p.cuisineType === c ? "" : c)
+                }
+              />
+            ))}
+          </View>
+        )}
       </View>
       <View>
         <Text style={s.fieldLabel}>Difficulty</Text>
@@ -1414,6 +1468,24 @@ const s = StyleSheet.create({
     fontSize: KType.size.sm,
     color: KColors.neutral[900],
     fontFamily: "Inter_400Regular",
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  expandLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: KSpacing.sm,
+    alignSelf: "flex-start",
+  },
+  expandLinkText: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
   },
   inputInvalid: {
     borderColor: KColors.terracotta[400],
