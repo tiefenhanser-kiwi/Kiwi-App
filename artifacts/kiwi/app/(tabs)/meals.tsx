@@ -129,21 +129,15 @@ export default function MealsTab() {
   };
 
   const handleAddDish = () => {
-    Alert.alert(
-      "Coming in WS5-5O",
-      "The Dish Builder lands in the next sub-phase.",
-    );
+    router.push("/dish-builder");
   };
 
   const handleOpenMeal = (mealId: string) => {
     router.push({ pathname: "/meal/[id]", params: { id: mealId } });
   };
 
-  const handleOpenDish = () => {
-    Alert.alert(
-      "Coming in WS5-5O",
-      "Dish Detail lands in the next sub-phase. For now, dish editing is available via the Dish Chooser inside Meal Builder.",
-    );
+  const handleOpenDish = (dishId: string) => {
+    router.push({ pathname: "/dish/[id]", params: { id: dishId } });
   };
 
   const handleCookNow = () => {
@@ -303,7 +297,7 @@ export default function MealsTab() {
                   <DishRow
                     key={dish.id}
                     dish={dish}
-                    onPress={handleOpenDish}
+                    onPress={() => handleOpenDish(dish.id)}
                     sortKey={dishSortKey}
                   />
                 ))

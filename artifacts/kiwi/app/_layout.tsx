@@ -36,6 +36,8 @@ function RootLayoutNav() {
       <Stack.Screen name="plan/[id]" />
       <Stack.Screen name="meal/[id]" />
       <Stack.Screen name="meal-builder" />
+      <Stack.Screen name="dish/[id]" />
+      <Stack.Screen name="dish-builder" />
       <Stack.Screen name="import-url" />
       <Stack.Screen name="import-image" />
       <Stack.Screen name="recipe/[id]" />

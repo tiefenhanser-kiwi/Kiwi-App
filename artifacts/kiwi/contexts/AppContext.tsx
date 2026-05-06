@@ -17,6 +17,7 @@ import {
 } from "@/lib/stubs";
 import type {
   DayOfWeek,
+  DishDraft,
   GroceryItem,
   MealPlan,
   MealSlot,
@@ -112,6 +113,9 @@ interface AppState {
     startDate: string,
     endDate: string,
   ) => Promise<void>;
+  /** PRD §10.5 — save a dish to user's library. Real persistence WS7.
+   *  WS5: log only; returns assigned id. */
+  saveDish: (dish: DishDraft) => Promise<{ id: string }>;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
   favorites: string[];
@@ -322,6 +326,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateReviewPlanDateRange(planId, startDate, endDate);
   };
 
+  const saveDish = async (dish: DishDraft): Promise<{ id: string }> => {
+    // TODO(WS7): wire to POST /me/dishes (create) or PATCH /me/dishes/:id (update)
+    const id = dish.id ?? `dish-${Date.now()}`;
+    console.log("[stub] saveDish", { id, dish });
+    return { id };
+  };
+
   const toggleGrocery = useCallback(
     async (id: string) => {
       const updated = groceries.map((g) =>
@@ -385,6 +396,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     findSimilarMeals,
     updatePlanName,
     updatePlanDateRange,
+    saveDish,
     groceries,
     toggleGrocery,
     favorites,

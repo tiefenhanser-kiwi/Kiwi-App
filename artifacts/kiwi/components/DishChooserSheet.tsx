@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
@@ -39,6 +40,7 @@ export function DishChooserSheet({
   onAskKiwi,
 }: DishChooserSheetProps) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [askPrompt, setAskPrompt] = useState("");
   // PRD: A-Z is the default sort across all sortable surfaces.
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
@@ -116,10 +118,13 @@ export function DishChooserSheet({
   };
 
   const handleHaveInMind = () => {
-    Alert.alert(
-      "Coming soon",
-      "Building a custom dish lands when the My Dishes page is built. For now, use 'Add Simple Dish' for store-bought or simple items, or 'Ask Kiwi' for AI-suggested dishes (premium).",
-    );
+    Keyboard.dismiss();
+    onClose();
+    // Match the Import URL/Image card pattern: defer push slightly so the
+    // sheet finishes its slide-out before the new screen mounts.
+    setTimeout(() => {
+      router.push("/dish-builder");
+    }, 150);
   };
 
   return (

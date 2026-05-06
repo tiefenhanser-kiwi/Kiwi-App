@@ -307,6 +307,12 @@ export interface SavedDish {
   /** Catalog source for the Recipes tab Dishes view chip row
    *  (PRD §9.3). Optional so legacy stub rows don't break. */
   source?: "saved" | "featured" | "top_rated";
+  /** Recipe steps (optional, PRD §10.5). Rendered on Dish Detail
+   *  when present. Demo dishes lack steps; user-authored dishes
+   *  via the Dish Builder may include them. */
+  steps?: ReviewMealStep[];
+  /** Free-form notes shown on Dish Detail when present. */
+  notes?: string;
 }
 
 export interface SavedDishIngredient {
@@ -438,4 +444,29 @@ export interface WizardPreferencesInput {
   // Optional free text
   dietaryNotes?: string;
   additionalNotes?: string;
+}
+
+/**
+ * Builder-local draft state for an in-progress dish edit.
+ * Mirrors SavedDish but with optional fields that aren't yet
+ * filled in. On save, transforms to SavedDish.
+ */
+export interface DishDraft {
+  id?: string;                  // Empty for fresh-create
+  name: string;
+  cuisineType?: string;
+  estimatedTimeMinutes?: number;
+  servingsDefault: number;      // Default 4
+  ingredients: Array<{ quantity: number; unit: string; name: string }>;
+  steps: Array<{
+    stepNumber: number;
+    text: string;
+    estimatedMinutes?: number;
+    isTimingSensitive?: boolean;
+  }>;
+  caloriesPerServing: number;   // Default 0
+  proteinGPerServing: number;   // Default 0
+  carbsGPerServing: number;     // Default 0
+  fatGPerServing: number;       // Default 0
+  notes?: string;
 }

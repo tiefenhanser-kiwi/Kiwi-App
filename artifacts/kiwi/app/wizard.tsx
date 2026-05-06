@@ -15,6 +15,7 @@ import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { Stepper } from "@/components/Stepper";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
   ALLERGIES_AND_AVOIDANCES,
@@ -116,16 +117,6 @@ export default function Wizard() {
     update("planDurationDays", n);
   };
 
-  const stepHousehold = (delta: number) => {
-    setForm((prev) => {
-      const next = Math.max(
-        HOUSEHOLD_MIN,
-        Math.min(HOUSEHOLD_MAX, prev.householdSize + delta),
-      );
-      return { ...prev, householdSize: next };
-    });
-  };
-
   const handleSubmit = () => {
     Keyboard.dismiss();
     const payload: WizardPreferencesInput = {
@@ -178,10 +169,9 @@ export default function Wizard() {
         <Section label="Household" title="Cooking for">
           <Stepper
             value={form.householdSize}
-            onDecrement={() => stepHousehold(-1)}
-            onIncrement={() => stepHousehold(1)}
-            disabledMin={form.householdSize <= HOUSEHOLD_MIN}
-            disabledMax={form.householdSize >= HOUSEHOLD_MAX}
+            onChange={(n) => update("householdSize", n)}
+            min={HOUSEHOLD_MIN}
+            max={HOUSEHOLD_MAX}
             suffix={form.householdSize === 1 ? "person" : "people"}
           />
         </Section>
@@ -402,55 +392,6 @@ function Section({
   );
 }
 
-function Stepper({
-  value,
-  suffix,
-  onDecrement,
-  onIncrement,
-  disabledMin,
-  disabledMax,
-}: {
-  value: number;
-  suffix?: string;
-  onDecrement: () => void;
-  onIncrement: () => void;
-  disabledMin?: boolean;
-  disabledMax?: boolean;
-}) {
-  return (
-    <View style={s.stepperWrap}>
-      <Pressable
-        onPress={onDecrement}
-        disabled={disabledMin}
-        hitSlop={8}
-        style={({ pressed }) => [
-          s.stepperBtn,
-          disabledMin && { opacity: 0.4 },
-          pressed && !disabledMin && { opacity: 0.6 },
-        ]}
-      >
-        <Feather name="minus" size={18} color={KColors.sage[700]} />
-      </Pressable>
-      <View style={s.stepperCenter}>
-        <Text style={s.stepperValue}>{value}</Text>
-        {suffix && <Text style={s.stepperSuffix}>{suffix}</Text>}
-      </View>
-      <Pressable
-        onPress={onIncrement}
-        disabled={disabledMax}
-        hitSlop={8}
-        style={({ pressed }) => [
-          s.stepperBtn,
-          disabledMax && { opacity: 0.4 },
-          pressed && !disabledMax && { opacity: 0.6 },
-        ]}
-      >
-        <Feather name="plus" size={18} color={KColors.sage[700]} />
-      </Pressable>
-    </View>
-  );
-}
-
 function ExpandLink({
   expanded,
   label,
@@ -529,40 +470,6 @@ const s = StyleSheet.create({
     fontSize: KType.size.sm,
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
-  },
-  stepperWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: KColors.neutral[100],
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: 6,
-    alignSelf: "flex-start",
-    gap: KSpacing.lg,
-    minWidth: 180,
-    justifyContent: "space-between",
-  },
-  stepperBtn: {
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepperCenter: {
-    alignItems: "center",
-    minWidth: 80,
-  },
-  stepperValue: {
-    fontSize: KType.size.xl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
-  },
-  stepperSuffix: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginTop: 2,
   },
   dietHeader: {
     flexDirection: "row",
