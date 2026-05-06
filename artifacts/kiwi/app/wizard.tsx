@@ -328,6 +328,9 @@ export default function Wizard() {
                 onChangeText={(v) => update("dietaryNotes", v)}
                 placeholder="e.g., 'no cilantro', 'lower sodium'"
                 placeholderTextColor={KColors.neutral[600]}
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={Keyboard.dismiss}
                 style={s.input}
               />
             </View>
@@ -346,6 +349,9 @@ export default function Wizard() {
             placeholder="e.g., a comforting week, planning to entertain Saturday, lots of veggies"
             placeholderTextColor={KColors.neutral[600]}
             multiline
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={Keyboard.dismiss}
             style={[s.input, { minHeight: 80 }]}
           />
         </Section>
