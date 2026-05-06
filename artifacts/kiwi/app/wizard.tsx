@@ -29,27 +29,18 @@ import type { WizardPreferencesInput } from "@/lib/types";
 type Difficulty = WizardPreferencesInput["difficulty"];
 type WeeklyPacing = WizardPreferencesInput["weeklyPacing"];
 
-const DIFFICULTY_OPTIONS: { key: Difficulty; label: string }[] = [
-  { key: "easy", label: "Easy" },
-  { key: "medium", label: "Medium" },
-  { key: "fancy", label: "Fancy" },
-];
-
 const PACING_OPTIONS: { key: WeeklyPacing; label: string }[] = [
   { key: "mostly_easy", label: "Mostly easy" },
-  { key: "mixed", label: "Mixed" },
+  { key: "mixed", label: "Mixed (quick + nicer)" },
   { key: "one_fancy", label: "One fancy night" },
   { key: "minimal_effort", label: "Minimal effort" },
 ];
 
 const HOUSEHOLD_MIN = 1;
-const HOUSEHOLD_MAX = 12;
-const CUSTOM_DURATION_MIN = 1;
-const CUSTOM_DURATION_MAX = 14;
+const HOUSEHOLD_MAX = 30;
 
 interface WizardFormState {
   planDurationDays: number;
-  isCustomDuration: boolean;
   householdSize: number;
   wantsLeftovers: boolean;
   cuisines: Set<string>;
@@ -59,14 +50,20 @@ interface WizardFormState {
   allergies: Set<string>;
   allergiesExpanded: boolean;
   dietaryNotes: string;
+  /** Hidden from UI per WS5-5N-bis-fix-wizard-fix; kept on state so
+   *  the payload still carries the field. */
   difficulty: Difficulty;
   weeklyPacing: WeeklyPacing;
   additionalNotes: string;
 }
 
+// TODO(WS5-5P + WS7): Wire from user's stored skill level per PRD §5.3
+// — Beginner→Easy, Intermediate→Medium, Advanced→Fancy. Until Profile
+// (5P) ships, hardcoded to "medium" and not surfaced in the wizard UI.
+const HIDDEN_DEFAULT_DIFFICULTY: Difficulty = "medium";
+
 const INITIAL_FORM: WizardFormState = {
   planDurationDays: 5,
-  isCustomDuration: false,
   householdSize: 4,
   wantsLeftovers: false,
   cuisines: new Set(["American", "Mexican"]),
@@ -76,10 +73,7 @@ const INITIAL_FORM: WizardFormState = {
   allergies: new Set(),
   allergiesExpanded: false,
   dietaryNotes: "",
-  // TODO(WS5-5P + WS7): wire to user's stored cookSkill per PRD §5.3
-  // (Beginner→easy, Intermediate→medium, Advanced→fancy). Default
-  // hardcoded to "medium" until Profile (5P) ships.
-  difficulty: "medium",
+  difficulty: HIDDEN_DEFAULT_DIFFICULTY,
   weeklyPacing: "mostly_easy",
   additionalNotes: "",
 };
@@ -120,34 +114,7 @@ export default function Wizard() {
   };
 
   const handleSelectDuration = (n: number) => {
-    setForm((prev) => ({
-      ...prev,
-      planDurationDays: n,
-      isCustomDuration: false,
-    }));
-  };
-
-  const handleSelectCustomDuration = () => {
-    setForm((prev) => ({
-      ...prev,
-      isCustomDuration: true,
-      // Keep current value if it's not a preset; else default to 5.
-      planDurationDays: PLAN_DURATION_PRESETS.includes(
-        prev.planDurationDays as 3 | 5 | 7,
-      )
-        ? 5
-        : prev.planDurationDays,
-    }));
-  };
-
-  const stepCustomDuration = (delta: number) => {
-    setForm((prev) => {
-      const next = Math.max(
-        CUSTOM_DURATION_MIN,
-        Math.min(CUSTOM_DURATION_MAX, prev.planDurationDays + delta),
-      );
-      return { ...prev, planDurationDays: next };
-    });
+    update("planDurationDays", n);
   };
 
   const stepHousehold = (delta: number) => {
@@ -200,31 +167,12 @@ export default function Wizard() {
             {PLAN_DURATION_PRESETS.map((n) => (
               <Chip
                 key={n}
-                label={`${n} days`}
-                selected={
-                  !form.isCustomDuration && form.planDurationDays === n
-                }
+                label={n === 1 ? "1 day" : `${n} days`}
+                selected={form.planDurationDays === n}
                 onPress={() => handleSelectDuration(n)}
               />
             ))}
-            <Chip
-              label="Custom"
-              selected={form.isCustomDuration}
-              onPress={handleSelectCustomDuration}
-            />
           </View>
-          {form.isCustomDuration && (
-            <View style={s.inlineStepperWrap}>
-              <Stepper
-                value={form.planDurationDays}
-                onDecrement={() => stepCustomDuration(-1)}
-                onIncrement={() => stepCustomDuration(1)}
-                disabledMin={form.planDurationDays <= CUSTOM_DURATION_MIN}
-                disabledMax={form.planDurationDays >= CUSTOM_DURATION_MAX}
-                suffix={form.planDurationDays === 1 ? "day" : "days"}
-              />
-            </View>
-          )}
         </Section>
 
         {/* Section 2: Household size */}
@@ -298,22 +246,18 @@ export default function Wizard() {
           )}
         </Section>
 
-        {/* Section 5: Difficulty */}
-        <Section label="Difficulty" title="Difficulty for this plan">
-          <Segmented
-            options={DIFFICULTY_OPTIONS}
-            value={form.difficulty}
-            onChange={(v) => update("difficulty", v)}
-          />
-        </Section>
-
-        {/* Section 6: Weekly pacing */}
+        {/* Section 5: Weekly pacing — single-select chip cloud (auto-wrap). */}
         <Section label="Pacing" title="Weekly pacing">
-          <Segmented
-            options={PACING_OPTIONS}
-            value={form.weeklyPacing}
-            onChange={(v) => update("weeklyPacing", v)}
-          />
+          <View style={s.chipRow}>
+            {PACING_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.key}
+                label={opt.label}
+                selected={form.weeklyPacing === opt.key}
+                onPress={() => update("weeklyPacing", opt.key)}
+              />
+            ))}
+          </View>
         </Section>
 
         {/* Section 7: Diet (collapsible) */}
@@ -453,45 +397,6 @@ function Section({
   );
 }
 
-function Segmented<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { key: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <View style={s.segmented}>
-      {options.map((opt) => {
-        const active = opt.key === value;
-        return (
-          <Pressable
-            key={opt.key}
-            onPress={() => onChange(opt.key)}
-            style={({ pressed }) => [
-              s.segmentBtn,
-              active && s.segmentBtnActive,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Text
-              style={[
-                s.segmentText,
-                active && s.segmentTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {opt.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
 function Stepper({
   value,
   suffix,
@@ -609,9 +514,6 @@ const s = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
-  inlineStepperWrap: {
-    marginTop: KSpacing.md,
-  },
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -622,32 +524,6 @@ const s = StyleSheet.create({
     fontSize: KType.size.sm,
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
-  },
-  segmented: {
-    flexDirection: "row",
-    backgroundColor: KColors.neutral[100],
-    borderRadius: KRadius.md,
-    padding: 4,
-    gap: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    borderRadius: KRadius.md,
-    alignItems: "center",
-  },
-  segmentBtnActive: {
-    backgroundColor: KColors.sage[700],
-  },
-  segmentText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-  },
-  segmentTextActive: {
-    color: KColors.neutral[0],
   },
   stepperWrap: {
     flexDirection: "row",

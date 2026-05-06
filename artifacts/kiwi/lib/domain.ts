@@ -107,5 +107,5 @@ export const ALLERGIES_AND_AVOIDANCES = [
   "Fish-free",
 ] as const;
 
-/** Plan duration presets per Hans (Custom outside the array, 1-14). */
-export const PLAN_DURATION_PRESETS = [3, 5, 7] as const;
+/** Plan duration presets per Hans — single-select 1-7 days. */
+export const PLAN_DURATION_PRESETS = [1, 2, 3, 4, 5, 6, 7] as const;
