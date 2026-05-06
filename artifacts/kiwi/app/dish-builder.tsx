@@ -57,9 +57,11 @@ interface DishBuilderForm {
   type: "side" | "main";
   estimatedTimeMinutes: number;
   servingsDefault: number;
-  kiwiAssistMacros: boolean;
   kiwiAssistIngredients: boolean;
   kiwiAssistSteps: boolean;
+  // Hidden — preserved across edit but not user-controlled. Macros
+  // are AI-computed from ingredients on save (WS6); WS5-5O-fix-2
+  // removed manual entry + the kiwiAssistMacros toggle.
   caloriesPerServing: number;
   proteinGPerServing: number;
   carbsGPerServing: number;
@@ -87,7 +89,6 @@ const initialForm = (): DishBuilderForm => ({
   type: "main",
   estimatedTimeMinutes: 30,
   servingsDefault: 4,
-  kiwiAssistMacros: false,
   kiwiAssistIngredients: false,
   kiwiAssistSteps: false,
   caloriesPerServing: 0,
@@ -122,7 +123,6 @@ function dishToForm(dish: SavedDish): DishBuilderForm {
     servingsDefault: 4,
     // Kiwi-assist defaults to false on edit — user's existing manual
     // content takes precedence and shouldn't be silently overwritten.
-    kiwiAssistMacros: false,
     kiwiAssistIngredients: false,
     kiwiAssistSteps: false,
     caloriesPerServing: dish.caloriesPerServing,
@@ -255,7 +255,6 @@ export default function DishBuilderScreen() {
       estimatedTimeMinutes: form.estimatedTimeMinutes,
       servingsDefault: form.servingsDefault,
       type: form.type,
-      kiwiAssistMacros: form.kiwiAssistMacros,
       kiwiAssistIngredients: form.kiwiAssistIngredients,
       kiwiAssistSteps: form.kiwiAssistSteps,
       ingredients: form.kiwiAssistIngredients
@@ -413,32 +412,7 @@ export default function DishBuilderScreen() {
           </View>
         </View>
 
-        {/* Section 3: Macros (per serving) — read-only display + Kiwi-assist */}
-        <View style={s.cardCompact}>
-          <Text style={s.cardTitle}>Macros (per serving)</Text>
-          <Text style={s.cardSubtitle}>
-            Optional — leave at 0 if you'd like Kiwi to determine
-          </Text>
-          <View style={s.macroDisplayGrid}>
-            <MacroDisplay value={form.caloriesPerServing} unit="cal" />
-            <MacroDisplay value={form.proteinGPerServing} unit="g protein" />
-            <MacroDisplay value={form.carbsGPerServing} unit="g carbs" />
-            <MacroDisplay value={form.fatGPerServing} unit="g fat" />
-          </View>
-          <CheckboxRow
-            checked={form.kiwiAssistMacros}
-            label="Have Kiwi determine macros"
-            premiumLabel="Premium · WS6"
-            onToggle={() => update("kiwiAssistMacros", !form.kiwiAssistMacros)}
-          />
-          {form.kiwiAssistMacros && (
-            <Text style={s.assistHint}>
-              Kiwi will fill in macros from your ingredients
-            </Text>
-          )}
-        </View>
-
-        {/* Section 4: What's in this dish (ingredients + Kiwi-assist) */}
+        {/* Section 3: What's in this dish (ingredients + Kiwi-assist) */}
         <View style={s.card}>
           <Text style={s.cardTitle}>What's in this dish</Text>
           <View style={{ marginTop: KSpacing.sm }}>
@@ -519,7 +493,7 @@ export default function DishBuilderScreen() {
           )}
         </View>
 
-        {/* Section 5: How to make it */}
+        {/* Section 4: How to make it */}
         <View style={s.card}>
           <Text style={s.cardTitle}>How to make it</Text>
           <Text style={s.cardSubtitle}>Optional</Text>
@@ -561,7 +535,7 @@ export default function DishBuilderScreen() {
           )}
         </View>
 
-        {/* Section 6: Notes */}
+        {/* Section 5: Notes */}
         <View style={s.card}>
           <Text style={s.cardTitle}>Notes</Text>
           <Text style={s.cardSubtitle}>Optional</Text>
@@ -603,15 +577,6 @@ export default function DishBuilderScreen() {
           </Pressable>
         </View>
       </KeyboardAwareScrollViewCompat>
-    </View>
-  );
-}
-
-function MacroDisplay({ value, unit }: { value: number; unit: string }) {
-  return (
-    <View style={s.macroCell}>
-      <Text style={s.macroValue}>{value}</Text>
-      <Text style={s.macroLabel}>{unit}</Text>
     </View>
   );
 }
@@ -789,13 +754,6 @@ const s = StyleSheet.create({
     borderColor: KColors.neutral[300],
     padding: KSpacing.lg,
   },
-  cardCompact: {
-    backgroundColor: KColors.neutral[0],
-    borderRadius: KRadius.lg,
-    borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
-  },
   cardTitle: {
     fontSize: KType.size.lg,
     color: KColors.neutral[900],
@@ -844,33 +802,6 @@ const s = StyleSheet.create({
     color: KColors.neutral[900],
     fontFamily: "Inter_400Regular",
     textAlignVertical: "top",
-  },
-  macroDisplayGrid: {
-    flexDirection: "row",
-    gap: KSpacing.xs,
-    marginTop: KSpacing.sm,
-    marginBottom: KSpacing.sm,
-  },
-  macroCell: {
-    flex: 1,
-    backgroundColor: KColors.neutral[100],
-    borderRadius: KRadius.md,
-    paddingVertical: KSpacing.sm,
-    paddingHorizontal: 4,
-    alignItems: "center",
-  },
-  macroValue: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-  },
-  macroLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
-    marginTop: 2,
-    textAlign: "center",
   },
   checkboxRow: {
     flexDirection: "row",

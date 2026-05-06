@@ -149,26 +149,9 @@ export default function MealsTab() {
   };
 
   const handleAddDish = () => {
-    Alert.alert(
-      "Add a dish",
-      "How do you want to add this dish?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Have Kiwi help",
-          onPress: () =>
-            Alert.alert(
-              "Coming in WS6 — AI orchestration",
-              "Kiwi will help you build a dish when AI orchestration ships.",
-            ),
-        },
-        {
-          text: "Create manually",
-          style: "default",
-          onPress: () => router.push("/dish-builder"),
-        },
-      ],
-    );
+    // Per WS5-5O-fix-2: drop the 3-button picker; the Kiwi-assist
+    // checkboxes inside Dish Builder already cover the AI path.
+    router.push("/dish-builder");
   };
 
   const handleOpenMeal = (mealId: string) => {

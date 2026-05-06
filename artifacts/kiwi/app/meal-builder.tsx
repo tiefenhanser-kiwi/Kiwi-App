@@ -167,6 +167,10 @@ export default function MealBuilderScreen() {
   const [mode, setModeState] = useState<Mode>(() => {
     if (mealId) return "manual";
     if (draftJson) return "manual";
+    // addDishId means "user wants to build a meal around this dish" —
+    // skip the mode picker and drop them into the manual editor with
+    // the dish already injected (see the addDishId effect below).
+    if (addDishId) return "manual";
     if (modeParam === "manual" || modeParam === "combine") return modeParam;
     return null;
   });
@@ -548,8 +552,19 @@ export default function MealBuilderScreen() {
           </View>
         )}
 
-        {/* Mode picker — create-from-scratch context only (no mealId, no draft) */}
-        {!mealId && !draftMeal && (
+        {/* addDishId-context info card: user is building a meal around a
+            specific dish, so skip mode picker and drop into manual editor. */}
+        {!mealId && !draftMeal && addDishId && (
+          <View style={s.contextInfo}>
+            <Text style={s.contextInfoText}>
+              You're starting a new meal with this dish. Add more dishes,
+              ingredients, and steps as needed.
+            </Text>
+          </View>
+        )}
+
+        {/* Mode picker — create-from-scratch context only (no mealId, no draft, no addDishId) */}
+        {!mealId && !draftMeal && !addDishId && (
           <View>
             <Text style={s.sectionHeader}>How do you want to build this meal?</Text>
             <ModeCard

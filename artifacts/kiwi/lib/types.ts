@@ -458,8 +458,13 @@ export interface WizardPreferencesInput {
  *
  * The `kiwiAssist*` flags (WS5-5O) signal that AI should generate
  * the corresponding field server-side at save time. When a flag
- * is true, the manual values (ingredients/steps/macros) are
- * ignored. WS6 wires the AI calls; WS5 just round-trips the flags.
+ * is true, the manual values (ingredients/steps) are ignored.
+ * WS6 wires the AI calls; WS5 just round-trips the flags.
+ *
+ * Macros are NOT user-editable in WS5 (per WS5-5O-fix-2): the AI
+ * computes them from ingredients automatically on save. The four
+ * macro fields are preserved on edit (so the user's existing
+ * macros aren't zeroed) and default to 0 on create.
  */
 export interface DishDraft {
   id?: string;                  // Empty for fresh-create
@@ -470,7 +475,6 @@ export interface DishDraft {
   /** Side dish vs full main course. */
   type: "side" | "main";
   /** Kiwi-assist flags — when true, AI generates the field on save. */
-  kiwiAssistMacros: boolean;
   kiwiAssistIngredients: boolean;
   kiwiAssistSteps: boolean;
   /** Manual values; ignored if the corresponding kiwiAssist flag is true. */
@@ -481,6 +485,7 @@ export interface DishDraft {
     estimatedMinutes?: number;
     isTimingSensitive?: boolean;
   }>;
+  /** Macros — preserved across edit, AI-computed on save. Not user-editable. */
   caloriesPerServing: number;   // Default 0
   proteinGPerServing: number;   // Default 0
   carbsGPerServing: number;     // Default 0
