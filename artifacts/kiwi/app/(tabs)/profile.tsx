@@ -1,241 +1,466 @@
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  Alert,
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
 
-import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
-import { Screen } from "@/components/Screen";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
-import { useAuth } from "@/contexts/AuthContext";
-import { KColors, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { getCurrentUserInfo } from "@/lib/stubs";
+import type { UserAccountInfo } from "@/lib/types";
 
-function planLabel(
-  subscription: { status?: string; trialEndsAt?: string | null } | null | undefined,
-): { label: string; isPremium: boolean } {
-  const status = subscription?.status;
-  if (status === "active") return { label: "Premium plan", isPremium: true };
-  if (status === "trialing") {
-    const trialEndsAt = subscription?.trialEndsAt ?? null;
-    if (!trialEndsAt) return { label: "Premium trial", isPremium: true };
-    const msLeft = new Date(trialEndsAt).getTime() - Date.now();
-    const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-    if (daysLeft <= 0) return { label: "Free plan", isPremium: false };
-    return {
-      label: `Premium trial · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left`,
-      isPremium: true,
-    };
-  }
-  return { label: "Free plan", isPremium: false };
+type EditableField = "name" | "email" | "phone";
+
+const isValidEmail = (s: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+/**
+ * Initials for the avatar circle. Handles edge cases:
+ *   "Hans Tiefenthaler" → "HT"
+ *   "Madonna"           → "M"
+ *   "Mary Anne Smith"   → "MS" (first + last, skips middle)
+ *   ""                  → "?" (fallback, shouldn't happen since name is required)
+ */
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  const first = parts[0].charAt(0);
+  const last = parts[parts.length - 1].charAt(0);
+  return (first + last).toUpperCase();
 }
 
 export default function ProfileTab() {
-  const router = useRouter();
-  const { user, logout } = useAuth();
-  const { prefs, plans } = useApp();
-  const { label: planText, isPremium } = planLabel(user?.subscription ?? null);
-  const isActiveSub = user?.subscription?.status === "active";
+  const { updateUserName, updateUserEmail, updateUserPhone } = useApp();
 
-  const handleLogout = async () => {
-    await logout();
-    router.replace("/(auth)/welcome");
+  const [userInfo, setUserInfo] = useState<UserAccountInfo>(() =>
+    getCurrentUserInfo(),
+  );
+  const [editingField, setEditingField] = useState<EditableField | null>(null);
+  const [draftValue, setDraftValue] = useState("");
+
+  const handleStartEdit = (field: EditableField) => {
+    setEditingField(field);
+    setDraftValue(userInfo[field] ?? "");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingField(null);
+    setDraftValue("");
+  };
+
+  const handleCommitEdit = () => {
+    if (!editingField) return;
+    Keyboard.dismiss();
+    const trimmed = draftValue.trim();
+
+    if (editingField === "name") {
+      // Required — empty value reverts silently
+      if (!trimmed) {
+        handleCancelEdit();
+        return;
+      }
+      if (trimmed !== userInfo.name) {
+        setUserInfo((prev) => ({ ...prev, name: trimmed }));
+        void updateUserName(trimmed);
+      }
+    } else if (editingField === "email") {
+      // Required + valid email; otherwise revert
+      if (!trimmed || !isValidEmail(trimmed)) {
+        handleCancelEdit();
+        return;
+      }
+      if (trimmed === userInfo.email) {
+        handleCancelEdit();
+        return;
+      }
+      // PRD §14.9.1 — email change goes through verification (WS6).
+      // Don't update local state; show confirmation alert. Log via
+      // stub so WS6 can hook into it.
+      void updateUserEmail(trimmed);
+      Alert.alert(
+        "Coming in WS6 — email verification",
+        "We'll send a verification link to your new email address before updating it.",
+      );
+    } else if (editingField === "phone") {
+      // Phone optional — empty allowed (clears the value)
+      const next = trimmed || undefined;
+      if (next !== userInfo.phone) {
+        setUserInfo((prev) => ({ ...prev, phone: next }));
+        void updateUserPhone(trimmed);
+      }
+    }
+
+    setEditingField(null);
+    setDraftValue("");
+  };
+
+  const handleChangePassword = () => {
+    Alert.alert(
+      "Coming in WS7 — password change",
+      "Password change requires the API client. This will be wired in WS7.",
+    );
+  };
+
+  const handlePreferences = () => {
+    Alert.alert(
+      "Coming in 5P-bis",
+      "The full preferences editor lands in the next sub-phase.",
+    );
+  };
+
+  const handleSubscription = () => {
+    Alert.alert(
+      "Coming in 5P-tris",
+      "Subscription management lands in a future sub-phase.",
+    );
+  };
+
+  const handlePrivacy = () => {
+    Alert.alert(
+      "Coming in 5P-tris",
+      "Privacy & Data lands in a future sub-phase.",
+    );
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
       <Header title="Profile" />
-      <Screen>
-        <Card padded>
-          <View style={styles.userRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user?.firstName?.charAt(0).toUpperCase() ?? "?"}
-              </Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>
-                {user ? `${user.firstName} ${user.lastName}` : "—"}
-              </Text>
-              <View style={styles.plan}>
-                <Feather
-                  name={isPremium ? "star" : "circle"}
-                  size={12}
-                  color={isPremium ? KColors.terracotta[400] : KColors.neutral[600]}
-                />
-                <Text style={styles.planText}>{planText}</Text>
-              </View>
-            </View>
+      <KeyboardAwareScrollViewCompat
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Section A: User card (centered avatar + name + email) */}
+        <View style={s.userCard}>
+          {/* TODO(WS9): tap-to-upload image picker; until then, initials only. */}
+          <View style={s.avatar}>
+            <Text style={s.avatarText}>{initialsFor(userInfo.name)}</Text>
           </View>
-        </Card>
-
-        <View style={styles.statsRow}>
-          <Stat label="Plans" value={plans.length} />
-          <Stat label="Household" value={prefs.household} />
+          <Text style={s.userName}>{userInfo.name}</Text>
+          <Text style={s.userEmail}>{userInfo.email}</Text>
         </View>
 
-        <Section title="Cooking">
-          <Row
-            icon="sliders"
-            label="Preferences"
-            onPress={() => router.push("/onboarding-prefs")}
-          />
-          <Row
-            icon="star"
-            label={isActiveSub ? "Manage Premium" : "Upgrade to Premium"}
-            onPress={() => router.push("/upgrade")}
-          />
-        </Section>
+        {/* Section B: Account info */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Account info</Text>
+          <View style={s.fieldList}>
+            <EditableRow
+              label="Name"
+              value={userInfo.name}
+              isEditing={editingField === "name"}
+              draft={draftValue}
+              onDraftChange={setDraftValue}
+              onStartEdit={() => handleStartEdit("name")}
+              onCommit={handleCommitEdit}
+              keyboardType="default"
+              placeholder="Your name"
+            />
+            <EditableRow
+              label="Email"
+              value={userInfo.email}
+              isEditing={editingField === "email"}
+              draft={draftValue}
+              onDraftChange={setDraftValue}
+              onStartEdit={() => handleStartEdit("email")}
+              onCommit={handleCommitEdit}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholder="you@example.com"
+            />
+            <EditableRow
+              label="Phone"
+              value={userInfo.phone ?? ""}
+              displayWhenEmpty="Not set"
+              isEditing={editingField === "phone"}
+              draft={draftValue}
+              onDraftChange={setDraftValue}
+              onStartEdit={() => handleStartEdit("phone")}
+              onCommit={handleCommitEdit}
+              keyboardType="phone-pad"
+              placeholder="Phone number"
+            />
+            <Pressable
+              onPress={handleChangePassword}
+              style={({ pressed }) => [s.row, pressed && { opacity: 0.7 }]}
+              hitSlop={6}
+            >
+              <Text style={s.fieldLabel}>Password</Text>
+              <View style={s.fieldRight}>
+                <Text style={s.changePasswordValue}>Change password</Text>
+                <Feather
+                  name="chevron-right"
+                  size={16}
+                  color={KColors.neutral[600]}
+                />
+              </View>
+            </Pressable>
+          </View>
+        </View>
 
-        <Section title="Account">
-          <Row icon="mail" label={user?.email ?? "—"} />
-          <Row
-            icon="log-out"
-            label="Sign out"
-            destructive
-            onPress={handleLogout}
-          />
-        </Section>
-      </Screen>
+        {/* Section C: Preferences (stubbed) */}
+        <NavCard
+          title="Preferences"
+          subtitle="Cuisines, dietary, equipment, and more"
+          onPress={handlePreferences}
+        />
+
+        {/* Section D: Subscription (stubbed) */}
+        <NavCard
+          title="Subscription"
+          subtitle="Manage your plan and billing"
+          onPress={handleSubscription}
+        />
+
+        {/* Section E: Privacy & Data (stubbed) */}
+        <NavCard
+          title="Privacy & Data"
+          subtitle="Logout and account options"
+          onPress={handlePrivacy}
+        />
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <Card padded style={styles.statCard}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </Card>
-  );
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={{ marginTop: KSpacing.xl }}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <Card padded={false} style={{ overflow: "hidden" }}>
-        {children}
-      </Card>
-    </View>
-  );
-}
-
-function Row({
-  icon,
+function EditableRow({
   label,
-  onPress,
-  destructive,
+  value,
+  displayWhenEmpty,
+  isEditing,
+  draft,
+  onDraftChange,
+  onStartEdit,
+  onCommit,
+  keyboardType,
+  autoCapitalize,
+  placeholder,
 }: {
-  icon: keyof typeof Feather.glyphMap;
   label: string;
-  onPress?: () => void;
-  destructive?: boolean;
+  value: string;
+  displayWhenEmpty?: string;
+  isEditing: boolean;
+  draft: string;
+  onDraftChange: (v: string) => void;
+  onStartEdit: () => void;
+  onCommit: () => void;
+  keyboardType?: "default" | "email-address" | "phone-pad";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  placeholder?: string;
 }) {
+  const display = value || displayWhenEmpty || "";
+
   return (
     <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
-      disabled={!onPress}
+      onPress={isEditing ? undefined : onStartEdit}
+      style={({ pressed }) => [
+        s.row,
+        pressed && !isEditing && { opacity: 0.7 },
+      ]}
+      hitSlop={6}
     >
-      <Feather
-        name={icon}
-        size={18}
-        color={destructive ? KColors.terracotta[600] : KColors.sage[700]}
-      />
-      <Text
-        style={[
-          styles.rowLabel,
-          destructive && { color: KColors.terracotta[600] },
-        ]}
-      >
-        {label}
-      </Text>
-      {onPress && (
-        <Feather name="chevron-right" size={18} color={KColors.neutral[600]} />
+      <Text style={s.fieldLabel}>{label}</Text>
+      {isEditing ? (
+        <TextInput
+          value={draft}
+          onChangeText={onDraftChange}
+          onSubmitEditing={onCommit}
+          onBlur={onCommit}
+          autoFocus
+          returnKeyType="done"
+          blurOnSubmit
+          keyboardType={keyboardType ?? "default"}
+          autoCapitalize={autoCapitalize ?? "sentences"}
+          placeholder={placeholder}
+          placeholderTextColor={KColors.neutral[600]}
+          style={s.editInput}
+        />
+      ) : (
+        <View style={s.fieldRight}>
+          <Text
+            style={[
+              s.fieldValue,
+              !value && displayWhenEmpty && s.fieldValueMuted,
+            ]}
+            numberOfLines={1}
+          >
+            {display}
+          </Text>
+          <Feather name="edit-2" size={14} color={KColors.neutral[600]} />
+        </View>
       )}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  userRow: { flexDirection: "row", alignItems: "center", gap: KSpacing.md },
+function NavCard({
+  title,
+  subtitle,
+  onPress,
+}: {
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [s.navCard, pressed && { opacity: 0.85 }]}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={s.navCardTitle}>{title}</Text>
+        <Text style={s.navCardSubtitle}>{subtitle}</Text>
+      </View>
+      <Feather
+        name="chevron-right"
+        size={18}
+        color={KColors.neutral[600]}
+      />
+    </Pressable>
+  );
+}
+
+const s = StyleSheet.create({
+  scrollContent: {
+    paddingHorizontal: KSpacing.lg,
+    paddingTop: KSpacing.lg,
+    paddingBottom: KSpacing.xxxl * 2,
+    gap: KSpacing.md,
+  },
+  userCard: {
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.lg,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.lg,
+    alignItems: "center",
+    gap: KSpacing.sm,
+  },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: KColors.sage[700],
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
-    color: KColors.neutral[100],
-    fontSize: 22,
+    color: KColors.neutral[0],
+    fontSize: 28,
     fontWeight: "700",
     fontFamily: "Inter_700Bold",
   },
-  name: {
-    fontSize: KType.size.lg,
-    fontWeight: "600",
+  userName: {
+    fontSize: KType.size.xl,
     color: KColors.neutral[900],
-    fontFamily: "Inter_600SemiBold",
+    fontWeight: KType.weight.bold,
+    fontFamily: "Inter_700Bold",
+    marginTop: KSpacing.xs,
   },
-  plan: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
-  planText: {
+  userEmail: {
     fontSize: KType.size.sm,
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
   },
-  statsRow: {
-    flexDirection: "row",
-    gap: KSpacing.md,
-    marginTop: KSpacing.md,
+  card: {
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.lg,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.md,
   },
-  statCard: { flex: 1, alignItems: "center" },
-  statValue: {
-    fontSize: KType.size.xxl,
-    fontWeight: "700",
-    color: KColors.sage[700],
+  cardTitle: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[800],
+    fontWeight: KType.weight.bold,
     fontFamily: "Inter_700Bold",
-  },
-  statLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    marginTop: 2,
-    fontFamily: "Inter_500Medium",
-    fontWeight: "500",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  sectionTitle: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[600],
-    fontWeight: "600",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
     marginBottom: KSpacing.sm,
-    paddingHorizontal: 4,
-    fontFamily: "Inter_600SemiBold",
+  },
+  fieldList: {
+    gap: 0,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: KSpacing.md,
-    paddingHorizontal: KSpacing.lg,
-    paddingVertical: KSpacing.md,
+    paddingVertical: KSpacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: KColors.neutral[300],
+    borderBottomColor: KColors.neutral[200],
+    minHeight: 40,
   },
-  rowLabel: {
+  fieldLabel: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+  },
+  fieldRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+    flexShrink: 1,
+  },
+  fieldValue: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[800],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+    textAlign: "right",
+    maxWidth: 220,
+  },
+  fieldValueMuted: {
+    color: KColors.neutral[600],
+    fontStyle: "italic",
+  },
+  editInput: {
     flex: 1,
-    fontSize: KType.size.md,
+    minWidth: 0,
+    fontSize: KType.size.sm,
     color: KColors.neutral[900],
     fontFamily: "Inter_500Medium",
-    fontWeight: "500",
+    fontWeight: KType.weight.medium,
+    textAlign: "right",
+    paddingVertical: 4,
+    paddingHorizontal: KSpacing.sm,
+    borderWidth: 1,
+    borderColor: KColors.sage[600],
+    borderRadius: KRadius.sm,
+    backgroundColor: KColors.sage[50],
+    marginLeft: KSpacing.sm,
+  },
+  changePasswordValue: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  navCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.md,
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.lg,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.md,
+  },
+  navCardTitle: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[800],
+    fontWeight: KType.weight.bold,
+    fontFamily: "Inter_700Bold",
+  },
+  navCardSubtitle: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
   },
 });

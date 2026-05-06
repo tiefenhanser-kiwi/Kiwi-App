@@ -77,6 +77,16 @@ export interface User {
   createdAt: string;
 }
 
+/**
+ * PRD §14.9.1 — User's account info displayed/editable in
+ * Profile. Real persistence WS7.
+ */
+export interface UserAccountInfo {
+  name: string;
+  email: string;
+  phone?: string;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // PRD-aligned plan review types (WS5+)
 // Parallel to legacy MealPlan/MealSlot above; collapses in WS7.

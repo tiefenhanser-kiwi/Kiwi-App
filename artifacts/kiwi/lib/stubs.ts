@@ -17,6 +17,7 @@ import type {
   ReviewMeal,
   ReviewPlan,
   SavedDish,
+  UserAccountInfo,
   UserPlanSummary,
   WizardPlanCandidate,
 } from "./types";
@@ -2396,4 +2397,18 @@ export function getWizardPlanCandidates(): WizardPlanCandidate[] {
       },
     },
   ];
+}
+
+// ── User Account Info (PRD §14.9.1) ──
+
+/**
+ * PRD §14.9.1 — stubbed user account info for WS5.
+ * Real data lands when WS7 wires the API client.
+ */
+export function getCurrentUserInfo(): UserAccountInfo {
+  return {
+    name: "Hans Tiefenthaler",
+    email: "hans.tiefenthaler@gmail.com",
+    phone: "+1 (555) 123-4567",
+  };
 }

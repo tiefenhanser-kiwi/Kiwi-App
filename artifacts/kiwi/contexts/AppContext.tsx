@@ -116,6 +116,14 @@ interface AppState {
   /** PRD §10.5 — save a dish to user's library. Real persistence WS7.
    *  WS5: log only; returns assigned id. */
   saveDish: (dish: DishDraft) => Promise<{ id: string }>;
+  /** PRD §14.9.1 — update user's name. Real persistence WS7. */
+  updateUserName: (name: string) => Promise<void>;
+  /** PRD §14.9.1 — update user's email. Real flow includes
+   *  verification email confirmation. WS5 stub: log only; WS6
+   *  wires verification. */
+  updateUserEmail: (email: string) => Promise<void>;
+  /** PRD §14.9.1 — update user's phone. Real persistence WS7. */
+  updateUserPhone: (phone: string) => Promise<void>;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
   favorites: string[];
@@ -333,6 +341,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { id };
   };
 
+  const updateUserName = async (name: string): Promise<void> => {
+    // TODO(WS7): wire to PATCH /me (name)
+    console.log("[stub] updateUserName", { name });
+  };
+
+  const updateUserEmail = async (email: string): Promise<void> => {
+    // TODO(WS6): wire to verification flow → PATCH /me (email after confirm)
+    console.log("[stub] updateUserEmail", { email });
+  };
+
+  const updateUserPhone = async (phone: string): Promise<void> => {
+    // TODO(WS7): wire to PATCH /me (phone)
+    console.log("[stub] updateUserPhone", { phone });
+  };
+
   const toggleGrocery = useCallback(
     async (id: string) => {
       const updated = groceries.map((g) =>
@@ -397,6 +420,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updatePlanName,
     updatePlanDateRange,
     saveDish,
+    updateUserName,
+    updateUserEmail,
+    updateUserPhone,
     groceries,
     toggleGrocery,
     favorites,
