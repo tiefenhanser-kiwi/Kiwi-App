@@ -11,12 +11,12 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
-import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { formatSubscriptionState } from "@/lib/domain";
 import { getCurrentSubscription, getCurrentUserInfo } from "@/lib/stubs";
 import type { SubscriptionInfo, UserAccountInfo } from "@/lib/types";
 
@@ -32,26 +32,6 @@ const isValidEmail = (s: string): boolean =>
  *   "Mary Anne Smith"   → "MS" (first + last, skips middle)
  *   ""                  → "?" (fallback, shouldn't happen since name is required)
  */
-function formatSubscriptionState(sub: SubscriptionInfo): string {
-  switch (sub.tier) {
-    case "trial":
-      return sub.trialDaysRemaining != null
-        ? `Trial · ${sub.trialDaysRemaining} days remaining`
-        : "Trial";
-    case "active":
-      return sub.nextRenewalDate
-        ? `Active · renews ${sub.nextRenewalDate}`
-        : "Active";
-    case "past_due":
-      return "Past due — please update billing";
-    case "canceled":
-      return "Canceled";
-    case "none":
-    default:
-      return "No active subscription";
-  }
-}
-
 function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -142,11 +122,8 @@ export default function ProfileTab() {
     router.push("/preferences");
   };
 
-  const handleManageSubscription = () => {
-    Alert.alert(
-      "Coming in WS6 — Stripe integration",
-      "Subscription management requires the Stripe Customer Portal. This will be wired in WS6.",
-    );
+  const handleAccountAndSubscription = () => {
+    router.push("/manage-account");
   };
 
   const handleLogout = async () => {
@@ -156,10 +133,6 @@ export default function ProfileTab() {
       console.log("[profile] logout fallback");
     }
     router.replace("/(auth)/welcome");
-  };
-
-  const handleDeactivate = () => {
-    router.push("/deactivate-account");
   };
 
   return (
@@ -243,66 +216,44 @@ export default function ProfileTab() {
           onPress={handlePreferences}
         />
 
-        {/* Section D: Subscription (PRD §14.7) */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Subscription</Text>
+        {/* Section D: Account & Subscription (PRD §14.7) */}
+        <Pressable
+          onPress={handleAccountAndSubscription}
+          style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}
+        >
+          <View style={s.cardHeaderRow}>
+            <Text style={s.cardTitle}>Account & Subscription</Text>
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={KColors.neutral[600]}
+            />
+          </View>
           <Text style={s.subscriptionState}>
             {formatSubscriptionState(subscription)}
           </Text>
           <Text style={s.subscriptionHint}>
             Upgrade for unlimited Kitchen Wizard plans and AI-powered features
           </Text>
-          <View style={{ marginTop: KSpacing.md }}>
-            <Button
-              label="Manage subscription"
-              variant="secondary"
-              onPress={handleManageSubscription}
-            />
-          </View>
-        </View>
+        </Pressable>
 
-        {/* Section E: Privacy & Data (PRD §14.9.4) */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Privacy & Data</Text>
-          <Pressable
-            onPress={handleLogout}
-            style={({ pressed }) => [s.actionRow, pressed && { opacity: 0.7 }]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={s.actionLabel}>Log out</Text>
-              <Text style={s.actionSubtitle}>
-                Sign out and return to the welcome screen
-              </Text>
-            </View>
+        {/* Section E: Log Out (standalone) */}
+        <Pressable
+          onPress={handleLogout}
+          style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}
+        >
+          <View style={s.cardHeaderRow}>
+            <Text style={s.cardTitle}>Log Out</Text>
             <Feather
               name="chevron-right"
               size={18}
               color={KColors.neutral[600]}
             />
-          </Pressable>
-          <Pressable
-            onPress={handleDeactivate}
-            style={({ pressed }) => [
-              s.actionRow,
-              s.actionRowDestructive,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={[s.actionLabel, s.actionLabelDestructive]}>
-                Deactivate account
-              </Text>
-              <Text style={s.actionSubtitle}>
-                Soft-deletes your account; admins restore within 6 months
-              </Text>
-            </View>
-            <Feather
-              name="chevron-right"
-              size={18}
-              color={KColors.terracotta[600]}
-            />
-          </Pressable>
-        </View>
+          </View>
+          <Text style={s.subscriptionHint}>
+            Sign out and return to the welcome screen
+          </Text>
+        </Pressable>
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -554,31 +505,10 @@ const s = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginTop: KSpacing.xs,
   },
-  actionRow: {
+  cardHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: KSpacing.sm,
-    paddingVertical: KSpacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: KColors.neutral[200],
-    marginTop: KSpacing.sm,
-  },
-  actionRowDestructive: {
-    // Same divider treatment; color handled on the label/icon.
-  },
-  actionLabel: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-  },
-  actionLabelDestructive: {
-    color: KColors.terracotta[600],
-  },
-  actionSubtitle: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
-    marginTop: 2,
   },
 });

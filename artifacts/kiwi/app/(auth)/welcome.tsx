@@ -43,15 +43,15 @@ export default function Welcome() {
 
       <View style={styles.actions}>
         <Button
-          label="Get started"
+          label="Start Free 30-Day Trial"
           variant="terra"
           onPress={() => router.push("/(auth)/sign-up")}
         />
         <Button
-          label="I already have an account"
-          variant="ghost"
+          label="Log In"
+          variant="primary"
           onPress={() => router.push("/(auth)/sign-in")}
-          style={{ backgroundColor: "transparent", borderColor: "rgba(255,255,255,0.4)" } as any}
+          style={{ borderColor: "rgba(255,255,255,0.4)", borderWidth: 1 } as any}
         />
       </View>
     </View>

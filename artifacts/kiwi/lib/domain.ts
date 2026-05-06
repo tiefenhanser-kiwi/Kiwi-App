@@ -1,7 +1,12 @@
 // Pure domain utilities for the Kiwi client.
 // Previously colocated with mock recipe data in mockData.ts.
 
-import type { DayAssignment, DayKey, DayOfWeek } from "./types";
+import type {
+  DayAssignment,
+  DayKey,
+  DayOfWeek,
+  SubscriptionInfo,
+} from "./types";
 
 export const DAYS: DayKey[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -109,6 +114,30 @@ export const ALLERGIES_AND_AVOIDANCES = [
 
 /** Plan duration presets per Hans — single-select 1-7 days. */
 export const PLAN_DURATION_PRESETS = [1, 2, 3, 4, 5, 6, 7] as const;
+
+/**
+ * PRD §14.7 — display-friendly subscription state line.
+ * Shared by Profile (card body) and /manage-account (header).
+ */
+export function formatSubscriptionState(sub: SubscriptionInfo): string {
+  switch (sub.tier) {
+    case "trial":
+      return sub.trialDaysRemaining != null
+        ? `Trial · ${sub.trialDaysRemaining} days remaining`
+        : "Trial";
+    case "active":
+      return sub.nextRenewalDate
+        ? `Active · renews ${sub.nextRenewalDate}`
+        : "Active";
+    case "past_due":
+      return "Past due — please update billing";
+    case "canceled":
+      return "Canceled";
+    case "none":
+    default:
+      return "No active subscription";
+  }
+}
 
 /** PRD §3.5 — cooking equipment chips (multi-select). */
 export const COOKING_EQUIPMENT = [
