@@ -83,6 +83,16 @@ export default function Preferences() {
     });
   };
 
+  const handleHouseholdSizeChange = (newSize: number) => {
+    setForm((prev) => ({
+      ...prev,
+      householdSize: newSize,
+      // Auto-reduce dependents if they exceed the new max.
+      kidsCount: Math.min(prev.kidsCount, newSize),
+      pickyEaterCount: Math.min(prev.pickyEaterCount, newSize),
+    }));
+  };
+
   const removeRecurringItem = (item: string) => {
     setForm((prev) => ({
       ...prev,
@@ -137,7 +147,7 @@ export default function Preferences() {
           <SubLabel>Default servings</SubLabel>
           <Stepper
             value={form.householdSize}
-            onChange={(n) => update("householdSize", n)}
+            onChange={handleHouseholdSizeChange}
             min={HOUSEHOLD_MIN}
             max={HOUSEHOLD_MAX}
             suffix={form.householdSize === 1 ? "person" : "people"}
@@ -181,9 +191,11 @@ export default function Preferences() {
           </SubLabel>
           <Stepper
             value={form.kidsCount}
-            onChange={(n) => update("kidsCount", n)}
+            onChange={(n) =>
+              update("kidsCount", Math.min(n, form.householdSize))
+            }
             min={KIDS_MIN}
-            max={KIDS_MAX}
+            max={Math.min(KIDS_MAX, form.householdSize)}
             suffix={form.kidsCount === 1 ? "kid" : "kids"}
           />
           {/* Kid ages sub-section removed per WS5-5P-bis-fix. */}
@@ -193,9 +205,11 @@ export default function Preferences() {
           </SubLabel>
           <Stepper
             value={form.pickyEaterCount}
-            onChange={(n) => update("pickyEaterCount", n)}
+            onChange={(n) =>
+              update("pickyEaterCount", Math.min(n, form.householdSize))
+            }
             min={PICKY_MIN}
-            max={PICKY_MAX}
+            max={Math.min(PICKY_MAX, form.householdSize)}
             suffix={form.pickyEaterCount === 1 ? "person" : "people"}
           />
           {form.pickyEaterCount > 0 && (

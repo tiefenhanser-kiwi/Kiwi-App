@@ -195,7 +195,7 @@ export const COMMON_RECURRING_ITEMS = [
   "Bananas",
   "Bread",
   "Coffee",
-  "Pet food",
+  "Pet treats",
 ] as const;
 
 /** PRD §3.4 — cooking skill levels. */
