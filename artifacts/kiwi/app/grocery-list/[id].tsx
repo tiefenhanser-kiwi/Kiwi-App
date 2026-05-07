@@ -172,13 +172,23 @@ export default function GroceryListDetail() {
   };
 
   const enterQuantityEdit = (item: GroceryListItem) => {
+    // Diagnostic — WS5-5Q-fix-3 added these to chase an intermittent
+    // "edit doesn't fire on tap" report. Keep them through WS6 to
+    // catch any reappearance once the prod sample size grows.
+    console.log("[grocery-list] quantity tap", {
+      itemId: item.id,
+      currentEditingId: editingItemId,
+    });
     setEditingItemId(item.id);
     setEditAmount(item.quantityAmount ?? "");
     setEditUnit(item.quantityUnit ?? "");
   };
 
   const commitQuantityEdit = () => {
-    if (!editingItemId) return;
+    if (!editingItemId) {
+      console.log("[grocery-list] commit no-op (no active edit)");
+      return;
+    }
     const amt = editAmount.trim() || undefined;
     const unit = editUnit.trim() || undefined;
     setList((prev) =>
@@ -202,7 +212,7 @@ export default function GroceryListDetail() {
         : prev,
     );
     // TODO(WS7): wire to PATCH /grocery-lists/{id}/items/{itemId}
-    console.log("[grocery-list] quantity edit", {
+    console.log("[grocery-list] quantity edit commit", {
       listId,
       itemId: editingItemId,
       quantityAmount: amt,
@@ -541,11 +551,13 @@ function GroceryRow({
   // Default staples don't strike — opting in is a separate concept from
   // "checked off." Once a staple is opted-in, isCompleted drives strike.
   const showStrikethrough = !isDefaultStaple && item.isCompleted;
-  // Active (opted-in) staples render the SAME checkbox as regular items —
-  // the dashed border + plus icon are reserved for the not-yet-opted-in
-  // state where tapping promotes rather than checks. Per WS5-5Q-fix-2:
-  // once opted in, the row IS a regular item, so its check affordance
-  // matches.
+  // The dashed border + plus icon affordance is intentionally gated on
+  // ONLY isDefaultStaple. Per WS5-5Q-fix-3: do NOT add isOptional here —
+  // optional items render with the regular checkbox; the "Optional" tag
+  // alone communicates the optional state. This guard exists so a
+  // future refactor can't silently fold isOptional into the dashed
+  // condition.
+  const useDashedCheckbox = isDefaultStaple;
   const showCheck = !isDefaultStaple && item.isCompleted;
   const showPlusAffordance = isDefaultStaple;
 
@@ -562,59 +574,68 @@ function GroceryRow({
   const editAmountInvalid =
     editAmount.trim().length > 0 && parseQuantity(editAmount) === null;
 
+  // WS5-5Q-fix-3 — row container is a plain View (was a Pressable). The
+  // three tap targets (toggle area, qty, X) are now SIBLINGS, not
+  // nested inside a parent Pressable. Nesting was the root cause of an
+  // intermittent "tap on qty doesn't open edit" bug: the outer
+  // Pressable would occasionally win the responder race and fire onTap
+  // with a stale-closure editingItemId, falling through to checkbox
+  // toggle instead of edit. Sibling Pressables eliminate the conflict.
   return (
-    <Pressable
-      onPress={onTap}
-      style={({ pressed }) => [s.row, pressed && { opacity: 0.7 }]}
-    >
-      <View
-        style={[
-          s.check,
-          showCheck && {
-            backgroundColor: KColors.sage[700],
-            borderColor: KColors.sage[700],
-          },
-          isDefaultStaple && {
-            borderColor: KColors.neutral[400],
-            backgroundColor: "transparent",
-            borderStyle: "dashed",
-          },
-        ]}
+    <View style={s.row}>
+      <Pressable
+        onPress={onTap}
+        style={({ pressed }) => [s.toggleArea, pressed && { opacity: 0.7 }]}
       >
-        {showCheck && (
-          <Feather name="check" size={14} color={KColors.neutral[0]} />
-        )}
-        {showPlusAffordance && (
-          <Feather name="plus" size={12} color={KColors.neutral[500]} />
-        )}
-      </View>
-      <View style={{ flex: 1 }}>
-        <View style={s.itemTopRow}>
-          <Text
-            style={[
-              s.itemName,
-              showStrikethrough && {
-                textDecorationLine: "line-through",
-                color: KColors.neutral[600],
-              },
-              isDefaultStaple && {
-                color: KColors.neutral[700],
-              },
-            ]}
-            numberOfLines={1}
-          >
-            {item.name}
-          </Text>
-          {item.isUniversalStaple && (
-            <Tag
-              label="Pantry Staple"
-              tone={isActiveStaple ? "sage" : "muted"}
-            />
+        <View
+          style={[
+            s.check,
+            showCheck && {
+              backgroundColor: KColors.sage[700],
+              borderColor: KColors.sage[700],
+            },
+            useDashedCheckbox && {
+              borderColor: KColors.neutral[400],
+              backgroundColor: "transparent",
+              borderStyle: "dashed",
+            },
+          ]}
+        >
+          {showCheck && (
+            <Feather name="check" size={14} color={KColors.neutral[0]} />
           )}
-          {item.isRecurringItem && <Tag label="Recurring" tone="sage" />}
-          {item.isOptional && <Tag label="Optional" tone="muted" />}
+          {showPlusAffordance && (
+            <Feather name="plus" size={12} color={KColors.neutral[500]} />
+          )}
         </View>
-      </View>
+        <View style={{ flex: 1 }}>
+          <View style={s.itemTopRow}>
+            <Text
+              style={[
+                s.itemName,
+                showStrikethrough && {
+                  textDecorationLine: "line-through",
+                  color: KColors.neutral[600],
+                },
+                isDefaultStaple && {
+                  color: KColors.neutral[700],
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {item.name}
+            </Text>
+            {item.isUniversalStaple && (
+              <Tag
+                label="Pantry Staple"
+                tone={isActiveStaple ? "sage" : "muted"}
+              />
+            )}
+            {item.isRecurringItem && <Tag label="Recurring" tone="sage" />}
+            {item.isOptional && <Tag label="Optional" tone="muted" />}
+          </View>
+        </View>
+      </Pressable>
       {isEditing ? (
         // Inline edit pair — mirrors meal-builder's ingredient row
         // (s.ingQty + s.ingUnit). Parent owns state so swapping focus
@@ -649,20 +670,12 @@ function GroceryRow({
             onSubmitEditing={onCommitEdit}
           />
         </View>
-      ) : isDefaultStaple ? (
-        // Default-state staple: no edit affordance — the row is in
-        // opt-in mode, not edit mode. Tap goes to row-level handler.
-        <Text
-          style={[
-            s.qty,
-            { color: KColors.neutral[600] },
-          ]}
-        >
-          {displayQty}
-        </Text>
       ) : (
+        // Qty Pressable — for default staples, tapping fires onTap
+        // (opt-in, same as the toggle area); for non-staples, fires
+        // onEnterEdit. Always a sibling Pressable, never nested.
         <Pressable
-          onPress={onEnterEdit}
+          onPress={isDefaultStaple ? onTap : onEnterEdit}
           hitSlop={6}
           style={({ pressed }) => [
             s.qtyTapTarget,
@@ -672,7 +685,7 @@ function GroceryRow({
           <Text
             style={[
               s.qty,
-              item.isCompleted && {
+              (isDefaultStaple || item.isCompleted) && {
                 color: KColors.neutral[600],
               },
             ]}
@@ -692,7 +705,7 @@ function GroceryRow({
           <Feather name="x" size={16} color={KColors.neutral[500]} />
         </Pressable>
       )}
-    </Pressable>
+    </View>
   );
 }
 
@@ -878,6 +891,18 @@ const s = StyleSheet.create({
     paddingVertical: KSpacing.md,
     borderBottomWidth: 1,
     borderBottomColor: KPalette.border.muted,
+  },
+  // Sibling tap area (checkbox + name + tags). flex:1 so it consumes
+  // all width left over by the qty + X siblings. Keeping its own
+  // flex-row layout lets the checkbox and name sit side-by-side as
+  // before. Per WS5-5Q-fix-3, this Pressable replaces the previous
+  // row-wrapping Pressable that nested the qty + X Pressables — see
+  // GroceryRow comment for the responder-race rationale.
+  toggleArea: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.md,
   },
   check: {
     width: 22,
