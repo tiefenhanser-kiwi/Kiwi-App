@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
@@ -17,24 +16,20 @@ import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Stepper } from "@/components/Stepper";
+import { AllergiesPicker } from "@/components/preference-pickers/AllergiesPicker";
+import { BudgetLevelPicker } from "@/components/preference-pickers/BudgetLevelPicker";
+import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
+import { EatingStylesPicker } from "@/components/preference-pickers/EatingStylesPicker";
+import { EquipmentPicker } from "@/components/preference-pickers/EquipmentPicker";
+import { HealthGoalsPicker } from "@/components/preference-pickers/HealthGoalsPicker";
+import { PickyEatersPicker } from "@/components/preference-pickers/PickyEatersPicker";
+import { RecurringItemsPicker } from "@/components/preference-pickers/RecurringItemsPicker";
+import { SkillLevelPicker } from "@/components/preference-pickers/SkillLevelPicker";
+import { SpicePicker } from "@/components/preference-pickers/SpicePicker";
+import { StovetopPicker } from "@/components/preference-pickers/StovetopPicker";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import {
-  ALLERGIES_AND_AVOIDANCES,
-  BUDGET_LEVELS,
-  COMMON_RECURRING_ITEMS,
-  COOKING_EQUIPMENT,
-  COOKING_SKILL_LEVELS,
-  CUISINES_TIER_1,
-  CUISINES_TIER_2,
-  DEFAULT_RETAILERS,
-  EATING_STYLES,
-  HEALTH_GOALS,
-  PICKY_AVOIDANCES,
-  PLAN_DURATION_PRESETS,
-  SPICE_TOLERANCE_OPTIONS,
-  STOVETOP_TYPES,
-} from "@/lib/domain";
+import { DEFAULT_RETAILERS, PLAN_DURATION_PRESETS } from "@/lib/domain";
 import { getCurrentUserPreferences } from "@/lib/stubs";
 import type { UserPreferencesData } from "@/lib/types";
 
@@ -42,8 +37,6 @@ const HOUSEHOLD_MIN = 1;
 const HOUSEHOLD_MAX = 30;
 const KIDS_MIN = 0;
 const KIDS_MAX = 8;
-const PICKY_MIN = 0;
-const PICKY_MAX = 8;
 
 export default function Preferences() {
   const router = useRouter();
@@ -52,35 +45,12 @@ export default function Preferences() {
   const [form, setForm] = useState<UserPreferencesData>(() =>
     getCurrentUserPreferences(),
   );
-  const [cuisineExpanded, setCuisineExpanded] = useState(false);
-  const [allergiesExpanded, setAllergiesExpanded] = useState(false);
-  const [customRecurringItem, setCustomRecurringItem] = useState("");
 
   const update = <K extends keyof UserPreferencesData>(
     key: K,
     value: UserPreferencesData[K],
   ) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const toggleArrayItem = (
-    key:
-      | "cuisines"
-      | "eatingStyles"
-      | "allergiesAndAvoidances"
-      | "cookingEquipment"
-      | "pickyAvoidances"
-      | "healthGoals"
-      | "recurringGroceryItems",
-    item: string,
-  ) => {
-    setForm((prev) => {
-      const current = prev[key];
-      const next = current.includes(item)
-        ? current.filter((i) => i !== item)
-        : [...current, item];
-      return { ...prev, [key]: next };
-    });
   };
 
   const handleHouseholdSizeChange = (newSize: number) => {
@@ -91,34 +61,6 @@ export default function Preferences() {
       kidsCount: Math.min(prev.kidsCount, newSize),
       pickyEaterCount: Math.min(prev.pickyEaterCount, newSize),
     }));
-  };
-
-  const removeRecurringItem = (item: string) => {
-    setForm((prev) => ({
-      ...prev,
-      recurringGroceryItems: prev.recurringGroceryItems.filter(
-        (i) => i !== item,
-      ),
-    }));
-  };
-
-  const addRecurringItem = (item: string) => {
-    const trimmed = item.trim();
-    if (!trimmed) return;
-    setForm((prev) =>
-      prev.recurringGroceryItems.includes(trimmed)
-        ? prev
-        : {
-            ...prev,
-            recurringGroceryItems: [...prev.recurringGroceryItems, trimmed],
-          },
-    );
-  };
-
-  const handleAddCustomRecurring = () => {
-    addRecurringItem(customRecurringItem);
-    setCustomRecurringItem("");
-    Keyboard.dismiss();
   };
 
   const handleSave = () => {
@@ -200,33 +142,14 @@ export default function Preferences() {
           />
           {/* Kid ages sub-section removed per WS5-5P-bis-fix. */}
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>
-            Picky eaters
-          </SubLabel>
-          <Stepper
-            value={form.pickyEaterCount}
-            onChange={(n) =>
-              update("pickyEaterCount", Math.min(n, form.householdSize))
-            }
-            min={PICKY_MIN}
-            max={Math.min(PICKY_MAX, form.householdSize)}
-            suffix={form.pickyEaterCount === 1 ? "person" : "people"}
+          <SubLabel style={{ marginTop: KSpacing.lg }}>Picky eaters</SubLabel>
+          <PickyEatersPicker
+            pickyCount={form.pickyEaterCount}
+            pickyAvoidances={form.pickyAvoidances}
+            onPickyCountChange={(n) => update("pickyEaterCount", n)}
+            onPickyAvoidancesChange={(next) => update("pickyAvoidances", next)}
+            maxPicky={form.householdSize}
           />
-          {form.pickyEaterCount > 0 && (
-            <View style={{ marginTop: KSpacing.md }}>
-              <SubLabel>What they avoid</SubLabel>
-              <View style={s.chipRow}>
-                {PICKY_AVOIDANCES.map((p) => (
-                  <Chip
-                    key={p}
-                    label={p}
-                    selected={form.pickyAvoidances.includes(p)}
-                    onPress={() => toggleArrayItem("pickyAvoidances", p)}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
         </Section>
 
         {/* Section 2: Cuisines */}
@@ -238,71 +161,27 @@ export default function Preferences() {
               : undefined
           }
         >
-          <View style={s.chipRow}>
-            {CUISINES_TIER_1.map((c) => (
-              <Chip
-                key={c}
-                label={c}
-                selected={form.cuisines.includes(c)}
-                onPress={() => toggleArrayItem("cuisines", c)}
-              />
-            ))}
-          </View>
-          <ExpandLink
-            expanded={cuisineExpanded}
-            label="More cuisines"
-            onPress={() => setCuisineExpanded((v) => !v)}
+          <CuisinePicker
+            value={form.cuisines}
+            onChange={(next) => update("cuisines", next)}
           />
-          {cuisineExpanded && (
-            <View style={[s.chipRow, { marginTop: KSpacing.sm }]}>
-              {CUISINES_TIER_2.map((c) => (
-                <Chip
-                  key={c}
-                  label={c}
-                  selected={form.cuisines.includes(c)}
-                  onPress={() => toggleArrayItem("cuisines", c)}
-                />
-              ))}
-            </View>
-          )}
         </Section>
 
         {/* Section 3: Dietary */}
         <Section title="Dietary preferences">
           <SubLabel>Eating styles</SubLabel>
-          <View style={s.chipRow}>
-            {EATING_STYLES.map((e) => (
-              <Chip
-                key={e}
-                label={e}
-                selected={form.eatingStyles.includes(e)}
-                onPress={() => toggleArrayItem("eatingStyles", e)}
-              />
-            ))}
-          </View>
+          <EatingStylesPicker
+            value={form.eatingStyles}
+            onChange={(next) => update("eatingStyles", next)}
+          />
 
           <SubLabel style={{ marginTop: KSpacing.lg }}>
             Allergies & avoidances
           </SubLabel>
-          <ExpandLink
-            expanded={allergiesExpanded}
-            label="More"
-            onPress={() => setAllergiesExpanded((v) => !v)}
+          <AllergiesPicker
+            value={form.allergiesAndAvoidances}
+            onChange={(next) => update("allergiesAndAvoidances", next)}
           />
-          {allergiesExpanded && (
-            <View style={[s.chipRow, { marginTop: KSpacing.sm }]}>
-              {ALLERGIES_AND_AVOIDANCES.map((a) => (
-                <Chip
-                  key={a}
-                  label={a}
-                  selected={form.allergiesAndAvoidances.includes(a)}
-                  onPress={() =>
-                    toggleArrayItem("allergiesAndAvoidances", a)
-                  }
-                />
-              ))}
-            </View>
-          )}
 
           <SubLabel style={{ marginTop: KSpacing.lg }}>
             Anything else?
@@ -324,83 +203,47 @@ export default function Preferences() {
         {/* Section 4: Cooking */}
         <Section title="Cooking">
           <SubLabel>Skill level</SubLabel>
-          <View style={s.chipRow}>
-            {COOKING_SKILL_LEVELS.map((skill) => (
-              <Chip
-                key={skill}
-                label={skill}
-                selected={form.cookingSkill === skill}
-                onPress={() => update("cookingSkill", skill)}
-              />
-            ))}
-          </View>
+          <SkillLevelPicker
+            value={form.cookingSkill}
+            onChange={(next) => update("cookingSkill", next)}
+          />
 
           <SubLabel style={{ marginTop: KSpacing.lg }}>
             Spice tolerance
           </SubLabel>
-          <View style={s.chipRow}>
-            {SPICE_TOLERANCE_OPTIONS.map((tol) => (
-              <Chip
-                key={tol}
-                label={tol}
-                selected={form.spiceTolerance === tol}
-                onPress={() => update("spiceTolerance", tol)}
-              />
-            ))}
-          </View>
+          <SpicePicker
+            value={form.spiceTolerance}
+            onChange={(next) => update("spiceTolerance", next)}
+          />
 
           <SubLabel style={{ marginTop: KSpacing.lg }}>Equipment</SubLabel>
-          <View style={s.chipRow}>
-            {COOKING_EQUIPMENT.map((eq) => (
-              <Chip
-                key={eq}
-                label={eq}
-                selected={form.cookingEquipment.includes(eq)}
-                onPress={() => toggleArrayItem("cookingEquipment", eq)}
-              />
-            ))}
-          </View>
+          <EquipmentPicker
+            value={form.cookingEquipment}
+            onChange={(next) => update("cookingEquipment", next)}
+          />
 
           <SubLabel style={{ marginTop: KSpacing.lg }}>
             Stovetop type
           </SubLabel>
-          <View style={s.chipRow}>
-            {STOVETOP_TYPES.map((t) => (
-              <Chip
-                key={t}
-                label={t}
-                selected={form.stovetopType === t}
-                onPress={() => update("stovetopType", t)}
-              />
-            ))}
-          </View>
+          <StovetopPicker
+            value={form.stovetopType}
+            onChange={(next) => update("stovetopType", next)}
+          />
         </Section>
 
         {/* Section 5: Health & Budget */}
         <Section title="Health & Budget">
           <SubLabel>Health goals</SubLabel>
-          <View style={s.chipRow}>
-            {HEALTH_GOALS.map((g) => (
-              <Chip
-                key={g}
-                label={g}
-                selected={form.healthGoals.includes(g)}
-                onPress={() => toggleArrayItem("healthGoals", g)}
-              />
-            ))}
-          </View>
+          <HealthGoalsPicker
+            value={form.healthGoals}
+            onChange={(next) => update("healthGoals", next)}
+          />
 
           <SubLabel style={{ marginTop: KSpacing.lg }}>Budget level</SubLabel>
-          <View style={s.chipRow}>
-            {BUDGET_LEVELS.map((b) => (
-              <Chip
-                key={b}
-                label={b}
-                selected={form.budgetLevel === b}
-                onPress={() => update("budgetLevel", b)}
-              />
-            ))}
-          </View>
+          <BudgetLevelPicker
+            value={form.budgetLevel}
+            onChange={(next) => update("budgetLevel", next)}
+          />
         </Section>
 
         {/* Section 6: Recurring grocery items */}
@@ -408,63 +251,10 @@ export default function Preferences() {
           title="Recurring grocery items"
           subtitle="Things you always need from the store"
         >
-          {form.recurringGroceryItems.length > 0 && (
-            <View style={s.recurringList}>
-              {form.recurringGroceryItems.map((item) => (
-                <View key={item} style={s.recurringItem}>
-                  <Text style={s.recurringItemText}>{item}</Text>
-                  <Pressable
-                    onPress={() => removeRecurringItem(item)}
-                    hitSlop={8}
-                    style={({ pressed }) => pressed && { opacity: 0.6 }}
-                  >
-                    <Feather
-                      name="x"
-                      size={16}
-                      color={KColors.neutral[600]}
-                    />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <SubLabel style={{ marginTop: KSpacing.lg }}>Common items</SubLabel>
-          <View style={s.chipRow}>
-            {COMMON_RECURRING_ITEMS.map((item) => (
-              <Chip
-                key={item}
-                label={item}
-                selected={form.recurringGroceryItems.includes(item)}
-                onPress={() => toggleArrayItem("recurringGroceryItems", item)}
-              />
-            ))}
-          </View>
-
-          <View style={s.customAddRow}>
-            <TextInput
-              value={customRecurringItem}
-              onChangeText={setCustomRecurringItem}
-              placeholder="Add custom item..."
-              placeholderTextColor={KColors.neutral[600]}
-              returnKeyType="done"
-              blurOnSubmit
-              onSubmitEditing={handleAddCustomRecurring}
-              style={[s.input, { flex: 1 }]}
-            />
-            <Pressable
-              onPress={handleAddCustomRecurring}
-              disabled={!customRecurringItem.trim()}
-              hitSlop={8}
-              style={({ pressed }) => [
-                s.addBtn,
-                !customRecurringItem.trim() && { opacity: 0.4 },
-                pressed && customRecurringItem.trim() && { opacity: 0.7 },
-              ]}
-            >
-              <Feather name="plus" size={20} color={KColors.neutral[0]} />
-            </Pressable>
-          </View>
+          <RecurringItemsPicker
+            value={form.recurringGroceryItems}
+            onChange={(next) => update("recurringGroceryItems", next)}
+          />
         </Section>
 
         {/* Section 7: Retailer */}
@@ -564,31 +354,6 @@ function SubLabel({
   return <Text style={[s.subSectionLabel, style]}>{children}</Text>;
 }
 
-function ExpandLink({
-  expanded,
-  label,
-  onPress,
-}: {
-  expanded: boolean;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={6}
-      style={({ pressed }) => [s.expandLink, pressed && { opacity: 0.6 }]}
-    >
-      <Text style={s.expandLinkText}>{label}</Text>
-      <Feather
-        name={expanded ? "chevron-up" : "chevron-down"}
-        size={14}
-        color={KColors.sage[700]}
-      />
-    </Pressable>
-  );
-}
-
 const s = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: KSpacing.lg,
@@ -644,19 +409,6 @@ const s = StyleSheet.create({
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
   },
-  expandLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: KSpacing.sm,
-    alignSelf: "flex-start",
-  },
-  expandLinkText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-  },
   input: {
     borderWidth: 1,
     borderColor: KColors.neutral[400],
@@ -668,39 +420,6 @@ const s = StyleSheet.create({
     color: KColors.neutral[900],
     fontFamily: "Inter_400Regular",
     textAlignVertical: "top",
-  },
-  recurringList: {
-    gap: KSpacing.xs,
-    marginBottom: KSpacing.sm,
-  },
-  recurringItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: KSpacing.sm,
-    paddingHorizontal: KSpacing.md,
-    backgroundColor: KColors.neutral[100],
-    borderRadius: KRadius.md,
-  },
-  recurringItemText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
-  },
-  customAddRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: KSpacing.sm,
-    marginTop: KSpacing.md,
-  },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: KRadius.md,
-    backgroundColor: KColors.sage[700],
-    alignItems: "center",
-    justifyContent: "center",
   },
   footer: {
     marginTop: KSpacing.lg,
