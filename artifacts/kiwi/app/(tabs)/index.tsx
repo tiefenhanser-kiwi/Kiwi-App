@@ -75,6 +75,12 @@ export default function HomeTab() {
   const userPlans = useMemo(() => getUserPlans(), []);
   const hasAnyPlans = userPlans.length > 0;
 
+  const heroState: "today" | "plan" | "empty" = todaysMeal
+    ? "today"
+    : activePlan
+      ? "plan"
+      : "empty";
+
   const isEmptyState = useMemo(() => {
     if (!currentPlan) return true;
     const hasAnyRealMeal =
@@ -124,27 +130,13 @@ export default function HomeTab() {
     router.push("/groceries");
   };
 
-  // Per PRD §4.2.6 — Prep and Cook tap behavior:
-  //   - has plan with today's meal → Cook Mode for that meal
-  //   - has plan no today's meal   → Prep & Cook Hub (route to plan-results
-  //                                   for now; WS5/WS6 builds the proper hub)
-  //   - no plan                    → prompt user to pick or create
+  // Stubbed until the Prep & Cook Hub workstream lands. Matches the
+  // Cook Now stub pattern used on meal/dish rows from WS5-5O.
   const handlePrepAndCookPress = () => {
-    if (isEmptyState) {
-      Alert.alert(
-        "Create or pick a plan first",
-        "Pick a plan or let the Kitchen Wizard build one to start cooking.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Use Kitchen Wizard",
-            onPress: () => router.push("/wizard"),
-          },
-        ],
-      );
-      return;
-    }
-    router.push("/plan-results");
+    Alert.alert(
+      "Coming with Prep & Cook Hub",
+      "Step-by-step cooking guidance lands when the Prep & Cook Hub workstream ships.",
+    );
   };
 
   return (
@@ -156,7 +148,9 @@ export default function HomeTab() {
         </View>
 
         <View style={styles.heroSection}>
-          <Text style={styles.heroSectionLabel}>— this week</Text>
+          {heroState !== "empty" && (
+            <Text style={styles.heroSectionLabel}>— this week</Text>
+          )}
           <HeroCard
             todaysMeal={todaysMeal}
             activePlan={activePlan}
