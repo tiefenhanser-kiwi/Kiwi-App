@@ -740,8 +740,12 @@ function StepEditor({
           </Pressable>
         </View>
       </View>
+      {/* WS5-5P-fix-drag-2 — onPressIn (not onLongPress) per
+          draggable-flatlist v4 API: the lib's `drag` callback owns
+          its own long-press timing, so wiring it to RN's onLongPress
+          double-gates the gesture and drag never fires. */}
       <Pressable
-        onLongPress={drag}
+        onPressIn={drag}
         disabled={isActive}
         hitSlop={8}
         style={({ pressed }) => [s.dragHandleBtn, pressed && { opacity: 0.6 }]}

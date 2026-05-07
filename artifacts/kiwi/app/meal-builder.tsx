@@ -1091,11 +1091,9 @@ function ManualEditor(p: ManualEditorProps) {
             scrollEnabled={false} delegates scroll to the outer
             KeyboardAwareScrollViewCompat — nested-scrollables would
             otherwise fight for vertical pan. The drag handle uses
-            onLongPress (not onPressIn) so the outer ScrollView can
-            still claim quick swipes for scrolling; only a deliberate
-            long-press hands the gesture to drag. Steps lists are
-            short (typically 2–15 items) so disabling virtualization
-            is a non-issue. */}
+            onPressIn (see Pressable below for the v4-API rationale).
+            Steps lists are short (typically 2–15 items) so disabling
+            virtualization is a non-issue. */}
         <DraggableFlatList
           data={p.steps}
           keyExtractor={(step) => step.uid.toString()}
@@ -1167,8 +1165,16 @@ function ManualEditor(p: ManualEditorProps) {
                       <Text style={s.suffixLabel}>min</Text>
                     </View>
                   </View>
+                  {/* WS5-5P-fix-drag-2 — onPressIn (not onLongPress)
+                      per draggable-flatlist v4 API: the lib's `drag`
+                      callback owns its own long-press timing, so
+                      wiring it to RN's onLongPress double-gates the
+                      gesture and the drag never fires. onPressIn
+                      hands the touch to drag immediately; the lib
+                      then arms its own activation delay before the
+                      pan kicks in. */}
                   <Pressable
-                    onLongPress={drag}
+                    onPressIn={drag}
                     disabled={isActive}
                     hitSlop={8}
                     style={({ pressed }) => [
