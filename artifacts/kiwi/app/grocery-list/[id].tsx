@@ -218,8 +218,15 @@ export default function GroceryListDetail() {
       quantityAmount: amt,
       quantityUnit: unit,
     });
+    // Order matters (WS5-5Q-fix-4): dismiss keyboard FIRST so the keyboard
+    // animation and layout shift start before React re-renders the row;
+    // then clear edit state, which unmounts the TextInput and naturally
+    // releases focus. Reversing the order makes the unmount-blur and the
+    // explicit dismiss race, occasionally leaving the responder system
+    // stuck until the next scroll resets it.
     Keyboard.dismiss();
     setEditingItemId(null);
+    console.log("[grocery-list] quantity edit committed; ready for next tap");
   };
 
   const handleAddItem = () => {
@@ -323,6 +330,11 @@ export default function GroceryListDetail() {
         style={{ flex: 1 }}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
+        // Explicit even though the compat default is "handled" — WS5-5Q-fix-4
+        // documents intent at the call site so a future refactor of the
+        // compat layer can't silently regress to "never" and re-introduce
+        // the "tap on qty during keyboard dismiss is eaten" bug.
+        keyboardShouldPersistTaps="handled"
       >
         {list.ambiguousItemCount > 0 && (
           <View style={s.ambiguousBanner}>
@@ -676,7 +688,13 @@ function GroceryRow({
         // onEnterEdit. Always a sibling Pressable, never nested.
         <Pressable
           onPress={isDefaultStaple ? onTap : onEnterEdit}
-          hitSlop={6}
+          // Generous hitSlop (WS5-5Q-fix-4) to absorb the few-px layout
+          // shift that fires when the keyboard dismisses on commit — a
+          // narrower target was the likely cause of the intermittent
+          // "tap fails until I scroll" repro: scroll resets the layout
+          // and the next tap lands cleanly. Also matches the X button's
+          // hitSlop scale (8) so adjacent targets feel symmetric.
+          hitSlop={12}
           style={({ pressed }) => [
             s.qtyTapTarget,
             pressed && { opacity: 0.6 },
