@@ -99,13 +99,17 @@ export default function OnboardingTellKiwi() {
     console.log("[onboarding-step-3] save + wizard", form);
     void updateUserPreferences(buildFullPrefs());
     void setOnboardingComplete(true);
-    router.replace("/wizard");
+    // Skip /wizard prefs page — user already set general prefs in steps 2+3.
+    // dismissAll clears the onboarding stack so back-swipe can't return here.
+    router.dismissAll();
+    router.replace("/wizard-results");
   };
 
   const handleSaveAndHome = () => {
     console.log("[onboarding-step-3] save + home", form);
     void updateUserPreferences(buildFullPrefs());
     void setOnboardingComplete(true);
+    router.dismissAll();
     router.replace("/(tabs)");
   };
 

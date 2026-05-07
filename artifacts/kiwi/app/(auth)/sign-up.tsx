@@ -88,6 +88,9 @@ export default function SignUpPage() {
       // or WS6 depending on schema-migration scheduling. For now, we keep
       // the existing 4-arg signup() shape so this sub-phase ships cleanly.
       await signup(email.trim(), password, firstName.trim(), lastName.trim());
+      // dismissAll clears the (auth) stack so back-swipe can't return to
+      // a half-completed signup form once the user is authenticated.
+      router.dismissAll();
       router.replace("/onboarding-prefs");
     } catch (err) {
       const message =

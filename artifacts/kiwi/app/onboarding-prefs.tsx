@@ -49,7 +49,7 @@ export default function OnboardingPrefs() {
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
-      <Header showBack title="Set your preferences" subtitle="Step 2 of 3" />
+      <Header title="Set your preferences" subtitle="Step 2 of 3" />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
