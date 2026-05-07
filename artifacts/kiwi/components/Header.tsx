@@ -10,6 +10,7 @@ interface Props {
   title?: string;
   subtitle?: string;
   showBack?: boolean;
+  onBack?: () => void;
   rightIcon?: keyof typeof Feather.glyphMap;
   onRightPress?: () => void;
   rightContent?: React.ReactNode;
@@ -19,6 +20,7 @@ export function Header({
   title,
   subtitle,
   showBack,
+  onBack,
   rightIcon,
   onRightPress,
   rightContent,
@@ -30,7 +32,7 @@ export function Header({
       <View style={styles.row}>
         {showBack ? (
           <Pressable
-            onPress={() => router.back()}
+            onPress={onBack ?? (() => router.back())}
             hitSlop={12}
             style={styles.iconBtn}
           >

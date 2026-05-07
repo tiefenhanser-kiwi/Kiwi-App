@@ -102,7 +102,10 @@ export default function OnboardingTellKiwi() {
     // Skip /wizard prefs page — user already set general prefs in steps 2+3.
     // dismissAll clears the onboarding stack so back-swipe can't return here.
     router.dismissAll();
-    router.replace("/wizard-results");
+    router.replace({
+      pathname: "/wizard-results",
+      params: { source: "onboarding" },
+    });
   };
 
   const handleSaveAndHome = () => {

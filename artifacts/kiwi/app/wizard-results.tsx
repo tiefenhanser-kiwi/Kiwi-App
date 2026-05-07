@@ -30,7 +30,9 @@ if (
 export default function WizardResultsScreen() {
   const router = useRouter();
   // PRD §6.5/§6.6 — Tell Kiwi reuses this screen with adapted subtitle copy.
-  const { source } = useLocalSearchParams<{ source?: "tellkiwi" }>();
+  const { source } = useLocalSearchParams<{
+    source?: "tellkiwi" | "onboarding";
+  }>();
   const candidates = useMemo(() => getWizardPlanCandidates(), []);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -50,14 +52,28 @@ export default function WizardResultsScreen() {
   };
 
   const handleRefine = () => {
-    router.back();
+    if (source === "onboarding") {
+      // Edit the prefs the user just submitted — replace, don't push, so
+      // we don't grow a back stack of wizard-results→tellkiwi→wizard-results.
+      router.replace("/onboarding-tellkiwi");
+    } else {
+      // tellkiwi or default wizard flow — pop back to the entry screen.
+      router.back();
+    }
   };
 
   const handleMoreOptions = () => {
+    console.log("[wizard-results] more options requested");
     Alert.alert(
       "Coming in WS6 — AI orchestration",
       "Generating fresh plan options requires the AI layer. This will be wired in WS6.",
     );
+  };
+
+  const handleHeaderBack = () => {
+    // Explicit bail-out to home — works for all entry paths, including
+    // onboarding's dismissAll() where router.back() has nowhere to go.
+    router.replace("/(tabs)");
   };
 
   const handleUsePlan = (candidateId: string) => {
@@ -76,6 +92,7 @@ export default function WizardResultsScreen() {
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
       <Header
         showBack
+        onBack={handleHeaderBack}
         title="Plan options"
         subtitle={subtitle}
       />
