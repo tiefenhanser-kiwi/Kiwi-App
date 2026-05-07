@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -25,6 +25,12 @@ import {
 } from "@/constants/tokens";
 import type { GroceryList, GroceryListItem } from "@/lib/types";
 
+const UNDO_TIMEOUT_MS = 5000;
+
+type RemovedItem = {
+  item: GroceryListItem;
+};
+
 export default function GroceryListDetail() {
   const router = useRouter();
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
@@ -33,6 +39,7 @@ export default function GroceryListDetail() {
     toggleGroceryItemCompleted,
     toggleGroceryStapleSelection,
     addGroceryItem,
+    removeGroceryItem,
     markGroceryShoppingDone,
   } = useApp();
 
@@ -42,6 +49,25 @@ export default function GroceryListDetail() {
     getGroceryListById(id),
   );
   const [addItemInput, setAddItemInput] = useState("");
+  // PRD §12.7 — staples ship in "default" (dimmed, not yet on the trip).
+  // Opting in promotes them to a normal item; isCompleted strikethrough
+  // only fires after opt-in so "include in shopping" stays decoupled
+  // from "checked off while shopping". WS7 promotes this to a real
+  // schema field.
+  const [stapleOptedInSet, setStapleOptedInSet] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [recentlyRemoved, setRecentlyRemoved] = useState<RemovedItem | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!recentlyRemoved) return;
+    const timeout = setTimeout(() => {
+      setRecentlyRemoved(null);
+    }, UNDO_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [recentlyRemoved]);
 
   if (!list) {
     return (
@@ -54,8 +80,23 @@ export default function GroceryListDetail() {
     );
   }
 
-  const handleToggleItem = (item: GroceryListItem) => {
-    void toggleGroceryItemCompleted(list.id, item.id);
+  const listId = list.id;
+
+  const handleItemTap = (item: GroceryListItem) => {
+    if (item.isUniversalStaple) {
+      const isOptedIn = stapleOptedInSet.has(item.id);
+      if (!isOptedIn) {
+        // Staple's first tap = opt in for this trip; don't strike.
+        setStapleOptedInSet((prev) => {
+          const next = new Set(prev);
+          next.add(item.id);
+          return next;
+        });
+        void toggleGroceryStapleSelection(listId, item.id);
+        return;
+      }
+      // Already opted in: fall through to normal complete-toggle.
+    }
     setList((prev) =>
       prev
         ? {
@@ -66,31 +107,59 @@ export default function GroceryListDetail() {
           }
         : prev,
     );
+    void toggleGroceryItemCompleted(listId, item.id);
   };
 
-  // Universal staple toggle: flips both the staple-selected affordance and
-  // the regular completion check. WS5 collapses both into the
-  // isCompleted toggle so the UI shifts visibly when the user "selects"
-  // the staple. WS7 splits them when the real model has a separate
-  // selection field.
-  const handleToggleStaple = (item: GroceryListItem) => {
-    void toggleGroceryStapleSelection(list.id, item.id);
+  const handleRemove = (item: GroceryListItem) => {
+    if (item.isUniversalStaple) {
+      // X on a staple just clears the opt-in (returns to dimmed state).
+      // Default-staple X is hidden in GroceryRow, so this branch only
+      // fires for opted-in staples.
+      setStapleOptedInSet((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+      // Also clear any strikethrough if the staple was opted-in then checked.
+      setList((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.map((it) =>
+                it.id === item.id ? { ...it, isCompleted: false } : it,
+              ),
+            }
+          : prev,
+      );
+      void toggleGroceryStapleSelection(listId, item.id);
+      return;
+    }
+    // Standard item: optimistic remove with undo banner.
     setList((prev) =>
       prev
-        ? {
-            ...prev,
-            items: prev.items.map((it) =>
-              it.id === item.id ? { ...it, isCompleted: !it.isCompleted } : it,
-            ),
-          }
+        ? { ...prev, items: prev.items.filter((it) => it.id !== item.id) }
         : prev,
     );
+    setRecentlyRemoved({ item });
+    void removeGroceryItem(listId, item.id);
+  };
+
+  const handleUndo = () => {
+    if (!recentlyRemoved) return;
+    const { item } = recentlyRemoved;
+    setList((prev) =>
+      prev ? { ...prev, items: [...prev.items, item] } : prev,
+    );
+    setRecentlyRemoved(null);
+    // Stub-only restore. WS7 swaps for a real undo endpoint or a
+    // soft-delete reverse.
+    void addGroceryItem(listId, item.name);
   };
 
   const handleAddItem = () => {
     const name = addItemInput.trim();
     if (!name) return;
-    void addGroceryItem(list.id, name);
+    void addGroceryItem(listId, name);
     const newItem: GroceryListItem = {
       id: `local-${Date.now()}`,
       name,
@@ -109,12 +178,12 @@ export default function GroceryListDetail() {
   };
 
   const handleMarkDone = () => {
-    void markGroceryShoppingDone(list.id, true);
+    void markGroceryShoppingDone(listId, true);
     setList((prev) => (prev ? { ...prev, status: "completed" } : prev));
   };
 
   const handleUnmarkDone = () => {
-    void markGroceryShoppingDone(list.id, false);
+    void markGroceryShoppingDone(listId, false);
     setList((prev) => (prev ? { ...prev, status: "active" } : prev));
   };
 
@@ -137,6 +206,12 @@ export default function GroceryListDetail() {
       "Coming in WS6 — retailer integration",
       "Online ordering requires the retailer adapter pattern from PRD §12.12.",
     );
+  };
+
+  const handleViewPlan = () => {
+    if (list.planId) {
+      router.push({ pathname: "/plan/[id]", params: { id: list.planId } });
+    }
   };
 
   const handleBackToPlan = () => {
@@ -210,6 +285,30 @@ export default function GroceryListDetail() {
           </View>
         )}
 
+        {list.planId && (
+          <Pressable
+            onPress={handleViewPlan}
+            style={({ pressed }) => [
+              s.viewPlanLink,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Feather
+              name="external-link"
+              size={14}
+              color={KColors.sage[700]}
+            />
+            <Text style={s.viewPlanText} numberOfLines={1}>
+              View meal plan: {list.planName}
+            </Text>
+            <Feather
+              name="chevron-right"
+              size={14}
+              color={KColors.sage[700]}
+            />
+          </Pressable>
+        )}
+
         <View style={s.addItemRow}>
           <TextInput
             value={addItemInput}
@@ -235,7 +334,11 @@ export default function GroceryListDetail() {
 
         <View style={s.actionRow}>
           <View style={{ flex: 1 }}>
-            <Button label="Email List" variant="secondary" onPress={handleEmail} />
+            <Button
+              label="Email Me My List"
+              variant="secondary"
+              onPress={handleEmail}
+            />
           </View>
           <View style={{ flex: 1 }}>
             <Button
@@ -267,11 +370,9 @@ export default function GroceryListDetail() {
                     <GroceryRow
                       key={item.id}
                       item={item}
-                      onToggle={() =>
-                        item.isUniversalStaple
-                          ? handleToggleStaple(item)
-                          : handleToggleItem(item)
-                      }
+                      stapleOptedIn={stapleOptedInSet.has(item.id)}
+                      onTap={() => handleItemTap(item)}
+                      onRemove={() => handleRemove(item)}
                     />
                   ))}
                 </View>
@@ -283,7 +384,11 @@ export default function GroceryListDetail() {
         {list.status === "completed" ? (
           <View style={s.completionWrap}>
             <View style={s.completionIcon}>
-              <Feather name="check-circle" size={32} color={KColors.sage[700]} />
+              <Feather
+                name="check-circle"
+                size={32}
+                color={KColors.sage[700]}
+              />
             </View>
             <Text style={s.completionHeading}>Shopping complete!</Text>
             <Text style={s.completionSubtitle}>
@@ -323,39 +428,70 @@ export default function GroceryListDetail() {
           </View>
         )}
       </KeyboardAwareScrollViewCompat>
+
+      {recentlyRemoved && (
+        <View style={s.undoBanner} pointerEvents="box-none">
+          <View style={s.undoBannerInner}>
+            <Text style={s.undoBannerText}>Item removed.</Text>
+            <Pressable
+              onPress={handleUndo}
+              hitSlop={6}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            >
+              <Text style={s.undoBannerAction}>Undo</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
 function GroceryRow({
   item,
-  onToggle,
+  stapleOptedIn,
+  onTap,
+  onRemove,
 }: {
   item: GroceryListItem;
-  onToggle: () => void;
+  stapleOptedIn: boolean;
+  onTap: () => void;
+  onRemove: () => void;
 }) {
-  const dimmed = item.isUniversalStaple || item.isCompleted;
+  const isDefaultStaple = item.isUniversalStaple && !stapleOptedIn;
+  const isActiveStaple = item.isUniversalStaple && stapleOptedIn;
+  // Default staples don't strike — opting in is a separate concept from
+  // "checked off." Once a staple is opted-in, isCompleted drives strike.
+  const showStrikethrough = !isDefaultStaple && item.isCompleted;
+  const showCheck = !isDefaultStaple && item.isCompleted;
+  // Default staples show a small "+" affordance instead of a checkbox to
+  // hint that tapping promotes them rather than checking them off.
+  const showPlusAffordance = isDefaultStaple;
+
   return (
     <Pressable
-      onPress={onToggle}
+      onPress={onTap}
       style={({ pressed }) => [s.row, pressed && { opacity: 0.7 }]}
     >
       <View
         style={[
           s.check,
-          item.isCompleted && {
+          showCheck && {
             backgroundColor: KColors.sage[700],
             borderColor: KColors.sage[700],
           },
-          item.isUniversalStaple &&
-            !item.isCompleted && {
-              borderColor: KColors.neutral[400],
-              backgroundColor: "transparent",
-            },
+          isDefaultStaple && {
+            borderColor: KColors.neutral[400],
+            backgroundColor: "transparent",
+            borderStyle: "dashed",
+          },
         ]}
       >
-        {item.isCompleted && (
+        {showCheck && (
           <Feather name="check" size={14} color={KColors.neutral[0]} />
+        )}
+        {showPlusAffordance && (
+          <Feather name="plus" size={12} color={KColors.neutral[500]} />
         )}
       </View>
       <View style={{ flex: 1 }}>
@@ -363,21 +499,23 @@ function GroceryRow({
           <Text
             style={[
               s.itemName,
-              item.isCompleted && {
+              showStrikethrough && {
                 textDecorationLine: "line-through",
                 color: KColors.neutral[600],
               },
-              item.isUniversalStaple &&
-                !item.isCompleted && {
-                  color: KColors.neutral[700],
-                },
+              isDefaultStaple && {
+                color: KColors.neutral[700],
+              },
             ]}
             numberOfLines={1}
           >
             {item.name}
           </Text>
           {item.isUniversalStaple && (
-            <Tag label="Pantry Staple" tone="muted" />
+            <Tag
+              label="Pantry Staple"
+              tone={isActiveStaple ? "sage" : "muted"}
+            />
           )}
           {item.isRecurringItem && <Tag label="Recurring" tone="sage" />}
           {item.isOptional && <Tag label="Optional" tone="muted" />}
@@ -386,11 +524,24 @@ function GroceryRow({
       <Text
         style={[
           s.qty,
-          dimmed && { color: KColors.neutral[600] },
+          (isDefaultStaple || item.isCompleted) && {
+            color: KColors.neutral[600],
+          },
         ]}
       >
         {item.quantity}
       </Text>
+      {/* Default staples can't be removed — they just sit dimmed in the
+          list. Opted-in staples + regular items expose the X. */}
+      {!isDefaultStaple && (
+        <Pressable
+          onPress={onRemove}
+          hitSlop={8}
+          style={({ pressed }) => [s.removeBtn, pressed && { opacity: 0.6 }]}
+        >
+          <Feather name="x" size={16} color={KColors.neutral[500]} />
+        </Pressable>
+      )}
     </Pressable>
   );
 }
@@ -483,6 +634,24 @@ const s = StyleSheet.create({
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
     marginTop: 4,
+  },
+  viewPlanLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+    backgroundColor: KPalette.bg.card,
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KPalette.border.default,
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.sm,
+  },
+  viewPlanText: {
+    flex: 1,
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontWeight: KType.weight.medium,
+    fontFamily: "Inter_500Medium",
   },
   addItemRow: {
     flexDirection: "row",
@@ -586,6 +755,14 @@ const s = StyleSheet.create({
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
   },
+  removeBtn: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: KSpacing.xs,
+    marginRight: -KSpacing.xs,
+  },
   tag: {
     paddingHorizontal: KSpacing.sm,
     paddingVertical: 2,
@@ -637,5 +814,37 @@ const s = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     textDecorationLine: "underline",
     marginTop: KSpacing.xs,
+  },
+  undoBanner: {
+    position: "absolute",
+    left: KSpacing.lg,
+    right: KSpacing.lg,
+    bottom: KSpacing.lg,
+    alignItems: "center",
+  },
+  undoBannerInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: KColors.neutral[800],
+    borderRadius: KRadius.lg,
+    paddingHorizontal: KSpacing.lg,
+    paddingVertical: KSpacing.md,
+    width: "100%",
+    gap: KSpacing.md,
+  },
+  undoBannerText: {
+    color: KColors.neutral[0],
+    fontSize: KType.size.md,
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+  },
+  undoBannerAction: {
+    color: KColors.terracotta[300],
+    fontSize: KType.size.md,
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 });

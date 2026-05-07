@@ -148,6 +148,8 @@ interface AppState {
   /** PRD §12.6.1 — add item to list (defaults to Extras section for
    *  WS5; WS6 AI determines section). */
   addGroceryItem: (listId: string, name: string) => Promise<void>;
+  /** PRD §12.9 — remove an item from the list. */
+  removeGroceryItem: (listId: string, itemId: string) => Promise<void>;
   /** PRD §12.6.3 — mark shopping done. Reversible. */
   markGroceryShoppingDone: (listId: string, done: boolean) => Promise<void>;
   favorites: string[];
@@ -456,6 +458,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     console.log("[AppContext] addGroceryItem", { listId, name });
   };
 
+  const removeGroceryItem = async (
+    listId: string,
+    itemId: string,
+  ): Promise<void> => {
+    // TODO(WS7): wire to DELETE /grocery-lists/{id}/items/{itemId}
+    console.log("[AppContext] removeGroceryItem", { listId, itemId });
+  };
+
   const markGroceryShoppingDone = async (
     listId: string,
     done: boolean,
@@ -527,6 +537,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toggleGroceryItemCompleted,
     toggleGroceryStapleSelection,
     addGroceryItem,
+    removeGroceryItem,
     markGroceryShoppingDone,
     favorites,
     toggleFavorite,
