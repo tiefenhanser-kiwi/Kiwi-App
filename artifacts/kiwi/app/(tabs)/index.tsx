@@ -106,28 +106,10 @@ export default function HomeTab() {
     router.push("/cook-now");
   };
 
-  // Per PRD §4.2.6 — Get Groceries tap behavior:
-  //   - has plan + has list → /groceries
-  //   - has plan + no list  → /groceries (groceries tab handles empty
-  //                            current-plan state and its own
-  //                            list-generation flow; WS4 will refine)
-  //   - no plan             → prompt user to pick or create
+  // PRD §4.2.6 — route to the Groceries tab. The intermediate "pick a
+  // list" screen for users with multiple plans ships in WS5-5Q-bis.
   const handleGetGroceriesPress = () => {
-    if (isEmptyState) {
-      Alert.alert(
-        "Create or pick a plan first",
-        "You need a meal plan before Kiwi can build your grocery list.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Use Kitchen Wizard",
-            onPress: () => router.push("/wizard"),
-          },
-        ],
-      );
-      return;
-    }
-    router.push("/groceries");
+    router.push("/(tabs)/groceries");
   };
 
   // Stubbed until the Prep & Cook Hub workstream lands. Matches the

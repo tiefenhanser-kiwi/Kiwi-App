@@ -10,6 +10,8 @@
 import type {
   DraftMeal,
   GroceryItem,
+  GroceryList,
+  GroceryListSummary,
   MealPlan,
   MealsFilter,
   MealSummary,
@@ -2516,4 +2518,122 @@ export function getCurrentUserPreferences(): UserPreferencesData {
     // Dietary notes
     dietaryNotes: undefined,
   };
+}
+
+// ── Grocery system (PRD §12) ──
+
+/**
+ * PRD §12.14 — saved grocery lists for the library.
+ * Empty array for new users (per first-arrival empty state).
+ * For WS5 demo: 3 lists matching prototype data.
+ * Real persistence WS7.
+ */
+export function getGroceryLists(): GroceryListSummary[] {
+  return [
+    {
+      id: "demo-grocery-1",
+      planName: "Family Friendly Healthy Meals",
+      planId: "demo-plan-this-week",
+      itemCount: 15,
+      createdAt: new Date().toISOString(),
+      status: "active",
+      isThisWeek: true,
+    },
+    {
+      id: "demo-grocery-2",
+      planName: "Whole30 January Reset",
+      itemCount: 18,
+      createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+      status: "completed",
+      isThisWeek: false,
+    },
+    {
+      id: "demo-grocery-3",
+      planName: "4th of July BBQ",
+      itemCount: 22,
+      createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+      status: "completed",
+      isThisWeek: false,
+    },
+  ];
+}
+
+/**
+ * PRD §12.6 — full grocery list by id.
+ * For WS5 demo: returns hardcoded list per id.
+ */
+export function getGroceryListById(id: string): GroceryList | null {
+  if (id === "demo-grocery-1") {
+    return {
+      id: "demo-grocery-1",
+      planName: "Family Friendly Healthy Meals",
+      planId: "demo-plan-this-week",
+      status: "active",
+      createdAt: new Date().toISOString(),
+      isThisWeek: true,
+      ambiguousItemCount: 3, // matches prototype "Review 3 flagged items"
+      items: [
+        // Produce
+        { id: "g1-1", name: "Romaine lettuce", quantity: "2 heads", sectionKey: "produce", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-2", name: "Tomatoes", quantity: "4 large", sectionKey: "produce", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-3", name: "Yellow onion", quantity: "3", sectionKey: "produce", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-4", name: "Avocados", quantity: "2", sectionKey: "produce", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-5", name: "Limes", quantity: "4", sectionKey: "produce", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-6", name: "Russet potatoes", quantity: "2 lbs", sectionKey: "produce", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        // Meat & Seafood
+        { id: "g1-7", name: "Ground beef (80/20)", quantity: "2 lbs", sectionKey: "meat_seafood", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-8", name: "Chicken breasts", quantity: "3 lbs", sectionKey: "meat_seafood", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-9", name: "Hot dogs", quantity: "1 pack", sectionKey: "meat_seafood", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        // Dairy & Eggs
+        { id: "g1-10", name: "Shredded cheddar", quantity: "8 oz", sectionKey: "dairy_eggs", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-11", name: "Parmesan", quantity: "4 oz", sectionKey: "dairy_eggs", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: true, isCompleted: false },
+        { id: "g1-12", name: "Milk", quantity: "1 gallon", sectionKey: "dairy_eggs", isUniversalStaple: false, isRecurringItem: true, isAmbiguous: false, isOptional: false, isCompleted: false },
+        // Bakery & Bread
+        { id: "g1-13", name: "Burger buns", quantity: "8 ct", sectionKey: "bakery_bread", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        // Pantry
+        { id: "g1-14", name: "Taco shells", quantity: "1 box", sectionKey: "pantry", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-15", name: "Caesar dressing", quantity: "1 bottle", sectionKey: "pantry", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: true, isCompleted: false },
+        // Pantry staples (greyed out, default unselected)
+        { id: "g1-16", name: "Salt", quantity: "—", sectionKey: "pantry", isUniversalStaple: true, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-17", name: "Black pepper", quantity: "—", sectionKey: "pantry", isUniversalStaple: true, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-18", name: "Olive oil", quantity: "—", sectionKey: "pantry", isUniversalStaple: true, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-19", name: "Butter", quantity: "—", sectionKey: "pantry", isUniversalStaple: true, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+        { id: "g1-20", name: "Garlic", quantity: "—", sectionKey: "pantry", isUniversalStaple: true, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: false },
+      ],
+    };
+  }
+
+  // Shorter lists for the other 2 demo entries (just enough to render)
+  if (id === "demo-grocery-2") {
+    return {
+      id: "demo-grocery-2",
+      planName: "Whole30 January Reset",
+      status: "completed",
+      createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+      isThisWeek: false,
+      ambiguousItemCount: 0,
+      items: [
+        { id: "g2-1", name: "Sweet potatoes", quantity: "3 lbs", sectionKey: "produce", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: true },
+        { id: "g2-2", name: "Eggs", quantity: "2 dozen", sectionKey: "dairy_eggs", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: true },
+        { id: "g2-3", name: "Almonds", quantity: "1 lb", sectionKey: "snacks", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: true },
+      ],
+    };
+  }
+
+  if (id === "demo-grocery-3") {
+    return {
+      id: "demo-grocery-3",
+      planName: "4th of July BBQ",
+      status: "completed",
+      createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+      isThisWeek: false,
+      ambiguousItemCount: 0,
+      items: [
+        { id: "g3-1", name: "Hamburger patties", quantity: "10 ct", sectionKey: "meat_seafood", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: true },
+        { id: "g3-2", name: "Brioche buns", quantity: "10 ct", sectionKey: "bakery_bread", isUniversalStaple: false, isRecurringItem: false, isAmbiguous: false, isOptional: false, isCompleted: true },
+      ],
+    };
+  }
+
+  return null;
 }

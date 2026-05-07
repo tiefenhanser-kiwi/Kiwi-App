@@ -42,6 +42,7 @@ function RootLayoutNav() {
       <Stack.Screen name="import-url" />
       <Stack.Screen name="import-image" />
       <Stack.Screen name="recipe/[id]" />
+      <Stack.Screen name="grocery-list/[id]" />
       <Stack.Screen name="cookmode/[id]" options={{ presentation: "fullScreenModal" }} />
       <Stack.Screen name="upgrade" options={{ presentation: "modal" }} />
       <Stack.Screen name="preferences" />

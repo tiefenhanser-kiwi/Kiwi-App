@@ -583,3 +583,75 @@ export interface DishDraft {
   fatGPerServing: number;       // Default 0
   notes?: string;
 }
+
+// ─────────────────────────────────────────────────────────────────
+// PRD §12 — Grocery list system
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * PRD §12.4 — grocery list item with section assignment +
+ * staple/recurring badges + ambiguous flagging.
+ */
+export interface GroceryListItem {
+  id: string;
+  name: string;
+  /** e.g., "2 lbs", "1 head", "—" for staples without quantity */
+  quantity: string;
+  /** PRD §12.4 — one of 10 sections */
+  sectionKey:
+    | "produce"
+    | "meat_seafood"
+    | "dairy_eggs"
+    | "bakery_bread"
+    | "pantry"
+    | "canned"
+    | "frozen"
+    | "snacks"
+    | "household"
+    | "extras";
+  /** PRD §12.7 — pantry staple (default unselected, badge shown) */
+  isUniversalStaple: boolean;
+  /** PRD §12.8 — user's recurring item (default selected, badge shown) */
+  isRecurringItem: boolean;
+  /** PRD §12.5 — flagged for ambiguity at order time */
+  isAmbiguous: boolean;
+  ambiguityOptions?: string[];
+  userResolvedTo?: string;
+  /** Optional flag for items the recipe marks as nice-to-have */
+  isOptional: boolean;
+  /** Checked-off state during shopping */
+  isCompleted: boolean;
+}
+
+/**
+ * PRD §12.14 — saved grocery list summary for library row.
+ */
+export interface GroceryListSummary {
+  id: string;
+  /** Plan name this list was generated from */
+  planName: string;
+  /** Optional plan id link — null for ad-hoc lists */
+  planId?: string;
+  /** Total item count across all sections */
+  itemCount: number;
+  createdAt: string; // ISO date
+  /** Status per PRD §12.14: Draft / Active / Ordered / Completed */
+  status: "draft" | "active" | "ordered" | "completed";
+  /** True if this is the user's "This Week" current list */
+  isThisWeek: boolean;
+}
+
+/**
+ * PRD §12.6 — full grocery list with all items.
+ */
+export interface GroceryList {
+  id: string;
+  planName: string;
+  planId?: string;
+  items: GroceryListItem[];
+  status: "draft" | "active" | "ordered" | "completed";
+  createdAt: string;
+  isThisWeek: boolean;
+  /** Number of ambiguous items needing resolution at order time */
+  ambiguousItemCount: number;
+}

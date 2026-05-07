@@ -134,6 +134,22 @@ interface AppState {
   deactivateAccount: () => Promise<void>;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
+  // ── Grocery list system (PRD §12; WS5 stubs, WS7 wires real persistence) ──
+  /** PRD §12.6.2 — toggle item complete (strikethrough). */
+  toggleGroceryItemCompleted: (
+    listId: string,
+    itemId: string,
+  ) => Promise<void>;
+  /** PRD §12.7 — toggle universal staple selection (greyed → active). */
+  toggleGroceryStapleSelection: (
+    listId: string,
+    itemId: string,
+  ) => Promise<void>;
+  /** PRD §12.6.1 — add item to list (defaults to Extras section for
+   *  WS5; WS6 AI determines section). */
+  addGroceryItem: (listId: string, name: string) => Promise<void>;
+  /** PRD §12.6.3 — mark shopping done. Reversible. */
+  markGroceryShoppingDone: (listId: string, done: boolean) => Promise<void>;
   favorites: string[];
   toggleFavorite: (recipeId: string) => Promise<void>;
   isFavorite: (recipeId: string) => boolean;
@@ -412,6 +428,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [groceries],
   );
 
+  // ── Grocery list mutators (PRD §12; WS5 stubs, WS7 wires real persistence) ──
+  const toggleGroceryItemCompleted = async (
+    listId: string,
+    itemId: string,
+  ): Promise<void> => {
+    // TODO(WS7): wire to PATCH /grocery-lists/{id}/items/{itemId}
+    console.log("[AppContext] toggleGroceryItemCompleted", { listId, itemId });
+  };
+
+  const toggleGroceryStapleSelection = async (
+    listId: string,
+    itemId: string,
+  ): Promise<void> => {
+    // TODO(WS7): wire to PATCH /grocery-lists/{id}/items/{itemId}
+    console.log("[AppContext] toggleGroceryStapleSelection", {
+      listId,
+      itemId,
+    });
+  };
+
+  const addGroceryItem = async (
+    listId: string,
+    name: string,
+  ): Promise<void> => {
+    // TODO(WS7): wire to POST /grocery-lists/{id}/items (Extras section)
+    console.log("[AppContext] addGroceryItem", { listId, name });
+  };
+
+  const markGroceryShoppingDone = async (
+    listId: string,
+    done: boolean,
+  ): Promise<void> => {
+    // TODO(WS7): wire to PATCH /grocery-lists/{id} { status: done ? "completed" : "active" }
+    console.log("[AppContext] markGroceryShoppingDone", { listId, done });
+  };
+
   const toggleFavorite = useCallback(async (recipeId: string) => {
     // Functional update so rapid taps from any source don't drop toggles.
     let computed: string[] = [];
@@ -472,6 +524,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     deactivateAccount,
     groceries,
     toggleGrocery,
+    toggleGroceryItemCompleted,
+    toggleGroceryStapleSelection,
+    addGroceryItem,
+    markGroceryShoppingDone,
     favorites,
     toggleFavorite,
     isFavorite,

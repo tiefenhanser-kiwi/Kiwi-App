@@ -5,6 +5,7 @@ import type {
   DayAssignment,
   DayKey,
   DayOfWeek,
+  GroceryListItem,
   SubscriptionInfo,
 } from "./types";
 
@@ -233,3 +234,22 @@ export const COOKING_SKILL_LEVELS = [
   "Intermediate",
   "Advanced",
 ] as const;
+
+/**
+ * PRD §12.4 — grocery section display order + display labels.
+ */
+export const GROCERY_SECTIONS: Array<{
+  key: GroceryListItem["sectionKey"];
+  label: string;
+}> = [
+  { key: "produce", label: "Produce" },
+  { key: "meat_seafood", label: "Meat & Seafood" },
+  { key: "dairy_eggs", label: "Dairy & Eggs" },
+  { key: "bakery_bread", label: "Bakery & Bread" },
+  { key: "pantry", label: "Pantry" },
+  { key: "canned", label: "Canned" },
+  { key: "frozen", label: "Frozen" },
+  { key: "snacks", label: "Snacks" },
+  { key: "household", label: "Household" },
+  { key: "extras", label: "Extras" },
+];
