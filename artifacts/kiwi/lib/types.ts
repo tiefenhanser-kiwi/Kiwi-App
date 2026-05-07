@@ -595,8 +595,15 @@ export interface DishDraft {
 export interface GroceryListItem {
   id: string;
   name: string;
-  /** e.g., "2 lbs", "1 head", "—" for staples without quantity */
+  /** Display fallback used when structured fields are absent (e.g.,
+   *  pantry staples shown as "—"). For items with structured quantity,
+   *  prefer reading {@link quantityAmount} + {@link quantityUnit}. */
   quantity: string;
+  /** Structured amount mirroring meal-builder's ingredient shape:
+   *  string-typed so fractions ("1/2", "1 1/2") survive a round-trip
+   *  through edit. Validate via parseQuantity at edit time. */
+  quantityAmount?: string;
+  quantityUnit?: string;
   /** PRD §12.4 — one of 10 sections */
   sectionKey:
     | "produce"

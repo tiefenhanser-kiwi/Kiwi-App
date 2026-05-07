@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Keyboard,
   Pressable,
   StyleSheet,
   Text,
@@ -15,6 +16,7 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
 import { GROCERY_SECTIONS } from "@/lib/domain";
+import { parseQuantity } from "@/lib/quantity";
 import { getGroceryListById } from "@/lib/stubs";
 import {
   KColors,
@@ -60,6 +62,12 @@ export default function GroceryListDetail() {
   const [recentlyRemoved, setRecentlyRemoved] = useState<RemovedItem | null>(
     null,
   );
+  // WS5-5Q-fix-2 — inline quantity edit (mirrors meal-builder's two-input
+  // amount + unit pattern; parent owns edit state so a focus-swap between
+  // the two inputs doesn't unmount the row mid-edit).
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState("");
+  const [editUnit, setEditUnit] = useState("");
 
   useEffect(() => {
     if (!recentlyRemoved) return;
@@ -83,6 +91,13 @@ export default function GroceryListDetail() {
   const listId = list.id;
 
   const handleItemTap = (item: GroceryListItem) => {
+    // Tapping anywhere on the row while a quantity edit is open should
+    // commit + exit edit (matches the ambient "tap-out to confirm"
+    // expectation), not toggle the checkbox in the same gesture.
+    if (editingItemId) {
+      commitQuantityEdit();
+      return;
+    }
     if (item.isUniversalStaple) {
       const isOptedIn = stapleOptedInSet.has(item.id);
       if (!isOptedIn) {
@@ -156,6 +171,47 @@ export default function GroceryListDetail() {
     void addGroceryItem(listId, item.name);
   };
 
+  const enterQuantityEdit = (item: GroceryListItem) => {
+    setEditingItemId(item.id);
+    setEditAmount(item.quantityAmount ?? "");
+    setEditUnit(item.quantityUnit ?? "");
+  };
+
+  const commitQuantityEdit = () => {
+    if (!editingItemId) return;
+    const amt = editAmount.trim() || undefined;
+    const unit = editUnit.trim() || undefined;
+    setList((prev) =>
+      prev
+        ? {
+            ...prev,
+            items: prev.items.map((it) =>
+              it.id === editingItemId
+                ? {
+                    ...it,
+                    quantityAmount: amt,
+                    quantityUnit: unit,
+                    // Keep legacy display string in sync so any consumer
+                    // still reading `quantity` (summaries, exports) sees
+                    // the edited value.
+                    quantity: [amt, unit].filter(Boolean).join(" ") || it.quantity,
+                  }
+                : it,
+            ),
+          }
+        : prev,
+    );
+    // TODO(WS7): wire to PATCH /grocery-lists/{id}/items/{itemId}
+    console.log("[grocery-list] quantity edit", {
+      listId,
+      itemId: editingItemId,
+      quantityAmount: amt,
+      quantityUnit: unit,
+    });
+    Keyboard.dismiss();
+    setEditingItemId(null);
+  };
+
   const handleAddItem = () => {
     const name = addItemInput.trim();
     if (!name) return;
@@ -164,6 +220,7 @@ export default function GroceryListDetail() {
       id: `local-${Date.now()}`,
       name,
       quantity: "1",
+      quantityAmount: "1",
       sectionKey: "extras",
       isUniversalStaple: false,
       isRecurringItem: false,
@@ -371,6 +428,13 @@ export default function GroceryListDetail() {
                       key={item.id}
                       item={item}
                       stapleOptedIn={stapleOptedInSet.has(item.id)}
+                      isEditing={editingItemId === item.id}
+                      editAmount={editAmount}
+                      editUnit={editUnit}
+                      onEditAmount={setEditAmount}
+                      onEditUnit={setEditUnit}
+                      onEnterEdit={() => enterQuantityEdit(item)}
+                      onCommitEdit={commitQuantityEdit}
                       onTap={() => handleItemTap(item)}
                       onRemove={() => handleRemove(item)}
                     />
@@ -450,11 +514,25 @@ export default function GroceryListDetail() {
 function GroceryRow({
   item,
   stapleOptedIn,
+  isEditing,
+  editAmount,
+  editUnit,
+  onEditAmount,
+  onEditUnit,
+  onEnterEdit,
+  onCommitEdit,
   onTap,
   onRemove,
 }: {
   item: GroceryListItem;
   stapleOptedIn: boolean;
+  isEditing: boolean;
+  editAmount: string;
+  editUnit: string;
+  onEditAmount: (v: string) => void;
+  onEditUnit: (v: string) => void;
+  onEnterEdit: () => void;
+  onCommitEdit: () => void;
   onTap: () => void;
   onRemove: () => void;
 }) {
@@ -463,10 +541,26 @@ function GroceryRow({
   // Default staples don't strike — opting in is a separate concept from
   // "checked off." Once a staple is opted-in, isCompleted drives strike.
   const showStrikethrough = !isDefaultStaple && item.isCompleted;
+  // Active (opted-in) staples render the SAME checkbox as regular items —
+  // the dashed border + plus icon are reserved for the not-yet-opted-in
+  // state where tapping promotes rather than checks. Per WS5-5Q-fix-2:
+  // once opted in, the row IS a regular item, so its check affordance
+  // matches.
   const showCheck = !isDefaultStaple && item.isCompleted;
-  // Default staples show a small "+" affordance instead of a checkbox to
-  // hint that tapping promotes them rather than checking them off.
   const showPlusAffordance = isDefaultStaple;
+
+  // Display fallback chain: structured → legacy quantity string. Both
+  // can be empty (e.g., user clears the qty during edit) — show empty.
+  const displayQty =
+    item.quantityAmount !== undefined || item.quantityUnit !== undefined
+      ? [item.quantityAmount, item.quantityUnit].filter(Boolean).join(" ")
+      : item.quantity;
+
+  // parseQuantity returns null for invalid; empty input is "valid" (
+  // intentional clear), so guard on length first — same convention as
+  // meal-builder's ingredient row.
+  const editAmountInvalid =
+    editAmount.trim().length > 0 && parseQuantity(editAmount) === null;
 
   return (
     <Pressable
@@ -521,19 +615,75 @@ function GroceryRow({
           {item.isOptional && <Tag label="Optional" tone="muted" />}
         </View>
       </View>
-      <Text
-        style={[
-          s.qty,
-          (isDefaultStaple || item.isCompleted) && {
-            color: KColors.neutral[600],
-          },
-        ]}
-      >
-        {item.quantity}
-      </Text>
+      {isEditing ? (
+        // Inline edit pair — mirrors meal-builder's ingredient row
+        // (s.ingQty + s.ingUnit). Parent owns state so swapping focus
+        // between the two doesn't unmount the row mid-edit.
+        <View style={s.qtyEditWrap}>
+          <TextInput
+            value={editAmount}
+            onChangeText={onEditAmount}
+            placeholder="Qty"
+            placeholderTextColor={KColors.neutral[600]}
+            style={[
+              s.qtyInput,
+              editAmountInvalid && s.qtyInputInvalid,
+            ]}
+            // Default keyboard so users can type "/" for fractions —
+            // same as meal-builder ("1/2", "1 1/2" supported).
+            autoCapitalize="none"
+            returnKeyType="done"
+            blurOnSubmit
+            autoFocus
+            onSubmitEditing={onCommitEdit}
+          />
+          <TextInput
+            value={editUnit}
+            onChangeText={onEditUnit}
+            placeholder="Unit"
+            placeholderTextColor={KColors.neutral[600]}
+            style={s.unitInput}
+            autoCapitalize="none"
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={onCommitEdit}
+          />
+        </View>
+      ) : isDefaultStaple ? (
+        // Default-state staple: no edit affordance — the row is in
+        // opt-in mode, not edit mode. Tap goes to row-level handler.
+        <Text
+          style={[
+            s.qty,
+            { color: KColors.neutral[600] },
+          ]}
+        >
+          {displayQty}
+        </Text>
+      ) : (
+        <Pressable
+          onPress={onEnterEdit}
+          hitSlop={6}
+          style={({ pressed }) => [
+            s.qtyTapTarget,
+            pressed && { opacity: 0.6 },
+          ]}
+        >
+          <Text
+            style={[
+              s.qty,
+              item.isCompleted && {
+                color: KColors.neutral[600],
+              },
+            ]}
+          >
+            {displayQty || "—"}
+          </Text>
+        </Pressable>
+      )}
       {/* Default staples can't be removed — they just sit dimmed in the
           list. Opted-in staples + regular items expose the X. */}
-      {!isDefaultStaple && (
+      {!isDefaultStaple && !isEditing && (
         <Pressable
           onPress={onRemove}
           hitSlop={8}
@@ -753,6 +903,45 @@ const s = StyleSheet.create({
   qty: {
     fontSize: KType.size.sm,
     color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+  },
+  qtyTapTarget: {
+    paddingVertical: 4,
+    paddingHorizontal: KSpacing.xs,
+    borderRadius: KRadius.sm,
+  },
+  qtyEditWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.xs,
+  },
+  // Mirrors meal-builder's s.ingQty (width 56) + s.ingUnit (width 64)
+  // so the inline edit pair matches the meal editor exactly.
+  qtyInput: {
+    width: 56,
+    backgroundColor: KPalette.bg.card,
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    paddingHorizontal: KSpacing.sm,
+    paddingVertical: KSpacing.sm,
+    fontSize: KType.size.sm,
+    color: KColors.neutral[900],
+    fontFamily: "Inter_400Regular",
+  },
+  qtyInputInvalid: {
+    borderColor: KColors.terracotta[400],
+  },
+  unitInput: {
+    width: 64,
+    backgroundColor: KPalette.bg.card,
+    borderRadius: KRadius.md,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    paddingHorizontal: KSpacing.sm,
+    paddingVertical: KSpacing.sm,
+    fontSize: KType.size.sm,
+    color: KColors.neutral[900],
     fontFamily: "Inter_400Regular",
   },
   removeBtn: {
