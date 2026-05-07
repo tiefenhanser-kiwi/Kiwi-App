@@ -10,6 +10,10 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import DraggableFlatList, {
+  ScaleDecorator,
+  type RenderItemParams,
+} from "react-native-draggable-flatlist";
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
@@ -227,6 +231,15 @@ export default function DishBuilderScreen() {
       ...prev,
       steps: prev.steps.filter((s) => s.uid !== uid),
     }));
+  };
+
+  // WS5-5P-fix-drag — drag-to-reorder writes the new array back. The
+  // StepEditor reads its position from the `index` prop (passed from
+  // the renderItem callback), and `stepNumber` is derived from the
+  // array index at save time (line ~280), so reorder is automatic —
+  // no separate renumber pass needed.
+  const reorderSteps = (next: StepRow[]) => {
+    setForm((prev) => ({ ...prev, steps: next }));
   };
 
   const handleSave = async () => {
@@ -511,15 +524,33 @@ export default function DishBuilderScreen() {
             </Text>
           ) : (
             <View style={{ marginTop: KSpacing.md, gap: KSpacing.md }}>
-              {form.steps.map((step, idx) => (
-                <StepEditor
-                  key={step.uid}
-                  index={idx}
-                  step={step}
-                  onChange={(patch) => updateStep(step.uid, patch)}
-                  onRemove={() => removeStep(step.uid)}
-                />
-              ))}
+              {/* WS5-5P-fix-drag — DraggableFlatList for steps. Drag via
+                  always-visible handle (≡) per locked Option A + C.
+                  Ingredients intentionally not draggable (Option F).
+                  scrollEnabled={false} delegates scroll to the outer
+                  KeyboardAwareScrollViewCompat — see meal-builder for
+                  the full nested-scroll rationale. */}
+              <DraggableFlatList
+                data={form.steps}
+                keyExtractor={(step) => step.uid.toString()}
+                onDragEnd={({ data }) => reorderSteps(data)}
+                scrollEnabled={false}
+                renderItem={({
+                  item: step,
+                  drag,
+                  isActive,
+                  getIndex,
+                }: RenderItemParams<StepRow>) => (
+                  <StepEditor
+                    index={getIndex() ?? 0}
+                    step={step}
+                    onChange={(patch) => updateStep(step.uid, patch)}
+                    onRemove={() => removeStep(step.uid)}
+                    drag={drag}
+                    isActive={isActive}
+                  />
+                )}
+              />
               <Pressable
                 onPress={addStep}
                 style={({ pressed }) => [
@@ -622,14 +653,19 @@ function StepEditor({
   step,
   onChange,
   onRemove,
+  drag,
+  isActive,
 }: {
   index: number;
   step: StepRow;
   onChange: (patch: Partial<StepRow>) => void;
   onRemove: () => void;
+  drag: () => void;
+  isActive: boolean;
 }) {
   return (
-    <View style={s.stepEditorRow}>
+    <ScaleDecorator>
+    <View style={[s.stepEditorRow, isActive && { opacity: 0.7 }]}>
       <View
         style={[
           s.stepCircle,
@@ -705,6 +741,14 @@ function StepEditor({
         </View>
       </View>
       <Pressable
+        onLongPress={drag}
+        disabled={isActive}
+        hitSlop={8}
+        style={({ pressed }) => [s.dragHandleBtn, pressed && { opacity: 0.6 }]}
+      >
+        <Feather name="menu" size={20} color={KColors.neutral[500]} />
+      </Pressable>
+      <Pressable
         onPress={onRemove}
         hitSlop={8}
         style={({ pressed }) => [s.removeBtn, pressed && { opacity: 0.6 }]}
@@ -712,6 +756,7 @@ function StepEditor({
         <Feather name="x" size={16} color={KColors.neutral[700]} />
       </Pressable>
     </View>
+    </ScaleDecorator>
   );
 }
 
@@ -855,6 +900,16 @@ const s = StyleSheet.create({
     height: 32,
     alignItems: "center",
     justifyContent: "center",
+  },
+  // WS5-5P-fix-drag — drag handle for step reorder. Same hit area as
+  // removeBtn so the two adjacent controls feel symmetric. marginTop
+  // aligns the handle with the step circle, matching meal-builder.
+  dragHandleBtn: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
   },
   addRowBtn: {
     flexDirection: "row",

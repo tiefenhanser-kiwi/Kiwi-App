@@ -10,6 +10,10 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
+import DraggableFlatList, {
+  ScaleDecorator,
+  type RenderItemParams,
+} from "react-native-draggable-flatlist";
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
@@ -606,6 +610,7 @@ export default function MealBuilderScreen() {
             addStep={addStep}
             removeStep={removeStep}
             updateStep={updateStep}
+            reorderSteps={setSteps}
             notes={notes}
             setNotes={setNotes}
           />
@@ -926,6 +931,10 @@ interface ManualEditorProps extends MetaFieldsProps {
   addStep: () => void;
   removeStep: (uid: number) => void;
   updateStep: (uid: number, patch: Partial<Omit<BuilderStep, "uid">>) => void;
+  // WS5-5P-fix-drag — drag-to-reorder writes the new array back. The
+  // step number circle reads from the array index (no stepNumber field
+  // on BuilderStep), so reorder is automatic — no renumber pass needed.
+  reorderSteps: (next: BuilderStep[]) => void;
   notes: string;
   setNotes: (v: string) => void;
 }
@@ -1075,65 +1084,123 @@ function ManualEditor(p: ManualEditorProps) {
             </Text>
           </View>
         )}
-        {p.steps.map((step, i) => (
-          <View key={step.uid} style={s.stepRow}>
-            <View
-              style={[
-                s.stepCircle,
-                step.isTimingSensitive && s.stepCircleTiming,
-              ]}
-            >
-              <Text
-                style={[
-                  s.stepCircleText,
-                  step.isTimingSensitive && s.stepCircleTextTiming,
-                ]}
-              >
-                {i + 1}
-              </Text>
-            </View>
-            <View style={{ flex: 1, gap: 4 }}>
-              <TextInput
-                value={step.text}
-                onChangeText={(v) => p.updateStep(step.uid, { text: v })}
-                placeholder="Step description"
-                placeholderTextColor={KColors.neutral[600]}
-                style={[s.textInput, s.stepTextInput]}
-                multiline
-                returnKeyType="default"
-                blurOnSubmit={false}
-              />
-              <View style={s.suffixRow}>
-                <TextInput
-                  value={step.estimatedMinutes}
-                  onChangeText={(v) =>
-                    p.updateStep(step.uid, {
-                      estimatedMinutes: v.replace(/[^0-9]/g, ""),
-                    })
-                  }
-                  placeholder="0"
-                  placeholderTextColor={KColors.neutral[600]}
-                  style={[s.textInput, { width: 56 }]}
-                  keyboardType="number-pad"
-                  returnKeyType="done"
-                  blurOnSubmit
-                  onSubmitEditing={Keyboard.dismiss}
-                />
-                <Text style={s.suffixLabel}>min</Text>
-              </View>
-            </View>
-            <Pressable
-              onPress={() => p.removeStep(step.uid)}
-              hitSlop={8}
-              style={({ pressed }) => [
-                s.removeIconBtn,
-                pressed && { opacity: 0.6 },
-              ]}
-            >
-              <Feather name="x" size={16} color={KColors.neutral[700]} />
-            </Pressable>
-          </View>
-        ))}
+        {/* WS5-5P-fix-drag — DraggableFlatList for steps. Drag-to-reorder
+            via the always-visible handle (≡) per locked Option A + C.
+            Ingredients intentionally not draggable (Option F).
+
+            scrollEnabled={false} delegates scroll to the outer
+            KeyboardAwareScrollViewCompat — nested-scrollables would
+            otherwise fight for vertical pan. The drag handle uses
+            onLongPress (not onPressIn) so the outer ScrollView can
+            still claim quick swipes for scrolling; only a deliberate
+            long-press hands the gesture to drag. Steps lists are
+            short (typically 2–15 items) so disabling virtualization
+            is a non-issue. */}
+        <DraggableFlatList
+          data={p.steps}
+          keyExtractor={(step) => step.uid.toString()}
+          onDragEnd={({ data }) => p.reorderSteps(data)}
+          scrollEnabled={false}
+          renderItem={({
+            item: step,
+            drag,
+            isActive,
+            getIndex,
+          }: RenderItemParams<BuilderStep>) => {
+            // getIndex() returns the cell's last-known index. After
+            // onDragEnd updates state, the array reference changes and
+            // every cell rerenders, so the visible step number stays
+            // in sync with the new order.
+            const i = getIndex() ?? 0;
+            return (
+              <ScaleDecorator>
+                <View
+                  style={[
+                    s.stepRow,
+                    isActive && { opacity: 0.7 },
+                  ]}
+                >
+                  <View
+                    style={[
+                      s.stepCircle,
+                      step.isTimingSensitive && s.stepCircleTiming,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        s.stepCircleText,
+                        step.isTimingSensitive && s.stepCircleTextTiming,
+                      ]}
+                    >
+                      {i + 1}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <TextInput
+                      value={step.text}
+                      onChangeText={(v) =>
+                        p.updateStep(step.uid, { text: v })
+                      }
+                      placeholder="Step description"
+                      placeholderTextColor={KColors.neutral[600]}
+                      style={[s.textInput, s.stepTextInput]}
+                      multiline
+                      returnKeyType="default"
+                      blurOnSubmit={false}
+                    />
+                    <View style={s.suffixRow}>
+                      <TextInput
+                        value={step.estimatedMinutes}
+                        onChangeText={(v) =>
+                          p.updateStep(step.uid, {
+                            estimatedMinutes: v.replace(/[^0-9]/g, ""),
+                          })
+                        }
+                        placeholder="0"
+                        placeholderTextColor={KColors.neutral[600]}
+                        style={[s.textInput, { width: 56 }]}
+                        keyboardType="number-pad"
+                        returnKeyType="done"
+                        blurOnSubmit
+                        onSubmitEditing={Keyboard.dismiss}
+                      />
+                      <Text style={s.suffixLabel}>min</Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    onLongPress={drag}
+                    disabled={isActive}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      s.dragHandleBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                  >
+                    <Feather
+                      name="menu"
+                      size={20}
+                      color={KColors.neutral[500]}
+                    />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => p.removeStep(step.uid)}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      s.removeIconBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                  >
+                    <Feather
+                      name="x"
+                      size={16}
+                      color={KColors.neutral[700]}
+                    />
+                  </Pressable>
+                </View>
+              </ScaleDecorator>
+            );
+          }}
+        />
         <View style={s.stepsActionsRow}>
           <Button label="+ Add step" variant="ghost" onPress={p.addStep} />
         </View>
@@ -1592,6 +1659,15 @@ const s = StyleSheet.create({
     height: 28,
     alignItems: "center",
     justifyContent: "center",
+  },
+  // WS5-5P-fix-drag — drag handle for step reorder. Same hit area as
+  // removeIconBtn so the two adjacent controls feel symmetric.
+  dragHandleBtn: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
   },
   stepRow: {
     flexDirection: "row",
