@@ -2,8 +2,8 @@ import React from "react";
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, FontAwesome } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/contexts/AuthContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 
@@ -38,6 +39,12 @@ export default function SignUpPage() {
   const [smsConsent, setSmsConsent] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
 
+  const firstNameRef = React.useRef<TextInput>(null);
+  const lastNameRef = React.useRef<TextInput>(null);
+  const emailRef = React.useRef<TextInput>(null);
+  const passwordRef = React.useRef<TextInput>(null);
+  const phoneRef = React.useRef<TextInput>(null);
+
   const phoneEntered = phone.trim().length > 0;
 
   // Reset SMS consent if the phone number is cleared, so a re-add doesn't
@@ -54,7 +61,25 @@ export default function SignUpPage() {
     !submitting;
 
   const handleSubmit = async () => {
-    if (!canSubmit) return;
+    console.log("[sign-up] submit attempt", {
+      email: email.trim(),
+      hasPhone: phoneEntered,
+      canSubmit,
+    });
+    if (!canSubmit) {
+      console.log("[sign-up] submit blocked — canSubmit=false", {
+        emailLen: email.trim().length,
+        passwordLen: password.length,
+        firstNameLen: firstName.trim().length,
+        lastNameLen: lastName.trim().length,
+        submitting,
+      });
+      Alert.alert(
+        "Missing required fields",
+        "Please enter your name, email, and a password of at least 8 characters.",
+      );
+      return;
+    }
     clearError();
     setSubmitting(true);
     try {
@@ -64,8 +89,11 @@ export default function SignUpPage() {
       // the existing 4-arg signup() shape so this sub-phase ships cleanly.
       await signup(email.trim(), password, firstName.trim(), lastName.trim());
       router.replace("/onboarding-prefs");
-    } catch {
-      // Error in context.error; button re-enables below.
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Signup failed. Please try again.";
+      console.log("[sign-up] submit failed", message);
+      Alert.alert("Couldn't create your account", message);
     } finally {
       setSubmitting(false);
     }
@@ -76,7 +104,7 @@ export default function SignUpPage() {
       <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
         <Feather name="chevron-left" size={26} color={KColors.sage[700]} />
       </Pressable>
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
         style={{ flex: 1 }}
         contentContainerStyle={[
           styles.body,
@@ -110,46 +138,68 @@ export default function SignUpPage() {
         </View>
 
         <TextInput
+          ref={firstNameRef}
           value={firstName}
           onChangeText={setFirstName}
           placeholder="First name"
           autoCapitalize="words"
+          autoComplete="given-name"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => lastNameRef.current?.focus()}
           style={styles.input}
           editable={!submitting}
         />
         <TextInput
+          ref={lastNameRef}
           value={lastName}
           onChangeText={setLastName}
           placeholder="Last name"
           autoCapitalize="words"
+          autoComplete="family-name"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => emailRef.current?.focus()}
           style={styles.input}
           editable={!submitting}
         />
         <TextInput
+          ref={emailRef}
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
           autoCapitalize="none"
+          autoCorrect={false}
           keyboardType="email-address"
           autoComplete="email"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => passwordRef.current?.focus()}
           style={styles.input}
           editable={!submitting}
         />
         <TextInput
+          ref={passwordRef}
           value={password}
           onChangeText={setPassword}
           placeholder="Password (min 8 characters)"
           secureTextEntry
           autoComplete="new-password"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => phoneRef.current?.focus()}
           style={styles.input}
           editable={!submitting}
         />
         <TextInput
+          ref={phoneRef}
           value={phone}
           onChangeText={setPhone}
           placeholder="Phone number (optional)"
           keyboardType="phone-pad"
           autoComplete="tel"
+          returnKeyType="done"
+          onSubmitEditing={Keyboard.dismiss}
           style={styles.input}
           editable={!submitting}
         />
@@ -178,7 +228,7 @@ export default function SignUpPage() {
         <Text style={styles.trustSignal}>
           30-day free trial · no credit card needed
         </Text>
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }
