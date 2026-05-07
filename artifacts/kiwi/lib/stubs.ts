@@ -2320,6 +2320,26 @@ export function getUserPlans(): UserPlanSummary[] {
   ];
 }
 
+/**
+ * PRD §4.6 — resolve the user's currently-active plan (date range
+ * covers today). For WS5 stub: returns null. Real implementation
+ * lands in WS7.
+ */
+export function getCurrentActivePlan(): UserPlanSummary | null {
+  return null;
+}
+
+/**
+ * PRD §4.6 — resolve today's scheduled meal from active plan.
+ * For WS5 stub: returns null. Real implementation lands in WS7.
+ */
+export function getTodaysMeal(): {
+  meal: ReviewMeal;
+  planId: string;
+} | null {
+  return null;
+}
+
 // ── Wizard plan candidates (PRD §5.5) ──
 
 /**

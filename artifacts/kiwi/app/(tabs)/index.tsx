@@ -1,5 +1,12 @@
 import React, { useMemo } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
 import Svg, { Circle, Path } from "react-native-svg";
 
@@ -11,14 +18,35 @@ import { Screen } from "@/components/Screen";
 import { WizardCtaCard } from "@/components/WizardCtaCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useApp } from "@/contexts/AppContext";
-import { asPlanDiscoveryFilters } from "@/lib/stubs";
-import { KColors, KSpacing, KType } from "@/constants/tokens";
+import {
+  asPlanDiscoveryFilters,
+  getCurrentActivePlan,
+  getTodaysMeal,
+  getUserPlans,
+} from "@/lib/stubs";
+import {
+  KColors,
+  KPalette,
+  KRadius,
+  KSpacing,
+  KType,
+} from "@/constants/tokens";
+import type { ReviewMeal, UserPlanSummary } from "@/lib/types";
 
 function timeOfDayGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
+}
+
+function planDurationDays(plan: UserPlanSummary): number | null {
+  if (!plan.weekStartDate || !plan.weekEndDate) return null;
+  const start = new Date(plan.weekStartDate).getTime();
+  const end = new Date(plan.weekEndDate).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end)) return null;
+  // +1 because the range is inclusive (e.g. Mon–Fri = 5 days, not 4).
+  return Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
 }
 
 export default function HomeTab() {
@@ -34,20 +62,30 @@ export default function HomeTab() {
 
   const isLocked = useMemo(() => {
     const status = user?.subscription?.status;
-    // Locked when not trialing AND not active. Free-tier-post-trial path.
-    if (!status) return false; // still loading — don't lock
+    if (!status) return false;
     return status !== "trialing" && status !== "active";
   }, [user?.subscription?.status]);
 
-  const isFirstArrival = useMemo(() => {
-    const filters = user?.lastPlanDiscoveryFilters;
-    return !filters || filters.length === 0;
-  }, [user?.lastPlanDiscoveryFilters]);
+  // PRD §4.6 — hero card cascade. Both helpers are WS5 stubs that
+  // return null today; WS7 wires them to the real plan-resolution
+  // API. Code below renders all three states so the WS7 swap is
+  // a one-line change.
+  const todaysMeal = useMemo(() => getTodaysMeal(), []);
+  const activePlan = useMemo(() => getCurrentActivePlan(), []);
+  const userPlans = useMemo(() => getUserPlans(), []);
+  const hasAnyPlans = userPlans.length > 0;
+
+  const isEmptyState = useMemo(() => {
+    if (!currentPlan) return true;
+    const hasAnyRealMeal =
+      currentPlan.meals?.some(
+        (m: { recipeId?: string }) => m.recipeId && m.recipeId !== "",
+      ) ?? false;
+    return !hasAnyRealMeal;
+  }, [currentPlan]);
 
   const handleWizardCtaPress = (route: "/wizard" | "/tellkiwi") => {
     if (isLocked) {
-      // Per D-WS3-002 — simplified upgrade redirect. Modal overlay
-      // deferred to WS6/pre-launch polish.
       router.push("/upgrade");
       return;
     }
@@ -68,11 +106,6 @@ export default function HomeTab() {
   //                            current-plan state and its own
   //                            list-generation flow; WS4 will refine)
   //   - no plan             → prompt user to pick or create
-  //
-  // We don't generate the grocery list ourselves here — that's a server
-  // concern WS7 wires up. For WS3, "go to groceries tab" is the right
-  // routing for both "has list" and "has plan no list" cases. The empty
-  // prompt is the only branch we own visually.
   const handleGetGroceriesPress = () => {
     if (isEmptyState) {
       Alert.alert(
@@ -96,11 +129,6 @@ export default function HomeTab() {
   //   - has plan no today's meal   → Prep & Cook Hub (route to plan-results
   //                                   for now; WS5/WS6 builds the proper hub)
   //   - no plan                    → prompt user to pick or create
-  //
-  // WS3 doesn't have today's-meal recipe lookup wired (D-WS3-013 covers
-  // that for WS7). For now we route to /plan-results when a plan exists,
-  // regardless of whether today has a meal. The Prep & Cook Hub UX is
-  // not built yet either; /plan-results is the closest existing screen.
   const handlePrepAndCookPress = () => {
     if (isEmptyState) {
       Alert.alert(
@@ -119,50 +147,27 @@ export default function HomeTab() {
     router.push("/plan-results");
   };
 
-  const statusText = useMemo(() => {
-    if (!currentPlan) return "Ready to cook?";
-
-    const hasAnyRealMeal =
-      currentPlan.meals?.some(
-        (m: { recipeId?: string }) => m.recipeId && m.recipeId !== "",
-      ) ?? false;
-
-    if (!hasAnyRealMeal) return "Ready to cook?";
-
-    // PRD §4.2.2 specifies three states; the "Tonight's dinner: [meal title]"
-    // state requires a recipe-title lookup that WS7 owns. Until then we
-    // collapse to two states. See kiwi_deferred_decisions_log.md D-WS3-013.
-    return `This week: ${currentPlan.name}`;
-  }, [currentPlan]);
-
-  const isEmptyState = useMemo(() => {
-    if (!currentPlan) return true;
-    const hasAnyRealMeal =
-      currentPlan.meals?.some(
-        (m: { recipeId?: string }) => m.recipeId && m.recipeId !== "",
-      ) ?? false;
-    return !hasAnyRealMeal;
-  }, [currentPlan]);
-
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
       <HomeHeader />
       <Screen>
         <View style={styles.greetingBlock}>
-          {isEmptyState ? (
-            <>
-              <Text style={styles.greeting}>{greeting}</Text>
-              <Text style={styles.status}>
-                Welcome to Kiwi! Pick a plan or let the Kitchen Wizard build
-                one for you.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.greeting}>{greeting}</Text>
-              <Text style={styles.status}>{statusText}</Text>
-            </>
-          )}
+          <Text style={styles.greeting}>{greeting}</Text>
+        </View>
+
+        <View style={styles.heroSection}>
+          <Text style={styles.heroSectionLabel}>— this week</Text>
+          <HeroCard
+            todaysMeal={todaysMeal}
+            activePlan={activePlan}
+            onPressTodaysMeal={(planId) =>
+              router.push({ pathname: "/plan/[id]", params: { id: planId } })
+            }
+            onPressActivePlan={(planId) =>
+              router.push({ pathname: "/plan/[id]", params: { id: planId } })
+            }
+            onPressEmpty={() => router.push("/wizard")}
+          />
         </View>
 
         <View style={styles.ctaBlock}>
@@ -185,7 +190,7 @@ export default function HomeTab() {
             locked={isLocked}
           />
           <PlanDiscoveryCard
-            defaultExpanded={isFirstArrival}
+            defaultExpanded={!hasAnyPlans}
             initialFilters={asPlanDiscoveryFilters(user?.lastPlanDiscoveryFilters)}
           />
 
@@ -202,7 +207,11 @@ export default function HomeTab() {
                 </Svg>
               }
               label="Get Groceries"
-              subLabel="Send to store or print"
+              subLabel={
+                isEmptyState
+                  ? "No grocery list yet — create a plan first."
+                  : "Send to store or print"
+              }
               onPress={handleGetGroceriesPress}
             />
             <HomeActionButton
@@ -219,13 +228,120 @@ export default function HomeTab() {
                 </Svg>
               }
               label="Prep and Cook"
-              subLabel="Step-by-step guidance"
+              subLabel={
+                isEmptyState
+                  ? "Pick a recipe to start cooking."
+                  : "Step-by-step guidance"
+              }
               onPress={handlePrepAndCookPress}
             />
           </View>
         </View>
       </Screen>
     </View>
+  );
+}
+
+type HeroCardProps = {
+  todaysMeal: { meal: ReviewMeal; planId: string } | null;
+  activePlan: UserPlanSummary | null;
+  onPressTodaysMeal: (planId: string) => void;
+  onPressActivePlan: (planId: string) => void;
+  onPressEmpty: () => void;
+};
+
+function HeroCard({
+  todaysMeal,
+  activePlan,
+  onPressTodaysMeal,
+  onPressActivePlan,
+  onPressEmpty,
+}: HeroCardProps) {
+  if (todaysMeal) {
+    const { meal, planId } = todaysMeal;
+    const metaParts: string[] = [];
+    if (meal.estimatedTimeMinutes) {
+      metaParts.push(`${meal.estimatedTimeMinutes} min`);
+    }
+    if (meal.caloriesPerServing) {
+      metaParts.push(`${meal.caloriesPerServing} cal`);
+    }
+    if (meal.difficulty) {
+      metaParts.push(meal.difficulty);
+    }
+    return (
+      <Pressable
+        onPress={() => onPressTodaysMeal(planId)}
+        style={({ pressed }) => [styles.heroCard, pressed && { opacity: 0.85 }]}
+      >
+        <View style={styles.heroThumbWrap}>
+          {meal.imageUrl ? (
+            <Image
+              source={{ uri: meal.imageUrl }}
+              style={styles.heroThumbImage}
+            />
+          ) : (
+            <View style={[styles.heroThumbImage, styles.heroThumbPlaceholder]} />
+          )}
+        </View>
+        <View style={styles.heroTextCol}>
+          <Text style={styles.heroEyebrow}>tonight</Text>
+          <Text style={styles.heroTitle} numberOfLines={2}>
+            {meal.title}
+          </Text>
+          {metaParts.length > 0 && (
+            <Text style={styles.heroMeta} numberOfLines={1}>
+              {metaParts.join(" · ")}
+            </Text>
+          )}
+        </View>
+      </Pressable>
+    );
+  }
+
+  if (activePlan) {
+    const duration = planDurationDays(activePlan);
+    const metaParts: string[] = [];
+    if (duration) metaParts.push(`${duration} days`);
+    if (activePlan.mealCount) metaParts.push(`${activePlan.mealCount} meals`);
+    return (
+      <Pressable
+        onPress={() => onPressActivePlan(activePlan.id)}
+        style={({ pressed }) => [styles.heroCard, pressed && { opacity: 0.85 }]}
+      >
+        <View style={styles.heroThumbWrap}>
+          <View style={[styles.heroThumbImage, styles.heroThumbPlaceholder]} />
+        </View>
+        <View style={styles.heroTextCol}>
+          <Text style={styles.heroEyebrow}>this week</Text>
+          <Text style={styles.heroTitle} numberOfLines={2}>
+            {activePlan.name}
+          </Text>
+          {metaParts.length > 0 && (
+            <Text style={styles.heroMeta} numberOfLines={1}>
+              {metaParts.join(" · ")}
+            </Text>
+          )}
+        </View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onPressEmpty}
+      style={({ pressed }) => [styles.heroCard, pressed && { opacity: 0.85 }]}
+    >
+      <View style={styles.heroThumbWrap}>
+        <View style={[styles.heroThumbImage, styles.heroThumbEmptyPlaceholder]} />
+      </View>
+      <View style={styles.heroTextCol}>
+        <Text style={styles.heroEmptyTitle}>
+          No meals or plans for this week yet
+        </Text>
+        <Text style={styles.heroEmptyCta}>Create one to get started →</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -240,14 +356,83 @@ const styles = StyleSheet.create({
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
   },
-  status: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[700],
+  heroSection: {
     marginTop: KSpacing.xs,
+    marginBottom: KSpacing.md,
+  },
+  heroSectionLabel: {
+    color: KColors.neutral[700],
+    fontStyle: "italic",
+    fontSize: KType.size.md,
+    letterSpacing: 0.04,
+    marginBottom: KSpacing.sm,
     fontFamily: "Inter_400Regular",
   },
+  heroCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.md,
+    backgroundColor: KPalette.bg.card,
+    borderWidth: 1,
+    borderColor: KPalette.border.default,
+    borderRadius: KRadius.lg,
+    padding: KSpacing.md,
+    minHeight: 100,
+  },
+  heroThumbWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: KRadius.md,
+    overflow: "hidden",
+    backgroundColor: KColors.sage[100],
+  },
+  heroThumbImage: {
+    width: 80,
+    height: 80,
+  },
+  heroThumbPlaceholder: {
+    backgroundColor: KColors.sage[200],
+  },
+  heroThumbEmptyPlaceholder: {
+    backgroundColor: KColors.sage[100],
+  },
+  heroTextCol: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 2,
+  },
+  heroEyebrow: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[600],
+    fontStyle: "italic",
+    fontFamily: "Inter_400Regular",
+  },
+  heroTitle: {
+    fontSize: KType.size.lg,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  heroMeta: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  heroEmptyTitle: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[800],
+    fontWeight: KType.weight.medium,
+    fontFamily: "Inter_500Medium",
+  },
+  heroEmptyCta: {
+    fontSize: KType.size.sm,
+    color: KColors.terracotta[400],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+    marginTop: 4,
+  },
   ctaBlock: {
-    marginTop: KSpacing.md,
     gap: KSpacing.md,
   },
   wizardRow: {

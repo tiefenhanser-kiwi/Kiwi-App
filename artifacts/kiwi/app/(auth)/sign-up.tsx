@@ -88,9 +88,13 @@ export default function SignUpPage() {
       // or WS6 depending on schema-migration scheduling. For now, we keep
       // the existing 4-arg signup() shape so this sub-phase ships cleanly.
       await signup(email.trim(), password, firstName.trim(), lastName.trim());
-      // dismissAll clears the (auth) stack so back-swipe can't return to
-      // a half-completed signup form once the user is authenticated.
-      router.dismissAll();
+      // router.replace clears the current (auth) screen from history, so
+      // back-swipe can't return to a half-completed signup form. We avoid
+      // dismissAll() here — the (auth) group is a regular Stack, not a
+      // presented modal stack, so dismissAll() emits a POP_TO_TOP action
+      // that races with the AuthLayout redirect (fires when the freshly-set
+      // token flips isAuthenticated true) and surfaces a "POP_TO_TOP not
+      // handled" warning.
       router.replace("/onboarding-prefs");
     } catch (err) {
       const message =
