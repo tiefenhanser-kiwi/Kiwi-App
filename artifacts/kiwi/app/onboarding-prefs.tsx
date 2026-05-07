@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Keyboard, StyleSheet, Text, View } from "react-native";
+import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
@@ -10,6 +10,7 @@ import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
 import { EatingStylesPicker } from "@/components/preference-pickers/EatingStylesPicker";
 import { RecurringItemsPicker } from "@/components/preference-pickers/RecurringItemsPicker";
 import { SkillLevelPicker } from "@/components/preference-pickers/SkillLevelPicker";
+import { useApp } from "@/contexts/AppContext";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 type Step2FormState = {
@@ -18,17 +19,32 @@ type Step2FormState = {
   allergiesAndAvoidances: string[];
   cookingSkill: "Beginner" | "Intermediate" | "Advanced";
   recurringGroceryItems: string[];
+  dietaryNotes: string;
 };
 
 export default function OnboardingPrefs() {
   const router = useRouter();
+  const { onboardingStep2Draft, setOnboardingStep2Draft } = useApp();
 
-  const [form, setForm] = useState<Step2FormState>({
-    cuisines: [],
-    eatingStyles: [],
-    allergiesAndAvoidances: [],
-    cookingSkill: "Intermediate",
-    recurringGroceryItems: [],
+  const [form, setForm] = useState<Step2FormState>(() => {
+    if (onboardingStep2Draft) {
+      return {
+        cuisines: onboardingStep2Draft.cuisines,
+        eatingStyles: onboardingStep2Draft.eatingStyles,
+        allergiesAndAvoidances: onboardingStep2Draft.allergiesAndAvoidances,
+        cookingSkill: onboardingStep2Draft.cookingSkill,
+        recurringGroceryItems: onboardingStep2Draft.recurringGroceryItems,
+        dietaryNotes: onboardingStep2Draft.dietaryNotes,
+      };
+    }
+    return {
+      cuisines: [],
+      eatingStyles: [],
+      allergiesAndAvoidances: [],
+      cookingSkill: "Intermediate",
+      recurringGroceryItems: [],
+      dietaryNotes: "",
+    };
   });
 
   const update = <K extends keyof Step2FormState>(
@@ -40,9 +56,14 @@ export default function OnboardingPrefs() {
 
   const handleContinue = () => {
     Keyboard.dismiss();
-    // Per WS5 plan: partial save is log-only; full persistence at step 3.
-    // Inter-screen state is not threaded through — see WS5-fix-firstrun-2
-    // notes for the WS7 follow-up.
+    setOnboardingStep2Draft({
+      cuisines: form.cuisines,
+      eatingStyles: form.eatingStyles,
+      allergiesAndAvoidances: form.allergiesAndAvoidances,
+      cookingSkill: form.cookingSkill,
+      recurringGroceryItems: form.recurringGroceryItems,
+      dietaryNotes: form.dietaryNotes,
+    });
     console.log("[onboarding-step-2] save", form);
     router.push("/onboarding-tellkiwi");
   };
@@ -77,6 +98,20 @@ export default function OnboardingPrefs() {
           <AllergiesPicker
             value={form.allergiesAndAvoidances}
             onChange={(next) => update("allergiesAndAvoidances", next)}
+          />
+
+          <Text style={[s.subLabel, { marginTop: KSpacing.lg }]}>
+            Anything else? <Text style={s.optional}>(Optional)</Text>
+          </Text>
+          <TextInput
+            value={form.dietaryNotes}
+            onChangeText={(v) => update("dietaryNotes", v)}
+            placeholder="e.g., 'no cilantro', 'lower sodium'"
+            placeholderTextColor={KColors.neutral[600]}
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={Keyboard.dismiss}
+            style={s.input}
           />
         </Section>
 
@@ -162,6 +197,23 @@ const s = StyleSheet.create({
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
     marginBottom: KSpacing.sm,
+  },
+  optional: {
+    fontWeight: KType.weight.regular,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: KColors.neutral[400],
+    backgroundColor: KColors.neutral[0],
+    borderRadius: KRadius.md,
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.sm,
+    fontSize: KType.size.md,
+    color: KColors.neutral[900],
+    fontFamily: "Inter_400Regular",
+    textAlignVertical: "top",
   },
   footer: {
     marginTop: KSpacing.lg,

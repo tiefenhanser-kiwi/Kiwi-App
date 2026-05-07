@@ -100,6 +100,40 @@ export interface SubscriptionInfo {
 }
 
 /**
+ * Transient draft state for onboarding step 2 (PRD §3.4).
+ * Held in AppContext so step 2 can remount with the user's
+ * in-progress values after navigating away and back. Replaced
+ * in WS7 by getCurrentUserPreferences() reading saved API state.
+ */
+export interface Step2Draft {
+  cuisines: string[];
+  eatingStyles: string[];
+  allergiesAndAvoidances: string[];
+  cookingSkill: "Beginner" | "Intermediate" | "Advanced";
+  recurringGroceryItems: string[];
+  dietaryNotes: string;
+}
+
+/**
+ * Transient draft state for onboarding step 3 (PRD §3.5).
+ * Held in AppContext so step 3 can remount with the user's
+ * in-progress values after refine/back navigation. Replaced
+ * in WS7 by real API persistence.
+ */
+export interface Step3Draft {
+  cookingEquipment: string[];
+  stovetopType?: "Gas" | "Induction" | "Electric";
+  kidsCount: number;
+  pickyEaterCount: number;
+  pickyAvoidances: string[];
+  spiceTolerance: "Mild" | "Medium" | "Hot" | "Very Hot";
+  healthGoals: string[];
+  budgetLevel: "Economy" | "Mid-range" | "Premium";
+  /** Open collapsible section ids — Set serialized as array for JSON. */
+  expandedSections: string[];
+}
+
+/**
  * PRD §14.9.2 — full user preferences from §3.4 + §3.5.
  * Real persistence WS7.
  */

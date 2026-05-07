@@ -22,6 +22,8 @@ import type {
   MealPlan,
   MealSlot,
   RecipeOverride,
+  Step2Draft,
+  Step3Draft,
   UserPreferencesData,
 } from "@/lib/types";
 
@@ -139,6 +141,17 @@ interface AppState {
   setPremium: (v: boolean) => Promise<void>;
   onboardingComplete: boolean;
   setOnboardingComplete: (v: boolean) => Promise<void>;
+  // ── Transient onboarding state (WS5 stub) ──
+  // Holds in-progress onboarding form values across navigation so
+  // step 2 ↔ step 3 ↔ wizard-results refine all restore the user's
+  // entries. WS7 replaces this with real API persistence via
+  // getCurrentUserPreferences().
+  /** Step 2 partial form state — null until first save. */
+  onboardingStep2Draft: Step2Draft | null;
+  setOnboardingStep2Draft: (draft: Step2Draft) => void;
+  /** Step 3 partial form state — null until first save. */
+  onboardingStep3Draft: Step3Draft | null;
+  setOnboardingStep3Draft: (draft: Step3Draft) => void;
 }
 
 const AppCtx = createContext<AppState | null>(null);
@@ -152,6 +165,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [isPremium, setIsPremiumState] = useState(false);
   const [onboardingComplete, setOnboardingCompleteState] = useState(false);
+  const [onboardingStep2Draft, setOnboardingStep2DraftState] =
+    useState<Step2Draft | null>(null);
+  const [onboardingStep3Draft, setOnboardingStep3DraftState] =
+    useState<Step3Draft | null>(null);
+
+  const setOnboardingStep2Draft = useCallback((draft: Step2Draft) => {
+    setOnboardingStep2DraftState(draft);
+    console.log("[AppContext] step 2 draft saved", draft);
+  }, []);
+
+  const setOnboardingStep3Draft = useCallback((draft: Step3Draft) => {
+    setOnboardingStep3DraftState(draft);
+    console.log("[AppContext] step 3 draft saved", draft);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -452,6 +479,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPremium,
     onboardingComplete,
     setOnboardingComplete,
+    onboardingStep2Draft,
+    setOnboardingStep2Draft,
+    onboardingStep3Draft,
+    setOnboardingStep3Draft,
   };
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

@@ -39,31 +39,54 @@ type Step3FormState = {
   spiceTolerance: "Mild" | "Medium" | "Hot" | "Very Hot";
   healthGoals: string[];
   budgetLevel: "Economy" | "Mid-range" | "Premium";
+  expandedSections: Set<SectionId>;
 };
 
 export default function OnboardingTellKiwi() {
   const router = useRouter();
-  const { updateUserPreferences, setOnboardingComplete } = useApp();
+  const {
+    updateUserPreferences,
+    setOnboardingComplete,
+    onboardingStep2Draft,
+    onboardingStep3Draft,
+    setOnboardingStep3Draft,
+  } = useApp();
 
-  const [form, setForm] = useState<Step3FormState>({
-    cookingEquipment: [],
-    stovetopType: undefined,
-    kidsCount: 0,
-    pickyEaterCount: 0,
-    pickyAvoidances: [],
-    spiceTolerance: "Medium",
-    healthGoals: [],
-    budgetLevel: "Mid-range",
+  const [form, setForm] = useState<Step3FormState>(() => {
+    if (onboardingStep3Draft) {
+      return {
+        cookingEquipment: onboardingStep3Draft.cookingEquipment,
+        stovetopType: onboardingStep3Draft.stovetopType,
+        kidsCount: onboardingStep3Draft.kidsCount,
+        pickyEaterCount: onboardingStep3Draft.pickyEaterCount,
+        pickyAvoidances: onboardingStep3Draft.pickyAvoidances,
+        spiceTolerance: onboardingStep3Draft.spiceTolerance,
+        healthGoals: onboardingStep3Draft.healthGoals,
+        budgetLevel: onboardingStep3Draft.budgetLevel,
+        expandedSections: new Set(
+          onboardingStep3Draft.expandedSections as SectionId[],
+        ),
+      };
+    }
+    return {
+      cookingEquipment: [],
+      stovetopType: undefined,
+      kidsCount: 0,
+      pickyEaterCount: 0,
+      pickyAvoidances: [],
+      spiceTolerance: "Medium",
+      healthGoals: [],
+      budgetLevel: "Mid-range",
+      expandedSections: new Set<SectionId>(),
+    };
   });
 
-  const [expanded, setExpanded] = useState<Set<SectionId>>(new Set());
-
   const toggleSection = (id: SectionId) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
+    setForm((prev) => {
+      const next = new Set(prev.expandedSections);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      return next;
+      return { ...prev, expandedSections: next };
     });
   };
 
@@ -74,16 +97,28 @@ export default function OnboardingTellKiwi() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  // For WS5, step 2's values aren't threaded into step 3 (each onboarding
-  // screen is independent). We reconstruct a full UserPreferencesData by
-  // using getCurrentUserPreferences for the §3.4 fields and overlaying the
-  // §3.5 fields the user just touched here. WS7's real persistence is
-  // server-merge; this stub-log shape just helps devs see what the user
-  // picked on this screen alongside sensible defaults for the rest.
+  // Reconstruct full UserPreferencesData by using getCurrentUserPreferences
+  // as the base and overlaying both the user's step 2 draft (when they
+  // visited step 2) and the §3.5 fields they touched here. WS7's real
+  // persistence is server-merge; this stub-log shape lets devs see the
+  // user's actual entries alongside sensible defaults for the rest.
   const buildFullPrefs = (): UserPreferencesData => {
     const base = getCurrentUserPreferences();
     return {
       ...base,
+      // §3.4 fields — overlay step 2 draft when present, fall back to base.
+      ...(onboardingStep2Draft && {
+        cuisines: onboardingStep2Draft.cuisines,
+        eatingStyles: onboardingStep2Draft.eatingStyles,
+        allergiesAndAvoidances: onboardingStep2Draft.allergiesAndAvoidances,
+        cookingSkill: onboardingStep2Draft.cookingSkill,
+        recurringGroceryItems: onboardingStep2Draft.recurringGroceryItems,
+        dietaryNotes:
+          onboardingStep2Draft.dietaryNotes.length > 0
+            ? onboardingStep2Draft.dietaryNotes
+            : base.dietaryNotes,
+      }),
+      // §3.5 fields from this screen.
       cookingEquipment: form.cookingEquipment,
       stovetopType: form.stovetopType,
       kidsCount: form.kidsCount,
@@ -95,8 +130,23 @@ export default function OnboardingTellKiwi() {
     };
   };
 
+  const persistDraft = () => {
+    setOnboardingStep3Draft({
+      cookingEquipment: form.cookingEquipment,
+      stovetopType: form.stovetopType,
+      kidsCount: form.kidsCount,
+      pickyEaterCount: form.pickyEaterCount,
+      pickyAvoidances: form.pickyAvoidances,
+      spiceTolerance: form.spiceTolerance,
+      healthGoals: form.healthGoals,
+      budgetLevel: form.budgetLevel,
+      expandedSections: Array.from(form.expandedSections),
+    });
+  };
+
   const handleSaveAndWizard = () => {
     console.log("[onboarding-step-3] save + wizard", form);
+    persistDraft();
     void updateUserPreferences(buildFullPrefs());
     void setOnboardingComplete(true);
     // Skip /wizard prefs page — user already set general prefs in steps 2+3.
@@ -110,6 +160,7 @@ export default function OnboardingTellKiwi() {
 
   const handleSaveAndHome = () => {
     console.log("[onboarding-step-3] save + home", form);
+    persistDraft();
     void updateUserPreferences(buildFullPrefs());
     void setOnboardingComplete(true);
     router.dismissAll();
@@ -137,7 +188,7 @@ export default function OnboardingTellKiwi() {
           id="equipment"
           title="Cooking equipment"
           subtitle="What's in your kitchen — so Kiwi doesn't suggest recipes you can't make"
-          isOpen={expanded.has("equipment")}
+          isOpen={form.expandedSections.has("equipment")}
           onToggle={() => toggleSection("equipment")}
         >
           <EquipmentPicker
@@ -157,7 +208,7 @@ export default function OnboardingTellKiwi() {
           id="kids"
           title="Kids in household"
           subtitle="Helps Kiwi suggest portion sizes and kid-friendly options"
-          isOpen={expanded.has("kids")}
+          isOpen={form.expandedSections.has("kids")}
           onToggle={() => toggleSection("kids")}
         >
           <Stepper
@@ -173,7 +224,7 @@ export default function OnboardingTellKiwi() {
           id="picky"
           title="Picky eaters"
           subtitle="Things they just won't eat (different from dietary restrictions)"
-          isOpen={expanded.has("picky")}
+          isOpen={form.expandedSections.has("picky")}
           onToggle={() => toggleSection("picky")}
         >
           <PickyEatersPicker
@@ -188,7 +239,7 @@ export default function OnboardingTellKiwi() {
         <CollapsibleSection
           id="spice"
           title="Spice tolerance"
-          isOpen={expanded.has("spice")}
+          isOpen={form.expandedSections.has("spice")}
           onToggle={() => toggleSection("spice")}
         >
           <SpicePicker
@@ -201,7 +252,7 @@ export default function OnboardingTellKiwi() {
           id="health"
           title="Health goals"
           subtitle="Note: not medical advice. Influences macro emphasis only."
-          isOpen={expanded.has("health")}
+          isOpen={form.expandedSections.has("health")}
           onToggle={() => toggleSection("health")}
         >
           <HealthGoalsPicker
@@ -213,7 +264,7 @@ export default function OnboardingTellKiwi() {
         <CollapsibleSection
           id="budget"
           title="Budget level"
-          isOpen={expanded.has("budget")}
+          isOpen={form.expandedSections.has("budget")}
           onToggle={() => toggleSection("budget")}
         >
           <BudgetLevelPicker
