@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { SortKey } from "@/components/SortDropdown";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { formatDate, formatRelative } from "@/lib/date";
 import type { SavedDish } from "@/lib/types";
 
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.sm,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     padding: KSpacing.sm,
     borderWidth: 1,

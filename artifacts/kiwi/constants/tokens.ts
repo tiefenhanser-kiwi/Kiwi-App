@@ -1,63 +1,75 @@
 // Kiwi design tokens — semantic palette derived from the locked design-tokens.ts spec.
 // Imported throughout the app instead of hardcoding hex values.
+//
+// WS5-5P-fix-tokens — cookbook variant (3b): warm cream/brown neutral
+// ramp, deeper terracotta brick, warm shadows, slightly tighter radii,
+// +1pt display sizes. Replaces the prior sage-tinted ramp that produced
+// a green-on-green wash.
 
 export const KColors = {
+  // Sage: ramp largely preserved. 700 stays at brand value so the kiwi
+  // mark and active states render consistently across the swap.
   sage: {
-    50: "#f4f7f0",
-    100: "#e8efe2",
-    200: "#d0dbc8",
-    300: "#b8ceb0",
-    400: "#9ab090",
-    500: "#7a9470",
-    600: "#5a7254",
-    700: "#3a5235",
-    800: "#2d4029",
-    900: "#1e2a1c",
+    50: "#f1f4ec",
+    100: "#e2e9d8",
+    200: "#cdd9be",
+    300: "#b1c2a0",
+    400: "#8fa37e",
+    500: "#6e8460",
+    600: "#556a4a",
+    700: "#3a5235", // brand value — unchanged
+    800: "#2a3d28",
+    900: "#1a2517",
   },
+
+  // Terracotta: deepened toward fired brick (was vivid orange).
   terracotta: {
-    50: "#fdf2ec",
-    100: "#fae0cc",
-    200: "#f5c09a",
-    300: "#efa068",
-    400: "#e07c3a",
-    500: "#c86830",
-    600: "#a04820",
-    700: "#7a3418",
+    50: "#fbeee5",
+    100: "#f5dac0",
+    200: "#eebe96",
+    300: "#e29d68",
+    400: "#c1502a", // PRIMARY ACCENT (was #e07c3a)
+    500: "#a84520",
+    600: "#893719",
+    700: "#6a2913",
   },
+
+  // Neutral: warm cream/brown (was sage-tinted). Critical change —
+  // flips green-on-green to paper-on-paper.
   neutral: {
     0: "#ffffff",
-    50: "#fafaf8",
-    100: "#f4f7f0",
-    200: "#eef2e8",
-    300: "#e8efe2",
-    400: "#d8e2d0",
-    500: "#c8d4c0",
-    600: "#9ab090",
-    700: "#7a9470",
-    800: "#5a7254",
-    900: "#1e2a1c",
+    50: "#fdfaf3",
+    100: "#f3ecde", // app background — warm paper
+    200: "#ede5d2", // nav / surfaces
+    300: "#e0d6bd", // header / divider tone
+    400: "#cebd9e", // card border
+    500: "#b3a282", // strong border
+    600: "#8a7d6c", // muted text (warm gray-brown)
+    700: "#6b5e4d", // secondary text (warm brown)
+    800: "#4a3f30", // high-emphasis text
+    900: "#2d2620", // primary text (warm dark)
   },
 };
 
 export const KPalette = {
   bg: {
-    app: KColors.neutral[100],
-    card: KColors.neutral[0],
-    header: KColors.neutral[300],
-    nav: KColors.neutral[200],
-    overlay: "rgba(20, 35, 18, 0.45)",
+    app: KColors.neutral[100], // paper cream
+    card: "#fcf7eb", // cream cards (was pure white)
+    header: KColors.neutral[100], // header blends into app
+    nav: KColors.neutral[100], // nav blends into app
+    overlay: "rgba(45, 38, 32, 0.45)", // warm brown overlay
   },
   text: {
     primary: KColors.neutral[900],
-    secondary: KColors.neutral[800],
-    muted: KColors.neutral[700],
-    placeholder: "#b0c0a8",
-    inverse: "#e8efe2",
-    link: KColors.sage[700],
+    secondary: KColors.neutral[700],
+    muted: KColors.neutral[600],
+    placeholder: "#a89a7a", // warm placeholder
+    inverse: "#fcf7eb", // cream on dark
+    link: KColors.terracotta[400], // links now brick (was sage)
   },
   border: {
-    default: KColors.neutral[400],
-    muted: KColors.neutral[300],
+    default: "rgba(80, 60, 40, 0.10)", // warm hairline
+    muted: "rgba(80, 60, 40, 0.06)",
     sage: KColors.sage[300],
   },
 };
@@ -75,22 +87,24 @@ export const KSpacing = {
 export const KRadius = {
   sm: 8,
   md: 10,
-  lg: 14,
-  xl: 16,
-  xxl: 20,
+  lg: 12, // 14 → 12 (buttons feel more "panel")
+  xl: 14, // 16 → 14 (cards feel like paper, not pillows)
+  xxl: 18, // 20 → 18
   pill: 9999,
 };
 
 export const KShadow = {
   card: {
-    shadowColor: "#3a5235",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowColor: "#5a4030", // warm brown (was sage)
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 2,
   },
 };
 
+// TODO(D-WS5-XXX): Load Source Serif 4 via expo-font for display text.
+// System serif fallback acceptable for testing.
 export const KType = {
   size: {
     xs: 11,
@@ -98,9 +112,9 @@ export const KType = {
     base: 14,
     md: 15,
     lg: 17,
-    xl: 20,
-    xxl: 24,
-    display: 32,
+    xl: 21, // +1
+    xxl: 25, // +1
+    display: 34, // +2
   },
   weight: {
     regular: "400" as const,

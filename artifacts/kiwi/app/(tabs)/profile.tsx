@@ -15,7 +15,7 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { formatSubscriptionState } from "@/lib/domain";
 import { getCurrentSubscription, getCurrentUserInfo } from "@/lib/stubs";
 import type { SubscriptionInfo, UserAccountInfo } from "@/lib/types";
@@ -364,7 +364,7 @@ const s = StyleSheet.create({
     gap: KSpacing.md,
   },
   userCard: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -399,7 +399,7 @@ const s = StyleSheet.create({
     fontFamily: "Inter_400Regular",
   },
   card: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -474,7 +474,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.md,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[300],

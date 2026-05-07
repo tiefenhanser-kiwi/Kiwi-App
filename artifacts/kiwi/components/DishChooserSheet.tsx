@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { sortDishes } from "@/components/dishSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { getSavedDishes } from "@/lib/stubs";
 import type { SavedDish } from "@/lib/types";
 
@@ -382,7 +382,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.md,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -450,7 +450,7 @@ const s = StyleSheet.create({
   },
   askInput: {
     flex: 1,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -468,7 +468,7 @@ const s = StyleSheet.create({
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[400],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     minHeight: 40,
     alignItems: "center",
     justifyContent: "center",
@@ -483,7 +483,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.md,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -491,7 +491,7 @@ const s = StyleSheet.create({
     marginTop: KSpacing.lg,
   },
   simpleDishExpanded: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.sage[300],
@@ -500,7 +500,7 @@ const s = StyleSheet.create({
     gap: KSpacing.sm,
   },
   simpleDishInput: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],

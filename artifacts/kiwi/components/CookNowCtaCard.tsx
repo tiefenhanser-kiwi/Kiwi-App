@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 type Props = {
   onPress: () => void;
@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     padding: KSpacing.md,
     borderWidth: 1,

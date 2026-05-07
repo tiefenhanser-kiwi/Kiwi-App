@@ -18,6 +18,7 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import {
   KColors,
   KCopy,
+  KPalette,
   KRadius,
   KSpacing,
   KType,
@@ -514,7 +515,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.sm,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],

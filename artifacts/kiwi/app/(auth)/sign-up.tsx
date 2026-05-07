@@ -16,7 +16,7 @@ import { Feather, FontAwesome } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/contexts/AuthContext";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 function showOauthStub() {
   Alert.alert(
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: KSpacing.sm,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderWidth: 1,
     borderColor: KColors.neutral[400],
     borderRadius: KRadius.lg,
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     borderRadius: KRadius.md,
     padding: KSpacing.md,
     fontSize: KType.size.md,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     fontFamily: "Inter_400Regular",
   },
   consentRow: {

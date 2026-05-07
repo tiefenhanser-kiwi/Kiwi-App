@@ -16,7 +16,7 @@ import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Stepper } from "@/components/Stepper";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
   ALLERGIES_AND_AVOIDANCES,
   CUISINES_TIER_1,
@@ -428,7 +428,7 @@ const s = StyleSheet.create({
     gap: KSpacing.md,
   },
   card: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -502,7 +502,7 @@ const s = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: KColors.neutral[400],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     paddingHorizontal: KSpacing.md,
     paddingVertical: KSpacing.sm,

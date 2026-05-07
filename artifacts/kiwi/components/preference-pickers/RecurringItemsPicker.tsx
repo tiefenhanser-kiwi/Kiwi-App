@@ -11,7 +11,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { Chip } from "@/components/Chip";
 import { COMMON_RECURRING_ITEMS } from "@/lib/domain";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 import { pickerStyles } from "./shared";
 
@@ -149,7 +149,7 @@ const s = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     borderColor: KColors.neutral[400],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     paddingHorizontal: KSpacing.md,
     paddingVertical: KSpacing.sm,

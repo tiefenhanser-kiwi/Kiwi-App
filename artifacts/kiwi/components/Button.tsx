@@ -83,7 +83,7 @@ const VARIANTS: Record<
   },
   terra: { bg: KColors.terracotta[400], text: "#ffffff" },
   ghost: {
-    bg: KColors.neutral[0],
+    bg: "transparent",
     text: KColors.sage[700],
     border: KColors.neutral[400],
   },

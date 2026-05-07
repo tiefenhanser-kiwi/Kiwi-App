@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 export interface PlanNameEditorProps {
   currentName: string;
@@ -86,7 +86,7 @@ const s = StyleSheet.create({
     color: KColors.neutral[900],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderWidth: 1,
     borderColor: KColors.sage[300],
     borderRadius: KRadius.sm,

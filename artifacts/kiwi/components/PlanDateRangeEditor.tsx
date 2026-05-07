@@ -10,7 +10,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 export interface PlanDateRangeEditorProps {
   /** ISO "YYYY-MM-DD". Falls back to today's week start when missing. */
@@ -453,7 +453,7 @@ const s = StyleSheet.create({
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[400],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     alignItems: "center",
   },
   presetBtnActive: {
@@ -470,7 +470,7 @@ const s = StyleSheet.create({
     color: KColors.neutral[0],
   },
   customWrap: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
     borderRadius: KRadius.md,

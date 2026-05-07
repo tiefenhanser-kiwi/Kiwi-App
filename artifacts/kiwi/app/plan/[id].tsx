@@ -25,7 +25,7 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { PlanDateRangeEditor } from "@/components/PlanDateRangeEditor";
 import { PlanNameEditor } from "@/components/PlanNameEditor";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { buildDayStrip } from "@/lib/domain";
 import { getMealById, getReviewPlan } from "@/lib/stubs";
@@ -712,7 +712,7 @@ const s = StyleSheet.create({
     marginBottom: KSpacing.md,
   },
   actionBar: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[400],
@@ -839,7 +839,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[400],
@@ -854,7 +854,7 @@ const s = StyleSheet.create({
   },
   collapseInput: {
     marginTop: KSpacing.sm,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],

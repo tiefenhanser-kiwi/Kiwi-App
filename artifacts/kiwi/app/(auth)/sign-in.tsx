@@ -6,7 +6,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
 import { useAuth } from "@/contexts/AuthContext";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   back: { marginBottom: KSpacing.md },
   body: { gap: KSpacing.md },
   title: { fontSize: KType.size.xl * 1.4, fontWeight: "700", color: KColors.neutral[900], fontFamily: "Inter_700Bold" },
-  input: { borderWidth: 1, borderColor: KColors.neutral[400], borderRadius: KRadius.md, padding: KSpacing.md, fontSize: KType.size.md, backgroundColor: KColors.neutral[0], fontFamily: "Inter_400Regular" },
+  input: { borderWidth: 1, borderColor: KColors.neutral[400], borderRadius: KRadius.md, padding: KSpacing.md, fontSize: KType.size.md, backgroundColor: KPalette.bg.card, fontFamily: "Inter_400Regular" },
   errorText: { color: KColors.terracotta?.[700] ?? "#c04a2e", fontSize: KType.size.sm, fontFamily: "Inter_500Medium" },
   buttonLoading: { alignItems: "center", padding: KSpacing.md },
   link: { color: KColors.sage[700], fontSize: KType.size.md, textAlign: "center", marginTop: KSpacing.sm, fontFamily: "Inter_500Medium" },

@@ -9,7 +9,7 @@ import {
 } from "react-native";
 
 import type { PlanDiscoveryCard } from "@/lib/stubs";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 type Props = {
   card: PlanDiscoveryCard;
@@ -105,7 +105,7 @@ export function PlanCardSmall({ card }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     padding: KSpacing.sm,
     borderWidth: 1,

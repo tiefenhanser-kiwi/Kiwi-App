@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { formatSubscriptionState } from "@/lib/domain";
 import { getCurrentSubscription } from "@/lib/stubs";
 import type { SubscriptionInfo } from "@/lib/types";
@@ -79,7 +79,7 @@ const s = StyleSheet.create({
     gap: KSpacing.md,
   },
   card: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -112,7 +112,7 @@ const s = StyleSheet.create({
     height: KSpacing.lg,
   },
   dangerCard: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.terracotta[200],

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 export type SortKey =
   | "last_cooked"
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     gap: 4,
   },
   triggerLabel: {
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     right: 0,
     marginTop: 4,
     minWidth: 160,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],

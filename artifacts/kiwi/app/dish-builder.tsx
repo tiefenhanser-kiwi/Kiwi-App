@@ -17,7 +17,7 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Stepper } from "@/components/Stepper";
 import { useApp } from "@/contexts/AppContext";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
   CUISINES_TIER_1,
   CUISINES_TIER_2,
@@ -748,7 +748,7 @@ const s = StyleSheet.create({
     gap: KSpacing.md,
   },
   card: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -794,7 +794,7 @@ const s = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: KColors.neutral[400],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     paddingHorizontal: KSpacing.md,
     paddingVertical: KSpacing.sm,
@@ -918,7 +918,7 @@ const s = StyleSheet.create({
     borderRadius: KRadius.pill,
     borderWidth: 1,
     borderColor: KColors.neutral[400],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
   },
   timingToggleActive: {
     borderColor: KColors.terracotta[300],

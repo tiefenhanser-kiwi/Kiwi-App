@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
 
 import type { PlanDiscoveryFilter } from "@/lib/stubs";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 export type FilterChipOption<K extends string> = {
   key: K;
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     borderColor: KColors.sage[700],
   },
   chipOff: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderColor: KColors.neutral[300],
   },
   textOn: {

@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, View, ViewStyle } from "react-native";
 
-import { KColors, KRadius, KShadow, KSpacing } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KShadow, KSpacing } from "@/constants/tokens";
 
 interface Props {
   children: React.ReactNode;
@@ -38,7 +38,7 @@ export function Card({ children, onPress, style, padded = true }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.xl,
     borderWidth: 1,
     borderColor: KColors.neutral[400],

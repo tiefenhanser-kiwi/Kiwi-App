@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import {
   KColors,
   KCopy,
+  KPalette,
   KRadius,
   KShadow,
   KSpacing,
@@ -229,7 +230,7 @@ export function PlanReviewMealRow({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[400],
@@ -334,7 +335,7 @@ const styles = StyleSheet.create({
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
   },
   actionText: {
     fontSize: KType.size.xs,

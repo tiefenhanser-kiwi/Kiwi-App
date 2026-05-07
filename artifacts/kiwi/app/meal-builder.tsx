@@ -18,6 +18,7 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import {
   KColors,
+  KPalette,
   KRadius,
   KSpacing,
   KType,
@@ -1401,7 +1402,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.md,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[400],
@@ -1459,7 +1460,7 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   textInput: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -1511,7 +1512,7 @@ const s = StyleSheet.create({
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     alignItems: "center",
   },
   difficultyBtnOn: {
@@ -1548,7 +1549,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.sm,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -1665,7 +1666,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.md,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -1702,7 +1703,7 @@ const s = StyleSheet.create({
     fontFamily: "Inter_400Regular",
   },
   reviewDish: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[300],

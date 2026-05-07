@@ -14,7 +14,7 @@ import { PickyEatersPicker } from "@/components/preference-pickers/PickyEatersPi
 import { SpicePicker } from "@/components/preference-pickers/SpicePicker";
 import { StovetopPicker } from "@/components/preference-pickers/StovetopPicker";
 import { useApp } from "@/contexts/AppContext";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { getCurrentUserPreferences } from "@/lib/stubs";
 import type { UserPreferencesData } from "@/lib/types";
 
@@ -361,7 +361,7 @@ const s = StyleSheet.create({
     lineHeight: 18,
   },
   card: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[300],

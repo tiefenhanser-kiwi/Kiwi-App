@@ -11,7 +11,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { RECIPES } from "@/lib/stubs";
 import type { Recipe } from "@/lib/types";
 
@@ -114,7 +114,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.md,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     padding: KSpacing.sm,
     borderWidth: 1,

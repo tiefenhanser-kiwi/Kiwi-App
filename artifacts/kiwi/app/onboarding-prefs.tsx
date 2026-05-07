@@ -11,7 +11,7 @@ import { EatingStylesPicker } from "@/components/preference-pickers/EatingStyles
 import { RecurringItemsPicker } from "@/components/preference-pickers/RecurringItemsPicker";
 import { SkillLevelPicker } from "@/components/preference-pickers/SkillLevelPicker";
 import { useApp } from "@/contexts/AppContext";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 type Step2FormState = {
   cuisines: string[];
@@ -173,7 +173,7 @@ const s = StyleSheet.create({
     gap: KSpacing.md,
   },
   card: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -206,7 +206,7 @@ const s = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: KColors.neutral[400],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     paddingHorizontal: KSpacing.md,
     paddingVertical: KSpacing.sm,

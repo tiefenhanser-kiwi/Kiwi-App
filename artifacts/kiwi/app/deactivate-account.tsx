@@ -16,7 +16,7 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 const CONFIRM_PHRASE = "deactivate";
 
@@ -186,7 +186,7 @@ const s = StyleSheet.create({
     lineHeight: 20,
   },
   frictionCard: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     borderWidth: 1,
     borderColor: KColors.neutral[300],
@@ -202,7 +202,7 @@ const s = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: KColors.neutral[400],
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     paddingHorizontal: KSpacing.md,
     paddingVertical: KSpacing.sm,

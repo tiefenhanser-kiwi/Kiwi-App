@@ -6,7 +6,7 @@ import { PlanCardSmall } from "@/components/PlanCardSmall";
 import { useAuth } from "@/contexts/AuthContext";
 import { getHomePayload, type PlanDiscoveryCard, type PlanDiscoveryFilter }
   from "@/lib/stubs";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 type Props = {
   // First-time users get the card expanded by default. Per PRD §3.6,
@@ -118,7 +118,7 @@ export function PlanDiscoveryCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.lg,
     padding: KSpacing.md,
     borderWidth: 1,

@@ -9,7 +9,7 @@ import {
 } from "react-native";
 
 import type { PlanRowData } from "@/lib/stubs";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 type Props = {
   plan: PlanRowData;
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.sm,
-    backgroundColor: KColors.neutral[0],
+    backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     padding: KSpacing.sm,
     borderWidth: 1,
