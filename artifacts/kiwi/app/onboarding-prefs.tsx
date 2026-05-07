@@ -1,125 +1,113 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
-import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
-import { Screen } from "@/components/Screen";
-import { useApp } from "@/contexts/AppContext";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { AllergiesPicker } from "@/components/preference-pickers/AllergiesPicker";
+import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
+import { EatingStylesPicker } from "@/components/preference-pickers/EatingStylesPicker";
+import { RecurringItemsPicker } from "@/components/preference-pickers/RecurringItemsPicker";
+import { SkillLevelPicker } from "@/components/preference-pickers/SkillLevelPicker";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 
-const DIETS = ["Vegetarian", "Vegan", "Pescatarian", "Keto", "Gluten-free", "Dairy-free"];
-const CUISINES = ["Mediterranean", "Asian", "Mexican", "Italian", "American", "Indian", "Middle Eastern"];
-const ALLERGY_OPTIONS = ["Peanuts", "Tree nuts", "Shellfish", "Eggs", "Soy", "Wheat"];
+type Step2FormState = {
+  cuisines: string[];
+  eatingStyles: string[];
+  allergiesAndAvoidances: string[];
+  cookingSkill: "Beginner" | "Intermediate" | "Advanced";
+  recurringGroceryItems: string[];
+};
 
 export default function OnboardingPrefs() {
   const router = useRouter();
-  const { prefs, setPrefs, setOnboardingComplete } = useApp();
 
-  const [household, setHousehold] = useState(String(prefs.household));
-  const [diet, setDiet] = useState<string[]>(prefs.diet);
-  const [cuisines, setCuisines] = useState<string[]>(prefs.cuisines);
-  const [allergies, setAllergies] = useState<string[]>(prefs.allergies);
-  const [skill, setSkill] = useState<"beginner" | "intermediate" | "advanced">(
-    prefs.cookSkill,
-  );
+  const [form, setForm] = useState<Step2FormState>({
+    cuisines: [],
+    eatingStyles: [],
+    allergiesAndAvoidances: [],
+    cookingSkill: "Intermediate",
+    recurringGroceryItems: [],
+  });
 
-  const toggle = (
-    list: string[],
-    setter: (v: string[]) => void,
-    value: string,
+  const update = <K extends keyof Step2FormState>(
+    key: K,
+    value: Step2FormState[K],
   ) => {
-    setter(
-      list.includes(value) ? list.filter((x) => x !== value) : [...list, value],
-    );
+    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleContinue = async () => {
-    await setPrefs({
-      ...prefs,
-      household: Math.max(1, parseInt(household, 10) || 1),
-      diet,
-      cuisines,
-      allergies,
-      cookSkill: skill,
-    });
-    await setOnboardingComplete(true);
-    router.replace("/(tabs)");
+  const handleContinue = () => {
+    Keyboard.dismiss();
+    // Per WS5 plan: partial save is log-only; full persistence at step 3.
+    // Inter-screen state is not threaded through — see WS5-fix-firstrun-2
+    // notes for the WS7 follow-up.
+    console.log("[onboarding-step-2] save", form);
+    router.push("/onboarding-tellkiwi");
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
-      <Header title="Tell Kiwi about you" subtitle="Step 1 of 1" />
-      <Screen>
+      <Header showBack title="Set your preferences" subtitle="Step 2 of 3" />
+      <KeyboardAwareScrollViewCompat
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <Section
-          title="How many people are you cooking for?"
-          subtitle="We'll scale recipes automatically."
+          title="Cuisines you'd like"
+          subtitle="Pick a few — Kiwi mixes from these"
         >
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            value={household}
-            onChangeText={setHousehold}
-            maxLength={2}
+          <CuisinePicker
+            value={form.cuisines}
+            onChange={(next) => update("cuisines", next)}
           />
         </Section>
 
-        <Section title="Any dietary preferences?" subtitle="Optional">
-          <View style={styles.chipRow}>
-            {DIETS.map((d) => (
-              <Chip
-                key={d}
-                label={d}
-                selected={diet.includes(d.toLowerCase())}
-                onPress={() => toggle(diet, setDiet, d.toLowerCase())}
-              />
-            ))}
-          </View>
+        <Section title="Dietary preferences">
+          <Text style={s.subLabel}>Eating styles</Text>
+          <EatingStylesPicker
+            value={form.eatingStyles}
+            onChange={(next) => update("eatingStyles", next)}
+          />
+
+          <Text style={[s.subLabel, { marginTop: KSpacing.lg }]}>
+            Allergies & avoidances
+          </Text>
+          <AllergiesPicker
+            value={form.allergiesAndAvoidances}
+            onChange={(next) => update("allergiesAndAvoidances", next)}
+          />
         </Section>
 
-        <Section title="Allergies to avoid?">
-          <View style={styles.chipRow}>
-            {ALLERGY_OPTIONS.map((a) => (
-              <Chip
-                key={a}
-                label={a}
-                selected={allergies.includes(a)}
-                onPress={() => toggle(allergies, setAllergies, a)}
-              />
-            ))}
-          </View>
+        <Section
+          title="Cooking skill"
+          subtitle="Helps Kiwi suggest recipes at the right level"
+        >
+          <SkillLevelPicker
+            value={form.cookingSkill}
+            onChange={(next) => update("cookingSkill", next)}
+          />
         </Section>
 
-        <Section title="Favorite cuisines">
-          <View style={styles.chipRow}>
-            {CUISINES.map((c) => (
-              <Chip
-                key={c}
-                label={c}
-                selected={cuisines.includes(c)}
-                onPress={() => toggle(cuisines, setCuisines, c)}
-              />
-            ))}
-          </View>
+        <Section
+          title="Recurring grocery items"
+          subtitle="Things you always need from the store"
+        >
+          <RecurringItemsPicker
+            value={form.recurringGroceryItems}
+            onChange={(next) => update("recurringGroceryItems", next)}
+            commonItemsLabel="Anything you always need from the store?"
+          />
         </Section>
 
-        <Section title="How comfortable are you in the kitchen?">
-          <View style={styles.chipRow}>
-            {(["beginner", "intermediate", "advanced"] as const).map((s) => (
-              <Chip
-                key={s}
-                label={s[0].toUpperCase() + s.slice(1)}
-                selected={skill === s}
-                onPress={() => setSkill(s)}
-              />
-            ))}
-          </View>
-        </Section>
-
-        <View style={{ height: KSpacing.xl }} />
-        <Button label="Start cooking" onPress={handleContinue} variant="terra" />
-      </Screen>
+        <View style={s.footer}>
+          <Button label="Continue" variant="terra" onPress={handleContinue} />
+          <Text style={s.footerHint}>
+            Saves your preferences and continues to step 3
+          </Text>
+        </View>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }
@@ -134,40 +122,56 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <View style={{ marginBottom: KSpacing.xxl }}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {subtitle && <Text style={styles.sectionSub}>{subtitle}</Text>}
+    <View style={s.card}>
+      <Text style={s.cardTitle}>{title}</Text>
+      {subtitle && <Text style={s.cardSubtitle}>{subtitle}</Text>}
       <View style={{ marginTop: KSpacing.md }}>{children}</View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  sectionTitle: {
-    fontSize: KType.size.lg,
-    fontWeight: "600",
-    color: KColors.neutral[900],
-    fontFamily: "Inter_600SemiBold",
+const s = StyleSheet.create({
+  scrollContent: {
+    paddingHorizontal: KSpacing.lg,
+    paddingTop: KSpacing.lg,
+    paddingBottom: KSpacing.xxxl * 2,
+    gap: KSpacing.md,
   },
-  sectionSub: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    marginTop: 2,
-    fontFamily: "Inter_400Regular",
-  },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  input: {
-    borderWidth: 1,
-    borderColor: KColors.neutral[400],
+  card: {
     backgroundColor: KColors.neutral[0],
     borderRadius: KRadius.lg,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.lg,
+  },
+  cardTitle: {
     fontSize: KType.size.lg,
     color: KColors.neutral[900],
-    width: 80,
-    textAlign: "center",
+    fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
-    fontWeight: "600",
+  },
+  cardSubtitle: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  subLabel: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[800],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: KSpacing.sm,
+  },
+  footer: {
+    marginTop: KSpacing.lg,
+    gap: KSpacing.sm,
+    alignItems: "center",
+  },
+  footerHint: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
   },
 });
