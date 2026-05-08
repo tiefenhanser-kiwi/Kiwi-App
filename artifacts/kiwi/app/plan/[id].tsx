@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { AddMealsSheet } from "@/components/AddMealsSheet";
 import { Button } from "@/components/Button";
@@ -92,6 +92,7 @@ function applyDayAssignment(
 }
 
 export default function PlanReviewScreen() {
+  const router = useRouter();
   const { id, addMealId } = useLocalSearchParams<{
     id: string;
     addMealId?: string;
@@ -298,6 +299,7 @@ export default function PlanReviewScreen() {
             variant="primary"
             onPress={() => {
               console.log("[plan-review] prep-and-cook tapped", { planId });
+              router.push("/prep-cook");
             }}
           />
           <View style={s.actionRow}>
@@ -309,6 +311,10 @@ export default function PlanReviewScreen() {
                   console.log("[plan-review] get-groceries-online tapped", {
                     planId,
                   });
+                  Alert.alert(
+                    "Coming in WS6 — retailer integration",
+                    "Online ordering requires the retailer adapter pattern from PRD §12.12.",
+                  );
                 }}
               />
             </View>
@@ -320,6 +326,10 @@ export default function PlanReviewScreen() {
                   console.log("[plan-review] generate-grocery-list tapped", {
                     planId,
                   });
+                  Alert.alert(
+                    "Coming in WS6 — list generation",
+                    "Grocery list generation triggers POST /grocery-lists per PRD §12.3.2 and lands with the API client.",
+                  );
                 }}
               />
             </View>
