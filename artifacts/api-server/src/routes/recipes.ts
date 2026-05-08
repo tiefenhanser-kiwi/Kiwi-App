@@ -8,11 +8,12 @@ import { requireAuth } from "../middleware/auth";
 
 const router: IRouter = Router();
 
-const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
-const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+// D-WS6-005 — standardized on ANTHROPIC_API_KEY (was AI_INTEGRATIONS_*).
+// This block stays direct-SDK until 6c-1 folds /recipes/scale into the
+// orchestrator-backed Reformat-for-Kiwi pass.
+const apiKey = process.env.ANTHROPIC_API_KEY;
 
-const anthropic =
-  baseURL && apiKey ? new Anthropic({ baseURL, apiKey }) : null;
+const anthropic = apiKey ? new Anthropic({ apiKey }) : null;
 
 interface ScaleIngredient {
   name: string;

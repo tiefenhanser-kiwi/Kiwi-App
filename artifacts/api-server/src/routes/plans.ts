@@ -8,11 +8,12 @@ import { requireAuth } from "../middleware/auth";
 
 const router: IRouter = Router();
 
-const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
-const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+// D-WS6-005 — standardized on ANTHROPIC_API_KEY (was AI_INTEGRATIONS_*).
+// This block stays direct-SDK until 6a-3 supersedes /plans/generate with
+// the orchestrator-backed POST /api/wizard/build-plans.
+const apiKey = process.env.ANTHROPIC_API_KEY;
 
-const anthropic =
-  baseURL && apiKey ? new Anthropic({ baseURL, apiKey }) : null;
+const anthropic = apiKey ? new Anthropic({ apiKey }) : null;
 
 const VALID_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 type DayKey = (typeof VALID_DAYS)[number];
