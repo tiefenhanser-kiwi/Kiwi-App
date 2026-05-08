@@ -163,10 +163,7 @@ export default function MealsTab() {
   };
 
   const handleCookNow = () => {
-    Alert.alert(
-      "Coming with Prep & Cook Hub",
-      "Cook Now lands when the Prep & Cook Hub workstream ships.",
-    );
+    router.push("/prep-cook");
   };
 
   return (

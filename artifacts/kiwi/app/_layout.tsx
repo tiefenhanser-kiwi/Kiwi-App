@@ -32,7 +32,6 @@ function RootLayoutNav() {
       <Stack.Screen name="wizard" options={{ presentation: "modal" }} />
       <Stack.Screen name="tellkiwi" options={{ presentation: "modal" }} />
       <Stack.Screen name="cook-now" options={{ presentation: "modal" }} />
-      <Stack.Screen name="plan-results" />
       <Stack.Screen name="wizard-results" />
       <Stack.Screen name="plan/[id]" />
       <Stack.Screen name="meal/[id]" />
@@ -41,9 +40,8 @@ function RootLayoutNav() {
       <Stack.Screen name="dish-builder" />
       <Stack.Screen name="import-url" />
       <Stack.Screen name="import-image" />
-      <Stack.Screen name="recipe/[id]" />
       <Stack.Screen name="grocery-list/[id]" />
-      <Stack.Screen name="cookmode/[id]" options={{ presentation: "fullScreenModal" }} />
+      <Stack.Screen name="prep-cook" />
       <Stack.Screen name="upgrade" options={{ presentation: "modal" }} />
       <Stack.Screen name="preferences" />
       <Stack.Screen name="manage-account" />

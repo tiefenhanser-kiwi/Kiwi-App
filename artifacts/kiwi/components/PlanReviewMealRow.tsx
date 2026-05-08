@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import {
@@ -67,10 +67,7 @@ export function PlanReviewMealRow({
       planItemId: row.planItemId,
       mealId: row.mealId,
     });
-    Alert.alert(
-      "Coming with Prep & Cook Hub",
-      "Cook Now lands when the Prep & Cook Hub workstream ships (post-WS6 AI orchestration). For now, view the meal details to see ingredients and steps.",
-    );
+    router.push("/prep-cook");
   };
 
   // Macros line — only render when at least caloriesPerServing exists.

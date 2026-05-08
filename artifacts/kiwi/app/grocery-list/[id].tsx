@@ -297,10 +297,7 @@ export default function GroceryListDetail() {
   };
 
   const handlePrepCook = () => {
-    Alert.alert(
-      "Coming with Prep & Cook Hub",
-      "Step-by-step cooking guidance lands when the Prep & Cook Hub workstream ships.",
-    );
+    router.push("/prep-cook");
   };
 
   const subtitle = list.isThisWeek

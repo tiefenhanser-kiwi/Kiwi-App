@@ -134,10 +134,7 @@ export default function MealDetailScreen() {
 
   const onCookNow = () => {
     console.log("[meal-detail] cook-now tapped", { mealId: meal.id });
-    Alert.alert(
-      "Coming with Prep & Cook Hub",
-      "Cook Now lands when the Prep & Cook Hub workstream ships (post-WS6 AI orchestration). For now, view the recipe steps below.",
-    );
+    router.push("/prep-cook");
   };
 
   const onAddToPlan = () => {

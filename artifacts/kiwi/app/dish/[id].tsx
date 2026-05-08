@@ -59,10 +59,7 @@ export default function DishDetailScreen() {
 
   const onCookNow = () => {
     console.log("[dish-detail] cook-now tapped", { dishId: dish.id });
-    Alert.alert(
-      "Coming with Prep & Cook Hub",
-      "Cook Now lands when the Prep & Cook Hub workstream ships (post-WS6 AI orchestration).",
-    );
+    router.push("/prep-cook");
   };
 
   const onEdit = () => {

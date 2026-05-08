@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import {
-  Alert,
   Image,
   Pressable,
   StyleSheet,
@@ -112,13 +111,10 @@ export default function HomeTab() {
     router.push("/(tabs)/groceries");
   };
 
-  // Stubbed until the Prep & Cook Hub workstream lands. Matches the
-  // Cook Now stub pattern used on meal/dish rows from WS5-5O.
+  // WS5-5R — routes to /prep-cook stub page (matches /upgrade pattern).
+  // Prep & Cook Hub workstream replaces the stub page with the real UI.
   const handlePrepAndCookPress = () => {
-    Alert.alert(
-      "Coming with Prep & Cook Hub",
-      "Step-by-step cooking guidance lands when the Prep & Cook Hub workstream ships.",
-    );
+    router.push("/prep-cook");
   };
 
   return (
