@@ -230,14 +230,19 @@ export default function GroceryListDetail() {
   };
 
   const handleAddItem = () => {
-    const name = addItemInput.trim();
-    if (!name) return;
-    void addGroceryItem(listId, name);
+    const trimmed = addItemInput.trim();
+    if (!trimmed) return;
+    // Default to "no known quantity" — em-dash + undefined structured
+    // fields. Matches how staples render before the user opens edit.
+    // The previous default of "1" / "1" was misleading (implied the
+    // user had specified "1 of") and made smoke-testers think nothing
+    // happened because the item rendered with a phantom quantity.
     const newItem: GroceryListItem = {
       id: `local-${Date.now()}`,
-      name,
-      quantity: "1",
-      quantityAmount: "1",
+      name: trimmed,
+      quantity: "—",
+      quantityAmount: undefined,
+      quantityUnit: undefined,
       sectionKey: "extras",
       isUniversalStaple: false,
       isRecurringItem: false,
@@ -249,6 +254,7 @@ export default function GroceryListDetail() {
       prev ? { ...prev, items: [...prev.items, newItem] } : prev,
     );
     setAddItemInput("");
+    void addGroceryItem(listId, trimmed);
   };
 
   const handleMarkDone = () => {
@@ -393,6 +399,13 @@ export default function GroceryListDetail() {
             placeholderTextColor={KColors.neutral[600]}
             style={s.addItemInput}
             returnKeyType="done"
+            // Keep keyboard up after Done so the user can add several
+            // items in a row without retapping the input. Without this
+            // (default blurOnSubmit=true on iOS), the keyboard collapses
+            // on every submit and smoke-testers read the disappearing
+            // keyboard + cleared input as "nothing happened" — the new
+            // item is added but lands below the fold.
+            blurOnSubmit={false}
             onSubmitEditing={handleAddItem}
           />
           <Pressable

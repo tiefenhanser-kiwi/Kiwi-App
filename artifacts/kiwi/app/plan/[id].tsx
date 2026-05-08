@@ -320,15 +320,20 @@ export default function PlanReviewScreen() {
             </View>
             <View style={s.actionCol}>
               <Button
-                label="Generate Grocery List"
+                label="Grocery List"
                 variant="ghost"
                 onPress={() => {
-                  console.log("[plan-review] generate-grocery-list tapped", {
+                  console.log("[plan-review] grocery-list tapped", {
                     planId,
                   });
+                  // WS5-5S-fix-1 — single Grocery List entry. Real
+                  // smart-list logic (D-WS5-038) generates a fresh
+                  // list, or routes to an existing list if the plan
+                  // hasn't changed; updates only on add/remove. WS5
+                  // stubs the alert; WS6/WS7 wires the API client.
                   Alert.alert(
-                    "Coming in WS6 — list generation",
-                    "Grocery list generation triggers POST /grocery-lists per PRD §12.3.2 and lands with the API client.",
+                    "Coming in WS6 — smart grocery list",
+                    "Generates a fresh list, or routes to your existing list if the plan hasn't changed. Updates only when meals are added or removed. Logged as D-WS5-038 for full spec.",
                   );
                 }}
               />
