@@ -139,6 +139,11 @@ enum ActivityEventType {
   trial_expired
 }
 
+enum AIPromptMode {
+  tool
+  text
+}
+
 // ── MODELS ──
 
 model User {
@@ -161,6 +166,8 @@ model User {
   lastPlanDiscoveryFilters String[]       @default([])
   lastPlansFilters         String[]       @default([])
   lastMealsFilters         String[]       @default([])
+  marketingConsentEmail Boolean            @default(false)
+  marketingConsentSms   Boolean            @default(false)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -176,6 +183,9 @@ model User {
   orderSessions       OrderSession[]
   subscription        Subscription?
   activities          UserActivity[]
+  aiPromptVersionsCreated AIPromptVersion[] @relation("PromptVersionCreator")
+  systemSettingsUpdated   SystemSetting[]   @relation("SettingUpdater")
+  llmCalls                LLMCallLog[]      @relation("LLMCallUser")
 
   @@map("users")
 }
@@ -193,8 +203,6 @@ model UserPreferences {
   lunchDefaults         String?
   macroPref             String[]        @default([])
   notificationsEnabled  Boolean         @default(true)
-  emailMarketingConsent Boolean         @default(false)
-  smsMarketingConsent   Boolean         @default(false)
   lastUsedRetailerId    String?
   updatedAt             DateTime        @updatedAt
 
@@ -580,4 +588,76 @@ model UserActivity {
   @@index([userId, createdAt])
   @@index([eventType, createdAt])
   @@map("user_activities")
+}
+
+// ── WS6 AI orchestration (per kiwi_ws6_plan.md §3 6a-2) ──
+
+model AIPrompt {
+  id           String            @id @default(uuid())
+  key          String            @unique
+  description  String
+  variables    String[]          @default([])
+  defaultModel String
+  defaultMode  AIPromptMode
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  versions AIPromptVersion[]
+
+  @@map("ai_prompts")
+}
+
+model AIPromptVersion {
+  id          String   @id @default(uuid())
+  promptId    String
+  version     Int
+  body        String   @db.Text
+  notes       String?
+  createdById String?
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  prompt    AIPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation("PromptVersionCreator", fields: [createdById], references: [id])
+
+  @@unique([promptId, version])
+  @@index([promptId, isActive])
+  @@map("ai_prompt_versions")
+}
+
+model SystemSetting {
+  key          String   @id
+  value        Json
+  description  String
+  defaultValue Json
+  updatedById  String?
+  updatedAt    DateTime @updatedAt
+
+  updatedBy User? @relation("SettingUpdater", fields: [updatedById], references: [id])
+
+  @@map("system_settings")
+}
+
+model LLMCallLog {
+  id              String       @id @default(uuid())
+  promptKey       String
+  promptVersion   Int?
+  model           String
+  mode            AIPromptMode
+  userId          String?
+  latencyMs       Int
+  inputTokens     Int
+  outputTokens    Int
+  costEstimateUsd Decimal      @db.Decimal(10, 6)
+  retryCount      Int          @default(0)
+  success         Boolean
+  failureReason   String?
+  createdAt       DateTime     @default(now())
+
+  user User? @relation("LLMCallUser", fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([promptKey, createdAt])
+  @@index([userId, createdAt])
+  @@map("llm_call_logs")
 }
