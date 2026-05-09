@@ -132,10 +132,12 @@ export default function Wizard() {
       additionalNotes: form.additionalNotes.trim() || undefined,
     };
     console.log("[wizard] submit", payload);
-    // PRD §5.5 — route to plan-options screen. WS5 stub returns the
-    // same 3 candidates regardless of input; WS6 will pass the prefs
-    // payload to the AI-generation endpoint and consume its results.
-    router.push("/wizard-results");
+    // WS6 6a-3 — payload travels to wizard-results as a JSON-encoded route
+    // param; that screen calls POST /api/wizard/build-plans on mount.
+    router.push({
+      pathname: "/wizard-results",
+      params: { input: JSON.stringify(payload) },
+    });
   };
 
   const cuisineSelectedCount = form.cuisines.size;

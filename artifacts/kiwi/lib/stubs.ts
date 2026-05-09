@@ -23,7 +23,6 @@ import type {
   UserAccountInfo,
   UserPlanSummary,
   UserPreferencesData,
-  WizardPlanCandidate,
 } from "./types";
 import { buildDayStrip, DAYS, getMondayISO } from "./domain";
 
@@ -2340,87 +2339,6 @@ export function getTodaysMeal(): {
   planId: string;
 } | null {
   return null;
-}
-
-// ── Wizard plan candidates (PRD §5.5) ──
-
-/**
- * PRD §5.5 — stubbed 3 plan candidates for WS5 smoke testing.
- * Real AI generation lands in WS6 (POST /api/wizard/build-plans).
- * Returns the same 3 candidates regardless of input preferences
- * (real AI takes prefs into account; stub is preference-agnostic).
- */
-export function getWizardPlanCandidates(): WizardPlanCandidate[] {
-  return [
-    {
-      id: "wizard-candidate-1",
-      title: "Family Friendly Healthy Meals",
-      badge: "featured",
-      tags: ["Kid Friendly", "Shared Ingredients", "Ingredient Optimized"],
-      whyBullets: [
-        "Balances quick weeknights with a nicer Friday dinner",
-        "Reuses lettuce, onion, and tomato across 3 meals",
-      ],
-      mealTitles: [
-        "Burgers + Salad",
-        "Chicken + Roasted Potatoes",
-        "Mac & Cheese + Hot Dogs",
-        "Chicken Caesar Salad",
-        "Tacos",
-      ],
-      dailyMacros: {
-        calories: 576,
-        proteinG: 32,
-        carbsG: 38,
-        fatG: 26,
-      },
-    },
-    {
-      id: "wizard-candidate-2",
-      title: "High Protein Week",
-      badge: "top_rated",
-      tags: ["High Protein", "American", "Ingredient Optimized"],
-      whyBullets: [
-        "Hits your high-protein preference across all 5 nights",
-        "Chicken prepped once, used in two different meals",
-      ],
-      mealTitles: [
-        "Herb Chicken Bowls",
-        "Steak + Green Beans",
-        "Turkey Taco Bowls",
-        "Chicken Caesar Wraps",
-        "Salmon + Roasted Veg",
-      ],
-      dailyMacros: {
-        calories: 542,
-        proteinG: 46,
-        carbsG: 28,
-        fatG: 22,
-      },
-    },
-    {
-      id: "wizard-candidate-3",
-      title: "Easy & Cozy Week",
-      tags: ["Low Effort", "Comfort Food", "School Nights"],
-      whyBullets: [
-        "Every meal under 30 minutes, no fancy techniques",
-        "Sheet-pan and one-pot meals minimize cleanup",
-      ],
-      mealTitles: [
-        "Tomato Soup + Grilled Cheese",
-        "Sheet Pan Sausage + Veg",
-        "Baked Potato Bar",
-        "Chicken Noodle Soup",
-        "Taco Soup",
-      ],
-      dailyMacros: {
-        calories: 498,
-        proteinG: 24,
-        carbsG: 52,
-        fatG: 21,
-      },
-    },
-  ];
 }
 
 // ── User Account Info (PRD §14.9.1) ──

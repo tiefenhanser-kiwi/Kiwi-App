@@ -1,10 +1,11 @@
 // Tiny API client for the Kiwi Express server (artifacts/api-server).
 // Targets /api/* — uses the public Replit dev domain so the app can reach
 // the api-server from inside the Expo Go iframe / native devices.
+//
+// Per-feature API modules now live under ./api/. This file remains for
+// stand-alone helpers that don't fit a feature module.
 
 import { readToken } from "./auth";
-import type { DayKey, MealSlot } from "./types";
-import type { UserPrefs } from "@/contexts/AppContext";
 
 // Convention: apiBase includes /api. Endpoint paths do NOT prefix /api.
 const apiBase =
@@ -12,17 +13,6 @@ const apiBase =
   (process.env.EXPO_PUBLIC_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
     : "http://localhost:3000/api");
-
-export interface GeneratedPlanResponse {
-  name: string;
-  notes: string;
-  meals: Array<{
-    day: DayKey;
-    slot: MealSlot["slot"];
-    recipeId: string;
-    reason?: string;
-  }>;
-}
 
 export interface ScaleIngredient {
   name: string;
@@ -55,40 +45,6 @@ export async function scaleIngredients(input: {
   return data.scaled;
 }
 
-export interface GeneratePlanInput {
-  prompt?: string;
-  nights: number;
-  prefs: UserPrefs;
-}
-
-export async function generatePlan(
-  input: GeneratePlanInput,
-): Promise<GeneratedPlanResponse> {
-  const url = `${apiBase}/plans/generate`;
-  const token = await readToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      prompt: input.prompt,
-      nights: input.nights,
-      prefs: {
-        household: input.prefs.household,
-        diet: input.prefs.diet,
-        allergies: input.prefs.allergies,
-        cuisines: input.prefs.cuisines,
-        cookSkill: input.prefs.cookSkill,
-      },
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Plan generation failed (${res.status})`);
-  }
-  return (await res.json()) as GeneratedPlanResponse;
-}
+// Re-export the wizard call so existing import sites that go through this
+// module still work. New code should import from "./api/wizard" directly.
+export { buildWizardPlans } from "./api/wizard";

@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Image,
   LayoutAnimation,
   Platform,
@@ -17,8 +17,8 @@ import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { getWizardPlanCandidates } from "@/lib/stubs";
-import type { WizardPlanCandidate } from "@/lib/types";
+import { useBuildWizardPlans } from "@/hooks/useBuildWizardPlans";
+import type { WizardPlanCandidate, WizardPreferencesInput } from "@/lib/types";
 
 if (
   Platform.OS === "android" &&
@@ -27,19 +27,45 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+function parseInput(raw: string | undefined): WizardPreferencesInput | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as WizardPreferencesInput;
+  } catch {
+    return null;
+  }
+}
+
 export default function WizardResultsScreen() {
   const router = useRouter();
   // PRD §6.5/§6.6 — Tell Kiwi reuses this screen with adapted subtitle copy.
-  const { source } = useLocalSearchParams<{
+  // Tell Kiwi entry-point still routes here without `input`; that path is
+  // wired to its own AI flow in 6a-4. Until then, no-input → error state.
+  const { source, input } = useLocalSearchParams<{
     source?: "tellkiwi" | "onboarding";
+    input?: string;
   }>();
-  const candidates = useMemo(() => getWizardPlanCandidates(), []);
+  const wizardInput = useMemo(() => parseInput(input), [input]);
+
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const mutation = useBuildWizardPlans();
+
+  // Fire the mutation on mount with the input from route params. React Query
+  // tracks the in-flight request; remounts re-fire which is correct for the
+  // "More options" re-roll button below.
+  useEffect(() => {
+    if (wizardInput) {
+      mutation.mutate(wizardInput);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input]);
 
   const subtitle =
     source === "tellkiwi"
       ? "3 plans Kiwi built from your request"
       : "3 plans Kiwi cooked up just for you";
+
+  const candidates: WizardPlanCandidate[] = mutation.data?.candidates ?? [];
 
   const toggleExpanded = (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -53,40 +79,56 @@ export default function WizardResultsScreen() {
 
   const handleRefine = () => {
     if (source === "onboarding") {
-      // Edit the prefs the user just submitted — replace, don't push, so
-      // we don't grow a back stack of wizard-results→tellkiwi→wizard-results.
       router.replace("/onboarding-tellkiwi");
     } else {
-      // tellkiwi or default wizard flow — pop back to the entry screen.
       router.back();
     }
   };
 
   const handleMoreOptions = () => {
-    console.log("[wizard-results] more options requested");
-    Alert.alert(
-      "Coming in WS6 — AI orchestration",
-      "Generating fresh plan options requires the AI layer. This will be wired in WS6.",
-    );
+    if (!wizardInput) return;
+    setExpandedIds(new Set());
+    mutation.mutate(wizardInput);
   };
 
   const handleHeaderBack = () => {
-    // Explicit bail-out to home — works for all entry paths, including
-    // onboarding's dismissAll() where router.back() has nowhere to go.
     router.replace("/(tabs)");
   };
 
   const handleUsePlan = (candidateId: string) => {
     console.log("[wizard-results] use-this-plan picked", { candidateId });
-    // PRD §11.4: land on the new plan's review page. WS5 stub uses the
-    // shared "demo-plan-just-created" id so getReviewPlan returns the
-    // empty-plan shape; WS7 will substitute the real id from the
-    // plan-creation API response.
     router.replace({
       pathname: "/plan/[id]",
       params: { id: "demo-plan-just-created" },
     });
   };
+
+  // ── render branches ──────────────────────────────────────────────────
+
+  // No input → entry-point not wired yet (e.g., Tell Kiwi pre-6a-4).
+  if (!wizardInput) {
+    return (
+      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+        <Header showBack onBack={handleHeaderBack} title="Plan options" />
+        <Screen>
+          <View style={s.statusBox}>
+            <Text style={s.errorTitle}>Kiwi got distracted. Try again?</Text>
+            <Text style={s.errorBody}>
+              Plan input wasn&apos;t passed through. Head back to the wizard
+              and resubmit.
+            </Text>
+            <View style={{ marginTop: KSpacing.md }}>
+              <Button
+                label="Back to wizard"
+                variant="primary"
+                onPress={handleRefine}
+              />
+            </View>
+          </View>
+        </Screen>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
@@ -110,21 +152,58 @@ export default function WizardResultsScreen() {
               label="More options ↺"
               variant="terra"
               onPress={handleMoreOptions}
+              disabled={mutation.isPending}
             />
           </View>
         </View>
 
-        <View style={s.candidatesWrap}>
-          {candidates.map((c) => (
-            <CandidateCard
-              key={c.id}
-              candidate={c}
-              expanded={expandedIds.has(c.id)}
-              onToggleExpanded={() => toggleExpanded(c.id)}
-              onUsePlan={() => handleUsePlan(c.id)}
-            />
-          ))}
-        </View>
+        {mutation.isPending && (
+          <View style={s.statusBox}>
+            <ActivityIndicator size="large" color={KColors.sage[700]} />
+            <Text style={s.statusText}>Kiwi is thinking…</Text>
+          </View>
+        )}
+
+        {!mutation.isPending && mutation.isError && (
+          <View style={s.statusBox}>
+            <Text style={s.errorTitle}>Kiwi got distracted. Try again?</Text>
+            {mutation.error?.message ? (
+              <Text style={s.errorBody}>{mutation.error.message}</Text>
+            ) : null}
+            <View style={{ marginTop: KSpacing.md }}>
+              <Button
+                label="Try again"
+                variant="primary"
+                onPress={handleMoreOptions}
+              />
+            </View>
+          </View>
+        )}
+
+        {!mutation.isPending &&
+          mutation.isSuccess &&
+          mutation.data?.cannotGenerateMore && (
+            <View style={s.noticeBox}>
+              <Text style={s.noticeText}>
+                {mutation.data.reason ??
+                  "Kiwi couldn&apos;t produce 3 distinct plans for these constraints."}
+              </Text>
+            </View>
+          )}
+
+        {!mutation.isPending && mutation.isSuccess && (
+          <View style={s.candidatesWrap}>
+            {candidates.map((c) => (
+              <CandidateCard
+                key={c.id}
+                candidate={c}
+                expanded={expandedIds.has(c.id)}
+                onToggleExpanded={() => toggleExpanded(c.id)}
+                onUsePlan={() => handleUsePlan(c.id)}
+              />
+            ))}
+          </View>
+        )}
       </Screen>
     </View>
   );
@@ -281,6 +360,44 @@ const s = StyleSheet.create({
   },
   candidatesWrap: {
     gap: KSpacing.md,
+  },
+  statusBox: {
+    backgroundColor: KPalette.bg.card,
+    borderRadius: KRadius.lg,
+    borderWidth: 1,
+    borderColor: KColors.neutral[300],
+    padding: KSpacing.lg,
+    alignItems: "center",
+    gap: KSpacing.sm,
+  },
+  statusText: {
+    fontSize: KType.size.md,
+    color: KColors.sage[700],
+    fontFamily: "Inter_500Medium",
+  },
+  errorTitle: {
+    fontSize: KType.size.lg,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    textAlign: "center",
+  },
+  errorBody: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
+  noticeBox: {
+    backgroundColor: KColors.sage[50],
+    borderRadius: KRadius.md,
+    padding: KSpacing.md,
+    marginBottom: KSpacing.md,
+  },
+  noticeText: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontFamily: "Inter_400Regular",
   },
   card: {
     backgroundColor: KPalette.bg.card,
