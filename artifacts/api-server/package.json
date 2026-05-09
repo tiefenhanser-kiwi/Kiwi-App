@@ -8,7 +8,7 @@
     "build": "node ./build.mjs",
     "start": "exec node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/lib/ai/__tests__/*.test.ts"
+    "test": "node --env-file=.env --import tsx --test src/lib/ai/__tests__/*.test.ts src/routes/__tests__/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

@@ -272,7 +272,10 @@ export interface AIPromptRow {
   key: string;
   defaultModel: string;
   defaultMode: AICallMode;
-  versions: PromptVersionRow[];
+  // Optional so the real PrismaClient.findUnique (without include) is also
+  // assignable. The resolver always queries with include and treats absence
+  // as a fallback path.
+  versions?: PromptVersionRow[];
 }
 
 export interface SystemSettingRow {
@@ -280,17 +283,20 @@ export interface SystemSettingRow {
   value: unknown;
 }
 
+// Structural type — broader on inputs so the real PrismaClient is assignable
+// (Prisma's typed where/include are stricter than ours, which is fine), and
+// exact-enough on returned values so consumers get the columns they need.
+// `any` on args is intentional; tightening it would break PrismaClient
+// assignment without giving callers anything they don't already get from the
+// returned row types.
 export interface PrismaLike {
   aIPrompt: {
-    findUnique(args: {
-      where: { key: string };
-      include?: { versions?: { where?: unknown; take?: number } };
-    }): Promise<AIPromptRow | null>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique(args: any): Promise<AIPromptRow | null>;
   };
   systemSetting: {
-    findUnique(args: {
-      where: { key: string };
-    }): Promise<SystemSettingRow | null>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique(args: any): Promise<SystemSettingRow | null>;
   };
   lLMCallLog: {
     create(args: { data: LLMCallLogCreateData }): Promise<unknown>;
@@ -373,7 +379,7 @@ export async function resolvePromptDescriptorFromDb(
         where: { key },
         include: { versions: { where: { isActive: true }, take: 1 } },
       });
-      const active = row?.versions[0];
+      const active = row?.versions?.[0];
       if (row && active) {
         const value: DescriptorWithVersion = {
           body: active.body,

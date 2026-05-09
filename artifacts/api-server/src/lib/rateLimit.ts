@@ -12,6 +12,10 @@ interface Options {
   capacity: number; // max tokens (= burst)
   refillPerSec: number; // tokens added per second
   windowMs?: number; // bucket TTL
+  // Custom key extractor. Default = IP-based. Authenticated routes pass
+  // a userId-based extractor so the bucket survives IP rotation and isn't
+  // shared across users behind one NAT.
+  keyFn?: (req: Request) => string;
 }
 
 const STORE = new Map<string, Bucket>();
@@ -25,10 +29,11 @@ function clientIp(req: Request): string {
 }
 
 export function rateLimit(opts: Options) {
-  const { capacity, refillPerSec, windowMs = 10 * 60 * 1000 } = opts;
+  const { capacity, refillPerSec, windowMs = 10 * 60 * 1000, keyFn } = opts;
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    const key = `${req.method}:${req.path}:${clientIp(req)}`;
+    const id = keyFn ? keyFn(req) : clientIp(req);
+    const key = `${req.method}:${req.path}:${id}`;
     const now = Date.now();
 
     // Light-touch eviction
