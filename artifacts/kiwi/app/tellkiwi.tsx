@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   Pressable,
@@ -23,6 +24,7 @@ import {
   EATING_STYLES,
 } from "@/lib/domain";
 import type { TellKiwiInput } from "@/lib/types";
+import { useBuildFromText } from "@/hooks/useBuildFromText";
 
 const HOUSEHOLD_MIN = 1;
 const HOUSEHOLD_MAX = 30;
@@ -57,6 +59,7 @@ const INITIAL_FORM: TellKiwiFormState = {
 export default function TellKiwi() {
   const router = useRouter();
   const [form, setForm] = useState<TellKiwiFormState>(INITIAL_FORM);
+  const mutation = useBuildFromText();
 
   const update = <K extends keyof TellKiwiFormState>(
     key: K,
@@ -77,6 +80,15 @@ export default function TellKiwi() {
     });
   };
 
+  const buildPayload = (): TellKiwiInput => ({
+    description: form.description.trim(),
+    householdSize: form.householdSize,
+    wantsLeftovers: form.wantsLeftovers,
+    eatingStyles: Array.from(form.eatingStyles),
+    allergiesAndAvoidances: Array.from(form.allergies),
+    dietaryNotes: form.dietaryNotes.trim() || undefined,
+  });
+
   const handleSubmit = () => {
     Keyboard.dismiss();
     if (form.description.trim().length < DESCRIPTION_MIN) {
@@ -87,25 +99,36 @@ export default function TellKiwi() {
       return;
     }
 
-    const payload: TellKiwiInput = {
-      description: form.description.trim(),
-      householdSize: form.householdSize,
-      wantsLeftovers: form.wantsLeftovers,
-      eatingStyles: Array.from(form.eatingStyles),
-      allergiesAndAvoidances: Array.from(form.allergies),
-      dietaryNotes: form.dietaryNotes.trim() || undefined,
-    };
+    const payload = buildPayload();
 
-    console.log("[tellkiwi] submit", payload);
-
-    // PRD §6.5/§6.6 — Tell Kiwi shares the plan-options screen with
-    // the wizard. Source param adapts the subtitle copy. WS5 stub
-    // returns the same 3 candidates regardless of input; WS6 will
-    // pass this payload to the AI build-from-text endpoint.
-    router.push({
-      pathname: "/wizard-results",
-      params: { source: "tellkiwi" },
+    mutation.mutate(payload, {
+      onSuccess: (result) => {
+        // Scenario F (unclear) — keep the user on this screen and show the
+        // clarifying question inline. Mobile renders mutation.data.parsedIntent
+        // and the needsClarification.reason in the inline notice block below.
+        if (
+          result.parsedIntent.scenario === "unclear" ||
+          result.candidates.length === 0
+        ) {
+          return;
+        }
+        // PRD §6.5/§6.6 — share the wizard-results screen. Pass the result
+        // payload via params so wizard-results renders without re-firing AI.
+        router.push({
+          pathname: "/wizard-results",
+          params: {
+            source: "tellkiwi",
+            tellKiwiResult: JSON.stringify(result),
+          },
+        });
+      },
     });
+  };
+
+  const handleRetryAfterUnclear = () => {
+    // Reset the mutation so the inline clarification UI clears, but keep the
+    // user's text so they can edit it instead of retyping from scratch.
+    mutation.reset();
   };
 
   const charCount = form.description.length;
@@ -255,16 +278,53 @@ export default function TellKiwi() {
           )}
         </View>
 
+        {/* Inline status + clarification UI for the unclear scenario. */}
+        {mutation.isError && (
+          <View style={s.noticeCard}>
+            <Text style={s.noticeTitle}>Kiwi got distracted. Try again?</Text>
+            {mutation.error?.message ? (
+              <Text style={s.noticeBody}>{mutation.error.message}</Text>
+            ) : null}
+          </View>
+        )}
+
+        {mutation.isSuccess &&
+          mutation.data?.parsedIntent.scenario === "unclear" && (
+            <View style={s.clarifyCard}>
+              <Text style={s.clarifyTitle}>Kiwi needs a little more</Text>
+              <Text style={s.clarifyBody}>
+                {mutation.data.needsClarification?.reason ??
+                  "Tell me a bit more — what kind of week do you want, or any meals you've been craving?"}
+              </Text>
+              <View style={{ marginTop: KSpacing.sm }}>
+                <Button
+                  label="Edit my message"
+                  variant="ghost"
+                  onPress={handleRetryAfterUnclear}
+                />
+              </View>
+            </View>
+          )}
+
         {/* Submit + cancel */}
         <View style={s.footer}>
           <Button
-            label="Build my plan"
+            label={mutation.isPending ? "Kiwi is thinking…" : "Build my plan"}
             variant="terra"
             onPress={handleSubmit}
+            disabled={mutation.isPending}
           />
-          <Text style={s.footerHint}>
-            Kiwi cooks up your plan from what you wrote
-          </Text>
+          {mutation.isPending && (
+            <View style={s.thinkingRow}>
+              <ActivityIndicator size="small" color={KColors.sage[700]} />
+              <Text style={s.footerHint}>Reading what you wrote…</Text>
+            </View>
+          )}
+          {!mutation.isPending && (
+            <Text style={s.footerHint}>
+              Kiwi cooks up your plan from what you wrote
+            </Text>
+          )}
           <Pressable
             onPress={() => router.back()}
             hitSlop={6}
@@ -456,5 +516,52 @@ const s = StyleSheet.create({
     color: KColors.neutral[700],
     fontWeight: KType.weight.medium,
     fontFamily: "Inter_500Medium",
+  },
+  noticeCard: {
+    backgroundColor: KColors.terracotta[50],
+    borderRadius: KRadius.lg,
+    borderWidth: 1,
+    borderColor: KColors.terracotta[300],
+    padding: KSpacing.md,
+    marginTop: KSpacing.md,
+  },
+  noticeTitle: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 4,
+  },
+  noticeBody: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    lineHeight: 20,
+  },
+  clarifyCard: {
+    backgroundColor: KColors.sage[50],
+    borderRadius: KRadius.lg,
+    borderWidth: 1,
+    borderColor: KColors.sage[300],
+    padding: KSpacing.md,
+    marginTop: KSpacing.md,
+  },
+  clarifyTitle: {
+    fontSize: KType.size.md,
+    color: KColors.sage[800],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 4,
+  },
+  clarifyBody: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontFamily: "Inter_400Regular",
+    lineHeight: 20,
+  },
+  thinkingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
   },
 });
