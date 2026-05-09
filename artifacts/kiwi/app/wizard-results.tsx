@@ -48,17 +48,18 @@ export default function WizardResultsScreen() {
   const wizardInput = useMemo(() => parseInput(input), [input]);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  // `attempt` ticks once per regen request so the effect re-fires even when
+  // `input` is identical (re-entering the wizard with unchanged prefs would
+  // otherwise leave React Query showing the previous mount's data).
+  const [attempt, setAttempt] = useState(0);
   const mutation = useBuildWizardPlans();
 
-  // Fire the mutation on mount with the input from route params. React Query
-  // tracks the in-flight request; remounts re-fire which is correct for the
-  // "More options" re-roll button below.
   useEffect(() => {
-    if (wizardInput) {
-      mutation.mutate(wizardInput);
-    }
+    if (!wizardInput) return;
+    mutation.reset();
+    mutation.mutate(wizardInput);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input]);
+  }, [input, attempt]);
 
   const subtitle =
     source === "tellkiwi"
@@ -88,7 +89,9 @@ export default function WizardResultsScreen() {
   const handleMoreOptions = () => {
     if (!wizardInput) return;
     setExpandedIds(new Set());
-    mutation.mutate(wizardInput);
+    // Bump attempt; the effect handles reset+mutate so both navigation-driven
+    // and button-driven re-rolls go through one code path.
+    setAttempt((n) => n + 1);
   };
 
   const handleHeaderBack = () => {
@@ -97,7 +100,9 @@ export default function WizardResultsScreen() {
 
   const handleUsePlan = (candidateId: string) => {
     console.log("[wizard-results] use-this-plan picked", { candidateId });
-    router.replace({
+    // push, not replace, so back-pop from the (WS7-pending) plan stub returns
+    // here instead of skipping straight to the wizard preferences screen.
+    router.push({
       pathname: "/plan/[id]",
       params: { id: "demo-plan-just-created" },
     });

@@ -32,7 +32,7 @@ type WeeklyPacing = WizardPreferencesInput["weeklyPacing"];
 const PACING_OPTIONS: { key: WeeklyPacing; label: string }[] = [
   { key: "mostly_easy", label: "Mostly easy" },
   { key: "mixed", label: "Mixed (quick + nicer)" },
-  { key: "one_fancy", label: "One fancy night" },
+  { key: "one_fancy_night", label: "One fancy night" },
   { key: "minimal_effort", label: "Minimal effort" },
 ];
 

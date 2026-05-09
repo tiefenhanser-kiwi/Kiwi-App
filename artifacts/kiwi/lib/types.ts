@@ -534,7 +534,7 @@ export interface WizardPreferencesInput {
   weeklyPacing:
     | "mostly_easy"
     | "mixed"
-    | "one_fancy"
+    | "one_fancy_night"
     | "minimal_effort";
 
   // Optional free text
