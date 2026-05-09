@@ -42,7 +42,7 @@ type Step3FormState = {
   expandedSections: Set<SectionId>;
 };
 
-export default function OnboardingTellKiwi() {
+export default function OnboardingStep3() {
   const router = useRouter();
   const {
     updateUserPreferences,
@@ -144,22 +144,15 @@ export default function OnboardingTellKiwi() {
     });
   };
 
-  const handleSaveAndWizard = () => {
-    console.log("[onboarding-step-3] save + wizard", form);
-    persistDraft();
-    void updateUserPreferences(buildFullPrefs());
-    void setOnboardingComplete(true);
-    // Skip /wizard prefs page — user already set general prefs in steps 2+3.
-    // dismissAll clears the onboarding stack so back-swipe can't return here.
-    router.dismissAll();
-    router.replace({
-      pathname: "/wizard-results",
-      params: { source: "onboarding" },
-    });
-  };
-
-  const handleSaveAndHome = () => {
-    console.log("[onboarding-step-3] save + home", form);
+  // D-WS6-019: PRD §3.5 specifies a dual-destination CTA on this screen
+  // ("Get Kitchen Wizard Plans" + "Finish setup"). The wizard-jump path is
+  // deferred — wiring it requires plan-level prefs (planDurationDays,
+  // householdSize, wantsLeftovers) that this screen doesn't collect, so it
+  // would have to either route through /wizard for those (a UX detour) or
+  // inject defaults server-side. Until that's plumbed, both flows land on
+  // home; user can launch the wizard from home themselves.
+  const handleFinish = () => {
+    console.log("[onboarding-step-3] finish", form);
     persistDraft();
     void updateUserPreferences(buildFullPrefs());
     void setOnboardingComplete(true);
@@ -275,21 +268,12 @@ export default function OnboardingTellKiwi() {
 
         <View style={s.footer}>
           <Button
-            label="Get Kitchen Wizard Plans"
+            label="Finish setup"
             variant="terra"
-            onPress={handleSaveAndWizard}
+            onPress={handleFinish}
           />
           <Text style={s.footerHint}>
-            Save preferences and start a personalized plan
-          </Text>
-          <View style={{ height: KSpacing.sm }} />
-          <Button
-            label="Continue to Home"
-            variant="secondary"
-            onPress={handleSaveAndHome}
-          />
-          <Text style={s.footerHint}>
-            Save preferences and explore the app
+            Save preferences and start using Kiwi
           </Text>
         </View>
       </KeyboardAwareScrollViewCompat>

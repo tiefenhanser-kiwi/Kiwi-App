@@ -60,7 +60,7 @@ export default function WizardResultsScreen() {
   //     JSON); the AI ran on the previous screen (tellkiwi.tsx). This screen
   //     just renders the result, branching by parsedIntent.scenario.
   const { source, input, tellKiwiResult } = useLocalSearchParams<{
-    source?: "tellkiwi" | "onboarding";
+    source?: "tellkiwi";
     input?: string;
     tellKiwiResult?: string;
   }>();
@@ -132,11 +132,7 @@ export default function WizardResultsScreen() {
   };
 
   const handleRefine = () => {
-    if (source === "onboarding") {
-      router.replace("/onboarding-tellkiwi");
-    } else {
-      router.back();
-    }
+    router.back();
   };
 
   const handleMoreOptions = () => {

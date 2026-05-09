@@ -65,7 +65,7 @@ export default function OnboardingPrefs() {
       dietaryNotes: form.dietaryNotes,
     });
     console.log("[onboarding-step-2] save", form);
-    router.push("/onboarding-tellkiwi");
+    router.push("/onboarding-step-3");
   };
 
   return (
