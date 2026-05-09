@@ -12,7 +12,8 @@ export type EntitlementKey =
   | "prep_the_week_orchestrated"
   | "grocery_ordering"
   | "unlimited_plans"
-  | "ad_free";
+  | "ad_free"
+  | "find_similar_ai";
 
 export interface EntitlementResult {
   allowed: boolean;

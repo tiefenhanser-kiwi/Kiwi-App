@@ -138,6 +138,7 @@ enum ActivityEventType {
   upgrade_completed
   trial_started
   trial_expired
+  meal_found_similar_used
 }
 
 enum SpiceTolerance {
