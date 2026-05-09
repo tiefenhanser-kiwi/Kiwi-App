@@ -21,6 +21,11 @@ import {
   WizardPlanCandidatesResultSchema,
   type WizardInput,
 } from "../lib/ai/schemas/wizard";
+import {
+  DirectedInputSchema,
+  ParsedIntentSchema,
+  type ParsedIntent,
+} from "../lib/ai/schemas/tellKiwi";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
@@ -262,6 +267,213 @@ export function createWizardRouter(
       };
 
       // 7. Activity event.
+      await emitActivity(userId, "wizard_complete");
+
+      return res.json(response);
+    },
+  );
+
+  // ── POST /wizard/build-from-text — Tell Kiwi two-step pipeline ───────
+  // Per kiwi_ws6_plan.md §3 6a-4 + PRD §6.5/§6.8.
+  //
+  // 1. Parse intent (Haiku, text+Zod, cheap).
+  // 2. Branch on parsedIntent.scenario:
+  //    - 'unclear' → return { candidates: [], parsedIntent } — no step 2 call,
+  //      saves ~$0.01 per request and a few seconds of latency. Mobile shows
+  //      the clarification UI from parsedIntent.needsClarification.
+  //    - else → call step 2 (Sonnet, tool_use, expensive).
+  // 3. Step 2 call gets parsedIntent + userInput + hiddenContext + plan
+  //    parameters. AI returns 1-3 candidates per the prompt's scenario rules.
+  // 4. Forward needsClarification through to mobile if present.
+  //
+  // Both AI calls write their own LLMCallLog rows via runAICall.
+  // wizard_complete fires once per successful Tell Kiwi request (with metadata
+  // distinguishing flow=tellkiwi); wizard_failure fires if EITHER call fails.
+
+  // Same per-user token-bucket pattern as build-plans, but a separate bucket.
+  // Tell Kiwi may be used more often than the full Set-Prefs wizard, so we
+  // don't want a shared bucket to starve either flow.
+  const tellKiwiLimiter = rateLimit({
+    ...limiterOpts,
+    keyFn: (req: Request) => `tellkiwi:${req.userId ?? "anonymous"}`,
+  });
+
+  router.post(
+    "/wizard/build-from-text",
+    requireAuth,
+    tellKiwiLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+
+      // 1. Validate body. The DirectedInputSchema covers the user's
+      //    free-text + soft prefs from the Tell Kiwi form. The route
+      //    itself reads planDurationDays from the request body too,
+      //    falling back to 5 (the wizard default) if not provided.
+      const parsed = DirectedInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid request body",
+          details: parsed.error.flatten(),
+        });
+      }
+      const directed = parsed.data;
+      const planDurationDays =
+        typeof req.body?.planDurationDays === "number" &&
+        req.body.planDurationDays >= 1 &&
+        req.body.planDurationDays <= 7
+          ? (req.body.planDurationDays as number)
+          : 5;
+
+      // 2. Entitlement check (PRD §6.4 — Tell Kiwi is its own entitlement).
+      const ent = await subscriptionService.can(
+        userId,
+        "kitchen_wizard_just_say",
+      );
+      if (!ent.allowed) {
+        return res.status(402).json({
+          error: "upgrade required",
+          reason: ent.reason ?? "Tell Kiwi is a premium feature.",
+        });
+      }
+
+      // 3. Read SystemSetting tunables (same dial as build-plans for
+      //    candidate count; Tell Kiwi may return fewer per scenario).
+      const candidateCount = await getCandidateCount();
+
+      // 4. Inject hidden context from the user's profile.
+      const hiddenContext = await buildHiddenContext(userId);
+
+      // 5. Step 1 — parse intent.
+      const parseInput = {
+        userInput: directed.description,
+        planDurationDays,
+        householdSize: directed.householdSize,
+        wantsLeftovers: directed.wantsLeftovers,
+        eatingStyles: directed.eatingStyles,
+        allergiesAndAvoidances: directed.allergiesAndAvoidances,
+        dietaryNotes: directed.dietaryNotes ?? "",
+        // Hidden context is informational at parse time too — helps the
+        // parser apply unclear-clarifications that respect dietary state.
+        hiddenContext,
+      };
+
+      const parseResult = await runAICall(
+        "wizard.directed.parse_intent",
+        { parseInput },
+        ParsedIntentSchema,
+        { prisma, userId },
+      );
+
+      if (!parseResult.success) {
+        logger.warn(
+          {
+            event: "tellkiwi_parse_failed",
+            userId,
+            reason: parseResult.reason,
+            promptKey: "wizard.directed.parse_intent",
+          },
+          "Tell Kiwi parse step failed",
+        );
+        await emitActivity(userId, "wizard_failure");
+        return res.status(502).json({
+          error: parseResult.userFacingMessage,
+          reason: parseResult.reason,
+        });
+      }
+
+      const parsedIntent: ParsedIntent = parseResult.data;
+
+      // 6. Branch on scenario. `unclear` short-circuits without firing the
+      //    expensive Sonnet call — mobile renders the clarification UI from
+      //    parsedIntent.needsClarification.reason.
+      if (parsedIntent.scenario === "unclear") {
+        // wizard_complete still fires — the user got a useful response (a
+        // clarifying question), even though no plan was generated. That keeps
+        // the funnel metric consistent and matches the PRD §6.10 intent.
+        await emitActivity(userId, "wizard_complete");
+        return res.json({
+          candidates: [],
+          parsedIntent,
+          needsClarification: parsedIntent.needsClarification,
+          metadata: {
+            promptVersion: parseResult.metadata.promptVersion,
+            latencyMs: parseResult.metadata.latencyMs,
+            flow: "tellkiwi",
+          },
+        });
+      }
+
+      // 7. Step 2 — generate plan(s). Reuses the wizard-shape result
+      //    schema. The prompt is responsible for honoring scenario rules
+      //    (1 candidate for fully_specified/overflow, 3 for vague/partial,
+      //    explicitMeals locked into every candidate for partial).
+      const generateInput = {
+        parsedIntent,
+        userInput: directed.description,
+        planDurationDays,
+        householdSize: directed.householdSize,
+        wantsLeftovers: directed.wantsLeftovers,
+        eatingStyles: directed.eatingStyles,
+        allergiesAndAvoidances: directed.allergiesAndAvoidances,
+        dietaryNotes: directed.dietaryNotes ?? "",
+        hiddenContext,
+      };
+
+      const genResult = await runAICall(
+        "wizard.directed.generate",
+        { generateInput },
+        WizardPlanCandidatesResultSchema,
+        { prisma, userId },
+      );
+
+      if (!genResult.success) {
+        logger.warn(
+          {
+            event: "tellkiwi_generate_failed",
+            userId,
+            reason: genResult.reason,
+            promptKey: "wizard.directed.generate",
+          },
+          "Tell Kiwi generate step failed",
+        );
+        await emitActivity(userId, "wizard_failure");
+        return res.status(502).json({
+          error: genResult.userFacingMessage,
+          reason: genResult.reason,
+        });
+      }
+
+      // 8. Trim candidates defensively.
+      //    fully_specified + overflow scenarios produce exactly 1 candidate
+      //    by prompt design — but if the AI returns more, slice to 1 to
+      //    keep the UI invariant clean. vague/partial honor candidateCount.
+      const expected =
+        parsedIntent.scenario === "fully_specified" ||
+        parsedIntent.scenario === "overflow"
+          ? 1
+          : candidateCount;
+      const candidates = genResult.data.candidates.slice(0, expected);
+
+      // 9. Carry needsClarification through. For overflow the parser populates
+      //    options with the dropped meals; mobile renders them as swap chips.
+      const response = {
+        candidates,
+        parsedIntent,
+        needsClarification:
+          parsedIntent.needsClarification ?? undefined,
+        cannotGenerateMore: genResult.data.cannotGenerateMore,
+        reason: genResult.data.reason,
+        metadata: {
+          promptVersion: genResult.metadata.promptVersion,
+          latencyMs:
+            parseResult.metadata.latencyMs + genResult.metadata.latencyMs,
+          flow: "tellkiwi",
+        },
+      };
+
       await emitActivity(userId, "wizard_complete");
 
       return res.json(response);
