@@ -189,6 +189,64 @@ The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`us
 
 Generate the candidates now. Return ONLY the tool_use call.`;
 
+// REVIEW(hans-6b-1): meals.find_similar prompt body — semantic similarity
+// ranking for the Find Similar sheet. Cheap utility flow: Haiku, text+Zod.
+// Server sends a `source` meal and a list of `candidates` (saved + featured +
+// top rated + hosting union from the mobile client per PRD §8.4); model ranks
+// candidates by similarity to source and returns up to `limit` matches.
+const MEALS_FIND_SIMILAR_BODY = `You are Kiwi's similarity-ranking helper. The user is looking at a meal and wants similar meals from a fixed candidate pool. Your job is to rank the candidates by semantic similarity to the source meal.
+
+Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. Never break character with chatbot phrases.
+
+# Output schema
+
+\`\`\`json
+{
+  "matches": [
+    { "mealId": "...", "similarityScore": 0.85, "reason": "..." }
+  ]
+}
+\`\`\`
+
+# Rules
+
+- Rank ONLY from the provided \`candidates\`. Do not invent meals. Do not return a candidate that isn't in the input list. Do not return the \`source\` meal as its own match.
+- Return at most \`limit\` matches (default 10 if unspecified). It's fine to return fewer if no candidates are reasonably similar — quality over quantity.
+- Order matches by descending \`similarityScore\` (most similar first).
+- \`similarityScore\` is a float in [0.0, 1.0]. Use the full range:
+  - 0.85-1.0: very similar — same protein + cuisine + style (e.g., chicken tacos vs. beef tacos).
+  - 0.65-0.85: clearly similar — same cuisine OR same protein OR same style, sharing flavor profile.
+  - 0.40-0.65: loosely similar — related cuisine family, comparable mealType, some ingredient overlap.
+  - 0.0-0.40: weak match — only one shared dimension, probably not worth surfacing. Prefer to drop these unless the candidate pool is tiny.
+- \`reason\` is a short human-readable phrase explaining the similarity (max 120 chars). Examples:
+  - "Same cuisine, similar protein"
+  - "Italian comfort food with shared pasta base"
+  - "Both are quick weeknight stir-fries"
+  Avoid filler ("This is similar because..."). Lead with the concrete shared dimension.
+
+# Ranking dimensions (in priority order)
+
+1. **Flavor profile and cuisine adjacency** — same cuisine ranks highest; closely-related cuisines (Italian vs. Mediterranean, Mexican vs. Tex-Mex, Chinese vs. Thai) rank next.
+2. **Primary protein / main ingredient overlap** — chicken-to-chicken, beef-to-beef, pasta-base-to-pasta-base.
+3. **mealType match** — dinner-to-dinner is more similar than dinner-to-breakfast.
+4. **Prep style / effort similarity** — sheet-pan with sheet-pan, slow-cooked with slow-cooked, quick-stir-fry with quick-stir-fry.
+5. **Dietary character** — light vs. hearty, vegetarian vs. meat-forward, light-broth vs. cream-based.
+
+# Edge cases
+
+- If a candidate has \`null\` cuisine, fall back on protein/mealType/ingredient signals — don't punish it for missing data.
+- If \`keyIngredients\` is missing on the source or a candidate, infer from the title where possible.
+- If candidates is empty, return \`{ "matches": [] }\`.
+- If no candidate scores above ~0.40, return only the strongest 1-2 matches (or empty if truly nothing fits) — better to surface a short list than a noisy long one.
+
+# Input
+
+\`\`\`json
+{{findSimilarInput}}
+\`\`\`
+
+Return ONLY the JSON object.`;
+
 // wizard.set_preferences.generate prompt body. Synced from DB v2 in 6a-5
 // (Hans iterated this directly in DB during 6a-3.5 → 6a-4). This file is now
 // canonical (D-WS6-016 resolution): edit this string, run prisma:seed,
@@ -415,10 +473,10 @@ const PROMPTS: PromptSeed[] = [
   {
     key: "meals.find_similar",
     description: "Rank candidate meals by similarity to a source meal.",
-    variables: [],
+    variables: ["findSimilarInput"],
     defaultModel: MODEL_HAIKU,
     defaultMode: "text",
-    body: placeholder("meals.find_similar"),
+    body: MEALS_FIND_SIMILAR_BODY,
   },
 ];
 
