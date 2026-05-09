@@ -1,8 +1,12 @@
 // Seeds 12 curated recipes from mockData into Neon via Prisma Client.
 // Image fields are null (require() is React Native only).
 // RecipeInstructionSteps attach at the meal level (ownerType = "meal").
+// WS6 6a-2 added AI prompts + system settings — see ./seeds/.
 
 import { PrismaClient } from "@prisma/client";
+
+import { seedAIPrompts } from "./seeds/aiPrompts";
+import { seedSystemSettings } from "./seeds/systemSettings";
 
 const prisma = new PrismaClient();
 
@@ -540,6 +544,11 @@ async function main() {
       { timeout: 30_000 },
     );
   }
+
+  // WS6 6a-2 — AI infrastructure seeding. Runs after recipes so any future
+  // prompt that references seeded ingredient/meal data has them in place.
+  await seedAIPrompts(prisma);
+  await seedSystemSettings(prisma);
 }
 
 main()
