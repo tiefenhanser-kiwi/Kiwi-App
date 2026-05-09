@@ -9,7 +9,17 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 import { runAICall, _resetClientCache } from "../runAICall";
-import { estimateCostUsd, MODEL_HAIKU, MODEL_SONNET } from "../promptRegistry";
+import {
+  _resetRegistryCaches,
+  estimateCostUsd,
+  MODEL_HAIKU,
+  MODEL_SONNET,
+  resolvePromptDescriptorFromDb,
+  type AIPromptRow,
+  type LLMCallLogCreateData,
+  type PrismaLike,
+  type SystemSettingRow,
+} from "../promptRegistry";
 import { UnknownPromptKeyError } from "../promptRegistry";
 
 // Tiny test schema so we don't depend on the real PRD shapes.
@@ -324,6 +334,50 @@ describe("runAICall — cost estimation", () => {
   });
 });
 
+// ── prisma stub factory ────────────────────────────────────────────────
+
+interface PrismaStub extends PrismaLike {
+  _findUniqueCallCount: () => number;
+  _systemSettingCallCount: () => number;
+  _llmLogCalls: () => LLMCallLogCreateData[];
+}
+
+function makePrismaStub(opts?: {
+  promptRow?: AIPromptRow | null;
+  rateRows?: Record<string, SystemSettingRow | null>;
+  llmCallShouldThrow?: boolean;
+}): PrismaStub {
+  let promptCalls = 0;
+  let settingCalls = 0;
+  const llmCalls: LLMCallLogCreateData[] = [];
+  return {
+    aIPrompt: {
+      findUnique: async () => {
+        promptCalls++;
+        return opts?.promptRow ?? null;
+      },
+    },
+    systemSetting: {
+      findUnique: async ({ where }) => {
+        settingCalls++;
+        return opts?.rateRows?.[where.key] ?? null;
+      },
+    },
+    lLMCallLog: {
+      create: async ({ data }) => {
+        if (opts?.llmCallShouldThrow) {
+          throw new Error("simulated DB write failure");
+        }
+        llmCalls.push(data);
+        return { id: `log_${llmCalls.length}` };
+      },
+    },
+    _findUniqueCallCount: () => promptCalls,
+    _systemSettingCallCount: () => settingCalls,
+    _llmLogCalls: () => [...llmCalls],
+  };
+}
+
 describe("runAICall — SDK error mapping", () => {
   it("maps SDK status=429 to reason='rate_limited'", async () => {
     process.env.ANTHROPIC_API_KEY = "test-key";
@@ -394,5 +448,300 @@ describe("runAICall — SDK error mapping", () => {
     assert.equal(result.success, false);
     if (result.success) return;
     assert.equal(result.reason, "sdk_error");
+  });
+});
+
+// ── 6a-2 — DB-backed prompt resolution + LLMCallLog ────────────────────
+
+describe("resolvePromptDescriptorFromDb — DB lookup + 60s cache", () => {
+  it("returns the DB-stored body and version when an active row exists", async () => {
+    _resetRegistryCaches();
+    const prisma = makePrismaStub({
+      promptRow: {
+        id: "prompt_1",
+        key: TEXT_KEY,
+        defaultModel: MODEL_HAIKU,
+        defaultMode: "text",
+        versions: [{ body: "DB body v3", version: 3, isActive: true }],
+      },
+    });
+
+    const desc = await resolvePromptDescriptorFromDb(TEXT_KEY, prisma);
+
+    assert.equal(desc.body, "DB body v3");
+    assert.equal(desc.version, 3);
+    assert.equal(desc.defaultModel, MODEL_HAIKU);
+    assert.equal(desc.defaultMode, "text");
+    assert.equal(prisma._findUniqueCallCount(), 1);
+  });
+
+  it("caches successful lookups for 60s — second call within window does not hit DB", async () => {
+    _resetRegistryCaches();
+    const prisma = makePrismaStub({
+      promptRow: {
+        id: "prompt_1",
+        key: TEXT_KEY,
+        defaultModel: MODEL_HAIKU,
+        defaultMode: "text",
+        versions: [{ body: "cached body", version: 1, isActive: true }],
+      },
+    });
+
+    await resolvePromptDescriptorFromDb(TEXT_KEY, prisma);
+    await resolvePromptDescriptorFromDb(TEXT_KEY, prisma);
+    await resolvePromptDescriptorFromDb(TEXT_KEY, prisma);
+
+    assert.equal(prisma._findUniqueCallCount(), 1);
+  });
+
+  it("falls back to in-memory registry (version=null) when no DB row exists", async () => {
+    _resetRegistryCaches();
+    const prisma = makePrismaStub({ promptRow: null });
+
+    const desc = await resolvePromptDescriptorFromDb(TEXT_KEY, prisma);
+
+    assert.equal(desc.version, null);
+    // In-memory body is the placeholder for this key.
+    assert.match(desc.body, /\[PLACEHOLDER for meals\.find_similar/);
+  });
+
+  it("falls back when the DB query throws — does not propagate", async () => {
+    _resetRegistryCaches();
+    const prisma: PrismaLike = {
+      aIPrompt: {
+        findUnique: async () => {
+          throw new Error("DB unreachable");
+        },
+      },
+      systemSetting: { findUnique: async () => null },
+      lLMCallLog: { create: async () => ({}) },
+    };
+
+    const desc = await resolvePromptDescriptorFromDb(TEXT_KEY, prisma);
+
+    assert.equal(desc.version, null);
+    assert.match(desc.body, /\[PLACEHOLDER/);
+  });
+
+  it("throws UnknownPromptKeyError for unregistered keys (programmer error)", async () => {
+    _resetRegistryCaches();
+    const prisma = makePrismaStub();
+    await assert.rejects(
+      () => resolvePromptDescriptorFromDb("not.a.real.key", prisma),
+      (err: unknown) => err instanceof UnknownPromptKeyError,
+    );
+  });
+});
+
+describe("runAICall — LLMCallLog write", () => {
+  it("writes a success row when an AI call succeeds", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    _resetRegistryCaches();
+    const prisma = makePrismaStub();
+    const { client } = makeFakeClient([
+      {
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_1",
+            name: "kiwi_response",
+            input: { pong: "yes" },
+          } as Anthropic.ContentBlock,
+        ],
+        inputTokens: 1500,
+        outputTokens: 250,
+      },
+    ]);
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+      prisma,
+      userId: "user_42",
+    });
+
+    assert.equal(result.success, true);
+    const logs = prisma._llmLogCalls();
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0].promptKey, TOOL_KEY);
+    assert.equal(logs[0].success, true);
+    assert.equal(logs[0].failureReason, null);
+    assert.equal(logs[0].userId, "user_42");
+    assert.equal(logs[0].inputTokens, 1500);
+    assert.equal(logs[0].outputTokens, 250);
+    assert.equal(logs[0].retryCount, 0);
+    assert.ok(logs[0].costEstimateUsd > 0, "cost should be > 0");
+  });
+
+  it("writes a failure row with failureReason populated when validation fails after retry", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    _resetRegistryCaches();
+    const prisma = makePrismaStub();
+    const { client } = makeFakeClient([
+      {
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_1",
+            name: "kiwi_response",
+            input: { pong: "no" },
+          } as Anthropic.ContentBlock,
+        ],
+      },
+      {
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_2",
+            name: "kiwi_response",
+            input: { pong: "still no" },
+          } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+      prisma,
+    });
+
+    assert.equal(result.success, false);
+    const logs = prisma._llmLogCalls();
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0].success, false);
+    assert.equal(logs[0].failureReason, "validation_failed");
+    assert.equal(logs[0].retryCount, 1);
+  });
+
+  it("writes a failure row when the SDK throws (rate_limited)", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    _resetRegistryCaches();
+    const prisma = makePrismaStub();
+    const client: Pick<Anthropic, "messages"> = {
+      messages: {
+        create: async () => {
+          const err = new Error("429") as Error & { status: number };
+          err.status = 429;
+          throw err;
+        },
+      },
+    } as unknown as Pick<Anthropic, "messages">;
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+      prisma,
+    });
+
+    assert.equal(result.success, false);
+    const logs = prisma._llmLogCalls();
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0].success, false);
+    assert.equal(logs[0].failureReason, "rate_limited");
+  });
+
+  it("does NOT propagate a Prisma write failure — call result is preserved", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    _resetRegistryCaches();
+    const prisma = makePrismaStub({ llmCallShouldThrow: true });
+    const { client } = makeFakeClient([
+      {
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_1",
+            name: "kiwi_response",
+            input: { pong: "yes" },
+          } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+      prisma,
+    });
+
+    // The AI call still succeeded even though the log write threw.
+    assert.equal(result.success, true);
+    if (!result.success) return;
+    assert.deepEqual(result.data, { pong: "yes" });
+  });
+
+  it("skips log writes entirely when prisma is omitted (in-memory fallback path)", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    _resetRegistryCaches();
+    // Don't pass prisma — verifies that runAICall doesn't attempt log writes.
+    const { client } = makeFakeClient([
+      {
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_1",
+            name: "kiwi_response",
+            input: { pong: "yes" },
+          } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+    });
+
+    // Only the contract here is "doesn't blow up"; nothing to assert about
+    // log calls because prisma wasn't passed. The promptVersion should be
+    // null since we used the in-memory fallback.
+    assert.equal(result.success, true);
+    if (!result.success) return;
+    assert.equal(result.metadata.promptVersion, null);
+  });
+});
+
+describe("runAICall — promptVersion in metadata", () => {
+  it("populates promptVersion from DB when a row is present", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    _resetRegistryCaches();
+    const prisma = makePrismaStub({
+      promptRow: {
+        id: "prompt_1",
+        key: TOOL_KEY,
+        defaultModel: MODEL_SONNET,
+        defaultMode: "tool",
+        versions: [{ body: "DB body v7", version: 7, isActive: true }],
+      },
+    });
+    const { client } = makeFakeClient([
+      {
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_1",
+            name: "kiwi_response",
+            input: { pong: "yes" },
+          } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+      prisma,
+    });
+
+    assert.equal(result.success, true);
+    if (!result.success) return;
+    assert.equal(result.metadata.promptVersion, 7);
+    assert.equal(prisma._llmLogCalls()[0].promptVersion, 7);
   });
 });
