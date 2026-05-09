@@ -65,9 +65,14 @@ Apply these as biases — they shape the menu but do not override hard constrain
 - Low-carb → bias meals toward <30g carbs/serving on average.
 - Healthy / weight-loss → bias meals toward <600 calories/serving on average.
 - \`weeklyPacing = mostly_easy\` or \`minimal_effort\` → weight toward easy difficulty meals.
-- \`weeklyPacing = one_fancy\` → 4 easy/medium meals + 1 fancier night.
+- \`weeklyPacing = one_fancy_night\` → 4 easy/medium meals + 1 fancier night.
 - \`weeklyPacing = mixed\` → balanced mix.
 - \`difficulty\` field is the user's overall ceiling — never exceed it across the plan.
+- \`hiddenContext.spiceTolerance\` (\`mild\`/\`medium\`/\`hot\`) → bias dishes within the user's heat tolerance. Never push hot dishes onto a \`mild\` user.
+- \`hiddenContext.dailyCalorieTarget\` (when set) → bias the per-day average toward the target ±10%.
+- \`hiddenContext.budgetLevel\` (\`budget\`/\`mid_range\`/\`premium\`) → favor pantry-friendly proteins and produce on \`budget\`; allow finer cuts and specialty items on \`premium\`.
+- \`hiddenContext.pickyAvoidances\` → treat as additional hard exclusions for the household (same weight as allergies).
+- \`hiddenContext.recurringItems\` → staples the user always has on hand; prefer reusing them where natural.
 
 # Servings and household
 
@@ -107,7 +112,7 @@ Aim for one tightly themed candidate (e.g., "Cozy Comfort Week"), one balanced/d
 
 # Wizard input
 
-The user's full \`WizardInput\` arrives as a JSON object below. Use every field. Hidden context fields (\`hiddenContext.equipment\`, \`hiddenContext.spiceTolerance\`, \`hiddenContext.pantryStaples\`, \`hiddenContext.recentMealIds\`) are server-injected from the user's profile — treat them with equal weight as the user-supplied fields.
+The user's full \`WizardInput\` arrives as a JSON object below. Use every field. Hidden context fields (\`hiddenContext.equipment\`, \`hiddenContext.spiceTolerance\`, \`hiddenContext.dailyCalorieTarget\`, \`hiddenContext.budgetLevel\`, \`hiddenContext.pickyAvoidances\`, \`hiddenContext.recurringItems\`, \`hiddenContext.pantryStaples\`, \`hiddenContext.recentMealIds\`) are server-injected from the user's profile — treat them with equal weight as the user-supplied fields.
 
 \`\`\`json
 {{wizardInput}}

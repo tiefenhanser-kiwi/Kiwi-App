@@ -26,9 +26,21 @@ import type {
 
 // ── stubs ──────────────────────────────────────────────────────────────
 
-function makeStubPrisma() {
+interface StubPrismaOpts {
+  preferences?: {
+    equipment?: string[];
+    spiceTolerance?: "mild" | "medium" | "hot";
+    dailyCalorieTarget?: number | null;
+    budgetLevel?: "budget" | "mid_range" | "premium";
+    pickyAvoidances?: string[];
+    recurringItems?: string[];
+  } | null;
+  pantryStaples?: string[];
+}
+
+function makeStubPrisma(opts: StubPrismaOpts = {}) {
   const llmCalls: unknown[] = [];
-  const activities: unknown[] = [];
+  const activities: { eventType: string; userId: string }[] = [];
   return {
     aIPrompt: { findUnique: async () => null },
     systemSetting: {
@@ -42,10 +54,22 @@ function makeStubPrisma() {
         return null;
       },
     },
-    pantryStaple: { findMany: async () => [] },
+    userPreferences: {
+      findUnique: async () => opts.preferences ?? null,
+    },
+    pantryStaple: {
+      findMany: async () =>
+        (opts.pantryStaples ?? []).map((ingredientName) => ({
+          ingredientName,
+        })),
+    },
     userActivity: {
       findMany: async () => [],
-      create: async ({ data }: { data: unknown }) => {
+      create: async ({
+        data,
+      }: {
+        data: { eventType: string; userId: string };
+      }) => {
         activities.push(data);
         return data;
       },
@@ -123,15 +147,25 @@ function makeRunAICall(
   result: () => Promise<AICallResult<WizardPlanCandidatesResult>>,
 ) {
   let calls = 0;
-  const fn = (async (..._args: unknown[]) => {
+  const capturedVars: Record<string, unknown>[] = [];
+  const fn = (async (
+    _promptKey: string,
+    vars: Record<string, unknown>,
+    ..._rest: unknown[]
+  ) => {
     calls++;
+    capturedVars.push(vars);
     return result();
   }) as unknown as Parameters<typeof createWizardRouter>[0] extends
     | { runAICall?: infer R }
     | undefined
     ? R
     : never;
-  return { fn, getCalls: () => calls };
+  return {
+    fn,
+    getCalls: () => calls,
+    getVars: () => capturedVars,
+  };
 }
 
 function happyResult(): AICallSuccess<WizardPlanCandidatesResult> {
@@ -235,7 +269,17 @@ const TEST_USER_ID = "test-user-wizard-route";
 describe("POST /api/wizard/build-plans — happy path", () => {
   let harness: Harness;
   const ai = makeRunAICall(async () => happyResult());
-  const prisma = makeStubPrisma();
+  const prisma = makeStubPrisma({
+    preferences: {
+      equipment: ["oven", "stove", "instant_pot"],
+      spiceTolerance: "medium",
+      dailyCalorieTarget: 2000,
+      budgetLevel: "mid_range",
+      pickyAvoidances: ["cilantro"],
+      recurringItems: ["olive_oil", "salt"],
+    },
+    pantryStaples: ["garlic", "rice"],
+  });
 
   before(async () => {
     harness = await spinUp({
@@ -266,7 +310,108 @@ describe("POST /api/wizard/build-plans — happy path", () => {
     assert.ok(body.candidates[0].title.length > 0);
     assert.equal(body.metadata.promptVersion, 2);
     assert.equal(ai.getCalls(), 1);
-    assert.ok(prisma._activities().length >= 1);
+    const events = prisma._activities().map((a) => a.eventType);
+    assert.ok(events.includes("wizard_complete"));
+  });
+
+  it("injects UserPreferences hidden context into the AI input", async () => {
+    // The previous test fired one call; this test fires another and inspects
+    // the captured vars on the most recent invocation.
+    const token = signToken(TEST_USER_ID);
+    await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(VALID_BODY),
+    });
+
+    const lastVars = ai.getVars().at(-1) as
+      | { wizardInput?: { hiddenContext?: Record<string, unknown> } }
+      | undefined;
+    assert.ok(lastVars?.wizardInput?.hiddenContext);
+    const ctx = lastVars.wizardInput.hiddenContext as Record<string, unknown>;
+    assert.deepEqual(ctx.equipment, ["oven", "stove", "instant_pot"]);
+    assert.equal(ctx.spiceTolerance, "medium");
+    assert.equal(ctx.dailyCalorieTarget, 2000);
+    assert.equal(ctx.budgetLevel, "mid_range");
+    assert.deepEqual(ctx.pickyAvoidances, ["cilantro"]);
+    assert.deepEqual(ctx.recurringItems, ["olive_oil", "salt"]);
+    assert.deepEqual(ctx.pantryStaples, ["garlic", "rice"]);
+  });
+});
+
+describe("POST /api/wizard/build-plans — sequential distinctness", () => {
+  let harness: Harness;
+  // Stub returns a counter-keyed candidate so two invocations produce two
+  // distinct payloads. This proves the route fires runAICall twice (no
+  // hook-level/route-level caching) — the property the mobile regen relies on.
+  let counter = 0;
+  const ai = makeRunAICall(async () => {
+    counter++;
+    return {
+      success: true,
+      data: {
+        candidates: [
+          {
+            id: `c-${counter}`,
+            title: `Generated plan #${counter}`,
+            tags: ["test"],
+            whyBullets: [`Iteration ${counter}`],
+            mealTitles: ["a", "b", "c", "d", "e"],
+            dailyMacros: { calories: 500, proteinG: 30, carbsG: 50, fatG: 20 },
+          },
+        ],
+      },
+      metadata: {
+        promptKey: "wizard.set_preferences.generate",
+        promptVersion: 2,
+        model: "claude-sonnet-4-6",
+        mode: "tool" as const,
+        latencyMs: 100,
+        inputTokens: 100,
+        outputTokens: 100,
+        costEstimateUsd: 0.001,
+        retryCount: 0,
+      },
+    };
+  });
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: ai.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+  });
+  after(async () => harness.close());
+
+  it("two POSTs with identical body produce two distinct AI calls", async () => {
+    const token = signToken(TEST_USER_ID + "-distinct");
+    const post = () =>
+      fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(VALID_BODY),
+      });
+
+    const r1 = await post();
+    const r2 = await post();
+    assert.equal(r1.status, 200);
+    assert.equal(r2.status, 200);
+    const b1 = (await r1.json()) as {
+      candidates: { id: string; title: string }[];
+    };
+    const b2 = (await r2.json()) as {
+      candidates: { id: string; title: string }[];
+    };
+    assert.equal(ai.getCalls(), 2);
+    assert.notEqual(b1.candidates[0].id, b2.candidates[0].id);
+    assert.notEqual(b1.candidates[0].title, b2.candidates[0].title);
   });
 });
 
@@ -360,17 +505,18 @@ describe("POST /api/wizard/build-plans — entitlement gate", () => {
 
 describe("POST /api/wizard/build-plans — AI failure", () => {
   let harness: Harness;
+  const prisma = makeStubPrisma();
 
   before(async () => {
     harness = await spinUp({
       runAICall: makeRunAICall(async () => failureResult()).fn,
-      prisma: makeStubPrisma(),
+      prisma,
       subscriptionService: makeSubscriptionService(true),
     });
   });
   after(async () => harness.close());
 
-  it("returns 502 with Kiwi-styled message when runAICall fails", async () => {
+  it("returns 502 with Kiwi-styled message and emits wizard_failure activity", async () => {
     const token = signToken(TEST_USER_ID);
     const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
       method: "POST",
@@ -385,6 +531,11 @@ describe("POST /api/wizard/build-plans — AI failure", () => {
     const body = (await res.json()) as { error: string; reason: string };
     assert.match(body.error, /Kiwi got distracted/);
     assert.equal(body.reason, "validation_failed");
+    const events = prisma._activities().map((a) => a.eventType);
+    assert.ok(
+      events.includes("wizard_failure"),
+      `expected wizard_failure activity, saw ${events.join(",") || "(none)"}`,
+    );
   });
 });
 

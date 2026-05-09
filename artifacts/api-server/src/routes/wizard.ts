@@ -109,7 +109,7 @@ export function createWizardRouter(
 
   async function emitActivity(
     userId: string,
-    eventType: "wizard_complete" | "wizard_start",
+    eventType: "wizard_complete" | "wizard_start" | "wizard_failure",
     entityId?: string,
   ): Promise<void> {
     try {
@@ -134,7 +134,18 @@ export function createWizardRouter(
   async function buildHiddenContext(
     userId: string,
   ): Promise<WizardInput["hiddenContext"]> {
-    const [pantryStaples, recentMeals] = await Promise.all([
+    const [preferences, pantryStaples, recentMeals] = await Promise.all([
+      prisma.userPreferences.findUnique({
+        where: { userId },
+        select: {
+          equipment: true,
+          spiceTolerance: true,
+          dailyCalorieTarget: true,
+          budgetLevel: true,
+          pickyAvoidances: true,
+          recurringItems: true,
+        },
+      }),
       prisma.pantryStaple.findMany({
         where: { userId, isActive: true },
         select: { ingredientName: true },
@@ -148,11 +159,12 @@ export function createWizardRouter(
     ]);
 
     return {
-      // PRD §3.5 fields (equipment, spiceTolerance) live in mobile state
-      // today and will move to UserPreferences in a later sub-phase. For
-      // 6a-3 we surface what's in DB and leave the rest unset.
-      equipment: undefined,
-      spiceTolerance: undefined,
+      equipment: preferences?.equipment ?? [],
+      spiceTolerance: preferences?.spiceTolerance ?? undefined,
+      dailyCalorieTarget: preferences?.dailyCalorieTarget ?? undefined,
+      budgetLevel: preferences?.budgetLevel ?? undefined,
+      pickyAvoidances: preferences?.pickyAvoidances ?? [],
+      recurringItems: preferences?.recurringItems ?? [],
       pantryStaples: pantryStaples.map((p) => p.ingredientName),
       recentMealIds: recentMeals
         .map((a) => a.entityId)
@@ -227,6 +239,10 @@ export function createWizardRouter(
           },
           "Wizard plan generation failed",
         );
+        // PRD §5.10 — record the failure so cost/observability and admin
+        // funnels can see real failure rates. Same fire-and-forget pattern
+        // as wizard_complete: never let activity-write failures bubble up.
+        await emitActivity(userId, "wizard_failure");
         return res.status(502).json({
           error: result.userFacingMessage,
           reason: result.reason,

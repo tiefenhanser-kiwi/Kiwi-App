@@ -13,16 +13,21 @@ export const WizardInputSchema = z.object({
   weeklyPacing: z.enum([
     "mostly_easy",
     "mixed",
-    "one_fancy",
+    "one_fancy_night",
     "minimal_effort",
   ]),
   dietaryNotes: z.string().max(500).optional(),
   additionalNotes: z.string().max(500).optional(),
-  // Server-injected hidden context (PRD §5.7).
+  // Server-injected hidden context (PRD §5.7). Sourced from UserPreferences
+  // by the wizard route — never accepted from the client.
   hiddenContext: z
     .object({
       equipment: z.array(z.string()).optional(),
-      spiceTolerance: z.string().optional(),
+      spiceTolerance: z.enum(["mild", "medium", "hot"]).optional(),
+      dailyCalorieTarget: z.number().int().positive().optional(),
+      budgetLevel: z.enum(["budget", "mid_range", "premium"]).optional(),
+      pickyAvoidances: z.array(z.string()).optional(),
+      recurringItems: z.array(z.string()).optional(),
       pantryStaples: z.array(z.string()).optional(),
       recentMealIds: z.array(z.string()).optional(),
     })
