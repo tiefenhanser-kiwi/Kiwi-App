@@ -1,16 +1,22 @@
-// WS6 AI orchestrator — in-memory prompt registry.
-// Per kiwi_ws6_plan.md §3 6a-1.
-// TODO(6a-2): swap this Map for a Prisma-backed lookup against the
-// AIPrompt + AIPromptVersion tables, with the 60-second cache pattern
-// per PRD §15.4.4. Until that migration lands, bodies live in this
-// file as placeholders — 6a-3 onward replaces them with real prompts
-// in their respective sub-phases.
+// WS6 AI orchestrator — DB-backed prompt registry with in-memory fallback.
+// Per kiwi_ws6_plan.md §3 6a-2 (DB-backed) + 6a-1 (initial in-memory).
+//
+// Production runAICall flow:
+//   1. resolvePromptDescriptorFromDb(key, prisma)  → DB lookup w/ 60s cache
+//   2. on success → return { body, defaultModel, defaultMode, version, ... }
+//   3. on miss/error → fall back to REGISTRY (in-memory) and log
+//
+// Why keep the in-memory map?
+//   - Defensive: a deployment race where seed hasn't run yet still works.
+//   - Test seam: omit `prisma` and the resolver returns in-memory data —
+//     no DB stub required for the 12 existing 6a-1 tests.
 
+import { logger } from "../logger";
 import type { AICallMode } from "./modes";
 
-// Latest-as-of-2026-05 model strings. Per Hans's locked decision in
-// kiwi_ws6_plan.md §4 these will move to AIPrompt.defaultModel post-6a-2
-// so per-prompt model swaps don't require a code deploy.
+// Latest-as-of-2026-05 model strings. These are mirrored into AIPrompt.defaultModel
+// rows by the seed (prisma/seeds/aiPrompts.ts); admins can swap per-prompt models
+// at runtime by editing the AIPrompt row.
 export const MODEL_SONNET = "claude-sonnet-4-6";
 export const MODEL_HAIKU = "claude-haiku-4-5-20251001";
 
@@ -18,9 +24,12 @@ export interface PromptDescriptor {
   body: string;
   defaultModel: string;
   defaultMode: AICallMode;
-  // Caller-facing description used to populate the tool_use description
-  // field. Keep it terse; the schema carries the structural detail.
   toolDescription: string;
+}
+
+export interface DescriptorWithVersion extends PromptDescriptor {
+  // null when descriptor came from the in-memory REGISTRY fallback (no DB row).
+  version: number | null;
 }
 
 // Placeholder body builder — emits a clearly-marked stub the caller will
@@ -28,8 +37,9 @@ export interface PromptDescriptor {
 const placeholder = (key: string): string =>
   `[PLACEHOLDER for ${key} — replace via 6a-3+ sub-phase]`;
 
-// Per PRD §15.4.2 + WS6-specific additions.
-// Mode + model assignments per kiwi_ws6_plan.md §4 (Hybrid Option C).
+// Per PRD §15.4.2 + WS6-specific additions. Mode + model assignments per
+// kiwi_ws6_plan.md §4 (Hybrid Option C). This map is the SOURCE of fallback
+// data; the seed in prisma/seeds/aiPrompts.ts mirrors it into the DB.
 const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
   // 6a-3 — Set Preferences wizard
   [
@@ -38,7 +48,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("wizard.set_preferences.generate"),
       defaultModel: MODEL_SONNET,
       defaultMode: "tool",
-      toolDescription: "Generate up to 3 distinct meal-plan candidates from the user's wizard preferences.",
+      toolDescription:
+        "Generate up to 3 distinct meal-plan candidates from the user's wizard preferences.",
     },
   ],
   // 6a-4 — Tell Kiwi two-step
@@ -48,7 +59,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("wizard.directed.parse_intent"),
       defaultModel: MODEL_HAIKU,
       defaultMode: "text",
-      toolDescription: "Parse the user's free-text plan request into a structured intent.",
+      toolDescription:
+        "Parse the user's free-text plan request into a structured intent.",
     },
   ],
   [
@@ -67,7 +79,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("wizard.cook_now.match"),
       defaultModel: MODEL_HAIKU,
       defaultMode: "text",
-      toolDescription: "Match a Cook Now request against the existing meal catalog.",
+      toolDescription:
+        "Match a Cook Now request against the existing meal catalog.",
     },
   ],
   [
@@ -76,7 +89,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("wizard.cook_now.generate"),
       defaultModel: MODEL_SONNET,
       defaultMode: "tool",
-      toolDescription: "Generate a fresh recipe when no catalog match exists for Cook Now.",
+      toolDescription:
+        "Generate a fresh recipe when no catalog match exists for Cook Now.",
     },
   ],
   // PRD §15.4.2 — wizard reasoning sidecar
@@ -86,7 +100,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("wizard.optimization_notes"),
       defaultModel: MODEL_HAIKU,
       defaultMode: "text",
-      toolDescription: "Generate the why-this-works bullets for a plan candidate.",
+      toolDescription:
+        "Generate the why-this-works bullets for a plan candidate.",
     },
   ],
   // 6c-1 — Reformat-for-Kiwi pass and import paths
@@ -96,7 +111,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("import.url.parse_fallback"),
       defaultModel: MODEL_SONNET,
       defaultMode: "tool",
-      toolDescription: "Parse a recipe from raw URL HTML when JSON-LD extraction fails.",
+      toolDescription:
+        "Parse a recipe from raw URL HTML when JSON-LD extraction fails.",
     },
   ],
   [
@@ -105,7 +121,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("import.image.ocr_parse"),
       defaultModel: MODEL_SONNET,
       defaultMode: "tool",
-      toolDescription: "Parse a recipe from an OCR'd image of a printed recipe.",
+      toolDescription:
+        "Parse a recipe from an OCR'd image of a printed recipe.",
     },
   ],
   [
@@ -114,7 +131,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("import.reformat_for_kiwi"),
       defaultModel: MODEL_SONNET,
       defaultMode: "tool",
-      toolDescription: "Normalize a raw recipe into Kiwi's canonical Dish + step shape with phaseType / parallelGroup.",
+      toolDescription:
+        "Normalize a raw recipe into Kiwi's canonical Dish + step shape with phaseType / parallelGroup.",
     },
   ],
   // 6b-4 — Kiwi-assist meal builder Mode A
@@ -124,7 +142,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("meal_builder.mode_a_parse"),
       defaultModel: MODEL_SONNET,
       defaultMode: "tool",
-      toolDescription: "Parse free-text meal description into structured ingredients and steps.",
+      toolDescription:
+        "Parse free-text meal description into structured ingredients and steps.",
     },
   ],
   // 6d-2 — Prep the Week aggregation
@@ -134,7 +153,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("prep.aggregation_logic"),
       defaultModel: MODEL_SONNET,
       defaultMode: "tool",
-      toolDescription: "Aggregate cross-meal prep into the 4-phase Prep the Week structure.",
+      toolDescription:
+        "Aggregate cross-meal prep into the 4-phase Prep the Week structure.",
     },
   ],
   // 6d-1 — Cooking Sequencer
@@ -144,7 +164,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("sequencer.step_ordering"),
       defaultModel: MODEL_SONNET,
       defaultMode: "tool",
-      toolDescription: "Order steps from multiple dishes into a single parallel-execution sequence.",
+      toolDescription:
+        "Order steps from multiple dishes into a single parallel-execution sequence.",
     },
   ],
   // 6b-3 — plan-level macro recalc
@@ -154,7 +175,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("macros.weighting_rules"),
       defaultModel: MODEL_HAIKU,
       defaultMode: "text",
-      toolDescription: "Recalculate plan-level daily macro averages per PRD §11.7 weighting rules.",
+      toolDescription:
+        "Recalculate plan-level daily macro averages per PRD §11.7 weighting rules.",
     },
   ],
   // 6b-2 — Simple Dish macros AI
@@ -174,7 +196,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("grocery.recurring_item_categorize"),
       defaultModel: MODEL_HAIKU,
       defaultMode: "text",
-      toolDescription: "Categorize a free-text grocery item into a section + canonical name.",
+      toolDescription:
+        "Categorize a free-text grocery item into a section + canonical name.",
     },
   ],
   // 6c-3 — ambiguous item flagging at generation time
@@ -184,7 +207,8 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       body: placeholder("grocery.ambiguous_item_flag"),
       defaultModel: MODEL_HAIKU,
       defaultMode: "text",
-      toolDescription: "Flag a grocery item as ambiguous and list the variants the user must resolve.",
+      toolDescription:
+        "Flag a grocery item as ambiguous and list the variants the user must resolve.",
     },
   ],
   // 6b-1 — Find Similar AI semantic similarity (WS6 addition)
@@ -206,13 +230,15 @@ export class UnknownPromptKeyError extends Error {
   }
 }
 
+// Synchronous registry lookup — kept for any legacy caller that hasn't
+// migrated to the async DB-backed path. New callers should prefer
+// resolvePromptDescriptorFromDb.
 export function resolvePromptDescriptor(key: string): PromptDescriptor {
   const descriptor = REGISTRY.get(key);
   if (!descriptor) throw new UnknownPromptKeyError(key);
   return descriptor;
 }
 
-// Re-export for legacy callers; runAICall uses resolvePromptDescriptor.
 export function resolvePromptBody(key: string): string {
   return resolvePromptDescriptor(key).body;
 }
@@ -231,28 +257,230 @@ export function renderPromptBody(
   });
 }
 
-// Cost lookup table — published per-million-token rates as of 2026-05.
-// TODO(6a-2): move to SystemSetting table so admin can update without redeploy.
+// ── Prisma surface ──────────────────────────────────────────────────────
+// Minimal structural type. Lets tests inject a stub without depending on
+// the full PrismaClient type or any Prisma runtime.
+
+export interface PromptVersionRow {
+  body: string;
+  version: number;
+  isActive: boolean;
+}
+
+export interface AIPromptRow {
+  id: string;
+  key: string;
+  defaultModel: string;
+  defaultMode: AICallMode;
+  versions: PromptVersionRow[];
+}
+
+export interface SystemSettingRow {
+  key: string;
+  value: unknown;
+}
+
+export interface PrismaLike {
+  aIPrompt: {
+    findUnique(args: {
+      where: { key: string };
+      include?: { versions?: { where?: unknown; take?: number } };
+    }): Promise<AIPromptRow | null>;
+  };
+  systemSetting: {
+    findUnique(args: {
+      where: { key: string };
+    }): Promise<SystemSettingRow | null>;
+  };
+  lLMCallLog: {
+    create(args: { data: LLMCallLogCreateData }): Promise<unknown>;
+  };
+}
+
+export interface LLMCallLogCreateData {
+  promptKey: string;
+  promptVersion: number | null;
+  model: string;
+  mode: AICallMode;
+  userId: string | null;
+  latencyMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  costEstimateUsd: number;
+  retryCount: number;
+  success: boolean;
+  failureReason: string | null;
+}
+
+// ── 60-second TTL cache ─────────────────────────────────────────────────
+// Per PRD §15.4.4. Per-key entries; no eviction beyond TTL since the keyset
+// is bounded (~17 prompts + ~4 model rates).
+
+const CACHE_TTL_MS = 60_000;
+
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+const promptCache = new Map<string, CacheEntry<DescriptorWithVersion>>();
+const rateCache = new Map<string, CacheEntry<ModelRate>>();
+
+function cacheGet<T>(
+  cache: Map<string, CacheEntry<T>>,
+  key: string,
+): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function cacheSet<T>(
+  cache: Map<string, CacheEntry<T>>,
+  key: string,
+  value: T,
+): void {
+  cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+// Test helper — clear both caches between tests.
+export function _resetRegistryCaches(): void {
+  promptCache.clear();
+  rateCache.clear();
+}
+
+// ── DB-backed resolution ────────────────────────────────────────────────
+
+export async function resolvePromptDescriptorFromDb(
+  key: string,
+  prismaClient: PrismaLike | null,
+): Promise<DescriptorWithVersion> {
+  const cached = cacheGet(promptCache, key);
+  if (cached) return cached;
+
+  // Validate key against in-memory registry first so unknown keys throw the
+  // same error whether the DB is reachable or not. Programmer-error path.
+  const fallback = REGISTRY.get(key);
+  if (!fallback) throw new UnknownPromptKeyError(key);
+
+  if (prismaClient) {
+    try {
+      const row = await prismaClient.aIPrompt.findUnique({
+        where: { key },
+        include: { versions: { where: { isActive: true }, take: 1 } },
+      });
+      const active = row?.versions[0];
+      if (row && active) {
+        const value: DescriptorWithVersion = {
+          body: active.body,
+          defaultModel: row.defaultModel,
+          defaultMode: row.defaultMode,
+          // toolDescription stays in code — it's caller-facing metadata,
+          // not user-editable prompt content. Sourced from REGISTRY.
+          toolDescription: fallback.toolDescription,
+          version: active.version,
+        };
+        cacheSet(promptCache, key, value);
+        return value;
+      }
+      logger.warn(
+        { event: "prompt_resolve", key },
+        "AI prompt not found in DB — using in-memory fallback",
+      );
+    } catch (err) {
+      logger.error(
+        { event: "prompt_resolve", key, err },
+        "AI prompt DB lookup failed — using in-memory fallback",
+      );
+    }
+  }
+
+  // Fallback: in-memory registry. Don't cache (so the next call retries DB).
+  return { ...fallback, version: null };
+}
+
+// ── Cost estimation ─────────────────────────────────────────────────────
+
 export interface ModelRate {
   inputPerMtokUsd: number;
   outputPerMtokUsd: number;
 }
 
-const MODEL_RATES: Record<string, ModelRate> = {
+// Hardcoded fallback rates. The seed mirrors these into SystemSetting rows
+// (prisma/seeds/systemSettings.ts). Production reads from the DB; if that
+// fails, we fall back here so cost calculation never throws.
+const FALLBACK_MODEL_RATES: Record<string, ModelRate> = {
   "claude-sonnet-4-6": { inputPerMtokUsd: 3, outputPerMtokUsd: 15 },
   "claude-haiku-4-5-20251001": { inputPerMtokUsd: 1, outputPerMtokUsd: 5 },
 };
 
+export async function getModelRate(
+  model: string,
+  prismaClient: PrismaLike | null,
+): Promise<ModelRate> {
+  const cached = cacheGet(rateCache, model);
+  if (cached) return cached;
+
+  if (prismaClient) {
+    try {
+      const [inputRow, outputRow] = await Promise.all([
+        prismaClient.systemSetting.findUnique({
+          where: { key: `ai.model_rate.${model}.input_per_mtok` },
+        }),
+        prismaClient.systemSetting.findUnique({
+          where: { key: `ai.model_rate.${model}.output_per_mtok` },
+        }),
+      ]);
+      if (inputRow && outputRow) {
+        const value: ModelRate = {
+          inputPerMtokUsd: Number(inputRow.value),
+          outputPerMtokUsd: Number(outputRow.value),
+        };
+        cacheSet(rateCache, model, value);
+        return value;
+      }
+      logger.warn(
+        { event: "model_rate_lookup", model },
+        "Model rate not found in DB — using in-memory fallback",
+      );
+    } catch (err) {
+      logger.error(
+        { event: "model_rate_lookup", model, err },
+        "Model rate DB lookup failed — using in-memory fallback",
+      );
+    }
+  }
+
+  // Fallback: hardcoded rates. Unknown models → 0 (don't fabricate cost).
+  return FALLBACK_MODEL_RATES[model] ?? { inputPerMtokUsd: 0, outputPerMtokUsd: 0 };
+}
+
+export function estimateCostUsdFromRate(
+  rate: ModelRate,
+  inputTokens: number,
+  outputTokens: number,
+): number {
+  const inputCost = (inputTokens / 1_000_000) * rate.inputPerMtokUsd;
+  const outputCost = (outputTokens / 1_000_000) * rate.outputPerMtokUsd;
+  return inputCost + outputCost;
+}
+
+// Sync convenience helper that uses the fallback rates table. Production
+// runtime uses estimateCostUsdFromRate after fetching via getModelRate so
+// costs reflect SystemSetting overrides; this helper is for tests and any
+// codepath where DB access isn't available.
 export function estimateCostUsd(
   model: string,
   inputTokens: number,
   outputTokens: number,
 ): number {
-  const rate = MODEL_RATES[model];
-  if (!rate) return 0; // unknown model — log-only, don't fabricate cost
-  const inputCost = (inputTokens / 1_000_000) * rate.inputPerMtokUsd;
-  const outputCost = (outputTokens / 1_000_000) * rate.outputPerMtokUsd;
-  return inputCost + outputCost;
+  const rate = FALLBACK_MODEL_RATES[model];
+  if (!rate) return 0;
+  return estimateCostUsdFromRate(rate, inputTokens, outputTokens);
 }
 
 // Test/diagnostic helper — list registered keys.

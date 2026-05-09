@@ -1,5 +1,15 @@
 // WS6 AI orchestrator — single entry point for every AI call.
-// Per kiwi_ws6_plan.md §3 6a-1.
+// Per kiwi_ws6_plan.md §3 6a-1 (skeleton) + 6a-2 (DB-backed prompts +
+// LLMCallLog write).
+//
+// Production caller pattern:
+//   const result = await runAICall(promptKey, vars, schema, {
+//     prisma,            // singleton from ../prisma; enables DB lookups + log writes
+//     userId: req.userId,
+//   });
+//
+// Test caller pattern (omit prisma → in-memory fallback, no log writes):
+//   const result = await runAICall(promptKey, vars, schema, { client: stub });
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { z } from "zod";
@@ -14,15 +24,18 @@ import {
 } from "./modes";
 import { userFacingMessage, type AICallFailureReason } from "./errors";
 import {
-  estimateCostUsd,
+  estimateCostUsdFromRate,
+  getModelRate,
   renderPromptBody,
-  resolvePromptDescriptor,
+  resolvePromptDescriptorFromDb,
+  type LLMCallLogCreateData,
+  type PrismaLike,
 } from "./promptRegistry";
 
 export type { AICallMode } from "./modes";
 
 export interface AICallOptions {
-  // Override AIPrompt.defaultModel (post-6a-2: reads from DB).
+  // Override AIPrompt.defaultModel.
   model?: string;
   // Override AIPrompt.defaultMode.
   mode?: AICallMode;
@@ -32,15 +45,19 @@ export interface AICallOptions {
   temperature?: number;
   // Default true — single retry on validation failure with stricter prompt.
   retryOnValidationFailure?: boolean;
-  // For LLMCallLog correlation post-6a-2.
+  // For LLMCallLog correlation. Null = system-triggered (seeds, batch jobs).
   userId?: string;
-  // Test seam — inject a custom client. Production callers omit.
+  // Test seam — inject a custom Anthropic client. Production callers omit.
   client?: Pick<Anthropic, "messages">;
+  // Production: pass the singleton from ../prisma to enable DB-backed prompt
+  // resolution, model-rate lookup, and LLMCallLog writes.
+  // Tests: omit (in-memory fallback, no log writes) or inject a stub.
+  prisma?: PrismaLike;
 }
 
 export interface AICallMetadata {
   promptKey: string;
-  // null until 6a-2 lands DB-backed prompts with versioning.
+  // null when descriptor came from in-memory fallback (no DB row).
   promptVersion: number | null;
   model: string;
   mode: AICallMode;
@@ -67,8 +84,8 @@ export interface AICallFailure {
 
 export type AICallResult<T> = AICallSuccess<T> | AICallFailure;
 
-// Module-level singleton — built lazily so missing env doesn't blow up
-// at import time. Tests bypass by passing opts.client.
+// Module-level Anthropic singleton — built lazily so missing env doesn't blow
+// up at import time. Tests bypass by passing opts.client.
 let cachedClient: Anthropic | null = null;
 function getClient(): Anthropic | null {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -78,8 +95,7 @@ function getClient(): Anthropic | null {
   return cachedClient;
 }
 
-// Test-only — reset the cached client between tests. Not exported via
-// schemas/index; importers reach in directly.
+// Test-only — reset the cached client between tests.
 export function _resetClientCache(): void {
   cachedClient = null;
 }
@@ -91,28 +107,49 @@ export async function runAICall<T extends z.ZodTypeAny>(
   opts: AICallOptions = {},
 ): Promise<AICallResult<z.infer<T>>> {
   const start = Date.now();
-  const descriptor = resolvePromptDescriptor(promptKey);
+  const prismaClient = opts.prisma ?? null;
+  const descriptor = await resolvePromptDescriptorFromDb(promptKey, prismaClient);
+  const promptVersion = descriptor.version;
   const model = opts.model ?? descriptor.defaultModel;
   const mode: AICallMode = opts.mode ?? descriptor.defaultMode;
   const maxTokens = opts.maxTokens ?? 4096;
   const temperature = opts.temperature ?? 0.7;
   const retryOnValidationFailure = opts.retryOnValidationFailure ?? true;
+  const userId = opts.userId ?? null;
 
   const client = opts.client ?? getClient();
   if (!client) {
-    return failure({
+    const failureResult = failure({
       promptKey,
+      promptVersion,
       model,
       mode,
       latencyMs: Date.now() - start,
       reason: "no_api_key",
     });
+    await writeLogSafely(prismaClient, {
+      promptKey,
+      promptVersion,
+      model,
+      mode,
+      userId,
+      latencyMs: failureResult.metadata.latencyMs ?? 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      costEstimateUsd: 0,
+      retryCount: 0,
+      success: false,
+      failureReason: "no_api_key",
+    });
+    return failureResult;
   }
+
+  // Fetch model rate once up-front so cost calc inside the success branch
+  // stays synchronous and we don't re-query on every retry attempt.
+  const rate = await getModelRate(model, prismaClient);
 
   const baseBody = renderPromptBody(descriptor.body, vars);
 
-  // Tool-use vs text dispatch. Both share the messages.create call; what
-  // differs is whether we pass tools+tool_choice or a JSON-only suffix.
   let attempt = 0;
   let lastValidationError: unknown = null;
   let inputTokens = 0;
@@ -146,11 +183,27 @@ export async function runAICall<T extends z.ZodTypeAny>(
         { event: "ai_call", promptKey, model, mode, err },
         "AI SDK call failed",
       );
-      return failure({
+      const latencyMs = Date.now() - start;
+      await writeLogSafely(prismaClient, {
         promptKey,
+        promptVersion,
         model,
         mode,
-        latencyMs: Date.now() - start,
+        userId,
+        latencyMs,
+        inputTokens,
+        outputTokens,
+        costEstimateUsd: estimateCostUsdFromRate(rate, inputTokens, outputTokens),
+        retryCount: attempt,
+        success: false,
+        failureReason: reason,
+      });
+      return failure({
+        promptKey,
+        promptVersion,
+        model,
+        mode,
+        latencyMs,
         inputTokens,
         outputTokens,
         retryCount: attempt,
@@ -171,23 +224,37 @@ export async function runAICall<T extends z.ZodTypeAny>(
 
     const parsed = schema.safeParse(extracted.value);
     if (parsed.success) {
+      const latencyMs = Date.now() - start;
+      const costEstimateUsd = estimateCostUsdFromRate(rate, inputTokens, outputTokens);
       const metadata: AICallMetadata = {
         promptKey,
-        promptVersion: null,
+        promptVersion,
         model,
         mode,
-        latencyMs: Date.now() - start,
+        latencyMs,
         inputTokens,
         outputTokens,
-        costEstimateUsd: estimateCostUsd(model, inputTokens, outputTokens),
+        costEstimateUsd,
         retryCount: attempt,
       };
       logger.info(
         { event: "ai_call", success: true, ...metadata },
         "AI call succeeded",
       );
-      // TODO(6a-2): write metadata + truncated raw payload to LLMCallLog.
-      // Schema lands in 6a-2; until then, log-only.
+      await writeLogSafely(prismaClient, {
+        promptKey,
+        promptVersion,
+        model,
+        mode,
+        userId,
+        latencyMs,
+        inputTokens,
+        outputTokens,
+        costEstimateUsd,
+        retryCount: attempt,
+        success: true,
+        failureReason: null,
+      });
       return { success: true, data: parsed.data as z.infer<T>, metadata };
     }
 
@@ -197,6 +264,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
 
   // Exhausted retries.
   const latencyMs = Date.now() - start;
+  const retryCount = attempt - 1;
   logger.warn(
     {
       event: "ai_call",
@@ -208,25 +276,58 @@ export async function runAICall<T extends z.ZodTypeAny>(
       latencyMs,
       inputTokens,
       outputTokens,
-      retryCount: attempt - 1,
+      retryCount,
       validationError: lastValidationError,
     },
     "AI call failed schema validation after retry",
   );
+  await writeLogSafely(prismaClient, {
+    promptKey,
+    promptVersion,
+    model,
+    mode,
+    userId,
+    latencyMs,
+    inputTokens,
+    outputTokens,
+    costEstimateUsd: estimateCostUsdFromRate(rate, inputTokens, outputTokens),
+    retryCount,
+    success: false,
+    failureReason: "validation_failed",
+  });
   return failure({
     promptKey,
+    promptVersion,
     model,
     mode,
     latencyMs,
     inputTokens,
     outputTokens,
-    retryCount: attempt - 1,
+    retryCount,
     reason: "validation_failed",
     internalError: lastValidationError,
   });
 }
 
 // ── helpers ──────────────────────────────────────────────────────────
+
+// LLMCallLog write — non-fatal. A failed write must not propagate or change
+// the AI call's result. If `prisma` is null (test or unconfigured caller),
+// skip silently.
+async function writeLogSafely(
+  prisma: PrismaLike | null,
+  data: LLMCallLogCreateData,
+): Promise<void> {
+  if (!prisma) return;
+  try {
+    await prisma.lLMCallLog.create({ data });
+  } catch (err) {
+    logger.error(
+      { event: "llm_call_log_write", err, promptKey: data.promptKey },
+      "LLMCallLog write failed — call result preserved",
+    );
+  }
+}
 
 function buildUserMessage(args: {
   baseBody: string;
@@ -261,6 +362,7 @@ function inferSdkErrorReason(err: unknown): AICallFailureReason {
 
 function failure(args: {
   promptKey: string;
+  promptVersion: number | null;
   model: string;
   mode: AICallMode;
   latencyMs: number;
@@ -277,7 +379,7 @@ function failure(args: {
     internalError: args.internalError,
     metadata: {
       promptKey: args.promptKey,
-      promptVersion: null,
+      promptVersion: args.promptVersion,
       model: args.model,
       mode: args.mode,
       latencyMs: args.latencyMs,
