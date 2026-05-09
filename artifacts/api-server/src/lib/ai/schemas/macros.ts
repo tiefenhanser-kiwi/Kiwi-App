@@ -53,7 +53,6 @@ export const MacroRecalcInputSchema = z.object({
   ),
   userPreferences: z
     .object({
-      dailyCalorieTarget: z.number().positive().optional(),
       proteinPriority: z.enum(["low", "medium", "high"]).optional(),
     })
     .optional(),

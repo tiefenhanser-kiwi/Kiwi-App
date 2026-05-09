@@ -204,7 +204,6 @@ async function main() {
     update: {
       equipment: ["oven", "stove", "microwave"],
       spiceTolerance: "mild",
-      dailyCalorieTarget: 1800,
       budgetLevel: "budget",
       pickyAvoidances: [],
       recurringItems: ["olive_oil", "salt", "garlic"],
@@ -215,7 +214,6 @@ async function main() {
       wantsLeftovers: true,
       equipment: ["oven", "stove", "microwave"],
       spiceTolerance: "mild",
-      dailyCalorieTarget: 1800,
       budgetLevel: "budget",
       pickyAvoidances: [],
       recurringItems: ["olive_oil", "salt", "garlic"],

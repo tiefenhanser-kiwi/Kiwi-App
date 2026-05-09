@@ -145,7 +145,6 @@ export function createWizardRouter(
         select: {
           equipment: true,
           spiceTolerance: true,
-          dailyCalorieTarget: true,
           budgetLevel: true,
           pickyAvoidances: true,
           recurringItems: true,
@@ -166,7 +165,6 @@ export function createWizardRouter(
     return {
       equipment: preferences?.equipment ?? [],
       spiceTolerance: preferences?.spiceTolerance ?? undefined,
-      dailyCalorieTarget: preferences?.dailyCalorieTarget ?? undefined,
       budgetLevel: preferences?.budgetLevel ?? undefined,
       pickyAvoidances: preferences?.pickyAvoidances ?? [],
       recurringItems: preferences?.recurringItems ?? [],

@@ -24,7 +24,6 @@ export const WizardInputSchema = z.object({
     .object({
       equipment: z.array(z.string()).optional(),
       spiceTolerance: z.enum(["mild", "medium", "hot"]).optional(),
-      dailyCalorieTarget: z.number().int().positive().optional(),
       budgetLevel: z.enum(["budget", "mid_range", "premium"]).optional(),
       pickyAvoidances: z.array(z.string()).optional(),
       recurringItems: z.array(z.string()).optional(),

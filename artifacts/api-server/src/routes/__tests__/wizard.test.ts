@@ -31,7 +31,6 @@ interface StubPrismaOpts {
   preferences?: {
     equipment?: string[];
     spiceTolerance?: "mild" | "medium" | "hot";
-    dailyCalorieTarget?: number | null;
     budgetLevel?: "budget" | "mid_range" | "premium";
     pickyAvoidances?: string[];
     recurringItems?: string[];
@@ -274,7 +273,6 @@ describe("POST /api/wizard/build-plans — happy path", () => {
     preferences: {
       equipment: ["oven", "stove", "instant_pot"],
       spiceTolerance: "medium",
-      dailyCalorieTarget: 2000,
       budgetLevel: "mid_range",
       pickyAvoidances: ["cilantro"],
       recurringItems: ["olive_oil", "salt"],
@@ -335,7 +333,6 @@ describe("POST /api/wizard/build-plans — happy path", () => {
     const ctx = lastVars.wizardInput.hiddenContext as Record<string, unknown>;
     assert.deepEqual(ctx.equipment, ["oven", "stove", "instant_pot"]);
     assert.equal(ctx.spiceTolerance, "medium");
-    assert.equal(ctx.dailyCalorieTarget, 2000);
     assert.equal(ctx.budgetLevel, "mid_range");
     assert.deepEqual(ctx.pickyAvoidances, ["cilantro"]);
     assert.deepEqual(ctx.recurringItems, ["olive_oil", "salt"]);

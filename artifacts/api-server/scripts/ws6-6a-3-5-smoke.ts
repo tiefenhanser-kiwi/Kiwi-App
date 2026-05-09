@@ -2,9 +2,9 @@
 //
 // Sequence:
 //   1. Upsert a smoke-test user (idempotent — re-runs are safe).
-//   2. Populate UserPreferences with non-default values for the 6 hidden-
+//   2. Populate UserPreferences with non-default values for the hidden-
 //      context fields (equipment without instant_pot to verify exclusion,
-//      spiceTolerance=mild, dailyCalorieTarget=1800, etc).
+//      spiceTolerance=mild, etc).
 //   3. Issue a real authenticated POST /api/wizard/build-plans against the
 //      running api-server. This hits the real Anthropic API.
 //   4. Read the LLMCallLog row written by the call and print it.
@@ -41,7 +41,6 @@ async function main() {
     update: {
       equipment: ["oven", "stove", "microwave"],
       spiceTolerance: "mild",
-      dailyCalorieTarget: 1800,
       budgetLevel: "budget",
       pickyAvoidances: ["cilantro"],
       recurringItems: ["olive_oil", "salt", "garlic"],
@@ -52,7 +51,6 @@ async function main() {
       wantsLeftovers: true,
       equipment: ["oven", "stove", "microwave"],
       spiceTolerance: "mild",
-      dailyCalorieTarget: 1800,
       budgetLevel: "budget",
       pickyAvoidances: ["cilantro"],
       recurringItems: ["olive_oil", "salt", "garlic"],
@@ -110,7 +108,6 @@ async function main() {
     select: {
       equipment: true,
       spiceTolerance: true,
-      dailyCalorieTarget: true,
       budgetLevel: true,
       pickyAvoidances: true,
       recurringItems: true,

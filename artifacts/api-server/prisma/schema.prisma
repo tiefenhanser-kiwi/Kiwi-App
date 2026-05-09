@@ -221,7 +221,6 @@ model UserPreferences {
   // Server-injected only; not user-editable from the wizard form.
   equipment            String[]        @default([])
   spiceTolerance       SpiceTolerance  @default(medium)
-  dailyCalorieTarget   Int?
   budgetLevel          BudgetLevel     @default(mid_range)
   pickyAvoidances      String[]        @default([])
   recurringItems       String[]        @default([])
