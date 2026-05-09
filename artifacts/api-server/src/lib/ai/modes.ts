@@ -21,13 +21,19 @@ export function stripFences(s: string): string {
 
 // Build the tools[] array for tool_use mode.
 // One tool per call, forced via tool_choice.
+//
+// Anthropic's tool input_schema validator requires JSON Schema draft 2020-12.
+// `target: "openApi3"` (zod-to-json-schema's default for OpenAPI) produces
+// `nullable: true` and other constructs the validator rejects. Default
+// jsonSchema7 output is close enough to 2020-12 that Anthropic accepts it.
+// (D-WS6-010 candidate — confirmed by Anthropic API rejecting openApi3 output
+// during the 6a-3 end-to-end smoke.)
 export function buildToolForSchema(
   schema: z.ZodTypeAny,
   description: string,
 ): Anthropic.Tool[] {
   const inputSchema = zodToJsonSchema(schema, {
     name: TOOL_NAME,
-    target: "openApi3",
     $refStrategy: "none",
   }) as Record<string, unknown>;
 
@@ -35,6 +41,10 @@ export function buildToolForSchema(
   const def = (inputSchema.definitions as Record<string, unknown> | undefined)
     ?.[TOOL_NAME] as Record<string, unknown> | undefined;
   const finalSchema = def ?? inputSchema;
+
+  // Strip the $schema field — Anthropic's validator doesn't accept it on
+  // input_schema.
+  delete (finalSchema as Record<string, unknown>).$schema;
 
   // Anthropic tools expect input_schema.type === "object".
   return [
