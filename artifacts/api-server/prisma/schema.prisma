@@ -131,12 +131,25 @@ enum ActivityEventType {
   order_groceries
   wizard_start
   wizard_complete
+  wizard_failure
   plan_created
   plan_deleted
   upgrade_started
   upgrade_completed
   trial_started
   trial_expired
+}
+
+enum SpiceTolerance {
+  mild
+  medium
+  hot
+}
+
+enum BudgetLevel {
+  budget
+  mid_range
+  premium
 }
 
 enum AIPromptMode {
@@ -147,64 +160,72 @@ enum AIPromptMode {
 // ── MODELS ──
 
 model User {
-  id                   String             @id @default(uuid())
-  email                String             @unique
-  passwordHash         String?
-  firstName            String
-  lastName             String
-  phone                String?
-  zipCode              String?
-  timezone             String             @default("America/New_York")
-  accountStatus        AccountStatus      @default(active)
-  subscriptionStatus   SubscriptionStatus @default(trialing)
-  defaultHouseholdSize Int                @default(2)
-  customerStartDate    DateTime           @default(now())
-  customerEndDate      DateTime?
-  lastLoginAt          DateTime?
-  lastActiveAt         DateTime?
-  loginCountTotal      Int                @default(0)
-  lastPlanDiscoveryFilters String[]       @default([])
-  lastPlansFilters         String[]       @default([])
-  lastMealsFilters         String[]       @default([])
-  marketingConsentEmail Boolean            @default(false)
-  marketingConsentSms   Boolean            @default(false)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  id                       String             @id @default(uuid())
+  email                    String             @unique
+  passwordHash             String?
+  firstName                String
+  lastName                 String
+  phone                    String?
+  zipCode                  String?
+  timezone                 String             @default("America/New_York")
+  accountStatus            AccountStatus      @default(active)
+  subscriptionStatus       SubscriptionStatus @default(trialing)
+  defaultHouseholdSize     Int                @default(2)
+  customerStartDate        DateTime           @default(now())
+  customerEndDate          DateTime?
+  lastLoginAt              DateTime?
+  lastActiveAt             DateTime?
+  loginCountTotal          Int                @default(0)
+  lastPlanDiscoveryFilters String[]           @default([])
+  lastPlansFilters         String[]           @default([])
+  lastMealsFilters         String[]           @default([])
+  marketingConsentEmail    Boolean            @default(false)
+  marketingConsentSms      Boolean            @default(false)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
   // Relations
-  preferences         UserPreferences?
-  pantryStaples       PantryStaple[]
-  planTemplates       MealPlanTemplate[]
-  planInstances       MealPlanInstance[]
-  meals               Meal[]
-  dishes              Dish[]
-  groceryLists        GroceryList[]
-  retailerConnections RetailerConnection[]
-  orderSessions       OrderSession[]
-  subscription        Subscription?
-  activities          UserActivity[]
-  aiPromptVersionsCreated AIPromptVersion[] @relation("PromptVersionCreator")
-  systemSettingsUpdated   SystemSetting[]   @relation("SettingUpdater")
-  llmCalls                LLMCallLog[]      @relation("LLMCallUser")
+  preferences             UserPreferences?
+  pantryStaples           PantryStaple[]
+  planTemplates           MealPlanTemplate[]
+  planInstances           MealPlanInstance[]
+  meals                   Meal[]
+  dishes                  Dish[]
+  groceryLists            GroceryList[]
+  retailerConnections     RetailerConnection[]
+  orderSessions           OrderSession[]
+  subscription            Subscription?
+  activities              UserActivity[]
+  aiPromptVersionsCreated AIPromptVersion[]    @relation("PromptVersionCreator")
+  systemSettingsUpdated   SystemSetting[]      @relation("SettingUpdater")
+  llmCalls                LLMCallLog[]         @relation("LLMCallUser")
 
   @@map("users")
 }
 
 model UserPreferences {
-  id                    String          @id @default(uuid())
-  userId                String          @unique
-  householdSize         Int             @default(2)
-  wantsLeftovers        Boolean         @default(true)
-  difficultyDefault     DifficultyLevel @default(easy)
-  weeklyPacingDefault   WeeklyPacing    @default(mostly_easy)
-  dietaryRestrictions   String[]        @default([])
-  cuisinePreferences    String[]        @default([])
-  breakfastDefaults     String?
-  lunchDefaults         String?
-  macroPref             String[]        @default([])
-  notificationsEnabled  Boolean         @default(true)
-  lastUsedRetailerId    String?
-  updatedAt             DateTime        @updatedAt
+  id                   String          @id @default(uuid())
+  userId               String          @unique
+  householdSize        Int             @default(2)
+  wantsLeftovers       Boolean         @default(true)
+  difficultyDefault    DifficultyLevel @default(easy)
+  weeklyPacingDefault  WeeklyPacing    @default(mostly_easy)
+  dietaryRestrictions  String[]        @default([])
+  cuisinePreferences   String[]        @default([])
+  breakfastDefaults    String?
+  lunchDefaults        String?
+  macroPref            String[]        @default([])
+  notificationsEnabled Boolean         @default(true)
+  lastUsedRetailerId   String?
+  // Hidden-context fields surfaced into the wizard AI input (PRD §5.7).
+  // Server-injected only; not user-editable from the wizard form.
+  equipment            String[]        @default([])
+  spiceTolerance       SpiceTolerance  @default(medium)
+  dailyCalorieTarget   Int?
+  budgetLevel          BudgetLevel     @default(mid_range)
+  pickyAvoidances      String[]        @default([])
+  recurringItems       String[]        @default([])
+  updatedAt            DateTime        @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -593,14 +614,14 @@ model UserActivity {
 // ── WS6 AI orchestration (per kiwi_ws6_plan.md §3 6a-2) ──
 
 model AIPrompt {
-  id           String            @id @default(uuid())
-  key          String            @unique
+  id           String       @id @default(uuid())
+  key          String       @unique
   description  String
-  variables    String[]          @default([])
+  variables    String[]     @default([])
   defaultModel String
   defaultMode  AIPromptMode
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   versions AIPromptVersion[]
 
