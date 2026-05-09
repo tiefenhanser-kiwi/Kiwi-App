@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -14,7 +14,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { findSimilarMealsByCuisine } from "@/lib/stubs";
+import { useFindSimilarMeals } from "@/hooks/useFindSimilarMeals";
+import { mealSummaryToCandidate } from "@/lib/api/meals";
+import {
+  findSimilarMealsByCuisine,
+  getFeaturedMeals,
+  getHostingMeals,
+  getMealById,
+  getSavedMeals,
+  getTopRatedMeals,
+} from "@/lib/stubs";
 import type { MealSummary } from "@/lib/types";
 
 export interface FindSimilarSheetProps {
@@ -43,22 +52,92 @@ export function FindSimilarSheet({
 }: FindSimilarSheetProps) {
   const insets = useSafeAreaInsets();
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
+  const [aiOrderedIds, setAiOrderedIds] = useState<string[] | null>(null);
+  const [usedFallback, setUsedFallback] = useState(false);
 
-  const matches = useMemo(() => {
+  const findSimilarMutation = useFindSimilarMeals();
+
+  // Build the candidate pool from all four buckets per PRD §8.4. WS7 replaces
+  // these stubs with real catalog fetches.
+  const candidatePool = useMemo<MealSummary[]>(() => {
     if (!sourceMealId) return [];
-    return sortMeals(findSimilarMealsByCuisine(sourceMealId), sortKey);
-  }, [sourceMealId, sortKey]);
+    const all = [
+      ...getSavedMeals(),
+      ...getFeaturedMeals(),
+      ...getTopRatedMeals(),
+      ...getHostingMeals(),
+    ];
+    return all.filter((m) => m.id !== sourceMealId);
+  }, [sourceMealId]);
+
+  const sourceMeal = useMemo(
+    () => (sourceMealId ? getMealById(sourceMealId) : undefined),
+    [sourceMealId],
+  );
+
+  // Fire the AI call when the sheet opens with a fresh source. Reset state
+  // each time so re-opening for a different meal doesn't leak prior matches.
+  useEffect(() => {
+    if (!visible || !sourceMeal) {
+      setAiOrderedIds(null);
+      setUsedFallback(false);
+      findSimilarMutation.reset();
+      return;
+    }
+    setAiOrderedIds(null);
+    setUsedFallback(false);
+    findSimilarMutation.mutate(
+      {
+        source: {
+          id: sourceMeal.id,
+          title: sourceMeal.title,
+          cuisine: sourceMeal.cuisineType ?? null,
+          mealType: "dinner",
+          tags: sourceMeal.tags,
+        },
+        candidates: candidatePool.map(mealSummaryToCandidate),
+        limit: 10,
+      },
+      {
+        onSuccess: (data) => {
+          setAiOrderedIds(data.matches.map((m) => m.mealId));
+          setUsedFallback(false);
+        },
+        onError: () => {
+          setUsedFallback(true);
+        },
+      },
+    );
+    // We intentionally only re-fire when the visible/source changes — not on
+    // candidatePool churn, which would loop in an effect that owns the call.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, sourceMealId]);
+
+  // Build the rendered list. AI path: respect AI's score order unless the
+  // user picked a different sort. Fallback path: cuisine-only filter from
+  // the existing stub helper.
+  const matches = useMemo<MealSummary[]>(() => {
+    if (!sourceMealId) return [];
+    if (aiOrderedIds) {
+      const byId = new Map(candidatePool.map((m) => [m.id, m]));
+      const ordered = aiOrderedIds
+        .map((id) => byId.get(id))
+        .filter((m): m is MealSummary => !!m);
+      // Default sort = AI order (we treat "alpha" as "AI order" here so the
+      // existing dropdown still works for any of the explicit sort keys).
+      return sortKey === "alpha" ? ordered : sortMeals(ordered, sortKey);
+    }
+    if (usedFallback) {
+      return sortMeals(findSimilarMealsByCuisine(sourceMealId), sortKey);
+    }
+    return [];
+  }, [sourceMealId, aiOrderedIds, usedFallback, sortKey, candidatePool]);
+
+  const isLoading = findSimilarMutation.isPending;
 
   const handlePick = (meal: MealSummary) => {
     onPickReplacement(meal);
     onClose();
-  };
-
-  const handleAskKiwi = () => {
-    Alert.alert(
-      "Coming in WS6 — AI orchestration",
-      "Kiwi will suggest similar meals when AI orchestration ships. For now, similar meals are matched by cuisine.",
-    );
   };
 
   return (
@@ -88,18 +167,34 @@ export function FindSimilarSheet({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Section 1: Cuisine-matched meals */}
+          {usedFallback && (
+            <View style={s.fallbackBanner}>
+              <Feather
+                name="alert-circle"
+                size={14}
+                color={KColors.terracotta[700]}
+              />
+              <Text style={s.fallbackBannerText}>
+                Showing cuisine matches — couldn&apos;t reach Kiwi
+              </Text>
+            </View>
+          )}
+
           <View style={s.sectionTitleRow}>
             <Text style={s.sectionTitle}>Similar meals</Text>
             <SortDropdown value={sortKey} onChange={setSortKey} />
           </View>
 
-          {matches.length === 0 ? (
+          {isLoading ? (
+            <View style={s.loadingCard}>
+              <ActivityIndicator color={KColors.sage[700]} />
+              <Text style={s.loadingText}>Kiwi is thinking…</Text>
+            </View>
+          ) : matches.length === 0 ? (
             <View style={s.emptyCard}>
-              <Text style={s.emptyTitle}>No similar meals saved yet.</Text>
+              <Text style={s.emptyTitle}>No similar meals found.</Text>
               <Text style={s.emptyBody}>
-                Try asking Kiwi to find one for you below, or use Change Meal
-                to browse all your options.
+                Try Change Meal to browse all your options.
               </Text>
             </View>
           ) : (
@@ -113,32 +208,6 @@ export function FindSimilarSheet({
               ))}
             </View>
           )}
-
-          {/* Section 2: Ask Kiwi (premium-locked) */}
-          <Pressable
-            onPress={handleAskKiwi}
-            style={({ pressed }) => [
-              s.askSection,
-              s.sectionGap,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <View style={s.askHeader}>
-              <Text style={s.sectionTitle}>Ask Kiwi for a similar meal</Text>
-              <View style={s.premiumPill}>
-                <Feather
-                  name="lock"
-                  size={10}
-                  color={KColors.terracotta[700]}
-                />
-                <Text style={s.premiumPillText}>Premium</Text>
-              </View>
-            </View>
-            <Text style={s.sectionSubtitle}>
-              Premium · coming in WS6 — Kiwi will find similar meals based on
-              this meal's flavor profile, ingredients, and your preferences
-            </Text>
-          </Pressable>
         </ScrollView>
       </View>
     </Modal>
@@ -231,6 +300,22 @@ const s = StyleSheet.create({
     padding: KSpacing.lg,
     paddingBottom: KSpacing.xxxl,
   },
+  fallbackBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.xs,
+    backgroundColor: KColors.terracotta[100],
+    borderRadius: KRadius.sm,
+    paddingVertical: KSpacing.xs,
+    paddingHorizontal: KSpacing.sm,
+    marginBottom: KSpacing.sm,
+  },
+  fallbackBannerText: {
+    fontSize: KType.size.xs,
+    color: KColors.terracotta[700],
+    fontFamily: "Inter_500Medium",
+    flex: 1,
+  },
   sectionTitleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -243,18 +328,20 @@ const s = StyleSheet.create({
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
   },
-  sectionSubtitle: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginTop: 4,
-  },
-  sectionGap: {
-    marginTop: KSpacing.lg,
-  },
   list: {
     gap: KSpacing.sm,
     marginTop: KSpacing.sm,
+  },
+  loadingCard: {
+    marginTop: KSpacing.lg,
+    alignItems: "center",
+    gap: KSpacing.sm,
+    padding: KSpacing.lg,
+  },
+  loadingText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
   },
   emptyCard: {
     marginTop: KSpacing.sm,
@@ -318,34 +405,5 @@ const s = StyleSheet.create({
     fontSize: KType.size.xs,
     color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
-  },
-  askSection: {
-    backgroundColor: KColors.neutral[50],
-    borderRadius: KRadius.md,
-    borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
-    opacity: 0.95,
-  },
-  askHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: KSpacing.sm,
-  },
-  premiumPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: KColors.terracotta[100],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: 4,
-  },
-  premiumPillText: {
-    fontSize: KType.size.xs,
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
   },
 });
