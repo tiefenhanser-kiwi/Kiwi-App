@@ -1,16 +1,22 @@
-// One-shot end-to-end smoke for WS6 6a-4 — Tell Kiwi two-step pipeline.
+// Cumulative live-server smoke for WS6 6a (extended in 6a-5).
 //
-// Sequence (5 inputs, one per scenario):
-//   1. "Make me an easy week"                                       → vague
-//   2. "I want tacos one night and pasta one night"                  → partial
-//   3. "Mon: tacos, Tue: salmon, Wed: stir fry, Thu: pizza, Fri: pasta" → fully_specified
-//   4. "I want tacos, salmon, lasagna, stir fry, pizza, pasta, soup, sandwiches" → overflow
-//   5. "yellow"                                                      → unclear
+// Sequence:
+//   0. GET  /api/healthz                                              → 200
+//   1. POST /api/wizard/build-plans  (Set Preferences wizard)          → 1-3 candidates
+//   2. POST /api/wizard/build-from-text "Make me an easy week"         → vague
+//   3. POST /api/wizard/build-from-text "I want tacos one night..."    → partial
+//   4. POST /api/wizard/build-from-text "Mon: tacos, Tue: salmon..."   → fully_specified
+//   5. POST /api/wizard/build-from-text "I want tacos, salmon, ..."    → overflow
+//   6. POST /api/wizard/build-from-text "yellow"                       → unclear
 //
 // For each input: print parsedIntent, candidate count, and LLMCallLog row
-// counts (2 rows for the first 4 scenarios, 1 for unclear). The smoke uses
-// the 6a-3.5 user (already populated with hidden context) so we exercise the
-// real injection path too.
+// counts (1 row for build-plans + unclear; 2 rows for the four other Tell
+// Kiwi scenarios). Uses the 6a-4 smoke user (already populated with hidden
+// context) so we exercise the real injection path too.
+//
+// Differs from ws6-6a-4-smoke-inproc.ts: hits a real `pnpm dev` process over
+// HTTP, so verifies the live wire-up matches what the unit tests verify in
+// isolation.
 
 import { PrismaClient } from "@prisma/client";
 import { signToken } from "../src/lib/auth.ts";
@@ -81,6 +87,77 @@ interface ScenarioReport {
   candidateMealTitles: string[][];
 }
 
+interface SetPrefsReport {
+  pass: boolean;
+  candidates: number;
+  llmCallCount: number;
+  candidateTitles: string[];
+}
+
+async function runSetPreferences(token: string): Promise<SetPrefsReport> {
+  console.log("\n══════════════════════════════════════════════════════════");
+  console.log("Scenario 1/6: SET PREFERENCES (POST /api/wizard/build-plans)");
+
+  const requestBody = {
+    planDurationDays: 5,
+    householdSize: 2,
+    wantsLeftovers: true,
+    cuisines: ["Italian", "Mediterranean"],
+    eatingStyles: [],
+    allergiesAndAvoidances: ["Shellfish"],
+    difficulty: "easy",
+    weeklyPacing: "one_fancy_night",
+  };
+
+  const before = await prisma.lLMCallLog.count({
+    where: {
+      userId: SMOKE_USER_ID,
+      promptKey: "wizard.set_preferences.generate",
+    },
+  });
+
+  const startedAt = Date.now();
+  const res = await fetch(`${API_BASE}/wizard/build-plans`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(requestBody),
+  });
+  const elapsedMs = Date.now() - startedAt;
+  const text = await res.text();
+  console.log(`  Response: HTTP ${res.status} in ${elapsedMs}ms`);
+
+  if (!res.ok) {
+    console.log(`  BODY: ${text.slice(0, 400)}`);
+    return { pass: false, candidates: 0, llmCallCount: 0, candidateTitles: [] };
+  }
+
+  const body = JSON.parse(text) as {
+    candidates: { title: string }[];
+  };
+  console.log(`  candidates = ${body.candidates.length}`);
+
+  const after = await prisma.lLMCallLog.count({
+    where: {
+      userId: SMOKE_USER_ID,
+      promptKey: "wizard.set_preferences.generate",
+    },
+  });
+  const newLogs = after - before;
+  console.log(`  LLMCallLog rows added: ${newLogs}`);
+
+  const candidatesPass = body.candidates.length >= 1 && body.candidates.length <= 3;
+  const logsPass = newLogs === 1;
+  return {
+    pass: candidatesPass && logsPass,
+    candidates: body.candidates.length,
+    llmCallCount: newLogs,
+    candidateTitles: body.candidates.map((c) => c.title),
+  };
+}
+
 async function runOne(
   token: string,
   c: SmokeCase,
@@ -148,16 +225,28 @@ async function runOne(
     console.log(`  needsClarification = ${JSON.stringify(body.needsClarification)}`);
   }
 
-  // Pull the new log rows for this user since we started.
-  const afterLogs = await prisma.lLMCallLog.findMany({
+  // Pull the new log rows added since this scenario began. Take(N) at the
+  // diff size avoids slicing math that breaks once historical logs accumulate.
+  const afterCount = await prisma.lLMCallLog.count({
     where: {
       userId: SMOKE_USER_ID,
       promptKey: { in: ["wizard.directed.parse_intent", "wizard.directed.generate"] },
     },
-    orderBy: { createdAt: "desc" },
-    take: 5,
   });
-  const newLogs = afterLogs.slice(0, afterLogs.length - beforeLogs);
+  const diff = afterCount - beforeLogs;
+  const newLogs =
+    diff > 0
+      ? await prisma.lLMCallLog.findMany({
+          where: {
+            userId: SMOKE_USER_ID,
+            promptKey: {
+              in: ["wizard.directed.parse_intent", "wizard.directed.generate"],
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: diff,
+        })
+      : [];
   console.log(`  LLMCallLog rows added: ${newLogs.length}`);
   for (const log of newLogs) {
     console.log(
@@ -222,6 +311,21 @@ async function main() {
 
   const token = signToken(user.id);
 
+  // Step 0: healthz preflight — fail fast if the server isn't listening.
+  console.log("\n══════════════════════════════════════════════════════════");
+  console.log("Preflight: GET /api/healthz");
+  const healthRes = await fetch(`${API_BASE}/healthz`);
+  console.log(`  HTTP ${healthRes.status}`);
+  if (!healthRes.ok) {
+    console.error("healthz failed; bailing");
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 1: Set Preferences wizard (representative input — same shape as
+  // the 6a-3.5 smoke).
+  const setPrefsReport = await runSetPreferences(token);
+
   const reports: ScenarioReport[] = [];
   for (let i = 0; i < CASES.length; i++) {
     const r = await runOne(token, CASES[i], i);
@@ -231,6 +335,9 @@ async function main() {
   console.log("\n══════════════════════════════════════════════════════════");
   console.log("SUMMARY");
   console.log("══════════════════════════════════════════════════════════");
+  console.log(
+    `  [${"set_preferences".padEnd(16)}] ${setPrefsReport.pass ? "✓" : "✗"}            (${setPrefsReport.candidates} candidates, ${setPrefsReport.llmCallCount} log)`,
+  );
   for (const r of reports) {
     const flags = [
       r.scenarioPass ? "✓ scenario" : "✗ scenario",
@@ -255,9 +362,11 @@ async function main() {
     );
   }
 
-  const allPass = reports.every(
-    (r) => r.scenarioPass && r.candidatesPass && r.llmCallsPass,
-  );
+  const allPass =
+    setPrefsReport.pass &&
+    reports.every(
+      (r) => r.scenarioPass && r.candidatesPass && r.llmCallsPass,
+    );
   console.log(
     `\n  Overall: ${allPass ? "✅ PASS" : "❌ FAIL — see details above"}`,
   );
