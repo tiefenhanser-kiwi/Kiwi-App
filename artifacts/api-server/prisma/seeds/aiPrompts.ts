@@ -1,17 +1,21 @@
-// WS6 6a-2 — Seed AIPrompt + AIPromptVersion rows.
-// Source-of-truth for the placeholder bodies + descriptors is the in-memory
-// REGISTRY in src/lib/ai/promptRegistry.ts. This seed mirrors that data into
-// the DB so DB-backed lookup works after 6a-2 ships. Real prompt bodies are
-// authored per-flow in 6a-3 onward; this seed only establishes the rows.
+// CANONICAL PROMPT SOURCE OF TRUTH (D-WS6-016, resolved in 6a-5)
+//
+// To iterate a prompt:
+//   1. Edit the body string in this file.
+//   2. Run: pnpm --filter @workspace/api-server prisma:seed
+//   3. Restart the api-server.
+//   4. Test in ExpoGo.
+//
+// Do NOT edit prompt versions directly in the DB — your changes will be
+// overwritten on the next seed run. The DB stores prompts so that
+// LLMCallLog.promptVersion remains diagnostic, but the file is canonical.
 //
 // Version-bump pattern (per PRD §15.4.1):
-//   - If a version with the desired body already exists → ensure it's active
-//     (idempotent re-runs are no-ops).
-//   - If the desired body differs from any existing version → create a new
-//     version, deactivate the prior active, activate the new — all in one
-//     transaction. v1 is preserved as rollback target.
-//
-// All operations are idempotent and safe to re-run.
+//   - No AIPrompt row for the key → create AIPrompt + AIPromptVersion v1 (active).
+//   - Active version body matches seed body → no-op (idempotent re-runs).
+//   - Active version body differs from seed body → deactivate current active,
+//     insert next version, activate it. Older versions are kept for audit only;
+//     this seed never reactivates them.
 
 import type { PrismaClient } from "@prisma/client";
 
@@ -141,7 +145,6 @@ Apply these as biases — they shape the menu but do not override hard constrain
 - Low-carb → bias meals toward <30g carbs/serving on average.
 - Healthy / weight-loss → bias meals toward <600 calories/serving on average.
 - \`hiddenContext.spiceTolerance\` → bias dishes within the user's heat tolerance. Never push hot dishes onto a \`mild\` user.
-- \`hiddenContext.dailyCalorieTarget\` (when set) → bias the per-day average toward the target ±10%.
 - \`hiddenContext.budgetLevel\` → favor pantry-friendly proteins on \`budget\`; allow finer cuts on \`premium\`.
 - \`hiddenContext.recurringItems\` → staples the user always has on hand; prefer reusing them where natural.
 - \`wantsLeftovers: true\` → target servings = householdSize + 1-2; \`false\` → exactly householdSize. Reflect this in ingredient quantities you'd reason about.
@@ -186,10 +189,10 @@ The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`us
 
 Generate the candidates now. Return ONLY the tool_use call.`;
 
-// REVIEW(hans-6a-3): wizard.set_preferences.generate prompt body lives below.
-// This is the initial authored body — Hans will iterate it via direct DB
-// edits to AIPromptVersion (admin path, no code redeploy needed). The seed
-// will detect divergence on next run and bump to a new version automatically.
+// wizard.set_preferences.generate prompt body. Synced from DB v2 in 6a-5
+// (Hans iterated this directly in DB during 6a-3.5 → 6a-4). This file is now
+// canonical (D-WS6-016 resolution): edit this string, run prisma:seed,
+// restart server.
 const WIZARD_SET_PREFERENCES_GENERATE_BODY = `You are Kiwi's meal-planning AI. You generate weekly dinner plans based on user preferences.
 
 Your sole deliverable is the structured tool_use response. Do not narrate, summarize, or comment outside the tool call. The JSON is the entire response. Never break character with chatbot phrases like "I noticed..." or "Here's what I created..."
@@ -219,14 +222,9 @@ Apply these as biases — they shape the menu but do not override hard constrain
 - Low-carb → bias meals toward <30g carbs/serving on average.
 - Healthy / weight-loss → bias meals toward <600 calories/serving on average.
 - \`weeklyPacing = mostly_easy\` or \`minimal_effort\` → weight toward easy difficulty meals.
-- \`weeklyPacing = one_fancy_night\` → 4 easy/medium meals + 1 fancier night.
+- \`weeklyPacing = one_fancy\` → 4 easy/medium meals + 1 fancier night.
 - \`weeklyPacing = mixed\` → balanced mix.
 - \`difficulty\` field is the user's overall ceiling — never exceed it across the plan.
-- \`hiddenContext.spiceTolerance\` (\`mild\`/\`medium\`/\`hot\`) → bias dishes within the user's heat tolerance. Never push hot dishes onto a \`mild\` user.
-- \`hiddenContext.dailyCalorieTarget\` (when set) → bias the per-day average toward the target ±10%.
-- \`hiddenContext.budgetLevel\` (\`budget\`/\`mid_range\`/\`premium\`) → favor pantry-friendly proteins and produce on \`budget\`; allow finer cuts and specialty items on \`premium\`.
-- \`hiddenContext.pickyAvoidances\` → treat as additional hard exclusions for the household (same weight as allergies).
-- \`hiddenContext.recurringItems\` → staples the user always has on hand; prefer reusing them where natural.
 
 # Servings and household
 
@@ -266,7 +264,7 @@ Aim for one tightly themed candidate (e.g., "Cozy Comfort Week"), one balanced/d
 
 # Wizard input
 
-The user's full \`WizardInput\` arrives as a JSON object below. Use every field. Hidden context fields (\`hiddenContext.equipment\`, \`hiddenContext.spiceTolerance\`, \`hiddenContext.dailyCalorieTarget\`, \`hiddenContext.budgetLevel\`, \`hiddenContext.pickyAvoidances\`, \`hiddenContext.recurringItems\`, \`hiddenContext.pantryStaples\`, \`hiddenContext.recentMealIds\`) are server-injected from the user's profile — treat them with equal weight as the user-supplied fields.
+The user's full \`WizardInput\` arrives as a JSON object below. Use every field. Hidden context fields (\`hiddenContext.equipment\`, \`hiddenContext.spiceTolerance\`, \`hiddenContext.pantryStaples\`, \`hiddenContext.recentMealIds\`) are server-injected from the user's profile — treat them with equal weight as the user-supplied fields.
 
 \`\`\`json
 {{wizardInput}}
@@ -460,32 +458,21 @@ async function upsertPromptWithVersionBump(
     select: { id: true },
   });
 
-  // Body-match check: do we already have a version with the desired body?
-  const existing = await prisma.aIPromptVersion.findFirst({
-    where: { promptId: prompt.id, body: p.body },
-    select: { id: true, version: true, isActive: true },
+  // Active-version check: does the currently-active body already match the
+  // seed body? If yes, no-op. The seed file is canonical; we only compare
+  // against the active row (no smart "skip if newer" logic).
+  const active = await prisma.aIPromptVersion.findFirst({
+    where: { promptId: prompt.id, isActive: true },
+    select: { id: true, version: true, body: true },
   });
 
-  if (existing) {
-    // Already seeded. If it's the active one, no-op. Otherwise reactivate it
-    // (rollback path: an admin marked an older version active again).
-    if (!existing.isActive) {
-      await prisma.$transaction([
-        prisma.aIPromptVersion.updateMany({
-          where: { promptId: prompt.id, isActive: true },
-          data: { isActive: false },
-        }),
-        prisma.aIPromptVersion.update({
-          where: { id: existing.id },
-          data: { isActive: true },
-        }),
-      ]);
-    }
+  if (active && active.body === p.body) {
     return false;
   }
 
-  // Body differs from every existing version. Create a new version, bumped,
-  // and atomically swap active. Note v1 stays in place as the rollback target.
+  // Either no active version yet (fresh prompt key) or active body differs.
+  // Insert the next version row and activate it; previous active (if any) is
+  // deactivated in the same transaction.
   const max = await prisma.aIPromptVersion.aggregate({
     where: { promptId: prompt.id },
     _max: { version: true },
