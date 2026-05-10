@@ -135,7 +135,7 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
         "Normalize a raw recipe into Kiwi's canonical Dish + step shape with phaseType / parallelGroup.",
     },
   ],
-  // 6b-4 — Kiwi-assist meal builder Mode A
+  // 6b-5 — Meal Builder Mode A (parse free-text meal description)
   [
     "meal_builder.mode_a_parse",
     {
@@ -144,6 +144,27 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       defaultMode: "tool",
       toolDescription:
         "Parse free-text meal description into structured ingredients and steps.",
+    },
+  ],
+  // 6b-4 — Kiwi-assist checkboxes (Dish Builder + Meal Builder Mode B)
+  [
+    "meal_builder.assist_ingredients",
+    {
+      body: placeholder("meal_builder.assist_ingredients"),
+      defaultModel: MODEL_HAIKU,
+      defaultMode: "text",
+      toolDescription:
+        "Fill in or generate a dish's ingredient list from the dish name + cuisine + the user's existing entries.",
+    },
+  ],
+  [
+    "meal_builder.assist_steps",
+    {
+      body: placeholder("meal_builder.assist_steps"),
+      defaultModel: MODEL_HAIKU,
+      defaultMode: "text",
+      toolDescription:
+        "Generate phase-tagged cooking steps from a dish's ingredient list + cuisine.",
     },
   ],
   // 6d-2 — Prep the Week aggregation

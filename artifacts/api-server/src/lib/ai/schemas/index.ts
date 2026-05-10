@@ -10,3 +10,4 @@ export * from "./reformat";
 export * from "./grocery";
 export * from "./prepWeek";
 export * from "./sequencer";
+export * from "./mealBuilder";

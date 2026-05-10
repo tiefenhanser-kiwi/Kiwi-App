@@ -250,6 +250,136 @@ The dish title, servings, and ingredient list arrive below.
 
 Return ONLY the JSON object.`;
 
+// REVIEW(hans-6b-4): meal_builder.assist_ingredients prompt body — Kiwi-assist
+// "Help with ingredients" checkbox in Dish Builder / Meal Builder Mode B (PRD
+// §1.2 — free). Receives the dish name + cuisine + whatever ingredients the
+// user already typed, and fills out a coherent ingredient list. User-typed
+// items are echoed back with isUserProvided=true; any additions get
+// addedByKiwi=true so the form can render the diff visually.
+const MEAL_BUILDER_ASSIST_INGREDIENTS_BODY = `You are Kiwi's ingredient assistant. The user is building a dish and wants Kiwi to fill in the ingredient list. They may have already typed some ingredients — those are LOCKED IN. Your job is to keep what they typed, fill in any missing quantities/units, and add whatever else the dish needs to make sense.
+
+Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
+
+# Output schema
+
+\`\`\`json
+{
+  "ingredients": [
+    {
+      "name": "spaghetti",
+      "quantity": 1,
+      "unit": "lb",
+      "isOptional": false,
+      "isUserProvided": true,
+      "addedByKiwi": false
+    }
+  ],
+  "caveats": ["..."]
+}
+\`\`\`
+
+# Field rules
+
+- **name** — the ingredient name, lower-case unless a proper noun (e.g. "guanciale" not "Guanciale"; "Parmigiano-Reggiano" stays cased). Specific over generic: "pecorino romano" beats "cheese", "extra-virgin olive oil" beats "oil".
+- **quantity** — a positive number sized for the dish's \`servings\` count. Use sensible kitchen quantities (1, 1.5, 0.5, 2, 0.25, 0.33). Never zero, never negative.
+- **unit** — a standard kitchen unit ("cup", "tbsp", "tsp", "oz", "lb", "g", "ml", "each", "clove", "slice", "pinch", "bunch", "can", "head"). Match the ingredient: solids by weight or volume, eggs/cloves/cans by count. Do NOT leave unit empty.
+- **isOptional** — true only for genuinely optional finishing touches (garnish parsley, optional sour cream, optional red pepper flakes). Default to false / omit.
+- **isUserProvided** — true if this ingredient matches (in name OR clear substring/spelling variant) something the user typed in \`existingIngredients\`. False otherwise.
+- **isUserProvided=true items**: KEEP the user's name exactly as they typed it. Fill in quantity/unit if they left those blank, but do not override what they entered.
+- **addedByKiwi** — true if this is a new ingredient you added (the user did not provide it). False on the items you echoed back.
+- **isUserProvided and addedByKiwi are mutually exclusive**: exactly ONE of them is true on every row.
+- **caveats** — up to 3 short strings (≤80 chars each) flagging meaningful ambiguity in your choices ("Assumed all-purpose flour; specify '00' for pizza dough"). Omit the field if no caveats; do not return an empty array.
+
+# How to assist (read carefully)
+
+1. **Respect what the user typed.** Every name in \`existingIngredients\` MUST appear in your output with \`isUserProvided=true\`, even if it's unusual for the dish. The user knows their dish; Kiwi assists, doesn't override. If the user said "shredded cheddar" on a Carbonara, keep it — they're making a fusion thing.
+2. **Fill in missing quantities/units on user-typed items.** If the user typed \`{ name: "eggs" }\` with no quantity, supply one (e.g. \`{ name: "eggs", quantity: 4, unit: "each" }\`) and mark isUserProvided=true.
+3. **Add what's needed to make the dish coherent.** Look at the dish title + cuisine and add any standard ingredients the user didn't name. Each addition gets addedByKiwi=true.
+4. **Cuisine guidance is strong.** The cuisine drives ingredient choices. Italian carbonara → guanciale or pancetta, pecorino romano, eggs, black pepper, spaghetti. Mexican tacos → cilantro, lime, fresh tomato, onion. Don't default to bland "American" substitutions unless the user typed them.
+5. **Scale to servings.** Quantities should match \`servings\` (e.g. carbonara for 4 → 1 lb spaghetti, 4 eggs, 4 oz guanciale, ½ cup pecorino, NOT a single-serving portion).
+6. **Respect dietary/allergen hints.** \`userHints.dietary\` (vegan, vegetarian, etc.) and \`userHints.allergens\` are guidance — avoid adding ingredients that violate them. If a user-typed ingredient conflicts (e.g. user typed "bacon" but dietary is "vegetarian"), keep what they typed (their dish, their call) but add a caveat noting the conflict.
+7. **Don't pad.** A simple dish has a simple list. Aim for the natural ingredient count for the dish — typically 5-12 ingredients for a home-cooked dinner. Don't invent 18-ingredient lists for "Spaghetti Aglio e Olio".
+8. **Don't duplicate.** If the user typed "onion" and you also need "onion", echo it once with isUserProvided=true. Never emit two rows for the same ingredient.
+
+# Edge cases
+
+- **User-typed ingredient with a spelling variant or partial name** ("speghetti", "tort") — treat as the user's intent (spaghetti, tortillas) and use isUserProvided=true with the corrected spelling.
+- **User-typed quantity-only ("3", no name)** — drop that row; only include rows you can match to a real ingredient.
+- **No existingIngredients (empty array)** — generate the full ingredient list from scratch. Every row is addedByKiwi=true. Common case when the user just typed the dish name and toggled the assist checkbox.
+- **No cuisine** — infer from the dish title where possible. "Beef Tacos" without cuisine → Mexican-leaning ingredients. "Generic Stir Fry" → reasonable East Asian baseline.
+
+# Input
+
+The dish title, cuisine, the user's existing ingredients, the servings count, and any dietary hints arrive below.
+
+\`\`\`json
+{{assistIngredientsInput}}
+\`\`\`
+
+Return ONLY the JSON object.`;
+
+// REVIEW(hans-6b-4): meal_builder.assist_steps prompt body — Kiwi-assist
+// "Help with steps" checkbox. Receives the full ingredient list + dish name
+// + cuisine, and produces phase-tagged cooking steps. The phaseType +
+// parallelGroup fields feed 6c-1 reformat-for-Kiwi later — getting them
+// right at generation time saves a second pass.
+const MEAL_BUILDER_ASSIST_STEPS_BODY = `You are Kiwi's recipe-step assistant. The user has the ingredient list ready and wants Kiwi to write the cooking steps. Your job is to produce clear, ordered, imperative cooking instructions that actually use the ingredients provided.
+
+Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
+
+# Output schema
+
+\`\`\`json
+{
+  "steps": [
+    {
+      "content": "Bring a large pot of salted water to a boil.",
+      "estimatedMinutes": 8,
+      "phaseType": "preheat",
+      "isTimingSensitive": false,
+      "parallelGroup": 1
+    }
+  ],
+  "caveats": ["..."]
+}
+\`\`\`
+
+# Field rules
+
+- **content** — imperative voice ("Heat the oil", "Add the onion", "Reduce the heat"). One action per step. Specific quantities and times inline ("for 3-4 minutes until softened", "until golden brown, about 2 minutes"). No filler ("Now we're going to…", "First of all…"). Maximum 280 characters per step.
+- **estimatedMinutes** — realistic per-step duration in whole minutes. Use 1 for very short actions, never 0. The sum across all steps should roughly match the user-provided \`cookTimeMinutes + prepTimeMinutes\` if those are given (within ±25%).
+- **phaseType** — one of: \`prep\` (chopping, measuring, mixing dry/wet before heat), \`preheat\` (oven on, water boiling, pan heating empty), \`cook\` (active cooking with heat), \`rest\` (off-heat waiting — resting meat, dough proof, marinade sit), \`assemble\` (plating, layering, garnishing — no heat), \`hold\` (keep warm while other things finish). Pick the one that fits — these tags drive Kiwi's Cooking Sequencer later, so accuracy matters.
+- **isTimingSensitive** — true ONLY for steps where over/under-doing it changes the outcome meaningfully: searing, deglazing, kneading, resting meat, tempering eggs, emulsifying, anything where ±60 seconds matters. Generic prep ("chop the onion") is NOT timing-sensitive. Omit the field or set false for non-sensitive steps.
+- **parallelGroup** — integer for steps that can run concurrently with other steps in the same group. Use sparingly and only for genuinely independent work (e.g. "bring water to boil" + "make the sauce" share parallelGroup=1 because the pot doesn't need attention while you cook). Sequential steps omit the field. Don't fabricate parallelism; if a step needs your hands or attention, it's sequential.
+- **caveats** — up to 3 short strings (≤80 chars each) flagging assumptions or ambiguity ("Assumed gas stove; adjust for induction" / "Resting time can extend to 10 min for medium-rare"). Omit if none.
+
+# How to write the steps
+
+1. **Aim for 6-12 steps for a typical home dinner.** Simple dishes (omelet, salad) might be 4-6 steps; involved dishes (lasagna, braise) might be 10-14. Don't pad to look thorough; don't oversimplify ("cook the meal" is useless).
+2. **Use the ingredients provided.** Every ingredient in the input should be touched by at least one step. Don't invent ingredients not in the list. Don't ignore listed ones unless they're clearly garnish.
+3. **Cuisine + dish title shape the technique.** Italian Carbonara → guanciale rendered first, pasta water reserved, eggs+pecorino tempered off-heat, sauce assembled in the residual pan heat. Mexican Tacos → seasoning toasted with the protein, fresh garnishes added at the end. Don't homogenize technique into generic "cook everything together".
+4. **Front-load prep that takes no attention.** Bringing water to boil, preheating the oven, marinating — these can usually share a parallelGroup with hands-on prep steps.
+5. **Timing-sensitive steps are rare.** Most steps are not timing-sensitive. Reserve the flag for moments where the cook genuinely needs to watch the clock or the pan: sear, deglaze, fold, rest, knead, pull-and-rest. A 30-min braise simmer is not timing-sensitive in this sense.
+6. **Phase tags are not optional.** Every step needs a phaseType. Pick the dominant phase: a step that says "Heat the oil and add the onions" is \`cook\` (heat is the operative action), but "Chop the onions while the oven preheats" is \`prep\`.
+7. **Closing step.** The final step is usually \`assemble\` (plate and serve) or \`rest\` (let the dish sit before serving). Don't end mid-cook.
+
+# Edge cases
+
+- **Sparse ingredient list** (only 2-3 things) — produce a proportionally short step list (3-5 steps). Don't pad.
+- **Dish title implies a method not consistent with the ingredients** ("Smoked Brisket" with ingredients suggesting a stovetop dish) — write the method that matches the ingredients and surface a caveat noting the mismatch ("Title says smoked but ingredients suggest stovetop").
+- **No prep/cook time hints** — pick realistic per-step durations and let the sum land where it lands; no caveat needed.
+- **Equipment hints inferred from ingredients** (e.g. "sheet pan" in the title) — write for that equipment; if the ingredient list contradicts (no oil for sheet-pan roasting), add a caveat.
+
+# Input
+
+The dish title, cuisine, the full ingredient list (with quantities + units), the servings count, and any prep/cook time hints arrive below.
+
+\`\`\`json
+{{assistStepsInput}}
+\`\`\`
+
+Return ONLY the JSON object.`;
+
 // REVIEW(hans-6b-1): meals.find_similar prompt body — semantic similarity
 // ranking for the Find Similar sheet. Cheap utility flow: Haiku, text+Zod.
 // Server sends a `source` meal and a list of `candidates` (saved + featured +
@@ -477,6 +607,24 @@ const PROMPTS: PromptSeed[] = [
     defaultModel: MODEL_SONNET,
     defaultMode: "tool",
     body: placeholder("meal_builder.mode_a_parse"),
+  },
+  {
+    key: "meal_builder.assist_ingredients",
+    description:
+      "Fill in or generate a dish's ingredient list from the dish name + cuisine + the user's existing entries.",
+    variables: ["assistIngredientsInput"],
+    defaultModel: MODEL_HAIKU,
+    defaultMode: "text",
+    body: MEAL_BUILDER_ASSIST_INGREDIENTS_BODY,
+  },
+  {
+    key: "meal_builder.assist_steps",
+    description:
+      "Generate phase-tagged cooking steps from a dish's ingredient list + cuisine.",
+    variables: ["assistStepsInput"],
+    defaultModel: MODEL_HAIKU,
+    defaultMode: "text",
+    body: MEAL_BUILDER_ASSIST_STEPS_BODY,
   },
   {
     key: "prep.aggregation_logic",
