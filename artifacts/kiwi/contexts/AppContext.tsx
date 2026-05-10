@@ -6,7 +6,9 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { buildDevTestPlan } from "@/lib/dev/devPlanFixture";
 import { loadJSON, saveJSON } from "@/lib/storage";
 import {
   buildGroceryList,
@@ -170,6 +172,15 @@ interface AppState {
   /** Step 3 partial form state — null until first save. */
   onboardingStep3Draft: Step3Draft | null;
   setOnboardingStep3Draft: (draft: Step3Draft) => void;
+  // ─────────────────────────────────────────────────────────────────
+  // DEV-ONLY scaffolding (WS6 6b-1.6). Removed at WS7-CLOSE.
+  // Exposed unconditionally on the context; gated at the call site
+  // (Profile screen wraps in __DEV__).
+  // ─────────────────────────────────────────────────────────────────
+  /** Inject the demo plan as currentPlan so Hans can reach Plan Review. */
+  injectDevTestPlan: () => Promise<void>;
+  /** Wipe AsyncStorage and reset all in-memory state to defaults. */
+  resetAllDevState: () => Promise<void>;
 }
 
 const AppCtx = createContext<AppState | null>(null);
@@ -501,6 +512,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await saveJSON("onboardingComplete", v);
   }, []);
 
+  // ─────────────────────────────────────────────────────────────────
+  // DEV-ONLY scaffolding (WS6 6b-1.6). Removed at WS7-CLOSE.
+  // ─────────────────────────────────────────────────────────────────
+
+  const injectDevTestPlan = useCallback(async (): Promise<void> => {
+    const plan = buildDevTestPlan();
+    // Replace any same-id entry — re-tap is idempotent.
+    const updated = [plan, ...plans.filter((p) => p.id !== plan.id)];
+    setPlans(updated);
+    setCurrentPlanIdState(plan.id);
+    await Promise.all([
+      saveJSON("plans", updated),
+      saveJSON("currentPlanId", plan.id),
+    ]);
+  }, [plans]);
+
+  const resetAllDevState = useCallback(async (): Promise<void> => {
+    // Wipes everything across all prefixes (kiwi:* + auth + anything else).
+    await AsyncStorage.clear();
+    setPrefsState(DEFAULT_PREFS);
+    setPlans([]);
+    setCurrentPlanIdState(null);
+    setGroceries([]);
+    setFavorites([]);
+    setIsPremiumState(false);
+    setOnboardingCompleteState(false);
+    setOnboardingStep2DraftState(null);
+    setOnboardingStep3DraftState(null);
+  }, []);
+
   const currentPlan = useMemo(
     () => plans.find((p) => p.id === currentPlanId) ?? null,
     [plans, currentPlanId],
@@ -550,6 +591,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setOnboardingStep2Draft,
     onboardingStep3Draft,
     setOnboardingStep3Draft,
+    injectDevTestPlan,
+    resetAllDevState,
   };
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

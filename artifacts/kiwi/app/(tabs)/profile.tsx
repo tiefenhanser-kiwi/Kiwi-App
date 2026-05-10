@@ -43,7 +43,13 @@ function initialsFor(name: string): string {
 
 export default function ProfileTab() {
   const router = useRouter();
-  const { updateUserName, updateUserEmail, updateUserPhone } = useApp();
+  const {
+    updateUserName,
+    updateUserEmail,
+    updateUserPhone,
+    injectDevTestPlan,
+    resetAllDevState,
+  } = useApp();
   const auth = useAuth();
 
   const [userInfo, setUserInfo] = useState<UserAccountInfo>(() =>
@@ -124,6 +130,31 @@ export default function ProfileTab() {
 
   const handleAccountAndSubscription = () => {
     router.push("/manage-account");
+  };
+
+  const handleInjectDevPlan = async () => {
+    await injectDevTestPlan();
+    Alert.alert(
+      "Dev test plan injected",
+      "It's now your current plan. Open the home tab and tap the hero card to reach Plan Review.",
+    );
+  };
+
+  const handleResetDevState = () => {
+    Alert.alert(
+      "Reset all local data?",
+      "This wipes AsyncStorage and resets all in-memory state. Force-quit Expo Go and re-launch for a clean session.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: () => {
+            void resetAllDevState();
+          },
+        },
+      ],
+    );
   };
 
   const handleLogout = async () => {
@@ -236,6 +267,37 @@ export default function ProfileTab() {
             Upgrade for unlimited Kitchen Wizard plans and AI-powered features
           </Text>
         </Pressable>
+
+        {/* Developer (DEV-ONLY, removed at WS7-CLOSE per WS6 6b-1.6) */}
+        {__DEV__ && (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Developer</Text>
+            <Text style={s.devHint}>
+              Throwaway scaffolding. Removed at WS7-CLOSE.
+            </Text>
+            <Pressable
+              onPress={handleInjectDevPlan}
+              style={({ pressed }) => [
+                s.devButton,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Text style={s.devButtonText}>Inject dev test plan</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleResetDevState}
+              style={({ pressed }) => [
+                s.devButton,
+                s.devButtonDestructive,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Text style={[s.devButtonText, s.devButtonTextDestructive]}>
+                Reset all dev state
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Section E: Log Out (standalone) */}
         <Pressable
@@ -510,5 +572,35 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: KSpacing.sm,
+  },
+  devHint: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+    marginBottom: KSpacing.sm,
+    fontStyle: "italic",
+  },
+  devButton: {
+    paddingVertical: KSpacing.sm,
+    paddingHorizontal: KSpacing.md,
+    borderWidth: 1,
+    borderColor: KColors.sage[600],
+    borderRadius: KRadius.sm,
+    backgroundColor: KColors.sage[50],
+    marginTop: KSpacing.sm,
+    alignItems: "center",
+  },
+  devButtonDestructive: {
+    borderColor: KColors.terracotta[600],
+    backgroundColor: KColors.terracotta[50],
+  },
+  devButtonText: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+  },
+  devButtonTextDestructive: {
+    color: KColors.terracotta[700],
   },
 });
