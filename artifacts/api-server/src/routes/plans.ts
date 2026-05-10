@@ -39,12 +39,15 @@ export function createPlansRouter(
 ): IRouter {
   const computePlanMacros = deps.computePlanMacros ?? productionComputePlanMacros;
   const prisma = deps.prisma ?? productionPrisma;
-  // Same per-user token-bucket pattern as meals.ts. Recalc is heavier
-  // than Find Similar (N AI calls in the worst case); keep the per-user
-  // ceiling tight to bound cost-of-bug.
+  // Same per-user token-bucket pattern + ceiling as meals.ts. Recalc
+  // CAN fan out to N AI calls in the worst case, but real Plan Review
+  // editing flows (remove an ingredient, re-trigger; tweak servings,
+  // re-trigger) will burst tighter than that — 12/min matches the
+  // editing-cadence the meals route was tuned for. Cost ceiling is
+  // tracked separately via D-WS6-030 (per-user daily AI cost cap).
   const limiterOpts = deps.rateLimiterOpts ?? {
-    capacity: 6,
-    refillPerSec: 6 / 60,
+    capacity: 12,
+    refillPerSec: 12 / 60,
   };
 
   const router: IRouter = Router();
