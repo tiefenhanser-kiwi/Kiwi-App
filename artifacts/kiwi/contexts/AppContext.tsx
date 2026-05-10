@@ -517,15 +517,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ─────────────────────────────────────────────────────────────────
 
   const injectDevTestPlan = useCallback(async (): Promise<void> => {
-    const plan = buildDevTestPlan();
-    // Replace any same-id entry — re-tap is idempotent.
-    const updated = [plan, ...plans.filter((p) => p.id !== plan.id)];
-    setPlans(updated);
-    setCurrentPlanIdState(plan.id);
-    await Promise.all([
-      saveJSON("plans", updated),
-      saveJSON("currentPlanId", plan.id),
-    ]);
+    try {
+      const plan = buildDevTestPlan();
+      // Replace any same-id entry — re-tap is idempotent.
+      const updated = [plan, ...plans.filter((p) => p.id !== plan.id)];
+      setPlans(updated);
+      setCurrentPlanIdState(plan.id);
+      await Promise.all([
+        saveJSON("plans", updated),
+        saveJSON("currentPlanId", plan.id),
+      ]);
+      // Diagnostic — confirms the injection ran end-to-end. Remove once
+      // the affordance is proven working in Hans's workflow.
+      console.log(
+        "[devInjector] plans now:",
+        updated.length,
+        "currentPlanId:",
+        plan.id,
+      );
+    } catch (err) {
+      console.warn("[devInjector] inject failed:", err);
+    }
   }, [plans]);
 
   const resetAllDevState = useCallback(async (): Promise<void> => {

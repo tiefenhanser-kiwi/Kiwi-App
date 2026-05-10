@@ -134,9 +134,14 @@ export default function ProfileTab() {
 
   const handleInjectDevPlan = async () => {
     await injectDevTestPlan();
+    // Plans tab "This Week" card is the only AppContext-fed surface today.
+    // Home hero + Plans tab "Your plans" list both read from getTodaysMeal /
+    // getCurrentActivePlan / getPlansPayload stubs that return null/[]
+    // unconditionally — so directing Hans to those would mislead him.
+    // WS7 swaps those stubs and this Alert text becomes obsolete.
     Alert.alert(
       "Dev test plan injected",
-      "It's now your current plan. Open the home tab and tap the hero card to reach Plan Review.",
+      "Open the Plans tab and tap 'Open' on the 'This Week' card at the top to reach Plan Review.",
     );
   };
 
