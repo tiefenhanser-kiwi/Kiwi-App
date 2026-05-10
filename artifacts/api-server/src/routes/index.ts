@@ -3,6 +3,7 @@ import authRouter from "./auth";
 import healthRouter from "./health";
 import mealsRouter from "./meals";
 import meRouter from "./me";
+import plansRouter from "./plans";
 import recipesRouter from "./recipes";
 import wizardRouter from "./wizard";
 
@@ -12,6 +13,7 @@ router.use(authRouter);
 router.use(healthRouter);
 router.use(meRouter);
 router.use(mealsRouter);
+router.use(plansRouter);
 router.use(recipesRouter);
 router.use(wizardRouter);
 
