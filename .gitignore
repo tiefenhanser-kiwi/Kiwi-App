@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Scratch files (e.g., from Claude Code attachments)
+attached_assets/
