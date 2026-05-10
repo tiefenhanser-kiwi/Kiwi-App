@@ -20,6 +20,10 @@ export const MacroEstimateInputSchema = z.object({
       quantity: z.number().nonnegative(),
       unit: z.string(),
       name: z.string().min(1),
+      // 6b-2 — signals an ingredient the user often omits. The prompt body
+      // instructs the model to skip optional ingredients in the math but to
+      // still consider them present for any flavor/category caveats.
+      isOptional: z.boolean().optional(),
     }),
   ),
 });

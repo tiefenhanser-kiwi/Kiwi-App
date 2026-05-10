@@ -139,6 +139,7 @@ enum ActivityEventType {
   trial_started
   trial_expired
   meal_found_similar_used
+  dish_macros_estimated
 }
 
 enum SpiceTolerance {

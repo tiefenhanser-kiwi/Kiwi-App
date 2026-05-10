@@ -189,6 +189,67 @@ The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`us
 
 Generate the candidates now. Return ONLY the tool_use call.`;
 
+// REVIEW(hans-6b-2): nutrition.ingredient_estimate prompt body — per-serving
+// macro estimation from an ingredient list (PRD §11). Cheap utility flow:
+// Haiku, text+Zod. Helper-only in 6b-2 (no route); WS7 wires consumers on
+// POST/PATCH /me/dishes.
+const NUTRITION_INGREDIENT_ESTIMATE_BODY = `You are Kiwi's nutrition helper. Given a dish's ingredient list, estimate the per-serving macros for the finished dish.
+
+Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
+
+# Output schema
+
+\`\`\`json
+{
+  "perServing": {
+    "calories": 520,
+    "proteinG": 28.4,
+    "carbsG": 38.0,
+    "fatG": 24.7
+  },
+  "confidence": "high",
+  "caveats": ["..."]
+}
+\`\`\`
+
+# Field rules
+
+- **perServing.calories** — whole number (no decimals). Round to the nearest 5 kcal.
+- **perServing.proteinG / carbsG / fatG** — one decimal precision (e.g. \`28.4\`).
+- All four values are non-negative. Use \`0\` (not negative, not null) if a macro genuinely contributes nothing.
+- **confidence** — one of \`high\`, \`medium\`, \`low\` (see rubric below).
+- **caveats** — up to 3 short strings (≤80 chars each). Informational only — they do NOT change the math. Omit the field if there are no caveats; do not return an empty array.
+
+# How to compute
+
+1. Read each ingredient: \`{ quantity, unit, name, isOptional? }\`. The unit may be any common kitchen unit — cups, tbsp, tsp, oz, lb, each, g, ml, kg, slice, clove, pinch, bunch, head, can, jar, pint, package, fillet, breast, thigh, etc. Convert to grams using standard kitchen densities (e.g. 1 cup flour ≈ 120 g, 1 cup cooked rice ≈ 195 g, 1 tbsp olive oil ≈ 14 g, 1 cup chopped onion ≈ 160 g, 1 lb ≈ 454 g, 1 oz ≈ 28 g, 1 large egg ≈ 50 g). Use reasonable density assumptions; do not refuse a unit.
+2. **Skip any ingredient where \`isOptional === true\`** in the calorie/macro math. Optional ingredients (parsley garnish, optional sour cream, garnish cilantro) often go un-used and would inflate the estimate. They MAY still be referenced in \`caveats\` if relevant.
+3. Sum the macro contribution across all non-optional ingredients using typical USDA-style values per gram.
+4. Divide the dish total by \`servings\` to produce the per-serving values.
+5. Apply the rounding rules above. Sanity-check: per-serving calories should be roughly consistent with the macro grams (4 kcal/g protein, 4 kcal/g carbs, 9 kcal/g fat — within ±15%). If the totals are wildly inconsistent, recheck the unit conversions before returning.
+
+# Unknown or ambiguous ingredients
+
+- If an ingredient name is unrecognized or ambiguous (e.g. an unfamiliar brand, a generic "spices", a vague "topping"), estimate based on the **closest known equivalent** and STILL include its macro contribution in the math. Do not drop it from the calculation. Add a short caveat naming the substitution (e.g. \`"Used generic 'mild cheese' density for 'queso fresco'."\`).
+- If a quantity is missing or zero for a non-optional ingredient, treat it as a trace amount (do not contribute meaningful macros) and add a caveat.
+- If a unit is impossible to map (e.g. "to taste", "as needed"), treat as a trace amount and add a caveat naming the ingredient.
+
+# Confidence rubric
+
+- **high** — every ingredient is a recognized food with a clear quantity and a standard unit (cups, tbsp, oz, lb, g, ml, each). Unit conversions are unambiguous.
+- **medium** — most ingredients are recognized, but at least one ingredient required an approximate density (e.g. "1 jar salsa" → assumed 16 oz jar) or a substitution.
+- **low** — multiple ingredients are unknown OR multiple units are unmappable. Returned macros are a best guess; surface the uncertainty in caveats.
+
+# Input
+
+The dish title, servings, and ingredient list arrive below.
+
+\`\`\`json
+{{estimateInput}}
+\`\`\`
+
+Return ONLY the JSON object.`;
+
 // REVIEW(hans-6b-1): meals.find_similar prompt body — semantic similarity
 // ranking for the Find Similar sheet. Cheap utility flow: Haiku, text+Zod.
 // Server sends a `source` meal and a list of `candidates` (saved + featured +
@@ -447,10 +508,10 @@ const PROMPTS: PromptSeed[] = [
   {
     key: "nutrition.ingredient_estimate",
     description: "Estimate per-serving macros from an ingredient list.",
-    variables: [],
+    variables: ["estimateInput"],
     defaultModel: MODEL_HAIKU,
     defaultMode: "text",
-    body: placeholder("nutrition.ingredient_estimate"),
+    body: NUTRITION_INGREDIENT_ESTIMATE_BODY,
   },
   {
     key: "grocery.recurring_item_categorize",
