@@ -13,7 +13,8 @@
 //     "Generate NEW content via AI" (entitlement key:
 //     meal_builder_text_input). Today the gate is a passthrough because
 //     SubscriptionService.can() returns allowed=true for everyone in trial
-//     mode; matters once Stripe wires real entitlements in WS8.
+//     mode; matters once Stripe wires real entitlements in the WS-Stripe
+//     phase (deferred per kiwi_ws6_plan.md §7 until Instacart access lands).
 //
 // Rate limit: per-user token-bucket at 12/min for all three routes,
 // matching meals.ts and plans.ts editing-cadence convention.
