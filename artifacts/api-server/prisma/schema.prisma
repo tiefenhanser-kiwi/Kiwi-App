@@ -141,6 +141,7 @@ enum ActivityEventType {
   meal_found_similar_used
   dish_macros_estimated
   plan_macros_recalculated
+  recipe_imported_url
 }
 
 enum SpiceTolerance {
@@ -604,6 +605,7 @@ model UserActivity {
   entityId   String?
   entityType String?
   platform   String?
+  metadata   Json?
   createdAt  DateTime          @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

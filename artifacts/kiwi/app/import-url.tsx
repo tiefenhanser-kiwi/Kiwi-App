@@ -13,7 +13,7 @@ import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { getDraftMealForUrl } from "@/lib/stubs";
+import { importRecipeFromUrl } from "@/lib/api/recipeImport";
 
 type Phase = "input" | "loading";
 
@@ -54,7 +54,7 @@ export default function ImportUrlScreen() {
   // previous behavior left users with a silently disabled button.
   const importDisabled = url.trim().length === 0;
 
-  const handleImport = () => {
+  const handleImport = async () => {
     Keyboard.dismiss();
     const normalized = normalizeUrl(url);
     if (!normalized) {
@@ -65,20 +65,30 @@ export default function ImportUrlScreen() {
     }
     setErrorMessage(null);
     setPhase("loading");
-    // Stub: simulate WS6 AI parse with 1500ms delay
-    setTimeout(() => {
-      const draft = getDraftMealForUrl(normalized);
+    try {
+      const result = await importRecipeFromUrl({ url: normalized });
+      if (!result.success) {
+        setErrorMessage(result.userFacingMessage);
+        setPhase("input");
+        return;
+      }
       router.push({
         pathname: "/meal-builder",
         params: {
           draftSource: "url",
-          draftJson: JSON.stringify(draft),
+          draftJson: JSON.stringify(result.draft),
           ...(addToPlanId ? { addToPlanId } : {}),
         },
       });
-      // Reset phase so screen is fresh if user comes back via back nav
       setPhase("input");
-    }, 1500);
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "Kiwi couldn't read this recipe. Try Import from Image instead.",
+      );
+      setPhase("input");
+    }
   };
 
   if (phase === "loading") {
@@ -127,8 +137,7 @@ export default function ImportUrlScreen() {
         {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
 
         <Text style={styles.helperText}>
-          Works with AllRecipes, Food Network, NYT Cooking, Serious Eats, and
-          most major recipe sites.
+          Works with AllRecipes, Serious Eats, and most major recipe sites.
         </Text>
 
         <View style={styles.buttonWrap}>

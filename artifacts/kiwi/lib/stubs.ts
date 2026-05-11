@@ -1507,92 +1507,10 @@ export function getMealById(
   return null;
 }
 
-// ── Import URL parse stub (PRD §10.3) ──
-
-/**
- * PRD §10.3 — stubbed URL parse result for WS5 smoke testing.
- * Real fetch + AI parse lands in WS6 (AI orchestration).
- * Returns a hardcoded demo recipe so the Import URL → review-and-
- * edit flow is smoke-testable end-to-end.
- *
- * @param url The URL the user pasted (used for sourceUrl in
- *   the result; not actually fetched).
- */
-export function getDraftMealForUrl(url: string): DraftMeal {
-  // TODO(WS6): Replace with real fetch + AI parse pipeline
-  return {
-    title: "Lemon Garlic Roast Chicken",
-    description:
-      "One-pan whole roast chicken with crispy skin, fresh herbs, and bright lemon. Imported from URL.",
-    cuisineType: "Mediterranean",
-    difficulty: "medium",
-    estimatedTimeMinutes: 75,
-    servingsDefault: 4,
-    tags: ["chicken", "one-pan", "weekend"],
-    caloriesPerServing: 580,
-    proteinGPerServing: 48,
-    carbsGPerServing: 12,
-    fatGPerServing: 38,
-    dishes: [
-      {
-        name: "Roast Chicken",
-        ingredients: [
-          { quantity: 1, unit: "whole", name: "whole chicken (3-4 lb)" },
-          { quantity: 2, unit: "tbsp", name: "olive oil" },
-          { quantity: 1, unit: "whole", name: "lemon, halved" },
-          { quantity: 6, unit: "clove", name: "garlic, smashed" },
-          { quantity: 4, unit: "sprig", name: "fresh thyme" },
-          { quantity: 4, unit: "sprig", name: "fresh rosemary" },
-          { quantity: 1, unit: "tsp", name: "kosher salt" },
-          { quantity: 0.5, unit: "tsp", name: "black pepper" },
-        ],
-      },
-      {
-        name: "Pan Vegetables",
-        ingredients: [
-          { quantity: 1, unit: "lb", name: "baby potatoes, halved" },
-          { quantity: 2, unit: "whole", name: "carrots, cut into 2-inch pieces" },
-          { quantity: 1, unit: "whole", name: "yellow onion, quartered" },
-          { quantity: 2, unit: "tbsp", name: "olive oil" },
-        ],
-      },
-    ],
-    steps: [
-      {
-        stepNumber: 1,
-        text: "Preheat oven to 425°F. Pat chicken dry with paper towels.",
-        estimatedMinutes: 5,
-      },
-      {
-        stepNumber: 2,
-        text: "Rub chicken with olive oil, salt, and pepper. Stuff cavity with lemon halves, garlic, and herbs.",
-        estimatedMinutes: 8,
-      },
-      {
-        stepNumber: 3,
-        text: "Toss potatoes, carrots, and onion with olive oil and a pinch of salt in a roasting pan.",
-        estimatedMinutes: 5,
-      },
-      {
-        stepNumber: 4,
-        text: "Place chicken breast-side up on the vegetables.",
-        estimatedMinutes: 1,
-      },
-      {
-        stepNumber: 5,
-        text: "Roast 60-65 minutes until thigh registers 165°F. Rest 10 minutes before carving.",
-        estimatedMinutes: 65,
-        isTimingSensitive: true,
-      },
-      {
-        stepNumber: 6,
-        text: "Carve and serve with pan vegetables.",
-        estimatedMinutes: 5,
-      },
-    ],
-    sourceUrl: url,
-  };
-}
+// ── Import URL parse — WS6 6c-1 ──
+// Real fetch + AI parse landed in WS6 6c-1. The mobile client lives in
+// `@/lib/api/recipeImport` (importRecipeFromUrl) — the stub for URL imports
+// no longer exists. Image import remains stubbed below (ships in 6c-2).
 
 // ── Import Image parse stub (PRD §10.4) ──
 

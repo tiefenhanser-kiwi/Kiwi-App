@@ -130,9 +130,20 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
     {
       body: placeholder("import.reformat_for_kiwi"),
       defaultModel: MODEL_SONNET,
-      defaultMode: "tool",
+      defaultMode: "text",
       toolDescription:
-        "Normalize a raw recipe into Kiwi's canonical Dish + step shape with phaseType / parallelGroup.",
+        "Normalize a raw recipe into Kiwi's canonical Meal/Dish/Step shape with phaseType / parallelGroup.",
+    },
+  ],
+  // 6c-1 — URL-imported recipe scaling helper.
+  [
+    "recipes.scale_ingredients",
+    {
+      body: placeholder("recipes.scale_ingredients"),
+      defaultModel: MODEL_SONNET,
+      defaultMode: "text",
+      toolDescription:
+        "Scale a recipe's ingredients from one servings count to another, returning friendly cooking measures.",
     },
   ],
   // 6b-5 — Meal Builder Mode A (parse free-text meal description).

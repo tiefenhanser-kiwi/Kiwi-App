@@ -17,12 +17,14 @@
     "@prisma/client": "^6.19.3",
     "@workspace/api-zod": "workspace:*",
     "bcryptjs": "^3.0.3",
+    "cheerio": "^1.2.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "express": "^5",
     "jsonwebtoken": "^9.0.3",
     "pino": "^9",
     "pino-http": "^10",
+    "recipe-ingredient-parser-v3": "^1.5.0",
     "zod": "catalog:",
     "zod-to-json-schema": "^3.25.2"
   },
@@ -31,6 +33,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
+    "@types/cheerio": "^1.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
