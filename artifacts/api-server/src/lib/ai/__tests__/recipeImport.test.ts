@@ -450,6 +450,96 @@ describe("fetchRecipePage — URL validation", () => {
   });
 });
 
+// ── fetchRecipePage body inspection (6c-1-fix-2) ───────────────────────
+// Stub globalThis.fetch directly so we can drive status codes and bodies
+// without hitting the network.
+
+function stubFetch(response: {
+  status?: number;
+  headers?: Record<string, string>;
+  body?: string;
+}): () => void {
+  const originalFetch = globalThis.fetch;
+  const status = response.status ?? 200;
+  const headers = new Headers({
+    "content-type": "text/html; charset=utf-8",
+    ...(response.headers ?? {}),
+  });
+  const body = response.body ?? "";
+  (globalThis as { fetch: typeof fetch }).fetch = (async () => {
+    const buf = new TextEncoder().encode(body);
+    return new Response(buf, { status, headers });
+  }) as typeof fetch;
+  return () => {
+    (globalThis as { fetch: typeof fetch }).fetch = originalFetch;
+  };
+}
+
+describe("fetchRecipePage — body & redirect inspection", () => {
+  it("throws cloudflare_challenge when body contains 2+ challenge markers", async () => {
+    const restore = stubFetch({
+      body: `<html><script>window._cf_chl_opt={};</script><script src="/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1/foo.js"></script></html>`,
+    });
+    try {
+      await assert.rejects(
+        () => fetchRecipePage("https://blocked.example.com/r"),
+        (err: unknown) => {
+          assert.ok(err instanceof Error);
+          assert.equal((err as { code?: string }).code, "cloudflare_challenge");
+          return true;
+        },
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  it("does NOT throw when only a single Cloudflare marker is present (false-positive guard)", async () => {
+    const restore = stubFetch({
+      body: `<html><body><p>This blog post mentions _cf_chl_opt only once, in passing.</p></body></html>`,
+    });
+    try {
+      const result = await fetchRecipePage("https://blog.example.com/r");
+      assert.ok(result.html.includes("_cf_chl_opt"));
+    } finally {
+      restore();
+    }
+  });
+
+  it("throws redirected on a 308 response", async () => {
+    const restore = stubFetch({
+      status: 308,
+      headers: { location: "https://example.com/elsewhere" },
+      body: "",
+    });
+    try {
+      await assert.rejects(
+        () => fetchRecipePage("https://example.com/recipe"),
+        (err: unknown) => {
+          assert.ok(err instanceof Error);
+          assert.equal((err as { code?: string }).code, "redirected");
+          assert.match((err as Error).message, /308/);
+          return true;
+        },
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  it("returns html for a clean 200 response", async () => {
+    const restore = stubFetch({
+      body: `<html><head><title>Recipe</title></head><body><h1>Clean recipe page</h1></body></html>`,
+    });
+    try {
+      const result = await fetchRecipePage("https://clean.example.com/r");
+      assert.ok(result.html.includes("Clean recipe page"));
+    } finally {
+      restore();
+    }
+  });
+});
+
 // ── reformatRecipeForKiwi — mocked SDK ─────────────────────────────────
 
 describe("reformatRecipeForKiwi", () => {

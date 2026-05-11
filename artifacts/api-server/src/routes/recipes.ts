@@ -133,6 +133,8 @@ router.post("/recipes/import-url", requireAuth, importLimiter, async (req, res) 
     const code =
       err instanceof RecipeImportError ? err.code : "fetch_failed";
     logger.warn({ url, err, code }, "import-url fetch failed");
+    // 6c-1-fix-2 added cloudflare_challenge + redirected — both ride the
+    // generic fetch_error branch below, no special-casing required.
     return res.json({
       success: false,
       reason: code === "invalid_url" || code === "blocked_host"

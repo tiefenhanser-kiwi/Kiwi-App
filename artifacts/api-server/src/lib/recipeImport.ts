@@ -42,11 +42,39 @@ export class RecipeImportError extends Error {
       | "fetch_status"
       | "fetch_content_type"
       | "fetch_too_large"
-      | "fetch_failed",
+      | "fetch_failed"
+      | "cloudflare_challenge"
+      | "redirected",
   ) {
     super(message);
     this.name = "RecipeImportError";
   }
+}
+
+// Cloudflare challenge-page markers. Two-or-more matches indicate a managed
+// challenge body, not a real recipe page. Anchored to bytes Cloudflare emits
+// in their challenge HTML (`_cf_chl_opt`, the challenge-platform script path,
+// the JS-required notice). Single matches alone may appear in legit content
+// (a blog quoting Cloudflare), so we require ≥2 to flag.
+const CLOUDFLARE_CHALLENGE_MARKERS = [
+  "_cf_chl_opt",
+  "challenge-platform",
+  "cf-chl-bypass",
+  "cf-browser-verification",
+  "enable javascript and cookies to continue",
+  "__cf_chl_tk",
+] as const;
+
+function detectsCloudflareChallenge(html: string): boolean {
+  const lower = html.toLowerCase();
+  let hits = 0;
+  for (const marker of CLOUDFLARE_CHALLENGE_MARKERS) {
+    if (lower.includes(marker)) {
+      hits++;
+      if (hits >= 2) return true;
+    }
+  }
+  return false;
 }
 
 const PRIVATE_IP_PATTERNS: RegExp[] = [
@@ -95,7 +123,10 @@ export async function fetchRecipePage(url: string): Promise<{ html: string }> {
       method: "GET",
       headers: { "User-Agent": KIWI_BOT_USER_AGENT, Accept: "text/html, text/plain, */*" },
       signal: controller.signal,
-      redirect: "follow",
+      // Manual redirect so we can refuse 3xx (paywall walls, login walls,
+      // dead-recipe redirects). Auto-follow lets the AI parse whatever the
+      // redirect target happens to be — usually a different recipe.
+      redirect: "manual",
     });
   } catch (err) {
     clearTimeout(timer);
@@ -107,6 +138,14 @@ export async function fetchRecipePage(url: string): Promise<{ html: string }> {
   }
   clearTimeout(timer);
 
+  // Manual-redirect mode: 3xx is NOT `!response.ok`, so check it first.
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location") ?? "(no Location header)";
+    throw new RecipeImportError(
+      `Redirect ${response.status} → ${location}`,
+      "redirected",
+    );
+  }
   if (!response.ok) {
     throw new RecipeImportError(
       `Fetch returned HTTP ${response.status}`,
@@ -144,6 +183,12 @@ export async function fetchRecipePage(url: string): Promise<{ html: string }> {
     );
   }
   const html = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+  if (detectsCloudflareChallenge(html)) {
+    throw new RecipeImportError(
+      "Cloudflare challenge page detected — site requires JS/cookies",
+      "cloudflare_challenge",
+    );
+  }
   return { html };
 }
 
