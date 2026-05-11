@@ -105,3 +105,93 @@ export const AssistStepsResultSchema = z.object({
   caveats: z.array(z.string().max(80)).max(3).optional(),
 });
 export type AssistStepsResult = z.infer<typeof AssistStepsResultSchema>;
+
+// ─── Mode A: parse meal from free-text ───────────────────────────────────
+
+// WS6 6b-5 — Meal Builder Mode A. The user types a free-text meal description
+// ("Chicken piccata with arugula salad and lemon vinaigrette") and Mode A
+// returns one Meal with one or more sub-dishes. Premium-gated per PRD §1.2
+// (entitlement key: meal_builder_text_input).
+
+// Sub-dish roles per PRD §10.4.2 — drives the Meal Detail rendering layout.
+export const SubDishRoleSchema = z.enum([
+  "main",
+  "side",
+  "sauce",
+  "topping",
+  "base",
+]);
+export type SubDishRole = z.infer<typeof SubDishRoleSchema>;
+
+// Difficulty enum matches Mode B form values + PRD §10.4.1 plan-level
+// difficulty taxonomy (easy / medium / fancy).
+export const MealDifficultySchema = z.enum(["easy", "medium", "fancy"]);
+export type MealDifficulty = z.infer<typeof MealDifficultySchema>;
+
+export const ParseMealInputSchema = z.object({
+  // PRD Tell Kiwi input bounds — single short paragraph at most.
+  freeText: z.string().min(3).max(500),
+  servings: z.number().int().positive().max(16).default(4),
+  userHints: z
+    .object({
+      dietary: z.array(z.string().max(40)).max(10).optional(),
+      allergens: z.array(z.string().max(40)).max(20).optional(),
+      cuisinesLiked: z.array(z.string().max(40)).max(10).optional(),
+    })
+    .optional(),
+});
+export type ParseMealInput = z.infer<typeof ParseMealInputSchema>;
+
+export const ParsedSubDishIngredientSchema = z.object({
+  name: z.string().min(1).max(120),
+  quantity: z.number().positive(),
+  unit: z.string().min(1).max(40),
+  isOptional: z.boolean().optional(),
+});
+export type ParsedSubDishIngredient = z.infer<
+  typeof ParsedSubDishIngredientSchema
+>;
+
+// Reuses the same StepPhaseType taxonomy as Mode B's assist-steps so the
+// Cooking Sequencer (6d-1) doesn't have to bridge two enums.
+export const ParsedSubDishStepSchema = z.object({
+  content: z.string().min(1).max(280),
+  estimatedMinutes: z.number().int().positive().max(600),
+  phaseType: StepPhaseTypeSchema,
+  isTimingSensitive: z.boolean().optional(),
+  // parallelGroup is nullable here (Mode A may omit on truly-sequential
+  // steps) — Mode B's assist-steps treats it as optional+undefined; Mode A
+  // lets the model emit null explicitly when it considered the step and
+  // decided it's not parallelizable.
+  parallelGroup: z.number().int().positive().max(20).nullable().optional(),
+});
+export type ParsedSubDishStep = z.infer<typeof ParsedSubDishStepSchema>;
+
+export const ParsedSubDishSchema = z.object({
+  title: z.string().min(1).max(200),
+  role: SubDishRoleSchema,
+  positionIndex: z.number().int().nonnegative().max(10),
+  ingredients: z.array(ParsedSubDishIngredientSchema).min(1).max(30),
+  steps: z.array(ParsedSubDishStepSchema).min(1).max(20),
+});
+export type ParsedSubDish = z.infer<typeof ParsedSubDishSchema>;
+
+export const ParsedMealSchema = z.object({
+  title: z.string().min(1).max(200),
+  // Canonical lowercase per PRD §3.4. Nullable when the description doesn't
+  // imply a cuisine (e.g. "grain bowl").
+  cuisine: z.string().min(1).max(80).nullable(),
+  estimatedPrepMinutes: z.number().int().positive().max(600),
+  estimatedCookMinutes: z.number().int().positive().max(600),
+  servingsDefault: z.number().int().positive().max(16),
+  difficulty: MealDifficultySchema,
+  tags: z.array(z.string().min(1).max(40)).max(5),
+  subDishes: z.array(ParsedSubDishSchema).min(1).max(5),
+});
+export type ParsedMeal = z.infer<typeof ParsedMealSchema>;
+
+export const ParseMealResultSchema = z.object({
+  meal: ParsedMealSchema,
+  caveats: z.array(z.string().max(80)).max(3).optional(),
+});
+export type ParseMealResult = z.infer<typeof ParseMealResultSchema>;

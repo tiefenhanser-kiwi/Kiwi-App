@@ -1,21 +1,22 @@
-// WS6 6b-4 — Dish / Meal Builder Kiwi-assist endpoints.
-// Per kiwi_ws6_plan.md §3 6b-4 + PRD §1.2.
+// WS6 6b-4 + 6b-5 — Dish / Meal Builder endpoints.
+// Per kiwi_ws6_plan.md §3 6b-4 / 6b-5 + PRD §1.2.
 //
 // Auth: requireAuth (JWT). Same factory + DI pattern as meals.ts / plans.ts
 // so unit tests can inject runAICall / prisma stubs without standing up the
 // full stack.
 //
-// Entitlement: FREE. PRD §1.2 frames Kiwi-assist as "AI enhancing what the
-// user already typed" — no premium gate. Deliberately omitting any
-// SubscriptionService check here so we don't accidentally lock it down later;
-// if you reach for an entitlement key, re-read PRD §1.2 first.
+// Entitlements:
+//   - /assist-ingredients + /assist-steps (Kiwi-assist, 6b-4) — FREE. PRD
+//     §1.2 frames these as "AI enhancing what the user already typed" — no
+//     premium gate.
+//   - /parse-meal (Mode A, 6b-5) — PREMIUM. PRD §1.2 frames Mode A as
+//     "Generate NEW content via AI" (entitlement key:
+//     meal_builder_text_input). Today the gate is a passthrough because
+//     SubscriptionService.can() returns allowed=true for everyone in trial
+//     mode; matters once Stripe wires real entitlements in WS8.
 //
-// Rate limit: per-user token-bucket at 12/min, matching meals.ts and
-// plans.ts editing-cadence convention. The assist flow can fire on every
-// checkbox toggle, so the burst pattern needs to match interactive editing.
-//
-// Routes are registered under /api/builder/* in routes/index.ts. 6b-5 Mode A
-// (POST /api/builder/parse-meal) will land alongside these.
+// Rate limit: per-user token-bucket at 12/min for all three routes,
+// matching meals.ts and plans.ts editing-cadence convention.
 
 import { Router, type IRouter, type Request } from "express";
 import type { PrismaClient } from "@prisma/client";
@@ -23,19 +24,24 @@ import type { PrismaClient } from "@prisma/client";
 import {
   AssistIngredientsInputSchema,
   AssistStepsInputSchema,
+  ParseMealInputSchema,
 } from "../lib/ai/schemas/mealBuilder";
 import {
   assistDishIngredients as productionAssistDishIngredients,
   assistDishSteps as productionAssistDishSteps,
 } from "../lib/kiwiAssist";
+import { parseMealFromText as productionParseMealFromText } from "../lib/mealBuilder";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
+import { subscriptionService as productionSubscriptionService, type SubscriptionService } from "../lib/subscriptionService";
 import { requireAuth } from "../middleware/auth";
 
 export interface BuilderRouterDeps {
   assistDishIngredients: typeof productionAssistDishIngredients;
   assistDishSteps: typeof productionAssistDishSteps;
+  parseMealFromText: typeof productionParseMealFromText;
+  subscriptionService: SubscriptionService;
   prisma: PrismaClient;
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
 }
@@ -46,6 +52,10 @@ export function createBuilderRouter(
   const assistDishIngredients =
     deps.assistDishIngredients ?? productionAssistDishIngredients;
   const assistDishSteps = deps.assistDishSteps ?? productionAssistDishSteps;
+  const parseMealFromText =
+    deps.parseMealFromText ?? productionParseMealFromText;
+  const subscriptionService =
+    deps.subscriptionService ?? productionSubscriptionService;
   const prisma = deps.prisma ?? productionPrisma;
   const limiterOpts = deps.rateLimiterOpts ?? {
     capacity: 12,
@@ -157,6 +167,71 @@ export function createBuilderRouter(
       return res.json({
         status: "success",
         steps: result.steps,
+        caveats: result.caveats,
+      });
+    },
+  );
+
+  router.post(
+    "/builder/parse-meal",
+    requireAuth,
+    assistLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+
+      const parsed = ParseMealInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid request body",
+          details: parsed.error.flatten(),
+        });
+      }
+
+      // Premium gate (PRD §1.2 / §14.5.1). Today a passthrough in trial
+      // mode; once Stripe lands in WS8 this is the seam that locks Mode A
+      // behind the paid SKU.
+      const ent = await subscriptionService.can(
+        userId,
+        "meal_builder_text_input",
+      );
+      if (!ent.allowed) {
+        return res.status(402).json({
+          error: "upgrade required",
+          reason:
+            ent.reason ??
+            "Parsing meals from free text is a premium feature.",
+        });
+      }
+
+      const result = await parseMealFromText({
+        prisma,
+        userId,
+        freeText: parsed.data.freeText,
+        servings: parsed.data.servings,
+        userHints: parsed.data.userHints,
+      });
+
+      if (result.status === "failed") {
+        logger.warn(
+          {
+            event: "builder_parse_meal_failed",
+            userId,
+            error: result.error,
+          },
+          "Mode A parse-meal call failed",
+        );
+        return res.status(502).json({
+          error: result.error,
+          status: "failed",
+        });
+      }
+
+      return res.json({
+        status: "success",
+        meal: result.meal,
         caveats: result.caveats,
       });
     },

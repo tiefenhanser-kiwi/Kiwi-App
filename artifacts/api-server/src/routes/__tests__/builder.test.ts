@@ -13,6 +13,11 @@ import type {
   AssistDishIngredientsResult,
   AssistDishStepsResult,
 } from "../../lib/kiwiAssist";
+import type { ParseMealFromTextResult } from "../../lib/mealBuilder";
+import type {
+  EntitlementResult,
+  SubscriptionService,
+} from "../../lib/subscriptionService";
 
 // ── stub prisma ────────────────────────────────────────────────────────
 
@@ -124,6 +129,59 @@ function stepsFailure(): AssistDishStepsResult {
   return { status: "failed", error: "Kiwi got distracted. Try again?" };
 }
 
+function makeParseMeal(result: () => Promise<ParseMealFromTextResult>) {
+  let calls = 0;
+  const captured: unknown[] = [];
+  const fn = (async (opts: unknown) => {
+    calls++;
+    captured.push(opts);
+    return result();
+  }) as unknown as Parameters<typeof createBuilderRouter>[0] extends
+    | { parseMealFromText?: infer R }
+    | undefined
+    ? R
+    : never;
+  return { fn, getCalls: () => calls, getCaptured: () => captured };
+}
+
+function parseMealSuccess(): ParseMealFromTextResult {
+  return {
+    status: "success",
+    meal: {
+      title: "Chicken Piccata with Arugula Salad",
+      cuisine: "italian",
+      estimatedPrepMinutes: 15,
+      estimatedCookMinutes: 20,
+      servingsDefault: 4,
+      difficulty: "medium",
+      tags: ["italian", "weeknight"],
+      subDishes: [
+        {
+          title: "Chicken Piccata",
+          role: "main",
+          positionIndex: 0,
+          ingredients: [
+            { name: "chicken cutlets", quantity: 1.5, unit: "lb" },
+          ],
+          steps: [
+            {
+              content: "Pat chicken dry and season.",
+              estimatedMinutes: 2,
+              phaseType: "prep",
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+function makeSubscriptionService(
+  result: EntitlementResult,
+): SubscriptionService {
+  return { can: async () => result };
+}
+
 // ── harness ────────────────────────────────────────────────────────────
 
 interface Harness {
@@ -136,6 +194,9 @@ async function spinUp(deps: {
   assistDishIngredients?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assistDishSteps?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  parseMealFromText?: any;
+  subscriptionService?: SubscriptionService;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prisma: any;
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
@@ -473,5 +534,121 @@ describe("POST /api/builder/assist-ingredients — rate limit", () => {
     assert.equal(r1.status, 200);
     assert.equal(r2.status, 200);
     assert.equal(r3.status, 429);
+  });
+});
+
+// ── tests: parse-meal (Mode A) ────────────────────────────────────────
+
+describe("POST /api/builder/parse-meal — happy path", () => {
+  let harness: Harness;
+  const helper = makeParseMeal(async () => parseMealSuccess());
+
+  before(async () => {
+    harness = await spinUp({
+      parseMealFromText: helper.fn,
+      subscriptionService: makeSubscriptionService({ allowed: true }),
+      prisma: makeStubPrisma(),
+    });
+  });
+  after(async () => harness.close());
+
+  it("returns 200 + meal on a valid request", async () => {
+    const token = signToken(TEST_USER_ID + "-modea");
+    const res = await fetch(`${harness.baseUrl}/builder/parse-meal`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        freeText:
+          "Chicken piccata with a side arugula salad and lemon vinaigrette",
+        servings: 4,
+      }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      status: string;
+      meal: { title: string; cuisine: string; subDishes: unknown[] };
+    };
+    assert.equal(body.status, "success");
+    assert.equal(body.meal.cuisine, "italian");
+    assert.equal(body.meal.subDishes.length, 1);
+    assert.equal(helper.getCalls(), 1);
+  });
+});
+
+describe("POST /api/builder/parse-meal — premium gate denied", () => {
+  let harness: Harness;
+  const helper = makeParseMeal(async () => parseMealSuccess());
+
+  before(async () => {
+    harness = await spinUp({
+      parseMealFromText: helper.fn,
+      subscriptionService: makeSubscriptionService({
+        allowed: false,
+        reason: "Mode A is a premium feature.",
+      }),
+      prisma: makeStubPrisma(),
+    });
+  });
+  after(async () => harness.close());
+
+  it("returns 402 upgrade-required without invoking the helper", async () => {
+    const token = signToken(TEST_USER_ID + "-modea-denied");
+    const res = await fetch(`${harness.baseUrl}/builder/parse-meal`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        freeText: "Beef stew",
+        servings: 4,
+      }),
+    });
+
+    assert.equal(res.status, 402);
+    const body = (await res.json()) as { error: string; reason: string };
+    assert.match(body.error, /upgrade required/);
+    assert.match(body.reason, /premium/);
+    assert.equal(helper.getCalls(), 0);
+  });
+});
+
+describe("POST /api/builder/parse-meal — auth + input validation", () => {
+  let harness: Harness;
+  const helper = makeParseMeal(async () => parseMealSuccess());
+
+  before(async () => {
+    harness = await spinUp({
+      parseMealFromText: helper.fn,
+      subscriptionService: makeSubscriptionService({ allowed: true }),
+      prisma: makeStubPrisma(),
+    });
+  });
+  after(async () => harness.close());
+
+  it("rejects 401 when no authorization header", async () => {
+    const res = await fetch(`${harness.baseUrl}/builder/parse-meal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ freeText: "Beef stew", servings: 4 }),
+    });
+    assert.equal(res.status, 401);
+  });
+
+  it("rejects 400 when freeText is too short", async () => {
+    const token = signToken(TEST_USER_ID + "-modea-bad");
+    const res = await fetch(`${harness.baseUrl}/builder/parse-meal`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ freeText: "x", servings: 4 }),
+    });
+    assert.equal(res.status, 400);
   });
 });

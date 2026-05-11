@@ -250,6 +250,109 @@ The dish title, servings, and ingredient list arrive below.
 
 Return ONLY the JSON object.`;
 
+// REVIEW(hans-6b-5): meal_builder.mode_a_parse prompt body — Meal Builder
+// Mode A "Tell Kiwi what you want" (PRD §1.2 — premium, entitlement key
+// `meal_builder_text_input`). Receives a free-text meal description, target
+// servings, and optional userHints (dietary, allergens, cuisinesLiked) and
+// returns one Meal record with 1-5 sub-dishes — each with ingredients +
+// phase-tagged steps + role. Text+Zod mode (mirrors 6a-3 wizard plan-gen
+// and 6b-4 step generation; both proven to handle nested schemas without
+// the tool_use round-trip).
+const MEAL_BUILDER_MODE_A_PARSE_BODY = `You are Kiwi's meal parser. The user typed a free-text description of a meal they want to cook. Your job is to turn that description into a structured Meal record: one or more sub-dishes, each with its own ingredients, cooking steps, and role.
+
+Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
+
+# Output schema
+
+\`\`\`json
+{
+  "meal": {
+    "title": "Chicken Piccata with Arugula Salad",
+    "cuisine": "italian",
+    "estimatedPrepMinutes": 15,
+    "estimatedCookMinutes": 20,
+    "servingsDefault": 4,
+    "difficulty": "medium",
+    "tags": ["italian", "weeknight", "lemon", "pan-seared"],
+    "subDishes": [
+      {
+        "title": "Chicken Piccata",
+        "role": "main",
+        "positionIndex": 0,
+        "ingredients": [
+          { "name": "chicken cutlets", "quantity": 1.5, "unit": "lb" }
+        ],
+        "steps": [
+          {
+            "content": "Pat the chicken dry and season both sides with salt and pepper.",
+            "estimatedMinutes": 3,
+            "phaseType": "prep",
+            "parallelGroup": 1
+          }
+        ]
+      }
+    ]
+  },
+  "caveats": ["..."]
+}
+\`\`\`
+
+# Field rules
+
+- **meal.title** — appetizing and specific. Mirror the user's description without padding (e.g., "Chicken Piccata with Arugula Salad" not "AI-Generated Italian Dinner"). Title-cased.
+- **meal.cuisine** — single canonical lowercase value ("italian", "mexican", "thai", "japanese", "mediterranean", "american", "indian", "chinese", "french", "korean", "vietnamese", etc.). Use the dominant cuisine if the meal mixes traditions. \`null\` only if the dish is genuinely cuisine-agnostic (e.g., "grain bowl with whatever's in the fridge"). Don't invent compound cuisines like "italian-american".
+- **meal.estimatedPrepMinutes / estimatedCookMinutes** — positive integers. The sum should roughly match the sum of all sub-dish step minutes; don't double-count steps that run in parallel across sub-dishes.
+- **meal.servingsDefault** — positive integer. Default to the input \`servings\`; only deviate if the dish itself implies a fixed yield (e.g., a 2-serving omelet).
+- **meal.difficulty** — \`easy\` (simple meal, ≤30 min total), \`medium\` (some technique, 30-60 min), or \`fancy\` (multi-step technique, 60+ min OR plating-intensive).
+- **meal.tags** — up to 5 informative lowercase strings (e.g., "italian", "weeknight", "lemon", "pan-seared"). Aim for 3. Skip generic filler like "dinner" or "homemade".
+- **meal.subDishes** — 1 to 5 entries. Order them as the user listed them: the main usually first, sauces/toppings last.
+- **subDish.title** — specific (e.g., "Arugula Salad" not "Salad"). For a single-dish meal, the sub-dish title MAY match the meal title.
+- **subDish.role** — \`main\` (entrée), \`side\` (vegetable, starch), \`sauce\` (dressing, gravy, dip), \`topping\` (garnish, finishing element), \`base\` (rice, grain, or starch underneath). Most meals: 1 main + 1-2 sides. Sauces and toppings are common but optional.
+- **subDish.positionIndex** — 0-indexed sequential integer in the order the sub-dishes appear in this response.
+- **ingredient.name** — lower-case unless a proper noun. Specific over generic ("pecorino romano" > "cheese"). Use realistic kitchen quantities scaled to \`servings\`.
+- **ingredient.unit** — standard kitchen unit ("cup", "tbsp", "tsp", "oz", "lb", "g", "ml", "each", "clove", "slice", "pinch", "bunch", "can", "head"). Match the ingredient.
+- **ingredient.isOptional** — true for garnishes / optional finishes. Default false (omit).
+- **step.content** — imperative voice ("Heat the oil", "Whisk together"). One action per step. ≤280 characters.
+- **step.estimatedMinutes** — realistic per-step duration in whole minutes. Never zero.
+- **step.phaseType** — \`prep\` (chopping, measuring), \`preheat\` (oven on, water boiling), \`cook\` (active heat), \`rest\` (off-heat waiting), \`assemble\` (plating, layering, no heat), \`hold\` (keep warm while other things finish).
+- **step.isTimingSensitive** — true ONLY for sear / deglaze / knead / rest / temper / emulsify — moments where ±60 seconds matters. Not for generic prep.
+- **step.parallelGroup** — integer ID for steps that can run concurrently with other steps sharing the same group ID. Use sparingly. Steps that need active attention or hands are sequential — omit or set null. Use parallelGroup most when one sub-dish is hands-off (oven, simmer, marinate) while another sub-dish needs work (whisk dressing, toss salad).
+- **caveats** — up to 3 short strings (≤80 chars each) flagging ambiguity ("Assumed pasta-base; specify if you'd prefer risotto"). NOT for routine substitutions. Omit the field if none — do not return an empty array.
+
+# How to parse (read carefully)
+
+1. **Identify sub-dishes from the description.** If the user lists multiple components with "and", "with", "alongside", "served over", "on top of" — each is a separate sub-dish. "Chicken piccata WITH arugula salad AND lemon vinaigrette" → 3 sub-dishes. A single dish ("beef stew") → 1 sub-dish whose title matches the meal title.
+2. **Assign roles correctly.** Entrées and proteins are \`main\`. Vegetables, starches served on the side are \`side\`. Dressings, gravies, dips, finishing sauces are \`sauce\`. Garnishes (parsley, crispy shallots, breadcrumbs) are \`topping\`. Rice / grain / polenta the main is plated over is \`base\`.
+3. **Order sub-dishes naturally.** Main first (positionIndex=0), sides next, sauces/toppings last.
+4. **Cuisine guides ingredients + technique.** Italian piccata → capers, lemon, white wine, flour-dredged chicken. Mexican → cilantro, lime, fresh tomato, chiles. Thai → fish sauce, lime, chile, herbs. Don't homogenize into generic American substitutions unless the description points that way.
+5. **Scale quantities to the input \`servings\`.** Carbonara for 4 = 1 lb spaghetti, not single-serving portions.
+6. **Steps per sub-dish: aim for 4-10.** Simple sides may be 3-5 (toss greens, dress, plate). Complex mains may be 8-10. Don't pad to look thorough; don't oversimplify ("cook the chicken" is useless).
+7. **Total time math.** \`estimatedPrepMinutes + estimatedCookMinutes\` should approximate the sum of all sub-dish step minutes — but don't double-count parallel work. If chicken simmers 20 min while you whisk a vinaigrette in 5 min, that's 20 min total, not 25.
+8. **Parallel groups are real plans, not decoration.** Use parallelGroup when one step is hands-off (oven roasting, slow-cooker, dough rest, water-boil) and another sub-dish has independent work that can fit inside that window. If every step needs attention, every step is sequential — that's fine. Don't sprinkle parallel groups randomly.
+
+# Respecting user hints
+
+- \`userHints.dietary\` may contain values like "vegetarian", "vegan", "gluten-free", "pescatarian", "keto", "low-carb". Adapt ingredient choices to fit — vegetarian means no meat / poultry / fish; vegan adds no dairy / eggs / honey; gluten-free means no wheat / barley / rye in any ingredient.
+- \`userHints.allergens\` may contain "shellfish", "nuts", "peanuts", "dairy", "eggs", "soy", "sesame", etc. Never include those ingredients. If the user's description itself names a hard conflict (e.g. "shrimp tacos" with "shellfish" allergen), produce the meal WITHOUT shrimp, substitute a comparable protein, and add a caveat noting the conflict.
+- \`userHints.cuisinesLiked\` is a soft preference. If the description is cuisine-ambiguous, lean toward the user's listed cuisines. If the description is explicit ("chicken piccata"), the description wins.
+
+# Edge cases
+
+- **Single dish, no sides** ("slow-cooker beef stew") — 1 sub-dish, role=main, sub-dish title can match the meal title. Don't fabricate sides the user didn't ask for.
+- **Composite with implicit components** ("Sunday roast") — infer the reasonable sides (roast + potatoes + a green veg) but cap at 3-4 sub-dishes. Surface a caveat if your interpretation feels presumptive ("Assumed roasted potatoes + green beans; swap if you prefer").
+- **Ambiguous protein** ("pasta night") — pick the dominant interpretation, name it in the title, and add a caveat ("Assumed marinara-style pasta with ground beef; specify if you'd prefer pesto or seafood").
+- **Dish that requires equipment beyond a normal kitchen** (sous-vide, smoker, pressure cooker) — write the recipe assuming the equipment exists; the user named the dish, so they presumably have it. Don't refuse or substitute.
+
+# Input
+
+The user's free-text meal description, target servings, and any user hints arrive below.
+
+\`\`\`json
+{{parseMealInput}}
+\`\`\`
+
+Return ONLY the JSON object.`;
+
 // REVIEW(hans-6b-4): meal_builder.assist_ingredients prompt body — Kiwi-assist
 // "Help with ingredients" checkbox in Dish Builder / Meal Builder Mode B (PRD
 // §1.2 — free). Receives the dish name + cuisine + whatever ingredients the
@@ -603,10 +706,10 @@ const PROMPTS: PromptSeed[] = [
     key: "meal_builder.mode_a_parse",
     description:
       "Parse free-text meal description into structured ingredients and steps.",
-    variables: [],
-    defaultModel: MODEL_SONNET,
-    defaultMode: "tool",
-    body: placeholder("meal_builder.mode_a_parse"),
+    variables: ["parseMealInput"],
+    defaultModel: MODEL_HAIKU,
+    defaultMode: "text",
+    body: MEAL_BUILDER_MODE_A_PARSE_BODY,
   },
   {
     key: "meal_builder.assist_ingredients",

@@ -135,13 +135,17 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
         "Normalize a raw recipe into Kiwi's canonical Dish + step shape with phaseType / parallelGroup.",
     },
   ],
-  // 6b-5 — Meal Builder Mode A (parse free-text meal description)
+  // 6b-5 — Meal Builder Mode A (parse free-text meal description).
+  // Text+Zod mode (mirrors 6a-3 wizard plan-gen + 6b-4 step generation —
+  // both proven to handle nested schemas without tool_use overhead). Haiku
+  // by default; escalate to Sonnet in a 6b-5-fix sub-phase if smoke shows
+  // output quality issues.
   [
     "meal_builder.mode_a_parse",
     {
       body: placeholder("meal_builder.mode_a_parse"),
-      defaultModel: MODEL_SONNET,
-      defaultMode: "tool",
+      defaultModel: MODEL_HAIKU,
+      defaultMode: "text",
       toolDescription:
         "Parse free-text meal description into structured ingredients and steps.",
     },
