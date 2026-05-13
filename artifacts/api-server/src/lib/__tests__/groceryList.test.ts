@@ -24,6 +24,9 @@ interface IngStub {
   category?: string; // → StoreSection mapping
   ingredientId?: string | null; // null → simulate dishIngredient with no ingredient row
   canonicalNameOverride?: string;
+  purchaseUnit?: string | null;
+  purchaseQuantity?: number | null;
+  purchaseDisplay?: string | null;
 }
 
 interface DishStub {
@@ -101,9 +104,9 @@ function buildPlanRow(plan: PlanStub) {
                       nutritionRefPerUnit: null,
                       aliases: [],
                       isOptionalDefault: false,
-                      purchaseUnit: null,
-                      purchaseQuantity: null,
-                      purchaseDisplay: null,
+                      purchaseUnit: ing.purchaseUnit ?? null,
+                      purchaseQuantity: ing.purchaseQuantity ?? null,
+                      purchaseDisplay: ing.purchaseDisplay ?? null,
                     }
                   : null,
               };
@@ -553,5 +556,63 @@ describe("consolidatePlanIngredients — null ingredient fallback", () => {
     // sectionKey defaults to extras (no category to map).
     assert.equal(out[0].sectionKey, "extras");
     assert.equal(out[0].ingredientId, null);
+  });
+});
+
+describe("consolidatePlanIngredients — purchase-size pass-through", () => {
+  it("passes through populated Ingredient.purchaseUnit/Quantity/Display fields when present", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Chili",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Diced Tomatoes",
+                  quantity: 6,
+                  unit: "oz",
+                  category: "Pantry",
+                  purchaseUnit: "can",
+                  purchaseQuantity: 1,
+                  purchaseDisplay: "1 can (6 oz)",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].purchaseUnit, "can");
+    assert.equal(out[0].purchaseQuantity, 1);
+    assert.equal(out[0].purchaseDisplay, "1 can (6 oz)");
+  });
+
+  it("returns null purchase fields when the Ingredient row has them null (default state)", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Tacos",
+              servingsDefault: 4,
+              ingredients: [{ name: "Ground Beef", quantity: 1, unit: "lb", category: "Protein" }],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].purchaseUnit, null);
+    assert.equal(out[0].purchaseQuantity, null);
+    assert.equal(out[0].purchaseDisplay, null);
   });
 });
