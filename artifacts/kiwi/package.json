@@ -59,6 +59,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "expo-image-manipulator": "^14.0.8",
     "react-native-draggable-flatlist": "^4.0.3"
   }
 }

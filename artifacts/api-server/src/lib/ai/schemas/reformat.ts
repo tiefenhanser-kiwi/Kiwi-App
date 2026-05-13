@@ -82,10 +82,22 @@ const StructuredHintIngredientSchema = z.object({
   isOptional: z.boolean().optional(),
 });
 
+// WS6 6c-2 — vision input for image-based recipe imports. base64 data flows
+// through to Anthropic Vision as ImageBlockParam (see runAICall attachments).
+// Mime types match Anthropic's vision API allowlist.
+export const ImageInputSchema = z.object({
+  mediaType: z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]),
+  data: z.string().min(1),
+});
+export type ImageInput = z.infer<typeof ImageInputSchema>;
+
 export const RawRecipeInputSchema = z.object({
-  url: z.string(),
+  // 6c-2: optional — image imports have no URL.
+  url: z.string().optional(),
   rawHtml: z.string().optional(),
   rawText: z.string().optional(),
+  // 6c-2: up to 5 images per import (Hans's locked product call).
+  images: z.array(ImageInputSchema).max(5).optional(),
   structuredHints: z
     .object({
       title: z.string().optional(),
@@ -178,7 +190,7 @@ export const CanonicalRecipeSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("success"),
     recipe: CanonicalRecipeContentSchema,
-    caveats: z.array(z.string().max(100)).max(3).optional(),
+    caveats: z.array(z.string().max(300)).max(3).optional(),
   }),
   z.object({
     status: z.literal("no_recipe_content"),
@@ -194,6 +206,10 @@ export type CanonicalRecipe = z.infer<typeof CanonicalRecipeSchema>;
 export const URL_IMPORT_FAILURE_MESSAGE =
   "Kiwi couldn't read this recipe. Common reasons are paywalls, JavaScript-rendered pages, or non-standard formats. Try taking a screenshot of the recipe and using Import from Image instead.";
 
+// 6c-2 — surfaced when image-import fails; suggests text/URL import as fallback.
+export const IMAGE_IMPORT_FAILURE_MESSAGE =
+  "Kiwi couldn't read this image. Try a clearer photo with good lighting, or paste the recipe text or a URL instead.";
+
 export const URLImportFailureSchema = z.object({
   success: z.literal(false),
   reason: z.enum([
@@ -203,7 +219,8 @@ export const URLImportFailureSchema = z.object({
     "sdk_error",
   ]),
   userFacingMessage: z.string(),
-  suggestedAction: z.literal("try_image_import"),
+  // 6c-2 widened: URL import suggests image as fallback; image import suggests text.
+  suggestedAction: z.enum(["try_image_import", "try_text_import"]),
   internalError: z.string().optional(),
 });
 export type URLImportFailure = z.infer<typeof URLImportFailureSchema>;

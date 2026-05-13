@@ -53,6 +53,10 @@ export interface AICallOptions {
   // resolution, model-rate lookup, and LLMCallLog writes.
   // Tests: omit (in-memory fallback, no log writes) or inject a stub.
   prisma?: PrismaLike;
+  // WS6 6c-2 — vision input. When present + non-empty, the user message
+  // content swaps from string to [...attachments, { type: 'text', text }].
+  // Image tokens are billed per-attempt; the retry path re-sends them.
+  attachments?: Anthropic.ImageBlockParam[];
 }
 
 export interface AICallMetadata {
@@ -155,6 +159,8 @@ export async function runAICall<T extends z.ZodTypeAny>(
   let inputTokens = 0;
   let outputTokens = 0;
 
+  const hasAttachments = (opts.attachments?.length ?? 0) > 0;
+
   while (attempt <= (retryOnValidationFailure ? 1 : 0)) {
     const userMessage = buildUserMessage({
       baseBody,
@@ -163,13 +169,69 @@ export async function runAICall<T extends z.ZodTypeAny>(
       lastValidationError,
     });
 
+    // 6c-2 — vision input: prepend image blocks to a text block. The string
+    // fast-path stays the default to keep non-vision calls allocation-free.
+    const messageContent: string | Array<Anthropic.ImageBlockParam | Anthropic.TextBlockParam> =
+      hasAttachments
+        ? [...(opts.attachments ?? []), { type: "text", text: userMessage }]
+        : userMessage;
+
+    // 6c-2 transport diagnostic — TEMPORARY, remove after testing produces data.
+    if (Array.isArray(messageContent)) {
+      logger.info(
+        {
+          event: "ai_call_pre_send_diagnostic",
+          promptKey,
+          mode,
+          model,
+          messageCount: 1,
+          firstMessageContentType: "array",
+          contentBlocks: messageContent.map((block) => {
+            if (block.type === "image") {
+              if (block.source.type === "base64") {
+                return {
+                  type: block.type,
+                  mediaType: block.source.media_type,
+                  dataLength: block.source.data.length,
+                  dataPreview: block.source.data.slice(0, 16),
+                };
+              }
+              return { type: block.type, sourceType: block.source.type };
+            }
+            return { type: block.type, textLength: block.text.length };
+          }),
+          totalPayloadEstimateBytes: messageContent.reduce((sum, block) => {
+            if (block.type === "image" && block.source.type === "base64") {
+              return sum + block.source.data.length;
+            }
+            if (block.type === "text") return sum + block.text.length;
+            return sum;
+          }, 0),
+        },
+        "Pre-send diagnostic",
+      );
+    } else {
+      logger.info(
+        {
+          event: "ai_call_pre_send_diagnostic",
+          promptKey,
+          mode,
+          model,
+          messageCount: 1,
+          firstMessageContentType: typeof messageContent,
+          totalPayloadEstimateBytes: messageContent.length,
+        },
+        "Pre-send diagnostic",
+      );
+    }
+
     let message: Anthropic.Message;
     try {
       message = await client.messages.create({
         model,
         max_tokens: maxTokens,
         temperature,
-        messages: [{ role: "user", content: userMessage }],
+        messages: [{ role: "user", content: messageContent }],
         ...(mode === "tool"
           ? {
               tools: buildToolForSchema(schema, descriptor.toolDescription),

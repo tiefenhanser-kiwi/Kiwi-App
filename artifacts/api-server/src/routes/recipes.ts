@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import express, { Router, type IRouter } from "express";
 import * as cheerio from "cheerio";
 import { z } from "zod";
 
@@ -11,6 +11,8 @@ import { ScaleResponseSchema } from "../lib/ai/schemas/scale";
 import {
   CanonicalRecipeContentSchema,
   type CanonicalRecipeContent,
+  IMAGE_IMPORT_FAILURE_MESSAGE,
+  ImageInputSchema,
   URL_IMPORT_FAILURE_MESSAGE,
 } from "../lib/ai/schemas/reformat";
 import {
@@ -211,6 +213,131 @@ router.post("/recipes/import-url", requireAuth, importLimiter, async (req, res) 
     caveats: aiResult.data.caveats ?? [],
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// POST /recipes/import-image — WS6 6c-2
+// ─────────────────────────────────────────────────────────────────
+
+const ImportImageRequestSchema = z.object({
+  images: z.array(ImageInputSchema).min(1).max(5),
+});
+
+// 35 MiB JSON ceiling: 5 images × 5 MiB raw × ~1.37 base64 overhead = ~34.3 MiB
+// of base64 plus JSON wrapper. Per-image and total decoded-byte caps below
+// enforce the real product limit (5 MiB / 25 MiB) after parsing.
+const imageBodyParser = express.json({ limit: "35mb" });
+const PER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const TOTAL_IMAGE_MAX_BYTES = 25 * 1024 * 1024;
+
+// base64 length → decoded byte length, accounting for trailing '=' padding.
+function base64DecodedByteLength(b64: string): number {
+  const len = b64.length;
+  if (len === 0) return 0;
+  let padding = 0;
+  if (b64.endsWith("==")) padding = 2;
+  else if (b64.endsWith("=")) padding = 1;
+  return Math.floor((len * 3) / 4) - padding;
+}
+
+router.post(
+  "/recipes/import-image",
+  imageBodyParser,
+  requireAuth,
+  importLimiter,
+  async (req, res) => {
+    const parsed = ImportImageRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        reason: "url_parse_failed",
+        userFacingMessage: IMAGE_IMPORT_FAILURE_MESSAGE,
+        suggestedAction: "try_text_import",
+      });
+    }
+
+    const { images } = parsed.data;
+    let totalBytes = 0;
+    for (let i = 0; i < images.length; i++) {
+      const bytes = base64DecodedByteLength(images[i].data);
+      if (bytes > PER_IMAGE_MAX_BYTES) {
+        return res.status(400).json({
+          success: false,
+          reason: "url_parse_failed",
+          userFacingMessage:
+            "One of those images is too large (max 5 MB each). Try a smaller or compressed photo.",
+          suggestedAction: "try_text_import",
+        });
+      }
+      totalBytes += bytes;
+    }
+    if (totalBytes > TOTAL_IMAGE_MAX_BYTES) {
+      return res.status(400).json({
+        success: false,
+        reason: "url_parse_failed",
+        userFacingMessage:
+          "Those images add up to more than 25 MB total. Try fewer or smaller photos.",
+        suggestedAction: "try_text_import",
+      });
+    }
+
+    const userId = req.userId ?? null;
+    const aiResult = await reformatRecipeForKiwi(
+      { images },
+      { prisma, userId: userId ?? undefined },
+    );
+
+    if (!aiResult.success) {
+      return res.json({
+        success: false,
+        reason: "sdk_error",
+        userFacingMessage: IMAGE_IMPORT_FAILURE_MESSAGE,
+        suggestedAction: "try_text_import",
+        internalError: aiResult.internalError,
+      });
+    }
+
+    if (aiResult.data.status === "no_recipe_content") {
+      return res.json({
+        success: false,
+        reason: "url_parse_failed",
+        userFacingMessage: IMAGE_IMPORT_FAILURE_MESSAGE,
+        suggestedAction: "try_text_import",
+        internalError: aiResult.data.reason,
+      });
+    }
+
+    const recipe: CanonicalRecipeContent = CanonicalRecipeContentSchema.parse(
+      aiResult.data.recipe,
+    );
+
+    if (userId) {
+      prisma.userActivity
+        .create({
+          data: {
+            userId,
+            eventType: "recipe_imported_image",
+            entityId: null,
+            platform: "api",
+            metadata: { imageCount: images.length, source: "image" },
+          },
+        })
+        .catch((err) => {
+          logger.warn(
+            { err, imageCount: images.length },
+            "recipe_imported_image activity write failed",
+          );
+        });
+    }
+
+    return res.json({
+      success: true,
+      recipe,
+      source: "image" as const,
+      sourceUrl: null,
+      caveats: aiResult.data.caveats ?? [],
+    });
+  },
+);
 
 // ─────────────────────────────────────────────────────────────────
 // Catalog endpoints (unchanged)

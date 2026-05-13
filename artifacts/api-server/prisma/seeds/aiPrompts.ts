@@ -628,7 +628,7 @@ Generate the candidates now. Return ONLY the tool_use call.`;
 // (URL-scraped JSON-LD, raw page text, or OCR'd image text) into Kiwi's
 // canonical Meal/Dish/Step shape. Output is a discriminated union on `status`
 // — success carries the recipe; no_recipe_content carries a one-sentence reason.
-const IMPORT_REFORMAT_FOR_KIWI_BODY = `You are Kiwi's recipe-reformatter. The user imported a recipe from another source (a recipe website, a personal blog, a pasted block of text). Your job is to turn that source material into Kiwi's canonical recipe shape: clean meal-level metadata, properly grouped sub-dishes, parsed ingredients, and phase-tagged cooking steps with explicit quantities and timing flags.
+const IMPORT_REFORMAT_FOR_KIWI_BODY = `You are Kiwi's recipe-reformatter. The user imported a recipe from another source (a recipe website, a personal blog, a pasted block of text, or one or more images — photos of cookbook pages, recipe-card screenshots, or hand-written notes). Your job is to turn that source material into Kiwi's canonical recipe shape: clean meal-level metadata, properly grouped sub-dishes, parsed ingredients, and phase-tagged cooking steps with explicit quantities and timing flags.
 
 Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
 
@@ -647,6 +647,8 @@ Return this shape — NOT a placeholder success — when ANY of these apply:
 - The page is clearly not a recipe — a blog post, news article, restaurant menu, store page.
 
 Do NOT try to construct a recipe from teasers, partial ingredient lists, or "you'll need..." preview text. If you can see only an ingredient teaser but the full recipe is gated, that is paywalled — return no_recipe_content.
+
+**Ingredients-only sources are NOT no_recipe_content.** When the source has parseable ingredients but no cooking steps (e.g., a photo of an ingredient list, a recipe card listing only ingredients, a handwritten note with quantities but no instructions), generate suggested cooking steps from the ingredient list + apparent dish type. Use sensible defaults for technique, temperature, and timing — produce a complete, runnable recipe a beginner could cook. Surface a caveat exactly: \`"Steps inferred from ingredients — review carefully"\`. Only return \`no_recipe_content\` if there are ALSO fewer than 3 parseable ingredients.
 
 The shape is:
 
@@ -724,7 +726,9 @@ Every dish in the success shape MUST contain at least one cooking step. A succes
 
 # Inputs you may receive
 
-The input below contains a \`url\` (source link), optionally a \`rawHtml\` or \`rawText\` body (when the page has no structured data), and optionally a \`structuredHints\` block (when JSON-LD or similar structured data was extracted from the page). When \`structuredHints\` is present, treat it as a high-confidence starting point — the title, ingredient list, and steps came from the publisher's own metadata. When only \`rawHtml\` / \`rawText\` is present, you must do the parsing yourself.
+The input below contains a \`url\` (source link, optional for image imports), optionally a \`rawHtml\` or \`rawText\` body (when the page has no structured data), and optionally a \`structuredHints\` block (when JSON-LD or similar structured data was extracted from the page). When \`structuredHints\` is present, treat it as a high-confidence starting point — the title, ingredient list, and steps came from the publisher's own metadata. When only \`rawHtml\` / \`rawText\` is present, you must do the parsing yourself.
+
+When the input arrives as one or more image attachments (look for \`imagesAttached: N\` in the rawRecipe payload), treat them as recipe photos or screenshots — the same parsing rules apply. Read the text from each image and merge across images into a single recipe (a long recipe may span multiple screenshots). The image-attached path is also where the ingredients-only case above most commonly applies (handwritten cards, ingredient-list photos).
 
 # Closed enums (use exact values)
 

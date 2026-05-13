@@ -9,6 +9,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import {
   CanonicalRecipeSchema,
   CanonicalRecipeContentSchema,
+  ImageInputSchema,
   RawRecipeInputSchema,
   URLImportFailureSchema,
 } from "../schemas/reformat";
@@ -18,6 +19,7 @@ import {
   parseIngredientLines,
   reformatRecipeForKiwi,
   fetchRecipePage,
+  stripNullValues,
 } from "../../recipeImport";
 import { _resetClientCache } from "../runAICall";
 import type {
@@ -60,12 +62,14 @@ interface QueuedResponse {
 function makeFakeClient(responses: QueuedResponse[]) {
   let calls = 0;
   const queue = [...responses];
+  const capturedParams: Anthropic.MessageCreateParams[] = [];
   const client = {
     messages: {
       create: async (
         params: Anthropic.MessageCreateParams,
       ): Promise<Anthropic.Message> => {
         calls++;
+        capturedParams.push(params);
         const next = queue.shift();
         if (!next) throw new Error("fake client exhausted: no queued responses");
         return {
@@ -90,7 +94,12 @@ function makeFakeClient(responses: QueuedResponse[]) {
       },
     },
   } as unknown as Pick<Anthropic, "messages">;
-  return { client, callCount: () => calls };
+  return {
+    client,
+    callCount: () => calls,
+    getLastParams: (): Anthropic.MessageCreateParams =>
+      capturedParams[capturedParams.length - 1],
+  };
 }
 
 // ── canned payloads ─────────────────────────────────────────────────────
@@ -213,18 +222,19 @@ describe("CanonicalRecipeSchema — discriminated union shape", () => {
     assert.equal(result.success, false);
   });
 
-  // 6c-1-fix: caveats cap bumped 80 → 100 to admit real-world AI-emitted caveats
-  // (full phrases like "Used 1 cup for 'a handful' of basil" sometimes hit 90+).
-  it("accepts a caveat at the 100-char boundary", () => {
+  // 6c-2-fix-2: caveats cap bumped 100 → 300. Cookbook-photo imports emit
+  // descriptive caveats ("Last 2 ingredients may have been cut off — re-scan
+  // to verify quantities") that exceeded 100 chars. 300 fits ~2 mobile lines.
+  it("accepts a caveat at the 300-char boundary", () => {
     const payload = JSON.parse(JSON.stringify(SUCCESS_PAYLOAD));
-    payload.caveats = ["x".repeat(100)];
+    payload.caveats = ["x".repeat(300)];
     const result = CanonicalRecipeSchema.safeParse(payload);
     assert.equal(result.success, true);
   });
 
-  it("rejects a caveat over the 100-char cap (101 chars)", () => {
+  it("rejects a caveat over the 300-char cap (301 chars)", () => {
     const payload = JSON.parse(JSON.stringify(SUCCESS_PAYLOAD));
-    payload.caveats = ["x".repeat(101)];
+    payload.caveats = ["x".repeat(301)];
     const result = CanonicalRecipeSchema.safeParse(payload);
     assert.equal(result.success, false);
   });
@@ -300,6 +310,63 @@ describe("RawRecipeInputSchema", () => {
       },
     });
     assert.equal(result.success, true);
+  });
+
+  // 6c-2 — image input accepted without url; url + images permitted together.
+  it("accepts an images-only input (no url)", () => {
+    const result = RawRecipeInputSchema.safeParse({
+      images: [{ mediaType: "image/jpeg", data: "abcdef" }],
+    });
+    assert.equal(result.success, true);
+  });
+
+  it("accepts a url + images mixed input", () => {
+    const result = RawRecipeInputSchema.safeParse({
+      url: "https://example.com/r",
+      images: [
+        { mediaType: "image/jpeg", data: "aaa" },
+        { mediaType: "image/png", data: "bbb" },
+      ],
+    });
+    assert.equal(result.success, true);
+  });
+
+  it("rejects images array with 6 items (max 5)", () => {
+    const result = RawRecipeInputSchema.safeParse({
+      images: Array.from({ length: 6 }, () => ({
+        mediaType: "image/jpeg" as const,
+        data: "x",
+      })),
+    });
+    assert.equal(result.success, false);
+  });
+});
+
+// ── ImageInputSchema (6c-2) ────────────────────────────────────────────
+
+describe("ImageInputSchema", () => {
+  it("accepts a valid jpeg image", () => {
+    const result = ImageInputSchema.safeParse({
+      mediaType: "image/jpeg",
+      data: "abc",
+    });
+    assert.equal(result.success, true);
+  });
+
+  it("rejects an unknown media type (image/heic)", () => {
+    const result = ImageInputSchema.safeParse({
+      mediaType: "image/heic",
+      data: "abc",
+    });
+    assert.equal(result.success, false);
+  });
+
+  it("rejects empty data", () => {
+    const result = ImageInputSchema.safeParse({
+      mediaType: "image/png",
+      data: "",
+    });
+    assert.equal(result.success, false);
   });
 });
 
@@ -616,5 +683,217 @@ describe("reformatRecipeForKiwi", () => {
     assert.equal(result.success, false);
     if (result.success) return;
     assert.equal(result.reason, "no_api_key");
+  });
+
+  // 6c-2 vision path — images flow through as ImageBlockParam attachments
+  // on messages[0].content, alongside a single text block.
+  it("vision path: passes images as image blocks in messages[0].content", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const fake = makeFakeClient([
+      {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(SUCCESS_PAYLOAD),
+            citations: null,
+          } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const result = await reformatRecipeForKiwi(
+      {
+        images: [
+          { mediaType: "image/jpeg", data: "AAAA" },
+          { mediaType: "image/png", data: "BBBB" },
+        ],
+      },
+      { prisma, userId: "u-vision", client: fake.client },
+    );
+
+    assert.equal(result.success, true);
+    const params = fake.getLastParams();
+    const content = params.messages[0].content;
+    assert.ok(Array.isArray(content), "content should be an array, not a string");
+    if (!Array.isArray(content)) return;
+    const imageBlocks = content.filter((b) => b.type === "image");
+    const textBlocks = content.filter((b) => b.type === "text");
+    assert.equal(imageBlocks.length, 2);
+    assert.equal(textBlocks.length, 1);
+    // Image blocks should carry the base64 source + media type we passed in.
+    const firstImage = imageBlocks[0] as Anthropic.ImageBlockParam;
+    assert.equal(firstImage.source.type, "base64");
+    if (firstImage.source.type !== "base64") return;
+    assert.equal(firstImage.source.media_type, "image/jpeg");
+    assert.equal(firstImage.source.data, "AAAA");
+  });
+
+  it("vision path: surfaces no_recipe_content from the AI response", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const fake = makeFakeClient([
+      {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(NO_RECIPE_PAYLOAD),
+            citations: null,
+          } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const result = await reformatRecipeForKiwi(
+      { images: [{ mediaType: "image/jpeg", data: "AAAA" }] },
+      { prisma, userId: "u-vision-empty", client: fake.client },
+    );
+
+    assert.equal(result.success, true);
+    if (!result.success) return;
+    assert.equal(result.data.status, "no_recipe_content");
+  });
+
+  it("vision path: caveats round-trip through the success result", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const payloadWithCaveat = {
+      ...SUCCESS_PAYLOAD,
+      caveats: ["Steps inferred from ingredients — review carefully"],
+    };
+    const fake = makeFakeClient([
+      {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(payloadWithCaveat),
+            citations: null,
+          } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const result = await reformatRecipeForKiwi(
+      { images: [{ mediaType: "image/jpeg", data: "AAAA" }] },
+      { prisma, userId: "u-vision-caveat", client: fake.client },
+    );
+
+    assert.equal(result.success, true);
+    if (!result.success) return;
+    if (result.data.status !== "success") return;
+    assert.deepEqual(result.data.caveats, [
+      "Steps inferred from ingredients — review carefully",
+    ]);
+  });
+
+  // 6c-2-fix-2 Test B — caveats cap regression-lock. A 200-char caveat string
+  // must survive the full reformat pipeline now that the limit is 300 (was 100).
+  it("vision path: 200-char caveat passes validation through the full pipeline", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const longCaveat = "x".repeat(200);
+    const payloadWithLongCaveat = {
+      ...SUCCESS_PAYLOAD,
+      caveats: [longCaveat],
+    };
+    const fake = makeFakeClient([
+      {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(payloadWithLongCaveat),
+            citations: null,
+          } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const result = await reformatRecipeForKiwi(
+      { images: [{ mediaType: "image/jpeg", data: "AAAA" }] },
+      { prisma, userId: "u-vision-200-caveat", client: fake.client },
+    );
+
+    assert.equal(result.success, true);
+    if (!result.success) return;
+    if (result.data.status !== "success") return;
+    assert.equal(result.data.caveats?.[0].length, 200);
+  });
+
+  // 6c-2-fix-2 Test C — null-tolerance regression-lock. AI responses with
+  // explicit null for optional fields (sourceUrl, description) must validate
+  // and surface as undefined on the canonical recipe.
+  it("vision path: null fields in AI response are stripped and validate cleanly", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const payloadWithNulls = JSON.parse(JSON.stringify(SUCCESS_PAYLOAD));
+    payloadWithNulls.recipe.meal.sourceUrl = null;
+    payloadWithNulls.recipe.meal.description = null;
+    const fake = makeFakeClient([
+      {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(payloadWithNulls),
+            citations: null,
+          } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const result = await reformatRecipeForKiwi(
+      { images: [{ mediaType: "image/jpeg", data: "AAAA" }] },
+      { prisma, userId: "u-vision-nulls", client: fake.client },
+    );
+
+    assert.equal(result.success, true);
+    if (!result.success) return;
+    if (result.data.status !== "success") return;
+    assert.equal(result.data.recipe.meal.sourceUrl, undefined);
+    assert.equal(result.data.recipe.meal.description, undefined);
+    // Sanity — the rest of the recipe still validated through the strip.
+    assert.equal(result.data.recipe.meal.title, "Spaghetti Carbonara");
+  });
+});
+
+// ── stripNullValues helper (6c-2-fix-2) ────────────────────────────────
+
+describe("stripNullValues — recursive null-stripping helper", () => {
+  it("returns undefined when given null at the top level", () => {
+    assert.equal(stripNullValues(null), undefined);
+  });
+
+  it("drops null-valued keys from an object", () => {
+    assert.deepEqual(stripNullValues({ a: null, b: "x" }), { b: "x" });
+  });
+
+  it("recurses into nested objects, dropping nulls inside", () => {
+    assert.deepEqual(stripNullValues({ a: { b: null } }), { a: {} });
+  });
+
+  it("filters null elements out of arrays of primitives", () => {
+    assert.deepEqual(stripNullValues({ a: [null, "x", null] }), { a: ["x"] });
+  });
+
+  it("recurses into arrays of objects, stripping nulls per element", () => {
+    assert.deepEqual(
+      stripNullValues({ a: [{ b: null, c: "x" }] }),
+      { a: [{ c: "x" }] },
+    );
+  });
+
+  it("passes non-null primitives through unchanged", () => {
+    assert.equal(stripNullValues("hello"), "hello");
+    assert.equal(stripNullValues(42), 42);
+    assert.equal(stripNullValues(true), true);
+    assert.equal(stripNullValues(undefined), undefined);
+  });
+
+  it("preserves an empty array as an empty array", () => {
+    assert.deepEqual(stripNullValues([]), []);
   });
 });

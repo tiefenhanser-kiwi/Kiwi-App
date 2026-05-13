@@ -142,6 +142,7 @@ enum ActivityEventType {
   dish_macros_estimated
   plan_macros_recalculated
   recipe_imported_url
+  recipe_imported_image
 }
 
 enum SpiceTolerance {

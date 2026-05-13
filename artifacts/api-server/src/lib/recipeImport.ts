@@ -10,6 +10,7 @@
 import * as cheerio from "cheerio";
 import { parse as parseIngredient } from "recipe-ingredient-parser-v3";
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 
 import { runAICall } from "./ai/runAICall";
 import type { AICallResult } from "./ai/runAICall";
@@ -20,6 +21,38 @@ import {
   type RawRecipeInput,
   type CanonicalRecipe,
 } from "./ai/schemas/reformat";
+
+// 6c-2-fix-2 — strip `null` values from the AI response before Zod validation.
+// Cookbook-photo imports sometimes return `null` for unknown optional fields
+// (sourceUrl, description). The schema's `.optional()` accepts missing keys
+// and `undefined`, but rejects `null`. Rather than loosen the schema's
+// semantic contract with `.nullable()`, we drop nulls here so they become
+// "missing" — preserving the schema's intent. Applied via z.preprocess on the
+// wrapper schema passed to runAICall; the underlying CanonicalRecipeSchema is
+// unchanged. Recursive: handles nested objects, arrays-of-primitives, and
+// arrays-of-objects (instruction steps, ingredients).
+export function stripNullValues(value: unknown): unknown {
+  if (value === null) return undefined;
+  if (Array.isArray(value)) {
+    return value
+      .map(stripNullValues)
+      .filter((v) => v !== undefined);
+  }
+  if (typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const stripped = stripNullValues(v);
+      if (stripped !== undefined) result[k] = stripped;
+    }
+    return result;
+  }
+  return value;
+}
+
+const CanonicalRecipeSchemaWithStripping = z.preprocess(
+  stripNullValues,
+  CanonicalRecipeSchema,
+);
 
 // ─────────────────────────────────────────────────────────────────
 // URL fetch
@@ -364,14 +397,39 @@ export async function reformatRecipeForKiwi(
 ): Promise<AICallResult<CanonicalRecipe>> {
   // Validate input shape early so the AI call doesn't waste tokens on garbage.
   RawRecipeInputSchema.parse(rawRecipe);
+
+  // 6c-2 — vision path. When images are present, pass them as Anthropic
+  // ImageBlockParam attachments. Strip the base64 from the var substitution:
+  // renderPromptBody JSON.stringify's the rawRecipe into {{rawRecipe}}, and
+  // we don't want 25MB of base64 echoed inline (model sees the images via
+  // the attachment blocks instead).
+  const images = rawRecipe.images ?? [];
+  const attachments: Anthropic.ImageBlockParam[] | undefined =
+    images.length > 0
+      ? images.map((img) => ({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: img.mediaType,
+            data: img.data,
+          },
+        }))
+      : undefined;
+  const { images: _strippedImages, ...rawRecipeForPrompt } = rawRecipe;
+  const varsRawRecipe =
+    images.length > 0
+      ? { ...rawRecipeForPrompt, imagesAttached: images.length }
+      : rawRecipe;
+
   return runAICall(
     "import.reformat_for_kiwi",
-    { rawRecipe },
-    CanonicalRecipeSchema,
+    { rawRecipe: varsRawRecipe },
+    CanonicalRecipeSchemaWithStripping,
     {
       prisma: opts.prisma,
       userId: opts.userId,
       client: opts.client,
+      ...(attachments ? { attachments } : {}),
     },
   );
 }

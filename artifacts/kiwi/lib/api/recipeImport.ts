@@ -1,12 +1,15 @@
-// Mobile client for POST /api/recipes/import-url (WS6 6c-1).
-// Calls the server endpoint and adapts the canonical recipe response into
-// the DraftMeal shape the existing meal-review/edit screen consumes.
+// Mobile client for POST /api/recipes/import-url (WS6 6c-1) and
+// POST /api/recipes/import-image (WS6 6c-2). Calls the server endpoint and
+// adapts the canonical recipe response into the DraftMeal shape the existing
+// meal-review/edit screen consumes.
 //
 // The canonical → DraftMeal adapter is a deliberate throwaway: it lives at
 // the client boundary so the rest of the app stays on the legacy DraftMeal
 // shape until WS7 lands a first-class import flow. The server preserves
 // the full canonical recipe in LLMCallLog, so nothing is lost in the
 // adapter.
+
+import * as ImageManipulator from "expo-image-manipulator";
 
 import { readToken } from "../auth";
 import type { DraftMeal, ReviewMealDish, ReviewMealStep } from "../types";
@@ -67,11 +70,14 @@ export interface CanonicalRecipeContentWire {
   dishes: CanonicalDishWire[];
 }
 
+// 6c-2 — source widened to include 'image' for POST /api/recipes/import-image.
+// The URL endpoint still only returns 'structured_data' | 'ai_fallback' at
+// runtime; consumers should narrow against sourceUrl !== null when needed.
 interface ImportUrlSuccessResponse {
   success: true;
   recipe: CanonicalRecipeContentWire;
-  source: "structured_data" | "ai_fallback";
-  sourceUrl: string;
+  source: "structured_data" | "ai_fallback" | "image";
+  sourceUrl: string | null;
   caveats?: string[];
 }
 
@@ -85,6 +91,16 @@ interface ImportUrlFailureResponse {
 
 export type URLImportResult = ImportUrlSuccessResponse | ImportUrlFailureResponse;
 
+interface ImportImageFailureResponse {
+  success: false;
+  reason: "url_parse_failed" | "rate_limited" | "sdk_error";
+  userFacingMessage: string;
+  suggestedAction: "try_text_import";
+  internalError?: string;
+}
+
+type ImageImportResult = ImportUrlSuccessResponse | ImportImageFailureResponse;
+
 // ─────────────────────────────────────────────────────────────────
 // Adapter — canonical recipe → DraftMeal (legacy flat shape)
 // ─────────────────────────────────────────────────────────────────
@@ -95,7 +111,7 @@ function mapDifficulty(d: "easy" | "medium" | "fancy"): DraftMeal["difficulty"] 
 
 function canonicalToDraftMeal(
   canonical: CanonicalRecipeContentWire,
-  sourceUrl: string,
+  sourceUrl: string | null,
 ): DraftMeal {
   const dishes: ReviewMealDish[] = canonical.dishes.map((d) => ({
     name: d.title,
@@ -134,7 +150,8 @@ function canonicalToDraftMeal(
     fatGPerServing: 0,
     dishes,
     steps,
-    sourceUrl,
+    // DraftMeal.sourceUrl is `string?`; collapse null (image import) to undefined.
+    ...(sourceUrl ? { sourceUrl } : {}),
   };
 }
 
@@ -205,10 +222,133 @@ export async function importRecipeFromUrl(
     };
   }
 
+  // Wire `source` union includes 'image' (Block C shared type) but the URL
+  // endpoint only ever returns 'structured_data' | 'ai_fallback' at runtime.
   return {
     success: true,
     draft: canonicalToDraftMeal(body.recipe, body.sourceUrl),
-    source: body.source,
+    source: body.source as "structured_data" | "ai_fallback",
+    caveats: body.caveats ?? [],
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Image import (WS6 6c-2)
+// ─────────────────────────────────────────────────────────────────
+
+export interface ImportRecipeFromImageOptions {
+  imageUris: string[];
+}
+
+export type ImportRecipeFromImageResult =
+  | {
+      success: true;
+      draft: DraftMeal;
+      source: "image";
+      caveats: string[];
+    }
+  | {
+      success: false;
+      userFacingMessage: string;
+      reason: ImportImageFailureResponse["reason"];
+    };
+
+// 1568px @ JPEG 0.7 per Anthropic vision API recommendation — keeps payloads
+// ≤200KB to avoid TCP edge drops on larger uploads (locked decision revision
+// from Block D, 2026-05-12).
+// Two-pass: pass 1 reads original dimensions (empty actions, no base64),
+// pass 2 resizes by the longer axis (aspect preserved automatically).
+async function prepareImageForUpload(
+  uri: string,
+): Promise<{ mediaType: "image/jpeg"; data: string }> {
+  const probe = await ImageManipulator.manipulateAsync(uri, [], {
+    base64: false,
+  });
+  const longerIsWidth = probe.width >= probe.height;
+  const resizeAction: ImageManipulator.Action =
+    longerIsWidth
+      ? { resize: { width: Math.min(1568, probe.width) } }
+      : { resize: { height: Math.min(1568, probe.height) } };
+
+  const processed = await ImageManipulator.manipulateAsync(
+    uri,
+    [resizeAction],
+    {
+      compress: 0.7,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true,
+    },
+  );
+
+  if (!processed.base64) {
+    throw new Error("ImageManipulator returned no base64 data");
+  }
+
+  return { mediaType: "image/jpeg", data: processed.base64 };
+}
+
+export async function importRecipeFromImage(
+  opts: ImportRecipeFromImageOptions,
+): Promise<ImportRecipeFromImageResult> {
+  const token = await readToken();
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+
+  let images: { mediaType: "image/jpeg"; data: string }[];
+  try {
+    images = await Promise.all(opts.imageUris.map(prepareImageForUpload));
+  } catch {
+    return {
+      success: false,
+      reason: "sdk_error",
+      userFacingMessage:
+        "Kiwi couldn't read one of those photos. Try picking it again.",
+    };
+  }
+
+  const res = await fetch(`${apiBase}/recipes/import-image`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ images }),
+  });
+
+  if (res.status === 429) {
+    return {
+      success: false,
+      reason: "rate_limited",
+      userFacingMessage:
+        "Kiwi is catching up on imports — give it a moment and try again.",
+    };
+  }
+
+  let body: ImageImportResult;
+  try {
+    body = (await res.json()) as ImageImportResult;
+  } catch {
+    return {
+      success: false,
+      reason: "sdk_error",
+      userFacingMessage:
+        "Kiwi couldn't read this recipe. Try again in a moment.",
+    };
+  }
+
+  if (!body.success) {
+    return {
+      success: false,
+      reason: body.reason,
+      userFacingMessage: body.userFacingMessage,
+    };
+  }
+
+  return {
+    success: true,
+    draft: canonicalToDraftMeal(body.recipe, body.sourceUrl),
+    source: "image",
     caveats: body.caveats ?? [],
   };
 }
