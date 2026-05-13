@@ -113,7 +113,7 @@ enum StoreSection {
   frozen
   snacks
   household
-  other
+  extras
 }
 
 enum RestockCadence {
@@ -261,6 +261,11 @@ model Ingredient {
   nutritionRefPerUnit Json?
   aliases             String[] @default([])
   isOptionalDefault   Boolean  @default(false)
+  // WS6 6c-4: purchase-pack metadata for grocery list consolidation.
+  // Filled by Block B (AI reconciliation); null until then.
+  purchaseUnit        String?
+  purchaseQuantity    Float?
+  purchaseDisplay     String?
 
   dishIngredients DishIngredient[]
   groceryItems    GroceryListItem[]
@@ -425,6 +430,9 @@ model MealPlanInstance {
   notes              String?
   breakfastDefaults  String?
   lunchDefaults      String?
+  // WS6 6c-4 / WS7 sync: monotonically increases on plan-content mutations.
+  // GroceryList compares against lastGeneratedFromPlanRevisionId to detect drift.
+  revisionId         Int        @default(1)
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
@@ -460,15 +468,18 @@ model MealPlanItem {
 }
 
 model GroceryList {
-  id                 String            @id @default(uuid())
-  userId             String
-  title              String
-  mealPlanInstanceId String?
-  sourceType         String            @default("plan")
-  status             GroceryListStatus @default(draft)
-  lastUsedAt         DateTime?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  id                              String            @id @default(uuid())
+  userId                          String
+  title                           String
+  mealPlanInstanceId              String?
+  sourceType                      String            @default("plan")
+  status                          GroceryListStatus @default(draft)
+  lastUsedAt                      DateTime?
+  // WS6 6c-4 / WS7 sync: drift detection against MealPlanInstance.revisionId.
+  lastGeneratedFromPlanRevisionId Int?
+  lastGeneratedAt                 DateTime?
+  createdAt                       DateTime          @default(now())
+  updatedAt                       DateTime          @updatedAt
 
   user         User              @relation(fields: [userId], references: [id])
   planInstance MealPlanInstance? @relation(fields: [mealPlanInstanceId], references: [id])
@@ -478,20 +489,26 @@ model GroceryList {
 }
 
 model GroceryListItem {
-  id            String       @id @default(uuid())
-  groceryListId String
-  ingredientId  String?
-  displayName   String
-  quantity      Float        @default(1)
-  unit          String       @default("")
-  storeSection  StoreSection @default(other)
-  isChecked     Boolean      @default(false)
-  isOptional    Boolean      @default(false)
-  wasAiInferred Boolean      @default(false)
-  isAmbiguous   Boolean      @default(false)
-  sourceMealId  String?
-  sourceDishId  String?
-  notes         String?
+  id                 String       @id @default(uuid())
+  groceryListId      String
+  ingredientId       String?
+  displayName        String
+  quantity           Float        @default(1)
+  unit               String       @default("")
+  storeSection       StoreSection @default(extras)
+  isChecked          Boolean      @default(false)
+  isOptional         Boolean      @default(false)
+  wasAiInferred      Boolean      @default(false)
+  isAmbiguous        Boolean      @default(false)
+  // WS6 6c-4: source-tracked staple flags. Both can be true on one item.
+  isUniversalStaple  Boolean      @default(false)
+  isUserPantryStaple Boolean      @default(false)
+  // WS6 6c-4 / WS7 sync: AI-surfaced ambiguity options + user resolution.
+  ambiguityOptions   String[]     @default([])
+  userResolvedTo     String?
+  sourceMealId       String?
+  sourceDishId       String?
+  notes              String?
 
   groceryList GroceryList @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
   ingredient  Ingredient? @relation(fields: [ingredientId], references: [id])

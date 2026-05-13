@@ -1,0 +1,557 @@
+// WS6 6c-4 Block A — consolidatePlanIngredients tests.
+// Pure-logic over a stubbed Prisma (no DB). Mirrors the planMacros.test.ts
+// duck-typed pattern.
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import type { PrismaClient } from "@prisma/client";
+
+import {
+  consolidatePlanIngredients,
+  GroceryConsolidationForbiddenError,
+  GroceryConsolidationNotFoundError,
+  type ConsolidatedItem,
+} from "../groceryList";
+import { UNIVERSAL_STAPLES } from "../groceryStaples";
+
+const TEST_USER = "user-grocery";
+const TEST_PLAN = "plan-grocery";
+
+interface IngStub {
+  name: string; // displayName & canonicalName basis
+  quantity: number;
+  unit: string;
+  category?: string; // → StoreSection mapping
+  ingredientId?: string | null; // null → simulate dishIngredient with no ingredient row
+  canonicalNameOverride?: string;
+}
+
+interface DishStub {
+  id: string;
+  title: string;
+  servingsDefault: number;
+  ingredients: IngStub[];
+}
+
+interface ItemStub {
+  id: string;
+  positionIndex?: number;
+  servingsOverride?: number | null;
+  dishes: DishStub[];
+}
+
+interface PlanStub {
+  items: ItemStub[];
+  pantryStaples?: Array<{ ingredientName: string; isActive?: boolean }>;
+  recurringItems?: string[];
+  ownerUserId?: string;
+}
+
+function buildPlanRow(plan: PlanStub) {
+  return {
+    id: TEST_PLAN,
+    userId: plan.ownerUserId ?? TEST_USER,
+    items: plan.items.map((it, idx) => ({
+      id: it.id,
+      mealPlanInstanceId: TEST_PLAN,
+      mealId: `meal-${it.id}`,
+      positionIndex: it.positionIndex ?? idx,
+      assignedDayOfWeek: null,
+      assignedDate: null,
+      servingsOverride: it.servingsOverride ?? null,
+      ingredientOverrides: null,
+      recipeOverrideJson: null,
+      isBreakfast: false,
+      isLunch: false,
+      isDinner: true,
+      lastCooked: null,
+      timesCooked: 0,
+      notes: null,
+      meal: {
+        id: `meal-${it.id}`,
+        title: `Meal ${it.id}`,
+        dishLinks: it.dishes.map((d, di) => ({
+          id: `link-${it.id}-${d.id}`,
+          mealId: `meal-${it.id}`,
+          dishId: d.id,
+          positionIndex: di,
+          dish: {
+            id: d.id,
+            title: d.title,
+            servingsDefault: d.servingsDefault,
+            dishIngredients: d.ingredients.map((ing, ii) => {
+              const hasIngredient = ing.ingredientId !== null;
+              return {
+                id: `di-${d.id}-${ii}`,
+                dishId: d.id,
+                ingredientId: hasIngredient ? (ing.ingredientId ?? `ing-${ing.name}`) : null,
+                quantity: ing.quantity,
+                unit: ing.unit,
+                preparationNote: null,
+                isOptional: false,
+                positionIndex: ii,
+                ingredient: hasIngredient
+                  ? {
+                      id: ing.ingredientId ?? `ing-${ing.name}`,
+                      canonicalName: ing.canonicalNameOverride ?? ing.name.toLowerCase(),
+                      displayName: ing.name,
+                      category: ing.category ?? "Pantry",
+                      subcategory: null,
+                      defaultUnit: ing.unit,
+                      nutritionRefPerUnit: null,
+                      aliases: [],
+                      isOptionalDefault: false,
+                      purchaseUnit: null,
+                      purchaseQuantity: null,
+                      purchaseDisplay: null,
+                    }
+                  : null,
+              };
+            }),
+          },
+        })),
+      },
+    })),
+    user: {
+      id: plan.ownerUserId ?? TEST_USER,
+      pantryStaples: (plan.pantryStaples ?? []).map((p, i) => ({
+        id: `ps-${i}`,
+        userId: plan.ownerUserId ?? TEST_USER,
+        ingredientName: p.ingredientName,
+        restockCadence: "always_stocked",
+        isActive: p.isActive ?? true,
+        createdAt: new Date(),
+      })),
+      preferences:
+        plan.recurringItems !== undefined
+          ? {
+              id: "prefs-1",
+              userId: plan.ownerUserId ?? TEST_USER,
+              recurringItems: plan.recurringItems,
+            }
+          : null,
+    },
+  };
+}
+
+function makePrisma(plan: PlanStub | null): PrismaClient {
+  return {
+    mealPlanInstance: {
+      findUnique: async () => (plan ? buildPlanRow(plan) : null),
+    },
+  } as unknown as PrismaClient;
+}
+
+function findItem(list: ConsolidatedItem[], canonical: string): ConsolidatedItem | undefined {
+  return list.find((i) => i.canonicalName === canonical);
+}
+
+// ────────────────────────────────────────────────────────────────────────
+
+describe("consolidatePlanIngredients — guards", () => {
+  it("throws NotFound when plan does not exist", async () => {
+    const prisma = makePrisma(null);
+    await assert.rejects(
+      () => consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER }),
+      GroceryConsolidationNotFoundError,
+    );
+  });
+
+  it("throws Forbidden when plan belongs to another user", async () => {
+    const prisma = makePrisma({ items: [], ownerUserId: "someone-else" });
+    await assert.rejects(
+      () => consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER }),
+      GroceryConsolidationForbiddenError,
+    );
+  });
+});
+
+describe("consolidatePlanIngredients — empty / minimal", () => {
+  it("returns empty list when plan has no items and no recurring items", async () => {
+    const prisma = makePrisma({ items: [], recurringItems: [] });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.deepEqual(out, []);
+  });
+
+  it("returns recurring-only list when plan has no items but user has recurring items", async () => {
+    const prisma = makePrisma({ items: [], recurringItems: ["paper towels", "trash bags"] });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 2);
+    for (const item of out) {
+      assert.equal(item.isRecurringItem, true);
+      assert.equal(item.quantity, 1);
+      assert.equal(item.unit, "each");
+      assert.equal(item.sectionKey, "extras");
+    }
+  });
+
+  it("returns one line for a single meal with a single ingredient", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Tacos",
+              servingsDefault: 4,
+              ingredients: [{ name: "Ground Beef", quantity: 1, unit: "lb", category: "Protein" }],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].canonicalName, "ground beef");
+    assert.equal(out[0].quantity, 1);
+    assert.equal(out[0].unit, "lb");
+    assert.equal(out[0].sectionKey, "meat_seafood");
+  });
+});
+
+describe("consolidatePlanIngredients — consolidation", () => {
+  it("sums quantities when two meals share the same ingredient + unit", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Tacos",
+              servingsDefault: 4,
+              ingredients: [{ name: "Ground Beef", quantity: 1, unit: "lb", category: "Protein" }],
+            },
+          ],
+        },
+        {
+          id: "i2",
+          dishes: [
+            {
+              id: "d2",
+              title: "Burgers",
+              servingsDefault: 4,
+              ingredients: [
+                { name: "Ground Beef", quantity: 1.5, unit: "lb", category: "Protein" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].canonicalName, "ground beef");
+    assert.equal(out[0].quantity, 2.5);
+    assert.equal(out[0].sourceDishIds.length, 2);
+  });
+
+  it("keeps separate lines when units differ for the same ingredient", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Salad",
+              servingsDefault: 4,
+              ingredients: [{ name: "Olive Oil", quantity: 2, unit: "tbsp", category: "Pantry" }],
+            },
+          ],
+        },
+        {
+          id: "i2",
+          dishes: [
+            {
+              id: "d2",
+              title: "Pasta",
+              servingsDefault: 4,
+              ingredients: [{ name: "Olive Oil", quantity: 0.25, unit: "cup", category: "Pantry" }],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    const oliveLines = out.filter((i) => i.canonicalName === "olive oil");
+    assert.equal(oliveLines.length, 2);
+    const units = oliveLines.map((l) => l.unit).sort();
+    assert.deepEqual(units, ["cup", "tbsp"]);
+  });
+
+  it("applies servingsOverride as a multiplier on dishIngredient quantity", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          servingsOverride: 8, // double the dish default of 4
+          dishes: [
+            {
+              id: "d1",
+              title: "Tacos",
+              servingsDefault: 4,
+              ingredients: [{ name: "Ground Beef", quantity: 1, unit: "lb", category: "Protein" }],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].quantity, 2); // 1 lb * (8/4)
+  });
+});
+
+describe("consolidatePlanIngredients — section mapping", () => {
+  it("maps known categories to the correct StoreSection", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Mix",
+              servingsDefault: 4,
+              ingredients: [
+                { name: "Carrot", quantity: 1, unit: "lb", category: "Produce" },
+                { name: "Chicken Breast", quantity: 1, unit: "lb", category: "Protein" },
+                { name: "Cheddar", quantity: 1, unit: "block", category: "Dairy" },
+                { name: "Rice", quantity: 1, unit: "cup", category: "Pantry" },
+                { name: "Bread", quantity: 1, unit: "loaf", category: "Bakery" },
+                { name: "Frozen Peas", quantity: 1, unit: "bag", category: "Frozen" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(findItem(out, "carrot")?.sectionKey, "produce");
+    assert.equal(findItem(out, "chicken breast")?.sectionKey, "meat_seafood");
+    assert.equal(findItem(out, "cheddar")?.sectionKey, "dairy_eggs");
+    assert.equal(findItem(out, "rice")?.sectionKey, "pantry");
+    assert.equal(findItem(out, "bread")?.sectionKey, "bakery_bread");
+    assert.equal(findItem(out, "frozen peas")?.sectionKey, "frozen");
+  });
+
+  it("falls back to 'extras' for unknown categories", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Mystery",
+              servingsDefault: 4,
+              ingredients: [{ name: "Sparkles", quantity: 1, unit: "pinch", category: "MagicDust" }],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out[0].sectionKey, "extras");
+  });
+});
+
+describe("consolidatePlanIngredients — staple flags", () => {
+  it("flags all 14 universal staples regardless of input casing", async () => {
+    // Variants: lowercase, uppercase, title case — name-matching should be case-insensitive.
+    const variants = ["lower", "upper", "title"] as const;
+    for (const variant of variants) {
+      const prisma = makePrisma({
+        items: [
+          {
+            id: "i1",
+            dishes: [
+              {
+                id: "d1",
+                title: "All Staples",
+                servingsDefault: 4,
+                ingredients: UNIVERSAL_STAPLES.map((s) => {
+                  let presented: string = s.canonicalName;
+                  if (variant === "upper") presented = s.canonicalName.toUpperCase();
+                  if (variant === "title")
+                    presented = s.canonicalName
+                      .split(" ")
+                      .map((w) => w[0].toUpperCase() + w.slice(1))
+                      .join(" ");
+                  return {
+                    name: presented,
+                    quantity: 1,
+                    unit: "ea",
+                    category: "Pantry",
+                    canonicalNameOverride: presented,
+                  };
+                }),
+              },
+            ],
+          },
+        ],
+      });
+      const out = await consolidatePlanIngredients({
+        prisma,
+        planId: TEST_PLAN,
+        userId: TEST_USER,
+      });
+      assert.equal(out.length, UNIVERSAL_STAPLES.length, `variant=${variant} length`);
+      for (const item of out) {
+        assert.equal(item.isUniversalStaple, true, `variant=${variant} ${item.canonicalName}`);
+      }
+    }
+  });
+
+  it("flags user pantry staples on matched items", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Stir fry",
+              servingsDefault: 4,
+              ingredients: [
+                { name: "Soy Sauce", quantity: 2, unit: "tbsp", category: "Pantry" },
+                { name: "Bok Choy", quantity: 1, unit: "head", category: "Produce" },
+              ],
+            },
+          ],
+        },
+      ],
+      pantryStaples: [{ ingredientName: "Bok Choy" }],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(findItem(out, "bok choy")?.isUserPantryStaple, true);
+    assert.equal(findItem(out, "soy sauce")?.isUserPantryStaple, false);
+  });
+
+  it("ignores inactive pantry staples", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Stir fry",
+              servingsDefault: 4,
+              ingredients: [{ name: "Bok Choy", quantity: 1, unit: "head", category: "Produce" }],
+            },
+          ],
+        },
+      ],
+      pantryStaples: [{ ingredientName: "Bok Choy", isActive: false }],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(findItem(out, "bok choy")?.isUserPantryStaple, false);
+  });
+
+  it("flags both staple flags on the same item when both apply", async () => {
+    // Soy sauce is both a universal staple AND in this user's pantry.
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Stir fry",
+              servingsDefault: 4,
+              ingredients: [{ name: "Soy Sauce", quantity: 2, unit: "tbsp", category: "Pantry" }],
+            },
+          ],
+        },
+      ],
+      pantryStaples: [{ ingredientName: "soy sauce" }],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out[0].isUniversalStaple, true);
+    assert.equal(out[0].isUserPantryStaple, true);
+  });
+});
+
+describe("consolidatePlanIngredients — recurring items", () => {
+  it("flags an existing matched item as recurring without duplicating", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Greek Yogurt Bowl",
+              servingsDefault: 4,
+              ingredients: [{ name: "Greek Yogurt", quantity: 2, unit: "cup", category: "Dairy" }],
+            },
+          ],
+        },
+      ],
+      recurringItems: ["greek yogurt"],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].canonicalName, "greek yogurt");
+    assert.equal(out[0].isRecurringItem, true);
+    assert.equal(out[0].quantity, 2); // not overwritten
+    assert.equal(out[0].unit, "cup"); // not overwritten
+  });
+
+  it("appends an unmatched recurring item with quantity 1 / unit each / section extras", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Tacos",
+              servingsDefault: 4,
+              ingredients: [{ name: "Ground Beef", quantity: 1, unit: "lb", category: "Protein" }],
+            },
+          ],
+        },
+      ],
+      recurringItems: ["paper towels"],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    const towels = findItem(out, "paper towels");
+    assert.ok(towels, "recurring item should be appended");
+    assert.equal(towels!.isRecurringItem, true);
+    assert.equal(towels!.quantity, 1);
+    assert.equal(towels!.unit, "each");
+    assert.equal(towels!.sectionKey, "extras");
+  });
+});
+
+describe("consolidatePlanIngredients — null ingredient fallback", () => {
+  it("groups by displayName when dishIngredient has no ingredient row", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Custom",
+              servingsDefault: 4,
+              ingredients: [
+                { name: "Mystery powder", quantity: 1, unit: "tsp", ingredientId: null },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    // Falls back to dishIngredient.id as a unique canonical when no ingredient row.
+    // sectionKey defaults to extras (no category to map).
+    assert.equal(out[0].sectionKey, "extras");
+    assert.equal(out[0].ingredientId, null);
+  });
+});
