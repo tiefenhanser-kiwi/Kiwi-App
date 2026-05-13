@@ -51,3 +51,76 @@ export const AmbiguousFlagResultSchema = z.object({
   ambiguityOptions: z.array(z.string().min(1).max(80)).max(8).optional(),
 });
 export type AmbiguousFlagResult = z.infer<typeof AmbiguousFlagResultSchema>;
+
+// === 6c-4 Block B — grocery.gap_fill_purchase_size ===
+// Map a single recipe ingredient need to its standard purchase size. Haiku,
+// called once per ingredient missing purchaseUnit/Quantity/Display on the
+// Ingredient row. Result is written back to the Ingredient row by the
+// fillPurchaseSizesWithWriteBack helper so subsequent plans hit the cache.
+
+export const PurchaseSizeInputSchema = z.object({
+  canonicalName: z.string().min(1).max(100),
+  requestedQuantity: z.number().positive(),
+  requestedUnit: z.string().min(1).max(40),
+});
+export type PurchaseSizeInput = z.infer<typeof PurchaseSizeInputSchema>;
+
+export const PurchaseSizeResultSchema = z.object({
+  purchaseUnit: z.string().min(1).max(40),
+  purchaseQuantity: z.number().positive(),
+  purchaseDisplay: z.string().min(1).max(80),
+  confidence: z.enum(["high", "medium", "low"]),
+});
+export type PurchaseSizeResult = z.infer<typeof PurchaseSizeResultSchema>;
+
+// === 6c-4 Block B — grocery.generate_list ===
+// Final AI polish pass over the deterministic + gap-filled list. Sonnet.
+// Refines displayNames, reconciles unit-mismatch survivors, reassigns
+// extras-bucketed items to correct sections. Preserves all three boolean
+// flags exactly; does NOT add items (helper enforces count never increases).
+
+export const GenerateListInputItemSchema = z.object({
+  canonicalName: z.string(),
+  displayName: z.string(),
+  quantity: z.number().positive(),
+  unit: z.string(),
+  sectionKey: SectionKeySchema,
+  isUniversalStaple: z.boolean(),
+  isUserPantryStaple: z.boolean(),
+  isRecurringItem: z.boolean(),
+  purchaseUnit: z.string().nullable(),
+  purchaseQuantity: z.number().nullable(),
+  purchaseDisplay: z.string().nullable(),
+});
+export type GenerateListInputItem = z.infer<typeof GenerateListInputItemSchema>;
+
+export const GenerateGroceryListInputSchema = z.object({
+  planTitle: z.string(),
+  consolidated: z.array(GenerateListInputItemSchema),
+  knownSections: z.array(SectionKeySchema),
+});
+export type GenerateGroceryListInput = z.infer<
+  typeof GenerateGroceryListInputSchema
+>;
+
+export const GenerateListOutputItemSchema = z.object({
+  canonicalName: z.string(),
+  displayName: z.string(),
+  quantity: z.number().positive(),
+  unit: z.string(),
+  sectionKey: SectionKeySchema,
+  isUniversalStaple: z.boolean(),
+  isUserPantryStaple: z.boolean(),
+  isRecurringItem: z.boolean(),
+  notes: z.string().nullable(),
+});
+export type GenerateListOutputItem = z.infer<
+  typeof GenerateListOutputItemSchema
+>;
+
+export const GenerateGroceryListResultSchema = z.object({
+  items: z.array(GenerateListOutputItemSchema),
+});
+export type GenerateGroceryListResult = z.infer<
+  typeof GenerateGroceryListResultSchema
+>;

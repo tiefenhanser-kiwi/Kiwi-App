@@ -236,6 +236,32 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
         "Categorize a free-text grocery item into a section + canonical name.",
     },
   ],
+  // 6c-4 Block B — Haiku gap-fill for Ingredient.purchaseUnit/Quantity/Display.
+  // Called once per ingredient missing purchase metadata; result written back
+  // to the Ingredient row so subsequent plans hit the cache.
+  [
+    "grocery.gap_fill_purchase_size",
+    {
+      body: placeholder("grocery.gap_fill_purchase_size"),
+      defaultModel: MODEL_HAIKU,
+      defaultMode: "text",
+      toolDescription:
+        "Map a recipe ingredient need to its standard grocery-store purchase size + display label.",
+    },
+  ],
+  // 6c-4 Block B — Sonnet final polish over the deterministic + gap-filled
+  // grocery list. Refines display names, reconciles unit-mismatch survivors,
+  // reassigns 'extras' bucket items. Preserves staple/recurring flags exactly.
+  [
+    "grocery.generate_list",
+    {
+      body: placeholder("grocery.generate_list"),
+      defaultModel: MODEL_SONNET,
+      defaultMode: "text",
+      toolDescription:
+        "Finalize a meal plan grocery list: refine display names, reconcile unit mismatches, reassign extras-bucketed items to correct sections. Preserves staple/recurring flags exactly.",
+    },
+  ],
   // 6c-3 — ambiguous item flagging at generation time
   [
     "grocery.ambiguous_item_flag",

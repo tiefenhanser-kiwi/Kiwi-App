@@ -867,6 +867,132 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 
 Return ONLY the JSON object.`;
 
+// WS6 6c-4 Block B — grocery.gap_fill_purchase_size. Haiku, text+Zod. Called
+// once per Ingredient row missing purchase metadata; helper writes result
+// back to Ingredient.purchaseUnit/Quantity/Display so subsequent plans hit
+// the cache and skip this call entirely.
+const GROCERY_GAP_FILL_PURCHASE_SIZE_BODY = `You map a recipe ingredient need to its standard U.S. grocery-store purchase size.
+
+Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
+
+# Output schema
+
+\`\`\`json
+{
+  "purchaseUnit": "lb",
+  "purchaseQuantity": 1,
+  "purchaseDisplay": "1 lb pack",
+  "confidence": "high"
+}
+\`\`\`
+
+# Field rules
+
+- **purchaseUnit** — the unit shoppers buy in (e.g. "lb", "oz", "bunch", "each", "container", "bottle", "can", "jar", "bag", "box", "package", "dozen", "head").
+- **purchaseQuantity** — how many of \`purchaseUnit\` to buy. Positive number. Usually 1; raise only when the recipe clearly needs more than one package.
+- **purchaseDisplay** — human-readable label shown to shoppers (≤80 chars). Examples: "1 lb pack", "1 can (6 oz)", "1 bunch (~5 stalks)", "1 dozen", "1 jar (16 oz)", "1 small container (0.06 oz)".
+- **confidence** — \`high\`, \`medium\`, or \`low\` (see rubric below).
+
+# Rules
+
+- Use the smallest standard purchasable size that covers the recipe's need. If the recipe wants 3 tbsp tomato paste, "1 can (6 oz)" beats "1 jar (28 oz)".
+- For produce sold by count (apples, lemons, onions): \`purchaseUnit\` = "each", \`purchaseQuantity\` = whole number, \`purchaseDisplay\` may include a size hint ("1 large lemon").
+- For bulk produce sold by weight (potatoes, carrots): \`purchaseUnit\` = "lb" or "bag", \`purchaseDisplay\` reflects actual store stocking.
+- For shelf-stable items (canned, jarred, boxed): \`purchaseUnit\` matches the container ("can", "jar", "box"), \`purchaseDisplay\` includes typical size in parens.
+- For fresh herbs (parsley, cilantro, thyme): \`purchaseUnit\` = "bunch" by default; use "package" only when the recipe needs <2 sprigs (matches clamshell sizing).
+- For dairy (cheese, yogurt): match typical U.S. retail sizing (8 oz block, 32 oz tub).
+- For meat/seafood sold by weight: \`purchaseUnit\` = "lb", \`purchaseQuantity\` = the weight rounded up to a half-pound increment that matches typical pack sizes.
+
+# Confidence rubric
+
+- **high** — everyday item with one obvious U.S. store size (salt, eggs, all-purpose flour, ground beef).
+- **medium** — multiple reasonable sizes exist OR a substitution was needed (e.g. "fresh basil" — bunch vs package depends on recipe scale).
+- **low** — specialty or ambiguous item; pick the most likely size but flag the uncertainty.
+
+# Examples
+
+Input: \`{"canonicalName":"salt","requestedQuantity":1,"requestedUnit":"tsp"}\`
+Output: \`{"purchaseUnit":"container","purchaseQuantity":1,"purchaseDisplay":"1 container (26 oz)","confidence":"high"}\`
+
+Input: \`{"canonicalName":"tomato paste","requestedQuantity":3,"requestedUnit":"tbsp"}\`
+Output: \`{"purchaseUnit":"can","purchaseQuantity":1,"purchaseDisplay":"1 can (6 oz)","confidence":"high"}\`
+
+Input: \`{"canonicalName":"fresh thyme","requestedQuantity":2,"requestedUnit":"sprig"}\`
+Output: \`{"purchaseUnit":"bunch","purchaseQuantity":1,"purchaseDisplay":"1 bunch","confidence":"high"}\`
+
+Input: \`{"canonicalName":"boneless skinless chicken thighs","requestedQuantity":1.5,"requestedUnit":"lb"}\`
+Output: \`{"purchaseUnit":"lb","purchaseQuantity":1.5,"purchaseDisplay":"1.5 lb pack","confidence":"high"}\`
+
+Input: \`{"canonicalName":"saffron threads","requestedQuantity":0.25,"requestedUnit":"tsp"}\`
+Output: \`{"purchaseUnit":"container","purchaseQuantity":1,"purchaseDisplay":"1 small container (0.06 oz)","confidence":"medium"}\`
+
+# Input
+
+\`\`\`json
+{{gapFillInput}}
+\`\`\`
+
+Return ONLY the JSON object.`;
+
+// WS6 6c-4 Block B — grocery.generate_list. Sonnet, text+Zod. Final polish
+// over the deterministic + gap-filled list. The helper enforces that item
+// count never INCREASES (decreases via merge are OK); all other invariants
+// are described in the prompt body and enforced by Zod on the output shape.
+const GROCERY_GENERATE_LIST_BODY = `You finalize a grocery list for a meal plan. The list has been pre-consolidated by deterministic logic — your job is to refine, reconcile, and polish. You must NOT add or remove items beyond the merge rule below.
+
+Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
+
+# Output schema
+
+\`\`\`json
+{
+  "items": [
+    {
+      "canonicalName": "yellow onion",
+      "displayName": "yellow onion",
+      "quantity": 2,
+      "unit": "each",
+      "sectionKey": "produce",
+      "isUniversalStaple": false,
+      "isUserPantryStaple": false,
+      "isRecurringItem": false,
+      "notes": null
+    }
+  ]
+}
+\`\`\`
+
+# Your job
+
+1. **Refine displayName.** Make each name shopper-friendly. Examples:
+   - "Onion, yellow, raw" → "yellow onion"
+   - "Tomato, Roma, fresh" → "Roma tomato"
+   - "all-purpose flour" → "all-purpose flour" (already good)
+   Keep names lowercase unless they contain a proper noun (e.g. "Dijon mustard", "Greek yogurt").
+
+2. **Reconcile unit-mismatch survivors.** If two input items share the same \`canonicalName\` but have different \`unit\`s (e.g. "olive oil" at 2 tbsp + "olive oil" at 0.5 cup), merge them into ONE output item in the more shopper-friendly unit. Pick the larger unit when both are reasonable. Combine quantities accurately (2 tbsp + 0.5 cup ≈ 0.625 cup → round to a shopper-sensible 0.75 cup or up to 1 cup if needed to reach a purchase size). When you merge, OR the three boolean flags (any input \`true\` → output \`true\`) and use \`notes\` to explain the merge ("combined 2 tbsp + 0.5 cup").
+
+3. **Reassign 'extras' bucket items.** If an input item has \`sectionKey: "extras"\` but you can confidently determine its real section, reassign it. Examples: a brand-name snack obviously goes to "snacks"; an unfamiliar produce item goes to "produce". When uncertain, leave as "extras".
+
+4. **Preserve flags exactly.** For non-merged items, \`isUniversalStaple\`, \`isUserPantryStaple\`, and \`isRecurringItem\` MUST pass through unchanged. Do not toggle them based on your own judgment of what a staple is — the input flags are authoritative. For merged items only, use OR semantics across the merged inputs.
+
+5. **notes** — optional shopper guidance, ≤60 chars. Examples: "buy ripe for tonight's recipe", "store-brand fine", "combined 2 tbsp + 0.5 cup". Set to \`null\` if nothing helpful to add. Do NOT use notes to express uncertainty about the output shape — emit a well-formed item.
+
+# Hard constraints
+
+- Item count in the output MUST be equal to OR LESS than the input count. NEVER add new items. The only valid way to decrease the count is by merging two input items with the same \`canonicalName\` per rule 2 above.
+- Every \`sectionKey\` MUST be one of the values supplied in \`knownSections\`. Do not invent new sections.
+- All \`quantity\` values MUST be positive numbers.
+- The output order should follow grocery-store flow when possible (produce first, dairy next, etc.), but a stable input order is also acceptable.
+
+# Input
+
+\`\`\`json
+{{generateInput}}
+\`\`\`
+
+Return ONLY the JSON object.`;
+
 const PROMPTS: PromptSeed[] = [
   {
     key: "wizard.set_preferences.generate",
@@ -1024,6 +1150,24 @@ const PROMPTS: PromptSeed[] = [
     defaultModel: MODEL_HAIKU,
     defaultMode: "text",
     body: placeholder("grocery.recurring_item_categorize"),
+  },
+  {
+    key: "grocery.gap_fill_purchase_size",
+    description:
+      "Map a recipe ingredient need to its standard grocery-store purchase size + display label.",
+    variables: ["gapFillInput"],
+    defaultModel: MODEL_HAIKU,
+    defaultMode: "text",
+    body: GROCERY_GAP_FILL_PURCHASE_SIZE_BODY,
+  },
+  {
+    key: "grocery.generate_list",
+    description:
+      "Finalize a meal plan grocery list: refine display names, reconcile unit mismatches, reassign extras-bucketed items to correct sections. Preserves staple/recurring flags exactly.",
+    variables: ["generateInput"],
+    defaultModel: MODEL_SONNET,
+    defaultMode: "text",
+    body: GROCERY_GENERATE_LIST_BODY,
   },
   {
     key: "grocery.ambiguous_item_flag",
