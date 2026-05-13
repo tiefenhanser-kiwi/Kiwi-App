@@ -15,6 +15,7 @@ import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
+import { getGroceryList } from "@/lib/api/grocery";
 import { GROCERY_SECTIONS } from "@/lib/domain";
 import { parseQuantity } from "@/lib/quantity";
 import { getGroceryListById } from "@/lib/stubs";
@@ -45,10 +46,12 @@ export default function GroceryListDetail() {
     markGroceryShoppingDone,
   } = useApp();
 
-  // Optimistic local state. WS5 stubs log-only, so we manage UI state here.
-  // WS7 swaps this for live data via the API client.
+  // Optimistic local state. WS5 stubs were log-only; WS6 6c-4 Block C now
+  // loads real lists via the API for non-demo ids. Demo ids
+  // ("demo-grocery-*") still resolve from the stub catalog for design review
+  // and the no-network grocery-list screen smoke test.
   const [list, setList] = useState<GroceryList | null>(() =>
-    getGroceryListById(id),
+    id.startsWith("demo-grocery-") ? getGroceryListById(id) : null,
   );
   const [addItemInput, setAddItemInput] = useState("");
   // PRD §12.7 — staples ship in "default" (dimmed, not yet on the trip).
@@ -76,6 +79,27 @@ export default function GroceryListDetail() {
     }, UNDO_TIMEOUT_MS);
     return () => clearTimeout(timeout);
   }, [recentlyRemoved]);
+
+  // WS6 6c-4 Block C — fetch the real list from the API for non-demo ids.
+  // Demo lists are stub-only (design review) and were already populated
+  // synchronously above. Errors surface as null list (the existing
+  // "List not found." fallback renders below).
+  useEffect(() => {
+    if (!id || id.startsWith("demo-grocery-")) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const real = await getGroceryList(id);
+        if (!cancelled) setList(real);
+      } catch (err) {
+        console.error("[grocery-list/[id]] load failed", err);
+        if (!cancelled) setList(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   if (!list) {
     return (

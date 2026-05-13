@@ -28,6 +28,7 @@ import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { buildDayStrip } from "@/lib/domain";
+import { generateGroceryListForPlan } from "@/lib/api/grocery";
 import { getMealById, getReviewPlan } from "@/lib/stubs";
 import type {
   DayOfWeek,
@@ -242,6 +243,48 @@ export default function PlanReviewScreen() {
     setAddMealsVisible(true);
   };
 
+  // WS6 6c-4 Block C — smart grocery list generation. Block B's two-AI-call
+  // pipeline (Haiku gap-fill + Sonnet polish) can take 5-15s in the wild;
+  // the button shows its loading state for the full duration and guards
+  // against double-taps. 409 (list_exists) and 200 (success) both route to
+  // the grocery list screen — same UX from the user's perspective.
+  const [isGeneratingList, setIsGeneratingList] = useState(false);
+  const handleGroceryListPress = async () => {
+    if (isGeneratingList) return;
+    console.log("[plan-review] grocery-list tapped", { planId });
+    setIsGeneratingList(true);
+    try {
+      const result = await generateGroceryListForPlan(planId);
+      if (result.success) {
+        router.push({
+          pathname: "/grocery-list/[id]",
+          params: { id: result.groceryListId },
+        });
+      } else if (result.error === "list_exists") {
+        router.push({
+          pathname: "/grocery-list/[id]",
+          params: { id: result.existingListId },
+        });
+      } else if (result.error === "ai_failed") {
+        Alert.alert(
+          "Could not generate list",
+          "Our AI hit a hiccup. Please try again in a moment.",
+        );
+      } else if (result.error === "plan_not_found") {
+        Alert.alert(
+          "Plan not found",
+          "We couldn't find this plan. Try reloading.",
+        );
+      } else if (result.error === "unauthenticated") {
+        Alert.alert("Sign-in required", "Please sign in and try again.");
+      } else {
+        Alert.alert("Could not generate list", "Please try again in a moment.");
+      }
+    } finally {
+      setIsGeneratingList(false);
+    }
+  };
+
   const handleSavePlanName = (newName: string) => {
     setReviewPlan((prev) => ({ ...prev, name: newName }));
     void updatePlanName(planId, newName);
@@ -320,22 +363,10 @@ export default function PlanReviewScreen() {
             </View>
             <View style={s.actionCol}>
               <Button
-                label="Grocery List"
+                label={isGeneratingList ? "Generating…" : "Grocery List"}
                 variant="ghost"
-                onPress={() => {
-                  console.log("[plan-review] grocery-list tapped", {
-                    planId,
-                  });
-                  // WS5-5S-fix-1 — single Grocery List entry. Real
-                  // smart-list logic (D-WS5-038) generates a fresh
-                  // list, or routes to an existing list if the plan
-                  // hasn't changed; updates only on add/remove. WS5
-                  // stubs the alert; WS6/WS7 wires the API client.
-                  Alert.alert(
-                    "Coming in WS6 — smart grocery list",
-                    "Generates a fresh list, or routes to your existing list if the plan hasn't changed. Updates only when meals are added or removed. Logged as D-WS5-038 for full spec.",
-                  );
-                }}
+                loading={isGeneratingList}
+                onPress={handleGroceryListPress}
               />
             </View>
           </View>
