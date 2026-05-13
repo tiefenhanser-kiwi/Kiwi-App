@@ -13,6 +13,7 @@ import {
   type CanonicalRecipeContent,
   IMAGE_IMPORT_FAILURE_MESSAGE,
   ImageInputSchema,
+  TEXT_IMPORT_FAILURE_MESSAGE,
   URL_IMPORT_FAILURE_MESSAGE,
 } from "../lib/ai/schemas/reformat";
 import {
@@ -333,6 +334,95 @@ router.post(
       success: true,
       recipe,
       source: "image" as const,
+      sourceUrl: null,
+      caveats: aiResult.data.caveats ?? [],
+    });
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────
+// POST /recipes/import-text — WS6 6c-3
+// ─────────────────────────────────────────────────────────────────
+
+const ImportTextRequestSchema = z.object({
+  rawText: z
+    .string()
+    .min(50, "Recipe text too short — paste at least 50 characters")
+    .max(40_000, "Recipe text too long — maximum 40,000 characters"),
+});
+
+// 40K chars fits comfortably under the default global JSON parser limit,
+// so we deliberately do NOT add this path to ROUTE_SCOPED_JSON_PATHS.
+router.post(
+  "/recipes/import-text",
+  requireAuth,
+  importLimiter,
+  async (req, res) => {
+    const parsed = ImportTextRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        reason: "url_parse_failed",
+        userFacingMessage: TEXT_IMPORT_FAILURE_MESSAGE,
+        suggestedAction: "try_image_import",
+      });
+    }
+
+    const { rawText } = parsed.data;
+    const userId = req.userId ?? null;
+
+    const aiResult = await reformatRecipeForKiwi(
+      { rawText },
+      { prisma, userId: userId ?? undefined },
+    );
+
+    if (!aiResult.success) {
+      return res.json({
+        success: false,
+        reason: "sdk_error",
+        userFacingMessage: TEXT_IMPORT_FAILURE_MESSAGE,
+        suggestedAction: "try_image_import",
+        internalError: aiResult.internalError,
+      });
+    }
+
+    if (aiResult.data.status === "no_recipe_content") {
+      return res.json({
+        success: false,
+        reason: "url_parse_failed",
+        userFacingMessage: TEXT_IMPORT_FAILURE_MESSAGE,
+        suggestedAction: "try_image_import",
+        internalError: aiResult.data.reason,
+      });
+    }
+
+    const recipe: CanonicalRecipeContent = CanonicalRecipeContentSchema.parse(
+      aiResult.data.recipe,
+    );
+
+    if (userId) {
+      prisma.userActivity
+        .create({
+          data: {
+            userId,
+            eventType: "recipe_imported_text",
+            entityId: null,
+            platform: "api",
+            metadata: { rawTextLength: rawText.length, source: "text" },
+          },
+        })
+        .catch((err) => {
+          logger.warn(
+            { err, rawTextLength: rawText.length },
+            "recipe_imported_text activity write failed",
+          );
+        });
+    }
+
+    return res.json({
+      success: true,
+      recipe,
+      source: "text" as const,
       sourceUrl: null,
       caveats: aiResult.data.caveats ?? [],
     });

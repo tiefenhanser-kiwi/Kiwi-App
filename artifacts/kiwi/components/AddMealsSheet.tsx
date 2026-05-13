@@ -100,7 +100,7 @@ export function AddMealsSheet({
   };
 
   const navigateAfterClose = (
-    path: "/import-url" | "/import-image" | "/meal-builder",
+    path: "/import-url" | "/import-image" | "/import-text" | "/meal-builder",
   ) => {
     onClose();
     // Defer so the sheet's slide-out animation completes before the
@@ -188,6 +188,12 @@ export function AddMealsSheet({
               title="Import from photo"
               subtitle="Take a photo or pick from your library"
               onPress={() => navigateAfterClose("/import-image")}
+            />
+            <NewSourceCard
+              icon="clipboard"
+              title="Import from text"
+              subtitle="Paste a recipe from anywhere"
+              onPress={() => navigateAfterClose("/import-text")}
             />
             <NewSourceCard
               icon="edit-3"

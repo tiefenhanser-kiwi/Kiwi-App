@@ -210,6 +210,10 @@ export const URL_IMPORT_FAILURE_MESSAGE =
 export const IMAGE_IMPORT_FAILURE_MESSAGE =
   "Kiwi couldn't read this image. Try a clearer photo with good lighting, or paste the recipe text or a URL instead.";
 
+// 6c-3 — surfaced when text-import fails; suggests image import as the cleanest fallback.
+export const TEXT_IMPORT_FAILURE_MESSAGE =
+  "Kiwi couldn't read this recipe text. Make sure you've pasted a complete recipe with ingredients and instructions.";
+
 export const URLImportFailureSchema = z.object({
   success: z.literal(false),
   reason: z.enum([
@@ -219,8 +223,12 @@ export const URLImportFailureSchema = z.object({
     "sdk_error",
   ]),
   userFacingMessage: z.string(),
-  // 6c-2 widened: URL import suggests image as fallback; image import suggests text.
-  suggestedAction: z.enum(["try_image_import", "try_text_import"]),
+  // 6c-3 widened: URL import suggests image, image import suggests text, text import suggests image.
+  suggestedAction: z.enum([
+    "try_image_import",
+    "try_text_import",
+    "try_url_import",
+  ]),
   internalError: z.string().optional(),
 });
 export type URLImportFailure = z.infer<typeof URLImportFailureSchema>;

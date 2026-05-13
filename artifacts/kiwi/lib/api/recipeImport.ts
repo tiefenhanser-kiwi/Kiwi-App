@@ -70,13 +70,13 @@ export interface CanonicalRecipeContentWire {
   dishes: CanonicalDishWire[];
 }
 
-// 6c-2 — source widened to include 'image' for POST /api/recipes/import-image.
+// 6c-3 — source widened to include 'image' and 'text' for the image/text routes.
 // The URL endpoint still only returns 'structured_data' | 'ai_fallback' at
 // runtime; consumers should narrow against sourceUrl !== null when needed.
 interface ImportUrlSuccessResponse {
   success: true;
   recipe: CanonicalRecipeContentWire;
-  source: "structured_data" | "ai_fallback" | "image";
+  source: "structured_data" | "ai_fallback" | "image" | "text";
   sourceUrl: string | null;
   caveats?: string[];
 }
@@ -100,6 +100,17 @@ interface ImportImageFailureResponse {
 }
 
 type ImageImportResult = ImportUrlSuccessResponse | ImportImageFailureResponse;
+
+// 6c-3 — text import suggests image as the cleanest fallback for a failed paste.
+interface ImportTextFailureResponse {
+  success: false;
+  reason: "url_parse_failed" | "rate_limited" | "sdk_error";
+  userFacingMessage: string;
+  suggestedAction: "try_image_import";
+  internalError?: string;
+}
+
+type TextImportResult = ImportUrlSuccessResponse | ImportTextFailureResponse;
 
 // ─────────────────────────────────────────────────────────────────
 // Adapter — canonical recipe → DraftMeal (legacy flat shape)
@@ -349,6 +360,81 @@ export async function importRecipeFromImage(
     success: true,
     draft: canonicalToDraftMeal(body.recipe, body.sourceUrl),
     source: "image",
+    caveats: body.caveats ?? [],
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Text import (WS6 6c-3)
+// ─────────────────────────────────────────────────────────────────
+
+export interface ImportRecipeFromTextOptions {
+  rawText: string;
+}
+
+export type ImportRecipeFromTextResult =
+  | {
+      success: true;
+      draft: DraftMeal;
+      source: "text";
+      caveats: string[];
+    }
+  | {
+      success: false;
+      userFacingMessage: string;
+      reason: ImportTextFailureResponse["reason"];
+    };
+
+export async function importRecipeFromText(
+  opts: ImportRecipeFromTextOptions,
+): Promise<ImportRecipeFromTextResult> {
+  const token = await readToken();
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+
+  const res = await fetch(`${apiBase}/recipes/import-text`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ rawText: opts.rawText }),
+  });
+
+  if (res.status === 429) {
+    return {
+      success: false,
+      reason: "rate_limited",
+      userFacingMessage:
+        "Kiwi is catching up on imports — give it a moment and try again.",
+    };
+  }
+
+  let body: TextImportResult;
+  try {
+    body = (await res.json()) as TextImportResult;
+  } catch {
+    return {
+      success: false,
+      reason: "sdk_error",
+      userFacingMessage:
+        "Kiwi couldn't read this recipe. Try again in a moment.",
+    };
+  }
+
+  if (!body.success) {
+    return {
+      success: false,
+      reason: body.reason,
+      userFacingMessage: body.userFacingMessage,
+    };
+  }
+
+  return {
+    success: true,
+    draft: canonicalToDraftMeal(body.recipe, body.sourceUrl),
+    source: "text",
     caveats: body.caveats ?? [],
   };
 }

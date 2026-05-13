@@ -1,11 +1,13 @@
-// WS6 6c-1 — recipe import helpers: fetch a recipe URL, extract JSON-LD,
+// WS6 6c — recipe import helpers: fetch a recipe URL, extract JSON-LD,
 // normalize ingredient lines, and reformat into Kiwi's canonical shape via AI.
 //
-// PRD §10.9 — Reformat-for-Kiwi pass. Two-path flow:
-//   1. URL → fetchRecipePage → extractJsonLdRecipe → structuredHints → AI
-//   2. URL → fetchRecipePage → (no JSON-LD) → raw text → AI
-// Either path lands in reformatRecipeForKiwi(). Failures return AICallFailure
-// or null — the route maps both into a uniform URLImportFailure envelope.
+// PRD §10.9 — Reformat-for-Kiwi pass. Three import paths funnel into the same
+// reformatRecipeForKiwi() call, each gated by its own route:
+//   1. URL (6c-1)   — fetchRecipePage → extractJsonLdRecipe → structuredHints, or raw HTML → text
+//   2. Image (6c-2) — base64 photos → Anthropic Vision multi-block content
+//   3. Text  (6c-3) — pasted recipe text → AI direct
+// Failures return AICallFailure or null — each route maps them into a uniform
+// URLImportFailure envelope (with a path-specific userFacingMessage).
 
 import * as cheerio from "cheerio";
 import { parse as parseIngredient } from "recipe-ingredient-parser-v3";
