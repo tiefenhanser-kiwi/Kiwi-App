@@ -13,13 +13,8 @@
 //     regardless of staleness; sync is WS7 (D-WS7 placeholder).
 //   • Persist lastGeneratedFromPlanRevisionId + lastGeneratedAt at create time.
 //   • Activity log: generate_grocery (already in ActivityEventType enum).
-//   • Best-effort Ingredient lookup by canonicalName (case-insensitive).
-//
-// Drift surfaced from Blocks A/B (does NOT block C):
-//   • GroceryListItem schema has no isRecurringItem column. The AI output
-//     carries the flag (Block B contract preserves it), but persistence drops
-//     it. Universal + user pantry staples persist. To be addressed in 6c-4
-//     close (D-WS6-NN placeholder).
+//   • Best-effort Ingredient lookup by canonicalName, normalized via Block A
+//     normalizeIngredientName before the equals match.
 
 import { Router, type IRouter } from "express";
 import type { PrismaClient, Prisma, StoreSection } from "@prisma/client";
@@ -34,6 +29,7 @@ import {
   generateFinalGroceryList as productionGenerateFinalGroceryList,
   GroceryListAIError,
 } from "../lib/groceryListAI";
+import { normalizeIngredientName } from "../lib/groceryNormalization";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
@@ -60,15 +56,17 @@ const KNOWN_SECTIONS: StoreSection[] = [
 
 // Best-effort canonical-name → Ingredient.id lookup. Returns null on miss
 // (synthetic recurring items from Block A have no Ingredient row). The
-// canonicalName is unique in the schema; we case-fold via Prisma's
-// `equals` + `mode: 'insensitive'` to absorb minor casing drift from AI
-// output without forcing the AI prompt to preserve case exactly.
+// canonicalName is unique in the schema and all seeded rows are lowercase
+// (see prisma/seed.ts + seeds/devData.ts canonicalize). We normalize the
+// AI's output through the same Block A helper before the equals lookup, so
+// casing/whitespace/leading-article drift from AI output still hits the row.
 async function lookupIngredientIdByCanonicalName(
   tx: Prisma.TransactionClient,
   canonicalName: string,
 ): Promise<string | null> {
+  const normalized = normalizeIngredientName(canonicalName);
   const row = await tx.ingredient.findFirst({
-    where: { canonicalName: { equals: canonicalName, mode: "insensitive" } },
+    where: { canonicalName: normalized },
     select: { id: true },
   });
   return row?.id ?? null;
@@ -188,11 +186,9 @@ export function createGroceryListsRouter(
               quantity: item.quantity,
               unit: item.unit,
               storeSection: item.sectionKey,
-              // Drift: GroceryListItem has no isRecurringItem column today
-              // (Block B carries the flag through the AI output; 6c-4 close
-              // tracks whether to add a column).
               isUniversalStaple: item.isUniversalStaple,
               isUserPantryStaple: item.isUserPantryStaple,
+              isRecurringItem: item.isRecurringItem,
               wasAiInferred: true,
               notes: item.notes,
             })),
@@ -273,6 +269,12 @@ export function createGroceryListsRouter(
               { storeSection: "asc" },
               { displayName: "asc" },
             ],
+          },
+          planInstance: {
+            select: {
+              id: true,
+              isActiveThisWeek: true,
+            },
           },
         },
       });

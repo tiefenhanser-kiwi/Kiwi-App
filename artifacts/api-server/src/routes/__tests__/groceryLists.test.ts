@@ -24,6 +24,7 @@ interface PlanRow {
   userId: string;
   titleOverride: string | null;
   revisionId: number;
+  isActiveThisWeek: boolean;
   template: { title: string };
 }
 
@@ -48,6 +49,7 @@ interface ListItemRow {
   storeSection: string;
   isUniversalStaple: boolean;
   isUserPantryStaple: boolean;
+  isRecurringItem: boolean;
   wasAiInferred: boolean;
   notes: string | null;
 }
@@ -114,11 +116,14 @@ function makeStubPrisma(state: StubState) {
       findFirst: async ({
         where,
       }: {
-        where: { canonicalName: { equals: string; mode: string } };
+        where: { canonicalName: string };
       }) => {
-        const needle = where.canonicalName.equals.toLowerCase();
+        // Mirrors the real Prisma `equals` semantics now that the route
+        // normalizes via normalizeIngredientName upstream — strict equality
+        // against whatever is stored in state.ingredients.
+        const needle = where.canonicalName;
         for (const [name, id] of state.ingredients) {
-          if (name.toLowerCase() === needle) return { id };
+          if (name === needle) return { id };
         }
         return null;
       },
@@ -150,7 +155,7 @@ function makeStubPrisma(state: StubState) {
           userId?: string;
           status?: { not: string };
         };
-        include?: { items?: unknown };
+        include?: { items?: unknown; planInstance?: unknown };
       }) => {
         if (where.mealPlanInstanceId) {
           // POST path — Case 1 existence check.
@@ -167,17 +172,25 @@ function makeStubPrisma(state: StubState) {
             (l) => l.id === where.id && l.userId === where.userId,
           );
           if (!list) return null;
+          const result: Record<string, unknown> = { ...list };
           if (include?.items) {
-            const items = state.listItems
+            result.items = state.listItems
               .filter((i) => i.groceryListId === list.id)
               .sort((a, b) =>
                 a.storeSection === b.storeSection
                   ? a.displayName.localeCompare(b.displayName)
                   : a.storeSection.localeCompare(b.storeSection),
               );
-            return { ...list, items };
           }
-          return list;
+          if (include?.planInstance) {
+            const plan = state.plans.find(
+              (p) => p.id === list.mealPlanInstanceId,
+            );
+            result.planInstance = plan
+              ? { id: plan.id, isActiveThisWeek: plan.isActiveThisWeek }
+              : null;
+          }
+          return result;
         }
         return null;
       },
@@ -322,6 +335,7 @@ function seedPlan(state: StubState, overrides: Partial<PlanRow> = {}): PlanRow {
     userId: USER,
     titleOverride: null,
     revisionId: 7,
+    isActiveThisWeek: false,
     template: { title: "Family Dinners" },
     ...overrides,
   };
@@ -442,7 +456,7 @@ describe("POST /api/plans/:id/generate-grocery-list — flag persistence", () =>
   });
   after(async () => harness.close());
 
-  it("preserves isUniversalStaple + isUserPantryStaple flags on each item", async () => {
+  it("preserves isUniversalStaple + isUserPantryStaple + isRecurringItem flags on each item", async () => {
     const token = signToken(USER);
     const res = await fetch(
       `${harness.baseUrl}/plans/plan-1/generate-grocery-list`,
@@ -460,10 +474,13 @@ describe("POST /api/plans/:id/generate-grocery-list — flag persistence", () =>
     const milk = items.find((i) => i.displayName === "Milk")!;
     assert.equal(tomato.isUniversalStaple, false);
     assert.equal(tomato.isUserPantryStaple, false);
+    assert.equal(tomato.isRecurringItem, false);
     assert.equal(salt.isUniversalStaple, true);
     assert.equal(salt.isUserPantryStaple, false);
+    assert.equal(salt.isRecurringItem, false);
     assert.equal(milk.isUniversalStaple, false);
     assert.equal(milk.isUserPantryStaple, true);
+    assert.equal(milk.isRecurringItem, true);
     // All AI-generated items carry wasAiInferred = true.
     assert.ok(items.every((i) => i.wasAiInferred === true));
   });
@@ -527,6 +544,33 @@ describe("POST /api/plans/:id/generate-grocery-list — Ingredient lookup", () =
       assert.equal(res.status, 200);
       assert.equal(harness.state.listItems.length, 1);
       assert.equal(harness.state.listItems[0].ingredientId, "ing-tomato-1");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("normalizes mixed-case canonical names before equals match (AI casing drift)", async () => {
+    const harness = await spinUp({
+      finalItems: [
+        // AI returned mixed case; route must lower/trim/article-strip
+        // before the equals lookup so the seeded lowercase row still hits.
+        finalListItem({ canonicalName: "Salt", displayName: "Salt" }),
+      ],
+    });
+    seedPlan(harness.state);
+    harness.state.ingredients.set("salt", "ing-salt-1");
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/plans/plan-1/generate-grocery-list`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      assert.equal(res.status, 200);
+      assert.equal(harness.state.listItems.length, 1);
+      assert.equal(harness.state.listItems[0].ingredientId, "ing-salt-1");
     } finally {
       await harness.close();
     }
@@ -711,6 +755,7 @@ describe("GET /api/grocery-lists/:id", () => {
         storeSection: "produce",
         isUniversalStaple: false,
         isUserPantryStaple: false,
+        isRecurringItem: false,
         wasAiInferred: true,
         notes: null,
       },
@@ -723,6 +768,7 @@ describe("GET /api/grocery-lists/:id", () => {
         storeSection: "produce",
         isUniversalStaple: false,
         isUserPantryStaple: false,
+        isRecurringItem: false,
         wasAiInferred: true,
         notes: null,
       },
@@ -735,6 +781,7 @@ describe("GET /api/grocery-lists/:id", () => {
         storeSection: "dairy_eggs",
         isUniversalStaple: false,
         isUserPantryStaple: false,
+        isRecurringItem: false,
         wasAiInferred: true,
         notes: null,
       },
@@ -807,6 +854,59 @@ describe("GET /api/grocery-lists/:id", () => {
         method: "GET",
       });
       assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("surfaces planInstance.isActiveThisWeek=true on the response when the linked plan is the active week", async () => {
+    const harness = await spinUp();
+    seedPlan(harness.state, { isActiveThisWeek: true });
+    seedExistingList(harness.state, { id: "list-this-week" });
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/list-this-week`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        list: {
+          planInstance: { id: string; isActiveThisWeek: boolean } | null;
+        };
+      };
+      assert.ok(body.list.planInstance);
+      assert.equal(body.list.planInstance.isActiveThisWeek, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns planInstance=null gracefully when the list has no linked plan instance", async () => {
+    const harness = await spinUp();
+    // No plan seeded — list's mealPlanInstanceId points at a row that
+    // doesn't exist; the stub returns planInstance: null (mirrors the
+    // real relation when mealPlanInstanceId is null in the future).
+    seedExistingList(harness.state, { id: "list-no-plan" });
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/list-no-plan`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        list: {
+          planInstance: { id: string; isActiveThisWeek: boolean } | null;
+        };
+      };
+      assert.equal(body.list.planInstance, null);
     } finally {
       await harness.close();
     }

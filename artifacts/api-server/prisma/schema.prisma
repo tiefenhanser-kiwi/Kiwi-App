@@ -503,6 +503,7 @@ model GroceryListItem {
   // WS6 6c-4: source-tracked staple flags. Both can be true on one item.
   isUniversalStaple  Boolean      @default(false)
   isUserPantryStaple Boolean      @default(false)
+  isRecurringItem    Boolean      @default(false)
   // WS6 6c-4 / WS7 sync: AI-surfaced ambiguity options + user resolution.
   ambiguityOptions   String[]     @default([])
   userResolvedTo     String?

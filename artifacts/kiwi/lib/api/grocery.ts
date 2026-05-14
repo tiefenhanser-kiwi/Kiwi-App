@@ -103,6 +103,7 @@ interface GroceryListItemWire {
   isAmbiguous: boolean;
   isUniversalStaple: boolean;
   isUserPantryStaple: boolean;
+  isRecurringItem: boolean;
   ambiguityOptions: string[];
   userResolvedTo: string | null;
   notes: string | null;
@@ -115,6 +116,10 @@ interface GroceryListWire {
   status: "draft" | "active" | "ordered" | "archived";
   createdAt: string;
   items: GroceryListItemWire[];
+  planInstance: {
+    id: string;
+    isActiveThisWeek: boolean;
+  } | null;
 }
 
 // Pretty-print a numeric Float + unit pair back into a human-readable
@@ -139,9 +144,7 @@ function normalizeListItem(wire: GroceryListItemWire): GroceryListItem {
     // separate `isUserPantryStaple` field today — fold both into the
     // universal-staple flag for UI dimming purposes (PRD §12.7).
     isUniversalStaple: wire.isUniversalStaple || wire.isUserPantryStaple,
-    // Drift: server schema has no isRecurringItem column. Always false
-    // until 6c-4 close decides whether to add the column.
-    isRecurringItem: false,
+    isRecurringItem: wire.isRecurringItem,
     isAmbiguous: wire.isAmbiguous,
     ambiguityOptions:
       wire.ambiguityOptions.length > 0 ? wire.ambiguityOptions : undefined,
@@ -167,9 +170,7 @@ function normalizeList(wire: GroceryListWire): GroceryList {
     items: wire.items.map(normalizeListItem),
     status,
     createdAt: wire.createdAt,
-    // WS6 6c-4 doesn't surface "is current week" from the API yet — the
-    // screen tolerates `false` (subtitle just shows the plan name).
-    isThisWeek: false,
+    isThisWeek: wire.planInstance?.isActiveThisWeek ?? false,
     ambiguousItemCount: wire.items.filter((i) => i.isAmbiguous).length,
   };
 }
