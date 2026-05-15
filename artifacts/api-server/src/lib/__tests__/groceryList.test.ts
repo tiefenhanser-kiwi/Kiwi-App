@@ -27,6 +27,7 @@ interface IngStub {
   purchaseUnit?: string | null;
   purchaseQuantity?: number | null;
   purchaseDisplay?: string | null;
+  preparationNote?: string | null;
 }
 
 interface DishStub {
@@ -90,7 +91,7 @@ function buildPlanRow(plan: PlanStub) {
                 ingredientId: hasIngredient ? (ing.ingredientId ?? `ing-${ing.name}`) : null,
                 quantity: ing.quantity,
                 unit: ing.unit,
-                preparationNote: null,
+                preparationNote: ing.preparationNote ?? null,
                 isOptional: false,
                 positionIndex: ii,
                 ingredient: hasIngredient
@@ -614,5 +615,298 @@ describe("consolidatePlanIngredients — purchase-size pass-through", () => {
     assert.equal(out[0].purchaseUnit, null);
     assert.equal(out[0].purchaseQuantity, null);
     assert.equal(out[0].purchaseDisplay, null);
+  });
+});
+
+// ── 6c-5: prep-note + source-dish-title threading ───────────────────────
+
+describe("consolidatePlanIngredients — 6c-5 prep-note + dish title", () => {
+  it("merges same canonical + same prep into one row, preserving prep + summing qty", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Chicken Tacos",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 1,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: "shredded",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "i2",
+          dishes: [
+            {
+              id: "d2",
+              title: "Chicken Salad",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 0.5,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: "shredded",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    const chickenLines = out.filter((i) => i.canonicalName === "chicken");
+    assert.equal(chickenLines.length, 1);
+    assert.equal(chickenLines[0].quantity, 1.5);
+    assert.equal(chickenLines[0].preparationNote, "shredded");
+  });
+
+  it("splits same canonical with different prep notes into two rows", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Chicken Tacos",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 1,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: "shredded",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "i2",
+          dishes: [
+            {
+              id: "d2",
+              title: "Chicken Soup",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 1,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: "diced",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    const chickenLines = out.filter((i) => i.canonicalName === "chicken");
+    assert.equal(chickenLines.length, 2);
+    const preps = chickenLines.map((l) => l.preparationNote).sort();
+    assert.deepEqual(preps, ["diced", "shredded"]);
+  });
+
+  it("splits one null prep + one non-null prep into two rows (different bucket keys)", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Roast Chicken",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 1,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: null,
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "i2",
+          dishes: [
+            {
+              id: "d2",
+              title: "Chicken Tacos",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 1,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: "shredded",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    const chickenLines = out.filter((i) => i.canonicalName === "chicken");
+    assert.equal(chickenLines.length, 2);
+    const preps = chickenLines.map((l) => l.preparationNote);
+    assert.ok(preps.includes(null));
+    assert.ok(preps.includes("shredded"));
+  });
+
+  it("populates sourceDishTitle from the first contributing dish", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Chicken Tacos",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 1,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: "shredded",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].sourceDishTitle, "Chicken Tacos");
+  });
+
+  it("extends sourceDishTitle across distinct dishes that share the same merge bucket", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Chicken Tacos",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 1,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: "shredded",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "i2",
+          dishes: [
+            {
+              id: "d2",
+              title: "Caesar Salad",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 0.5,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: "shredded",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].sourceDishTitle, "Chicken Tacos, Caesar Salad");
+  });
+
+  it("synthetic recurring entries have null preparationNote and null sourceDishTitle", async () => {
+    const prisma = makePrisma({
+      items: [],
+      recurringItems: ["paper towels"],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].preparationNote, null);
+    assert.equal(out[0].sourceDishTitle, null);
+  });
+
+  it("normalizes prep casing/whitespace when deciding the bucket (no stemming)", async () => {
+    // "Shredded" + " shredded " → same bucket; "shredded" + "diced" → split.
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Tacos",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 1,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: "Shredded",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "i2",
+          dishes: [
+            {
+              id: "d2",
+              title: "Salad",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  quantity: 1,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: "  shredded  ",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    const chickenLines = out.filter((i) => i.canonicalName === "chicken");
+    assert.equal(chickenLines.length, 1);
+    assert.equal(chickenLines[0].quantity, 2);
   });
 });

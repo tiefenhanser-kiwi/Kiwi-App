@@ -189,7 +189,10 @@ export function createGroceryListsRouter(
               isUniversalStaple: item.isUniversalStaple,
               isUserPantryStaple: item.isUserPantryStaple,
               isRecurringItem: item.isRecurringItem,
-              wasAiInferred: true,
+              // 6c-5: AI-determined now, replacing the hardcoded `true`.
+              wasAiInferred: item.wasAiInferred,
+              isAmbiguous: item.isAmbiguous,
+              ambiguityOptions: item.ambiguityOptions ?? [],
               notes: item.notes,
             })),
           );

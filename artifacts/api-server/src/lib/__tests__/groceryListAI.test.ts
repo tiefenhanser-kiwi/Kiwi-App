@@ -212,6 +212,8 @@ function makeItem(overrides: Partial<ConsolidatedItem> = {}): ConsolidatedItem {
     purchaseUnit: null,
     purchaseQuantity: null,
     purchaseDisplay: null,
+    preparationNote: null,
+    sourceDishTitle: null,
     ...overrides,
   };
 }
@@ -480,6 +482,8 @@ describe("generateFinalGroceryList", () => {
                 isUserPantryStaple: false,
                 isRecurringItem: false,
                 notes: null,
+                isAmbiguous: false,
+                wasAiInferred: true,
               },
             ],
           }),
@@ -573,6 +577,8 @@ describe("generateFinalGroceryList", () => {
       isUserPantryStaple: it.isUserPantryStaple,
       isRecurringItem: it.isRecurringItem,
       notes: null,
+      isAmbiguous: false,
+      wasAiInferred: false,
     }));
 
     const fake = makeFakeClient([
@@ -635,6 +641,8 @@ describe("generateFinalGroceryList", () => {
                 isUserPantryStaple: false,
                 isRecurringItem: false,
                 notes: null,
+                isAmbiguous: false,
+                wasAiInferred: false,
               },
             ],
           }),
@@ -666,10 +674,10 @@ describe("generateFinalGroceryList", () => {
         content: [
           textBlock({
             items: [
-              { canonicalName: "a", displayName: "a", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null },
-              { canonicalName: "b", displayName: "b", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null },
-              { canonicalName: "c", displayName: "c", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null },
-              { canonicalName: "d", displayName: "d", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null },
+              { canonicalName: "a", displayName: "a", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
+              { canonicalName: "b", displayName: "b", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
+              { canonicalName: "c", displayName: "c", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
+              { canonicalName: "d", displayName: "d", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
             ],
           }),
         ],
@@ -710,6 +718,8 @@ describe("generateFinalGroceryList", () => {
                 isUserPantryStaple: false,
                 isRecurringItem: false,
                 notes: null,
+                isAmbiguous: false,
+                wasAiInferred: false,
               },
             ],
           }),
@@ -727,6 +737,214 @@ describe("generateFinalGroceryList", () => {
           "Plan",
           inputItems,
           ["produce", "pantry", "extras"],
+          { prisma, userId: TEST_USER_ID, client: fake.client },
+        ),
+      (err: unknown) => err instanceof GroceryListAIError,
+    );
+  });
+
+  // ── 6c-5: prep-note + dish-title + ambiguity threading ───────────────
+
+  it("threads preparationNote + sourceDishTitle into the AI input payload", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            items: [
+              {
+                canonicalName: "chicken",
+                displayName: "boneless skinless chicken breasts, 1 lb",
+                quantity: 1,
+                unit: "lb",
+                sectionKey: "meat_seafood",
+                isUniversalStaple: false,
+                isUserPantryStaple: false,
+                isRecurringItem: false,
+                notes: null,
+                isAmbiguous: true,
+                ambiguityOptions: [
+                  "boneless skinless thighs",
+                  "rotisserie chicken (pulled)",
+                  "ground chicken",
+                ],
+                wasAiInferred: true,
+              },
+            ],
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      baseInputItem({
+        canonicalName: "chicken",
+        displayName: "chicken",
+        unit: "lb",
+        quantity: 1,
+        sectionKey: "meat_seafood",
+        preparationNote: "shredded",
+        sourceDishTitle: "Chicken Tacos",
+      }),
+    ];
+
+    await generateFinalGroceryList(
+      "Weeknight Plan",
+      items,
+      ["produce", "meat_seafood", "extras"],
+      { prisma, userId: TEST_USER_ID, client: fake.client },
+    );
+
+    const sent = fake.lastUserMessage();
+    assert.ok(sent, "should send a user message");
+    assert.ok(sent.includes("shredded"), "prep note must be in the prompt");
+    assert.ok(sent.includes("Chicken Tacos"), "dish title must be in the prompt");
+  });
+
+  it("threads isAmbiguous=true + ambiguityOptions back from the AI response", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            items: [
+              {
+                canonicalName: "berries",
+                displayName: "blueberries",
+                quantity: 2,
+                unit: "cup",
+                sectionKey: "produce",
+                isUniversalStaple: false,
+                isUserPantryStaple: false,
+                isRecurringItem: false,
+                notes: null,
+                isAmbiguous: true,
+                ambiguityOptions: ["strawberries", "raspberries", "mixed berries"],
+                wasAiInferred: true,
+              },
+            ],
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      baseInputItem({
+        canonicalName: "berries",
+        displayName: "berries",
+        sectionKey: "produce",
+        unit: "cup",
+        quantity: 2,
+        sourceDishTitle: "Yogurt Parfait",
+      }),
+    ];
+
+    const result = await generateFinalGroceryList(
+      "Weekly Plan",
+      items,
+      ["produce", "extras"],
+      { prisma, userId: TEST_USER_ID, client: fake.client },
+    );
+
+    assert.equal(result.items[0].isAmbiguous, true);
+    assert.deepEqual(result.items[0].ambiguityOptions, [
+      "strawberries",
+      "raspberries",
+      "mixed berries",
+    ]);
+    assert.equal(result.items[0].wasAiInferred, true);
+  });
+
+  it("threads wasAiInferred=false when the AI passes the item through unchanged", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            items: [
+              {
+                canonicalName: "greek yogurt",
+                displayName: "plain Greek yogurt, 32oz",
+                quantity: 1,
+                unit: "container",
+                sectionKey: "dairy_eggs",
+                isUniversalStaple: false,
+                isUserPantryStaple: false,
+                isRecurringItem: false,
+                notes: null,
+                isAmbiguous: false,
+                wasAiInferred: false,
+              },
+            ],
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      baseInputItem({
+        canonicalName: "greek yogurt",
+        displayName: "plain Greek yogurt, 32oz",
+        sectionKey: "dairy_eggs",
+        unit: "container",
+        quantity: 1,
+      }),
+    ];
+
+    const result = await generateFinalGroceryList(
+      "Weekly Plan",
+      items,
+      ["produce", "dairy_eggs", "extras"],
+      { prisma, userId: TEST_USER_ID, client: fake.client },
+    );
+
+    assert.equal(result.items[0].isAmbiguous, false);
+    assert.equal(result.items[0].wasAiInferred, false);
+    assert.equal(result.items[0].ambiguityOptions, undefined);
+  });
+
+  it("rejects responses where isAmbiguous=true is missing ambiguityOptions (Zod refine)", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            items: [
+              {
+                canonicalName: "chicken",
+                displayName: "chicken breast",
+                quantity: 1,
+                unit: "lb",
+                sectionKey: "meat_seafood",
+                isUniversalStaple: false,
+                isUserPantryStaple: false,
+                isRecurringItem: false,
+                notes: null,
+                isAmbiguous: true,
+                // ambiguityOptions omitted — should fail refine
+                wasAiInferred: true,
+              },
+            ],
+          }),
+        ],
+      },
+      { content: [textBlock("still bad")] },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    await assert.rejects(
+      () =>
+        generateFinalGroceryList(
+          "Plan",
+          [baseInputItem({ canonicalName: "chicken" })],
+          ["meat_seafood", "extras"],
           { prisma, userId: TEST_USER_ID, client: fake.client },
         ),
       (err: unknown) => err instanceof GroceryListAIError,

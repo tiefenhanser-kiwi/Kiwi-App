@@ -16,7 +16,7 @@ export const SectionKeySchema = z.enum([
 ]);
 export type SectionKey = z.infer<typeof SectionKeySchema>;
 
-// D-WS5-030 / 6c-4 — predictive grocery-add categorization for the
+// D-WS5-030 / 6c-6 — predictive grocery-add categorization for the
 // "Add an item" search bar. Cheap text+Zod call; debounced client-side.
 export const ItemCategorizationInputSchema = z.object({
   itemText: z.string().min(1).max(140),
@@ -37,20 +37,6 @@ export const ItemCategorizationResultSchema = z.object({
 export type ItemCategorizationResult = z.infer<
   typeof ItemCategorizationResultSchema
 >;
-
-// PRD §12.5 / 6c-3 — ambiguous item flagging at list-generation time.
-export const AmbiguousFlagInputSchema = z.object({
-  itemName: z.string().min(1).max(140),
-  context: z.string().max(280).optional(), // recipe context for nuance
-});
-export type AmbiguousFlagInput = z.infer<typeof AmbiguousFlagInputSchema>;
-
-export const AmbiguousFlagResultSchema = z.object({
-  isAmbiguous: z.boolean(),
-  // Populated only when isAmbiguous; e.g. ["blueberries","strawberries"].
-  ambiguityOptions: z.array(z.string().min(1).max(80)).max(8).optional(),
-});
-export type AmbiguousFlagResult = z.infer<typeof AmbiguousFlagResultSchema>;
 
 // === 6c-4 Block B — grocery.gap_fill_purchase_size ===
 // Map a single recipe ingredient need to its standard purchase size. Haiku,
@@ -73,11 +59,13 @@ export const PurchaseSizeResultSchema = z.object({
 });
 export type PurchaseSizeResult = z.infer<typeof PurchaseSizeResultSchema>;
 
-// === 6c-4 Block B — grocery.generate_list ===
+// === 6c-4 Block B / 6c-5 — grocery.generate_list ===
 // Final AI polish pass over the deterministic + gap-filled list. Sonnet.
 // Refines displayNames, reconciles unit-mismatch survivors, reassigns
 // extras-bucketed items to correct sections. Preserves all three boolean
 // flags exactly; does NOT add items (helper enforces count never increases).
+// 6c-5: input now carries preparationNote + sourceDishTitle so the AI can
+// infer specific defaults for vague items and flag ambiguity in-line.
 
 export const GenerateListInputItemSchema = z.object({
   canonicalName: z.string(),
@@ -91,6 +79,9 @@ export const GenerateListInputItemSchema = z.object({
   purchaseUnit: z.string().nullable(),
   purchaseQuantity: z.number().nullable(),
   purchaseDisplay: z.string().nullable(),
+  // 6c-5: recipe-context signals for AI form inference + ambiguity flagging.
+  preparationNote: z.string().nullable(),
+  sourceDishTitle: z.string().nullable(),
 });
 export type GenerateListInputItem = z.infer<typeof GenerateListInputItemSchema>;
 
@@ -103,17 +94,37 @@ export type GenerateGroceryListInput = z.infer<
   typeof GenerateGroceryListInputSchema
 >;
 
-export const GenerateListOutputItemSchema = z.object({
-  canonicalName: z.string(),
-  displayName: z.string(),
-  quantity: z.number().positive(),
-  unit: z.string(),
-  sectionKey: SectionKeySchema,
-  isUniversalStaple: z.boolean(),
-  isUserPantryStaple: z.boolean(),
-  isRecurringItem: z.boolean(),
-  notes: z.string().nullable(),
-});
+// 6c-5: ambiguityOptions is optional (omitted when not flagged) but when
+// isAmbiguous is true it MUST be present with 2-4 entries. The .refine
+// below enforces the joint constraint at the per-item layer so the route
+// can trust the contract without an extra guard.
+export const GenerateListOutputItemSchema = z
+  .object({
+    canonicalName: z.string(),
+    displayName: z.string(),
+    quantity: z.number().positive(),
+    unit: z.string(),
+    sectionKey: SectionKeySchema,
+    isUniversalStaple: z.boolean(),
+    isUserPantryStaple: z.boolean(),
+    isRecurringItem: z.boolean(),
+    notes: z.string().nullable(),
+    isAmbiguous: z.boolean(),
+    ambiguityOptions: z.array(z.string()).min(2).max(4).optional(),
+    wasAiInferred: z.boolean(),
+  })
+  .refine(
+    (it) =>
+      !it.isAmbiguous ||
+      (Array.isArray(it.ambiguityOptions) &&
+        it.ambiguityOptions.length >= 2 &&
+        it.ambiguityOptions.length <= 4),
+    {
+      message:
+        "ambiguityOptions must be a 2-4 entry array when isAmbiguous is true",
+      path: ["ambiguityOptions"],
+    },
+  );
 export type GenerateListOutputItem = z.infer<
   typeof GenerateListOutputItemSchema
 >;

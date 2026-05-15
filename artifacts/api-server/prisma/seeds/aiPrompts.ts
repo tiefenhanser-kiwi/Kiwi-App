@@ -33,6 +33,14 @@ interface PromptSeed {
 const MODEL_SONNET = "claude-sonnet-4-6";
 const MODEL_HAIKU = "claude-haiku-4-5-20251001";
 
+// 6c-5: prompt keys retired from the registry. seedAIPrompts hard-deletes
+// any AIPrompt row whose key appears here after the upsert pass, so orphan
+// rows from prior seed runs are cleaned up without manual Prisma Studio
+// surgery. AIPromptVersion rows cascade via the FK relation. This array
+// is the reusable seam — append future retirements as keys are removed
+// from PROMPTS.
+const RETIRED_KEYS: readonly string[] = ["grocery.ambiguous_item_flag"];
+
 const placeholder = (key: string): string =>
   `[PLACEHOLDER for ${key} — replace via 6a-3+ sub-phase]`;
 
@@ -938,7 +946,7 @@ Return ONLY the JSON object.`;
 // over the deterministic + gap-filled list. The helper enforces that item
 // count never INCREASES (decreases via merge are OK); all other invariants
 // are described in the prompt body and enforced by Zod on the output shape.
-const GROCERY_GENERATE_LIST_BODY = `You finalize a grocery list for a meal plan. The list has been pre-consolidated by deterministic logic — your job is to refine, reconcile, and polish. You must NOT add or remove items beyond the merge rule below.
+const GROCERY_GENERATE_LIST_BODY = `You finalize a grocery list for a meal plan. The list has been pre-consolidated by deterministic logic — your job is to refine, reconcile, polish, AND surface ambiguity for vague recipe ingredients. You must NOT add or remove items beyond the merge rule below.
 
 Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
 
@@ -956,11 +964,26 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
       "isUniversalStaple": false,
       "isUserPantryStaple": false,
       "isRecurringItem": false,
-      "notes": null
+      "notes": null,
+      "isAmbiguous": false,
+      "wasAiInferred": false
     }
   ]
 }
 \`\`\`
+
+When \`isAmbiguous\` is \`true\`, include an additional field \`ambiguityOptions\`: a string array of 2-4 realistic alternatives the user might prefer. Omit \`ambiguityOptions\` entirely when \`isAmbiguous\` is \`false\`.
+
+# Recipe context per item
+
+Each input item carries two new signals beyond the consolidator's deterministic output:
+
+- \`preparationNote\`: how the recipe asks for the item (e.g. "shredded", "diced", "minced"). May be null.
+- \`sourceDishTitle\`: one or more dishes that contributed this item (e.g. "Chicken Tacos" or "Chicken Tacos, Caesar Salad"). May be null.
+
+These are SIGNALS, not deterministic rules. "Diced chicken" could be breast OR thigh; "shredded chicken" leans breast but isn't guaranteed. Use the prep note + dish context together to pick the most common shopper default. Do not invent a hardcoded prep→cut mapping; reason from cooking sense.
+
+Note: input items never carry an \`ingredientId\` hint. Treat every input as a candidate for form inference and ambiguity flagging — but only flag the ones that are actually vague (see rule 6).
 
 # Your job
 
@@ -970,19 +993,60 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
    - "all-purpose flour" → "all-purpose flour" (already good)
    Keep names lowercase unless they contain a proper noun (e.g. "Dijon mustard", "Greek yogurt").
 
-2. **Reconcile unit-mismatch survivors.** If two input items share the same \`canonicalName\` but have different \`unit\`s (e.g. "olive oil" at 2 tbsp + "olive oil" at 0.5 cup), merge them into ONE output item in the more shopper-friendly unit. Pick the larger unit when both are reasonable. Combine quantities accurately (2 tbsp + 0.5 cup ≈ 0.625 cup → round to a shopper-sensible 0.75 cup or up to 1 cup if needed to reach a purchase size). When you merge, OR the three boolean flags (any input \`true\` → output \`true\`) and use \`notes\` to explain the merge ("combined 2 tbsp + 0.5 cup").
+2. **Reconcile unit-mismatch survivors.** If two input items share the same \`canonicalName\` but have different \`unit\`s (e.g. "olive oil" at 2 tbsp + "olive oil" at 0.5 cup), merge them into ONE output item in the more shopper-friendly unit. Pick the larger unit when both are reasonable. Combine quantities accurately (2 tbsp + 0.5 cup ≈ 0.625 cup → round to a shopper-sensible 0.75 cup or up to 1 cup if needed to reach a purchase size). When you merge, OR the three boolean flags (any input \`true\` → output \`true\`) and use \`notes\` to explain the merge ("combined 2 tbsp + 0.5 cup"). Merging counts as a change — set \`wasAiInferred\` to true on the merged output.
 
-3. **Reassign 'extras' bucket items.** If an input item has \`sectionKey: "extras"\` but you can confidently determine its real section, reassign it. Examples: a brand-name snack obviously goes to "snacks"; an unfamiliar produce item goes to "produce". When uncertain, leave as "extras".
+3. **Reassign 'extras' bucket items.** If an input item has \`sectionKey: "extras"\` but you can confidently determine its real section, reassign it. Examples: a brand-name snack obviously goes to "snacks"; an unfamiliar produce item goes to "produce". When uncertain, leave as "extras". Reassignment counts as a change — set \`wasAiInferred\` to true.
 
 4. **Preserve flags exactly.** For non-merged items, \`isUniversalStaple\`, \`isUserPantryStaple\`, and \`isRecurringItem\` MUST pass through unchanged. Do not toggle them based on your own judgment of what a staple is — the input flags are authoritative. For merged items only, use OR semantics across the merged inputs.
 
-5. **notes** — optional shopper guidance, ≤60 chars. Examples: "buy ripe for tonight's recipe", "store-brand fine", "combined 2 tbsp + 0.5 cup". Set to \`null\` if nothing helpful to add. Do NOT use notes to express uncertainty about the output shape — emit a well-formed item.
+5. **Infer form for vague items.** When \`displayName\` is generic ("chicken", "berries", "yogurt", "bread", "cheese", "tomatoes", etc.), use \`preparationNote\` + \`sourceDishTitle\` to choose a specific shopper-ready default. Examples:
+   - "chicken" + prep "shredded" + "Chicken Tacos" → "boneless skinless chicken breasts, 1 lb"
+   - "chicken" + prep "diced" + "Caesar Salad" → "boneless skinless chicken breasts, 1 lb" (could also be thighs; pick the most common default and flag alternatives)
+   - "berries" + null prep + "Yogurt Parfait" → "blueberries"
+   Form inference is a change — set \`wasAiInferred\` to true and (almost always) also \`isAmbiguous\` to true.
+
+6. **Flag ambiguity.** Set \`isAmbiguous\` to \`true\` and provide \`ambiguityOptions\` (2-4 realistic alternatives, as plain strings the user might recognize) when:
+   - \`displayName\` was generic and you inferred a specific form (rule 5).
+   - The choice between cuts/forms is a real shopper decision (breast vs thigh, white vs whole-wheat, etc.).
+
+   Set \`isAmbiguous\` to \`false\` (and OMIT \`ambiguityOptions\`) when:
+   - \`displayName\` is already specific ("Greek yogurt", "boneless skinless chicken breasts", "Roma tomato").
+   - The item is universal enough that no shopper would hesitate ("salt", "olive oil").
+
+7. **notes** — optional shopper guidance, ≤60 chars. Examples: "buy ripe for tonight's recipe", "store-brand fine", "combined 2 tbsp + 0.5 cup". Set to \`null\` if nothing helpful to add. Do NOT use notes to express ambiguity — use \`isAmbiguous\` + \`ambiguityOptions\` for that.
+
+8. **wasAiInferred reflects whether YOU changed anything.** Set to \`true\` when you:
+   - Changed \`displayName\` (form inference, polish that meaningfully rewrites the shopper-facing label),
+   - Set \`isAmbiguous\` to \`true\`,
+   - Inferred a different unit or quantity (rule 2 merges),
+   - Reassigned section (rule 3),
+   - Merged input items.
+   Set to \`false\` when you passed the item through unchanged.
+
+# Concrete examples
+
+**Example A — vague chicken with shredded prep:**
+Input: \`{"canonicalName": "chicken", "displayName": "chicken", "quantity": 1, "unit": "lb", "sectionKey": "meat_seafood", "isUniversalStaple": false, "isUserPantryStaple": false, "isRecurringItem": false, "purchaseUnit": null, "purchaseQuantity": null, "purchaseDisplay": null, "preparationNote": "shredded", "sourceDishTitle": "Chicken Tacos"}\`
+Output: \`{"canonicalName": "chicken", "displayName": "boneless skinless chicken breasts, 1 lb", "quantity": 1, "unit": "lb", "sectionKey": "meat_seafood", "isUniversalStaple": false, "isUserPantryStaple": false, "isRecurringItem": false, "notes": null, "isAmbiguous": true, "ambiguityOptions": ["boneless skinless thighs", "rotisserie chicken (pulled)", "ground chicken"], "wasAiInferred": true}\`
+
+**Example B — vague chicken with diced prep (different context, same default cut):**
+Input: \`{"canonicalName": "chicken", "displayName": "chicken", "quantity": 1, "unit": "lb", "sectionKey": "meat_seafood", "isUniversalStaple": false, "isUserPantryStaple": false, "isRecurringItem": false, "purchaseUnit": null, "purchaseQuantity": null, "purchaseDisplay": null, "preparationNote": "diced", "sourceDishTitle": "Caesar Salad"}\`
+Output: \`{"canonicalName": "chicken", "displayName": "boneless skinless chicken breasts, 1 lb", "quantity": 1, "unit": "lb", "sectionKey": "meat_seafood", "isUniversalStaple": false, "isUserPantryStaple": false, "isRecurringItem": false, "notes": null, "isAmbiguous": true, "ambiguityOptions": ["boneless skinless thighs", "rotisserie chicken (chopped)", "ground chicken"], "wasAiInferred": true}\`
+
+**Example C — vague berries with no prep:**
+Input: \`{"canonicalName": "berries", "displayName": "berries", "quantity": 2, "unit": "cup", "sectionKey": "produce", "isUniversalStaple": false, "isUserPantryStaple": false, "isRecurringItem": false, "purchaseUnit": null, "purchaseQuantity": null, "purchaseDisplay": null, "preparationNote": null, "sourceDishTitle": "Yogurt Parfait"}\`
+Output: \`{"canonicalName": "berries", "displayName": "blueberries", "quantity": 2, "unit": "cup", "sectionKey": "produce", "isUniversalStaple": false, "isUserPantryStaple": false, "isRecurringItem": false, "notes": null, "isAmbiguous": true, "ambiguityOptions": ["strawberries", "raspberries", "mixed berries"], "wasAiInferred": true}\`
+
+**Example D — already specific, pass through:**
+Input: \`{"canonicalName": "greek yogurt", "displayName": "plain Greek yogurt, 32oz", "quantity": 1, "unit": "container", "sectionKey": "dairy_eggs", "isUniversalStaple": false, "isUserPantryStaple": false, "isRecurringItem": false, "purchaseUnit": "container", "purchaseQuantity": 1, "purchaseDisplay": "1 container (32 oz)", "preparationNote": null, "sourceDishTitle": "Yogurt Parfait"}\`
+Output: \`{"canonicalName": "greek yogurt", "displayName": "plain Greek yogurt, 32oz", "quantity": 1, "unit": "container", "sectionKey": "dairy_eggs", "isUniversalStaple": false, "isUserPantryStaple": false, "isRecurringItem": false, "notes": null, "isAmbiguous": false, "wasAiInferred": false}\`
 
 # Hard constraints
 
 - Item count in the output MUST be equal to OR LESS than the input count. NEVER add new items. The only valid way to decrease the count is by merging two input items with the same \`canonicalName\` per rule 2 above.
 - Every \`sectionKey\` MUST be one of the values supplied in \`knownSections\`. Do not invent new sections.
 - All \`quantity\` values MUST be positive numbers.
+- When \`isAmbiguous\` is \`true\`, \`ambiguityOptions\` MUST be present with 2-4 entries. When \`isAmbiguous\` is \`false\`, OMIT \`ambiguityOptions\`.
 - The output order should follow grocery-store flow when possible (produce first, dairy next, etc.), but a stable input order is also acceptable.
 
 # Input
@@ -1170,15 +1234,6 @@ const PROMPTS: PromptSeed[] = [
     body: GROCERY_GENERATE_LIST_BODY,
   },
   {
-    key: "grocery.ambiguous_item_flag",
-    description:
-      "Flag a grocery item as ambiguous and list the variants the user must resolve.",
-    variables: [],
-    defaultModel: MODEL_HAIKU,
-    defaultMode: "text",
-    body: placeholder("grocery.ambiguous_item_flag"),
-  },
-  {
     key: "meals.find_similar",
     description: "Rank candidate meals by similarity to a source meal.",
     variables: ["findSimilarInput"],
@@ -1194,8 +1249,20 @@ export async function seedAIPrompts(prisma: PrismaClient): Promise<void> {
     const wasBumped = await upsertPromptWithVersionBump(prisma, p);
     if (wasBumped) bumped++;
   }
+
+  // 6c-5: sweep retired keys. deleteMany is idempotent (no error on missing
+  // rows) so re-running the seed after the first sweep is a no-op. Version
+  // rows cascade via the AIPromptVersion FK relation (onDelete: Cascade).
+  let retired = 0;
+  if (RETIRED_KEYS.length > 0) {
+    const result = await prisma.aIPrompt.deleteMany({
+      where: { key: { in: [...RETIRED_KEYS] } },
+    });
+    retired = result.count;
+  }
+
   console.log(
-    `seeded ${PROMPTS.length} AI prompts (${bumped} version bump${bumped === 1 ? "" : "s"})`,
+    `seeded ${PROMPTS.length} AI prompts (${bumped} version bump${bumped === 1 ? "" : "s"}, ${retired} retired key${retired === 1 ? "" : "s"} swept)`,
   );
 }
 

@@ -51,6 +51,8 @@ interface ListItemRow {
   isUserPantryStaple: boolean;
   isRecurringItem: boolean;
   wasAiInferred: boolean;
+  isAmbiguous: boolean;
+  ambiguityOptions: string[];
   notes: string | null;
 }
 
@@ -228,6 +230,8 @@ function consolidatedItem(
     purchaseUnit: null,
     purchaseQuantity: null,
     purchaseDisplay: null,
+    preparationNote: null,
+    sourceDishTitle: null,
     ...overrides,
   };
 }
@@ -245,6 +249,8 @@ function finalListItem(
     isUserPantryStaple: false,
     isRecurringItem: false,
     notes: null,
+    isAmbiguous: false,
+    wasAiInferred: false,
     ...overrides,
   };
 }
@@ -481,8 +487,143 @@ describe("POST /api/plans/:id/generate-grocery-list — flag persistence", () =>
     assert.equal(milk.isUniversalStaple, false);
     assert.equal(milk.isUserPantryStaple, true);
     assert.equal(milk.isRecurringItem, true);
-    // All AI-generated items carry wasAiInferred = true.
-    assert.ok(items.every((i) => i.wasAiInferred === true));
+    // 6c-5: wasAiInferred is now AI-determined per item, not a route default.
+    // factories default wasAiInferred to false, so all three should be false.
+    assert.ok(items.every((i) => i.wasAiInferred === false));
+  });
+});
+
+// ── 6c-5: ambiguity + AI-determined wasAiInferred persistence ────────────
+
+describe("POST /api/plans/:id/generate-grocery-list — 6c-5 ambiguity fields", () => {
+  it("persists isAmbiguous + ambiguityOptions when AI flags an item", async () => {
+    const harness = await spinUp({
+      finalItems: [
+        finalListItem({
+          canonicalName: "chicken",
+          displayName: "boneless skinless chicken breasts, 1 lb",
+          isAmbiguous: true,
+          ambiguityOptions: [
+            "boneless skinless thighs",
+            "rotisserie chicken (pulled)",
+            "ground chicken",
+          ],
+          wasAiInferred: true,
+        }),
+      ],
+    });
+    seedPlan(harness.state);
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/plans/plan-1/generate-grocery-list`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      assert.equal(res.status, 200);
+      assert.equal(harness.state.listItems.length, 1);
+      const row = harness.state.listItems[0];
+      assert.equal(row.isAmbiguous, true);
+      assert.deepEqual(row.ambiguityOptions, [
+        "boneless skinless thighs",
+        "rotisserie chicken (pulled)",
+        "ground chicken",
+      ]);
+      assert.equal(row.wasAiInferred, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("defaults ambiguityOptions to [] and isAmbiguous=false when AI passes through", async () => {
+    const harness = await spinUp({
+      finalItems: [
+        finalListItem({
+          canonicalName: "greek yogurt",
+          displayName: "plain Greek yogurt, 32oz",
+          isAmbiguous: false,
+          wasAiInferred: false,
+        }),
+      ],
+    });
+    seedPlan(harness.state);
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/plans/plan-1/generate-grocery-list`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      assert.equal(res.status, 200);
+      const row = harness.state.listItems[0];
+      assert.equal(row.isAmbiguous, false);
+      assert.deepEqual(row.ambiguityOptions, []);
+      assert.equal(row.wasAiInferred, false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("mixed list: flagged + unflagged items land their ambiguity fields per-row", async () => {
+    const harness = await spinUp({
+      finalItems: [
+        finalListItem({
+          canonicalName: "chicken",
+          displayName: "boneless skinless chicken breasts, 1 lb",
+          isAmbiguous: true,
+          ambiguityOptions: ["boneless skinless thighs", "ground chicken"],
+          wasAiInferred: true,
+        }),
+        finalListItem({
+          canonicalName: "salt",
+          displayName: "salt",
+          isAmbiguous: false,
+          wasAiInferred: false,
+        }),
+        finalListItem({
+          canonicalName: "berries",
+          displayName: "blueberries",
+          isAmbiguous: true,
+          ambiguityOptions: ["strawberries", "raspberries", "mixed berries"],
+          wasAiInferred: true,
+        }),
+      ],
+    });
+    seedPlan(harness.state);
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/plans/plan-1/generate-grocery-list`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      assert.equal(res.status, 200);
+      assert.equal(harness.state.listItems.length, 3);
+      const chicken = harness.state.listItems.find((i) =>
+        i.displayName.startsWith("boneless"),
+      )!;
+      const salt = harness.state.listItems.find((i) => i.displayName === "salt")!;
+      const berries = harness.state.listItems.find(
+        (i) => i.displayName === "blueberries",
+      )!;
+      assert.equal(chicken.isAmbiguous, true);
+      assert.equal(chicken.ambiguityOptions.length, 2);
+      assert.equal(chicken.wasAiInferred, true);
+      assert.equal(salt.isAmbiguous, false);
+      assert.deepEqual(salt.ambiguityOptions, []);
+      assert.equal(salt.wasAiInferred, false);
+      assert.equal(berries.isAmbiguous, true);
+      assert.equal(berries.ambiguityOptions.length, 3);
+      assert.equal(berries.wasAiInferred, true);
+    } finally {
+      await harness.close();
+    }
   });
 });
 
@@ -757,6 +898,8 @@ describe("GET /api/grocery-lists/:id", () => {
         isUserPantryStaple: false,
         isRecurringItem: false,
         wasAiInferred: true,
+        isAmbiguous: false,
+        ambiguityOptions: [],
         notes: null,
       },
       {
@@ -770,6 +913,8 @@ describe("GET /api/grocery-lists/:id", () => {
         isUserPantryStaple: false,
         isRecurringItem: false,
         wasAiInferred: true,
+        isAmbiguous: false,
+        ambiguityOptions: [],
         notes: null,
       },
       {
@@ -783,6 +928,8 @@ describe("GET /api/grocery-lists/:id", () => {
         isUserPantryStaple: false,
         isRecurringItem: false,
         wasAiInferred: true,
+        isAmbiguous: false,
+        ambiguityOptions: [],
         notes: null,
       },
     );

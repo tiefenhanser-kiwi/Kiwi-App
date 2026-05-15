@@ -160,6 +160,9 @@ export async function generateFinalGroceryList(
       purchaseUnit: item.purchaseUnit,
       purchaseQuantity: item.purchaseQuantity,
       purchaseDisplay: item.purchaseDisplay,
+      // 6c-5: recipe-context signals for AI form inference + ambiguity.
+      preparationNote: item.preparationNote,
+      sourceDishTitle: item.sourceDishTitle,
     })),
     knownSections: knownSections as SectionKey[],
   };

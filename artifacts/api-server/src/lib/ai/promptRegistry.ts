@@ -225,7 +225,7 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       toolDescription: "Estimate per-serving macros from an ingredient list.",
     },
   ],
-  // 6c-4 — predictive grocery-add categorization
+  // 6c-6 — predictive grocery-add categorization
   [
     "grocery.recurring_item_categorize",
     {
@@ -260,17 +260,6 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       defaultMode: "text",
       toolDescription:
         "Finalize a meal plan grocery list: refine display names, reconcile unit mismatches, reassign extras-bucketed items to correct sections. Preserves staple/recurring flags exactly.",
-    },
-  ],
-  // 6c-3 — ambiguous item flagging at generation time
-  [
-    "grocery.ambiguous_item_flag",
-    {
-      body: placeholder("grocery.ambiguous_item_flag"),
-      defaultModel: MODEL_HAIKU,
-      defaultMode: "text",
-      toolDescription:
-        "Flag a grocery item as ambiguous and list the variants the user must resolve.",
     },
   ],
   // 6b-1 — Find Similar AI semantic similarity (WS6 addition)
