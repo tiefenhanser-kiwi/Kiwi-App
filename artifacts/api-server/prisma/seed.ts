@@ -551,7 +551,32 @@ async function main() {
   await seedSystemSettings(prisma);
 }
 
-main()
+// Neon serverless DBs scale-to-zero after idle. The first connection after a
+// cold period throws a transient "Can't reach database" error before the
+// instance warms up. Retry the top-level seed twice (2s, then 5s) on matching
+// transport errors; re-throw anything else immediately.
+async function runWithColdStartRetry<T>(fn: () => Promise<T>): Promise<T> {
+  const COLD_START_PATTERN =
+    /can't reach database|connection refused|ECONNREFUSED|connection terminated/i;
+  const DELAYS_MS = [2000, 5000];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (attempt >= DELAYS_MS.length || !COLD_START_PATTERN.test(message)) {
+        throw err;
+      }
+      const delayMs = DELAYS_MS[attempt];
+      console.log(
+        `Neon cold-start detected, retrying in ${delayMs / 1000}s... (attempt ${attempt + 2}/${DELAYS_MS.length + 1})`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
+runWithColdStartRetry(main)
   .catch((e) => {
     console.error(e);
     process.exit(1);
