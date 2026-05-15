@@ -20,16 +20,26 @@ import { Router, type IRouter } from "express";
 import type { PrismaClient, Prisma, StoreSection } from "@prisma/client";
 
 import {
+  AddGroceryListItemInputSchema,
+  type CategorizeItemResponse,
+  type LookupCandidate,
+  type SectionKey,
+} from "../lib/ai/schemas/grocery";
+import {
   consolidatePlanIngredients as productionConsolidatePlanIngredients,
   GroceryConsolidationForbiddenError,
   GroceryConsolidationNotFoundError,
 } from "../lib/groceryList";
 import {
+  categorizeGroceryItem as productionCategorizeGroceryItem,
   fillPurchaseSizesWithWriteBack as productionFillPurchaseSizesWithWriteBack,
   generateFinalGroceryList as productionGenerateFinalGroceryList,
   GroceryListAIError,
 } from "../lib/groceryListAI";
 import { normalizeIngredientName } from "../lib/groceryNormalization";
+import {
+  searchIngredientsByPrefix as productionSearchIngredientsByPrefix,
+} from "../lib/ingredientSearch";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
@@ -38,6 +48,11 @@ export interface GroceryListsRouterDeps {
   consolidatePlanIngredients: typeof productionConsolidatePlanIngredients;
   fillPurchaseSizesWithWriteBack: typeof productionFillPurchaseSizesWithWriteBack;
   generateFinalGroceryList: typeof productionGenerateFinalGroceryList;
+  // 6c-6 Block B — test seams for the new /grocery-items/lookup +
+  // /grocery-lists/:id/items routes. Production callers omit; tests inject
+  // stubs to bypass DB + Anthropic.
+  categorizeItem: typeof productionCategorizeGroceryItem;
+  searchIngredients: typeof productionSearchIngredientsByPrefix;
   prisma: PrismaClient;
 }
 
@@ -53,6 +68,28 @@ const KNOWN_SECTIONS: StoreSection[] = [
   "household",
   "extras",
 ];
+
+// 6c-6 Block B — Ingredient.category → StoreSection. Mirrors the table in
+// groceryList.ts (kept duplicated here to avoid widening that file's API
+// surface; the two consumers will diverge as 6c-6+ adds more categories).
+const CATEGORY_TO_SECTION_LOOKUP: Record<string, SectionKey> = {
+  Produce: "produce",
+  Protein: "meat_seafood",
+  Dairy: "dairy_eggs",
+  Pantry: "pantry",
+  Bakery: "bakery_bread",
+  Frozen: "frozen",
+};
+
+function sectionForCategory(category: string | null | undefined): SectionKey {
+  if (!category) return "extras";
+  return CATEGORY_TO_SECTION_LOOKUP[category] ?? "extras";
+}
+
+// 6c-6 Block B — UUID v1-v5 validator. Used to 400 early on bad :id segments
+// before any DB hit. Mirrors the AddGroceryListItemInputSchema uuid check.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Best-effort canonical-name → Ingredient.id lookup. Returns null on miss
 // (synthetic recurring items from Block A have no Ingredient row). The
@@ -82,6 +119,9 @@ export function createGroceryListsRouter(
     productionFillPurchaseSizesWithWriteBack;
   const generateFinalGroceryList =
     deps.generateFinalGroceryList ?? productionGenerateFinalGroceryList;
+  const categorizeItem = deps.categorizeItem ?? productionCategorizeGroceryItem;
+  const searchIngredients =
+    deps.searchIngredients ?? productionSearchIngredientsByPrefix;
   const prisma = deps.prisma ?? productionPrisma;
 
   const router: IRouter = Router();
@@ -289,6 +329,193 @@ export function createGroceryListsRouter(
       logger.error(
         { event: "get_grocery_list_failed", userId, listId, err },
         "GET grocery list failed",
+      );
+      return res.status(500).json({ error: "internal server error" });
+    }
+  });
+
+  // ── 6c-6 Block B — predictive grocery-add typeahead ─────────────────
+  //
+  // GET /api/grocery-items/lookup?q=...
+  // Lookup-first categorize. Prefix-matches against Ingredient.canonicalName
+  // + aliases. Returns up to 5 candidates with source="lookup" when at least
+  // one hit; falls through to a single Haiku categorization with source="ai"
+  // on zero hits. Free per PRD §1.2 line 74.
+  router.get("/grocery-items/lookup", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const qRaw = req.query.q;
+    const q = typeof qRaw === "string" ? qRaw : "";
+    if (!q || q.trim().length === 0 || q.length > 140) {
+      return res.status(400).json({ error: "invalid_query" });
+    }
+
+    try {
+      const hits = await searchIngredients(prisma, q, 5);
+      if (hits.length > 0) {
+        const candidates: LookupCandidate[] = hits.map((row) => ({
+          ingredientId: row.ingredientId,
+          canonicalName: row.canonicalName,
+          displayName: row.displayName,
+          storeSection: sectionForCategory(row.category),
+          defaultUnit: row.defaultUnit,
+        }));
+        const payload: CategorizeItemResponse = {
+          source: "lookup",
+          candidates,
+        };
+        return res.status(200).json(payload);
+      }
+
+      // Zero hits → AI fallback. MVP passes nearMatches=undefined; the route
+      // could relax prefix to substring in a future pass if telemetry shows
+      // typo-heavy traffic is bypassing the AI's near-match reasoning.
+      const ai = await categorizeItem(q, undefined, undefined, {
+        prisma,
+        userId,
+      });
+      const aiCandidate: LookupCandidate = {
+        ingredientId: null,
+        canonicalName: ai.itemName,
+        displayName: ai.itemName,
+        storeSection: ai.sectionKey,
+        // suggestedQuantity (e.g. "1 jar") is shopper-friendly purchase
+        // language, not a unit token; for the typeahead chip we surface
+        // "each" as the safe default and let the AI's hint render
+        // elsewhere if mobile wants it later.
+        defaultUnit: "each",
+      };
+      const payload: CategorizeItemResponse = {
+        source: "ai",
+        candidates: [aiCandidate],
+      };
+      return res.status(200).json(payload);
+    } catch (err) {
+      if (err instanceof GroceryListAIError) {
+        return res.status(502).json({
+          error: "ai_failed",
+          message: err.message,
+        });
+      }
+      logger.error(
+        { event: "grocery_item_lookup_failed", userId, q, err },
+        "grocery-items/lookup failed",
+      );
+      return res.status(500).json({ error: "internal server error" });
+    }
+  });
+
+  // POST /api/grocery-lists/:id/items
+  // Append a single item to an existing grocery list. Replaces the mobile
+  // local-${Date.now()} stub with a real DB round-trip.
+  router.post("/grocery-lists/:id/items", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const listIdRaw = req.params.id;
+    const listId = Array.isArray(listIdRaw) ? listIdRaw[0] : listIdRaw;
+    if (!listId || !UUID_RE.test(listId)) {
+      return res.status(400).json({ error: "invalid_list_id" });
+    }
+
+    const parsed = AddGroceryListItemInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "invalid_body",
+        details: parsed.error.flatten(),
+      });
+    }
+    const body = parsed.data;
+
+    try {
+      // Ownership + existence — 404 without leaking whether the list
+      // exists on another user.
+      const list = await prisma.groceryList.findFirst({
+        where: { id: listId, userId },
+        select: { id: true },
+      });
+      if (!list) {
+        return res.status(404).json({ error: "list_not_found" });
+      }
+
+      // Resolve ingredientId: prefer the client-supplied value (typeahead
+      // selection already knows it); otherwise fall back to the same
+      // normalized canonical-name lookup the generate route uses, so an
+      // item named "salt" still links to the seeded "salt" row.
+      let ingredientId: string | null = body.ingredientId ?? null;
+      if (!ingredientId) {
+        ingredientId = await lookupIngredientIdByCanonicalName(
+          prisma,
+          body.itemName,
+        );
+      }
+
+      // Resolve unit default. If we have an ingredientId (client-passed
+      // or just looked up), use its defaultUnit; otherwise "each".
+      let defaultUnit = "each";
+      if (ingredientId && !body.unit) {
+        const ing = await prisma.ingredient.findUnique({
+          where: { id: ingredientId },
+          select: { defaultUnit: true },
+        });
+        if (ing?.defaultUnit) defaultUnit = ing.defaultUnit;
+      }
+      const quantity = body.quantity ?? 1;
+      const unit = body.unit ?? defaultUnit;
+
+      const item = await prisma.groceryListItem.create({
+        data: {
+          groceryListId: listId,
+          displayName: body.itemName,
+          quantity,
+          unit,
+          storeSection: body.storeSection,
+          ingredientId,
+          isUniversalStaple: false,
+          isUserPantryStaple: false,
+          isRecurringItem: false,
+          wasAiInferred: false,
+          isAmbiguous: false,
+          ambiguityOptions: [],
+          notes: null,
+        },
+      });
+
+      // Activity log — fire-and-forget, mirrors the generate-grocery route.
+      // No dedicated event type yet for "added single item" (would require a
+      // migration + ActivityEventType enum bump); reuse generate_grocery
+      // with metadata.action="add_item" so it shows up in the same feed.
+      prisma.userActivity
+        .create({
+          data: {
+            userId,
+            eventType: "generate_grocery",
+            entityType: "grocery_list",
+            entityId: listId,
+            platform: "api",
+            metadata: { action: "add_item", itemName: body.itemName },
+          },
+        })
+        .catch((err) => {
+          logger.warn(
+            {
+              event: "grocery_add_item_activity_failed",
+              userId,
+              listId,
+              err,
+            },
+            "Failed to emit add_item activity",
+          );
+        });
+
+      return res.status(201).json({ item });
+    } catch (err) {
+      logger.error(
+        { event: "grocery_add_item_failed", userId, listId, err },
+        "POST /grocery-lists/:id/items failed",
       );
       return res.status(500).json({ error: "internal server error" });
     }

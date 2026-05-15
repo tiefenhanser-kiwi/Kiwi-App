@@ -9,6 +9,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import {
   GroceryListAIError,
+  categorizeGroceryItem,
   fillPurchaseSizesWithWriteBack,
   gapFillPurchaseSize,
   generateFinalGroceryList,
@@ -48,6 +49,9 @@ interface StubPrisma {
 const PROMPT_VARS: Record<string, string> = {
   "grocery.gap_fill_purchase_size": "gapFillInput",
   "grocery.generate_list": "generateInput",
+  // 6c-6 Block B — itemText is the primary input; the other two are passed
+  // through as JSON-stringified arrays/strings via runAICall's renderPromptBody.
+  "grocery.recurring_item_categorize": "itemText",
 };
 
 function syntheticPromptRow(key: string): AIPromptRow | null {
@@ -945,6 +949,105 @@ describe("generateFinalGroceryList", () => {
           "Plan",
           [baseInputItem({ canonicalName: "chicken" })],
           ["meat_seafood", "extras"],
+          { prisma, userId: TEST_USER_ID, client: fake.client },
+        ),
+      (err: unknown) => err instanceof GroceryListAIError,
+    );
+  });
+});
+
+// ── categorizeGroceryItem (6c-6 Block B) ──────────────────────────────
+
+describe("categorizeGroceryItem", () => {
+  it("returns the parsed ItemCategorizationResult on happy path", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            itemName: "toilet paper",
+            sectionKey: "household",
+            suggestedQuantity: "1 pack",
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const result = await categorizeGroceryItem(
+      "tp",
+      undefined,
+      undefined,
+      { prisma, userId: TEST_USER_ID, client: fake.client },
+    );
+
+    assert.equal(result.itemName, "toilet paper");
+    assert.equal(result.sectionKey, "household");
+    assert.equal(result.suggestedQuantity, "1 pack");
+    assert.equal(fake.callCount(), 1);
+  });
+
+  it("forwards itemText into the rendered prompt body", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            itemName: "doritos",
+            sectionKey: "snacks",
+            suggestedQuantity: "1 bag",
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    await categorizeGroceryItem(
+      "Doritos",
+      undefined,
+      undefined,
+      { prisma, userId: TEST_USER_ID, client: fake.client },
+    );
+
+    const sent = fake.lastUserMessage();
+    assert.ok(sent, "should send a user message");
+    assert.ok(sent.includes("Doritos"), "itemText must be substituted into the prompt");
+  });
+
+  it("rejects empty itemText via ItemCategorizationInputSchema (Zod parse throws)", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([]); // no responses queued — must not be called
+    const { prisma } = makeStubPrisma();
+
+    await assert.rejects(
+      () =>
+        categorizeGroceryItem("", undefined, undefined, {
+          prisma,
+          userId: TEST_USER_ID,
+          client: fake.client,
+        }),
+    );
+    assert.equal(fake.callCount(), 0);
+  });
+
+  it("throws GroceryListAIError when AI returns malformed JSON twice in a row", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      { content: [textBlock({ itemName: "x" })] }, // missing sectionKey
+      { content: [textBlock("not even json")] },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    await assert.rejects(
+      () =>
+        categorizeGroceryItem(
+          "kombucha",
+          undefined,
+          undefined,
           { prisma, userId: TEST_USER_ID, client: fake.client },
         ),
       (err: unknown) => err instanceof GroceryListAIError,

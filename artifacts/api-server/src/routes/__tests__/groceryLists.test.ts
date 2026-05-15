@@ -61,7 +61,9 @@ interface ActivityRow {
   eventType: string;
   entityType: string | null;
   entityId: string | null;
-  metadata: { planId: string; itemCount: number } | null;
+  // 6c-6 Block B: metadata shape varies by event source. generate-grocery
+  // emits { planId, itemCount }; add-item emits { action: "add_item", itemName }.
+  metadata: Record<string, unknown> | null;
 }
 
 interface StubState {
@@ -72,6 +74,9 @@ interface StubState {
   // canonicalName → ingredient id (case-insensitive lookup is emulated by
   // lowercasing both sides at compare time).
   ingredients: Map<string, string>;
+  // 6c-6 Block B: ingredient id → {defaultUnit} for the POST /items
+  // route's unit-default backfill (prisma.ingredient.findUnique).
+  ingredientDefaultUnits: Map<string, { defaultUnit: string }>;
   txCount: number;
 }
 
@@ -82,6 +87,7 @@ function makeState(): StubState {
     listItems: [],
     activities: [],
     ingredients: new Map(),
+    ingredientDefaultUnits: new Map(),
     txCount: 0,
   };
 }
@@ -203,6 +209,40 @@ function makeStubPrisma(state: StubState) {
         return data;
       },
     },
+    // 6c-6 Block B — outer-prisma surfaces for the POST /grocery-lists/:id/items
+    // route. groceryListItem.create writes into the same in-memory state as the
+    // tx variant; ingredient.findFirst + findUnique back the canonical-name
+    // lookup + defaultUnit resolution.
+    ingredient: {
+      findFirst: async ({
+        where,
+      }: {
+        where: { canonicalName: string };
+      }) => {
+        const needle = where.canonicalName;
+        for (const [name, id] of state.ingredients) {
+          if (name === needle) return { id };
+        }
+        return null;
+      },
+      findUnique: async ({
+        where,
+      }: {
+        where: { id: string };
+      }) => {
+        return state.ingredientDefaultUnits.get(where.id) ?? null;
+      },
+    },
+    groceryListItem: {
+      create: async ({ data }: { data: ListItemRow }) => {
+        const row: ListItemRow = {
+          ...data,
+          ambiguityOptions: data.ambiguityOptions ?? [],
+        };
+        state.listItems.push(row);
+        return { id: `item-${state.listItems.length}`, ...row };
+      },
+    },
     $transaction: async <T>(fn: (txClient: typeof tx) => Promise<T>) => {
       state.txCount++;
       return fn(tx);
@@ -273,6 +313,32 @@ interface HarnessOpts {
     fill: { calls: number };
     finalPass: { calls: number };
   };
+  // 6c-6 Block B — typeahead deps. Production wiring routes to
+  // searchIngredientsByPrefix + categorizeGroceryItem; tests stub both.
+  searchIngredients?: (
+    prisma: unknown,
+    needle: string,
+    limit?: number,
+  ) => Promise<
+    {
+      ingredientId: string;
+      canonicalName: string;
+      displayName: string;
+      category: string;
+      defaultUnit: string;
+    }[]
+  >;
+  categorizeItem?: (
+    itemText: string,
+    knownSections: unknown,
+    nearMatches: unknown,
+    opts: unknown,
+  ) => Promise<{
+    itemName: string;
+    sectionKey: string;
+    suggestedQuantity?: string;
+  }>;
+  categorizeThrows?: Error;
 }
 
 async function spinUp(opts: HarnessOpts = {}): Promise<Harness> {
@@ -291,6 +357,16 @@ async function spinUp(opts: HarnessOpts = {}): Promise<Harness> {
     isRecurringItem: c.isRecurringItem,
   }));
 
+  // 6c-6 Block B — typeahead deps default to no-op stubs so tests that don't
+  // touch the lookup/add-item paths don't need to think about them.
+  const defaultSearchIngredients: HarnessOpts["searchIngredients"] = async () => [];
+  const defaultCategorizeItem: HarnessOpts["categorizeItem"] = async () => ({
+    itemName: "unspecified",
+    sectionKey: "extras",
+  });
+  const searchIngredientsImpl = opts.searchIngredients ?? defaultSearchIngredients;
+  const categorizeItemImpl = opts.categorizeItem ?? defaultCategorizeItem;
+
   const router = createGroceryListsRouter({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     prisma: stubPrisma as any,
@@ -306,6 +382,16 @@ async function spinUp(opts: HarnessOpts = {}): Promise<Harness> {
       if (opts.spies) opts.spies.finalPass.calls++;
       if (opts.aiThrows) throw opts.aiThrows;
       return { items: finalItems };
+    }) as never,
+    searchIngredients: searchIngredientsImpl as never,
+    categorizeItem: (async (
+      itemText: string,
+      knownSections: unknown,
+      nearMatches: unknown,
+      deps: unknown,
+    ) => {
+      if (opts.categorizeThrows) throw opts.categorizeThrows;
+      return categorizeItemImpl(itemText, knownSections, nearMatches, deps);
     }) as never,
   });
 
@@ -1054,6 +1140,417 @@ describe("GET /api/grocery-lists/:id", () => {
         };
       };
       assert.equal(body.list.planInstance, null);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── 6c-6 Block B — GET /api/grocery-items/lookup ────────────────────────
+
+describe("GET /api/grocery-items/lookup", () => {
+  it("returns source=lookup and candidate(s) when prefix search hits an Ingredient", async () => {
+    const harness = await spinUp({
+      searchIngredients: async (_p, needle) => {
+        if (needle.toLowerCase().startsWith("brea") || needle.toLowerCase().startsWith("bread")) {
+          return [
+            {
+              ingredientId: "ing-bread-uuid",
+              canonicalName: "sandwich bread",
+              displayName: "Sandwich bread",
+              category: "Bakery",
+              defaultUnit: "loaf",
+            },
+          ];
+        }
+        return [];
+      },
+    });
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-items/lookup?q=bread`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        source: "lookup" | "ai";
+        candidates: {
+          ingredientId: string | null;
+          canonicalName: string;
+          displayName: string;
+          storeSection: string;
+          defaultUnit: string;
+        }[];
+      };
+      assert.equal(body.source, "lookup");
+      const sandwich = body.candidates.find(
+        (c) => c.canonicalName === "sandwich bread",
+      );
+      assert.ok(sandwich, "expected sandwich bread candidate");
+      assert.equal(sandwich.ingredientId, "ing-bread-uuid");
+      assert.equal(sandwich.storeSection, "bakery_bread");
+      assert.equal(sandwich.defaultUnit, "loaf");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns source=ai with a single AI-derived candidate on zero lookup hits", async () => {
+    const harness = await spinUp({
+      searchIngredients: async () => [],
+      categorizeItem: async (itemText) => ({
+        itemName: itemText === "tp" ? "toilet paper" : itemText,
+        sectionKey: "household",
+        suggestedQuantity: "1 pack",
+      }),
+    });
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-items/lookup?q=tp`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        source: "lookup" | "ai";
+        candidates: {
+          ingredientId: string | null;
+          canonicalName: string;
+          storeSection: string;
+        }[];
+      };
+      assert.equal(body.source, "ai");
+      assert.equal(body.candidates.length, 1);
+      assert.equal(body.candidates[0].ingredientId, null);
+      assert.equal(body.candidates[0].canonicalName, "toilet paper");
+      assert.equal(body.candidates[0].storeSection, "household");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 on empty q query param", async () => {
+    const harness = await spinUp();
+    try {
+      const token = signToken(USER);
+      const res = await fetch(`${harness.baseUrl}/grocery-items/lookup?q=`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 502 ai_failed when the AI fallback throws GroceryListAIError", async () => {
+    const harness = await spinUp({
+      searchIngredients: async () => [],
+      categorizeThrows: new GroceryListAIError("Kiwi's brain hiccupped."),
+    });
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-items/lookup?q=mystery-item-zzz`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      assert.equal(res.status, 502);
+      const body = (await res.json()) as { error: string; message: string };
+      assert.equal(body.error, "ai_failed");
+      assert.equal(body.message, "Kiwi's brain hiccupped.");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 401 when the Authorization header is missing", async () => {
+    const harness = await spinUp();
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-items/lookup?q=tp`, {
+        method: "GET",
+      });
+      assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── 6c-6 Block B — POST /api/grocery-lists/:id/items ────────────────────
+
+// Real-looking UUIDs so the route's UUID_RE guard passes. Multiple distinct
+// IDs let one test set up an "other user's list" without colliding with the
+// caller's list.
+const LIST_UUID = "11111111-1111-4111-8111-111111111111";
+const OTHER_LIST_UUID = "22222222-2222-4222-8222-222222222222";
+const INGREDIENT_UUID = "33333333-3333-4333-8333-333333333333";
+
+function seedListWithUUID(
+  state: StubState,
+  overrides: Partial<ListRow> = {},
+): ListRow {
+  const row: ListRow = {
+    id: LIST_UUID,
+    userId: USER,
+    mealPlanInstanceId: "plan-1",
+    status: "active",
+    title: "Groceries: Family Dinners",
+    sourceType: "plan",
+    lastGeneratedFromPlanRevisionId: 7,
+    lastGeneratedAt: new Date(),
+    createdAt: new Date(),
+    ...overrides,
+  };
+  state.lists.push(row);
+  return row;
+}
+
+describe("POST /api/grocery-lists/:id/items", () => {
+  it("creates an item with quantity/unit defaults; returns 201 with the row", async () => {
+    const harness = await spinUp();
+    seedListWithUUID(harness.state);
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${LIST_UUID}/items`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            itemName: "Lucky Charms",
+            storeSection: "pantry",
+          }),
+        },
+      );
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as {
+        item: {
+          displayName: string;
+          quantity: number;
+          unit: string;
+          storeSection: string;
+          ingredientId: string | null;
+        };
+      };
+      assert.equal(body.item.displayName, "Lucky Charms");
+      assert.equal(body.item.quantity, 1); // default
+      assert.equal(body.item.unit, "each"); // default (no ingredientId hit)
+      assert.equal(body.item.storeSection, "pantry");
+      assert.equal(body.item.ingredientId, null);
+
+      assert.equal(harness.state.listItems.length, 1);
+      assert.equal(harness.state.listItems[0].displayName, "Lucky Charms");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("uses the client-supplied ingredientId verbatim when provided", async () => {
+    const harness = await spinUp();
+    seedListWithUUID(harness.state);
+    // Pre-seed the ingredient default unit so the route's findUnique returns it.
+    harness.state.ingredientDefaultUnits.set(INGREDIENT_UUID, {
+      defaultUnit: "jar",
+    });
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${LIST_UUID}/items`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            itemName: "peanut butter",
+            storeSection: "pantry",
+            ingredientId: INGREDIENT_UUID,
+          }),
+        },
+      );
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as {
+        item: { ingredientId: string; unit: string };
+      };
+      assert.equal(body.item.ingredientId, INGREDIENT_UUID);
+      assert.equal(body.item.unit, "jar"); // defaultUnit from ingredient row
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("backfills ingredientId via lookupIngredientIdByCanonicalName when omitted", async () => {
+    const harness = await spinUp();
+    seedListWithUUID(harness.state);
+    // Stub the canonical-name lookup: "salt" → ing-salt-uuid.
+    harness.state.ingredients.set("salt", "ing-salt-uuid");
+    harness.state.ingredientDefaultUnits.set("ing-salt-uuid", {
+      defaultUnit: "container",
+    });
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${LIST_UUID}/items`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            itemName: "salt",
+            storeSection: "pantry",
+          }),
+        },
+      );
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as {
+        item: { ingredientId: string; unit: string };
+      };
+      assert.equal(body.item.ingredientId, "ing-salt-uuid");
+      // Unit defaults to ingredient.defaultUnit when client omitted it.
+      assert.equal(body.item.unit, "container");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("respects client-supplied quantity + unit over defaults", async () => {
+    const harness = await spinUp();
+    seedListWithUUID(harness.state);
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${LIST_UUID}/items`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            itemName: "milk",
+            storeSection: "dairy_eggs",
+            quantity: 2,
+            unit: "gallon",
+          }),
+        },
+      );
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as {
+        item: { quantity: number; unit: string };
+      };
+      assert.equal(body.item.quantity, 2);
+      assert.equal(body.item.unit, "gallon");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when the list does not belong to the caller (no existence leak)", async () => {
+    const harness = await spinUp();
+    seedListWithUUID(harness.state, {
+      id: OTHER_LIST_UUID,
+      userId: OTHER_USER,
+    });
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${OTHER_LIST_UUID}/items`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            itemName: "milk",
+            storeSection: "dairy_eggs",
+          }),
+        },
+      );
+      assert.equal(res.status, 404);
+      assert.equal(harness.state.listItems.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 on invalid body (missing storeSection)", async () => {
+    const harness = await spinUp();
+    seedListWithUUID(harness.state);
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${LIST_UUID}/items`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ itemName: "milk" }),
+        },
+      );
+      assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 on non-UUID list id", async () => {
+    const harness = await spinUp();
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/not-a-uuid/items`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            itemName: "milk",
+            storeSection: "dairy_eggs",
+          }),
+        },
+      );
+      assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 401 when the Authorization header is missing", async () => {
+    const harness = await spinUp();
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${LIST_UUID}/items`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itemName: "milk",
+            storeSection: "dairy_eggs",
+          }),
+        },
+      );
+      assert.equal(res.status, 401);
     } finally {
       await harness.close();
     }

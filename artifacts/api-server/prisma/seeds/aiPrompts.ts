@@ -1057,6 +1057,91 @@ Output: \`{"canonicalName": "greek yogurt", "displayName": "plain Greek yogurt, 
 
 Return ONLY the JSON object.`;
 
+// REVIEW(hans-6c-6-B): grocery.recurring_item_categorize prompt body —
+// AI fallback for the "Add an item" typeahead, invoked only when the
+// prefix lookup against Ingredient.canonicalName + aliases returns zero
+// hits. Cheap Haiku text+Zod call. Result is wrapped by the route into
+// a unified LookupCandidate envelope alongside lookup hits.
+const GROCERY_RECURRING_ITEM_CATEGORIZE_BODY = `You categorize a single free-text grocery item into a section + canonical name.
+
+Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences.
+
+# Output schema
+
+\`\`\`json
+{
+  "itemName": "toilet paper",
+  "sectionKey": "household",
+  "suggestedQuantity": "1 pack"
+}
+\`\`\`
+
+# Section keys (use one)
+
+- \`produce\` — fresh fruits, vegetables, herbs
+- \`meat_seafood\` — fresh/raw meat, poultry, fish, eggs (when sold alongside protein)
+- \`dairy_eggs\` — milk, yogurt, cheese, butter, eggs (typical refrigerated case)
+- \`bakery_bread\` — bread, bagels, tortillas, baked goods
+- \`pantry\` — dry goods, oils, condiments (mustard, ketchup, mayo), spices, baking
+- \`canned\` — canned vegetables, canned beans, canned tomatoes, canned tuna, jarred sauces
+- \`frozen\` — frozen vegetables, frozen meals, ice cream, frozen pizza
+- \`snacks\` — chips, crackers, cookies, pretzels, popcorn, candy
+- \`household\` — toilet paper, paper towels, dish soap, laundry detergent, trash bags, foil, plastic wrap
+- \`extras\` — fallback for items you genuinely cannot place
+
+# Your job
+
+1. Normalize \`itemText\` into a clean shopper-friendly canonical name (\`itemName\`):
+   - Expand abbreviations: "tp" → "toilet paper", "pb" → "peanut butter", "oj" → "orange juice", "mayo" → "mayonnaise"
+   - Fix common misspellings: "ketcup" → "ketchup", "sourcream" → "sour cream"
+   - Lowercase unless the name contains a proper noun (e.g., "Doritos", "Cheerios", "Heinz ketchup")
+   - Brand names ARE allowed when the user explicitly types one ("Doritos" → "Doritos", not "tortilla chips")
+
+2. Assign the single best \`sectionKey\` from the list above. Common patterns:
+   - Cleaning supplies, paper goods, foil/wrap → \`household\`
+   - Sodas, juices, bottled drinks → \`pantry\` (groceries treat these as shelf-stable)
+   - Refrigerated juice → \`dairy_eggs\` (same cooler case)
+   - Tomato paste, canned beans, tuna, jarred pasta sauce → \`canned\`
+   - Chips, crackers, candy, pretzels → \`snacks\`
+   - Frozen anything → \`frozen\`
+   - When genuinely ambiguous, prefer the more specific section over \`extras\`. Only use \`extras\` when no other section fits.
+
+3. If \`knownSections\` is provided, prefer those sections when the item could plausibly fit one of them (shopper already has that section organized).
+
+4. If \`nearMatches\` is provided (lookup found close-but-not-exact ingredient canonical names), consider whether the user might have meant one of those. If so, use the matched canonical name as \`itemName\`. Otherwise, ignore and treat as a fresh categorization.
+
+5. \`suggestedQuantity\` — optional, ≤40 chars. Shopper-friendly purchase amount (e.g., "1 pack", "1 gallon", "1 lb", "1 jar"). Omit if you're unsure.
+
+# Examples
+
+Input: \`{"itemText": "tp", "knownSections": ["produce", "dairy_eggs"], "nearMatches": null}\`
+Output: \`{"itemName": "toilet paper", "sectionKey": "household", "suggestedQuantity": "1 pack"}\`
+(Knowledge of \`knownSections\` doesn't help here — "tp" is clearly household. Section is correct over user's existing sections.)
+
+Input: \`{"itemText": "doritos", "knownSections": null, "nearMatches": null}\`
+Output: \`{"itemName": "Doritos", "sectionKey": "snacks", "suggestedQuantity": "1 bag"}\`
+(Brand name preserved with proper capitalization.)
+
+Input: \`{"itemText": "tomato paste", "knownSections": null, "nearMatches": null}\`
+Output: \`{"itemName": "tomato paste", "sectionKey": "canned", "suggestedQuantity": "1 can"}\`
+
+Input: \`{"itemText": "milc", "knownSections": null, "nearMatches": ["whole milk"]}\`
+Output: \`{"itemName": "whole milk", "sectionKey": "dairy_eggs", "suggestedQuantity": "1 gallon"}\`
+(Near-match resolves the typo to an existing canonical.)
+
+Input: \`{"itemText": "Lucky Charms", "knownSections": null, "nearMatches": null}\`
+Output: \`{"itemName": "Lucky Charms", "sectionKey": "pantry", "suggestedQuantity": "1 box"}\`
+(Cereals shelf-stable → pantry. Brand name preserved.)
+
+Return ONLY the JSON object.
+
+# Input
+
+itemText: {{itemText}}
+knownSections: {{knownSections}}
+nearMatches: {{nearMatches}}
+`;
+
 const PROMPTS: PromptSeed[] = [
   {
     key: "wizard.set_preferences.generate",
@@ -1210,10 +1295,10 @@ const PROMPTS: PromptSeed[] = [
     key: "grocery.recurring_item_categorize",
     description:
       "Categorize a free-text grocery item into a section + canonical name.",
-    variables: [],
+    variables: ["itemText", "knownSections", "nearMatches"],
     defaultModel: MODEL_HAIKU,
     defaultMode: "text",
-    body: placeholder("grocery.recurring_item_categorize"),
+    body: GROCERY_RECURRING_ITEM_CATEGORIZE_BODY,
   },
   {
     key: "grocery.gap_fill_purchase_size",

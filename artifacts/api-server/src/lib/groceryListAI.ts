@@ -22,9 +22,12 @@ import type { PrismaClient, StoreSection } from "@prisma/client";
 import { runAICall as productionRunAICall } from "./ai/runAICall";
 import {
   GenerateGroceryListResultSchema,
+  ItemCategorizationInputSchema,
+  ItemCategorizationResultSchema,
   PurchaseSizeResultSchema,
   type GenerateGroceryListInput,
   type GenerateGroceryListResult,
+  type ItemCategorizationResult,
   type PurchaseSizeInput,
   type PurchaseSizeResult,
   type SectionKey,
@@ -184,6 +187,56 @@ export async function generateFinalGroceryList(
     throw new GroceryListAIError(
       `AI returned ${result.data.items.length} items but input had ${items.length}; item count must not increase.`,
     );
+  }
+  return result.data;
+}
+
+// WS6 6c-6 Block B — single-item categorization fallback for the
+// "Add an item" typeahead. Called by the lookup route only when the
+// prefix scan against Ingredient.canonicalName + aliases returned zero
+// hits. Cheap Haiku text+Zod call.
+//
+// The route layer wraps this single result into a LookupCandidate (with
+// ingredientId: null) so the wire response shape stays unified with
+// lookup hits.
+export interface CategorizeGroceryItemOptions extends GroceryListAIOptions {
+  // Test seam — production callers omit and the helper uses the module
+  // runAICall import. Mirrors the prisma/userId DI pattern above.
+  runAICall?: typeof productionRunAICall;
+}
+
+export async function categorizeGroceryItem(
+  itemText: string,
+  knownSections: StoreSection[] | undefined,
+  nearMatches: string[] | undefined,
+  opts: CategorizeGroceryItemOptions,
+): Promise<ItemCategorizationResult> {
+  // Validate input up-front so callers get a typed throw instead of a
+  // wrapped AI-side validation error. Mirrors the runAICall pre-flight
+  // checks in the other helpers.
+  const input = ItemCategorizationInputSchema.parse({
+    itemText,
+    ...(knownSections !== undefined ? { knownSections: knownSections as SectionKey[] } : {}),
+    ...(nearMatches !== undefined ? { nearMatches } : {}),
+  });
+
+  const runAICall = opts.runAICall ?? productionRunAICall;
+  const result = await runAICall(
+    "grocery.recurring_item_categorize",
+    {
+      itemText: input.itemText,
+      knownSections: input.knownSections ?? null,
+      nearMatches: input.nearMatches ?? null,
+    },
+    ItemCategorizationResultSchema,
+    {
+      prisma: opts.prisma,
+      userId: opts.userId,
+      client: opts.client,
+    },
+  );
+  if (!result.success) {
+    throw new GroceryListAIError(result.userFacingMessage);
   }
   return result.data;
 }

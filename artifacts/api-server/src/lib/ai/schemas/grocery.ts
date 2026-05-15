@@ -18,10 +18,17 @@ export type SectionKey = z.infer<typeof SectionKeySchema>;
 
 // D-WS5-030 / 6c-6 — predictive grocery-add categorization for the
 // "Add an item" search bar. Cheap text+Zod call; debounced client-side.
+//
+// 6c-6 Block B: nearMatches added so the route can pass prefix-relaxed
+// Ingredient.canonicalName hits into the AI fallback. ItemCategorizationResult
+// stays single-best — the route wraps it into a LookupCandidate array.
 export const ItemCategorizationInputSchema = z.object({
   itemText: z.string().min(1).max(140),
   // Sections currently in use on this list (helps disambiguation).
   knownSections: z.array(SectionKeySchema).optional(),
+  // 6c-6 Block B: when prefix lookup returns near-but-not-exact matches,
+  // pass them to the AI so it can refine into an existing canonical name.
+  nearMatches: z.array(z.string()).max(10).optional(),
 });
 export type ItemCategorizationInput = z.infer<
   typeof ItemCategorizationInputSchema
@@ -37,6 +44,40 @@ export const ItemCategorizationResultSchema = z.object({
 export type ItemCategorizationResult = z.infer<
   typeof ItemCategorizationResultSchema
 >;
+
+// 6c-6 Block B — unified candidate shape across lookup hits and AI fallback.
+// The lookup path populates ingredientId from the matched Ingredient row;
+// the AI fallback sets it to null (no DB row exists for an AI-only guess).
+// Mobile renders both identically.
+export const LookupCandidateSchema = z.object({
+  ingredientId: z.string().nullable(),
+  canonicalName: z.string(),
+  displayName: z.string(),
+  storeSection: SectionKeySchema,
+  defaultUnit: z.string(),
+});
+export type LookupCandidate = z.infer<typeof LookupCandidateSchema>;
+
+// 6c-6 Block B — GET /api/grocery-items/lookup?q=... envelope.
+// `source` is informational so mobile/debug can tell where the result came
+// from; rendering is identical regardless.
+export const CategorizeItemResponseSchema = z.object({
+  source: z.enum(["lookup", "ai"]),
+  candidates: z.array(LookupCandidateSchema).max(5),
+});
+export type CategorizeItemResponse = z.infer<typeof CategorizeItemResponseSchema>;
+
+// 6c-6 Block B — POST /api/grocery-lists/:id/items request body.
+// quantity defaults to 1 server-side; unit defaults to the resolved
+// Ingredient's defaultUnit (or "each" when ingredientId is null/missing).
+export const AddGroceryListItemInputSchema = z.object({
+  itemName: z.string().min(1).max(140),
+  storeSection: SectionKeySchema,
+  quantity: z.number().positive().optional(),
+  unit: z.string().max(40).optional(),
+  ingredientId: z.string().uuid().nullable().optional(),
+});
+export type AddGroceryListItemInput = z.infer<typeof AddGroceryListItemInputSchema>;
 
 // === 6c-4 Block B — grocery.gap_fill_purchase_size ===
 // Map a single recipe ingredient need to its standard purchase size. Haiku,
