@@ -194,3 +194,153 @@ export async function getGroceryList(listId: string): Promise<GroceryList> {
   const body = (await res.json()) as { list: GroceryListWire };
   return normalizeList(body.list);
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// 6c-6 Block C — GET /grocery-items/lookup + POST /grocery-lists/:id/items
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Mobile-side candidate shape. Mirrors LookupCandidateSchema (api-server)
+ * but with `sectionKey` (mobile-canonical) instead of `storeSection` (DB
+ * column name). Conversion happens at the wire boundary in this module so
+ * UI components stay aligned with the rest of the screen's vocabulary.
+ */
+export interface GroceryItemCandidate {
+  ingredientId: string | null;
+  canonicalName: string;
+  displayName: string;
+  sectionKey: GroceryListItem["sectionKey"];
+  defaultUnit: string;
+  /** AI-source only — null/absent for lookup hits. e.g. "1 jar". */
+  suggestedQuantity: string | null;
+}
+
+export interface LookupResponse {
+  source: "lookup" | "ai";
+  candidates: GroceryItemCandidate[];
+}
+
+interface LookupCandidateWire {
+  ingredientId: string | null;
+  canonicalName: string;
+  displayName: string;
+  storeSection: GroceryListItem["sectionKey"];
+  defaultUnit: string;
+  suggestedQuantity?: string | null;
+}
+
+function normalizeCandidate(wire: LookupCandidateWire): GroceryItemCandidate {
+  return {
+    ingredientId: wire.ingredientId,
+    canonicalName: wire.canonicalName,
+    displayName: wire.displayName,
+    sectionKey: wire.storeSection,
+    defaultUnit: wire.defaultUnit,
+    suggestedQuantity: wire.suggestedQuantity ?? null,
+  };
+}
+
+/**
+ * GET /api/grocery-items/lookup?q=<query>
+ * Returns lookup-first candidates with AI fallback. Errors throw — caller
+ * (debounced effect in grocery-list/[id].tsx) catches and resets to [].
+ */
+export async function lookupGroceryItemCandidates(
+  query: string,
+): Promise<LookupResponse> {
+  const token = await readToken();
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+  const res = await fetch(
+    `${apiBase}/grocery-items/lookup?q=${encodeURIComponent(query)}`,
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (res.status !== 200) {
+    throw new Error(`lookupGroceryItemCandidates failed: ${res.status}`);
+  }
+  const body = (await res.json()) as {
+    source: "lookup" | "ai";
+    candidates: LookupCandidateWire[];
+  };
+  return {
+    source: body.source,
+    candidates: body.candidates.map(normalizeCandidate),
+  };
+}
+
+/**
+ * POST /api/grocery-lists/:id/items body. Mobile-canonical `sectionKey`
+ * is converted to server-canonical `storeSection` on the wire below.
+ */
+export interface AddItemPayload {
+  itemName: string;
+  sectionKey: GroceryListItem["sectionKey"];
+  quantity?: number;
+  unit?: string;
+  ingredientId?: string | null;
+}
+
+/**
+ * POST /api/grocery-lists/:listId/items
+ * Creates a single item; returns the normalized mobile-side
+ * GroceryListItem. Errors throw — caller (handleAddItem in
+ * grocery-list/[id].tsx) catches and rolls back the optimistic add.
+ */
+export async function addGroceryListItem(
+  listId: string,
+  payload: AddItemPayload,
+): Promise<GroceryListItem> {
+  const token = await readToken();
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+  const body: Record<string, unknown> = {
+    itemName: payload.itemName,
+    storeSection: payload.sectionKey,
+  };
+  if (payload.quantity !== undefined) body.quantity = payload.quantity;
+  if (payload.unit !== undefined) body.unit = payload.unit;
+  if (payload.ingredientId !== undefined) {
+    body.ingredientId = payload.ingredientId;
+  }
+  const res = await fetch(
+    `${apiBase}/grocery-lists/${encodeURIComponent(listId)}/items`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    },
+  );
+  if (res.status !== 201) {
+    throw new Error(`addGroceryListItem failed: ${res.status}`);
+  }
+  const json = (await res.json()) as { item: GroceryListItemWire };
+  return normalizeListItem(json.item);
+}
+
+/**
+ * Parse an AI-supplied shopper-friendly quantity hint like "1 can",
+ * "2 lbs", "1 jar" into a structured (quantity, unit) pair. Falls back
+ * to (1, "each") when the hint is null/empty; if the leading token
+ * isn't numeric, treats the whole hint as the unit so the chip still
+ * surfaces "soft taco shells" verbatim in the unit slot.
+ */
+export function parseSuggestedQuantity(
+  s: string | null | undefined,
+): { quantity: number; unit: string } {
+  if (!s) return { quantity: 1, unit: "each" };
+  const trimmed = s.trim();
+  if (!trimmed) return { quantity: 1, unit: "each" };
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s+(.+)$/);
+  if (!match) return { quantity: 1, unit: trimmed };
+  const qty = parseFloat(match[1]);
+  if (!isFinite(qty) || qty <= 0) return { quantity: 1, unit: match[2] };
+  return { quantity: qty, unit: match[2] };
+}

@@ -55,6 +55,11 @@ export const LookupCandidateSchema = z.object({
   displayName: z.string(),
   storeSection: SectionKeySchema,
   defaultUnit: z.string(),
+  // 6c-6 Block C: AI fallback carries a shopper-friendly qty hint
+  // (e.g. "1 can") so the typeahead chip can show purchase language
+  // when defaultUnit alone is too sparse. Lookup-source candidates
+  // omit this — defaultUnit + qty=1 is the implicit hint there.
+  suggestedQuantity: z.string().max(40).nullable().optional(),
 });
 export type LookupCandidate = z.infer<typeof LookupCandidateSchema>;
 

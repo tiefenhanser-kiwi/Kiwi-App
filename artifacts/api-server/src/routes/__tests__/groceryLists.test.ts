@@ -1184,6 +1184,7 @@ describe("GET /api/grocery-items/lookup", () => {
           displayName: string;
           storeSection: string;
           defaultUnit: string;
+          suggestedQuantity?: string | null;
         }[];
       };
       assert.equal(body.source, "lookup");
@@ -1194,6 +1195,12 @@ describe("GET /api/grocery-items/lookup", () => {
       assert.equal(sandwich.ingredientId, "ing-bread-uuid");
       assert.equal(sandwich.storeSection, "bakery_bread");
       assert.equal(sandwich.defaultUnit, "loaf");
+      // 6c-6 Block C: lookup-source candidates omit suggestedQuantity
+      // (or pass null). defaultUnit + qty=1 is the implicit hint there.
+      assert.ok(
+        sandwich.suggestedQuantity == null,
+        "lookup-source candidate should omit suggestedQuantity",
+      );
     } finally {
       await harness.close();
     }
@@ -1224,6 +1231,7 @@ describe("GET /api/grocery-items/lookup", () => {
           ingredientId: string | null;
           canonicalName: string;
           storeSection: string;
+          suggestedQuantity?: string | null;
         }[];
       };
       assert.equal(body.source, "ai");
@@ -1231,6 +1239,41 @@ describe("GET /api/grocery-items/lookup", () => {
       assert.equal(body.candidates[0].ingredientId, null);
       assert.equal(body.candidates[0].canonicalName, "toilet paper");
       assert.equal(body.candidates[0].storeSection, "household");
+      // 6c-6 Block C: AI-fallback candidates surface the AI's
+      // suggestedQuantity so the typeahead chip can render shopper
+      // language (e.g. "1 pack" instead of bare "each").
+      assert.equal(body.candidates[0].suggestedQuantity, "1 pack");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("ai-fallback candidate has suggestedQuantity=null when the AI doesn't return one", async () => {
+    const harness = await spinUp({
+      searchIngredients: async () => [],
+      categorizeItem: async (itemText) => ({
+        itemName: itemText,
+        sectionKey: "extras",
+        // suggestedQuantity intentionally omitted — route must pass
+        // through as `null`, not undefined or a default string.
+      }),
+    });
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-items/lookup?q=asdfgh`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        source: "lookup" | "ai";
+        candidates: { suggestedQuantity?: string | null }[];
+      };
+      assert.equal(body.source, "ai");
+      assert.equal(body.candidates[0].suggestedQuantity, null);
     } finally {
       await harness.close();
     }

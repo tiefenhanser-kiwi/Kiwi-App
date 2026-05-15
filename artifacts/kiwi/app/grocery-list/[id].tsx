@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -14,8 +14,15 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { TypeaheadList } from "@/components/TypeaheadList";
 import { useApp } from "@/contexts/AppContext";
-import { getGroceryList } from "@/lib/api/grocery";
+import {
+  getGroceryList,
+  lookupGroceryItemCandidates,
+  parseSuggestedQuantity,
+  type AddItemPayload,
+  type GroceryItemCandidate,
+} from "@/lib/api/grocery";
 import { GROCERY_SECTIONS } from "@/lib/domain";
 import { parseQuantity } from "@/lib/quantity";
 import { getGroceryListById } from "@/lib/stubs";
@@ -27,6 +34,12 @@ import {
   KType,
 } from "@/constants/tokens";
 import type { GroceryList, GroceryListItem } from "@/lib/types";
+
+const SECTION_LABELS: Record<GroceryListItem["sectionKey"], string> =
+  GROCERY_SECTIONS.reduce(
+    (acc, s) => ({ ...acc, [s.key]: s.label }),
+    {} as Record<GroceryListItem["sectionKey"], string>,
+  );
 
 const UNDO_TIMEOUT_MS = 5000;
 
@@ -54,6 +67,13 @@ export default function GroceryListDetail() {
     id.startsWith("demo-grocery-") ? getGroceryListById(id) : null,
   );
   const [addItemInput, setAddItemInput] = useState("");
+  // 6c-6-C — debounced typeahead state. debouncedQuery trails the raw
+  // input by 250ms to match the plans.tsx debounce convention; the
+  // server call only fires off the debounced value. candidates +
+  // candidatesLoading drive the floating <TypeaheadList>.
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [candidates, setCandidates] = useState<GroceryItemCandidate[]>([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
   // PRD §12.7 — staples ship in "default" (dimmed, not yet on the trip).
   // Opting in promotes them to a normal item; isCompleted strikethrough
   // only fires after opt-in so "include in shopping" stays decoupled
@@ -79,6 +99,46 @@ export default function GroceryListDetail() {
     }, UNDO_TIMEOUT_MS);
     return () => clearTimeout(timeout);
   }, [recentlyRemoved]);
+
+  // 6c-6-C — 250ms input → debouncedQuery (mirrors plans.tsx:60-66).
+  useEffect(() => {
+    const trimmed = addItemInput.trim();
+    if (!trimmed) {
+      setDebouncedQuery("");
+      return;
+    }
+    const t = setTimeout(() => setDebouncedQuery(trimmed), 250);
+    return () => clearTimeout(t);
+  }, [addItemInput]);
+
+  // 6c-6-C — fire the lookup when the debounced value changes. The
+  // cancelled flag short-circuits stale responses if the user keeps
+  // typing past a slow request.
+  useEffect(() => {
+    if (!debouncedQuery) {
+      setCandidates([]);
+      setCandidatesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCandidatesLoading(true);
+    lookupGroceryItemCandidates(debouncedQuery)
+      .then((res) => {
+        if (!cancelled) setCandidates(res.candidates);
+      })
+      .catch((err) => {
+        // Network/AI failures degrade silently — the user can still
+        // press Enter to submit the raw text via the Extras fallback.
+        console.warn("[grocery-list] lookup failed", err);
+        if (!cancelled) setCandidates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCandidatesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery]);
 
   // WS6 6c-4 Block C — fetch the real list from the API for non-demo ids.
   // Demo lists are stub-only (design review) and were already populated
@@ -190,9 +250,23 @@ export default function GroceryListDetail() {
       prev ? { ...prev, items: [...prev.items, item] } : prev,
     );
     setRecentlyRemoved(null);
-    // Stub-only restore. WS7 swaps for a real undo endpoint or a
-    // soft-delete reverse.
-    void addGroceryItem(listId, item.name);
+    // 6c-6-C — restore via the real POST. Preserves the original
+    // section + quantity so the undone item lands in the same place
+    // it was removed from. The original item's server id is lost
+    // (this writes a fresh row); WS7 swaps for a real undo endpoint
+    // that resurrects the row by id. Errors swallowed — the local
+    // row is already back on screen.
+    const restorePayload: AddItemPayload = {
+      itemName: item.name,
+      sectionKey: item.sectionKey,
+      quantity: item.quantityAmount
+        ? parseFloat(item.quantityAmount) || 1
+        : 1,
+      unit: item.quantityUnit ?? undefined,
+    };
+    void addGroceryItem(listId, restorePayload).catch((err) => {
+      console.warn("[grocery-list] undo restore failed", err);
+    });
   };
 
   const enterQuantityEdit = (item: GroceryListItem) => {
@@ -253,33 +327,123 @@ export default function GroceryListDetail() {
     console.log("[grocery-list] quantity edit committed; ready for next tap");
   };
 
-  const handleAddItem = () => {
-    const trimmed = addItemInput.trim();
-    if (!trimmed) return;
-    // Default to "no known quantity" — em-dash + undefined structured
-    // fields. Matches how staples render before the user opens edit.
-    // The previous default of "1" / "1" was misleading (implied the
-    // user had specified "1 of") and made smoke-testers think nothing
-    // happened because the item rendered with a phantom quantity.
-    const newItem: GroceryListItem = {
-      id: `local-${Date.now()}`,
-      name: trimmed,
-      quantity: "—",
-      quantityAmount: undefined,
-      quantityUnit: undefined,
-      sectionKey: "extras",
+  // 6c-6-C — optimistic-add core. Resolves quantity/unit from candidate
+  // metadata (defaultUnit for lookup, parseSuggestedQuantity for AI),
+  // writes an optimistic row with a local-${Date.now()} id, fires the
+  // POST in the background, then reconciles on success or rolls back
+  // on failure. Called from both candidate-tap and Enter-key paths.
+  const performAdd = (
+    candidate: GroceryItemCandidate | null,
+    rawText: string,
+  ) => {
+    const trimmed = rawText.trim();
+    if (!candidate && !trimmed) return;
+
+    const itemName = candidate?.displayName ?? trimmed;
+    const sectionKey: GroceryListItem["sectionKey"] =
+      candidate?.sectionKey ?? "extras";
+    const ingredientId = candidate?.ingredientId ?? null;
+
+    let quantity = 1;
+    let unit = "each";
+    if (candidate) {
+      if (candidate.suggestedQuantity) {
+        const parsed = parseSuggestedQuantity(candidate.suggestedQuantity);
+        quantity = parsed.quantity;
+        unit = parsed.unit;
+      } else if (candidate.defaultUnit) {
+        unit = candidate.defaultUnit;
+      }
+    }
+
+    const tempId = `local-${Date.now()}`;
+    const optimistic: GroceryListItem = {
+      id: tempId,
+      name: itemName,
+      quantity:
+        quantity && unit ? `${quantity} ${unit}` : unit || `${quantity}`,
+      quantityAmount: String(quantity),
+      quantityUnit: unit || undefined,
+      sectionKey,
       isUniversalStaple: false,
       isRecurringItem: false,
       isAmbiguous: false,
       isOptional: false,
       isCompleted: false,
     };
+
     setList((prev) =>
-      prev ? { ...prev, items: [...prev.items, newItem] } : prev,
+      prev ? { ...prev, items: [...prev.items, optimistic] } : prev,
     );
     setAddItemInput("");
-    void addGroceryItem(listId, trimmed);
+    setDebouncedQuery("");
+    setCandidates([]);
+
+    const payload: AddItemPayload = {
+      itemName,
+      sectionKey,
+      quantity,
+      unit,
+      ingredientId,
+    };
+
+    void addGroceryItem(listId, payload)
+      .then((serverItem) => {
+        // Replace the optimistic row with the server-canonical row so
+        // subsequent edits (qty / strike / remove) target the real id.
+        setList((prev) =>
+          prev
+            ? {
+                ...prev,
+                items: prev.items.map((it) =>
+                  it.id === tempId ? serverItem : it,
+                ),
+              }
+            : prev,
+        );
+      })
+      .catch((err) => {
+        console.warn("[grocery-list] add failed; rolling back", err);
+        setList((prev) =>
+          prev
+            ? { ...prev, items: prev.items.filter((it) => it.id !== tempId) }
+            : prev,
+        );
+        // MVP error surface — toast/inline error is D-WS6-079.
+        Alert.alert(
+          "Couldn't add item",
+          "Something went wrong. Please try again.",
+        );
+      });
   };
+
+  const handleCandidateSelect = (candidate: GroceryItemCandidate) => {
+    performAdd(candidate, addItemInput);
+  };
+
+  // Enter-key handler. If suggestions are visible (loading or non-empty),
+  // pick the top candidate (auto-tap); else submit raw text as Extras.
+  const handleAddItem = () => {
+    const trimmed = addItemInput.trim();
+    if (!trimmed) return;
+    const top = candidates[0];
+    if (top && !candidatesLoading) {
+      performAdd(top, trimmed);
+      return;
+    }
+    performAdd(null, trimmed);
+  };
+
+  // Visibility for the floating typeahead panel. Show as soon as the
+  // user has typed *anything* — covers the "lookup pending → eventually
+  // empty" case (so the user sees the spinner instead of a blank gap)
+  // and the "candidates returned" case. Hidden when input is empty.
+  const typeaheadVisible = useMemo(() => {
+    const hasInput = addItemInput.trim().length > 0;
+    if (!hasInput) return false;
+    const debounceLag = addItemInput.trim() !== debouncedQuery;
+    return candidatesLoading || candidates.length > 0 || debounceLag;
+  }, [addItemInput, debouncedQuery, candidates, candidatesLoading]);
 
   const handleMarkDone = () => {
     void markGroceryShoppingDone(listId, true);
@@ -415,34 +579,73 @@ export default function GroceryListDetail() {
           </Pressable>
         )}
 
-        <View style={s.addItemRow}>
-          <TextInput
-            value={addItemInput}
-            onChangeText={setAddItemInput}
-            placeholder="Add an item…"
-            placeholderTextColor={KColors.neutral[600]}
-            style={s.addItemInput}
-            returnKeyType="done"
-            // Keep keyboard up after Done so the user can add several
-            // items in a row without retapping the input. Without this
-            // (default blurOnSubmit=true on iOS), the keyboard collapses
-            // on every submit and smoke-testers read the disappearing
-            // keyboard + cleared input as "nothing happened" — the new
-            // item is added but lands below the fold.
-            blurOnSubmit={false}
-            onSubmitEditing={handleAddItem}
+        {/* 6c-6-C — typeahead wrapper. zIndex+relative so the absolute
+            <TypeaheadList> below stacks above the action row + sections
+            even though the next sibling is later in the tree. */}
+        <View style={s.typeaheadWrap}>
+          <View style={s.addItemRow}>
+            <TextInput
+              value={addItemInput}
+              onChangeText={setAddItemInput}
+              placeholder="Add an item…"
+              placeholderTextColor={KColors.neutral[600]}
+              style={s.addItemInput}
+              returnKeyType="done"
+              // Keep keyboard up after Done so the user can add several
+              // items in a row without retapping the input. Without this
+              // (default blurOnSubmit=true on iOS), the keyboard collapses
+              // on every submit and smoke-testers read the disappearing
+              // keyboard + cleared input as "nothing happened" — the new
+              // item is added but lands below the fold.
+              blurOnSubmit={false}
+              onSubmitEditing={handleAddItem}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Pressable
+              onPress={handleAddItem}
+              disabled={!addItemInput.trim()}
+              style={({ pressed }) => [
+                s.addItemBtn,
+                !addItemInput.trim() && { opacity: 0.45 },
+                pressed && addItemInput.trim() ? { opacity: 0.85 } : null,
+              ]}
+            >
+              <Text style={s.addItemBtnText}>Add</Text>
+            </Pressable>
+          </View>
+          <TypeaheadList<GroceryItemCandidate>
+            items={candidates}
+            visible={typeaheadVisible}
+            loading={candidatesLoading}
+            keyExtractor={(c) =>
+              c.ingredientId ?? `ai-${c.canonicalName}-${c.sectionKey}`
+            }
+            onSelect={handleCandidateSelect}
+            getAccessibilityLabel={(c) =>
+              `${c.displayName}, ${SECTION_LABELS[c.sectionKey] ?? c.sectionKey}`
+            }
+            style={s.typeaheadAnchored}
+            renderItem={(c) => (
+              <View style={s.candidateRow}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={s.candidateName} numberOfLines={1}>
+                    {c.displayName}
+                  </Text>
+                  <Text style={s.candidateSection} numberOfLines={1}>
+                    {SECTION_LABELS[c.sectionKey] ?? c.sectionKey}
+                  </Text>
+                </View>
+                {c.suggestedQuantity ? (
+                  <View style={s.candidateChip}>
+                    <Text style={s.candidateChipText} numberOfLines={1}>
+                      {c.suggestedQuantity}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
           />
-          <Pressable
-            onPress={handleAddItem}
-            disabled={!addItemInput.trim()}
-            style={({ pressed }) => [
-              s.addItemBtn,
-              !addItemInput.trim() && { opacity: 0.45 },
-              pressed && addItemInput.trim() ? { opacity: 0.85 } : null,
-            ]}
-          >
-            <Text style={s.addItemBtnText}>Add</Text>
-          </Pressable>
         </View>
 
         <View style={s.actionRow}>
@@ -867,6 +1070,50 @@ const s = StyleSheet.create({
     color: KColors.sage[700],
     fontWeight: KType.weight.medium,
     fontFamily: "Inter_500Medium",
+  },
+  // 6c-6-C — relative-positioned wrapper so the floating <TypeaheadList>
+  // can absolute-anchor below the input row. zIndex lifts it above the
+  // sibling action row / sections list while the dropdown is open.
+  typeaheadWrap: {
+    position: "relative",
+    zIndex: 10,
+  },
+  typeaheadAnchored: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "100%",
+    marginTop: KSpacing.xs,
+  },
+  candidateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+  },
+  candidateName: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[900],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+  },
+  candidateSection: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  candidateChip: {
+    backgroundColor: KColors.sage[100],
+    borderRadius: KRadius.sm,
+    paddingHorizontal: KSpacing.sm,
+    paddingVertical: 2,
+  },
+  candidateChipText: {
+    fontSize: KType.size.xs,
+    color: KColors.sage[700],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
   },
   addItemRow: {
     flexDirection: "row",

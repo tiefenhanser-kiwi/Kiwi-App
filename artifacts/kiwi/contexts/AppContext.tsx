@@ -11,6 +11,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { buildDevTestPlan } from "@/lib/dev/devPlanFixture";
 import { loadJSON, saveJSON } from "@/lib/storage";
 import {
+  addGroceryListItem,
+  type AddItemPayload,
+} from "@/lib/api/grocery";
+import {
   buildGroceryList,
   defaultPlan,
   getRecipe,
@@ -21,6 +25,7 @@ import type {
   DayOfWeek,
   DishDraft,
   GroceryItem,
+  GroceryListItem,
   MealPlan,
   MealSlot,
   RecipeOverride,
@@ -147,9 +152,14 @@ interface AppState {
     listId: string,
     itemId: string,
   ) => Promise<void>;
-  /** PRD §12.6.1 — add item to list (defaults to Extras section for
-   *  WS5; WS6 AI determines section). */
-  addGroceryItem: (listId: string, name: string) => Promise<void>;
+  /** PRD §12.6.1 — append an item to a grocery list. 6c-6-C wired the
+   *  payload to the real POST /grocery-lists/:id/items endpoint; the
+   *  returned item carries the server-generated id so the screen can
+   *  reconcile its optimistic local-${Date.now()} row. */
+  addGroceryItem: (
+    listId: string,
+    payload: AddItemPayload,
+  ) => Promise<GroceryListItem>;
   /** PRD §12.9 — remove an item from the list. */
   removeGroceryItem: (listId: string, itemId: string) => Promise<void>;
   /** PRD §12.6.3 — mark shopping done. Reversible. */
@@ -463,10 +473,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addGroceryItem = async (
     listId: string,
-    name: string,
-  ): Promise<void> => {
-    // TODO(WS7): wire to POST /grocery-lists/{id}/items (Extras section)
-    console.log("[AppContext] addGroceryItem", { listId, name });
+    payload: AddItemPayload,
+  ): Promise<GroceryListItem> => {
+    // 6c-6-C: real wire. Errors bubble so callers (grocery-list/[id].tsx
+    // optimistic-add) can roll back the local row.
+    return await addGroceryListItem(listId, payload);
   };
 
   const removeGroceryItem = async (

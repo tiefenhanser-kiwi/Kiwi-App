@@ -382,10 +382,11 @@ export function createGroceryListsRouter(
         displayName: ai.itemName,
         storeSection: ai.sectionKey,
         // suggestedQuantity (e.g. "1 jar") is shopper-friendly purchase
-        // language, not a unit token; for the typeahead chip we surface
-        // "each" as the safe default and let the AI's hint render
-        // elsewhere if mobile wants it later.
+        // language, not a unit token. defaultUnit stays "each" as the
+        // schema-safe fallback; mobile reads suggestedQuantity for the
+        // typeahead chip + initial qty/unit parsing on select.
         defaultUnit: "each",
+        suggestedQuantity: ai.suggestedQuantity ?? null,
       };
       const payload: CategorizeItemResponse = {
         source: "ai",
