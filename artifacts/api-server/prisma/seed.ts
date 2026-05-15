@@ -424,6 +424,56 @@ const RECIPES: SeedRecipe[] = [
   },
 ];
 
+// ── household-basic ingredients (WS6 6c-6 Block A) ───────────────────────────
+// Common grocery basics seeded with populated aliases so user typing (e.g. "pb",
+// "mayo", "milk") hits the Ingredient lookup path before falling through to the
+// Haiku AI fallback. One canonical row per basic — variant expansion (skim /
+// 1% / 2% milk as distinct rows) deferred per D-WS6-077.
+const HOUSEHOLD_BASIC_INGREDIENTS: Array<{
+  canonicalName: string;
+  displayName: string;
+  category: string;
+  defaultUnit: string;
+  aliases: string[];
+}> = [
+  // Produce
+  { canonicalName: "bananas", displayName: "Bananas", category: "Produce", defaultUnit: "each", aliases: ["banana"] },
+  { canonicalName: "apples", displayName: "Apples", category: "Produce", defaultUnit: "each", aliases: ["apple", "gala apples", "honeycrisp apples"] },
+  { canonicalName: "oranges", displayName: "Oranges", category: "Produce", defaultUnit: "each", aliases: ["orange", "navel oranges"] },
+  { canonicalName: "strawberries", displayName: "Strawberries", category: "Produce", defaultUnit: "container", aliases: ["strawberry"] },
+  { canonicalName: "blueberries", displayName: "Blueberries", category: "Produce", defaultUnit: "container", aliases: ["blueberry"] },
+  { canonicalName: "russet potatoes", displayName: "Russet potatoes", category: "Produce", defaultUnit: "lb", aliases: ["potatoes", "potato", "baking potatoes"] },
+  { canonicalName: "baby spinach", displayName: "Baby spinach", category: "Produce", defaultUnit: "bag", aliases: ["spinach", "fresh spinach"] },
+  { canonicalName: "romaine lettuce", displayName: "Romaine lettuce", category: "Produce", defaultUnit: "head", aliases: ["lettuce", "romaine"] },
+  // Protein
+  { canonicalName: "large eggs", displayName: "Large eggs", category: "Protein", defaultUnit: "dozen", aliases: ["eggs", "egg", "dozen eggs"] },
+  { canonicalName: "bacon", displayName: "Bacon", category: "Protein", defaultUnit: "lb", aliases: ["thick-cut bacon", "bacon strips"] },
+  { canonicalName: "ground turkey", displayName: "Ground turkey", category: "Protein", defaultUnit: "lb", aliases: ["turkey", "ground turkey breast"] },
+  { canonicalName: "chicken thighs", displayName: "Chicken thighs", category: "Protein", defaultUnit: "lb", aliases: ["boneless skinless chicken thighs", "chicken thigh"] },
+  // Dairy
+  { canonicalName: "whole milk", displayName: "Whole milk", category: "Dairy", defaultUnit: "gallon", aliases: ["milk", "skim milk", "1% milk", "2% milk", "lowfat milk"] },
+  { canonicalName: "plain greek yogurt", displayName: "Plain Greek yogurt", category: "Dairy", defaultUnit: "container", aliases: ["greek yogurt", "yogurt"] },
+  { canonicalName: "sharp cheddar", displayName: "Sharp cheddar", category: "Dairy", defaultUnit: "block", aliases: ["cheddar", "cheddar cheese", "sharp cheddar cheese"] },
+  { canonicalName: "sour cream", displayName: "Sour cream", category: "Dairy", defaultUnit: "container", aliases: ["sourcream"] },
+  { canonicalName: "cream cheese", displayName: "Cream cheese", category: "Dairy", defaultUnit: "block", aliases: ["cream cheese block", "philadelphia"] },
+  // Pantry
+  { canonicalName: "kosher salt", displayName: "Kosher salt", category: "Pantry", defaultUnit: "container", aliases: ["salt"] },
+  { canonicalName: "black pepper", displayName: "Black pepper", category: "Pantry", defaultUnit: "container", aliases: ["pepper", "ground black pepper", "freshly ground black pepper"] },
+  { canonicalName: "all-purpose flour", displayName: "All-purpose flour", category: "Pantry", defaultUnit: "bag", aliases: ["flour", "ap flour"] },
+  { canonicalName: "granulated sugar", displayName: "Granulated sugar", category: "Pantry", defaultUnit: "bag", aliases: ["sugar", "white sugar"] },
+  { canonicalName: "peanut butter", displayName: "Peanut butter", category: "Pantry", defaultUnit: "jar", aliases: ["pb", "creamy peanut butter", "smooth peanut butter"] },
+  { canonicalName: "ketchup", displayName: "Ketchup", category: "Pantry", defaultUnit: "bottle", aliases: ["catsup", "tomato ketchup"] },
+  { canonicalName: "mayonnaise", displayName: "Mayonnaise", category: "Pantry", defaultUnit: "jar", aliases: ["mayo"] },
+  // Bakery
+  { canonicalName: "sandwich bread", displayName: "Sandwich bread", category: "Bakery", defaultUnit: "loaf", aliases: ["bread", "white bread", "wheat bread", "whole wheat bread"] },
+  { canonicalName: "bagels", displayName: "Bagels", category: "Bakery", defaultUnit: "pack", aliases: ["bagel", "plain bagels"] },
+  { canonicalName: "english muffins", displayName: "English muffins", category: "Bakery", defaultUnit: "pack", aliases: ["english muffin"] },
+  // Frozen
+  { canonicalName: "frozen mixed vegetables", displayName: "Frozen mixed vegetables", category: "Frozen", defaultUnit: "bag", aliases: ["frozen veggies", "mixed vegetables"] },
+  { canonicalName: "vanilla ice cream", displayName: "Vanilla ice cream", category: "Frozen", defaultUnit: "pint", aliases: ["ice cream"] },
+  { canonicalName: "frozen waffles", displayName: "Frozen waffles", category: "Frozen", defaultUnit: "box", aliases: ["waffles", "frozen waffle"] },
+];
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -455,6 +505,29 @@ async function main() {
   }
 
   console.log(`seeded ${ingredientIdMap.size} unique ingredients`);
+
+  // WS6 6c-6 Block A — household-basic ingredients with aliases.
+  for (const ing of HOUSEHOLD_BASIC_INGREDIENTS) {
+    await prisma.ingredient.upsert({
+      where: { canonicalName: ing.canonicalName },
+      update: {
+        displayName: ing.displayName,
+        category: ing.category,
+        defaultUnit: ing.defaultUnit,
+        aliases: ing.aliases,
+      },
+      create: {
+        canonicalName: ing.canonicalName,
+        displayName: ing.displayName,
+        category: ing.category,
+        defaultUnit: ing.defaultUnit,
+        aliases: ing.aliases,
+      },
+    });
+  }
+  console.log(
+    `seeded ${HOUSEHOLD_BASIC_INGREDIENTS.length} household-basic ingredients (with aliases)`,
+  );
 
   // Pass 2: per-recipe transactions. Each recipe is atomic; failure of one
   // recipe rolls back only that recipe's rows.
