@@ -485,19 +485,17 @@ export function createGroceryListsRouter(
         },
       });
 
-      // Activity log — fire-and-forget, mirrors the generate-grocery route.
-      // No dedicated event type yet for "added single item" (would require a
-      // migration + ActivityEventType enum bump); reuse generate_grocery
-      // with metadata.action="add_item" so it shows up in the same feed.
+      // Activity log — fire-and-forget. Emits grocery_item_added with the
+      // posted itemName so the feed shows which item was added.
       prisma.userActivity
         .create({
           data: {
             userId,
-            eventType: "generate_grocery",
+            eventType: "grocery_item_added",
             entityType: "grocery_list",
             entityId: listId,
             platform: "api",
-            metadata: { action: "add_item", itemName: body.itemName },
+            metadata: { itemName: body.itemName },
           },
         })
         .catch((err) => {

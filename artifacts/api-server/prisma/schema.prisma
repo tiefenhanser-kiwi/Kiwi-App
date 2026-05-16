@@ -144,6 +144,7 @@ enum ActivityEventType {
   recipe_imported_url
   recipe_imported_image
   recipe_imported_text
+  grocery_item_added
 }
 
 enum SpiceTolerance {

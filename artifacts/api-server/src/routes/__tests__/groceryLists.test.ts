@@ -1598,4 +1598,41 @@ describe("POST /api/grocery-lists/:id/items", () => {
       await harness.close();
     }
   });
+
+  it("writes a grocery_item_added UserActivity row with itemName metadata", async () => {
+    const harness = await spinUp();
+    seedListWithUUID(harness.state);
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${LIST_UUID}/items`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            itemName: "Lucky Charms",
+            storeSection: "pantry",
+          }),
+        },
+      );
+      assert.equal(res.status, 201);
+      // Activity write is fire-and-forget — give the microtask queue a single
+      // tick to flush before asserting.
+      await new Promise((r) => setImmediate(r));
+      assert.equal(harness.state.activities.length, 1);
+      const a = harness.state.activities[0];
+      assert.equal(a.eventType, "grocery_item_added");
+      assert.equal(a.entityType, "grocery_list");
+      assert.equal(a.entityId, LIST_UUID);
+      assert.equal(a.userId, USER);
+      const metadata = a.metadata as { itemName: string; action?: string };
+      assert.equal(metadata.itemName, "Lucky Charms");
+      assert.equal(metadata.action, undefined);
+    } finally {
+      await harness.close();
+    }
+  });
 });
