@@ -10,16 +10,19 @@
 // URLImportFailure envelope (with a path-specific userFacingMessage).
 
 import * as cheerio from "cheerio";
+import { Jimp } from "jimp";
 import { parse as parseIngredient } from "recipe-ingredient-parser-v3";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
+import { logger } from "./logger";
 import { runAICall } from "./ai/runAICall";
 import type { AICallResult } from "./ai/runAICall";
 import type { PrismaLike } from "./ai/promptRegistry";
 import {
   RawRecipeInputSchema,
   CanonicalRecipeSchema,
+  type ImageInput,
   type RawRecipeInput,
   type CanonicalRecipe,
 } from "./ai/schemas/reformat";
@@ -384,6 +387,103 @@ export function parseIngredientLines(rawLines: string[]): ParsedIngredientLine[]
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Server-side image resize (D-WS6-083) — defense-in-depth chokepoint
+// ─────────────────────────────────────────────────────────────────
+// Mobile already resizes via expo-image-manipulator (kiwi/lib/api/recipeImport.ts).
+// This server-side pass catches the smoke harness, future non-mobile callers,
+// and any path that bypasses the route layer. Anthropic Vision recommends
+// ≤1568px on the long edge; payloads above ~1 MB on the wire trigger SDK
+// transport failures (Block 2 APIConnectionError). JPEG q=70 lands typical
+// recipe-card photos around 150–300 KB raw.
+
+const RESIZE_LONG_EDGE_PX = 1568;
+const RESIZE_BYTES_THRESHOLD = 500 * 1024;
+const RESIZE_JPEG_QUALITY = 70;
+
+async function resizeImageForVision(img: ImageInput): Promise<ImageInput> {
+  const originalBuffer = Buffer.from(img.data, "base64");
+  const originalBytes = originalBuffer.byteLength;
+
+  let image: Awaited<ReturnType<typeof Jimp.read>>;
+  try {
+    image = await Jimp.read(originalBuffer);
+  } catch (err) {
+    // jimp 1.6 supports jpeg/png/gif/bmp/tiff but NOT webp. If decode fails,
+    // pass through unmodified — the Anthropic SDK can still accept the
+    // original payload (it just doesn't benefit from resize).
+    logger.warn(
+      {
+        event: "image_resize",
+        didResize: false,
+        skipped: "decode_failed",
+        originalMediaType: img.mediaType,
+        originalBytes,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      "image_resize decode failed — passing through",
+    );
+    return img;
+  }
+
+  const originalWidth = image.bitmap.width;
+  const originalHeight = image.bitmap.height;
+  const longEdge = Math.max(originalWidth, originalHeight);
+  const needsResize =
+    longEdge > RESIZE_LONG_EDGE_PX || originalBytes > RESIZE_BYTES_THRESHOLD;
+
+  if (!needsResize) {
+    logger.info(
+      {
+        event: "image_resize",
+        didResize: false,
+        originalMediaType: img.mediaType,
+        finalMediaType: img.mediaType,
+        originalBytes,
+        finalBytes: originalBytes,
+        originalWidth,
+        originalHeight,
+        finalWidth: originalWidth,
+        finalHeight: originalHeight,
+      },
+      "image_resize no-op",
+    );
+    return img;
+  }
+
+  if (originalWidth >= originalHeight) {
+    image.resize({ w: Math.min(RESIZE_LONG_EDGE_PX, originalWidth) });
+  } else {
+    image.resize({ h: Math.min(RESIZE_LONG_EDGE_PX, originalHeight) });
+  }
+
+  const outBuffer = await image.getBuffer("image/jpeg", {
+    quality: RESIZE_JPEG_QUALITY,
+  });
+  const finalBytes = outBuffer.byteLength;
+
+  logger.info(
+    {
+      event: "image_resize",
+      didResize: true,
+      originalMediaType: img.mediaType,
+      finalMediaType: "image/jpeg",
+      originalBytes,
+      finalBytes,
+      originalWidth,
+      originalHeight,
+      finalWidth: image.bitmap.width,
+      finalHeight: image.bitmap.height,
+    },
+    "image_resize",
+  );
+
+  return {
+    mediaType: "image/jpeg",
+    data: outBuffer.toString("base64"),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
 // AI reformat
 // ─────────────────────────────────────────────────────────────────
 
@@ -405,7 +505,12 @@ export async function reformatRecipeForKiwi(
   // renderPromptBody JSON.stringify's the rawRecipe into {{rawRecipe}}, and
   // we don't want 25MB of base64 echoed inline (model sees the images via
   // the attachment blocks instead).
-  const images = rawRecipe.images ?? [];
+  const rawImages = rawRecipe.images ?? [];
+  // D-WS6-083 — resize before building Anthropic ImageBlockParams.
+  const images =
+    rawImages.length > 0
+      ? await Promise.all(rawImages.map(resizeImageForVision))
+      : rawImages;
   const attachments: Anthropic.ImageBlockParam[] | undefined =
     images.length > 0
       ? images.map((img) => ({

@@ -156,7 +156,7 @@ export const MealMetaSchema = z.object({
   mealType: MealTypeEnum,
   estimatedTimeMinutes: z.number().int().nonnegative(),
   difficulty: DifficultyEnum,
-  servingsDefault: z.number().int().min(1).max(16),
+  servingsDefault: z.number().int().min(1).max(99),
   sourceUrl: z.string().optional(),
   tags: z.array(z.string()).max(8).default([]),
 });

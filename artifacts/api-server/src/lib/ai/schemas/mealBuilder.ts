@@ -23,7 +23,7 @@ export const AssistIngredientsInputSchema = z.object({
   dishTitle: z.string().min(1).max(200),
   cuisine: z.string().max(80).optional(),
   existingIngredients: z.array(AssistIngredientsExistingItemSchema).max(40),
-  servings: z.number().int().positive().max(16),
+  servings: z.number().int().positive().max(99),
   userHints: z
     .object({
       dietary: z.array(z.string().max(40)).max(10).optional(),
@@ -73,7 +73,7 @@ export const AssistStepsInputSchema = z.object({
   dishTitle: z.string().min(1).max(200),
   cuisine: z.string().max(80).optional(),
   ingredients: z.array(AssistStepsIngredientSchema).min(1).max(40),
-  servings: z.number().int().positive().max(16),
+  servings: z.number().int().positive().max(99),
   prepTimeMinutes: z.number().int().nonnegative().max(600).optional(),
   cookTimeMinutes: z.number().int().nonnegative().max(600).optional(),
 });
@@ -131,7 +131,7 @@ export type MealDifficulty = z.infer<typeof MealDifficultySchema>;
 export const ParseMealInputSchema = z.object({
   // PRD Tell Kiwi input bounds — single short paragraph at most.
   freeText: z.string().min(3).max(500),
-  servings: z.number().int().positive().max(16).default(4),
+  servings: z.number().int().positive().max(99).default(4),
   userHints: z
     .object({
       dietary: z.array(z.string().max(40)).max(10).optional(),
@@ -183,7 +183,7 @@ export const ParsedMealSchema = z.object({
   cuisine: z.string().min(1).max(80).nullable(),
   estimatedPrepMinutes: z.number().int().positive().max(600),
   estimatedCookMinutes: z.number().int().positive().max(600),
-  servingsDefault: z.number().int().positive().max(16),
+  servingsDefault: z.number().int().positive().max(99),
   difficulty: MealDifficultySchema,
   tags: z.array(z.string().min(1).max(40)).max(5),
   subDishes: z.array(ParsedSubDishSchema).min(1).max(5),
