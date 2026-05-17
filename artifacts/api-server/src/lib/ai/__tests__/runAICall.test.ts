@@ -6,6 +6,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import type Anthropic from "@anthropic-ai/sdk";
+import { APIConnectionError } from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 import { runAICall, _resetClientCache } from "../runAICall";
@@ -448,6 +449,116 @@ describe("runAICall — SDK error mapping", () => {
     assert.equal(result.success, false);
     if (result.success) return;
     assert.equal(result.reason, "sdk_error");
+  });
+});
+
+// ── D-WS6-085 — APIConnectionError retry (Block 4) ─────────────────────
+
+describe("runAICall — connection retry", () => {
+  it("retries on APIConnectionError and succeeds on a later attempt", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    let calls = 0;
+    const client: Pick<Anthropic, "messages"> = {
+      messages: {
+        create: async (params: Anthropic.MessageCreateParams) => {
+          calls++;
+          if (calls === 1) {
+            throw new APIConnectionError({ message: "other side closed" });
+          }
+          return {
+            id: "msg_retry_success",
+            container: null,
+            content: [
+              {
+                type: "tool_use",
+                id: "toolu_1",
+                name: "kiwi_response",
+                input: { pong: "yes" },
+              },
+            ],
+            model: params.model,
+            role: "assistant",
+            stop_details: null,
+            stop_reason: "end_turn",
+            stop_sequence: null,
+            type: "message",
+            usage: {
+              input_tokens: 100,
+              output_tokens: 50,
+              cache_creation_input_tokens: null,
+              cache_read_input_tokens: null,
+              server_tool_use: null,
+              service_tier: null,
+            },
+          } as unknown as Anthropic.Message;
+        },
+      },
+    } as unknown as Pick<Anthropic, "messages">;
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+    });
+
+    assert.equal(result.success, true);
+    if (!result.success) return;
+    assert.deepEqual(result.data, { pong: "yes" });
+    assert.equal(calls, 2);
+    // retryCount semantically tracks validation retries only — see runAICall.ts
+    // ai_call_connection_retry comment. Connection retries are observable via
+    // logger.warn but do not bump metadata.retryCount.
+    assert.equal(result.metadata.retryCount, 0);
+  });
+
+  it("returns reason='sdk_error' when all 4 attempts hit APIConnectionError", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    let calls = 0;
+    const client: Pick<Anthropic, "messages"> = {
+      messages: {
+        create: async () => {
+          calls++;
+          throw new APIConnectionError({ message: "other side closed" });
+        },
+      },
+    } as unknown as Pick<Anthropic, "messages">;
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+    });
+
+    assert.equal(result.success, false);
+    if (result.success) return;
+    assert.equal(result.reason, "sdk_error");
+    assert.equal(calls, 4); // 1 initial + 3 retries
+  });
+
+  it("does NOT retry non-connection SDK errors (e.g. status=500)", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    let calls = 0;
+    const client: Pick<Anthropic, "messages"> = {
+      messages: {
+        create: async () => {
+          calls++;
+          const err = new Error("internal server") as Error & { status: number };
+          err.status = 500;
+          throw err;
+        },
+      },
+    } as unknown as Pick<Anthropic, "messages">;
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+    });
+
+    assert.equal(result.success, false);
+    if (result.success) return;
+    assert.equal(result.reason, "sdk_error");
+    assert.equal(calls, 1); // no retries triggered
   });
 });
 

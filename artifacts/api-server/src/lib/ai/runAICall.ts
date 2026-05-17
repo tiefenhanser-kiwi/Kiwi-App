@@ -11,7 +11,7 @@
 // Test caller pattern (omit prisma → in-memory fallback, no log writes):
 //   const result = await runAICall(promptKey, vars, schema, { client: stub });
 
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { APIConnectionError } from "@anthropic-ai/sdk";
 import type { z } from "zod";
 
 import { logger } from "../logger";
@@ -227,18 +227,22 @@ export async function runAICall<T extends z.ZodTypeAny>(
 
     let message: Anthropic.Message;
     try {
-      message = await client.messages.create({
-        model,
-        max_tokens: maxTokens,
-        temperature,
-        messages: [{ role: "user", content: messageContent }],
-        ...(mode === "tool"
-          ? {
-              tools: buildToolForSchema(schema, descriptor.toolDescription),
-              tool_choice: forcedToolChoice(),
-            }
-          : {}),
-      });
+      message = await callMessagesCreateWithConnectionRetry(
+        client,
+        {
+          model,
+          max_tokens: maxTokens,
+          temperature,
+          messages: [{ role: "user", content: messageContent }],
+          ...(mode === "tool"
+            ? {
+                tools: buildToolForSchema(schema, descriptor.toolDescription),
+                tool_choice: forcedToolChoice(),
+              }
+            : {}),
+        },
+        { promptKey, model, mode },
+      );
     } catch (err) {
       const reason = inferSdkErrorReason(err);
       logger.error(
@@ -411,6 +415,56 @@ function buildUserMessage(args: {
     );
   }
   return parts.join("\n");
+}
+
+// D-WS6-085 — APIConnectionError retry. Block 3 observed a 40% PASS rate on
+// cold-start 6c-2 image imports: undici's keep-alive connection goes stale
+// during the long 6c-1 idle, then 6c-2 reuses the dead conn and fails with
+// `SocketError: other side closed`. The Anthropic SDK's built-in 2 retries
+// all reuse the same pool slot within ~2s and exhaust together; a NEW SDK
+// call (with fresh pool state) succeeds. So we retry at the userland level:
+// each retry triggers a brand-new client.messages.create, which refreshes
+// the connection pool. Non-connection errors are not retried.
+//
+// Backoff: 500/1000/2000ms linear. Block 3 evidence shows immediate retry
+// usually works; longer backoffs are safety margin for server-side rollouts.
+// Diagnostic log earmarked for 6-CLOSE removal alongside the pre-send block.
+
+const CONNECTION_RETRY_BACKOFFS_MS = [500, 1000, 2000] as const;
+
+async function callMessagesCreateWithConnectionRetry(
+  client: Pick<Anthropic, "messages">,
+  params: Anthropic.MessageCreateParams,
+  ctx: { promptKey: string; model: string; mode: AICallMode },
+): Promise<Anthropic.Message> {
+  const totalAttempts = CONNECTION_RETRY_BACKOFFS_MS.length + 1;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= totalAttempts; attempt++) {
+    try {
+      return (await client.messages.create(params)) as Anthropic.Message;
+    } catch (err) {
+      lastErr = err;
+      if (!(err instanceof APIConnectionError)) throw err;
+      if (attempt === totalAttempts) break;
+      const backoffMs = CONNECTION_RETRY_BACKOFFS_MS[attempt - 1];
+      logger.warn(
+        {
+          event: "ai_call_connection_retry",
+          promptKey: ctx.promptKey,
+          model: ctx.model,
+          mode: ctx.mode,
+          attempt,
+          totalAttempts,
+          backoffMs,
+          errName: err.name,
+          errMessage: err.message,
+        },
+        "APIConnectionError — retrying",
+      );
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    }
+  }
+  throw lastErr;
 }
 
 function inferSdkErrorReason(err: unknown): AICallFailureReason {
