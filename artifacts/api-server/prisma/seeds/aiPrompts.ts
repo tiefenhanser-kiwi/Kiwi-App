@@ -226,7 +226,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 - **perServing.proteinG / carbsG / fatG** — one decimal precision (e.g. \`28.4\`).
 - All four values are non-negative. Use \`0\` (not negative, not null) if a macro genuinely contributes nothing.
 - **confidence** — one of \`high\`, \`medium\`, \`low\` (see rubric below).
-- **caveats** — up to 3 short strings (≤80 chars each). Informational only — they do NOT change the math. Omit the field if there are no caveats; do not return an empty array.
+- **caveats** — up to 3 short strings (≤80 chars each). Informational only — they do NOT change the math. Omit the field if there are no caveats; do not return an empty array. Each caveat MUST be 80 characters or fewer. Caveats are short inline hints (e.g., "stir constantly to prevent scrambling"), not full sentences with multiple clauses.
 
 # How to compute
 
