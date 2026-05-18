@@ -8,21 +8,50 @@ import { StepPhaseSchema } from "./cookNow";
 
 // Per-dish step as fed to the sequencer. Mirrors the persisted
 // RecipeInstructionStep row minus columns the sequencer doesn't need.
-export const SequencerDishStepSchema = z.object({
-  dishId: z.string().min(1),
-  stepIndex: z.number().int().min(0),
-  stepText: z.string().min(1),
-  phaseType: StepPhaseSchema,
-  parallelGroup: z.string().nullable(),
-  // Coerced to >= 1 at the loader boundary (15-second floor).
-  estimatedMinutes: z.number().int().positive(),
-  // Signals two things at once to the sequencer: (1) the user is actively
-  // engaged in this step — do not weave another dish's step between it and
-  // the next step of the same dish; (2) if the step also needs lead time
-  // (e.g. preheat), schedule it early enough that the next step in the
-  // same dish flows immediately when the user gets there.
-  isTimingSensitive: z.boolean(),
-});
+//
+// Invariant (D-WS6-093): isTimingSensitive=true is mutually exclusive with
+// parallelGroup starting with "passive-". Timing-sensitive means the cook is
+// actively engaged at the stove; passive-* groups mean hands-free background
+// time (simmer, roast, rest). The combination contradicts itself — see the
+// isTimingSensitive field comment for why.
+export const SequencerDishStepSchema = z
+  .object({
+    dishId: z.string().min(1),
+    stepIndex: z.number().int().min(0),
+    stepText: z.string().min(1),
+    phaseType: StepPhaseSchema,
+    // Coarse grouping used by the sequencer to decide what may run in
+    // parallel. Values prefixed with "passive-" (e.g. "passive-simmer",
+    // "passive-roast") denote hands-free background work — by definition
+    // the cook is NOT actively engaged, so isTimingSensitive must be false.
+    parallelGroup: z.string().nullable(),
+    // Coerced to >= 1 at the loader boundary (15-second floor).
+    estimatedMinutes: z.number().int().positive(),
+    // Signals two things at once to the sequencer: (1) the user is actively
+    // engaged in this step — do not weave another dish's step between it and
+    // the next step of the same dish; (2) if the step also needs lead time
+    // (e.g. preheat), schedule it early enough that the next step in the
+    // same dish flows immediately when the user gets there.
+    //
+    // MUST be false whenever `parallelGroup` starts with "passive-": passive
+    // groups are hands-free by definition, so "actively engaged" cannot hold.
+    // Enforced by the schema-level superRefine below (D-WS6-093).
+    isTimingSensitive: z.boolean(),
+  })
+  .superRefine((step, ctx) => {
+    if (
+      step.isTimingSensitive &&
+      step.parallelGroup !== null &&
+      step.parallelGroup.startsWith("passive-")
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["isTimingSensitive"],
+        message:
+          "isTimingSensitive cannot be true when parallelGroup starts with 'passive-' (contradicts hands-free semantics)",
+      });
+    }
+  });
 export type SequencerDishStep = z.infer<typeof SequencerDishStepSchema>;
 
 export const SequencerInputSchema = z.object({
