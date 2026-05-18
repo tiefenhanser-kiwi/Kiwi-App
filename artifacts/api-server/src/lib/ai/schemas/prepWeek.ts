@@ -1,71 +1,113 @@
+// WS6 6d-2 — Prep the Week aggregation schemas.
+// Per kiwi_ws6_plan.md §3 6d-2 + PRD §13.4.1 / §13.4.3 / §13.4.6.
+//
+// Server-side endpoint (POST /api/plans/:planId/prep-week) hands the
+// plan's meals + ingredients to Sonnet via tool_use; the model returns
+// the 4-phase Prep the Week structure with cross-meal aggregation. Premium
+// per PRD §1.2 + §13.4.6 (content-generating AI). Phase order is fixed —
+// proteins LAST for food safety per PRD §13.4.1.
+
 import { z } from "zod";
 
-// PRD §13.4.6 / 6d-2 — AI-assisted prep aggregation.
-// Premium-gated (`prep_the_week_orchestrated` entitlement).
-// Endpoint runs at Prep the Week start for the active plan.
+// Canonical 4-phase enum, slugified PRD §13.4.1 names. The result schema
+// pins length=4 AND order via PrepWeekResultSchema; the prompt is
+// independently instructed to emit them in this same order — both checks
+// must agree before the response is returned.
+export const PrepWeekPhaseKey = z.enum([
+  "seasonings_dry",
+  "sauces_marinades",
+  "produce",
+  "proteins",
+]);
+export type PrepWeekPhaseKeyT = z.infer<typeof PrepWeekPhaseKey>;
+
+// ── input ────────────────────────────────────────────────────────────
+
+export const PrepWeekIngredientInputSchema = z.object({
+  ingredientId: z.string().uuid(),
+  ingredientName: z.string().min(1),
+  quantity: z.number(),
+  unit: z.string(),
+  // e.g. "diced", "minced", "thinly sliced". Drives whether the AI
+  // batches same-ingredient prep into a single step or splits by method.
+  preparationNotes: z.string().optional(),
+});
+
+export const PrepWeekDishInputSchema = z.object({
+  dishId: z.string().uuid(),
+  dishName: z.string().min(1),
+  ingredients: z.array(PrepWeekIngredientInputSchema),
+});
+
+export const PrepWeekMealInputSchema = z.object({
+  mealId: z.string().uuid(),
+  mealName: z.string().min(1),
+  cuisine: z.string().optional(),
+  // effectiveServings after override applied at the loader boundary.
+  servings: z.number().int().min(1).max(20),
+  dishes: z.array(PrepWeekDishInputSchema).min(1).max(8),
+});
 
 export const PrepWeekInputSchema = z.object({
-  planId: z.string().min(1),
-  // Per-meal payload — server assembles from MealPlanItem + Dish rows.
-  planMeals: z.array(
-    z.object({
-      mealId: z.string().min(1),
-      title: z.string().min(1),
-      day: z.string(),
-      servings: z.number().int().positive(),
-      dishes: z.array(
-        z.object({
-          dishId: z.string().min(1),
-          title: z.string().min(1),
-          ingredients: z.array(
-            z.object({
-              quantity: z.number().nonnegative(),
-              unit: z.string(),
-              name: z.string().min(1),
-              canonicalIngredientId: z.string().optional(),
-            }),
-          ),
-        }),
-      ),
-    }),
-  ),
-  userPreferences: z
-    .object({
-      maxPrepMinutes: z.number().int().positive().optional(),
-      preferLargeBatches: z.boolean().optional(),
-    })
-    .optional(),
+  planId: z.string().uuid(),
+  planName: z.string().min(1),
+  // 14 = 7 days × 2 meals worst-case for the Prep the Week aggregation.
+  meals: z.array(PrepWeekMealInputSchema).min(1).max(14),
 });
 export type PrepWeekInput = z.infer<typeof PrepWeekInputSchema>;
 
-// PRD §13.4.1 — 4 phases of Prep the Week.
-export const PrepPhaseSchema = z.enum([
-  "prep_proteins",
-  "prep_produce",
-  "make_components",
-  "store_and_label",
-]);
-export type PrepPhase = z.infer<typeof PrepPhaseSchema>;
+// ── result ───────────────────────────────────────────────────────────
 
-// One aggregation step (e.g. "Chop all 4 onions across the plan in one pass").
-export const PrepStepSchema = z.object({
-  text: z.string().min(1).max(280),
-  estimatedMinutes: z.number().int().positive(),
-  // mealIds this prep step covers — drives the cross-meal callout UI.
-  contributesToMealIds: z.array(z.string()).min(1),
-  // Storage instruction for the resulting prepped item.
-  storageNote: z.string().max(140).optional(),
+export const PrepWeekStepSchema = z.object({
+  number: z.number().int().min(1).max(50),
+  title: z.string().min(1).max(120),
+  instructions: z.string().min(1).max(800),
+  estimatedMinutes: z.number().int().min(1).max(60),
+  // Destination labels per PRD §13.4.3 — every step states which meals
+  // it contributes to so the UI can render "For Tuesday's tacos and
+  // Friday's burrito bowls". Must reference real mealIds from the input;
+  // route-level sanity check enforces this in Phase 2.
+  contributesToMealIds: z.array(z.string().uuid()).min(1).max(20),
+  // Optional. Use only when storage is non-trivial (e.g. airtight
+  // container, 4 days max). Skip for self-evident cases.
+  storageNote: z.string().max(200).optional(),
 });
-export type PrepStep = z.infer<typeof PrepStepSchema>;
+export type PrepWeekStep = z.infer<typeof PrepWeekStepSchema>;
 
-export const PrepWeekResultSchema = z.object({
-  totalEstimatedMinutes: z.number().int().positive(),
-  phases: z.array(
-    z.object({
-      phase: PrepPhaseSchema,
-      title: z.string().min(1).max(120),
-      steps: z.array(PrepStepSchema),
-    }),
-  ),
+export const PrepWeekPhaseSchema = z.object({
+  phase: PrepWeekPhaseKey,
+  title: z.string().min(1).max(80),
+  // Phases 1+2 (seasonings_dry, sauces_marinades) skippable; 3+4 always
+  // present. A phase with zero steps is still emitted to keep the 4-phase
+  // shape stable across plans.
+  skippable: z.boolean(),
+  steps: z.array(PrepWeekStepSchema).min(0).max(30),
 });
+export type PrepWeekPhase = z.infer<typeof PrepWeekPhaseSchema>;
+
+// Phase order is fixed: seasonings_dry → sauces_marinades → produce →
+// proteins. Enforced by the .superRefine below. The model is also told
+// this in the prompt; the schema is the structural floor.
+export const PrepWeekResultSchema = z
+  .object({
+    totalEstimatedMinutes: z.number().int().min(1).max(240),
+    phases: z.array(PrepWeekPhaseSchema).length(4),
+  })
+  .superRefine((val, ctx) => {
+    const expected: PrepWeekPhaseKeyT[] = [
+      "seasonings_dry",
+      "sauces_marinades",
+      "produce",
+      "proteins",
+    ];
+    for (let i = 0; i < 4; i++) {
+      if (val.phases[i].phase !== expected[i]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["phases", i, "phase"],
+          message: `phase at index ${i} must be "${expected[i]}", got "${val.phases[i].phase}"`,
+        });
+      }
+    }
+  });
 export type PrepWeekResult = z.infer<typeof PrepWeekResultSchema>;

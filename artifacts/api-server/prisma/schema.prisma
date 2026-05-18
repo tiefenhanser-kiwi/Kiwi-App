@@ -437,10 +437,11 @@ model MealPlanInstance {
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
-  user         User             @relation(fields: [userId], references: [id])
-  template     MealPlanTemplate @relation(fields: [mealPlanTemplateId], references: [id])
-  items        MealPlanItem[]
-  groceryLists GroceryList[]
+  user               User              @relation(fields: [userId], references: [id])
+  template           MealPlanTemplate  @relation(fields: [mealPlanTemplateId], references: [id])
+  items              MealPlanItem[]
+  groceryLists       GroceryList[]
+  prepWeekStructure  PrepWeekStructure?
 
   @@map("meal_plan_instances")
 }
@@ -516,6 +517,27 @@ model GroceryListItem {
   ingredient  Ingredient? @relation(fields: [ingredientId], references: [id])
 
   @@map("grocery_list_items")
+}
+
+// WS6 6d-2 — Prep the Week structure cache (PRD §13.4 / §13.4.6).
+// Cached per (planId, planRevisionId) so subsequent screen entries return
+// the same stable 4-phase structure required by PRD §13.4.4/§13.4.5
+// (phase + step state persistence). Mirrors GroceryList drift detection:
+// when MealPlanInstance.revisionId moves past lastGeneratedFromPlanRevisionId,
+// the next request regenerates and updates this row.
+model PrepWeekStructure {
+  id                              String   @id @default(uuid())
+  planId                          String   @unique
+  structureJson                   Json
+  lastGeneratedFromPlanRevisionId Int
+  lastGeneratedAt                 DateTime @default(now())
+  promptVersion                   Int
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+
+  plan MealPlanInstance @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@map("prep_week_structures")
 }
 
 model Retailer {
