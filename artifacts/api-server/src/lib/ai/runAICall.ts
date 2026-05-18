@@ -176,73 +176,20 @@ export async function runAICall<T extends z.ZodTypeAny>(
         ? [...(opts.attachments ?? []), { type: "text", text: userMessage }]
         : userMessage;
 
-    // 6c-2 transport diagnostic — TEMPORARY, remove after testing produces data.
-    if (Array.isArray(messageContent)) {
-      logger.info(
-        {
-          event: "ai_call_pre_send_diagnostic",
-          promptKey,
-          mode,
-          model,
-          messageCount: 1,
-          firstMessageContentType: "array",
-          contentBlocks: messageContent.map((block) => {
-            if (block.type === "image") {
-              if (block.source.type === "base64") {
-                return {
-                  type: block.type,
-                  mediaType: block.source.media_type,
-                  dataLength: block.source.data.length,
-                  dataPreview: block.source.data.slice(0, 16),
-                };
-              }
-              return { type: block.type, sourceType: block.source.type };
-            }
-            return { type: block.type, textLength: block.text.length };
-          }),
-          totalPayloadEstimateBytes: messageContent.reduce((sum, block) => {
-            if (block.type === "image" && block.source.type === "base64") {
-              return sum + block.source.data.length;
-            }
-            if (block.type === "text") return sum + block.text.length;
-            return sum;
-          }, 0),
-        },
-        "Pre-send diagnostic",
-      );
-    } else {
-      logger.info(
-        {
-          event: "ai_call_pre_send_diagnostic",
-          promptKey,
-          mode,
-          model,
-          messageCount: 1,
-          firstMessageContentType: typeof messageContent,
-          totalPayloadEstimateBytes: messageContent.length,
-        },
-        "Pre-send diagnostic",
-      );
-    }
-
     let message: Anthropic.Message;
     try {
-      message = await callMessagesCreateWithConnectionRetry(
-        client,
-        {
-          model,
-          max_tokens: maxTokens,
-          temperature,
-          messages: [{ role: "user", content: messageContent }],
-          ...(mode === "tool"
-            ? {
-                tools: buildToolForSchema(schema, descriptor.toolDescription),
-                tool_choice: forcedToolChoice(),
-              }
-            : {}),
-        },
-        { promptKey, model, mode },
-      );
+      message = await callMessagesCreateWithConnectionRetry(client, {
+        model,
+        max_tokens: maxTokens,
+        temperature,
+        messages: [{ role: "user", content: messageContent }],
+        ...(mode === "tool"
+          ? {
+              tools: buildToolForSchema(schema, descriptor.toolDescription),
+              tool_choice: forcedToolChoice(),
+            }
+          : {}),
+      });
     } catch (err) {
       const reason = inferSdkErrorReason(err);
       logger.error(
@@ -428,14 +375,12 @@ function buildUserMessage(args: {
 //
 // Backoff: 500/1000/2000ms linear. Block 3 evidence shows immediate retry
 // usually works; longer backoffs are safety margin for server-side rollouts.
-// Diagnostic log earmarked for 6-CLOSE removal alongside the pre-send block.
 
 const CONNECTION_RETRY_BACKOFFS_MS = [500, 1000, 2000] as const;
 
 async function callMessagesCreateWithConnectionRetry(
   client: Pick<Anthropic, "messages">,
   params: Anthropic.MessageCreateParams,
-  ctx: { promptKey: string; model: string; mode: AICallMode },
 ): Promise<Anthropic.Message> {
   const totalAttempts = CONNECTION_RETRY_BACKOFFS_MS.length + 1;
   let lastErr: unknown;
@@ -447,20 +392,6 @@ async function callMessagesCreateWithConnectionRetry(
       if (!(err instanceof APIConnectionError)) throw err;
       if (attempt === totalAttempts) break;
       const backoffMs = CONNECTION_RETRY_BACKOFFS_MS[attempt - 1];
-      logger.warn(
-        {
-          event: "ai_call_connection_retry",
-          promptKey: ctx.promptKey,
-          model: ctx.model,
-          mode: ctx.mode,
-          attempt,
-          totalAttempts,
-          backoffMs,
-          errName: err.name,
-          errMessage: err.message,
-        },
-        "APIConnectionError — retrying",
-      );
       await new Promise((resolve) => setTimeout(resolve, backoffMs));
     }
   }

@@ -432,21 +432,6 @@ async function resizeImageForVision(img: ImageInput): Promise<ImageInput> {
     longEdge > RESIZE_LONG_EDGE_PX || originalBytes > RESIZE_BYTES_THRESHOLD;
 
   if (!needsResize) {
-    logger.info(
-      {
-        event: "image_resize",
-        didResize: false,
-        originalMediaType: img.mediaType,
-        finalMediaType: img.mediaType,
-        originalBytes,
-        finalBytes: originalBytes,
-        originalWidth,
-        originalHeight,
-        finalWidth: originalWidth,
-        finalHeight: originalHeight,
-      },
-      "image_resize no-op",
-    );
     return img;
   }
 
@@ -459,23 +444,6 @@ async function resizeImageForVision(img: ImageInput): Promise<ImageInput> {
   const outBuffer = await image.getBuffer("image/jpeg", {
     quality: RESIZE_JPEG_QUALITY,
   });
-  const finalBytes = outBuffer.byteLength;
-
-  logger.info(
-    {
-      event: "image_resize",
-      didResize: true,
-      originalMediaType: img.mediaType,
-      finalMediaType: "image/jpeg",
-      originalBytes,
-      finalBytes,
-      originalWidth,
-      originalHeight,
-      finalWidth: image.bitmap.width,
-      finalHeight: image.bitmap.height,
-    },
-    "image_resize",
-  );
 
   return {
     mediaType: "image/jpeg",

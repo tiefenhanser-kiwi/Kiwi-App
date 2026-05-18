@@ -505,9 +505,8 @@ describe("runAICall — connection retry", () => {
     if (!result.success) return;
     assert.deepEqual(result.data, { pong: "yes" });
     assert.equal(calls, 2);
-    // retryCount semantically tracks validation retries only — see runAICall.ts
-    // ai_call_connection_retry comment. Connection retries are observable via
-    // logger.warn but do not bump metadata.retryCount.
+    // retryCount semantically tracks validation retries only. Connection
+    // retries silently refresh the SDK call and do not bump metadata.retryCount.
     assert.equal(result.metadata.retryCount, 0);
   });
 
