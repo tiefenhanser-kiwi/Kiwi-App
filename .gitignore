@@ -40,7 +40,6 @@ testem.log
 # System Files
 .DS_Store
 Thumbs.db
-
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
@@ -51,3 +50,5 @@ Thumbs.db
 # Scratch files (e.g., from Claude Code attachments)
 attached_assets/
 firstrun-audit.md
+scripts/fixtures/.recipe-card-validated
+.block4-logs/
