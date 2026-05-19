@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Image,
   LayoutAnimation,
   Platform,
@@ -15,6 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
+import { LoadingShim } from "@/components/LoadingShim";
 import { Screen } from "@/components/Screen";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useBuildWizardPlans } from "@/hooks/useBuildWizardPlans";
@@ -225,10 +225,7 @@ export default function WizardResultsScreen() {
         </View>
 
         {!tellKiwiPayload && mutation.isPending && (
-          <View style={s.statusBox}>
-            <ActivityIndicator size="large" color={KColors.sage[700]} />
-            <Text style={s.statusText}>Kiwi is thinking…</Text>
-          </View>
+          <LoadingShim variant="status-box" />
         )}
 
         {!tellKiwiPayload && !mutation.isPending && mutation.isError && (

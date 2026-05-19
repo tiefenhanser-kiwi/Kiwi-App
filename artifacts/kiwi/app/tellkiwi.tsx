@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Keyboard,
   Pressable,
@@ -17,6 +16,7 @@ import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { LoadingShim } from "@/components/LoadingShim";
 import { Stepper } from "@/components/Stepper";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
@@ -315,10 +315,7 @@ export default function TellKiwi() {
             disabled={mutation.isPending}
           />
           {mutation.isPending && (
-            <View style={s.thinkingRow}>
-              <ActivityIndicator size="small" color={KColors.sage[700]} />
-              <Text style={s.footerHint}>Reading what you wrote…</Text>
-            </View>
+            <LoadingShim variant="inline" label="Reading what you wrote…" />
           )}
           {!mutation.isPending && (
             <Text style={s.footerHint}>

@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -11,6 +10,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LoadingShim } from "@/components/LoadingShim";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
@@ -187,8 +187,7 @@ export function FindSimilarSheet({
 
           {isLoading ? (
             <View style={s.loadingCard}>
-              <ActivityIndicator color={KColors.sage[700]} />
-              <Text style={s.loadingText}>Kiwi is thinking…</Text>
+              <LoadingShim variant="inline" />
             </View>
           ) : matches.length === 0 ? (
             <View style={s.emptyCard}>
