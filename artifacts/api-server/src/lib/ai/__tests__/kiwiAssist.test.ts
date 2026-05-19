@@ -339,14 +339,14 @@ describe("assistDishSteps — happy path", () => {
                   content: "Bring a large pot of salted water to a boil.",
                   estimatedMinutes: 8,
                   phaseType: "preheat",
-                  parallelGroup: 1,
+                  parallelGroup: "group-1",
                 },
                 {
                   content: "Render the guanciale in a dry pan over medium heat.",
                   estimatedMinutes: 5,
                   phaseType: "cook",
                   isTimingSensitive: true,
-                  parallelGroup: 1,
+                  parallelGroup: "group-1",
                 },
                 {
                   content: "Cook the spaghetti until al dente.",

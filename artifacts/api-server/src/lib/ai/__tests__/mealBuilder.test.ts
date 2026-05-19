@@ -143,13 +143,13 @@ const THREE_SUB_DISH_PAYLOAD = {
             content: "Pat chicken dry and season with salt and pepper.",
             estimatedMinutes: 3,
             phaseType: "prep",
-            parallelGroup: 1,
+            parallelGroup: "group-1",
           },
           {
             content: "Dredge cutlets in flour.",
             estimatedMinutes: 2,
             phaseType: "prep",
-            parallelGroup: 1,
+            parallelGroup: "group-1",
           },
           {
             content: "Sear cutlets in butter until golden.",
@@ -178,7 +178,7 @@ const THREE_SUB_DISH_PAYLOAD = {
             content: "Toss arugula with vinaigrette in a large bowl.",
             estimatedMinutes: 2,
             phaseType: "assemble",
-            parallelGroup: 1,
+            parallelGroup: "group-1",
           },
           {
             content: "Top with shaved parmesan and serve.",
@@ -201,7 +201,7 @@ const THREE_SUB_DISH_PAYLOAD = {
             content: "Whisk lemon juice and mustard together.",
             estimatedMinutes: 1,
             phaseType: "prep",
-            parallelGroup: 1,
+            parallelGroup: "group-1",
           },
           {
             content: "Slowly stream in olive oil while whisking to emulsify.",
@@ -325,13 +325,13 @@ const VEGETARIAN_PAYLOAD = {
             content: "Preheat oven to 425F.",
             estimatedMinutes: 1,
             phaseType: "preheat",
-            parallelGroup: 1,
+            parallelGroup: "group-1",
           },
           {
             content: "Roast zucchini and tomatoes with garlic and oil.",
             estimatedMinutes: 18,
             phaseType: "cook",
-            parallelGroup: 1,
+            parallelGroup: "group-1",
           },
           {
             content: "Cook penne until al dente.",
@@ -556,5 +556,49 @@ describe("parseMealFromText — userHints pass-through", () => {
     if (result.status !== "success") return;
     assert.equal(result.meal.subDishes.length, 2);
     assert.ok(result.meal.tags.includes("vegetarian"));
+  });
+});
+
+// ── parallelGroup schema shape (D-WS6-034 reconciliation) ─────────────
+
+describe("AssistedStepSchema / ParsedSubDishStepSchema — parallelGroup type", () => {
+  it("accepts string identifiers per sequencer convention", async () => {
+    const { AssistedStepSchema, ParsedSubDishStepSchema } = await import(
+      "../schemas/mealBuilder"
+    );
+
+    const baseStep = {
+      content: "Bring a large pot of salted water to a boil.",
+      estimatedMinutes: 8,
+      phaseType: "preheat" as const,
+    };
+    // Sequencer convention: short string IDs like "group-1", "oven",
+    // "boil_water", "passive-1". Null is allowed for sequential steps.
+    for (const pg of ["group-1", "oven", "boil_water", "passive-1"]) {
+      const ok = AssistedStepSchema.safeParse({ ...baseStep, parallelGroup: pg });
+      assert.equal(ok.success, true, `AssistedStep should accept parallelGroup=${pg}`);
+      const ok2 = ParsedSubDishStepSchema.safeParse({ ...baseStep, parallelGroup: pg });
+      assert.equal(ok2.success, true, `ParsedSubDishStep should accept parallelGroup=${pg}`);
+    }
+    const okNull = ParsedSubDishStepSchema.safeParse({ ...baseStep, parallelGroup: null });
+    assert.equal(okNull.success, true, "ParsedSubDishStep should accept parallelGroup=null");
+    const okOmit = AssistedStepSchema.safeParse(baseStep);
+    assert.equal(okOmit.success, true, "AssistedStep should accept omitted parallelGroup");
+  });
+
+  it("rejects integer parallelGroup (regression guard against the old shape)", async () => {
+    const { AssistedStepSchema, ParsedSubDishStepSchema } = await import(
+      "../schemas/mealBuilder"
+    );
+
+    const baseStep = {
+      content: "Bring a large pot of salted water to a boil.",
+      estimatedMinutes: 8,
+      phaseType: "preheat" as const,
+    };
+    const bad1 = AssistedStepSchema.safeParse({ ...baseStep, parallelGroup: 1 });
+    assert.equal(bad1.success, false, "AssistedStep should reject integer parallelGroup");
+    const bad2 = ParsedSubDishStepSchema.safeParse({ ...baseStep, parallelGroup: 2 });
+    assert.equal(bad2.success, false, "ParsedSubDishStep should reject integer parallelGroup");
   });
 });

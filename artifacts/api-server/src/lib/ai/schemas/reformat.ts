@@ -124,8 +124,9 @@ export const IngredientSchema = z.object({
 });
 export type CanonicalIngredient = z.infer<typeof IngredientSchema>;
 
-// parallelGroup matches Prisma RecipeInstructionStep.parallelGroup (String?).
-// D-WS6-034: AssistedStep/ParsedSubDishStep use number — reconcile in WS7 / 6c-CLOSE.
+// parallelGroup matches Prisma RecipeInstructionStep.parallelGroup (String?)
+// and is now consistent across all five Zod step schemas (this one,
+// sequencer, cookNow, mealBuilder AssistedStep + ParsedSubDishStep).
 export const StepSchema = z.object({
   stepIndex: z.number().int().nonnegative(),
   stepTextRaw: z.string(),

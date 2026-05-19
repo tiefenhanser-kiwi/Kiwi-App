@@ -96,7 +96,11 @@ export const AssistedStepSchema = z.object({
   estimatedMinutes: z.number().int().positive().max(600),
   phaseType: StepPhaseTypeSchema,
   isTimingSensitive: z.boolean().optional(),
-  parallelGroup: z.number().int().positive().max(20).optional(),
+  // String identifier per sequencer convention ("group-1", "oven",
+  // "boil_water", "passive-1"). Matches Prisma RecipeInstructionStep.
+  // parallelGroup (String?) so save-canonical persistence works without
+  // a type-bridge.
+  parallelGroup: z.string().nullable().optional(),
 });
 export type AssistedStep = z.infer<typeof AssistedStepSchema>;
 
@@ -159,11 +163,10 @@ export const ParsedSubDishStepSchema = z.object({
   estimatedMinutes: z.number().int().positive().max(600),
   phaseType: StepPhaseTypeSchema,
   isTimingSensitive: z.boolean().optional(),
-  // parallelGroup is nullable here (Mode A may omit on truly-sequential
-  // steps) — Mode B's assist-steps treats it as optional+undefined; Mode A
-  // lets the model emit null explicitly when it considered the step and
-  // decided it's not parallelizable.
-  parallelGroup: z.number().int().positive().max(20).nullable().optional(),
+  // String identifier per sequencer convention ("group-1", "oven",
+  // "boil_water", "passive-1"). Nullable so Mode A can emit explicit null
+  // on truly-sequential steps after considering parallelism.
+  parallelGroup: z.string().nullable().optional(),
 });
 export type ParsedSubDishStep = z.infer<typeof ParsedSubDishStepSchema>;
 
