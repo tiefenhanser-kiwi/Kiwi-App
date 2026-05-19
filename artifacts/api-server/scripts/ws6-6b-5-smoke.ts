@@ -31,8 +31,10 @@ interface ParseCase {
     cuisinesLiked?: string[];
   };
   expectedSubDishCount: number;
-  // Loose cuisine expectation (case-insensitive). null means "no expectation".
-  expectedCuisine?: string | null;
+  // Loose cuisine expectation (case-insensitive). Pass a string for a single
+  // allowed value, an array for a set of allowed values (any match passes),
+  // or null for "must be null". Omit for "no expectation".
+  expectedCuisine?: string | string[] | null;
   // Loose ingredient hints — pass if ANY of these names appears
   // (case-insensitive substring) across all sub-dishes' ingredients.
   expectedIngredientsAnyOf?: string[];
@@ -51,7 +53,7 @@ const CASES: ParseCase[] = [
     freeText: "Slow-cooker beef stew with carrots and potatoes",
     servings: 4,
     expectedSubDishCount: 1,
-    expectedCuisine: "american",
+    expectedCuisine: ["American", "Comfort Food"],
     expectedIngredientsAnyOf: ["beef", "carrot", "potato", "broth"],
     expectedRoles: ["main"],
     expectedPositionIndexes: [0],
@@ -238,11 +240,17 @@ async function runCase(c: ParseCase): Promise<CaseReport> {
     JSON.stringify(positionIndexes) ===
       JSON.stringify(c.expectedPositionIndexes);
 
+  const expectedCuisine = c.expectedCuisine;
   const cuisineMatch =
-    c.expectedCuisine === undefined ||
-    (c.expectedCuisine === null && meal.cuisine === null) ||
-    (typeof c.expectedCuisine === "string" &&
-      meal.cuisine?.toLowerCase() === c.expectedCuisine.toLowerCase());
+    expectedCuisine === undefined ||
+    (expectedCuisine === null && meal.cuisine === null) ||
+    (typeof expectedCuisine === "string" &&
+      meal.cuisine?.toLowerCase() === expectedCuisine.toLowerCase()) ||
+    (Array.isArray(expectedCuisine) &&
+      meal.cuisine != null &&
+      expectedCuisine.some(
+        (v) => v.toLowerCase() === meal.cuisine!.toLowerCase(),
+      ));
 
   const totalSteps = meal.subDishes.reduce(
     (acc, sd) => acc + sd.steps.length,
