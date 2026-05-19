@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!cancelled) setIsLoading(false);
           return;
         }
-        const me = await fetchMe(stored);
+        const me = await fetchMe();
         if (cancelled) return;
         if (me) {
           setToken(stored);
@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = React.useCallback(async () => {
     if (token) {
-      await logoutRequest(token);
+      await logoutRequest();
     }
     await clearToken();
     setToken(null);
@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       uiStateTimerRef.current = setTimeout(() => {
         uiStateTimerRef.current = null;
         if (!token) return;
-        patchUiState(token, updates).catch((err) => {
+        patchUiState(updates).catch((err) => {
           console.warn("patchUiState sync failed:", err);
         });
       }, 400);

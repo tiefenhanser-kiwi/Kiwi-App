@@ -1,4 +1,8 @@
 import * as SecureStore from "expo-secure-store";
+import { z } from "zod";
+
+import { apiClient } from "@/lib/api/client";
+import { UnauthenticatedError } from "@/lib/api/errors";
 
 import type { User } from "./types";
 
@@ -18,9 +22,52 @@ export async function clearToken(): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
-// ── API base URL (duplicated from lib/api.ts for now; consolidate in WS7) ─
+// ── Zod schemas ──────────────────────────────────────────────────────────
+// Transcribed from the server response shapes in artifacts/api-server/src/
+// routes/auth.ts (toUserShape + toSubscriptionShape). `.passthrough()` keeps
+// the schema forward-compatible — extra server fields won't fail validation.
 
-const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api";
+const SubscriptionSchema = z
+  .object({
+    status: z.string(),
+    planCode: z.string(),
+    trialEndsAt: z.string().nullable(),
+    currentPeriodEnd: z.string().nullable(),
+  })
+  .passthrough();
+
+export const MeUserSchema = z
+  .object({
+    id: z.string(),
+    email: z.string(),
+    firstName: z.string(),
+    lastName: z.string(),
+    phone: z.string().nullable(),
+    zipCode: z.string().nullable(),
+    timezone: z.string(),
+    accountStatus: z.string(),
+    subscriptionStatus: z.string(),
+    defaultHouseholdSize: z.number(),
+    lastPlanDiscoveryFilters: z.array(z.string()),
+    lastPlansFilters: z.array(z.string()),
+    lastMealsFilters: z.array(z.string()),
+    subscription: SubscriptionSchema.nullable(),
+    createdAt: z.string(),
+  })
+  .passthrough();
+
+const MeResponseSchema = z.object({ user: MeUserSchema });
+
+export const LoginResponseSchema = z.object({
+  user: MeUserSchema,
+  authToken: z.string(),
+});
+
+export const SignupResponseSchema = z.object({
+  user: MeUserSchema,
+  authToken: z.string(),
+  onboardingRequired: z.boolean().optional(),
+});
 
 // ── Auth API calls ────────────────────────────────────────────────────────
 
@@ -43,62 +90,53 @@ export interface LoginInput {
   password: string;
 }
 
-async function parseAuthError(res: Response): Promise<string> {
-  try {
-    const body = (await res.json()) as { error?: string };
-    return body.error ?? `Request failed (${res.status})`;
-  } catch {
-    return `Request failed (${res.status})`;
-  }
-}
-
 export async function signupRequest(input: SignupInput): Promise<AuthResponse> {
-  const res = await fetch(`${apiBase}/auth/signup`, {
+  const body = await apiClient("/auth/signup", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    body: input,
+    auth: false,
+    schema: SignupResponseSchema,
   });
-  if (!res.ok) {
-    throw new Error(await parseAuthError(res));
-  }
-  return (await res.json()) as AuthResponse;
+  return { user: body.user as User, authToken: body.authToken };
 }
 
 export async function loginRequest(input: LoginInput): Promise<AuthResponse> {
-  const res = await fetch(`${apiBase}/auth/login`, {
+  const body = await apiClient("/auth/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    body: input,
+    auth: false,
+    schema: LoginResponseSchema,
   });
-  if (!res.ok) {
-    throw new Error(await parseAuthError(res));
-  }
-  return (await res.json()) as AuthResponse;
+  return { user: body.user as User, authToken: body.authToken };
 }
 
-export async function logoutRequest(token: string): Promise<void> {
+export async function logoutRequest(): Promise<void> {
   // Server-side logout is a no-op in WS2 (returns 200). We still call it
   // so future server-side revocation work has this wire already connected.
-  await fetch(`${apiBase}/auth/logout`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-  }).catch(() => {
-    // Network error on logout — proceed anyway. Client always wins on logout.
-  });
+  // "Client always wins on logout" — swallow any error (network, 401, etc.).
+  try {
+    await apiClient("/auth/logout", { method: "POST", parseAs: "none" });
+  } catch {
+    // ignore — local clearToken still happens in AuthContext.logout
+  }
 }
 
-export async function fetchMe(token: string): Promise<User | null> {
-  const res = await fetch(`${apiBase}/auth/me`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (res.status === 401) {
-    return null; // Token invalid/expired — caller should clear it.
+/**
+ * Returns the authenticated user, or null if the stored token is invalid /
+ * expired. On 401 the apiClient wrapper fires the session-expired cascade
+ * (which clears local state through AuthContext); we map to null so the
+ * bootstrap path stays clean.
+ */
+export async function fetchMe(): Promise<User | null> {
+  try {
+    const body = await apiClient("/auth/me", { schema: MeResponseSchema });
+    return body.user as User;
+  } catch (err) {
+    if (err instanceof UnauthenticatedError) {
+      return null;
+    }
+    throw err;
   }
-  if (!res.ok) {
-    throw new Error(await parseAuthError(res));
-  }
-  const body = (await res.json()) as { user: User };
-  return body.user;
 }
 
 // ── UI state (PRD §4.2.5) ─────────────────────────────────────────────────
@@ -111,24 +149,14 @@ const MEALS_FILTER_KEYS = ["my_meals", "all_meals"] as const;
 export type PlanDiscoveryFilter = (typeof FILTER_KEYS)[number];
 export type MealsFilter = (typeof MEALS_FILTER_KEYS)[number];
 
-export async function patchUiState(
-  token: string,
-  body: {
-    lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
-    lastPlansFilters?: PlanDiscoveryFilter[];
-    lastMealsFilters?: MealsFilter[];
-  },
-): Promise<void> {
-  const res = await fetch(`${apiBase}/me/ui-state`, {
+export async function patchUiState(body: {
+  lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
+  lastPlansFilters?: PlanDiscoveryFilter[];
+  lastMealsFilters?: MealsFilter[];
+}): Promise<void> {
+  await apiClient("/me/ui-state", {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
+    body,
+    parseAs: "none",
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`patchUiState failed: ${res.status} ${text}`);
-  }
 }
