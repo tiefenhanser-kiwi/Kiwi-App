@@ -3,11 +3,22 @@
 
 export const SecureStoreStub = `
 let __store = new Map();
-export function __resetForTests() { __store.clear(); }
+let __throwOn = null;
+export function __resetForTests() { __store.clear(); __throwOn = null; }
 export function __setForTests(k, v) { __store.set(k, v); }
-export async function getItemAsync(key) { return __store.get(key) ?? null; }
-export async function setItemAsync(key, value) { __store.set(key, value); }
-export async function deleteItemAsync(key) { __store.delete(key); }
+export function __setThrowOn(method) { __throwOn = method; }
+export async function getItemAsync(key) {
+  if (__throwOn === "getItemAsync") throw new Error("stub: getItemAsync forced failure");
+  return __store.get(key) ?? null;
+}
+export async function setItemAsync(key, value) {
+  if (__throwOn === "setItemAsync") throw new Error("stub: setItemAsync forced failure");
+  __store.set(key, value);
+}
+export async function deleteItemAsync(key) {
+  if (__throwOn === "deleteItemAsync") throw new Error("stub: deleteItemAsync forced failure");
+  __store.delete(key);
+}
 `;
 
 export const ImageManipulatorStub = `

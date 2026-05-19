@@ -200,7 +200,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUiState,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  // No JSX in this file — the test runner (`node --experimental-strip-types`)
+  // strips TS types but does not transform JSX. Using React.createElement
+  // keeps AuthContext loadable from the node:test infra without adding a
+  // JSX-aware transformer to the loader.
+  return React.createElement(AuthContext.Provider, { value }, children);
 }
 
 export function useAuth(): AuthContextValue {

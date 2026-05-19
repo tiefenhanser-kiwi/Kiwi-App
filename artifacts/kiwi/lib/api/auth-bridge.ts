@@ -31,7 +31,17 @@ export function emitSessionExpired(): void {
   if (cascadeInFlight) return;
   cascadeInFlight = true;
   queueMicrotask(() => {
-    for (const h of handlers) h("expired");
+    for (const h of handlers) {
+      // Each subscriber owns its own error policy (AuthContext uses
+      // try/finally to guarantee resetCascade()). We attach a no-op
+      // .catch to swallow any rejection that would otherwise leak as an
+      // unhandled rejection — leaking would crash strict-mode processes
+      // and break node:test's rejection tracking when a handler throws.
+      const result = h("expired") as unknown;
+      if (result && typeof (result as { then?: unknown }).then === "function") {
+        (result as Promise<unknown>).catch(() => {});
+      }
+    }
   });
 }
 
