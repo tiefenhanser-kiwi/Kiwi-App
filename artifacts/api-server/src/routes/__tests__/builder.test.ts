@@ -149,7 +149,7 @@ function parseMealSuccess(): ParseMealFromTextResult {
     status: "success",
     meal: {
       title: "Chicken Piccata with Arugula Salad",
-      cuisine: "italian",
+      cuisine: "Italian",
       estimatedPrepMinutes: 15,
       estimatedCookMinutes: 20,
       servingsDefault: 4,
@@ -573,7 +573,7 @@ describe("POST /api/builder/parse-meal — happy path", () => {
       meal: { title: string; cuisine: string; subDishes: unknown[] };
     };
     assert.equal(body.status, "success");
-    assert.equal(body.meal.cuisine, "italian");
+    assert.equal(body.meal.cuisine, "Italian");
     assert.equal(body.meal.subDishes.length, 1);
     assert.equal(helper.getCalls(), 1);
   });

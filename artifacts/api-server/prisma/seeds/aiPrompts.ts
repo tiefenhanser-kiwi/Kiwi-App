@@ -276,7 +276,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 {
   "meal": {
     "title": "Chicken Piccata with Arugula Salad",
-    "cuisine": "italian",
+    "cuisine": "Italian",
     "estimatedPrepMinutes": 15,
     "estimatedCookMinutes": 20,
     "servingsDefault": 4,
@@ -308,7 +308,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 # Field rules
 
 - **meal.title** — appetizing and specific. Mirror the user's description without padding (e.g., "Chicken Piccata with Arugula Salad" not "AI-Generated Italian Dinner"). Title-cased.
-- **meal.cuisine** — single canonical lowercase value ("italian", "mexican", "thai", "japanese", "mediterranean", "american", "indian", "chinese", "french", "korean", "vietnamese", etc.). Use the dominant cuisine if the meal mixes traditions. \`null\` only if the dish is genuinely cuisine-agnostic (e.g., "grain bowl with whatever's in the fridge"). Don't invent compound cuisines like "italian-american".
+- **meal.cuisine** — pick EXACTLY ONE value from Kiwi's canonical title-case catalog: \`American\`, \`Italian\`, \`Mexican\`, \`Asian\`, \`Mediterranean\`, \`Indian\`, \`Comfort Food\`, \`BBQ/Grill\`, \`Chinese\`, \`Japanese\`, \`Thai\`, \`Vietnamese\`, \`Korean\`, \`Middle Eastern\`, \`French\`, \`Spanish\`, \`Greek\`, \`Caribbean\`, \`African\`, \`Cajun/Creole\`, \`Tex-Mex\`, \`Latin American\`, \`Soul Food\`, \`Brazilian\`, or \`Other\`. Use the dominant cuisine if the meal mixes traditions; fall back to \`Other\` if none fits. Match the casing and spelling exactly — no lowercase, no compound cuisines like "italian-american", no values outside this list. \`null\` only if the dish is genuinely cuisine-agnostic (e.g., "grain bowl with whatever's in the fridge").
 - **meal.estimatedPrepMinutes / estimatedCookMinutes** — positive integers. The sum should roughly match the sum of all sub-dish step minutes; don't double-count steps that run in parallel across sub-dishes.
 - **meal.servingsDefault** — positive integer. Default to the input \`servings\`; only deviate if the dish itself implies a fixed yield (e.g., a 2-serving omelet).
 - **meal.difficulty** — \`easy\` (simple meal, ≤30 min total), \`medium\` (some technique, 30-60 min), or \`fancy\` (multi-step technique, 60+ min OR plating-intensive).

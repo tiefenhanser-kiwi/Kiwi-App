@@ -120,7 +120,7 @@ function makeThrowingClient(err: Error): FakeClient {
 const THREE_SUB_DISH_PAYLOAD = {
   meal: {
     title: "Chicken Piccata with Arugula Salad",
-    cuisine: "italian",
+    cuisine: "Italian",
     estimatedPrepMinutes: 15,
     estimatedCookMinutes: 20,
     servingsDefault: 4,
@@ -218,7 +218,7 @@ const THREE_SUB_DISH_PAYLOAD = {
 const SINGLE_DISH_PAYLOAD = {
   meal: {
     title: "Slow-Cooker Beef Stew",
-    cuisine: "american",
+    cuisine: "American",
     estimatedPrepMinutes: 15,
     estimatedCookMinutes: 360,
     servingsDefault: 4,
@@ -262,7 +262,7 @@ const SINGLE_DISH_PAYLOAD = {
 const WITH_CAVEATS_PAYLOAD = {
   meal: {
     title: "Pasta Night",
-    cuisine: "italian",
+    cuisine: "Italian",
     estimatedPrepMinutes: 10,
     estimatedCookMinutes: 15,
     servingsDefault: 4,
@@ -301,7 +301,7 @@ const WITH_CAVEATS_PAYLOAD = {
 const VEGETARIAN_PAYLOAD = {
   meal: {
     title: "Hearty Vegetarian Pasta with Side Salad",
-    cuisine: "italian",
+    cuisine: "Italian",
     estimatedPrepMinutes: 15,
     estimatedCookMinutes: 20,
     servingsDefault: 4,
@@ -413,7 +413,7 @@ describe("parseMealFromText — happy path (composite meal)", () => {
     assert.equal(result.meal.subDishes[0].role, "main");
     assert.equal(result.meal.subDishes[1].role, "side");
     assert.equal(result.meal.subDishes[2].role, "sauce");
-    assert.equal(result.meal.cuisine, "italian");
+    assert.equal(result.meal.cuisine, "Italian");
     assert.equal(result.caveats, undefined);
 
     assert.equal(fake.callCount(), 1);

@@ -1,10 +1,17 @@
 import { z } from "zod";
 
+import { CuisineTypeEnum } from "./reformat";
+
 // WS6 6b-4 — Kiwi-assist schemas for the Dish Builder / Meal Builder Mode B
 // "Help with ingredients" + "Help with steps" checkboxes. Per PRD §1.2 these
 // flows are FREE: the user supplies the dish name + (optionally) some
 // ingredients, and Kiwi fills in the rest. Server-only sub-phase; mobile
 // wiring lives in WS7.
+//
+// Cuisine fields (assist inputs + Mode A output) reuse CuisineTypeEnum from
+// reformat.ts so the entire builder pipeline speaks one cuisine vocabulary
+// — same 24+Other title-case catalog the save-canonical path persists to
+// Meal.cuisineType.
 
 // ─── Assist ingredients ──────────────────────────────────────────────────
 
@@ -21,7 +28,7 @@ export type AssistIngredientsExistingItem = z.infer<
 
 export const AssistIngredientsInputSchema = z.object({
   dishTitle: z.string().min(1).max(200),
-  cuisine: z.string().max(80).optional(),
+  cuisine: CuisineTypeEnum.optional(),
   existingIngredients: z.array(AssistIngredientsExistingItemSchema).max(40),
   servings: z.number().int().positive().max(99),
   userHints: z
@@ -71,7 +78,7 @@ export type AssistStepsIngredient = z.infer<typeof AssistStepsIngredientSchema>;
 
 export const AssistStepsInputSchema = z.object({
   dishTitle: z.string().min(1).max(200),
-  cuisine: z.string().max(80).optional(),
+  cuisine: CuisineTypeEnum.optional(),
   ingredients: z.array(AssistStepsIngredientSchema).min(1).max(40),
   servings: z.number().int().positive().max(99),
   prepTimeMinutes: z.number().int().nonnegative().max(600).optional(),
@@ -181,9 +188,10 @@ export type ParsedSubDish = z.infer<typeof ParsedSubDishSchema>;
 
 export const ParsedMealSchema = z.object({
   title: z.string().min(1).max(200),
-  // Canonical lowercase per PRD §3.4. Nullable when the description doesn't
-  // imply a cuisine (e.g. "grain bowl").
-  cuisine: z.string().min(1).max(80).nullable(),
+  // CuisineTypeEnum (title-case 24+Other) so Mode A output persists
+  // cleanly into Meal.cuisineType during save-canonical (WS7-6).
+  // Nullable when the description doesn't imply a cuisine (e.g. "grain bowl").
+  cuisine: CuisineTypeEnum.nullable(),
   estimatedPrepMinutes: z.number().int().positive().max(600),
   estimatedCookMinutes: z.number().int().positive().max(600),
   servingsDefault: z.number().int().positive().max(99),
