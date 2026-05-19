@@ -566,12 +566,12 @@ describe("computePlanMacros — aggregation + rounding", () => {
 
     // 4 days, one meal/day. Daily avg = (520 + 640 + 510 + 480) / 4 = 537.5 → 538
     assert.equal(result.perDay.length, 4);
-    assert.equal(result.dailyAverages.calories, 538);
+    assert.equal(result.dailyAverages.caloriesPerDay, 538);
     // Calories are integers (rounded to whole).
-    assert.equal(Number.isInteger(result.dailyAverages.calories), true);
+    assert.equal(Number.isInteger(result.dailyAverages.caloriesPerDay), true);
     // Grams have at most one decimal.
-    const proteinDecimals = (result.dailyAverages.proteinG.toString().split(".")[1] ?? "").length;
-    assert.ok(proteinDecimals <= 1, `proteinG ${result.dailyAverages.proteinG} should round to one decimal`);
+    const proteinDecimals = (result.dailyAverages.proteinGPerDay.toString().split(".")[1] ?? "").length;
+    assert.ok(proteinDecimals <= 1, `proteinGPerDay ${result.dailyAverages.proteinGPerDay} should round to one decimal`);
   });
 
   it("excludes unscheduled items from per-day totals but keeps them in perMeal", async () => {

@@ -44,6 +44,18 @@ export interface MacroTotals {
   fatG: number;
 }
 
+// Daily-average shape uses the per-day suffix so the field names match
+// PRD §11 "per day" framing + the mobile MacroDailyAverage type at
+// kiwi/lib/types.ts:188 (consumed by ReviewPlan.macroDailyAverage).
+// MacroTotals stays the per-meal / per-day-totals shape — they're rollups,
+// not averages, and the bare field names align with Dish.*PerServing.
+export interface DailyMacros {
+  caloriesPerDay: number;
+  proteinGPerDay: number;
+  carbsGPerDay: number;
+  fatGPerDay: number;
+}
+
 export interface DishMacroEntry {
   dishId: string;
   dishTitle: string;
@@ -67,7 +79,7 @@ export interface PerDayEntry {
 }
 
 export interface PlanMacrosResult {
-  dailyAverages: MacroTotals;
+  dailyAverages: DailyMacros;
   perDay: PerDayEntry[];
   perMeal: MealMacroEntry[];
   computedAt: string; // ISO
@@ -365,15 +377,15 @@ export async function computePlanMacros(
   const dayCount = perDay.length;
   const summed: MacroTotals = { ...ZERO };
   for (const d of perDay) addInto(summed, d.totals);
-  const dailyAverages: MacroTotals =
+  const dailyAverages: DailyMacros =
     dayCount === 0
-      ? { ...ZERO }
-      : roundTotals({
-          calories: summed.calories / dayCount,
-          proteinG: summed.proteinG / dayCount,
-          carbsG: summed.carbsG / dayCount,
-          fatG: summed.fatG / dayCount,
-        });
+      ? { caloriesPerDay: 0, proteinGPerDay: 0, carbsGPerDay: 0, fatGPerDay: 0 }
+      : {
+          caloriesPerDay: roundCalories(summed.calories / dayCount),
+          proteinGPerDay: roundGrams(summed.proteinG / dayCount),
+          carbsGPerDay: roundGrams(summed.carbsG / dayCount),
+          fatGPerDay: roundGrams(summed.fatG / dayCount),
+        };
 
   // Did any dish ship as estimated (cached-from-prior-estimation OR
   // freshly-computed)? Cached dishes that came from a prior recalc count

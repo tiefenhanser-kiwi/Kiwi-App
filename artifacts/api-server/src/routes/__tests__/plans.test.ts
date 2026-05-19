@@ -47,7 +47,12 @@ async function spinUp(deps: Parameters<typeof createPlansRouter>[0]): Promise<Ha
 const TEST_USER_ID = "test-user-plans-route";
 
 const HAPPY_RESULT: PlanMacrosResult = {
-  dailyAverages: { calories: 538, proteinG: 27, carbsG: 51.8, fatG: 22.5 },
+  dailyAverages: {
+    caloriesPerDay: 538,
+    proteinGPerDay: 27,
+    carbsGPerDay: 51.8,
+    fatGPerDay: 22.5,
+  },
   perDay: [
     { day: "Monday", totals: { calories: 520, proteinG: 28, carbsG: 38, fatG: 26 }, mealCount: 1 },
     { day: "Tuesday", totals: { calories: 640, proteinG: 26, carbsG: 65, fatG: 28 }, mealCount: 1 },
@@ -84,9 +89,32 @@ describe("POST /api/plans/:id/recalc-macros — happy path", () => {
     });
     assert.equal(res.status, 200);
     const body = (await res.json()) as PlanMacrosResult;
-    assert.equal(body.dailyAverages.calories, 538);
+    assert.equal(body.dailyAverages.caloriesPerDay, 538);
     assert.equal(calls, 1);
     assert.equal(lastPlanId, "plan-abc");
+  });
+
+  it("returns dailyAverages with the per-day-suffixed shape (D-WS6-029 contract)", async () => {
+    const token = signToken(TEST_USER_ID + "-shape");
+    const res = await fetch(`${harness.baseUrl}/plans/plan-shape/recalc-macros`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as PlanMacrosResult;
+    // Positive: the four *PerDay keys are present (matches mobile MacroDailyAverage).
+    assert.ok("caloriesPerDay" in body.dailyAverages);
+    assert.ok("proteinGPerDay" in body.dailyAverages);
+    assert.ok("carbsGPerDay" in body.dailyAverages);
+    assert.ok("fatGPerDay" in body.dailyAverages);
+    // Negative: the bare per-meal MacroTotals names are NOT present at the
+    // daily-averages level (we want a hard break on the old shape so any
+    // mobile consumer that still expects them fails loudly).
+    const bare = body.dailyAverages as unknown as Record<string, unknown>;
+    assert.equal(bare.calories, undefined);
+    assert.equal(bare.proteinG, undefined);
+    assert.equal(bare.carbsG, undefined);
+    assert.equal(bare.fatG, undefined);
   });
 });
 
