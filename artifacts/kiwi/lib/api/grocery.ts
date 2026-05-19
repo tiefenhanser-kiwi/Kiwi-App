@@ -2,26 +2,23 @@
 //   POST /api/plans/:id/generate-grocery-list — Case 1 fresh-generate.
 //   GET  /api/grocery-lists/:id — fetch a generated list + items.
 //
-// The POST helper returns a discriminated-union result that captures the
-// 409 "list exists" path (Case 1 enforcement) without throwing — callers
-// branch on `result.success` + `result.error` to either route to the new
-// list or route to the existing one. AI failure (502) surfaces as
-// `error: 'ai_failed'` with an optional message so the UI can show a
-// retry-friendly alert.
+// WS7-1 — migrated to apiClient + Zod validation.
+//
+// The POST helper opts into apiClient envelope mode and re-projects the
+// envelope into the existing discriminated-union surface (`success` +
+// per-status `error` codes) so consumers (Plan Review) stay type-safe on
+// each failure branch. The other helpers use throw mode — caller catches.
 //
 // The GET helper normalizes the server response (Prisma row + items with
 // `displayName` / `storeSection` / `unit` etc.) into the mobile-side
 // `GroceryList` / `GroceryListItem` shape used by [id].tsx so the screen
 // stays unaware of which source loaded it (real API vs demo stub).
 
-import { readToken } from "../auth";
-import type { GroceryList, GroceryListItem } from "../types";
+import { z } from "zod";
 
-const apiBase =
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  (process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-    : "http://localhost:3000/api");
+import { apiClient } from "./client";
+import { ApiError, UnauthenticatedError } from "./errors";
+import type { GroceryList, GroceryListItem } from "../types";
 
 // ─────────────────────────────────────────────────────────────────────────
 // POST /plans/:id/generate-grocery-list
@@ -35,54 +32,50 @@ export type GenerateGroceryListResult =
   | { success: false; error: "unauthenticated" }
   | { success: false; error: "unknown"; status?: number };
 
+const GenerateGroceryListSuccessSchema = z.object({
+  groceryListId: z.string(),
+});
+
 export async function generateGroceryListForPlan(
   planId: string,
 ): Promise<GenerateGroceryListResult> {
-  const token = await readToken();
-  if (!token) {
-    return { success: false, error: "unauthenticated" };
-  }
-
-  const res = await fetch(
-    `${apiBase}/plans/${encodeURIComponent(planId)}/generate-grocery-list`,
+  const res = await apiClient(
+    `/plans/${encodeURIComponent(planId)}/generate-grocery-list`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      schema: GenerateGroceryListSuccessSchema,
+      errorMode: "envelope",
     },
   );
 
-  if (res.status === 200) {
-    const body = (await res.json()) as { groceryListId: string };
-    return { success: true, groceryListId: body.groceryListId };
+  if (res.success) {
+    return { success: true, groceryListId: res.data.groceryListId };
   }
-  if (res.status === 409) {
-    const body = (await res.json()) as { existingListId: string };
-    return {
-      success: false,
-      error: "list_exists",
-      existingListId: body.existingListId,
-    };
-  }
-  if (res.status === 404) {
-    return { success: false, error: "plan_not_found" };
-  }
-  if (res.status === 401) {
+
+  const err = res.error;
+  if (err instanceof UnauthenticatedError) {
     return { success: false, error: "unauthenticated" };
   }
-  if (res.status === 502) {
-    let message: string | undefined;
-    try {
-      const body = (await res.json()) as { message?: string };
-      message = body.message;
-    } catch {
-      // ignore — keep message undefined
+  if (err instanceof ApiError) {
+    if (err.status === 409) {
+      const body = err.body as { existingListId?: string } | null;
+      return {
+        success: false,
+        error: "list_exists",
+        existingListId: body?.existingListId ?? "",
+      };
     }
-    return { success: false, error: "ai_failed", message };
+    if (err.status === 404) {
+      return { success: false, error: "plan_not_found" };
+    }
+    if (err.status === 502) {
+      const body = err.body as { message?: string } | null;
+      return { success: false, error: "ai_failed", message: body?.message };
+    }
+    return { success: false, error: "unknown", status: err.status };
   }
-  return { success: false, error: "unknown", status: res.status };
+  // ApiNetworkError / ApiSchemaError — treat as unknown.
+  return { success: false, error: "unknown" };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -92,35 +85,51 @@ export async function generateGroceryListForPlan(
 // Wire shape — mirror of the server `GroceryList` + `GroceryListItem` Prisma
 // rows the GET endpoint returns. Kept local to this module so the mobile-side
 // `GroceryList` type in lib/types.ts stays untouched.
-interface GroceryListItemWire {
-  id: string;
-  displayName: string;
-  quantity: number;
-  unit: string;
-  storeSection: GroceryListItem["sectionKey"];
-  isChecked: boolean;
-  isOptional: boolean;
-  isAmbiguous: boolean;
-  isUniversalStaple: boolean;
-  isUserPantryStaple: boolean;
-  isRecurringItem: boolean;
-  ambiguityOptions: string[];
-  userResolvedTo: string | null;
-  notes: string | null;
-}
 
-interface GroceryListWire {
-  id: string;
-  title: string;
-  mealPlanInstanceId: string | null;
-  status: "draft" | "active" | "ordered" | "archived";
-  createdAt: string;
-  items: GroceryListItemWire[];
-  planInstance: {
-    id: string;
-    isActiveThisWeek: boolean;
-  } | null;
-}
+// `sectionKey` enum is held as `z.string()` for forward-compat — the server
+// vocabulary may grow before the mobile UI surfaces a new section.
+const SectionKeySchema = z.string() as z.ZodType<GroceryListItem["sectionKey"]>;
+
+const GroceryListItemWireSchema = z
+  .object({
+    id: z.string(),
+    displayName: z.string(),
+    quantity: z.number(),
+    unit: z.string(),
+    storeSection: SectionKeySchema,
+    isChecked: z.boolean(),
+    isOptional: z.boolean(),
+    isAmbiguous: z.boolean(),
+    isUniversalStaple: z.boolean(),
+    isUserPantryStaple: z.boolean(),
+    isRecurringItem: z.boolean(),
+    ambiguityOptions: z.array(z.string()),
+    userResolvedTo: z.string().nullable(),
+    notes: z.string().nullable(),
+  })
+  .passthrough();
+
+const GroceryListWireSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    mealPlanInstanceId: z.string().nullable(),
+    status: z.enum(["draft", "active", "ordered", "archived"]),
+    createdAt: z.string(),
+    items: z.array(GroceryListItemWireSchema),
+    planInstance: z
+      .object({
+        id: z.string(),
+        isActiveThisWeek: z.boolean(),
+      })
+      .nullable(),
+  })
+  .passthrough();
+
+const GetGroceryListResponseSchema = z.object({ list: GroceryListWireSchema });
+
+type GroceryListItemWire = z.infer<typeof GroceryListItemWireSchema>;
+type GroceryListWire = z.infer<typeof GroceryListWireSchema>;
 
 // Pretty-print a numeric Float + unit pair back into a human-readable
 // "2 lbs" / "1/2 tsp" style string for the legacy `quantity` display field.
@@ -176,22 +185,9 @@ function normalizeList(wire: GroceryListWire): GroceryList {
 }
 
 export async function getGroceryList(listId: string): Promise<GroceryList> {
-  const token = await readToken();
-  if (!token) {
-    throw new Error("Not authenticated");
-  }
-
-  const res = await fetch(
-    `${apiBase}/grocery-lists/${encodeURIComponent(listId)}`,
-    {
-      method: "GET",
-      headers: { Authorization: `Bearer ${token}` },
-    },
-  );
-  if (res.status !== 200) {
-    throw new Error(`getGroceryList failed: ${res.status}`);
-  }
-  const body = (await res.json()) as { list: GroceryListWire };
+  const body = await apiClient(`/grocery-lists/${encodeURIComponent(listId)}`, {
+    schema: GetGroceryListResponseSchema,
+  });
   return normalizeList(body.list);
 }
 
@@ -220,14 +216,23 @@ export interface LookupResponse {
   candidates: GroceryItemCandidate[];
 }
 
-interface LookupCandidateWire {
-  ingredientId: string | null;
-  canonicalName: string;
-  displayName: string;
-  storeSection: GroceryListItem["sectionKey"];
-  defaultUnit: string;
-  suggestedQuantity?: string | null;
-}
+const LookupCandidateWireSchema = z
+  .object({
+    ingredientId: z.string().nullable(),
+    canonicalName: z.string(),
+    displayName: z.string(),
+    storeSection: SectionKeySchema,
+    defaultUnit: z.string(),
+    suggestedQuantity: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+const LookupResponseSchema = z.object({
+  source: z.enum(["lookup", "ai"]),
+  candidates: z.array(LookupCandidateWireSchema),
+});
+
+type LookupCandidateWire = z.infer<typeof LookupCandidateWireSchema>;
 
 function normalizeCandidate(wire: LookupCandidateWire): GroceryItemCandidate {
   return {
@@ -248,24 +253,10 @@ function normalizeCandidate(wire: LookupCandidateWire): GroceryItemCandidate {
 export async function lookupGroceryItemCandidates(
   query: string,
 ): Promise<LookupResponse> {
-  const token = await readToken();
-  if (!token) {
-    throw new Error("Not authenticated");
-  }
-  const res = await fetch(
-    `${apiBase}/grocery-items/lookup?q=${encodeURIComponent(query)}`,
-    {
-      method: "GET",
-      headers: { Authorization: `Bearer ${token}` },
-    },
+  const body = await apiClient(
+    `/grocery-items/lookup?q=${encodeURIComponent(query)}`,
+    { schema: LookupResponseSchema },
   );
-  if (res.status !== 200) {
-    throw new Error(`lookupGroceryItemCandidates failed: ${res.status}`);
-  }
-  const body = (await res.json()) as {
-    source: "lookup" | "ai";
-    candidates: LookupCandidateWire[];
-  };
   return {
     source: body.source,
     candidates: body.candidates.map(normalizeCandidate),
@@ -284,6 +275,8 @@ export interface AddItemPayload {
   ingredientId?: string | null;
 }
 
+const AddItemResponseSchema = z.object({ item: GroceryListItemWireSchema });
+
 /**
  * POST /api/grocery-lists/:listId/items
  * Creates a single item; returns the normalized mobile-side
@@ -294,10 +287,6 @@ export async function addGroceryListItem(
   listId: string,
   payload: AddItemPayload,
 ): Promise<GroceryListItem> {
-  const token = await readToken();
-  if (!token) {
-    throw new Error("Not authenticated");
-  }
   const body: Record<string, unknown> = {
     itemName: payload.itemName,
     storeSection: payload.sectionKey,
@@ -307,21 +296,14 @@ export async function addGroceryListItem(
   if (payload.ingredientId !== undefined) {
     body.ingredientId = payload.ingredientId;
   }
-  const res = await fetch(
-    `${apiBase}/grocery-lists/${encodeURIComponent(listId)}/items`,
+  const json = await apiClient(
+    `/grocery-lists/${encodeURIComponent(listId)}/items`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
+      body,
+      schema: AddItemResponseSchema,
     },
   );
-  if (res.status !== 201) {
-    throw new Error(`addGroceryListItem failed: ${res.status}`);
-  }
-  const json = (await res.json()) as { item: GroceryListItemWire };
   return normalizeListItem(json.item);
 }
 

@@ -1,20 +1,17 @@
 // Mobile client for POST /api/meals/find-similar.
 // WS6 6b-1 — replaces the cuisine-only client filter on FindSimilarSheet
 // with a real semantic-similarity AI call.
+// WS7-1 — migrated to apiClient + Zod validation.
 //
 // Contract is client-sends-full-payload: the sheet unions all four candidate
 // catalogs (saved + featured + top rated + hosting per PRD §8.4) and posts
 // them with each request. WS7 will keep the same server contract while
 // switching the client to fetch real data from the API first.
 
-import { readToken } from "../auth";
-import type { MealSummary } from "../types";
+import { z } from "zod";
 
-const apiBase =
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  (process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-    : "http://localhost:3000/api");
+import { apiClient } from "./client";
+import type { MealSummary } from "../types";
 
 // Trim shape sent to the server. Mirror of MealCandidateSchema in
 // artifacts/api-server/src/lib/ai/schemas/findSimilar.ts.
@@ -26,6 +23,29 @@ export interface MealCandidatePayload {
   keyIngredients?: string[];
   tags?: string[];
 }
+
+// ── Zod schemas ──────────────────────────────────────────────────────────
+// Transcribed from server-side findSimilar.ts + route response shape.
+// Server's FindSimilarResultSchema has only `matches`; mobile-visible
+// `metadata` is attached at the route boundary (artifacts/api-server/src/
+// routes/meals.ts:220-225).
+
+const FindSimilarMatchSchema = z.object({
+  mealId: z.string(),
+  similarityScore: z.number(),
+  reason: z.string(),
+});
+
+const FindSimilarResponseSchema = z.object({
+  matches: z.array(FindSimilarMatchSchema),
+  metadata: z
+    .object({
+      promptVersion: z.number().nullable(),
+      latencyMs: z.number(),
+      mode: z.enum(["ai", "fallback_cuisine"]),
+    })
+    .optional(),
+});
 
 export interface FindSimilarMatch {
   mealId: string;
@@ -62,27 +82,9 @@ export function mealSummaryToCandidate(meal: MealSummary): MealCandidatePayload 
 export async function findSimilarMeals(
   input: FindSimilarRequest,
 ): Promise<FindSimilarResponse> {
-  const token = await readToken();
-  if (!token) {
-    throw new Error("Not authenticated");
-  }
-  const res = await fetch(`${apiBase}/meals/find-similar`, {
+  return apiClient("/meals/find-similar", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(input),
+    body: input,
+    schema: FindSimilarResponseSchema,
   });
-  if (!res.ok) {
-    let detail = `HTTP ${res.status}`;
-    try {
-      const body = (await res.json()) as { error?: string };
-      if (typeof body.error === "string") detail = body.error;
-    } catch {
-      // body wasn't JSON; keep the HTTP-status detail
-    }
-    throw new Error(detail);
-  }
-  return (await res.json()) as FindSimilarResponse;
 }

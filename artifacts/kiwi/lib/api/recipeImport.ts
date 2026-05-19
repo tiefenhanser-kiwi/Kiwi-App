@@ -1,7 +1,17 @@
-// Mobile client for POST /api/recipes/import-url (WS6 6c-1) and
-// POST /api/recipes/import-image (WS6 6c-2). Calls the server endpoint and
-// adapts the canonical recipe response into the DraftMeal shape the existing
-// meal-review/edit screen consumes.
+// Mobile client for POST /api/recipes/import-url (WS6 6c-1),
+// POST /api/recipes/import-image (WS6 6c-2), POST /api/recipes/import-text
+// (WS6 6c-3). Calls the server endpoint and adapts the canonical recipe
+// response into the DraftMeal shape the existing meal-review/edit screen
+// consumes.
+//
+// WS7-1 — migrated to apiClient (envelope mode) + Zod validation.
+//
+// Server contract is "typed envelope": 200 status for both success
+// (`{ success: true, recipe, source, sourceUrl, caveats }`) and per-flow
+// failure (`{ success: false, reason, userFacingMessage, suggestedAction }`).
+// Caller stays on the typed result; wrapper envelope only surfaces for
+// 4xx/5xx (which we translate to the same union via `sdk_error` /
+// `rate_limited`).
 //
 // The canonical → DraftMeal adapter is a deliberate throwaway: it lives at
 // the client boundary so the rest of the app stays on the legacy DraftMeal
@@ -10,107 +20,120 @@
 // adapter.
 
 import * as ImageManipulator from "expo-image-manipulator";
+import { z } from "zod";
 
-import { readToken } from "../auth";
+import { apiClient } from "./client";
+import { ApiError } from "./errors";
 import type { DraftMeal, ReviewMealDish, ReviewMealStep } from "../types";
 
-const apiBase =
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  (process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-    : "http://localhost:3000/api");
-
 // ─────────────────────────────────────────────────────────────────
-// Wire shapes — mirror artifacts/api-server/src/lib/ai/schemas/reformat.ts
+// Zod schemas — mirror artifacts/api-server/src/lib/ai/schemas/reformat.ts
+// `.passthrough()` everywhere because the canonical recipe shape is
+// still expanding (Block C audit flagged it as "broad and partial").
 // ─────────────────────────────────────────────────────────────────
 
-interface CanonicalIngredientWire {
-  name: string;
-  quantity: number;
-  unit: string;
-  preparationNote?: string;
-  isOptional?: boolean;
-}
+const CanonicalIngredientWireSchema = z
+  .object({
+    name: z.string(),
+    quantity: z.number(),
+    unit: z.string(),
+    preparationNote: z.string().optional(),
+    isOptional: z.boolean().optional(),
+  })
+  .passthrough();
 
-interface CanonicalStepWire {
-  stepIndex: number;
-  stepTextRaw: string;
-  stepTextTranslated: string;
-  estimatedMinutes: number;
-  phaseType: string;
-  parallelGroup?: string | null;
-  requiresPreheat: boolean;
-  requiresRest: boolean;
-  requiresMarination: boolean;
-  isTimingSensitive: boolean;
-}
+const CanonicalStepWireSchema = z
+  .object({
+    stepIndex: z.number(),
+    stepTextRaw: z.string(),
+    stepTextTranslated: z.string(),
+    estimatedMinutes: z.number(),
+    phaseType: z.string(),
+    parallelGroup: z.string().nullable().optional(),
+    requiresPreheat: z.boolean(),
+    requiresRest: z.boolean(),
+    requiresMarination: z.boolean(),
+    isTimingSensitive: z.boolean(),
+  })
+  .passthrough();
 
-interface CanonicalDishWire {
-  title: string;
-  role: string;
-  positionIndex?: number;
-  ingredients: CanonicalIngredientWire[];
-  steps?: CanonicalStepWire[];
-}
+const CanonicalDishWireSchema = z
+  .object({
+    title: z.string(),
+    role: z.string(),
+    positionIndex: z.number().optional(),
+    ingredients: z.array(CanonicalIngredientWireSchema),
+    steps: z.array(CanonicalStepWireSchema).optional(),
+  })
+  .passthrough();
 
-interface CanonicalMealMetaWire {
-  title: string;
-  description?: string;
-  cuisineType: string;
-  mealType: string;
-  estimatedTimeMinutes: number;
-  difficulty: "easy" | "medium" | "fancy";
-  servingsDefault: number;
-  sourceUrl?: string;
-  tags?: string[];
-}
+const CanonicalMealMetaWireSchema = z
+  .object({
+    title: z.string(),
+    description: z.string().optional(),
+    cuisineType: z.string(),
+    mealType: z.string(),
+    estimatedTimeMinutes: z.number(),
+    difficulty: z.enum(["easy", "medium", "fancy"]),
+    servingsDefault: z.number(),
+    sourceUrl: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  })
+  .passthrough();
 
-export interface CanonicalRecipeContentWire {
-  meal: CanonicalMealMetaWire;
-  dishes: CanonicalDishWire[];
-}
+const CanonicalRecipeContentWireSchema = z
+  .object({
+    meal: CanonicalMealMetaWireSchema,
+    dishes: z.array(CanonicalDishWireSchema),
+  })
+  .passthrough();
 
-// 6c-3 — source widened to include 'image' and 'text' for the image/text routes.
-// The URL endpoint still only returns 'structured_data' | 'ai_fallback' at
-// runtime; consumers should narrow against sourceUrl !== null when needed.
-interface ImportUrlSuccessResponse {
-  success: true;
-  recipe: CanonicalRecipeContentWire;
-  source: "structured_data" | "ai_fallback" | "image" | "text";
-  sourceUrl: string | null;
-  caveats?: string[];
-}
+export type CanonicalRecipeContentWire = z.infer<
+  typeof CanonicalRecipeContentWireSchema
+>;
 
-interface ImportUrlFailureResponse {
-  success: false;
-  reason: "url_parse_failed" | "fetch_error" | "rate_limited" | "sdk_error";
-  userFacingMessage: string;
-  suggestedAction: "try_image_import";
-  internalError?: string;
-}
+// ── Per-endpoint response envelopes ──────────────────────────────────────
 
-export type URLImportResult = ImportUrlSuccessResponse | ImportUrlFailureResponse;
+const SuccessSourceSchema = z.enum([
+  "structured_data",
+  "ai_fallback",
+  "image",
+  "text",
+]);
 
-interface ImportImageFailureResponse {
-  success: false;
-  reason: "url_parse_failed" | "rate_limited" | "sdk_error";
-  userFacingMessage: string;
-  suggestedAction: "try_text_import";
-  internalError?: string;
-}
+// success branch is shared across all three endpoints — server returns the
+// same envelope for url / image / text imports (with different `source`
+// discriminants). The success body schema is reused as-is.
+const ImportSuccessSchema = z
+  .object({
+    success: z.literal(true),
+    recipe: CanonicalRecipeContentWireSchema,
+    source: SuccessSourceSchema,
+    sourceUrl: z.string().nullable(),
+    caveats: z.array(z.string()).optional(),
+  })
+  .passthrough();
 
-type ImageImportResult = ImportUrlSuccessResponse | ImportImageFailureResponse;
+// Failure branches: per-endpoint `reason` enums and `suggestedAction` enums.
+// We use the most-permissive shape (a `z.string()` for both) so a new server-
+// added reason doesn't fail validation in the mobile client. Consumers narrow
+// to known reasons only.
+const ImportFailureSchema = z
+  .object({
+    success: z.literal(false),
+    reason: z.string(),
+    userFacingMessage: z.string(),
+    suggestedAction: z.string().optional(),
+    internalError: z.string().optional(),
+  })
+  .passthrough();
 
-// 6c-3 — text import suggests image as the cleanest fallback for a failed paste.
-interface ImportTextFailureResponse {
-  success: false;
-  reason: "url_parse_failed" | "rate_limited" | "sdk_error";
-  userFacingMessage: string;
-  suggestedAction: "try_image_import";
-  internalError?: string;
-}
+const ImportEnvelopeSchema = z.discriminatedUnion("success", [
+  ImportSuccessSchema,
+  ImportFailureSchema,
+]);
 
-type TextImportResult = ImportUrlSuccessResponse | ImportTextFailureResponse;
+type ImportEnvelope = z.infer<typeof ImportEnvelopeSchema>;
 
 // ─────────────────────────────────────────────────────────────────
 // Adapter — canonical recipe → DraftMeal (legacy flat shape)
@@ -167,6 +190,35 @@ function canonicalToDraftMeal(
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Shared envelope → typed-result projector
+// ─────────────────────────────────────────────────────────────────
+
+function rateLimitedFailure(): {
+  success: false;
+  reason: "rate_limited";
+  userFacingMessage: string;
+} {
+  return {
+    success: false,
+    reason: "rate_limited",
+    userFacingMessage:
+      "Kiwi is catching up on imports — give it a moment and try again.",
+  };
+}
+
+function sdkErrorFailure(): {
+  success: false;
+  reason: "sdk_error";
+  userFacingMessage: string;
+} {
+  return {
+    success: false,
+    reason: "sdk_error",
+    userFacingMessage: "Kiwi couldn't read this recipe. Try again in a moment.",
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────
 
@@ -184,57 +236,48 @@ export type ImportRecipeFromUrlResult =
   | {
       success: false;
       userFacingMessage: string;
-      reason: ImportUrlFailureResponse["reason"];
+      reason: "url_parse_failed" | "fetch_error" | "rate_limited" | "sdk_error";
     };
 
 export async function importRecipeFromUrl(
   opts: ImportRecipeFromUrlOptions,
 ): Promise<ImportRecipeFromUrlResult> {
-  const token = await readToken();
-  if (!token) {
-    throw new Error("Not authenticated");
-  }
-
-  const res = await fetch(`${apiBase}/recipes/import-url`, {
+  const res = await apiClient("/recipes/import-url", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ url: opts.url }),
+    body: { url: opts.url },
+    schema: ImportEnvelopeSchema,
+    errorMode: "envelope",
   });
 
-  if (res.status === 429) {
-    return {
-      success: false,
-      reason: "rate_limited",
-      userFacingMessage:
-        "Kiwi is catching up on imports — give it a moment and try again.",
-    };
-  }
+  return projectUrlResult(res);
+}
 
-  let body: URLImportResult;
-  try {
-    body = (await res.json()) as URLImportResult;
-  } catch {
-    return {
-      success: false,
-      reason: "sdk_error",
-      userFacingMessage:
-        "Kiwi couldn't read this recipe. Try again in a moment.",
-    };
+function projectUrlResult(
+  res: { success: true; data: ImportEnvelope } | { success: false; error: unknown },
+): ImportRecipeFromUrlResult {
+  if (!res.success) {
+    const err = res.error;
+    if (err instanceof ApiError && err.status === 429) {
+      return rateLimitedFailure();
+    }
+    return sdkErrorFailure();
   }
-
+  const body = res.data;
   if (!body.success) {
+    // Server `reason` is widened to `z.string()` in the schema for forward-
+    // compat. Cast back to the consumer-facing union — unknown reasons fall
+    // through as the literal string and consumers default to a generic
+    // "import failed" treatment.
     return {
       success: false,
-      reason: body.reason,
+      reason: body.reason as
+        | "url_parse_failed"
+        | "fetch_error"
+        | "rate_limited"
+        | "sdk_error",
       userFacingMessage: body.userFacingMessage,
     };
   }
-
-  // Wire `source` union includes 'image' (Block C shared type) but the URL
-  // endpoint only ever returns 'structured_data' | 'ai_fallback' at runtime.
   return {
     success: true,
     draft: canonicalToDraftMeal(body.recipe, body.sourceUrl),
@@ -261,7 +304,7 @@ export type ImportRecipeFromImageResult =
   | {
       success: false;
       userFacingMessage: string;
-      reason: ImportImageFailureResponse["reason"];
+      reason: "url_parse_failed" | "rate_limited" | "sdk_error";
     };
 
 // 1568px @ JPEG 0.7 per Anthropic vision API recommendation — keeps payloads
@@ -301,11 +344,6 @@ async function prepareImageForUpload(
 export async function importRecipeFromImage(
   opts: ImportRecipeFromImageOptions,
 ): Promise<ImportRecipeFromImageResult> {
-  const token = await readToken();
-  if (!token) {
-    throw new Error("Not authenticated");
-  }
-
   let images: { mediaType: "image/jpeg"; data: string }[];
   try {
     images = await Promise.all(opts.imageUris.map(prepareImageForUpload));
@@ -318,44 +356,28 @@ export async function importRecipeFromImage(
     };
   }
 
-  const res = await fetch(`${apiBase}/recipes/import-image`, {
+  const res = await apiClient("/recipes/import-image", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ images }),
+    body: { images },
+    schema: ImportEnvelopeSchema,
+    errorMode: "envelope",
   });
 
-  if (res.status === 429) {
-    return {
-      success: false,
-      reason: "rate_limited",
-      userFacingMessage:
-        "Kiwi is catching up on imports — give it a moment and try again.",
-    };
+  if (!res.success) {
+    const err = res.error;
+    if (err instanceof ApiError && err.status === 429) {
+      return rateLimitedFailure();
+    }
+    return sdkErrorFailure();
   }
-
-  let body: ImageImportResult;
-  try {
-    body = (await res.json()) as ImageImportResult;
-  } catch {
-    return {
-      success: false,
-      reason: "sdk_error",
-      userFacingMessage:
-        "Kiwi couldn't read this recipe. Try again in a moment.",
-    };
-  }
-
+  const body = res.data;
   if (!body.success) {
     return {
       success: false,
-      reason: body.reason,
+      reason: body.reason as "url_parse_failed" | "rate_limited" | "sdk_error",
       userFacingMessage: body.userFacingMessage,
     };
   }
-
   return {
     success: true,
     draft: canonicalToDraftMeal(body.recipe, body.sourceUrl),
@@ -382,55 +404,34 @@ export type ImportRecipeFromTextResult =
   | {
       success: false;
       userFacingMessage: string;
-      reason: ImportTextFailureResponse["reason"];
+      reason: "url_parse_failed" | "rate_limited" | "sdk_error";
     };
 
 export async function importRecipeFromText(
   opts: ImportRecipeFromTextOptions,
 ): Promise<ImportRecipeFromTextResult> {
-  const token = await readToken();
-  if (!token) {
-    throw new Error("Not authenticated");
-  }
-
-  const res = await fetch(`${apiBase}/recipes/import-text`, {
+  const res = await apiClient("/recipes/import-text", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ rawText: opts.rawText }),
+    body: { rawText: opts.rawText },
+    schema: ImportEnvelopeSchema,
+    errorMode: "envelope",
   });
 
-  if (res.status === 429) {
-    return {
-      success: false,
-      reason: "rate_limited",
-      userFacingMessage:
-        "Kiwi is catching up on imports — give it a moment and try again.",
-    };
+  if (!res.success) {
+    const err = res.error;
+    if (err instanceof ApiError && err.status === 429) {
+      return rateLimitedFailure();
+    }
+    return sdkErrorFailure();
   }
-
-  let body: TextImportResult;
-  try {
-    body = (await res.json()) as TextImportResult;
-  } catch {
-    return {
-      success: false,
-      reason: "sdk_error",
-      userFacingMessage:
-        "Kiwi couldn't read this recipe. Try again in a moment.",
-    };
-  }
-
+  const body = res.data;
   if (!body.success) {
     return {
       success: false,
-      reason: body.reason,
+      reason: body.reason as "url_parse_failed" | "rate_limited" | "sdk_error",
       userFacingMessage: body.userFacingMessage,
     };
   }
-
   return {
     success: true,
     draft: canonicalToDraftMeal(body.recipe, body.sourceUrl),
