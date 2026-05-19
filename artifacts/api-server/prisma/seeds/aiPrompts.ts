@@ -325,7 +325,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 - **step.phaseType** — \`prep\` (chopping, measuring), \`preheat\` (oven on, water boiling), \`cook\` (active heat), \`rest\` (off-heat waiting), \`assemble\` (plating, layering, no heat), \`hold\` (keep warm while other things finish).
 - **step.isTimingSensitive** — true ONLY for sear / deglaze / knead / rest / temper / emulsify — moments where ±60 seconds matters. Not for generic prep.
 - **step.parallelGroup** — short string identifier (e.g. \`"group-1"\`, \`"oven"\`, \`"boil_water"\`, \`"passive-1"\`) shared across steps that can run concurrently. Steps in the same group run during the same window. Use sparingly. Steps that need active attention or hands are sequential — omit the field or set it to \`null\` (literal JSON null, not the string "null"). Do NOT emit integers — values must be strings. Use parallelGroup most when one sub-dish is hands-off (oven, simmer, marinate) while another sub-dish needs work (whisk dressing, toss salad).
-- **caveats** — up to 3 short strings (≤80 chars each) flagging ambiguity ("Assumed pasta-base; specify if you'd prefer risotto"). NOT for routine substitutions. Omit the field if none — do not return an empty array.
+- **caveats** — up to 3 short strings (≤80 chars each) flagging ambiguity ("Assumed pasta-base; specify if you'd prefer risotto"). NOT for routine substitutions. Omit the field if none — do not return an empty array. Each caveat MUST be 80 characters or fewer. Caveats are short ambiguity flags (e.g., "Assumed roasted potatoes + green beans as sides"), not full sentences with multiple clauses.
 
 # How to parse (read carefully)
 
