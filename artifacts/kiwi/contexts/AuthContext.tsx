@@ -1,5 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import React from "react";
 
+import { resetCascade, subscribeSessionEvents } from "@/lib/api/auth-bridge";
 import {
   clearToken,
   fetchMe,
@@ -39,6 +41,7 @@ interface AuthContextValue {
 const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = React.useState<User | null>(null);
   const [token, setToken] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -46,6 +49,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const uiStateTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+
+  // Subscribe to the apiClient 401 cascade. Any 401 (or missing-token call
+  // with auth required) anywhere in the app fires `emitSessionExpired()`;
+  // this handler clears local session state and resets the cascade flag so
+  // a subsequent expiry can fire again. Idempotent against already-cleared
+  // state — bootstrap-time 401s use this same path.
+  React.useEffect(() => {
+    return subscribeSessionEvents(async (event) => {
+      if (event !== "expired") return;
+      try {
+        await clearToken();
+        queryClient.removeQueries({ queryKey: ["auth", "me"] });
+        setToken(null);
+        setUser(null);
+        setError("Your session expired. Please sign in again.");
+      } finally {
+        resetCascade();
+      }
+    });
+  }, [queryClient]);
 
   // On app boot: read stored token, hit /auth/me to validate + populate user.
   React.useEffect(() => {

@@ -20,7 +20,18 @@ import { AuthProvider } from "@/contexts/AuthContext";
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+// React Query defaults — see lib/api/README.md for the per-query staleTime
+// tiers (auth = Infinity, catalog = 5 min, personal = 60 s, hot = 0). The
+// default below applies to queries that don't override staleTime.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+      staleTime: 60_000,
+    },
+  },
+});
 
 function RootLayoutNav() {
   return (
