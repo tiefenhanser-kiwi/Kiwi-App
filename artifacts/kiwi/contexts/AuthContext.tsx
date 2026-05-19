@@ -2,9 +2,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import React from "react";
 
 import { resetCascade, subscribeSessionEvents } from "@/lib/api/auth-bridge";
+import { useAuthMe } from "@/lib/api/auth";
 import {
   clearToken,
-  fetchMe,
   loginRequest,
   logoutRequest,
   patchUiState,
@@ -40,15 +40,40 @@ interface AuthContextValue {
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
 
+const ME_KEY = ["auth", "me"] as const;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const [user, setUser] = React.useState<User | null>(null);
   const [token, setToken] = React.useState<string | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
+  // `storageRead` distinguishes "still reading SecureStore" (which is async
+  // on every cold start) from "no token present". useAuthMe's `enabled`
+  // flag covers the second half — the meQuery's `isLoading` is only true
+  // while an active fetch is in flight.
+  const [storageRead, setStorageRead] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const uiStateTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+
+  const meQuery = useAuthMe(token);
+  const user = meQuery.data ?? null;
+  const isBootstrapping = !storageRead || (!!token && meQuery.isLoading);
+
+  // One-time SecureStore read on mount. When a stored token is present,
+  // place it in React state so useAuthMe's `enabled` flips and the
+  // /auth/me query fires.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await readToken();
+      if (cancelled) return;
+      if (stored) setToken(stored);
+      setStorageRead(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Subscribe to the apiClient 401 cascade. Any 401 (or missing-token call
   // with auth required) anywhere in the app fires `emitSessionExpired()`;
@@ -60,9 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event !== "expired") return;
       try {
         await clearToken();
-        queryClient.removeQueries({ queryKey: ["auth", "me"] });
+        queryClient.removeQueries({ queryKey: ["auth"] });
         setToken(null);
-        setUser(null);
         setError("Your session expired. Please sign in again.");
       } finally {
         resetCascade();
@@ -70,53 +94,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, [queryClient]);
 
-  // On app boot: read stored token, hit /auth/me to validate + populate user.
-  React.useEffect(() => {
-    let cancelled = false;
-
-    const bootstrap = async () => {
+  const login = React.useCallback(
+    async (email: string, password: string) => {
+      setError(null);
       try {
-        const stored = await readToken();
-        if (!stored) {
-          if (!cancelled) setIsLoading(false);
-          return;
-        }
-        const me = await fetchMe();
-        if (cancelled) return;
-        if (me) {
-          setToken(stored);
-          setUser(me);
-        } else {
-          // Token invalid — clear it silently.
-          await clearToken();
-        }
-      } catch {
-        // Network error during boot — treat as unauthenticated but don't
-        // clear token (might be a transient offline state).
-      } finally {
-        if (!cancelled) setIsLoading(false);
+        const res = await loginRequest({ email, password });
+        await storeToken(res.authToken);
+        queryClient.setQueryData<User | null>(ME_KEY, res.user);
+        setToken(res.authToken);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Login failed";
+        setError(message);
+        throw err;
       }
-    };
-
-    bootstrap();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const login = React.useCallback(async (email: string, password: string) => {
-    setError(null);
-    try {
-      const res = await loginRequest({ email, password });
-      await storeToken(res.authToken);
-      setToken(res.authToken);
-      setUser(res.user);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Login failed";
-      setError(message);
-      throw err;
-    }
-  }, []);
+    },
+    [queryClient],
+  );
 
   const signup = React.useCallback(
     async (
@@ -142,15 +135,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           timezone,
         });
         await storeToken(res.authToken);
+        queryClient.setQueryData<User | null>(ME_KEY, res.user);
         setToken(res.authToken);
-        setUser(res.user);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Signup failed";
         setError(message);
         throw err;
       }
     },
-    [],
+    [queryClient],
   );
 
   const logout = React.useCallback(async () => {
@@ -158,10 +151,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await logoutRequest();
     }
     await clearToken();
+    queryClient.removeQueries({ queryKey: ["auth"] });
     setToken(null);
-    setUser(null);
     setError(null);
-  }, [token]);
+  }, [token, queryClient]);
 
   const clearError = React.useCallback(() => {
     setError(null);
@@ -178,7 +171,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastPlansFilters?: PlanDiscoveryFilter[];
       lastMealsFilters?: MealsFilter[];
     }) => {
-      setUser((prev) => (prev ? { ...prev, ...updates } : prev));
+      queryClient.setQueryData<User | null>(ME_KEY, (prev) =>
+        prev ? { ...prev, ...updates } : prev,
+      );
 
       if (uiStateTimerRef.current) clearTimeout(uiStateTimerRef.current);
       uiStateTimerRef.current = setTimeout(() => {
@@ -189,14 +184,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }, 400);
     },
-    [token],
+    [token, queryClient],
   );
 
   const value: AuthContextValue = {
     user,
     token,
     isAuthenticated: !!token && !!user,
-    isLoading,
+    isLoading: isBootstrapping,
     error,
     login,
     signup,
