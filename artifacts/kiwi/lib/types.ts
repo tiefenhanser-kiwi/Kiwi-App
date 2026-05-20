@@ -73,6 +73,10 @@ export interface User {
   lastPlanDiscoveryFilters: string[];
   lastPlansFilters: string[];
   lastMealsFilters: string[];
+  /** WS7-2 Block A routing flag — gates onboarding vs (tabs) after login. */
+  onboardingComplete: boolean;
+  /** WS7-2 Block A routing flag — gates the first-run-destination screen. */
+  firstRunChoiceMade: boolean;
   subscription: Subscription | null;
   createdAt: string;
 }

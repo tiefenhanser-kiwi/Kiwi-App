@@ -65,6 +65,8 @@ function makeUser(overrides: Partial<User> = {}): User {
     lastPlanDiscoveryFilters: [],
     lastPlansFilters: [],
     lastMealsFilters: [],
+    onboardingComplete: false,
+    firstRunChoiceMade: false,
     subscription: null,
     createdAt: "2026-01-01T00:00:00Z",
     ...overrides,

@@ -23,6 +23,8 @@ const VALID_USER = {
   lastPlanDiscoveryFilters: [],
   lastPlansFilters: [],
   lastMealsFilters: [],
+  onboardingComplete: false,
+  firstRunChoiceMade: false,
   subscription: null,
   createdAt: "2026-05-19T00:00:00.000Z",
 };
@@ -50,6 +52,22 @@ test("MeUserSchema accepts a nested Subscription block", () => {
   };
   const parsed = MeUserSchema.parse(withSub);
   assert.equal(parsed.subscription?.planCode, "free");
+});
+
+test("MeUserSchema requires the WS7-2 routing flags", () => {
+  // Present + typed — the widened schema surfaces them on the parse output.
+  const parsed = MeUserSchema.parse({
+    ...VALID_USER,
+    onboardingComplete: true,
+    firstRunChoiceMade: true,
+  });
+  assert.equal(parsed.onboardingComplete, true);
+  assert.equal(parsed.firstRunChoiceMade, true);
+
+  // Missing — required, so a payload without them fails validation.
+  const { onboardingComplete: _o, firstRunChoiceMade: _f, ...withoutFlags } =
+    VALID_USER;
+  assert.equal(MeUserSchema.safeParse(withoutFlags).success, false);
 });
 
 test("MeUserSchema passes through unknown extra fields", () => {

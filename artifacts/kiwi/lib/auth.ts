@@ -51,6 +51,9 @@ export const MeUserSchema = z
     lastPlanDiscoveryFilters: z.array(z.string()),
     lastPlansFilters: z.array(z.string()),
     lastMealsFilters: z.array(z.string()),
+    // WS7-2 Block A routing flags — consumed by post-login navigation.
+    onboardingComplete: z.boolean(),
+    firstRunChoiceMade: z.boolean(),
     subscription: SubscriptionSchema.nullable(),
     createdAt: z.string(),
   })
