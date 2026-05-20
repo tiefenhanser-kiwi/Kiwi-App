@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  Alert,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -15,7 +14,6 @@ import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 const CONFIRM_PHRASE = "deactivate";
@@ -31,41 +29,29 @@ const WARNING_BULLETS = [
 
 export default function DeactivateAccount() {
   const router = useRouter();
-  const auth = useAuth();
   const { deactivateAccount } = useApp();
 
   const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isConfirmed = input.trim().toLowerCase() === CONFIRM_PHRASE;
 
-  const handleConfirmDeactivate = () => {
+  // The mutator soft-deletes the account server-side then drops the local
+  // session (logout). On success the user lands back on the welcome screen.
+  const handleConfirmDeactivate = async () => {
     Keyboard.dismiss();
+    if (!isConfirmed || busy) return;
 
-    if (!isConfirmed) {
-      Alert.alert("Type 'deactivate' to confirm");
-      return;
+    setError(null);
+    setBusy(true);
+    try {
+      await deactivateAccount();
+      router.replace("/(auth)/welcome");
+    } catch {
+      setError("Couldn't deactivate your account. Please try again.");
+      setBusy(false);
     }
-
-    console.log("[deactivate-account] confirmed");
-    void deactivateAccount();
-
-    Alert.alert(
-      "Coming in WS7 — real deactivation",
-      "Soft-deleting accounts requires the API client. For WS5, you'll be logged out so the flow feels real.",
-      [
-        {
-          text: "OK",
-          onPress: async () => {
-            try {
-              await auth.logout();
-            } catch {
-              console.log("[deactivate-account] logout fallback");
-            }
-            router.replace("/(auth)/welcome");
-          },
-        },
-      ],
-    );
   };
 
   return (
@@ -119,9 +105,11 @@ export default function DeactivateAccount() {
           <Button
             label="Deactivate account"
             variant="terra"
-            disabled={!isConfirmed}
+            loading={busy}
+            disabled={!isConfirmed || busy}
             onPress={handleConfirmDeactivate}
           />
+          {error && <Text style={s.errorText}>{error}</Text>}
           <Pressable
             onPress={() => router.back()}
             hitSlop={6}
@@ -220,6 +208,13 @@ const s = StyleSheet.create({
     marginTop: KSpacing.lg,
     gap: KSpacing.sm,
     alignItems: "center",
+  },
+  errorText: {
+    fontSize: KType.size.sm,
+    color: KColors.terracotta[700],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+    textAlign: "center",
   },
   cancelLink: {
     paddingVertical: KSpacing.sm,
