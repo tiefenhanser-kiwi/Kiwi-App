@@ -97,3 +97,85 @@ describe("GET /auth/me — onboarding + first-run-choice widening (WS7-2 Block A
     assert.equal(body.user.subscription.planCode, "free");
   });
 });
+
+describe("POST /auth/signup — fresh user is not onboarded (WS7-2-E Bug 2)", () => {
+  let harness: Harness;
+
+  // Captures the `data` passed to user.create so the test can assert the
+  // signup handler does NOT force onboardingComplete true — it must rely on
+  // the Prisma schema default (false) so the routing state machine resumes
+  // a bailed-out onboarding on re-login.
+  let createdUserData: Record<string, unknown> | null = null;
+
+  const prisma = {
+    user: {
+      findUnique: async () => null,
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        createdUserData = data;
+        return {
+          id: "test-user-signup-fresh",
+          email: data.email,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: null,
+          zipCode: null,
+          timezone: data.timezone ?? "America/New_York",
+          accountStatus: "active",
+          subscriptionStatus: "trialing",
+          defaultHouseholdSize: 2,
+          lastPlanDiscoveryFilters: [],
+          lastPlansFilters: [],
+          lastMealsFilters: [],
+          marketingConsentEmail: false,
+          marketingConsentSms: false,
+          // Schema defaults — applied by Prisma, not the handler.
+          onboardingComplete: false,
+          firstRunChoiceMade: false,
+          createdAt: new Date("2026-05-20T00:00:00Z"),
+        };
+      },
+    },
+    subscription: {
+      create: async () => ({
+        status: "trialing",
+        planCode: "free",
+        trialEndsAt: new Date("2026-06-19T00:00:00Z"),
+        currentPeriodEnd: null,
+      }),
+    },
+    $transaction: async (
+      fn: (tx: unknown) => Promise<unknown>,
+    ): Promise<unknown> => fn(prisma),
+  };
+
+  before(async () => {
+    harness = await spinUp(prisma);
+  });
+  after(async () => harness.close());
+
+  it("creates a user with onboardingComplete + firstRunChoiceMade false", async () => {
+    const res = await fetch(`${harness.baseUrl}/auth/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "fresh@example.com",
+        password: "password123",
+        firstName: "Fresh",
+        lastName: "Signup",
+      }),
+    });
+    assert.equal(res.status, 201);
+    const body = (await res.json()) as {
+      user: { onboardingComplete: boolean; firstRunChoiceMade: boolean };
+      onboardingRequired: boolean;
+    };
+    assert.equal(body.user.onboardingComplete, false);
+    assert.equal(body.user.firstRunChoiceMade, false);
+    assert.equal(body.onboardingRequired, true);
+    // The handler must not write onboardingComplete itself — relying on the
+    // Prisma schema default is what lets a bailed onboarding resume.
+    assert.ok(createdUserData);
+    assert.equal(createdUserData.onboardingComplete, undefined);
+    assert.equal(createdUserData.firstRunChoiceMade, undefined);
+  });
+});

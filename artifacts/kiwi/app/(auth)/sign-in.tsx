@@ -23,7 +23,9 @@ export default function SignInPage() {
     setSubmitting(true);
     try {
       await login(email.trim(), password);
-      router.replace("/(tabs)");
+      // Route through index.tsx's state machine (WS7-2-E Bug 2) so a user
+      // who bailed mid-onboarding resumes at the right gate on re-login.
+      router.replace("/");
     } catch {
       // Error is already in context.error; submit button re-enables below.
     } finally {
