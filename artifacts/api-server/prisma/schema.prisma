@@ -206,6 +206,7 @@ model User {
   planInstances           MealPlanInstance[]
   meals                   Meal[]
   dishes                  Dish[]
+  favorites               Favorite[]
   groceryLists            GroceryList[]
   retailerConnections     RetailerConnection[]
   orderSessions           OrderSession[]
@@ -216,6 +217,23 @@ model User {
   llmCalls                LLMCallLog[]         @relation("LLMCallUser")
 
   @@map("users")
+}
+
+// WS7-2 Block A — per-user meal favorites. Cascade-deleted on user or meal
+// removal. Server is the source of truth (mobile AsyncStorage cache discarded
+// on first launch post-Block-B, per Phase 1 locked decision 7).
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String
+  mealId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mealId])
+  @@index([userId, createdAt])
+  @@map("favorites")
 }
 
 model UserPreferences {
@@ -372,6 +390,7 @@ model Meal {
   user      User?          @relation(fields: [userId], references: [id])
   dishLinks MealDishLink[]
   planItems MealPlanItem[]
+  favorites Favorite[]
 
   @@map("meals")
 }
