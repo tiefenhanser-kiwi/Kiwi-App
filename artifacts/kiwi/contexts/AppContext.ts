@@ -7,10 +7,10 @@ import React, {
   useState,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { buildDevTestPlan } from "@/lib/dev/devPlanFixture";
-import { loadJSON, saveJSON } from "@/lib/storage";
+import { loadJSON, removeKey, saveJSON } from "@/lib/storage";
 import {
   addGroceryListItem,
   type AddItemPayload,
@@ -201,13 +201,21 @@ const AppCtx = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const { logout } = useAuth();
+  const { logout, user: authUser } = useAuth();
   const [ready, setReady] = useState(false);
   const [prefs, setPrefsState] = useState<UserPrefs>(DEFAULT_PREFS);
   const [plans, setPlans] = useState<MealPlan[]>([]);
   const [currentPlanId, setCurrentPlanIdState] = useState<string | null>(null);
   const [groceries, setGroceries] = useState<GroceryItem[]>([]);
-  const [favorites, setFavorites] = useState<string[]>([]);
+  // WS7-2 Block B Commit 4: favorites are server-owned. React Query is the
+  // cache; the public `favorites` / `toggleFavorite` / `isFavorite` surface
+  // below is a read-through facade so consumers stay unchanged.
+  const favoritesQuery = useQuery({
+    queryKey: ["me", "favorites"],
+    queryFn: () => meAPI.getFavorites(),
+    enabled: !!authUser,
+  });
+  const favorites = favoritesQuery.data ?? [];
   const [isPremium, setIsPremiumState] = useState(false);
   const [onboardingComplete, setOnboardingCompleteState] = useState(false);
   const [onboardingStep2Draft, setOnboardingStep2DraftState] =
@@ -227,12 +235,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const [p, pl, cur, g, fav, prem, ob] = await Promise.all([
+      // One-time stale-cleanup: favorites moved to React Query in Block B
+      // Commit 4. Discard the orphaned kiwi:favorites AsyncStorage entry
+      // (no migration — server is the source of truth).
+      void removeKey("favorites");
+      const [p, pl, cur, g, prem, ob] = await Promise.all([
         loadJSON<UserPrefs>("prefs", DEFAULT_PREFS),
         loadJSON<MealPlan[]>("plans", []),
         loadJSON<string | null>("currentPlanId", null),
         loadJSON<GroceryItem[]>("groceries", []),
-        loadJSON<string[]>("favorites", []),
         loadJSON<boolean>("premium", false),
         loadJSON<boolean>("onboardingComplete", false),
       ]);
@@ -257,7 +268,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPlans(plansToUse);
       setCurrentPlanIdState(curId);
       setGroceries(groceriesToUse);
-      setFavorites(fav);
       setIsPremiumState(prem);
       setOnboardingCompleteState(ob);
       setReady(true);
@@ -523,17 +533,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     console.log("[AppContext] markGroceryShoppingDone", { listId, done });
   };
 
-  const toggleFavorite = useCallback(async (recipeId: string) => {
-    // Functional update so rapid taps from any source don't drop toggles.
-    let computed: string[] = [];
-    setFavorites((prev) => {
-      computed = prev.includes(recipeId)
-        ? prev.filter((x) => x !== recipeId)
-        : [...prev, recipeId];
-      return computed;
-    });
-    await saveJSON("favorites", computed);
-  }, []);
+  // Optimistic toggle: write the React Query cache immediately, then POST /
+  // DELETE. On failure, roll the cache back to the pre-toggle state and
+  // rethrow so the caller can surface the error.
+  const toggleFavorite = useCallback(
+    async (recipeId: string) => {
+      const isFav = favorites.includes(recipeId);
+      queryClient.setQueryData<string[]>(["me", "favorites"], (prev = []) =>
+        isFav
+          ? prev.filter((id) => id !== recipeId)
+          : [...prev, recipeId],
+      );
+      try {
+        if (isFav) await meAPI.removeFavorite(recipeId);
+        else await meAPI.addFavorite(recipeId);
+      } catch (err) {
+        queryClient.setQueryData<string[]>(["me", "favorites"], (prev = []) =>
+          isFav
+            ? [...prev, recipeId]
+            : prev.filter((id) => id !== recipeId),
+        );
+        throw err;
+      }
+    },
+    [favorites, queryClient],
+  );
 
   const isFavorite = useCallback(
     (recipeId: string) => favorites.includes(recipeId),
@@ -585,12 +609,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPlans([]);
     setCurrentPlanIdState(null);
     setGroceries([]);
-    setFavorites([]);
+    // Favorites live in React Query now — drop the cached query.
+    queryClient.removeQueries({ queryKey: ["me", "favorites"] });
     setIsPremiumState(false);
     setOnboardingCompleteState(false);
     setOnboardingStep2DraftState(null);
     setOnboardingStep3DraftState(null);
-  }, []);
+  }, [queryClient]);
 
   const currentPlan = useMemo(
     () => plans.find((p) => p.id === currentPlanId) ?? null,
