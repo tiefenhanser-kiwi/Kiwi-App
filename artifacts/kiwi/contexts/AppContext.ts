@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { buildDevTestPlan } from "@/lib/dev/devPlanFixture";
 import { loadJSON, saveJSON } from "@/lib/storage";
@@ -21,6 +22,8 @@ import {
   updateReviewPlanDateRange,
   updateReviewPlanName,
 } from "@/lib/stubs";
+import * as meAPI from "@/lib/api/me";
+import { useAuth } from "@/contexts/AuthContext";
 import type {
   DayOfWeek,
   DishDraft,
@@ -31,6 +34,7 @@ import type {
   RecipeOverride,
   Step2Draft,
   Step3Draft,
+  User,
   UserPreferencesData,
 } from "@/lib/types";
 
@@ -196,6 +200,8 @@ interface AppState {
 const AppCtx = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
+  const { logout } = useAuth();
   const [ready, setReady] = useState(false);
   const [prefs, setPrefsState] = useState<UserPrefs>(DEFAULT_PREFS);
   const [plans, setPlans] = useState<MealPlan[]>([]);
@@ -413,31 +419,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { id };
   };
 
+  // WS7-2 Block B: profile mutators write through PATCH /me/profile and
+  // field-merge the result into the ['auth','me'] cache. Field-merge (not
+  // replace) is required because /me/profile's response omits `subscription`
+  // — a replace would drop it. Errors propagate to the caller.
   const updateUserName = async (name: string): Promise<void> => {
-    // TODO(WS7): wire to PATCH /me (name)
-    console.log("[stub] updateUserName", { name });
+    // The mobile profile screen edits a single display name; split it for
+    // the server's firstName/lastName contract. Block C introduces proper
+    // first/last inputs and a cleaner mutator signature.
+    const [firstName, ...rest] = name.trim().split(/\s+/);
+    const lastName = rest.join(" ");
+    const patch: { firstName?: string; lastName?: string } = {};
+    if (firstName) patch.firstName = firstName;
+    if (lastName) patch.lastName = lastName;
+    const { user } = await meAPI.patchProfile(patch);
+    queryClient.setQueryData<User | null>(["auth", "me"], (prev) =>
+      prev ? { ...prev, ...user } : prev,
+    );
   };
 
   const updateUserEmail = async (email: string): Promise<void> => {
-    // TODO(WS6): wire to verification flow → PATCH /me (email after confirm)
+    // TODO(Block C): rename → requestEmailChange + wire to
+    // meAPI.requestEmailChange once the password-collection UX lands.
     console.log("[stub] updateUserEmail", { email });
   };
 
   const updateUserPhone = async (phone: string): Promise<void> => {
-    // TODO(WS7): wire to PATCH /me (phone)
-    console.log("[stub] updateUserPhone", { phone });
+    const { user } = await meAPI.patchProfile({ phone });
+    queryClient.setQueryData<User | null>(["auth", "me"], (prev) =>
+      prev ? { ...prev, ...user } : prev,
+    );
   };
 
   const updateUserPreferences = async (
     prefs: UserPreferencesData,
   ): Promise<void> => {
-    // TODO(WS7): wire to PATCH /me/preferences
-    console.log("[AppContext] updateUserPreferences", prefs);
+    await meAPI.patchPreferences(prefs);
+    // Invalidate so the next getPreferences read (Block C wires the screen)
+    // refetches the server-merged row rather than serving a stale cache.
+    await queryClient.invalidateQueries({ queryKey: ["me", "preferences"] });
   };
 
   const deactivateAccount = async (): Promise<void> => {
-    // TODO(WS7): wire to POST /me/deactivate (soft-delete + Stripe cancel)
-    console.log("[AppContext] deactivateAccount initiated");
+    await meAPI.deactivateAccount();
+    // Server soft-deletes (accountStatus → paused). Drop the local session
+    // so the user lands back on the welcome screen.
+    await logout();
   };
 
   const toggleGrocery = useCallback(
@@ -618,7 +645,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     resetAllDevState,
   };
 
-  return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
+  // No JSX in this file — the test runner (`node --experimental-strip-types`)
+  // strips TS types but does not transform JSX. Using React.createElement
+  // keeps AppContext loadable from the node:test infra (mirrors AuthContext).
+  return React.createElement(AppCtx.Provider, { value }, children);
 }
 
 export function useApp(): AppState {

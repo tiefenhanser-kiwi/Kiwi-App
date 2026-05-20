@@ -2240,10 +2240,6 @@ export function getCurrentUserPreferences(): UserPreferencesData {
     householdSize: 4,
     wantsLeftovers: true,
 
-    // Marketing consents
-    marketingConsentEmail: false,
-    marketingConsentSms: false,
-
     // Retailer
     defaultRetailer: "Instacart",
 

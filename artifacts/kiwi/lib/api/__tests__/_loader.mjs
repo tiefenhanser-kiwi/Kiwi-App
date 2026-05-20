@@ -9,11 +9,16 @@
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 
-import { SecureStoreStub, ImageManipulatorStub } from "./_stubs.mjs";
+import {
+  SecureStoreStub,
+  ImageManipulatorStub,
+  AsyncStorageStub,
+} from "./_stubs.mjs";
 
 const STUBS = new Map([
   ["expo-secure-store", SecureStoreStub],
   ["expo-image-manipulator", ImageManipulatorStub],
+  ["@react-native-async-storage/async-storage", AsyncStorageStub],
 ]);
 
 // kiwi/ root, used to resolve the `@/*` tsconfig path alias.

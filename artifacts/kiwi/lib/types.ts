@@ -165,8 +165,6 @@ export interface UserPreferencesData {
   planLengthDefault: number;       // 1-7
   householdSize: number;           // 1-30
   wantsLeftovers: boolean;
-  marketingConsentEmail: boolean;
-  marketingConsentSms: boolean;
   defaultRetailer?: string;
   /** Free-text dietary notes (carries over from wizard's "Anything else?") */
   dietaryNotes?: string;

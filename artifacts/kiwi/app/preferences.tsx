@@ -271,37 +271,6 @@ export default function Preferences() {
           </View>
         </Section>
 
-        {/* Section 8: Notifications */}
-        <Section
-          title="Notifications"
-          subtitle="Email and SMS marketing — opt in only"
-        >
-          <View style={s.toggleRow}>
-            <Text style={s.toggleSubtitle}>Email marketing</Text>
-            <Switch
-              value={form.marketingConsentEmail}
-              onValueChange={(v) => update("marketingConsentEmail", v)}
-              trackColor={{
-                false: KColors.neutral[400],
-                true: KColors.sage[700],
-              }}
-              thumbColor={KColors.neutral[0]}
-            />
-          </View>
-          <View style={[s.toggleRow, { marginTop: KSpacing.md }]}>
-            <Text style={s.toggleSubtitle}>SMS marketing</Text>
-            <Switch
-              value={form.marketingConsentSms}
-              onValueChange={(v) => update("marketingConsentSms", v)}
-              trackColor={{
-                false: KColors.neutral[400],
-                true: KColors.sage[700],
-              }}
-              thumbColor={KColors.neutral[0]}
-            />
-          </View>
-        </Section>
-
         {/* Submit + cancel */}
         <View style={s.footer}>
           <Button
