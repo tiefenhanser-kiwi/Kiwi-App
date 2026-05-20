@@ -130,14 +130,20 @@ interface AppState {
   /** PRD §10.5 — save a dish to user's library. Real persistence WS7.
    *  WS5: log only; returns assigned id. */
   saveDish: (dish: DishDraft) => Promise<{ id: string }>;
-  /** PRD §14.9.1 — update user's name. Real persistence WS7. */
+  /** PRD §14.9.1 — update user's display name. PATCHes /me/profile. */
   updateUserName: (name: string) => Promise<void>;
-  /** PRD §14.9.1 — update user's email. Real flow includes
-   *  verification email confirmation. WS5 stub: log only; WS6
-   *  wires verification. */
-  updateUserEmail: (email: string) => Promise<void>;
-  /** PRD §14.9.1 — update user's phone. Real persistence WS7. */
+  /** PRD §14.9.1 — request an email change. POSTs /me/email/request-change;
+   *  the server emails a verification link. The verify-side landing screen
+   *  lands in WS7-2 Block D. Throws on failure. */
+  requestEmailChange: (newEmail: string) => Promise<void>;
+  /** PRD §14.9.1 — update user's phone. PATCHes /me/profile. */
   updateUserPhone: (phone: string) => Promise<void>;
+  /** PRD §14.9.1 — change password. PATCHes /me/password; the server
+   *  bcrypt-compares currentPassword. Throws on failure. */
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<void>;
   /** PRD §14.9.2 — update full user preferences. Real persistence WS7. */
   updateUserPreferences: (prefs: UserPreferencesData) => Promise<void>;
   /** PRD §14.9.4 — initiate account deactivation. Real soft-delete +
@@ -448,10 +454,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const updateUserEmail = async (email: string): Promise<void> => {
-    // TODO(Block C): rename → requestEmailChange + wire to
-    // meAPI.requestEmailChange once the password-collection UX lands.
-    console.log("[stub] updateUserEmail", { email });
+  // WS7-2 Block C: the request side of the two-step email change. POSTs
+  // /me/email/request-change; the server mints a verification token and
+  // (D-WS7-022) logs the link until real email infra ships. The verify-side
+  // deep-link screen is Block D — no cache write happens here, the email
+  // only changes once the user clicks through. Errors propagate to the caller.
+  const requestEmailChange = async (newEmail: string): Promise<void> => {
+    await meAPI.requestEmailChange({ newEmail });
+  };
+
+  // WS7-2 Block C: PATCH /me/password. The server bcrypt-compares
+  // currentPassword and returns 400 invalid_current_password on mismatch;
+  // that rejection propagates so the screen can surface it inline.
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> => {
+    await meAPI.patchPassword({ currentPassword, newPassword });
   };
 
   const updateUserPhone = async (phone: string): Promise<void> => {
@@ -644,8 +663,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updatePlanDateRange,
     saveDish,
     updateUserName,
-    updateUserEmail,
+    requestEmailChange,
     updateUserPhone,
+    changePassword,
     updateUserPreferences,
     deactivateAccount,
     groceries,

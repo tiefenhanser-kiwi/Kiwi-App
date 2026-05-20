@@ -268,6 +268,72 @@ test("updateUserName rejects on a server error and leaves the cache intact", asy
   assert.equal(cached.firstName, "Hans");
 });
 
+test("requestEmailChange POSTs /me/email/request-change and resolves", async () => {
+  await mountAuthed();
+
+  let requested = false;
+  route("POST", "/me/email/request-change", () => {
+    requested = true;
+    return mockJson({ success: true });
+  });
+
+  await act(async () => {
+    await app!.requestEmailChange("new@example.com");
+  });
+
+  assert.equal(requested, true, "POST /me/email/request-change was called");
+});
+
+test("requestEmailChange rejects when the server returns 400", async () => {
+  await mountAuthed();
+
+  route("POST", "/me/email/request-change", () =>
+    mockJson({ error: "invalid request body" }, 400),
+  );
+
+  await act(async () => {
+    await assert.rejects(() => app!.requestEmailChange("not-an-email"));
+  });
+});
+
+test("changePassword PATCHes /me/password and resolves", async () => {
+  await mountAuthed();
+
+  let patched = false;
+  route("PATCH", "/me/password", () => {
+    patched = true;
+    return mockJson({ success: true });
+  });
+
+  await act(async () => {
+    await app!.changePassword("oldpass-12345", "newpass-67890");
+  });
+
+  assert.equal(patched, true, "PATCH /me/password was called");
+});
+
+test("changePassword rejects when currentPassword is wrong (400)", async () => {
+  await mountAuthed();
+
+  // Server returns 400 invalid_current_password on a bcrypt mismatch — the
+  // rejection propagates so profile.tsx can surface it inline.
+  route("PATCH", "/me/password", () =>
+    mockJson(
+      {
+        error: "invalid_current_password",
+        userFacingMessage: "Current password is incorrect",
+      },
+      400,
+    ),
+  );
+
+  await act(async () => {
+    await assert.rejects(() =>
+      app!.changePassword("wrong-guess-1", "newpass-67890"),
+    );
+  });
+});
+
 test("deactivateAccount calls /me/deactivate then logs the session out", async () => {
   const qc = await mountAuthed();
   assert.equal(auth!.isAuthenticated, true);

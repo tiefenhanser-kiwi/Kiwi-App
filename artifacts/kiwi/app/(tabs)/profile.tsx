@@ -11,16 +11,23 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
+import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { ApiError } from "@/lib/api/errors";
 import { formatSubscriptionState } from "@/lib/domain";
-import { getCurrentSubscription, getCurrentUserInfo } from "@/lib/stubs";
-import type { SubscriptionInfo, UserAccountInfo } from "@/lib/types";
+import { getCurrentSubscription } from "@/lib/stubs";
+import type { SubscriptionInfo } from "@/lib/types";
 
 type EditableField = "name" | "email" | "phone";
+
+/** Inline result banner shown under a field after a save attempt. */
+type FieldStatus = { kind: "success" | "error"; text: string } | null;
+
+const MIN_PASSWORD_LENGTH = 8;
 
 const isValidEmail = (s: string): boolean =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
@@ -45,25 +52,49 @@ export default function ProfileTab() {
   const router = useRouter();
   const {
     updateUserName,
-    updateUserEmail,
+    requestEmailChange,
     updateUserPhone,
+    changePassword,
     injectDevTestPlan,
     resetAllDevState,
   } = useApp();
   const auth = useAuth();
 
-  const [userInfo, setUserInfo] = useState<UserAccountInfo>(() =>
-    getCurrentUserInfo(),
-  );
+  // The auth cache is the source of truth for account fields — the profile
+  // mutators field-merge their PATCH result into ['auth','me'], so these
+  // re-derive automatically once a save lands. (Subscription stays stubbed —
+  // Stripe wiring is WS8.)
+  const user = auth.user;
+  const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
+  const displayEmail = user?.email ?? "";
+  const displayPhone = user?.phone ?? "";
+
   const [subscription] = useState<SubscriptionInfo>(() =>
     getCurrentSubscription(),
   );
   const [editingField, setEditingField] = useState<EditableField | null>(null);
   const [draftValue, setDraftValue] = useState("");
+  const [fieldStatus, setFieldStatus] = useState<FieldStatus>(null);
+
+  // Password-change inline form (collapsed by default; the Password row
+  // toggles it).
+  const [pwOpen, setPwOpen] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwStatus, setPwStatus] = useState<FieldStatus>(null);
+
+  const fieldDisplay = (field: EditableField): string => {
+    if (field === "name") return displayName;
+    if (field === "email") return displayEmail;
+    return displayPhone;
+  };
 
   const handleStartEdit = (field: EditableField) => {
+    setFieldStatus(null);
     setEditingField(field);
-    setDraftValue(userInfo[field] ?? "");
+    setDraftValue(fieldDisplay(field));
   };
 
   const handleCancelEdit = () => {
@@ -71,57 +102,107 @@ export default function ProfileTab() {
     setDraftValue("");
   };
 
-  const handleCommitEdit = () => {
+  const handleCommitEdit = async () => {
     if (!editingField) return;
     Keyboard.dismiss();
+    const field = editingField;
     const trimmed = draftValue.trim();
-
-    if (editingField === "name") {
-      // Required — empty value reverts silently
-      if (!trimmed) {
-        handleCancelEdit();
-        return;
-      }
-      if (trimmed !== userInfo.name) {
-        setUserInfo((prev) => ({ ...prev, name: trimmed }));
-        void updateUserName(trimmed);
-      }
-    } else if (editingField === "email") {
-      // Required + valid email; otherwise revert
-      if (!trimmed || !isValidEmail(trimmed)) {
-        handleCancelEdit();
-        return;
-      }
-      if (trimmed === userInfo.email) {
-        handleCancelEdit();
-        return;
-      }
-      // PRD §14.9.1 — email change goes through verification (WS6).
-      // Don't update local state; show confirmation alert. Log via
-      // stub so WS6 can hook into it.
-      void updateUserEmail(trimmed);
-      Alert.alert(
-        "Coming in WS6 — email verification",
-        "We'll send a verification link to your new email address before updating it.",
-      );
-    } else if (editingField === "phone") {
-      // Phone optional — empty allowed (clears the value)
-      const next = trimmed || undefined;
-      if (next !== userInfo.phone) {
-        setUserInfo((prev) => ({ ...prev, phone: next }));
-        void updateUserPhone(trimmed);
-      }
-    }
-
+    // Clear the editing state up front: EditableRow fires onCommit on both
+    // submit and blur, so the second call must early-return on `!editingField`.
     setEditingField(null);
     setDraftValue("");
+
+    if (field === "name") {
+      // Required — empty or unchanged reverts silently.
+      if (!trimmed || trimmed === displayName) return;
+      try {
+        await updateUserName(trimmed);
+        setFieldStatus({ kind: "success", text: "Name updated." });
+      } catch {
+        setFieldStatus({
+          kind: "error",
+          text: "Couldn't update your name. Please try again.",
+        });
+      }
+    } else if (field === "email") {
+      // Required + valid + changed; otherwise revert silently.
+      if (!trimmed || !isValidEmail(trimmed) || trimmed === displayEmail) {
+        return;
+      }
+      // Request side only — the server emails a verification link and the
+      // address only changes once the user clicks through. The verify-side
+      // landing screen is WS7-2 Block D.
+      try {
+        await requestEmailChange(trimmed);
+        setFieldStatus({
+          kind: "success",
+          text: "Check your email for a verification link to confirm the change.",
+        });
+      } catch {
+        setFieldStatus({
+          kind: "error",
+          text: "Couldn't start the email change. Please try again.",
+        });
+      }
+    } else if (field === "phone") {
+      // Clearing the phone to empty would need a null-write the /me/profile
+      // contract doesn't expose yet — empty input reverts silently. A
+      // non-empty, changed value PATCHes through.
+      if (!trimmed || trimmed === displayPhone) return;
+      try {
+        await updateUserPhone(trimmed);
+        setFieldStatus({ kind: "success", text: "Phone updated." });
+      } catch {
+        setFieldStatus({
+          kind: "error",
+          text: "Couldn't update your phone. Please try again.",
+        });
+      }
+    }
   };
 
-  const handleChangePassword = () => {
-    Alert.alert(
-      "Coming in WS7 — password change",
-      "Password change requires the API client. This will be wired in WS7.",
-    );
+  const handleTogglePasswordForm = () => {
+    setPwStatus(null);
+    setPwOpen((open) => !open);
+  };
+
+  const handleSubmitPassword = async () => {
+    Keyboard.dismiss();
+    setPwStatus(null);
+    if (!currentPw || !newPw || !confirmPw) {
+      setPwStatus({ kind: "error", text: "Please fill in all three fields." });
+      return;
+    }
+    if (newPw.length < MIN_PASSWORD_LENGTH) {
+      setPwStatus({
+        kind: "error",
+        text: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+      });
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setPwStatus({ kind: "error", text: "New passwords don't match." });
+      return;
+    }
+
+    setPwBusy(true);
+    try {
+      await changePassword(currentPw, newPw);
+      setPwStatus({ kind: "success", text: "Password updated." });
+      setCurrentPw("");
+      setNewPw("");
+      setConfirmPw("");
+    } catch (err) {
+      // The server returns a userFacingMessage on a wrong-current-password
+      // 400 ("Current password is incorrect") — surface it when present.
+      const text =
+        err instanceof ApiError && err.userFacingMessage
+          ? err.userFacingMessage
+          : "Couldn't change your password. Please try again.";
+      setPwStatus({ kind: "error", text });
+    } finally {
+      setPwBusy(false);
+    }
   };
 
   const handlePreferences = () => {
@@ -182,10 +263,10 @@ export default function ProfileTab() {
         <View style={s.userCard}>
           {/* TODO(WS9): tap-to-upload image picker; until then, initials only. */}
           <View style={s.avatar}>
-            <Text style={s.avatarText}>{initialsFor(userInfo.name)}</Text>
+            <Text style={s.avatarText}>{initialsFor(displayName)}</Text>
           </View>
-          <Text style={s.userName}>{userInfo.name}</Text>
-          <Text style={s.userEmail}>{userInfo.email}</Text>
+          <Text style={s.userName}>{displayName}</Text>
+          <Text style={s.userEmail}>{displayEmail}</Text>
         </View>
 
         {/* Section B: Account info */}
@@ -194,7 +275,7 @@ export default function ProfileTab() {
           <View style={s.fieldList}>
             <EditableRow
               label="Name"
-              value={userInfo.name}
+              value={displayName}
               isEditing={editingField === "name"}
               draft={draftValue}
               onDraftChange={setDraftValue}
@@ -205,7 +286,7 @@ export default function ProfileTab() {
             />
             <EditableRow
               label="Email"
-              value={userInfo.email}
+              value={displayEmail}
               isEditing={editingField === "email"}
               draft={draftValue}
               onDraftChange={setDraftValue}
@@ -217,7 +298,7 @@ export default function ProfileTab() {
             />
             <EditableRow
               label="Phone"
-              value={userInfo.phone ?? ""}
+              value={displayPhone}
               displayWhenEmpty="Not set"
               isEditing={editingField === "phone"}
               draft={draftValue}
@@ -228,7 +309,7 @@ export default function ProfileTab() {
               placeholder="Phone number"
             />
             <Pressable
-              onPress={handleChangePassword}
+              onPress={handleTogglePasswordForm}
               style={({ pressed }) => [s.row, pressed && { opacity: 0.7 }]}
               hitSlop={6}
             >
@@ -236,14 +317,72 @@ export default function ProfileTab() {
               <View style={s.fieldRight}>
                 <Text style={s.changePasswordValue}>Change password</Text>
                 <Feather
-                  name="chevron-right"
+                  name={pwOpen ? "chevron-up" : "chevron-right"}
                   size={16}
                   color={KColors.neutral[600]}
                 />
               </View>
             </Pressable>
           </View>
+          {fieldStatus && (
+            <Text
+              style={[
+                s.statusText,
+                fieldStatus.kind === "error"
+                  ? s.statusError
+                  : s.statusSuccess,
+              ]}
+            >
+              {fieldStatus.text}
+            </Text>
+          )}
         </View>
+
+        {/* Section B2: Change-password inline form (toggled by the row above) */}
+        {pwOpen && (
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Change password</Text>
+            <View style={s.pwForm}>
+              <PasswordField
+                label="Current password"
+                value={currentPw}
+                onChangeText={setCurrentPw}
+                placeholder="Current password"
+              />
+              <PasswordField
+                label="New password"
+                value={newPw}
+                onChangeText={setNewPw}
+                placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+              />
+              <PasswordField
+                label="Confirm new password"
+                value={confirmPw}
+                onChangeText={setConfirmPw}
+                placeholder="Re-enter new password"
+              />
+              {pwStatus && (
+                <Text
+                  style={[
+                    s.statusText,
+                    pwStatus.kind === "error"
+                      ? s.statusError
+                      : s.statusSuccess,
+                  ]}
+                >
+                  {pwStatus.text}
+                </Text>
+              )}
+              <Button
+                label="Update password"
+                variant="primary"
+                loading={pwBusy}
+                disabled={pwBusy}
+                onPress={handleSubmitPassword}
+              />
+            </View>
+          </View>
+        )}
 
         {/* Section C: Preferences (stubbed) */}
         <NavCard
@@ -423,6 +562,34 @@ function NavCard({
   );
 }
 
+function PasswordField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <View style={s.pwField}>
+      <Text style={s.pwLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={KColors.neutral[600]}
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+        style={s.pwInput}
+      />
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: KSpacing.lg,
@@ -536,6 +703,40 @@ const s = StyleSheet.create({
     color: KColors.sage[700],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
+  },
+  statusText: {
+    fontSize: KType.size.sm,
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+    marginTop: KSpacing.sm,
+  },
+  statusSuccess: {
+    color: KColors.sage[700],
+  },
+  statusError: {
+    color: KColors.terracotta[700],
+  },
+  pwForm: {
+    gap: KSpacing.md,
+  },
+  pwField: {
+    gap: KSpacing.xs,
+  },
+  pwLabel: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+  },
+  pwInput: {
+    borderWidth: 1,
+    borderColor: KColors.neutral[400],
+    backgroundColor: KPalette.bg.card,
+    borderRadius: KRadius.md,
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.sm,
+    fontSize: KType.size.md,
+    color: KColors.neutral[900],
+    fontFamily: "Inter_400Regular",
   },
   navCard: {
     flexDirection: "row",
