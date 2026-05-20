@@ -30,6 +30,42 @@ const favoriteCreateSchema = z.object({
   mealId: z.string().min(1).max(100),
 });
 
+// PATCH /me/preferences accept list. Explicit (no .passthrough()) so server-
+// only columns (difficultyDefault, weeklyPacingDefault, breakfastDefaults,
+// lunchDefaults, macroPref, notificationsEnabled, lastUsedRetailerId) cannot
+// be set by clients. Marketing consents stay on User per D-WS6-002.
+const preferencesPatchSchema = z
+  .object({
+    householdSize: z.number().int().min(1).max(30).optional(),
+    wantsLeftovers: z.boolean().optional(),
+    cuisines: z.array(z.string().max(60)).max(60).optional(),
+    eatingStyles: z.array(z.string().max(60)).max(30).optional(),
+    allergiesAndAvoidances: z.array(z.string().max(60)).max(60).optional(),
+    cookingSkill: z.enum(["beginner", "intermediate", "advanced"]).nullable().optional(),
+    stovetopType: z.enum(["gas", "induction", "electric"]).nullable().optional(),
+    kidsCount: z.number().int().min(0).max(30).optional(),
+    pickyEaterCount: z.number().int().min(0).max(30).optional(),
+    pickyAvoidances: z.array(z.string().max(60)).max(60).optional(),
+    spiceTolerance: z.enum(["mild", "medium", "hot", "very_hot"]).optional(),
+    healthGoals: z.array(z.string().max(60)).max(30).optional(),
+    budgetLevel: z.enum(["economy", "mid_range", "premium"]).optional(),
+    cookingEquipment: z.array(z.string().max(60)).max(60).optional(),
+    recurringGroceryItems: z.array(z.string().max(80)).max(60).optional(),
+    planLengthDefault: z.number().int().min(1).max(7).optional(),
+    defaultRetailer: z.string().max(120).nullable().optional(),
+    dietaryNotes: z.string().max(500).nullable().optional(),
+  })
+  .strict();
+
+function serializePreferences(p: {
+  id: string;
+  userId: string;
+  updatedAt: Date;
+  [k: string]: unknown;
+}) {
+  return { ...p, updatedAt: p.updatedAt.toISOString() };
+}
+
 export interface MeRouterDeps {
   prisma: PrismaClient;
 }
@@ -61,6 +97,54 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     } catch (err) {
       logger.error({ err, userId: req.userId }, "PATCH /me/ui-state failed");
       return res.status(500).json({ error: "failed to update ui state" });
+    }
+  });
+
+  // ── Preferences ──────────────────────────────────────────────────────
+
+  // GET /me/preferences — returns the user's prefs row. Creates one with
+  // defaults on first fetch (idempotent), so mobile never sees a 404 here.
+  router.get("/me/preferences", requireAuth, async (req, res) => {
+    try {
+      let prefs = await prisma.userPreferences.findUnique({
+        where: { userId: req.userId },
+      });
+      if (!prefs) {
+        prefs = await prisma.userPreferences.create({
+          data: { userId: req.userId! },
+        });
+      }
+      return res.json({ preferences: serializePreferences(prefs) });
+    } catch (err) {
+      logger.error({ err, userId: req.userId }, "GET /me/preferences failed");
+      return res.status(500).json({ error: "failed to fetch preferences" });
+    }
+  });
+
+  // PATCH /me/preferences — upsert with explicit Zod accept list.
+  router.patch("/me/preferences", requireAuth, async (req, res) => {
+    const parsed = preferencesPatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "invalid body",
+        details: parsed.error.flatten(),
+      });
+    }
+    const updates = parsed.data;
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "no fields to update" });
+    }
+
+    try {
+      const prefs = await prisma.userPreferences.upsert({
+        where: { userId: req.userId! },
+        update: updates,
+        create: { userId: req.userId!, ...updates },
+      });
+      return res.json({ preferences: serializePreferences(prefs) });
+    } catch (err) {
+      logger.error({ err, userId: req.userId }, "PATCH /me/preferences failed");
+      return res.status(500).json({ error: "failed to update preferences" });
     }
   });
 
