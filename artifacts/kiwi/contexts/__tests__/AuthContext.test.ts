@@ -367,6 +367,47 @@ test("5 — setUiState writes through React Query cache (no setUser setter)", as
   // optimistic write here.
 });
 
+test("7 — logout clears the pending setUiState debounce timer (WS7-2-E Bug 7)", async () => {
+  // Bug 7: logout left the 400ms setUiState debounce timer running. When it
+  // fired post-logout it PATCHed /me/ui-state with a stale/cleared token,
+  // the server 401'd, and the cascade surfaced a spurious "session expired"
+  // on the next login. logout() now clears the timer, so no such PATCH lands.
+  const user = makeUser();
+  const fetchUrls: string[] = [];
+  fetchImpl = (url) => {
+    if (typeof url === "string") fetchUrls.push(url);
+    if (typeof url === "string" && url.endsWith("/auth/logout")) {
+      return new Response("", { status: 200 });
+    }
+    return mockJson({ user }, 200);
+  };
+  const { qc } = await mount({ initialToken: "t-7" });
+  await settle(qc);
+  assert.equal(captured!.isAuthenticated, true);
+
+  // Start the 400ms debounce timer, then immediately log out.
+  await act(async () => {
+    captured!.setUiState({ lastMealsFilters: ["my_meals"] });
+  });
+  await act(async () => {
+    await captured!.logout();
+  });
+
+  // Drop everything logged up to and including logout, then wait past the
+  // 400ms debounce window. If logout failed to clear the timer, the stale
+  // patchUiState PATCH to /me/ui-state would land in this window.
+  fetchUrls.length = 0;
+  await act(async () => {
+    await new Promise<void>((r) => setTimeout(r, 500));
+  });
+
+  const uiStatePatched = fetchUrls.some((u) => u.includes("/me/ui-state"));
+  assert.equal(uiStatePatched, false, "no stale ui-state PATCH fires after logout");
+  assert.equal(captured!.error, null, "no spurious session-expired cascade");
+  assert.equal(captured!.token, null);
+  assert.equal(captured!.isAuthenticated, false);
+});
+
 test("6 — bootstrap-time 401 fires cascade and clears the stale token", async () => {
   // Cold-start scenario: SecureStore has a token left over from a prior
   // session, but the server has since invalidated it. /auth/me returns 401.

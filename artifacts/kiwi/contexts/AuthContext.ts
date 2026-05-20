@@ -94,6 +94,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, [queryClient]);
 
+  // WS7-2-E Bug 7: clear any pending setUiState debounce when the provider
+  // unmounts, so the timer can't fire patchUiState after teardown (same
+  // class of leak logout() guards against — a timer outliving its session).
+  React.useEffect(() => {
+    return () => {
+      if (uiStateTimerRef.current) {
+        clearTimeout(uiStateTimerRef.current);
+        uiStateTimerRef.current = null;
+      }
+    };
+  }, []);
+
   const login = React.useCallback(
     async (email: string, password: string) => {
       setError(null);
@@ -147,6 +159,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = React.useCallback(async () => {
+    // WS7-2-E Bug 7: tear down pending async work BEFORE clearing the token.
+    // The setUiState debounce timer captures `token` in its closure; if it
+    // fires after logout it PATCHes /me/ui-state with a now-cleared token,
+    // the server 401s, the apiClient cascade fires emitSessionExpired(), and
+    // the very next login surfaces a spurious "session expired". Clearing the
+    // pending timer + cancelling in-flight queries here closes that race.
+    // The timer-clear alone is sufficient, so the setUiState guard is left
+    // reading its closure-captured token (no live-state rework needed).
+    if (uiStateTimerRef.current) {
+      clearTimeout(uiStateTimerRef.current);
+      uiStateTimerRef.current = null;
+    }
+    await queryClient.cancelQueries();
     if (token) {
       await logoutRequest();
     }
