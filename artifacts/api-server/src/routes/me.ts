@@ -10,9 +10,14 @@ import { Router, type IRouter } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
+import { hashPassword, verifyPassword } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
+import { rateLimit } from "../lib/rateLimit";
+
+// Brute-force protection on password change (matches /auth/login posture).
+const passwordChangeLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 });
 
 const FILTER_KEYS = ["my_plans", "featured", "top_rated", "hosting_events"] as const;
 const MEALS_FILTER_KEYS = ["my_meals", "all_meals"] as const;
@@ -34,6 +39,28 @@ const favoriteCreateSchema = z.object({
 // only columns (difficultyDefault, weeklyPacingDefault, breakfastDefaults,
 // lunchDefaults, macroPref, notificationsEnabled, lastUsedRetailerId) cannot
 // be set by clients. Marketing consents stay on User per D-WS6-002.
+// Permissive phone validator: at least 7 digits anywhere in the string.
+// Mobile-side formatting (dashes, parens, country code) is up to the client.
+const PHONE_REGEX = /(?:\D*\d){7,}/;
+
+const profilePatchSchema = z
+  .object({
+    firstName: z.string().min(1).max(100).optional(),
+    lastName: z.string().min(1).max(100).optional(),
+    phone: z
+      .string()
+      .max(40)
+      .regex(PHONE_REGEX, "phone must contain at least 7 digits")
+      .nullable()
+      .optional(),
+  })
+  .strict();
+
+const passwordPatchSchema = z.object({
+  currentPassword: z.string().min(1).max(100),
+  newPassword: z.string().min(8).max(100),
+});
+
 const preferencesPatchSchema = z
   .object({
     householdSize: z.number().int().min(1).max(30).optional(),
@@ -99,6 +126,100 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       return res.status(500).json({ error: "failed to update ui state" });
     }
   });
+
+  // ── Profile + password ───────────────────────────────────────────────
+
+  // PATCH /me/profile — firstName / lastName / phone. At-least-one-field.
+  router.patch("/me/profile", requireAuth, async (req, res) => {
+    const parsed = profilePatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "invalid body",
+        details: parsed.error.flatten(),
+      });
+    }
+    const updates = parsed.data;
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "no fields to update" });
+    }
+
+    try {
+      const updated = await prisma.user.update({
+        where: { id: req.userId },
+        data: updates,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          zipCode: true,
+          timezone: true,
+          accountStatus: true,
+          subscriptionStatus: true,
+          defaultHouseholdSize: true,
+          lastPlanDiscoveryFilters: true,
+          lastPlansFilters: true,
+          lastMealsFilters: true,
+          onboardingComplete: true,
+          firstRunChoiceMade: true,
+          createdAt: true,
+        },
+      });
+      return res.json({
+        user: { ...updated, createdAt: updated.createdAt.toISOString() },
+      });
+    } catch (err) {
+      logger.error({ err, userId: req.userId }, "PATCH /me/profile failed");
+      return res.status(500).json({ error: "failed to update profile" });
+    }
+  });
+
+  // PATCH /me/password — bcrypt-compare currentPassword, then update.
+  router.patch(
+    "/me/password",
+    requireAuth,
+    passwordChangeLimiter,
+    async (req, res) => {
+      const parsed = passwordPatchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid body",
+          details: parsed.error.flatten(),
+        });
+      }
+      const { currentPassword, newPassword } = parsed.data;
+
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: req.userId },
+          select: { id: true, passwordHash: true },
+        });
+        if (!user || !user.passwordHash) {
+          return res.status(401).json({ error: "user not found" });
+        }
+
+        const ok = await verifyPassword(currentPassword, user.passwordHash);
+        if (!ok) {
+          return res.status(400).json({
+            error: "invalid_current_password",
+            userFacingMessage: "Current password is incorrect",
+          });
+        }
+
+        const newHash = await hashPassword(newPassword);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash: newHash },
+        });
+        logger.info({ userId: user.id }, "Password changed via /me/password");
+        return res.json({ success: true });
+      } catch (err) {
+        logger.error({ err, userId: req.userId }, "PATCH /me/password failed");
+        return res.status(500).json({ error: "failed to change password" });
+      }
+    },
+  );
 
   // ── Preferences ──────────────────────────────────────────────────────
 
