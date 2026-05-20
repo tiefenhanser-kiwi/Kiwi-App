@@ -2203,7 +2203,7 @@ export function getCurrentUserPreferences(): UserPreferencesData {
     allergiesAndAvoidances: [],
 
     // Cooking skill
-    cookingSkill: "Intermediate",
+    cookingSkill: "intermediate",
 
     // Recurring grocery items
     recurringGroceryItems: ["Milk", "Eggs", "Bananas", "Coffee"],
@@ -2217,7 +2217,7 @@ export function getCurrentUserPreferences(): UserPreferencesData {
       "Cast iron skillet",
       "Dutch oven",
     ],
-    stovetopType: "Gas",
+    stovetopType: "gas",
 
     // Kids
     kidsCount: 2,
@@ -2227,13 +2227,13 @@ export function getCurrentUserPreferences(): UserPreferencesData {
     pickyAvoidances: ["Mushrooms", "Onions"],
 
     // Spice tolerance
-    spiceTolerance: "Medium",
+    spiceTolerance: "mild",
 
     // Health goals
     healthGoals: ["General health / wellness"],
 
     // Budget level
-    budgetLevel: "Mid-range",
+    budgetLevel: "mid_range",
 
     // Plan defaults
     planLengthDefault: 5,

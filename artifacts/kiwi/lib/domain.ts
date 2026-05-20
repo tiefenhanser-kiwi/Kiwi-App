@@ -162,12 +162,18 @@ export const COOKING_EQUIPMENT = [
   "Wok",
 ] as const;
 
-/** PRD §3.5 — stovetop type single-select. */
-export const STOVETOP_TYPES = [
-  "Gas",
-  "Induction",
-  "Electric",
-] as const;
+/** PRD §3.5 — stovetop type single-select (canonical server values). */
+export const STOVETOP_TYPES = ["gas", "induction", "electric"] as const;
+
+/** Display labels for STOVETOP_TYPES — UI renders these; wire uses canonical. */
+export const STOVETOP_TYPE_LABELS: Record<
+  (typeof STOVETOP_TYPES)[number],
+  string
+> = {
+  gas: "Gas",
+  induction: "Induction",
+  electric: "Electric",
+};
 
 /** PRD §3.5 — picky eater avoidance chips. */
 export const PICKY_AVOIDANCES = [
@@ -182,13 +188,24 @@ export const PICKY_AVOIDANCES = [
   "Seafood",
 ] as const;
 
-/** PRD §3.5 — spice tolerance single-select. */
+/** PRD §3.5 — spice tolerance single-select (canonical server values). */
 export const SPICE_TOLERANCE_OPTIONS = [
-  "Mild",
-  "Medium",
-  "Hot",
-  "Very Hot",
+  "mild",
+  "medium",
+  "hot",
+  "very_hot",
 ] as const;
+
+/** Display labels for SPICE_TOLERANCE_OPTIONS — UI renders these. */
+export const SPICE_TOLERANCE_LABELS: Record<
+  (typeof SPICE_TOLERANCE_OPTIONS)[number],
+  string
+> = {
+  mild: "Mild",
+  medium: "Medium",
+  hot: "Hot",
+  very_hot: "Very Hot",
+};
 
 /** PRD §3.5 — health goal multi-select chips. */
 export const HEALTH_GOALS = [
@@ -200,12 +217,18 @@ export const HEALTH_GOALS = [
   "Disease management",
 ] as const;
 
-/** PRD §3.5 — budget level single-select. */
-export const BUDGET_LEVELS = [
-  "Economy",
-  "Mid-range",
-  "Premium",
-] as const;
+/** PRD §3.5 — budget level single-select (canonical server values). */
+export const BUDGET_LEVELS = ["economy", "mid_range", "premium"] as const;
+
+/** Display labels for BUDGET_LEVELS — UI renders these. */
+export const BUDGET_LEVEL_LABELS: Record<
+  (typeof BUDGET_LEVELS)[number],
+  string
+> = {
+  economy: "Economy",
+  mid_range: "Mid-range",
+  premium: "Premium",
+};
 
 /** PRD §14.9.2 — default retailer single-select. */
 export const DEFAULT_RETAILERS = [
@@ -228,12 +251,22 @@ export const COMMON_RECURRING_ITEMS = [
   "Pet treats",
 ] as const;
 
-/** PRD §3.4 — cooking skill levels. */
+/** PRD §3.4 — cooking skill levels (canonical server values). */
 export const COOKING_SKILL_LEVELS = [
-  "Beginner",
-  "Intermediate",
-  "Advanced",
+  "beginner",
+  "intermediate",
+  "advanced",
 ] as const;
+
+/** Display labels for COOKING_SKILL_LEVELS — UI renders these. */
+export const COOKING_SKILL_LABELS: Record<
+  (typeof COOKING_SKILL_LEVELS)[number],
+  string
+> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+};
 
 /**
  * PRD §12.4 — grocery section display order + display labels.

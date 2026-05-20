@@ -2,7 +2,7 @@ import React from "react";
 import { View } from "react-native";
 
 import { Chip } from "@/components/Chip";
-import { BUDGET_LEVELS } from "@/lib/domain";
+import { BUDGET_LEVEL_LABELS, BUDGET_LEVELS } from "@/lib/domain";
 
 import { pickerStyles } from "./shared";
 
@@ -19,7 +19,7 @@ export function BudgetLevelPicker({ value, onChange }: BudgetLevelPickerProps) {
       {BUDGET_LEVELS.map((b) => (
         <Chip
           key={b}
-          label={b}
+          label={BUDGET_LEVEL_LABELS[b]}
           selected={value === b}
           onPress={() => onChange(b)}
         />

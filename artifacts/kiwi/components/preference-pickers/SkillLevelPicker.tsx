@@ -2,14 +2,14 @@ import React from "react";
 import { View } from "react-native";
 
 import { Chip } from "@/components/Chip";
-import { COOKING_SKILL_LEVELS } from "@/lib/domain";
+import { COOKING_SKILL_LABELS, COOKING_SKILL_LEVELS } from "@/lib/domain";
 
 import { pickerStyles } from "./shared";
 
 export type SkillValue = (typeof COOKING_SKILL_LEVELS)[number];
 
 export interface SkillLevelPickerProps {
-  value: SkillValue;
+  value?: SkillValue;
   onChange: (next: SkillValue) => void;
 }
 
@@ -19,7 +19,7 @@ export function SkillLevelPicker({ value, onChange }: SkillLevelPickerProps) {
       {COOKING_SKILL_LEVELS.map((skill) => (
         <Chip
           key={skill}
-          label={skill}
+          label={COOKING_SKILL_LABELS[skill]}
           selected={value === skill}
           onPress={() => onChange(skill)}
         />

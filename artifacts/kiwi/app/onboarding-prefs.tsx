@@ -17,7 +17,7 @@ type Step2FormState = {
   cuisines: string[];
   eatingStyles: string[];
   allergiesAndAvoidances: string[];
-  cookingSkill: "Beginner" | "Intermediate" | "Advanced";
+  cookingSkill: "beginner" | "intermediate" | "advanced";
   recurringGroceryItems: string[];
   dietaryNotes: string;
 };
@@ -41,7 +41,7 @@ export default function OnboardingPrefs() {
       cuisines: [],
       eatingStyles: [],
       allergiesAndAvoidances: [],
-      cookingSkill: "Intermediate",
+      cookingSkill: "intermediate",
       recurringGroceryItems: [],
       dietaryNotes: "",
     };

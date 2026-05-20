@@ -109,7 +109,7 @@ export interface Step2Draft {
   cuisines: string[];
   eatingStyles: string[];
   allergiesAndAvoidances: string[];
-  cookingSkill: "Beginner" | "Intermediate" | "Advanced";
+  cookingSkill: "beginner" | "intermediate" | "advanced";
   recurringGroceryItems: string[];
   dietaryNotes: string;
 }
@@ -122,13 +122,13 @@ export interface Step2Draft {
  */
 export interface Step3Draft {
   cookingEquipment: string[];
-  stovetopType?: "Gas" | "Induction" | "Electric";
+  stovetopType?: "gas" | "induction" | "electric";
   kidsCount: number;
   pickyEaterCount: number;
   pickyAvoidances: string[];
-  spiceTolerance: "Mild" | "Medium" | "Hot" | "Very Hot";
+  spiceTolerance: "mild" | "medium" | "hot" | "very_hot";
   healthGoals: string[];
-  budgetLevel: "Economy" | "Mid-range" | "Premium";
+  budgetLevel: "economy" | "mid_range" | "premium";
   /** Open collapsible section ids — Set serialized as array for JSON. */
   expandedSections: string[];
 }
@@ -142,20 +142,20 @@ export interface UserPreferencesData {
   cuisines: string[];
   eatingStyles: string[];
   allergiesAndAvoidances: string[];
-  cookingSkill: "Beginner" | "Intermediate" | "Advanced";
+  cookingSkill?: "beginner" | "intermediate" | "advanced";
   recurringGroceryItems: string[];
 
   // §3.5 — onboarding step 3
   cookingEquipment: string[];
-  stovetopType?: "Gas" | "Induction" | "Electric";
+  stovetopType?: "gas" | "induction" | "electric";
   kidsCount: number;
   // Kid ages removed in WS5-5P-bis-fix per Hans (privacy concern,
   // marginal AI value). PRD §3.5 redline pending.
   pickyEaterCount: number;
   pickyAvoidances: string[];
-  spiceTolerance: "Mild" | "Medium" | "Hot" | "Very Hot";
+  spiceTolerance: "mild" | "medium" | "hot" | "very_hot";
   healthGoals: string[];
-  budgetLevel: "Economy" | "Mid-range" | "Premium";
+  budgetLevel: "economy" | "mid_range" | "premium";
 
   // §14.9.2 additions
   planLengthDefault: number;       // 1-7
@@ -163,7 +163,7 @@ export interface UserPreferencesData {
   wantsLeftovers: boolean;
   marketingConsentEmail: boolean;
   marketingConsentSms: boolean;
-  defaultRetailer: "Instacart" | "Amazon Fresh" | "Walmart" | "Kroger" | "Other";
+  defaultRetailer?: string;
   /** Free-text dietary notes (carries over from wizard's "Anything else?") */
   dietaryNotes?: string;
 }

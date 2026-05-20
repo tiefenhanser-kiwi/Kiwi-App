@@ -32,13 +32,13 @@ type SectionId =
 
 type Step3FormState = {
   cookingEquipment: string[];
-  stovetopType?: "Gas" | "Induction" | "Electric";
+  stovetopType?: "gas" | "induction" | "electric";
   kidsCount: number;
   pickyEaterCount: number;
   pickyAvoidances: string[];
-  spiceTolerance: "Mild" | "Medium" | "Hot" | "Very Hot";
+  spiceTolerance: "mild" | "medium" | "hot" | "very_hot";
   healthGoals: string[];
-  budgetLevel: "Economy" | "Mid-range" | "Premium";
+  budgetLevel: "economy" | "mid_range" | "premium";
   expandedSections: Set<SectionId>;
 };
 
@@ -74,9 +74,9 @@ export default function OnboardingStep3() {
       kidsCount: 0,
       pickyEaterCount: 0,
       pickyAvoidances: [],
-      spiceTolerance: "Medium",
+      spiceTolerance: "mild",
       healthGoals: [],
-      budgetLevel: "Mid-range",
+      budgetLevel: "economy",
       expandedSections: new Set<SectionId>(),
     };
   });
