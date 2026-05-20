@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
@@ -28,9 +29,10 @@ import { SkillLevelPicker } from "@/components/preference-pickers/SkillLevelPick
 import { SpicePicker } from "@/components/preference-pickers/SpicePicker";
 import { StovetopPicker } from "@/components/preference-pickers/StovetopPicker";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { DEFAULT_RETAILERS, PLAN_DURATION_PRESETS } from "@/lib/domain";
-import { getCurrentUserPreferences } from "@/lib/stubs";
+import { getPreferences, type UserPreferences } from "@/lib/api/me";
 import type { UserPreferencesData } from "@/lib/types";
 
 const HOUSEHOLD_MIN = 1;
@@ -38,42 +40,124 @@ const HOUSEHOLD_MAX = 30;
 const KIDS_MIN = 0;
 const KIDS_MAX = 8;
 
+/** Inline result banner shown after a save / toggle attempt. */
+type Status = { kind: "success" | "error"; text: string } | null;
+
+// GET /me/preferences sends `null` for the four optional String? columns;
+// the form's UserPreferencesData uses `undefined`. Normalize on seed so the
+// form is a clean UserPreferencesData.
+function toFormState(p: UserPreferences): UserPreferencesData {
+  return {
+    ...p,
+    cookingSkill: p.cookingSkill ?? undefined,
+    stovetopType: p.stovetopType ?? undefined,
+    defaultRetailer: p.defaultRetailer ?? undefined,
+    dietaryNotes: p.dietaryNotes ?? undefined,
+  };
+}
+
 export default function Preferences() {
   const router = useRouter();
-  const { updateUserPreferences } = useApp();
+  const { updateUserPreferences, updateMarketingConsent } = useApp();
+  const auth = useAuth();
+  const authUser = auth.user;
 
-  const [form, setForm] = useState<UserPreferencesData>(() =>
-    getCurrentUserPreferences(),
-  );
+  // Read side — the server-merged preferences row. The form below is a local
+  // edit buffer seeded once from this query.
+  const prefsQuery = useQuery({
+    queryKey: ["me", "preferences"],
+    queryFn: () => getPreferences(),
+    enabled: !!authUser,
+  });
+
+  const [form, setForm] = useState<UserPreferencesData | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<Status>(null);
+  const [marketingStatus, setMarketingStatus] = useState<Status>(null);
+
+  // Seed the form once, when the query first resolves. Later refetches (e.g.
+  // the post-save invalidation) don't clobber the user's in-progress edits.
+  useEffect(() => {
+    if (prefsQuery.data && !form) {
+      setForm(toFormState(prefsQuery.data));
+    }
+  }, [prefsQuery.data, form]);
 
   const update = <K extends keyof UserPreferencesData>(
     key: K,
     value: UserPreferencesData[K],
   ) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
   const handleHouseholdSizeChange = (newSize: number) => {
-    setForm((prev) => ({
-      ...prev,
-      householdSize: newSize,
-      // Auto-reduce dependents if they exceed the new max.
-      kidsCount: Math.min(prev.kidsCount, newSize),
-      pickyEaterCount: Math.min(prev.pickyEaterCount, newSize),
-    }));
-  };
-
-  const handleSave = () => {
-    Keyboard.dismiss();
-    console.log("[preferences] save", form);
-    void updateUserPreferences(form);
-
-    Alert.alert(
-      "Coming in WS7 — preferences save",
-      "Updating preferences requires the API client. The values are captured (see console).",
-      [{ text: "OK", onPress: () => router.back() }],
+    setForm((prev) =>
+      prev
+        ? {
+            ...prev,
+            householdSize: newSize,
+            // Auto-reduce dependents if they exceed the new max.
+            kidsCount: Math.min(prev.kidsCount, newSize),
+            pickyEaterCount: Math.min(prev.pickyEaterCount, newSize),
+          }
+        : prev,
     );
   };
+
+  const handleSave = async () => {
+    if (!form) return;
+    Keyboard.dismiss();
+    setSaveStatus(null);
+    setSaving(true);
+    try {
+      await updateUserPreferences(form);
+      setSaveStatus({ kind: "success", text: "Preferences saved." });
+    } catch {
+      setSaveStatus({
+        kind: "error",
+        text: "Couldn't save your preferences. Please try again.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMarketingToggle = async (
+    field: "marketingConsentEmail" | "marketingConsentSms",
+    value: boolean,
+  ) => {
+    setMarketingStatus(null);
+    const patch =
+      field === "marketingConsentEmail"
+        ? { marketingConsentEmail: value }
+        : { marketingConsentSms: value };
+    try {
+      await updateMarketingConsent(patch);
+    } catch {
+      setMarketingStatus({
+        kind: "error",
+        text: "Couldn't update your communication preferences. Please try again.",
+      });
+    }
+  };
+
+  // Loading / error gate — render nothing editable until the form is seeded.
+  if (!form) {
+    return (
+      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+        <Header showBack title="Preferences" />
+        <View style={s.loadingWrap}>
+          {prefsQuery.isError ? (
+            <Text style={s.loadingError}>
+              Couldn't load your preferences. Pull back and try again.
+            </Text>
+          ) : (
+            <ActivityIndicator color={KColors.sage[700]} />
+          )}
+        </View>
+      </View>
+    );
+  }
 
   const cuisineSelectedCount = form.cuisines.length;
 
@@ -271,14 +355,72 @@ export default function Preferences() {
           </View>
         </Section>
 
+        {/* Section 8: Communication preferences (D-WS7-025) — these toggles
+            persist immediately to User via /me/profile; they are not part of
+            the form buffer saved by "Save preferences" below. */}
+        <Section title="Communication preferences">
+          <View style={s.toggleRow}>
+            <Text style={s.toggleSubtitle}>
+              Email me with Kiwi tips and updates
+            </Text>
+            <Switch
+              value={authUser?.marketingConsentEmail ?? false}
+              onValueChange={(v) =>
+                handleMarketingToggle("marketingConsentEmail", v)
+              }
+              trackColor={{
+                false: KColors.neutral[400],
+                true: KColors.sage[700],
+              }}
+              thumbColor={KColors.neutral[0]}
+            />
+          </View>
+          <View style={[s.toggleRow, { marginTop: KSpacing.md }]}>
+            <Text style={s.toggleSubtitle}>
+              Text me with Kiwi tips and updates
+            </Text>
+            <Switch
+              value={authUser?.marketingConsentSms ?? false}
+              onValueChange={(v) =>
+                handleMarketingToggle("marketingConsentSms", v)
+              }
+              trackColor={{
+                false: KColors.neutral[400],
+                true: KColors.sage[700],
+              }}
+              thumbColor={KColors.neutral[0]}
+            />
+          </View>
+          {marketingStatus && (
+            <Text style={[s.statusText, s.statusError]}>
+              {marketingStatus.text}
+            </Text>
+          )}
+        </Section>
+
         {/* Submit + cancel */}
         <View style={s.footer}>
           <Button
             label="Save preferences"
             variant="terra"
+            loading={saving}
+            disabled={saving}
             onPress={handleSave}
           />
-          <Text style={s.footerHint}>Updates your saved preferences</Text>
+          {saveStatus ? (
+            <Text
+              style={[
+                s.statusText,
+                saveStatus.kind === "error"
+                  ? s.statusError
+                  : s.statusSuccess,
+              ]}
+            >
+              {saveStatus.text}
+            </Text>
+          ) : (
+            <Text style={s.footerHint}>Updates your saved preferences</Text>
+          )}
           <Pressable
             onPress={() => router.back()}
             hitSlop={6}
@@ -329,6 +471,19 @@ const s = StyleSheet.create({
     paddingTop: KSpacing.lg,
     paddingBottom: KSpacing.xxxl * 2,
     gap: KSpacing.md,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: KSpacing.xl,
+  },
+  loadingError: {
+    fontSize: KType.size.sm,
+    color: KColors.terracotta[700],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+    textAlign: "center",
   },
   card: {
     backgroundColor: KPalette.bg.card,
@@ -389,6 +544,19 @@ const s = StyleSheet.create({
     color: KColors.neutral[900],
     fontFamily: "Inter_400Regular",
     textAlignVertical: "top",
+  },
+  statusText: {
+    fontSize: KType.size.sm,
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+    textAlign: "center",
+    marginTop: KSpacing.sm,
+  },
+  statusSuccess: {
+    color: KColors.sage[700],
+  },
+  statusError: {
+    color: KColors.terracotta[700],
   },
   footer: {
     marginTop: KSpacing.lg,

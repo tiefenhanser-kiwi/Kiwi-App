@@ -85,9 +85,12 @@ const VALID_PREFS = {
   recurringGroceryItems: ["Milk"],
   eatingStyles: ["Healthy"],
   healthGoals: [],
+  pickyAvoidances: ["Mushrooms"],
+  householdSize: 3,
   kidsCount: 2,
   pickyEaterCount: 1,
   planLengthDefault: 7,
+  wantsLeftovers: true,
   dietaryNotes: null,
 };
 
@@ -332,6 +335,39 @@ test("changePassword rejects when currentPassword is wrong (400)", async () => {
       app!.changePassword("wrong-guess-1", "newpass-67890"),
     );
   });
+});
+
+test("updateMarketingConsent PATCHes /me/profile and merges into the cache", async () => {
+  const qc = await mountAuthed();
+
+  route("PATCH", "/me/profile", () =>
+    mockJson({ user: makeProfileUser({ marketingConsentEmail: true }) }),
+  );
+
+  await act(async () => {
+    await app!.updateMarketingConsent({ marketingConsentEmail: true });
+  });
+
+  const cached = qc.getQueryData(["auth", "me"]) as Record<string, unknown>;
+  assert.equal(cached.marketingConsentEmail, true);
+  // Field-merge preserves `subscription` (the profile response omits it).
+  assert.notEqual(cached.subscription, undefined);
+});
+
+test("updateMarketingConsent rolls the cache back on a server error", async () => {
+  const qc = await mountAuthed();
+
+  route("PATCH", "/me/profile", () => mockJson({ error: "boom" }, 500));
+
+  await act(async () => {
+    await assert.rejects(() =>
+      app!.updateMarketingConsent({ marketingConsentEmail: true }),
+    );
+  });
+
+  // The optimistic flip was rolled back to the original value.
+  const cached = qc.getQueryData(["auth", "me"]) as Record<string, unknown>;
+  assert.equal(cached.marketingConsentEmail, false);
 });
 
 test("deactivateAccount calls /me/deactivate then logs the session out", async () => {

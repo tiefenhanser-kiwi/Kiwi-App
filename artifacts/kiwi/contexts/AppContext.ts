@@ -144,8 +144,14 @@ interface AppState {
     currentPassword: string,
     newPassword: string,
   ) => Promise<void>;
-  /** PRD §14.9.2 — update full user preferences. Real persistence WS7. */
+  /** PRD §14.9.2 — update full user preferences. PATCHes /me/preferences. */
   updateUserPreferences: (prefs: UserPreferencesData) => Promise<void>;
+  /** D-WS7-025 — toggle marketing-consent flags on User. Optimistic: flips
+   *  the auth cache immediately, rolls back + rethrows on API error. */
+  updateMarketingConsent: (patch: {
+    marketingConsentEmail?: boolean;
+    marketingConsentSms?: boolean;
+  }) => Promise<void>;
   /** PRD §14.9.4 — initiate account deactivation. Real soft-delete +
    *  Stripe cancellation lands in WS7. */
   deactivateAccount: () => Promise<void>;
@@ -489,6 +495,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await queryClient.invalidateQueries({ queryKey: ["me", "preferences"] });
   };
 
+  // WS7-2 Block C (D-WS7-025): marketing consent lives on User. Optimistic —
+  // flip the ['auth','me'] cache up front so the Switch responds instantly,
+  // then PATCH /me/profile and field-merge the authoritative response. On
+  // failure restore the pre-toggle snapshot and rethrow so the screen can
+  // surface the error.
+  const updateMarketingConsent = async (patch: {
+    marketingConsentEmail?: boolean;
+    marketingConsentSms?: boolean;
+  }): Promise<void> => {
+    const snapshot = queryClient.getQueryData<User | null>(["auth", "me"]);
+    queryClient.setQueryData<User | null>(["auth", "me"], (prev) =>
+      prev ? { ...prev, ...patch } : prev,
+    );
+    try {
+      const { user } = await meAPI.patchProfile(patch);
+      queryClient.setQueryData<User | null>(["auth", "me"], (prev) =>
+        prev ? { ...prev, ...user } : prev,
+      );
+    } catch (err) {
+      queryClient.setQueryData<User | null>(["auth", "me"], snapshot ?? null);
+      throw err;
+    }
+  };
+
   const deactivateAccount = async (): Promise<void> => {
     await meAPI.deactivateAccount();
     // Server soft-deletes (accountStatus → paused). Drop the local session
@@ -667,6 +697,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateUserPhone,
     changePassword,
     updateUserPreferences,
+    updateMarketingConsent,
     deactivateAccount,
     groceries,
     toggleGrocery,

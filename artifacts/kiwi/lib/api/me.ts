@@ -18,12 +18,18 @@ import type { User } from "../types";
 import { apiClient } from "./client";
 
 // ── Preferences schema ─────────────────────────────────────────────────────
-// Mirrors the mobile-relevant subset of the server UserPreferences row.
-// Plain z.object() strips server-only columns (id, userId, householdSize,
-// wantsLeftovers, pickyAvoidances, difficultyDefault, weeklyPacingDefault,
-// breakfastDefaults, lunchDefaults, macroPref, notificationsEnabled,
-// lastUsedRetailerId, updatedAt) that GET /me/preferences also returns.
-// The four String? columns send explicit JSON null, so they are `.nullable()`.
+// Mirrors the full mobile UserPreferencesData contract (lib/types.ts) — every
+// field the preferences + onboarding screens read or edit. Plain z.object()
+// strips genuinely server-only columns that GET /me/preferences also returns:
+// id, userId, difficultyDefault, weeklyPacingDefault, breakfastDefaults,
+// lunchDefaults, macroPref, notificationsEnabled, lastUsedRetailerId,
+// updatedAt. The four String? columns send explicit JSON null → `.nullable()`.
+//
+// WS7-2 Block C Commit 3: householdSize / wantsLeftovers / pickyAvoidances
+// were mis-classified as server-only in Block B Commit 2 — they are mobile-
+// editable (preferences.tsx Section 1 + PickyEatersPicker) and the server
+// both returns and accepts them. Added here so getPreferences() yields a
+// complete UserPreferencesData.
 
 export const UserPreferencesSchema = z.object({
   // Single-select enums — server has defaults, always present.
@@ -40,10 +46,14 @@ export const UserPreferencesSchema = z.object({
   recurringGroceryItems: z.array(z.string()),
   eatingStyles: z.array(z.string()),
   healthGoals: z.array(z.string()),
+  pickyAvoidances: z.array(z.string()),
   // Numeric.
+  householdSize: z.number().int().positive(),
   kidsCount: z.number().int().nonnegative(),
   pickyEaterCount: z.number().int().nonnegative(),
   planLengthDefault: z.number().int().positive(),
+  // Boolean.
+  wantsLeftovers: z.boolean(),
   // Free-text notes — nullable.
   dietaryNotes: z.string().nullable(),
 });

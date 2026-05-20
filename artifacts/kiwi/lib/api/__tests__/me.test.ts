@@ -22,9 +22,12 @@ const VALID_PREFS = {
   recurringGroceryItems: ["Milk"],
   eatingStyles: ["Healthy"],
   healthGoals: [],
+  pickyAvoidances: ["Mushrooms"],
+  householdSize: 3,
   kidsCount: 2,
   pickyEaterCount: 1,
   planLengthDefault: 7,
+  wantsLeftovers: true,
   dietaryNotes: null,
 };
 
