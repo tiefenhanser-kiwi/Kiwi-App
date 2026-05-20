@@ -52,6 +52,8 @@ function makeUser(overrides: Record<string, unknown> = {}) {
     lastPlanDiscoveryFilters: [],
     lastPlansFilters: [],
     lastMealsFilters: [],
+    marketingConsentEmail: false,
+    marketingConsentSms: false,
     onboardingComplete: true,
     firstRunChoiceMade: true,
     subscription: {

@@ -52,6 +52,8 @@ interface UserRow {
   lastPlanDiscoveryFilters: string[];
   lastPlansFilters: string[];
   lastMealsFilters: string[];
+  marketingConsentEmail: boolean;
+  marketingConsentSms: boolean;
   onboardingComplete: boolean;
   firstRunChoiceMade: boolean;
   passwordHash: string | null;
@@ -73,6 +75,8 @@ function baseUser(overrides: Partial<UserRow> = {}): UserRow {
     lastPlanDiscoveryFilters: [],
     lastPlansFilters: [],
     lastMealsFilters: [],
+    marketingConsentEmail: false,
+    marketingConsentSms: false,
     onboardingComplete: true,
     firstRunChoiceMade: true,
     passwordHash: null,
@@ -163,6 +167,66 @@ describe("PATCH /me/profile", () => {
       };
       assert.equal(body.user.firstName, "Hans");
       assert.equal(body.user.lastName, "New");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("happy: updates marketing-consent flags and returns them", async () => {
+    const prisma = makeStubPrisma(
+      baseUser({
+        id: USER_ID,
+        marketingConsentEmail: false,
+        marketingConsentSms: false,
+      }),
+    );
+    const harness = await spinUp(prisma);
+    try {
+      const token = signToken(USER_ID);
+      const res = await fetch(`${harness.baseUrl}/me/profile`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          marketingConsentEmail: true,
+          marketingConsentSms: true,
+        }),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        user: { marketingConsentEmail: boolean; marketingConsentSms: boolean };
+      };
+      assert.equal(body.user.marketingConsentEmail, true);
+      assert.equal(body.user.marketingConsentSms, true);
+      assert.equal(prisma._row().marketingConsentEmail, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("happy: flips onboardingComplete via the profile route", async () => {
+    const prisma = makeStubPrisma(
+      baseUser({ id: USER_ID, onboardingComplete: false }),
+    );
+    const harness = await spinUp(prisma);
+    try {
+      const token = signToken(USER_ID);
+      const res = await fetch(`${harness.baseUrl}/me/profile`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ onboardingComplete: true }),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        user: { onboardingComplete: boolean };
+      };
+      assert.equal(body.user.onboardingComplete, true);
+      assert.equal(prisma._row().onboardingComplete, true);
     } finally {
       await harness.close();
     }

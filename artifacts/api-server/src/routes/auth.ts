@@ -57,6 +57,8 @@ function toUserShape(u: {
   lastPlanDiscoveryFilters: string[];
   lastPlansFilters: string[];
   lastMealsFilters: string[];
+  marketingConsentEmail: boolean;
+  marketingConsentSms: boolean;
   onboardingComplete: boolean;
   firstRunChoiceMade: boolean;
   createdAt: Date;
@@ -75,6 +77,8 @@ function toUserShape(u: {
     lastPlanDiscoveryFilters: u.lastPlanDiscoveryFilters,
     lastPlansFilters: u.lastPlansFilters,
     lastMealsFilters: u.lastMealsFilters,
+    marketingConsentEmail: u.marketingConsentEmail,
+    marketingConsentSms: u.marketingConsentSms,
     onboardingComplete: u.onboardingComplete,
     firstRunChoiceMade: u.firstRunChoiceMade,
     createdAt: u.createdAt.toISOString(),

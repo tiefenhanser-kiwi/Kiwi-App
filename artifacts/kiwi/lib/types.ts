@@ -73,6 +73,9 @@ export interface User {
   lastPlanDiscoveryFilters: string[];
   lastPlansFilters: string[];
   lastMealsFilters: string[];
+  /** WS7-2 Block C — marketing consent (D-WS7-025). Editable from preferences.tsx. */
+  marketingConsentEmail: boolean;
+  marketingConsentSms: boolean;
   /** WS7-2 Block A routing flag — gates onboarding vs (tabs) after login. */
   onboardingComplete: boolean;
   /** WS7-2 Block A routing flag — gates the first-run-destination screen. */

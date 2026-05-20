@@ -23,6 +23,8 @@ const VALID_USER = {
   lastPlanDiscoveryFilters: [],
   lastPlansFilters: [],
   lastMealsFilters: [],
+  marketingConsentEmail: false,
+  marketingConsentSms: false,
   onboardingComplete: false,
   firstRunChoiceMade: false,
   subscription: null,

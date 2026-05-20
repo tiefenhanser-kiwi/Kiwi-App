@@ -107,11 +107,19 @@ export async function patchPreferences(
 
 // ── Profile + password ─────────────────────────────────────────────────────
 
-/** PATCH /me/profile — firstName / lastName / phone (at least one). */
+/**
+ * PATCH /me/profile — at least one field. Beyond identity (firstName /
+ * lastName / phone) the server also accepts marketing-consent flags and the
+ * onboarding / first-run routing flags (WS7-2 Block C — all User columns).
+ */
 export async function patchProfile(input: {
   firstName?: string;
   lastName?: string;
   phone?: string;
+  marketingConsentEmail?: boolean;
+  marketingConsentSms?: boolean;
+  onboardingComplete?: boolean;
+  firstRunChoiceMade?: boolean;
 }): Promise<{ user: ProfileUser }> {
   const body = await apiClient("/me/profile", {
     method: "PATCH",

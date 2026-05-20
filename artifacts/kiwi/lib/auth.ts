@@ -51,6 +51,9 @@ export const MeUserSchema = z
     lastPlanDiscoveryFilters: z.array(z.string()),
     lastPlansFilters: z.array(z.string()),
     lastMealsFilters: z.array(z.string()),
+    // WS7-2 Block C — marketing consent (D-WS7-025); served by /auth/me.
+    marketingConsentEmail: z.boolean(),
+    marketingConsentSms: z.boolean(),
     // WS7-2 Block A routing flags — consumed by post-login navigation.
     onboardingComplete: z.boolean(),
     firstRunChoiceMade: z.boolean(),

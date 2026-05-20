@@ -62,6 +62,14 @@ const profilePatchSchema = z
       .regex(PHONE_REGEX, "phone must contain at least 7 digits")
       .nullable()
       .optional(),
+    // WS7-2 Block C: marketing consent (D-WS7-025) lives on User and is
+    // editable from preferences.tsx. Routing flags onboardingComplete /
+    // firstRunChoiceMade are written here by onboarding-step-3 +
+    // first-run-destination — User columns, all pass straight to update().
+    marketingConsentEmail: z.boolean().optional(),
+    marketingConsentSms: z.boolean().optional(),
+    onboardingComplete: z.boolean().optional(),
+    firstRunChoiceMade: z.boolean().optional(),
   })
   .strict();
 
@@ -192,6 +200,8 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           lastPlanDiscoveryFilters: true,
           lastPlansFilters: true,
           lastMealsFilters: true,
+          marketingConsentEmail: true,
+          marketingConsentSms: true,
           onboardingComplete: true,
           firstRunChoiceMade: true,
           createdAt: true,
