@@ -23,7 +23,9 @@ export function requireAuth(
   }
 
   const token = header.slice("Bearer ".length).trim();
-  const payload = verifyToken(token);
+  // WS7-2 Block A: require session purpose so a stray password-reset or
+  // email-change token can't authenticate API requests.
+  const payload = verifyToken(token, "session");
   if (!payload) {
     res.status(401).json({ error: "invalid or expired token" });
     return;

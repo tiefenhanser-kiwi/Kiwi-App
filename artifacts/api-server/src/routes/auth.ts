@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
+import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
 import { requireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
-import { prisma } from "../lib/prisma";
+import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 
 // Tight limiter for signup/login to slow brute-force attempts
@@ -13,6 +14,11 @@ const authLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 }); // 10 bu
 const meLimiter = rateLimit({ capacity: 30, refillPerSec: 30 / 60 });
 // Even tighter for password reset request (prevents email enumeration via rate patterns)
 const resetLimiter = rateLimit({ capacity: 5, refillPerSec: 5 / 300 }); // 5 burst, ~1/60s
+
+// Password-reset tokens are short-lived per WS7-2 Block A. Reuses the
+// session signing helper with purpose='password_reset' so a leaked reset
+// token can't be replayed as a session.
+const PASSWORD_RESET_EXPIRY = "1h";
 
 const signupSchema = z.object({
   email: z.string().email().max(255),
@@ -51,6 +57,8 @@ function toUserShape(u: {
   lastPlanDiscoveryFilters: string[];
   lastPlansFilters: string[];
   lastMealsFilters: string[];
+  onboardingComplete: boolean;
+  firstRunChoiceMade: boolean;
   createdAt: Date;
 }) {
   return {
@@ -67,6 +75,8 @@ function toUserShape(u: {
     lastPlanDiscoveryFilters: u.lastPlanDiscoveryFilters,
     lastPlansFilters: u.lastPlansFilters,
     lastMealsFilters: u.lastMealsFilters,
+    onboardingComplete: u.onboardingComplete,
+    firstRunChoiceMade: u.firstRunChoiceMade,
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -85,215 +95,227 @@ function toSubscriptionShape(s: {
   };
 }
 
-const router: IRouter = Router();
+export interface AuthRouterDeps {
+  prisma: PrismaClient;
+}
 
-// POST /auth/signup
-router.post("/auth/signup", authLimiter, async (req, res) => {
-  const parsed = signupSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "invalid request body" });
-  }
-  const { email, password, firstName, lastName, zipCode, timezone } = parsed.data;
-  const normalizedEmail = email.toLowerCase().trim();
+export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
+  const prisma = deps.prisma ?? productionPrisma;
+  const router: IRouter = Router();
 
-  try {
-    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-    if (existing) {
-      return res.status(400).json({ error: "email already registered" });
+  // POST /auth/signup
+  router.post("/auth/signup", authLimiter, async (req, res) => {
+    const parsed = signupSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid request body" });
     }
+    const { email, password, firstName, lastName, zipCode, timezone } = parsed.data;
+    const normalizedEmail = email.toLowerCase().trim();
 
-    const passwordHash = await hashPassword(password);
-    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    try {
+      const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+      if (existing) {
+        return res.status(400).json({ error: "email already registered" });
+      }
 
-    // Create user and subscription in a transaction — every user has a Subscription row.
-    const user = await prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({
-        data: {
-          email: normalizedEmail,
-          passwordHash,
-          firstName,
-          lastName,
-          zipCode: zipCode ?? null,
-          timezone: timezone ?? "America/New_York",
-        },
-      });
-      const subscription = await tx.subscription.create({
-        data: {
-          userId: newUser.id,
-          planCode: "free",
-          status: "trialing",
-          trialEndsAt,
-        },
-      });
-      return { ...newUser, subscription };
-    });
+      const passwordHash = await hashPassword(password);
+      const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-    const token = signToken(user.id);
-    logger.info({ userId: user.id }, "User signed up");
-    return res.status(201).json({
-      user: {
-        ...toUserShape(user),
-        subscription: toSubscriptionShape(user.subscription),
-      },
-      authToken: token,
-      onboardingRequired: true,
-    });
-  } catch (err) {
-    logger.error({ err }, "Signup failed");
-    return res.status(500).json({ error: "signup failed" });
-  }
-});
-
-// POST /auth/login
-router.post("/auth/login", authLimiter, async (req, res) => {
-  const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "invalid request body" });
-  }
-  const { email, password } = parsed.data;
-  const normalizedEmail = email.toLowerCase().trim();
-
-  try {
-    const user = await prisma.user.findUnique({
-      where: { email: normalizedEmail },
-      include: { subscription: true },
-    });
-    if (!user || !user.passwordHash) {
-      return res.status(401).json({ error: "invalid credentials" });
-    }
-    if (user.accountStatus !== "active") {
-      return res.status(403).json({ error: "account not active" });
-    }
-
-    const valid = await verifyPassword(password, user.passwordHash);
-    if (!valid) {
-      return res.status(401).json({ error: "invalid credentials" });
-    }
-
-    // Update last-login tracking. Non-critical if this fails — don't block login.
-    await prisma.user
-      .update({
-        where: { id: user.id },
-        data: {
-          lastLoginAt: new Date(),
-          loginCountTotal: { increment: 1 },
-        },
-      })
-      .catch((err) => {
-        logger.warn({ err, userId: user.id }, "Failed to update login tracking");
+      // Create user and subscription in a transaction — every user has a Subscription row.
+      const user = await prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            email: normalizedEmail,
+            passwordHash,
+            firstName,
+            lastName,
+            zipCode: zipCode ?? null,
+            timezone: timezone ?? "America/New_York",
+          },
+        });
+        const subscription = await tx.subscription.create({
+          data: {
+            userId: newUser.id,
+            planCode: "free",
+            status: "trialing",
+            trialEndsAt,
+          },
+        });
+        return { ...newUser, subscription };
       });
 
-    const token = signToken(user.id);
-    logger.info({ userId: user.id }, "User logged in");
-    return res.json({
-      user: {
-        ...toUserShape(user),
-        subscription: user.subscription
-          ? toSubscriptionShape(user.subscription)
-          : null,
-      },
-      authToken: token,
-    });
-  } catch (err) {
-    logger.error({ err }, "Login failed");
-    return res.status(500).json({ error: "login failed" });
-  }
-});
-
-// POST /auth/logout
-// Client-side logout — server just acknowledges.
-// TODO(future): add jti blocklist for real server-side revocation.
-router.post("/auth/logout", async (_req, res) => {
-  return res.json({ success: true });
-});
-
-// POST /auth/password-reset/request
-// Always returns success to prevent email enumeration.
-// If the email is registered, logs a reset URL to the server console.
-// TODO(future): send real email via Resend.
-router.post("/auth/password-reset/request", resetLimiter, async (req, res) => {
-  const parsed = resetRequestSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "invalid request body" });
-  }
-  const normalizedEmail = parsed.data.email.toLowerCase().trim();
-
-  try {
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-    if (user) {
-      // Sign a short-lived JWT specifically for password reset.
-      const resetToken = signToken(user.id);
-      // In production this would be sent via Resend. For now, log it.
-      logger.info(
-        { userId: user.id, resetToken },
-        "Password reset requested — would email this token to the user",
-      );
+      const token = signToken(user.id);
+      logger.info({ userId: user.id }, "User signed up");
+      return res.status(201).json({
+        user: {
+          ...toUserShape(user),
+          subscription: toSubscriptionShape(user.subscription),
+        },
+        authToken: token,
+        onboardingRequired: true,
+      });
+    } catch (err) {
+      logger.error({ err }, "Signup failed");
+      return res.status(500).json({ error: "signup failed" });
     }
-    // Always succeed publicly.
+  });
+
+  // POST /auth/login
+  router.post("/auth/login", authLimiter, async (req, res) => {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid request body" });
+    }
+    const { email, password } = parsed.data;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
+        include: { subscription: true },
+      });
+      if (!user || !user.passwordHash) {
+        return res.status(401).json({ error: "invalid credentials" });
+      }
+      if (user.accountStatus !== "active") {
+        return res.status(403).json({ error: "account not active" });
+      }
+
+      const valid = await verifyPassword(password, user.passwordHash);
+      if (!valid) {
+        return res.status(401).json({ error: "invalid credentials" });
+      }
+
+      // Update last-login tracking. Non-critical if this fails — don't block login.
+      await prisma.user
+        .update({
+          where: { id: user.id },
+          data: {
+            lastLoginAt: new Date(),
+            loginCountTotal: { increment: 1 },
+          },
+        })
+        .catch((err) => {
+          logger.warn({ err, userId: user.id }, "Failed to update login tracking");
+        });
+
+      const token = signToken(user.id);
+      logger.info({ userId: user.id }, "User logged in");
+      return res.json({
+        user: {
+          ...toUserShape(user),
+          subscription: user.subscription
+            ? toSubscriptionShape(user.subscription)
+            : null,
+        },
+        authToken: token,
+      });
+    } catch (err) {
+      logger.error({ err }, "Login failed");
+      return res.status(500).json({ error: "login failed" });
+    }
+  });
+
+  // POST /auth/logout
+  // Client-side logout — server just acknowledges.
+  // TODO(future): add jti blocklist for real server-side revocation.
+  router.post("/auth/logout", async (_req, res) => {
     return res.json({ success: true });
-  } catch (err) {
-    logger.error({ err }, "Password reset request failed");
-    // Still return success to avoid enumeration via timing/status differences.
-    return res.json({ success: true });
-  }
-});
+  });
 
-// POST /auth/password-reset/confirm
-router.post("/auth/password-reset/confirm", authLimiter, async (req, res) => {
-  const parsed = resetConfirmSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "invalid request body" });
-  }
-  const { token, newPassword } = parsed.data;
+  // POST /auth/password-reset/request
+  // Always returns success to prevent email enumeration.
+  // Reset tokens carry purpose='password_reset' and expire after 1h (WS7-2
+  // Block A — tighter than the 30d session default).
+  // D-WS7-022 (deferred): real email delivery infra lands in WS9A polish.
+  router.post("/auth/password-reset/request", resetLimiter, async (req, res) => {
+    const parsed = resetRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid request body" });
+    }
+    const normalizedEmail = parsed.data.email.toLowerCase().trim();
 
-  const payload = verifyToken(token);
-  if (!payload) {
-    return res.status(400).json({ error: "invalid or expired reset token" });
-  }
+    try {
+      const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+      if (user) {
+        const resetToken = signToken(user.id, {
+          purpose: "password_reset",
+          expiresIn: PASSWORD_RESET_EXPIRY,
+        });
+        logger.info(
+          { userId: user.id, resetToken },
+          "Password reset requested — would email this token to the user",
+        );
+      }
+      return res.json({ success: true });
+    } catch (err) {
+      logger.error({ err }, "Password reset request failed");
+      // Still return success to avoid enumeration via timing/status differences.
+      return res.json({ success: true });
+    }
+  });
 
-  try {
-    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-    if (!user || user.accountStatus !== "active") {
+  // POST /auth/password-reset/confirm
+  router.post("/auth/password-reset/confirm", authLimiter, async (req, res) => {
+    const parsed = resetConfirmSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid request body" });
+    }
+    const { token, newPassword } = parsed.data;
+
+    const payload = verifyToken(token, "password_reset");
+    if (!payload) {
       return res.status(400).json({ error: "invalid or expired reset token" });
     }
 
-    const passwordHash = await hashPassword(newPassword);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash },
-    });
+    try {
+      const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+      if (!user || user.accountStatus !== "active") {
+        return res.status(400).json({ error: "invalid or expired reset token" });
+      }
 
-    logger.info({ userId: user.id }, "Password reset completed");
-    return res.json({ success: true });
-  } catch (err) {
-    logger.error({ err }, "Password reset confirm failed");
-    return res.status(500).json({ error: "password reset failed" });
-  }
-});
+      const passwordHash = await hashPassword(newPassword);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      });
 
-// GET /auth/me
-router.get("/auth/me", requireAuth, meLimiter, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.userId },
-      include: { subscription: true },
-    });
-    if (!user) {
-      // Token valid but user deleted — client should treat as logout.
-      return res.status(401).json({ error: "user not found" });
+      logger.info({ userId: user.id }, "Password reset completed");
+      return res.json({ success: true });
+    } catch (err) {
+      logger.error({ err }, "Password reset confirm failed");
+      return res.status(500).json({ error: "password reset failed" });
     }
-    return res.json({
-      user: {
-        ...toUserShape(user),
-        subscription: user.subscription
-          ? toSubscriptionShape(user.subscription)
-          : null,
-      },
-    });
-  } catch (err) {
-    logger.error({ err, userId: req.userId }, "Fetch /auth/me failed");
-    return res.status(500).json({ error: "failed to fetch user" });
-  }
-});
+  });
 
+  // GET /auth/me
+  router.get("/auth/me", requireAuth, meLimiter, async (req, res) => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.userId },
+        include: { subscription: true },
+      });
+      if (!user) {
+        // Token valid but user deleted — client should treat as logout.
+        return res.status(401).json({ error: "user not found" });
+      }
+      return res.json({
+        user: {
+          ...toUserShape(user),
+          subscription: user.subscription
+            ? toSubscriptionShape(user.subscription)
+            : null,
+        },
+      });
+    } catch (err) {
+      logger.error({ err, userId: req.userId }, "Fetch /auth/me failed");
+      return res.status(500).json({ error: "failed to fetch user" });
+    }
+  });
+
+  return router;
+}
+
+// Default export — uses the production Prisma singleton, mounted by routes/index.ts.
+const router: IRouter = createAuthRouter();
 export default router;

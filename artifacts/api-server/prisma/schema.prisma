@@ -188,6 +188,13 @@ model User {
   lastMealsFilters         String[]           @default([])
   marketingConsentEmail    Boolean            @default(false)
   marketingConsentSms      Boolean            @default(false)
+  // WS7-2 Block A: routing flags consumed by mobile post-login navigation.
+  // onboardingComplete gates /onboarding-prefs vs /(tabs).
+  // firstRunChoiceMade gates /first-run-destination after onboarding.
+  // Backfilled true for existing rows in the migration (they're dev-test
+  // accounts already in use; should not be re-onboarded).
+  onboardingComplete       Boolean            @default(false)
+  firstRunChoiceMade       Boolean            @default(false)
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
 
