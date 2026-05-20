@@ -7,9 +7,10 @@ import {
   Text,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
+import { useApp } from "@/contexts/AppContext";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
@@ -55,6 +56,45 @@ function formatQuantity(qty: number, unit: string): string {
   if (whole > 0 && !fracStr) return String(whole);
   // Fallback: tiny non-mappable fraction (shouldn't happen after 1/8 rounding).
   return rounded.toFixed(2);
+}
+
+// WS7-2 Block D (Commit 3): first UI consumer of the favorites API. Block B
+// migrated favorites to React Query but nothing toggled them; this heart sits
+// in the meal detail Header's rightContent slot. toggleFavorite is optimistic
+// with rollback (AppContext), so the icon flips instantly; on API failure the
+// mutator rolls the cache back and we surface a brief alert.
+function HeartButton({ mealId }: { mealId: string }) {
+  const { isFavorite, toggleFavorite } = useApp();
+  const favorited = isFavorite(mealId);
+
+  const onToggle = async () => {
+    try {
+      await toggleFavorite(mealId);
+    } catch {
+      Alert.alert(
+        "Couldn't update favorites",
+        "Something went wrong. Please try again.",
+      );
+    }
+  };
+
+  return (
+    <Pressable
+      onPress={onToggle}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={
+        favorited ? "Remove from favorites" : "Add to favorites"
+      }
+      style={({ pressed }) => [s.heartBtn, pressed && { opacity: 0.6 }]}
+    >
+      <Ionicons
+        name={favorited ? "heart" : "heart-outline"}
+        size={24}
+        color={favorited ? KColors.terracotta[600] : KColors.sage[700]}
+      />
+    </Pressable>
+  );
 }
 
 export default function MealDetailScreen() {
@@ -206,7 +246,11 @@ export default function MealDetailScreen() {
           setAddToPlanVisible(false);
         }}
       />
-      <Header showBack title={meal.title} />
+      <Header
+        showBack
+        title={meal.title}
+        rightContent={<HeartButton mealId={meal.id} />}
+      />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -597,5 +641,11 @@ const s = StyleSheet.create({
     color: KColors.neutral[800],
     fontFamily: "Inter_400Regular",
     lineHeight: 20,
+  },
+  heartBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
