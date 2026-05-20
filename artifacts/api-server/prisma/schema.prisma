@@ -256,7 +256,7 @@ model UserPreferences {
   // Server-injected only; not user-editable from the wizard form.
   // Renamed from equipment in WS7-2 Block A.
   cookingEquipment        String[]        @default([])
-  spiceTolerance          SpiceTolerance  @default(medium)
+  spiceTolerance          SpiceTolerance  @default(mild)
   budgetLevel             BudgetLevel     @default(mid_range)
   pickyAvoidances         String[]        @default([])
   // Renamed from recurringItems in WS7-2 Block A.
