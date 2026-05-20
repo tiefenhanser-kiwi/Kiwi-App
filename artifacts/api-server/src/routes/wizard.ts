@@ -143,11 +143,11 @@ export function createWizardRouter(
       prisma.userPreferences.findUnique({
         where: { userId },
         select: {
-          equipment: true,
+          cookingEquipment: true,
           spiceTolerance: true,
           budgetLevel: true,
           pickyAvoidances: true,
-          recurringItems: true,
+          recurringGroceryItems: true,
         },
       }),
       prisma.pantryStaple.findMany({
@@ -162,12 +162,15 @@ export function createWizardRouter(
       }),
     ]);
 
+    // Boundary map: DB columns (cookingEquipment / recurringGroceryItems) ->
+    // AI hidden-context keys (equipment / recurringItems). AI schema names are
+    // preserved to avoid a prompt-version bump in Block A.
     return {
-      equipment: preferences?.equipment ?? [],
+      equipment: preferences?.cookingEquipment ?? [],
       spiceTolerance: preferences?.spiceTolerance ?? undefined,
       budgetLevel: preferences?.budgetLevel ?? undefined,
       pickyAvoidances: preferences?.pickyAvoidances ?? [],
-      recurringItems: preferences?.recurringItems ?? [],
+      recurringItems: preferences?.recurringGroceryItems ?? [],
       pantryStaples: pantryStaples.map((p) => p.ingredientName),
       recentMealIds: recentMeals
         .map((a) => a.entityId)

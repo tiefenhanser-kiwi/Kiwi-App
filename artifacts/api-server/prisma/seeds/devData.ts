@@ -380,7 +380,7 @@ async function ensureUserPreferences(userId: string): Promise<void> {
     update: {
       householdSize: 2,
       weeklyPacingDefault: "one_fancy_night",
-      cuisinePreferences: [
+      cuisines: [
         "mexican",
         "italian",
         "mediterranean",
@@ -388,17 +388,17 @@ async function ensureUserPreferences(userId: string): Promise<void> {
         "indian",
         "tex_mex",
       ],
-      equipment: ["oven", "stovetop", "sheet_pan", "instant_pot"],
+      cookingEquipment: ["oven", "stovetop", "sheet_pan", "instant_pot"],
       spiceTolerance: "medium",
       difficultyDefault: "medium",
       budgetLevel: "mid_range",
-      recurringItems: ["eggs", "milk", "bread", "coffee"],
+      recurringGroceryItems: ["eggs", "milk", "bread", "coffee"],
     },
     create: {
       userId,
       householdSize: 2,
       weeklyPacingDefault: "one_fancy_night",
-      cuisinePreferences: [
+      cuisines: [
         "mexican",
         "italian",
         "mediterranean",
@@ -406,11 +406,11 @@ async function ensureUserPreferences(userId: string): Promise<void> {
         "indian",
         "tex_mex",
       ],
-      equipment: ["oven", "stovetop", "sheet_pan", "instant_pot"],
+      cookingEquipment: ["oven", "stovetop", "sheet_pan", "instant_pot"],
       spiceTolerance: "medium",
       difficultyDefault: "medium",
       budgetLevel: "mid_range",
-      recurringItems: ["eggs", "milk", "bread", "coffee"],
+      recurringGroceryItems: ["eggs", "milk", "bread", "coffee"],
     },
   });
 }

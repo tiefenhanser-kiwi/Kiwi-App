@@ -151,10 +151,11 @@ enum SpiceTolerance {
   mild
   medium
   hot
+  very_hot
 }
 
 enum BudgetLevel {
-  budget
+  economy
   mid_range
   premium
 }
@@ -218,27 +219,43 @@ model User {
 }
 
 model UserPreferences {
-  id                   String          @id @default(uuid())
-  userId               String          @unique
-  householdSize        Int             @default(2)
-  wantsLeftovers       Boolean         @default(true)
-  difficultyDefault    DifficultyLevel @default(easy)
-  weeklyPacingDefault  WeeklyPacing    @default(mostly_easy)
-  dietaryRestrictions  String[]        @default([])
-  cuisinePreferences   String[]        @default([])
-  breakfastDefaults    String?
-  lunchDefaults        String?
-  macroPref            String[]        @default([])
-  notificationsEnabled Boolean         @default(true)
-  lastUsedRetailerId   String?
+  id                      String          @id @default(uuid())
+  userId                  String          @unique
+  householdSize           Int             @default(2)
+  wantsLeftovers          Boolean         @default(true)
+  difficultyDefault       DifficultyLevel @default(easy)
+  weeklyPacingDefault     WeeklyPacing    @default(mostly_easy)
+  // Renamed from dietaryRestrictions in WS7-2 Block A (mobile contract).
+  allergiesAndAvoidances  String[]        @default([])
+  // Renamed from cuisinePreferences in WS7-2 Block A.
+  cuisines                String[]        @default([])
+  breakfastDefaults       String?
+  lunchDefaults           String?
+  macroPref               String[]        @default([])
+  notificationsEnabled    Boolean         @default(true)
+  lastUsedRetailerId      String?
   // Hidden-context fields surfaced into the wizard AI input (PRD §5.7).
   // Server-injected only; not user-editable from the wizard form.
-  equipment            String[]        @default([])
-  spiceTolerance       SpiceTolerance  @default(medium)
-  budgetLevel          BudgetLevel     @default(mid_range)
-  pickyAvoidances      String[]        @default([])
-  recurringItems       String[]        @default([])
-  updatedAt            DateTime        @updatedAt
+  // Renamed from equipment in WS7-2 Block A.
+  cookingEquipment        String[]        @default([])
+  spiceTolerance          SpiceTolerance  @default(medium)
+  budgetLevel             BudgetLevel     @default(mid_range)
+  pickyAvoidances         String[]        @default([])
+  // Renamed from recurringItems in WS7-2 Block A.
+  recurringGroceryItems   String[]        @default([])
+  // WS7-2 Block A — widened to mobile UserPreferencesData contract.
+  // Nullable opt-in fields stay null until the user touches them in the
+  // preferences screen; mobile Block B widens its types to allow null.
+  eatingStyles            String[]        @default([])
+  cookingSkill            String?
+  stovetopType            String?
+  kidsCount               Int             @default(0)
+  pickyEaterCount         Int             @default(0)
+  healthGoals             String[]        @default([])
+  planLengthDefault       Int             @default(7)
+  defaultRetailer         String?
+  dietaryNotes            String?
+  updatedAt               DateTime        @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

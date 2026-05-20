@@ -131,7 +131,9 @@ function buildPlanRow(plan: PlanStub) {
           ? {
               id: "prefs-1",
               userId: plan.ownerUserId ?? TEST_USER,
-              recurringItems: plan.recurringItems,
+              // WS7-2 Block A: DB column renamed; local fixture-input field
+              // name preserved for caller readability.
+              recurringGroceryItems: plan.recurringItems,
             }
           : null,
     },

@@ -22,9 +22,13 @@ export const WizardInputSchema = z.object({
   // by the wizard route — never accepted from the client.
   hiddenContext: z
     .object({
+      // WS7-2 Block A: field names (equipment / recurringItems) preserved per
+      // the locked AI-schema decision; values widened to match DB enum changes
+      // (SpiceTolerance gained very_hot; BudgetLevel renamed budget -> economy).
+      // Prompt text update for the value rename is deferred to D-WS7-023.
       equipment: z.array(z.string()).optional(),
-      spiceTolerance: z.enum(["mild", "medium", "hot"]).optional(),
-      budgetLevel: z.enum(["budget", "mid_range", "premium"]).optional(),
+      spiceTolerance: z.enum(["mild", "medium", "hot", "very_hot"]).optional(),
+      budgetLevel: z.enum(["economy", "mid_range", "premium"]).optional(),
       pickyAvoidances: z.array(z.string()).optional(),
       recurringItems: z.array(z.string()).optional(),
       pantryStaples: z.array(z.string()).optional(),

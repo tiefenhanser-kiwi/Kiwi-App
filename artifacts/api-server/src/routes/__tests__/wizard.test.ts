@@ -29,11 +29,11 @@ import type {
 
 interface StubPrismaOpts {
   preferences?: {
-    equipment?: string[];
-    spiceTolerance?: "mild" | "medium" | "hot";
-    budgetLevel?: "budget" | "mid_range" | "premium";
+    cookingEquipment?: string[];
+    spiceTolerance?: "mild" | "medium" | "hot" | "very_hot";
+    budgetLevel?: "economy" | "mid_range" | "premium";
     pickyAvoidances?: string[];
-    recurringItems?: string[];
+    recurringGroceryItems?: string[];
   } | null;
   pantryStaples?: string[];
 }
@@ -271,11 +271,14 @@ describe("POST /api/wizard/build-plans — happy path", () => {
   const ai = makeRunAICall(async () => happyResult());
   const prisma = makeStubPrisma({
     preferences: {
-      equipment: ["oven", "stove", "instant_pot"],
+      // WS7-2 Block A: DB columns renamed to mobile-aligned names.
+      // AI input shape (asserted below) keeps the legacy 'equipment' /
+      // 'recurringItems' keys — wizard route maps at the boundary.
+      cookingEquipment: ["oven", "stove", "instant_pot"],
       spiceTolerance: "medium",
       budgetLevel: "mid_range",
       pickyAvoidances: ["cilantro"],
-      recurringItems: ["olive_oil", "salt"],
+      recurringGroceryItems: ["olive_oil", "salt"],
     },
     pantryStaples: ["garlic", "rice"],
   });

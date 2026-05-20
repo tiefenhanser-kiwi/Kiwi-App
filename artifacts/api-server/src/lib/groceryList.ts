@@ -185,7 +185,7 @@ export async function consolidatePlanIngredients(
             sectionKey: sectionForCategory(ing?.category),
             isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(normalizeIngredientName(canonical)),
             isUserPantryStaple: false, // filled below from user.pantryStaples
-            isRecurringItem: false, // filled below from preferences.recurringItems
+            isRecurringItem: false, // filled below from preferences.recurringGroceryItems
             sourceMealIds: [],
             sourceDishIds: [],
             purchaseUnit: ing?.purchaseUnit ?? null,
@@ -241,7 +241,7 @@ export async function consolidatePlanIngredients(
   // Recurring items: match-or-append. Match flips the flag on an existing
   // entry; no match appends a new entry with quantity 1 / unit 'each' /
   // section 'extras' (PRD §3.5 / Phase 1 §10 default).
-  const recurringRaw = plan.user?.preferences?.recurringItems ?? [];
+  const recurringRaw = plan.user?.preferences?.recurringGroceryItems ?? [];
   for (const raw of recurringRaw) {
     const norm = normalizeIngredientName(raw);
     if (!norm) continue;

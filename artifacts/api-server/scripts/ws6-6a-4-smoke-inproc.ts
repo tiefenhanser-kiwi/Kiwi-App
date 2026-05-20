@@ -228,21 +228,21 @@ async function main() {
   await prisma.userPreferences.upsert({
     where: { userId: user.id },
     update: {
-      equipment: ["oven", "stove", "microwave"],
+      cookingEquipment: ["oven", "stove", "microwave"],
       spiceTolerance: "mild",
-      budgetLevel: "budget",
+      budgetLevel: "economy",
       pickyAvoidances: [],
-      recurringItems: ["olive_oil", "salt", "garlic"],
+      recurringGroceryItems: ["olive_oil", "salt", "garlic"],
     },
     create: {
       userId: user.id,
       householdSize: 2,
       wantsLeftovers: true,
-      equipment: ["oven", "stove", "microwave"],
+      cookingEquipment: ["oven", "stove", "microwave"],
       spiceTolerance: "mild",
-      budgetLevel: "budget",
+      budgetLevel: "economy",
       pickyAvoidances: [],
-      recurringItems: ["olive_oil", "salt", "garlic"],
+      recurringGroceryItems: ["olive_oil", "salt", "garlic"],
     },
   });
 
