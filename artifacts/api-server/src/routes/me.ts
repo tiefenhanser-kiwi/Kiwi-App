@@ -22,6 +22,9 @@ const passwordChangeLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 })
 // Same posture as password-reset request: deters enumeration probing.
 const emailRequestLimiter = rateLimit({ capacity: 5, refillPerSec: 5 / 300 });
 
+// Brute-force protection on reactivate (matches /auth/login posture).
+const reactivateLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 });
+
 // Email-change verification token TTL (matches password-reset).
 const EMAIL_CHANGE_EXPIRY = "1h";
 
@@ -74,6 +77,20 @@ const emailRequestChangeSchema = z.object({
 const emailVerifyChangeSchema = z.object({
   token: z.string().min(10).max(500),
 });
+
+const reactivateSchema = z.object({
+  email: z.string().email().max(255),
+  password: z.string().min(1).max(100),
+});
+
+// WS7-2 Block A locked decision 5: reactivation TTL is 6 months from
+// customerEndDate. After that the account is past its window and the user
+// must contact support (permanent-deletion cron is post-MVP).
+const REACTIVATION_TTL_MS = 6 * 30 * 24 * 60 * 60 * 1000;
+
+// MealPlanInstance.status values that represent active or scheduled plans
+// (per PlanStatus enum). On deactivation these flip to 'past'.
+const ACTIVE_PLAN_STATUSES = ["this_week", "next_week", "upcoming"] as const;
 
 const preferencesPatchSchema = z
   .object({
@@ -385,6 +402,145 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     } catch (err) {
       logger.error({ err, userId: req.userId }, "PATCH /me/preferences failed");
       return res.status(500).json({ error: "failed to update preferences" });
+    }
+  });
+
+  // ── Deactivate / reactivate ─────────────────────────────────────────
+  // Per WS7-2 Block A locked decision 2, deactivation reuses User columns:
+  //   { accountStatus: 'paused', customerEndDate: now() }
+  // Reactivation flips back within the 6-month TTL; past that the account is
+  // out of reach until the future permanent-deletion cron + support flow.
+
+  // POST /me/deactivate — auth required, idempotent.
+  router.post("/me/deactivate", requireAuth, async (req, res) => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.userId },
+        select: { id: true, accountStatus: true },
+      });
+      if (!user) {
+        return res.status(401).json({ error: "user not found" });
+      }
+      if (user.accountStatus === "deleted" || user.accountStatus === "blocked") {
+        return res.status(400).json({
+          error: "cannot_deactivate",
+          userFacingMessage: "This account cannot be deactivated.",
+        });
+      }
+      if (user.accountStatus === "paused") {
+        // Idempotent — already paused, nothing to do.
+        return res.json({ success: true });
+      }
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: user.id },
+          data: {
+            accountStatus: "paused",
+            customerEndDate: new Date(),
+          },
+        }),
+        prisma.mealPlanInstance.updateMany({
+          where: {
+            userId: user.id,
+            status: { in: [...ACTIVE_PLAN_STATUSES] },
+          },
+          data: { status: "past" },
+        }),
+      ]);
+
+      logger.info({ userId: user.id }, "Account deactivated");
+      return res.json({ success: true });
+    } catch (err) {
+      logger.error({ err, userId: req.userId }, "POST /me/deactivate failed");
+      return res.status(500).json({ error: "failed to deactivate account" });
+    }
+  });
+
+  // POST /me/reactivate — public; takes credentials and flips the status.
+  router.post("/me/reactivate", reactivateLimiter, async (req, res) => {
+    const parsed = reactivateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid request body" });
+    }
+    const { email, password } = parsed.data;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
+        include: { subscription: true },
+      });
+      // Same generic 401 for unknown user vs wrong password — no enumeration.
+      if (!user || !user.passwordHash) {
+        return res.status(401).json({ error: "invalid credentials" });
+      }
+      const valid = await verifyPassword(password, user.passwordHash);
+      if (!valid) {
+        return res.status(401).json({ error: "invalid credentials" });
+      }
+
+      if (user.accountStatus !== "paused") {
+        return res.status(400).json({
+          error: "not_paused",
+          userFacingMessage: "This account cannot be reactivated.",
+        });
+      }
+      const endedAt = user.customerEndDate;
+      if (!endedAt || Date.now() - endedAt.getTime() > REACTIVATION_TTL_MS) {
+        return res.status(400).json({
+          error: "reactivation_window_expired",
+          userFacingMessage:
+            "The reactivation window has expired. Please contact support.",
+        });
+      }
+
+      const reactivated = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          accountStatus: "active",
+          customerEndDate: null,
+        },
+        include: { subscription: true },
+      });
+      const authToken = signToken(reactivated.id);
+      logger.info({ userId: reactivated.id }, "Account reactivated");
+      return res.json({
+        user: {
+          id: reactivated.id,
+          email: reactivated.email,
+          firstName: reactivated.firstName,
+          lastName: reactivated.lastName,
+          phone: reactivated.phone,
+          zipCode: reactivated.zipCode,
+          timezone: reactivated.timezone,
+          accountStatus: reactivated.accountStatus,
+          subscriptionStatus: reactivated.subscriptionStatus,
+          defaultHouseholdSize: reactivated.defaultHouseholdSize,
+          lastPlanDiscoveryFilters: reactivated.lastPlanDiscoveryFilters,
+          lastPlansFilters: reactivated.lastPlansFilters,
+          lastMealsFilters: reactivated.lastMealsFilters,
+          onboardingComplete: reactivated.onboardingComplete,
+          firstRunChoiceMade: reactivated.firstRunChoiceMade,
+          createdAt: reactivated.createdAt.toISOString(),
+          subscription: reactivated.subscription
+            ? {
+                status: reactivated.subscription.status,
+                planCode: reactivated.subscription.planCode,
+                trialEndsAt: reactivated.subscription.trialEndsAt
+                  ? reactivated.subscription.trialEndsAt.toISOString()
+                  : null,
+                currentPeriodEnd: reactivated.subscription.currentPeriodEnd
+                  ? reactivated.subscription.currentPeriodEnd.toISOString()
+                  : null,
+              }
+            : null,
+        },
+        authToken,
+      });
+    } catch (err) {
+      logger.error({ err }, "POST /me/reactivate failed");
+      return res.status(500).json({ error: "failed to reactivate account" });
     }
   });
 
