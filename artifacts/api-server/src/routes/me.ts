@@ -10,7 +10,7 @@ import { Router, type IRouter } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
-import { hashPassword, verifyPassword } from "../lib/auth";
+import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
@@ -18,6 +18,12 @@ import { rateLimit } from "../lib/rateLimit";
 
 // Brute-force protection on password change (matches /auth/login posture).
 const passwordChangeLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 });
+
+// Same posture as password-reset request: deters enumeration probing.
+const emailRequestLimiter = rateLimit({ capacity: 5, refillPerSec: 5 / 300 });
+
+// Email-change verification token TTL (matches password-reset).
+const EMAIL_CHANGE_EXPIRY = "1h";
 
 const FILTER_KEYS = ["my_plans", "featured", "top_rated", "hosting_events"] as const;
 const MEALS_FILTER_KEYS = ["my_meals", "all_meals"] as const;
@@ -59,6 +65,14 @@ const profilePatchSchema = z
 const passwordPatchSchema = z.object({
   currentPassword: z.string().min(1).max(100),
   newPassword: z.string().min(8).max(100),
+});
+
+const emailRequestChangeSchema = z.object({
+  newEmail: z.string().email().max(255),
+});
+
+const emailVerifyChangeSchema = z.object({
+  token: z.string().min(10).max(500),
 });
 
 const preferencesPatchSchema = z
@@ -220,6 +234,111 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       }
     },
   );
+
+  // ── Email change (two-step, JWT-mediated) ───────────────────────────
+  // D-WS7-022: real email delivery infra deferred to WS9A polish.
+  // For now the verification URL is logged to the server console (same
+  // pattern as password-reset).
+
+  // POST /me/email/request-change — mints a purpose='email_change' token
+  // with { newEmail } and logs the verification URL. Always returns
+  // success (after Zod body validation) to deter enumeration via timing
+  // or status differences.
+  router.post(
+    "/me/email/request-change",
+    requireAuth,
+    emailRequestLimiter,
+    async (req, res) => {
+      const parsed = emailRequestChangeSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid request body" });
+      }
+      const newEmail = parsed.data.newEmail.toLowerCase().trim();
+
+      try {
+        const [currentUser, existing] = await Promise.all([
+          prisma.user.findUnique({
+            where: { id: req.userId },
+            select: { id: true, email: true },
+          }),
+          prisma.user.findUnique({
+            where: { email: newEmail },
+            select: { id: true },
+          }),
+        ]);
+
+        // Only mint a token when the change is meaningful AND the address
+        // is free. Both branches still return 200 so an attacker can't
+        // tell which case applies.
+        if (
+          currentUser &&
+          currentUser.email !== newEmail &&
+          (!existing || existing.id === currentUser.id)
+        ) {
+          const verifyTokenStr = signToken(currentUser.id, {
+            purpose: "email_change",
+            expiresIn: EMAIL_CHANGE_EXPIRY,
+            extra: { newEmail },
+          });
+          logger.info(
+            { userId: currentUser.id, newEmail, verifyToken: verifyTokenStr },
+            "Email change requested — would email this URL to newEmail",
+          );
+        }
+        return res.json({ success: true });
+      } catch (err) {
+        logger.error({ err, userId: req.userId }, "POST /me/email/request-change failed");
+        // Match the auth.ts reset pattern: still 200 to avoid leaking
+        // failure timing.
+        return res.json({ success: true });
+      }
+    },
+  );
+
+  // POST /me/email/verify-change — auth NOT required; the JWT IS the auth.
+  router.post("/me/email/verify-change", async (req, res) => {
+    const parsed = emailVerifyChangeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "invalid_request",
+        userFacingMessage: "This link is invalid or has expired.",
+      });
+    }
+    const payload = verifyToken(parsed.data.token, "email_change");
+    if (!payload || typeof payload.newEmail !== "string") {
+      return res.status(400).json({
+        error: "invalid_token",
+        userFacingMessage: "This link is invalid or has expired.",
+      });
+    }
+    const newEmail = payload.newEmail.toLowerCase().trim();
+
+    try {
+      // Race: another account may have grabbed this address between
+      // request and verify. The unique constraint on User.email also
+      // protects us; we check first for a clearer error.
+      const conflict = await prisma.user.findUnique({
+        where: { email: newEmail },
+        select: { id: true },
+      });
+      if (conflict && conflict.id !== payload.userId) {
+        return res.status(400).json({
+          error: "email_taken",
+          userFacingMessage: "That email is already registered to another account.",
+        });
+      }
+
+      await prisma.user.update({
+        where: { id: payload.userId },
+        data: { email: newEmail },
+      });
+      logger.info({ userId: payload.userId, newEmail }, "Email change verified");
+      return res.json({ success: true, email: newEmail });
+    } catch (err) {
+      logger.error({ err, userId: payload.userId }, "POST /me/email/verify-change failed");
+      return res.status(500).json({ error: "failed to verify email change" });
+    }
+  });
 
   // ── Preferences ──────────────────────────────────────────────────────
 
