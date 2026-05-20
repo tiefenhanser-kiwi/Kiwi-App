@@ -308,7 +308,12 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             extra: { newEmail },
           });
           logger.info(
-            { userId: currentUser.id, newEmail, verifyToken: verifyTokenStr },
+            {
+              userId: currentUser.id,
+              newEmail,
+              verifyToken: verifyTokenStr,
+              verifyUrl: `kiwi://verify-email?token=${verifyTokenStr}`,
+            },
             "Email change requested — would email this URL to newEmail",
           );
         }

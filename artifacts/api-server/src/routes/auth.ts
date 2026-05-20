@@ -247,7 +247,11 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           expiresIn: PASSWORD_RESET_EXPIRY,
         });
         logger.info(
-          { userId: user.id, resetToken },
+          {
+            userId: user.id,
+            resetToken,
+            resetUrl: `kiwi://reset-password?token=${resetToken}`,
+          },
           "Password reset requested — would email this token to the user",
         );
       }
