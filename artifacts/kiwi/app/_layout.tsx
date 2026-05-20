@@ -59,6 +59,7 @@ function RootLayoutNav() {
       <Stack.Screen name="preferences" />
       <Stack.Screen name="manage-account" />
       <Stack.Screen name="deactivate-account" />
+      <Stack.Screen name="verify-email" />
     </Stack>
   );
 }
