@@ -370,6 +370,26 @@ test("updateMarketingConsent rolls the cache back on a server error", async () =
   assert.equal(cached.marketingConsentEmail, false);
 });
 
+test("completeOnboarding PATCHes onboardingComplete and merges into the cache", async () => {
+  const qc = await mountAuthed();
+
+  let patched = false;
+  route("PATCH", "/me/profile", () => {
+    patched = true;
+    return mockJson({ user: makeProfileUser({ onboardingComplete: true }) });
+  });
+
+  await act(async () => {
+    await app!.completeOnboarding();
+  });
+
+  assert.equal(patched, true, "PATCH /me/profile was called");
+  const cached = qc.getQueryData(["auth", "me"]) as Record<string, unknown>;
+  assert.equal(cached.onboardingComplete, true);
+  // Field-merge preserves `subscription` (the profile response omits it).
+  assert.notEqual(cached.subscription, undefined);
+});
+
 test("deactivateAccount calls /me/deactivate then logs the session out", async () => {
   const qc = await mountAuthed();
   assert.equal(auth!.isAuthenticated, true);

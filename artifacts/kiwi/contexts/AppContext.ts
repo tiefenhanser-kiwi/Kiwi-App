@@ -152,6 +152,10 @@ interface AppState {
     marketingConsentEmail?: boolean;
     marketingConsentSms?: boolean;
   }) => Promise<void>;
+  /** WS7-2 Block C (D-WS7-011) — flip onboardingComplete on User. PATCHes
+   *  /me/profile and field-merges the flag into the auth cache so the
+   *  routing state machine re-evaluates. Throws on failure. */
+  completeOnboarding: () => Promise<void>;
   /** PRD §14.9.4 — initiate account deactivation. Real soft-delete +
    *  Stripe cancellation lands in WS7. */
   deactivateAccount: () => Promise<void>;
@@ -519,6 +523,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // WS7-2 Block C (D-WS7-011): onboarding-step-3's finish flips this flag.
+  // Field-merge the routing flag into ['auth','me'] so index.tsx's routing
+  // state machine advances onboarding → first-run-destination reactively.
+  const completeOnboarding = async (): Promise<void> => {
+    const { user } = await meAPI.patchProfile({ onboardingComplete: true });
+    queryClient.setQueryData<User | null>(["auth", "me"], (prev) =>
+      prev ? { ...prev, ...user } : prev,
+    );
+  };
+
   const deactivateAccount = async (): Promise<void> => {
     await meAPI.deactivateAccount();
     // Server soft-deletes (accountStatus → paused). Drop the local session
@@ -698,6 +712,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     changePassword,
     updateUserPreferences,
     updateMarketingConsent,
+    completeOnboarding,
     deactivateAccount,
     groceries,
     toggleGrocery,

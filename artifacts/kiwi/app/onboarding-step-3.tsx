@@ -46,11 +46,14 @@ export default function OnboardingStep3() {
   const router = useRouter();
   const {
     updateUserPreferences,
-    setOnboardingComplete,
+    completeOnboarding,
     onboardingStep2Draft,
     onboardingStep3Draft,
     setOnboardingStep3Draft,
   } = useApp();
+
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
 
   const [form, setForm] = useState<Step3FormState>(() => {
     if (onboardingStep3Draft) {
@@ -149,15 +152,27 @@ export default function OnboardingStep3() {
   // deferred — wiring it requires plan-level prefs (planDurationDays,
   // householdSize, wantsLeftovers) that this screen doesn't collect, so it
   // would have to either route through /wizard for those (a UX detour) or
-  // inject defaults server-side. Until that's plumbed, both flows land on
-  // home; user can launch the wizard from home themselves.
-  const handleFinish = () => {
-    console.log("[onboarding-step-3] finish", form);
-    persistDraft();
-    void updateUserPreferences(buildFullPrefs());
-    void setOnboardingComplete(true);
-    router.dismissAll();
-    router.replace("/(tabs)");
+  // inject defaults server-side. Until that's plumbed, "Finish setup" lands
+  // on /first-run-destination, where the user picks their next step.
+  //
+  // WS7-2 Block C (D-WS7-011 + D-WS5-024): finish now persists preferences
+  // AND flips the server-side onboardingComplete flag before navigating, so
+  // an app-kill mid-onboarding no longer loses the flow. On error we surface
+  // a message and do NOT navigate — the user can retry.
+  const handleFinish = async () => {
+    if (finishing) return;
+    setFinishError(null);
+    setFinishing(true);
+    try {
+      persistDraft();
+      await updateUserPreferences(buildFullPrefs());
+      await completeOnboarding();
+      router.dismissAll();
+      router.replace("/first-run-destination");
+    } catch {
+      setFinishError("Couldn't finish setup. Please try again.");
+      setFinishing(false);
+    }
   };
 
   return (
@@ -270,11 +285,17 @@ export default function OnboardingStep3() {
           <Button
             label="Finish setup"
             variant="terra"
+            loading={finishing}
+            disabled={finishing}
             onPress={handleFinish}
           />
-          <Text style={s.footerHint}>
-            Save preferences and start using Kiwi
-          </Text>
+          {finishError ? (
+            <Text style={s.footerError}>{finishError}</Text>
+          ) : (
+            <Text style={s.footerHint}>
+              Save preferences and start using Kiwi
+            </Text>
+          )}
         </View>
       </KeyboardAwareScrollViewCompat>
     </View>
@@ -384,6 +405,13 @@ const s = StyleSheet.create({
     fontSize: KType.size.xs,
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
+  footerError: {
+    fontSize: KType.size.sm,
+    color: KColors.terracotta[700],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
     textAlign: "center",
   },
 });
