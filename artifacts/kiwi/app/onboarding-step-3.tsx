@@ -15,7 +15,6 @@ import { SpicePicker } from "@/components/preference-pickers/SpicePicker";
 import { StovetopPicker } from "@/components/preference-pickers/StovetopPicker";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { getCurrentUserPreferences } from "@/lib/stubs";
 import type { UserPreferencesData } from "@/lib/types";
 
 const KIDS_MIN = 0;
@@ -100,30 +99,21 @@ export default function OnboardingStep3() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Reconstruct full UserPreferencesData by using getCurrentUserPreferences
-  // as the base and overlaying both the user's step 2 draft (when they
-  // visited step 2) and the §3.5 fields they touched here. WS7's real
-  // persistence is server-merge; this stub-log shape lets devs see the
-  // user's actual entries alongside sensible defaults for the rest.
-  const buildFullPrefs = (): UserPreferencesData => {
-    const base = getCurrentUserPreferences();
-    return {
-      ...base,
-      // §3.4 fields — overlay step 2 draft when present, fall back to base.
-      ...(onboardingStep2Draft && {
-        cuisines: onboardingStep2Draft.cuisines,
-        eatingStyles: onboardingStep2Draft.eatingStyles,
-        allergiesAndAvoidances: onboardingStep2Draft.allergiesAndAvoidances,
-        cookingSkill: onboardingStep2Draft.cookingSkill,
-        recurringGroceryItems: onboardingStep2Draft.recurringGroceryItems,
-        dietaryNotes:
-          onboardingStep2Draft.dietaryNotes.length > 0
-            ? onboardingStep2Draft.dietaryNotes
-            : base.dietaryNotes,
-      }),
-      // §3.5 fields from this screen.
+  // WS7-2-E Bug 3: build a TRUE PARTIAL PATCH body from the user's actual
+  // onboarding entries only — step-3 form ∪ step-2 draft. The earlier
+  // version seeded from the getCurrentUserPreferences() stub, sending
+  // fictional values for fields the user never touched (stub-base
+  // pollution); on re-login the preferences screen surfaced those stub
+  // values as if the user had set them.
+  //
+  // Four §14.9.2 fields — householdSize, wantsLeftovers, planLengthDefault,
+  // defaultRetailer — are deliberately omitted: the current onboarding UI
+  // does not collect them, so the server's DB defaults / nullability apply.
+  // Adding onboarding UI for those fields is WS7-2-F (D-WS7-029).
+  const buildFullPrefs = (): Partial<UserPreferencesData> => {
+    const prefs: Partial<UserPreferencesData> = {
+      // §3.5 — step-3 form values (this screen).
       cookingEquipment: form.cookingEquipment,
-      stovetopType: form.stovetopType,
       kidsCount: form.kidsCount,
       pickyEaterCount: form.pickyEaterCount,
       pickyAvoidances: form.pickyAvoidances,
@@ -131,6 +121,25 @@ export default function OnboardingStep3() {
       healthGoals: form.healthGoals,
       budgetLevel: form.budgetLevel,
     };
+    // stovetopType is optional — only send it when the user picked one.
+    if (form.stovetopType) {
+      prefs.stovetopType = form.stovetopType;
+    }
+    // §3.4 — step-2 draft values, only when the user actually visited step 2.
+    if (onboardingStep2Draft) {
+      prefs.cuisines = onboardingStep2Draft.cuisines;
+      prefs.eatingStyles = onboardingStep2Draft.eatingStyles;
+      prefs.allergiesAndAvoidances = onboardingStep2Draft.allergiesAndAvoidances;
+      prefs.cookingSkill = onboardingStep2Draft.cookingSkill;
+      prefs.recurringGroceryItems = onboardingStep2Draft.recurringGroceryItems;
+      // dietaryNotes: include only when non-empty. Step 2 saves "" when the
+      // user leaves the field blank; an empty string is not a meaningful
+      // preference, so omit the key rather than PATCH a blank value.
+      if (onboardingStep2Draft.dietaryNotes.length > 0) {
+        prefs.dietaryNotes = onboardingStep2Draft.dietaryNotes;
+      }
+    }
+    return prefs;
   };
 
   const persistDraft = () => {

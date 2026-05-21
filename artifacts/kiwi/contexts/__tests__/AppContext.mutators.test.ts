@@ -255,6 +255,85 @@ test("updateUserPreferences PATCHes /me/preferences and resolves", async () => {
   assert.equal(patched, true, "PATCH /me/preferences was called");
 });
 
+test("updateUserPreferences sends the partial body verbatim — no stub defaults (WS7-2-E Bug 3)", async () => {
+  // Bug 3 data-integrity half: onboarding-step-3's buildFullPrefs() now emits
+  // a TRUE PARTIAL (step-2 draft ∪ step-3 form) instead of seeding from the
+  // getCurrentUserPreferences() stub. This test verifies at the mutator
+  // boundary — buildFullPrefs is a closure inside the screen, so the PATCH
+  // request body is the testable surface — that the body is forwarded
+  // verbatim with no stub re-injection, and that the four §14.9.2 fields the
+  // current onboarding UI never collects are absent (server DB defaults /
+  // nullability apply; collecting them in-UI is WS7-2-F / D-WS7-029).
+  await mountAuthed();
+
+  let capturedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const u = String(url);
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      u.endsWith("/me/preferences")
+    ) {
+      capturedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(mockJson({ preferences: VALID_PREFS }));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  // Representative true-partial body — the shape buildFullPrefs() produces:
+  // step-2 draft fields ∪ step-3 form fields, no uncollected §14.9.2 fields,
+  // no expandedSections UI state.
+  const partial = {
+    cuisines: ["Italian"],
+    eatingStyles: ["Healthy"],
+    allergiesAndAvoidances: [],
+    cookingSkill: "intermediate",
+    recurringGroceryItems: ["Milk"],
+    cookingEquipment: ["Oven"],
+    stovetopType: "gas",
+    kidsCount: 2,
+    pickyEaterCount: 1,
+    pickyAvoidances: ["Mushrooms"],
+    spiceTolerance: "hot",
+    healthGoals: [],
+    budgetLevel: "economy",
+  };
+
+  await act(async () => {
+    await app!.updateUserPreferences({
+      ...partial,
+    } as unknown as Parameters<AppValue["updateUserPreferences"]>[0]);
+  });
+
+  assert.ok(capturedBody, "PATCH /me/preferences received a body");
+  // Verbatim forward — the mutator + apiClient inject nothing.
+  assert.deepEqual(capturedBody, partial);
+  // The four fields current onboarding UI never collects must be absent.
+  for (const banned of [
+    "householdSize",
+    "wantsLeftovers",
+    "planLengthDefault",
+    "defaultRetailer",
+  ]) {
+    assert.equal(
+      banned in (capturedBody as object),
+      false,
+      `${banned} must not appear in the PATCH body`,
+    );
+  }
+  // expandedSections is step-3 UI state, never a preference field.
+  assert.equal(
+    "expandedSections" in (capturedBody as object),
+    false,
+    "expandedSections must not appear in the PATCH body",
+  );
+});
+
 test("updateUserName rejects on a server error and leaves the cache intact", async () => {
   const qc = await mountAuthed();
 

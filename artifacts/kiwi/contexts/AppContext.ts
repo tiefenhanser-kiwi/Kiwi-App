@@ -144,8 +144,10 @@ interface AppState {
     currentPassword: string,
     newPassword: string,
   ) => Promise<void>;
-  /** PRD §14.9.2 — update full user preferences. PATCHes /me/preferences. */
-  updateUserPreferences: (prefs: UserPreferencesData) => Promise<void>;
+  /** PRD §14.9.2 — update user preferences. PATCHes /me/preferences. Accepts
+   *  a partial: onboarding-step-3 sends only the fields the user actually set
+   *  (WS7-2-E Bug 3), preferences.tsx sends the full edited form. */
+  updateUserPreferences: (prefs: Partial<UserPreferencesData>) => Promise<void>;
   /** D-WS7-025 — toggle marketing-consent flags on User. Optimistic: flips
    *  the auth cache immediately, rolls back + rethrows on API error. */
   updateMarketingConsent: (patch: {
@@ -491,7 +493,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateUserPreferences = async (
-    prefs: UserPreferencesData,
+    prefs: Partial<UserPreferencesData>,
   ): Promise<void> => {
     await meAPI.patchPreferences(prefs);
     // Invalidate so the next getPreferences read (Block C wires the screen)
