@@ -59,6 +59,20 @@ const DEV_PLAN_IDS = {
   spiceInstance: "dev-plan-instance-spice-it-up",
 } as const;
 
+// WS7-3 A2 — public discovery templates. The two plan templates seeded via
+// seedPlan() are private (isPublic defaults false) and tied to the dev user's
+// instances; A2's /plans?filter=featured|top_rated|hosting_events + /home
+// discovery cards read PUBLIC MealPlanTemplate rows, of which the seed had
+// none. These standalone public templates carry non-zero saveCount/useCount
+// and featuring flags so the A2 read endpoints have non-degenerate data to
+// return. See WS7-3 A2 Phase 3 report §8 (F-A2-1).
+const DEV_DISCOVERY_TEMPLATE_IDS = {
+  familyFavorites: "dev-plan-template-family-favorites",
+  quickWeeknights: "dev-plan-template-quick-weeknights",
+  holidayHosting: "dev-plan-template-holiday-hosting",
+  budgetBowls: "dev-plan-template-budget-bowls",
+} as const;
+
 const DEV_TAG = "dev";
 
 // ── meal data ────────────────────────────────────────────────────────────────
@@ -416,6 +430,77 @@ const MULTI_DISH_MEAL: DevMultiDishMeal = {
     },
   ],
 };
+
+// ── public discovery templates (WS7-3 A2) ───────────────────────────────────
+
+interface DevDiscoveryTemplate {
+  id: string;
+  title: string;
+  description: string;
+  tags: string[];
+  defaultDaysCount: number;
+  /** Top Rated counter inputs — distributed so top_rated ranking has a clear order. */
+  saveCount: number;
+  useCount: number;
+  isFeatured: boolean;
+  isHostingFeatured: boolean;
+  occasionType: string | null;
+}
+
+// Featuring flags carry NO scheduled dates → always-visible windows. Counters
+// distributed so useCount-DESC ordering (the top_rated tie-break while
+// topRatedScore stays null) yields: quick-weeknights > family-favorites >
+// budget-bowls > holiday-hosting.
+const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
+  {
+    id: DEV_DISCOVERY_TEMPLATE_IDS.familyFavorites,
+    title: "Family Favorites Week",
+    description: "A week of crowd-pleasing dinners the whole household will eat.",
+    tags: ["family", "kid-friendly", DEV_TAG],
+    defaultDaysCount: 5,
+    saveCount: 12,
+    useCount: 8,
+    isFeatured: true,
+    isHostingFeatured: false,
+    occasionType: null,
+  },
+  {
+    id: DEV_DISCOVERY_TEMPLATE_IDS.quickWeeknights,
+    title: "Quick Weeknights",
+    description: "Five 30-minute dinners for busy weeknights.",
+    tags: ["quick", "weeknight", DEV_TAG],
+    defaultDaysCount: 5,
+    saveCount: 5,
+    useCount: 12,
+    isFeatured: true,
+    isHostingFeatured: false,
+    occasionType: null,
+  },
+  {
+    id: DEV_DISCOVERY_TEMPLATE_IDS.holidayHosting,
+    title: "Holiday Hosting Menu",
+    description: "An elevated multi-course menu for hosting a holiday gathering.",
+    tags: ["hosting", "holiday", "entertaining", DEV_TAG],
+    defaultDaysCount: 3,
+    saveCount: 8,
+    useCount: 3,
+    isFeatured: false,
+    isHostingFeatured: true,
+    occasionType: "holiday",
+  },
+  {
+    id: DEV_DISCOVERY_TEMPLATE_IDS.budgetBowls,
+    title: "Budget Bowls",
+    description: "Hearty grain bowls that keep the weekly grocery bill down.",
+    tags: ["budget", "meal-prep", DEV_TAG],
+    defaultDaysCount: 5,
+    saveCount: 3,
+    useCount: 5,
+    isFeatured: false,
+    isHostingFeatured: false,
+    occasionType: null,
+  },
+];
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -814,6 +899,42 @@ async function seedMultiDishMeal(
   );
 }
 
+// WS7-3 A2 — upsert a standalone public MealPlanTemplate (no instances) with
+// non-zero Top Rated counters + featuring flags. Idempotent on the
+// deterministic id. topRatedScore is left null — A2 ships the scoring helper
+// but does not invoke recomputeAndPersistTopRated() at any trigger site, so
+// the seed mirrors that (the /plans top_rated query orders by topRatedScore
+// DESC NULLS LAST, then useCount DESC — non-degenerate with score null).
+async function seedDiscoveryTemplate(
+  userId: string,
+  t: DevDiscoveryTemplate,
+): Promise<void> {
+  const fields = {
+    userId,
+    title: t.title,
+    description: t.description,
+    sourceType: "wizard" as const,
+    defaultDaysCount: t.defaultDaysCount,
+    tags: t.tags,
+    isPublic: true,
+    isArchived: false,
+    saveCount: t.saveCount,
+    useCount: t.useCount,
+    isFeatured: t.isFeatured,
+    isHostingFeatured: t.isHostingFeatured,
+    occasionType: t.occasionType,
+  };
+  await prisma.mealPlanTemplate.upsert({
+    where: { id: t.id },
+    update: fields,
+    create: { id: t.id, ...fields },
+  });
+  console.log(
+    `[devData] seeded discovery template ${t.id}: ` +
+      `save=${t.saveCount} use=${t.useCount} featured=${t.isFeatured} hosting=${t.isHostingFeatured}`,
+  );
+}
+
 interface PlanSeedItem {
   id: string;
   mealId: string;
@@ -927,6 +1048,10 @@ async function main(): Promise<void> {
 
   await seedMultiDishMeal(user.id, MULTI_DISH_MEAL);
 
+  for (const t of DISCOVERY_TEMPLATES) {
+    await seedDiscoveryTemplate(user.id, t);
+  }
+
   const weekStart = startOfWeekMonday(new Date());
   const weekEnd = addDays(weekStart, 6);
 
@@ -995,7 +1120,8 @@ async function main(): Promise<void> {
 
   console.log(
     `[devData] done. dev user has ${MEALS.length + 1} meals ` +
-      `(${MEALS.length} single-dish + 1 multi-dish) + 2 plans (1 active, 1 saved).`,
+      `(${MEALS.length} single-dish + 1 multi-dish) + 2 plans (1 active, 1 saved) ` +
+      `+ ${DISCOVERY_TEMPLATES.length} public discovery templates.`,
   );
 }
 
