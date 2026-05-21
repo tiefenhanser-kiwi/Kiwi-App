@@ -147,8 +147,8 @@ export function toListShape(m: {
 }
 
 // GET /meals/:id step shape — shared by per-dish steps and the top-level
-// meal-owned steps array.
-function toStepShape(s: {
+// meal-owned steps array. Exported so GET /dishes/:id (WS7-3 A2) reuses it.
+export function toStepShape(s: {
   stepIndex: number;
   stepTextTranslated: string;
   estimatedMinutes: number;
