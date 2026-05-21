@@ -451,6 +451,10 @@ model MealPlanTemplate {
   isHostingFeatured   Boolean    @default(false)
   hostingFeaturedRank Int?
   occasionType        String?
+  // WS7-3 A1: Top Rated score cache (PRD §15.6.4). Nullable — compute-on-write
+  // helper + scoring formula land in WS7-3 A2; both stay null until then.
+  topRatedScore          Float?
+  topRatedScoreUpdatedAt DateTime?
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 

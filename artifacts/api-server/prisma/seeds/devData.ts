@@ -38,6 +38,7 @@ const DEV_MEAL_IDS = {
   grainBowl: "dev-meal-mediterranean-grain-bowl",
   padThai: "dev-meal-pad-thai",
   fajitas: "dev-meal-sheet-pan-fajitas",
+  salmonRicePilaf: "dev-meal-salmon-rice-pilaf",
 } as const;
 
 const DEV_DISH_IDS = {
@@ -47,6 +48,8 @@ const DEV_DISH_IDS = {
   grainBowl: "dev-dish-mediterranean-grain-bowl",
   padThai: "dev-dish-pad-thai",
   fajitas: "dev-dish-sheet-pan-fajitas",
+  searedSalmon: "dev-dish-seared-salmon",
+  ricePilaf: "dev-dish-rice-pilaf",
 } as const;
 
 const DEV_PLAN_IDS = {
@@ -307,6 +310,113 @@ const MEALS: DevMeal[] = [
   },
 ];
 
+// ── multi-dish meal (WS7-3 A1) ───────────────────────────────────────────────
+// One multi-dish meal that exercises the WS7-3 read-shape fix: two dishes wired
+// via MealDishLink with explicit positionIndex, each carrying its own
+// dish-owned ingredients AND RecipeInstructionStep rows (ownerType: "dish").
+// The single-dish MEALS above keep meal-owned steps; this is the only seeded
+// meal that exercises the dish-owned-step path. isPublic so it surfaces in
+// GET /meals.
+
+interface DevDish {
+  dishId: string;
+  title: string;
+  roleLabel: "main" | "side";
+  positionIndex: number;
+  minutes: number;
+  difficulty: "easy" | "medium" | "fancy";
+  servings: number;
+  cal: number;
+  pro: number;
+  carb: number;
+  fat: number;
+  ingredients: DevIngredient[];
+  steps: string[];
+}
+
+interface DevMultiDishMeal {
+  mealId: string;
+  title: string;
+  description: string;
+  cuisine: string;
+  minutes: number;
+  difficulty: "easy" | "medium" | "fancy";
+  servings: number;
+  cal: number;
+  pro: number;
+  carb: number;
+  fat: number;
+  tags: string[];
+  dishes: DevDish[];
+}
+
+const MULTI_DISH_MEAL: DevMultiDishMeal = {
+  mealId: DEV_MEAL_IDS.salmonRicePilaf,
+  title: "Salmon with Rice Pilaf",
+  description:
+    "Seared salmon over a buttery rice pilaf — two dishes plated as one meal.",
+  cuisine: "American",
+  minutes: 35,
+  difficulty: "medium",
+  servings: 4,
+  cal: 640,
+  pro: 38,
+  carb: 48,
+  fat: 26,
+  tags: ["high-protein", "pescatarian", "multi-dish", DEV_TAG],
+  dishes: [
+    {
+      dishId: DEV_DISH_IDS.searedSalmon,
+      title: "Seared Salmon",
+      roleLabel: "main",
+      positionIndex: 0,
+      minutes: 15,
+      difficulty: "medium",
+      servings: 4,
+      cal: 420,
+      pro: 34,
+      carb: 6,
+      fat: 28,
+      ingredients: [
+        { name: "Salmon fillets", category: "Protein", quantity: 4, unit: "6 oz" },
+        { name: "Lemon", category: "Produce", quantity: 1, unit: "each" },
+        { name: "Olive oil", category: "Pantry", quantity: 2, unit: "tbsp" },
+        { name: "Fresh dill", category: "Produce", quantity: 1, unit: "bunch", isOptional: true },
+      ],
+      steps: [
+        "Pat salmon fillets dry; season with salt, pepper, and a squeeze of lemon.",
+        "Heat olive oil in a skillet over medium-high; sear salmon skin-side down for 4 minutes.",
+        "Flip and cook 3 more minutes until just opaque; finish with fresh dill.",
+      ],
+    },
+    {
+      dishId: DEV_DISH_IDS.ricePilaf,
+      title: "Rice Pilaf",
+      roleLabel: "side",
+      positionIndex: 1,
+      minutes: 25,
+      difficulty: "easy",
+      servings: 4,
+      cal: 220,
+      pro: 4,
+      carb: 42,
+      fat: 6,
+      ingredients: [
+        { name: "Basmati rice", category: "Pantry", quantity: 1, unit: "cup" },
+        { name: "Yellow onion", category: "Produce", quantity: 1, unit: "each" },
+        { name: "Vegetable broth", category: "Pantry", quantity: 2, unit: "cups" },
+        { name: "Butter", category: "Dairy", quantity: 2, unit: "tbsp" },
+      ],
+      steps: [
+        "Melt butter in a saucepan; sauté diced onion until translucent, 4 minutes.",
+        "Add basmati rice; toast 1 minute, stirring to coat.",
+        "Pour in vegetable broth; bring to a boil, cover, and simmer 15 minutes.",
+        "Rest off heat 5 minutes; fluff with a fork.",
+      ],
+    },
+  ],
+};
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function canonicalize(name: string): string {
@@ -565,6 +675,145 @@ async function seedMeal(userId: string, m: DevMeal): Promise<void> {
   );
 }
 
+// Multi-dish variant: one public Meal linked to N Dishes via MealDishLink with
+// explicit positionIndex. Each Dish carries its own ingredients and dish-owned
+// RecipeInstructionStep rows (ownerType: "dish"). Idempotent — child rows are
+// delete-then-insert scoped to the seed's deterministic IDs.
+async function seedMultiDishMeal(
+  userId: string,
+  m: DevMultiDishMeal,
+): Promise<void> {
+  // Resolve ingredient IDs per dish up front (outside the transaction).
+  const dishIngredientIds = await Promise.all(
+    m.dishes.map((d) => Promise.all(d.ingredients.map(ensureIngredient))),
+  );
+
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.meal.upsert({
+        where: { id: m.mealId },
+        update: {
+          userId,
+          title: m.title,
+          description: m.description,
+          cuisineType: m.cuisine,
+          mealType: "dinner",
+          difficulty: m.difficulty,
+          sourceType: "manual",
+          estimatedTimeMinutes: m.minutes,
+          servingsDefault: m.servings,
+          caloriesPerServing: m.cal,
+          proteinGPerServing: m.pro,
+          carbsGPerServing: m.carb,
+          fatGPerServing: m.fat,
+          tags: m.tags,
+          isPublic: true,
+          isArchived: false,
+        },
+        create: {
+          id: m.mealId,
+          userId,
+          title: m.title,
+          description: m.description,
+          cuisineType: m.cuisine,
+          mealType: "dinner",
+          difficulty: m.difficulty,
+          sourceType: "manual",
+          estimatedTimeMinutes: m.minutes,
+          servingsDefault: m.servings,
+          caloriesPerServing: m.cal,
+          proteinGPerServing: m.pro,
+          carbsGPerServing: m.carb,
+          fatGPerServing: m.fat,
+          tags: m.tags,
+          isPublic: true,
+          isArchived: false,
+        },
+      });
+
+      for (let di = 0; di < m.dishes.length; di++) {
+        const d = m.dishes[di];
+
+        await tx.dish.upsert({
+          where: { id: d.dishId },
+          update: {
+            userId,
+            title: d.title,
+            difficulty: d.difficulty,
+            sourceType: "manual",
+            estimatedTimeMinutes: d.minutes,
+            servingsDefault: d.servings,
+            caloriesPerServing: d.cal,
+            proteinGPerServing: d.pro,
+            carbsGPerServing: d.carb,
+            fatGPerServing: d.fat,
+            tags: m.tags,
+          },
+          create: {
+            id: d.dishId,
+            userId,
+            title: d.title,
+            difficulty: d.difficulty,
+            sourceType: "manual",
+            estimatedTimeMinutes: d.minutes,
+            servingsDefault: d.servings,
+            caloriesPerServing: d.cal,
+            proteinGPerServing: d.pro,
+            carbsGPerServing: d.carb,
+            fatGPerServing: d.fat,
+            tags: m.tags,
+          },
+        });
+
+        await tx.mealDishLink.upsert({
+          where: { mealId_dishId: { mealId: m.mealId, dishId: d.dishId } },
+          update: { roleLabel: d.roleLabel, positionIndex: d.positionIndex },
+          create: {
+            mealId: m.mealId,
+            dishId: d.dishId,
+            roleLabel: d.roleLabel,
+            positionIndex: d.positionIndex,
+          },
+        });
+
+        await tx.dishIngredient.deleteMany({ where: { dishId: d.dishId } });
+        await tx.dishIngredient.createMany({
+          data: d.ingredients.map((ing, i) => ({
+            dishId: d.dishId,
+            ingredientId: dishIngredientIds[di][i],
+            quantity: ing.quantity,
+            unit: ing.unit,
+            isOptional: ing.isOptional ?? false,
+            positionIndex: i,
+          })),
+        });
+
+        // Steps own to the Dish (ownerType: "dish") — this is the path the
+        // WS7-3 multi-dish read fix resolves per-dish.
+        await tx.recipeInstructionStep.deleteMany({
+          where: { ownerType: "dish", ownerId: d.dishId },
+        });
+        await tx.recipeInstructionStep.createMany({
+          data: d.steps.map((text, i) => ({
+            ownerType: "dish",
+            ownerId: d.dishId,
+            stepIndex: i,
+            stepTextRaw: text,
+            stepTextTranslated: text,
+            phaseType: "cook",
+          })),
+        });
+      }
+    },
+    { timeout: 30_000 },
+  );
+
+  console.log(
+    `[devData] seeded multi-dish meal ${m.mealId}: ${m.dishes.length} dishes ` +
+      `(${m.dishes.map((d) => `${d.dishId}:${d.ingredients.length}ing/${d.steps.length}steps`).join(", ")})`,
+  );
+}
+
 interface PlanSeedItem {
   id: string;
   mealId: string;
@@ -676,6 +925,8 @@ async function main(): Promise<void> {
     await seedMeal(user.id, m);
   }
 
+  await seedMultiDishMeal(user.id, MULTI_DISH_MEAL);
+
   const weekStart = startOfWeekMonday(new Date());
   const weekEnd = addDays(weekStart, 6);
 
@@ -743,7 +994,8 @@ async function main(): Promise<void> {
   await seedPlan(user.id, spicePlan);
 
   console.log(
-    `[devData] done. dev user has ${MEALS.length} meals + 2 plans (1 active, 1 saved).`,
+    `[devData] done. dev user has ${MEALS.length + 1} meals ` +
+      `(${MEALS.length} single-dish + 1 multi-dish) + 2 plans (1 active, 1 saved).`,
   );
 }
 
