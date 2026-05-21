@@ -106,10 +106,11 @@ export default function OnboardingStep3() {
   // pollution); on re-login the preferences screen surfaced those stub
   // values as if the user had set them.
   //
-  // Four §14.9.2 fields — householdSize, wantsLeftovers, planLengthDefault,
-  // defaultRetailer — are deliberately omitted: the current onboarding UI
-  // does not collect them, so the server's DB defaults / nullability apply.
-  // Adding onboarding UI for those fields is WS7-2-F (D-WS7-029).
+  // WS7-2-F (D-WS7-029): householdSize, wantsLeftovers and planLengthDefault
+  // are now collected in step 2 and propagated below. Of the four §14.9.2
+  // fields, only defaultRetailer stays omitted — it is set on the first
+  // grocery order, not during onboarding, so the server's DB default /
+  // nullability applies until then.
   const buildFullPrefs = (): Partial<UserPreferencesData> => {
     const prefs: Partial<UserPreferencesData> = {
       // §3.5 — step-3 form values (this screen).
@@ -132,6 +133,9 @@ export default function OnboardingStep3() {
       prefs.allergiesAndAvoidances = onboardingStep2Draft.allergiesAndAvoidances;
       prefs.cookingSkill = onboardingStep2Draft.cookingSkill;
       prefs.recurringGroceryItems = onboardingStep2Draft.recurringGroceryItems;
+      prefs.householdSize = onboardingStep2Draft.householdSize;
+      prefs.wantsLeftovers = onboardingStep2Draft.wantsLeftovers;
+      prefs.planLengthDefault = onboardingStep2Draft.planLengthDefault;
       // dietaryNotes: include only when non-empty. Step 2 saves "" when the
       // user leaves the field blank; an empty string is not a meaningful
       // preference, so omit the key rather than PATCH a blank value.

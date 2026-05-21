@@ -255,15 +255,16 @@ test("updateUserPreferences PATCHes /me/preferences and resolves", async () => {
   assert.equal(patched, true, "PATCH /me/preferences was called");
 });
 
-test("updateUserPreferences sends the partial body verbatim — no stub defaults (WS7-2-E Bug 3)", async () => {
+test("updateUserPreferences sends the partial body verbatim — no stub defaults (WS7-2-E Bug 3 / WS7-2-F)", async () => {
   // Bug 3 data-integrity half: onboarding-step-3's buildFullPrefs() now emits
   // a TRUE PARTIAL (step-2 draft ∪ step-3 form) instead of seeding from the
   // getCurrentUserPreferences() stub. This test verifies at the mutator
   // boundary — buildFullPrefs is a closure inside the screen, so the PATCH
   // request body is the testable surface — that the body is forwarded
-  // verbatim with no stub re-injection, and that the four §14.9.2 fields the
-  // current onboarding UI never collects are absent (server DB defaults /
-  // nullability apply; collecting them in-UI is WS7-2-F / D-WS7-029).
+  // verbatim with no stub re-injection. WS7-2-F (D-WS7-029) added
+  // householdSize / wantsLeftovers / planLengthDefault to step 2, so they
+  // now appear in the partial; only defaultRetailer stays absent — it is set
+  // on the first grocery order, not during onboarding.
   await mountAuthed();
 
   let capturedBody: Record<string, unknown> | null = null;
@@ -286,14 +287,18 @@ test("updateUserPreferences sends the partial body verbatim — no stub defaults
   }) as unknown as typeof fetch;
 
   // Representative true-partial body — the shape buildFullPrefs() produces:
-  // step-2 draft fields ∪ step-3 form fields, no uncollected §14.9.2 fields,
-  // no expandedSections UI state.
+  // step-2 draft fields (incl. household / leftovers / plan-length per
+  // WS7-2-F) ∪ step-3 form fields, no defaultRetailer, no expandedSections
+  // UI state.
   const partial = {
     cuisines: ["Italian"],
     eatingStyles: ["Healthy"],
     allergiesAndAvoidances: [],
     cookingSkill: "intermediate",
     recurringGroceryItems: ["Milk"],
+    householdSize: 4,
+    wantsLeftovers: false,
+    planLengthDefault: 5,
     cookingEquipment: ["Oven"],
     stovetopType: "gas",
     kidsCount: 2,
@@ -313,13 +318,10 @@ test("updateUserPreferences sends the partial body verbatim — no stub defaults
   assert.ok(capturedBody, "PATCH /me/preferences received a body");
   // Verbatim forward — the mutator + apiClient inject nothing.
   assert.deepEqual(capturedBody, partial);
-  // The four fields current onboarding UI never collects must be absent.
-  for (const banned of [
-    "householdSize",
-    "wantsLeftovers",
-    "planLengthDefault",
-    "defaultRetailer",
-  ]) {
+  // The one §14.9.2 field current onboarding UI never collects must be
+  // absent — defaultRetailer is set on the first grocery order, not during
+  // onboarding.
+  for (const banned of ["defaultRetailer"]) {
     assert.equal(
       banned in (capturedBody as object),
       false,

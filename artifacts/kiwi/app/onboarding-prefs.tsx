@@ -1,10 +1,19 @@
 import React, { useState } from "react";
-import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Keyboard,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { Stepper } from "@/components/Stepper";
 import { AllergiesPicker } from "@/components/preference-pickers/AllergiesPicker";
 import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
 import { EatingStylesPicker } from "@/components/preference-pickers/EatingStylesPicker";
@@ -12,8 +21,15 @@ import { RecurringItemsPicker } from "@/components/preference-pickers/RecurringI
 import { SkillLevelPicker } from "@/components/preference-pickers/SkillLevelPicker";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { PLAN_DURATION_PRESETS } from "@/lib/domain";
+
+const HOUSEHOLD_MIN = 1;
+const HOUSEHOLD_MAX = 30;
 
 type Step2FormState = {
+  householdSize: number;
+  wantsLeftovers: boolean;
+  planLengthDefault: number;
   cuisines: string[];
   eatingStyles: string[];
   allergiesAndAvoidances: string[];
@@ -29,6 +45,9 @@ export default function OnboardingPrefs() {
   const [form, setForm] = useState<Step2FormState>(() => {
     if (onboardingStep2Draft) {
       return {
+        householdSize: onboardingStep2Draft.householdSize,
+        wantsLeftovers: onboardingStep2Draft.wantsLeftovers,
+        planLengthDefault: onboardingStep2Draft.planLengthDefault,
         cuisines: onboardingStep2Draft.cuisines,
         eatingStyles: onboardingStep2Draft.eatingStyles,
         allergiesAndAvoidances: onboardingStep2Draft.allergiesAndAvoidances,
@@ -38,6 +57,9 @@ export default function OnboardingPrefs() {
       };
     }
     return {
+      householdSize: 4,
+      wantsLeftovers: false,
+      planLengthDefault: 5,
       cuisines: [],
       eatingStyles: [],
       allergiesAndAvoidances: [],
@@ -57,6 +79,9 @@ export default function OnboardingPrefs() {
   const handleContinue = () => {
     Keyboard.dismiss();
     setOnboardingStep2Draft({
+      householdSize: form.householdSize,
+      wantsLeftovers: form.wantsLeftovers,
+      planLengthDefault: form.planLengthDefault,
       cuisines: form.cuisines,
       eatingStyles: form.eatingStyles,
       allergiesAndAvoidances: form.allergiesAndAvoidances,
@@ -75,6 +100,50 @@ export default function OnboardingPrefs() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <Section title="Household">
+          <Text style={s.subLabel}>Household size</Text>
+          <Stepper
+            value={form.householdSize}
+            onChange={(n) => update("householdSize", n)}
+            min={HOUSEHOLD_MIN}
+            max={HOUSEHOLD_MAX}
+            suffix={form.householdSize === 1 ? "person" : "people"}
+          />
+
+          <Text style={[s.subLabel, { marginTop: KSpacing.lg }]}>
+            Plan length default
+          </Text>
+          <View style={s.chipRow}>
+            {PLAN_DURATION_PRESETS.map((n) => (
+              <Chip
+                key={n}
+                label={n === 1 ? "1 day" : `${n} days`}
+                selected={form.planLengthDefault === n}
+                onPress={() => update("planLengthDefault", n)}
+              />
+            ))}
+          </View>
+          <Text style={s.helpText}>days per plan</Text>
+
+          <Text style={[s.subLabel, { marginTop: KSpacing.lg }]}>
+            Wants leftovers
+          </Text>
+          <View style={s.toggleRow}>
+            <Text style={s.toggleSubtitle}>
+              Kiwi sizes portions to leave planned extras
+            </Text>
+            <Switch
+              value={form.wantsLeftovers}
+              onValueChange={(v) => update("wantsLeftovers", v)}
+              trackColor={{
+                false: KColors.neutral[400],
+                true: KColors.sage[700],
+              }}
+              thumbColor={KColors.neutral[0]}
+            />
+          </View>
+        </Section>
+
         <Section
           title="Cuisines you'd like"
           subtitle="Pick a few — Kiwi mixes from these"
@@ -201,6 +270,28 @@ const s = StyleSheet.create({
   optional: {
     fontWeight: KType.weight.regular,
     color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  helpText: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+    marginTop: KSpacing.xs,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.md,
+  },
+  toggleSubtitle: {
+    flex: 1,
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
   },
   input: {

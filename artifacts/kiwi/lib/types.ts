@@ -113,6 +113,10 @@ export interface SubscriptionInfo {
  * in WS7 by getCurrentUserPreferences() reading saved API state.
  */
 export interface Step2Draft {
+  // WS7-2-F (D-WS7-029) — household fields collected in the step-2 UI.
+  householdSize: number;
+  wantsLeftovers: boolean;
+  planLengthDefault: number;
   cuisines: string[];
   eatingStyles: string[];
   allergiesAndAvoidances: string[];
