@@ -195,3 +195,338 @@ describe("POST /api/plans/:id/recalc-macros — server errors", () => {
     assert.equal(body.error, "internal server error");
   });
 });
+
+// ── WS7-3 A2 — GET /plans (list+filter) + GET /plans/:id (composite) ──────
+
+const A2_USER = "test-user-plans-a2";
+
+function instanceFix(opts: {
+  id: string;
+  userId?: string;
+  name: string;
+  isActiveThisWeek?: boolean;
+  createdAt?: Date;
+  items?: {
+    id: string;
+    mealId: string;
+    positionIndex: number;
+    assignedDayOfWeek: string | null;
+  }[];
+}) {
+  return {
+    id: opts.id,
+    userId: opts.userId ?? A2_USER,
+    titleOverride: opts.name,
+    status: "this_week",
+    startDate: null as Date | null,
+    endDate: null as Date | null,
+    isActiveThisWeek: opts.isActiveThisWeek ?? false,
+    revisionId: 2,
+    createdAt: opts.createdAt ?? new Date("2026-05-01T00:00:00Z"),
+    template: {
+      title: opts.name,
+      description: "instance template",
+      imageUrl: null as string | null,
+      tags: ["dev"],
+      sourceType: "wizard",
+    },
+    items: (opts.items ?? []).map((it) => ({
+      ...it,
+      assignedDate: null as Date | null,
+      servingsOverride: null as number | null,
+      isBreakfast: false,
+      isLunch: false,
+      isDinner: true,
+      notes: null as string | null,
+    })),
+  };
+}
+
+function templateFix(id: string, title: string) {
+  return {
+    id,
+    title,
+    description: "public template",
+    imageUrl: null as string | null,
+    tags: ["featured"],
+  };
+}
+
+function mealFix(id: string, title: string, calories: number) {
+  return {
+    id,
+    title,
+    description: null as string | null,
+    cuisineType: "American",
+    difficulty: "easy",
+    mealType: "dinner",
+    sourceType: "manual",
+    estimatedTimeMinutes: 30,
+    imageUrl: null as string | null,
+    servingsDefault: 4,
+    tags: ["t"],
+    caloriesPerServing: calories,
+    proteinGPerServing: 20,
+    carbsGPerServing: 40,
+    fatGPerServing: 15,
+    isArchived: false,
+    isPublic: true,
+    userId: A2_USER,
+    dishLinks: [] as unknown[],
+  };
+}
+
+const A2_SETTINGS = [
+  { key: "top_rated.save_weight", value: 1 },
+  { key: "top_rated.use_weight", value: 2 },
+  { key: "top_rated.decay_half_life_days", value: 30 },
+  { key: "top_rated.refresh_interval_hours", value: 6 },
+  { key: "top_rated.display_count", value: 20 },
+];
+
+function makeA2Stub(opts: {
+  instances?: ReturnType<typeof instanceFix>[];
+  featured?: ReturnType<typeof templateFix>[];
+  topRated?: ReturnType<typeof templateFix>[];
+  meals?: ReturnType<typeof mealFix>[];
+}) {
+  const instances = opts.instances ?? [];
+  const meals = opts.meals ?? [];
+  return {
+    mealPlanInstance: {
+      findMany: async (args: { where: { userId: string } }) =>
+        instances
+          .filter((i) => i.userId === args.where.userId)
+          .slice()
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
+      findFirst: async (args: {
+        where: { userId: string; isActiveThisWeek?: boolean };
+      }) =>
+        instances.find(
+          (i) =>
+            i.userId === args.where.userId &&
+            (args.where.isActiveThisWeek === undefined ||
+              i.isActiveThisWeek === args.where.isActiveThisWeek),
+        ) ?? null,
+      findUnique: async (args: { where: { id: string } }) =>
+        instances.find((i) => i.id === args.where.id) ?? null,
+    },
+    mealPlanTemplate: {
+      findMany: async (args: {
+        where?: { isFeatured?: boolean; isHostingFeatured?: boolean };
+      }) => {
+        if (args.where?.isFeatured === true) return opts.featured ?? [];
+        if (args.where?.isHostingFeatured === true) return [];
+        return opts.topRated ?? [];
+      },
+    },
+    meal: {
+      findUnique: async (args: { where: { id: string } }) =>
+        meals.find((m) => m.id === args.where.id) ?? null,
+    },
+    recipeInstructionStep: {
+      findMany: async () => [] as unknown[],
+    },
+    systemSetting: {
+      findMany: async (args: { where: { key: { in: string[] } } }) =>
+        A2_SETTINGS.filter((s) => args.where.key.in.includes(s.key)),
+    },
+  };
+}
+
+function a2SpinUp(stub: unknown): Promise<Harness> {
+  return spinUp({
+    prisma: stub as never,
+    computePlanMacros: (async () => HAPPY_RESULT) as never,
+  });
+}
+
+describe("GET /plans — list + filter", () => {
+  it("defaults to my_plans and returns the user's instances", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({ id: "p-1", name: "Plan One" }),
+          instanceFix({ id: "p-2", name: "Plan Two", userId: "stranger" }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plans: { id: string; source: string }[];
+        activeThisWeek: unknown;
+        nextCursor: string | null;
+      };
+      assert.deepEqual(
+        body.plans.map((p) => p.id),
+        ["p-1"],
+      );
+      assert.equal(body.plans[0].source, "instance");
+      assert.ok("nextCursor" in body);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("OR semantics: my_plans,featured merges both facets", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [instanceFix({ id: "p-own", name: "Owned" })],
+        featured: [templateFix("t-feat", "Featured Plan")],
+      }),
+    );
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/plans?filter=my_plans,featured`,
+        { headers: { Authorization: `Bearer ${signToken(A2_USER)}` } },
+      );
+      const body = (await res.json()) as {
+        plans: { id: string; source: string }[];
+      };
+      assert.deepEqual(
+        body.plans.map((p) => p.id),
+        ["p-own", "t-feat"],
+      );
+      assert.equal(body.plans[1].source, "template");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rejects an unknown filter value with 400", async () => {
+    const harness = await a2SpinUp(makeA2Stub({}));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans?filter=bogus`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { unknown: string[] };
+      assert.deepEqual(body.unknown, ["bogus"]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("includes the activeThisWeek summary", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({ id: "p-active", name: "Active Plan", isActiveThisWeek: true }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      const body = (await res.json()) as {
+        activeThisWeek: { id: string; revisionId: number } | null;
+      };
+      assert.ok(body.activeThisWeek);
+      assert.equal(body.activeThisWeek.id, "p-active");
+      assert.equal(body.activeThisWeek.revisionId, 2);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rejects 401 when no auth header is present", async () => {
+    const harness = await a2SpinUp(makeA2Stub({}));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`);
+      assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("GET /plans/:id — composite Plan Review", () => {
+  it("returns the plan with expanded items and a fresh macroDailyAverage", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-detail",
+            name: "Review Me",
+            items: [
+              { id: "it-1", mealId: "m-a", positionIndex: 0, assignedDayOfWeek: "Monday" },
+              { id: "it-2", mealId: "m-b", positionIndex: 1, assignedDayOfWeek: "Tuesday" },
+            ],
+          }),
+        ],
+        meals: [mealFix("m-a", "Meal A", 600), mealFix("m-b", "Meal B", 400)],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-detail`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: {
+          id: string;
+          name: string;
+          sourceType: string;
+          items: { id: string; meal: { id: string; calories: number } | null }[];
+          macroDailyAverage: { caloriesPerDay: number };
+        };
+      };
+      assert.equal(body.plan.id, "p-detail");
+      assert.equal(body.plan.sourceType, "wizard"); // from the template
+      assert.equal(body.plan.items.length, 2);
+      assert.equal(body.plan.items[0].meal?.id, "m-a");
+      assert.equal(body.plan.items[0].meal?.calories, 600);
+      // (600 + 400) / 2 distinct days = 500/day
+      assert.equal(body.plan.macroDailyAverage.caloriesPerDay, 500);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when the plan belongs to another user", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({ id: "p-stranger", name: "Not Yours", userId: "stranger" }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-stranger`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 for a non-existent plan id", async () => {
+    const harness = await a2SpinUp(makeA2Stub({}));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/ghost-plan`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 for an over-length plan id", async () => {
+    const harness = await a2SpinUp(makeA2Stub({}));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/${"x".repeat(101)}`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+});

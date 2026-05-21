@@ -27,11 +27,74 @@ import {
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { requireAuth } from "../middleware/auth";
+import {
+  clampLimit,
+  mergeById,
+  paginateById,
+  parseFilterParam,
+} from "../lib/listQuery";
+import {
+  instanceToSummary,
+  INSTANCE_TEMPLATE_INCLUDE,
+  PLAN_FILTER_KEYS,
+  resolvePlansForFilter,
+  type InstanceRow,
+  type PlanListItem,
+} from "../lib/planQueries";
+import { composeMealDetail, type MealDetail } from "./meals";
 
 export interface PlansRouterDeps {
   computePlanMacros: typeof productionComputePlanMacros;
   prisma: PrismaClient;
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
+}
+
+// Per-filter fetch cap for GET /plans. Each filter is resolved up to this
+// many rows; the merged union is then cursor-paginated down to the page
+// `limit`. 100 (the max page size) keeps page 2+ reachable across the union.
+const PLAN_FETCH_CAP = 100;
+
+interface PlanReviewItem {
+  assignedDayOfWeek: string | null;
+  assignedDate: string | null;
+  meal: MealDetail | null;
+}
+
+// macroDailyAverage — fresh per request. MealPlanInstance has no
+// lastMacroCalcRevisionId column, so the WS7-3 A2 §1.8 cache path does not
+// exist; this is a plain arithmetic rollup of each item meal's per-serving
+// macros divided by the number of distinct assigned days. See WS7-3 A2
+// Phase 3 report §8 (F-A2-4).
+function computeMacroDailyAverage(items: PlanReviewItem[]): {
+  caloriesPerDay: number;
+  proteinGPerDay: number;
+  carbsGPerDay: number;
+  fatGPerDay: number;
+} {
+  let cal = 0;
+  let pro = 0;
+  let carb = 0;
+  let fat = 0;
+  const days = new Set<string>();
+  for (const it of items) {
+    if (it.meal) {
+      cal += it.meal.calories;
+      pro += it.meal.protein;
+      carb += it.meal.carbs;
+      fat += it.meal.fat;
+    }
+    const dayKey = it.assignedDate ?? it.assignedDayOfWeek;
+    if (dayKey) days.add(dayKey);
+  }
+  const dayCount =
+    days.size > 0 ? days.size : items.length > 0 ? items.length : 1;
+  const round1 = (n: number): number => Math.round((n / dayCount) * 10) / 10;
+  return {
+    caloriesPerDay: round1(cal),
+    proteinGPerDay: round1(pro),
+    carbsGPerDay: round1(carb),
+    fatGPerDay: round1(fat),
+  };
 }
 
 export function createPlansRouter(
@@ -94,6 +157,155 @@ export function createPlansRouter(
       }
     },
   );
+
+  // ── WS7-3 A2: composite plan reads ────────────────────────────────────
+
+  // GET /plans?filter=my_plans,featured,top_rated,hosting_events
+  // Multi-select OR over the four Plan Discovery facets. Returns the union
+  // (cursor-paginated) plus the user's current This-Week plan summary.
+  router.get("/plans", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const parsed = parseFilterParam(req.query.filter, PLAN_FILTER_KEYS, [
+      "my_plans",
+    ]);
+    if ("unknownValues" in parsed) {
+      return res.status(400).json({
+        error: "invalid filter value(s)",
+        unknown: parsed.unknownValues,
+        allowed: PLAN_FILTER_KEYS,
+      });
+    }
+    const limit = clampLimit(req.query.limit);
+    const cursor =
+      typeof req.query.cursor === "string" && req.query.cursor.length > 0
+        ? req.query.cursor
+        : undefined;
+    const now = new Date();
+
+    try {
+      const blocks: PlanListItem[][] = [];
+      for (const key of parsed.keys) {
+        blocks.push(
+          await resolvePlansForFilter(
+            prisma,
+            key,
+            userId,
+            now,
+            PLAN_FETCH_CAP,
+          ),
+        );
+      }
+      const merged = mergeById(blocks);
+      const { page, nextCursor } = paginateById(merged, cursor, limit);
+
+      // activeThisWeek — the pinned This-Week callout the Plans tab consumes
+      // (PRD §9.2.1), folded in so the tab fetches one endpoint.
+      const activeRow = await prisma.mealPlanInstance.findFirst({
+        where: { userId, isActiveThisWeek: true },
+        include: INSTANCE_TEMPLATE_INCLUDE,
+        orderBy: { createdAt: "desc" },
+      });
+      const activeThisWeek = activeRow
+        ? instanceToSummary(activeRow as unknown as InstanceRow)
+        : null;
+
+      return res.json({ plans: page, activeThisWeek, nextCursor });
+    } catch (err) {
+      logger.error({ err, userId }, "GET /plans failed");
+      return res.status(500).json({ error: "failed to list plans" });
+    }
+  });
+
+  // GET /plans/:id — composite Plan Review payload: instance meta + every
+  // item with its full Meal expansion + a fresh macroDailyAverage rollup.
+  router.get("/plans/:id", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const id = req.params.id;
+    if (typeof id !== "string" || id.length === 0 || id.length > 100) {
+      return res.status(400).json({ error: "invalid plan id" });
+    }
+
+    try {
+      const instance = await prisma.mealPlanInstance.findUnique({
+        where: { id },
+        include: {
+          template: {
+            select: {
+              title: true,
+              description: true,
+              imageUrl: true,
+              tags: true,
+              sourceType: true,
+            },
+          },
+          items: { orderBy: { positionIndex: "asc" } },
+        },
+      });
+
+      // MealPlanInstance has no isPublic concept — instances are personal, so
+      // a non-owner read is a 404 (no existence leak).
+      if (!instance || instance.userId !== userId) {
+        return res.status(404).json({ error: "plan not found" });
+      }
+
+      const items: (PlanReviewItem & {
+        id: string;
+        mealId: string;
+        positionIndex: number;
+        servingsOverride: number | null;
+        isBreakfast: boolean;
+        isLunch: boolean;
+        isDinner: boolean;
+        notes: string | null;
+      })[] = [];
+      for (const item of instance.items) {
+        const meal = await composeMealDetail(prisma, item.mealId);
+        items.push({
+          id: item.id,
+          mealId: item.mealId,
+          positionIndex: item.positionIndex,
+          assignedDayOfWeek: item.assignedDayOfWeek,
+          assignedDate: item.assignedDate
+            ? item.assignedDate.toISOString()
+            : null,
+          servingsOverride: item.servingsOverride,
+          isBreakfast: item.isBreakfast,
+          isLunch: item.isLunch,
+          isDinner: item.isDinner,
+          notes: item.notes,
+          meal,
+        });
+      }
+
+      return res.json({
+        plan: {
+          id: instance.id,
+          name: instance.titleOverride ?? instance.template.title,
+          status: instance.status,
+          startDate: instance.startDate
+            ? instance.startDate.toISOString()
+            : null,
+          endDate: instance.endDate ? instance.endDate.toISOString() : null,
+          revisionId: instance.revisionId,
+          isActiveThisWeek: instance.isActiveThisWeek,
+          userId: instance.userId,
+          // sourceType lives on the template, not the instance.
+          sourceType: instance.template.sourceType,
+          items,
+          macroDailyAverage: computeMacroDailyAverage(items),
+        },
+      });
+    } catch (err) {
+      logger.error({ err, userId, id }, "GET /plans/:id failed");
+      return res.status(500).json({ error: "failed to fetch plan" });
+    }
+  });
 
   return router;
 }

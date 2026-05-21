@@ -1636,3 +1636,178 @@ describe("POST /api/grocery-lists/:id/items", () => {
     }
   });
 });
+
+// ── WS7-3 A2 — GET /grocery-lists (list + active/past filter) ─────────────
+//
+// Self-contained harness: GET /grocery-lists only needs `prisma`, so this
+// block stubs that one surface rather than threading the shared StubState.
+
+interface GLFix {
+  id: string;
+  userId: string;
+  title: string;
+  status: string;
+  sourceType: string;
+  mealPlanInstanceId: string | null;
+  lastGeneratedAt: Date | null;
+  createdAt: Date;
+  itemCount: number;
+}
+
+function glFix(opts: Partial<GLFix> & { id: string; userId: string }): GLFix {
+  return {
+    title: `List ${opts.id}`,
+    status: "active",
+    sourceType: "plan",
+    mealPlanInstanceId: null,
+    lastGeneratedAt: null,
+    createdAt: new Date("2026-05-20T00:00:00Z"),
+    itemCount: 3,
+    ...opts,
+  };
+}
+
+function makeGLStub(lists: GLFix[]) {
+  return {
+    groceryList: {
+      findMany: async (args: {
+        where: {
+          userId: string;
+          status?: { not?: string };
+          createdAt?: { gt?: Date; lte?: Date };
+        };
+      }) => {
+        const w = args.where;
+        let rows = lists.filter((l) => l.userId === w.userId);
+        if (w.status?.not) rows = rows.filter((l) => l.status !== w.status!.not);
+        if (w.createdAt?.gt)
+          rows = rows.filter((l) => l.createdAt > w.createdAt!.gt!);
+        if (w.createdAt?.lte)
+          rows = rows.filter((l) => l.createdAt <= w.createdAt!.lte!);
+        return rows
+          .slice()
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .map((l) => ({ ...l, _count: { items: l.itemCount } }));
+      },
+    },
+  };
+}
+
+async function glSpinUp(lists: GLFix[]): Promise<Harness> {
+  const router = createGroceryListsRouter({
+    prisma: makeGLStub(lists) as never,
+  });
+  const app: Express = express();
+  app.use(express.json());
+  app.use(router);
+  return await new Promise<Harness>((resolve, reject) => {
+    const server: Server = app.listen(0, () => {
+      const addr = server.address();
+      if (typeof addr !== "object" || !addr) {
+        reject(new Error("server did not bind"));
+        return;
+      }
+      resolve({
+        baseUrl: `http://127.0.0.1:${addr.port}`,
+        state: makeState(),
+        close: () =>
+          new Promise<void>((r, j) =>
+            server.close((err) => (err ? j(err) : r())),
+          ),
+      });
+    });
+  });
+}
+
+const GL_USER = "test-user-gl-list";
+
+describe("GET /grocery-lists", () => {
+  it("returns the user's lists with itemCount, newest first", async () => {
+    const harness = await glSpinUp([
+      glFix({ id: "gl-old", userId: GL_USER, createdAt: new Date("2026-05-01T00:00:00Z"), itemCount: 2 }),
+      glFix({ id: "gl-new", userId: GL_USER, createdAt: new Date("2026-05-20T00:00:00Z"), itemCount: 7 }),
+      glFix({ id: "gl-stranger", userId: "other-user" }),
+    ]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        groceryLists: { id: string; itemCount: number }[];
+      };
+      assert.deepEqual(
+        body.groceryLists.map((g) => g.id),
+        ["gl-new", "gl-old"],
+      );
+      assert.equal(body.groceryLists[0].itemCount, 7);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("?filter=active returns only recent, non-archived lists", async () => {
+    const recent = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const harness = await glSpinUp([
+      glFix({ id: "gl-active", userId: GL_USER, status: "active", createdAt: recent }),
+      glFix({ id: "gl-archived", userId: GL_USER, status: "archived", createdAt: recent }),
+      glFix({ id: "gl-stale", userId: GL_USER, status: "active", createdAt: old }),
+    ]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists?filter=active`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      const body = (await res.json()) as { groceryLists: { id: string }[] };
+      assert.deepEqual(
+        body.groceryLists.map((g) => g.id),
+        ["gl-active"],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("?filter=past returns only lists older than the active window", async () => {
+    const recent = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const harness = await glSpinUp([
+      glFix({ id: "gl-recent", userId: GL_USER, createdAt: recent }),
+      glFix({ id: "gl-old", userId: GL_USER, createdAt: old }),
+    ]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists?filter=past`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      const body = (await res.json()) as { groceryLists: { id: string }[] };
+      assert.deepEqual(
+        body.groceryLists.map((g) => g.id),
+        ["gl-old"],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rejects an unknown filter value with 400", async () => {
+    const harness = await glSpinUp([]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists?filter=bogus`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rejects 401 when no auth header is present", async () => {
+    const harness = await glSpinUp([]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists`);
+      assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+});

@@ -91,6 +91,12 @@ function sectionForCategory(category: string | null | undefined): SectionKey {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// WS7-3 A2 — GET /grocery-lists ?filter= accept-list. `by-plan=<id>` defers
+// to a future sub-phase. "active" = non-archived AND created within the last
+// ACTIVE_WINDOW_DAYS; "past" = created before that window.
+const GROCERY_LIST_FILTER_KEYS = ["active", "past"] as const;
+const ACTIVE_WINDOW_DAYS = 7;
+
 // Best-effort canonical-name → Ingredient.id lookup. Returns null on miss
 // (synthetic recurring items from Block A have no Ingredient row). The
 // canonicalName is unique in the schema and all seeded rows are lowercase
@@ -291,6 +297,71 @@ export function createGroceryListsRouter(
       }
     },
   );
+
+  // GET /api/grocery-lists — list the user's grocery lists (WS7-3 A2).
+  // No pagination at MVP (per-user list count is small). Optional ?filter=
+  // active|past splits on the ACTIVE_WINDOW_DAYS recency window.
+  router.get("/grocery-lists", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const filterRaw = req.query.filter;
+    let filter: "active" | "past" | null = null;
+    if (filterRaw !== undefined && filterRaw !== "") {
+      if (filterRaw === "active" || filterRaw === "past") {
+        filter = filterRaw;
+      } else {
+        return res.status(400).json({
+          error: "invalid filter value",
+          allowed: GROCERY_LIST_FILTER_KEYS,
+        });
+      }
+    }
+
+    try {
+      const cutoff = new Date(
+        Date.now() - ACTIVE_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+      );
+      let where: Prisma.GroceryListWhereInput = { userId };
+      if (filter === "active") {
+        where = {
+          userId,
+          status: { not: "archived" },
+          createdAt: { gt: cutoff },
+        };
+      } else if (filter === "past") {
+        where = { userId, createdAt: { lte: cutoff } };
+      }
+
+      const lists = await prisma.groceryList.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        include: { _count: { select: { items: true } } },
+      });
+
+      return res.status(200).json({
+        groceryLists: lists.map((l) => ({
+          id: l.id,
+          title: l.title,
+          status: l.status,
+          sourceType: l.sourceType,
+          mealPlanInstanceId: l.mealPlanInstanceId,
+          itemCount: l._count.items,
+          lastGeneratedAt: l.lastGeneratedAt
+            ? l.lastGeneratedAt.toISOString()
+            : null,
+          createdAt: l.createdAt.toISOString(),
+        })),
+      });
+    } catch (err) {
+      logger.error(
+        { event: "list_grocery_lists_failed", userId, err },
+        "GET /grocery-lists failed",
+      );
+      return res.status(500).json({ error: "internal server error" });
+    }
+  });
 
   router.get("/grocery-lists/:id", requireAuth, async (req, res) => {
     const userId = req.userId;

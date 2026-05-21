@@ -172,6 +172,145 @@ export function toStepShape(s: {
   };
 }
 
+// GET /meals/:id detail shapes — exported so GET /plans/:id (WS7-3 A2) can
+// type the per-item Meal expansion.
+export type MealStepShape = ReturnType<typeof toStepShape>;
+
+export interface MealDetailDish {
+  dishId: string;
+  title: string;
+  roleLabel: string;
+  positionIndex: number;
+  minutes: number;
+  difficulty: string;
+  servings: number;
+  ingredients: {
+    name: string;
+    quantity: number;
+    unit: string;
+    preparationNote: string | null;
+    category: string;
+    isOptional: boolean;
+  }[];
+  steps: MealStepShape[];
+}
+
+export interface MealDetail extends MealListItem {
+  description: string | null;
+  difficulty: string;
+  mealType: string;
+  sourceType: string;
+  isPublic: boolean;
+  userId: string | null;
+  dishes: MealDetailDish[];
+  steps: MealStepShape[];
+  notes: null;
+}
+
+// Compose the full meal-detail payload — meal meta + per-dish ingredients +
+// dish-owned (or legacy meal-owned fallback) steps. Returns null when the
+// meal is missing or archived. Shared by GET /meals/:id and the per-item
+// Meal expansion in GET /plans/:id.
+export async function composeMealDetail(
+  prisma: PrismaClient,
+  id: string,
+): Promise<MealDetail | null> {
+  const meal = await prisma.meal.findUnique({
+    where: { id },
+    include: {
+      dishLinks: {
+        orderBy: { positionIndex: "asc" },
+        include: {
+          dish: {
+            include: {
+              dishIngredients: {
+                orderBy: { positionIndex: "asc" },
+                include: { ingredient: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!meal || meal.isArchived) return null;
+
+  const dishIds = meal.dishLinks.map((l) => l.dish.id);
+
+  // Steps use the polymorphic ownerType/ownerId pattern (no Prisma relation —
+  // the FK is application-enforced). Meal-owned steps cover legacy/seed
+  // single-dish meals; dish-owned steps cover multi-dish meals. Both are
+  // queried; precedence is resolved per-dish below.
+  const [mealSteps, dishSteps] = await Promise.all([
+    prisma.recipeInstructionStep.findMany({
+      where: { ownerType: "meal", ownerId: id },
+      orderBy: { stepIndex: "asc" },
+    }),
+    dishIds.length > 0
+      ? prisma.recipeInstructionStep.findMany({
+          where: { ownerType: "dish", ownerId: { in: dishIds } },
+          orderBy: { stepIndex: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const dishStepsByOwner = new Map<string, typeof dishSteps>();
+  for (const s of dishSteps) {
+    const arr = dishStepsByOwner.get(s.ownerId) ?? [];
+    arr.push(s);
+    dishStepsByOwner.set(s.ownerId, arr);
+  }
+
+  const dishes: MealDetailDish[] = meal.dishLinks.map((link) => {
+    const d = link.dish;
+    const ownSteps = dishStepsByOwner.get(d.id) ?? [];
+    // Step ownership precedence: per-dish steps when this dish owns any, else
+    // fall back to meal-owned steps grouped under the dish (legacy single-dish
+    // meals seeded with ownerType: "meal").
+    const steps = ownSteps.length > 0 ? ownSteps : mealSteps;
+    return {
+      dishId: d.id,
+      title: d.title,
+      roleLabel: link.roleLabel,
+      positionIndex: link.positionIndex,
+      // Shared meta fields use the list-style renamed names; dish-only fields
+      // (dishId, roleLabel, positionIndex) keep DB names.
+      minutes: d.estimatedTimeMinutes,
+      difficulty: d.difficulty,
+      servings: d.servingsDefault,
+      ingredients: d.dishIngredients.map((di) => ({
+        name: di.ingredient.displayName,
+        quantity: di.quantity,
+        unit: di.unit,
+        preparationNote: di.preparationNote,
+        category: di.ingredient.category,
+        isOptional: di.isOptional,
+      })),
+      steps: steps.map(toStepShape),
+    };
+  });
+
+  return {
+    // Shared meal-meta fields reuse the GET /meals list shape (toListShape):
+    // id, title, cuisine, minutes, servings, calories/protein/carbs/fat,
+    // tags, image. Detail-only fields keep their DB-style names.
+    ...toListShape(meal),
+    description: meal.description,
+    difficulty: meal.difficulty,
+    mealType: meal.mealType,
+    sourceType: meal.sourceType,
+    isPublic: meal.isPublic,
+    userId: meal.userId,
+    dishes,
+    // Top-level meal-owned steps — populated for legacy single-dish meals,
+    // empty when dishes carry their own steps. Defensive shape: mobile reads
+    // meal.dishes[].steps first.
+    steps: mealSteps.map(toStepShape),
+    notes: null,
+  };
+}
+
 export function createMealsRouter(
   deps: Partial<MealsRouterDeps> = {},
 ): IRouter {
@@ -385,106 +524,11 @@ export function createMealsRouter(
     }
 
     try {
-      const meal = await prisma.meal.findUnique({
-        where: { id },
-        include: {
-          dishLinks: {
-            orderBy: { positionIndex: "asc" },
-            include: {
-              dish: {
-                include: {
-                  dishIngredients: {
-                    orderBy: { positionIndex: "asc" },
-                    include: { ingredient: true },
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
-
-      if (!meal || meal.isArchived) {
+      const meal = await composeMealDetail(prisma, id);
+      if (!meal) {
         return res.status(404).json({ error: "meal not found" });
       }
-
-      const dishIds = meal.dishLinks.map((l) => l.dish.id);
-
-      // Steps use the polymorphic ownerType/ownerId pattern (no Prisma
-      // relation — the FK is application-enforced). Meal-owned steps cover
-      // legacy/seed single-dish meals; dish-owned steps cover multi-dish
-      // meals. Both are queried; precedence is resolved per-dish below.
-      const [mealSteps, dishSteps] = await Promise.all([
-        prisma.recipeInstructionStep.findMany({
-          where: { ownerType: "meal", ownerId: id },
-          orderBy: { stepIndex: "asc" },
-        }),
-        dishIds.length > 0
-          ? prisma.recipeInstructionStep.findMany({
-              where: { ownerType: "dish", ownerId: { in: dishIds } },
-              orderBy: { stepIndex: "asc" },
-            })
-          : Promise.resolve([]),
-      ]);
-
-      const dishStepsByOwner = new Map<string, typeof dishSteps>();
-      for (const s of dishSteps) {
-        const arr = dishStepsByOwner.get(s.ownerId) ?? [];
-        arr.push(s);
-        dishStepsByOwner.set(s.ownerId, arr);
-      }
-
-      const dishes = meal.dishLinks.map((link) => {
-        const d = link.dish;
-        const ownSteps = dishStepsByOwner.get(d.id) ?? [];
-        // Step ownership precedence: per-dish steps when this dish owns any,
-        // else fall back to meal-owned steps grouped under the dish (legacy
-        // single-dish meals seeded with ownerType: "meal").
-        const steps = ownSteps.length > 0 ? ownSteps : mealSteps;
-        return {
-          dishId: d.id,
-          title: d.title,
-          roleLabel: link.roleLabel,
-          positionIndex: link.positionIndex,
-          // Shared meta fields use the list-style renamed names; dish-only
-          // fields (dishId, roleLabel, positionIndex) keep DB names.
-          minutes: d.estimatedTimeMinutes,
-          difficulty: d.difficulty,
-          servings: d.servingsDefault,
-          ingredients: d.dishIngredients.map((di) => ({
-            name: di.ingredient.displayName,
-            quantity: di.quantity,
-            unit: di.unit,
-            preparationNote: di.preparationNote,
-            category: di.ingredient.category,
-            isOptional: di.isOptional,
-          })),
-          steps: steps.map(toStepShape),
-        };
-      });
-
-      return res.json({
-        meal: {
-          // Shared meal-meta fields reuse the GET /meals list shape
-          // (toListShape): id, title, cuisine, minutes, servings,
-          // calories/protein/carbs/fat, tags, image. Detail-only fields
-          // (description, difficulty, mealType, sourceType, isPublic,
-          // userId) keep their DB-style names.
-          ...toListShape(meal),
-          description: meal.description,
-          difficulty: meal.difficulty,
-          mealType: meal.mealType,
-          sourceType: meal.sourceType,
-          isPublic: meal.isPublic,
-          userId: meal.userId,
-          dishes,
-          // Top-level meal-owned steps — populated for legacy single-dish
-          // meals, empty when dishes carry their own steps. Defensive shape:
-          // mobile reads meal.dishes[].steps first.
-          steps: mealSteps.map(toStepShape),
-          notes: null,
-        },
-      });
+      return res.json({ meal });
     } catch (err) {
       logger.error({ err, id }, "Failed to fetch meal detail");
       return res.status(500).json({ error: "failed to fetch meal" });
