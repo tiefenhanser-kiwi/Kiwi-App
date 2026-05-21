@@ -314,7 +314,16 @@ export function createMealsRouter(
 
   // GET /meals — public meal catalog, keyset-paginated, title A-Z.
   router.get("/meals", requireAuth, catalogLimiter, async (req, res) => {
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    // Explicit NaN/undefined check so ?limit=0 clamps to 1 rather than
+    // falling through a falsy `|| 20` default. Missing/empty/non-numeric
+    // still default to 20; negatives and 0 clamp to 1; >100 clamps to 100.
+    const limitRaw = req.query.limit;
+    const limitParsed =
+      limitRaw === undefined ? 20 : parseInt(String(limitRaw), 10);
+    const limit = Math.min(
+      100,
+      Math.max(1, Number.isNaN(limitParsed) ? 20 : limitParsed),
+    );
     const cursor =
       typeof req.query.cursor === "string" && req.query.cursor.length > 0
         ? req.query.cursor
@@ -421,9 +430,11 @@ export function createMealsRouter(
           title: d.title,
           roleLabel: link.roleLabel,
           positionIndex: link.positionIndex,
-          estimatedTimeMinutes: d.estimatedTimeMinutes,
+          // Shared meta fields use the list-style renamed names; dish-only
+          // fields (dishId, roleLabel, positionIndex) keep DB names.
+          minutes: d.estimatedTimeMinutes,
           difficulty: d.difficulty,
-          servingsDefault: d.servingsDefault,
+          servings: d.servingsDefault,
           ingredients: d.dishIngredients.map((di) => ({
             name: di.ingredient.displayName,
             quantity: di.quantity,
@@ -438,21 +449,16 @@ export function createMealsRouter(
 
       return res.json({
         meal: {
-          id: meal.id,
-          title: meal.title,
+          // Shared meal-meta fields reuse the GET /meals list shape
+          // (toListShape): id, title, cuisine, minutes, servings,
+          // calories/protein/carbs/fat, tags, image. Detail-only fields
+          // (description, difficulty, mealType, sourceType, isPublic,
+          // userId) keep their DB-style names.
+          ...toListShape(meal),
           description: meal.description,
-          imageUrl: meal.imageUrl,
-          cuisineType: meal.cuisineType,
           difficulty: meal.difficulty,
-          estimatedTimeMinutes: meal.estimatedTimeMinutes,
-          servingsDefault: meal.servingsDefault,
           mealType: meal.mealType,
           sourceType: meal.sourceType,
-          tags: meal.tags,
-          caloriesPerServing: meal.caloriesPerServing,
-          proteinGPerServing: meal.proteinGPerServing,
-          carbsGPerServing: meal.carbsGPerServing,
-          fatGPerServing: meal.fatGPerServing,
           isPublic: meal.isPublic,
           userId: meal.userId,
           dishes,

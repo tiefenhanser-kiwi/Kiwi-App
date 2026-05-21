@@ -339,6 +339,20 @@ describe("GET /meals", () => {
     }
   });
 
+  it("clamps limit=0 to 1 (not the falsy-default 20)", async () => {
+    const harness = await spinUp(makeStubPrisma({ listMeals: CATALOG }));
+    try {
+      const res = await authGet(harness, "/meals?limit=0");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { meals: unknown[] };
+      // 5 public meals are available; clamp-to-1 yields a single-meal page,
+      // not the 5 that a falsy-default limit of 20 would return.
+      assert.equal(body.meals.length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("defaults limit to 20 when omitted", async () => {
     const stub = makeStubPrisma({ listMeals: CATALOG });
     const harness = await spinUp(stub);
@@ -496,17 +510,27 @@ describe("GET /meals/:id", () => {
       const { meal } = (await res.json()) as { meal: Record<string, unknown> };
 
       assert.equal(meal.id, "meal-single");
-      assert.equal(meal.cuisineType, "American");
+      // Shared meal-meta fields use the GET /meals list-style renamed names.
+      assert.equal(meal.cuisine, "American");
+      assert.equal(meal.minutes, 35);
+      assert.equal(meal.servings, 4);
+      assert.equal(meal.calories, 600);
+      assert.equal(meal.image, null);
       assert.equal(meal.notes, null);
 
       const dishes = meal.dishes as {
         dishId: string;
         positionIndex: number;
+        minutes: number;
+        servings: number;
         ingredients: { name: string; quantity: number; isOptional: boolean }[];
         steps: { stepIndex: number; text: string }[];
       }[];
       assert.equal(dishes.length, 1);
       assert.equal(dishes[0].dishId, "dish-rc");
+      // Shared dish-meta fields renamed too (estimatedTimeMinutes -> minutes).
+      assert.equal(dishes[0].minutes, 20);
+      assert.equal(dishes[0].servings, 4);
       assert.equal(dishes[0].ingredients.length, 2);
       assert.equal(dishes[0].ingredients[0].name, "Whole chicken");
       assert.equal(dishes[0].ingredients[1].isOptional, true);
