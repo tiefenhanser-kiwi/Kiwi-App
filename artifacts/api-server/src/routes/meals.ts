@@ -85,7 +85,7 @@ function applyOverrides(
 // Catalog read helpers (WS7-3 A1 — moved from recipes.ts)
 // ─────────────────────────────────────────────────────────────────
 
-interface MealListItem {
+export interface MealListItem {
   id: string;
   title: string;
   cuisine: string;
@@ -99,10 +99,26 @@ interface MealListItem {
   image: string | null;
 }
 
+// Prisma `select` for the columns toListShape reads. Exported so other
+// routers (WS7-3 A2 GET /me/meals) issue an identical projection.
+export const MEAL_LIST_SELECT = {
+  id: true,
+  title: true,
+  cuisineType: true,
+  estimatedTimeMinutes: true,
+  servingsDefault: true,
+  caloriesPerServing: true,
+  proteinGPerServing: true,
+  carbsGPerServing: true,
+  fatGPerServing: true,
+  tags: true,
+  imageUrl: true,
+} as const;
+
 // GET /meals list shape. Field names are renamed/flattened from the DB
 // columns (cuisineType→cuisine, estimatedTimeMinutes→minutes, *PerServing→
 // bare). Kept verbatim from recipes.ts — mobile adapts at WS7-3 B/C.
-function toListShape(m: {
+export function toListShape(m: {
   id: string;
   title: string;
   cuisineType: string | null;

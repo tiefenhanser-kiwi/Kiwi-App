@@ -15,6 +15,8 @@ import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rateLimit";
+import { getTopRatedSettings } from "../lib/topRated";
+import { MEAL_LIST_SELECT, toListShape, type MealListItem } from "./meals";
 
 // Brute-force protection on password change (matches /auth/login posture).
 const passwordChangeLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 });
@@ -143,6 +145,137 @@ function serializePreferences(p: {
   [k: string]: unknown;
 }) {
   return { ...p, updatedAt: p.updatedAt.toISOString() };
+}
+
+// ── WS7-3 A2: catalog-read helpers (GET /me/meals, GET /me/dishes) ──────────
+
+// Parse a comma-separated ?filter= param into a validated, de-duplicated list
+// of keys, canonically ordered by the `allowed` list. An absent/empty param
+// falls back to `fallback`. Unknown values are reported for a 400.
+function parseFilterParam<T extends string>(
+  raw: unknown,
+  allowed: readonly T[],
+  fallback: readonly T[],
+): { keys: T[] } | { unknownValues: string[] } {
+  if (raw === undefined || raw === null || raw === "") {
+    return { keys: [...fallback] };
+  }
+  const parts = String(raw)
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  if (parts.length === 0) return { keys: [...fallback] };
+  const unknownValues = parts.filter(
+    (p) => !(allowed as readonly string[]).includes(p),
+  );
+  if (unknownValues.length > 0) return { unknownValues };
+  const set = new Set(parts);
+  return { keys: allowed.filter((k) => set.has(k)) };
+}
+
+// limit clamp — identical contract to GET /meals: missing/non-numeric → 20,
+// otherwise clamped to [1, 100] (0 and negatives clamp up to 1).
+function clampLimit(raw: unknown): number {
+  const parsed = raw === undefined ? 20 : parseInt(String(raw), 10);
+  return Math.min(100, Math.max(1, Number.isNaN(parsed) ? 20 : parsed));
+}
+
+// Concatenate per-filter result blocks, de-duping by id (first occurrence
+// wins). Preserves block order so each filter keeps its natural ordering.
+function mergeById<T extends { id: string }>(blocks: T[][]): T[] {
+  const seen = new Set<string>();
+  const merged: T[] = [];
+  for (const block of blocks) {
+    for (const item of block) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        merged.push(item);
+      }
+    }
+  }
+  return merged;
+}
+
+// In-memory cursor pagination over a pre-merged list. The OR-union across
+// heterogeneous filters can't ride a single Prisma keyset cursor, so the
+// cursor is the id of the previous page's last row and the slice is computed
+// in memory. The wire contract (opaque id cursor + nextCursor) matches
+// GET /meals. An unknown cursor yields an empty page.
+function paginateById<T extends { id: string }>(
+  rows: T[],
+  cursor: string | undefined,
+  limit: number,
+): { page: T[]; nextCursor: string | null } {
+  let start = 0;
+  if (cursor) {
+    const idx = rows.findIndex((r) => r.id === cursor);
+    start = idx >= 0 ? idx + 1 : rows.length;
+  }
+  const page = rows.slice(start, start + limit);
+  const nextCursor =
+    start + limit < rows.length && page.length > 0
+      ? page[page.length - 1].id
+      : null;
+  return { page, nextCursor };
+}
+
+// GET /me/dishes list shape. Mirrors the GET /meals renamed-flat convention
+// (minutes / servings / bare macros / image). Dish has no cuisineType, so no
+// `cuisine`; `difficulty` is surfaced since it is intrinsic to a Dish.
+export interface DishListItem {
+  id: string;
+  title: string;
+  minutes: number;
+  servings: number;
+  difficulty: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  tags: string[];
+  image: string | null;
+}
+
+const DISH_LIST_SELECT = {
+  id: true,
+  title: true,
+  estimatedTimeMinutes: true,
+  servingsDefault: true,
+  difficulty: true,
+  caloriesPerServing: true,
+  proteinGPerServing: true,
+  carbsGPerServing: true,
+  fatGPerServing: true,
+  tags: true,
+  imageUrl: true,
+} as const;
+
+function toDishListShape(d: {
+  id: string;
+  title: string;
+  estimatedTimeMinutes: number;
+  servingsDefault: number;
+  difficulty: string;
+  caloriesPerServing: number;
+  proteinGPerServing: number;
+  carbsGPerServing: number;
+  fatGPerServing: number;
+  tags: string[];
+  imageUrl: string | null;
+}): DishListItem {
+  return {
+    id: d.id,
+    title: d.title,
+    minutes: d.estimatedTimeMinutes,
+    servings: d.servingsDefault,
+    difficulty: d.difficulty,
+    calories: d.caloriesPerServing,
+    protein: d.proteinGPerServing,
+    carbs: d.carbsGPerServing,
+    fat: d.fatGPerServing,
+    tags: d.tags,
+    image: d.imageUrl,
+  };
 }
 
 export interface MeRouterDeps {
@@ -647,6 +780,125 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     } catch (err) {
       logger.error({ err, userId: req.userId }, "GET /me/favorites failed");
       return res.status(500).json({ error: "failed to fetch favorites" });
+    }
+  });
+
+  // ── Catalog reads — WS7-3 A2 ──────────────────────────────────────────
+  // Multi-select OR filters. Each requested filter contributes a result
+  // block; blocks concatenate in MEALS_FILTER_KEYS order and dedupe by id.
+  // Cursor pagination matches GET /meals (opaque id cursor; see paginateById).
+
+  // GET /me/meals?filter=my_meals,featured,top_rated,hosting
+  router.get("/me/meals", requireAuth, async (req, res) => {
+    const parsed = parseFilterParam(req.query.filter, MEALS_FILTER_KEYS, [
+      "my_meals",
+    ]);
+    if ("unknownValues" in parsed) {
+      return res.status(400).json({
+        error: "invalid filter value(s)",
+        unknown: parsed.unknownValues,
+        allowed: MEALS_FILTER_KEYS,
+      });
+    }
+    const limit = clampLimit(req.query.limit);
+    const cursor =
+      typeof req.query.cursor === "string" && req.query.cursor.length > 0
+        ? req.query.cursor
+        : undefined;
+
+    try {
+      const blocks: MealListItem[][] = [];
+      for (const key of parsed.keys) {
+        if (key === "my_meals") {
+          const rows = await prisma.meal.findMany({
+            where: { userId: req.userId, isArchived: false },
+            select: MEAL_LIST_SELECT,
+            orderBy: { title: "asc" },
+          });
+          blocks.push(rows.map(toListShape));
+        } else if (key === "top_rated") {
+          // No cached score on Meal — rank public meals by the un-decayed
+          // weighted counter sum, capped at top_rated.display_count.
+          const settings = await getTopRatedSettings(prisma);
+          const rows = await prisma.meal.findMany({
+            where: { isPublic: true, isArchived: false },
+            select: { ...MEAL_LIST_SELECT, saveCount: true, useCount: true },
+          });
+          const ranked = rows
+            .map((m) => ({
+              m,
+              score:
+                m.saveCount * settings.saveWeight +
+                m.useCount * settings.useWeight,
+            }))
+            .sort(
+              (a, b) =>
+                b.score - a.score || a.m.title.localeCompare(b.m.title),
+            )
+            .slice(0, settings.displayCount)
+            .map((r) => toListShape(r.m));
+          blocks.push(ranked);
+        } else {
+          // key === "featured" | "hosting".
+          // TODO(D-WS7-039): Meal carries no featuring flags — isFeatured /
+          // featured*Date / isHostingFeatured live on MealPlanTemplate, not
+          // Meal. Until a Meal-level curation flag exists these facets
+          // resolve empty. See WS7-3 A2 Phase 3 report §8.
+          blocks.push([]);
+        }
+      }
+      const merged = mergeById(blocks);
+      const { page, nextCursor } = paginateById(merged, cursor, limit);
+      return res.json({ meals: page, nextCursor });
+    } catch (err) {
+      logger.error({ err, userId: req.userId }, "GET /me/meals failed");
+      return res.status(500).json({ error: "failed to list meals" });
+    }
+  });
+
+  // GET /me/dishes?filter=my_dishes,featured,top_rated
+  router.get("/me/dishes", requireAuth, async (req, res) => {
+    const parsed = parseFilterParam(req.query.filter, DISHES_FILTER_KEYS, [
+      "my_dishes",
+    ]);
+    if ("unknownValues" in parsed) {
+      return res.status(400).json({
+        error: "invalid filter value(s)",
+        unknown: parsed.unknownValues,
+        allowed: DISHES_FILTER_KEYS,
+      });
+    }
+    const limit = clampLimit(req.query.limit);
+    const cursor =
+      typeof req.query.cursor === "string" && req.query.cursor.length > 0
+        ? req.query.cursor
+        : undefined;
+
+    try {
+      const blocks: DishListItem[][] = [];
+      for (const key of parsed.keys) {
+        if (key === "my_dishes") {
+          const rows = await prisma.dish.findMany({
+            where: { userId: req.userId, isArchived: false },
+            select: DISH_LIST_SELECT,
+            orderBy: { title: "asc" },
+          });
+          blocks.push(rows.map(toDishListShape));
+        } else {
+          // key === "featured" | "top_rated".
+          // TODO(D-WS7-039): Dish carries no featuring flags, no isPublic,
+          // and no saveCount/useCount counters — neither facet can be
+          // resolved or ranked. Both resolve empty until a Dish-level
+          // catalog/curation model exists. See WS7-3 A2 Phase 3 report §8.
+          blocks.push([]);
+        }
+      }
+      const merged = mergeById(blocks);
+      const { page, nextCursor } = paginateById(merged, cursor, limit);
+      return res.json({ dishes: page, nextCursor });
+    } catch (err) {
+      logger.error({ err, userId: req.userId }, "GET /me/dishes failed");
+      return res.status(500).json({ error: "failed to list dishes" });
     }
   });
 
