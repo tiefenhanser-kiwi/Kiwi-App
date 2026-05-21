@@ -29,7 +29,20 @@ const reactivateLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 });
 const EMAIL_CHANGE_EXPIRY = "1h";
 
 const FILTER_KEYS = ["my_plans", "featured", "top_rated", "hosting_events"] as const;
-const MEALS_FILTER_KEYS = ["my_meals", "all_meals"] as const;
+// WS7-3 A2: widened from the two-key ["my_meals","all_meals"] set to the
+// four-key mobile Meals-tab chip vocabulary. `all_meals` is dropped — it is
+// superseded by passing all four discovery filter keys. `GET /me/meals`
+// validates its ?filter= param against this same constant.
+const MEALS_FILTER_KEYS = [
+  "my_meals",
+  "featured",
+  "top_rated",
+  "hosting",
+] as const;
+// WS7-3 A2: `GET /me/dishes` ?filter= accept-list. No `hosting` — dishes have
+// no hosting concept per PRD. Not persisted (dish filters aren't a ui-state
+// field at MVP), so no uiStateSchema entry.
+const DISHES_FILTER_KEYS = ["my_dishes", "featured", "top_rated"] as const;
 
 const uiStateSchema = z.object({
   lastPlanDiscoveryFilters: z.array(z.enum(FILTER_KEYS)).optional(),
