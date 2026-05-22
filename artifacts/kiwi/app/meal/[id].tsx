@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Pressable,
@@ -24,7 +25,9 @@ import {
   KSpacing,
   KType,
 } from "@/constants/tokens";
-import { getMealById } from "@/lib/stubs";
+import { useMeal } from "@/hooks/useMeal";
+import { ApiError } from "@/lib/api/errors";
+import type { MealDetail } from "@/lib/api/meals";
 
 const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 12;
@@ -97,44 +100,104 @@ function HeartButton({ mealId }: { mealId: string }) {
   );
 }
 
+// WS7-3 Block B: the screen now reads GET /meals/:id via useMeal. This
+// component handles the read state machine — loading skeleton, a 404
+// "meal not found" view, and a retry-able error banner for everything else —
+// and hands the resolved MealDetail to <MealDetailContent>.
 export default function MealDetailScreen() {
-  const router = useRouter();
   const { id, planId, planItemId } = useLocalSearchParams<{
     id: string;
     planId?: string;
     planItemId?: string;
   }>();
   const mealId = id ?? "";
+  const router = useRouter();
 
-  const meal = useMemo(
-    () =>
-      getMealById(
-        mealId,
-        planId && planItemId ? { planId, planItemId } : undefined,
-      ),
-    [mealId, planId, planItemId],
-  );
+  const mealQuery = useMeal(mealId);
 
-  const [bannerDismissed, setBannerDismissed] = useState(false);
-  const [displayServings, setDisplayServings] = useState(
-    meal?.servingsDefault ?? 4,
-  );
-  const [addToPlanVisible, setAddToPlanVisible] = useState(false);
-
-  if (!meal) {
+  if (mealQuery.isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
         <Header title="Meal" showBack />
-        <View style={s.notFoundWrap}>
-          <Text style={s.notFoundText}>Meal not found.</Text>
+        <View style={s.gateWrap}>
+          <ActivityIndicator color={KColors.sage[700]} />
         </View>
       </View>
     );
   }
 
-  const showBanner = meal.hasActivePlanOverride && !bannerDismissed;
-  const servingsMultiplier = displayServings / meal.servingsDefault;
+  const meal = mealQuery.data;
+  if (!meal) {
+    // An empty id (missing route param) or a 404 → "meal not found";
+    // anything else (network, 500, schema mismatch) → retry-able banner.
+    const err = mealQuery.error;
+    const isNotFound =
+      mealId === "" || (err instanceof ApiError && err.status === 404);
+    return (
+      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+        <Header title="Meal" showBack />
+        <View style={s.gateWrap}>
+          <Text style={s.gateText}>
+            {isNotFound
+              ? "Meal not found."
+              : "Couldn't load this meal. Please try again."}
+          </Text>
+          <View style={s.gateBtnWrap}>
+            {isNotFound ? (
+              <Button
+                label="Go back"
+                variant="ghost"
+                onPress={() => router.back()}
+              />
+            ) : (
+              <Button
+                label="Try again"
+                variant="primary"
+                onPress={() => mealQuery.refetch()}
+              />
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <MealDetailContent meal={meal} planId={planId} planItemId={planItemId} />
+  );
+}
+
+function MealDetailContent({
+  meal,
+  planId,
+  planItemId,
+}: {
+  meal: MealDetail;
+  planId?: string;
+  planItemId?: string;
+}) {
+  const router = useRouter();
+
+  // §2.5 banner context — present only when the screen was opened from a plan
+  // item. GET /meals/:id has no per-plan override concept, so this is derived
+  // from the route params alone (the stub did the same via overrideContext).
+  const hasOverride = !!(planId && planItemId);
+
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [displayServings, setDisplayServings] = useState(meal.servings);
+  const [addToPlanVisible, setAddToPlanVisible] = useState(false);
+
+  const showBanner = hasOverride && !bannerDismissed;
+  const servingsMultiplier = displayServings / meal.servings;
   const onlyOneDish = meal.dishes.length === 1;
+
+  // Recipe steps render as one flat ordered list. Multi-dish meals carry
+  // steps per dish; legacy single-dish meals carry meal-owned steps in the
+  // top-level array — fall back to the per-dish steps when it's empty.
+  const recipeSteps =
+    meal.steps.length > 0
+      ? meal.steps
+      : meal.dishes.flatMap((dish) => dish.steps);
 
   const decrementServings = () => {
     setDisplayServings((n) => Math.max(SERVINGS_MIN, n - 1));
@@ -146,7 +209,8 @@ export default function MealDetailScreen() {
   const onSaveGlobally = () => {
     console.log("[meal-detail] save-globally tapped", {
       mealId: meal.id,
-      ...meal.overrideContext,
+      planId,
+      planItemId,
     });
     Alert.alert(
       "Coming in WS7",
@@ -221,10 +285,10 @@ export default function MealDetailScreen() {
         : "Hard";
 
   const quickStatsParts = [
-    meal.cuisineType,
+    meal.cuisine,
     difficultyLabel,
-    `${meal.estimatedTimeMinutes} min`,
-    `${meal.servingsDefault} servings`,
+    `${meal.minutes} min`,
+    `${meal.servings} servings`,
   ].filter(Boolean) as string[];
 
   return (
@@ -283,8 +347,8 @@ export default function MealDetailScreen() {
 
         {/* Hero — image + title + description + quick stats */}
         <View style={s.hero}>
-          {meal.imageUrl ? (
-            <Image source={{ uri: meal.imageUrl }} style={s.heroImage} />
+          {meal.image ? (
+            <Image source={{ uri: meal.image }} style={s.heroImage} />
           ) : (
             <View style={[s.heroImage, s.heroFallback]} />
           )}
@@ -317,19 +381,19 @@ export default function MealDetailScreen() {
             <Text style={s.cardTitle}>Per serving</Text>
             <View style={s.macroRow}>
               <View style={s.macroStat}>
-                <Text style={s.macroValue}>{meal.caloriesPerServing}</Text>
+                <Text style={s.macroValue}>{meal.calories}</Text>
                 <Text style={s.macroLabel}>cal</Text>
               </View>
               <View style={s.macroStat}>
-                <Text style={s.macroValue}>{meal.proteinGPerServing}</Text>
+                <Text style={s.macroValue}>{meal.protein}</Text>
                 <Text style={s.macroLabel}>g protein</Text>
               </View>
               <View style={s.macroStat}>
-                <Text style={s.macroValue}>{meal.carbsGPerServing}</Text>
+                <Text style={s.macroValue}>{meal.carbs}</Text>
                 <Text style={s.macroLabel}>g carbs</Text>
               </View>
               <View style={s.macroStat}>
-                <Text style={s.macroValue}>{meal.fatGPerServing}</Text>
+                <Text style={s.macroValue}>{meal.fat}</Text>
                 <Text style={s.macroLabel}>g fat</Text>
               </View>
             </View>
@@ -371,10 +435,10 @@ export default function MealDetailScreen() {
             <Text style={s.servingsLabel}>servings</Text>
           </View>
 
-          {meal.dishes.map((dish, dishIdx) => (
-            <View key={`${dish.name}-${dishIdx}`} style={s.dishBlock}>
+          {meal.dishes.map((dish) => (
+            <View key={dish.dishId} style={s.dishBlock}>
               {!onlyOneDish && (
-                <Text style={s.dishHeader}>For the {dish.name}:</Text>
+                <Text style={s.dishHeader}>For the {dish.title}:</Text>
               )}
               {dish.ingredients.map((ing, i) => (
                 <Text key={i} style={s.ingredientLine}>
@@ -389,43 +453,38 @@ export default function MealDetailScreen() {
         {/* Recipe steps */}
         <View style={s.section}>
           <Text style={s.sectionHeader}>Recipe steps</Text>
-          {meal.steps.map((step) => (
-            <View key={step.stepNumber} style={s.stepRow}>
-              <View
-                style={[
-                  s.stepCircle,
-                  step.isTimingSensitive
-                    ? s.stepCircleTiming
-                    : s.stepCircleNormal,
-                ]}
-              >
-                <Text
-                  style={
+          {recipeSteps.map((step, i) => {
+            const stepNumber = i + 1;
+            return (
+              <View key={i} style={s.stepRow}>
+                <View
+                  style={[
+                    s.stepCircle,
                     step.isTimingSensitive
-                      ? s.stepCircleTextTiming
-                      : s.stepCircleTextNormal
-                  }
+                      ? s.stepCircleTiming
+                      : s.stepCircleNormal,
+                  ]}
                 >
-                  {step.stepNumber}
-                </Text>
+                  <Text
+                    style={
+                      step.isTimingSensitive
+                        ? s.stepCircleTextTiming
+                        : s.stepCircleTextNormal
+                    }
+                  >
+                    {stepNumber}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={s.stepText}>{step.text}</Text>
+                  {step.estimatedMinutes !== undefined && (
+                    <Text style={s.stepMeta}>{step.estimatedMinutes} min</Text>
+                  )}
+                </View>
               </View>
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={s.stepText}>{step.text}</Text>
-                {step.estimatedMinutes !== undefined && (
-                  <Text style={s.stepMeta}>{step.estimatedMinutes} min</Text>
-                )}
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
-
-        {/* Notes (read-only in 5F) */}
-        {meal.notes && (
-          <View style={s.section}>
-            <Text style={s.sectionHeader}>Notes</Text>
-            <Text style={s.notesText}>{meal.notes}</Text>
-          </View>
-        )}
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -437,16 +496,21 @@ const s = StyleSheet.create({
     paddingTop: KSpacing.md,
     paddingBottom: 200,
   },
-  notFoundWrap: {
+  gateWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: KSpacing.xl,
+    gap: KSpacing.md,
   },
-  notFoundText: {
+  gateText: {
     fontSize: KType.size.md,
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
+  gateBtnWrap: {
+    minWidth: 160,
   },
   banner: {
     backgroundColor: KColors.sage[50],
@@ -635,12 +699,6 @@ const s = StyleSheet.create({
     fontSize: KType.size.xs,
     color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
-  },
-  notesText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
-    lineHeight: 20,
   },
   heartBtn: {
     width: 44,
