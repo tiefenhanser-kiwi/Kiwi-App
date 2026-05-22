@@ -27,7 +27,7 @@ import {
 } from "@/constants/tokens";
 import { useMeal } from "@/hooks/useMeal";
 import { ApiError } from "@/lib/api/errors";
-import type { MealDetail } from "@/lib/api/meals";
+import type { MealDetail, MealStep } from "@/lib/api/meals";
 
 const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 12;
@@ -191,13 +191,50 @@ function MealDetailContent({
   const servingsMultiplier = displayServings / meal.servings;
   const onlyOneDish = meal.dishes.length === 1;
 
-  // Recipe steps render as one flat ordered list. Multi-dish meals carry
-  // steps per dish; legacy single-dish meals carry meal-owned steps in the
-  // top-level array — fall back to the per-dish steps when it's empty.
-  const recipeSteps =
+  // Recipe steps. PRD §10.6 wants steps grouped by sub-dish, mirroring the
+  // ingredients section. Steps are genuinely dish-owned only when the
+  // top-level meal-owned `steps` array is empty — composeMealDetail copies
+  // the meal-owned steps onto every dish as a fallback otherwise, so grouping
+  // those would duplicate the same steps under each dish. Group only for a
+  // multi-dish meal with empty meal-owned steps and at least one dish that
+  // carries steps; every other case renders the existing flat list.
+  const stepsAreGrouped =
+    meal.dishes.length > 1 &&
+    meal.steps.length === 0 &&
+    meal.dishes.some((dish) => dish.steps.length > 0);
+  const flatSteps =
     meal.steps.length > 0
       ? meal.steps
       : meal.dishes.flatMap((dish) => dish.steps);
+
+  // Renders one numbered step row. `displayNumber` is the 1-based position
+  // within its list (flat, or restarting per dish in the grouped layout).
+  const renderStepRow = (step: MealStep, displayNumber: number, key: number) => (
+    <View key={key} style={s.stepRow}>
+      <View
+        style={[
+          s.stepCircle,
+          step.isTimingSensitive ? s.stepCircleTiming : s.stepCircleNormal,
+        ]}
+      >
+        <Text
+          style={
+            step.isTimingSensitive
+              ? s.stepCircleTextTiming
+              : s.stepCircleTextNormal
+          }
+        >
+          {displayNumber}
+        </Text>
+      </View>
+      <View style={{ flex: 1, gap: 4 }}>
+        <Text style={s.stepText}>{step.text}</Text>
+        {step.estimatedMinutes !== undefined && (
+          <Text style={s.stepMeta}>{step.estimatedMinutes} min</Text>
+        )}
+      </View>
+    </View>
+  );
 
   const decrementServings = () => {
     setDisplayServings((n) => Math.max(SERVINGS_MIN, n - 1));
@@ -450,40 +487,23 @@ function MealDetailContent({
           ))}
         </View>
 
-        {/* Recipe steps */}
+        {/* Recipe steps — grouped by sub-dish for multi-dish meals
+            (PRD §10.6, mirroring the ingredients section); one flat
+            numbered list otherwise. */}
         <View style={s.section}>
           <Text style={s.sectionHeader}>Recipe steps</Text>
-          {recipeSteps.map((step, i) => {
-            const stepNumber = i + 1;
-            return (
-              <View key={i} style={s.stepRow}>
-                <View
-                  style={[
-                    s.stepCircle,
-                    step.isTimingSensitive
-                      ? s.stepCircleTiming
-                      : s.stepCircleNormal,
-                  ]}
-                >
-                  <Text
-                    style={
-                      step.isTimingSensitive
-                        ? s.stepCircleTextTiming
-                        : s.stepCircleTextNormal
-                    }
-                  >
-                    {stepNumber}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={s.stepText}>{step.text}</Text>
-                  {step.estimatedMinutes !== undefined && (
-                    <Text style={s.stepMeta}>{step.estimatedMinutes} min</Text>
-                  )}
-                </View>
-              </View>
-            );
-          })}
+          {stepsAreGrouped
+            ? meal.dishes
+                .filter((dish) => dish.steps.length > 0)
+                .map((dish) => (
+                  <View key={dish.dishId} style={s.dishBlock}>
+                    <Text style={s.dishHeader}>For the {dish.title}:</Text>
+                    {dish.steps.map((step, i) =>
+                      renderStepRow(step, i + 1, i),
+                    )}
+                  </View>
+                ))
+            : flatSteps.map((step, i) => renderStepRow(step, i + 1, i))}
         </View>
       </KeyboardAwareScrollViewCompat>
     </View>
