@@ -1,8 +1,8 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,49 +13,75 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import {
-  getFeaturedDishes,
-  getSavedDishes,
-  getTopRatedDishes,
-} from "@/lib/stubs";
-import type { SavedDish } from "@/lib/types";
+import { useDish } from "@/hooks/useDish";
+import { ApiError } from "@/lib/api/errors";
+import type { DishDetail } from "@/lib/api/dishes";
 
-function findDishById(id: string): SavedDish | null {
-  const all: SavedDish[] = [
-    ...getSavedDishes(),
-    ...getFeaturedDishes(),
-    ...getTopRatedDishes(),
-  ];
-  return all.find((d) => d.id === id) ?? null;
-}
-
+// WS7-3 Block C3 c3: dish detail reads GET /dishes/:id via useDish. Adopts
+// the Block B gate/body pattern from app/meal/[id].tsx — DishDetailScreen
+// handles the read state machine; DishDetailContent renders the loaded body.
+//
+// Field loss vs the C3 stub (D-WS7-050): no Main/Side type pill, no Notes
+// section, no cuisine in the meta line — DishDetail's server shape omits
+// `type`, `notes`, `cuisine`. Gains: description (replacing implied prose),
+// real `servings` (replacing the hardcoded "serves 4").
 export default function DishDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const dishId = id ?? "";
 
-  const dish = useMemo(() => findDishById(dishId), [dishId]);
+  const dishQuery = useDish(dishId);
 
-  if (!dish) {
+  if (dishQuery.isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
         <Header title="Dish" showBack />
-        <View style={s.notFoundWrap}>
-          <Text style={s.notFoundText}>Dish not found.</Text>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={6}
-            style={({ pressed }) => [
-              s.notFoundLink,
-              pressed && { opacity: 0.6 },
-            ]}
-          >
-            <Text style={s.notFoundLinkText}>Go back</Text>
-          </Pressable>
+        <View style={s.gateWrap}>
+          <ActivityIndicator color={KColors.sage[700]} />
         </View>
       </View>
     );
   }
+
+  const dish = dishQuery.data;
+  if (!dish) {
+    const err = dishQuery.error;
+    const isNotFound =
+      dishId === "" || (err instanceof ApiError && err.status === 404);
+    return (
+      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+        <Header title="Dish" showBack />
+        <View style={s.gateWrap}>
+          <Text style={s.gateText}>
+            {isNotFound
+              ? "Dish not found."
+              : "Couldn't load this dish. Please try again."}
+          </Text>
+          <View style={s.gateBtnWrap}>
+            {isNotFound ? (
+              <Button
+                label="Go back"
+                variant="ghost"
+                onPress={() => router.back()}
+              />
+            ) : (
+              <Button
+                label="Try again"
+                variant="primary"
+                onPress={() => dishQuery.refetch()}
+              />
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  return <DishDetailContent dish={dish} />;
+}
+
+function DishDetailContent({ dish }: { dish: DishDetail }) {
+  const router = useRouter();
 
   const onCookNow = () => {
     console.log("[dish-detail] cook-now tapped", { dishId: dish.id });
@@ -74,7 +100,7 @@ export default function DishDetailScreen() {
     console.log("[dish-detail] compost tapped", { dishId: dish.id });
     Alert.alert(
       "Compost dish",
-      `Compost ${dish.name}? It'll be removed from your dishes and any meals using it.`,
+      `Compost ${dish.title}? It'll be removed from your dishes and any meals using it.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -97,67 +123,45 @@ export default function DishDetailScreen() {
   };
 
   const macrosAllZero =
-    dish.caloriesPerServing === 0 &&
-    dish.proteinGPerServing === 0 &&
-    dish.carbsGPerServing === 0 &&
-    dish.fatGPerServing === 0;
+    dish.calories === 0 &&
+    dish.protein === 0 &&
+    dish.carbs === 0 &&
+    dish.fat === 0;
 
   const metaParts = [
-    dish.cuisineType,
-    dish.estimatedTimeMinutes !== undefined
-      ? `${dish.estimatedTimeMinutes} min`
-      : null,
-    "serves 4",
+    dish.minutes > 0 ? `${dish.minutes} min` : null,
+    `serves ${dish.servings}`,
   ].filter(Boolean) as string[];
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
-      <Header showBack title={dish.name} />
+      <Header showBack title={dish.title} />
       <ScrollView
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero */}
         <View style={s.hero}>
-          {dish.imageUrl ? (
-            <Image source={{ uri: dish.imageUrl }} style={s.heroImage} />
+          {dish.image ? (
+            <Image source={{ uri: dish.image }} style={s.heroImage} />
           ) : (
             <View style={[s.heroImage, s.heroFallback]} />
           )}
-          <Text style={s.heroTitle}>{dish.name}</Text>
-          <View style={s.metaRow}>
-            <Text style={s.heroMeta}>{metaParts.join(" · ")}</Text>
-            <View
-              style={[
-                s.typePill,
-                dish.type === "main" ? s.typePillMain : s.typePillSide,
-              ]}
-            >
-              <Text
-                style={[
-                  s.typePillText,
-                  dish.type === "main"
-                    ? s.typePillTextMain
-                    : s.typePillTextSide,
-                ]}
-              >
-                {dish.type === "main" ? "Main" : "Side"}
-              </Text>
-            </View>
-          </View>
+          <Text style={s.heroTitle}>{dish.title}</Text>
+          {dish.description && (
+            <Text style={s.heroDescription}>{dish.description}</Text>
+          )}
+          <Text style={s.heroMeta}>{metaParts.join(" · ")}</Text>
           <Text style={s.heroMacros}>
             {macrosAllZero
               ? "Macros not set"
-              : `${dish.caloriesPerServing} cal · ${dish.proteinGPerServing}g P · ${dish.carbsGPerServing}g C · ${dish.fatGPerServing}g F`}
+              : `${dish.calories} cal · ${dish.protein}g P · ${dish.carbs}g C · ${dish.fat}g F`}
           </Text>
         </View>
 
-        {/* Primary action */}
         <View style={s.primaryActionStack}>
           <Button label="Cook Now" variant="primary" onPress={onCookNow} />
         </View>
 
-        {/* Secondary actions */}
         <View style={s.actionRow}>
           <View style={{ flex: 1 }}>
             <Button label="Edit" variant="ghost" onPress={onEdit} />
@@ -167,7 +171,6 @@ export default function DishDetailScreen() {
           </View>
         </View>
 
-        {/* Ingredients */}
         <View style={s.section}>
           <Text style={s.sectionHeader}>Ingredients</Text>
           {dish.ingredients.map((ing, i) => (
@@ -177,12 +180,11 @@ export default function DishDetailScreen() {
           ))}
         </View>
 
-        {/* Steps (only if present) */}
-        {dish.steps && dish.steps.length > 0 && (
+        {dish.steps.length > 0 && (
           <View style={s.section}>
             <Text style={s.sectionHeader}>Steps</Text>
-            {dish.steps.map((step) => (
-              <View key={step.stepNumber} style={s.stepRow}>
+            {dish.steps.map((step, i) => (
+              <View key={i} style={s.stepRow}>
                 <View
                   style={[
                     s.stepCircle,
@@ -198,7 +200,7 @@ export default function DishDetailScreen() {
                         : s.stepCircleTextNormal
                     }
                   >
-                    {step.stepNumber}
+                    {i + 1}
                   </Text>
                 </View>
                 <View style={{ flex: 1, gap: 4 }}>
@@ -209,14 +211,6 @@ export default function DishDetailScreen() {
                 </View>
               </View>
             ))}
-          </View>
-        )}
-
-        {/* Notes (only if present) */}
-        {dish.notes && (
-          <View style={s.section}>
-            <Text style={s.sectionHeader}>Notes</Text>
-            <Text style={s.notesText}>{dish.notes}</Text>
           </View>
         )}
       </ScrollView>
@@ -230,27 +224,21 @@ const s = StyleSheet.create({
     paddingTop: KSpacing.md,
     paddingBottom: 200,
   },
-  notFoundWrap: {
+  gateWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: KSpacing.xl,
     gap: KSpacing.md,
   },
-  notFoundText: {
+  gateText: {
     fontSize: KType.size.md,
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
+    textAlign: "center",
   },
-  notFoundLink: {
-    paddingVertical: KSpacing.sm,
-    paddingHorizontal: KSpacing.md,
-  },
-  notFoundLinkText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+  gateBtnWrap: {
+    minWidth: 160,
   },
   hero: {
     gap: KSpacing.sm,
@@ -271,41 +259,17 @@ const s = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     marginTop: KSpacing.sm,
   },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: KSpacing.sm,
+  heroDescription: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    fontStyle: "italic",
+    lineHeight: 18,
   },
   heroMeta: {
-    flex: 1,
     fontSize: KType.size.sm,
     color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
-  },
-  typePill: {
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: 3,
-    borderRadius: KRadius.pill,
-    borderWidth: 1,
-  },
-  typePillSide: {
-    backgroundColor: KColors.sage[50],
-    borderColor: KColors.sage[300],
-  },
-  typePillMain: {
-    backgroundColor: KColors.terracotta[50],
-    borderColor: KColors.terracotta[300],
-  },
-  typePillText: {
-    fontSize: KType.size.xs,
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-  },
-  typePillTextSide: {
-    color: KColors.sage[700],
-  },
-  typePillTextMain: {
-    color: KColors.terracotta[700],
   },
   heroMacros: {
     fontSize: KType.size.sm,
@@ -378,11 +342,5 @@ const s = StyleSheet.create({
     fontSize: KType.size.xs,
     color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
-  },
-  notesText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
-    lineHeight: 20,
   },
 });
