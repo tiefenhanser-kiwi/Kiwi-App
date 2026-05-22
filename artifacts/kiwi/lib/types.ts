@@ -57,8 +57,6 @@ export type Subscription = {
   currentPeriodEnd: string | null;
 };
 
-export type MealsFilter = "my_meals" | "all_meals";
-
 export interface User {
   id: string;
   email: string;
@@ -639,23 +637,8 @@ export interface GroceryListItem {
   isCompleted: boolean;
 }
 
-/**
- * PRD §12.14 — saved grocery list summary for library row.
- */
-export interface GroceryListSummary {
-  id: string;
-  /** Plan name this list was generated from */
-  planName: string;
-  /** Optional plan id link — null for ad-hoc lists */
-  planId?: string;
-  /** Total item count across all sections */
-  itemCount: number;
-  createdAt: string; // ISO date
-  /** Status per PRD §12.14: Draft / Active / Ordered / Completed */
-  status: "draft" | "active" | "ordered" | "completed";
-  /** True if this is the user's "This Week" current list */
-  isThisWeek: boolean;
-}
+// GroceryListSummary retired in WS7-3 C3 c5 — the Groceries tab consumes
+// GroceryListListItem (lib/api/groceries.ts) directly via useGroceryLists().
 
 /**
  * PRD §12.6 — full grocery list with all items.

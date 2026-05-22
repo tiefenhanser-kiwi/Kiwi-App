@@ -11,9 +11,7 @@ import type {
   DraftMeal,
   GroceryItem,
   GroceryList,
-  GroceryListSummary,
   MealPlan,
-  MealsFilter,
   MealSummary,
   Recipe,
   ReviewMeal,
@@ -56,50 +54,11 @@ export function buildGroceryList(_plan: MealPlan): GroceryItem[] {
   return [];
 }
 
-// ── My Meals filters (PRD §9.3) ──
 // asPlanDiscoveryFilters + the Plan Discovery key set / union moved to
-// lib/api/plans.ts in WS7-3 C2 (the Home + Plans-tab consumers migrated
-// off the stubs). The Meals-tab filter equivalents below stay until that
-// tab migrates in a later C-block.
-
-export const MEALS_FILTER_KEYS: readonly MealsFilter[] = [
-  "my_meals",
-  "all_meals",
-];
-
-export function asMealsFilters(
-  arr: string[] | undefined | null,
-): MealsFilter[] {
-  if (!arr) return [];
-  return arr.filter((k): k is MealsFilter =>
-    (MEALS_FILTER_KEYS as readonly string[]).includes(k),
-  );
-}
-
-// ── My Meals tab (PRD §9.3) ──
-// WS7 fills this. Same seam pattern as the other payload getters.
-// (Home `getHomePayload` + Plans-tab `getPlansPayload` retired in WS7-3 C2
-// when those tabs migrated to the useHomePayload / usePlans hooks.)
-
-export type MealsFilterGroup = "my_meals" | "all_meals";
-
-export type MealRowData = {
-  id: string;
-  title: string;
-  thumbnailUrl: string | null;
-  meta: string;
-  cuisineTag: string | null;
-  filterGroup: MealsFilterGroup;
-  /** Sort-aware secondary line fields (PRD §9.3 / WS5-5N-fix). All
-   *  optional — undefined values render as "Never cooked" / hide. */
-  lastCookedAt?: string;
-  timesCooked?: number;
-  createdAt?: string;
-};
-
-export async function getMealsPayload(): Promise<{ meals: MealRowData[] }> {
-  return { meals: [] };
-}
+// lib/api/plans.ts in WS7-3 C2; asMealsFilters / MEAL_FILTER_KEYS moved to
+// lib/api/meals.ts in WS7-3 C3 c1 alongside the Meals-tab migration. The
+// dead MealRowData / MealsFilterGroup / getMealsPayload helpers retired in
+// WS7-3 C3 c5.
 
 // ── Plan Review (PRD §8) ──
 // WS7 fills this. Same seam pattern as the other payload getters above.
@@ -2179,41 +2138,9 @@ export function getCurrentUserPreferences(): UserPreferencesData {
 
 // ── Grocery system (PRD §12) ──
 
-/**
- * PRD §12.14 — saved grocery lists for the library.
- * Empty array for new users (per first-arrival empty state).
- * For WS5 demo: 3 lists matching prototype data.
- * Real persistence WS7.
- */
-export function getGroceryLists(): GroceryListSummary[] {
-  return [
-    {
-      id: "demo-grocery-1",
-      planName: "Family Friendly Healthy Meals",
-      planId: "demo-plan-this-week",
-      itemCount: 15,
-      createdAt: new Date().toISOString(),
-      status: "active",
-      isThisWeek: true,
-    },
-    {
-      id: "demo-grocery-2",
-      planName: "Whole30 January Reset",
-      itemCount: 18,
-      createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-      status: "completed",
-      isThisWeek: false,
-    },
-    {
-      id: "demo-grocery-3",
-      planName: "4th of July BBQ",
-      itemCount: 22,
-      createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-      status: "completed",
-      isThisWeek: false,
-    },
-  ];
-}
+// getGroceryLists retired in WS7-3 C3 c4 — the Groceries tab now reads the
+// real GET /grocery-lists via useGroceryLists(). The single-list fixture
+// (getGroceryListById, below) stays until grocery-list/[id].tsx migrates.
 
 /**
  * PRD §12.6 — full grocery list by id.
