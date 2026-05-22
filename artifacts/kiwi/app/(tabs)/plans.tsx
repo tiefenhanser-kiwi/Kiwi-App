@@ -13,48 +13,42 @@ import { Header } from "@/components/Header";
 import { PlanRow } from "@/components/PlanRow";
 import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
-import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePlans } from "@/hooks/usePlans";
+import { plansFilterDefault } from "@/lib/plans/filterDefault";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
-import {
-  asPlanDiscoveryFilters,
-  getPlansPayload,
-  type PlanDiscoveryFilter,
-  type PlanRowData,
-} from "@/lib/stubs";
+import { asPlanDiscoveryFilters, type PlanDiscoveryFilter } from "@/lib/stubs";
 
 export default function PlansTab() {
   const router = useRouter();
   const { user, setUiState } = useAuth();
-  const { plans, currentPlan } = useApp();
 
-  const hasAnyRealMeal = useMemo(() => {
-    if (!currentPlan) return false;
-    return (
-      currentPlan.meals?.some(
-        (m: { recipeId?: string }) => m.recipeId && m.recipeId !== "",
-      ) ?? false
-    );
-  }, [currentPlan]);
+  // usePlans(['my_plans']) — supplies the saved-plan count for the default
+  // filter. Cache-shared with the Home Plan Discovery card and (when the
+  // selected filter is my_plans) the main list query below.
+  const myPlans = usePlans(["my_plans"]);
 
-  // Single-select (4H-2): always exactly one filter active. Persisted user
-  // value first, else PRD §9.2.2 defaults (Featured for users with no saved
-  // plans; My Plans otherwise). Take the first element of any persisted
-  // multi-select array as a graceful migration. Computed once at mount;
-  // setFilters takes over after.
-  const initialFilters = useMemo<PlanDiscoveryFilter[]>(() => {
+  // Single-select filter (Ruling B / 4H-2). Seeded at mount from a
+  // persisted lastPlansFilters, else R1's count-based default. The
+  // saved-plan count isn't known synchronously at mount, so the
+  // count-based default is finalised once myPlans resolves (effect below).
+  const [filters, setFilters] = useState<PlanDiscoveryFilter[]>(() =>
+    plansFilterDefault(asPlanDiscoveryFilters(user?.lastPlansFilters), 0),
+  );
+  const [defaultApplied, setDefaultApplied] = useState(false);
+  useEffect(() => {
+    if (defaultApplied || !myPlans.data) return;
+    setDefaultApplied(true);
     const persisted = asPlanDiscoveryFilters(user?.lastPlansFilters);
-    if (persisted.length > 0) return [persisted[0]];
-    return plans.length > 0 ? ["my_plans"] : ["featured"];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // A persisted filter already seeded the initial state synchronously —
+    // only the count-based default needs the resolved myPlans data.
+    if (persisted.length > 0) return;
+    setFilters(plansFilterDefault(persisted, myPlans.data.plans.length));
+  }, [myPlans.data, defaultApplied, user?.lastPlansFilters]);
 
-  const [filters, setFilters] = useState<PlanDiscoveryFilter[]>(initialFilters);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
-  const [rows, setRows] = useState<PlanRowData[]>([]);
-  const [loading, setLoading] = useState(false);
 
   // 250ms debounce on search input.
   useEffect(() => {
@@ -65,66 +59,61 @@ export default function PlansTab() {
     return () => clearTimeout(t);
   }, [query]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const payload = await getPlansPayload();
-        if (!cancelled) setRows(payload.plans);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const plansQuery = usePlans(filters);
+  // activeThisWeek is server-resolved on every GET /plans response (PRD
+  // §9.2.1) — the pinned This Week callout reads it off the list query.
+  const activeThisWeek = plansQuery.data?.activeThisWeek ?? null;
 
   const toggleFilter = (key: PlanDiscoveryFilter) => {
     const next: PlanDiscoveryFilter[] = [key];
+    // A user choice — stop the count-based default from overriding it if
+    // myPlans resolves late.
+    setDefaultApplied(true);
     setFilters(next);
     setUiState({ lastPlansFilters: next });
   };
 
-  // OR semantics across selected chips, then substring search, then sort.
-  // Stub data is empty so sort has no observable effect today; WS7 wires
-  // real sort metadata onto PlanRowData when it lands.
+  // The server already filtered by the selected chip; search + sort run
+  // client-side over the result (Ruling C — D-WS7-048 moves these to
+  // server params in WS9).
   const visibleRows = useMemo(() => {
-    if (filters.length === 0) return [];
-    let out = rows.filter((r) => filters.includes(r.filterGroup));
+    let out = [...(plansQuery.data?.plans ?? [])];
     if (debouncedQuery) {
       out = out.filter((r) => {
-        const hay = `${r.title} ${r.tags.join(" ")}`.toLowerCase();
+        const hay = `${r.name} ${r.tags.join(" ")}`.toLowerCase();
         return hay.includes(debouncedQuery);
       });
     }
+    // Only the A–Z sort has a backing field on PlanListItem; the cook-stat
+    // sort keys need server metadata that GET /plans does not carry yet
+    // (D-WS7-048). They fall through as a no-op until WS9.
+    if (sortKey === "alpha") {
+      out.sort((a, b) => a.name.localeCompare(b.name));
+    }
     return out;
-  }, [rows, filters, debouncedQuery, sortKey]);
-
-  const showThisWeek = !!currentPlan && hasAnyRealMeal;
+  }, [plansQuery.data, debouncedQuery, sortKey]);
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
       <Header title="Plans" />
       <Screen>
-        {showThisWeek && (
+        {activeThisWeek && (
           <View style={s.thisWeekCard}>
             <View style={s.thisWeekBadge}>
               <Text style={s.thisWeekBadgeText}>This Week</Text>
             </View>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={s.thisWeekTitle} numberOfLines={1}>
-                {currentPlan?.name}
-              </Text>
-              <Text style={s.thisWeekMeta}>
-                {currentPlan?.meals.length ?? 0} meals
+                {activeThisWeek.name}
               </Text>
             </View>
             <Pressable
-              onPress={() => {
-                if (currentPlan) router.push(`/plan/${currentPlan.id}`);
-              }}
+              onPress={() =>
+                router.push({
+                  pathname: "/plan/[id]",
+                  params: { id: activeThisWeek.id },
+                })
+              }
               style={({ pressed }) => [s.openBtn, pressed && { opacity: 0.7 }]}
             >
               <Text style={s.openText}>Open</Text>
@@ -154,8 +143,12 @@ export default function PlansTab() {
         </View>
 
         <View style={s.list}>
-          {loading ? (
+          {plansQuery.isLoading ? (
             <Text style={s.loadingText}>Loading…</Text>
+          ) : plansQuery.isError ? (
+            <Text style={s.loadingText}>
+              Couldn’t load plans right now. Try again in a moment.
+            </Text>
           ) : visibleRows.length === 0 ? (
             <View style={s.empty}>
               <Text style={s.emptyText}>
@@ -173,7 +166,7 @@ export default function PlansTab() {
                   <Text style={s.btnPrimaryText}>Open Kitchen Wizard</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => setFilters(["featured"])}
+                  onPress={() => toggleFilter("featured")}
                   style={({ pressed }) => [
                     s.btnSecondary,
                     pressed && { opacity: 0.7 },
@@ -224,11 +217,6 @@ const s = StyleSheet.create({
     color: KColors.neutral[900],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
-  },
-  thisWeekMeta: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
   },
   openBtn: {
     paddingHorizontal: KSpacing.md,

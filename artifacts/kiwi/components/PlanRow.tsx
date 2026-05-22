@@ -1,28 +1,28 @@
 import React from "react";
 import {
-  Alert,
   Image,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 
-import type { PlanRowData } from "@/lib/stubs";
+import type { PlanListItem } from "@/lib/api/plans";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 type Props = {
-  plan: PlanRowData;
+  plan: PlanListItem;
 };
 
 export function PlanRow({ plan }: Props) {
-  // Per D-WS3-005 — Open is stubbed for WS3/WS4; WS7 wires real nav once
-  // plan-instance routes exist.
+  const router = useRouter();
+
+  // Open → Plan Review, matching the Hero card + This Week callout. The
+  // /plan/[id] screen is still stub-driven until Block C4 (D-WS3-005);
+  // C2 just wires the navigation.
   const handleOpen = () => {
-    Alert.alert(
-      "Open plan",
-      "Plan detail will land in WS7 when the plan-instance route wires up.",
-    );
+    router.push({ pathname: "/plan/[id]", params: { id: plan.id } });
   };
 
   const visibleTags = plan.tags.slice(0, 3);
@@ -30,9 +30,9 @@ export function PlanRow({ plan }: Props) {
   return (
     <View style={styles.row}>
       <View style={styles.thumb}>
-        {plan.thumbnailUrl ? (
+        {plan.image ? (
           <Image
-            source={{ uri: plan.thumbnailUrl }}
+            source={{ uri: plan.image }}
             style={styles.thumbImage}
             resizeMode="cover"
           />
@@ -42,11 +42,13 @@ export function PlanRow({ plan }: Props) {
       </View>
       <View style={styles.body}>
         <Text style={styles.title} numberOfLines={1}>
-          {plan.title}
+          {plan.name}
         </Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {plan.meta}
-        </Text>
+        {plan.description && (
+          <Text style={styles.meta} numberOfLines={1}>
+            {plan.description}
+          </Text>
+        )}
         {visibleTags.length > 0 && (
           <View style={styles.tagRow}>
             {visibleTags.map((t) => (
