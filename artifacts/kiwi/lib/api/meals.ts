@@ -3,6 +3,8 @@
 //   filter on FindSimilarSheet with a real semantic-similarity AI call.
 // WS7-1 — migrated to apiClient + Zod validation.
 // WS7-3 Block B — GET /meals/:id: meal-detail read (see getMeal below).
+// WS7-3 Block C1 — GET /me/meals: filtered meal-list read. MealListItemSchema
+//   (the renamed-flat list shape) is added here; MealDetailSchema now extends it.
 //
 // Contract is client-sends-full-payload: the sheet unions all four candidate
 // catalogs (saved + featured + top rated + hosting per PRD §8.4) and posts
@@ -100,7 +102,7 @@ export async function findSimilarMeals(
 
 // A recipe step — shared by the per-dish steps and the top-level meal-owned
 // fallback array. `stepIndex` is 0-based and restarts per owner.
-const MealStepSchema = z.object({
+export const MealStepSchema = z.object({
   stepIndex: z.number(),
   text: z.string(),
   estimatedMinutes: z.number(),
@@ -112,7 +114,7 @@ const MealStepSchema = z.object({
   isTimingSensitive: z.boolean(),
 });
 
-const MealDetailIngredientSchema = z.object({
+export const MealDetailIngredientSchema = z.object({
   name: z.string(),
   quantity: z.number(),
   unit: z.string(),
@@ -137,11 +139,11 @@ const MealDetailDishSchema = z.object({
   steps: z.array(MealStepSchema),
 });
 
-// The full meal-detail payload. Shared meal-meta fields use the renamed-flat
-// GET /meals list names (cuisine / minutes / servings / bare macros / image);
-// detail-only fields keep their DB-style names. `notes` is always null today —
-// the server has no meal-notes column (see WS7-3 B report §7).
-export const MealDetailSchema = z.object({
+// The renamed-flat meal-list shape (server `toListShape` — cuisineType→cuisine,
+// estimatedTimeMinutes→minutes, *PerServing→bare macros, imageUrl→image).
+// `cuisine` is always a string ("" when the meal has none — never null).
+// Returned by GET /me/meals and embedded as `todaysMeal.meal` in GET /home.
+export const MealListItemSchema = z.object({
   id: z.string(),
   title: z.string(),
   cuisine: z.string(),
@@ -153,6 +155,13 @@ export const MealDetailSchema = z.object({
   fat: z.number(),
   tags: z.array(z.string()),
   image: z.string().nullable(),
+});
+
+// The full meal-detail payload. Extends the list shape with the detail-only
+// fields — the server's own type is `MealDetail extends MealListItem`, so the
+// eleven shared meta fields stay single-sourced here too. `notes` is always
+// null today — the server has no meal-notes column (see WS7-3 B report §7).
+export const MealDetailSchema = MealListItemSchema.extend({
   description: z.string().nullable(),
   difficulty: z.string(),
   mealType: z.string(),
@@ -166,6 +175,7 @@ export const MealDetailSchema = z.object({
 
 const MealDetailEnvelopeSchema = z.object({ meal: MealDetailSchema });
 
+export type MealListItem = z.infer<typeof MealListItemSchema>;
 export type MealStep = z.infer<typeof MealStepSchema>;
 export type MealDetailIngredient = z.infer<typeof MealDetailIngredientSchema>;
 export type MealDetailDish = z.infer<typeof MealDetailDishSchema>;
@@ -182,4 +192,43 @@ export async function getMeal(id: string): Promise<MealDetail> {
     schema: MealDetailEnvelopeSchema,
   });
   return body.meal;
+}
+
+// ── Meal list (GET /api/me/meals) ─────────────────────────────────────────
+// WS7-3 Block C1 — the Meals-tab catalog read. Foundation only; the Meals
+// screen migrates in a later C-block.
+
+// ?filter= accept-list — mirrors the server's MEALS_FILTER_KEYS
+// (artifacts/api-server/src/routes/me.ts). Multi-select: any subset may be
+// passed; the server unions each filter's result block and dedupes by id.
+export const MEAL_FILTER_KEYS = [
+  "my_meals",
+  "featured",
+  "top_rated",
+  "hosting",
+] as const;
+export type MealFilterKey = (typeof MEAL_FILTER_KEYS)[number];
+
+// GET /me/meals response — the cursor-paginated meal-list union.
+const MealListResponseSchema = z.object({
+  meals: z.array(MealListItemSchema),
+  nextCursor: z.string().nullable(),
+});
+export type MealListResponse = z.infer<typeof MealListResponseSchema>;
+
+/**
+ * GET /me/meals — the authenticated user's meal catalog, filtered by the
+ * Meals-tab discovery chips. `filter` is a multi-select subset of
+ * MEAL_FILTER_KEYS; omitted/empty defers to the server default (`my_meals`).
+ * Returns the cursor-paginated union. Propagates the apiClient typed errors:
+ * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function getMeals(
+  filter?: readonly MealFilterKey[],
+): Promise<MealListResponse> {
+  const query =
+    filter && filter.length > 0
+      ? `?filter=${encodeURIComponent(filter.join(","))}`
+      : "";
+  return apiClient(`/me/meals${query}`, { schema: MealListResponseSchema });
 }

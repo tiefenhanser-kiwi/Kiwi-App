@@ -19,7 +19,7 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import * as SecureStore from "expo-secure-store";
 
-import { getMeal } from "../meals";
+import { getMeal, getMeals, MealListItemSchema } from "../meals";
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 import { useMeal } from "@/hooks/useMeal";
@@ -151,11 +151,15 @@ function mockJson(body: unknown, status = 200): Response {
 }
 
 let nextResponse: () => Response;
+let lastUrl: string | null;
 
 beforeEach(() => {
+  lastUrl = null;
   nextResponse = () => mockJson(SINGLE_DISH_MEAL);
-  (globalThis as { fetch: typeof fetch }).fetch = (async () =>
-    nextResponse()) as unknown as typeof fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (url: string) => {
+    lastUrl = url;
+    return nextResponse();
+  }) as unknown as typeof fetch;
   (
     SecureStore as unknown as { __setForTests(k: string, v: string): void }
   ).__setForTests(TOKEN_KEY, "test-token");
@@ -305,4 +309,63 @@ test("useMeal surfaces an error state for a missing meal", async () => {
   assert.equal(latest!.data, undefined);
   assert.ok(latest!.error instanceof ApiError);
   renderer.unmount();
+});
+
+// ── getMeals (GET /me/meals) ────────────────────────────────────────────────
+// WS7-3 Block C1 — the filtered Meals-tab list read.
+
+const MEAL_LIST_RESPONSE = {
+  meals: [
+    {
+      id: "meal-list-1",
+      title: "Chicken Tikka",
+      cuisine: "Indian",
+      minutes: 40,
+      servings: 4,
+      calories: 610,
+      protein: 44,
+      carbs: 28,
+      fat: 32,
+      tags: ["high-protein"],
+      image: null,
+    },
+  ],
+  nextCursor: "meal-list-1",
+};
+
+test("MealListItemSchema parses a renamed-flat list row", () => {
+  const m = MealListItemSchema.parse(MEAL_LIST_RESPONSE.meals[0]);
+  assert.equal(m.cuisine, "Indian");
+  assert.equal(m.minutes, 40);
+});
+
+test("getMeals parses the meal-list response", async () => {
+  nextResponse = () => mockJson(MEAL_LIST_RESPONSE);
+  const res = await getMeals();
+  assert.equal(res.meals.length, 1);
+  assert.equal(res.meals[0].id, "meal-list-1");
+  assert.equal(res.nextCursor, "meal-list-1");
+});
+
+test("getMeals with no filter omits the query param", async () => {
+  nextResponse = () => mockJson(MEAL_LIST_RESPONSE);
+  await getMeals();
+  assert.ok(lastUrl?.endsWith("/me/meals"), `unexpected url: ${lastUrl}`);
+});
+
+test("getMeals serializes a multi-select filter into ?filter=", async () => {
+  nextResponse = () => mockJson(MEAL_LIST_RESPONSE);
+  await getMeals(["my_meals", "hosting"]);
+  assert.ok(
+    lastUrl?.endsWith("/me/meals?filter=my_meals%2Chosting"),
+    `unexpected url: ${lastUrl}`,
+  );
+});
+
+test("getMeals rejects a malformed response body", async () => {
+  nextResponse = () => mockJson({ meals: [{ id: "x" }], nextCursor: null });
+  await assert.rejects(
+    () => getMeals(),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
 });
