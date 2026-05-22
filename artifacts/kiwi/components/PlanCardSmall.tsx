@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useRouter } from "expo-router";
 
 import type { PlanListItem } from "@/lib/api/plans";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
@@ -16,11 +17,19 @@ type Props = {
 };
 
 export function PlanCardSmall({ plan }: Props) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
+  const isInstance = plan.source === "instance";
 
-  // Per D-WS3-005 — Preview and Use Plan stay stubbed. C2 is reads-only;
-  // Plan Review wires in Block C4, plan-instance creation (a mutation) is
-  // out of C2 scope entirely.
+  // Saved plans (source: 'instance') → Plan Review, matching PlanRow + the
+  // Hero card. /plan/[id] is stub-driven until Block C4 (D-WS3-005).
+  const handleOpen = () => {
+    router.push({ pathname: "/plan/[id]", params: { id: plan.id } });
+  };
+
+  // Catalog templates (source: 'template') keep the stub actions: Preview
+  // wires in Block C4 with Plan Review; Use Plan (a plan-instance mutation)
+  // lands in a later workstream.
   const handlePreview = () => {
     Alert.alert(
       "Preview",
@@ -35,13 +44,10 @@ export function PlanCardSmall({ plan }: Props) {
   };
 
   const visibleTags = plan.tags.slice(0, 3);
-  // The expand affordance only earns its place when there's a description
-  // to reveal (PlanListItem carries no meal-preview list).
-  const canExpand = !!plan.description;
 
   return (
     <Pressable
-      onPress={() => canExpand && setExpanded((x) => !x)}
+      onPress={() => setExpanded((x) => !x)}
       style={styles.card}
     >
       <View style={styles.row}>
@@ -80,26 +86,41 @@ export function PlanCardSmall({ plan }: Props) {
             </Text>
           )}
           <View style={styles.actionRow}>
-            <Pressable
-              onPress={handlePreview}
-              style={({ pressed }) => [
-                styles.actionBtn,
-                styles.actionBtnSecondary,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={styles.actionTextSecondary}>Preview</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleUsePlan}
-              style={({ pressed }) => [
-                styles.actionBtn,
-                styles.actionBtnPrimary,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={styles.actionTextPrimary}>Use Plan</Text>
-            </Pressable>
+            {isInstance ? (
+              <Pressable
+                onPress={handleOpen}
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  styles.actionBtnPrimary,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={styles.actionTextPrimary}>Open</Text>
+              </Pressable>
+            ) : (
+              <>
+                <Pressable
+                  onPress={handlePreview}
+                  style={({ pressed }) => [
+                    styles.actionBtn,
+                    styles.actionBtnSecondary,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Text style={styles.actionTextSecondary}>Preview</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleUsePlan}
+                  style={({ pressed }) => [
+                    styles.actionBtn,
+                    styles.actionBtnPrimary,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Text style={styles.actionTextPrimary}>Use Plan</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
       )}
