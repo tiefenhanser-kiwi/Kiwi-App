@@ -19,7 +19,7 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import * as SecureStore from "expo-secure-store";
 
-import { getMeal, getMeals, MealListItemSchema } from "../meals";
+import { asMealsFilters, getMeal, getMeals, MealListItemSchema } from "../meals";
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 import { useMeal } from "@/hooks/useMeal";
@@ -368,6 +368,30 @@ test("getMeals rejects a malformed response body", async () => {
   await assert.rejects(
     () => getMeals(),
     (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+// ── asMealsFilters (relocated from lib/stubs.ts in WS7-3 C3 c1) ──────────────
+
+test("asMealsFilters: null / undefined / empty input → []", () => {
+  assert.deepEqual(asMealsFilters(null), []);
+  assert.deepEqual(asMealsFilters(undefined), []);
+  assert.deepEqual(asMealsFilters([]), []);
+});
+
+test("asMealsFilters: preserves the four canonical keys", () => {
+  assert.deepEqual(
+    asMealsFilters(["my_meals", "featured", "top_rated", "hosting"]),
+    ["my_meals", "featured", "top_rated", "hosting"],
+  );
+});
+
+test("asMealsFilters: drops unknown keys silently", () => {
+  // Legacy / unknown values that may live in older saved state are dropped
+  // rather than throwing — the screen still renders with the empty set.
+  assert.deepEqual(
+    asMealsFilters(["my_meals", "all_meals", "garbage", "featured"]),
+    ["my_meals", "featured"],
   );
 });
 

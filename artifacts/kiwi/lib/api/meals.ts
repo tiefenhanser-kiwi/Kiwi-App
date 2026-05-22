@@ -209,6 +209,21 @@ export const MEAL_FILTER_KEYS = [
 ] as const;
 export type MealFilterKey = (typeof MEAL_FILTER_KEYS)[number];
 
+/**
+ * Narrows a server-supplied string[] (e.g. user.lastMealsFilters) to the typed
+ * MealFilterKey union, dropping unknown values silently. Relocated from
+ * lib/stubs.ts in WS7-3 C3 — outlives the stub file because the Meals-tab
+ * filter persistence reads through it.
+ */
+export function asMealsFilters(
+  arr: string[] | undefined | null,
+): MealFilterKey[] {
+  if (!arr) return [];
+  return arr.filter((k): k is MealFilterKey =>
+    (MEAL_FILTER_KEYS as readonly string[]).includes(k),
+  );
+}
+
 // GET /me/meals response — the cursor-paginated meal-list union.
 const MealListResponseSchema = z.object({
   meals: z.array(MealListItemSchema),

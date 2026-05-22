@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { apiClient } from "@/lib/api/client";
 import { UnauthenticatedError } from "@/lib/api/errors";
+import type { MealFilterKey } from "@/lib/api/meals";
 
 import type { User } from "./types";
 
@@ -149,11 +150,12 @@ export async function fetchMe(): Promise<User | null> {
 // PlanDiscoveryFilter is duplicated from lib/stubs.ts intentionally:
 // stubs.ts is deletable when WS7 lands, and depending on it from this
 // always-shipped file would be the wrong direction. WS7 consolidates.
+// MealsFilter aliases the canonical MEAL_FILTER_KEYS union from
+// lib/api/meals.ts (4-key set matching the server) — WS7-3 C3.
 
 const FILTER_KEYS = ["my_plans", "featured", "top_rated", "hosting_events"] as const;
-const MEALS_FILTER_KEYS = ["my_meals", "all_meals"] as const;
 export type PlanDiscoveryFilter = (typeof FILTER_KEYS)[number];
-export type MealsFilter = (typeof MEALS_FILTER_KEYS)[number];
+export type MealsFilter = MealFilterKey;
 
 export async function patchUiState(body: {
   lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];

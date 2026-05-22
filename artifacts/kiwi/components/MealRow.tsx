@@ -9,33 +9,30 @@ import {
 
 import type { SortKey } from "@/components/SortDropdown";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { formatDate, formatRelative } from "@/lib/date";
-import type { MealRowData } from "@/lib/stubs";
+import type { MealListItem } from "@/lib/api/meals";
 
 type Props = {
-  meal: MealRowData;
+  meal: MealListItem;
   onPress: () => void;
   onCookNow: () => void;
   /** Fired when the row's Add to Plan button is tapped. The parent
    *  renders the AddMealToPlanSheet at screen level. */
   onAddToPlan: (mealId: string, mealTitle: string) => void;
-  /** Optional: when set, render a sort-aware secondary line. Hidden
-   *  for "alpha" / "cook_time" since those don't reveal hidden data. */
+  /** Optional: when set, render a sort-aware secondary line. MealListItem
+   *  doesn't carry cook-stat fields today (D-WS7-048 extended) so the
+   *  cook-stat sorts surface a "no data yet" hint rather than fake numbers. */
   sortKey?: SortKey;
 };
 
-function buildSortLine(meal: MealRowData, sortKey: SortKey): string | null {
+function buildSortLine(sortKey: SortKey): string | null {
   switch (sortKey) {
     case "last_cooked":
-      return meal.lastCookedAt
-        ? `Last cooked ${formatRelative(meal.lastCookedAt)}`
-        : "Never cooked";
-    case "times_cooked": {
-      const n = meal.timesCooked ?? 0;
-      return n === 0 ? "Never cooked" : `Cooked ${n}× total`;
-    }
+    case "times_cooked":
     case "date_created":
-      return meal.createdAt ? `Added ${formatDate(meal.createdAt)}` : null;
+      // D-WS7-048 (extended): MealListItem has no cook-stat fields. The sort
+      // is a no-op until WS9 lands server-side params; the row hides the
+      // secondary line rather than render misleading zeros.
+      return null;
     case "alpha":
     case "cook_time":
       return null;
@@ -51,9 +48,13 @@ export function MealRow({
   sortKey,
 }: Props) {
   const sortLine = useMemo(
-    () => (sortKey ? buildSortLine(meal, sortKey) : null),
-    [meal, sortKey],
+    () => (sortKey ? buildSortLine(sortKey) : null),
+    [sortKey],
   );
+  // Server returns `""` (not null) when a meal has no cuisine — hide the tag
+  // pill on empty strings so the row stays clean.
+  const cuisineTag = meal.cuisine.length > 0 ? meal.cuisine : null;
+  const meta = `${meal.minutes} min · serves ${meal.servings}`;
 
   return (
     <View style={styles.row}>
@@ -62,9 +63,9 @@ export function MealRow({
         style={({ pressed }) => [styles.cardArea, pressed && { opacity: 0.85 }]}
       >
         <View style={styles.thumb}>
-          {meal.thumbnailUrl ? (
+          {meal.image ? (
             <Image
-              source={{ uri: meal.thumbnailUrl }}
+              source={{ uri: meal.image }}
               style={styles.thumbImage}
               resizeMode="cover"
             />
@@ -77,13 +78,13 @@ export function MealRow({
             {meal.title}
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
-            {meal.meta}
+            {meta}
           </Text>
           {sortLine && <Text style={styles.sortLine}>{sortLine}</Text>}
-          {meal.cuisineTag && (
+          {cuisineTag && (
             <View style={styles.tagRow}>
               <View style={styles.tag}>
-                <Text style={styles.tagText}>{meal.cuisineTag}</Text>
+                <Text style={styles.tagText}>{cuisineTag}</Text>
               </View>
             </View>
           )}
