@@ -1,71 +1,55 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { FilterChipRow, PLAN_DISCOVERY_FILTER_OPTIONS } from "@/components/FilterChipRow";
 import { PlanCardSmall } from "@/components/PlanCardSmall";
 import { useAuth } from "@/contexts/AuthContext";
-import { getHomePayload, type PlanDiscoveryCard, type PlanDiscoveryFilter }
-  from "@/lib/stubs";
+import { usePlans } from "@/hooks/usePlans";
+import { homeFilterDefault } from "@/lib/home/filterDefault";
+import { asPlanDiscoveryFilters, type PlanDiscoveryFilter } from "@/lib/stubs";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
-type Props = {
-  // First-time users get the card expanded by default. Per PRD §3.6,
-  // this is keyed off whether the user has any saved filter preference
-  // yet. 3F replaces this with `user.lastPlanDiscoveryFilters`.
-  defaultExpanded?: boolean;
-  // 3F replaces local-state filters with persisted user state.
-  initialFilters?: PlanDiscoveryFilter[];
-};
+// PRD §4.2.5 — the Home discovery card previews up to five plans.
+const HOME_DISCOVERY_PREVIEW_LIMIT = 5;
 
-export function PlanDiscoveryCard({
-  defaultExpanded = false,
-  initialFilters,
-}: Props) {
-  const { setUiState } = useAuth();
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  // Single-select (4H-2): always exactly one filter active. Take the first
-  // element of any persisted multi-select array as a graceful migration.
-  const [filters, setFilters] = useState<PlanDiscoveryFilter[]>(
-    initialFilters && initialFilters.length > 0
-      ? [initialFilters[0]]
-      : ["featured"],
+// WS7-3 C2 Commit 2 — the Home Plan Discovery card. Sources from
+// usePlans([filter]) (Phase 2 Ruling A): the chip is the query key, so
+// switching filters is instant and the cache is shared with the Plans tab.
+export function PlanDiscoveryCard() {
+  const { user, setUiState } = useAuth();
+
+  // Single-select (4H-2 / D-WS7-049): exactly one filter active. Seeded
+  // once at mount — a persisted lastPlanDiscoveryFilters wins, else R1's
+  // Featured default. setFilters takes over after first interaction.
+  const [filters, setFilters] = useState<PlanDiscoveryFilter[]>(() =>
+    homeFilterDefault(asPlanDiscoveryFilters(user?.lastPlanDiscoveryFilters)),
   );
-  const [cards, setCards] = useState<PlanDiscoveryCard[]>([]);
-  const [loading, setLoading] = useState(false);
 
-  // Fetch on mount. Stub returns [] today; WS7 fills it.
+  // First-time-user expansion (R3): expand when the user has no saved
+  // plans. Derived from usePlans(['my_plans']) — cache-shared with the
+  // Plans tab. Collapsed while that query loads (avoids a layout jump on
+  // the common returning-user path); the data-derived default is applied
+  // exactly once, then the header toggle is under user control.
+  const myPlans = usePlans(["my_plans"]);
+  const [expanded, setExpanded] = useState(false);
+  const [defaultApplied, setDefaultApplied] = useState(false);
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const payload = await getHomePayload();
-        if (!cancelled) setCards(payload.planDiscoveryCards);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (defaultApplied || !myPlans.data) return;
+    setExpanded(myPlans.data.plans.length === 0);
+    setDefaultApplied(true);
+  }, [myPlans.data, defaultApplied]);
+
+  const plansQuery = usePlans(filters);
+  const visiblePlans = (plansQuery.data?.plans ?? []).slice(
+    0,
+    HOME_DISCOVERY_PREVIEW_LIMIT,
+  );
 
   const toggleFilter = (key: PlanDiscoveryFilter) => {
     const next: PlanDiscoveryFilter[] = [key];
     setFilters(next);
     setUiState({ lastPlanDiscoveryFilters: next });
   };
-
-  // OR semantics per PRD §4.2.5: a card matches if ANY of its badge or
-  // tag mappings hits a selected filter. Today the stub is empty so this
-  // always returns []. Real filtering logic is intentionally simple here;
-  // server-side filtering takes over in WS7.
-  const visibleCards = useMemo(() => {
-    if (filters.length === 0) return cards;
-    return cards.filter(
-      (c) => c.badge !== null && filters.includes(c.badge),
-    );
-  }, [cards, filters]);
 
   return (
     <View style={styles.card}>
@@ -96,18 +80,19 @@ export function PlanDiscoveryCard({
             onToggle={toggleFilter}
           />
           <View style={styles.cardList}>
-            {loading ? (
+            {plansQuery.isLoading ? (
               <Text style={styles.emptyText}>Loading…</Text>
-            ) : visibleCards.length === 0 ? (
+            ) : plansQuery.isError ? (
               <Text style={styles.emptyText}>
-                {filters.length === 0
-                  ? "Pick a filter to see plans."
-                  : "No plans match these filters yet. Try the Kitchen Wizard to build one."}
+                Couldn’t load plans right now. Try again in a moment.
+              </Text>
+            ) : visiblePlans.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No plans match this filter yet. Try the Kitchen Wizard to
+                build one.
               </Text>
             ) : (
-              visibleCards.map((c) => (
-                <PlanCardSmall key={c.planId} card={c} />
-              ))
+              visiblePlans.map((p) => <PlanCardSmall key={p.id} plan={p} />)
             )}
           </View>
         </View>

@@ -8,43 +8,47 @@ import {
   View,
 } from "react-native";
 
-import type { PlanDiscoveryCard } from "@/lib/stubs";
+import type { PlanListItem } from "@/lib/api/plans";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 type Props = {
-  card: PlanDiscoveryCard;
+  plan: PlanListItem;
 };
 
-export function PlanCardSmall({ card }: Props) {
+export function PlanCardSmall({ plan }: Props) {
   const [expanded, setExpanded] = useState(false);
 
-  // Per D-WS3-005 — Preview and Use Plan are stubbed for WS3.
-  // WS7 wires the real navigation + state mutation.
+  // Per D-WS3-005 — Preview and Use Plan stay stubbed. C2 is reads-only;
+  // Plan Review wires in Block C4, plan-instance creation (a mutation) is
+  // out of C2 scope entirely.
   const handlePreview = () => {
     Alert.alert(
       "Preview",
-      "Plan preview will land in WS7 when real plan data wires up.",
+      "Plan preview will land in WS7-3 C4 when Plan Review wires up.",
     );
   };
   const handleUsePlan = () => {
     Alert.alert(
       "Use Plan",
-      "Plan instance creation will land in WS7 when the API endpoint is built.",
+      "Plan instance creation will land in a later workstream.",
     );
   };
 
-  const visibleTags = card.tags.slice(0, 3);
+  const visibleTags = plan.tags.slice(0, 3);
+  // The expand affordance only earns its place when there's a description
+  // to reveal (PlanListItem carries no meal-preview list).
+  const canExpand = !!plan.description;
 
   return (
     <Pressable
-      onPress={() => card.canExpand && setExpanded((x) => !x)}
+      onPress={() => canExpand && setExpanded((x) => !x)}
       style={styles.card}
     >
       <View style={styles.row}>
         <View style={styles.thumb}>
-          {card.imageUrl ? (
+          {plan.image ? (
             <Image
-              source={{ uri: card.imageUrl }}
+              source={{ uri: plan.image }}
               style={styles.thumbImage}
               resizeMode="cover"
             />
@@ -54,7 +58,7 @@ export function PlanCardSmall({ card }: Props) {
         </View>
         <View style={styles.body}>
           <Text style={styles.title} numberOfLines={1}>
-            {card.title}
+            {plan.name}
           </Text>
           {visibleTags.length > 0 && (
             <View style={styles.tagRow}>
@@ -70,9 +74,9 @@ export function PlanCardSmall({ card }: Props) {
 
       {expanded && (
         <View style={styles.expandedBlock}>
-          {card.mealPreviewTitles.length > 0 && (
-            <Text style={styles.mealList} numberOfLines={2}>
-              {card.mealPreviewTitles.join(", ")}
+          {plan.description && (
+            <Text style={styles.mealList} numberOfLines={3}>
+              {plan.description}
             </Text>
           )}
           <View style={styles.actionRow}>

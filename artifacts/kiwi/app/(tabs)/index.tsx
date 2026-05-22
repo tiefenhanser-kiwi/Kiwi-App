@@ -19,7 +19,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { useHomePayload } from "@/hooks/useHomePayload";
 import { deriveHeroModel, type HeroModel } from "@/lib/home/heroState";
-import { asPlanDiscoveryFilters, getUserPlans } from "@/lib/stubs";
 import {
   KColors,
   KPalette,
@@ -57,11 +56,6 @@ export default function HomeTab() {
   // deriveHeroModel collapses to the empty state (Phase 2 Commit 1 ruling).
   const homeQuery = useHomePayload();
   const heroModel = deriveHeroModel(homeQuery.data);
-
-  // PlanDiscoveryCard still reads getUserPlans for its first-time-user
-  // expansion default — that migrates to usePlans in C2 Commit 2.
-  const userPlans = useMemo(() => getUserPlans(), []);
-  const hasAnyPlans = userPlans.length > 0;
 
   const isEmptyState = useMemo(() => {
     if (!currentPlan) return true;
@@ -140,10 +134,7 @@ export default function HomeTab() {
             onPress={handleCookNowPress}
             locked={isLocked}
           />
-          <PlanDiscoveryCard
-            defaultExpanded={!hasAnyPlans}
-            initialFilters={asPlanDiscoveryFilters(user?.lastPlanDiscoveryFilters)}
-          />
+          <PlanDiscoveryCard />
 
           <View style={styles.actionRow}>
             <HomeActionButton
