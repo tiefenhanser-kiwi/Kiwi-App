@@ -11,8 +11,9 @@ import { useRouter } from "expo-router";
 
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
+import { useGroceryLists } from "@/hooks/useGroceryLists";
 import { formatRelative } from "@/lib/date";
-import { getGroceryLists } from "@/lib/stubs";
+import type { GroceryListListItem } from "@/lib/api/groceries";
 import {
   KColors,
   KPalette,
@@ -20,7 +21,6 @@ import {
   KSpacing,
   KType,
 } from "@/constants/tokens";
-import type { GroceryListSummary } from "@/lib/types";
 
 type GrocerySortKey = "recent" | "plan" | "alpha";
 
@@ -30,9 +30,30 @@ const SORT_OPTIONS: Array<{ key: GrocerySortKey; label: string }> = [
   { key: "alpha", label: "Alphabetical" },
 ];
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Client-side proxy for the missing `isThisWeek` field on GroceryListListItem
+// (the server's new renamed-flat shape doesn't carry it; PRD §12.14 status
+// vocab is deferred to D-WS7-046). Used only to drive the 3-button "current
+// list" action row vs the 2-button past-list row.
+function isCurrentWeek(list: GroceryListListItem): boolean {
+  if (!list.lastGeneratedAt) return false;
+  const t = Date.parse(list.lastGeneratedAt);
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t < WEEK_MS;
+}
+
+// D5 — single status badge, raw server enum title-cased. Returns null when
+// the field is empty so the badge slot collapses.
+function statusBadgeLabel(status: string): string | null {
+  if (!status) return null;
+  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+}
+
 export default function GroceriesTab() {
   const router = useRouter();
-  const lists = useMemo(() => getGroceryLists(), []);
+  const listsQuery = useGroceryLists();
+  const lists = listsQuery.data ?? [];
 
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<GrocerySortKey>("recent");
@@ -41,14 +62,14 @@ export default function GroceriesTab() {
   const sorted = useMemo(() => {
     const filtered = query.trim()
       ? lists.filter((l) =>
-          l.planName.toLowerCase().includes(query.trim().toLowerCase()),
+          l.title.toLowerCase().includes(query.trim().toLowerCase()),
         )
       : lists;
     return [...filtered].sort((a, b) => {
       if (sortKey === "recent") return b.createdAt.localeCompare(a.createdAt);
-      // "plan" + "alphabetical" both order by planName for WS5; WS7 will
-      // distinguish them when we have a plan-grouping affordance.
-      return a.planName.localeCompare(b.planName);
+      // "plan" + "alphabetical" both order by title (the GroceryListListItem
+      // has no separate plan-name field — the title is the canonical label).
+      return a.title.localeCompare(b.title);
     });
   }, [lists, query, sortKey]);
 
@@ -138,7 +159,13 @@ export default function GroceriesTab() {
           </View>
         </View>
 
-        {sorted.length === 0 ? (
+        {listsQuery.isLoading ? (
+          <Text style={styles.loadingText}>Loading…</Text>
+        ) : listsQuery.isError ? (
+          <Text style={styles.loadingText}>
+            Couldn’t load grocery lists right now. Try again in a moment.
+          </Text>
+        ) : sorted.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyText}>
               Your grocery lists show up here. Create a meal plan to generate
@@ -174,7 +201,7 @@ export default function GroceriesTab() {
 }
 
 type ListCardProps = {
-  list: GroceryListSummary;
+  list: GroceryListListItem;
   onViewList: () => void;
   onGetList: () => void;
   onOrderOnline: () => void;
@@ -188,35 +215,30 @@ function ListCard({
   onOrderOnline,
   onReuse,
 }: ListCardProps) {
+  const badge = statusBadgeLabel(list.status);
+  const isCurrent = isCurrentWeek(list);
+
   return (
     <Pressable
       onPress={onViewList}
       style={({ pressed }) => [styles.card, pressed && { opacity: 0.92 }]}
     >
-      <View style={styles.cardTopRow}>
-        {list.isThisWeek ? (
-          <View style={styles.thisWeekBadge}>
-            <Text style={styles.thisWeekBadgeText}>This Week</Text>
+      {badge && (
+        <View style={styles.cardTopRow}>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusBadgeText}>{badge}</Text>
           </View>
-        ) : list.status === "draft" ? (
-          <View style={styles.draftBadge}>
-            <Text style={styles.draftBadgeText}>Draft</Text>
-          </View>
-        ) : (
-          <View style={styles.pastBadge}>
-            <Text style={styles.pastBadgeText}>Past</Text>
-          </View>
-        )}
-      </View>
+        </View>
+      )}
       <Text style={styles.planName} numberOfLines={2}>
-        {list.planName}
+        {list.title}
       </Text>
       <Text style={styles.metaLine}>
         {list.itemCount} items · {formatRelative(list.createdAt)}
       </Text>
 
       <View style={styles.actionsRow}>
-        {list.isThisWeek ? (
+        {isCurrent ? (
           <>
             <CardButton variant="primary" onPress={onViewList} label="View List" />
             <CardButton variant="outline" onPress={onGetList} label="Get List ✓" />
@@ -360,6 +382,13 @@ const styles = StyleSheet.create({
     color: KColors.neutral[800],
     fontFamily: "Inter_400Regular",
   },
+  loadingText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    paddingVertical: KSpacing.lg,
+  },
   empty: {
     paddingTop: KSpacing.xxl,
     paddingHorizontal: KSpacing.lg,
@@ -400,41 +429,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  thisWeekBadge: {
-    backgroundColor: KColors.terracotta[400],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: 4,
-  },
-  thisWeekBadgeText: {
-    fontSize: 10,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  pastBadge: {
-    backgroundColor: KColors.neutral[300],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: 4,
-  },
-  pastBadgeText: {
-    fontSize: 10,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  draftBadge: {
+  statusBadge: {
     backgroundColor: KColors.sage[100],
     borderRadius: KRadius.pill,
     paddingHorizontal: KSpacing.sm,
     paddingVertical: 4,
   },
-  draftBadgeText: {
+  statusBadgeText: {
     fontSize: 10,
     color: KColors.sage[700],
     fontWeight: KType.weight.semibold,
