@@ -193,8 +193,8 @@ function buildReviewPlan(_planId: string): ReviewPlan {
       scheduledMeals: [
         {
           planItemId: "demo-item-1",
-          mealId: "demo-meal-1",
-          title: "Salmon Teriyaki",
+          mealId: "dev-meal-beef-tacos",
+          title: "Beef Tacos",
           thumbnailUrl: undefined,
           metaLine: "Easy · 30 min · serves 4",
           caloriesPerServing: 540,
@@ -206,8 +206,8 @@ function buildReviewPlan(_planId: string): ReviewPlan {
         },
         {
           planItemId: "demo-item-2",
-          mealId: "demo-meal-2",
-          title: "Chicken Stir Fry",
+          mealId: "dev-meal-spaghetti-carbonara",
+          title: "Spaghetti Carbonara",
           thumbnailUrl: undefined,
           metaLine: "Easy · 25 min · serves 4",
           caloriesPerServing: 480,
@@ -221,8 +221,8 @@ function buildReviewPlan(_planId: string): ReviewPlan {
       unscheduledMeals: [
         {
           planItemId: "demo-item-3",
-          mealId: "demo-meal-3",
-          title: "Pasta Primavera",
+          mealId: "dev-meal-salmon-rice-pilaf",
+          title: "Salmon with Rice Pilaf",
           thumbnailUrl: undefined,
           metaLine: "Medium · 40 min · serves 4",
           caloriesPerServing: 620,

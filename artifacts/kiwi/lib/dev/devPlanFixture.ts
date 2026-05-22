@@ -5,11 +5,14 @@
 // the wizard or manual create-plan flows (both stubbed).
 //
 // id: "demo" intentionally reuses the existing rich Plan Review branch in
-// stubs.ts → getReviewPlan("demo"), which returns 3 meals across 3 cuisines
-// (Salmon Teriyaki / Chicken Stir Fry / Pasta Primavera). Plan Review reads
-// from getReviewPlan, NOT from this MealPlan.meals array — so the meals[]
+// stubs.ts → getReviewPlan("demo"), which returns 3 meals
+// (Beef Tacos / Spaghetti Carbonara / Salmon with Rice Pilaf). Plan Review
+// reads from getReviewPlan, NOT from this MealPlan.meals array — so the meals[]
 // here is benign-default content (mirrors defaultPlan()), included only to
 // satisfy the MealPlan type. The id linkage is what makes the demo surface.
+//
+// The recipeIds below match the real seeded meal IDs from devData.ts so a
+// tap-through reaches a meal that GET /meals/:id can resolve (post Block B).
 
 import { getMondayISO } from "../domain";
 import type { MealPlan } from "../types";
@@ -29,9 +32,9 @@ export function buildDevTestPlan(): MealPlan {
     createdAt: Date.now(),
     weekStart: getMondayISO(),
     meals: [
-      { day: "Mon", slot: "Dinner", recipeId: "demo-meal-1" },
-      { day: "Tue", slot: "Dinner", recipeId: "demo-meal-2" },
-      { day: "Wed", slot: "Dinner", recipeId: "demo-meal-3" },
+      { day: "Mon", slot: "Dinner", recipeId: "dev-meal-beef-tacos" },
+      { day: "Tue", slot: "Dinner", recipeId: "dev-meal-spaghetti-carbonara" },
+      { day: "Wed", slot: "Dinner", recipeId: "dev-meal-salmon-rice-pilaf" },
     ],
   };
 }
