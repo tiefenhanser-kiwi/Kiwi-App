@@ -15,9 +15,9 @@ import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlans } from "@/hooks/usePlans";
+import { asPlanDiscoveryFilters, type PlanFilterKey } from "@/lib/api/plans";
 import { plansFilterDefault } from "@/lib/plans/filterDefault";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { asPlanDiscoveryFilters, type PlanDiscoveryFilter } from "@/lib/stubs";
 
 export default function PlansTab() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function PlansTab() {
   // persisted lastPlansFilters, else R1's count-based default. The
   // saved-plan count isn't known synchronously at mount, so the
   // count-based default is finalised once myPlans resolves (effect below).
-  const [filters, setFilters] = useState<PlanDiscoveryFilter[]>(() =>
+  const [filters, setFilters] = useState<PlanFilterKey[]>(() =>
     plansFilterDefault(asPlanDiscoveryFilters(user?.lastPlansFilters), 0),
   );
   const [defaultApplied, setDefaultApplied] = useState(false);
@@ -64,8 +64,8 @@ export default function PlansTab() {
   // §9.2.1) — the pinned This Week callout reads it off the list query.
   const activeThisWeek = plansQuery.data?.activeThisWeek ?? null;
 
-  const toggleFilter = (key: PlanDiscoveryFilter) => {
-    const next: PlanDiscoveryFilter[] = [key];
+  const toggleFilter = (key: PlanFilterKey) => {
+    const next: PlanFilterKey[] = [key];
     // A user choice — stop the count-based default from overriding it if
     // myPlans resolves late.
     setDefaultApplied(true);

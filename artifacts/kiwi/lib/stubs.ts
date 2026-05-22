@@ -56,33 +56,11 @@ export function buildGroceryList(_plan: MealPlan): GroceryItem[] {
   return [];
 }
 
-// ── Plan Discovery (PRD §4.2.5) ──
-// WS3-3E adds these so the Home Plan Discovery card renders against
-// stubbed data. WS7 swaps getHomePayload to a real fetch.
-
-export type PlanDiscoveryFilter =
-  | "my_plans"
-  | "featured"
-  | "top_rated"
-  | "hosting_events";
-
-export const PLAN_DISCOVERY_FILTER_KEYS: readonly PlanDiscoveryFilter[] = [
-  "my_plans",
-  "featured",
-  "top_rated",
-  "hosting_events",
-];
-
-// Narrows a server-supplied string[] (e.g. user.lastPlanDiscoveryFilters)
-// to the typed union, dropping unknown values silently.
-export function asPlanDiscoveryFilters(
-  arr: string[] | undefined | null,
-): PlanDiscoveryFilter[] {
-  if (!arr) return [];
-  return arr.filter((k): k is PlanDiscoveryFilter =>
-    (PLAN_DISCOVERY_FILTER_KEYS as readonly string[]).includes(k),
-  );
-}
+// ── My Meals filters (PRD §9.3) ──
+// asPlanDiscoveryFilters + the Plan Discovery key set / union moved to
+// lib/api/plans.ts in WS7-3 C2 (the Home + Plans-tab consumers migrated
+// off the stubs). The Meals-tab filter equivalents below stay until that
+// tab migrates in a later C-block.
 
 export const MEALS_FILTER_KEYS: readonly MealsFilter[] = [
   "my_meals",
@@ -98,42 +76,10 @@ export function asMealsFilters(
   );
 }
 
-export type PlanDiscoveryCard = {
-  planId: string;
-  title: string;
-  imageUrl: string | null;
-  tags: string[];
-  badge: PlanDiscoveryFilter | null;
-  mealPreviewTitles: string[];
-  canExpand: boolean;
-};
-
-export type HomePayload = {
-  planDiscoveryCards: PlanDiscoveryCard[];
-};
-
-export async function getHomePayload(): Promise<HomePayload> {
-  return { planDiscoveryCards: [] };
-}
-
-// ── Plans tab (PRD §9.2) ──
-// WS7 fills this. Same seam pattern as getHomePayload.
-
-export type PlanRowData = {
-  id: string;
-  title: string;
-  thumbnailUrl: string | null;
-  meta: string;
-  tags: string[];
-  filterGroup: PlanDiscoveryFilter;
-};
-
-export async function getPlansPayload(): Promise<{ plans: PlanRowData[] }> {
-  return { plans: [] };
-}
-
 // ── My Meals tab (PRD §9.3) ──
-// WS7 fills this. Same seam pattern as getHomePayload and getPlansPayload.
+// WS7 fills this. Same seam pattern as the other payload getters.
+// (Home `getHomePayload` + Plans-tab `getPlansPayload` retired in WS7-3 C2
+// when those tabs migrated to the useHomePayload / usePlans hooks.)
 
 export type MealsFilterGroup = "my_meals" | "all_meals";
 
@@ -2135,25 +2081,8 @@ export function getUserPlans(): UserPlanSummary[] {
   ];
 }
 
-/**
- * PRD §4.6 — resolve the user's currently-active plan (date range
- * covers today). For WS5 stub: returns null. Real implementation
- * lands in WS7.
- */
-export function getCurrentActivePlan(): UserPlanSummary | null {
-  return null;
-}
-
-/**
- * PRD §4.6 — resolve today's scheduled meal from active plan.
- * For WS5 stub: returns null. Real implementation lands in WS7.
- */
-export function getTodaysMeal(): {
-  meal: ReviewMeal;
-  planId: string;
-} | null {
-  return null;
-}
+// getCurrentActivePlan + getTodaysMeal retired in WS7-3 C2 — the Home
+// Hero card now reads the real GET /home composite via useHomePayload().
 
 // ── User Account Info (PRD §14.9.1) ──
 

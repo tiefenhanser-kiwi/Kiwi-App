@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
 
-import type { PlanDiscoveryFilter } from "@/lib/stubs";
+import type { PlanFilterKey } from "@/lib/api/plans";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 export type FilterChipOption<K extends string> = {
@@ -11,7 +11,7 @@ export type FilterChipOption<K extends string> = {
 
 // PRD §4.2.5 + §9.2.2 — same four-key set used by Home Plan Discovery
 // and the Plans tab. Exported so call sites don't redeclare.
-export const PLAN_DISCOVERY_FILTER_OPTIONS: FilterChipOption<PlanDiscoveryFilter>[] = [
+export const PLAN_DISCOVERY_FILTER_OPTIONS: FilterChipOption<PlanFilterKey>[] = [
   { key: "my_plans", label: "My Plans" },
   { key: "featured", label: "Featured" },
   { key: "top_rated", label: "Top Rated" },

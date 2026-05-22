@@ -5,8 +5,8 @@ import { FilterChipRow, PLAN_DISCOVERY_FILTER_OPTIONS } from "@/components/Filte
 import { PlanCardSmall } from "@/components/PlanCardSmall";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlans } from "@/hooks/usePlans";
+import { asPlanDiscoveryFilters, type PlanFilterKey } from "@/lib/api/plans";
 import { homeFilterDefault } from "@/lib/home/filterDefault";
-import { asPlanDiscoveryFilters, type PlanDiscoveryFilter } from "@/lib/stubs";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 
 // PRD §4.2.5 — the Home discovery card previews up to five plans.
@@ -21,7 +21,7 @@ export function PlanDiscoveryCard() {
   // Single-select (4H-2 / D-WS7-049): exactly one filter active. Seeded
   // once at mount — a persisted lastPlanDiscoveryFilters wins, else R1's
   // Featured default. setFilters takes over after first interaction.
-  const [filters, setFilters] = useState<PlanDiscoveryFilter[]>(() =>
+  const [filters, setFilters] = useState<PlanFilterKey[]>(() =>
     homeFilterDefault(asPlanDiscoveryFilters(user?.lastPlanDiscoveryFilters)),
   );
 
@@ -45,8 +45,8 @@ export function PlanDiscoveryCard() {
     HOME_DISCOVERY_PREVIEW_LIMIT,
   );
 
-  const toggleFilter = (key: PlanDiscoveryFilter) => {
-    const next: PlanDiscoveryFilter[] = [key];
+  const toggleFilter = (key: PlanFilterKey) => {
+    const next: PlanFilterKey[] = [key];
     setFilters(next);
     setUiState({ lastPlanDiscoveryFilters: next });
   };

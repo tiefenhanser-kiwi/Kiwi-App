@@ -23,6 +23,21 @@ export const PLAN_FILTER_KEYS = [
 ] as const;
 export type PlanFilterKey = (typeof PLAN_FILTER_KEYS)[number];
 
+/**
+ * Narrows a server-supplied string[] (e.g. user.lastPlanDiscoveryFilters /
+ * user.lastPlansFilters) to the typed PlanFilterKey union, dropping unknown
+ * values silently. Relocated from lib/stubs.ts in WS7-3 C2 — it outlives the
+ * stub file because the Home + Plans-tab filter persistence reads through it.
+ */
+export function asPlanDiscoveryFilters(
+  arr: string[] | undefined | null,
+): PlanFilterKey[] {
+  if (!arr) return [];
+  return arr.filter((k): k is PlanFilterKey =>
+    (PLAN_FILTER_KEYS as readonly string[]).includes(k),
+  );
+}
+
 // ── Schemas ────────────────────────────────────────────────────────────────
 
 // One row of the Plan Discovery list. `source` distinguishes the user's saved
