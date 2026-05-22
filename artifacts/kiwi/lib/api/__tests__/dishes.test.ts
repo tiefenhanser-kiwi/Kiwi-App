@@ -1,10 +1,17 @@
 // WS7-3 Block C1 — tests for lib/api/dishes.ts.
-// C1.1 covers the getters + schemas: getDishes / getDish fetch-mocked
-// round-trips, the ?filter= query construction, and 404 / 401 / schema-
-// mismatch propagation. The useDishes / useDish hook tests are appended in C1.2.
+// Covers the getters + schemas (getDishes / getDish fetch-mocked round-trips,
+// the ?filter= query construction, 404 / 401 / schema-mismatch propagation)
+// and the useDishes / useDish React Query hooks (loading→data, enabled gating).
 
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+  true;
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
 
 import * as SecureStore from "expo-secure-store";
 
@@ -16,6 +23,8 @@ import {
 } from "../dishes";
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
+import { useDish } from "@/hooks/useDish";
+import { useDishes } from "@/hooks/useDishes";
 
 const TOKEN_KEY = "kiwi_authToken";
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
@@ -181,4 +190,76 @@ test("getDish rejects a malformed response body", async () => {
     () => getDish("dish-1"),
     (err: unknown) => err instanceof ApiSchemaError,
   );
+});
+
+// ── useDishes / useDish ─────────────────────────────────────────────────────
+
+// Drains in-flight React Query fetches inside an act() pass.
+async function settle(qc: QueryClient): Promise<void> {
+  await act(async () => {
+    for (let i = 0; i < 25; i++) {
+      await new Promise<void>((r) => setTimeout(r, 0));
+      if (qc.isFetching() === 0) return;
+    }
+  });
+}
+
+test("useDishes transitions from loading to data", async () => {
+  nextResponse = () => mockJson(DISH_LIST_RESPONSE);
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  let latest: ReturnType<typeof useDishes> | null = null;
+  let sawLoading = false;
+  function Probe(): null {
+    const q = useDishes(["my_dishes"]);
+    if (q.isLoading) sawLoading = true;
+    latest = q;
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(Probe),
+      ),
+    );
+  });
+
+  assert.equal(sawLoading, true);
+  await settle(qc);
+
+  assert.equal(latest!.isLoading, false);
+  assert.equal(latest!.data?.dishes.length, 1);
+  renderer.unmount();
+});
+
+test("useDish is disabled for an empty id", async () => {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  let latest: ReturnType<typeof useDish> | null = null;
+  function Probe(): null {
+    latest = useDish("");
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(Probe),
+      ),
+    );
+  });
+
+  await settle(qc);
+
+  // enabled:false — the query never fetches; it stays idle with no data.
+  assert.equal(latest!.fetchStatus, "idle");
+  assert.equal(latest!.data, undefined);
+  renderer.unmount();
 });

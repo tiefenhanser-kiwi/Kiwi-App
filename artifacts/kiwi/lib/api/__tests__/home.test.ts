@@ -1,16 +1,24 @@
 // WS7-3 Block C1 — tests for lib/api/home.ts.
-// C1.1 covers the getter + schema: getHomePayload fetch-mocked round-trips of
-// the populated and the all-null GET /home composite, plus 401 / schema-
-// mismatch propagation. The useHomePayload hook test is appended in C1.2.
+// Covers the getter + schema (getHomePayload fetch-mocked round-trips of the
+// populated and the all-null GET /home composite, 401 / schema-mismatch
+// propagation) and the useHomePayload React Query hook (loading→data, error).
 
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+  true;
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
 
 import * as SecureStore from "expo-secure-store";
 
 import { getHomePayload, HomePayloadSchema } from "../home";
 import { ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
+import { useHomePayload } from "@/hooks/useHomePayload";
 
 const TOKEN_KEY = "kiwi_authToken";
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
@@ -144,4 +152,74 @@ test("getHomePayload rejects a malformed response body", async () => {
     () => getHomePayload(),
     (err: unknown) => err instanceof ApiSchemaError,
   );
+});
+
+// ── useHomePayload ──────────────────────────────────────────────────────────
+
+// Drains in-flight React Query fetches inside an act() pass.
+async function settle(qc: QueryClient): Promise<void> {
+  await act(async () => {
+    for (let i = 0; i < 25; i++) {
+      await new Promise<void>((r) => setTimeout(r, 0));
+      if (qc.isFetching() === 0) return;
+    }
+  });
+}
+
+async function mountProbe(
+  qc: QueryClient,
+  recordLatest: () => void,
+): Promise<TestRenderer.ReactTestRenderer> {
+  function Probe(): null {
+    recordLatest();
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(Probe),
+      ),
+    );
+  });
+  return renderer;
+}
+
+test("useHomePayload transitions from loading to data", async () => {
+  nextResponse = () => mockJson(HOME_FULL);
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  let latest: ReturnType<typeof useHomePayload> | null = null;
+  let sawLoading = false;
+  const renderer = await mountProbe(qc, () => {
+    latest = useHomePayload();
+    if (latest.isLoading) sawLoading = true;
+  });
+
+  assert.equal(sawLoading, true);
+  await settle(qc);
+
+  assert.equal(latest!.isLoading, false);
+  assert.equal(latest!.data?.todaysMeal?.meal.id, "meal-1");
+  renderer.unmount();
+});
+
+test("useHomePayload surfaces an error state on a 401", async () => {
+  nextResponse = () => mockJson({ error: "unauthenticated" }, 401);
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  let latest: ReturnType<typeof useHomePayload> | null = null;
+  const renderer = await mountProbe(qc, () => {
+    latest = useHomePayload();
+  });
+
+  await settle(qc);
+
+  assert.equal(latest!.isError, true);
+  assert.equal(latest!.data, undefined);
+  renderer.unmount();
 });

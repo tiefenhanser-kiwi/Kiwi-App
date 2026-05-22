@@ -23,6 +23,7 @@ import { getMeal, getMeals, MealListItemSchema } from "../meals";
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 import { useMeal } from "@/hooks/useMeal";
+import { useMeals } from "@/hooks/useMeals";
 
 const TOKEN_KEY = "kiwi_authToken";
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
@@ -368,4 +369,37 @@ test("getMeals rejects a malformed response body", async () => {
     () => getMeals(),
     (err: unknown) => err instanceof ApiSchemaError,
   );
+});
+
+test("useMeals transitions from loading to data", async () => {
+  nextResponse = () => mockJson(MEAL_LIST_RESPONSE);
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  let latest: ReturnType<typeof useMeals> | null = null;
+  let sawLoading = false;
+  function Probe(): null {
+    const q = useMeals(["my_meals"]);
+    if (q.isLoading) sawLoading = true;
+    latest = q;
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(Probe),
+      ),
+    );
+  });
+
+  assert.equal(sawLoading, true);
+  await settle(qc);
+
+  assert.equal(latest!.isLoading, false);
+  assert.equal(latest!.data?.meals.length, 1);
+  assert.equal(latest!.data?.meals[0].id, "meal-list-1");
+  renderer.unmount();
 });

@@ -1,16 +1,24 @@
 // WS7-3 Block C1 — tests for lib/api/groceries.ts.
-// C1.1 covers the getter + schema: getGroceryLists fetch-mocked round-trips,
-// the ?filter= query construction, and 401 / schema-mismatch propagation. The
-// useGroceryLists hook test is appended in C1.2.
+// Covers the getter + schema (getGroceryLists fetch-mocked round-trips, the
+// ?filter= query construction, 401 / schema-mismatch propagation) and the
+// useGroceryLists React Query hook (loading→data).
 
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+  true;
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
 
 import * as SecureStore from "expo-secure-store";
 
 import { getGroceryLists, GroceryListListItemSchema } from "../groceries";
 import { ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
+import { useGroceryLists } from "@/hooks/useGroceryLists";
 
 const TOKEN_KEY = "kiwi_authToken";
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
@@ -120,4 +128,48 @@ test("getGroceryLists rejects a malformed response body", async () => {
     () => getGroceryLists(),
     (err: unknown) => err instanceof ApiSchemaError,
   );
+});
+
+// ── useGroceryLists ─────────────────────────────────────────────────────────
+
+// Drains in-flight React Query fetches inside an act() pass.
+async function settle(qc: QueryClient): Promise<void> {
+  await act(async () => {
+    for (let i = 0; i < 25; i++) {
+      await new Promise<void>((r) => setTimeout(r, 0));
+      if (qc.isFetching() === 0) return;
+    }
+  });
+}
+
+test("useGroceryLists transitions from loading to data", async () => {
+  nextResponse = () => mockJson(GROCERY_LISTS_RESPONSE);
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  let latest: ReturnType<typeof useGroceryLists> | null = null;
+  let sawLoading = false;
+  function Probe(): null {
+    const q = useGroceryLists("active");
+    if (q.isLoading) sawLoading = true;
+    latest = q;
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(Probe),
+      ),
+    );
+  });
+
+  assert.equal(sawLoading, true);
+  await settle(qc);
+
+  assert.equal(latest!.isLoading, false);
+  assert.equal(latest!.data?.length, 2);
+  renderer.unmount();
 });
