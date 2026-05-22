@@ -19,7 +19,9 @@
     "node_modules",
     "lib/api/__tests__/**/*",
     "contexts/__tests__/**/*",
-    "components/preference-pickers/__tests__/**/*"
+    "components/preference-pickers/__tests__/**/*",
+    "lib/home/__tests__/**/*",
+    "lib/plans/__tests__/**/*"
   ],
   "references": [
     {

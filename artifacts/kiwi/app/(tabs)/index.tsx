@@ -17,12 +17,9 @@ import { Screen } from "@/components/Screen";
 import { WizardCtaCard } from "@/components/WizardCtaCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useApp } from "@/contexts/AppContext";
-import {
-  asPlanDiscoveryFilters,
-  getCurrentActivePlan,
-  getTodaysMeal,
-  getUserPlans,
-} from "@/lib/stubs";
+import { useHomePayload } from "@/hooks/useHomePayload";
+import { deriveHeroModel, type HeroModel } from "@/lib/home/heroState";
+import { asPlanDiscoveryFilters, getUserPlans } from "@/lib/stubs";
 import {
   KColors,
   KPalette,
@@ -30,22 +27,12 @@ import {
   KSpacing,
   KType,
 } from "@/constants/tokens";
-import type { ReviewMeal, UserPlanSummary } from "@/lib/types";
 
 function timeOfDayGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
-}
-
-function planDurationDays(plan: UserPlanSummary): number | null {
-  if (!plan.weekStartDate || !plan.weekEndDate) return null;
-  const start = new Date(plan.weekStartDate).getTime();
-  const end = new Date(plan.weekEndDate).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end)) return null;
-  // +1 because the range is inclusive (e.g. Mon–Fri = 5 days, not 4).
-  return Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
 }
 
 export default function HomeTab() {
@@ -65,20 +52,16 @@ export default function HomeTab() {
     return status !== "trialing" && status !== "active";
   }, [user?.subscription?.status]);
 
-  // PRD §4.6 — hero card cascade. Both helpers are WS5 stubs that
-  // return null today; WS7 wires them to the real plan-resolution
-  // API. Code below renders all three states so the WS7 swap is
-  // a one-line change.
-  const todaysMeal = useMemo(() => getTodaysMeal(), []);
-  const activePlan = useMemo(() => getCurrentActivePlan(), []);
+  // PRD §4.6 — Hero card cascade (today's meal → active plan → empty).
+  // GET /home is the real source post-WS7-3 C2; while it loads or errors
+  // deriveHeroModel collapses to the empty state (Phase 2 Commit 1 ruling).
+  const homeQuery = useHomePayload();
+  const heroModel = deriveHeroModel(homeQuery.data);
+
+  // PlanDiscoveryCard still reads getUserPlans for its first-time-user
+  // expansion default — that migrates to usePlans in C2 Commit 2.
   const userPlans = useMemo(() => getUserPlans(), []);
   const hasAnyPlans = userPlans.length > 0;
-
-  const heroState: "today" | "plan" | "empty" = todaysMeal
-    ? "today"
-    : activePlan
-      ? "plan"
-      : "empty";
 
   const isEmptyState = useMemo(() => {
     if (!currentPlan) return true;
@@ -126,16 +109,12 @@ export default function HomeTab() {
         </View>
 
         <View style={styles.heroSection}>
-          {heroState !== "empty" && (
+          {heroModel.kind !== "empty" && (
             <Text style={styles.heroSectionLabel}>— this week</Text>
           )}
           <HeroCard
-            todaysMeal={todaysMeal}
-            activePlan={activePlan}
-            onPressTodaysMeal={(planId) =>
-              router.push({ pathname: "/plan/[id]", params: { id: planId } })
-            }
-            onPressActivePlan={(planId) =>
+            model={heroModel}
+            onPressPlan={(planId) =>
               router.push({ pathname: "/plan/[id]", params: { id: planId } })
             }
             onPressEmpty={() => router.push("/wizard")}
@@ -215,41 +194,29 @@ export default function HomeTab() {
 }
 
 type HeroCardProps = {
-  todaysMeal: { meal: ReviewMeal; planId: string } | null;
-  activePlan: UserPlanSummary | null;
-  onPressTodaysMeal: (planId: string) => void;
-  onPressActivePlan: (planId: string) => void;
+  model: HeroModel;
+  onPressPlan: (planId: string) => void;
   onPressEmpty: () => void;
 };
 
-function HeroCard({
-  todaysMeal,
-  activePlan,
-  onPressTodaysMeal,
-  onPressActivePlan,
-  onPressEmpty,
-}: HeroCardProps) {
-  if (todaysMeal) {
-    const { meal, planId } = todaysMeal;
+function HeroCard({ model, onPressPlan, onPressEmpty }: HeroCardProps) {
+  if (model.kind === "today") {
+    const { meal } = model;
+    // MealListItem (GET /home embed) carries minutes + calories; the
+    // list shape has no per-meal difficulty, so the meta line is shorter
+    // than the WS5 stub's "min · cal · difficulty".
     const metaParts: string[] = [];
-    if (meal.estimatedTimeMinutes) {
-      metaParts.push(`${meal.estimatedTimeMinutes} min`);
-    }
-    if (meal.caloriesPerServing) {
-      metaParts.push(`${meal.caloriesPerServing} cal`);
-    }
-    if (meal.difficulty) {
-      metaParts.push(meal.difficulty);
-    }
+    if (meal.minutes) metaParts.push(`${meal.minutes} min`);
+    if (meal.calories) metaParts.push(`${meal.calories} cal`);
     return (
       <Pressable
-        onPress={() => onPressTodaysMeal(planId)}
+        onPress={() => onPressPlan(model.planId)}
         style={({ pressed }) => [styles.heroCard, pressed && { opacity: 0.85 }]}
       >
         <View style={styles.heroThumbWrap}>
-          {meal.imageUrl ? (
+          {meal.image ? (
             <Image
-              source={{ uri: meal.imageUrl }}
+              source={{ uri: meal.image }}
               style={styles.heroThumbImage}
             />
           ) : (
@@ -271,14 +238,12 @@ function HeroCard({
     );
   }
 
-  if (activePlan) {
-    const duration = planDurationDays(activePlan);
+  if (model.kind === "plan") {
     const metaParts: string[] = [];
-    if (duration) metaParts.push(`${duration} days`);
-    if (activePlan.mealCount) metaParts.push(`${activePlan.mealCount} meals`);
+    if (model.durationDays) metaParts.push(`${model.durationDays} days`);
     return (
       <Pressable
-        onPress={() => onPressActivePlan(activePlan.id)}
+        onPress={() => onPressPlan(model.planId)}
         style={({ pressed }) => [styles.heroCard, pressed && { opacity: 0.85 }]}
       >
         <View style={styles.heroThumbWrap}>
@@ -287,7 +252,7 @@ function HeroCard({
         <View style={styles.heroTextCol}>
           <Text style={styles.heroEyebrow}>this week</Text>
           <Text style={styles.heroTitle} numberOfLines={2}>
-            {activePlan.name}
+            {model.name}
           </Text>
           {metaParts.length > 0 && (
             <Text style={styles.heroMeta} numberOfLines={1}>
