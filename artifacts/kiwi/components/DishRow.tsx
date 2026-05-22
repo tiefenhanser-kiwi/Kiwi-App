@@ -3,35 +3,36 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { SortKey } from "@/components/SortDropdown";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
-import { formatDate, formatRelative } from "@/lib/date";
-import type { SavedDish } from "@/lib/types";
+import type { DishListItem } from "@/lib/api/dishes";
 
 type Props = {
-  dish: SavedDish;
+  dish: DishListItem;
   onPress: () => void;
   onCookNow: (dishId: string) => void;
   onAddToMeal: (dishId: string, dishName: string) => void;
-  /** Optional: sort-aware secondary line for last_cooked / date_created.
-   *  "times_cooked" no longer renders a sort line — the always-on
-   *  "Used in N meals" line below covers the meal-use story. */
+  /** Optional: sort-aware secondary line. DishListItem doesn't carry
+   *  cook-stat fields today (D-WS7-048 extended) so the cook-stat sorts
+   *  surface no secondary line rather than render misleading numbers. */
   sortKey?: SortKey;
 };
 
-function buildSortLine(dish: SavedDish, sortKey: SortKey): string | null {
+function buildSortLine(sortKey: SortKey): string | null {
   switch (sortKey) {
     case "last_cooked":
-      return dish.lastCookedAt
-        ? `Last cooked ${formatRelative(dish.lastCookedAt)}`
-        : "Never cooked";
-    case "date_created":
-      return dish.createdAt ? `Added ${formatDate(dish.createdAt)}` : null;
     case "times_cooked":
+    case "date_created":
     case "alpha":
     case "cook_time":
+      // D-WS7-048 (extended): DishListItem has no cook-stat fields. The sorts
+      // become no-ops until WS9 lands server-side sort params; the row hides
+      // the secondary line rather than render misleading zeros.
       return null;
   }
   return null;
 }
+
+const capitalize = (s: string) =>
+  s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
 export function DishRow({
   dish,
@@ -41,15 +42,15 @@ export function DishRow({
   sortKey,
 }: Props) {
   const sortLine = useMemo(
-    () => (sortKey ? buildSortLine(dish, sortKey) : null),
-    [dish, sortKey],
+    () => (sortKey ? buildSortLine(sortKey) : null),
+    [sortKey],
   );
 
+  // DishListItem has no cuisine (no Dish.cuisineType column). Meta keeps
+  // difficulty + time as the lightweight pair PRD §9.3.4 intends.
   const metaParts = [
-    dish.cuisineType,
-    dish.estimatedTimeMinutes !== undefined
-      ? `${dish.estimatedTimeMinutes} min`
-      : null,
+    dish.difficulty ? capitalize(dish.difficulty) : null,
+    dish.minutes > 0 ? `${dish.minutes} min` : null,
   ].filter(Boolean) as string[];
 
   return (
@@ -59,9 +60,9 @@ export function DishRow({
         style={({ pressed }) => [styles.cardArea, pressed && { opacity: 0.85 }]}
       >
         <View style={styles.thumb}>
-          {dish.imageUrl ? (
+          {dish.image ? (
             <Image
-              source={{ uri: dish.imageUrl }}
+              source={{ uri: dish.image }}
               style={styles.thumbImage}
               resizeMode="cover"
             />
@@ -71,17 +72,11 @@ export function DishRow({
         </View>
         <View style={styles.body}>
           <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-            {dish.name}
+            {dish.title}
           </Text>
           {metaParts.length > 0 && (
             <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
               {metaParts.join(" · ")}
-            </Text>
-          )}
-          {dish.mealUseCount > 0 && (
-            <Text style={styles.useCount}>
-              Used in {dish.mealUseCount}{" "}
-              {dish.mealUseCount === 1 ? "meal" : "meals"}
             </Text>
           )}
           {sortLine && <Text style={styles.sortLine}>{sortLine}</Text>}
@@ -98,7 +93,7 @@ export function DishRow({
           <Text style={styles.cookNowText}>Cook Now</Text>
         </Pressable>
         <Pressable
-          onPress={() => onAddToMeal(dish.id, dish.name)}
+          onPress={() => onAddToMeal(dish.id, dish.title)}
           style={({ pressed }) => [
             styles.addToMealBtn,
             pressed && { opacity: 0.85 },
@@ -151,11 +146,6 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: KType.size.xs,
     color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-  },
-  useCount: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
   },
   sortLine: {

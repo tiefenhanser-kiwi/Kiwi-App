@@ -22,7 +22,8 @@
     "components/preference-pickers/__tests__/**/*",
     "lib/home/__tests__/**/*",
     "lib/plans/__tests__/**/*",
-    "lib/meals/__tests__/**/*"
+    "lib/meals/__tests__/**/*",
+    "lib/dishes/__tests__/**/*"
   ],
   "references": [
     {

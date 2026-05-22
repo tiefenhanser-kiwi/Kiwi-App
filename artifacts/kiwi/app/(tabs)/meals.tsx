@@ -12,7 +12,6 @@ import { useRouter } from "expo-router";
 import { AddDishToMealSheet } from "@/components/AddDishToMealSheet";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { DishRow } from "@/components/DishRow";
-import { sortDishes } from "@/components/dishSort";
 import {
   FilterChipRow,
   type FilterChipOption,
@@ -22,25 +21,21 @@ import { MealRow } from "@/components/MealRow";
 import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDishes } from "@/hooks/useDishes";
 import { useMeals } from "@/hooks/useMeals";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
-import {
-  getFeaturedDishes,
-  getSavedDishes,
-  getTopRatedDishes,
-} from "@/lib/stubs";
 import {
   asMealsFilters,
   type MealFilterKey,
   type MealListItem,
 } from "@/lib/api/meals";
+import { type DishFilterKey, type DishListItem } from "@/lib/api/dishes";
+import { dishesEmptyCopy } from "@/lib/dishes/emptyStateCopy";
+import { dishesFilterDefault } from "@/lib/dishes/filterDefault";
 import { mealsEmptyCopy } from "@/lib/meals/emptyStateCopy";
 import { mealsFilterDefault } from "@/lib/meals/filterDefault";
-import type { SavedDish } from "@/lib/types";
 
 type SubTab = "meals" | "dishes";
-type DishesChip = "featured" | "my_dishes" | "top_rated";
-type DishTypeFilter = "all" | "side" | "main";
 
 const MEALS_CHIPS: FilterChipOption<MealFilterKey>[] = [
   { key: "featured", label: "Featured" },
@@ -49,16 +44,10 @@ const MEALS_CHIPS: FilterChipOption<MealFilterKey>[] = [
   { key: "hosting", label: "Hosting & Events" },
 ];
 
-const DISHES_CHIPS: FilterChipOption<DishesChip>[] = [
+const DISHES_CHIPS: FilterChipOption<DishFilterKey>[] = [
   { key: "featured", label: "Featured" },
   { key: "my_dishes", label: "My Dishes" },
   { key: "top_rated", label: "Top Rated" },
-];
-
-const DISH_TYPE_CHIPS: FilterChipOption<DishTypeFilter>[] = [
-  { key: "all", label: "All" },
-  { key: "side", label: "Sides" },
-  { key: "main", label: "Mains" },
 ];
 
 const DISH_SORT_LABEL_OVERRIDES = { times_cooked: "Most used" };
@@ -80,6 +69,22 @@ function sortMealsClient(
   return out;
 }
 
+// Client-side dish sort — same shape rules as sortMealsClient. The Main/Side
+// type filter UI was dropped in C3 c2 because DishListItem has no `type`
+// field (D-WS7-050 extension).
+function sortDishesClient(
+  list: readonly DishListItem[],
+  key: SortKey,
+): DishListItem[] {
+  const out = [...list];
+  if (key === "alpha") {
+    out.sort((a, b) => a.title.localeCompare(b.title));
+  } else if (key === "cook_time") {
+    out.sort((a, b) => a.minutes - b.minutes);
+  }
+  return out;
+}
+
 export default function MealsTab() {
   const router = useRouter();
   const { user, setUiState } = useAuth();
@@ -92,8 +97,11 @@ export default function MealsTab() {
     const seed = mealsFilterDefault(asMealsFilters(user?.lastMealsFilters));
     return seed[0];
   });
-  const [dishFilter, setDishFilter] = useState<DishesChip>("my_dishes");
-  const [dishTypeFilter, setDishTypeFilter] = useState<DishTypeFilter>("all");
+  // Dishes filter: persistence channel exists in spirit (mirror Meals tab)
+  // but User.lastDishesFilters is not in schema (D-WS7-051). Local-only.
+  const [dishFilter, setDishFilter] = useState<DishFilterKey>(
+    () => dishesFilterDefault([])[0],
+  );
   const [mealSort, setMealSort] = useState<SortKey>("alpha");
   const [dishSortKey, setDishSortKey] = useState<SortKey>("alpha");
 
@@ -122,25 +130,12 @@ export default function MealsTab() {
     [mealsQuery.data, mealSort],
   );
 
-  const visibleDishes = useMemo<SavedDish[]>(() => {
-    let source: SavedDish[];
-    switch (dishFilter) {
-      case "my_dishes":
-        source = getSavedDishes();
-        break;
-      case "featured":
-        source = getFeaturedDishes();
-        break;
-      case "top_rated":
-        source = getTopRatedDishes();
-        break;
-    }
-    const typeFiltered =
-      dishTypeFilter === "all"
-        ? source
-        : source.filter((d) => d.type === dishTypeFilter);
-    return sortDishes(typeFiltered, dishSortKey);
-  }, [dishFilter, dishTypeFilter, dishSortKey]);
+  const dishesQuery = useDishes([dishFilter]);
+
+  const visibleDishes = useMemo<DishListItem[]>(
+    () => sortDishesClient(dishesQuery.data?.dishes ?? [], dishSortKey),
+    [dishesQuery.data, dishSortKey],
+  );
 
   const handleAddMeal = () => {
     router.push("/meal-builder");
@@ -307,18 +302,10 @@ export default function MealsTab() {
             </Pressable>
 
             <View style={s.filterWrap}>
-              <FilterChipRow<DishesChip>
+              <FilterChipRow<DishFilterKey>
                 options={DISHES_CHIPS}
                 selected={[dishFilter]}
                 onToggle={(key) => setDishFilter(key)}
-              />
-            </View>
-
-            <View style={s.filterWrap}>
-              <FilterChipRow<DishTypeFilter>
-                options={DISH_TYPE_CHIPS}
-                selected={[dishTypeFilter]}
-                onToggle={(key) => setDishTypeFilter(key)}
               />
             </View>
 
@@ -334,12 +321,15 @@ export default function MealsTab() {
             </View>
 
             <View style={s.list}>
-              {visibleDishes.length === 0 ? (
+              {dishesQuery.isLoading ? (
+                <Text style={s.loadingText}>Loading…</Text>
+              ) : dishesQuery.isError ? (
+                <Text style={s.loadingText}>
+                  Couldn’t load dishes right now. Try again in a moment.
+                </Text>
+              ) : visibleDishes.length === 0 ? (
                 <View style={s.empty}>
-                  <Text style={s.emptyText}>
-                    Save dishes to reuse them across meals. Tap + Add Dish to
-                    get started.
-                  </Text>
+                  <Text style={s.emptyText}>{dishesEmptyCopy(dishFilter)}</Text>
                 </View>
               ) : (
                 visibleDishes.map((dish) => (
