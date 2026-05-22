@@ -93,6 +93,18 @@ interface DevIngredient {
   isOptional?: boolean;
 }
 
+/**
+ * A RecipeInstructionStep seed row. `estimatedMinutes` and `isTimingSensitive`
+ * are reasonable estimates from the step text (WS7-3 Path 1 ruling) — dev seed
+ * inputs for downstream scheduling, not user-facing accuracy targets. Written
+ * explicitly so rows no longer fall back to the schema @default(1)/false.
+ */
+interface DevStep {
+  text: string;
+  estimatedMinutes: number;
+  isTimingSensitive: boolean;
+}
+
 interface DevMeal {
   mealId: string;
   dishId: string;
@@ -108,7 +120,7 @@ interface DevMeal {
   fat: number;
   tags: string[];
   ingredients: DevIngredient[];
-  steps: string[];
+  steps: DevStep[];
   /** non-zero → seed timesCooked + lastUsedAt to give "Most Used" sort signal */
   cookHistoryDaysAgo: number | null;
   cookCount: number;
@@ -140,11 +152,11 @@ const MEALS: DevMeal[] = [
       { name: "Taco seasoning", category: "Pantry", quantity: 2, unit: "tbsp" },
     ],
     steps: [
-      "Brown ground beef in a skillet over medium-high heat for 8 minutes.",
-      "Stir in taco seasoning with a splash of water; simmer 2 minutes.",
-      "Warm taco shells in a 350°F oven for 5 minutes.",
-      "Shred lettuce, dice tomato, grate cheddar.",
-      "Assemble: shell, beef, lettuce, tomato, cheese, salsa, sour cream.",
+      { text: "Brown ground beef in a skillet over medium-high heat for 8 minutes.", estimatedMinutes: 8, isTimingSensitive: true },
+      { text: "Stir in taco seasoning with a splash of water; simmer 2 minutes.", estimatedMinutes: 2, isTimingSensitive: true },
+      { text: "Warm taco shells in a 350°F oven for 5 minutes.", estimatedMinutes: 5, isTimingSensitive: true },
+      { text: "Shred lettuce, dice tomato, grate cheddar.", estimatedMinutes: 3, isTimingSensitive: false },
+      { text: "Assemble: shell, beef, lettuce, tomato, cheese, salsa, sour cream.", estimatedMinutes: 3, isTimingSensitive: false },
     ],
     cookHistoryDaysAgo: 7,
     cookCount: 5,
@@ -174,11 +186,11 @@ const MEALS: DevMeal[] = [
       { name: "Parsley", category: "Produce", quantity: 1, unit: "bunch", isOptional: true },
     ],
     steps: [
-      "Bring salted water to boil; cook spaghetti just shy of al dente; reserve 1 cup pasta water.",
-      "Render diced bacon in a wide pan over medium heat until crisp; add minced garlic for 30 seconds.",
-      "Whisk eggs and grated parmesan in a bowl with cracked black pepper.",
-      "Off heat, toss hot pasta with bacon, then with egg mixture, adding pasta water until creamy.",
-      "Top with extra parmesan, pepper, and parsley.",
+      { text: "Bring salted water to boil; cook spaghetti just shy of al dente; reserve 1 cup pasta water.", estimatedMinutes: 10, isTimingSensitive: true },
+      { text: "Render diced bacon in a wide pan over medium heat until crisp; add minced garlic for 30 seconds.", estimatedMinutes: 7, isTimingSensitive: true },
+      { text: "Whisk eggs and grated parmesan in a bowl with cracked black pepper.", estimatedMinutes: 2, isTimingSensitive: false },
+      { text: "Off heat, toss hot pasta with bacon, then with egg mixture, adding pasta water until creamy.", estimatedMinutes: 2, isTimingSensitive: false },
+      { text: "Top with extra parmesan, pepper, and parsley.", estimatedMinutes: 1, isTimingSensitive: false },
     ],
     cookHistoryDaysAgo: 14,
     cookCount: 3,
@@ -208,12 +220,12 @@ const MEALS: DevMeal[] = [
       { name: "Ginger", category: "Produce", quantity: 1, unit: "inch" },
     ],
     steps: [
-      "Cube chicken thighs; toss with half the tikka paste; marinate 10 minutes.",
-      "Cook basmati rice per package directions.",
-      "Sauté diced onion with garlic and grated ginger in oil until soft, 5 minutes.",
-      "Add chicken; sear 4 minutes per side.",
-      "Stir in remaining paste, diced tomatoes, and coconut milk; simmer 15 minutes.",
-      "Serve over basmati rice.",
+      { text: "Cube chicken thighs; toss with half the tikka paste; marinate 10 minutes.", estimatedMinutes: 10, isTimingSensitive: true },
+      { text: "Cook basmati rice per package directions.", estimatedMinutes: 15, isTimingSensitive: true },
+      { text: "Sauté diced onion with garlic and grated ginger in oil until soft, 5 minutes.", estimatedMinutes: 5, isTimingSensitive: true },
+      { text: "Add chicken; sear 4 minutes per side.", estimatedMinutes: 8, isTimingSensitive: true },
+      { text: "Stir in remaining paste, diced tomatoes, and coconut milk; simmer 15 minutes.", estimatedMinutes: 15, isTimingSensitive: true },
+      { text: "Serve over basmati rice.", estimatedMinutes: 1, isTimingSensitive: false },
     ],
     cookHistoryDaysAgo: null,
     cookCount: 0,
@@ -243,11 +255,11 @@ const MEALS: DevMeal[] = [
       { name: "Olive oil", category: "Pantry", quantity: 3, unit: "tbsp" },
     ],
     steps: [
-      "Simmer farro in 2 cups water for 15 minutes; drain.",
-      "Drain and rinse chickpeas; halve cherry tomatoes; dice cucumber.",
-      "Whisk lemon juice, tahini, olive oil, and a splash of water into a creamy dressing.",
-      "Build bowls: farro base, chickpeas, vegetables, crumbled feta.",
-      "Drizzle with dressing.",
+      { text: "Simmer farro in 2 cups water for 15 minutes; drain.", estimatedMinutes: 15, isTimingSensitive: true },
+      { text: "Drain and rinse chickpeas; halve cherry tomatoes; dice cucumber.", estimatedMinutes: 3, isTimingSensitive: false },
+      { text: "Whisk lemon juice, tahini, olive oil, and a splash of water into a creamy dressing.", estimatedMinutes: 2, isTimingSensitive: false },
+      { text: "Build bowls: farro base, chickpeas, vegetables, crumbled feta.", estimatedMinutes: 3, isTimingSensitive: false },
+      { text: "Drizzle with dressing.", estimatedMinutes: 1, isTimingSensitive: false },
     ],
     cookHistoryDaysAgo: 21,
     cookCount: 2,
@@ -277,12 +289,12 @@ const MEALS: DevMeal[] = [
       { name: "Eggs", category: "Dairy", quantity: 2, unit: "each" },
     ],
     steps: [
-      "Soak rice noodles in hot water for 8 minutes; drain.",
-      "Whisk tamarind paste, fish sauce, and a splash of water for the sauce.",
-      "Heat oil in a wok; scramble eggs and push to the side.",
-      "Add shrimp; stir-fry 2 minutes until pink.",
-      "Toss in noodles and sauce; cook 2 minutes.",
-      "Off heat, fold in bean sprouts; top with crushed peanuts and lime wedges.",
+      { text: "Soak rice noodles in hot water for 8 minutes; drain.", estimatedMinutes: 8, isTimingSensitive: true },
+      { text: "Whisk tamarind paste, fish sauce, and a splash of water for the sauce.", estimatedMinutes: 2, isTimingSensitive: false },
+      { text: "Heat oil in a wok; scramble eggs and push to the side.", estimatedMinutes: 3, isTimingSensitive: false },
+      { text: "Add shrimp; stir-fry 2 minutes until pink.", estimatedMinutes: 2, isTimingSensitive: true },
+      { text: "Toss in noodles and sauce; cook 2 minutes.", estimatedMinutes: 2, isTimingSensitive: true },
+      { text: "Off heat, fold in bean sprouts; top with crushed peanuts and lime wedges.", estimatedMinutes: 2, isTimingSensitive: false },
     ],
     cookHistoryDaysAgo: null,
     cookCount: 0,
@@ -312,12 +324,12 @@ const MEALS: DevMeal[] = [
       { name: "Sour cream", category: "Dairy", quantity: 0.5, unit: "cup", isOptional: true },
     ],
     steps: [
-      "Preheat oven to 425°F.",
-      "Slice chicken breast, bell peppers, and onion into strips.",
-      "Toss everything on a sheet pan with fajita seasoning, oil, and lime juice.",
-      "Roast 20 minutes until chicken is cooked through and edges char.",
-      "Warm tortillas wrapped in foil during the last 5 minutes.",
-      "Assemble fajitas; top with cilantro and sour cream.",
+      { text: "Preheat oven to 425°F.", estimatedMinutes: 1, isTimingSensitive: false },
+      { text: "Slice chicken breast, bell peppers, and onion into strips.", estimatedMinutes: 4, isTimingSensitive: false },
+      { text: "Toss everything on a sheet pan with fajita seasoning, oil, and lime juice.", estimatedMinutes: 3, isTimingSensitive: false },
+      { text: "Roast 20 minutes until chicken is cooked through and edges char.", estimatedMinutes: 20, isTimingSensitive: true },
+      { text: "Warm tortillas wrapped in foil during the last 5 minutes.", estimatedMinutes: 5, isTimingSensitive: true },
+      { text: "Assemble fajitas; top with cilantro and sour cream.", estimatedMinutes: 2, isTimingSensitive: false },
     ],
     cookHistoryDaysAgo: null,
     cookCount: 0,
@@ -345,7 +357,7 @@ interface DevDish {
   carb: number;
   fat: number;
   ingredients: DevIngredient[];
-  steps: string[];
+  steps: DevStep[];
 }
 
 interface DevMultiDishMeal {
@@ -398,9 +410,9 @@ const MULTI_DISH_MEAL: DevMultiDishMeal = {
         { name: "Fresh dill", category: "Produce", quantity: 1, unit: "bunch", isOptional: true },
       ],
       steps: [
-        "Pat salmon fillets dry; season with salt, pepper, and a squeeze of lemon.",
-        "Heat olive oil in a skillet over medium-high; sear salmon skin-side down for 4 minutes.",
-        "Flip and cook 3 more minutes until just opaque; finish with fresh dill.",
+        { text: "Pat salmon fillets dry; season with salt, pepper, and a squeeze of lemon.", estimatedMinutes: 2, isTimingSensitive: false },
+        { text: "Heat olive oil in a skillet over medium-high; sear salmon skin-side down for 4 minutes.", estimatedMinutes: 4, isTimingSensitive: true },
+        { text: "Flip and cook 3 more minutes until just opaque; finish with fresh dill.", estimatedMinutes: 3, isTimingSensitive: true },
       ],
     },
     {
@@ -422,10 +434,10 @@ const MULTI_DISH_MEAL: DevMultiDishMeal = {
         { name: "Butter", category: "Dairy", quantity: 2, unit: "tbsp" },
       ],
       steps: [
-        "Melt butter in a saucepan; sauté diced onion until translucent, 4 minutes.",
-        "Add basmati rice; toast 1 minute, stirring to coat.",
-        "Pour in vegetable broth; bring to a boil, cover, and simmer 15 minutes.",
-        "Rest off heat 5 minutes; fluff with a fork.",
+        { text: "Melt butter in a saucepan; sauté diced onion until translucent, 4 minutes.", estimatedMinutes: 5, isTimingSensitive: true },
+        { text: "Add basmati rice; toast 1 minute, stirring to coat.", estimatedMinutes: 1, isTimingSensitive: true },
+        { text: "Pour in vegetable broth; bring to a boil, cover, and simmer 15 minutes.", estimatedMinutes: 15, isTimingSensitive: true },
+        { text: "Rest off heat 5 minutes; fluff with a fork.", estimatedMinutes: 5, isTimingSensitive: true },
       ],
     },
   ],
@@ -742,13 +754,15 @@ async function seedMeal(userId: string, m: DevMeal): Promise<void> {
         where: { ownerType: "meal", ownerId: m.mealId },
       });
       await tx.recipeInstructionStep.createMany({
-        data: m.steps.map((text, i) => ({
+        data: m.steps.map((step, i) => ({
           ownerType: "meal",
           ownerId: m.mealId,
           stepIndex: i,
-          stepTextRaw: text,
-          stepTextTranslated: text,
+          stepTextRaw: step.text,
+          stepTextTranslated: step.text,
           phaseType: "cook",
+          estimatedMinutes: step.estimatedMinutes,
+          isTimingSensitive: step.isTimingSensitive,
         })),
       });
     },
@@ -879,13 +893,15 @@ async function seedMultiDishMeal(
           where: { ownerType: "dish", ownerId: d.dishId },
         });
         await tx.recipeInstructionStep.createMany({
-          data: d.steps.map((text, i) => ({
+          data: d.steps.map((step, i) => ({
             ownerType: "dish",
             ownerId: d.dishId,
             stepIndex: i,
-            stepTextRaw: text,
-            stepTextTranslated: text,
+            stepTextRaw: step.text,
+            stepTextTranslated: step.text,
             phaseType: "cook",
+            estimatedMinutes: step.estimatedMinutes,
+            isTimingSensitive: step.isTimingSensitive,
           })),
         });
       }
