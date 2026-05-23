@@ -15,16 +15,42 @@ import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useFindSimilarMeals } from "@/hooks/useFindSimilarMeals";
-import { mealSummaryToCandidate } from "@/lib/api/meals";
-import {
-  findSimilarMealsByCuisine,
-  getFeaturedMeals,
-  getHostingMeals,
-  getMealById,
-  getSavedMeals,
-  getTopRatedMeals,
-} from "@/lib/stubs";
+import { useMeal } from "@/hooks/useMeal";
+import { useMeals } from "@/hooks/useMeals";
+import type {
+  MealCandidatePayload,
+  MealDetail,
+  MealFilterKey,
+} from "@/lib/api/meals";
+import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
+import { findSimilarMealsByCuisine } from "@/lib/stubs";
 import type { MealSummary } from "@/lib/types";
+
+// All four catalog buckets in one request. The server unions per-filter
+// result blocks and dedupes by id (artifacts/api-server/src/routes/me.ts:
+// MEALS_FILTER_KEYS handling); React Query caches under the multi-key array.
+const FIND_SIMILAR_BUCKETS: readonly MealFilterKey[] = [
+  "my_meals",
+  "featured",
+  "top_rated",
+  "hosting",
+];
+
+// MealDetail -> MealCandidatePayload (only the 5 AI-relevant fields). The
+// existing mealSummaryToCandidate helper in lib/api/meals.ts works on
+// MealSummary; for the source-meal payload we read directly from MealDetail
+// (id / title / cuisine / mealType / tags) without round-tripping through
+// MealSummary. Server `cuisine` is always a string ("" if none) — empty
+// narrows to null per the AI candidate schema.
+function mealDetailToCandidate(meal: MealDetail): MealCandidatePayload {
+  return {
+    id: meal.id,
+    title: meal.title,
+    cuisine: meal.cuisine.length > 0 ? meal.cuisine : null,
+    mealType: meal.mealType,
+    tags: meal.tags,
+  };
+}
 
 export interface FindSimilarSheetProps {
   visible: boolean;
@@ -57,45 +83,54 @@ export function FindSimilarSheet({
 
   const findSimilarMutation = useFindSimilarMeals();
 
-  // Build the candidate pool from all four buckets per PRD §8.4. WS7 replaces
-  // these stubs with real catalog fetches.
+  // WS7-3 C4 c4 — candidate pool now comes from a single multi-filter
+  // useMeals call; the server unions the four bucket queries and dedupes
+  // by id (lib/api/meals.ts:204-208). One round-trip, one cache entry.
+  // `enabled` defers fetching until the sheet is opened — closed sheet
+  // shouldn't drive a list read.
+  const candidatesQuery = useMeals(FIND_SIMILAR_BUCKETS);
+
+  // Source-meal lookup — replaces the synchronous getMealById(sourceMealId)
+  // with the real GET /meals/:id read. The AI payload uses meal.cuisine /
+  // meal.mealType / meal.tags directly from MealDetail; the per-item source
+  // field on the candidates is "saved" as a sensible default since the
+  // multi-filter query doesn't carry per-meal provenance.
+  const sourceMealQuery = useMeal(sourceMealId);
+  const sourceMeal = sourceMealQuery.data;
+
   const candidatePool = useMemo<MealSummary[]>(() => {
-    if (!sourceMealId) return [];
-    const all = [
-      ...getSavedMeals(),
-      ...getFeaturedMeals(),
-      ...getTopRatedMeals(),
-      ...getHostingMeals(),
-    ];
-    return all.filter((m) => m.id !== sourceMealId);
-  }, [sourceMealId]);
+    if (!sourceMealId || !candidatesQuery.data) return [];
+    return candidatesQuery.data.meals
+      .map((m) => mealListItemToSummary(m, "my_meals"))
+      .filter((m) => m.id !== sourceMealId);
+  }, [candidatesQuery.data, sourceMealId]);
 
-  const sourceMeal = useMemo(
-    () => (sourceMealId ? getMealById(sourceMealId) : undefined),
-    [sourceMealId],
-  );
-
-  // Fire the AI call when the sheet opens with a fresh source. Reset state
-  // each time so re-opening for a different meal doesn't leak prior matches.
+  // Fire the AI call when the sheet opens with a fresh source AND both reads
+  // have landed (source detail + candidate pool). Reset state each time so
+  // re-opening for a different meal doesn't leak prior matches.
   useEffect(() => {
-    if (!visible || !sourceMeal) {
+    if (!visible) {
       setAiOrderedIds(null);
       setUsedFallback(false);
       findSimilarMutation.reset();
+      return;
+    }
+    if (!sourceMeal || !candidatesQuery.data) {
+      // Still waiting for source + candidates — the loading UX renders.
       return;
     }
     setAiOrderedIds(null);
     setUsedFallback(false);
     findSimilarMutation.mutate(
       {
-        source: {
-          id: sourceMeal.id,
-          title: sourceMeal.title,
-          cuisine: sourceMeal.cuisineType ?? null,
+        source: mealDetailToCandidate(sourceMeal),
+        candidates: candidatePool.map((m) => ({
+          id: m.id,
+          title: m.title,
+          cuisine: m.cuisineType ?? null,
           mealType: "dinner",
-          tags: sourceMeal.tags,
-        },
-        candidates: candidatePool.map(mealSummaryToCandidate),
+          tags: undefined,
+        })),
         limit: 10,
       },
       {
@@ -108,14 +143,15 @@ export function FindSimilarSheet({
         },
       },
     );
-    // We intentionally only re-fire when the visible/source changes — not on
-    // candidatePool churn, which would loop in an effect that owns the call.
+    // Intentionally only re-fire when the visible/source/data-arrival
+    // transitions change — candidatePool churn would loop the effect that
+    // owns the AI call.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, sourceMealId]);
+  }, [visible, sourceMealId, sourceMeal, candidatesQuery.data]);
 
   // Build the rendered list. AI path: respect AI's score order unless the
   // user picked a different sort. Fallback path: cuisine-only filter from
-  // the existing stub helper.
+  // the existing stub helper (WS6 territory; stays until WS6+).
   const matches = useMemo<MealSummary[]>(() => {
     if (!sourceMealId) return [];
     if (aiOrderedIds) {
@@ -123,8 +159,6 @@ export function FindSimilarSheet({
       const ordered = aiOrderedIds
         .map((id) => byId.get(id))
         .filter((m): m is MealSummary => !!m);
-      // Default sort = AI order (we treat "alpha" as "AI order" here so the
-      // existing dropdown still works for any of the explicit sort keys).
       return sortKey === "alpha" ? ordered : sortMeals(ordered, sortKey);
     }
     if (usedFallback) {
@@ -133,7 +167,13 @@ export function FindSimilarSheet({
     return [];
   }, [sourceMealId, aiOrderedIds, usedFallback, sortKey, candidatePool]);
 
-  const isLoading = findSimilarMutation.isPending;
+  // Show the loading shim while the AI call is in flight OR while the
+  // underlying source + candidates reads haven't both landed yet.
+  const isLoading =
+    findSimilarMutation.isPending ||
+    (visible &&
+      !!sourceMealId &&
+      (sourceMealQuery.isLoading || candidatesQuery.isLoading));
 
   const handlePick = (meal: MealSummary) => {
     onPickReplacement(meal);
