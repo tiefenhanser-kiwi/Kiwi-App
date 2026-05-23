@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -16,17 +17,15 @@ import { FilterChipRow } from "@/components/FilterChipRow";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
-import {
-  getFeaturedMeals,
-  getHostingMeals,
-  getSavedMeals,
-  getTopRatedMeals,
-} from "@/lib/stubs";
+import { useMeals } from "@/hooks/useMeals";
+import type { MealFilterKey } from "@/lib/api/meals";
+import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
 
 export interface ChangeMealSheetProps {
   visible: boolean;
-  /** The meal currently being replaced — excluded from the My Meals list. */
+  /** The meal currently being replaced — excluded from the picker results
+   *  across all 4 buckets per WS7-3 C4 Ruling 10. */
   currentMealId: string;
   onClose: () => void;
   /** Called when user picks a replacement. The screen handles the
@@ -34,9 +33,7 @@ export interface ChangeMealSheetProps {
   onPickReplacement: (newMeal: MealSummary) => void;
 }
 
-type ChangeMealFilter = "featured" | "my_meals" | "top_rated" | "hosting";
-
-const FILTER_OPTIONS: { key: ChangeMealFilter; label: string }[] = [
+const FILTER_OPTIONS: { key: MealFilterKey; label: string }[] = [
   { key: "featured", label: "Featured" },
   { key: "my_meals", label: "My Meals" },
   { key: "top_rated", label: "Top Rated" },
@@ -57,28 +54,28 @@ export function ChangeMealSheet({
   const router = useRouter();
   // Default to My Meals — most useful chip when swapping a known meal.
   const [activeFilter, setActiveFilter] =
-    useState<ChangeMealFilter>("my_meals");
+    useState<MealFilterKey>("my_meals");
   // PRD: A-Z is the default sort across all sortable surfaces.
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
 
+  // WS7-3 C4 c3 — single-filter useMeals call; adapter widens MealListItem
+  // back to MealSummary for the existing row + sortMeals shape.
+  const mealsQuery = useMeals([activeFilter]);
+
+  // Ruling 10 — current-meal exclusion applies symmetrically across all 4
+  // buckets, not just my_meals. Build-it-right cleanup of the stub-era
+  // asymmetry: a meal that's featured AND saved (it can be) shouldn't
+  // appear as a "replacement" for itself just because the user flipped
+  // chips.
   const visibleMeals = useMemo(() => {
-    let source: MealSummary[];
-    switch (activeFilter) {
-      case "my_meals":
-        source = getSavedMeals().filter((m) => m.id !== currentMealId);
-        break;
-      case "featured":
-        source = getFeaturedMeals();
-        break;
-      case "top_rated":
-        source = getTopRatedMeals();
-        break;
-      case "hosting":
-        source = getHostingMeals();
-        break;
-    }
-    return sortMeals(source, sortKey);
-  }, [activeFilter, currentMealId, sortKey]);
+    const adapted = (mealsQuery.data?.meals ?? []).map((m) =>
+      mealListItemToSummary(m, activeFilter),
+    );
+    const filtered = currentMealId
+      ? adapted.filter((meal) => meal.id !== currentMealId)
+      : adapted;
+    return sortMeals(filtered, sortKey);
+  }, [mealsQuery.data, activeFilter, currentMealId, sortKey]);
 
   const handlePick = (meal: MealSummary) => {
     onPickReplacement(meal);
@@ -125,7 +122,7 @@ export function ChangeMealSheet({
           showsVerticalScrollIndicator={false}
         >
           {/* Section 1: Filter chips (single-select per FilterChipRow contract) */}
-          <FilterChipRow<ChangeMealFilter>
+          <FilterChipRow<MealFilterKey>
             options={FILTER_OPTIONS}
             selected={[activeFilter]}
             onToggle={(key) => setActiveFilter(key)}
@@ -139,7 +136,23 @@ export function ChangeMealSheet({
             <SortDropdown value={sortKey} onChange={setSortKey} />
           </View>
           <View style={s.list}>
-            {visibleMeals.length === 0 ? (
+            {mealsQuery.isLoading ? (
+              <View style={s.loadingRow}>
+                <ActivityIndicator color={KColors.sage[700]} />
+              </View>
+            ) : mealsQuery.isError ? (
+              <Pressable
+                onPress={() => mealsQuery.refetch()}
+                style={({ pressed }) => [
+                  s.errorRow,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={s.errorText}>
+                  Couldn&apos;t load meals. Tap to retry.
+                </Text>
+              </Pressable>
+            ) : visibleMeals.length === 0 ? (
               <Text style={s.emptyText}>No other meals here yet.</Text>
             ) : (
               visibleMeals.map((meal) => (
@@ -355,6 +368,21 @@ const s = StyleSheet.create({
     fontStyle: "italic",
     textAlign: "center",
     paddingVertical: KSpacing.md,
+  },
+  loadingRow: {
+    alignItems: "center",
+    paddingVertical: KSpacing.lg,
+  },
+  errorRow: {
+    backgroundColor: KColors.terracotta[100],
+    borderRadius: KRadius.sm,
+    padding: KSpacing.md,
+  },
+  errorText: {
+    fontSize: KType.size.sm,
+    color: KColors.terracotta[700],
+    fontFamily: "Inter_500Medium",
+    textAlign: "center",
   },
   mealRow: {
     flexDirection: "row",
