@@ -77,7 +77,6 @@ function itemToRow(
     carbsGPerServing: meal.carbs,
     fatGPerServing: meal.fat,
     dayStrip: buildDayStrip(day),
-    hasRecipeOverride: false,
   };
 }
 
@@ -102,6 +101,5 @@ export function mealDetailToRow(meal: MealDetail): ReviewPlanMealRow {
     carbsGPerServing: meal.carbs,
     fatGPerServing: meal.fat,
     dayStrip: buildDayStrip(null),
-    hasRecipeOverride: false,
   };
 }

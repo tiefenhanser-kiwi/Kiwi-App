@@ -693,7 +693,6 @@ export default function PlanReviewScreen() {
             proteinGPerServing: newMeal.proteinGPerServing,
             carbsGPerServing: newMeal.carbsGPerServing,
             fatGPerServing: newMeal.fatGPerServing,
-            hasRecipeOverride: false,
           }
         : m;
     setReviewPlan((prev) =>
@@ -777,7 +776,6 @@ export default function PlanReviewScreen() {
       carbsGPerServing: meal.carbsGPerServing,
       fatGPerServing: meal.fatGPerServing,
       dayStrip: buildDayStrip(null),
-      hasRecipeOverride: false,
     };
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setReviewPlan((prev) =>

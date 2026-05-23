@@ -15,13 +15,7 @@ import {
   addGroceryListItem,
   type AddItemPayload,
 } from "@/lib/api/grocery";
-import {
-  buildGroceryList,
-  defaultPlan,
-  getRecipe,
-  updateReviewPlanDateRange,
-  updateReviewPlanName,
-} from "@/lib/stubs";
+import { buildGroceryList, defaultPlan, getRecipe } from "@/lib/stubs";
 import * as meAPI from "@/lib/api/me";
 import { useAuth } from "@/contexts/AuthContext";
 import type {
@@ -425,9 +419,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     planId: string,
     name: string,
   ): Promise<void> => {
-    // TODO(WS7): wire to PATCH /plans/:planId (name)
+    // TODO(WS7-4): wire to PATCH /plans/:planId (name). The Plan Review
+    // screen owns local state; this call only logs until WS7-4 lands.
     console.log("[stub] updatePlanName", { planId, name });
-    updateReviewPlanName(planId, name);
   };
 
   const updatePlanDateRange = async (
@@ -435,9 +429,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     startDate: string,
     endDate: string,
   ): Promise<void> => {
-    // TODO(WS7): wire to PATCH /plans/:planId (weekStartDate, weekEndDate)
+    // TODO(WS7-4): wire to PATCH /plans/:planId (weekStartDate, weekEndDate).
+    // Local-only until WS7-4 lands; screen owns optimistic state.
     console.log("[stub] updatePlanDateRange", { planId, startDate, endDate });
-    updateReviewPlanDateRange(planId, startDate, endDate);
   };
 
   const saveDish = async (dish: DishDraft): Promise<{ id: string }> => {

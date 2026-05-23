@@ -15,14 +15,13 @@ import type {
   MealSummary,
   Recipe,
   ReviewMeal,
-  ReviewPlan,
   SavedDish,
   SubscriptionInfo,
   UserAccountInfo,
   UserPlanSummary,
   UserPreferencesData,
 } from "./types";
-import { buildDayStrip, DAYS, getMondayISO } from "./domain";
+import { DAYS, getMondayISO } from "./domain";
 
 // Empty recipe list. Replaces the hardcoded 12-recipe array.
 export const RECIPES: Recipe[] = [];
@@ -60,172 +59,11 @@ export function buildGroceryList(_plan: MealPlan): GroceryItem[] {
 // dead MealRowData / MealsFilterGroup / getMealsPayload helpers retired in
 // WS7-3 C3 c5.
 
-// ── Plan Review (PRD §8) ──
-// WS7 fills this. Same seam pattern as the other payload getters above.
-
-/**
- * Module-level cache of built ReviewPlan objects so that screen-local
- * mutations (plan name edits, date range changes, meal injections)
- * persist across navigation within an app session. Real persistence
- * lands in WS7 — until then, the cache is wiped on app reload.
- */
-const reviewPlanCache: Map<string, ReviewPlan> = new Map();
-
-function buildReviewPlan(_planId: string): ReviewPlan {
-  // TODO(WS7): Remove this demo branch when getReviewPlan wires to
-  // real data. Used for WS5 smoke testing of meal row component.
-  if (_planId === "demo") {
-    return {
-      id: _planId,
-      name: "Demo Plan",
-      prepStatus: "not_prepped",
-      optimizationNotes: [
-        {
-          type: "prep",
-          text: "Chicken used in 2 meals — prep both portions at once.",
-        },
-        {
-          type: "cost",
-          text: "Garlic shared across 3 meals — buy one head, use it all.",
-        },
-      ],
-      macroDailyAverage: {
-        caloriesPerDay: 2100,
-        proteinGPerDay: 130,
-        carbsGPerDay: 210,
-        fatGPerDay: 75,
-      },
-      scheduledMeals: [
-        {
-          planItemId: "demo-item-1",
-          mealId: "dev-meal-beef-tacos",
-          title: "Beef Tacos",
-          thumbnailUrl: undefined,
-          metaLine: "Easy · 30 min · serves 4",
-          caloriesPerServing: 540,
-          proteinGPerServing: 38,
-          carbsGPerServing: 32,
-          fatGPerServing: 24,
-          dayStrip: buildDayStrip("Tuesday"),
-          hasRecipeOverride: false,
-        },
-        {
-          planItemId: "demo-item-2",
-          mealId: "dev-meal-spaghetti-carbonara",
-          title: "Spaghetti Carbonara",
-          thumbnailUrl: undefined,
-          metaLine: "Easy · 25 min · serves 4",
-          caloriesPerServing: 480,
-          proteinGPerServing: 35,
-          carbsGPerServing: 38,
-          fatGPerServing: 18,
-          dayStrip: buildDayStrip("Thursday"),
-          hasRecipeOverride: false,
-        },
-      ],
-      unscheduledMeals: [
-        {
-          planItemId: "demo-item-3",
-          mealId: "dev-meal-salmon-rice-pilaf",
-          title: "Salmon with Rice Pilaf",
-          thumbnailUrl: undefined,
-          metaLine: "Medium · 40 min · serves 4",
-          caloriesPerServing: 620,
-          proteinGPerServing: 22,
-          carbsGPerServing: 78,
-          fatGPerServing: 22,
-          dayStrip: buildDayStrip(null),
-          hasRecipeOverride: false,
-        },
-      ],
-      breakfastDefaults: "",
-      lunchDefaults: "",
-    };
-  }
-
-  // PRD §11.4 — destination for wizard / tellkiwi completion in WS5.
-  // Empty plan that the user just created; meals get added next via
-  // AddMealsSheet or by routing in from the AddMealToPlanSheet.
-  if (_planId === "demo-plan-just-created") {
-    return {
-      id: _planId,
-      name: "Your New Plan",
-      prepStatus: "not_prepped",
-      optimizationNotes: [],
-      macroDailyAverage: {
-        caloriesPerDay: 0,
-        proteinGPerDay: 0,
-        carbsGPerDay: 0,
-        fatGPerDay: 0,
-      },
-      scheduledMeals: [],
-      unscheduledMeals: [],
-      breakfastDefaults: "",
-      lunchDefaults: "",
-    };
-  }
-
-  return {
-    id: _planId,
-    name: "",
-    prepStatus: "not_prepped",
-    optimizationNotes: [],
-    macroDailyAverage: {
-      caloriesPerDay: 0,
-      proteinGPerDay: 0,
-      carbsGPerDay: 0,
-      fatGPerDay: 0,
-    },
-    scheduledMeals: [],
-    unscheduledMeals: [],
-    breakfastDefaults: "",
-    lunchDefaults: "",
-  };
-}
-
-/**
- * PRD §8 Plan Review payload stub.
- * Real data ships in WS7 (composite endpoint, server-resolved).
- * For WS5, returns an empty review plan — exercises the §8.6
- * "no meals in this plan yet" valid empty state.
- *
- * Cached on first build per planId so that mutations applied via
- * updateReviewPlanName / updateReviewPlanDateRange persist across
- * navigation within the session.
- */
-export function getReviewPlan(planId: string): ReviewPlan {
-  const cached = reviewPlanCache.get(planId);
-  if (cached) return cached;
-  const built = buildReviewPlan(planId);
-  reviewPlanCache.set(planId, built);
-  return built;
-}
-
-/**
- * Mutates the cached ReviewPlan's name in place. WS5 stub for plan
- * name persistence; WS7 replaces with API call.
- */
-export function updateReviewPlanName(planId: string, name: string): void {
-  const plan = reviewPlanCache.get(planId);
-  if (plan) {
-    plan.name = name;
-  }
-}
-
-/**
- * Mutates the cached ReviewPlan's date range. WS5 stub.
- */
-export function updateReviewPlanDateRange(
-  planId: string,
-  startDate: string,
-  endDate: string,
-): void {
-  const plan = reviewPlanCache.get(planId);
-  if (plan) {
-    plan.weekStartDate = startDate;
-    plan.weekEndDate = endDate;
-  }
-}
+// Plan Review (PRD §8) stubs retired in WS7-3 C4 c5 — the real composite
+// GET /plans/:id ships via usePlan() (hooks/usePlan.ts → lib/api/plans.ts).
+// reviewPlanCache / buildReviewPlan / getReviewPlan / updateReviewPlanName /
+// updateReviewPlanDateRange are gone; ReviewPlan stays in lib/types.ts as
+// the screen's local-state shape (the adapter target).
 
 // ── Meal Detail (PRD §10.6) ──
 

@@ -258,8 +258,6 @@ export interface ReviewPlanMealRow {
   fatGPerServing?: number;
   /** Day strip — 7 entries Sun-Sat with assignment state. */
   dayStrip: DayAssignment[];
-  /** True when this row's MealPlanItem has a recipeOverrideJson set. */
-  hasRecipeOverride: boolean;
 }
 
 /** Optimization panel bullet per PRD §8.3.4. */
