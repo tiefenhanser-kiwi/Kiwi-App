@@ -22,14 +22,21 @@ import { ChangeMealSheet } from "@/components/ChangeMealSheet";
 import { FindSimilarSheet } from "@/components/FindSimilarSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { LoadingShim } from "@/components/LoadingShim";
 import { PlanDateRangeEditor } from "@/components/PlanDateRangeEditor";
 import { PlanNameEditor } from "@/components/PlanNameEditor";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
+import { useMeal } from "@/hooks/useMeal";
+import { usePlan } from "@/hooks/usePlan";
+import { ApiError } from "@/lib/api/errors";
 import { buildDayStrip } from "@/lib/domain";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
-import { getMealById, getReviewPlan } from "@/lib/stubs";
+import {
+  mealDetailToRow,
+  planDetailToReviewPlan,
+} from "@/lib/plans/reviewPlanAdapter";
 import type {
   DayOfWeek,
   MealSummary,
@@ -100,7 +107,6 @@ export default function PlanReviewScreen() {
   }>();
   const planId = id ?? "";
   const {
-    plans,
     changeMealForPlanItem,
     assignDayToPlanItem,
     unassignDayFromPlanItem,
@@ -109,64 +115,61 @@ export default function PlanReviewScreen() {
     updatePlanName,
     updatePlanDateRange,
   } = useApp();
-  // Option A (locked): screen owns the ReviewPlan in local state.
-  // Future action sheets (5J/5K/5L/5M) optimistically update via setReviewPlan;
-  // AppContext mutators stay log-only stubs until WS7 wires real persistence.
-  const [reviewPlan, setReviewPlan] = useState(() => getReviewPlan(planId));
 
-  // Tracks addMealId values already injected into unscheduled so a
-  // re-render or re-navigate with the same param doesn't double-add.
-  const [consumedAddMealIds, setConsumedAddMealIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  // WS7-3 C4 c1 — Plan Review now reads the real GET /plans/:id. Server data
+  // seeds local state once on arrival; further edits (day strip taps, meal
+  // swaps, compost, name/date edits) stay local until WS7-4 wires real
+  // persistence. AppContext mutators remain log-only no-ops.
+  const planQuery = usePlan(planId);
+  const [reviewPlan, setReviewPlan] = useState<ReviewPlan | null>(null);
 
-  // PRD §9.4 — when launched from AddMealToPlanSheet's "Create new plan"
-  // card, the meal id arrives as a route param. Inject the row into
-  // unscheduled on mount. Idempotent via consumedAddMealIds.
+  useEffect(() => {
+    if (planQuery.data && !reviewPlan) {
+      setReviewPlan(planDetailToReviewPlan(planQuery.data));
+    }
+  }, [planQuery.data, reviewPlan]);
+
+  // PRD §9.4 — deep-link from AddMealToPlanSheet's "Create new plan" card.
+  // Asynchronously fetches the meal detail and injects a row into the
+  // unscheduled cluster. Idempotent via consumedAddMealRef so a re-render
+  // or re-navigate with the same param doesn't double-add.
+  const injectMealQuery = useMeal(addMealId ?? "");
+  const consumedAddMealRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!addMealId) return;
-    if (consumedAddMealIds.has(addMealId)) return;
+    if (consumedAddMealRef.current === addMealId) return;
+    if (!injectMealQuery.data) return;
+    if (!reviewPlan) return;
 
-    const meal = getMealById(addMealId);
-    if (!meal) {
-      console.warn(
-        "[plan/id] addMealId param present but getMealById returned null",
-        { addMealId },
-      );
-      return;
-    }
-
-    const newRow: ReviewPlanMealRow = {
-      planItemId: `pi-${Date.now()}`,
-      mealId: meal.id,
-      title: meal.title,
-      thumbnailUrl: meal.imageUrl,
-      metaLine: `${capitalize(meal.difficulty)} · ${meal.estimatedTimeMinutes} min · serves ${meal.servingsDefault}`,
-      caloriesPerServing: meal.caloriesPerServing,
-      proteinGPerServing: meal.proteinGPerServing,
-      carbsGPerServing: meal.carbsGPerServing,
-      fatGPerServing: meal.fatGPerServing,
-      dayStrip: buildDayStrip(null),
-      hasRecipeOverride: false,
-    };
-
+    consumedAddMealRef.current = addMealId;
+    const injected = mealDetailToRow(injectMealQuery.data);
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setReviewPlan((prev) => ({
-      ...prev,
-      unscheduledMeals: [...prev.unscheduledMeals, newRow],
-    }));
-    setConsumedAddMealIds((prev) => {
-      const next = new Set(prev);
-      next.add(addMealId);
-      return next;
-    });
+    setReviewPlan((prev) =>
+      prev
+        ? { ...prev, unscheduledMeals: [...prev.unscheduledMeals, injected] }
+        : prev,
+    );
 
     console.log("[plan/id] addMealId consumed, meal injected", {
       addMealId,
-      title: meal.title,
+      title: injectMealQuery.data.title,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addMealId]);
+  }, [addMealId, injectMealQuery.data, reviewPlan]);
+
+  // Ruling 9 — deep-link error UX. No toast component exists in the codebase
+  // today (verified via grep across artifacts/kiwi); Alert.alert is the
+  // fallback per the prompt. Flagged in the Phase 3 report so chat-Claude
+  // can decide whether to add a toast component or accept Alert long-term.
+  useEffect(() => {
+    if (injectMealQuery.isError) {
+      console.warn("[plan/id] addMealId fetch failed", {
+        addMealId,
+        error: injectMealQuery.error,
+      });
+      Alert.alert("Couldn't add that meal.");
+    }
+  }, [injectMealQuery.isError, injectMealQuery.error, addMealId]);
 
   // Sheet state for §8.4.2 Change Meal flow.
   const [changeMealForRow, setChangeMealForRow] = useState<{
@@ -185,17 +188,12 @@ export default function PlanReviewScreen() {
   // Sheet state for §8.3.8 Add Meals flow.
   const [addMealsVisible, setAddMealsVisible] = useState(false);
 
-  // Until WS7 wires real ReviewPlan data, the authoritative plan name lives
-  // on the legacy MealPlan in AppContext.plans (recipe-id-based per WS5-5A).
-  const plan = plans.find((p) => p.id === planId);
-  const planName = plan?.name ?? reviewPlan.name ?? "Untitled plan";
+  const planName = reviewPlan?.name || "Untitled plan";
 
   const [breakfastOpen, setBreakfastOpen] = useState(false);
-  const [breakfastDraft, setBreakfastDraft] = useState(
-    reviewPlan.breakfastDefaults,
-  );
+  const [breakfastDraft, setBreakfastDraft] = useState("");
   const [lunchOpen, setLunchOpen] = useState(false);
-  const [lunchDraft, setLunchDraft] = useState(reviewPlan.lunchDefaults);
+  const [lunchDraft, setLunchDraft] = useState("");
 
   // Imperative scroll handle on the keyboard-aware scroll container plus
   // captured Y positions for the Breakfast/Lunch sections so toggles can
@@ -286,18 +284,65 @@ export default function PlanReviewScreen() {
   };
 
   const handleSavePlanName = (newName: string) => {
-    setReviewPlan((prev) => ({ ...prev, name: newName }));
+    setReviewPlan((prev) => (prev ? { ...prev, name: newName } : prev));
     void updatePlanName(planId, newName);
   };
 
   const handleSaveDateRange = (start: string, end: string) => {
-    setReviewPlan((prev) => ({
-      ...prev,
-      weekStartDate: start,
-      weekEndDate: end,
-    }));
+    setReviewPlan((prev) =>
+      prev
+        ? { ...prev, weekStartDate: start, weekEndDate: end }
+        : prev,
+    );
     void updatePlanDateRange(planId, start, end);
   };
+
+  // Block B gate (WS7-3 C4 c1) — server load, error, or adapter-not-yet-seeded
+  // states render a loading / error frame. The error branch distinguishes 404
+  // (plan not owned / missing) from generic load failure per the same pattern
+  // app/dish/[id].tsx adopted in C3 c3.
+  if (planQuery.isLoading || (!reviewPlan && !planQuery.isError)) {
+    return (
+      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+        <Header showBack title="Plan Review" />
+        <View style={s.gateWrap}>
+          <LoadingShim variant="screen" />
+        </View>
+      </View>
+    );
+  }
+
+  if (planQuery.isError || !reviewPlan) {
+    const err = planQuery.error;
+    const isNotFound = err instanceof ApiError && err.status === 404;
+    return (
+      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+        <Header showBack title="Plan Review" />
+        <View style={s.gateWrap}>
+          <Text style={s.gateText}>
+            {isNotFound
+              ? "Plan not found."
+              : "Couldn't load this plan. Please try again."}
+          </Text>
+          <View style={s.gateBtnWrap}>
+            {isNotFound ? (
+              <Button
+                label="Go back"
+                variant="ghost"
+                onPress={() => router.back()}
+              />
+            ) : (
+              <Button
+                label="Try again"
+                variant="primary"
+                onPress={() => planQuery.refetch()}
+              />
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   const hasMeals =
     reviewPlan.scheduledMeals.length > 0 ||
@@ -481,12 +526,11 @@ export default function PlanReviewScreen() {
                     setChangeMealForRow({ planItemId, currentMealId })
                   }
                   onFindSimilar={(planItemId, sourceMealId, title) => {
-                    const meal = getMealById(sourceMealId);
                     setFindSimilarForRow({
                       planItemId,
                       sourceMealId,
                       sourceMealTitle: title,
-                      sourceCuisine: meal?.cuisineType,
+                      sourceCuisine: row.cuisine,
                     });
                   }}
                   onAssignDay={handleAssignDay}
@@ -505,12 +549,11 @@ export default function PlanReviewScreen() {
                         setChangeMealForRow({ planItemId, currentMealId })
                       }
                       onFindSimilar={(planItemId, sourceMealId, title) => {
-                        const meal = getMealById(sourceMealId);
                         setFindSimilarForRow({
                           planItemId,
                           sourceMealId,
                           sourceMealTitle: title,
-                          sourceCuisine: meal?.cuisineType,
+                          sourceCuisine: row.cuisine,
                         });
                       }}
                       onAssignDay={handleAssignDay}
@@ -653,11 +696,15 @@ export default function PlanReviewScreen() {
             hasRecipeOverride: false,
           }
         : m;
-    setReviewPlan((prev) => ({
-      ...prev,
-      scheduledMeals: prev.scheduledMeals.map(replaceRow),
-      unscheduledMeals: prev.unscheduledMeals.map(replaceRow),
-    }));
+    setReviewPlan((prev) =>
+      prev
+        ? {
+            ...prev,
+            scheduledMeals: prev.scheduledMeals.map(replaceRow),
+            unscheduledMeals: prev.unscheduledMeals.map(replaceRow),
+          }
+        : prev,
+    );
     void changeMealForPlanItem(planId, targetPlanItemId, newMeal.id);
   }
 
@@ -666,7 +713,9 @@ export default function PlanReviewScreen() {
   //    unscheduled clusters animates rather than snaps. ──
   function handleAssignDay(planItemId: string, newDay: DayOfWeek | null) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setReviewPlan((prev) => applyDayAssignment(prev, planItemId, newDay));
+    setReviewPlan((prev) =>
+      prev ? applyDayAssignment(prev, planItemId, newDay) : prev,
+    );
     if (newDay === null) {
       void unassignDayFromPlanItem(planId, planItemId);
     } else {
@@ -691,15 +740,19 @@ export default function PlanReviewScreen() {
             LayoutAnimation.configureNext(
               LayoutAnimation.Presets.easeInEaseOut,
             );
-            setReviewPlan((prev) => ({
-              ...prev,
-              scheduledMeals: prev.scheduledMeals.filter(
-                (m) => m.planItemId !== planItemId,
-              ),
-              unscheduledMeals: prev.unscheduledMeals.filter(
-                (m) => m.planItemId !== planItemId,
-              ),
-            }));
+            setReviewPlan((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    scheduledMeals: prev.scheduledMeals.filter(
+                      (m) => m.planItemId !== planItemId,
+                    ),
+                    unscheduledMeals: prev.unscheduledMeals.filter(
+                      (m) => m.planItemId !== planItemId,
+                    ),
+                  }
+                : prev,
+            );
             void removeMealFromPlan(planId, planItemId);
           },
         },
@@ -717,6 +770,7 @@ export default function PlanReviewScreen() {
       mealId: meal.id,
       title: meal.title,
       thumbnailUrl: meal.imageUrl,
+      cuisine: meal.cuisineType,
       metaLine: `${capitalize(meal.difficulty)} · ${meal.estimatedTimeMinutes} min · serves ${meal.servingsDefault}`,
       caloriesPerServing: meal.caloriesPerServing,
       proteinGPerServing: meal.proteinGPerServing,
@@ -726,10 +780,11 @@ export default function PlanReviewScreen() {
       hasRecipeOverride: false,
     };
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setReviewPlan((prev) => ({
-      ...prev,
-      unscheduledMeals: [...prev.unscheduledMeals, newRow],
-    }));
+    setReviewPlan((prev) =>
+      prev
+        ? { ...prev, unscheduledMeals: [...prev.unscheduledMeals, newRow] }
+        : prev,
+    );
     void addMealToPlan(planId, meal.id);
     setAddMealsVisible(false);
   }
@@ -740,6 +795,22 @@ const s = StyleSheet.create({
     paddingHorizontal: KSpacing.lg,
     paddingTop: KSpacing.md,
     paddingBottom: 200, // keyboard clearance for bottommost TextInputs
+  },
+  gateWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: KSpacing.lg,
+    gap: KSpacing.md,
+  },
+  gateText: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[800],
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
+  gateBtnWrap: {
+    width: "60%",
   },
   savedPill: {
     backgroundColor: KColors.sage[100],

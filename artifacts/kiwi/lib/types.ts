@@ -244,6 +244,11 @@ export interface ReviewPlanMealRow {
   mealId: string;
   title: string;
   thumbnailUrl?: string;
+  /** Server `cuisine` widened to the row (WS7-3 C4 c1 / Ruling 4) so
+   *  FindSimilarSheet's source-cuisine subtitle and any cuisine-driven
+   *  badging can read row.cuisine instead of an extra meal-detail fetch.
+   *  Undefined when the meal carries no cuisine. */
+  cuisine?: string;
   /** "Easy · 30 min · serves 4" */
   metaLine: string;
   /** Per-serving display values for the row's macros line. */
