@@ -688,6 +688,7 @@ export default function PlanReviewScreen() {
             ...m,
             mealId: newMeal.id,
             title: newMeal.title,
+            cuisine: newMeal.cuisineType,
             metaLine: newMetaLine,
             caloriesPerServing: newMeal.caloriesPerServing,
             proteinGPerServing: newMeal.proteinGPerServing,
