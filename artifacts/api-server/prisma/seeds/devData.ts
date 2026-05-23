@@ -57,6 +57,10 @@ const DEV_PLAN_IDS = {
   weeknightInstance: "dev-plan-instance-weeknight",
   spiceTemplate: "dev-plan-template-spice-it-up",
   spiceInstance: "dev-plan-instance-spice-it-up",
+  // WS7-3 C4 c7 — instance id is the literal "demo" so the "Inject dev test
+  // plan" affordance's /plan/demo deep-link resolves against a real row.
+  demoTemplate: "dev-plan-template-demo",
+  demoInstance: "demo",
 } as const;
 
 // WS7-3 A2 — public discovery templates. The two plan templates seeded via
@@ -963,7 +967,7 @@ interface PlanSeed {
   templateId: string;
   instanceId: string;
   title: string;
-  status: "this_week" | "upcoming";
+  status: "this_week" | "upcoming" | "draft";
   isActiveThisWeek: boolean;
   startDate: Date | null;
   endDate: Date | null;
@@ -1131,12 +1135,60 @@ async function main(): Promise<void> {
     ],
   };
 
+  // WS7-3 C4 c7 — demo plan. Instance id is the literal "demo" so the dev
+  // "Inject dev test plan" affordance's /plan/demo deep-link resolves to a
+  // real MealPlanInstance. Mirrors the weeknightPlan shape (Mon–Fri dinners,
+  // current-week span) with a different meal selection that exercises the
+  // multi-dish meal (salmon + rice pilaf) on the demo row.
+  const demoPlan: PlanSeed = {
+    templateId: DEV_PLAN_IDS.demoTemplate,
+    instanceId: DEV_PLAN_IDS.demoInstance,
+    title: "Demo Plan",
+    status: "draft",
+    isActiveThisWeek: true,
+    startDate: weekStart,
+    endDate: weekEnd,
+    items: [
+      {
+        id: "demo-item-1",
+        mealId: DEV_MEAL_IDS.beefTacos,
+        positionIndex: 0,
+        day: "Monday",
+      },
+      {
+        id: "demo-item-2",
+        mealId: DEV_MEAL_IDS.carbonara,
+        positionIndex: 1,
+        day: "Tuesday",
+      },
+      {
+        id: "demo-item-3",
+        mealId: DEV_MEAL_IDS.tikkaMasala,
+        positionIndex: 2,
+        day: "Wednesday",
+      },
+      {
+        id: "demo-item-4",
+        mealId: DEV_MEAL_IDS.padThai,
+        positionIndex: 3,
+        day: "Thursday",
+      },
+      {
+        id: "demo-item-5",
+        mealId: DEV_MEAL_IDS.salmonRicePilaf,
+        positionIndex: 4,
+        day: "Friday",
+      },
+    ],
+  };
+
   await seedPlan(user.id, weeknightPlan);
   await seedPlan(user.id, spicePlan);
+  await seedPlan(user.id, demoPlan);
 
   console.log(
     `[devData] done. dev user has ${MEALS.length + 1} meals ` +
-      `(${MEALS.length} single-dish + 1 multi-dish) + 2 plans (1 active, 1 saved) ` +
+      `(${MEALS.length} single-dish + 1 multi-dish) + 3 plans (1 active, 1 saved, 1 demo) ` +
       `+ ${DISCOVERY_TEMPLATES.length} public discovery templates.`,
   );
 }
