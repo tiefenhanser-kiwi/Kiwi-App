@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -16,12 +17,9 @@ import { FilterChipRow } from "@/components/FilterChipRow";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
-import {
-  getFeaturedMeals,
-  getHostingMeals,
-  getSavedMeals,
-  getTopRatedMeals,
-} from "@/lib/stubs";
+import { useMeals } from "@/hooks/useMeals";
+import type { MealFilterKey } from "@/lib/api/meals";
+import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
 
 export interface AddMealsSheetProps {
@@ -36,9 +34,7 @@ export interface AddMealsSheetProps {
   onPickExistingMeal: (meal: MealSummary) => void;
 }
 
-type AddMealsFilter = "featured" | "my_meals" | "top_rated" | "hosting";
-
-const FILTER_OPTIONS: { key: AddMealsFilter; label: string }[] = [
+const FILTER_OPTIONS: { key: MealFilterKey; label: string }[] = [
   { key: "featured", label: "Featured" },
   { key: "my_meals", label: "My Meals" },
   { key: "top_rated", label: "Top Rated" },
@@ -58,27 +54,19 @@ export function AddMealsSheet({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [activeFilter, setActiveFilter] =
-    useState<AddMealsFilter>("my_meals");
+    useState<MealFilterKey>("my_meals");
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
 
+  // WS7-3 C4 c2 — single-filter useMeals call; adapter widens MealListItem
+  // back to the MealSummary shape the existing row + sortMeals consume.
+  const mealsQuery = useMeals([activeFilter]);
+
   const visibleMeals = useMemo(() => {
-    let source: MealSummary[];
-    switch (activeFilter) {
-      case "my_meals":
-        source = getSavedMeals();
-        break;
-      case "featured":
-        source = getFeaturedMeals();
-        break;
-      case "top_rated":
-        source = getTopRatedMeals();
-        break;
-      case "hosting":
-        source = getHostingMeals();
-        break;
-    }
-    return sortMeals(source, sortKey);
-  }, [activeFilter, sortKey]);
+    const adapted = (mealsQuery.data?.meals ?? []).map((m) =>
+      mealListItemToSummary(m, activeFilter),
+    );
+    return sortMeals(adapted, sortKey);
+  }, [mealsQuery.data, activeFilter, sortKey]);
 
   const handlePick = (meal: MealSummary) => {
     onPickExistingMeal(meal);
@@ -140,7 +128,7 @@ export function AddMealsSheet({
           {/* Section 1: Pick from your meals */}
           <Text style={s.sectionTitle}>Pick from your meals</Text>
           <View style={{ marginTop: KSpacing.sm }}>
-            <FilterChipRow<AddMealsFilter>
+            <FilterChipRow<MealFilterKey>
               options={FILTER_OPTIONS}
               selected={[activeFilter]}
               onToggle={(key) => setActiveFilter(key)}
@@ -153,7 +141,23 @@ export function AddMealsSheet({
             <SortDropdown value={sortKey} onChange={setSortKey} />
           </View>
           <View style={s.list}>
-            {visibleMeals.length === 0 ? (
+            {mealsQuery.isLoading ? (
+              <View style={s.loadingRow}>
+                <ActivityIndicator color={KColors.sage[700]} />
+              </View>
+            ) : mealsQuery.isError ? (
+              <Pressable
+                onPress={() => mealsQuery.refetch()}
+                style={({ pressed }) => [
+                  s.errorRow,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={s.errorText}>
+                  Couldn&apos;t load meals. Tap to retry.
+                </Text>
+              </Pressable>
+            ) : visibleMeals.length === 0 ? (
               <Text style={s.emptyText}>No meals here yet.</Text>
             ) : (
               visibleMeals.map((meal) => (
@@ -418,6 +422,21 @@ const s = StyleSheet.create({
     fontStyle: "italic",
     textAlign: "center",
     paddingVertical: KSpacing.md,
+  },
+  loadingRow: {
+    alignItems: "center",
+    paddingVertical: KSpacing.lg,
+  },
+  errorRow: {
+    backgroundColor: KColors.terracotta[100],
+    borderRadius: KRadius.sm,
+    padding: KSpacing.md,
+  },
+  errorText: {
+    fontSize: KType.size.sm,
+    color: KColors.terracotta[700],
+    fontFamily: "Inter_500Medium",
+    textAlign: "center",
   },
   mealRow: {
     flexDirection: "row",
