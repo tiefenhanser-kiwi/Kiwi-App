@@ -71,6 +71,12 @@ enum PlanStatus {
   draft
 }
 
+enum PrepStatus {
+  not_prepped
+  partial
+  prepped
+}
+
 enum GroceryListStatus {
   draft
   active
@@ -145,6 +151,19 @@ enum ActivityEventType {
   recipe_imported_image
   recipe_imported_text
   grocery_item_added
+  plan_review_opened
+  plan_meal_assigned
+  plan_meal_unassigned
+  plan_meal_changed
+  plan_recipe_changed
+  plan_meal_edited
+  plan_meal_composted
+  plan_meal_added
+  plan_breakfast_customized
+  plan_lunch_customized
+  plan_grocery_generated
+  plan_prep_started
+  plan_name_edited
 }
 
 enum SpiceTolerance {
@@ -455,6 +474,7 @@ model MealPlanTemplate {
   // helper + scoring formula land in WS7-3 A2; both stay null until then.
   topRatedScore          Float?
   topRatedScoreUpdatedAt DateTime?
+  optimizationNotes      Json?
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 
@@ -476,8 +496,12 @@ model MealPlanInstance {
   lastCooked         DateTime?
   timesCooked        Int        @default(0)
   notes              String?
-  breakfastDefaults  String?
-  lunchDefaults      String?
+  prepStatus         PrepStatus @default(not_prepped)
+  optimizationNotes  Json?
+  compostedAt        DateTime?
+  isArchived         Boolean    @default(false)
+  breakfastOverrides String?    // null = inherit from UserPreferences.breakfastDefaults; non-null = per-plan override
+  lunchOverrides     String?    // null = inherit from UserPreferences.lunchDefaults; non-null = per-plan override
   // WS6 6c-4 / WS7 sync: monotonically increases on plan-content mutations.
   // GroceryList compares against lastGeneratedFromPlanRevisionId to detect drift.
   revisionId         Int        @default(1)
