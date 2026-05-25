@@ -66,6 +66,10 @@ function makeDetail(over: Partial<PlanDetail> = {}): PlanDetail {
     isActiveThisWeek: false,
     userId: "user-1",
     sourceType: "user",
+    prepStatus: "not_prepped",
+    optimizationNotes: [],
+    breakfastOverrides: "",
+    lunchOverrides: "",
     items: [],
     macroDailyAverage: {
       caloriesPerDay: 2000,
@@ -83,11 +87,27 @@ test("planDetailToReviewPlan: empty plan → both clusters empty, safe defaults"
   assert.equal(result.name, "Test Plan");
   assert.deepEqual(result.scheduledMeals, []);
   assert.deepEqual(result.unscheduledMeals, []);
-  // C4 Ruling 2 / 3 safe defaults
+  // WS7-4-A c6 — server-provided values (factory defaults match prior C4 hardcoded values).
   assert.equal(result.prepStatus, "not_prepped");
   assert.deepEqual(result.optimizationNotes, []);
-  assert.equal(result.breakfastDefaults, "");
-  assert.equal(result.lunchDefaults, "");
+  assert.equal(result.breakfastOverrides, "");
+  assert.equal(result.lunchOverrides, "");
+});
+
+test("planDetailToReviewPlan: real prepStatus + optimizationNotes from server pass through", () => {
+  const result = planDetailToReviewPlan(
+    makeDetail({
+      prepStatus: "prepped",
+      optimizationNotes: [{ type: "prep", text: "Batch-cook rice Sunday" }],
+      breakfastOverrides: "yogurt + berries",
+      lunchOverrides: "Sat: leftovers",
+    }),
+  );
+  assert.equal(result.prepStatus, "prepped");
+  assert.equal(result.optimizationNotes.length, 1);
+  assert.equal(result.optimizationNotes[0].text, "Batch-cook rice Sunday");
+  assert.equal(result.breakfastOverrides, "yogurt + berries");
+  assert.equal(result.lunchOverrides, "Sat: leftovers");
 });
 
 test("planDetailToReviewPlan: scheduled Monday meal lands in scheduled cluster with day strip selected", () => {

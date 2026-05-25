@@ -146,6 +146,10 @@ const PLAN_DETAIL_RESPONSE = {
     isActiveThisWeek: true,
     userId: "user-1",
     sourceType: "curated",
+    prepStatus: "not_prepped" as const,
+    optimizationNotes: [],
+    breakfastOverrides: "",
+    lunchOverrides: "",
     items: [
       {
         id: "item-1",

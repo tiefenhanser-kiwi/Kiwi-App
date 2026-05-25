@@ -315,6 +315,10 @@ export function createPlansRouter(
           userId: instance.userId,
           // sourceType lives on the template, not the instance.
           sourceType: instance.template.sourceType,
+          prepStatus: instance.prepStatus,
+          optimizationNotes: instance.optimizationNotes ?? [],
+          breakfastOverrides: instance.breakfastOverrides ?? "",
+          lunchOverrides: instance.lunchOverrides ?? "",
           items,
           macroDailyAverage: computeMacroDailyAverage(items),
         },

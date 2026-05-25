@@ -42,18 +42,15 @@ export function planDetailToReviewPlan(detail: PlanDetail): ReviewPlan {
     name: detail.name,
     weekStartDate: detail.startDate ?? undefined,
     weekEndDate: detail.endDate ?? undefined,
-    // C4 Ruling 2 — schema-blocked sub-sections render silent-empty.
-    // §8.3.3 banner shows "not_prepped" suggestion; §8.3.4 optimization
-    // panel hides per the empty-notes guard in app/plan/[id].tsx.
-    prepStatus: "not_prepped",
-    optimizationNotes: [],
+    // WS7-4-A c6 — server now carries these values end-to-end. Adapter
+    // passes them through; C4-era hardcoded defaults are gone.
+    prepStatus: detail.prepStatus,
+    optimizationNotes: detail.optimizationNotes ?? [],
     macroDailyAverage: detail.macroDailyAverage,
     scheduledMeals,
     unscheduledMeals,
-    // C4 Ruling 3 — breakfast/lunch persistence defers entirely to WS7-4.
-    // Local drafts in the screen stay as-is.
-    breakfastDefaults: "",
-    lunchDefaults: "",
+    breakfastOverrides: detail.breakfastOverrides ?? "",
+    lunchOverrides: detail.lunchOverrides ?? "",
   };
 }
 

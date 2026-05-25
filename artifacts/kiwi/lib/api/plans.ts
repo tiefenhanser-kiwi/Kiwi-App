@@ -103,6 +103,13 @@ const MacroDailyAverageSchema = z.object({
 });
 export type MacroDailyAverage = z.infer<typeof MacroDailyAverageSchema>;
 
+// WS7-4-A c6 — Optimization panel note shape per PRD §8.3.4. Mirrors the
+// OptimizationNote interface in lib/types.ts (server-canonical).
+const OptimizationNoteSchema = z.object({
+  type: z.enum(["prep", "cost"]),
+  text: z.string(),
+});
+
 // GET /plans/:id payload — the `plan` envelope's contents: instance meta +
 // every item with its Meal expansion + a fresh macro rollup.
 export const PlanDetailSchema = z.object({
@@ -115,6 +122,11 @@ export const PlanDetailSchema = z.object({
   isActiveThisWeek: z.boolean(),
   userId: z.string(),
   sourceType: z.string(),
+  // WS7-4-A c6 — new MealPlanInstance fields from PRD §8.3.3 / §8.3.4 / §8.3.7.
+  prepStatus: z.enum(["not_prepped", "partial", "prepped"]),
+  optimizationNotes: z.array(OptimizationNoteSchema),
+  breakfastOverrides: z.string(),
+  lunchOverrides: z.string(),
   items: z.array(PlanDetailItemSchema),
   macroDailyAverage: MacroDailyAverageSchema,
 });

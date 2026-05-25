@@ -206,6 +206,10 @@ function instanceFix(opts: {
   name: string;
   isActiveThisWeek?: boolean;
   createdAt?: Date;
+  prepStatus?: "not_prepped" | "partial" | "prepped";
+  optimizationNotes?: unknown;
+  breakfastOverrides?: string | null;
+  lunchOverrides?: string | null;
   items?: {
     id: string;
     mealId: string;
@@ -222,6 +226,10 @@ function instanceFix(opts: {
     endDate: null as Date | null,
     isActiveThisWeek: opts.isActiveThisWeek ?? false,
     revisionId: 2,
+    prepStatus: opts.prepStatus ?? "not_prepped",
+    optimizationNotes: opts.optimizationNotes ?? null,
+    breakfastOverrides: opts.breakfastOverrides ?? null,
+    lunchOverrides: opts.lunchOverrides ?? null,
     createdAt: opts.createdAt ?? new Date("2026-05-01T00:00:00Z"),
     template: {
       title: opts.name,
@@ -525,6 +533,46 @@ describe("GET /plans/:id — composite Plan Review", () => {
         headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
       });
       assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-4-A c6 — widened response carries the new MealPlanInstance fields.
+  it("returns prepStatus + optimizationNotes + breakfast/lunch overrides", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-widened",
+            name: "Widened Fields",
+            prepStatus: "partial",
+            optimizationNotes: [{ type: "prep", text: "Batch-cook Sunday" }],
+            breakfastOverrides: "yogurt + berries",
+            lunchOverrides: "Sat: leftovers",
+            items: [],
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-widened`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: {
+          prepStatus: string;
+          optimizationNotes: Array<{ type: string; text: string }>;
+          breakfastOverrides: string;
+          lunchOverrides: string;
+        };
+      };
+      assert.equal(body.plan.prepStatus, "partial");
+      assert.equal(body.plan.optimizationNotes.length, 1);
+      assert.equal(body.plan.optimizationNotes[0].text, "Batch-cook Sunday");
+      assert.equal(body.plan.breakfastOverrides, "yogurt + berries");
+      assert.equal(body.plan.lunchOverrides, "Sat: leftovers");
     } finally {
       await harness.close();
     }

@@ -267,7 +267,7 @@ export interface OptimizationNote {
 }
 
 /** Prep status indicator state per PRD §8.3.3. */
-export type PrepStatus = "not_prepped" | "prepped" | "partially_prepped";
+export type PrepStatus = "not_prepped" | "partial" | "prepped";
 
 /**
  * Full Plan Review payload — what getReviewPlan(planId) returns.
@@ -284,10 +284,10 @@ export interface ReviewPlan {
   scheduledMeals: ReviewPlanMealRow[];
   /** Meals with no day assignment per PRD §8.3.6. */
   unscheduledMeals: ReviewPlanMealRow[];
-  /** User-level breakfast defaults per PRD §8.3.7 (text suggestions). */
-  breakfastDefaults: string;
-  /** User-level lunch defaults per PRD §8.3.7. */
-  lunchDefaults: string;
+  /** Per-plan breakfast override; null/"" = inherit user default per PRD §8.3.7. */
+  breakfastOverrides: string;
+  /** Per-plan lunch override; null/"" = inherit user default per PRD §8.3.7. */
+  lunchOverrides: string;
   /** ISO date string ("YYYY-MM-DD") for the plan's start date.
    *  Drives the date-range editor (PRD §8 / §11). Optional so legacy
    *  demo branches without dates don't break. */
