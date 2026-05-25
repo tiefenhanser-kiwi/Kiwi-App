@@ -34,13 +34,16 @@ describe("bumpPlanRevision", () => {
     const { client, calls, revision } = makeStubClient();
     const tx = client as unknown as Prisma.TransactionClient;
 
-    await bumpPlanRevision("plan-1", tx);
+    const r1 = await bumpPlanRevision("plan-1", tx);
+    assert.equal(r1, 2);
     assert.equal(revision(), 2);
 
-    await bumpPlanRevision("plan-1", tx);
+    const r2 = await bumpPlanRevision("plan-1", tx);
+    assert.equal(r2, 3);
     assert.equal(revision(), 3);
 
-    await bumpPlanRevision("plan-1", tx);
+    const r3 = await bumpPlanRevision("plan-1", tx);
+    assert.equal(r3, 4);
     assert.equal(revision(), 4);
 
     assert.equal(calls.length, 3);
@@ -54,8 +57,9 @@ describe("bumpPlanRevision", () => {
     const { client, calls } = makeStubClient();
     const tx = client as unknown as Prisma.TransactionClient;
 
-    await bumpPlanRevision("plan-X", tx);
+    const result = await bumpPlanRevision("plan-X", tx);
 
+    assert.equal(result, 2);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].where.id, "plan-X");
   });
