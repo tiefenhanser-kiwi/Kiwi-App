@@ -47,6 +47,7 @@ export interface PlansRouterDeps {
   computePlanMacros: typeof productionComputePlanMacros;
   prisma: PrismaClient;
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
+  mutationLimiterOpts?: { capacity: number; refillPerSec: number };
 }
 
 // Per-filter fetch cap for GET /plans. Each filter is resolved up to this
@@ -119,6 +120,23 @@ export function createPlansRouter(
     ...limiterOpts,
     keyFn: (req) => `planrecalc:${req.userId ?? "anonymous"}`,
   });
+
+  // WS7-4-A — mutation rate limiter (Ruling 12). 60/min per user. Mutations
+  // burst during a focused edit session (drag-reorder, add 3-4 meals,
+  // swap-recipe) more than recalc fires; the 12/min recalc bucket would be
+  // too tight. Registered now; consumed by the mutation routes that land
+  // in WS7-4-C / WS7-4-D.
+  const mutationLimiterDefaults = deps.mutationLimiterOpts ?? {
+    capacity: 60,
+    refillPerSec: 60 / 60,
+  };
+  const mutationLimiter = rateLimit({
+    ...mutationLimiterDefaults,
+    keyFn: (req) => `planmutation:${req.userId ?? "anonymous"}`,
+  });
+  // Intentionally unused in WS7-4-A — consumers land in WS7-4-C / D.
+  // Reference once to silence the noUnusedLocals lint:
+  void mutationLimiter;
 
   router.post(
     "/plans/:id/recalc-macros",
