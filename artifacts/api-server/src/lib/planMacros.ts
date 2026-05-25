@@ -18,7 +18,7 @@
 //
 // One plan_macros_recalculated activity event is emitted per recalc.
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type Anthropic from "@anthropic-ai/sdk";
 
 import { estimateDishMacros } from "./dishMacros";
@@ -27,6 +27,7 @@ import {
   hasOverrides,
   resolveEffectiveIngredients,
 } from "./overrideResolver";
+import { prisma as prismaSingleton } from "./prisma";
 
 export interface PlanMacrosOptions {
   prisma: PrismaClient;
@@ -115,6 +116,52 @@ function dishHasStoredMacros(dish: {
     dish.carbsGPerServing > 0 ||
     dish.fatGPerServing > 0
   );
+}
+
+/**
+ * Returns true if any dish in the plan lacks canonical stored macros
+ * (i.e. all four PerServing fields are 0). Used by mutation routes to
+ * decide whether to trigger recalc-macros after a structural change.
+ *
+ * @throws PlanMacrosNotFoundError when the plan doesn't exist.
+ */
+export async function planNeedsMacroEstimation(params: {
+  tx?: Prisma.TransactionClient;
+  planId: string;
+}): Promise<boolean> {
+  const client = params.tx ?? prismaSingleton;
+  const plan = await client.mealPlanInstance.findUnique({
+    where: { id: params.planId },
+    select: {
+      items: {
+        select: {
+          meal: {
+            select: {
+              dishLinks: {
+                select: {
+                  dish: {
+                    select: {
+                      caloriesPerServing: true,
+                      proteinGPerServing: true,
+                      carbsGPerServing: true,
+                      fatGPerServing: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!plan) throw new PlanMacrosNotFoundError(params.planId);
+  for (const item of plan.items) {
+    for (const link of item.meal.dishLinks) {
+      if (!dishHasStoredMacros(link.dish)) return true;
+    }
+  }
+  return false;
 }
 
 function roundCalories(v: number): number {

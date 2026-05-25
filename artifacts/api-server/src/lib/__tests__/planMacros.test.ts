@@ -7,11 +7,12 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { _resetClientCache } from "../ai/runAICall";
 import {
   computePlanMacros,
+  planNeedsMacroEstimation,
   PlanMacrosForbiddenError,
   PlanMacrosNotFoundError,
 } from "../planMacros";
@@ -600,5 +601,75 @@ describe("computePlanMacros — aggregation + rounding", () => {
     assert.equal(result.perDay.length, 3);
     const days = result.perDay.map((d) => d.day).sort();
     assert.deepEqual(days, ["Thursday", "Tuesday", "Wednesday"]);
+  });
+});
+
+// ── planNeedsMacroEstimation ──────────────────────────────────────────
+
+interface NeedsEstStub {
+  // Each inner array = one item; numbers are per-dish (cal,prot,carb,fat).
+  items: Array<Array<[number, number, number, number]>>;
+}
+
+function makeNeedsEstStub(plan: NeedsEstStub | null): Prisma.TransactionClient {
+  const stub = {
+    mealPlanInstance: {
+      findUnique: async (_args: unknown) => {
+        if (!plan) return null;
+        return {
+          items: plan.items.map((dishes) => ({
+            meal: {
+              dishLinks: dishes.map(([cal, prot, carb, fat]) => ({
+                dish: {
+                  caloriesPerServing: cal,
+                  proteinGPerServing: prot,
+                  carbsGPerServing: carb,
+                  fatGPerServing: fat,
+                },
+              })),
+            },
+          })),
+        };
+      },
+    },
+  };
+  return stub as unknown as Prisma.TransactionClient;
+}
+
+describe("planNeedsMacroEstimation", () => {
+  it("returns false when every dish has stored macros", async () => {
+    const tx = makeNeedsEstStub({
+      items: [
+        [[520, 28, 38, 26]],
+        [[640, 26, 65, 28]],
+      ],
+    });
+    const result = await planNeedsMacroEstimation({ tx, planId: "plan-1" });
+    assert.equal(result, false);
+  });
+
+  it("returns true when at least one dish has all-zero macros", async () => {
+    const tx = makeNeedsEstStub({
+      items: [
+        [[520, 28, 38, 26]],
+        [[0, 0, 0, 0]],
+      ],
+    });
+    const result = await planNeedsMacroEstimation({ tx, planId: "plan-1" });
+    assert.equal(result, true);
+  });
+
+  it("returns false for an empty plan (no items)", async () => {
+    const tx = makeNeedsEstStub({ items: [] });
+    const result = await planNeedsMacroEstimation({ tx, planId: "plan-1" });
+    assert.equal(result, false);
+  });
+
+  it("throws PlanMacrosNotFoundError when the plan is missing", async () => {
+    const tx = makeNeedsEstStub(null);
+    await assert.rejects(
+      () => planNeedsMacroEstimation({ tx, planId: "missing" }),
+      (err: unknown) => err instanceof PlanMacrosNotFoundError,
+    );
   });
 });
