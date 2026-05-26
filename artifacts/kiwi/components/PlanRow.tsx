@@ -13,15 +13,24 @@ import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens"
 
 type Props = {
   plan: PlanListItem;
+  /** WS7-4-B c9 — Use Plan flow. Fired when the row's plan is a Template;
+   *  the parent screen routes the id into <PlanPreviewModal>. Required when
+   *  the row may receive template-sourced rows (Plans tab does; legacy
+   *  callers with only Instance rows can pass a no-op). */
+  onPreviewTemplate?: (templateId: string) => void;
 };
 
-export function PlanRow({ plan }: Props) {
+export function PlanRow({ plan, onPreviewTemplate }: Props) {
   const router = useRouter();
 
-  // Open → Plan Review, matching the Hero card + This Week callout. The
-  // /plan/[id] screen is still stub-driven until Block C4 (D-WS3-005);
-  // C2 just wires the navigation.
+  // WS7-4-B c9 — source dispatcher. Templates route into the preview overlay
+  // so the user can see the contents before committing; Instances open Plan
+  // Review directly (existing behavior).
   const handleOpen = () => {
+    if (plan.source === "template" && onPreviewTemplate) {
+      onPreviewTemplate(plan.id);
+      return;
+    }
     router.push({ pathname: "/plan/[id]", params: { id: plan.id } });
   };
 
