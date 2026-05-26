@@ -24,6 +24,7 @@ import {
   computePlanMacros as productionComputePlanMacros,
   PlanMacrosForbiddenError,
   PlanMacrosNotFoundError,
+  planNeedsMacroEstimation as productionPlanNeedsMacroEstimation,
 } from "../lib/planMacros";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
@@ -47,6 +48,7 @@ import { composeMealDetail, type MealDetail } from "./meals";
 
 export interface PlansRouterDeps {
   computePlanMacros: typeof productionComputePlanMacros;
+  planNeedsMacroEstimation: typeof productionPlanNeedsMacroEstimation;
   prisma: PrismaClient;
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
   mutationLimiterOpts?: { capacity: number; refillPerSec: number };
@@ -104,6 +106,8 @@ export function createPlansRouter(
   deps: Partial<PlansRouterDeps> = {},
 ): IRouter {
   const computePlanMacros = deps.computePlanMacros ?? productionComputePlanMacros;
+  const planNeedsMacroEstimation =
+    deps.planNeedsMacroEstimation ?? productionPlanNeedsMacroEstimation;
   const prisma = deps.prisma ?? productionPrisma;
   // Same per-user token-bucket pattern + ceiling as meals.ts. Recalc
   // CAN fan out to N AI calls in the worst case, but real Plan Review
@@ -553,6 +557,307 @@ export function createPlansRouter(
       }
     },
   );
+
+  // WS7-4-C c4 — PATCH /plans/:id — multi-field plan edit. Single endpoint
+  // serves all of: name rename, date range, status, isActiveThisWeek,
+  // breakfast/lunch overrides, prepStatus, optimizationNotes. Per-field
+  // activity emissions (per Q-P0-2 mapping) fire only when a field
+  // actually changed. Ruling 8 carve-out: a name-only edit skips the
+  // revisionId bump (rename is metadata, not plan-content).
+  //
+  // Q-P1-6 ruling: PATCH isActiveThisWeek=true on a draft plan does NOT
+  // touch status -- the two axes are orthogonal.
+  //
+  // Q-P1-7: PlanStatus enum read from schema at authoring time.
+  const PatchPlanBody = z
+    .object({
+      name: z.string().min(1).max(120).optional(),
+      startDate: z.string().datetime().nullable().optional(),
+      endDate: z.string().datetime().nullable().optional(),
+      status: z.enum(["draft", "this_week", "next_week", "upcoming", "past"]).optional(),
+      isActiveThisWeek: z.boolean().optional(),
+      breakfastOverrides: z.string().nullable().optional(),
+      lunchOverrides: z.string().nullable().optional(),
+      prepStatus: z.enum(["not_prepped", "partial", "prepped"]).optional(),
+      optimizationNotes: z.unknown().optional(),
+    })
+    .strict()
+    .refine((b) => Object.keys(b).length > 0, "empty patch");
+
+  // Forward-only prepStatus transitions for emission gating (Phase 1 §2 c4).
+  const PREP_RANK: Record<string, number> = {
+    not_prepped: 0,
+    partial: 1,
+    prepped: 2,
+  };
+  const isForwardPrepTransition = (from: string, to: string): boolean =>
+    (PREP_RANK[to] ?? -1) > (PREP_RANK[from] ?? -1);
+
+  // Body-supplied ISO -> Date | null normalizer (Zod accepts string|null).
+  const toNullableDate = (v: string | null | undefined): Date | null | undefined => {
+    if (v === undefined) return undefined;
+    if (v === null) return null;
+    return new Date(v);
+  };
+
+  const isoOrNull = (d: Date | null): string | null => (d ? d.toISOString() : null);
+
+  router.patch("/plans/:id", requireAuth, mutationLimiter, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const id = req.params.id;
+    if (typeof id !== "string" || id.length === 0 || id.length > 100) {
+      return res.status(400).json({ error: "invalid plan id" });
+    }
+
+    const parsed = PatchPlanBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
+    }
+    const body = parsed.data;
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const row = await tx.mealPlanInstance.findUnique({
+          where: { id },
+          select: {
+            userId: true,
+            titleOverride: true,
+            startDate: true,
+            endDate: true,
+            status: true,
+            isActiveThisWeek: true,
+            breakfastOverrides: true,
+            lunchOverrides: true,
+            prepStatus: true,
+            revisionId: true,
+          },
+        });
+        if (!row || row.userId !== userId) {
+          return { kind: "not_found" as const };
+        }
+
+        // Diff body against current state; only fields that actually
+        // changed go into changedFields. Used both for emission gating
+        // and the Ruling 8 name-only revisionBump carve-out.
+        const changedFields = new Set<string>();
+        const data: Record<string, unknown> = {};
+
+        if (body.name !== undefined && body.name !== row.titleOverride) {
+          changedFields.add("name");
+          data.titleOverride = body.name;
+        }
+        const nextStartDate = toNullableDate(body.startDate);
+        if (
+          nextStartDate !== undefined &&
+          isoOrNull(nextStartDate) !== isoOrNull(row.startDate)
+        ) {
+          changedFields.add("startDate");
+          data.startDate = nextStartDate;
+        }
+        const nextEndDate = toNullableDate(body.endDate);
+        if (
+          nextEndDate !== undefined &&
+          isoOrNull(nextEndDate) !== isoOrNull(row.endDate)
+        ) {
+          changedFields.add("endDate");
+          data.endDate = nextEndDate;
+        }
+        if (body.status !== undefined && body.status !== row.status) {
+          changedFields.add("status");
+          data.status = body.status;
+        }
+        if (
+          body.isActiveThisWeek !== undefined &&
+          body.isActiveThisWeek !== row.isActiveThisWeek
+        ) {
+          changedFields.add("isActiveThisWeek");
+          data.isActiveThisWeek = body.isActiveThisWeek;
+        }
+        if (
+          body.breakfastOverrides !== undefined &&
+          body.breakfastOverrides !== row.breakfastOverrides
+        ) {
+          changedFields.add("breakfastOverrides");
+          data.breakfastOverrides = body.breakfastOverrides;
+        }
+        if (
+          body.lunchOverrides !== undefined &&
+          body.lunchOverrides !== row.lunchOverrides
+        ) {
+          changedFields.add("lunchOverrides");
+          data.lunchOverrides = body.lunchOverrides;
+        }
+        if (body.prepStatus !== undefined && body.prepStatus !== row.prepStatus) {
+          changedFields.add("prepStatus");
+          data.prepStatus = body.prepStatus;
+        }
+        if (body.optimizationNotes !== undefined) {
+          changedFields.add("optimizationNotes");
+          data.optimizationNotes =
+            (body.optimizationNotes as Prisma.InputJsonValue | null) ??
+            Prisma.DbNull;
+        }
+
+        // Nothing actually changed -- return current row as if it had.
+        if (changedFields.size === 0) {
+          return { kind: "noop" as const, row };
+        }
+
+        // Ruling 8 name-only carve-out: skip revisionBump iff the only
+        // changed field is name.
+        const isNameOnly =
+          changedFields.size === 1 && changedFields.has("name");
+        if (!isNameOnly) {
+          data.revisionId = { increment: 1 };
+        }
+
+        // isActiveThisWeek false -> true: demote prior actives first
+        // (same-tx invariant; mirrors POST /plans/use-template).
+        if (
+          changedFields.has("isActiveThisWeek") &&
+          body.isActiveThisWeek === true
+        ) {
+          await tx.mealPlanInstance.updateMany({
+            where: { userId, isActiveThisWeek: true, id: { not: id } },
+            data: { isActiveThisWeek: false },
+          });
+        }
+
+        const updated = await tx.mealPlanInstance.update({
+          where: { id },
+          data,
+          select: { id: true, revisionId: true },
+        });
+
+        // Per-field activity emissions (Q-P0-2 mapping).
+        if (changedFields.has("name")) {
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_name_edited",
+            entityType: "MealPlanInstance",
+            entityId: id,
+            metadata: { from: row.titleOverride, to: body.name },
+          });
+        }
+        if (changedFields.has("startDate") || changedFields.has("endDate")) {
+          const fields: string[] = [];
+          if (changedFields.has("startDate")) fields.push("startDate");
+          if (changedFields.has("endDate")) fields.push("endDate");
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_date_range_edited",
+            entityType: "MealPlanInstance",
+            entityId: id,
+            metadata: {
+              fields,
+              from: {
+                startDate: isoOrNull(row.startDate),
+                endDate: isoOrNull(row.endDate),
+              },
+              to: {
+                startDate: changedFields.has("startDate")
+                  ? isoOrNull(nextStartDate ?? null)
+                  : isoOrNull(row.startDate),
+                endDate: changedFields.has("endDate")
+                  ? isoOrNull(nextEndDate ?? null)
+                  : isoOrNull(row.endDate),
+              },
+            },
+          });
+        }
+        if (changedFields.has("status")) {
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_status_changed",
+            entityType: "MealPlanInstance",
+            entityId: id,
+            metadata: { from: row.status, to: body.status },
+          });
+        }
+        if (
+          changedFields.has("isActiveThisWeek") &&
+          body.isActiveThisWeek === true
+        ) {
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_activated_this_week",
+            entityType: "MealPlanInstance",
+            entityId: id,
+            metadata: {},
+          });
+        }
+        if (changedFields.has("breakfastOverrides")) {
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_breakfast_customized",
+            entityType: "MealPlanInstance",
+            entityId: id,
+            metadata: {
+              from: row.breakfastOverrides,
+              to: body.breakfastOverrides,
+            },
+          });
+        }
+        if (changedFields.has("lunchOverrides")) {
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_lunch_customized",
+            entityType: "MealPlanInstance",
+            entityId: id,
+            metadata: { from: row.lunchOverrides, to: body.lunchOverrides },
+          });
+        }
+        if (
+          changedFields.has("prepStatus") &&
+          body.prepStatus !== undefined &&
+          isForwardPrepTransition(row.prepStatus, body.prepStatus)
+        ) {
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_prep_started",
+            entityType: "MealPlanInstance",
+            entityId: id,
+            metadata: { from: row.prepStatus, to: body.prepStatus },
+          });
+        }
+        // optimizationNotes: NO event by design.
+
+        const macrosStale = await planNeedsMacroEstimation({ tx, planId: id });
+
+        return { kind: "updated" as const, instance: updated, macrosStale };
+      });
+
+      if (result.kind === "not_found") {
+        return res.status(404).json({ error: "plan not found" });
+      }
+      if (result.kind === "noop") {
+        // Body was valid but every field matched the current row. Return
+        // the current state and macrosStale = false (no DB read needed
+        // since no item set changed).
+        return res.json({
+          instance: { id, revisionId: result.row.revisionId },
+          macrosStale: false,
+        });
+      }
+      return res.json({
+        instance: { id: result.instance.id, revisionId: result.instance.revisionId },
+        macrosStale: result.macrosStale,
+      });
+    } catch (err) {
+      logger.error({ err, userId, id }, "PATCH /plans/:id failed");
+      return res.status(500).json({ error: "failed to update plan" });
+    }
+  });
 
   // WS7-4-B c4 — POST /plans/use-template/:templateId — copy a public (or
   // owner's private) Template into a new MealPlanInstance for the requester.

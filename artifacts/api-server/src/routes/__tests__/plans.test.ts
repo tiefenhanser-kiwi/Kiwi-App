@@ -926,10 +926,18 @@ function makeC4Stub(opts: {
   };
 }
 
-function mutationSpinUp(stub: unknown, opts?: { limiterCapacity?: number }): Promise<Harness> {
+function mutationSpinUp(
+  stub: unknown,
+  opts?: {
+    limiterCapacity?: number;
+    planNeedsMacroEstimation?: () => Promise<boolean>;
+  },
+): Promise<Harness> {
   return spinUp({
     prisma: stub as never,
     computePlanMacros: (async () => HAPPY_RESULT) as never,
+    planNeedsMacroEstimation: (opts?.planNeedsMacroEstimation ??
+      (async () => false)) as never,
     // Over-provision the mutation limiter so mutation-route test cases
     // do not 429 themselves (c2/c3/c4 share this helper).
     mutationLimiterOpts: { capacity: opts?.limiterCapacity ?? 1000, refillPerSec: 100 },
@@ -1641,6 +1649,428 @@ describe("DELETE /plans/:id — soft-delete (WS7-4-C c3)", () => {
         },
       );
       assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS7-4-C c4 — PATCH /plans/:id (multi-field) ───────────────────────────
+
+interface C4PatchFix {
+  id: string;
+  userId: string;
+  titleOverride: string | null;
+  startDate: Date | null;
+  endDate: Date | null;
+  status: "draft" | "this_week" | "next_week" | "upcoming" | "past";
+  isActiveThisWeek: boolean;
+  breakfastOverrides: string | null;
+  lunchOverrides: string | null;
+  prepStatus: "not_prepped" | "partial" | "prepped";
+  revisionId: number;
+}
+
+interface C4PatchRecorder {
+  instanceUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
+  updateManyCalls: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>;
+  activityWrites: Array<Record<string, unknown>>;
+}
+
+function makeC4PatchStub(opts: {
+  instances?: C4PatchFix[];
+  recorder: C4PatchRecorder;
+  /** Throw on mealPlanInstance.update — exercises rollback. */
+  throwOnUpdate?: boolean;
+}) {
+  const instances = opts.instances ?? [];
+  const recorder = opts.recorder;
+
+  const txClient = {
+    mealPlanInstance: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const row = instances.find((i) => i.id === args.where.id);
+        return row ?? null;
+      },
+      updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        recorder.updateManyCalls.push(args);
+        return { count: 0 };
+      },
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        if (opts.throwOnUpdate) {
+          throw new Error("update-failed");
+        }
+        recorder.instanceUpdates.push(args);
+        const row = instances.find((i) => i.id === args.where.id);
+        const bumped =
+          args.data.revisionId &&
+          typeof args.data.revisionId === "object" &&
+          "increment" in (args.data.revisionId as Record<string, unknown>);
+        const newRev = (row?.revisionId ?? 0) + (bumped ? 1 : 0);
+        return { id: args.where.id, revisionId: newRev };
+      },
+    },
+    userActivity: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.activityWrites.push(args.data);
+        return { id: "act-1" };
+      },
+    },
+  };
+
+  return {
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    mealPlanInstance: txClient.mealPlanInstance,
+    userActivity: txClient.userActivity,
+  };
+}
+
+function fixturePatch(opts: Partial<C4PatchFix> & { id: string }): C4PatchFix {
+  return {
+    id: opts.id,
+    userId: opts.userId ?? A2_USER,
+    titleOverride: opts.titleOverride ?? "Original Name",
+    startDate: opts.startDate ?? null,
+    endDate: opts.endDate ?? null,
+    status: opts.status ?? "draft",
+    isActiveThisWeek: opts.isActiveThisWeek ?? false,
+    breakfastOverrides: opts.breakfastOverrides ?? null,
+    lunchOverrides: opts.lunchOverrides ?? null,
+    prepStatus: opts.prepStatus ?? "not_prepped",
+    revisionId: opts.revisionId ?? 1,
+  };
+}
+
+async function patchPlan(
+  harness: Harness,
+  id: string,
+  body: Record<string, unknown>,
+  userId: string = A2_USER,
+): Promise<Response> {
+  return fetch(`${harness.baseUrl}/plans/${id}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${signToken(userId)}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
+  it("name-only PATCH emits plan_name_edited and does NOT bump revisionId (Ruling 8)", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", titleOverride: "Old", revisionId: 5 })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { name: "New" });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { instance: { revisionId: number }; macrosStale: boolean };
+      assert.equal(body.instance.revisionId, 5);
+      assert.equal(body.macrosStale, false);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const upd = recorder.instanceUpdates[0];
+      assert.equal(upd.data.titleOverride, "New");
+      assert.equal(upd.data.revisionId, undefined);
+
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_name_edited");
+      assert.deepEqual(act.metadata, { from: "Old", to: "New" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("startDate-only PATCH emits ONE plan_date_range_edited with fields=[startDate]", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", startDate: null, endDate: null, revisionId: 2 })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { startDate: "2026-06-01T00:00:00.000Z" });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { instance: { revisionId: number } };
+      assert.equal(body.instance.revisionId, 3);
+
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_date_range_edited");
+      const meta = act.metadata as { fields: string[]; from: { startDate: string | null }; to: { startDate: string | null } };
+      assert.deepEqual(meta.fields, ["startDate"]);
+      assert.equal(meta.from.startDate, null);
+      assert.equal(meta.to.startDate, "2026-06-01T00:00:00.000Z");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("startDate + endDate PATCH emits ONE plan_date_range_edited with fields=[startDate,endDate]", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1" })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", {
+        startDate: "2026-06-01T00:00:00.000Z",
+        endDate: "2026-06-07T00:00:00.000Z",
+      });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.activityWrites.length, 1);
+      const meta = recorder.activityWrites[0].metadata as { fields: string[] };
+      assert.deepEqual(meta.fields, ["startDate", "endDate"]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("status PATCH (draft -> this_week) emits plan_status_changed metadata {from, to}", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", status: "draft" })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { status: "this_week" });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_status_changed");
+      assert.deepEqual(act.metadata, { from: "draft", to: "this_week" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("isActiveThisWeek false -> true demotes prior actives in same tx and emits plan_activated_this_week", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", isActiveThisWeek: false })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { isActiveThisWeek: true });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.updateManyCalls.length, 1);
+      const upd = recorder.updateManyCalls[0];
+      assert.equal((upd.where as { userId: string }).userId, A2_USER);
+      assert.equal((upd.where as { isActiveThisWeek: boolean }).isActiveThisWeek, true);
+      assert.deepEqual((upd.where as { id: { not: string } }).id, { not: "p-1" });
+
+      assert.equal(recorder.activityWrites.length, 1);
+      assert.equal(recorder.activityWrites[0].eventType, "plan_activated_this_week");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("isActiveThisWeek true -> false does NOT emit plan_activated_this_week (silent demotion)", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", isActiveThisWeek: true })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { isActiveThisWeek: false });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.updateManyCalls.length, 0);
+      const types = recorder.activityWrites.map((a) => a.eventType);
+      assert.equal(types.includes("plan_activated_this_week"), false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("breakfastOverrides PATCH emits plan_breakfast_customized", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", breakfastOverrides: null })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { breakfastOverrides: "skip" });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 1);
+      assert.equal(recorder.activityWrites[0].eventType, "plan_breakfast_customized");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("lunchOverrides PATCH emits plan_lunch_customized", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", lunchOverrides: null })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { lunchOverrides: "leftovers" });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 1);
+      assert.equal(recorder.activityWrites[0].eventType, "plan_lunch_customized");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("prepStatus forward transition (not_prepped -> partial) emits plan_prep_started", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", prepStatus: "not_prepped" })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { prepStatus: "partial" });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 1);
+      assert.equal(recorder.activityWrites[0].eventType, "plan_prep_started");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("prepStatus backward transition (prepped -> not_prepped) applies write but emits NO event", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", prepStatus: "prepped" })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { prepStatus: "not_prepped" });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.instanceUpdates.length, 1);
+      assert.equal(recorder.instanceUpdates[0].data.prepStatus, "not_prepped");
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("optimizationNotes PATCH applies write but emits NO activity", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1" })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", {
+        optimizationNotes: [{ type: "prep", text: "Batch on Sunday" }],
+      });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.instanceUpdates.length, 1);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("multi-field PATCH (name + status + startDate) emits 3 events and bumps revisionId", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({ id: "p-1", titleOverride: "Old", status: "draft", revisionId: 7 }),
+        ],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", {
+        name: "Renamed",
+        status: "this_week",
+        startDate: "2026-06-01T00:00:00.000Z",
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { instance: { revisionId: number } };
+      assert.equal(body.instance.revisionId, 8);
+
+      assert.equal(recorder.activityWrites.length, 3);
+      const types = recorder.activityWrites.map((a) => a.eventType).sort();
+      assert.deepEqual(types, [
+        "plan_date_range_edited",
+        "plan_name_edited",
+        "plan_status_changed",
+      ]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("macrosStale reflects planNeedsMacroEstimation result (true when injected)", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1" })],
+      }),
+      { planNeedsMacroEstimation: async () => true },
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { name: "X" });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { macrosStale: boolean };
+      assert.equal(body.macrosStale, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when the plan does not exist", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(makeC4PatchStub({ recorder }));
+    try {
+      const res = await patchPlan(harness, "ghost", { name: "X" });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.instanceUpdates.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 for an empty body (Zod refine)", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1" })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", {});
+      assert.equal(res.status, 400);
+      assert.equal(recorder.instanceUpdates.length, 0);
     } finally {
       await harness.close();
     }
