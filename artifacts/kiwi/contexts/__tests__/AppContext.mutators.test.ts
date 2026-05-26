@@ -492,3 +492,66 @@ test("deactivateAccount calls /me/deactivate then logs the session out", async (
   assert.equal(qc.getQueryData(["auth", "me"]), undefined);
   assert.equal(auth!.token, null);
 });
+
+// ── WS7-4-B c8 — useTemplateAsPlan ────────────────────────────────────────
+
+test("useTemplateAsPlan POSTs use-template and returns instanceId", async () => {
+  await mountAuthed();
+
+  let postCalls = 0;
+  let lastPath: string | null = null;
+  route("POST", "/plans/use-template/tmpl-42", () => {
+    postCalls += 1;
+    lastPath = "/plans/use-template/tmpl-42";
+    return mockJson({ instance: { id: "new-instance-99", revisionId: 1 } }, 201);
+  });
+
+  let result: { instanceId: string } | null = null;
+  await act(async () => {
+    result = await app!.useTemplateAsPlan("tmpl-42");
+  });
+
+  assert.equal(postCalls, 1);
+  assert.equal(lastPath, "/plans/use-template/tmpl-42");
+  assert.equal(result!.instanceId, "new-instance-99");
+});
+
+test("useTemplateAsPlan invalidates the plans-list cache after success", async () => {
+  const qc = await mountAuthed();
+  // Seed a fake plans-list cache row; the mutator should mark it stale.
+  qc.setQueryData(["plans", "list"], { plans: [], activeThisWeek: null, nextCursor: null });
+  const stateBefore = qc.getQueryState(["plans", "list"]);
+  assert.ok(stateBefore);
+
+  route("POST", "/plans/use-template/tmpl-x", () =>
+    mockJson({ instance: { id: "inst-x", revisionId: 1 } }, 201),
+  );
+
+  await act(async () => {
+    await app!.useTemplateAsPlan("tmpl-x");
+  });
+
+  const stateAfter = qc.getQueryState(["plans", "list"]);
+  // invalidateQueries({ queryKey: ["plans"] }) marks anything under that
+  // prefix as stale — observable via isInvalidated.
+  assert.equal(stateAfter?.isInvalidated, true);
+});
+
+test("useTemplateAsPlan propagates a server error", async () => {
+  await mountAuthed();
+
+  route("POST", "/plans/use-template/missing", () =>
+    mockJson({ error: "template not found" }, 404),
+  );
+
+  let caught: unknown = null;
+  await act(async () => {
+    try {
+      await app!.useTemplateAsPlan("missing");
+    } catch (err) {
+      caught = err;
+    }
+  });
+
+  assert.ok(caught, "expected useTemplateAsPlan to throw on 404");
+});

@@ -17,6 +17,7 @@ import {
 } from "@/lib/api/grocery";
 import { buildGroceryList, defaultPlan, getRecipe } from "@/lib/stubs";
 import * as meAPI from "@/lib/api/me";
+import { useTemplate as useTemplateAPI } from "@/lib/api/plans";
 import { useAuth } from "@/contexts/AuthContext";
 import type {
   DayOfWeek,
@@ -155,6 +156,13 @@ interface AppState {
   /** PRD §14.9.4 — initiate account deactivation. Real soft-delete +
    *  Stripe cancellation lands in WS7. */
   deactivateAccount: () => Promise<void>;
+  /** WS7-4-B c8 — Use Plan flow (PRD §9.2.5). Copy a Featured / Top-Rated /
+   *  Hosting / owner-private Template into a new MealPlanInstance owned by
+   *  the current user, with optimizationNotes carried over and useCount
+   *  incremented on the Template server-side. Returns the new Instance id so
+   *  the caller can navigate to `/plan/[id]`. Throws (ApiError 404 / 429 /
+   *  500, UnauthenticatedError 401, ApiSchemaError) on failure. */
+  useTemplateAsPlan: (templateId: string) => Promise<{ instanceId: string }>;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
   // ── Grocery list system (PRD §12; WS5 stubs, WS7 wires real persistence) ──
@@ -536,6 +544,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await logout();
   };
 
+  // WS7-4-B c8 — Use Plan flow. Mirrors the meAPI mutator pattern (typed
+  // helper + cache invalidation); no optimistic state. The server is the
+  // source of truth: it creates the Instance, demotes prior actives, copies
+  // items + optimizationNotes, increments useCount, and emits the
+  // plan_used_from_template activity row. Invalidate the plans-list cache
+  // so the new Instance shows up in my_plans + the This-Week callout on the
+  // next read.
+  const useTemplateAsPlan = useCallback(
+    async (templateId: string) => {
+      const { instanceId } = await useTemplateAPI(templateId);
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      return { instanceId };
+    },
+    [queryClient],
+  );
+
   const toggleGrocery = useCallback(
     async (id: string) => {
       const updated = groceries.map((g) =>
@@ -710,6 +734,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateMarketingConsent,
     completeOnboarding,
     deactivateAccount,
+    useTemplateAsPlan,
     groceries,
     toggleGrocery,
     toggleGroceryItemCompleted,
