@@ -1460,3 +1460,189 @@ describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
     }
   });
 });
+
+// ── WS7-4-C c3 — DELETE /plans/:id (soft-delete / compost) ────────────────
+
+interface C3DeleteFix {
+  id: string;
+  userId: string;
+  revisionId: number;
+  isActiveThisWeek: boolean;
+}
+
+interface C3DeleteRecorder {
+  instanceUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
+  activityWrites: Array<Record<string, unknown>>;
+}
+
+function makeC3DeleteStub(opts: {
+  instances?: C3DeleteFix[];
+  recorder: C3DeleteRecorder;
+}) {
+  const instances = opts.instances ?? [];
+  const recorder = opts.recorder;
+
+  const txClient = {
+    mealPlanInstance: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const row = instances.find((i) => i.id === args.where.id);
+        return row ?? null;
+      },
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        recorder.instanceUpdates.push(args);
+        const row = instances.find((i) => i.id === args.where.id);
+        const newRev = (row?.revisionId ?? 0) + 1;
+        return { id: args.where.id, revisionId: newRev };
+      },
+    },
+    userActivity: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.activityWrites.push(args.data);
+        return { id: "act-1" };
+      },
+    },
+  };
+
+  return {
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    mealPlanInstance: txClient.mealPlanInstance,
+    userActivity: txClient.userActivity,
+  };
+}
+
+describe("DELETE /plans/:id — soft-delete (WS7-4-C c3)", () => {
+  it("owner soft-deletes own plan: status=past, compostedAt set, isArchived true, revisionId bumped, activity emitted", async () => {
+    const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC3DeleteStub({
+        recorder,
+        instances: [
+          { id: "p-1", userId: A2_USER, revisionId: 3, isActiveThisWeek: false },
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-1`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { instance: { id: string; revisionId: number } };
+      assert.equal(body.instance.id, "p-1");
+      assert.equal(body.instance.revisionId, 4);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const upd = recorder.instanceUpdates[0];
+      assert.equal(upd.where.id, "p-1");
+      assert.equal(upd.data.status, "past");
+      assert.ok(upd.data.compostedAt instanceof Date);
+      assert.equal(upd.data.isArchived, true);
+      assert.equal(upd.data.isActiveThisWeek, false);
+      assert.deepEqual(upd.data.revisionId, { increment: 1 });
+
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.userId, A2_USER);
+      assert.equal(act.eventType, "plan_composted");
+      assert.equal(act.entityType, "MealPlanInstance");
+      assert.equal(act.entityId, "p-1");
+      assert.deepEqual(act.metadata, { wasActive: false });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("DELETE on active plan auto-clears isActiveThisWeek and records wasActive=true in metadata (Q-P1-5)", async () => {
+    const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC3DeleteStub({
+        recorder,
+        instances: [
+          { id: "p-active", userId: A2_USER, revisionId: 1, isActiveThisWeek: true },
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-active`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+
+      // Single update statement carries the auto-demote.
+      assert.equal(recorder.instanceUpdates.length, 1);
+      assert.equal(recorder.instanceUpdates[0].data.isActiveThisWeek, false);
+
+      // Activity records that this plan WAS active at delete time.
+      assert.deepEqual(recorder.activityWrites[0].metadata, { wasActive: true });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when the plan does not exist", async () => {
+    const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(makeC3DeleteStub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/ghost`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.instanceUpdates.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 (not 403) when the plan belongs to another user — no existence leak", async () => {
+    const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC3DeleteStub({
+        recorder,
+        instances: [
+          { id: "p-other", userId: "stranger", revisionId: 1, isActiveThisWeek: false },
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-other`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.instanceUpdates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 401 when no Authorization header is present", async () => {
+    const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(makeC3DeleteStub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-1`, { method: "DELETE" });
+      assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 for an over-length plan id", async () => {
+    const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(makeC3DeleteStub({ recorder }));
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/plans/${"x".repeat(101)}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        },
+      );
+      assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+});

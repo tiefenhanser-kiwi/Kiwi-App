@@ -489,6 +489,71 @@ export function createPlansRouter(
     }
   });
 
+  // WS7-4-C c3 — DELETE /plans/:id — soft-delete (compost) the plan.
+  // Q-P1-5 (a) ruling: deleting an active plan auto-clears
+  // isActiveThisWeek in the same statement. The row stays; status flips
+  // to "past", compostedAt is set, isArchived is true, revisionId bumps.
+  router.delete(
+    "/plans/:id",
+    requireAuth,
+    mutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const id = req.params.id;
+      if (typeof id !== "string" || id.length === 0 || id.length > 100) {
+        return res.status(400).json({ error: "invalid plan id" });
+      }
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const row = await tx.mealPlanInstance.findUnique({
+            where: { id },
+            select: { userId: true, revisionId: true, isActiveThisWeek: true },
+          });
+          if (!row || row.userId !== userId) {
+            return { kind: "not_found" as const };
+          }
+
+          const updated = await tx.mealPlanInstance.update({
+            where: { id },
+            data: {
+              status: "past",
+              compostedAt: new Date(),
+              isArchived: true,
+              isActiveThisWeek: false,
+              revisionId: { increment: 1 },
+            },
+            select: { id: true, revisionId: true },
+          });
+
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_composted",
+            entityType: "MealPlanInstance",
+            entityId: id,
+            metadata: { wasActive: row.isActiveThisWeek },
+          });
+
+          return { kind: "deleted" as const, instance: updated };
+        });
+
+        if (result.kind === "not_found") {
+          return res.status(404).json({ error: "plan not found" });
+        }
+        return res.json({
+          instance: { id: result.instance.id, revisionId: result.instance.revisionId },
+        });
+      } catch (err) {
+        logger.error({ err, userId, id }, "DELETE /plans/:id failed");
+        return res.status(500).json({ error: "failed to delete plan" });
+      }
+    },
+  );
+
   // WS7-4-B c4 — POST /plans/use-template/:templateId — copy a public (or
   // owner's private) Template into a new MealPlanInstance for the requester.
   // Body is empty. Same-transaction work:
