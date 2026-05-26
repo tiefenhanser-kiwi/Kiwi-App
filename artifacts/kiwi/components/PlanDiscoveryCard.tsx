@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 
 import { FilterChipRow, PLAN_DISCOVERY_FILTER_OPTIONS } from "@/components/FilterChipRow";
 import { PlanCardSmall } from "@/components/PlanCardSmall";
+import { PlanPreviewModal } from "@/components/PlanPreviewModal";
+import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlans } from "@/hooks/usePlans";
+import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { asPlanDiscoveryFilters, type PlanFilterKey } from "@/lib/api/plans";
 import { homeFilterDefault } from "@/lib/home/filterDefault";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
@@ -17,6 +21,19 @@ const HOME_DISCOVERY_PREVIEW_LIMIT = 5;
 // switching filters is instant and the cache is shared with the Plans tab.
 export function PlanDiscoveryCard() {
   const { user, setUiState } = useAuth();
+  const { useTemplateAsPlan } = useApp();
+  const router = useRouter();
+
+  // WS7-4-B c12 — Use Plan preview overlay state. Owned by the discovery
+  // card (not the home screen) so the prop drill into PlanCardSmall stays
+  // short and the home screen doesn't need to know about template-preview
+  // state. The Use Plan tap on PlanCardSmall navigates directly via its
+  // own router.push; this modal handles the Preview-then-Use chain.
+  const preview = useTemplatePreview();
+  const handleUseFromPreview = async (templateId: string) => {
+    const { instanceId } = await useTemplateAsPlan(templateId);
+    router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
+  };
 
   // Single-select (4H-2 / D-WS7-049): exactly one filter active. Seeded
   // once at mount — a persisted lastPlanDiscoveryFilters wins, else R1's
@@ -92,11 +109,24 @@ export function PlanDiscoveryCard() {
                 build one.
               </Text>
             ) : (
-              visiblePlans.map((p) => <PlanCardSmall key={p.id} plan={p} />)
+              visiblePlans.map((p) => (
+                <PlanCardSmall
+                  key={p.id}
+                  plan={p}
+                  onPreviewTemplate={preview.open}
+                  onUseTemplate={useTemplateAsPlan}
+                />
+              ))
             )}
           </View>
         </View>
       )}
+      <PlanPreviewModal
+        visible={preview.visible}
+        templateId={preview.templateId}
+        onClose={preview.close}
+        onUsePlan={handleUseFromPreview}
+      />
     </View>
   );
 }
