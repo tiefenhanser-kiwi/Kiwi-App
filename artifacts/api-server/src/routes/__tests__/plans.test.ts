@@ -1224,3 +1224,239 @@ describe("POST /plans/use-template/:templateId — errors", () => {
     }
   });
 });
+
+// ── WS7-4-C c2 — POST /plans (empty plan create) ──────────────────────────
+
+interface C2Recorder {
+  createdInstances: Array<Record<string, unknown>>;
+  updateManyCalls: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>;
+  activityWrites: Array<Record<string, unknown>>;
+}
+
+function makeC2Stub(opts: {
+  recorder: C2Recorder;
+  /** Throw on mealPlanInstance.create — exercises tx rollback. */
+  throwOnCreate?: boolean;
+}) {
+  const recorder = opts.recorder;
+  let instanceCounter = 0;
+
+  const txClient = {
+    mealPlanInstance: {
+      updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        recorder.updateManyCalls.push(args);
+        return { count: 0 };
+      },
+      create: async (args: { data: Record<string, unknown> }) => {
+        if (opts.throwOnCreate) {
+          throw new Error("create-failed");
+        }
+        instanceCounter += 1;
+        const id = `created-instance-${instanceCounter}`;
+        const row = { id, revisionId: 1, ...args.data };
+        recorder.createdInstances.push(row);
+        return row;
+      },
+    },
+    userActivity: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.activityWrites.push(args.data);
+        return { id: "act-1" };
+      },
+    },
+  };
+
+  return {
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    mealPlanInstance: txClient.mealPlanInstance,
+    userActivity: txClient.userActivity,
+  };
+}
+
+describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
+  it("creates an Instance with the minimal body (no fields) and emits plan_created", async () => {
+    const recorder: C2Recorder = {
+      createdInstances: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeC2Stub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${signToken(A2_USER)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as { instance: { id: string; revisionId: number } };
+      assert.ok(body.instance.id.startsWith("created-instance-"));
+      assert.equal(body.instance.revisionId, 1);
+
+      // Instance row shape: null template, no name, draft, inactive.
+      assert.equal(recorder.createdInstances.length, 1);
+      const created = recorder.createdInstances[0];
+      assert.equal(created.userId, A2_USER);
+      assert.equal(created.mealPlanTemplateId, null);
+      assert.equal(created.titleOverride, null);
+      assert.equal(created.status, "draft");
+      assert.equal(created.isActiveThisWeek, false);
+
+      // No demote when isActiveThisWeek is false (default).
+      assert.equal(recorder.updateManyCalls.length, 0);
+
+      // Activity emitted with the right shape.
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.userId, A2_USER);
+      assert.equal(act.eventType, "plan_created");
+      assert.equal(act.entityType, "MealPlanInstance");
+      assert.deepEqual(act.metadata, { isActiveThisWeek: false });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("creates an Instance with full body, demotes prior actives, emits activity isActiveThisWeek=true", async () => {
+    const recorder: C2Recorder = {
+      createdInstances: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeC2Stub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${signToken(A2_USER)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "My Empty Plan",
+          startDate: "2026-06-01T00:00:00.000Z",
+          endDate: "2026-06-07T23:59:59.000Z",
+          isActiveThisWeek: true,
+        }),
+      });
+      assert.equal(res.status, 201);
+
+      assert.equal(recorder.createdInstances.length, 1);
+      const created = recorder.createdInstances[0];
+      assert.equal(created.titleOverride, "My Empty Plan");
+      assert.equal(created.isActiveThisWeek, true);
+      assert.ok(created.startDate instanceof Date);
+      assert.ok(created.endDate instanceof Date);
+
+      // Prior actives demoted in same tx.
+      assert.equal(recorder.updateManyCalls.length, 1);
+      const upd = recorder.updateManyCalls[0];
+      assert.equal((upd.where as { userId: string }).userId, A2_USER);
+      assert.equal((upd.where as { isActiveThisWeek: boolean }).isActiveThisWeek, true);
+      assert.equal((upd.data as { isActiveThisWeek: boolean }).isActiveThisWeek, false);
+
+      // Activity metadata reflects the active state.
+      assert.equal(recorder.activityWrites.length, 1);
+      assert.deepEqual(recorder.activityWrites[0].metadata, { isActiveThisWeek: true });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 when name exceeds 120 chars (Zod max validation)", async () => {
+    const recorder: C2Recorder = {
+      createdInstances: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeC2Stub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${signToken(A2_USER)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "x".repeat(121) }),
+      });
+      assert.equal(res.status, 400);
+      assert.equal(recorder.createdInstances.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 when an unknown body field is provided (Zod strict)", async () => {
+    const recorder: C2Recorder = {
+      createdInstances: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeC2Stub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${signToken(A2_USER)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "ok", unknownField: "rejected" }),
+      });
+      assert.equal(res.status, 400);
+      assert.equal(recorder.createdInstances.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 401 when no Authorization header is present", async () => {
+    const recorder: C2Recorder = {
+      createdInstances: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeC2Stub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      assert.equal(res.status, 401);
+      assert.equal(recorder.createdInstances.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rolls back: when create throws, activity is NOT written and 500 is returned", async () => {
+    const recorder: C2Recorder = {
+      createdInstances: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeC2Stub({ recorder, throwOnCreate: true }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${signToken(A2_USER)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "doomed" }),
+      });
+      assert.equal(res.status, 500);
+      assert.equal(recorder.createdInstances.length, 0);
+      // The recorder records only what the stub allows; create threw before
+      // pushing to createdInstances. emitActivity sits AFTER create in the
+      // route, so it never fires — verifies ordering, not Prisma rollback.
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});

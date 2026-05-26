@@ -17,6 +17,7 @@
 
 import { Router, type IRouter } from "express";
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { z } from "zod";
 
 import { logger } from "../lib/logger";
 import {
@@ -411,6 +412,80 @@ export function createPlansRouter(
     } catch (err) {
       logger.error({ err, userId, id }, "GET /plans/templates/:id failed");
       return res.status(500).json({ error: "failed to fetch template" });
+    }
+  });
+
+  // WS7-4-C c2 — POST /plans — create a new empty MealPlanInstance for
+  // the requester. No template; Q-P1-1 (a) ruling lets mealPlanTemplateId
+  // be null. Same-transaction work:
+  //   1) (if body isActiveThisWeek === true) demote prior actives for user;
+  //   2) create the Instance with the body fields applied;
+  //   3) emit plan_created activity (existing enum value at schema.prisma:141).
+  // Fresh Instance starts at revisionId=1 from schema default.
+  const PostPlansBody = z
+    .object({
+      name: z.string().min(1).max(120).optional(),
+      startDate: z.string().datetime().nullable().optional(),
+      endDate: z.string().datetime().nullable().optional(),
+      isActiveThisWeek: z.boolean().optional(),
+    })
+    .strict();
+
+  router.post("/plans", requireAuth, mutationLimiter, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+
+    const parsed = PostPlansBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
+    }
+    const body = parsed.data;
+    const activate = body.isActiveThisWeek === true;
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        if (activate) {
+          await tx.mealPlanInstance.updateMany({
+            where: { userId, isActiveThisWeek: true },
+            data: { isActiveThisWeek: false },
+          });
+        }
+
+        const instance = await tx.mealPlanInstance.create({
+          data: {
+            userId,
+            mealPlanTemplateId: null,
+            titleOverride: body.name ?? null,
+            status: "draft",
+            isActiveThisWeek: activate,
+            startDate: body.startDate ? new Date(body.startDate) : null,
+            endDate: body.endDate ? new Date(body.endDate) : null,
+            optimizationNotes: Prisma.DbNull,
+            breakfastOverrides: null,
+            lunchOverrides: null,
+          },
+        });
+
+        await emitActivity({
+          tx,
+          userId,
+          eventType: "plan_created",
+          entityType: "MealPlanInstance",
+          entityId: instance.id,
+          metadata: { isActiveThisWeek: instance.isActiveThisWeek },
+        });
+
+        return instance;
+      });
+
+      return res.status(201).json({
+        instance: { id: result.id, revisionId: result.revisionId },
+      });
+    } catch (err) {
+      logger.error({ err, userId }, "POST /plans failed");
+      return res.status(500).json({ error: "failed to create plan" });
     }
   });
 

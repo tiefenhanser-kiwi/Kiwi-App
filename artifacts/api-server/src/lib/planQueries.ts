@@ -71,7 +71,7 @@ export interface InstanceRow {
     description: string | null;
     imageUrl: string | null;
     tags: string[];
-  };
+  } | null;
 }
 
 interface TemplateRow {
@@ -101,10 +101,10 @@ const TEMPLATE_SELECT = {
 export function instanceToListItem(row: InstanceRow): PlanListItem {
   return {
     id: row.id,
-    name: row.titleOverride ?? row.template.title,
-    description: row.template.description,
-    image: row.template.imageUrl,
-    tags: row.template.tags,
+    name: row.titleOverride ?? row.template?.title ?? "",
+    description: row.template?.description ?? null,
+    image: row.template?.imageUrl ?? null,
+    tags: row.template?.tags ?? [],
     source: "instance",
     status: row.status,
     startDate: iso(row.startDate),
@@ -131,7 +131,7 @@ function templateToListItem(row: TemplateRow): PlanListItem {
 export function instanceToSummary(row: InstanceRow): PlanSummary {
   return {
     id: row.id,
-    name: row.titleOverride ?? row.template.title,
+    name: row.titleOverride ?? row.template?.title ?? "",
     status: row.status,
     startDate: iso(row.startDate),
     endDate: iso(row.endDate),
