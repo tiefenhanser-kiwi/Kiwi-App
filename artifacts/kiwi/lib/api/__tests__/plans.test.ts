@@ -492,3 +492,47 @@ test("usePlan is disabled for an empty id", async () => {
   assert.equal(latest!.data, undefined);
   renderer.unmount();
 });
+
+// ── WS7-4-C c5/c6 — patchPlan ───────────────────────────────────────────────
+
+test("patchPlan PATCHes /plans/:id and returns the parsed envelope", async () => {
+  let capturedMethod: string | null = null;
+  let capturedBody: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    lastUrl = url;
+    capturedMethod = init?.method ?? "GET";
+    capturedBody = init?.body ?? null;
+    return mockJson({ instance: { id: "plan-1", revisionId: 5 }, macrosStale: false });
+  }) as unknown as typeof fetch;
+
+  const { patchPlan } = await import("../plans");
+  const out = await patchPlan("plan-1", { name: "Renamed" });
+  assert.equal(out.instance.id, "plan-1");
+  assert.equal(out.instance.revisionId, 5);
+  assert.equal(out.macrosStale, false);
+  assert.equal(capturedMethod, "PATCH");
+  assert.ok(lastUrl?.endsWith("/plans/plan-1"), `unexpected url: ${lastUrl}`);
+  assert.equal(capturedBody, JSON.stringify({ name: "Renamed" }));
+});
+
+test("patchPlan throws ApiSchemaError when the response shape is malformed", async () => {
+  nextResponse = () =>
+    mockJson({ instance: { id: "plan-1" /* missing revisionId */ } });
+  const { patchPlan } = await import("../plans");
+  await assert.rejects(
+    () => patchPlan("plan-1", { name: "X" }),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+test("patchPlan propagates a 404 as an ApiError", async () => {
+  nextResponse = () => mockJson({ error: "plan not found" }, 404);
+  const { patchPlan } = await import("../plans");
+  await assert.rejects(
+    () => patchPlan("ghost", { name: "X" }),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});

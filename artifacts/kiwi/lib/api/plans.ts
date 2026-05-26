@@ -170,6 +170,30 @@ const UseTemplateResponseSchema = z.object({
   instance: z.object({ id: z.string(), revisionId: z.number() }),
 });
 
+// WS7-4-C c5/c6 — PATCH /plans/:id response envelope. macrosStale is
+// returned when the server checked planNeedsMacroEstimation as part of
+// the mutation; absent in no-op responses.
+const PatchPlanResponseSchema = z.object({
+  instance: z.object({ id: z.string(), revisionId: z.number() }),
+  macrosStale: z.boolean().optional(),
+});
+export type PatchPlanResponse = z.infer<typeof PatchPlanResponseSchema>;
+
+// Body shape accepted by PATCH /plans/:id. All fields optional; the
+// server enforces non-empty via Zod refine. Mirrors the server-side
+// PatchPlanBody in src/routes/plans.ts (WS7-4-C c4).
+export interface PatchPlanBody {
+  name?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  status?: "draft" | "this_week" | "next_week" | "upcoming" | "past";
+  isActiveThisWeek?: boolean;
+  breakfastOverrides?: string | null;
+  lunchOverrides?: string | null;
+  prepStatus?: "not_prepped" | "partial" | "prepped";
+  optimizationNotes?: unknown;
+}
+
 // ── Getters ────────────────────────────────────────────────────────────────
 
 /**
@@ -232,4 +256,25 @@ export async function useTemplate(
     { method: "POST", schema: UseTemplateResponseSchema },
   );
   return { instanceId: body.instance.id };
+}
+
+/**
+ * WS7-4-C c5/c6 — PATCH /plans/:id — edit any subset of plan-level fields
+ * (name, dates, status, isActiveThisWeek, breakfast/lunch overrides,
+ * prepStatus, optimizationNotes). Single helper covers both updatePlanName
+ * (body = { name }) and updatePlanDateRange (body = { startDate?, endDate? })
+ * since they hit the same endpoint with different body subsets. Propagates
+ * the apiClient typed errors: `ApiError` (404 missing/non-owned, 400
+ * validation, 429 rate limit, 500 tx), `UnauthenticatedError` (401),
+ * `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function patchPlan(
+  planId: string,
+  body: PatchPlanBody,
+): Promise<PatchPlanResponse> {
+  return apiClient(`/plans/${encodeURIComponent(planId)}`, {
+    method: "PATCH",
+    body,
+    schema: PatchPlanResponseSchema,
+  });
 }

@@ -17,7 +17,7 @@ import {
 } from "@/lib/api/grocery";
 import { buildGroceryList, defaultPlan, getRecipe } from "@/lib/stubs";
 import * as meAPI from "@/lib/api/me";
-import { useTemplate as useTemplateAPI } from "@/lib/api/plans";
+import { patchPlan, useTemplate as useTemplateAPI } from "@/lib/api/plans";
 import { useAuth } from "@/contexts/AuthContext";
 import type {
   DayOfWeek,
@@ -423,14 +423,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return [];
   };
 
-  const updatePlanName = async (
-    planId: string,
-    name: string,
-  ): Promise<void> => {
-    // TODO(WS7-4): wire to PATCH /plans/:planId (name). The Plan Review
-    // screen owns local state; this call only logs until WS7-4 lands.
-    console.log("[stub] updatePlanName", { planId, name });
-  };
+  const updatePlanName = useCallback(
+    async (planId: string, name: string): Promise<void> => {
+      await patchPlan(planId, { name });
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+    [queryClient],
+  );
 
   const updatePlanDateRange = async (
     planId: string,
