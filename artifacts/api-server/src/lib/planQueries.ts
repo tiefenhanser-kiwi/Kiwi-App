@@ -149,10 +149,11 @@ export async function resolvePlansForFilter(
   limit: number,
 ): Promise<PlanListItem[]> {
   if (filter === "my_plans") {
-    // NOTE: MealPlanInstance has no isArchived column, so `my_plans` filters
-    // by ownership only. See WS7-3 A2 Phase 3 report §8 (F-A2-3).
+    // WS7-4-C c7: exclude soft-deleted (composted) plans. MealPlanInstance
+    // gained isArchived as part of the soft-delete model; my_plans now
+    // mirrors the same isArchived: false gate used for the template tables.
     const rows = (await prisma.mealPlanInstance.findMany({
-      where: { userId },
+      where: { userId, isArchived: false },
       include: INSTANCE_TEMPLATE_INCLUDE,
       orderBy: { createdAt: "desc" },
       take: limit,
