@@ -164,6 +164,7 @@ enum ActivityEventType {
   plan_grocery_generated
   plan_prep_started
   plan_name_edited
+  plan_used_from_template
 }
 
 enum SpiceTolerance {
@@ -406,10 +407,11 @@ model Meal {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
-  user      User?          @relation(fields: [userId], references: [id])
-  dishLinks MealDishLink[]
-  planItems MealPlanItem[]
-  favorites Favorite[]
+  user          User?                  @relation(fields: [userId], references: [id])
+  dishLinks     MealDishLink[]
+  planItems     MealPlanItem[]
+  templateItems MealPlanTemplateItem[]
+  favorites     Favorite[]
 
   @@map("meals")
 }
@@ -478,8 +480,9 @@ model MealPlanTemplate {
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 
-  user      User               @relation(fields: [userId], references: [id])
+  user      User                   @relation(fields: [userId], references: [id])
   instances MealPlanInstance[]
+  items     MealPlanTemplateItem[]
 
   @@map("meal_plan_templates")
 }
@@ -538,6 +541,23 @@ model MealPlanItem {
   meal         Meal             @relation(fields: [mealId], references: [id])
 
   @@map("meal_plan_items")
+}
+
+model MealPlanTemplateItem {
+  id                 String  @id @default(uuid())
+  mealPlanTemplateId String
+  mealId             String
+  positionIndex      Int     @default(0)
+  assignedDayOfWeek  String?
+  isBreakfast        Boolean @default(false)
+  isLunch            Boolean @default(false)
+  isDinner           Boolean @default(true)
+
+  template MealPlanTemplate @relation(fields: [mealPlanTemplateId], references: [id], onDelete: Cascade)
+  meal     Meal             @relation(fields: [mealId], references: [id])
+
+  @@index([mealPlanTemplateId])
+  @@map("meal_plan_template_items")
 }
 
 model GroceryList {
