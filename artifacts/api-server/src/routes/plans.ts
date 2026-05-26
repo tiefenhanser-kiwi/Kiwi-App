@@ -16,7 +16,7 @@
 // Review.
 
 import { Router, type IRouter } from "express";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { logger } from "../lib/logger";
 import {
@@ -27,6 +27,7 @@ import {
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { requireAuth } from "../middleware/auth";
+import { emitActivity } from "../lib/userActivity";
 import {
   clampLimit,
   mergeById,
@@ -124,8 +125,7 @@ export function createPlansRouter(
   // WS7-4-A — mutation rate limiter (Ruling 12). 60/min per user. Mutations
   // burst during a focused edit session (drag-reorder, add 3-4 meals,
   // swap-recipe) more than recalc fires; the 12/min recalc bucket would be
-  // too tight. Registered now; consumed by the mutation routes that land
-  // in WS7-4-C / WS7-4-D.
+  // too tight. First consumer (WS7-4-B c4): POST /plans/use-template/:id.
   const mutationLimiterDefaults = deps.mutationLimiterOpts ?? {
     capacity: 60,
     refillPerSec: 60 / 60,
@@ -134,9 +134,6 @@ export function createPlansRouter(
     ...mutationLimiterDefaults,
     keyFn: (req) => `planmutation:${req.userId ?? "anonymous"}`,
   });
-  // Intentionally unused in WS7-4-A — consumers land in WS7-4-C / D.
-  // Reference once to silence the noUnusedLocals lint:
-  void mutationLimiter;
 
   router.post(
     "/plans/:id/recalc-macros",
@@ -396,6 +393,126 @@ export function createPlansRouter(
       return res.status(500).json({ error: "failed to fetch template" });
     }
   });
+
+  // WS7-4-B c4 — POST /plans/use-template/:templateId — copy a public (or
+  // owner's private) Template into a new MealPlanInstance for the requester.
+  // Body is empty. Same-transaction work:
+  //   1) demote any existing isActiveThisWeek instances for this user
+  //      (Q-P1-4 ruling — preserves the "exactly one active" invariant);
+  //   2) create the new Instance with isActiveThisWeek: true and
+  //      optimizationNotes copied from the Template (Ruling 3);
+  //   3) createMany MealPlanItems mirroring the Template's items;
+  //   4) increment Template.useCount + bump lastUsedAt;
+  //   5) emit plan_used_from_template activity via emitActivity({ tx, ... }).
+  // Fresh Instance starts at revisionId=1 from schema default
+  // (Phase 1 Finding 1+8 — do NOT call bumpPlanRevision).
+  router.post(
+    "/plans/use-template/:templateId",
+    requireAuth,
+    mutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const templateId = req.params.templateId;
+      if (
+        typeof templateId !== "string" ||
+        templateId.length === 0 ||
+        templateId.length > 100
+      ) {
+        return res.status(400).json({ error: "invalid template id" });
+      }
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const template = await tx.mealPlanTemplate.findUnique({
+            where: { id: templateId },
+            include: { items: { orderBy: { positionIndex: "asc" } } },
+          });
+          if (!template) {
+            return { kind: "not_found" as const };
+          }
+          if (!template.isPublic && template.userId !== userId) {
+            return { kind: "not_found" as const };
+          }
+
+          // Q-P1-4 ruling — demote any existing actives for this user before
+          // creating a new active Instance.
+          await tx.mealPlanInstance.updateMany({
+            where: { userId, isActiveThisWeek: true },
+            data: { isActiveThisWeek: false },
+          });
+
+          const instance = await tx.mealPlanInstance.create({
+            data: {
+              userId,
+              mealPlanTemplateId: templateId,
+              titleOverride: null,
+              status: "draft",
+              isActiveThisWeek: true,
+              startDate: null,
+              endDate: null,
+              optimizationNotes:
+                (template.optimizationNotes as Prisma.InputJsonValue | null) ??
+                Prisma.DbNull,
+              breakfastOverrides: null,
+              lunchOverrides: null,
+            },
+          });
+
+          if (template.items.length > 0) {
+            await tx.mealPlanItem.createMany({
+              data: template.items.map((it) => ({
+                mealPlanInstanceId: instance.id,
+                mealId: it.mealId,
+                positionIndex: it.positionIndex,
+                assignedDayOfWeek: it.assignedDayOfWeek,
+                isBreakfast: it.isBreakfast,
+                isLunch: it.isLunch,
+                isDinner: it.isDinner,
+              })),
+            });
+          }
+
+          await tx.mealPlanTemplate.update({
+            where: { id: templateId },
+            data: {
+              useCount: { increment: 1 },
+              lastUsedAt: new Date(),
+            },
+          });
+
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_used_from_template",
+            entityType: "MealPlanInstance",
+            entityId: instance.id,
+            metadata: { templateId, itemCount: template.items.length },
+          });
+
+          return { kind: "created" as const, instance };
+        });
+
+        if (result.kind === "not_found") {
+          return res.status(404).json({ error: "template not found" });
+        }
+        return res.status(201).json({
+          instance: {
+            id: result.instance.id,
+            revisionId: result.instance.revisionId,
+          },
+        });
+      } catch (err) {
+        logger.error(
+          { err, userId, templateId },
+          "POST /plans/use-template/:templateId failed",
+        );
+        return res.status(500).json({ error: "failed to use template" });
+      }
+    },
+  );
 
   return router;
 }

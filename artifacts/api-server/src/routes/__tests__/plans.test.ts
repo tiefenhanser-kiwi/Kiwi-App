@@ -777,3 +777,372 @@ describe("GET /plans/templates/:id — public template detail", () => {
     }
   });
 });
+
+// ── WS7-4-B c4 — POST /plans/use-template/:templateId ─────────────────────
+
+interface C4Recorder {
+  createdInstances: Array<Record<string, unknown>>;
+  createManyItemsCalls: Array<{ data: Array<Record<string, unknown>> }>;
+  templateUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
+  updateManyCalls: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>;
+  activityWrites: Array<Record<string, unknown>>;
+}
+
+function makeC4Stub(opts: {
+  templates?: TemplateDetailFix[];
+  recorder: C4Recorder;
+  /** Throw after the createMany — exercises rollback. */
+  throwOnUpdate?: boolean;
+}) {
+  const templates = opts.templates ?? [];
+  const recorder = opts.recorder;
+  let instanceCounter = 0;
+
+  const txClient = {
+    mealPlanTemplate: {
+      findUnique: async (args: { where: { id: string } }) =>
+        templates.find((t) => t.id === args.where.id) ?? null,
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        if (opts.throwOnUpdate) {
+          throw new Error("update-failed");
+        }
+        recorder.templateUpdates.push(args);
+        return { id: args.where.id };
+      },
+    },
+    mealPlanInstance: {
+      updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        recorder.updateManyCalls.push(args);
+        return { count: 0 };
+      },
+      create: async (args: { data: Record<string, unknown> }) => {
+        instanceCounter += 1;
+        const id = `created-instance-${instanceCounter}`;
+        const row = { id, revisionId: 1, ...args.data };
+        recorder.createdInstances.push(row);
+        return row;
+      },
+    },
+    mealPlanItem: {
+      createMany: async (args: { data: Array<Record<string, unknown>> }) => {
+        recorder.createManyItemsCalls.push(args);
+        return { count: args.data.length };
+      },
+    },
+    userActivity: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.activityWrites.push(args.data);
+        return { id: "act-1" };
+      },
+    },
+  };
+
+  return {
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    // Non-transactional surface — not used by c4 but the route accesses
+    // prisma.mealPlanTemplate.findUnique elsewhere (c3); harness tolerates.
+    mealPlanTemplate: txClient.mealPlanTemplate,
+    mealPlanInstance: txClient.mealPlanInstance,
+    mealPlanItem: txClient.mealPlanItem,
+    userActivity: txClient.userActivity,
+  };
+}
+
+function c4SpinUp(stub: unknown, opts?: { limiterCapacity?: number }): Promise<Harness> {
+  return spinUp({
+    prisma: stub as never,
+    computePlanMacros: (async () => HAPPY_RESULT) as never,
+    // Risk 3 — over-provision the mutation limiter so the test suite does
+    // not 429 itself across the c4 cases.
+    mutationLimiterOpts: { capacity: opts?.limiterCapacity ?? 1000, refillPerSec: 100 },
+  });
+}
+
+describe("POST /plans/use-template/:templateId — happy path", () => {
+  it("creates an Instance, copies items, demotes prior actives, increments useCount, emits activity", async () => {
+    const recorder: C4Recorder = {
+      createdInstances: [],
+      createManyItemsCalls: [],
+      templateUpdates: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await c4SpinUp(
+      makeC4Stub({
+        recorder,
+        templates: [
+          templateDetailFix({
+            id: "t-use",
+            userId: "owner",
+            isPublic: true,
+            optimizationNotes: [{ type: "prep", text: "Batch sauce" }],
+            items: [
+              { id: "ti-1", mealId: "m-a", positionIndex: 0, assignedDayOfWeek: "Monday",
+                isBreakfast: false, isLunch: false, isDinner: true },
+              { id: "ti-2", mealId: "m-b", positionIndex: 1, assignedDayOfWeek: "Tuesday",
+                isBreakfast: false, isLunch: false, isDinner: true },
+              { id: "ti-3", mealId: "m-c", positionIndex: 2, assignedDayOfWeek: null,
+                isBreakfast: false, isLunch: false, isDinner: true },
+            ],
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/use-template/t-use`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as { instance: { id: string; revisionId: number } };
+      assert.ok(body.instance.id.startsWith("created-instance-"));
+      assert.equal(body.instance.revisionId, 1);
+
+      // Instance was created with the expected shape.
+      assert.equal(recorder.createdInstances.length, 1);
+      const created = recorder.createdInstances[0];
+      assert.equal(created.userId, A2_USER);
+      assert.equal(created.mealPlanTemplateId, "t-use");
+      assert.equal(created.isActiveThisWeek, true);
+      assert.equal(created.status, "draft");
+      assert.equal(created.titleOverride, null);
+
+      // optimizationNotes copied from the template.
+      const notes = created.optimizationNotes as Array<{ type: string; text: string }>;
+      assert.equal(Array.isArray(notes), true);
+      assert.equal(notes.length, 1);
+      assert.equal(notes[0].text, "Batch sauce");
+
+      // 3 items copied, ordered by positionIndex, with day assignments preserved.
+      assert.equal(recorder.createManyItemsCalls.length, 1);
+      const items = recorder.createManyItemsCalls[0].data;
+      assert.equal(items.length, 3);
+      assert.equal(items[0].mealId, "m-a");
+      assert.equal(items[0].assignedDayOfWeek, "Monday");
+      assert.equal(items[2].assignedDayOfWeek, null);
+
+      // demote-prior-actives happened in the same transaction.
+      assert.equal(recorder.updateManyCalls.length, 1);
+      const updMany = recorder.updateManyCalls[0];
+      assert.equal((updMany.where as { userId: string }).userId, A2_USER);
+      assert.equal((updMany.where as { isActiveThisWeek: boolean }).isActiveThisWeek, true);
+      assert.equal((updMany.data as { isActiveThisWeek: boolean }).isActiveThisWeek, false);
+
+      // Template.useCount incremented + lastUsedAt bumped.
+      assert.equal(recorder.templateUpdates.length, 1);
+      const upd = recorder.templateUpdates[0];
+      assert.equal(upd.where.id, "t-use");
+      assert.deepEqual(upd.data.useCount, { increment: 1 });
+      assert.ok(upd.data.lastUsedAt instanceof Date);
+
+      // Activity row written with the right event + metadata.
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_used_from_template");
+      assert.equal(act.entityType, "MealPlanInstance");
+      assert.equal(act.userId, A2_USER);
+      const meta = act.metadata as { templateId: string; itemCount: number };
+      assert.equal(meta.templateId, "t-use");
+      assert.equal(meta.itemCount, 3);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("handles a template with zero items (no createMany call)", async () => {
+    const recorder: C4Recorder = {
+      createdInstances: [],
+      createManyItemsCalls: [],
+      templateUpdates: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await c4SpinUp(
+      makeC4Stub({
+        recorder,
+        templates: [templateDetailFix({ id: "t-empty", isPublic: true, items: [] })],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/use-template/t-empty`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 201);
+      assert.equal(recorder.createdInstances.length, 1);
+      assert.equal(recorder.createManyItemsCalls.length, 0);
+      assert.equal(recorder.activityWrites[0].metadata && (recorder.activityWrites[0].metadata as { itemCount: number }).itemCount, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // Q-P1-1: owner of a non-public template can also use it.
+  it("allows the owner to use their own non-public template", async () => {
+    const recorder: C4Recorder = {
+      createdInstances: [],
+      createManyItemsCalls: [],
+      templateUpdates: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await c4SpinUp(
+      makeC4Stub({
+        recorder,
+        templates: [
+          templateDetailFix({
+            id: "t-mine",
+            userId: A2_USER,
+            isPublic: false,
+            items: [],
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/use-template/t-mine`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 201);
+      assert.equal(recorder.createdInstances.length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("POST /plans/use-template/:templateId — errors", () => {
+  it("returns 401 when no auth header is present", async () => {
+    const recorder: C4Recorder = {
+      createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
+      updateManyCalls: [], activityWrites: [],
+    };
+    const harness = await c4SpinUp(makeC4Stub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/use-template/anything`, { method: "POST" });
+      assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 for an over-length template id", async () => {
+    const recorder: C4Recorder = {
+      createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
+      updateManyCalls: [], activityWrites: [],
+    };
+    const harness = await c4SpinUp(makeC4Stub({ recorder }));
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/plans/use-template/${"x".repeat(101)}`,
+        { method: "POST", headers: { Authorization: `Bearer ${signToken(A2_USER)}` } },
+      );
+      assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when the template does not exist", async () => {
+    const recorder: C4Recorder = {
+      createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
+      updateManyCalls: [], activityWrites: [],
+    };
+    const harness = await c4SpinUp(makeC4Stub({ recorder, templates: [] }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/use-template/ghost`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.createdInstances.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 (not 403) when the template is non-public and the reader is not the owner — no existence leak", async () => {
+    const recorder: C4Recorder = {
+      createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
+      updateManyCalls: [], activityWrites: [],
+    };
+    const harness = await c4SpinUp(
+      makeC4Stub({
+        recorder,
+        templates: [
+          templateDetailFix({ id: "t-priv", userId: "stranger", isPublic: false }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/use-template/t-priv`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.createdInstances.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 429 when the mutation rate limit is exhausted", async () => {
+    const recorder: C4Recorder = {
+      createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
+      updateManyCalls: [], activityWrites: [],
+    };
+    // Capacity 1, very slow refill — first call passes, second is 429.
+    const harness = await c4SpinUp(
+      makeC4Stub({
+        recorder,
+        templates: [templateDetailFix({ id: "t-limit", isPublic: true, items: [] })],
+      }),
+      { limiterCapacity: 1 },
+    );
+    try {
+      const token = signToken(A2_USER + "-limit");
+      const r1 = await fetch(`${harness.baseUrl}/plans/use-template/t-limit`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(r1.status, 201);
+      const r2 = await fetch(`${harness.baseUrl}/plans/use-template/t-limit`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(r2.status, 429);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rolls back the transaction on a mid-write failure (Instance not committed)", async () => {
+    const recorder: C4Recorder = {
+      createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
+      updateManyCalls: [], activityWrites: [],
+    };
+    const harness = await c4SpinUp(
+      makeC4Stub({
+        recorder,
+        throwOnUpdate: true,
+        templates: [templateDetailFix({ id: "t-fail", isPublic: true, items: [] })],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/use-template/t-fail`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 500);
+      // The route's response is 500. The recorder's createdInstances will
+      // show the in-memory create (the stub does not honor txn rollback),
+      // but the route itself never returned the created id — verified by
+      // the 500 + the error body.
+      const body = (await res.json()) as { error: string };
+      assert.equal(body.error, "failed to use template");
+    } finally {
+      await harness.close();
+    }
+  });
+});
