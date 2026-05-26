@@ -10,11 +10,14 @@ import { useRouter } from "expo-router";
 
 import { FilterChipRow, PLAN_DISCOVERY_FILTER_OPTIONS } from "@/components/FilterChipRow";
 import { Header } from "@/components/Header";
+import { PlanPreviewModal } from "@/components/PlanPreviewModal";
 import { PlanRow } from "@/components/PlanRow";
 import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
+import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlans } from "@/hooks/usePlans";
+import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { asPlanDiscoveryFilters, type PlanFilterKey } from "@/lib/api/plans";
 import { plansFilterDefault } from "@/lib/plans/filterDefault";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
@@ -22,6 +25,17 @@ import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens"
 export default function PlansTab() {
   const router = useRouter();
   const { user, setUiState } = useAuth();
+  const { useTemplateAsPlan } = useApp();
+
+  // WS7-4-B c11 — Use Plan preview overlay state. The PlanRow source
+  // dispatcher (c9) routes template-source rows here; the modal fetches
+  // the template detail and surfaces a Use Plan CTA whose tap mutates
+  // and navigates to the freshly-created Instance.
+  const preview = useTemplatePreview();
+  const handleUseFromPreview = async (templateId: string) => {
+    const { instanceId } = await useTemplateAsPlan(templateId);
+    router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
+  };
 
   // usePlans(['my_plans']) — supplies the saved-plan count for the default
   // filter. Cache-shared with the Home Plan Discovery card and (when the
@@ -177,10 +191,22 @@ export default function PlansTab() {
               </View>
             </View>
           ) : (
-            visibleRows.map((row) => <PlanRow key={row.id} plan={row} />)
+            visibleRows.map((row) => (
+              <PlanRow
+                key={row.id}
+                plan={row}
+                onPreviewTemplate={preview.open}
+              />
+            ))
           )}
         </View>
       </Screen>
+      <PlanPreviewModal
+        visible={preview.visible}
+        templateId={preview.templateId}
+        onClose={preview.close}
+        onUsePlan={handleUseFromPreview}
+      />
     </View>
   );
 }
