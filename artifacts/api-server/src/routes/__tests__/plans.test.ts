@@ -926,12 +926,12 @@ function makeC4Stub(opts: {
   };
 }
 
-function c4SpinUp(stub: unknown, opts?: { limiterCapacity?: number }): Promise<Harness> {
+function mutationSpinUp(stub: unknown, opts?: { limiterCapacity?: number }): Promise<Harness> {
   return spinUp({
     prisma: stub as never,
     computePlanMacros: (async () => HAPPY_RESULT) as never,
-    // Risk 3 — over-provision the mutation limiter so the test suite does
-    // not 429 itself across the c4 cases.
+    // Over-provision the mutation limiter so mutation-route test cases
+    // do not 429 themselves (c2/c3/c4 share this helper).
     mutationLimiterOpts: { capacity: opts?.limiterCapacity ?? 1000, refillPerSec: 100 },
   });
 }
@@ -945,7 +945,7 @@ describe("POST /plans/use-template/:templateId — happy path", () => {
       updateManyCalls: [],
       activityWrites: [],
     };
-    const harness = await c4SpinUp(
+    const harness = await mutationSpinUp(
       makeC4Stub({
         recorder,
         templates: [
@@ -1035,7 +1035,7 @@ describe("POST /plans/use-template/:templateId — happy path", () => {
       updateManyCalls: [],
       activityWrites: [],
     };
-    const harness = await c4SpinUp(
+    const harness = await mutationSpinUp(
       makeC4Stub({
         recorder,
         templates: [templateDetailFix({ id: "t-empty", isPublic: true, items: [] })],
@@ -1064,7 +1064,7 @@ describe("POST /plans/use-template/:templateId — happy path", () => {
       updateManyCalls: [],
       activityWrites: [],
     };
-    const harness = await c4SpinUp(
+    const harness = await mutationSpinUp(
       makeC4Stub({
         recorder,
         templates: [
@@ -1096,7 +1096,7 @@ describe("POST /plans/use-template/:templateId — errors", () => {
       createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
       updateManyCalls: [], activityWrites: [],
     };
-    const harness = await c4SpinUp(makeC4Stub({ recorder }));
+    const harness = await mutationSpinUp(makeC4Stub({ recorder }));
     try {
       const res = await fetch(`${harness.baseUrl}/plans/use-template/anything`, { method: "POST" });
       assert.equal(res.status, 401);
@@ -1110,7 +1110,7 @@ describe("POST /plans/use-template/:templateId — errors", () => {
       createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
       updateManyCalls: [], activityWrites: [],
     };
-    const harness = await c4SpinUp(makeC4Stub({ recorder }));
+    const harness = await mutationSpinUp(makeC4Stub({ recorder }));
     try {
       const res = await fetch(
         `${harness.baseUrl}/plans/use-template/${"x".repeat(101)}`,
@@ -1127,7 +1127,7 @@ describe("POST /plans/use-template/:templateId — errors", () => {
       createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
       updateManyCalls: [], activityWrites: [],
     };
-    const harness = await c4SpinUp(makeC4Stub({ recorder, templates: [] }));
+    const harness = await mutationSpinUp(makeC4Stub({ recorder, templates: [] }));
     try {
       const res = await fetch(`${harness.baseUrl}/plans/use-template/ghost`, {
         method: "POST",
@@ -1145,7 +1145,7 @@ describe("POST /plans/use-template/:templateId — errors", () => {
       createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
       updateManyCalls: [], activityWrites: [],
     };
-    const harness = await c4SpinUp(
+    const harness = await mutationSpinUp(
       makeC4Stub({
         recorder,
         templates: [
@@ -1171,7 +1171,7 @@ describe("POST /plans/use-template/:templateId — errors", () => {
       updateManyCalls: [], activityWrites: [],
     };
     // Capacity 1, very slow refill — first call passes, second is 429.
-    const harness = await c4SpinUp(
+    const harness = await mutationSpinUp(
       makeC4Stub({
         recorder,
         templates: [templateDetailFix({ id: "t-limit", isPublic: true, items: [] })],
@@ -1200,7 +1200,7 @@ describe("POST /plans/use-template/:templateId — errors", () => {
       createdInstances: [], createManyItemsCalls: [], templateUpdates: [],
       updateManyCalls: [], activityWrites: [],
     };
-    const harness = await c4SpinUp(
+    const harness = await mutationSpinUp(
       makeC4Stub({
         recorder,
         throwOnUpdate: true,
