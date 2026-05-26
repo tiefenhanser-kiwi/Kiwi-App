@@ -301,7 +301,7 @@ export function createPlansRouter(
       return res.json({
         plan: {
           id: instance.id,
-          name: instance.titleOverride ?? instance.template.title,
+          name: instance.titleOverride ?? instance.template?.title ?? "",
           status: instance.status,
           startDate: instance.startDate
             ? instance.startDate.toISOString()
@@ -311,7 +311,7 @@ export function createPlansRouter(
           isActiveThisWeek: instance.isActiveThisWeek,
           userId: instance.userId,
           // sourceType lives on the template, not the instance.
-          sourceType: instance.template.sourceType,
+          sourceType: instance.template?.sourceType ?? "manual",
           prepStatus: instance.prepStatus,
           optimizationNotes: instance.optimizationNotes ?? [],
           breakfastOverrides: instance.breakfastOverrides ?? "",
@@ -341,12 +341,32 @@ export function createPlansRouter(
     }
 
     try {
-      const template = await prisma.mealPlanTemplate.findUnique({
-        where: { id },
-        include: { items: { orderBy: { positionIndex: "asc" } } },
+      // WS7-4-C c0: wrap findUnique + plan_preview_opened emission in a single
+      // transaction. Emission fires AFTER the 404 gate and ONLY for non-owners
+      // (PRD §9.7 "for non-owned plans" — owners viewing their own template
+      // emit nothing).
+      const template = await prisma.$transaction(async (tx) => {
+        const t = await tx.mealPlanTemplate.findUnique({
+          where: { id },
+          include: { items: { orderBy: { positionIndex: "asc" } } },
+        });
+        if (!t || (!t.isPublic && t.userId !== userId)) {
+          return null;
+        }
+        if (t.userId !== userId) {
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_preview_opened",
+            entityType: "MealPlanTemplate",
+            entityId: id,
+            metadata: { isPublic: t.isPublic },
+          });
+        }
+        return t;
       });
 
-      if (!template || (!template.isPublic && template.userId !== userId)) {
+      if (!template) {
         return res.status(404).json({ error: "template not found" });
       }
 
@@ -403,7 +423,7 @@ export function createPlansRouter(
   //      optimizationNotes copied from the Template (Ruling 3);
   //   3) createMany MealPlanItems mirroring the Template's items;
   //   4) increment Template.useCount + bump lastUsedAt;
-  //   5) emit plan_used_from_template activity via emitActivity({ tx, ... }).
+  //   5) emit plan_used_from_browse activity via emitActivity({ tx, ... }).
   // Fresh Instance starts at revisionId=1 from schema default
   // (Phase 1 Finding 1+8 — do NOT call bumpPlanRevision).
   router.post(
@@ -486,7 +506,7 @@ export function createPlansRouter(
           await emitActivity({
             tx,
             userId,
-            eventType: "plan_used_from_template",
+            eventType: "plan_used_from_browse",
             entityType: "MealPlanInstance",
             entityId: instance.id,
             metadata: { templateId, itemCount: template.items.length },

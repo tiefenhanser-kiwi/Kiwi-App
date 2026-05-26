@@ -196,7 +196,7 @@ export function createGroceryListsRouter(
           prisma,
           userId,
         });
-        const planTitle = plan.titleOverride ?? plan.template.title;
+        const planTitle = plan.titleOverride ?? plan.template?.title ?? "";
         const final = await generateFinalGroceryList(
           planTitle,
           withSizes,

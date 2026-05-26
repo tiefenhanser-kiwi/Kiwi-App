@@ -164,7 +164,12 @@ enum ActivityEventType {
   plan_grocery_generated
   plan_prep_started
   plan_name_edited
-  plan_used_from_template
+  plan_used_from_browse
+  plan_preview_opened
+  plan_composted
+  plan_date_range_edited
+  plan_status_changed
+  plan_activated_this_week
 }
 
 enum SpiceTolerance {
@@ -490,7 +495,7 @@ model MealPlanTemplate {
 model MealPlanInstance {
   id                 String     @id @default(uuid())
   userId             String
-  mealPlanTemplateId String
+  mealPlanTemplateId String?
   titleOverride      String?
   startDate          DateTime?
   endDate            DateTime?
@@ -512,7 +517,7 @@ model MealPlanInstance {
   updatedAt          DateTime   @updatedAt
 
   user               User              @relation(fields: [userId], references: [id])
-  template           MealPlanTemplate  @relation(fields: [mealPlanTemplateId], references: [id])
+  template           MealPlanTemplate? @relation(fields: [mealPlanTemplateId], references: [id])
   items              MealPlanItem[]
   groceryLists       GroceryList[]
   prepWeekStructure  PrepWeekStructure?

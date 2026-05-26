@@ -148,7 +148,7 @@ export function createHomeRouter(
 
       if (activeInstance) {
         const planName =
-          activeInstance.titleOverride ?? activeInstance.template.title;
+          activeInstance.titleOverride ?? activeInstance.template?.title ?? "";
         activePlan = {
           id: activeInstance.id,
           name: planName,

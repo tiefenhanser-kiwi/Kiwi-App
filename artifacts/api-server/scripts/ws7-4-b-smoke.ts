@@ -202,7 +202,7 @@ async function main(): Promise<number> {
     const activities = await prisma.userActivity.findMany({
       where: {
         userId: user.id,
-        eventType: "plan_used_from_template",
+        eventType: "plan_used_from_browse",
         entityId: createdInstanceId,
       },
     });
@@ -222,7 +222,7 @@ async function main(): Promise<number> {
     // and re-promote the prior active plan if there was one.
     if (createdInstanceId) {
       await prisma.userActivity.deleteMany({
-        where: { entityId: createdInstanceId, eventType: "plan_used_from_template" },
+        where: { entityId: createdInstanceId, eventType: "plan_used_from_browse" },
       });
       await prisma.mealPlanItem.deleteMany({
         where: { mealPlanInstanceId: createdInstanceId },

@@ -622,17 +622,34 @@ function templateDetailFix(opts: Partial<TemplateDetailFix> & { id: string }): T
   };
 }
 
+interface C3Recorder {
+  activityWrites: Array<Record<string, unknown>>;
+}
+
 function makeC3Stub(opts: {
   templates?: TemplateDetailFix[];
   meals?: ReturnType<typeof mealFix>[];
+  recorder?: C3Recorder;
 }) {
   const templates = opts.templates ?? [];
   const meals = opts.meals ?? [];
-  return {
+  const recorder = opts.recorder;
+  const txClient = {
     mealPlanTemplate: {
       findUnique: async (args: { where: { id: string } }) =>
         templates.find((t) => t.id === args.where.id) ?? null,
     },
+    userActivity: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder?.activityWrites.push(args.data);
+        return { id: "act-c3" };
+      },
+    },
+  };
+  return {
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    mealPlanTemplate: txClient.mealPlanTemplate,
+    userActivity: txClient.userActivity,
     meal: {
       findUnique: async (args: { where: { id: string } }) =>
         meals.find((m) => m.id === args.where.id) ?? null,
@@ -772,6 +789,67 @@ describe("GET /plans/templates/:id — public template detail", () => {
         { headers: { Authorization: `Bearer ${signToken(A2_USER)}` } },
       );
       assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-4-C c0 — plan_preview_opened emission. PRD §9.7: fires only for
+  // non-owned plans, i.e. when the reader is NOT the template owner. Owner
+  // reading own template emits nothing.
+  it("emits plan_preview_opened with isPublic metadata when a non-owner reads a public template", async () => {
+    const recorder: C3Recorder = { activityWrites: [] };
+    const harness = await c3SpinUp(
+      makeC3Stub({
+        recorder,
+        templates: [
+          templateDetailFix({
+            id: "t-preview",
+            userId: "owner-other",
+            isPublic: true,
+            items: [],
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/templates/t-preview`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.userId, A2_USER);
+      assert.equal(act.eventType, "plan_preview_opened");
+      assert.equal(act.entityType, "MealPlanTemplate");
+      assert.equal(act.entityId, "t-preview");
+      assert.deepEqual(act.metadata, { isPublic: true });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("does NOT emit plan_preview_opened when the owner reads their own template", async () => {
+    const recorder: C3Recorder = { activityWrites: [] };
+    const harness = await c3SpinUp(
+      makeC3Stub({
+        recorder,
+        templates: [
+          templateDetailFix({
+            id: "t-own",
+            userId: A2_USER,
+            isPublic: true,
+            items: [],
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/templates/t-own`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 0);
     } finally {
       await harness.close();
     }
@@ -938,7 +1016,7 @@ describe("POST /plans/use-template/:templateId — happy path", () => {
       // Activity row written with the right event + metadata.
       assert.equal(recorder.activityWrites.length, 1);
       const act = recorder.activityWrites[0];
-      assert.equal(act.eventType, "plan_used_from_template");
+      assert.equal(act.eventType, "plan_used_from_browse");
       assert.equal(act.entityType, "MealPlanInstance");
       assert.equal(act.userId, A2_USER);
       const meta = act.metadata as { templateId: string; itemCount: number };
