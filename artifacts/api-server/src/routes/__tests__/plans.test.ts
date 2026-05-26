@@ -538,6 +538,9 @@ describe("GET /plans/:id — composite Plan Review", () => {
     }
   });
 
+  // WS7-4-B c3 — new GET /plans/templates/:id endpoint tests follow at the
+  // bottom of this file. The c6 case below is the prior WS7-4-A widening test.
+
   // WS7-4-A c6 — widened response carries the new MealPlanInstance fields.
   it("returns prepStatus + optimizationNotes + breakfast/lunch overrides", async () => {
     const harness = await a2SpinUp(
@@ -573,6 +576,202 @@ describe("GET /plans/:id — composite Plan Review", () => {
       assert.equal(body.plan.optimizationNotes[0].text, "Batch-cook Sunday");
       assert.equal(body.plan.breakfastOverrides, "yogurt + berries");
       assert.equal(body.plan.lunchOverrides, "Sat: leftovers");
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS7-4-B c3 — GET /plans/templates/:id ─────────────────────────────────
+
+interface TemplateDetailFix {
+  id: string;
+  userId: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  tags: string[];
+  sourceType: "wizard" | "manual" | "imported_url" | "imported_image" | "imported_text";
+  defaultDaysCount: number;
+  isPublic: boolean;
+  optimizationNotes: unknown;
+  items: {
+    id: string;
+    mealId: string;
+    positionIndex: number;
+    assignedDayOfWeek: string | null;
+    isBreakfast: boolean;
+    isLunch: boolean;
+    isDinner: boolean;
+  }[];
+}
+
+function templateDetailFix(opts: Partial<TemplateDetailFix> & { id: string }): TemplateDetailFix {
+  return {
+    id: opts.id,
+    userId: opts.userId ?? A2_USER,
+    title: opts.title ?? "Template",
+    description: opts.description ?? "A template",
+    imageUrl: opts.imageUrl ?? null,
+    tags: opts.tags ?? ["dev"],
+    sourceType: opts.sourceType ?? "wizard",
+    defaultDaysCount: opts.defaultDaysCount ?? 5,
+    isPublic: opts.isPublic ?? true,
+    optimizationNotes: opts.optimizationNotes ?? null,
+    items: opts.items ?? [],
+  };
+}
+
+function makeC3Stub(opts: {
+  templates?: TemplateDetailFix[];
+  meals?: ReturnType<typeof mealFix>[];
+}) {
+  const templates = opts.templates ?? [];
+  const meals = opts.meals ?? [];
+  return {
+    mealPlanTemplate: {
+      findUnique: async (args: { where: { id: string } }) =>
+        templates.find((t) => t.id === args.where.id) ?? null,
+    },
+    meal: {
+      findUnique: async (args: { where: { id: string } }) =>
+        meals.find((m) => m.id === args.where.id) ?? null,
+    },
+    recipeInstructionStep: {
+      findMany: async () => [] as unknown[],
+    },
+  };
+}
+
+function c3SpinUp(stub: unknown): Promise<Harness> {
+  return spinUp({
+    prisma: stub as never,
+    computePlanMacros: (async () => HAPPY_RESULT) as never,
+  });
+}
+
+describe("GET /plans/templates/:id — public template detail", () => {
+  it("returns the template with expanded items for an authenticated reader", async () => {
+    const harness = await c3SpinUp(
+      makeC3Stub({
+        templates: [
+          templateDetailFix({
+            id: "t-pub",
+            userId: "owner-x",
+            title: "Family Favorites",
+            description: "Crowd-pleasers",
+            imageUrl: "https://example.com/fam.jpg",
+            tags: ["family", "dev"],
+            defaultDaysCount: 5,
+            isPublic: true,
+            optimizationNotes: [{ type: "prep", text: "Batch sauce Sunday" }],
+            items: [
+              { id: "ti-1", mealId: "m-a", positionIndex: 0, assignedDayOfWeek: "Monday",
+                isBreakfast: false, isLunch: false, isDinner: true },
+              { id: "ti-2", mealId: "m-b", positionIndex: 1, assignedDayOfWeek: "Tuesday",
+                isBreakfast: false, isLunch: false, isDinner: true },
+            ],
+          }),
+        ],
+        meals: [mealFix("m-a", "Meal A", 500), mealFix("m-b", "Meal B", 600)],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/templates/t-pub`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        template: {
+          id: string;
+          title: string;
+          image: string | null;
+          defaultDaysCount: number;
+          tags: string[];
+          optimizationNotes: Array<{ type: string; text: string }>;
+          items: { id: string; mealId: string; positionIndex: number; meal: { id: string } | null }[];
+        };
+      };
+      assert.equal(body.template.id, "t-pub");
+      assert.equal(body.template.title, "Family Favorites");
+      assert.equal(body.template.image, "https://example.com/fam.jpg");
+      assert.equal(body.template.defaultDaysCount, 5);
+      assert.deepEqual(body.template.tags, ["family", "dev"]);
+      assert.equal(body.template.optimizationNotes.length, 1);
+      assert.equal(body.template.items.length, 2);
+      assert.equal(body.template.items[0].mealId, "m-a");
+      assert.equal(body.template.items[0].meal?.id, "m-a");
+      assert.equal(body.template.items[1].mealId, "m-b");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // Risk 5 — owner can read their own non-public template (dev workflow).
+  it("returns 200 when the owner reads their own non-public template", async () => {
+    const harness = await c3SpinUp(
+      makeC3Stub({
+        templates: [
+          templateDetailFix({
+            id: "t-priv",
+            userId: A2_USER,
+            isPublic: false,
+            items: [],
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/templates/t-priv`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { template: { id: string; userId: string } };
+      assert.equal(body.template.id, "t-priv");
+      assert.equal(body.template.userId, A2_USER);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when the template does not exist", async () => {
+    const harness = await c3SpinUp(makeC3Stub({}));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/templates/ghost-template`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 (not 403) when the template is non-public and the reader is not the owner — no existence leak", async () => {
+    const harness = await c3SpinUp(
+      makeC3Stub({
+        templates: [
+          templateDetailFix({ id: "t-secret", userId: "stranger", isPublic: false }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/templates/t-secret`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 for an over-length template id", async () => {
+    const harness = await c3SpinUp(makeC3Stub({}));
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/plans/templates/${"x".repeat(101)}`,
+        { headers: { Authorization: `Bearer ${signToken(A2_USER)}` } },
+      );
+      assert.equal(res.status, 400);
     } finally {
       await harness.close();
     }

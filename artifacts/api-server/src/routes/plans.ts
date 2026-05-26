@@ -329,6 +329,74 @@ export function createPlansRouter(
     }
   });
 
+  // WS7-4-B c3 — GET /plans/templates/:id — public Template detail for the
+  // Use Plan preview overlay. Any authenticated user can read isPublic
+  // Templates; owner can also read their own non-public Templates. Non-public
+  // + non-owner → 404 (no existence leak, mirror GET /plans/:id pattern).
+  router.get("/plans/templates/:id", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const id = req.params.id;
+    if (typeof id !== "string" || id.length === 0 || id.length > 100) {
+      return res.status(400).json({ error: "invalid template id" });
+    }
+
+    try {
+      const template = await prisma.mealPlanTemplate.findUnique({
+        where: { id },
+        include: { items: { orderBy: { positionIndex: "asc" } } },
+      });
+
+      if (!template || (!template.isPublic && template.userId !== userId)) {
+        return res.status(404).json({ error: "template not found" });
+      }
+
+      const items: {
+        id: string;
+        mealId: string;
+        positionIndex: number;
+        assignedDayOfWeek: string | null;
+        isBreakfast: boolean;
+        isLunch: boolean;
+        isDinner: boolean;
+        meal: MealDetail | null;
+      }[] = [];
+      for (const item of template.items) {
+        const meal = await composeMealDetail(prisma, item.mealId);
+        items.push({
+          id: item.id,
+          mealId: item.mealId,
+          positionIndex: item.positionIndex,
+          assignedDayOfWeek: item.assignedDayOfWeek,
+          isBreakfast: item.isBreakfast,
+          isLunch: item.isLunch,
+          isDinner: item.isDinner,
+          meal,
+        });
+      }
+
+      return res.json({
+        template: {
+          id: template.id,
+          userId: template.userId,
+          title: template.title,
+          description: template.description,
+          image: template.imageUrl,
+          tags: template.tags,
+          sourceType: template.sourceType,
+          defaultDaysCount: template.defaultDaysCount,
+          optimizationNotes: template.optimizationNotes ?? [],
+          items,
+        },
+      });
+    } catch (err) {
+      logger.error({ err, userId, id }, "GET /plans/templates/:id failed");
+      return res.status(500).json({ error: "failed to fetch template" });
+    }
+  });
+
   return router;
 }
 
