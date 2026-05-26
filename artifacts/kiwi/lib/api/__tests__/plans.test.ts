@@ -19,6 +19,8 @@ import * as SecureStore from "expo-secure-store";
 import {
   getPlan,
   getPlans,
+  getTemplate,
+  useTemplate,
   PlanDetailSchema,
   PlanListItemSchema,
   PlanSummarySchema,
@@ -369,6 +371,98 @@ test("usePlans transitions from loading to data", async () => {
   assert.equal(latest!.data?.plans.length, 2);
   assert.equal(latest!.data?.activeThisWeek?.id, "plan-1");
   renderer.unmount();
+});
+
+// ── WS7-4-B c5 — getTemplate / useTemplate ──────────────────────────────────
+
+const TEMPLATE_DETAIL_RESPONSE = {
+  template: {
+    id: "tmpl-1",
+    userId: "owner-x",
+    title: "Family Favorites",
+    description: "Crowd-pleasers",
+    image: "https://example.com/fam.jpg",
+    tags: ["family", "dev"],
+    sourceType: "wizard",
+    defaultDaysCount: 5,
+    optimizationNotes: [{ type: "prep" as const, text: "Batch sauce" }],
+    items: [
+      {
+        id: "ti-1",
+        mealId: "meal-1",
+        positionIndex: 0,
+        assignedDayOfWeek: "Monday",
+        isBreakfast: false,
+        isLunch: false,
+        isDinner: true,
+        meal: MEAL_DETAIL,
+      },
+      {
+        id: "ti-2",
+        mealId: "meal-gone",
+        positionIndex: 1,
+        assignedDayOfWeek: null,
+        isBreakfast: false,
+        isLunch: false,
+        isDinner: true,
+        meal: null,
+      },
+    ],
+  },
+};
+
+test("getTemplate unwraps and parses the template envelope", async () => {
+  nextResponse = () => mockJson(TEMPLATE_DETAIL_RESPONSE);
+  const t = await getTemplate("tmpl-1");
+  assert.equal(t.id, "tmpl-1");
+  assert.equal(t.userId, "owner-x");
+  assert.equal(t.defaultDaysCount, 5);
+  assert.equal(t.items.length, 2);
+  assert.equal(t.items[0].meal?.id, "meal-1");
+  assert.equal(t.items[1].meal, null);
+  assert.equal(t.optimizationNotes[0].text, "Batch sauce");
+});
+
+test("getTemplate propagates a 404 as an ApiError", async () => {
+  nextResponse = () => mockJson({ error: "template not found" }, 404);
+  await assert.rejects(
+    () => getTemplate("missing"),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+test("getTemplate rejects a malformed response body", async () => {
+  // strip `userId` so the schema parse fails
+  const { userId: _omit, ...badTemplate } = TEMPLATE_DETAIL_RESPONSE.template;
+  nextResponse = () => mockJson({ template: badTemplate });
+  await assert.rejects(
+    () => getTemplate("tmpl-1"),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+test("useTemplate POSTs and returns instanceId", async () => {
+  let capturedMethod: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string },
+  ) => {
+    lastUrl = url;
+    capturedMethod = init?.method ?? "GET";
+    return mockJson({ instance: { id: "new-instance-7", revisionId: 1 } }, 201);
+  }) as unknown as typeof fetch;
+  const out = await useTemplate("tmpl-1");
+  assert.equal(out.instanceId, "new-instance-7");
+  assert.equal(capturedMethod, "POST");
+  assert.ok(lastUrl?.endsWith("/plans/use-template/tmpl-1"), `unexpected url: ${lastUrl}`);
+});
+
+test("useTemplate propagates a 429 as an ApiError", async () => {
+  nextResponse = () => mockJson({ error: "rate limited" }, 429);
+  await assert.rejects(
+    () => useTemplate("tmpl-1"),
+    (err: unknown) => err instanceof ApiError && err.status === 429,
+  );
 });
 
 test("usePlan is disabled for an empty id", async () => {

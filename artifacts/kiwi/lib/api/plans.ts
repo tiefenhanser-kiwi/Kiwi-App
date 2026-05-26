@@ -134,6 +134,42 @@ export type PlanDetail = z.infer<typeof PlanDetailSchema>;
 
 const PlanDetailEnvelopeSchema = z.object({ plan: PlanDetailSchema });
 
+// WS7-4-B c5 — Template detail schema for the Use Plan preview overlay.
+// Mirrors the GET /plans/templates/:id server projection. Item shape is a
+// subset of PlanDetailItem (no assignedDate / servingsOverride / notes —
+// those are per-Instance concerns; templates carry only slot identity).
+const TemplateDetailItemSchema = z.object({
+  id: z.string(),
+  mealId: z.string(),
+  positionIndex: z.number(),
+  assignedDayOfWeek: z.string().nullable(),
+  isBreakfast: z.boolean(),
+  isLunch: z.boolean(),
+  isDinner: z.boolean(),
+  meal: MealDetailSchema.nullable(),
+});
+export type TemplateDetailItem = z.infer<typeof TemplateDetailItemSchema>;
+
+export const TemplateDetailSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  image: z.string().nullable(),
+  tags: z.array(z.string()),
+  sourceType: z.string(),
+  defaultDaysCount: z.number(),
+  optimizationNotes: z.array(OptimizationNoteSchema),
+  items: z.array(TemplateDetailItemSchema),
+});
+export type TemplateDetail = z.infer<typeof TemplateDetailSchema>;
+
+const TemplateDetailEnvelopeSchema = z.object({ template: TemplateDetailSchema });
+
+const UseTemplateResponseSchema = z.object({
+  instance: z.object({ id: z.string(), revisionId: z.number() }),
+});
+
 // ── Getters ────────────────────────────────────────────────────────────────
 
 /**
@@ -163,4 +199,37 @@ export async function getPlan(id: string): Promise<PlanDetail> {
     schema: PlanDetailEnvelopeSchema,
   });
   return body.plan;
+}
+
+/**
+ * WS7-4-B c5 — GET /plans/templates/:id — public Template detail for the
+ * Use Plan preview overlay. Propagates the apiClient typed errors: `ApiError`
+ * (404 for a missing or non-readable template; the server collapses
+ * non-public-non-owner into 404 to avoid existence leak),
+ * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function getTemplate(templateId: string): Promise<TemplateDetail> {
+  const body = await apiClient(
+    `/plans/templates/${encodeURIComponent(templateId)}`,
+    { schema: TemplateDetailEnvelopeSchema },
+  );
+  return body.template;
+}
+
+/**
+ * WS7-4-B c5 — POST /plans/use-template/:templateId — copy a Template into a
+ * new MealPlanInstance owned by the current user. Returns `{ instanceId }`
+ * for navigation. Propagates the apiClient typed errors: `ApiError` (404 for
+ * missing/non-readable template, 429 when the per-user mutation limit is
+ * exhausted, 500 on transactional failure), `UnauthenticatedError` (401),
+ * `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function useTemplate(
+  templateId: string,
+): Promise<{ instanceId: string }> {
+  const body = await apiClient(
+    `/plans/use-template/${encodeURIComponent(templateId)}`,
+    { method: "POST", schema: UseTemplateResponseSchema },
+  );
+  return { instanceId: body.instance.id };
 }
