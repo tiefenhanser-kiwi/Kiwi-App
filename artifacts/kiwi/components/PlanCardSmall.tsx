@@ -14,9 +14,15 @@ import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens"
 
 type Props = {
   plan: PlanListItem;
+  /** WS7-4-B c10 — Use Plan flow. Required when plan.source === "template".
+   *  Parent (PlanDiscoveryCard, c12) wires these from useTemplatePreview +
+   *  useApp().useTemplateAsPlan. Optional so legacy callers with only
+   *  instance rows aren't forced to thread the props. */
+  onPreviewTemplate?: (templateId: string) => void;
+  onUseTemplate?: (templateId: string) => Promise<{ instanceId: string }>;
 };
 
-export function PlanCardSmall({ plan }: Props) {
+export function PlanCardSmall({ plan, onPreviewTemplate, onUseTemplate }: Props) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const isInstance = plan.source === "instance";
@@ -27,20 +33,25 @@ export function PlanCardSmall({ plan }: Props) {
     router.push({ pathname: "/plan/[id]", params: { id: plan.id } });
   };
 
-  // Catalog templates (source: 'template') keep the stub actions: Preview
-  // wires in Block C4 with Plan Review; Use Plan (a plan-instance mutation)
-  // lands in a later workstream.
+  // WS7-4-B c10 — real Use Plan handlers (no Alert stubs).
   const handlePreview = () => {
-    Alert.alert(
-      "Preview",
-      "Plan preview will land in WS7-3 C4 when Plan Review wires up.",
-    );
+    if (onPreviewTemplate) {
+      onPreviewTemplate(plan.id);
+    } else {
+      Alert.alert("Preview unavailable", "This card was not wired with a preview handler.");
+    }
   };
-  const handleUsePlan = () => {
-    Alert.alert(
-      "Use Plan",
-      "Plan instance creation will land in a later workstream.",
-    );
+  const handleUsePlan = async () => {
+    if (!onUseTemplate) {
+      Alert.alert("Use Plan unavailable", "This card was not wired with a use-template handler.");
+      return;
+    }
+    try {
+      const { instanceId } = await onUseTemplate(plan.id);
+      router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
+    } catch (err) {
+      Alert.alert("Use Plan failed", err instanceof Error ? err.message : String(err));
+    }
   };
 
   const visibleTags = plan.tags.slice(0, 3);
