@@ -449,6 +449,14 @@ const MULTI_DISH_MEAL: DevMultiDishMeal = {
 
 // ── public discovery templates (WS7-3 A2) ───────────────────────────────────
 
+interface DevDiscoveryTemplateItem {
+  mealId: string;
+  positionIndex: number;
+  /** "Monday" .. "Sunday" or null for unscheduled */
+  assignedDayOfWeek: string | null;
+  slot: "breakfast" | "lunch" | "dinner";
+}
+
 interface DevDiscoveryTemplate {
   id: string;
   title: string;
@@ -461,6 +469,10 @@ interface DevDiscoveryTemplate {
   isFeatured: boolean;
   isHostingFeatured: boolean;
   occasionType: string | null;
+  /** WS7-4-B c2: placeholder Unsplash thumbnail per Q-P1-2 (Hans can swap any of these). */
+  imageUrl: string;
+  /** WS7-4-B c2: per Q-P1-1 ruling — meal slots for the Use Plan flow. */
+  items: DevDiscoveryTemplateItem[];
 }
 
 // Featuring flags carry NO scheduled dates → always-visible windows. Counters
@@ -479,6 +491,15 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
     isFeatured: true,
     isHostingFeatured: false,
     occasionType: null,
+    imageUrl:
+      "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80",
+    items: [
+      { mealId: DEV_MEAL_IDS.beefTacos, positionIndex: 0, assignedDayOfWeek: "Monday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.fajitas, positionIndex: 1, assignedDayOfWeek: "Tuesday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.carbonara, positionIndex: 2, assignedDayOfWeek: "Wednesday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.tikkaMasala, positionIndex: 3, assignedDayOfWeek: "Thursday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.grainBowl, positionIndex: 4, assignedDayOfWeek: "Friday", slot: "dinner" },
+    ],
   },
   {
     id: DEV_DISCOVERY_TEMPLATE_IDS.quickWeeknights,
@@ -491,6 +512,15 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
     isFeatured: true,
     isHostingFeatured: false,
     occasionType: null,
+    imageUrl:
+      "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=800&q=80",
+    items: [
+      { mealId: DEV_MEAL_IDS.fajitas, positionIndex: 0, assignedDayOfWeek: "Monday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.beefTacos, positionIndex: 1, assignedDayOfWeek: "Tuesday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.padThai, positionIndex: 2, assignedDayOfWeek: "Wednesday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.carbonara, positionIndex: 3, assignedDayOfWeek: "Thursday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.grainBowl, positionIndex: 4, assignedDayOfWeek: "Friday", slot: "dinner" },
+    ],
   },
   {
     id: DEV_DISCOVERY_TEMPLATE_IDS.holidayHosting,
@@ -503,6 +533,13 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
     isFeatured: false,
     isHostingFeatured: true,
     occasionType: "holiday",
+    imageUrl:
+      "https://images.unsplash.com/photo-1606787366850-de6330128bfc?auto=format&fit=crop&w=800&q=80",
+    items: [
+      { mealId: DEV_MEAL_IDS.salmonRicePilaf, positionIndex: 0, assignedDayOfWeek: null, slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.tikkaMasala, positionIndex: 1, assignedDayOfWeek: null, slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.carbonara, positionIndex: 2, assignedDayOfWeek: null, slot: "dinner" },
+    ],
   },
   {
     id: DEV_DISCOVERY_TEMPLATE_IDS.budgetBowls,
@@ -515,6 +552,15 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
     isFeatured: false,
     isHostingFeatured: false,
     occasionType: null,
+    imageUrl:
+      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80",
+    items: [
+      { mealId: DEV_MEAL_IDS.grainBowl, positionIndex: 0, assignedDayOfWeek: "Monday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.padThai, positionIndex: 1, assignedDayOfWeek: "Tuesday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.beefTacos, positionIndex: 2, assignedDayOfWeek: "Wednesday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.grainBowl, positionIndex: 3, assignedDayOfWeek: "Thursday", slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.carbonara, positionIndex: 4, assignedDayOfWeek: "Friday", slot: "dinner" },
+    ],
   },
 ];
 
@@ -936,6 +982,7 @@ async function seedDiscoveryTemplate(
     sourceType: "wizard" as const,
     defaultDaysCount: t.defaultDaysCount,
     tags: t.tags,
+    imageUrl: t.imageUrl,
     isPublic: true,
     isArchived: false,
     saveCount: t.saveCount,
@@ -944,14 +991,33 @@ async function seedDiscoveryTemplate(
     isHostingFeatured: t.isHostingFeatured,
     occasionType: t.occasionType,
   };
-  await prisma.mealPlanTemplate.upsert({
-    where: { id: t.id },
-    update: fields,
-    create: { id: t.id, ...fields },
+  await prisma.$transaction(async (tx) => {
+    await tx.mealPlanTemplate.upsert({
+      where: { id: t.id },
+      update: fields,
+      create: { id: t.id, ...fields },
+    });
+    // WS7-4-B c2: replace items wholesale on re-seed (idempotent).
+    await tx.mealPlanTemplateItem.deleteMany({
+      where: { mealPlanTemplateId: t.id },
+    });
+    if (t.items.length > 0) {
+      await tx.mealPlanTemplateItem.createMany({
+        data: t.items.map((it) => ({
+          mealPlanTemplateId: t.id,
+          mealId: it.mealId,
+          positionIndex: it.positionIndex,
+          assignedDayOfWeek: it.assignedDayOfWeek,
+          isBreakfast: it.slot === "breakfast",
+          isLunch: it.slot === "lunch",
+          isDinner: it.slot === "dinner",
+        })),
+      });
+    }
   });
   console.log(
     `[devData] seeded discovery template ${t.id}: ` +
-      `save=${t.saveCount} use=${t.useCount} featured=${t.isFeatured} hosting=${t.isHostingFeatured}`,
+      `save=${t.saveCount} use=${t.useCount} featured=${t.isFeatured} hosting=${t.isHostingFeatured} items=${t.items.length}`,
   );
 }
 
