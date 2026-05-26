@@ -7,7 +7,9 @@
 // beyond the strings in _stubs.mjs.
 
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { transform as sucraseTransform } from "sucrase";
 
 import {
   SecureStoreStub,
@@ -15,10 +17,22 @@ import {
   AsyncStorageStub,
 } from "./_stubs.mjs";
 
+// Inline-source stubs (don't import React; safe to ship as data-style modules
+// via the load() hook).
 const STUBS = new Map([
   ["expo-secure-store", SecureStoreStub],
   ["expo-image-manipulator", ImageManipulatorStub],
   ["@react-native-async-storage/async-storage", AsyncStorageStub],
+]);
+
+// WS7-4-B c6 — physical stub files. These need real file URLs so the loader
+// can resolve their own `import React from "react"` against the kiwi package
+// scope. The data-URL "stub:" route used for the inline stubs above cannot
+// satisfy that because there's no package.json scope for a stub: URL.
+const PHYSICAL_STUBS = new Map([
+  ["react-native", "./stubs/react-native.mjs"],
+  ["@expo/vector-icons", "./stubs/expo-vector-icons.mjs"],
+  ["react-native-safe-area-context", "./stubs/safe-area-context.mjs"],
 ]);
 
 // kiwi/ root, used to resolve the `@/*` tsconfig path alias.
@@ -41,6 +55,11 @@ export async function resolve(specifier, context, nextResolve) {
       url: `stub:${specifier}`,
       format: "module",
     };
+  }
+  if (PHYSICAL_STUBS.has(specifier)) {
+    const relPath = PHYSICAL_STUBS.get(specifier);
+    const abs = path.resolve(path.dirname(fileURLToPath(import.meta.url)), relPath);
+    return await nextResolve(pathToFileURL(abs).href, context);
   }
   // Handle tsconfig `@/*` path alias → kiwi/*.
   if (specifier.startsWith("@/")) {
@@ -84,6 +103,20 @@ export async function load(url, context, nextLoad) {
     if (source) {
       return { format: "module", shortCircuit: true, source };
     }
+  }
+  // WS7-4-B c6 — Node's --experimental-strip-types handles .ts but not .tsx
+  // (no JSX transform). Pipe .tsx through sucrase so component tests can
+  // import .tsx React components directly.
+  if (url.startsWith("file://") && url.endsWith(".tsx")) {
+    const filePath = fileURLToPath(url);
+    const src = await readFile(filePath, "utf8");
+    const out = sucraseTransform(src, {
+      transforms: ["typescript", "jsx"],
+      jsxRuntime: "classic",
+      production: false,
+      filePath,
+    });
+    return { format: "module", shortCircuit: true, source: out.code };
   }
   return nextLoad(url, context);
 }

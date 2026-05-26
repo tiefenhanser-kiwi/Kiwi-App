@@ -389,6 +389,9 @@ importers:
       react-test-renderer:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
+      sucrase:
+        specifier: ^3.35.1
+        version: 3.35.1
       typescript:
         specifier: ~5.9.2
         version: 5.9.3

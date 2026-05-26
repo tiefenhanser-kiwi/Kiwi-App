@@ -28,6 +28,12 @@ export async function manipulateAsync() {
 }
 `;
 
+// Note: react-native, @expo/vector-icons, and react-native-safe-area-context
+// stubs live as physical .mjs files in ./stubs/ (WS7-4-B c6). They import
+// React, which the inline data-URL stub channel here cannot satisfy because
+// it has no package.json scope; the loader routes those specifiers to the
+// physical files via PHYSICAL_STUBS in _loader.mjs.
+
 // In-memory AsyncStorage — lets AppContext (and lib/storage) load + run under
 // plain Node. Default export mirrors the real module's surface; the named
 // __resetForTests lets test harnesses clear state between cases.
