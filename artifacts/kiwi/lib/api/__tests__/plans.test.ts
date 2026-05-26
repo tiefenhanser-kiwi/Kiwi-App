@@ -536,3 +536,57 @@ test("patchPlan propagates a 404 as an ApiError", async () => {
     (err: unknown) => err instanceof ApiError && err.status === 404,
   );
 });
+
+// patchPlan covers updatePlanDateRange too (single helper, different body
+// subset). These tests assert the wire shape for the date-range case.
+
+test("patchPlan with startDate-only body sends just startDate (Q-P1-2 optional fields)", async () => {
+  let capturedBody: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    lastUrl = url;
+    capturedBody = init?.body ?? null;
+    return mockJson({ instance: { id: "plan-1", revisionId: 2 } });
+  }) as unknown as typeof fetch;
+
+  const { patchPlan } = await import("../plans");
+  const out = await patchPlan("plan-1", { startDate: "2026-06-01T00:00:00.000Z" });
+  assert.equal(out.instance.revisionId, 2);
+  assert.equal(capturedBody, JSON.stringify({ startDate: "2026-06-01T00:00:00.000Z" }));
+});
+
+test("patchPlan with both startDate and endDate sends both fields", async () => {
+  let capturedBody: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    lastUrl = url;
+    capturedBody = init?.body ?? null;
+    return mockJson({ instance: { id: "plan-1", revisionId: 3 } });
+  }) as unknown as typeof fetch;
+
+  const { patchPlan } = await import("../plans");
+  await patchPlan("plan-1", {
+    startDate: "2026-06-01T00:00:00.000Z",
+    endDate: "2026-06-07T00:00:00.000Z",
+  });
+  assert.equal(
+    capturedBody,
+    JSON.stringify({
+      startDate: "2026-06-01T00:00:00.000Z",
+      endDate: "2026-06-07T00:00:00.000Z",
+    }),
+  );
+});
+
+test("patchPlan date-range body propagates a 404 as an ApiError", async () => {
+  nextResponse = () => mockJson({ error: "plan not found" }, 404);
+  const { patchPlan } = await import("../plans");
+  await assert.rejects(
+    () => patchPlan("ghost", { startDate: "2026-06-01T00:00:00.000Z" }),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});

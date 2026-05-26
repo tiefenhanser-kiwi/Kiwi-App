@@ -116,11 +116,10 @@ interface AppState {
   findSimilarMeals: (mealId: string) => Promise<string[]>;
   /** PRD §8 / §11 — rename a plan. Real persistence WS7. */
   updatePlanName: (planId: string, name: string) => Promise<void>;
-  /** PRD §8 / §11 — update a plan's start/end dates. Real persistence WS7. */
+  /** PRD §8 / §11 — update a plan's start/end dates. */
   updatePlanDateRange: (
     planId: string,
-    startDate: string,
-    endDate: string,
+    range: { startDate?: string; endDate?: string },
   ) => Promise<void>;
   /** PRD §10.5 — save a dish to user's library. Real persistence WS7.
    *  WS5: log only; returns assigned id. */
@@ -432,15 +431,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [queryClient],
   );
 
-  const updatePlanDateRange = async (
-    planId: string,
-    startDate: string,
-    endDate: string,
-  ): Promise<void> => {
-    // TODO(WS7-4): wire to PATCH /plans/:planId (weekStartDate, weekEndDate).
-    // Local-only until WS7-4 lands; screen owns optimistic state.
-    console.log("[stub] updatePlanDateRange", { planId, startDate, endDate });
-  };
+  const updatePlanDateRange = useCallback(
+    async (
+      planId: string,
+      range: { startDate?: string; endDate?: string },
+    ): Promise<void> => {
+      await patchPlan(planId, range);
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+    [queryClient],
+  );
 
   const saveDish = async (dish: DishDraft): Promise<{ id: string }> => {
     // TODO(WS7): wire to POST /me/dishes (create) or PATCH /me/dishes/:id (update)

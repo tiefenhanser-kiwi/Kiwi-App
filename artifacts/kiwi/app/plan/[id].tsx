@@ -294,7 +294,7 @@ export default function PlanReviewScreen() {
         ? { ...prev, weekStartDate: start, weekEndDate: end }
         : prev,
     );
-    void updatePlanDateRange(planId, start, end);
+    void updatePlanDateRange(planId, { startDate: start, endDate: end });
   };
 
   // Block B gate (WS7-3 C4 c1) — server load, error, or adapter-not-yet-seeded
