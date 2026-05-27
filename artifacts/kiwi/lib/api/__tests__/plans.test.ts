@@ -327,6 +327,25 @@ test("getPlan rejects a malformed response body", async () => {
   );
 });
 
+// WS7-4-D c16 — server now emits YYYY-MM-DD on the read path (symmetric with
+// the mobile editor's write shape). The client schema is permissive
+// (`z.string().nullable()`) so the wire change parses cleanly; this test
+// pins the contract so a future strict-ISO 8601 schema tightening would
+// fail loudly instead of silently breaking PlanDateRangeEditor's parser.
+test("getPlan accepts startDate/endDate as YYYY-MM-DD and passes them through", async () => {
+  const ymdResponse = {
+    plan: {
+      ...PLAN_DETAIL_RESPONSE.plan,
+      startDate: "2026-06-07",
+      endDate: "2026-06-13",
+    },
+  };
+  nextResponse = () => mockJson(ymdResponse);
+  const plan = await getPlan("plan-1");
+  assert.equal(plan.startDate, "2026-06-07");
+  assert.equal(plan.endDate, "2026-06-13");
+});
+
 // ── usePlans / usePlan ──────────────────────────────────────────────────────
 
 // Drains in-flight React Query fetches inside an act() pass.

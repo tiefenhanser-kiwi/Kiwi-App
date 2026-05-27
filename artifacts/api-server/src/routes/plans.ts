@@ -46,6 +46,7 @@ import {
   INSTANCE_TEMPLATE_INCLUDE,
   PLAN_FILTER_KEYS,
   resolvePlansForFilter,
+  toYmd,
   type InstanceRow,
   type PlanListItem,
 } from "../lib/planQueries";
@@ -319,10 +320,11 @@ export function createPlansRouter(
           id: instance.id,
           name: instance.titleOverride ?? instance.template?.title ?? "",
           status: instance.status,
-          startDate: instance.startDate
-            ? instance.startDate.toISOString()
-            : null,
-          endDate: instance.endDate ? instance.endDate.toISOString() : null,
+          // WS7-4-D c16 — user-facing plan dates cross the wire as YYYY-MM-DD,
+          // symmetric with the write shape mobile emits via PlanDateRangeEditor
+          // (see toYmd JSDoc in lib/planQueries.ts).
+          startDate: toYmd(instance.startDate),
+          endDate: toYmd(instance.endDate),
           revisionId: instance.revisionId,
           isActiveThisWeek: instance.isActiveThisWeek,
           userId: instance.userId,

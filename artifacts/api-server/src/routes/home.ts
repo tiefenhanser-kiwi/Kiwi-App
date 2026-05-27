@@ -16,6 +16,7 @@ import { MEAL_LIST_SELECT, toListShape } from "./meals";
 import {
   PLAN_FILTER_KEYS,
   resolvePlansForFilter,
+  toYmd,
   type PlanFilterKey,
 } from "../lib/planQueries";
 
@@ -153,12 +154,10 @@ export function createHomeRouter(
           id: activeInstance.id,
           name: planName,
           status: activeInstance.status,
-          startDate: activeInstance.startDate
-            ? activeInstance.startDate.toISOString()
-            : null,
-          endDate: activeInstance.endDate
-            ? activeInstance.endDate.toISOString()
-            : null,
+          // WS7-4-D c16 — user-facing plan dates cross the wire as YYYY-MM-DD
+          // (see toYmd JSDoc in lib/planQueries.ts).
+          startDate: toYmd(activeInstance.startDate),
+          endDate: toYmd(activeInstance.endDate),
           revisionId: activeInstance.revisionId,
         };
 

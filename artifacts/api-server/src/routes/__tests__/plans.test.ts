@@ -206,6 +206,8 @@ function instanceFix(opts: {
   name: string;
   isActiveThisWeek?: boolean;
   createdAt?: Date;
+  startDate?: Date | null;
+  endDate?: Date | null;
   prepStatus?: "not_prepped" | "partial" | "prepped";
   optimizationNotes?: unknown;
   breakfastOverrides?: string | null;
@@ -222,8 +224,8 @@ function instanceFix(opts: {
     userId: opts.userId ?? A2_USER,
     titleOverride: opts.name,
     status: "this_week",
-    startDate: null as Date | null,
-    endDate: null as Date | null,
+    startDate: opts.startDate ?? (null as Date | null),
+    endDate: opts.endDate ?? (null as Date | null),
     isActiveThisWeek: opts.isActiveThisWeek ?? false,
     revisionId: 2,
     prepStatus: opts.prepStatus ?? "not_prepped",
@@ -491,6 +493,68 @@ describe("GET /plans/:id — composite Plan Review", () => {
       assert.equal(body.plan.items[0].meal?.calories, 600);
       // (600 + 400) / 2 distinct days = 500/day
       assert.equal(body.plan.macroDailyAverage.caloriesPerDay, 500);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-4-D c16 — user-facing plan dates cross the wire as YYYY-MM-DD on the
+  // read path, symmetric with the mobile editor's emit shape (PlanDateRangeEditor
+  // deliberately emits YYYY-MM-DD to dodge toISOString TZ-shift; PATCH accepts
+  // it via planDateString per c11). Without symmetric reads, refetch handed
+  // back full ISO 8601 that the mobile parser couldn't split, rendering
+  // "Invalid Date – Invalid Date" in the editor trigger.
+  it("returns startDate/endDate as YYYY-MM-DD (not ISO 8601) on the wire", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-dated",
+            name: "Dated Plan",
+            startDate: new Date("2026-06-07T00:00:00.000Z"),
+            endDate: new Date("2026-06-13T00:00:00.000Z"),
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-dated`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: { startDate: string | null; endDate: string | null };
+      };
+      assert.equal(body.plan.startDate, "2026-06-07");
+      assert.equal(body.plan.endDate, "2026-06-13");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns null startDate/endDate as null (not coerced to a string)", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-undated",
+            name: "Undated Plan",
+            startDate: null,
+            endDate: null,
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-undated`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: { startDate: string | null; endDate: string | null };
+      };
+      assert.equal(body.plan.startDate, null);
+      assert.equal(body.plan.endDate, null);
     } finally {
       await harness.close();
     }

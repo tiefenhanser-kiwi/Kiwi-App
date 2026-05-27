@@ -53,7 +53,21 @@ export interface PlanSummary {
   revisionId: number;
 }
 
-const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
+// WS7-4-D c16 — user-facing plan date fields cross the wire as calendar-date
+// YYYY-MM-DD strings, symmetric with the write path (mobile emits YYYY-MM-DD
+// to dodge toISOString TZ-shift; PATCH /plans/:id accepts it via planDateString
+// per c11). Plan week boundaries are calendar dates per PRD §8 — moment-in-time
+// ISO 8601 implies a precision the field doesn't carry. UTC extraction matches
+// the store side, which canonicalizes via `new Date("YYYY-MM-DD")` (UTC midnight).
+// Activity-event metadata stays ISO 8601 via isoOrNull in plans.ts — that path
+// is a timestamped audit log, not a user-facing date.
+export const toYmd = (d: Date | null): string | null => {
+  if (!d) return null;
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 // ── row shapes (structural — accept Prisma's superset results) ──────────
 
@@ -107,8 +121,8 @@ export function instanceToListItem(row: InstanceRow): PlanListItem {
     tags: row.template?.tags ?? [],
     source: "instance",
     status: row.status,
-    startDate: iso(row.startDate),
-    endDate: iso(row.endDate),
+    startDate: toYmd(row.startDate),
+    endDate: toYmd(row.endDate),
     isActiveThisWeek: row.isActiveThisWeek,
   };
 }
@@ -133,8 +147,8 @@ export function instanceToSummary(row: InstanceRow): PlanSummary {
     id: row.id,
     name: row.titleOverride ?? row.template?.title ?? "",
     status: row.status,
-    startDate: iso(row.startDate),
-    endDate: iso(row.endDate),
+    startDate: toYmd(row.startDate),
+    endDate: toYmd(row.endDate),
     revisionId: row.revisionId,
   };
 }
