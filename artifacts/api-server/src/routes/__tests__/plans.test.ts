@@ -2549,3 +2549,264 @@ describe("POST /plans/:id/items (WS7-4-D c1)", () => {
     }
   });
 });
+
+// ── WS7-4-D c2 — DELETE /plans/:id/items/:itemId ──────────────────────────
+
+interface D2ItemFix {
+  id: string;
+  mealPlanInstanceId: string;
+  mealId: string;
+  assignedDayOfWeek: string | null;
+  isBreakfast: boolean;
+  isLunch: boolean;
+  isDinner: boolean;
+}
+
+interface D2Recorder {
+  itemDeletes: Array<{ where: { id: string } }>;
+  instanceUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
+  activityWrites: Array<Record<string, unknown>>;
+}
+
+function makeD2Stub(opts: {
+  plans?: D1PlanFix[];
+  items?: D2ItemFix[];
+  recorder: D2Recorder;
+  /** Throw on mealPlanItem.delete — exercises rollback. */
+  throwOnItemDelete?: boolean;
+}) {
+  const plans = opts.plans ?? [];
+  const items = opts.items ?? [];
+  const recorder = opts.recorder;
+
+  const txClient = {
+    mealPlanInstance: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const row = plans.find((p) => p.id === args.where.id);
+        return row ? { userId: row.userId } : null;
+      },
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        recorder.instanceUpdates.push(args);
+        const row = plans.find((p) => p.id === args.where.id);
+        const bumped =
+          args.data.revisionId &&
+          typeof args.data.revisionId === "object" &&
+          "increment" in (args.data.revisionId as Record<string, unknown>);
+        const newRev = (row?.revisionId ?? 0) + (bumped ? 1 : 0);
+        return { id: args.where.id, revisionId: newRev };
+      },
+    },
+    mealPlanItem: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const i = items.find((it) => it.id === args.where.id);
+        return i
+          ? {
+              mealPlanInstanceId: i.mealPlanInstanceId,
+              mealId: i.mealId,
+              assignedDayOfWeek: i.assignedDayOfWeek,
+              isBreakfast: i.isBreakfast,
+              isLunch: i.isLunch,
+              isDinner: i.isDinner,
+            }
+          : null;
+      },
+      delete: async (args: { where: { id: string } }) => {
+        if (opts.throwOnItemDelete) {
+          throw new Error("item-delete-failed");
+        }
+        recorder.itemDeletes.push(args);
+        return { id: args.where.id };
+      },
+    },
+    userActivity: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.activityWrites.push(args.data);
+        return { id: "act-d2" };
+      },
+    },
+  };
+
+  return {
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    mealPlanInstance: txClient.mealPlanInstance,
+    mealPlanItem: txClient.mealPlanItem,
+    userActivity: txClient.userActivity,
+  };
+}
+
+async function deletePlanItemReq(
+  harness: Harness,
+  planId: string,
+  itemId: string,
+  userId: string = A2_USER,
+): Promise<Response> {
+  return fetch(`${harness.baseUrl}/plans/${planId}/items/${itemId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${signToken(userId)}` },
+  });
+}
+
+describe("DELETE /plans/:id/items/:itemId (WS7-4-D c2)", () => {
+  it("happy: deletes the item, bumps revision, emits plan_meal_composted with mealId+itemId+slot", async () => {
+    const recorder: D2Recorder = {
+      itemDeletes: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD2Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 4 }],
+        items: [
+          {
+            id: "it-1",
+            mealPlanInstanceId: "p-1",
+            mealId: "m-1",
+            assignedDayOfWeek: "Tuesday",
+            isBreakfast: false,
+            isLunch: true,
+            isDinner: false,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await deletePlanItemReq(harness, "p-1", "it-1");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        planId: string;
+        revisionId: number;
+        macrosStale: boolean;
+      };
+      assert.equal(body.planId, "p-1");
+      assert.equal(body.revisionId, 5);
+      assert.equal(body.macrosStale, false);
+
+      assert.equal(recorder.itemDeletes.length, 1);
+      assert.equal(recorder.itemDeletes[0].where.id, "it-1");
+
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_meal_composted");
+      assert.equal(act.entityType, "MealPlanItem");
+      assert.equal(act.entityId, "it-1");
+      const meta = act.metadata as {
+        mealId: string;
+        itemId: string;
+        slot: string;
+        assignedDayOfWeek: string;
+      };
+      assert.equal(meta.mealId, "m-1");
+      assert.equal(meta.itemId, "it-1");
+      assert.equal(meta.slot, "lunch");
+      assert.equal(meta.assignedDayOfWeek, "Tuesday");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when plan does not exist", async () => {
+    const recorder: D2Recorder = {
+      itemDeletes: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeD2Stub({ recorder, plans: [], items: [] }));
+    try {
+      const res = await deletePlanItemReq(harness, "ghost", "it-1");
+      assert.equal(res.status, 404);
+      assert.equal(recorder.itemDeletes.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when item does not exist", async () => {
+    const recorder: D2Recorder = {
+      itemDeletes: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD2Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        items: [],
+      }),
+    );
+    try {
+      const res = await deletePlanItemReq(harness, "p-1", "ghost-item");
+      assert.equal(res.status, 404);
+      assert.equal(recorder.itemDeletes.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when item belongs to a different plan (no existence leak)", async () => {
+    const recorder: D2Recorder = {
+      itemDeletes: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD2Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        items: [
+          {
+            id: "it-wrong",
+            mealPlanInstanceId: "p-other",
+            mealId: "m-x",
+            assignedDayOfWeek: null,
+            isBreakfast: false,
+            isLunch: false,
+            isDinner: true,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await deletePlanItemReq(harness, "p-1", "it-wrong");
+      assert.equal(res.status, 404);
+      assert.equal(recorder.itemDeletes.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rolls back: when mealPlanItem.delete throws, no activity written and 500 returned", async () => {
+    const recorder: D2Recorder = {
+      itemDeletes: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD2Stub({
+        recorder,
+        throwOnItemDelete: true,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        items: [
+          {
+            id: "it-fail",
+            mealPlanInstanceId: "p-1",
+            mealId: "m-1",
+            assignedDayOfWeek: null,
+            isBreakfast: false,
+            isLunch: false,
+            isDinner: true,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await deletePlanItemReq(harness, "p-1", "it-fail");
+      assert.equal(res.status, 500);
+      assert.equal(recorder.itemDeletes.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});

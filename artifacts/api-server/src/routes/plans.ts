@@ -1141,6 +1141,114 @@ export function createPlansRouter(
     },
   );
 
+  // WS7-4-D c2 — DELETE /plans/:id/items/:itemId — hard-delete an item.
+  // Q-P0-2 (alpha) ruling: hard delete v1; analytics carried via the
+  // plan_meal_composted activity row (Q-P0-7) with mealId+itemId metadata.
+  router.delete(
+    "/plans/:id/items/:itemId",
+    requireAuth,
+    mutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const planId = req.params.id;
+      if (
+        typeof planId !== "string" ||
+        planId.length === 0 ||
+        planId.length > 100
+      ) {
+        return res.status(400).json({ error: "invalid plan id" });
+      }
+      const itemId = req.params.itemId;
+      if (
+        typeof itemId !== "string" ||
+        itemId.length === 0 ||
+        itemId.length > 100
+      ) {
+        return res.status(400).json({ error: "invalid item id" });
+      }
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const plan = await tx.mealPlanInstance.findUnique({
+            where: { id: planId },
+            select: { userId: true },
+          });
+          if (!plan || plan.userId !== userId) {
+            return { kind: "not_found_plan" as const };
+          }
+
+          const item = await tx.mealPlanItem.findUnique({
+            where: { id: itemId },
+            select: {
+              mealPlanInstanceId: true,
+              mealId: true,
+              assignedDayOfWeek: true,
+              isBreakfast: true,
+              isLunch: true,
+              isDinner: true,
+            },
+          });
+          if (!item || item.mealPlanInstanceId !== planId) {
+            return { kind: "not_found_item" as const };
+          }
+
+          const slot = item.isBreakfast
+            ? "breakfast"
+            : item.isLunch
+              ? "lunch"
+              : "dinner";
+
+          await tx.mealPlanItem.delete({ where: { id: itemId } });
+
+          const revisionId = await bumpPlanRevision(planId, tx);
+
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_meal_composted",
+            entityType: "MealPlanItem",
+            entityId: itemId,
+            metadata: {
+              mealId: item.mealId,
+              itemId,
+              assignedDayOfWeek: item.assignedDayOfWeek,
+              slot,
+            },
+          });
+
+          const macrosStale = await planNeedsMacroEstimation({
+            tx,
+            planId,
+          });
+
+          return { kind: "deleted" as const, revisionId, macrosStale };
+        });
+
+        if (result.kind === "not_found_plan") {
+          return res.status(404).json({ error: "plan not found" });
+        }
+        if (result.kind === "not_found_item") {
+          return res.status(404).json({ error: "item not found" });
+        }
+
+        return res.json({
+          planId,
+          revisionId: result.revisionId,
+          macrosStale: result.macrosStale,
+        });
+      } catch (err) {
+        logger.error(
+          { err, userId, planId, itemId },
+          "DELETE /plans/:id/items/:itemId failed",
+        );
+        return res.status(500).json({ error: "failed to delete item" });
+      }
+    },
+  );
+
   return router;
 }
 
