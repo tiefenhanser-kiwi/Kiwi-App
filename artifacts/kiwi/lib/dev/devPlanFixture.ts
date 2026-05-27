@@ -23,8 +23,7 @@ export const DEV_TEST_PLAN_ID = "demo";
 // by getReviewPlan("demo"). Non-empty recipeIds are required to satisfy
 // the `hasAnyRealMeal` gate on the Plans tab "This Week" card
 // (plans.tsx:31-38) and the Home hero's isEmptyState gate (index.tsx:83-90).
-// getRecipe() returns undefined for all inputs today, but the gates only
-// check `recipeId !== ""` — they don't try to resolve.
+// The gates only check `recipeId !== ""` — they don't try to resolve.
 export function buildDevTestPlan(): MealPlan {
   return {
     id: DEV_TEST_PLAN_ID,

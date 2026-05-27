@@ -751,3 +751,66 @@ test("removeMealFromPlan DELETEs /items/:itemId and invalidates plan caches", as
   const after = qc.getQueryState(["plans", "plan-1"]);
   assert.equal(after?.isInvalidated, true);
 });
+
+// ── WS7-4-D c8 — changeMealForPlanItem + Ruling 7 retirement ──────────────
+
+test("changeMealForPlanItem PATCHes /items with { mealId: newMealId } (Q-P0-3 atomic swap on server)", async () => {
+  await mountAuthed();
+
+  let capturedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      String(url).endsWith("/plans/plan-1/items/item-1")
+    ) {
+      capturedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(
+        mockJson(itemMutationResponse("plan-1", "swapped-item-1", "m-new")),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.changeMealForPlanItem("plan-1", "item-1", "m-new");
+  });
+
+  // Per Q-P1-4 v1 restriction: body MUST be { mealId } alone.
+  assert.deepEqual(capturedBody, { mealId: "m-new" });
+});
+
+test("changeMealForPlanItem propagates server error (e.g. 404 when new meal missing)", async () => {
+  await mountAuthed();
+
+  route("PATCH", "/plans/plan-1/items/item-1", () =>
+    mockJson({ error: "meal not found" }, 404),
+  );
+
+  let caught: unknown = null;
+  await act(async () => {
+    try {
+      await app!.changeMealForPlanItem("plan-1", "item-1", "missing");
+    } catch (err) {
+      caught = err;
+    }
+  });
+
+  assert.ok(caught, "expected changeMealForPlanItem to throw on 404");
+});
+
+test("Ruling 7 retirement: AppContext no longer exposes swapMealInCurrentPlan", async () => {
+  await mountAuthed();
+  // The interface dropped the symbol; runtime should match.
+  const v = app as unknown as Record<string, unknown>;
+  assert.equal(
+    "swapMealInCurrentPlan" in v,
+    false,
+    "swapMealInCurrentPlan should be removed from the AppContext value",
+  );
+});

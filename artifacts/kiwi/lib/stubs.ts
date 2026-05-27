@@ -26,11 +26,6 @@ import { DAYS, getMondayISO } from "./domain";
 // Empty recipe list. Replaces the hardcoded 12-recipe array.
 export const RECIPES: Recipe[] = [];
 
-// Always returns undefined until wired to API.
-export function getRecipe(_id: string): Recipe | undefined {
-  return undefined;
-}
-
 // Returns an empty plan scaffold. AppContext uses this on fresh install
 // when there are no saved plans. Empty plan = empty UI state (correct
 // behavior until WS3 builds the real Home flow).

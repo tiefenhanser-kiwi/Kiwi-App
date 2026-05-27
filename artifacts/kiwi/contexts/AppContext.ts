@@ -15,7 +15,7 @@ import {
   addGroceryListItem,
   type AddItemPayload,
 } from "@/lib/api/grocery";
-import { buildGroceryList, defaultPlan, getRecipe } from "@/lib/stubs";
+import { buildGroceryList, defaultPlan } from "@/lib/stubs";
 import * as meAPI from "@/lib/api/me";
 import {
   deletePlanItem,
@@ -32,7 +32,6 @@ import type {
   GroceryItem,
   GroceryListItem,
   MealPlan,
-  MealSlot,
   RecipeOverride,
   Step2Draft,
   Step3Draft,
@@ -73,10 +72,6 @@ interface AppState {
   currentPlan: MealPlan | null;
   savePlan: (plan: MealPlan) => Promise<void>;
   setCurrentPlan: (id: string) => Promise<void>;
-  swapMealInCurrentPlan: (
-    slotIndex: number,
-    newRecipeId: string,
-  ) => Promise<void>;
   // ─────────────────────────────────────────────────────────────────
   // PRD §8 Plan Review mutations (WS5+; client-side until WS7)
   // ─────────────────────────────────────────────────────────────────
@@ -338,25 +333,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [plans, persistGroceriesFor],
   );
 
-  const swapMealInCurrentPlan = useCallback(
-    async (slotIndex: number, newRecipeId: string) => {
-      const plan = plans.find((p) => p.id === currentPlanId);
-      if (!plan) return;
-      if (!getRecipe(newRecipeId)) return;
-      const newMeals: MealSlot[] = plan.meals.map((m, i) =>
-        i === slotIndex ? { ...m, recipeId: newRecipeId, reason: undefined } : m,
-      );
-      const updatedPlan: MealPlan = { ...plan, meals: newMeals };
-      const updatedPlans = plans.map((p) =>
-        p.id === plan.id ? updatedPlan : p,
-      );
-      setPlans(updatedPlans);
-      await saveJSON("plans", updatedPlans);
-      await persistGroceriesFor(updatedPlan);
-    },
-    [plans, currentPlanId, persistGroceriesFor],
-  );
-
   // ─────────────────────────────────────────────────────────────────
   // PRD §8 Plan Review mutation scaffolds (WS5+; real wiring in WS7)
   // ─────────────────────────────────────────────────────────────────
@@ -413,14 +389,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [queryClient],
   );
 
-  const changeMealForPlanItem = async (
-    planId: string,
-    planItemId: string,
-    newMealId: string,
-  ): Promise<void> => {
-    // TODO(WS7): wire to PATCH /plans/:planId/items/:planItemId (mealId)
-    console.log("[stub] changeMealForPlanItem", { planId, planItemId, newMealId });
-  };
+  // WS7-4-D c8 — real API wiring. Q-P0-3 (alpha) atomic server-side
+  // mealId-swap; mobile sends { mealId: newMealId } as a sole-field PATCH
+  // (Q-P1-4 v1 restriction). Day/slot/notes preserved server-side per
+  // Q-P1-4 preservation matrix; mutator returns Promise<void> + invalidates.
+  const changeMealForPlanItem = useCallback(
+    async (
+      planId: string,
+      planItemId: string,
+      newMealId: string,
+    ): Promise<void> => {
+      await patchPlanItem(planId, planItemId, { mealId: newMealId });
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+    [queryClient],
+  );
 
   const changeRecipeForPlanItem = async (
     planId: string,
@@ -740,7 +724,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     currentPlan,
     savePlan,
     setCurrentPlan,
-    swapMealInCurrentPlan,
     assignDayToPlanItem,
     unassignDayFromPlanItem,
     addMealToPlan,
