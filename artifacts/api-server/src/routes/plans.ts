@@ -29,6 +29,7 @@ import {
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { requireAuth } from "../middleware/auth";
+import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
 import {
   clampLimit,
@@ -975,6 +976,167 @@ export function createPlansRouter(
           "POST /plans/use-template/:templateId failed",
         );
         return res.status(500).json({ error: "failed to use template" });
+      }
+    },
+  );
+
+  // WS7-4-D c1 — POST /plans/:id/items — add a meal to a plan.
+  // Q-P0-5 ruling: body uses `slot: "breakfast"|"lunch"|"dinner"` (default
+  // "dinner"); server maps to the 3 booleans on write. Q-P1-5 (a) ruling:
+  // response carries the composed `item` (MealDetail-shaped) so future
+  // skip-refetch UX work is free.
+  const PostPlanItemBody = z
+    .object({
+      mealId: z.string().min(1).max(100),
+      slot: z.enum(["breakfast", "lunch", "dinner"]).optional(),
+      assignedDayOfWeek: z.string().nullable().optional(),
+      servingsOverride: z.number().int().positive().nullable().optional(),
+    })
+    .strict();
+
+  router.post(
+    "/plans/:id/items",
+    requireAuth,
+    mutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const planId = req.params.id;
+      if (
+        typeof planId !== "string" ||
+        planId.length === 0 ||
+        planId.length > 100
+      ) {
+        return res.status(400).json({ error: "invalid plan id" });
+      }
+
+      const parsed = PostPlanItemBody.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "invalid body", details: parsed.error.flatten() });
+      }
+      const body = parsed.data;
+      const slot = body.slot ?? "dinner";
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const plan = await tx.mealPlanInstance.findUnique({
+            where: { id: planId },
+            select: { userId: true },
+          });
+          if (!plan || plan.userId !== userId) {
+            return { kind: "not_found_plan" as const };
+          }
+
+          const meal = await tx.meal.findUnique({
+            where: { id: body.mealId },
+            select: { userId: true, isPublic: true, isArchived: true },
+          });
+          if (!meal || meal.isArchived) {
+            return { kind: "not_found_meal" as const };
+          }
+          if (!meal.isPublic && meal.userId !== userId) {
+            return { kind: "not_found_meal" as const };
+          }
+
+          // positionIndex = max(existing) + 1; 0 for empty plans.
+          const agg = await tx.mealPlanItem.aggregate({
+            where: { mealPlanInstanceId: planId },
+            _max: { positionIndex: true },
+          });
+          const nextPosition =
+            agg._max.positionIndex == null ? 0 : agg._max.positionIndex + 1;
+
+          const created = await tx.mealPlanItem.create({
+            data: {
+              mealPlanInstanceId: planId,
+              mealId: body.mealId,
+              positionIndex: nextPosition,
+              assignedDayOfWeek: body.assignedDayOfWeek ?? null,
+              servingsOverride: body.servingsOverride ?? null,
+              isBreakfast: slot === "breakfast",
+              isLunch: slot === "lunch",
+              isDinner: slot === "dinner",
+            },
+            select: {
+              id: true,
+              mealId: true,
+              positionIndex: true,
+              assignedDayOfWeek: true,
+              assignedDate: true,
+              servingsOverride: true,
+              isBreakfast: true,
+              isLunch: true,
+              isDinner: true,
+              notes: true,
+            },
+          });
+
+          const revisionId = await bumpPlanRevision(planId, tx);
+
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_meal_added",
+            entityType: "MealPlanItem",
+            entityId: created.id,
+            metadata: {
+              mealId: body.mealId,
+              assignedDayOfWeek: created.assignedDayOfWeek,
+              slot,
+            },
+          });
+
+          const macrosStale = await planNeedsMacroEstimation({
+            tx,
+            planId,
+          });
+
+          return {
+            kind: "created" as const,
+            item: created,
+            revisionId,
+            macrosStale,
+          };
+        });
+
+        if (result.kind === "not_found_plan") {
+          return res.status(404).json({ error: "plan not found" });
+        }
+        if (result.kind === "not_found_meal") {
+          return res.status(404).json({ error: "meal not found" });
+        }
+
+        const composedMeal = await composeMealDetail(prisma, result.item.mealId);
+        return res.status(201).json({
+          item: {
+            id: result.item.id,
+            mealId: result.item.mealId,
+            positionIndex: result.item.positionIndex,
+            assignedDayOfWeek: result.item.assignedDayOfWeek,
+            assignedDate: result.item.assignedDate
+              ? result.item.assignedDate.toISOString()
+              : null,
+            servingsOverride: result.item.servingsOverride,
+            isBreakfast: result.item.isBreakfast,
+            isLunch: result.item.isLunch,
+            isDinner: result.item.isDinner,
+            notes: result.item.notes,
+            meal: composedMeal,
+          },
+          planId,
+          revisionId: result.revisionId,
+          macrosStale: result.macrosStale,
+        });
+      } catch (err) {
+        logger.error(
+          { err, userId, planId },
+          "POST /plans/:id/items failed",
+        );
+        return res.status(500).json({ error: "failed to add item" });
       }
     },
   );

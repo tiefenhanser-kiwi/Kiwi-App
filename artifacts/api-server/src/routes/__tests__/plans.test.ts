@@ -2076,3 +2076,476 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 });
+
+// ── WS7-4-D c1 — POST /plans/:id/items ────────────────────────────────────
+
+interface D1PlanFix {
+  id: string;
+  userId: string;
+  revisionId: number;
+}
+
+interface D1MealFix {
+  id: string;
+  userId: string | null;
+  isPublic: boolean;
+  isArchived: boolean;
+  title: string;
+}
+
+interface D1ItemFix {
+  id: string;
+  mealPlanInstanceId: string;
+  positionIndex: number;
+}
+
+interface D1ItemRecorder {
+  itemCreates: Array<{ data: Record<string, unknown> }>;
+  instanceUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
+  activityWrites: Array<Record<string, unknown>>;
+}
+
+function makeD1Stub(opts: {
+  plans?: D1PlanFix[];
+  meals?: D1MealFix[];
+  existingItems?: D1ItemFix[];
+  recorder: D1ItemRecorder;
+  /** Throw on mealPlanItem.create — exercises rollback. */
+  throwOnItemCreate?: boolean;
+}) {
+  const plans = opts.plans ?? [];
+  const meals = opts.meals ?? [];
+  const existingItems = opts.existingItems ?? [];
+  const recorder = opts.recorder;
+  let itemCounter = 0;
+
+  const txClient = {
+    mealPlanInstance: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const row = plans.find((p) => p.id === args.where.id);
+        return row ? { userId: row.userId } : null;
+      },
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        recorder.instanceUpdates.push(args);
+        const row = plans.find((p) => p.id === args.where.id);
+        const bumped =
+          args.data.revisionId &&
+          typeof args.data.revisionId === "object" &&
+          "increment" in (args.data.revisionId as Record<string, unknown>);
+        const newRev = (row?.revisionId ?? 0) + (bumped ? 1 : 0);
+        return { id: args.where.id, revisionId: newRev };
+      },
+    },
+    meal: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const m = meals.find((mm) => mm.id === args.where.id);
+        return m ? { userId: m.userId, isPublic: m.isPublic, isArchived: m.isArchived } : null;
+      },
+    },
+    mealPlanItem: {
+      aggregate: async (args: {
+        where: { mealPlanInstanceId: string };
+        _max: { positionIndex: true };
+      }) => {
+        const inPlan = existingItems.filter(
+          (i) => i.mealPlanInstanceId === args.where.mealPlanInstanceId,
+        );
+        const max = inPlan.reduce(
+          (acc, i) => (acc == null || i.positionIndex > acc ? i.positionIndex : acc),
+          null as number | null,
+        );
+        return { _max: { positionIndex: max } };
+      },
+      create: async (args: { data: Record<string, unknown> }) => {
+        if (opts.throwOnItemCreate) {
+          throw new Error("item-create-failed");
+        }
+        recorder.itemCreates.push(args);
+        itemCounter += 1;
+        const id = `created-item-${itemCounter}`;
+        return {
+          id,
+          mealId: args.data.mealId,
+          positionIndex: args.data.positionIndex,
+          assignedDayOfWeek: args.data.assignedDayOfWeek ?? null,
+          assignedDate: null,
+          servingsOverride: args.data.servingsOverride ?? null,
+          isBreakfast: args.data.isBreakfast,
+          isLunch: args.data.isLunch,
+          isDinner: args.data.isDinner,
+          notes: null,
+        };
+      },
+    },
+    userActivity: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.activityWrites.push(args.data);
+        return { id: "act-d1" };
+      },
+    },
+  };
+
+  // composeMealDetail (the response composer) hits prisma.meal.findUnique
+  // outside the tx; serve a minimally-populated row that won't bypass the
+  // archive gate. Return null mimics archived meal -> composeMealDetail
+  // returns null. We want the meal expanded, so return a populated row.
+  return {
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    mealPlanInstance: txClient.mealPlanInstance,
+    meal: {
+      findUnique: async (args: { where: { id: string }; include?: unknown }) => {
+        const m = meals.find((mm) => mm.id === args.where.id);
+        if (!m) return null;
+        return {
+          id: m.id,
+          userId: m.userId,
+          title: m.title,
+          description: null,
+          mealType: "dinner",
+          sourceType: "manual",
+          cuisineType: null,
+          difficulty: "easy",
+          estimatedTimeMinutes: 30,
+          imageUrl: null,
+          servingsDefault: 4,
+          tags: [],
+          caloriesPerServing: 0,
+          proteinGPerServing: 0,
+          carbsGPerServing: 0,
+          fatGPerServing: 0,
+          timesCooked: 0,
+          isArchived: m.isArchived,
+          isPublic: m.isPublic,
+          dishLinks: [],
+        };
+      },
+    },
+    recipeInstructionStep: {
+      findMany: async () => [] as unknown[],
+    },
+    mealPlanItem: txClient.mealPlanItem,
+    userActivity: txClient.userActivity,
+  };
+}
+
+async function postPlanItem(
+  harness: Harness,
+  planId: string,
+  body: Record<string, unknown>,
+  userId: string = A2_USER,
+): Promise<Response> {
+  return fetch(`${harness.baseUrl}/plans/${planId}/items`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${signToken(userId)}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+describe("POST /plans/:id/items (WS7-4-D c1)", () => {
+  it("happy: adds a meal with default slot=dinner, bumps revision, emits plan_meal_added", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 2 }],
+        meals: [
+          { id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" },
+        ],
+      }),
+    );
+    try {
+      const res = await postPlanItem(harness, "p-1", { mealId: "m-1" });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as {
+        item: { id: string; isDinner: boolean; positionIndex: number };
+        planId: string;
+        revisionId: number;
+        macrosStale: boolean;
+      };
+      assert.equal(body.planId, "p-1");
+      assert.equal(body.revisionId, 3);
+      assert.equal(body.macrosStale, false);
+      assert.equal(body.item.isDinner, true);
+      assert.equal(body.item.positionIndex, 0);
+
+      assert.equal(recorder.itemCreates.length, 1);
+      const created = recorder.itemCreates[0].data;
+      assert.equal(created.mealPlanInstanceId, "p-1");
+      assert.equal(created.mealId, "m-1");
+      assert.equal(created.isDinner, true);
+      assert.equal(created.isBreakfast, false);
+      assert.equal(created.isLunch, false);
+      assert.equal(created.positionIndex, 0);
+
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_meal_added");
+      assert.equal(act.entityType, "MealPlanItem");
+      const meta = act.metadata as { mealId: string; slot: string };
+      assert.equal(meta.mealId, "m-1");
+      assert.equal(meta.slot, "dinner");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("slot=breakfast maps to isBreakfast=true and other slot booleans=false", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        meals: [
+          { id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" },
+        ],
+      }),
+    );
+    try {
+      const res = await postPlanItem(harness, "p-1", {
+        mealId: "m-1",
+        slot: "breakfast",
+        assignedDayOfWeek: "Monday",
+      });
+      assert.equal(res.status, 201);
+      const created = recorder.itemCreates[0].data;
+      assert.equal(created.isBreakfast, true);
+      assert.equal(created.isLunch, false);
+      assert.equal(created.isDinner, false);
+      assert.equal(created.assignedDayOfWeek, "Monday");
+
+      const meta = recorder.activityWrites[0].metadata as {
+        assignedDayOfWeek: string;
+        slot: string;
+      };
+      assert.equal(meta.assignedDayOfWeek, "Monday");
+      assert.equal(meta.slot, "breakfast");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("positionIndex picks up max(existing) + 1 for non-empty plans", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        meals: [
+          { id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" },
+        ],
+        existingItems: [
+          { id: "it-a", mealPlanInstanceId: "p-1", positionIndex: 4 },
+          { id: "it-b", mealPlanInstanceId: "p-1", positionIndex: 7 },
+        ],
+      }),
+    );
+    try {
+      const res = await postPlanItem(harness, "p-1", { mealId: "m-1" });
+      assert.equal(res.status, 201);
+      const created = recorder.itemCreates[0].data;
+      assert.equal(created.positionIndex, 8);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when the plan does not exist", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [],
+        meals: [
+          { id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" },
+        ],
+      }),
+    );
+    try {
+      const res = await postPlanItem(harness, "ghost", { mealId: "m-1" });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.itemCreates.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when the plan belongs to another user (no existence leak)", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-other", userId: "stranger", revisionId: 1 }],
+        meals: [
+          { id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" },
+        ],
+      }),
+    );
+    try {
+      const res = await postPlanItem(harness, "p-other", { mealId: "m-1" });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.itemCreates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when the meal does not exist", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        meals: [],
+      }),
+    );
+    try {
+      const res = await postPlanItem(harness, "p-1", { mealId: "ghost" });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.itemCreates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when the meal is private and not owned by requester (no existence leak)", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        meals: [
+          { id: "m-priv", userId: "stranger", isPublic: false, isArchived: false, title: "Priv" },
+        ],
+      }),
+    );
+    try {
+      const res = await postPlanItem(harness, "p-1", { mealId: "m-priv" });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.itemCreates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("macrosStale reflects planNeedsMacroEstimation result (true when injected)", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        meals: [
+          { id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" },
+        ],
+      }),
+      { planNeedsMacroEstimation: async () => true },
+    );
+    try {
+      const res = await postPlanItem(harness, "p-1", { mealId: "m-1" });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as { macrosStale: boolean };
+      assert.equal(body.macrosStale, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 401 when no Authorization header is present", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeD1Stub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-1/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mealId: "m-1" }),
+      });
+      assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 on unknown body field (Zod strict)", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeD1Stub({ recorder }));
+    try {
+      const res = await postPlanItem(harness, "p-1", {
+        mealId: "m-1",
+        bogus: true,
+      });
+      assert.equal(res.status, 400);
+      assert.equal(recorder.itemCreates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rolls back: when mealPlanItem.create throws, no activity written and 500 returned", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        throwOnItemCreate: true,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        meals: [
+          { id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" },
+        ],
+      }),
+    );
+    try {
+      const res = await postPlanItem(harness, "p-1", { mealId: "m-1" });
+      assert.equal(res.status, 500);
+      assert.equal(recorder.itemCreates.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
