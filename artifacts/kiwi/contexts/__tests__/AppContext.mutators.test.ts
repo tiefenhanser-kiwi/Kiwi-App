@@ -555,3 +555,109 @@ test("useTemplateAsPlan propagates a server error", async () => {
 
   assert.ok(caught, "expected useTemplateAsPlan to throw on 404");
 });
+
+// ── WS7-4-D c6 — assignDayToPlanItem + unassignDayFromPlanItem ─────────────
+
+// Rich Q-P1-5 (a) envelope a server returns for PATCH /items.
+function itemMutationResponse(planId: string, itemId: string, mealId = "m-1") {
+  return {
+    item: {
+      id: itemId,
+      mealId,
+      positionIndex: 0,
+      assignedDayOfWeek: null,
+      assignedDate: null,
+      servingsOverride: null,
+      isBreakfast: false,
+      isLunch: false,
+      isDinner: true,
+      notes: null,
+      meal: null,
+    },
+    planId,
+    revisionId: 5,
+    macrosStale: false,
+  };
+}
+
+test("assignDayToPlanItem PATCHes /items with { assignedDayOfWeek: day } and invalidates plan caches", async () => {
+  const qc = await mountAuthed();
+  qc.setQueryData(["plans", "plan-1"], { id: "plan-1" });
+
+  let capturedBody: Record<string, unknown> | null = null;
+  route("PATCH", "/plans/plan-1/items/item-1", () => {
+    return mockJson(itemMutationResponse("plan-1", "item-1"));
+  });
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      String(url).endsWith("/plans/plan-1/items/item-1")
+    ) {
+      capturedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(mockJson(itemMutationResponse("plan-1", "item-1")));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.assignDayToPlanItem("plan-1", "item-1", "Monday");
+  });
+
+  assert.deepEqual(capturedBody, { assignedDayOfWeek: "Monday" });
+  // Plan cache marked invalidated.
+  const after = qc.getQueryState(["plans", "plan-1"]);
+  assert.equal(after?.isInvalidated, true);
+});
+
+test("unassignDayFromPlanItem PATCHes /items with { assignedDayOfWeek: null }", async () => {
+  await mountAuthed();
+
+  let capturedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      String(url).endsWith("/plans/plan-1/items/item-1")
+    ) {
+      capturedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(mockJson(itemMutationResponse("plan-1", "item-1")));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.unassignDayFromPlanItem("plan-1", "item-1");
+  });
+
+  assert.deepEqual(capturedBody, { assignedDayOfWeek: null });
+});
+
+test("assignDayToPlanItem propagates a server error (Q-P0-8: no swallow)", async () => {
+  await mountAuthed();
+
+  route("PATCH", "/plans/plan-1/items/item-1", () =>
+    mockJson({ error: "item not found" }, 404),
+  );
+
+  let caught: unknown = null;
+  await act(async () => {
+    try {
+      await app!.assignDayToPlanItem("plan-1", "item-1", "Tuesday");
+    } catch (err) {
+      caught = err;
+    }
+  });
+
+  assert.ok(caught, "expected assignDayToPlanItem to throw on 404");
+});

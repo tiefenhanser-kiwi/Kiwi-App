@@ -17,7 +17,14 @@ import {
 } from "@/lib/api/grocery";
 import { buildGroceryList, defaultPlan, getRecipe } from "@/lib/stubs";
 import * as meAPI from "@/lib/api/me";
-import { patchPlan, useTemplate as useTemplateAPI } from "@/lib/api/plans";
+import {
+  deletePlanItem,
+  patchPlan,
+  patchPlanItem,
+  postPlanItem,
+  promoteItemOverride,
+  useTemplate as useTemplateAPI,
+} from "@/lib/api/plans";
 import { useAuth } from "@/contexts/AuthContext";
 import type {
   DayOfWeek,
@@ -354,22 +361,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // PRD §8 Plan Review mutation scaffolds (WS5+; real wiring in WS7)
   // ─────────────────────────────────────────────────────────────────
 
-  const assignDayToPlanItem = async (
-    planId: string,
-    planItemId: string,
-    day: DayOfWeek,
-  ): Promise<void> => {
-    // TODO(WS7): wire to PATCH /plans/:planId/items/:planItemId
-    console.log("[stub] assignDayToPlanItem", { planId, planItemId, day });
-  };
+  // WS7-4-D c6 — real API wiring for assign/unassign day. Q-P0-8 mutators
+  // return Promise<void>; React Query invalidation drives the UI refresh.
+  const assignDayToPlanItem = useCallback(
+    async (
+      planId: string,
+      planItemId: string,
+      day: DayOfWeek,
+    ): Promise<void> => {
+      await patchPlanItem(planId, planItemId, { assignedDayOfWeek: day });
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+    [queryClient],
+  );
 
-  const unassignDayFromPlanItem = async (
-    planId: string,
-    planItemId: string,
-  ): Promise<void> => {
-    // TODO(WS7): wire to PATCH /plans/:planId/items/:planItemId
-    console.log("[stub] unassignDayFromPlanItem", { planId, planItemId });
-  };
+  const unassignDayFromPlanItem = useCallback(
+    async (planId: string, planItemId: string): Promise<void> => {
+      await patchPlanItem(planId, planItemId, { assignedDayOfWeek: null });
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+    [queryClient],
+  );
 
   const addMealToPlan = async (
     planId: string,
