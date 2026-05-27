@@ -574,11 +574,23 @@ export function createPlansRouter(
   // touch status -- the two axes are orthogonal.
   //
   // Q-P1-7: PlanStatus enum read from schema at authoring time.
+  // WS7-4-D c11 — accept either a full ISO 8601 datetime ("2026-06-03T00:00:00.000Z")
+  // or a calendar-date string ("2026-06-03"). Mobile PlanDateRangeEditor emits
+  // YYYY-MM-DD using local-time formatting to avoid TZ-shift bugs (one day off
+  // in negative offsets); the server stores DateTime? at UTC midnight either
+  // way (new Date("2026-06-03") and new Date("2026-06-03T00:00:00.000Z") both
+  // produce the same UTC instant).
+  const planDateString = z
+    .string()
+    .refine(
+      (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) || !Number.isNaN(Date.parse(v)),
+      "expected YYYY-MM-DD or ISO 8601 datetime",
+    );
   const PatchPlanBody = z
     .object({
       name: z.string().min(1).max(120).optional(),
-      startDate: z.string().datetime().nullable().optional(),
-      endDate: z.string().datetime().nullable().optional(),
+      startDate: planDateString.nullable().optional(),
+      endDate: planDateString.nullable().optional(),
       status: z.enum(["draft", "this_week", "next_week", "upcoming", "past"]).optional(),
       isActiveThisWeek: z.boolean().optional(),
       breakfastOverrides: z.string().nullable().optional(),

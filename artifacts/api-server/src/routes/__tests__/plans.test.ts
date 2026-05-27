@@ -1836,6 +1836,73 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
+  // WS7-4-D c11 — wire-shape reconciliation. Mobile PlanDateRangeEditor emits
+  // YYYY-MM-DD (local-time, no TZ shift); previous Zod schema accepted only
+  // full ISO 8601 datetimes, so production PATCH was rejected at parse with
+  // 400/responseTime:1ms. Server now accepts either shape; UTC midnight
+  // canonicalization in isoOrNull() keeps activity-event metadata stable.
+  it("startDate as YYYY-MM-DD (mobile wire shape) is accepted and canonicalized to UTC midnight ISO", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", startDate: null, endDate: null, revisionId: 2 })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { startDate: "2026-06-03" });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { instance: { revisionId: number } };
+      assert.equal(body.instance.revisionId, 3);
+
+      assert.equal(recorder.activityWrites.length, 1);
+      const meta = recorder.activityWrites[0].metadata as { to: { startDate: string | null } };
+      assert.equal(meta.to.startDate, "2026-06-03T00:00:00.000Z");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("startDate + endDate as YYYY-MM-DD (mobile wire shape) both accepted", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1" })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", {
+        startDate: "2026-06-03",
+        endDate: "2026-06-09",
+      });
+      assert.equal(res.status, 200);
+      const meta = recorder.activityWrites[0].metadata as { fields: string[]; to: { startDate: string | null; endDate: string | null } };
+      assert.deepEqual(meta.fields, ["startDate", "endDate"]);
+      assert.equal(meta.to.startDate, "2026-06-03T00:00:00.000Z");
+      assert.equal(meta.to.endDate, "2026-06-09T00:00:00.000Z");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("malformed date string (not YYYY-MM-DD and not ISO) is rejected with 400 invalid body", async () => {
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder: { instanceUpdates: [], updateManyCalls: [], activityWrites: [] },
+        instances: [fixturePatch({ id: "p-1" })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { startDate: "not-a-date" } as unknown as { startDate: string });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { error: string };
+      assert.equal(body.error, "invalid body");
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("status PATCH (draft -> this_week) emits plan_status_changed metadata {from, to}", async () => {
     const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
     const harness = await mutationSpinUp(

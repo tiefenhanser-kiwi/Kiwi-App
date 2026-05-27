@@ -582,6 +582,33 @@ test("patchPlan with both startDate and endDate sends both fields", async () => 
   );
 });
 
+// WS7-4-D c11 — production path: PlanDateRangeEditor emits YYYY-MM-DD using
+// LOCAL-time formatting (avoids the TZ-shift bug from toISOString); patchPlan
+// must send those strings through to the wire verbatim so the server (now
+// widened in WS7-4-D-c11) accepts them. Earlier c6 tests only exercised the
+// hand-rolled ISO datetime path and never caught the mismatch.
+test("patchPlan with YYYY-MM-DD body (mobile production path) sends the dates verbatim", async () => {
+  let capturedBody: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    lastUrl = url;
+    capturedBody = init?.body ?? null;
+    return mockJson({ instance: { id: "plan-1", revisionId: 4 } });
+  }) as unknown as typeof fetch;
+
+  const { patchPlan } = await import("../plans");
+  await patchPlan("plan-1", {
+    startDate: "2026-06-03",
+    endDate: "2026-06-09",
+  });
+  assert.equal(
+    capturedBody,
+    JSON.stringify({ startDate: "2026-06-03", endDate: "2026-06-09" }),
+  );
+});
+
 test("patchPlan date-range body propagates a 404 as an ApiError", async () => {
   nextResponse = () => mockJson({ error: "plan not found" }, 404);
   const { patchPlan } = await import("../plans");
