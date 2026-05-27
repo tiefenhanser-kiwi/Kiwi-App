@@ -814,3 +814,105 @@ test("Ruling 7 retirement: AppContext no longer exposes swapMealInCurrentPlan", 
     "swapMealInCurrentPlan should be removed from the AppContext value",
   );
 });
+
+// ── WS7-4-D c9 — changeRecipeForPlanItem + promoteRecipeOverrideToMeal ───
+
+test("changeRecipeForPlanItem PATCHes /items with { recipeOverrideJson: override }", async () => {
+  await mountAuthed();
+
+  const override = {
+    titleOverride: "Tweaked",
+    dishes: [
+      { name: "Main", ingredients: [{ name: "salt", quantity: 1, unit: "tsp" }] },
+    ],
+    steps: ["Mix all"],
+    createdAt: "2026-05-26T00:00:00Z",
+  };
+
+  let capturedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      String(url).endsWith("/plans/plan-1/items/item-1")
+    ) {
+      capturedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(mockJson(itemMutationResponse("plan-1", "item-1")));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.changeRecipeForPlanItem(
+      "plan-1",
+      "item-1",
+      override as Parameters<AppValue["changeRecipeForPlanItem"]>[2],
+    );
+  });
+
+  assert.deepEqual(capturedBody, { recipeOverrideJson: override });
+});
+
+test("promoteRecipeOverrideToMeal POSTs to /promote-override and invalidates caches", async () => {
+  const qc = await mountAuthed();
+  qc.setQueryData(["plans", "plan-1"], { id: "plan-1" });
+
+  let capturedMethod: string | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (String(url).endsWith("/plans/plan-1/items/item-1/promote-override")) {
+      capturedMethod = (init?.method ?? "GET").toUpperCase();
+      return Promise.resolve(
+        mockJson({
+          ...itemMutationResponse("plan-1", "item-1", "promoted-m"),
+          newMealId: "promoted-m",
+        }),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.promoteRecipeOverrideToMeal("plan-1", "item-1");
+  });
+
+  assert.equal(capturedMethod, "POST");
+  const after = qc.getQueryState(["plans", "plan-1"]);
+  assert.equal(after?.isInvalidated, true);
+});
+
+test("promoteRecipeOverrideToMeal propagates 422 unresolved_ingredient with structured body", async () => {
+  await mountAuthed();
+
+  route("POST", "/plans/plan-1/items/item-1/promote-override", () =>
+    mockJson(
+      { error: "unresolved_ingredient", ingredientName: "Unicorn Horn" },
+      422,
+    ),
+  );
+
+  let caught: unknown = null;
+  await act(async () => {
+    try {
+      await app!.promoteRecipeOverrideToMeal("plan-1", "item-1");
+    } catch (err) {
+      caught = err;
+    }
+  });
+
+  assert.ok(caught, "expected promoteRecipeOverrideToMeal to throw on 422");
+  // The ApiError carries the structured body so a future UI consumer can
+  // surface "could not find ingredient X" and route the user back to edit.
+  const body = (caught as { status?: number; body?: { error?: string; ingredientName?: string } });
+  assert.equal(body.status, 422);
+  assert.equal(body.body?.error, "unresolved_ingredient");
+  assert.equal(body.body?.ingredientName, "Unicorn Horn");
+});

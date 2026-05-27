@@ -406,22 +406,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [queryClient],
   );
 
-  const changeRecipeForPlanItem = async (
-    planId: string,
-    planItemId: string,
-    override: RecipeOverride,
-  ): Promise<void> => {
-    // TODO(WS7): wire to PATCH /plans/:planId/items/:planItemId (recipeOverrideJson)
-    console.log("[stub] changeRecipeForPlanItem", { planId, planItemId, override });
-  };
+  // WS7-4-D c9 — scaffold mutators (no UI consumer yet per Phase 1 A6).
+  // Wired through to the server so a future UI consumer (Just-this-time
+  // recipe edit, promote-to-meal CTA) gets the same Promise<void> +
+  // invalidate contract as the rest of the §8 Plan Review surface.
+  const changeRecipeForPlanItem = useCallback(
+    async (
+      planId: string,
+      planItemId: string,
+      override: RecipeOverride,
+    ): Promise<void> => {
+      await patchPlanItem(planId, planItemId, {
+        recipeOverrideJson: override,
+      });
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+    [queryClient],
+  );
 
-  const promoteRecipeOverrideToMeal = async (
-    planId: string,
-    planItemId: string,
-  ): Promise<void> => {
-    // TODO(WS7): wire to POST /plans/:planId/items/:planItemId/promote-override
-    console.log("[stub] promoteRecipeOverrideToMeal", { planId, planItemId });
-  };
+  const promoteRecipeOverrideToMeal = useCallback(
+    async (planId: string, planItemId: string): Promise<void> => {
+      await promoteItemOverride(planId, planItemId);
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+    [queryClient],
+  );
 
   const findSimilarMeals = async (mealId: string): Promise<string[]> => {
     // TODO(WS7): wire to GET /meals/:mealId/similar
