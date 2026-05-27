@@ -49,6 +49,7 @@ import {
   type InstanceRow,
   type PlanListItem,
 } from "../lib/planQueries";
+import { sortPlanItemsCanonical } from "../lib/planItemSort";
 import { composeMealDetail, type MealDetail } from "./meals";
 
 export interface PlansRouterDeps {
@@ -307,6 +308,11 @@ export function createPlansRouter(
           meal,
         });
       }
+      // WS7-4-D c15 — apply the server-canonical Sun→Sat sort. The Prisma
+      // include above still uses positionIndex ASC so the stable sort below
+      // has a predictable starting order; this comparator then reorders by
+      // day with unscheduled items pinned at the bottom.
+      const sortedItems = sortPlanItemsCanonical(items);
 
       return res.json({
         plan: {
@@ -326,8 +332,8 @@ export function createPlansRouter(
           optimizationNotes: instance.optimizationNotes ?? [],
           breakfastOverrides: instance.breakfastOverrides ?? "",
           lunchOverrides: instance.lunchOverrides ?? "",
-          items,
-          macroDailyAverage: computeMacroDailyAverage(items),
+          items: sortedItems,
+          macroDailyAverage: computeMacroDailyAverage(sortedItems),
         },
       });
     } catch (err) {
@@ -403,6 +409,11 @@ export function createPlansRouter(
           meal,
         });
       }
+      // WS7-4-D c15 — same Sun→Sat canonical sort applies to templates.
+      // Templates carry assignedDayOfWeek (the slot's intended day) so the
+      // preview overlay's ordering matches what the user will see in Plan
+      // Review after Use Plan.
+      const sortedItems = sortPlanItemsCanonical(items);
 
       return res.json({
         template: {
@@ -415,7 +426,7 @@ export function createPlansRouter(
           sourceType: template.sourceType,
           defaultDaysCount: template.defaultDaysCount,
           optimizationNotes: template.optimizationNotes ?? [],
-          items,
+          items: sortedItems,
         },
       });
     } catch (err) {

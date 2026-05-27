@@ -580,6 +580,68 @@ describe("GET /plans/:id — composite Plan Review", () => {
       await harness.close();
     }
   });
+
+  // WS7-4-D c15 — items must come back Sun→Sat with unscheduled pinned at
+  // the bottom in positionIndex order. The Prisma include still fetches with
+  // `orderBy: { positionIndex: "asc" }`; the route applies the canonical
+  // comparator post-fetch.
+  it("c15: orders items Sun→Sat with unscheduled pinned to the bottom (positionIndex tiebreaker)", async () => {
+    // Fixture order deliberately scrambled to prove the server is sorting,
+    // not echoing the input order. positionIndex on item-mon-2 is < the
+    // other Monday item to exercise the tiebreaker.
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-sort",
+            name: "Sort Me",
+            items: [
+              { id: "item-sat",   mealId: "m-a", positionIndex: 0, assignedDayOfWeek: "Saturday" },
+              { id: "item-uns-b", mealId: "m-b", positionIndex: 1, assignedDayOfWeek: null },
+              { id: "item-sun",   mealId: "m-c", positionIndex: 2, assignedDayOfWeek: "Sunday" },
+              { id: "item-mon-1", mealId: "m-d", positionIndex: 4, assignedDayOfWeek: "Monday" },
+              { id: "item-mon-2", mealId: "m-e", positionIndex: 3, assignedDayOfWeek: "Monday" },
+              { id: "item-uns-a", mealId: "m-f", positionIndex: 0, assignedDayOfWeek: null },
+              { id: "item-wed",   mealId: "m-g", positionIndex: 5, assignedDayOfWeek: "Wednesday" },
+            ],
+          }),
+        ],
+        meals: [
+          mealFix("m-a", "A", 100),
+          mealFix("m-b", "B", 100),
+          mealFix("m-c", "C", 100),
+          mealFix("m-d", "D", 100),
+          mealFix("m-e", "E", 100),
+          mealFix("m-f", "F", 100),
+          mealFix("m-g", "G", 100),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-sort`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: { items: { id: string; assignedDayOfWeek: string | null }[] };
+      };
+      const ids = body.plan.items.map((i) => i.id);
+      assert.deepEqual(ids, [
+        // Sun → Sat assigned cluster.
+        "item-sun",
+        // Two Monday items, lower positionIndex first.
+        "item-mon-2",
+        "item-mon-1",
+        "item-wed",
+        "item-sat",
+        // Unscheduled cluster pinned to bottom, positionIndex ASC.
+        "item-uns-a",
+        "item-uns-b",
+      ]);
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 // ── WS7-4-B c3 — GET /plans/templates/:id ─────────────────────────────────
