@@ -80,7 +80,8 @@ export type PlanListResponse = z.infer<typeof PlanListResponseSchema>;
 
 // One item of a Plan Review payload — a plan slot plus its fully-composed
 // Meal. `meal` is null when the meal row is missing/archived server-side.
-const PlanDetailItemSchema = z.object({
+// WS7-4-D c5: exported so the item mutation response schemas can reuse it.
+export const PlanDetailItemSchema = z.object({
   id: z.string(),
   mealId: z.string(),
   positionIndex: z.number(),
@@ -277,4 +278,126 @@ export async function patchPlan(
     body,
     schema: PatchPlanResponseSchema,
   });
+}
+
+// ── WS7-4-D c5 — Plan Item mutation helpers ────────────────────────────────
+// Server endpoints (POST/PATCH/DELETE /plans/:id/items[/:itemId] +
+// /promote-override) all return the same rich Q-P1-5 (a) envelope. Mobile
+// mutators discard the parsed response and trigger React Query invalidation
+// per Q-P0-8, but the helpers parse the full envelope so smoke + future
+// skip-refetch callers get assertion surface.
+
+const PlanItemMutationResponseSchema = z.object({
+  item: PlanDetailItemSchema,
+  planId: z.string(),
+  revisionId: z.number(),
+  macrosStale: z.boolean(),
+});
+export type PlanItemMutationResponse = z.infer<
+  typeof PlanItemMutationResponseSchema
+>;
+
+const PlanItemDeleteResponseSchema = z.object({
+  planId: z.string(),
+  revisionId: z.number(),
+  macrosStale: z.boolean(),
+});
+export type PlanItemDeleteResponse = z.infer<
+  typeof PlanItemDeleteResponseSchema
+>;
+
+const PromoteItemOverrideResponseSchema = PlanItemMutationResponseSchema.extend({
+  newMealId: z.string(),
+});
+export type PromoteItemOverrideResponse = z.infer<
+  typeof PromoteItemOverrideResponseSchema
+>;
+
+export interface PostPlanItemBody {
+  mealId: string;
+  slot?: "breakfast" | "lunch" | "dinner";
+  assignedDayOfWeek?: string | null;
+  servingsOverride?: number | null;
+}
+
+export interface PatchPlanItemBody {
+  mealId?: string;
+  slot?: "breakfast" | "lunch" | "dinner";
+  assignedDayOfWeek?: string | null;
+  servingsOverride?: number | null;
+  ingredientOverrides?: unknown;
+  recipeOverrideJson?: unknown;
+  notes?: string | null;
+}
+
+/**
+ * POST /plans/:id/items — add a meal to a plan. Per Q-P0-5, body uses
+ * slot=breakfast|lunch|dinner (server maps to 3 booleans; defaults to
+ * "dinner" when omitted). Propagates apiClient typed errors.
+ */
+export async function postPlanItem(
+  planId: string,
+  body: PostPlanItemBody,
+): Promise<PlanItemMutationResponse> {
+  return apiClient(`/plans/${encodeURIComponent(planId)}/items`, {
+    method: "POST",
+    body,
+    schema: PlanItemMutationResponseSchema,
+  });
+}
+
+/**
+ * PATCH /plans/:id/items/:itemId — multi-field item edit. Per Q-P1-4 v1,
+ * when `mealId` is included no other field may accompany it (server returns
+ * 400). Propagates apiClient typed errors.
+ */
+export async function patchPlanItem(
+  planId: string,
+  itemId: string,
+  body: PatchPlanItemBody,
+): Promise<PlanItemMutationResponse> {
+  return apiClient(
+    `/plans/${encodeURIComponent(planId)}/items/${encodeURIComponent(itemId)}`,
+    {
+      method: "PATCH",
+      body,
+      schema: PlanItemMutationResponseSchema,
+    },
+  );
+}
+
+/**
+ * DELETE /plans/:id/items/:itemId — hard-delete an item (Q-P0-2).
+ * Propagates apiClient typed errors.
+ */
+export async function deletePlanItem(
+  planId: string,
+  itemId: string,
+): Promise<PlanItemDeleteResponse> {
+  return apiClient(
+    `/plans/${encodeURIComponent(planId)}/items/${encodeURIComponent(itemId)}`,
+    {
+      method: "DELETE",
+      schema: PlanItemDeleteResponseSchema,
+    },
+  );
+}
+
+/**
+ * POST /plans/:id/items/:itemId/promote-override — materialize the item's
+ * recipeOverrideJson into a new private Meal and rebind. Per Q-P1-2, a
+ * server 422 `{ error: "unresolved_ingredient", ingredientName }` surfaces
+ * as ApiError with the structured body.
+ */
+export async function promoteItemOverride(
+  planId: string,
+  itemId: string,
+): Promise<PromoteItemOverrideResponse> {
+  return apiClient(
+    `/plans/${encodeURIComponent(planId)}/items/${encodeURIComponent(itemId)}/promote-override`,
+    {
+      method: "POST",
+      schema: PromoteItemOverrideResponseSchema,
+    },
+  );
 }

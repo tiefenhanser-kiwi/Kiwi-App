@@ -590,3 +590,169 @@ test("patchPlan date-range body propagates a 404 as an ApiError", async () => {
     (err: unknown) => err instanceof ApiError && err.status === 404,
   );
 });
+
+// ── WS7-4-D c5 — plan item mutation helpers ────────────────────────────────
+
+// Rich envelope a real server returns for POST/PATCH /items + promote.
+const ITEM_MUTATION_RESPONSE = {
+  item: {
+    id: "item-new",
+    mealId: "meal-1",
+    positionIndex: 0,
+    assignedDayOfWeek: null,
+    assignedDate: null,
+    servingsOverride: null,
+    isBreakfast: false,
+    isLunch: false,
+    isDinner: true,
+    notes: null,
+    meal: MEAL_DETAIL,
+  },
+  planId: "plan-1",
+  revisionId: 4,
+  macrosStale: false,
+};
+
+test("postPlanItem POSTs to /plans/:id/items and parses the rich envelope", async () => {
+  let capturedMethod: string | null = null;
+  let capturedBody: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    lastUrl = url;
+    capturedMethod = init?.method ?? "GET";
+    capturedBody = init?.body ?? null;
+    return mockJson(ITEM_MUTATION_RESPONSE, 201);
+  }) as unknown as typeof fetch;
+
+  const { postPlanItem } = await import("../plans");
+  const out = await postPlanItem("plan-1", { mealId: "meal-1", slot: "lunch" });
+  assert.equal(out.planId, "plan-1");
+  assert.equal(out.revisionId, 4);
+  assert.equal(out.item.mealId, "meal-1");
+  assert.equal(capturedMethod, "POST");
+  assert.ok(lastUrl?.endsWith("/plans/plan-1/items"), `unexpected url: ${lastUrl}`);
+  assert.equal(capturedBody, JSON.stringify({ mealId: "meal-1", slot: "lunch" }));
+});
+
+test("postPlanItem propagates a 404 as an ApiError", async () => {
+  nextResponse = () => mockJson({ error: "plan not found" }, 404);
+  const { postPlanItem } = await import("../plans");
+  await assert.rejects(
+    () => postPlanItem("ghost", { mealId: "meal-1" }),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+test("patchPlanItem PATCHes /plans/:id/items/:itemId and parses the rich envelope", async () => {
+  let capturedMethod: string | null = null;
+  let capturedBody: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    lastUrl = url;
+    capturedMethod = init?.method ?? "GET";
+    capturedBody = init?.body ?? null;
+    return mockJson({ ...ITEM_MUTATION_RESPONSE, macrosStale: true });
+  }) as unknown as typeof fetch;
+
+  const { patchPlanItem } = await import("../plans");
+  const out = await patchPlanItem("plan-1", "item-new", { assignedDayOfWeek: "Wednesday" });
+  assert.equal(out.macrosStale, true);
+  assert.equal(capturedMethod, "PATCH");
+  assert.ok(
+    lastUrl?.endsWith("/plans/plan-1/items/item-new"),
+    `unexpected url: ${lastUrl}`,
+  );
+  assert.equal(capturedBody, JSON.stringify({ assignedDayOfWeek: "Wednesday" }));
+});
+
+test("patchPlanItem rejects a malformed response body (missing item)", async () => {
+  nextResponse = () =>
+    mockJson({ planId: "plan-1", revisionId: 2, macrosStale: false });
+  const { patchPlanItem } = await import("../plans");
+  await assert.rejects(
+    () => patchPlanItem("plan-1", "item-1", { slot: "lunch" }),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+test("deletePlanItem DELETEs /plans/:id/items/:itemId and parses the delete envelope", async () => {
+  let capturedMethod: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string },
+  ) => {
+    lastUrl = url;
+    capturedMethod = init?.method ?? "GET";
+    return mockJson({ planId: "plan-1", revisionId: 5, macrosStale: false });
+  }) as unknown as typeof fetch;
+
+  const { deletePlanItem } = await import("../plans");
+  const out = await deletePlanItem("plan-1", "item-1");
+  assert.equal(out.planId, "plan-1");
+  assert.equal(out.revisionId, 5);
+  assert.equal(capturedMethod, "DELETE");
+  assert.ok(
+    lastUrl?.endsWith("/plans/plan-1/items/item-1"),
+    `unexpected url: ${lastUrl}`,
+  );
+});
+
+test("deletePlanItem propagates a 404 as an ApiError", async () => {
+  nextResponse = () => mockJson({ error: "item not found" }, 404);
+  const { deletePlanItem } = await import("../plans");
+  await assert.rejects(
+    () => deletePlanItem("plan-1", "ghost-item"),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+test("promoteItemOverride POSTs to the promote-override path and parses { newMealId }", async () => {
+  let capturedMethod: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string },
+  ) => {
+    lastUrl = url;
+    capturedMethod = init?.method ?? "GET";
+    return mockJson({
+      ...ITEM_MUTATION_RESPONSE,
+      newMealId: "promoted-meal-7",
+    });
+  }) as unknown as typeof fetch;
+
+  const { promoteItemOverride } = await import("../plans");
+  const out = await promoteItemOverride("plan-1", "item-1");
+  assert.equal(out.newMealId, "promoted-meal-7");
+  assert.equal(capturedMethod, "POST");
+  assert.ok(
+    lastUrl?.endsWith("/plans/plan-1/items/item-1/promote-override"),
+    `unexpected url: ${lastUrl}`,
+  );
+});
+
+test("promoteItemOverride surfaces a server 422 unresolved_ingredient as an ApiError with structured body", async () => {
+  nextResponse = () =>
+    mockJson(
+      { error: "unresolved_ingredient", ingredientName: "Unicorn Horn" },
+      422,
+    );
+  const { promoteItemOverride } = await import("../plans");
+  await assert.rejects(
+    () => promoteItemOverride("plan-1", "item-1"),
+    (err: unknown) => {
+      if (!(err instanceof ApiError)) return false;
+      if (err.status !== 422) return false;
+      const body = (err as ApiError).body as
+        | { error: string; ingredientName: string }
+        | null;
+      return (
+        body?.error === "unresolved_ingredient" &&
+        body.ingredientName === "Unicorn Horn"
+      );
+    },
+  );
+});
