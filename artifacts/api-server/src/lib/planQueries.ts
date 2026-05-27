@@ -152,6 +152,12 @@ export async function resolvePlansForFilter(
     // WS7-4-C c7: exclude soft-deleted (composted) plans. MealPlanInstance
     // gained isArchived as part of the soft-delete model; my_plans now
     // mirrors the same isArchived: false gate used for the template tables.
+    //
+    // WS7-4-D c12 audit: every Use-This-Plan tap creates a new Instance and
+    // demote-prior-actives only flips isActiveThisWeek (status is orthogonal
+    // per Q-P1-6). Three taps on the same Template -> three rows here. See
+    // D-WS7-058 for the UX-grouping decision (collapse duplicates, filter to
+    // active+upcoming only, or leave as-is).
     const rows = (await prisma.mealPlanInstance.findMany({
       where: { userId, isArchived: false },
       include: INSTANCE_TEMPLATE_INCLUDE,
