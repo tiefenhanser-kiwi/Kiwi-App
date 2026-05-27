@@ -1141,6 +1141,34 @@ export function createPlansRouter(
     },
   );
 
+  // WS7-4-D c3 — RecipeOverride Zod transcription (mirror of mobile
+  // RecipeOverride in artifacts/kiwi/lib/types.ts:209-229). Defined here at
+  // module-scope inside createPlansRouter so c3 + c4 (promote-override) share.
+  // R5 (Phase 1 risk register): keep this in sync with the mobile type.
+  const RecipeOverrideSchema = z
+    .object({
+      titleOverride: z.string().optional(),
+      dishes: z.array(
+        z
+          .object({
+            name: z.string().min(1),
+            ingredients: z.array(
+              z
+                .object({
+                  name: z.string().min(1),
+                  quantity: z.number(),
+                  unit: z.string(),
+                })
+                .strict(),
+            ),
+          })
+          .strict(),
+      ),
+      steps: z.array(z.string()).optional(),
+      createdAt: z.string().datetime(),
+    })
+    .strict();
+
   // WS7-4-D c2 — DELETE /plans/:id/items/:itemId — hard-delete an item.
   // Q-P0-2 (alpha) ruling: hard delete v1; analytics carried via the
   // plan_meal_composted activity row (Q-P0-7) with mealId+itemId metadata.
@@ -1245,6 +1273,456 @@ export function createPlansRouter(
           "DELETE /plans/:id/items/:itemId failed",
         );
         return res.status(500).json({ error: "failed to delete item" });
+      }
+    },
+  );
+
+  // WS7-4-D c3 — PATCH /plans/:id/items/:itemId — multi-field item edit.
+  // Per-field activity emission per Q-P0-6 mapping. Q-P0-3 (alpha) atomic
+  // mealId-swap: when body is { mealId } alone, internally DELETE + POST
+  // preserving day/slot/notes/position (Q-P1-4) and resetting per-meal
+  // fields (servingsOverride, ingredientOverrides, recipeOverrideJson,
+  // lastCooked, timesCooked). Q-P1-4 v1 enforcement: mealId in body
+  // excludes all other fields (Zod refine -> 400). Q-P1-1: ingredientOverrides
+  // is z.unknown() pass-through.
+  const PatchPlanItemBody = z
+    .object({
+      mealId: z.string().min(1).max(100).optional(),
+      assignedDayOfWeek: z.string().nullable().optional(),
+      slot: z.enum(["breakfast", "lunch", "dinner"]).optional(),
+      servingsOverride: z.number().int().positive().nullable().optional(),
+      ingredientOverrides: z.unknown().optional(),
+      recipeOverrideJson: RecipeOverrideSchema.nullable().optional(),
+      notes: z.string().nullable().optional(),
+    })
+    .strict()
+    .refine((b) => Object.keys(b).length > 0, "empty patch")
+    .refine(
+      (b) =>
+        b.mealId === undefined ||
+        Object.keys(b).filter((k) => k !== "mealId").length === 0,
+      "mealId change must not be combined with other fields",
+    );
+
+  router.patch(
+    "/plans/:id/items/:itemId",
+    requireAuth,
+    mutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const planId = req.params.id;
+      if (
+        typeof planId !== "string" ||
+        planId.length === 0 ||
+        planId.length > 100
+      ) {
+        return res.status(400).json({ error: "invalid plan id" });
+      }
+      const itemId = req.params.itemId;
+      if (
+        typeof itemId !== "string" ||
+        itemId.length === 0 ||
+        itemId.length > 100
+      ) {
+        return res.status(400).json({ error: "invalid item id" });
+      }
+
+      const parsed = PatchPlanItemBody.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "invalid body", details: parsed.error.flatten() });
+      }
+      const body = parsed.data;
+
+      const currentSlot = (i: {
+        isBreakfast: boolean;
+        isLunch: boolean;
+        isDinner: boolean;
+      }): "breakfast" | "lunch" | "dinner" =>
+        i.isBreakfast ? "breakfast" : i.isLunch ? "lunch" : "dinner";
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const plan = await tx.mealPlanInstance.findUnique({
+            where: { id: planId },
+            select: { userId: true },
+          });
+          if (!plan || plan.userId !== userId) {
+            return { kind: "not_found_plan" as const };
+          }
+
+          const current = await tx.mealPlanItem.findUnique({
+            where: { id: itemId },
+            select: {
+              mealPlanInstanceId: true,
+              mealId: true,
+              positionIndex: true,
+              assignedDayOfWeek: true,
+              assignedDate: true,
+              servingsOverride: true,
+              ingredientOverrides: true,
+              recipeOverrideJson: true,
+              isBreakfast: true,
+              isLunch: true,
+              isDinner: true,
+              notes: true,
+            },
+          });
+          if (!current || current.mealPlanInstanceId !== planId) {
+            return { kind: "not_found_item" as const };
+          }
+
+          // ── Atomic mealId-swap path (Q-P0-3 + Q-P1-4) ─────────────────
+          if (body.mealId !== undefined) {
+            const newMeal = await tx.meal.findUnique({
+              where: { id: body.mealId },
+              select: { userId: true, isPublic: true, isArchived: true },
+            });
+            if (!newMeal || newMeal.isArchived) {
+              return { kind: "not_found_meal" as const };
+            }
+            if (!newMeal.isPublic && newMeal.userId !== userId) {
+              return { kind: "not_found_meal" as const };
+            }
+
+            if (body.mealId === current.mealId) {
+              // No-op same-mealId swap. Mirror the standard noop branch:
+              // return current state, no bump, no activity.
+              return {
+                kind: "noop" as const,
+                item: current,
+                itemId,
+              };
+            }
+
+            const oldMealId = current.mealId;
+            const oldItemId = itemId;
+
+            // CRITICAL: validate newMeal BEFORE deleting old item (R3).
+            await tx.mealPlanItem.delete({ where: { id: itemId } });
+            const created = await tx.mealPlanItem.create({
+              data: {
+                mealPlanInstanceId: planId,
+                mealId: body.mealId,
+                positionIndex: current.positionIndex,
+                assignedDayOfWeek: current.assignedDayOfWeek,
+                assignedDate: current.assignedDate,
+                servingsOverride: null, // Q-P1-4: reset
+                ingredientOverrides: Prisma.DbNull, // Q-P1-4: reset
+                recipeOverrideJson: Prisma.DbNull, // Q-P1-4: reset
+                notes: current.notes, // Q-P1-4: preserve
+                isBreakfast: current.isBreakfast,
+                isLunch: current.isLunch,
+                isDinner: current.isDinner,
+                // lastCooked/timesCooked default to null/0 from schema.
+              },
+              select: {
+                id: true,
+                mealId: true,
+                positionIndex: true,
+                assignedDayOfWeek: true,
+                assignedDate: true,
+                servingsOverride: true,
+                ingredientOverrides: true,
+                recipeOverrideJson: true,
+                isBreakfast: true,
+                isLunch: true,
+                isDinner: true,
+                notes: true,
+              },
+            });
+
+            const revisionId = await bumpPlanRevision(planId, tx);
+
+            await emitActivity({
+              tx,
+              userId,
+              eventType: "plan_meal_changed",
+              entityType: "MealPlanItem",
+              entityId: created.id,
+              metadata: {
+                oldItemId,
+                newItemId: created.id,
+                oldMealId,
+                newMealId: body.mealId,
+                dayPreserved: current.assignedDayOfWeek,
+              },
+            });
+
+            const macrosStale = await planNeedsMacroEstimation({
+              tx,
+              planId,
+            });
+
+            return {
+              kind: "mealId_swap" as const,
+              item: created,
+              revisionId,
+              macrosStale,
+            };
+          }
+
+          // ── Non-mealId path: diff body vs current, per-field emit ─────
+          const changedFields = new Set<string>();
+          const data: Record<string, unknown> = {};
+          let slotFromTo: { from: string; to: string } | null = null;
+          let dayFromTo: { from: string | null; to: string | null } | null = null;
+          let servingsFromTo: { from: number | null; to: number | null } | null = null;
+
+          if (
+            body.assignedDayOfWeek !== undefined &&
+            body.assignedDayOfWeek !== current.assignedDayOfWeek
+          ) {
+            changedFields.add("assignedDayOfWeek");
+            data.assignedDayOfWeek = body.assignedDayOfWeek;
+            dayFromTo = {
+              from: current.assignedDayOfWeek,
+              to: body.assignedDayOfWeek,
+            };
+          }
+
+          if (body.slot !== undefined) {
+            const curSlot = currentSlot(current);
+            if (body.slot !== curSlot) {
+              changedFields.add("slot");
+              data.isBreakfast = body.slot === "breakfast";
+              data.isLunch = body.slot === "lunch";
+              data.isDinner = body.slot === "dinner";
+              slotFromTo = { from: curSlot, to: body.slot };
+            }
+          }
+
+          if (
+            body.servingsOverride !== undefined &&
+            body.servingsOverride !== current.servingsOverride
+          ) {
+            changedFields.add("servingsOverride");
+            data.servingsOverride = body.servingsOverride;
+            servingsFromTo = {
+              from: current.servingsOverride,
+              to: body.servingsOverride,
+            };
+          }
+
+          if (body.ingredientOverrides !== undefined) {
+            // Q-P1-1: z.unknown() pass-through; no shape diff (treat any
+            // present value as a change). Caller pings PATCH again if they
+            // want a clear/replace cycle.
+            changedFields.add("ingredientOverrides");
+            data.ingredientOverrides =
+              (body.ingredientOverrides as Prisma.InputJsonValue | null) ??
+              Prisma.DbNull;
+          }
+
+          if (body.recipeOverrideJson !== undefined) {
+            const wasNull = current.recipeOverrideJson == null;
+            const willBeNull = body.recipeOverrideJson === null;
+            // Treat any explicit set as a change (parsed JSON deep-compare is
+            // overkill for v1; same as ingredientOverrides).
+            const same = wasNull && willBeNull;
+            if (!same) {
+              changedFields.add("recipeOverrideJson");
+              data.recipeOverrideJson =
+                body.recipeOverrideJson === null
+                  ? Prisma.DbNull
+                  : (body.recipeOverrideJson as Prisma.InputJsonValue);
+            }
+          }
+
+          if (body.notes !== undefined && body.notes !== current.notes) {
+            changedFields.add("notes");
+            data.notes = body.notes;
+          }
+
+          // Noop branch — mirror WS7-4-C c4 J6: return current, no bump,
+          // no activity, macrosStale: false.
+          if (changedFields.size === 0) {
+            return {
+              kind: "noop" as const,
+              item: current,
+              itemId,
+            };
+          }
+
+          const updated = await tx.mealPlanItem.update({
+            where: { id: itemId },
+            data,
+            select: {
+              id: true,
+              mealId: true,
+              positionIndex: true,
+              assignedDayOfWeek: true,
+              assignedDate: true,
+              servingsOverride: true,
+              ingredientOverrides: true,
+              recipeOverrideJson: true,
+              isBreakfast: true,
+              isLunch: true,
+              isDinner: true,
+              notes: true,
+            },
+          });
+
+          const revisionId = await bumpPlanRevision(planId, tx);
+
+          // Per-field activity emissions per Q-P0-6 (verbatim).
+          if (changedFields.has("assignedDayOfWeek") && dayFromTo) {
+            if (dayFromTo.from === null && dayFromTo.to !== null) {
+              await emitActivity({
+                tx,
+                userId,
+                eventType: "plan_meal_assigned",
+                entityType: "MealPlanItem",
+                entityId: itemId,
+                metadata: { day: dayFromTo.to },
+              });
+            } else if (dayFromTo.from !== null && dayFromTo.to === null) {
+              await emitActivity({
+                tx,
+                userId,
+                eventType: "plan_meal_unassigned",
+                entityType: "MealPlanItem",
+                entityId: itemId,
+                metadata: { from: dayFromTo.from },
+              });
+            } else {
+              await emitActivity({
+                tx,
+                userId,
+                eventType: "plan_meal_assigned",
+                entityType: "MealPlanItem",
+                entityId: itemId,
+                metadata: { from: dayFromTo.from, to: dayFromTo.to },
+              });
+            }
+          }
+          if (changedFields.has("slot") && slotFromTo) {
+            await emitActivity({
+              tx,
+              userId,
+              eventType: "plan_meal_edited",
+              entityType: "MealPlanItem",
+              entityId: itemId,
+              metadata: {
+                field: "slot",
+                from: slotFromTo.from,
+                to: slotFromTo.to,
+              },
+            });
+          }
+          if (changedFields.has("servingsOverride") && servingsFromTo) {
+            await emitActivity({
+              tx,
+              userId,
+              eventType: "plan_meal_edited",
+              entityType: "MealPlanItem",
+              entityId: itemId,
+              metadata: {
+                field: "servingsOverride",
+                from: servingsFromTo.from,
+                to: servingsFromTo.to,
+              },
+            });
+          }
+          if (changedFields.has("ingredientOverrides")) {
+            // Q-P0-6: value omitted (JSON may be large).
+            await emitActivity({
+              tx,
+              userId,
+              eventType: "plan_meal_edited",
+              entityType: "MealPlanItem",
+              entityId: itemId,
+              metadata: { field: "ingredientOverrides" },
+            });
+          }
+          if (changedFields.has("recipeOverrideJson")) {
+            const cleared = body.recipeOverrideJson === null;
+            await emitActivity({
+              tx,
+              userId,
+              eventType: "plan_recipe_changed",
+              entityType: "MealPlanItem",
+              entityId: itemId,
+              metadata: { cleared },
+            });
+          }
+          // notes intentionally emits no activity (PRD §8.5 has no event for
+          // free-form notes, matches optimizationNotes precedent in PATCH /plans).
+
+          const macrosStale = await planNeedsMacroEstimation({
+            tx,
+            planId,
+          });
+
+          return {
+            kind: "updated" as const,
+            item: updated,
+            revisionId,
+            macrosStale,
+          };
+        });
+
+        if (result.kind === "not_found_plan") {
+          return res.status(404).json({ error: "plan not found" });
+        }
+        if (result.kind === "not_found_item") {
+          return res.status(404).json({ error: "item not found" });
+        }
+        if (result.kind === "not_found_meal") {
+          return res.status(404).json({ error: "meal not found" });
+        }
+
+        // Noop or success — compose item for response (Q-P1-5 rich envelope).
+        const composedMeal = await composeMealDetail(prisma, result.item.mealId);
+        const itemPayload = {
+          id: "id" in result.item ? result.item.id : result.itemId,
+          mealId: result.item.mealId,
+          positionIndex: result.item.positionIndex,
+          assignedDayOfWeek: result.item.assignedDayOfWeek,
+          assignedDate: result.item.assignedDate
+            ? result.item.assignedDate.toISOString()
+            : null,
+          servingsOverride: result.item.servingsOverride,
+          isBreakfast: result.item.isBreakfast,
+          isLunch: result.item.isLunch,
+          isDinner: result.item.isDinner,
+          notes: result.item.notes,
+          meal: composedMeal,
+        };
+
+        if (result.kind === "noop") {
+          // Return current state; revisionId echoed from a fresh read so the
+          // client can confirm cache parity. Skip the extra read by re-using
+          // a 0-bump update — but cheaper: do a select. For simplicity, do a
+          // small revision read.
+          const planRow = await prisma.mealPlanInstance.findUnique({
+            where: { id: planId },
+            select: { revisionId: true },
+          });
+          return res.json({
+            item: itemPayload,
+            planId,
+            revisionId: planRow?.revisionId ?? 0,
+            macrosStale: false,
+          });
+        }
+
+        return res.json({
+          item: itemPayload,
+          planId,
+          revisionId: result.revisionId,
+          macrosStale: result.macrosStale,
+        });
+      } catch (err) {
+        logger.error(
+          { err, userId, planId, itemId },
+          "PATCH /plans/:id/items/:itemId failed",
+        );
+        return res.status(500).json({ error: "failed to update item" });
       }
     },
   );

@@ -2810,3 +2810,722 @@ describe("DELETE /plans/:id/items/:itemId (WS7-4-D c2)", () => {
     }
   });
 });
+
+// ── WS7-4-D c3 — PATCH /plans/:id/items/:itemId ───────────────────────────
+
+interface D3ItemFix {
+  id: string;
+  mealPlanInstanceId: string;
+  mealId: string;
+  positionIndex: number;
+  assignedDayOfWeek: string | null;
+  assignedDate: Date | null;
+  servingsOverride: number | null;
+  ingredientOverrides: unknown;
+  recipeOverrideJson: unknown;
+  isBreakfast: boolean;
+  isLunch: boolean;
+  isDinner: boolean;
+  notes: string | null;
+}
+
+interface D3Recorder {
+  itemUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
+  itemCreates: Array<{ data: Record<string, unknown> }>;
+  itemDeletes: Array<{ where: { id: string } }>;
+  instanceUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
+  activityWrites: Array<Record<string, unknown>>;
+}
+
+function d3ItemFix(opts: Partial<D3ItemFix> & { id: string; mealPlanInstanceId: string; mealId: string }): D3ItemFix {
+  return {
+    id: opts.id,
+    mealPlanInstanceId: opts.mealPlanInstanceId,
+    mealId: opts.mealId,
+    positionIndex: opts.positionIndex ?? 0,
+    assignedDayOfWeek: opts.assignedDayOfWeek ?? null,
+    assignedDate: opts.assignedDate ?? null,
+    servingsOverride: opts.servingsOverride ?? null,
+    ingredientOverrides: opts.ingredientOverrides ?? null,
+    recipeOverrideJson: opts.recipeOverrideJson ?? null,
+    isBreakfast: opts.isBreakfast ?? false,
+    isLunch: opts.isLunch ?? false,
+    isDinner: opts.isDinner ?? true,
+    notes: opts.notes ?? null,
+  };
+}
+
+function makeD3Stub(opts: {
+  plans?: D1PlanFix[];
+  items?: D3ItemFix[];
+  meals?: D1MealFix[];
+  recorder: D3Recorder;
+  /** Throw on mealPlanItem.update — exercises rollback. */
+  throwOnItemUpdate?: boolean;
+  /** Throw on mealPlanItem.create AFTER delete (mealId-swap path rollback). */
+  throwOnItemCreate?: boolean;
+}) {
+  const plans = opts.plans ?? [];
+  const items = opts.items ?? [];
+  const meals = opts.meals ?? [];
+  const recorder = opts.recorder;
+  let itemCounter = 0;
+
+  const txClient = {
+    mealPlanInstance: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const row = plans.find((p) => p.id === args.where.id);
+        return row ? { userId: row.userId } : null;
+      },
+      // bumpPlanRevision call inside the route's tx.
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        recorder.instanceUpdates.push(args);
+        const row = plans.find((p) => p.id === args.where.id);
+        const bumped =
+          args.data.revisionId &&
+          typeof args.data.revisionId === "object" &&
+          "increment" in (args.data.revisionId as Record<string, unknown>);
+        const newRev = (row?.revisionId ?? 0) + (bumped ? 1 : 0);
+        return { id: args.where.id, revisionId: newRev };
+      },
+    },
+    mealPlanItem: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const i = items.find((it) => it.id === args.where.id);
+        if (!i) return null;
+        return {
+          mealPlanInstanceId: i.mealPlanInstanceId,
+          mealId: i.mealId,
+          positionIndex: i.positionIndex,
+          assignedDayOfWeek: i.assignedDayOfWeek,
+          assignedDate: i.assignedDate,
+          servingsOverride: i.servingsOverride,
+          ingredientOverrides: i.ingredientOverrides,
+          recipeOverrideJson: i.recipeOverrideJson,
+          isBreakfast: i.isBreakfast,
+          isLunch: i.isLunch,
+          isDinner: i.isDinner,
+          notes: i.notes,
+        };
+      },
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        if (opts.throwOnItemUpdate) {
+          throw new Error("item-update-failed");
+        }
+        recorder.itemUpdates.push(args);
+        const i = items.find((it) => it.id === args.where.id);
+        const merged = {
+          ...i,
+          ...args.data,
+        } as Record<string, unknown>;
+        return {
+          id: args.where.id,
+          mealId: merged.mealId ?? i?.mealId,
+          positionIndex: merged.positionIndex ?? i?.positionIndex,
+          assignedDayOfWeek: merged.assignedDayOfWeek ?? null,
+          assignedDate: merged.assignedDate ?? null,
+          servingsOverride: merged.servingsOverride ?? null,
+          ingredientOverrides: merged.ingredientOverrides ?? null,
+          recipeOverrideJson: merged.recipeOverrideJson ?? null,
+          isBreakfast: merged.isBreakfast ?? false,
+          isLunch: merged.isLunch ?? false,
+          isDinner: merged.isDinner ?? false,
+          notes: merged.notes ?? null,
+        };
+      },
+      create: async (args: { data: Record<string, unknown> }) => {
+        if (opts.throwOnItemCreate) {
+          throw new Error("item-create-failed");
+        }
+        recorder.itemCreates.push(args);
+        itemCounter += 1;
+        const id = `swapped-item-${itemCounter}`;
+        return {
+          id,
+          mealId: args.data.mealId,
+          positionIndex: args.data.positionIndex,
+          assignedDayOfWeek: args.data.assignedDayOfWeek ?? null,
+          assignedDate: args.data.assignedDate ?? null,
+          servingsOverride: args.data.servingsOverride ?? null,
+          ingredientOverrides: args.data.ingredientOverrides ?? null,
+          recipeOverrideJson: args.data.recipeOverrideJson ?? null,
+          isBreakfast: args.data.isBreakfast,
+          isLunch: args.data.isLunch,
+          isDinner: args.data.isDinner,
+          notes: args.data.notes ?? null,
+        };
+      },
+      delete: async (args: { where: { id: string } }) => {
+        recorder.itemDeletes.push(args);
+        return { id: args.where.id };
+      },
+    },
+    meal: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const m = meals.find((mm) => mm.id === args.where.id);
+        return m ? { userId: m.userId, isPublic: m.isPublic, isArchived: m.isArchived } : null;
+      },
+    },
+    userActivity: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.activityWrites.push(args.data);
+        return { id: "act-d3" };
+      },
+    },
+  };
+
+  return {
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    mealPlanInstance: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const row = plans.find((p) => p.id === args.where.id);
+        return row ? { revisionId: row.revisionId } : null;
+      },
+    },
+    // composeMealDetail outside-tx call
+    meal: {
+      findUnique: async (args: { where: { id: string }; include?: unknown }) => {
+        const m = meals.find((mm) => mm.id === args.where.id);
+        if (!m) return null;
+        return {
+          id: m.id,
+          userId: m.userId,
+          title: m.title,
+          description: null,
+          mealType: "dinner",
+          sourceType: "manual",
+          cuisineType: null,
+          difficulty: "easy",
+          estimatedTimeMinutes: 30,
+          imageUrl: null,
+          servingsDefault: 4,
+          tags: [],
+          caloriesPerServing: 0,
+          proteinGPerServing: 0,
+          carbsGPerServing: 0,
+          fatGPerServing: 0,
+          timesCooked: 0,
+          isArchived: m.isArchived,
+          isPublic: m.isPublic,
+          dishLinks: [],
+        };
+      },
+    },
+    recipeInstructionStep: {
+      findMany: async () => [] as unknown[],
+    },
+    mealPlanItem: txClient.mealPlanItem,
+    userActivity: txClient.userActivity,
+  };
+}
+
+async function patchPlanItemReq(
+  harness: Harness,
+  planId: string,
+  itemId: string,
+  body: Record<string, unknown>,
+  userId: string = A2_USER,
+): Promise<Response> {
+  return fetch(`${harness.baseUrl}/plans/${planId}/items/${itemId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${signToken(userId)}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+const D3_DEFAULT_PLANS = [{ id: "p-1", userId: A2_USER, revisionId: 5 }];
+const D3_DEFAULT_MEALS: D1MealFix[] = [
+  { id: "m-old", userId: A2_USER, isPublic: false, isArchived: false, title: "Old" },
+  { id: "m-new", userId: A2_USER, isPublic: false, isArchived: false, title: "New" },
+];
+
+describe("PATCH /plans/:id/items/:itemId (WS7-4-D c3)", () => {
+  it("assignedDayOfWeek null -> Monday emits plan_meal_assigned with { day }", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", { assignedDayOfWeek: "Monday" });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_meal_assigned");
+      assert.deepEqual(act.metadata, { day: "Monday" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("assignedDayOfWeek Monday -> null emits plan_meal_unassigned with { from }", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [
+          d3ItemFix({
+            id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old",
+            assignedDayOfWeek: "Monday",
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", { assignedDayOfWeek: null });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_meal_unassigned");
+      assert.deepEqual(act.metadata, { from: "Monday" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("assignedDayOfWeek Monday -> Tuesday emits plan_meal_assigned with { from, to }", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [
+          d3ItemFix({
+            id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old",
+            assignedDayOfWeek: "Monday",
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", { assignedDayOfWeek: "Tuesday" });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_meal_assigned");
+      assert.deepEqual(act.metadata, { from: "Monday", to: "Tuesday" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("slot dinner -> lunch updates all 3 booleans and emits plan_meal_edited { field: slot, from, to }", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", { slot: "lunch" });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.itemUpdates.length, 1);
+      const upd = recorder.itemUpdates[0].data;
+      assert.equal(upd.isBreakfast, false);
+      assert.equal(upd.isLunch, true);
+      assert.equal(upd.isDinner, false);
+
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_meal_edited");
+      assert.deepEqual(act.metadata, { field: "slot", from: "dinner", to: "lunch" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("servingsOverride null -> 6 emits plan_meal_edited { field: servingsOverride, from, to }", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", { servingsOverride: 6 });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_meal_edited");
+      assert.deepEqual(act.metadata, { field: "servingsOverride", from: null, to: 6 });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("ingredientOverrides set emits plan_meal_edited { field: ingredientOverrides } with value omitted", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", {
+        ingredientOverrides: [{ ingredientName: "salt", action: "remove" }],
+      });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_meal_edited");
+      assert.deepEqual(act.metadata, { field: "ingredientOverrides" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("recipeOverrideJson set emits plan_recipe_changed { cleared: false }", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const validOverride = {
+        titleOverride: "Tweaked",
+        dishes: [
+          { name: "Main", ingredients: [{ name: "salt", quantity: 1, unit: "tsp" }] },
+        ],
+        steps: ["Mix all"],
+        createdAt: new Date().toISOString(),
+      };
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", { recipeOverrideJson: validOverride });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_recipe_changed");
+      assert.deepEqual(act.metadata, { cleared: false });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("atomic mealId swap deletes old + creates new with Q-P1-4 preservation matrix, emits single plan_meal_changed", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [
+          d3ItemFix({
+            id: "it-old", mealPlanInstanceId: "p-1", mealId: "m-old",
+            positionIndex: 3,
+            assignedDayOfWeek: "Wednesday",
+            servingsOverride: 5,
+            ingredientOverrides: [{ name: "tomato" }],
+            recipeOverrideJson: { dishes: [] },
+            isLunch: true,
+            isDinner: false,
+            notes: "user note",
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-old", { mealId: "m-new" });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        item: {
+          id: string;
+          mealId: string;
+          assignedDayOfWeek: string;
+          isLunch: boolean;
+          servingsOverride: number | null;
+          notes: string | null;
+          positionIndex: number;
+        };
+        planId: string;
+        revisionId: number;
+      };
+      assert.ok(body.item.id.startsWith("swapped-item-"));
+      assert.equal(body.item.mealId, "m-new");
+
+      // PRESERVED
+      assert.equal(body.item.assignedDayOfWeek, "Wednesday");
+      assert.equal(body.item.isLunch, true);
+      assert.equal(body.item.notes, "user note");
+      assert.equal(body.item.positionIndex, 3);
+
+      // RESET
+      assert.equal(body.item.servingsOverride, null);
+
+      // Old item deleted, new item created.
+      assert.equal(recorder.itemDeletes.length, 1);
+      assert.equal(recorder.itemDeletes[0].where.id, "it-old");
+      assert.equal(recorder.itemCreates.length, 1);
+      const created = recorder.itemCreates[0].data;
+      assert.equal(created.mealId, "m-new");
+      assert.equal(created.assignedDayOfWeek, "Wednesday");
+      assert.equal(created.notes, "user note");
+      assert.equal(created.positionIndex, 3);
+      assert.equal(created.servingsOverride, null);
+      assert.equal(created.isLunch, true);
+
+      // SINGLE plan_meal_changed event (NOT separate added + composted).
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_meal_changed");
+      const meta = act.metadata as {
+        oldItemId: string;
+        newItemId: string;
+        oldMealId: string;
+        newMealId: string;
+      };
+      assert.equal(meta.oldItemId, "it-old");
+      assert.ok(meta.newItemId.startsWith("swapped-item-"));
+      assert.equal(meta.oldMealId, "m-old");
+      assert.equal(meta.newMealId, "m-new");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("mealId combined with other fields returns 400 (v1 body restriction)", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", {
+        mealId: "m-new", slot: "lunch",
+      });
+      assert.equal(res.status, 400);
+      assert.equal(recorder.itemDeletes.length, 0);
+      assert.equal(recorder.itemCreates.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("mealId swap to non-existent meal returns 404, item NOT deleted", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: [
+          { id: "m-old", userId: A2_USER, isPublic: false, isArchived: false, title: "Old" },
+        ],
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", { mealId: "ghost" });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.itemDeletes.length, 0);
+      assert.equal(recorder.itemCreates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("noop branch: empty diff returns 200 with no bump and no activity", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old", notes: "same" })],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", { notes: "same" });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.itemUpdates.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+
+      const body = (await res.json()) as { revisionId: number; macrosStale: boolean };
+      assert.equal(body.macrosStale, false);
+      assert.equal(body.revisionId, 5); // current revision, no bump
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when plan does not exist", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeD3Stub({ recorder }));
+    try {
+      const res = await patchPlanItemReq(harness, "ghost", "it-1", { slot: "lunch" });
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when item is cross-plan", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        items: [d3ItemFix({ id: "it-x", mealPlanInstanceId: "p-other", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-x", { slot: "lunch" });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.itemUpdates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 400 on empty body (Zod refine)", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeD3Stub({ recorder }));
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", {});
+      assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("macrosStale reflects planNeedsMacroEstimation result (true when injected, servings change)", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+      { planNeedsMacroEstimation: async () => true },
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", { servingsOverride: 8 });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { macrosStale: boolean };
+      assert.equal(body.macrosStale, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rolls back: when mealPlanItem.update throws, no activity written and 500 returned", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        throwOnItemUpdate: true,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-1", { slot: "lunch" });
+      assert.equal(res.status, 500);
+      assert.equal(recorder.itemUpdates.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rollback (mealId-swap path): when create throws after delete, no activity written and 500 returned", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        throwOnItemCreate: true,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-old", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-old", { mealId: "m-new" });
+      assert.equal(res.status, 500);
+      // Stub still records the delete call (TX is in-memory; routine reaches
+      // delete BEFORE create throws). The 500 + no activity confirms the
+      // route surfaced the error without emitting.
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
