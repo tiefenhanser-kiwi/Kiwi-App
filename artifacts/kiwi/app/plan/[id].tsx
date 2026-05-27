@@ -116,18 +116,23 @@ export default function PlanReviewScreen() {
     updatePlanDateRange,
   } = useApp();
 
-  // WS7-3 C4 c1 — Plan Review now reads the real GET /plans/:id. Server data
-  // seeds local state once on arrival; further edits (day strip taps, meal
-  // swaps, compost, name/date edits) stay local until WS7-4 wires real
-  // persistence. AppContext mutators remain log-only no-ops.
+  // WS7-4-D c14 — Re-seed local state on every server payload change so
+  // post-mutation itemIds (Q-P0-3 atomic-swap from Change Meal, real
+  // server ids from add-meal stub reconciliation) stay current. The pre-c14
+  // `!reviewPlan` one-shot guard locked local state to the initial fetch:
+  // subsequent invalidations updated planQuery.data but local state held
+  // stale itemIds, so the next day-pill / compost / change-meal tap sent
+  // the old id to the server and uncaught "item not found" ApiErrors fired.
+  // Optimistic updates in the mutator helpers below remain visible until the
+  // refetch arrives (~200ms) and then converge to server truth.
   const planQuery = usePlan(planId);
   const [reviewPlan, setReviewPlan] = useState<ReviewPlan | null>(null);
 
   useEffect(() => {
-    if (planQuery.data && !reviewPlan) {
+    if (planQuery.data) {
       setReviewPlan(planDetailToReviewPlan(planQuery.data));
     }
-  }, [planQuery.data, reviewPlan]);
+  }, [planQuery.data]);
 
   // PRD §9.4 — deep-link from AddMealToPlanSheet's "Create new plan" card.
   // Asynchronously fetches the meal detail and injects a row into the
