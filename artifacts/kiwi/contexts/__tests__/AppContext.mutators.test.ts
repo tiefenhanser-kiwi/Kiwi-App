@@ -661,3 +661,93 @@ test("assignDayToPlanItem propagates a server error (Q-P0-8: no swallow)", async
 
   assert.ok(caught, "expected assignDayToPlanItem to throw on 404");
 });
+
+// ── WS7-4-D c7 — addMealToPlan + removeMealFromPlan ───────────────────────
+
+test("addMealToPlan POSTs to /items with { mealId, slot: dinner, assignedDayOfWeek: day }", async () => {
+  await mountAuthed();
+
+  let capturedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "POST" &&
+      String(url).endsWith("/plans/plan-1/items")
+    ) {
+      capturedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(mockJson(itemMutationResponse("plan-1", "item-new", "m-1"), 201));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.addMealToPlan("plan-1", "m-1", "Friday");
+  });
+
+  assert.deepEqual(capturedBody, {
+    mealId: "m-1",
+    slot: "dinner",
+    assignedDayOfWeek: "Friday",
+  });
+});
+
+test("addMealToPlan without a day sends assignedDayOfWeek: null", async () => {
+  await mountAuthed();
+
+  let capturedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "POST" &&
+      String(url).endsWith("/plans/plan-1/items")
+    ) {
+      capturedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(mockJson(itemMutationResponse("plan-1", "item-new"), 201));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.addMealToPlan("plan-1", "m-2");
+  });
+
+  assert.equal((capturedBody as { assignedDayOfWeek: string | null }).assignedDayOfWeek, null);
+});
+
+test("removeMealFromPlan DELETEs /items/:itemId and invalidates plan caches", async () => {
+  const qc = await mountAuthed();
+  qc.setQueryData(["plans", "plan-1"], { id: "plan-1" });
+
+  let capturedMethod: string | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (String(url).endsWith("/plans/plan-1/items/item-1")) {
+      capturedMethod = (init?.method ?? "GET").toUpperCase();
+      return Promise.resolve(
+        mockJson({ planId: "plan-1", revisionId: 6, macrosStale: false }),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.removeMealFromPlan("plan-1", "item-1");
+  });
+
+  assert.equal(capturedMethod, "DELETE");
+  const after = qc.getQueryState(["plans", "plan-1"]);
+  assert.equal(after?.isInvalidated, true);
+});

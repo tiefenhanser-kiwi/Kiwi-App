@@ -385,22 +385,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [queryClient],
   );
 
-  const addMealToPlan = async (
-    planId: string,
-    mealId: string,
-    day?: DayOfWeek,
-  ): Promise<void> => {
-    // TODO(WS7): wire to POST /plans/:planId/items
-    console.log("[stub] addMealToPlan", { planId, mealId, day });
-  };
+  // WS7-4-D c7 — real API wiring for add/remove meal. Slot defaults to
+  // "dinner" per Q-P0-5; sent explicitly for unambiguous wire shape.
+  const addMealToPlan = useCallback(
+    async (
+      planId: string,
+      mealId: string,
+      day?: DayOfWeek,
+    ): Promise<void> => {
+      await postPlanItem(planId, {
+        mealId,
+        slot: "dinner",
+        assignedDayOfWeek: day ?? null,
+      });
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+    [queryClient],
+  );
 
-  const removeMealFromPlan = async (
-    planId: string,
-    planItemId: string,
-  ): Promise<void> => {
-    // TODO(WS7): wire to DELETE /plans/:planId/items/:planItemId
-    console.log("[stub] removeMealFromPlan", { planId, planItemId });
-  };
+  const removeMealFromPlan = useCallback(
+    async (planId: string, planItemId: string): Promise<void> => {
+      await deletePlanItem(planId, planItemId);
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+    [queryClient],
+  );
 
   const changeMealForPlanItem = async (
     planId: string,
