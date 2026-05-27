@@ -29,6 +29,10 @@ import {
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { requireAuth } from "../middleware/auth";
+import {
+  createMealWithDishes,
+  IngredientResolutionError,
+} from "../lib/mealCreate";
 import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
 import {
@@ -1723,6 +1727,200 @@ export function createPlansRouter(
           "PATCH /plans/:id/items/:itemId failed",
         );
         return res.status(500).json({ error: "failed to update item" });
+      }
+    },
+  );
+
+  // WS7-4-D c4 — POST /plans/:id/items/:itemId/promote-override —
+  // materialize an item's recipeOverrideJson into a new Meal owned by the
+  // requester, then rebind the item to it (clearing the override JSON).
+  // Q-P1-2: strict ingredient resolution (422 on first unresolved name).
+  // Q-P1-3: stepTextTranslated = stepTextRaw.
+  // Q-P0-4: emit plan_recipe_changed with metadata.promoted = true.
+  // Q-P1-5: response carries composed item + newMealId.
+  router.post(
+    "/plans/:id/items/:itemId/promote-override",
+    requireAuth,
+    mutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const planId = req.params.id;
+      if (
+        typeof planId !== "string" ||
+        planId.length === 0 ||
+        planId.length > 100
+      ) {
+        return res.status(400).json({ error: "invalid plan id" });
+      }
+      const itemId = req.params.itemId;
+      if (
+        typeof itemId !== "string" ||
+        itemId.length === 0 ||
+        itemId.length > 100
+      ) {
+        return res.status(400).json({ error: "invalid item id" });
+      }
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const plan = await tx.mealPlanInstance.findUnique({
+            where: { id: planId },
+            select: { userId: true },
+          });
+          if (!plan || plan.userId !== userId) {
+            return { kind: "not_found_plan" as const };
+          }
+
+          const item = await tx.mealPlanItem.findUnique({
+            where: { id: itemId },
+            select: {
+              mealPlanInstanceId: true,
+              mealId: true,
+              recipeOverrideJson: true,
+            },
+          });
+          if (!item || item.mealPlanInstanceId !== planId) {
+            return { kind: "not_found_item" as const };
+          }
+
+          if (item.recipeOverrideJson == null) {
+            return { kind: "no_override" as const };
+          }
+
+          // Parse the stored JSON through the same shape the route validates
+          // on write (defense in depth — DB writes were Zod-checked but the
+          // column is still untyped at the DB layer).
+          const overrideParsed = RecipeOverrideSchema.safeParse(
+            item.recipeOverrideJson,
+          );
+          if (!overrideParsed.success) {
+            return {
+              kind: "invalid_override" as const,
+              details: overrideParsed.error.flatten(),
+            };
+          }
+
+          let newMealId: string;
+          try {
+            const created = await createMealWithDishes(tx, {
+              userId,
+              sourceMealId: item.mealId,
+              override: overrideParsed.data,
+            });
+            newMealId = created.mealId;
+          } catch (err) {
+            if (err instanceof IngredientResolutionError) {
+              return {
+                kind: "ingredient_unresolved" as const,
+                ingredientName: err.ingredientName,
+              };
+            }
+            throw err;
+          }
+
+          const updatedItem = await tx.mealPlanItem.update({
+            where: { id: itemId },
+            data: {
+              mealId: newMealId,
+              recipeOverrideJson: Prisma.DbNull,
+            },
+            select: {
+              id: true,
+              mealId: true,
+              positionIndex: true,
+              assignedDayOfWeek: true,
+              assignedDate: true,
+              servingsOverride: true,
+              isBreakfast: true,
+              isLunch: true,
+              isDinner: true,
+              notes: true,
+            },
+          });
+
+          const revisionId = await bumpPlanRevision(planId, tx);
+
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_recipe_changed",
+            entityType: "MealPlanItem",
+            entityId: itemId,
+            metadata: {
+              promoted: true,
+              newMealId,
+              oldMealId: item.mealId,
+            },
+          });
+
+          const macrosStale = await planNeedsMacroEstimation({
+            tx,
+            planId,
+          });
+
+          return {
+            kind: "promoted" as const,
+            item: updatedItem,
+            newMealId,
+            revisionId,
+            macrosStale,
+          };
+        });
+
+        if (result.kind === "not_found_plan") {
+          return res.status(404).json({ error: "plan not found" });
+        }
+        if (result.kind === "not_found_item") {
+          return res.status(404).json({ error: "item not found" });
+        }
+        if (result.kind === "no_override") {
+          return res
+            .status(422)
+            .json({ error: "no_override", message: "item has no recipeOverrideJson to promote" });
+        }
+        if (result.kind === "invalid_override") {
+          return res
+            .status(422)
+            .json({ error: "invalid_override", details: result.details });
+        }
+        if (result.kind === "ingredient_unresolved") {
+          return res.status(422).json({
+            error: "unresolved_ingredient",
+            ingredientName: result.ingredientName,
+          });
+        }
+
+        const composedMeal = await composeMealDetail(prisma, result.newMealId);
+        return res.json({
+          item: {
+            id: result.item.id,
+            mealId: result.item.mealId,
+            positionIndex: result.item.positionIndex,
+            assignedDayOfWeek: result.item.assignedDayOfWeek,
+            assignedDate: result.item.assignedDate
+              ? result.item.assignedDate.toISOString()
+              : null,
+            servingsOverride: result.item.servingsOverride,
+            isBreakfast: result.item.isBreakfast,
+            isLunch: result.item.isLunch,
+            isDinner: result.item.isDinner,
+            notes: result.item.notes,
+            meal: composedMeal,
+          },
+          planId,
+          revisionId: result.revisionId,
+          macrosStale: result.macrosStale,
+          newMealId: result.newMealId,
+        });
+      } catch (err) {
+        logger.error(
+          { err, userId, planId, itemId },
+          "POST /plans/:id/items/:itemId/promote-override failed",
+        );
+        return res.status(500).json({ error: "failed to promote override" });
       }
     },
   );

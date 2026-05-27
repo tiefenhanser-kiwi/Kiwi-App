@@ -3529,3 +3529,386 @@ describe("PATCH /plans/:id/items/:itemId (WS7-4-D c3)", () => {
     }
   });
 });
+
+// ── WS7-4-D c4 — POST /plans/:id/items/:itemId/promote-override ───────────
+
+interface D4Recorder {
+  mealCreates: Array<{ data: Record<string, unknown> }>;
+  dishCreates: Array<{ data: Record<string, unknown> }>;
+  itemUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
+  activityWrites: Array<Record<string, unknown>>;
+}
+
+const D4_VALID_OVERRIDE = {
+  titleOverride: "Promoted",
+  dishes: [
+    {
+      name: "Sauce",
+      ingredients: [{ name: "salt", quantity: 1, unit: "tsp" }],
+    },
+  ],
+  steps: ["Step 1"],
+  createdAt: "2026-05-26T00:00:00Z",
+};
+
+function makeD4Stub(opts: {
+  plans?: D1PlanFix[];
+  items?: Array<{
+    id: string;
+    mealPlanInstanceId: string;
+    mealId: string;
+    recipeOverrideJson: unknown;
+  }>;
+  sourceMeals?: Array<{ id: string; title: string }>;
+  ingredients?: Array<{ id: string; canonicalName: string }>;
+  recorder: D4Recorder;
+}) {
+  const plans = opts.plans ?? [];
+  const items = opts.items ?? [];
+  const sourceMeals = opts.sourceMeals ?? [];
+  const ingredients = opts.ingredients ?? [];
+  const recorder = opts.recorder;
+  let mealCounter = 0;
+  let dishCounter = 0;
+
+  const txClient = {
+    mealPlanInstance: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const row = plans.find((p) => p.id === args.where.id);
+        return row ? { userId: row.userId } : null;
+      },
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        const row = plans.find((p) => p.id === args.where.id);
+        const bumped =
+          args.data.revisionId &&
+          typeof args.data.revisionId === "object" &&
+          "increment" in (args.data.revisionId as Record<string, unknown>);
+        return {
+          id: args.where.id,
+          revisionId: (row?.revisionId ?? 0) + (bumped ? 1 : 0),
+        };
+      },
+    },
+    mealPlanItem: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const i = items.find((it) => it.id === args.where.id);
+        return i
+          ? {
+              mealPlanInstanceId: i.mealPlanInstanceId,
+              mealId: i.mealId,
+              recipeOverrideJson: i.recipeOverrideJson,
+            }
+          : null;
+      },
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        recorder.itemUpdates.push(args);
+        return {
+          id: args.where.id,
+          mealId: args.data.mealId ?? null,
+          positionIndex: 0,
+          assignedDayOfWeek: null,
+          assignedDate: null,
+          servingsOverride: null,
+          isBreakfast: false,
+          isLunch: false,
+          isDinner: true,
+          notes: null,
+        };
+      },
+    },
+    meal: {
+      findUnique: async (args: { where: { id: string } }) => {
+        const m = sourceMeals.find((mm) => mm.id === args.where.id);
+        return m
+          ? {
+              title: m.title,
+              description: null,
+              cuisineType: null,
+              mealType: "dinner",
+              imageUrl: null,
+              servingsDefault: 4,
+              estimatedTimeMinutes: 30,
+              difficulty: "easy",
+              tags: [],
+            }
+          : null;
+      },
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.mealCreates.push(args);
+        mealCounter += 1;
+        return { id: `promoted-meal-${mealCounter}` };
+      },
+    },
+    mealDishLink: {
+      findFirst: async () => null,
+      create: async () => ({ id: "mdl-d4" }),
+    },
+    dish: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.dishCreates.push(args);
+        dishCounter += 1;
+        return { id: `promoted-dish-${dishCounter}` };
+      },
+    },
+    ingredient: {
+      findFirst: async (args: {
+        where: { canonicalName: { equals: string; mode: string } };
+      }) => {
+        const target = args.where.canonicalName.equals;
+        const hit = ingredients.find((i) => i.canonicalName === target);
+        return hit ? { id: hit.id } : null;
+      },
+    },
+    dishIngredient: {
+      create: async () => ({ id: "di-d4" }),
+    },
+    recipeInstructionStep: {
+      create: async () => ({ id: "step-d4" }),
+    },
+    userActivity: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.activityWrites.push(args.data);
+        return { id: "act-d4" };
+      },
+    },
+  };
+
+  return {
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    // Outside-tx composeMealDetail call.
+    meal: {
+      findUnique: async (args: { where: { id: string }; include?: unknown }) => {
+        return {
+          id: args.where.id,
+          userId: "u-1",
+          title: "Promoted",
+          description: null,
+          mealType: "dinner",
+          sourceType: "manual",
+          cuisineType: null,
+          difficulty: "easy",
+          estimatedTimeMinutes: 30,
+          imageUrl: null,
+          servingsDefault: 4,
+          tags: [],
+          caloriesPerServing: 0,
+          proteinGPerServing: 0,
+          carbsGPerServing: 0,
+          fatGPerServing: 0,
+          timesCooked: 0,
+          isArchived: false,
+          isPublic: false,
+          dishLinks: [],
+        };
+      },
+    },
+    recipeInstructionStep: {
+      findMany: async () => [] as unknown[],
+    },
+    mealPlanInstance: txClient.mealPlanInstance,
+    mealPlanItem: txClient.mealPlanItem,
+    userActivity: txClient.userActivity,
+  };
+}
+
+async function promotePlanItemReq(
+  harness: Harness,
+  planId: string,
+  itemId: string,
+  userId: string = A2_USER,
+): Promise<Response> {
+  return fetch(
+    `${harness.baseUrl}/plans/${planId}/items/${itemId}/promote-override`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${signToken(userId)}` },
+    },
+  );
+}
+
+describe("POST /plans/:id/items/:itemId/promote-override (WS7-4-D c4)", () => {
+  it("happy: promotes override, rebinds item, emits plan_recipe_changed with promoted=true", async () => {
+    const recorder: D4Recorder = {
+      mealCreates: [], dishCreates: [], itemUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD4Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 3 }],
+        items: [
+          {
+            id: "it-1",
+            mealPlanInstanceId: "p-1",
+            mealId: "m-src",
+            recipeOverrideJson: D4_VALID_OVERRIDE,
+          },
+        ],
+        sourceMeals: [{ id: "m-src", title: "Source" }],
+        ingredients: [{ id: "ing-salt", canonicalName: "salt" }],
+      }),
+    );
+    try {
+      const res = await promotePlanItemReq(harness, "p-1", "it-1");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        item: { id: string; mealId: string };
+        planId: string;
+        revisionId: number;
+        macrosStale: boolean;
+        newMealId: string;
+      };
+      assert.equal(body.planId, "p-1");
+      assert.equal(body.newMealId, "promoted-meal-1");
+      assert.equal(body.item.mealId, "promoted-meal-1");
+      assert.equal(body.revisionId, 4);
+
+      assert.equal(recorder.mealCreates.length, 1);
+      assert.equal(recorder.itemUpdates.length, 1);
+      const upd = recorder.itemUpdates[0].data;
+      assert.equal(upd.mealId, "promoted-meal-1");
+
+      assert.equal(recorder.activityWrites.length, 1);
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_recipe_changed");
+      const meta = act.metadata as {
+        promoted: boolean;
+        newMealId: string;
+        oldMealId: string;
+      };
+      assert.equal(meta.promoted, true);
+      assert.equal(meta.newMealId, "promoted-meal-1");
+      assert.equal(meta.oldMealId, "m-src");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 422 when item has no recipeOverrideJson (nothing to promote)", async () => {
+    const recorder: D4Recorder = {
+      mealCreates: [], dishCreates: [], itemUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD4Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        items: [
+          {
+            id: "it-1",
+            mealPlanInstanceId: "p-1",
+            mealId: "m-src",
+            recipeOverrideJson: null,
+          },
+        ],
+        sourceMeals: [{ id: "m-src", title: "Source" }],
+        ingredients: [],
+      }),
+    );
+    try {
+      const res = await promotePlanItemReq(harness, "p-1", "it-1");
+      assert.equal(res.status, 422);
+      const body = (await res.json()) as { error: string };
+      assert.equal(body.error, "no_override");
+      assert.equal(recorder.mealCreates.length, 0);
+      assert.equal(recorder.itemUpdates.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 422 with unresolved_ingredient when an ingredient name doesn't resolve; rollback (no item update, no activity)", async () => {
+    const recorder: D4Recorder = {
+      mealCreates: [], dishCreates: [], itemUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD4Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        items: [
+          {
+            id: "it-1",
+            mealPlanInstanceId: "p-1",
+            mealId: "m-src",
+            recipeOverrideJson: {
+              dishes: [
+                {
+                  name: "D1",
+                  ingredients: [{ name: "Unicorn Horn", quantity: 1, unit: "ea" }],
+                },
+              ],
+              createdAt: "2026-05-26T00:00:00Z",
+            },
+          },
+        ],
+        sourceMeals: [{ id: "m-src", title: "Source" }],
+        ingredients: [], // no resolvable ingredients
+      }),
+    );
+    try {
+      const res = await promotePlanItemReq(harness, "p-1", "it-1");
+      assert.equal(res.status, 422);
+      const body = (await res.json()) as { error: string; ingredientName: string };
+      assert.equal(body.error, "unresolved_ingredient");
+      assert.equal(body.ingredientName, "Unicorn Horn");
+      // Item was NOT rebound; no activity emitted.
+      assert.equal(recorder.itemUpdates.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when plan is not owned by requester (no existence leak)", async () => {
+    const recorder: D4Recorder = {
+      mealCreates: [], dishCreates: [], itemUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD4Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: "stranger", revisionId: 1 }],
+        items: [
+          {
+            id: "it-1",
+            mealPlanInstanceId: "p-1",
+            mealId: "m-src",
+            recipeOverrideJson: D4_VALID_OVERRIDE,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await promotePlanItemReq(harness, "p-1", "it-1");
+      assert.equal(res.status, 404);
+      assert.equal(recorder.mealCreates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 404 when item is cross-plan", async () => {
+    const recorder: D4Recorder = {
+      mealCreates: [], dishCreates: [], itemUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD4Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 1 }],
+        items: [
+          {
+            id: "it-x",
+            mealPlanInstanceId: "p-other",
+            mealId: "m-src",
+            recipeOverrideJson: D4_VALID_OVERRIDE,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await promotePlanItemReq(harness, "p-1", "it-x");
+      assert.equal(res.status, 404);
+      assert.equal(recorder.mealCreates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
