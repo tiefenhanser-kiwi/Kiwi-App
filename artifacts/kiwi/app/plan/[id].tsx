@@ -114,6 +114,7 @@ export default function PlanReviewScreen() {
     removeMealFromPlan,
     updatePlanName,
     updatePlanDateRange,
+    isMacrosRecalcInFlight,
   } = useApp();
 
   // WS7-4-D c14 — Re-seed local state on every server payload change so
@@ -479,9 +480,19 @@ export default function PlanReviewScreen() {
         )}
 
         {/* §8.3.5 — Daily macro averages */}
+        {/* WS7-4-E c3 — inline-above-row LoadingShim (Q2:A) renders while the
+            AppContext hybrid-recalc dispatcher has a recalc-macros POST in
+            flight. PRD §8.3.5 redline: "brief loading state while AI
+            estimates macros for newly-added uncached dishes." Stale values
+            stay visible below the shim per the redline. */}
         <View style={s.section}>
           <Card>
             <Text style={s.cardTitle}>Daily averages</Text>
+            {isMacrosRecalcInFlight && (
+              <View style={{ marginTop: KSpacing.sm }}>
+                <LoadingShim variant="inline" label="Updating macros…" />
+              </View>
+            )}
             <View style={s.macroRow}>
               <View style={s.macroStat}>
                 <Text style={s.macroValue}>
