@@ -23,6 +23,7 @@ import {
   patchPlanItem,
   postPlanItem,
   promoteItemOverride,
+  recalcPlanMacros,
   useTemplate as useTemplateAPI,
 } from "@/lib/api/plans";
 import { useAuth } from "@/contexts/AuthContext";
@@ -164,6 +165,14 @@ interface AppState {
    *  the caller can navigate to `/plan/[id]`. Throws (ApiError 404 / 429 /
    *  500, UnauthenticatedError 401, ApiSchemaError) on failure. */
   useTemplateAsPlan: (templateId: string) => Promise<{ instanceId: string }>;
+  /** WS7-4-E c2 — true while a POST /plans/:id/recalc-macros is in flight
+   *  for any plan. Plan Review's daily-averages card reads this to show a
+   *  non-blocking inline loading shim (Q2:A). Implements Ruling 11: when a
+   *  mutation response carries macrosStale: true, the AppContext fires
+   *  recalc-macros, flips this flag on BEFORE the first invalidateQueries
+   *  (so refetch #1 doesn't briefly render macros computed without the new
+   *  uncached dish), then flips off after recalc settles. */
+  isMacrosRecalcInFlight: boolean;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
   // ── Grocery list system (PRD §12; WS5 stubs, WS7 wires real persistence) ──
@@ -243,6 +252,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     useState<Step2Draft | null>(null);
   const [onboardingStep3Draft, setOnboardingStep3DraftState] =
     useState<Step3Draft | null>(null);
+
+  // WS7-4-E c2 — counter of in-flight POST /plans/:id/recalc-macros calls.
+  // Exposed to consumers as `isMacrosRecalcInFlight = count > 0`. A counter
+  // (not a single boolean) handles rapid-fire mutations cleanly: each
+  // dispatchRecalcMacros increments on entry and decrements on settle, so
+  // overlapping recalcs still resolve to "in flight" until ALL complete.
+  const [macrosRecalcInFlightCount, setMacrosRecalcInFlightCount] =
+    useState(0);
+
+  // WS7-4-E c2 — hybrid recalc dispatcher (Ruling 11). Called after a
+  // mutation whose response carries macrosStale: true. Fires the recalc
+  // POST in the background; on success, invalidates ["plans", planId] so
+  // Plan Review refetches the GET payload with fresh macroDailyAverage.
+  // Failures are swallowed (warn-only) — the underlying mutation has
+  // already succeeded; an AI estimation failure is not a user-facing error.
+  // Per the c2 ordering rule, callers raise the flag BEFORE the first
+  // invalidate so the inline loading shim covers refetch #1 too (otherwise
+  // the user briefly sees stale macros render between mutation-resolve and
+  // recalc-complete).
+  const dispatchRecalcMacros = useCallback(
+    (planId: string): void => {
+      void (async () => {
+        try {
+          await recalcPlanMacros(planId);
+          queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+        } catch (err) {
+          // PRD §8.3.5 redline — "brief loading state while AI estimates."
+          // A recalc failure is best-effort: the user's mutation succeeded
+          // and stale (cached) values remain in the GET payload. Logging
+          // only; no rollback, no rethrow.
+          console.warn("[recalc-macros] failed", { planId, err });
+        } finally {
+          setMacrosRecalcInFlightCount((n) => Math.max(0, n - 1));
+        }
+      })();
+    },
+    [queryClient],
+  );
+
+  // Pattern shared by every mutator that can return macrosStale. Bumps the
+  // flag BEFORE the cache invalidations (so the inline shim mounts immediately
+  // and stays mounted across refetch #1), then runs the standard plans-cache
+  // invalidations, then kicks off the recalc.
+  const handleMutationResult = useCallback(
+    (planId: string, macrosStale: boolean): void => {
+      if (macrosStale) {
+        setMacrosRecalcInFlightCount((n) => n + 1);
+      }
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      if (macrosStale) {
+        dispatchRecalcMacros(planId);
+      }
+    },
+    [queryClient, dispatchRecalcMacros],
+  );
 
   const setOnboardingStep2Draft = useCallback((draft: Step2Draft) => {
     setOnboardingStep2DraftState(draft);
@@ -339,26 +404,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // WS7-4-D c6 — real API wiring for assign/unassign day. Q-P0-8 mutators
   // return Promise<void>; React Query invalidation drives the UI refresh.
+  // WS7-4-E c2 — consumes macrosStale via handleMutationResult (Ruling 11).
   const assignDayToPlanItem = useCallback(
     async (
       planId: string,
       planItemId: string,
       day: DayOfWeek,
     ): Promise<void> => {
-      await patchPlanItem(planId, planItemId, { assignedDayOfWeek: day });
-      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
-      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      const response = await patchPlanItem(planId, planItemId, {
+        assignedDayOfWeek: day,
+      });
+      handleMutationResult(planId, response.macrosStale);
     },
-    [queryClient],
+    [handleMutationResult],
   );
 
   const unassignDayFromPlanItem = useCallback(
     async (planId: string, planItemId: string): Promise<void> => {
-      await patchPlanItem(planId, planItemId, { assignedDayOfWeek: null });
-      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
-      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      const response = await patchPlanItem(planId, planItemId, {
+        assignedDayOfWeek: null,
+      });
+      handleMutationResult(planId, response.macrosStale);
     },
-    [queryClient],
+    [handleMutationResult],
   );
 
   // WS7-4-D c7 — real API wiring for add/remove meal. Slot defaults to
@@ -369,24 +437,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       mealId: string,
       day?: DayOfWeek,
     ): Promise<void> => {
-      await postPlanItem(planId, {
+      const response = await postPlanItem(planId, {
         mealId,
         slot: "dinner",
         assignedDayOfWeek: day ?? null,
       });
-      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
-      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      handleMutationResult(planId, response.macrosStale);
     },
-    [queryClient],
+    [handleMutationResult],
   );
 
   const removeMealFromPlan = useCallback(
     async (planId: string, planItemId: string): Promise<void> => {
-      await deletePlanItem(planId, planItemId);
-      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
-      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      const response = await deletePlanItem(planId, planItemId);
+      handleMutationResult(planId, response.macrosStale);
     },
-    [queryClient],
+    [handleMutationResult],
   );
 
   // WS7-4-D c8 — real API wiring. Q-P0-3 (alpha) atomic server-side
@@ -399,11 +465,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       planItemId: string,
       newMealId: string,
     ): Promise<void> => {
-      await patchPlanItem(planId, planItemId, { mealId: newMealId });
-      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
-      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      const response = await patchPlanItem(planId, planItemId, {
+        mealId: newMealId,
+      });
+      handleMutationResult(planId, response.macrosStale);
     },
-    [queryClient],
+    [handleMutationResult],
   );
 
   // WS7-4-D c9 — scaffold mutators (no UI consumer yet per Phase 1 A6).
@@ -416,22 +483,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       planItemId: string,
       override: RecipeOverride,
     ): Promise<void> => {
-      await patchPlanItem(planId, planItemId, {
+      const response = await patchPlanItem(planId, planItemId, {
         recipeOverrideJson: override,
       });
-      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
-      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      handleMutationResult(planId, response.macrosStale);
     },
-    [queryClient],
+    [handleMutationResult],
   );
 
   const promoteRecipeOverrideToMeal = useCallback(
     async (planId: string, planItemId: string): Promise<void> => {
-      await promoteItemOverride(planId, planItemId);
-      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
-      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      const response = await promoteItemOverride(planId, planItemId);
+      handleMutationResult(planId, response.macrosStale);
     },
-    [queryClient],
+    [handleMutationResult],
   );
 
   const findSimilarMeals = async (mealId: string): Promise<string[]> => {
@@ -442,13 +507,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return [];
   };
 
+  // WS7-4-E c2 — Q3:A — plan-level mutators also consume macrosStale for
+  // symmetry. patchPlan's response.macrosStale is optional (server forces
+  // false on the noop branch + on name-only changes); coalesce to false.
   const updatePlanName = useCallback(
     async (planId: string, name: string): Promise<void> => {
-      await patchPlan(planId, { name });
-      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
-      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      const response = await patchPlan(planId, { name });
+      handleMutationResult(planId, response.macrosStale ?? false);
     },
-    [queryClient],
+    [handleMutationResult],
   );
 
   const updatePlanDateRange = useCallback(
@@ -456,11 +523,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       planId: string,
       range: { startDate?: string; endDate?: string },
     ): Promise<void> => {
-      await patchPlan(planId, range);
-      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
-      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      const response = await patchPlan(planId, range);
+      handleMutationResult(planId, response.macrosStale ?? false);
     },
-    [queryClient],
+    [handleMutationResult],
   );
 
   const saveDish = async (dish: DishDraft): Promise<{ id: string }> => {
@@ -755,6 +821,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     completeOnboarding,
     deactivateAccount,
     useTemplateAsPlan,
+    isMacrosRecalcInFlight: macrosRecalcInFlightCount > 0,
     groceries,
     toggleGrocery,
     toggleGroceryItemCompleted,

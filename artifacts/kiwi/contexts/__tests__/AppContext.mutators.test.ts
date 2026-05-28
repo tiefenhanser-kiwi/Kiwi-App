@@ -889,6 +889,209 @@ test("promoteRecipeOverrideToMeal POSTs to /promote-override and invalidates cac
   assert.equal(after?.isInvalidated, true);
 });
 
+// ── WS7-4-E c2 — hybrid recalc-macros dispatch (Ruling 11) ────────────────
+// Each branch is asserted independently from the existing per-mutator
+// wire-shape tests above. The dispatcher fires for ANY mutation whose
+// response carries macrosStale: true; we use removeMealFromPlan as the
+// vehicle because its response is the simplest (no `item` envelope) and
+// because compost is the canonical "macrosStale=true" path when a fresh
+// uncached dish was last added in the same plan.
+
+test("WS7-4-E: macrosStale=true triggers POST /plans/:id/recalc-macros after the mutation", async () => {
+  await mountAuthed();
+
+  const calls: { url: string; method: string }[] = [];
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const method = (init?.method ?? "GET").toUpperCase();
+    const u = String(url);
+    if (u.endsWith("/plans/plan-1/items/item-1") && method === "DELETE") {
+      calls.push({ url: u, method });
+      return Promise.resolve(
+        mockJson({ planId: "plan-1", revisionId: 7, macrosStale: true }),
+      );
+    }
+    if (u.endsWith("/plans/plan-1/recalc-macros") && method === "POST") {
+      calls.push({ url: u, method });
+      return Promise.resolve(
+        mockJson({
+          dailyAverages: {
+            caloriesPerDay: 500,
+            proteinGPerDay: 30,
+            carbsGPerDay: 40,
+            fatGPerDay: 18,
+          },
+        }),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.removeMealFromPlan("plan-1", "item-1");
+  });
+  // Let the background recalc fire-and-forget settle.
+  await settle();
+
+  const recalcCalls = calls.filter((c) =>
+    c.url.endsWith("/plans/plan-1/recalc-macros"),
+  );
+  assert.equal(recalcCalls.length, 1, "expected exactly one recalc POST");
+  assert.equal(recalcCalls[0].method, "POST");
+});
+
+test("WS7-4-E: macrosStale=false does NOT trigger recalc-macros", async () => {
+  await mountAuthed();
+
+  const calls: { url: string; method: string }[] = [];
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const method = (init?.method ?? "GET").toUpperCase();
+    const u = String(url);
+    if (u.endsWith("/plans/plan-1/items/item-1") && method === "PATCH") {
+      calls.push({ url: u, method });
+      return Promise.resolve(
+        mockJson(itemMutationResponse("plan-1", "item-1")), // macrosStale: false
+      );
+    }
+    if (u.endsWith("/plans/plan-1/recalc-macros")) {
+      calls.push({ url: u, method });
+      return Promise.resolve(mockJson({}, 200));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.assignDayToPlanItem("plan-1", "item-1", "Tuesday");
+  });
+  await settle();
+
+  const recalcCalls = calls.filter((c) =>
+    c.url.endsWith("/plans/plan-1/recalc-macros"),
+  );
+  assert.equal(recalcCalls.length, 0, "recalc-macros should not be called");
+});
+
+test("WS7-4-E: recalc-macros failure does NOT crash the mutator (warn-only)", async () => {
+  await mountAuthed();
+
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const method = (init?.method ?? "GET").toUpperCase();
+    const u = String(url);
+    if (u.endsWith("/plans/plan-1/items") && method === "POST") {
+      return Promise.resolve(
+        mockJson(
+          {
+            ...itemMutationResponse("plan-1", "item-new"),
+            macrosStale: true,
+          },
+          201,
+        ),
+      );
+    }
+    if (u.endsWith("/plans/plan-1/recalc-macros") && method === "POST") {
+      return Promise.resolve(mockJson({ error: "rate_limited" }, 429));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  // Silence the expected console.warn so the test log stays clean. The
+  // dispatcher's contract is warn-and-swallow; this test pins that.
+  const prevWarn = console.warn;
+  console.warn = () => {};
+
+  let mutatorThrew = false;
+  await act(async () => {
+    try {
+      await app!.addMealToPlan("plan-1", "m-2");
+    } catch {
+      mutatorThrew = true;
+    }
+  });
+  await settle();
+
+  console.warn = prevWarn;
+  assert.equal(
+    mutatorThrew,
+    false,
+    "mutator should resolve cleanly even when recalc-macros fails",
+  );
+});
+
+test("WS7-4-E: isMacrosRecalcInFlight flips true while recalc is in flight and back to false after", async () => {
+  await mountAuthed();
+
+  // Defer the recalc response so we can observe the in-flight window.
+  let resolveRecalc: ((value: Response) => void) | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const method = (init?.method ?? "GET").toUpperCase();
+    const u = String(url);
+    if (u.endsWith("/plans/plan-1/items/item-1") && method === "DELETE") {
+      return Promise.resolve(
+        mockJson({ planId: "plan-1", revisionId: 8, macrosStale: true }),
+      );
+    }
+    if (u.endsWith("/plans/plan-1/recalc-macros") && method === "POST") {
+      return new Promise<Response>((resolve) => {
+        resolveRecalc = resolve;
+      });
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  assert.equal(app!.isMacrosRecalcInFlight, false, "flag clean at start");
+
+  await act(async () => {
+    await app!.removeMealFromPlan("plan-1", "item-1");
+  });
+  // Mutation resolved; recalc fired and is awaiting resolveRecalc.
+  // The state update from setMacrosRecalcInFlightCount needs a microtask
+  // tick to propagate to the next Probe render.
+  await act(async () => {
+    await new Promise<void>((r) => setTimeout(r, 0));
+  });
+  assert.equal(
+    app!.isMacrosRecalcInFlight,
+    true,
+    "flag should be true while recalc is in flight",
+  );
+
+  // Now resolve the recalc and let the dispatcher's finally run.
+  await act(async () => {
+    resolveRecalc!(
+      mockJson({
+        dailyAverages: {
+          caloriesPerDay: 500,
+          proteinGPerDay: 30,
+          carbsGPerDay: 40,
+          fatGPerDay: 18,
+        },
+      }),
+    );
+    await settle();
+  });
+
+  assert.equal(
+    app!.isMacrosRecalcInFlight,
+    false,
+    "flag should be false after recalc settles",
+  );
+});
+
 test("promoteRecipeOverrideToMeal propagates 422 unresolved_ingredient with structured body", async () => {
   await mountAuthed();
 
