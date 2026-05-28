@@ -115,8 +115,6 @@ interface AppState {
     planId: string,
     planItemId: string,
   ) => Promise<void>;
-  /** PRD §8.4.x (NEW per WS5) — Find Similar: returns Meal candidates matching cuisine of the source mealId. MVP: cuisine match only. */
-  findSimilarMeals: (mealId: string) => Promise<string[]>;
   /** PRD §8 / §11 — rename a plan. Real persistence WS7. */
   updatePlanName: (planId: string, name: string) => Promise<void>;
   /** PRD §8 / §11 — update a plan's start/end dates. */
@@ -499,14 +497,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [handleMutationResult],
   );
 
-  const findSimilarMeals = async (mealId: string): Promise<string[]> => {
-    // TODO(WS7): wire to GET /meals/:mealId/similar
-    // MVP: cuisine-match-only (PRD §8.4.x WS5 amendment); AI semantic
-    // similarity deferred to WS6+ (logged as D-WS5-XXX in handoff).
-    console.log("[stub] findSimilarMeals", { mealId });
-    return [];
-  };
-
   // WS7-4-E c2 — Q3:A — plan-level mutators also consume macrosStale for
   // symmetry. patchPlan's response.macrosStale is optional (server forces
   // false on the noop branch + on name-only changes); coalesce to false.
@@ -808,7 +798,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     changeMealForPlanItem,
     changeRecipeForPlanItem,
     promoteRecipeOverrideToMeal,
-    findSimilarMeals,
     updatePlanName,
     updatePlanDateRange,
     saveDish,

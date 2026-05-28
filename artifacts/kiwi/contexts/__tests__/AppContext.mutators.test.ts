@@ -815,6 +815,24 @@ test("Ruling 7 retirement: AppContext no longer exposes swapMealInCurrentPlan", 
   );
 });
 
+// WS7-4-E c4 — findSimilarMeals retirement (Q1:A). Mirrors the c9 pattern:
+// the AppContext stub was an orphan console.log returning [] — zero callers
+// of useApp().findSimilarMeals across artifacts/kiwi (pre-deletion grep
+// pasted in the c4 commit body). The real Find Similar flow runs through
+// useFindSimilarMeals → lib/api/meals → POST /meals/find-similar; the
+// FindSimilarSheet uses findSimilarMealsByCuisine from lib/stubs for the
+// free-tier cuisine-match path. Compile-time enforced by interface removal;
+// this test pins runtime shape too.
+test("WS7-4-E retirement: AppContext no longer exposes findSimilarMeals", async () => {
+  await mountAuthed();
+  const v = app as unknown as Record<string, unknown>;
+  assert.equal(
+    "findSimilarMeals" in v,
+    false,
+    "findSimilarMeals should be removed from the AppContext value",
+  );
+});
+
 // ── WS7-4-D c9 — changeRecipeForPlanItem + promoteRecipeOverrideToMeal ───
 
 test("changeRecipeForPlanItem PATCHes /items with { recipeOverrideJson: override }", async () => {
