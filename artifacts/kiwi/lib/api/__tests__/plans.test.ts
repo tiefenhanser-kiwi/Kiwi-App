@@ -802,3 +802,60 @@ test("promoteItemOverride surfaces a server 422 unresolved_ingredient as an ApiE
     },
   );
 });
+
+// ── WS7-4-E c1 — recalcPlanMacros ─────────────────────────────────────────
+
+test("recalcPlanMacros POSTs to /plans/:id/recalc-macros and parses dailyAverages", async () => {
+  let capturedMethod: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: RequestInit,
+  ) => {
+    lastUrl = String(url);
+    capturedMethod = (init?.method ?? "GET").toUpperCase();
+    return mockJson({
+      dailyAverages: {
+        caloriesPerDay: 612,
+        proteinGPerDay: 41.2,
+        carbsGPerDay: 58.7,
+        fatGPerDay: 22.4,
+      },
+      perDay: [],
+      perMeal: [],
+      computedAt: "2026-05-28T12:00:00.000Z",
+      hasEstimatedMacros: true,
+      estimationCaveats: ["AI estimate; verify for accuracy."],
+    });
+  }) as unknown as typeof fetch;
+
+  const { recalcPlanMacros } = await import("../plans");
+  const out = await recalcPlanMacros("plan-1");
+
+  assert.equal(capturedMethod, "POST");
+  assert.ok(
+    lastUrl?.endsWith("/plans/plan-1/recalc-macros"),
+    `unexpected url: ${lastUrl}`,
+  );
+  assert.equal(out.dailyAverages.caloriesPerDay, 612);
+  assert.equal(out.dailyAverages.proteinGPerDay, 41.2);
+  assert.equal(out.hasEstimatedMacros, true);
+});
+
+test("recalcPlanMacros rejects a malformed response body", async () => {
+  nextResponse = () =>
+    mockJson({ dailyAverages: { caloriesPerDay: 100 /* missing other keys */ } });
+  const { recalcPlanMacros } = await import("../plans");
+  await assert.rejects(
+    () => recalcPlanMacros("plan-1"),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+test("recalcPlanMacros propagates a 429 rate-limit as ApiError", async () => {
+  nextResponse = () => mockJson({ error: "rate_limited" }, 429);
+  const { recalcPlanMacros } = await import("../plans");
+  await assert.rejects(
+    () => recalcPlanMacros("plan-1"),
+    (err: unknown) => err instanceof ApiError && err.status === 429,
+  );
+});

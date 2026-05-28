@@ -401,3 +401,39 @@ export async function promoteItemOverride(
     },
   );
 }
+
+// ── WS7-4-E c1 — Recalc macros (hybrid pull per Ruling 11) ─────────────────
+// Mobile mutators fire this after a mutation response carries
+// macrosStale: true (a dish in the plan needs AI estimation). The server
+// runs estimateDishMacros per uncached dish, persists fresh canonical
+// per-serving macros back to Dish rows, then returns the recomputed plan
+// aggregates. The mobile UI only consumes `dailyAverages` for PRD §8.3.5;
+// the rest of the payload is parsed loosely (server-canonical) so a future
+// caller can read perDay / perMeal / caveats without a schema bump.
+
+const RecalcMacrosResponseSchema = z.object({
+  dailyAverages: MacroDailyAverageSchema,
+  hasEstimatedMacros: z.boolean().optional(),
+  estimationCaveats: z.array(z.string()).optional(),
+});
+export type RecalcMacrosResponse = z.infer<typeof RecalcMacrosResponseSchema>;
+
+/**
+ * POST /plans/:id/recalc-macros — server runs Haiku per uncached dish,
+ * persists canonical macros back to Dish rows, and returns the recomputed
+ * plan-level rollups. Auth-gated + rate-limited (server: recalcLimiter
+ * 12/min). Propagates apiClient typed errors: `ApiError` (404 missing/
+ * non-owned, 429 rate limit, 500 estimation failure), `UnauthenticatedError`
+ * (401), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function recalcPlanMacros(
+  planId: string,
+): Promise<RecalcMacrosResponse> {
+  return apiClient(
+    `/plans/${encodeURIComponent(planId)}/recalc-macros`,
+    {
+      method: "POST",
+      schema: RecalcMacrosResponseSchema,
+    },
+  );
+}
