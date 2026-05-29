@@ -17,6 +17,8 @@ import type { PrismaClient } from "@prisma/client";
 
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
 import {
+  WizardExpandRequestSchema,
+  WizardExpandedPlanSchema,
   WizardInputSchema,
   WizardPlanCandidatesResultSchema,
   type WizardInput,
@@ -33,6 +35,18 @@ import {
   subscriptionService as productionSubscriptionService,
   type SubscriptionService,
 } from "../lib/subscriptionService";
+import { emitActivity as productionEmitActivity } from "../lib/userActivity";
+import {
+  materializeWizardDraft as productionMaterializeWizardDraft,
+  WizardDraftMalformedError,
+  WizardDraftNotFoundError,
+} from "../lib/wizardActivation";
+import {
+  expandCandidate as productionExpandCandidate,
+  persistWizardDraft as productionPersistWizardDraft,
+  sweepStaleWizardDrafts as productionSweepStaleWizardDrafts,
+  WIZARD_DRAFT_TTL_DAYS,
+} from "../lib/wizardExpansion";
 import { requireAuth } from "../middleware/auth";
 
 export interface WizardRouterDeps {
@@ -42,6 +56,20 @@ export interface WizardRouterDeps {
   // Override the rate limiter for tests that want to exercise burst behavior
   // or skip throttling entirely.
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
+  // WS7-5a test seams. expandCandidate fans out to runAICall + per-dish
+  // estimateDishMacros; tests inject a stub so the route layer can be
+  // exercised without a real AI call. persistWizardDraft is the swappable
+  // persistence function; tests can capture writes without hitting Prisma.
+  expandCandidate?: typeof productionExpandCandidate;
+  persistWizardDraft?: typeof productionPersistWizardDraft;
+  sweepStaleWizardDrafts?: typeof productionSweepStaleWizardDrafts;
+  // WS7-5b-server seams. materializeWizardDraft lets tests assert the route
+  // wiring (auth, ownership 404, transaction shape, activity emission)
+  // without standing up the full meal-graph write path. emitActivity is
+  // swappable so the activation route can be exercised with a recording
+  // stub without needing the shared userActivity helper's real Prisma write.
+  materializeWizardDraft?: typeof productionMaterializeWizardDraft;
+  emitActivity?: typeof productionEmitActivity;
 }
 
 export function createWizardRouter(
@@ -51,6 +79,14 @@ export function createWizardRouter(
   const prisma = deps.prisma ?? productionPrisma;
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
+  const expandCandidate = deps.expandCandidate ?? productionExpandCandidate;
+  const persistWizardDraft =
+    deps.persistWizardDraft ?? productionPersistWizardDraft;
+  const sweepStaleWizardDrafts =
+    deps.sweepStaleWizardDrafts ?? productionSweepStaleWizardDrafts;
+  const materializeWizardDraftImpl =
+    deps.materializeWizardDraft ?? productionMaterializeWizardDraft;
+  const emitSharedActivity = deps.emitActivity ?? productionEmitActivity;
   const limiterOpts = deps.rateLimiterOpts ?? {
     capacity: 8,
     refillPerSec: 8 / 60,
@@ -114,7 +150,11 @@ export function createWizardRouter(
 
   async function emitActivity(
     userId: string,
-    eventType: "wizard_complete" | "wizard_start" | "wizard_failure",
+    eventType:
+      | "wizard_complete"
+      | "wizard_start"
+      | "wizard_failure"
+      | "wizard_candidate_expanded",
     entityId?: string,
   ): Promise<void> {
     try {
@@ -480,6 +520,353 @@ export function createWizardRouter(
       return res.json(response);
     },
   );
+
+  // ── POST /wizard/expand — Branch B "View plan" (PRD §5.6 redline) ─────
+  // Step 2 of the two-step wizard commit model. Takes ONE candidate from a
+  // prior build-plans response and expands it into full per-meal recipe
+  // detail (ingredients + steps + per-dish macros). Writes a hidden draft
+  // MealPlanInstance (isWizardDraft=true) so an abandoned-but-liked plan
+  // can be resumed via GET /wizard/drafts. "Save and use" (WS7-5b) flips
+  // isWizardDraft=false.
+  //
+  // Entitlement: same key as build-plans (kitchen_wizard_set_preferences) —
+  // expand is the same product surface, just a deeper step in the flow.
+  // Rate limit: same per-user bucket as build-plans (a Sonnet tool_use call
+  // plus the per-dish macro loop is the most expensive wizard action).
+  const expandLimiter = rateLimit({
+    ...limiterOpts,
+    keyFn: (req: Request) => `expand:${req.userId ?? "anonymous"}`,
+  });
+
+  router.post(
+    "/wizard/expand",
+    requireAuth,
+    expandLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+
+      // 1. Validate body.
+      const parsed = WizardExpandRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid request body",
+          details: parsed.error.flatten(),
+        });
+      }
+
+      // 2. Entitlement.
+      const ent = await subscriptionService.can(
+        userId,
+        "kitchen_wizard_set_preferences",
+      );
+      if (!ent.allowed) {
+        return res.status(402).json({
+          error: "upgrade required",
+          reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
+        });
+      }
+
+      // 3. Run the AI expand + per-dish macro pass via the helper.
+      const expanded = await expandCandidate({
+        prisma,
+        userId,
+        request: parsed.data,
+        runAICall,
+      });
+
+      if (expanded.status === "ai_failed") {
+        logger.warn(
+          {
+            event: "wizard_expand_failed",
+            userId,
+            reason: expanded.reason,
+            promptKey: "wizard.candidate.expand",
+          },
+          "Wizard candidate expand failed",
+        );
+        await emitActivity(userId, "wizard_failure");
+        return res.status(502).json({
+          error: expanded.userFacingMessage,
+          reason: expanded.reason,
+        });
+      }
+
+      // 4. Persist the hidden draft.
+      let draftRef: { planId: string; createdAt: Date };
+      try {
+        draftRef = await persistWizardDraft({
+          prisma,
+          userId,
+          expanded: expanded.expanded,
+        });
+      } catch (err) {
+        logger.error(
+          { event: "wizard_draft_persist_failed", userId, err },
+          "Failed to persist wizard draft",
+        );
+        return res.status(500).json({ error: "failed to persist draft" });
+      }
+
+      // 5. Activity event — new enum value wizard_candidate_expanded so
+      //    funnel analytics can separate "candidates generated" from
+      //    "candidate expanded into detail" (distinct user intents).
+      await emitActivity(userId, "wizard_candidate_expanded", draftRef.planId);
+
+      return res.json({
+        draft: {
+          id: draftRef.planId,
+          createdAt: draftRef.createdAt.toISOString(),
+        },
+        expanded: expanded.expanded,
+      });
+    },
+  );
+
+  // ── GET /wizard/drafts — list resume-able wizard drafts ───────────────
+  // The "Resume where you left off" mobile prompt (WS7-5b) reads here.
+  // Only returns hidden drafts (isWizardDraft=true). Sweeps drafts older
+  // than WIZARD_DRAFT_TTL_DAYS as a side-effect — lazy because the api-
+  // server has no scheduler today (D-WS7-062). Response is intentionally
+  // light: just enough for the prompt card (plan title + meal titles +
+  // created-at timestamp). The full expanded detail lives on the draft's
+  // optimizationNotes field and is loaded by the regular GET /plans/:id
+  // path (which already returns optimizationNotes).
+  router.get("/wizard/drafts", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+
+    try {
+      await sweepStaleWizardDrafts({ prisma, userId });
+
+      const rows = await prisma.mealPlanInstance.findMany({
+        where: { userId, isWizardDraft: true, isArchived: false },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          titleOverride: true,
+          createdAt: true,
+          optimizationNotes: true,
+        },
+      });
+
+      const drafts = rows.map((r) => {
+        const notes = (r.optimizationNotes ?? null) as
+          | { meals?: Array<{ title?: string }> }
+          | null;
+        const mealTitles = Array.isArray(notes?.meals)
+          ? notes!.meals
+              .map((m) => (typeof m?.title === "string" ? m.title : null))
+              .filter((t): t is string => !!t)
+          : [];
+        return {
+          id: r.id,
+          title: r.titleOverride ?? "",
+          createdAt: r.createdAt.toISOString(),
+          mealTitles,
+        };
+      });
+
+      return res.json({
+        drafts,
+        ttlDays: WIZARD_DRAFT_TTL_DAYS,
+      });
+    } catch (err) {
+      logger.error(
+        { event: "wizard_drafts_list_failed", userId, err },
+        "Failed to list wizard drafts",
+      );
+      return res.status(500).json({ error: "failed to list drafts" });
+    }
+  });
+
+  // ── GET /wizard/drafts/:id — resume detail fetch (WS7-5b-server) ──────
+  // Returns the full WizardExpandedPlan JSON for a single owned wizard
+  // draft, parsed from optimizationNotes. Same expanded shape as the
+  // POST /wizard/expand response, so mobile resume reuses the same render
+  // path. 404 when not found, not owned, or not a wizard draft.
+  router.get("/wizard/drafts/:id", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const draftId = req.params.id;
+    if (
+      typeof draftId !== "string" ||
+      draftId.length === 0 ||
+      draftId.length > 100
+    ) {
+      return res.status(400).json({ error: "invalid draft id" });
+    }
+
+    try {
+      const row = await prisma.mealPlanInstance.findUnique({
+        where: { id: draftId },
+        select: {
+          id: true,
+          userId: true,
+          isWizardDraft: true,
+          createdAt: true,
+          optimizationNotes: true,
+        },
+      });
+      if (!row || row.userId !== userId || !row.isWizardDraft) {
+        return res.status(404).json({ error: "draft not found" });
+      }
+
+      const parsed = WizardExpandedPlanSchema.safeParse(row.optimizationNotes);
+      if (!parsed.success) {
+        // Malformed JSON on a draft we own — surface as 422 (the activation
+        // route uses the same code; matches PATCH /plans/:id conventions
+        // around server-side schema mismatches). Logged so a recurring
+        // pattern is visible without scraping prod errors.
+        logger.warn(
+          {
+            event: "wizard_draft_detail_malformed",
+            userId,
+            draftId,
+            issues: parsed.error.issues.slice(0, 3),
+          },
+          "Wizard draft optimizationNotes failed schema parse",
+        );
+        return res
+          .status(422)
+          .json({ error: "draft malformed", reason: "schema_mismatch" });
+      }
+
+      return res.json({
+        draft: { id: row.id, createdAt: row.createdAt.toISOString() },
+        expanded: parsed.data,
+      });
+    } catch (err) {
+      logger.error(
+        { event: "wizard_draft_detail_failed", userId, draftId, err },
+        "Failed to read wizard draft detail",
+      );
+      return res.status(500).json({ error: "failed to read draft" });
+    }
+  });
+
+  // ── POST /wizard/drafts/:id/activate — "Save and use" (WS7-5b-server) ─
+  // Materializes the hidden draft into real Meal / Dish / DishIngredient /
+  // RecipeInstructionStep / MealPlanItem rows, demotes any other active
+  // plan for this user, flips the draft to active (isWizardDraft=false,
+  // isActiveThisWeek=true, status stays "draft" matching the use-template
+  // precedent), bumps revisionId, and emits plan_activated_this_week.
+  //
+  // Response mirrors POST /plans/use-template ({ instance: { id, revisionId } })
+  // so the mobile post-activation navigation reuses the same Plan Review
+  // entry point.
+  router.post("/wizard/drafts/:id/activate", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const draftId = req.params.id;
+    if (
+      typeof draftId !== "string" ||
+      draftId.length === 0 ||
+      draftId.length > 100
+    ) {
+      return res.status(400).json({ error: "invalid draft id" });
+    }
+
+    const __txStart = Date.now();
+    let __txElapsedAtThrow = -1;
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const materialized = await materializeWizardDraftImpl({
+          prisma,
+          tx,
+          userId,
+          draftId,
+        });
+
+        // Demote any existing active plans for this user — same pattern as
+        // POST /plans (plans.ts:474-478) and POST /plans/use-template
+        // (plans.ts:940-943).
+        await tx.mealPlanInstance.updateMany({
+          where: { userId, isActiveThisWeek: true },
+          data: { isActiveThisWeek: false },
+        });
+
+        // Flip the draft to active. status stays "draft" (matches the use-
+        // template precedent: status:"draft" + isActiveThisWeek:true marks
+        // an active-now plan). isWizardDraft → false makes the row visible
+        // to my_plans / home filters.
+        const activated = await tx.mealPlanInstance.update({
+          where: { id: draftId },
+          data: {
+            isWizardDraft: false,
+            isActiveThisWeek: true,
+            revisionId: { increment: 1 },
+          },
+          select: { id: true, revisionId: true },
+        });
+
+        await emitSharedActivity({
+          tx,
+          userId,
+          eventType: "plan_activated_this_week",
+          entityType: "MealPlanInstance",
+          entityId: activated.id,
+          metadata: {
+            source: "wizard_draft_activate",
+            mealsCreated: materialized.mealsCreated,
+            itemsCreated: materialized.itemsCreated,
+          },
+        });
+
+        return activated;
+      }, {
+        // WS7-5b activate fix: default 5000ms timeout proved tight under
+        // real-Postgres load. Phase-1 smoke measured tx=5088ms (P2028 at
+        // ~5034ms) with meals=5/dishes=14 even after hoisting Pass 1 (read
+        // + ingredient upserts) to the plain prisma client. 30s budget =
+        // measured × 5, with maxWait at ~1/3 for connection acquisition.
+        timeout: 30_000,
+        maxWait: 10_000,
+      });
+      console.log(
+        `[WS7-5b-smoke] activate $transaction elapsed: ${Date.now() - __txStart}ms (ok)`,
+      );
+
+      return res
+        .status(201)
+        .json({ instance: { id: result.id, revisionId: result.revisionId } });
+    } catch (err) {
+      __txElapsedAtThrow = Date.now() - __txStart;
+      console.error(
+        `[WS7-5b-smoke] activate $transaction elapsed: ${__txElapsedAtThrow}ms (throw: ${(err as Error)?.name ?? "unknown"})`,
+      );
+      if (err instanceof WizardDraftNotFoundError) {
+        return res.status(404).json({ error: "draft not found" });
+      }
+      if (err instanceof WizardDraftMalformedError) {
+        logger.warn(
+          {
+            event: "wizard_draft_activate_malformed",
+            userId,
+            draftId,
+            reason: err.reason,
+          },
+          "Wizard draft malformed during activation",
+        );
+        return res
+          .status(422)
+          .json({ error: "draft malformed", reason: err.reason });
+      }
+      logger.error(
+        { event: "wizard_draft_activate_failed", userId, draftId, err },
+        "Failed to activate wizard draft",
+      );
+      return res.status(500).json({ error: "failed to activate draft" });
+    }
+  });
 
   router.get("/wizard/limits", requireAuth, async (_req, res) => {
     const [candidateCount, maxRefreshes] = await Promise.all([
