@@ -874,6 +874,120 @@ export function createWizardRouter(
     }
   });
 
+  // ── POST /wizard/drafts/:id/save — "Save for Later" (WS7-5b2-server) ──
+  // Promotes the hidden draft into a real user-visible plan in My Plans —
+  // but undated and NOT active this week. The two-step wizard's other CTA:
+  // "I like this plan and I'm keeping it, but I'm not committing to cooking
+  // it this week yet." Uses the SAME materializer as /activate (the draft
+  // JSON must still become a real Meal / Dish / DishIngredient / Recipe-
+  // InstructionStep / MealPlanItem graph regardless of active state); only
+  // the post-materialize tail differs:
+  //   - flip isWizardDraft → false (the draft becomes a visible plan)
+  //   - LEAVE isActiveThisWeek=false (default)  — NOT active this week
+  //   - LEAVE startDate/endDate null (default)  — undated
+  //   - do NOT demote prior actives (nothing's becoming active)
+  //   - do NOT bump revisionId (fresh promotion, mirrors POST /plans/
+  //     use-template which creates rows at the default revisionId=1)
+  //   - emit plan_created (already in ActivityEventType — no migration;
+  //     mirrors how /activate reused plan_activated_this_week).
+  //
+  // Response shape mirrors /activate ({ instance: { id, revisionId } }) so
+  // mobile can reuse the same post-save navigation entry point.
+  router.post("/wizard/drafts/:id/save", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const draftId = req.params.id;
+    if (
+      typeof draftId !== "string" ||
+      draftId.length === 0 ||
+      draftId.length > 100
+    ) {
+      return res.status(400).json({ error: "invalid draft id" });
+    }
+
+    const __txStart = Date.now();
+    let __txElapsedAtThrow = -1;
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const materialized = await materializeWizardDraftImpl({
+          prisma,
+          tx,
+          userId,
+          draftId,
+        });
+
+        // Save tail — flip ONLY isWizardDraft. The materializer is identical
+        // to activate's, so the same 60s tx budget applies (same per-dish
+        // write volume; D-WS7-067 createMany batching will improve both
+        // paths). status stays "draft", dates stay null, isActiveThisWeek
+        // stays false, revisionId stays at its default (1 from the expand
+        // persist write). NOT demoting prior actives — this isn't becoming
+        // active, so there's nothing to demote.
+        const saved = await tx.mealPlanInstance.update({
+          where: { id: draftId },
+          data: { isWizardDraft: false },
+          select: { id: true, revisionId: true },
+        });
+
+        await emitSharedActivity({
+          tx,
+          userId,
+          eventType: "plan_created",
+          entityType: "MealPlanInstance",
+          entityId: saved.id,
+          metadata: {
+            source: "wizard_draft_save",
+            mealsCreated: materialized.mealsCreated,
+            itemsCreated: materialized.itemsCreated,
+          },
+        });
+
+        return saved;
+      }, {
+        // Same budget as /activate. Save runs the same Pass 2 write volume
+        // (materializer is shared) so the timeout exposure is identical.
+        timeout: 60_000,
+        maxWait: 20_000,
+      });
+      console.log(
+        `[WS7-5b2-smoke] save $transaction elapsed: ${Date.now() - __txStart}ms (ok)`,
+      );
+
+      return res
+        .status(201)
+        .json({ instance: { id: result.id, revisionId: result.revisionId } });
+    } catch (err) {
+      __txElapsedAtThrow = Date.now() - __txStart;
+      console.error(
+        `[WS7-5b2-smoke] save $transaction elapsed: ${__txElapsedAtThrow}ms (throw: ${(err as Error)?.name ?? "unknown"})`,
+      );
+      if (err instanceof WizardDraftNotFoundError) {
+        return res.status(404).json({ error: "draft not found" });
+      }
+      if (err instanceof WizardDraftMalformedError) {
+        logger.warn(
+          {
+            event: "wizard_draft_save_malformed",
+            userId,
+            draftId,
+            reason: err.reason,
+          },
+          "Wizard draft malformed during save",
+        );
+        return res
+          .status(422)
+          .json({ error: "draft malformed", reason: err.reason });
+      }
+      logger.error(
+        { event: "wizard_draft_save_failed", userId, draftId, err },
+        "Failed to save wizard draft",
+      );
+      return res.status(500).json({ error: "failed to save draft" });
+    }
+  });
+
   router.get("/wizard/limits", requireAuth, async (_req, res) => {
     const [candidateCount, maxRefreshes] = await Promise.all([
       getCandidateCount(),
