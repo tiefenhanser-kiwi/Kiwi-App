@@ -825,11 +825,17 @@ export function createWizardRouter(
       }, {
         // WS7-5b activate fix: default 5000ms timeout proved tight under
         // real-Postgres load. Phase-1 smoke measured tx=5088ms (P2028 at
-        // ~5034ms) with meals=5/dishes=14 even after hoisting Pass 1 (read
-        // + ingredient upserts) to the plain prisma client. 30s budget =
-        // measured × 5, with maxWait at ~1/3 for connection acquisition.
-        timeout: 30_000,
-        maxWait: 10_000,
+        // ~5034ms) with meals=5/dishes=14, but that figure was clamped by
+        // Prisma's own cancellation — the CONFIRM run after hoisting Pass 1
+        // (read + ingredient upserts) to the plain prisma client measured
+        // the real un-clamped tx at ~17_063ms on a 17-dish input. A 30s
+        // budget gave only ~1.76× headroom, so we hold at 60s (~3.5× over
+        // the observed tail) to absorb AI dish-count variance on heavier
+        // wizard outputs. The durable fix — batching recipeInstructionStep
+        // and dishIngredient writes via createMany to cut Pass 2 RTTs — is
+        // deferred to WS9 per D-WS7-067.
+        timeout: 60_000,
+        maxWait: 20_000,
       });
       console.log(
         `[WS7-5b-smoke] activate $transaction elapsed: ${Date.now() - __txStart}ms (ok)`,
