@@ -114,11 +114,16 @@ export default function TellKiwi() {
         }
         // PRD §6.5/§6.6 — share the wizard-results screen. Pass the result
         // payload via params so wizard-results renders without re-firing AI.
+        // WS7-5b-mobile Block A — also pass the form payload so the per-
+        // candidate "View Plan Details" CTA can build a candidateContext for
+        // POST /wizard/expand on this path too (Set-Prefs already carries
+        // its WizardPreferencesInput in `input`).
         router.push({
           pathname: "/wizard-results",
           params: {
             source: "tellkiwi",
             tellKiwiResult: JSON.stringify(result),
+            tellKiwiInput: JSON.stringify(payload),
           },
         });
       },

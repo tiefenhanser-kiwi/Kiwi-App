@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   LayoutAnimation,
   Platform,
@@ -18,11 +19,16 @@ import { LoadingShim } from "@/components/LoadingShim";
 import { Screen } from "@/components/Screen";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useBuildWizardPlans } from "@/hooks/useBuildWizardPlans";
+import {
+  expandWizardCandidate,
+  type WizardExpandCandidateContext,
+  type WizardExpandResponse,
+} from "@/lib/api/wizard";
 import type {
   BuildFromTextResult,
   ParsedIntent,
 } from "@/lib/api/tellKiwi";
-import type { WizardPlanCandidate, WizardPreferencesInput } from "@/lib/types";
+import type { TellKiwiInput, WizardPlanCandidate, WizardPreferencesInput } from "@/lib/types";
 
 if (
   Platform.OS === "android" &&
@@ -51,6 +57,84 @@ function parseTellKiwiResult(
   }
 }
 
+// WS7-5b-mobile Block A — Tell Kiwi flow plumbs its form input through
+// wizard-results so candidateContext can be built for the expand call. The
+// Set-Prefs flow already carries WizardPreferencesInput in `input`; Tell Kiwi
+// pushes TellKiwiInput in `tellKiwiInput`. Both shapes contribute the same
+// subset of fields to candidateContext below.
+function parseTellKiwiInput(raw: string | undefined): TellKiwiInput | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as TellKiwiInput;
+  } catch {
+    return null;
+  }
+}
+
+// Build the WizardExpandCandidateContext from whichever entry point's input
+// is available. Set Prefs carries all six fields directly. Tell Kiwi has no
+// `difficulty` (free-text scenario), so we default to "medium" — the AI
+// expand prompt uses difficulty as a soft hint, and the candidates were
+// already generated with the user's actual constraints, so a default
+// difficulty here is a low-risk choice. planDurationDays falls back to the
+// mealTitles length so multi-day Tell Kiwi plans expand cleanly.
+function buildCandidateContext(
+  candidate: WizardPlanCandidate,
+  wizardInput: WizardPreferencesInput | null,
+  tellKiwiInput: TellKiwiInput | null,
+): WizardExpandCandidateContext {
+  if (wizardInput) {
+    return {
+      planDurationDays: wizardInput.planDurationDays,
+      householdSize: wizardInput.householdSize,
+      wantsLeftovers: wizardInput.wantsLeftovers,
+      allergiesAndAvoidances: wizardInput.allergiesAndAvoidances,
+      eatingStyles: wizardInput.eatingStyles,
+      difficulty: wizardInput.difficulty,
+    };
+  }
+  if (tellKiwiInput) {
+    return {
+      planDurationDays: Math.max(
+        1,
+        Math.min(7, candidate.mealTitles.length || 5),
+      ),
+      householdSize: tellKiwiInput.householdSize,
+      wantsLeftovers: tellKiwiInput.wantsLeftovers,
+      allergiesAndAvoidances: tellKiwiInput.allergiesAndAvoidances,
+      eatingStyles: tellKiwiInput.eatingStyles,
+      difficulty: "medium",
+    };
+  }
+  // No input at all — should not happen given the entry-point guard above,
+  // but supply a safe default rather than throwing inside a tap handler.
+  return {
+    planDurationDays: Math.max(1, Math.min(7, candidate.mealTitles.length || 5)),
+    householdSize: 4,
+    wantsLeftovers: false,
+    allergiesAndAvoidances: [],
+    eatingStyles: [],
+    difficulty: "medium",
+  };
+}
+
+// PRD §5.4 (Hans's redline) — "Kiwi is being thorough…" appears after 30s.
+const EXPAND_THOROUGH_THRESHOLD_SEC = 30;
+
+// PRD §5.4 — copy verbatim. "Kiwi is thinking…" / "10-15s" / cancel returns to
+// results. The §5.4 spec's "Back to inputs" was retargeted by Hans to "Back
+// to results" — the user came from the cards, so back-from-expand returns
+// to the cards, not the input form.
+type ExpandState =
+  | { kind: "idle" }
+  | {
+      kind: "pending";
+      candidateId: string;
+      controller: AbortController;
+      elapsedSec: number;
+    }
+  | { kind: "error"; candidate: WizardPlanCandidate; message: string };
+
 export default function WizardResultsScreen() {
   const router = useRouter();
   // Two entry points:
@@ -59,15 +143,21 @@ export default function WizardResultsScreen() {
   //   - Tell Kiwi → passes `tellKiwiResult` (already-built BuildFromTextResult
   //     JSON); the AI ran on the previous screen (tellkiwi.tsx). This screen
   //     just renders the result, branching by parsedIntent.scenario.
-  const { source, input, tellKiwiResult } = useLocalSearchParams<{
-    source?: "tellkiwi";
-    input?: string;
-    tellKiwiResult?: string;
-  }>();
+  const { source, input, tellKiwiResult, tellKiwiInput } =
+    useLocalSearchParams<{
+      source?: "tellkiwi";
+      input?: string;
+      tellKiwiResult?: string;
+      tellKiwiInput?: string;
+    }>();
   const wizardInput = useMemo(() => parseInput(input), [input]);
   const tellKiwiPayload = useMemo(
     () => parseTellKiwiResult(tellKiwiResult),
     [tellKiwiResult],
+  );
+  const tellKiwiInputParsed = useMemo(
+    () => parseTellKiwiInput(tellKiwiInput),
+    [tellKiwiInput],
   );
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -153,14 +243,107 @@ export default function WizardResultsScreen() {
     router.replace("/(tabs)");
   };
 
-  const handleUsePlan = (candidateId: string) => {
-    console.log("[wizard-results] use-this-plan picked", { candidateId });
-    // push, not replace, so back-pop from the (WS7-pending) plan stub returns
-    // here instead of skipping straight to the wizard preferences screen.
-    router.push({
-      pathname: "/plan/[id]",
-      params: { id: "demo-plan-just-created" },
+  // ── WS7-5b-mobile Block A — expand → Plan Details flow ─────────────
+  // Replaces the OLD `handleUsePlan` deep-link to `demo-plan-just-created`
+  // (the wizard-results half of D-WS7-059). Per the locked two-step model:
+  //   1. User taps "View Plan Details" on a candidate card.
+  //   2. POST /wizard/expand runs (~3-15s typical) — show the §5.4 loading
+  //      state with a cancel option.
+  //   3. On success the server has persisted a hidden draft MealPlanInstance
+  //      and returned the expanded plan. Navigate to /wizard/plan-details
+  //      with the draft id + expanded JSON; that screen owns the two CTAs
+  //      and the post-save state machine.
+  const [expandState, setExpandState] = useState<ExpandState>({ kind: "idle" });
+  // Stable across re-renders so the elapsed-time interval reads the same
+  // controller reference the AbortController was created against.
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Drive the §5.4 "Kiwi is being thorough…" 30s threshold by ticking
+  // `elapsedSec` once a second while pending. Clears on success/error/cancel.
+  useEffect(() => {
+    if (expandState.kind !== "pending") {
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
+      return;
+    }
+    const startedAt = Date.now();
+    elapsedTimerRef.current = setInterval(() => {
+      setExpandState((prev) => {
+        if (prev.kind !== "pending") return prev;
+        return {
+          ...prev,
+          elapsedSec: Math.floor((Date.now() - startedAt) / 1000),
+        };
+      });
+    }, 1000);
+    return () => {
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
+    };
+  }, [expandState.kind]);
+
+  const handleViewPlanDetails = async (candidate: WizardPlanCandidate) => {
+    // Already expanding another candidate — ignore. The §5.4 overlay blocks
+    // the cards anyway, but the guard makes the intent explicit.
+    if (expandState.kind === "pending") return;
+
+    const controller = new AbortController();
+    setExpandState({
+      kind: "pending",
+      candidateId: candidate.id,
+      controller,
+      elapsedSec: 0,
     });
+
+    const candidateContext = buildCandidateContext(
+      candidate,
+      wizardInput,
+      tellKiwiInputParsed,
+    );
+
+    try {
+      const result: WizardExpandResponse = await expandWizardCandidate(
+        { candidate, candidateContext },
+        { signal: controller.signal },
+      );
+      setExpandState({ kind: "idle" });
+      router.push({
+        pathname: "/wizard-plan-details",
+        params: {
+          draftId: result.draft.id,
+          expanded: JSON.stringify(result.expanded),
+        },
+      });
+    } catch (err) {
+      // AbortError surfaces as a DOMException-style "AbortError" or our
+      // ApiNetworkError wrapping the fetch AbortError. Either way, the
+      // cancel handler has already flipped state to "idle" — don't clobber.
+      if (controller.signal.aborted) return;
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Something went wrong.";
+      setExpandState({ kind: "error", candidate, message });
+    }
+  };
+
+  const handleExpandCancel = () => {
+    if (expandState.kind !== "pending") return;
+    expandState.controller.abort();
+    setExpandState({ kind: "idle" });
+  };
+
+  const handleExpandRetry = () => {
+    if (expandState.kind !== "error") return;
+    void handleViewPlanDetails(expandState.candidate);
+  };
+
+  const handleExpandBackToResults = () => {
+    setExpandState({ kind: "idle" });
   };
 
   // ── render branches ──────────────────────────────────────────────────
@@ -296,12 +479,70 @@ export default function WizardResultsScreen() {
                 candidate={c}
                 expanded={expandedIds.has(c.id)}
                 onToggleExpanded={() => toggleExpanded(c.id)}
-                onUsePlan={() => handleUsePlan(c.id)}
+                onUsePlan={() => handleViewPlanDetails(c)}
+                disabled={expandState.kind === "pending"}
               />
             ))}
           </View>
         )}
       </Screen>
+
+      {/* PRD §5.4 — full-screen modal-style overlay for the expand call.
+          Mounted at the screen level (sits above the cards) so the Cancel
+          / Try again / Back to results buttons aren't competing with the
+          page's existing action row. Copy is locked verbatim. */}
+      {expandState.kind === "pending" && (
+        <View style={s.expandOverlay}>
+          <View style={s.expandPanel}>
+            <ActivityIndicator size="large" color={KColors.sage[700]} />
+            <Text style={s.expandTitle}>Kiwi is thinking…</Text>
+            <Text style={s.expandBody}>
+              This usually takes about 10-15 seconds
+            </Text>
+            {expandState.elapsedSec >= EXPAND_THOROUGH_THRESHOLD_SEC && (
+              <Text style={s.expandBodyEmphasis}>
+                Kiwi is being thorough — almost there…
+              </Text>
+            )}
+            <View style={s.expandCancelWrap}>
+              <Button
+                label="Cancel"
+                variant="ghost"
+                onPress={handleExpandCancel}
+              />
+            </View>
+          </View>
+        </View>
+      )}
+
+      {expandState.kind === "error" && (
+        <View style={s.expandOverlay}>
+          <View style={s.expandPanel}>
+            <Text style={s.expandTitle}>
+              Kiwi got distracted. Want to try again?
+            </Text>
+            {expandState.message ? (
+              <Text style={s.expandBody}>{expandState.message}</Text>
+            ) : null}
+            <View style={s.expandErrorRow}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label="Try again"
+                  variant="primary"
+                  onPress={handleExpandRetry}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label="Back to results"
+                  variant="ghost"
+                  onPress={handleExpandBackToResults}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -311,11 +552,13 @@ function CandidateCard({
   expanded,
   onToggleExpanded,
   onUsePlan,
+  disabled,
 }: {
   candidate: WizardPlanCandidate;
   expanded: boolean;
   onToggleExpanded: () => void;
   onUsePlan: () => void;
+  disabled?: boolean;
 }) {
   const macrosLine = `Avg ${candidate.dailyMacros.calories} cal/day · ${candidate.dailyMacros.proteinG}g P · ${candidate.dailyMacros.carbsG}g C · ${candidate.dailyMacros.fatG}g F`;
 
@@ -428,9 +671,10 @@ function CandidateCard({
 
             <View style={{ marginTop: KSpacing.lg }}>
               <Button
-                label="Use this plan"
+                label="View Plan Details"
                 variant="primary"
                 onPress={onUsePlan}
+                disabled={disabled}
               />
             </View>
           </View>
@@ -726,5 +970,52 @@ const s = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginTop: 2,
     textAlign: "center",
+  },
+  expandOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(20,35,18,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: KSpacing.lg,
+  },
+  expandPanel: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: KPalette.bg.card,
+    borderRadius: KRadius.lg,
+    padding: KSpacing.lg,
+    alignItems: "center",
+    gap: KSpacing.sm,
+  },
+  expandTitle: {
+    fontSize: KType.size.lg,
+    color: KColors.neutral[900],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    textAlign: "center",
+  },
+  expandBody: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+  },
+  expandBodyEmphasis: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    textAlign: "center",
+    marginTop: KSpacing.xs,
+  },
+  expandCancelWrap: {
+    marginTop: KSpacing.sm,
+    width: "60%",
+  },
+  expandErrorRow: {
+    flexDirection: "row",
+    gap: KSpacing.sm,
+    marginTop: KSpacing.md,
+    width: "100%",
   },
 });
