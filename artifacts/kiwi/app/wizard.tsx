@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -10,12 +11,14 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Stepper } from "@/components/Stepper";
+import { WizardResumeInterstitial } from "@/components/WizardResumeInterstitial";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
   ALLERGIES_AND_AVOIDANCES,
@@ -25,6 +28,11 @@ import {
   PLAN_DURATION_PRESETS,
 } from "@/lib/domain";
 import type { WizardPreferencesInput } from "@/lib/types";
+import {
+  getWizardDraft,
+  listWizardDrafts,
+  type ListWizardDraftsResponse,
+} from "@/lib/api/wizard";
 
 type Difficulty = WizardPreferencesInput["difficulty"];
 type WeeklyPacing = WizardPreferencesInput["weeklyPacing"];
@@ -92,6 +100,51 @@ export default function Wizard() {
     }
   }, [params.addMealId]);
 
+  // WS7-5b-mobile Block B — wizard-entry resume interstitial.
+  // Fetch unsaved drafts on mount. While the fetch is in flight we render a
+  // small loader so the inputs don't flash before the interstitial can take
+  // over. On error we fall through to inputs — the resume prompt is an
+  // assist, not a blocker. `dismissed` is local-only (no persistence per
+  // spec: "Get new results" is the implicit pass for this session only).
+  const draftsQuery = useQuery<ListWizardDraftsResponse>({
+    queryKey: ["wizard", "drafts"],
+    queryFn: listWizardDrafts,
+    staleTime: 0,
+  });
+  const [interstitialDismissed, setInterstitialDismissed] = useState(false);
+  const [resumePendingDraftId, setResumePendingDraftId] = useState<
+    string | null
+  >(null);
+  const [resumeErrorMessage, setResumeErrorMessage] = useState<string | null>(
+    null,
+  );
+
+  const handleResume = async (draftId: string) => {
+    if (resumePendingDraftId) return;
+    setResumePendingDraftId(draftId);
+    setResumeErrorMessage(null);
+    try {
+      const result = await getWizardDraft(draftId);
+      router.push({
+        pathname: "/wizard-plan-details",
+        params: {
+          draftId: result.draft.id,
+          // Block A's screen consumes a JSON-stringified expanded payload —
+          // same as POST /wizard/expand's flow, so resume reuses it verbatim.
+          expanded: JSON.stringify(result.expanded),
+        },
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't load that draft.";
+      setResumeErrorMessage(message);
+    } finally {
+      setResumePendingDraftId(null);
+    }
+  };
+
   const [form, setForm] = useState<WizardFormState>(INITIAL_FORM);
 
   const update = <K extends keyof WizardFormState>(
@@ -141,6 +194,43 @@ export default function Wizard() {
   };
 
   const cuisineSelectedCount = form.cuisines.size;
+
+  // ── interstitial gate ────────────────────────────────────────────────
+  // Show a short loader while the drafts list is in flight so the inputs
+  // don't flash before the interstitial can take over. On query error we
+  // fall through to inputs — the resume prompt is an assist, not a blocker.
+  if (draftsQuery.isLoading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: KColors.neutral[100],
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ActivityIndicator color={KColors.sage[700]} />
+      </View>
+    );
+  }
+  const drafts = draftsQuery.data?.drafts ?? [];
+  if (!interstitialDismissed && drafts.length > 0) {
+    return (
+      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+        <Header showBack title="Kitchen Wizard" />
+        <WizardResumeInterstitial
+          drafts={drafts}
+          onResume={handleResume}
+          onDismiss={() => {
+            setInterstitialDismissed(true);
+            setResumeErrorMessage(null);
+          }}
+          resumePendingDraftId={resumePendingDraftId}
+          resumeErrorMessage={resumeErrorMessage}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>

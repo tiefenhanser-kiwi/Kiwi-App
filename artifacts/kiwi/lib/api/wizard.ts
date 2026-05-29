@@ -3,6 +3,10 @@
 // WS7-1 — migrated to apiClient + Zod validation.
 // WS7-5b-mobile Block A — adds expand / drafts/:id/save / drafts/:id/activate
 // for the two-step "View Plan Details" → Plan Details screen flow.
+// WS7-5b-mobile Block B — adds listWizardDrafts / getWizardDraft for the
+// wizard-entry resume interstitial. The detail endpoint returns the same
+// envelope as POST /wizard/expand, so resume reuses Block A's Plan Details
+// screen + params (draftId + JSON.stringified expanded plan).
 
 import { z } from "zod";
 
@@ -254,4 +258,65 @@ export async function activateWizardDraft(
       schema: WizardDraftMutationResponseSchema,
     },
   );
+}
+
+// ── WS7-5b-mobile Block B — list / detail (resume interstitial) ──────────
+// Server is authoritative for sort order (createdAt desc per wizard.ts:649)
+// and stale-draft sweep (TTL via WIZARD_DRAFT_TTL_DAYS). The detail endpoint
+// shares its response shape with POST /wizard/expand on purpose so resume
+// can reuse Block A's WizardPlanDetailsScreen + its (draftId, expanded)
+// param contract without a second render path.
+
+const WizardDraftSummarySchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    createdAt: z.string(),
+    mealTitles: z.array(z.string()),
+  })
+  .passthrough();
+export type WizardDraftSummary = z.infer<typeof WizardDraftSummarySchema>;
+
+const ListWizardDraftsResponseSchema = z.object({
+  drafts: z.array(WizardDraftSummarySchema),
+  ttlDays: z.number(),
+});
+export type ListWizardDraftsResponse = z.infer<
+  typeof ListWizardDraftsResponseSchema
+>;
+
+/**
+ * GET /api/wizard/drafts — list resume-able wizard drafts for the entry
+ * interstitial. Server returns the drafts already sorted createdAt desc and
+ * lazily sweeps drafts past TTL as a side-effect of this call. Empty list
+ * is the no-interstitial case (most users).
+ *
+ * Propagates apiClient typed errors: `UnauthenticatedError` (401),
+ * `ApiError` (500), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function listWizardDrafts(): Promise<ListWizardDraftsResponse> {
+  return apiClient("/wizard/drafts", {
+    schema: ListWizardDraftsResponseSchema,
+  });
+}
+
+/**
+ * GET /api/wizard/drafts/:id — resume detail fetch. Returns the same
+ * envelope as POST /wizard/expand so resume navigates to the Block A
+ * Plan Details screen with the same (draftId, expanded JSON) params.
+ *
+ * 404 here means the draft is gone (swept past TTL, saved/activated since
+ * the list snapshot, or never owned). 422 means optimizationNotes failed
+ * schema parse — surface as an error and offer "Get new results" instead.
+ *
+ * Propagates apiClient typed errors: `UnauthenticatedError` (401),
+ * `ApiError` (404 not found / not owned / not a draft, 422 malformed,
+ * 500 read failed), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function getWizardDraft(
+  draftId: string,
+): Promise<WizardExpandResponse> {
+  return apiClient(`/wizard/drafts/${encodeURIComponent(draftId)}`, {
+    schema: WizardExpandResponseSchema,
+  });
 }

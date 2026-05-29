@@ -18,6 +18,8 @@ import * as SecureStore from "expo-secure-store";
 import {
   activateWizardDraft,
   expandWizardCandidate,
+  getWizardDraft,
+  listWizardDrafts,
   saveWizardDraft,
   WizardExpandedPlanSchema,
   type WizardExpandRequest,
@@ -306,5 +308,101 @@ test("activateWizardDraft on a saved draft surfaces 404 as ApiError (dead-tap re
   await assert.rejects(
     () => activateWizardDraft("already-saved-draft"),
     (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+// ── listWizardDrafts (WS7-5b-mobile Block B) ────────────────────────────────
+
+const DRAFT_SUMMARY_A = {
+  id: "draft-a",
+  title: "Cozy Tuscan Week",
+  createdAt: "2026-05-29T12:00:00.000Z",
+  mealTitles: ["Ribollita", "Risotto"],
+};
+
+const DRAFT_SUMMARY_B = {
+  id: "draft-b",
+  title: "Weeknight Wins",
+  createdAt: "2026-05-28T12:00:00.000Z",
+  mealTitles: ["Sheet-pan chicken", "Tofu stir-fry"],
+};
+
+test("listWizardDrafts GETs /wizard/drafts and parses { drafts, ttlDays }", async () => {
+  nextResponse = () =>
+    mockJson({ drafts: [DRAFT_SUMMARY_A, DRAFT_SUMMARY_B], ttlDays: 14 });
+  const result = await listWizardDrafts();
+  assert.equal(lastMethod, "GET");
+  assert.ok(
+    lastUrl?.endsWith("/wizard/drafts"),
+    `unexpected url: ${lastUrl}`,
+  );
+  assert.equal(result.drafts.length, 2);
+  assert.equal(result.drafts[0].id, "draft-a");
+  assert.equal(result.ttlDays, 14);
+});
+
+test("listWizardDrafts handles empty list (no-interstitial case)", async () => {
+  nextResponse = () => mockJson({ drafts: [], ttlDays: 14 });
+  const result = await listWizardDrafts();
+  assert.equal(result.drafts.length, 0);
+});
+
+test("listWizardDrafts rejects a malformed envelope as ApiSchemaError", async () => {
+  // Strip ttlDays so the response-shape parse fails — surfaces as a schema
+  // error rather than a generic crash, matching Block A's expand behavior.
+  nextResponse = () => mockJson({ drafts: [DRAFT_SUMMARY_A] });
+  await assert.rejects(
+    () => listWizardDrafts(),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+test("listWizardDrafts propagates a 401 as UnauthenticatedError", async () => {
+  nextResponse = () => mockJson({ error: "unauthenticated" }, 401);
+  await assert.rejects(
+    () => listWizardDrafts(),
+    (err: unknown) => err instanceof UnauthenticatedError,
+  );
+});
+
+// ── getWizardDraft (WS7-5b-mobile Block B) ──────────────────────────────────
+
+test("getWizardDraft GETs /wizard/drafts/:id and parses the expand envelope", async () => {
+  // Reuses POST /wizard/expand's response shape on purpose, so resume reuses
+  // Block A's Plan Details screen + params without a second render path.
+  nextResponse = () => mockJson(EXPAND_RESPONSE);
+  const result = await getWizardDraft("draft-abc-123");
+  assert.equal(lastMethod, "GET");
+  assert.ok(
+    lastUrl?.endsWith("/wizard/drafts/draft-abc-123"),
+    `unexpected url: ${lastUrl}`,
+  );
+  assert.equal(result.draft.id, "draft-abc-123");
+  assert.equal(result.expanded.title, "Cozy Tuscan Week");
+});
+
+test("getWizardDraft URL-encodes the draft id", async () => {
+  nextResponse = () => mockJson(EXPAND_RESPONSE);
+  await getWizardDraft("draft id/with/slashes");
+  assert.ok(
+    lastUrl?.endsWith("/wizard/drafts/draft%20id%2Fwith%2Fslashes"),
+    `unexpected url: ${lastUrl}`,
+  );
+});
+
+test("getWizardDraft propagates a 404 as ApiError (swept / saved since list snapshot)", async () => {
+  nextResponse = () => mockJson({ error: "draft not found" }, 404);
+  await assert.rejects(
+    () => getWizardDraft("dead-draft"),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+test("getWizardDraft propagates a 422 malformed-draft as ApiError", async () => {
+  nextResponse = () =>
+    mockJson({ error: "draft malformed", reason: "schema_mismatch" }, 422);
+  await assert.rejects(
+    () => getWizardDraft("malformed-draft"),
+    (err: unknown) => err instanceof ApiError && err.status === 422,
   );
 });
