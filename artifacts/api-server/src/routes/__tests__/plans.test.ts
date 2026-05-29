@@ -14,6 +14,8 @@ import {
   PlanMacrosNotFoundError,
   type PlanMacrosResult,
 } from "../../lib/planMacros";
+import { currentWeekRange } from "../../lib/planDates";
+import { toYmd } from "../../lib/planQueries";
 import { createPlansRouter } from "../plans";
 
 interface Harness {
@@ -2055,7 +2057,18 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     const harness = await mutationSpinUp(
       makeC4PatchStub({
         recorder,
-        instances: [fixturePatch({ id: "p-1", isActiveThisWeek: false })],
+        // Pre-dated fixture isolates the demote + emit assertions from the
+        // WS7-5b-mobile-PRE auto-date envelope (which only fires when the
+        // row is currently undated). Auto-date round-trip is covered in
+        // the dedicated envelope tests below.
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            isActiveThisWeek: false,
+            startDate: new Date("2026-03-01T00:00:00.000Z"),
+            endDate: new Date("2026-03-07T00:00:00.000Z"),
+          }),
+        ],
       }),
     );
     try {
@@ -2264,6 +2277,197 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
       const res = await patchPlan(harness, "p-1", {});
       assert.equal(res.status, 400);
       assert.equal(recorder.instanceUpdates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-5b-mobile-PRE — auto-date envelope. PATCH /plans/:id auto-fills
+  // startDate/endDate from the shared Sun-Sat currentWeekRange() helper
+  // ONLY when ALL of: body sets isActiveThisWeek:true, the row is currently
+  // undated (startDate === null), and the body did NOT supply its own dates.
+  // Body dates always win; already-dated plans are never re-dated; non-active
+  // and unrelated PATCHes never touch the date fields.
+
+  it("auto-dates the plan on flip-to-active when undated and body has no dates (Sun-Sat, YYYY-MM-DD round-trip)", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            isActiveThisWeek: false,
+            startDate: null,
+            endDate: null,
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { isActiveThisWeek: true });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const wrote = recorder.instanceUpdates[0].data;
+      const start = wrote.startDate as Date;
+      const end = wrote.endDate as Date;
+      assert.ok(start instanceof Date, "startDate written as Date");
+      assert.ok(end instanceof Date, "endDate written as Date");
+      // UTC-midnight, Sunday → Saturday calendar week.
+      assert.equal(start.getUTCHours(), 0);
+      assert.equal(start.getUTCMinutes(), 0);
+      assert.equal(start.getUTCDay(), 0, "startDate is a Sunday (UTC)");
+      assert.equal(end.getUTCDay(), 6, "endDate is a Saturday (UTC)");
+      assert.equal(
+        (end.getTime() - start.getTime()) / 86_400_000,
+        6,
+        "Sun → Sat spans 6 days",
+      );
+
+      // Round-trip via toYmd — the read path hands mobile YYYY-MM-DD (NOT
+      // ISO 8601). This is the c11/c16 wire-shape symmetry assertion.
+      assert.match(toYmd(start) as string, /^\d{4}-\d{2}-\d{2}$/);
+      assert.match(toYmd(end) as string, /^\d{4}-\d{2}-\d{2}$/);
+      const expected = currentWeekRange();
+      assert.equal(toYmd(start), expected.startDate);
+      assert.equal(toYmd(end), expected.endDate);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("body-supplied startDate+endDate WIN — auto-date does NOT fire even with isActiveThisWeek:true on an undated plan", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            isActiveThisWeek: false,
+            startDate: null,
+            endDate: null,
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", {
+        isActiveThisWeek: true,
+        startDate: "2026-02-01",
+        endDate: "2026-02-07",
+      });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const wrote = recorder.instanceUpdates[0].data;
+      // Body dates pass through unchanged — NOT overwritten by the helper.
+      assert.equal(toYmd(wrote.startDate as Date), "2026-02-01");
+      assert.equal(toYmd(wrote.endDate as Date), "2026-02-07");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("on an ALREADY-dated plan, PATCH {isActiveThisWeek:true} leaves existing dates untouched", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            isActiveThisWeek: false,
+            startDate: new Date("2026-03-01T00:00:00.000Z"),
+            endDate: new Date("2026-03-07T00:00:00.000Z"),
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { isActiveThisWeek: true });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const wrote = recorder.instanceUpdates[0].data;
+      // Date fields were NOT included in the update payload (no rewrite).
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(wrote, "startDate"),
+        false,
+      );
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(wrote, "endDate"),
+        false,
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("PATCH {name:'x'} on an undated plan does NOT auto-fill dates (no flip-to-active)", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            titleOverride: "Old",
+            startDate: null,
+            endDate: null,
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { name: "New" });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const wrote = recorder.instanceUpdates[0].data;
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(wrote, "startDate"),
+        false,
+      );
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(wrote, "endDate"),
+        false,
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("PATCH {isActiveThisWeek:false} does NOT auto-fill dates (only flip-to-true triggers auto-date)", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            isActiveThisWeek: true,
+            startDate: null,
+            endDate: null,
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { isActiveThisWeek: false });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const wrote = recorder.instanceUpdates[0].data;
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(wrote, "startDate"),
+        false,
+      );
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(wrote, "endDate"),
+        false,
+      );
     } finally {
       await harness.close();
     }

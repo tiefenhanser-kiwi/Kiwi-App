@@ -12,6 +12,8 @@ import express, { type Express } from "express";
 import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
+import { currentWeekRange } from "../../lib/planDates";
+import { toYmd } from "../../lib/planQueries";
 import { createWizardRouter } from "../wizard";
 import type {
   AICallFailure,
@@ -1979,6 +1981,28 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
     // status is NOT modified (kept as the existing "draft", per use-template precedent).
     assert.equal(Object.prototype.hasOwnProperty.call(flip, "status"), false);
     assert.deepEqual(flip.revisionId, { increment: 1 });
+
+    // WS7-5b-mobile-PRE — activate dates the freshly-activated plan to the
+    // current Sun-Sat week via the shared currentWeekRange() helper. Round-
+    // trips back through toYmd as YYYY-MM-DD (NOT ISO 8601), symmetric with
+    // the c11/c16 read-path wire shape and the PATCH auto-date envelope.
+    const start = flip.startDate as Date;
+    const end = flip.endDate as Date;
+    assert.ok(start instanceof Date, "startDate written as Date");
+    assert.ok(end instanceof Date, "endDate written as Date");
+    assert.equal(start.getUTCHours(), 0);
+    assert.equal(start.getUTCDay(), 0, "startDate is a Sunday (UTC)");
+    assert.equal(end.getUTCDay(), 6, "endDate is a Saturday (UTC)");
+    assert.equal(
+      (end.getTime() - start.getTime()) / 86_400_000,
+      6,
+      "Sun → Sat spans 6 days",
+    );
+    assert.match(toYmd(start) as string, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(toYmd(end) as string, /^\d{4}-\d{2}-\d{2}$/);
+    const expected = currentWeekRange();
+    assert.equal(toYmd(start), expected.startDate);
+    assert.equal(toYmd(end), expected.endDate);
 
     // Activity emitted on the active flip.
     assert.equal(deps.rec.activityCalls.length, 1);

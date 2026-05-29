@@ -47,6 +47,7 @@ import {
   sweepStaleWizardDrafts as productionSweepStaleWizardDrafts,
   WIZARD_DRAFT_TTL_DAYS,
 } from "../lib/wizardExpansion";
+import { currentWeekRange } from "../lib/planDates";
 import { requireAuth } from "../middleware/auth";
 
 export interface WizardRouterDeps {
@@ -797,13 +798,19 @@ export function createWizardRouter(
         // Flip the draft to active. status stays "draft" (matches the use-
         // template precedent: status:"draft" + isActiveThisWeek:true marks
         // an active-now plan). isWizardDraft → false makes the row visible
-        // to my_plans / home filters.
+        // to my_plans / home filters. WS7-5b-mobile-PRE — also dates the
+        // freshly-activated plan to the current Sun-Sat week via the shared
+        // currentWeekRange() helper, so wizard-activated and PATCH-activated
+        // plans share one "this week" definition.
+        const week = currentWeekRange();
         const activated = await tx.mealPlanInstance.update({
           where: { id: draftId },
           data: {
             isWizardDraft: false,
             isActiveThisWeek: true,
             revisionId: { increment: 1 },
+            startDate: new Date(week.startDate),
+            endDate: new Date(week.endDate),
           },
           select: { id: true, revisionId: true },
         });

@@ -50,6 +50,7 @@ import {
   type InstanceRow,
   type PlanListItem,
 } from "../lib/planQueries";
+import { currentWeekRange } from "../lib/planDates";
 import { sortPlanItemsCanonical } from "../lib/planItemSort";
 import { composeMealDetail, type MealDetail } from "./meals";
 
@@ -679,7 +680,7 @@ export function createPlansRouter(
           changedFields.add("name");
           data.titleOverride = body.name;
         }
-        const nextStartDate = toNullableDate(body.startDate);
+        let nextStartDate = toNullableDate(body.startDate);
         if (
           nextStartDate !== undefined &&
           isoOrNull(nextStartDate) !== isoOrNull(row.startDate)
@@ -687,7 +688,7 @@ export function createPlansRouter(
           changedFields.add("startDate");
           data.startDate = nextStartDate;
         }
-        const nextEndDate = toNullableDate(body.endDate);
+        let nextEndDate = toNullableDate(body.endDate);
         if (
           nextEndDate !== undefined &&
           isoOrNull(nextEndDate) !== isoOrNull(row.endDate)
@@ -729,6 +730,29 @@ export function createPlansRouter(
           data.optimizationNotes =
             (body.optimizationNotes as Prisma.InputJsonValue | null) ??
             Prisma.DbNull;
+        }
+
+        // WS7-5b-mobile-PRE — auto-date envelope. Fires ONLY when the PATCH
+        // flips the plan to active-this-week AND the plan is currently
+        // undated AND the body did NOT supply its own dates. Body dates
+        // always win; already-dated plans are never overridden; non-active
+        // and unrelated PATCHes are never touched. Uses the shared Sun-Sat
+        // currentWeekRange() — same definition as draft-activate.
+        if (
+          body.isActiveThisWeek === true &&
+          row.startDate === null &&
+          body.startDate === undefined &&
+          body.endDate === undefined
+        ) {
+          const week = currentWeekRange();
+          const autoStart = new Date(week.startDate);
+          const autoEnd = new Date(week.endDate);
+          data.startDate = autoStart;
+          data.endDate = autoEnd;
+          changedFields.add("startDate");
+          changedFields.add("endDate");
+          nextStartDate = autoStart;
+          nextEndDate = autoEnd;
         }
 
         // Nothing actually changed -- return current row as if it had.
