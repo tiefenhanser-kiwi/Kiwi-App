@@ -1,5 +1,7 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -12,6 +14,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { useApp } from "@/contexts/AppContext";
 import { getUserPlans } from "@/lib/stubs";
 import type { UserPlanSummary } from "@/lib/types";
 
@@ -62,6 +65,8 @@ export function AddMealToPlanSheet({
 }: AddMealToPlanSheetProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { createPlanWithMeal } = useApp();
+  const [creating, setCreating] = useState(false);
 
   const plans = useMemo(
     () =>
@@ -71,21 +76,35 @@ export function AddMealToPlanSheet({
     [],
   );
 
-  const handleCreateNewPlan = () => {
-    onClose();
-    // Per locked WS5 product decision: this entry path is "manual plan
-    // creation around this meal" — skip the wizard, drop the user
-    // directly on the new plan's review page with the meal seeded
-    // into unscheduled. Plan Review reads addMealId on mount and
-    // injects the row.
-    // Defer so the sheet's slide-out animation completes before the
-    // destination mounts.
-    setTimeout(() => {
-      router.push({
-        pathname: "/plan/[id]",
-        params: { id: "demo-plan-just-created", addMealId: mealId },
+  // WS7-5b-mobile Block C — D-WS7-059 real wiring. Replaces the prior stub
+  // that deep-linked to `demo-plan-just-created` with `addMealId=` (a dead
+  // path in production). New flow: POST /plans → POST /plans/:id/items →
+  // navigate to Plan Review (per Hans's ruling, the destination is Plan
+  // Review so the user immediately sees the new plan with its one meal).
+  // Partial-failure handling: if POST /plans succeeds but the meal-add
+  // throws, the empty plan stays (MVP — no cleanup); we alert and leave the
+  // user on the calling screen so they can find the empty plan in My Plans.
+  const handleCreateNewPlan = async () => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const { planId } = await createPlanWithMeal(mealId);
+      onClose();
+      setTimeout(() => {
+        router.push({ pathname: "/plan/[id]", params: { id: planId } });
+      }, 150);
+    } catch (err) {
+      console.warn("[AddMealToPlanSheet] create-plan-with-meal failed", {
+        mealId,
+        err,
       });
-    }, 150);
+      Alert.alert(
+        "Couldn't create plan",
+        "Something went wrong. If a partial plan was created, you'll find it in your plans list.",
+      );
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -188,9 +207,10 @@ export function AddMealToPlanSheet({
           <Text style={[s.sectionTitle, s.sectionGap]}>Create a new plan</Text>
           <Pressable
             onPress={handleCreateNewPlan}
+            disabled={creating}
             style={({ pressed }) => [
               s.newPlanCard,
-              pressed && { opacity: 0.85 },
+              (pressed || creating) && { opacity: 0.7 },
             ]}
           >
             <View style={s.newPlanIcon}>
@@ -201,16 +221,22 @@ export function AddMealToPlanSheet({
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.newPlanTitle}>Create a new plan</Text>
+              <Text style={s.newPlanTitle}>
+                {creating ? "Creating plan…" : "Create a new plan"}
+              </Text>
               <Text style={s.newPlanSubtitle}>
                 Start a new plan with this meal
               </Text>
             </View>
-            <Feather
-              name="chevron-right"
-              size={18}
-              color={KColors.neutral[600]}
-            />
+            {creating ? (
+              <ActivityIndicator size="small" color={KColors.sage[700]} />
+            ) : (
+              <Feather
+                name="chevron-right"
+                size={18}
+                color={KColors.neutral[600]}
+              />
+            )}
           </Pressable>
         </ScrollView>
       </View>

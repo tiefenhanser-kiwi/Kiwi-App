@@ -171,6 +171,19 @@ const UseTemplateResponseSchema = z.object({
   instance: z.object({ id: z.string(), revisionId: z.number() }),
 });
 
+// WS7-5b-mobile Block C — POST /plans response envelope. Mirrors the server
+// 201 shape at src/routes/plans.ts:509-511 (the WS7-4-C c2 create endpoint).
+const CreatePlanResponseSchema = z.object({
+  instance: z.object({ id: z.string(), revisionId: z.number() }),
+});
+
+export interface PostPlanBody {
+  name?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  isActiveThisWeek?: boolean;
+}
+
 // WS7-4-C c5/c6 — PATCH /plans/:id response envelope. macrosStale is
 // returned when the server checked planNeedsMacroEstimation as part of
 // the mutation; absent in no-op responses.
@@ -278,6 +291,29 @@ export async function patchPlan(
     body,
     schema: PatchPlanResponseSchema,
   });
+}
+
+/**
+ * WS7-5b-mobile Block C — POST /plans — create a new empty MealPlanInstance
+ * for the requester (resolves D-WS7-059). All body fields are optional; an
+ * empty body `{}` is valid and produces an undated, inactive draft. Used by
+ * the AddMealToPlanSheet "Create new plan" flow, which pairs this with
+ * `postPlanItem` to seed the new plan with one meal. Propagates apiClient
+ * typed errors: `ApiError` (400 validation, 429 rate limit, 500 tx),
+ * `UnauthenticatedError` (401), `ApiSchemaError` on response-shape mismatch.
+ */
+export async function createPlan(
+  body: PostPlanBody = {},
+): Promise<{ instanceId: string; revisionId: number }> {
+  const response = await apiClient(`/plans`, {
+    method: "POST",
+    body,
+    schema: CreatePlanResponseSchema,
+  });
+  return {
+    instanceId: response.instance.id,
+    revisionId: response.instance.revisionId,
+  };
 }
 
 // ── WS7-4-D c5 — Plan Item mutation helpers ────────────────────────────────

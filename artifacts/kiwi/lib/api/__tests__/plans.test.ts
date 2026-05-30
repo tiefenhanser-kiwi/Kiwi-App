@@ -659,6 +659,193 @@ const ITEM_MUTATION_RESPONSE = {
   macrosStale: false,
 };
 
+// ── WS7-5b-mobile Block C — createPlan ─────────────────────────────────────
+
+test("createPlan POSTs to /plans with an empty body and parses the instance envelope", async () => {
+  let capturedMethod: string | null = null;
+  let capturedBody: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    lastUrl = url;
+    capturedMethod = init?.method ?? "GET";
+    capturedBody = init?.body ?? null;
+    return mockJson({ instance: { id: "plan-new", revisionId: 1 } }, 201);
+  }) as unknown as typeof fetch;
+
+  const { createPlan } = await import("../plans");
+  const out = await createPlan();
+  assert.equal(out.instanceId, "plan-new");
+  assert.equal(out.revisionId, 1);
+  assert.equal(capturedMethod, "POST");
+  assert.ok(lastUrl?.endsWith("/plans"), `unexpected url: ${lastUrl}`);
+  assert.equal(capturedBody, JSON.stringify({}));
+});
+
+test("createPlan passes a name-only body through unchanged", async () => {
+  let capturedBody: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    lastUrl = url;
+    capturedBody = init?.body ?? null;
+    return mockJson({ instance: { id: "plan-named", revisionId: 1 } }, 201);
+  }) as unknown as typeof fetch;
+
+  const { createPlan } = await import("../plans");
+  const out = await createPlan({ name: "Holiday Week" });
+  assert.equal(out.instanceId, "plan-named");
+  assert.equal(capturedBody, JSON.stringify({ name: "Holiday Week" }));
+});
+
+test("createPlan propagates a 401 as UnauthenticatedError", async () => {
+  nextResponse = () => mockJson({ error: "unauthenticated" }, 401);
+  const { createPlan } = await import("../plans");
+  await assert.rejects(
+    () => createPlan(),
+    (err: unknown) => err instanceof UnauthenticatedError,
+  );
+});
+
+test("createPlan rejects a response missing the instance envelope", async () => {
+  nextResponse = () => mockJson({ id: "plan-new", revisionId: 1 }, 201);
+  const { createPlan } = await import("../plans");
+  await assert.rejects(
+    () => createPlan(),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+// WS7-5b-mobile Block C — §27 wire-shape round-trip verification for
+// D-WS7-059 AddMealToPlanSheet "Create new plan". Sequences the three calls
+// the sheet runs end-to-end (POST /plans → POST /plans/:id/items →
+// GET /plans/:id) and asserts the planId returned by create matches the
+// planId accepted by add-item AND the planId read back, and that the read
+// response carries the meal that was just added. This pins the
+// both-directions contract: write succeeds AND read returns what Plan
+// Review needs to render.
+test(
+  "createPlan + postPlanItem + getPlan round-trip: new plan id flows through and read returns the added meal",
+  async () => {
+    const NEW_PLAN_ID = "plan-just-made-42";
+    const ADDED_MEAL_ID = "meal-1";
+    const ADDED_ITEM_ID = "item-just-added";
+
+    const calls: Array<{ url: string; method: string; body: string | null }> = [];
+    (globalThis as { fetch: typeof fetch }).fetch = (async (
+      url: string,
+      init?: { method?: string; body?: string },
+    ) => {
+      const method = init?.method ?? "GET";
+      const body = init?.body ?? null;
+      calls.push({ url, method, body });
+
+      if (method === "POST" && url.endsWith("/plans")) {
+        return mockJson(
+          { instance: { id: NEW_PLAN_ID, revisionId: 1 } },
+          201,
+        );
+      }
+      if (
+        method === "POST" &&
+        url.endsWith(`/plans/${NEW_PLAN_ID}/items`)
+      ) {
+        return mockJson(
+          {
+            item: {
+              id: ADDED_ITEM_ID,
+              mealId: ADDED_MEAL_ID,
+              positionIndex: 0,
+              assignedDayOfWeek: null,
+              assignedDate: null,
+              servingsOverride: null,
+              isBreakfast: false,
+              isLunch: false,
+              isDinner: true,
+              notes: null,
+              meal: MEAL_DETAIL,
+            },
+            planId: NEW_PLAN_ID,
+            revisionId: 2,
+            macrosStale: false,
+          },
+          201,
+        );
+      }
+      if (method === "GET" && url.endsWith(`/plans/${NEW_PLAN_ID}`)) {
+        return mockJson({
+          plan: {
+            id: NEW_PLAN_ID,
+            name: "",
+            status: "draft",
+            startDate: null,
+            endDate: null,
+            revisionId: 2,
+            isActiveThisWeek: false,
+            userId: "user-1",
+            sourceType: "user_created",
+            prepStatus: "not_prepped" as const,
+            optimizationNotes: [],
+            breakfastOverrides: "",
+            lunchOverrides: "",
+            items: [
+              {
+                id: ADDED_ITEM_ID,
+                mealId: ADDED_MEAL_ID,
+                positionIndex: 0,
+                assignedDayOfWeek: null,
+                assignedDate: null,
+                servingsOverride: null,
+                isBreakfast: false,
+                isLunch: false,
+                isDinner: true,
+                notes: null,
+                meal: MEAL_DETAIL,
+              },
+            ],
+            macroDailyAverage: {
+              caloriesPerDay: 540,
+              proteinGPerDay: 38,
+              carbsGPerDay: 32,
+              fatGPerDay: 24,
+            },
+          },
+        });
+      }
+      throw new Error(`unexpected request: ${method} ${url}`);
+    }) as unknown as typeof fetch;
+
+    const { createPlan, postPlanItem, getPlan } = await import("../plans");
+
+    const created = await createPlan({});
+    assert.equal(created.instanceId, NEW_PLAN_ID);
+
+    const added = await postPlanItem(created.instanceId, {
+      mealId: ADDED_MEAL_ID,
+      slot: "dinner",
+    });
+    assert.equal(added.planId, NEW_PLAN_ID);
+    assert.equal(added.item.mealId, ADDED_MEAL_ID);
+
+    const read = await getPlan(created.instanceId);
+    assert.equal(read.id, NEW_PLAN_ID);
+    assert.equal(read.items.length, 1);
+    assert.equal(read.items[0].mealId, ADDED_MEAL_ID);
+    assert.equal(read.items[0].id, ADDED_ITEM_ID);
+    assert.equal(read.items[0].meal?.id, ADDED_MEAL_ID);
+
+    assert.equal(calls.length, 3);
+    assert.equal(calls[0].method, "POST");
+    assert.ok(calls[0].url.endsWith("/plans"));
+    assert.equal(calls[1].method, "POST");
+    assert.ok(calls[1].url.endsWith(`/plans/${NEW_PLAN_ID}/items`));
+    assert.equal(calls[2].method, "GET");
+    assert.ok(calls[2].url.endsWith(`/plans/${NEW_PLAN_ID}`));
+  },
+);
+
 test("postPlanItem POSTs to /plans/:id/items and parses the rich envelope", async () => {
   let capturedMethod: string | null = null;
   let capturedBody: string | null = null;

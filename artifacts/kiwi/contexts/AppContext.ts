@@ -18,6 +18,7 @@ import {
 import { buildGroceryList, defaultPlan } from "@/lib/stubs";
 import * as meAPI from "@/lib/api/me";
 import {
+  createPlan as createPlanAPI,
   deletePlanItem,
   patchPlan,
   patchPlanItem,
@@ -163,6 +164,15 @@ interface AppState {
    *  the caller can navigate to `/plan/[id]`. Throws (ApiError 404 / 429 /
    *  500, UnauthenticatedError 401, ApiSchemaError) on failure. */
   useTemplateAsPlan: (templateId: string) => Promise<{ instanceId: string }>;
+  /** WS7-5b-mobile Block C (D-WS7-059) — AddMealToPlanSheet "Create new plan"
+   *  flow. Creates an empty undated MealPlanInstance, adds the seed meal as
+   *  the first item (slot=dinner, no day), and returns the new plan id so the
+   *  caller can navigate to Plan Review. The plans-list cache is invalidated
+   *  after create (so the new plan appears in the user's list even if the
+   *  add-meal call subsequently fails — the empty-plan-with-error MVP path).
+   *  Throws on either step's failure; on add-meal failure the empty plan
+   *  remains. */
+  createPlanWithMeal: (mealId: string) => Promise<{ planId: string }>;
   /** WS7-4-E c2 — true while a POST /plans/:id/recalc-macros is in flight
    *  for any plan. Plan Review's daily-averages card reads this to show a
    *  non-blocking inline loading shim (Q2:A). Implements Ruling 11: when a
@@ -637,6 +647,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [queryClient],
   );
 
+  // WS7-5b-mobile Block C — D-WS7-059 real wiring for the "Create new plan"
+  // card in AddMealToPlanSheet. Two server calls in sequence:
+  //   1) POST /plans with `{}` (no dates per the locked create-with-one-meal
+  //      contract — body fields are all optional server-side).
+  //   2) POST /plans/:id/items with mealId + slot="dinner" (PRD §2.4 lets
+  //      day assignment stay null; user assigns in Plan Review).
+  // Cache hygiene: the plans-list cache is invalidated right after step (1)
+  // so the new plan appears in My Plans even when step (2) throws (Block C
+  // ruling: empty-plan-with-error is the MVP partial-failure outcome; no
+  // cleanup). On full success, handleMutationResult fires the standard
+  // plan-detail invalidation + macrosStale recalc pipeline.
+  const createPlanWithMeal = useCallback(
+    async (mealId: string): Promise<{ planId: string }> => {
+      const created = await createPlanAPI({});
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      const response = await postPlanItem(created.instanceId, {
+        mealId,
+        slot: "dinner",
+      });
+      handleMutationResult(created.instanceId, response.macrosStale);
+      return { planId: created.instanceId };
+    },
+    [queryClient, handleMutationResult],
+  );
+
   const toggleGrocery = useCallback(
     async (id: string) => {
       const updated = groceries.map((g) =>
@@ -810,6 +845,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     completeOnboarding,
     deactivateAccount,
     useTemplateAsPlan,
+    createPlanWithMeal,
     isMacrosRecalcInFlight: macrosRecalcInFlightCount > 0,
     groceries,
     toggleGrocery,

@@ -1110,6 +1110,96 @@ test("WS7-4-E: isMacrosRecalcInFlight flips true while recalc is in flight and b
   );
 });
 
+// ── WS7-5b-mobile Block C — createPlanWithMeal (D-WS7-059) ──────────────
+
+test("createPlanWithMeal POSTs /plans then /plans/:id/items, returns new planId, invalidates plans cache", async () => {
+  const qc = await mountAuthed();
+  // Seed a list-cache entry so we can assert the post-create invalidation.
+  qc.setQueryData(["plans"], { plans: [], activeThisWeek: null, nextCursor: null });
+
+  const calls: Array<{ url: string; method: string; body: string | null }> = [];
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const u = String(url);
+    const method = (init?.method ?? "GET").toUpperCase();
+    const body = init?.body ? String(init.body) : null;
+    if (method === "POST" && u.endsWith("/plans")) {
+      calls.push({ url: u, method, body });
+      return Promise.resolve(
+        mockJson({ instance: { id: "plan-fresh", revisionId: 1 } }, 201),
+      );
+    }
+    if (method === "POST" && u.endsWith("/plans/plan-fresh/items")) {
+      calls.push({ url: u, method, body });
+      return Promise.resolve(
+        mockJson(itemMutationResponse("plan-fresh", "item-seed", "meal-x"), 201),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  let result: { planId: string } | null = null;
+  await act(async () => {
+    result = await app!.createPlanWithMeal("meal-x");
+  });
+
+  assert.equal(result?.planId, "plan-fresh");
+  assert.equal(calls.length, 2);
+  // Step 1: empty-body create — no dates per the locked Block C contract.
+  assert.equal(calls[0].body, JSON.stringify({}));
+  // Step 2: add-meal with slot=dinner. assignedDayOfWeek is omitted, so the
+  // server applies its null default per the PRD §2.4 unassigned-day rule.
+  assert.equal(
+    calls[1].body,
+    JSON.stringify({ mealId: "meal-x", slot: "dinner" }),
+  );
+  // The plans-list cache was invalidated so the new plan surfaces in My Plans.
+  const after = qc.getQueryState(["plans"]);
+  assert.equal(after?.isInvalidated, true);
+});
+
+test("createPlanWithMeal: if POST /plans/:id/items throws, the create-side cache invalidation still ran (empty plan visible in list)", async () => {
+  const qc = await mountAuthed();
+  qc.setQueryData(["plans"], { plans: [], activeThisWeek: null, nextCursor: null });
+
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const u = String(url);
+    const method = (init?.method ?? "GET").toUpperCase();
+    if (method === "POST" && u.endsWith("/plans")) {
+      return Promise.resolve(
+        mockJson({ instance: { id: "plan-half", revisionId: 1 } }, 201),
+      );
+    }
+    if (method === "POST" && u.endsWith("/plans/plan-half/items")) {
+      return Promise.resolve(mockJson({ error: "meal not found" }, 404));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  let caught: unknown = null;
+  await act(async () => {
+    try {
+      await app!.createPlanWithMeal("ghost-meal");
+    } catch (err) {
+      caught = err;
+    }
+  });
+
+  assert.ok(caught, "expected createPlanWithMeal to throw when add-meal fails");
+  // The plans-list cache MUST have been invalidated before the throw so the
+  // user can find their empty plan in My Plans (Block C ruling: empty-plan-
+  // with-error MVP path, no cleanup).
+  const after = qc.getQueryState(["plans"]);
+  assert.equal(after?.isInvalidated, true);
+});
+
 test("promoteRecipeOverrideToMeal propagates 422 unresolved_ingredient with structured body", async () => {
   await mountAuthed();
 
