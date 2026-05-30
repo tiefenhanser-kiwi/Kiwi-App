@@ -75,3 +75,222 @@ export const WizardPlanCandidatesResultSchema = z.object({
 export type WizardPlanCandidatesResult = z.infer<
   typeof WizardPlanCandidatesResultSchema
 >;
+
+// ── WS7-5a — wizard candidate expand (Branch B "View plan") ──────────────
+// Step 2 of the two-step wizard commit model (PRD §5.6 redline). One
+// candidate -> full per-meal recipe detail. Server posts /api/wizard/expand
+// with the chosen candidate; route runs wizard.candidate.expand prompt +
+// per-dish estimateDishMacros loop, writes a hidden draft MealPlanInstance,
+// returns the expanded detail + draft id for the resume path.
+
+// PRD §5.6 (redline) — request body to POST /api/wizard/expand.
+// The candidate is echoed back from the build-plans response. Server trusts
+// the user-selected candidate shape (the user can only pick what they were
+// shown) and does not re-validate against a "this was a real candidate I
+// generated" registry — candidates are stateless. candidateContext carries
+// the slice of the original WizardInput the prompt needs to honor the
+// constraints chained into the expansion.
+export const WizardExpandCandidateContextSchema = z.object({
+  planDurationDays: z.number().int().min(1).max(7),
+  householdSize: z.number().int().min(1).max(30),
+  wantsLeftovers: z.boolean(),
+  allergiesAndAvoidances: z.array(z.string()).default([]),
+  eatingStyles: z.array(z.string()).default([]),
+  difficulty: z.enum(["easy", "medium", "fancy"]),
+});
+export type WizardExpandCandidateContext = z.infer<
+  typeof WizardExpandCandidateContextSchema
+>;
+
+export const WizardExpandRequestSchema = z.object({
+  candidate: WizardPlanCandidateSchema,
+  candidateContext: WizardExpandCandidateContextSchema,
+});
+export type WizardExpandRequest = z.infer<typeof WizardExpandRequestSchema>;
+
+// PRD §5.6 (redline) — per-dish detail shape returned by the expand AI.
+// Mirrors the Dish/DishIngredient/RecipeInstructionStep conventions, but
+// stays as a JSON snapshot inside MealPlanInstance.optimizationNotes until
+// "Save and use" (WS7-5b) materializes real rows.
+export const WizardExpandDishIngredientSchema = z.object({
+  name: z.string().min(1).max(120),
+  quantity: z.number().positive(),
+  unit: z.string().min(1).max(40),
+  preparationNote: z.string().max(120).optional(),
+  isOptional: z.boolean().optional(),
+});
+export type WizardExpandDishIngredient = z.infer<
+  typeof WizardExpandDishIngredientSchema
+>;
+
+export const WizardExpandDishSchema = z.object({
+  title: z.string().min(1).max(120),
+  role: z.enum(["main", "side", "sauce", "topping", "base", "optional"]),
+  positionIndex: z.number().int().nonnegative(),
+  // WS7-5b-server-fix2 — relaxed from .min(3) to .min(1). Meal-substance is
+  // already guarded by WizardExpandMealSchema.dishes.min(1) and
+  // WizardExpandResultSchema.meals.min(1).max(7); the per-dish floor was
+  // bombing legitimately simple sides (warmed pita, a baked potato, a steamed
+  // vegetable). The cascade flows to WizardExpandEnrichedDishSchema via the
+  // .extend() below and therefore to WizardExpandedPlanSchema (the
+  // materializer-validated read-side shape) — both directions of the wire stay
+  // in sync from this single edit.
+  ingredients: z.array(WizardExpandDishIngredientSchema).min(1),
+  steps: z.array(z.string().min(1).max(400)).min(1).max(20),
+});
+export type WizardExpandDish = z.infer<typeof WizardExpandDishSchema>;
+
+export const WizardExpandMealSchema = z.object({
+  title: z.string().min(1).max(120),
+  cuisineType: z.string().min(1).max(60),
+  estimatedTimeMinutes: z.number().int().positive(),
+  difficulty: z.enum(["easy", "medium", "fancy"]),
+  servings: z.number().int().min(1).max(30),
+  dishes: z.array(WizardExpandDishSchema).min(1),
+});
+export type WizardExpandMeal = z.infer<typeof WizardExpandMealSchema>;
+
+// AI output shape (what wizard.candidate.expand returns directly).
+export const WizardExpandResultSchema = z.object({
+  meals: z.array(WizardExpandMealSchema).min(1).max(7),
+});
+export type WizardExpandResult = z.infer<typeof WizardExpandResultSchema>;
+
+// Per-dish per-serving macros, attached AFTER the dishMacros estimator pass.
+export const WizardExpandDishMacrosSchema = z.object({
+  caloriesPerServing: z.number().nonnegative(),
+  proteinGPerServing: z.number().nonnegative(),
+  carbsGPerServing: z.number().nonnegative(),
+  fatGPerServing: z.number().nonnegative(),
+  // null when the dishMacros estimator failed for this dish (caller persists
+  // the draft regardless; user sees a soft caveat and the macro tile renders
+  // from whatever did succeed). Failures are non-blocking by design.
+  failed: z.boolean().optional(),
+});
+export type WizardExpandDishMacros = z.infer<
+  typeof WizardExpandDishMacrosSchema
+>;
+
+// Enriched per-dish shape carrying the AI ingredients/steps + the macro pass
+// result, persisted into MealPlanInstance.optimizationNotes for the draft.
+export const WizardExpandEnrichedDishSchema = WizardExpandDishSchema.extend({
+  macros: WizardExpandDishMacrosSchema.nullable(),
+});
+export type WizardExpandEnrichedDish = z.infer<
+  typeof WizardExpandEnrichedDishSchema
+>;
+
+export const WizardExpandEnrichedMealSchema = WizardExpandMealSchema.extend({
+  dishes: z.array(WizardExpandEnrichedDishSchema).min(1),
+});
+export type WizardExpandEnrichedMeal = z.infer<
+  typeof WizardExpandEnrichedMealSchema
+>;
+
+// Full post-finalize / materializer-side server shape — only valid AFTER
+// the WS7-5c finalize-steps merge populates per-dish steps. The materializer
+// (wizardActivation.ts) validates against this schema; activate/save callers
+// merge finalize output into a details-stage draft to produce this shape.
+export const WizardExpandedPlanSchema = z.object({
+  // Mirror selected candidate identity / display fields so the resume read
+  // surface can render the draft card without re-stitching.
+  candidateId: z.string().min(1),
+  title: z.string().min(1).max(120),
+  tags: z.array(z.string()).max(5),
+  whyBullets: z.array(z.string()).min(1).max(3),
+  meals: z.array(WizardExpandEnrichedMealSchema).min(1).max(7),
+});
+export type WizardExpandedPlan = z.infer<typeof WizardExpandedPlanSchema>;
+
+// ── WS7-5c Block A — details-stage shape (no steps) ──────────────────────
+// The three-stage wizard splits the old heavy expand call into a lighter
+// View-Details call (call #2; this shape) + a finalize-at-save call (call
+// #3; merges steps into WizardExpandedPlanSchema). Latency win: only the
+// plan the user actually saves pays the steps-generation cost.
+//
+// Details-stage carries ingredients + per-dish macros. NO steps. Used by:
+//   - POST /wizard/expand AI-output validation (wizard.candidate.expand)
+//   - GET /wizard/drafts/:id read parse
+//   - Draft persisted shape in optimizationNotes (call #2 → save/activate)
+
+export const WizardExpandDishDetailsSchema = z.object({
+  title: z.string().min(1).max(120),
+  role: z.enum(["main", "side", "sauce", "topping", "base", "optional"]),
+  positionIndex: z.number().int().nonnegative(),
+  ingredients: z.array(WizardExpandDishIngredientSchema).min(1),
+  // steps intentionally absent — call #3 populates them at save/activate.
+});
+export type WizardExpandDishDetails = z.infer<
+  typeof WizardExpandDishDetailsSchema
+>;
+
+export const WizardExpandMealDetailsSchema = z.object({
+  title: z.string().min(1).max(120),
+  cuisineType: z.string().min(1).max(60),
+  estimatedTimeMinutes: z.number().int().positive(),
+  difficulty: z.enum(["easy", "medium", "fancy"]),
+  servings: z.number().int().min(1).max(30),
+  dishes: z.array(WizardExpandDishDetailsSchema).min(1),
+});
+export type WizardExpandMealDetails = z.infer<
+  typeof WizardExpandMealDetailsSchema
+>;
+
+// AI output shape for call #2 (wizard.candidate.expand) — details-stage.
+export const WizardExpandResultDetailsSchema = z.object({
+  meals: z.array(WizardExpandMealDetailsSchema).min(1).max(7),
+});
+export type WizardExpandResultDetails = z.infer<
+  typeof WizardExpandResultDetailsSchema
+>;
+
+export const WizardExpandEnrichedDishDetailsSchema =
+  WizardExpandDishDetailsSchema.extend({
+    macros: WizardExpandDishMacrosSchema.nullable(),
+  });
+export type WizardExpandEnrichedDishDetails = z.infer<
+  typeof WizardExpandEnrichedDishDetailsSchema
+>;
+
+export const WizardExpandEnrichedMealDetailsSchema =
+  WizardExpandMealDetailsSchema.extend({
+    dishes: z.array(WizardExpandEnrichedDishDetailsSchema).min(1),
+  });
+export type WizardExpandEnrichedMealDetails = z.infer<
+  typeof WizardExpandEnrichedMealDetailsSchema
+>;
+
+// Full details-stage plan — call #2 response + persisted draft shape.
+// After call #3 merges per-dish steps in, the resulting payload validates
+// against WizardExpandedPlanSchema (the materializer's read-side schema).
+export const WizardExpandedPlanDetailsSchema = z.object({
+  candidateId: z.string().min(1),
+  title: z.string().min(1).max(120),
+  tags: z.array(z.string()).max(5),
+  whyBullets: z.array(z.string()).min(1).max(3),
+  meals: z.array(WizardExpandEnrichedMealDetailsSchema).min(1).max(7),
+});
+export type WizardExpandedPlanDetails = z.infer<
+  typeof WizardExpandedPlanDetailsSchema
+>;
+
+// ── WS7-5c Block A — finalize-steps AI output (call #3) ──────────────────
+// wizard.candidate.finalize_steps returns per-dish step arrays keyed by
+// (mealIndex, dishIndex) so the server can merge them positionally into
+// the details-stage draft. Sonnet, tool mode. Steps-only output — much
+// smaller than the old 16k full-expand.
+export const WizardFinalizeStepsDishSchema = z.object({
+  mealIndex: z.number().int().nonnegative(),
+  dishIndex: z.number().int().nonnegative(),
+  steps: z.array(z.string().min(1).max(400)).min(1).max(20),
+});
+export type WizardFinalizeStepsDish = z.infer<
+  typeof WizardFinalizeStepsDishSchema
+>;
+
+export const WizardFinalizeStepsResultSchema = z.object({
+  dishSteps: z.array(WizardFinalizeStepsDishSchema).min(1),
+});
+export type WizardFinalizeStepsResult = z.infer<
+  typeof WizardFinalizeStepsResultSchema
+>;
