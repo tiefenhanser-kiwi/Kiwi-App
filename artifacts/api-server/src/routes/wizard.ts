@@ -47,6 +47,7 @@ import {
   sweepStaleWizardDrafts as productionSweepStaleWizardDrafts,
   WIZARD_DRAFT_TTL_DAYS,
 } from "../lib/wizardExpansion";
+import { readAndFinalizeWizardDraft as productionReadAndFinalizeWizardDraft } from "../lib/wizardFinalize";
 import { currentWeekRange } from "../lib/planDates";
 import { requireAuth } from "../middleware/auth";
 
@@ -71,6 +72,11 @@ export interface WizardRouterDeps {
   // stub without needing the shared userActivity helper's real Prisma write.
   materializeWizardDraft?: typeof productionMaterializeWizardDraft;
   emitActivity?: typeof productionEmitActivity;
+  // WS7-5c Block A — finalize-steps seam. The three-stage wizard's call #3
+  // runs BEFORE the activate/save $transaction (kept off the tx because
+  // its Sonnet call would blow the 60s tx budget). Tests stub this to
+  // return a synthetic merged payload without needing a real AI call.
+  readAndFinalizeWizardDraft?: typeof productionReadAndFinalizeWizardDraft;
 }
 
 export function createWizardRouter(
@@ -88,6 +94,8 @@ export function createWizardRouter(
   const materializeWizardDraftImpl =
     deps.materializeWizardDraft ?? productionMaterializeWizardDraft;
   const emitSharedActivity = deps.emitActivity ?? productionEmitActivity;
+  const readAndFinalizeWizardDraftImpl =
+    deps.readAndFinalizeWizardDraft ?? productionReadAndFinalizeWizardDraft;
   const limiterOpts = deps.rateLimiterOpts ?? {
     capacity: 8,
     refillPerSec: 8 / 60,
@@ -783,6 +791,70 @@ export function createWizardRouter(
       return res.status(400).json({ error: "invalid draft id" });
     }
 
+    // WS7-5c Block A — finalize-steps BEFORE the tx. Stepless details-stage
+    // draft + wizard.candidate.finalize_steps merge → with-steps payload
+    // ready for the materializer. Kept outside the $transaction because the
+    // ~Sonnet latency would blow the 60s tx budget (see tx block below).
+    const finalizeResult = await readAndFinalizeWizardDraftImpl({
+      prisma,
+      userId,
+      draftId,
+      runAICall,
+    });
+    if (finalizeResult.status === "not_found") {
+      return res.status(404).json({ error: "draft not found" });
+    }
+    if (finalizeResult.status === "malformed") {
+      logger.warn(
+        {
+          event: "wizard_draft_activate_malformed",
+          userId,
+          draftId,
+          reason: finalizeResult.reason,
+        },
+        "Wizard draft malformed during activation (pre-finalize)",
+      );
+      return res
+        .status(422)
+        .json({ error: "draft malformed", reason: finalizeResult.reason });
+    }
+    if (finalizeResult.status === "ai_failed") {
+      logger.warn(
+        {
+          event: "wizard_finalize_steps_failed",
+          userId,
+          draftId,
+          reason: finalizeResult.reason,
+          promptKey: "wizard.candidate.finalize_steps",
+        },
+        "Wizard finalize-steps AI call failed during activation",
+      );
+      return res
+        .status(502)
+        .json({
+          error: finalizeResult.userFacingMessage,
+          reason: finalizeResult.reason,
+        });
+    }
+    if (finalizeResult.status === "merge_failed") {
+      logger.warn(
+        {
+          event: "wizard_finalize_steps_merge_failed",
+          userId,
+          draftId,
+          reason: finalizeResult.reason,
+        },
+        "Wizard finalize-steps merge failed during activation",
+      );
+      return res
+        .status(422)
+        .json({
+          error: "draft malformed",
+          reason: `merge_failed:${finalizeResult.reason}`,
+        });
+    }
+    const payload = finalizeResult.payload;
+
     const __txStart = Date.now();
     let __txElapsedAtThrow = -1;
     try {
@@ -792,6 +864,7 @@ export function createWizardRouter(
           tx,
           userId,
           draftId,
+          payload,
         });
 
         // Demote any existing active plans for this user — same pattern as
@@ -927,6 +1000,69 @@ export function createWizardRouter(
       return res.status(400).json({ error: "invalid draft id" });
     }
 
+    // WS7-5c Block A — finalize-steps BEFORE the tx. Mirrors /activate; see
+    // the comment block there for the rationale (kept off the $transaction
+    // because the ~Sonnet latency would blow the 60s tx budget).
+    const finalizeResult = await readAndFinalizeWizardDraftImpl({
+      prisma,
+      userId,
+      draftId,
+      runAICall,
+    });
+    if (finalizeResult.status === "not_found") {
+      return res.status(404).json({ error: "draft not found" });
+    }
+    if (finalizeResult.status === "malformed") {
+      logger.warn(
+        {
+          event: "wizard_draft_save_malformed",
+          userId,
+          draftId,
+          reason: finalizeResult.reason,
+        },
+        "Wizard draft malformed during save (pre-finalize)",
+      );
+      return res
+        .status(422)
+        .json({ error: "draft malformed", reason: finalizeResult.reason });
+    }
+    if (finalizeResult.status === "ai_failed") {
+      logger.warn(
+        {
+          event: "wizard_finalize_steps_failed",
+          userId,
+          draftId,
+          reason: finalizeResult.reason,
+          promptKey: "wizard.candidate.finalize_steps",
+        },
+        "Wizard finalize-steps AI call failed during save",
+      );
+      return res
+        .status(502)
+        .json({
+          error: finalizeResult.userFacingMessage,
+          reason: finalizeResult.reason,
+        });
+    }
+    if (finalizeResult.status === "merge_failed") {
+      logger.warn(
+        {
+          event: "wizard_finalize_steps_merge_failed",
+          userId,
+          draftId,
+          reason: finalizeResult.reason,
+        },
+        "Wizard finalize-steps merge failed during save",
+      );
+      return res
+        .status(422)
+        .json({
+          error: "draft malformed",
+          reason: `merge_failed:${finalizeResult.reason}`,
+        });
+    }
+    const payload = finalizeResult.payload;
+
     const __txStart = Date.now();
     let __txElapsedAtThrow = -1;
     try {
@@ -936,6 +1072,7 @@ export function createWizardRouter(
           tx,
           userId,
           draftId,
+          payload,
         });
 
         // Save tail — flip ONLY isWizardDraft. The materializer is identical

@@ -182,6 +182,17 @@ export interface MaterializeWizardDraftOptions {
   tx: Prisma.TransactionClient;
   userId: string;
   draftId: string;
+  // WS7-5c Block A — optional pre-merged payload. The three-stage wizard
+  // splits "view details" from "finalize at save": activate/save callers
+  // read the details-stage draft, run wizard.candidate.finalize_steps
+  // BEFORE the tx, merge per-dish steps in, then hand the merged
+  // WizardExpandedPlan to the materializer here. When `payload` is
+  // provided we still read the draft row (for the ownership +
+  // isWizardDraft invariant — keeping that check in one place), but we
+  // SKIP the Zod parse of optimizationNotes (the draft is stepless and
+  // would fail the with-steps WizardExpandedPlanSchema) and materialize
+  // from `payload` instead.
+  payload?: WizardExpandedPlan;
 }
 
 export interface MaterializeWizardDraftResult {
@@ -221,10 +232,17 @@ export interface MaterializeWizardDraftResult {
 export async function materializeWizardDraft(
   opts: MaterializeWizardDraftOptions,
 ): Promise<MaterializeWizardDraftResult> {
-  const { prisma, tx, userId, draftId } = opts;
+  const { prisma, tx, userId, draftId, payload } = opts;
 
   // ── Pass 1 (non-transactional): read draft, parse, upsert ingredients ─
 
+  // WS7-5c Block A: when `payload` is provided, the caller already read +
+  // parsed the details-stage draft and ran wizard.candidate.finalize_steps
+  // to produce the merged with-steps shape. We still read the row for the
+  // ownership + isWizardDraft invariant (cheap; keeps that check in one
+  // place). When `payload` is null we ALSO need optimizationNotes to parse
+  // ourselves — so always select it; the wasted bytes when `payload` is
+  // set are negligible (a single row read of a small JSON blob).
   const draft = await prisma.mealPlanInstance.findUnique({
     where: { id: draftId },
     select: {
@@ -237,16 +255,35 @@ export async function materializeWizardDraft(
     throw new WizardDraftNotFoundError(draftId);
   }
 
-  const parsed = WizardExpandedPlanSchema.safeParse(draft.optimizationNotes);
-  if (!parsed.success) {
-    const reason =
-      parsed.error.issues
-        .slice(0, 3)
-        .map((i) => i.path.join(".") || "root")
-        .join(",") || "shape_mismatch";
-    throw new WizardDraftMalformedError(draftId, reason);
+  let expanded: WizardExpandedPlan;
+  if (payload) {
+    // Validate the merged payload defensively — the materializer's invariant
+    // is that the shape it sees parses against WizardExpandedPlanSchema
+    // (steps required). The caller already ran a parse to assemble payload,
+    // but the validation here is the durable post-merge gate matching the
+    // §27 round-trip contract.
+    const parsed = WizardExpandedPlanSchema.safeParse(payload);
+    if (!parsed.success) {
+      const reason =
+        parsed.error.issues
+          .slice(0, 3)
+          .map((i) => i.path.join(".") || "root")
+          .join(",") || "shape_mismatch";
+      throw new WizardDraftMalformedError(draftId, reason);
+    }
+    expanded = parsed.data;
+  } else {
+    const parsed = WizardExpandedPlanSchema.safeParse(draft.optimizationNotes);
+    if (!parsed.success) {
+      const reason =
+        parsed.error.issues
+          .slice(0, 3)
+          .map((i) => i.path.join(".") || "root")
+          .join(",") || "shape_mismatch";
+      throw new WizardDraftMalformedError(draftId, reason);
+    }
+    expanded = parsed.data;
   }
-  const expanded = parsed.data;
 
   // Collect unique ingredients, upsert each once.
   // Preserve the first-occurrence original-cased name as displayName for

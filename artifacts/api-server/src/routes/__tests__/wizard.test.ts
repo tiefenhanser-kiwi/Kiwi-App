@@ -240,6 +240,13 @@ async function spinUp(deps: {
   persistWizardDraft?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sweepStaleWizardDrafts?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  materializeWizardDraft?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  emitActivity?: any;
+  // WS7-5c Block A — finalize-steps seam.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readAndFinalizeWizardDraft?: any;
 }): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
@@ -1813,6 +1820,11 @@ interface ActivateDraftRow {
 
 function makeActivateDeps(opts: {
   drafts: Map<string, ActivateDraftRow>;
+  // WS7-5c Block A — the route now runs readAndFinalizeWizardDraft BEFORE
+  // the materializer. not_found / malformed surface from THAT stub now
+  // (the materializer no longer parses optimizationNotes when a payload
+  // is passed). The materializeBehavior name + values are kept for back-
+  // compat with existing test setups; both stubs are driven by it.
   materializeBehavior?: "ok" | "not_found" | "malformed";
   recorder?: ActivateRecorder;
 }) {
@@ -1921,7 +1933,46 @@ function makeActivateDeps(opts: {
     });
   }) as never;
 
-  return { prisma, materializeWizardDraft, emitActivity, rec };
+  // WS7-5c Block A — stub for readAndFinalizeWizardDraft. Mirrors the
+  // existing materializeBehavior modes so tests that expected the
+  // materializer to throw not_found / malformed now see those failure
+  // modes surface from the finalize stage (which is now first in the
+  // activate/save flow). The 'ok' path returns SAMPLE_EXPANDED as the
+  // merged payload — the materializer stub above then receives it via
+  // opts.payload and the assertions on its call args still hold.
+  const readAndFinalizeWizardDraft = (async (args: {
+    userId: string;
+    draftId: string;
+  }) => {
+    if (opts.materializeBehavior === "not_found") {
+      return { status: "not_found" as const };
+    }
+    if (opts.materializeBehavior === "malformed") {
+      return {
+        status: "malformed" as const,
+        reason: "shape_mismatch",
+      };
+    }
+    // Mirror SAMPLE_EXPANDED into both the payload (with-steps) and the
+    // details (without-steps) sides. Tests assert against the materializer
+    // call's args.payload, not against details, so a trimmed details copy
+    // is fine here.
+    return {
+      status: "success" as const,
+      payload: SAMPLE_EXPANDED,
+      details: SAMPLE_EXPANDED,
+    };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    void args;
+  }) as never;
+
+  return {
+    prisma,
+    materializeWizardDraft,
+    emitActivity,
+    readAndFinalizeWizardDraft,
+    rec,
+  };
 }
 
 describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
@@ -1947,6 +1998,7 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
       subscriptionService: makeSubscriptionService(true),
       materializeWizardDraft: deps.materializeWizardDraft,
       emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
     } as unknown as Parameters<typeof spinUp>[0]);
   });
   after(async () => harness.close());
@@ -2042,6 +2094,7 @@ describe("POST /api/wizard/drafts/:id/activate — not found", () => {
       subscriptionService: makeSubscriptionService(true),
       materializeWizardDraft: deps.materializeWizardDraft,
       emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
     } as unknown as Parameters<typeof spinUp>[0]);
   });
   after(async () => harness.close());
@@ -2088,6 +2141,7 @@ describe("POST /api/wizard/drafts/:id/activate — malformed draft", () => {
       subscriptionService: makeSubscriptionService(true),
       materializeWizardDraft: deps.materializeWizardDraft,
       emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
     } as unknown as Parameters<typeof spinUp>[0]);
   });
   after(async () => harness.close());
@@ -2164,6 +2218,7 @@ describe("GET /api/wizard/drafts/:id", () => {
       subscriptionService: makeSubscriptionService(true),
       materializeWizardDraft: deps.materializeWizardDraft,
       emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
     } as unknown as Parameters<typeof spinUp>[0]);
   });
   after(async () => harness.close());
@@ -2245,6 +2300,7 @@ describe("POST /api/wizard/drafts/:id/save — happy path", () => {
       subscriptionService: makeSubscriptionService(true),
       materializeWizardDraft: deps.materializeWizardDraft,
       emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
     } as unknown as Parameters<typeof spinUp>[0]);
   });
   after(async () => harness.close());
@@ -2327,6 +2383,7 @@ describe("POST /api/wizard/drafts/:id/save — prior active is NOT demoted", () 
       subscriptionService: makeSubscriptionService(true),
       materializeWizardDraft: deps.materializeWizardDraft,
       emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
     } as unknown as Parameters<typeof spinUp>[0]);
   });
   after(async () => harness.close());
@@ -2366,6 +2423,7 @@ describe("POST /api/wizard/drafts/:id/save — not found / not a draft", () => {
       subscriptionService: makeSubscriptionService(true),
       materializeWizardDraft: deps.materializeWizardDraft,
       emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
     } as unknown as Parameters<typeof spinUp>[0]);
   });
   after(async () => harness.close());
@@ -2416,6 +2474,7 @@ describe("POST /api/wizard/drafts/:id/save — malformed draft", () => {
       subscriptionService: makeSubscriptionService(true),
       materializeWizardDraft: deps.materializeWizardDraft,
       emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
     } as unknown as Parameters<typeof spinUp>[0]);
   });
   after(async () => harness.close());
