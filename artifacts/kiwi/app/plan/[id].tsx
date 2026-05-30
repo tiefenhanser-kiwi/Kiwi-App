@@ -519,6 +519,14 @@ export default function PlanReviewScreen() {
                 <Text style={s.macroLabel}>g fat</Text>
               </View>
             </View>
+            {/* D-WS7-060 — divisor disclosure. PRD §8.3.5 is ambiguous about
+                the divisor; the ratified rule is days-with-assigned-meals,
+                not days-in-range. This copy line makes the rule legible so
+                users understand why moving meals around shifts the average.
+                PRD §8.3.5 redline is queued for WS7-CLOSE. */}
+            <Text style={s.macroFootnote}>
+              Macros are calculated based on meals that have assigned days
+            </Text>
           </Card>
         </View>
 
@@ -933,6 +941,13 @@ const s = StyleSheet.create({
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
     marginTop: 2,
+  },
+  macroFootnote: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: KSpacing.sm,
+    lineHeight: 16,
   },
   sectionHeader: {
     fontSize: KType.size.lg,
