@@ -11,6 +11,8 @@ import assert from "node:assert/strict";
 import express, { type Express } from "express";
 import type { Server } from "node:http";
 
+import { Prisma } from "@prisma/client";
+
 import { signToken } from "../../lib/auth";
 import { currentWeekRange } from "../../lib/planDates";
 import { toYmd } from "../../lib/planQueries";
@@ -1900,6 +1902,10 @@ function makeActivateDeps(opts: {
       dishesCreated: 1,
       itemsCreated: 1,
       ingredientsTouched: 3,
+      // WS7-5b-mobile FIX (PRD §2.4) — the materializer now creates a
+      // MealPlanTemplate inside Pass 2 and returns its id so the route
+      // handler can write it into the Instance's mealPlanTemplateId.
+      mealPlanTemplateId: "tpl-test-id",
     };
   }) as never;
 
@@ -1981,6 +1987,13 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
     // status is NOT modified (kept as the existing "draft", per use-template precedent).
     assert.equal(Object.prototype.hasOwnProperty.call(flip, "status"), false);
     assert.deepEqual(flip.revisionId, { increment: 1 });
+    // WS7-5b-mobile FIX (PRD §2.4) — Template-pair. Activate writes the
+    // materializer's new Template id into the Instance's mealPlanTemplateId
+    // and clears the wizard-JSON blob from optimizationNotes (which the
+    // pre-fix expand/persist code wrote there and which broke Plan Review's
+    // mobile PlanSchema parse).
+    assert.equal(flip.mealPlanTemplateId, "tpl-test-id");
+    assert.equal(flip.optimizationNotes, Prisma.DbNull);
 
     // WS7-5b-mobile-PRE — activate dates the freshly-activated plan to the
     // current Sun-Sat week via the shared currentWeekRange() helper. Round-
@@ -2264,7 +2277,8 @@ describe("POST /api/wizard/drafts/:id/save — happy path", () => {
     // updateMany (demote) was NOT called — save doesn't activate.
     assert.equal(deps.rec.updateManyCalls.length, 0);
 
-    // Flip update — sets ONLY isWizardDraft. No active flip, no dates,
+    // Flip update — sets ONLY isWizardDraft + the Template-pair fields
+    // (mealPlanTemplateId, optimizationNotes). No active flip, no dates,
     // no revisionId bump.
     assert.equal(deps.rec.updateCalls.length, 1);
     const flip = deps.rec.updateCalls[0].data;
@@ -2274,6 +2288,11 @@ describe("POST /api/wizard/drafts/:id/save — happy path", () => {
     assert.equal(Object.prototype.hasOwnProperty.call(flip, "endDate"), false);
     assert.equal(Object.prototype.hasOwnProperty.call(flip, "status"), false);
     assert.equal(Object.prototype.hasOwnProperty.call(flip, "revisionId"), false);
+    // WS7-5b-mobile FIX (PRD §2.4) — Template-pair: same link + JSON clear
+    // as /activate. Save tail isn't activating, but the persistence shape
+    // is identical: undated, non-active, Template-backed.
+    assert.equal(flip.mealPlanTemplateId, "tpl-test-id");
+    assert.equal(flip.optimizationNotes, Prisma.DbNull);
 
     // Activity emitted is plan_created (NOT plan_activated_this_week).
     assert.equal(deps.rec.activityCalls.length, 1);

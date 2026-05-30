@@ -13,7 +13,7 @@
 // stack. Default export wires the production singletons.
 
 import { Router, type IRouter, type Request } from "express";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
 import {
@@ -811,6 +811,12 @@ export function createWizardRouter(
             revisionId: { increment: 1 },
             startDate: new Date(week.startDate),
             endDate: new Date(week.endDate),
+            // WS7-5b-mobile FIX (PRD §2.4): link the freshly-created
+            // hidden Template, and clear the wizard-JSON blob that pre-fix
+            // code wrote into optimizationNotes (Plan Review's mobile
+            // PlanSchema requires [{type,text}]; the blob failed parse).
+            mealPlanTemplateId: materialized.mealPlanTemplateId,
+            optimizationNotes: Prisma.DbNull,
           },
           select: { id: true, revisionId: true },
         });
@@ -934,7 +940,14 @@ export function createWizardRouter(
         // active, so there's nothing to demote.
         const saved = await tx.mealPlanInstance.update({
           where: { id: draftId },
-          data: { isWizardDraft: false },
+          data: {
+            isWizardDraft: false,
+            // WS7-5b-mobile FIX (PRD §2.4): same Template-pair link + JSON
+            // clear as /activate. Save path doesn't flip active / set dates
+            // / bump revisionId — only the template link + notes change.
+            mealPlanTemplateId: materialized.mealPlanTemplateId,
+            optimizationNotes: Prisma.DbNull,
+          },
           select: { id: true, revisionId: true },
         });
 

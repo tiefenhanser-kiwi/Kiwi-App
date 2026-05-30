@@ -190,6 +190,11 @@ export interface MaterializeWizardDraftResult {
   dishesCreated: number;
   itemsCreated: number;
   ingredientsTouched: number;
+  // WS7-5b-mobile FIX — PRD §2.4: every wizard plan persists as a
+  // MealPlanTemplate (auto-saved, hidden) + a linked MealPlanInstance. The
+  // route handler reads this and writes it into the Instance's
+  // mealPlanTemplateId in the same transaction.
+  mealPlanTemplateId: string;
 }
 
 /**
@@ -407,11 +412,38 @@ export async function materializeWizardDraft(
     itemsCreated++;
   }
 
+  // WS7-5b-mobile FIX — PRD §2.4. Wizard plans must persist as a
+  // MealPlanTemplate (auto-saved, hidden) + a linked MealPlanInstance.
+  // Pre-fix: the draft → activate/save path left mealPlanTemplateId null
+  // and stuffed the WizardExpandedPlan JSON into optimizationNotes; that
+  // broke Plan Review's mobile PlanSchema parse (couldn't-load-this-plan)
+  // and rendered blank My Plans cards. Description carries whyBullets
+  // (PRD §5.6 candidate copy) as bullet copy so the card subtext renders.
+  // imageUrl stays null — WS7-10 owns stock-image integration. Dedup-by-
+  // meal-set (PRD §2.4 line 258) is deferred to D-WS7-071; this path
+  // creates a fresh Template per wizard plan and accepts dupes for now.
+  const description = expanded.whyBullets.map((b) => `• ${b}`).join("\n");
+  const template = await tx.mealPlanTemplate.create({
+    data: {
+      userId,
+      title: expanded.title,
+      description,
+      tags: expanded.tags,
+      sourceType: "wizard",
+      defaultDaysCount: expanded.meals.length,
+      imageUrl: null,
+      isPublic: false,
+      isArchived: false,
+    },
+    select: { id: true },
+  });
+
   return {
     expanded,
     mealsCreated,
     dishesCreated,
     itemsCreated,
     ingredientsTouched: discovered.size,
+    mealPlanTemplateId: template.id,
   };
 }
