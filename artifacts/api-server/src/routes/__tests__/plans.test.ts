@@ -7,6 +7,7 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import express, { type Express } from "express";
 import type { Server } from "node:http";
+import { z } from "zod";
 
 import { signToken } from "../../lib/auth";
 import {
@@ -704,6 +705,123 @@ describe("GET /plans/:id — composite Plan Review", () => {
         "item-uns-a",
         "item-uns-b",
       ]);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS7-5b-mobile FIX — §27 verification ──────────────────────────────────
+// Pins the real GET /plans/:id response shape for a wizard-promoted plan
+// against the mobile PlanSchema's optimizationNotes subschema, so the exact
+// failure that broke Plan Review ("Couldn't load this plan." from
+// ApiSchemaError) is caught by a test instead of by a device-testing
+// session. Block C's mock-at-the-wrapper-layer round-trip missed it; this
+// describe block pins the contract directly at GET /plans/:id, which is
+// where the mobile parse happens in real flows (My Plans tap → Plan Review
+// hydrate → PlanSchema.safeParse).
+
+describe("GET /plans/:id — WS7-5b-mobile FIX §27 verification", () => {
+  // Mirror of the mobile PlanSchema's optimizationNotes subschema
+  // (artifacts/kiwi/lib/api/plans.ts:109-112). The api-server can't import
+  // from the kiwi package, so the shape is pinned here. The contract is:
+  // this shape stays byte-equivalent with the mobile OptimizationNoteSchema;
+  // if mobile updates, update both together.
+  const MobileOptimizationNotesSchema = z.array(
+    z.object({
+      type: z.enum(["prep", "cost"]),
+      text: z.string(),
+    }),
+  );
+
+  it("heals legacy wizard rows: WizardExpandedPlan object in optimizationNotes coerces to [] and parses against mobile PlanSchema", async () => {
+    // The exact pre-fix broken row shape, copied from the DB inspection
+    // during Phase 1 (rows like f3bbcc24 / 5fc1f4e4): the entire
+    // WizardExpandedPlan JSON stored where mobile expects [{type,text}].
+    // This is the row shape that was producing "Couldn't load this plan."
+    const legacyWizardJsonBlob = {
+      candidateId: "c-legacy",
+      title: "Old Wizard Plan",
+      tags: ["legacy"],
+      whyBullets: ["Reason 1", "Reason 2"],
+      meals: [],
+    };
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-legacy-wizard",
+            name: "Old Wizard Plan",
+            optimizationNotes: legacyWizardJsonBlob,
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-legacy-wizard`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: { optimizationNotes: unknown };
+      };
+      // Defensive coerce: the unparseable object becomes [], not a 500
+      // and not the raw object that fails mobile parse.
+      assert.deepEqual(body.plan.optimizationNotes, []);
+      // Mobile-side Zod parse passes — this is the exact failure mode that
+      // broke Plan Review pre-fix. If this assert fails, Plan Review is
+      // broken again for legacy wizard rows.
+      const parsed = MobileOptimizationNotesSchema.safeParse(
+        body.plan.optimizationNotes,
+      );
+      assert.equal(
+        parsed.success,
+        true,
+        "mobile PlanSchema must parse the GET /plans/:id response clean",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("post-fix shape: null optimizationNotes + Template-backed instance parses clean against the mobile PlanSchema", async () => {
+    // Simulates what new wizard plans look like after the Template-pair fix:
+    // mealPlanTemplateId is set (the template fixture defaults to title +
+    // tags + sourceType:'wizard'), optimizationNotes is null (route clears
+    // it via Prisma.DbNull on activate/save). Mobile parse must pass.
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-new-wizard",
+            name: "New Wizard Plan",
+            optimizationNotes: null,
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-new-wizard`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: {
+          name: string;
+          sourceType: string;
+          optimizationNotes: unknown;
+        };
+      };
+      // sourceType comes from the linked template — wizard.
+      assert.equal(body.plan.sourceType, "wizard");
+      // Name surfaces (PRD §2.4: Template owns title, surfaced on Instance).
+      assert.equal(body.plan.name, "New Wizard Plan");
+      // Mobile schema parses optimizationNotes.
+      assert.deepEqual(body.plan.optimizationNotes, []);
+      const parsed = MobileOptimizationNotesSchema.safeParse(
+        body.plan.optimizationNotes,
+      );
+      assert.equal(parsed.success, true);
     } finally {
       await harness.close();
     }

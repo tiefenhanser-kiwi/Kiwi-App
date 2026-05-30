@@ -73,6 +73,27 @@ interface PlanReviewItem {
   meal: MealDetail | null;
 }
 
+// WS7-5b-mobile FIX — defensive coerce on optimizationNotes.
+// Pre-fix wizard plans persisted the raw WizardExpandedPlan JSON object into
+// MealPlanInstance.optimizationNotes instead of the PRD §8.3.4 [{type,text}]
+// shape that mobile PlanSchema expects. Those rows live in the DB
+// unmigrated; this safe-parse heals them on read so Plan Review stops
+// failing the mobile Zod parse with "Couldn't load this plan." Keeping the
+// coerce in place is cheap and forward-safe against future shape drift.
+const OPTIMIZATION_NOTE_SHAPE = z.array(
+  z.object({
+    type: z.enum(["prep", "cost"]),
+    text: z.string(),
+  }),
+);
+function coerceOptimizationNotes(
+  raw: unknown,
+): Array<{ type: "prep" | "cost"; text: string }> {
+  if (raw == null) return [];
+  const parsed = OPTIMIZATION_NOTE_SHAPE.safeParse(raw);
+  return parsed.success ? parsed.data : [];
+}
+
 // macroDailyAverage — fresh per request. MealPlanInstance has no
 // lastMacroCalcRevisionId column, so the WS7-3 A2 §1.8 cache path does not
 // exist; this is a plain arithmetic rollup of each item meal's per-serving
@@ -230,9 +251,12 @@ export function createPlansRouter(
       const { page, nextCursor } = paginateById(merged, cursor, limit);
 
       // activeThisWeek — the pinned This-Week callout the Plans tab consumes
-      // (PRD §9.2.1), folded in so the tab fetches one endpoint.
+      // (PRD §9.2.1), folded in so the tab fetches one endpoint. WS7-5a:
+      // exclude wizard drafts so a hidden draft never appears as "This
+      // Week" (drafts default isActiveThisWeek=false; isWizardDraft is the
+      // belt-and-suspenders gate against a future write that ships both).
       const activeRow = await prisma.mealPlanInstance.findFirst({
-        where: { userId, isActiveThisWeek: true },
+        where: { userId, isActiveThisWeek: true, isWizardDraft: false },
         include: INSTANCE_TEMPLATE_INCLUDE,
         orderBy: { createdAt: "desc" },
       });
@@ -332,7 +356,7 @@ export function createPlansRouter(
           // sourceType lives on the template, not the instance.
           sourceType: instance.template?.sourceType ?? "manual",
           prepStatus: instance.prepStatus,
-          optimizationNotes: instance.optimizationNotes ?? [],
+          optimizationNotes: coerceOptimizationNotes(instance.optimizationNotes),
           breakfastOverrides: instance.breakfastOverrides ?? "",
           lunchOverrides: instance.lunchOverrides ?? "",
           items: sortedItems,
