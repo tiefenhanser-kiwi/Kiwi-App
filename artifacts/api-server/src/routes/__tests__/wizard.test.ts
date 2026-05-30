@@ -2271,6 +2271,133 @@ describe("GET /api/wizard/drafts/:id", () => {
   });
 });
 
+// WS7-5c Block A — addendum (§27 backward-compat). Neon has real wizard-
+// draft rows from WS7-5a/5b that carry the OLD WizardExpandedPlan shape
+// (steps populated per dish). The schema split must not 422 those rows
+// at GET /wizard/drafts/:id read time, and the response must surface as
+// the details-stage shape (steps stripped by the parser) so mobile sees
+// a consistent shape across old + new drafts. Pinned through the REAL
+// route handler — not a bare schema call — because the §27 contract is
+// about live behavior on a deployed endpoint.
+describe("GET /api/wizard/drafts/:id — WS7-5c Block A addendum: backward-compat with pre-5c with-steps draft", () => {
+  let harness: Harness;
+  // OLD shape: a full WizardExpandedPlan with non-empty steps per dish,
+  // matching what WS7-5a/5b would have persisted.
+  const OLD_DRAFT_WITH_STEPS = {
+    candidateId: "c-legacy",
+    title: "Legacy Plan from WS7-5a",
+    tags: ["Legacy"],
+    whyBullets: ["This draft was written before the WS7-5c schema split"],
+    meals: [
+      {
+        title: "Legacy meal",
+        cuisineType: "American",
+        estimatedTimeMinutes: 30,
+        difficulty: "easy" as const,
+        servings: 4,
+        dishes: [
+          {
+            title: "Legacy dish",
+            role: "main" as const,
+            positionIndex: 0,
+            ingredients: [
+              { name: "chicken thighs", quantity: 1, unit: "pound" },
+              { name: "salt", quantity: 1, unit: "teaspoon" },
+            ],
+            macros: {
+              caloriesPerServing: 350,
+              proteinGPerServing: 35,
+              carbsGPerServing: 5,
+              fatGPerServing: 20,
+            },
+            // OLD-shape signature — steps are populated.
+            steps: [
+              "Pat chicken thighs dry and season with salt.",
+              "Sear in a hot pan for 4 minutes per side.",
+              "Rest 5 minutes before serving.",
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  const drafts = new Map<string, ActivateDraftRow>([
+    [
+      "draft-legacy-with-steps",
+      {
+        id: "draft-legacy-with-steps",
+        userId: ACTIVATE_USER_ID,
+        isWizardDraft: true,
+        createdAt: new Date("2026-04-15T10:00:00Z"),
+        optimizationNotes: OLD_DRAFT_WITH_STEPS,
+      },
+    ],
+  ]);
+  const deps = makeActivateDeps({ drafts });
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+  });
+  after(async () => harness.close());
+
+  it("a pre-5c draft (with non-empty steps) parses through the live read path: 200, details-stage shape, steps stripped from response", async () => {
+    const token = signToken(ACTIVATE_USER_ID);
+    const res = await fetch(
+      `${harness.baseUrl}/wizard/drafts/draft-legacy-with-steps`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    // §27 pinned claim: existing WS7-5a/5b drafts must NOT 422 after the
+    // schema split. They go through the same WizardExpandedPlanDetails
+    // Schema.safeParse the route now uses.
+    assert.equal(
+      res.status,
+      200,
+      "pre-WS7-5c draft must read cleanly (no 422) through the live GET handler",
+    );
+    const body = (await res.json()) as {
+      draft: { id: string; createdAt: string };
+      expanded: {
+        candidateId: string;
+        title: string;
+        meals: Array<{
+          dishes: Array<{
+            title: string;
+            ingredients: unknown[];
+            macros: unknown;
+            steps?: unknown;
+          }>;
+        }>;
+      };
+    };
+    // Identity preserved (candidateId / title flow through unchanged).
+    assert.equal(body.expanded.candidateId, "c-legacy");
+    assert.equal(body.expanded.title, "Legacy Plan from WS7-5a");
+    // Details-stage payload is what surfaced.
+    const dish = body.expanded.meals[0].dishes[0];
+    assert.equal(dish.title, "Legacy dish");
+    assert.equal(dish.ingredients.length, 2);
+    assert.ok(dish.macros, "macros must be present on the response dish");
+    // The actual read-path behavior: the details-stage schema doesn't
+    // declare a `steps` field, so the parser strips it. The HTTP response
+    // therefore omits steps even though the row carries them. This is the
+    // intended forward shape — Block B (mobile) will read this shape from
+    // both legacy and new drafts.
+    assert.equal(
+      dish.steps,
+      undefined,
+      "details-stage parser must strip the legacy steps field from the response",
+    );
+  });
+});
+
 // WS7-5c Block A — drafts are now stored stepless. GET /wizard/drafts/:id
 // must parse with the details-stage schema so a stepless draft reads
 // cleanly (200 + the details-stage payload) instead of 422-ing on the
