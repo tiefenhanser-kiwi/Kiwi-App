@@ -2271,6 +2271,104 @@ describe("GET /api/wizard/drafts/:id", () => {
   });
 });
 
+// WS7-5c Block A — drafts are now stored stepless. GET /wizard/drafts/:id
+// must parse with the details-stage schema so a stepless draft reads
+// cleanly (200 + the details-stage payload) instead of 422-ing on the
+// with-steps WizardExpandedPlanSchema.
+describe("GET /api/wizard/drafts/:id — WS7-5c Block A: stepless draft (details-stage)", () => {
+  let harness: Harness;
+  // Build a draft whose optimizationNotes is the details-stage shape:
+  // ingredients + per-dish macros, NO steps anywhere.
+  const STEPLESS_DRAFT = {
+    candidateId: "c-stepless",
+    title: "Stepless Test Plan",
+    tags: ["Test"],
+    whyBullets: ["No steps yet — call #3 will fill them in"],
+    meals: [
+      {
+        title: "Stepless meal",
+        cuisineType: "American",
+        estimatedTimeMinutes: 30,
+        difficulty: "easy" as const,
+        servings: 4,
+        dishes: [
+          {
+            title: "Stepless dish",
+            role: "main" as const,
+            positionIndex: 0,
+            ingredients: [
+              { name: "chicken thighs", quantity: 1, unit: "pound" },
+              { name: "salt", quantity: 1, unit: "teaspoon" },
+            ],
+            macros: {
+              caloriesPerServing: 350,
+              proteinGPerServing: 35,
+              carbsGPerServing: 5,
+              fatGPerServing: 20,
+            },
+            // NO steps key.
+          },
+        ],
+      },
+    ],
+  };
+
+  const drafts = new Map<string, ActivateDraftRow>([
+    [
+      "draft-stepless",
+      {
+        id: "draft-stepless",
+        userId: ACTIVATE_USER_ID,
+        isWizardDraft: true,
+        createdAt: new Date("2026-05-28T10:00:00Z"),
+        optimizationNotes: STEPLESS_DRAFT,
+      },
+    ],
+  ]);
+  const deps = makeActivateDeps({ drafts });
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+  });
+  after(async () => harness.close());
+
+  it("returns 200 with the details-stage payload for a stepless draft (no 422)", async () => {
+    const token = signToken(ACTIVATE_USER_ID);
+    const res = await fetch(
+      `${harness.baseUrl}/wizard/drafts/draft-stepless`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    assert.equal(res.status, 200, "stepless draft must parse cleanly");
+    const body = (await res.json()) as {
+      draft: { id: string; createdAt: string };
+      expanded: {
+        title: string;
+        meals: Array<{
+          dishes: Array<{
+            title: string;
+            ingredients: unknown[];
+            macros: unknown;
+            steps?: unknown;
+          }>;
+        }>;
+      };
+    };
+    assert.equal(body.expanded.title, "Stepless Test Plan");
+    assert.equal(body.expanded.meals[0].dishes[0].ingredients.length, 2);
+    assert.ok(body.expanded.meals[0].dishes[0].macros);
+    // The details-stage schema doesn't include a steps field; the response
+    // shape should reflect that.
+    assert.equal(body.expanded.meals[0].dishes[0].steps, undefined);
+  });
+});
+
 // ── WS7-5b2-server — POST /wizard/drafts/:id/save ───────────────────────
 // "Save for Later" — promotes the hidden draft into a real undated inactive
 // plan in My Plans. Uses the same materializer as /activate; only the tail

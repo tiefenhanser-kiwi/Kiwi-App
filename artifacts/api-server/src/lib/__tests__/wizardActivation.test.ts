@@ -79,17 +79,54 @@ interface CapturedTemplate {
   data: Record<string, unknown>;
 }
 
-function makeStubs(opts: { expanded: WizardExpandedPlan }) {
-  const captured: { template: CapturedTemplate | null } = { template: null };
+interface CapturedStep {
+  ownerType: string;
+  ownerId: string;
+  stepIndex: number;
+  stepTextRaw: string;
+}
+
+interface CapturedCalls {
+  template: CapturedTemplate | null;
+  // WS7-5c Block A — track the RecipeInstructionStep create calls so the
+  // payload-path test can assert that steps came from `payload`, not from
+  // the row's optimizationNotes.
+  steps: CapturedStep[];
+  // Whether the materializer attempted to read optimizationNotes.
+  selectedOptimizationNotes: boolean;
+}
+
+function makeStubs(opts: {
+  expanded: WizardExpandedPlan;
+  // When set, the stub returns optimizationNotes=undefined so the
+  // payload-required test path is forced to use the provided payload.
+  withoutOptimizationNotes?: boolean;
+}) {
+  const captured: CapturedCalls = {
+    template: null,
+    steps: [],
+    selectedOptimizationNotes: false,
+  };
 
   const prismaStub = {
     mealPlanInstance: {
-      findUnique: async (args: { where: { id: string } }) => {
+      findUnique: async (args: {
+        where: { id: string };
+        select?: Record<string, boolean>;
+      }) => {
         if (args.where.id !== DRAFT_ID) return null;
+        if (args.select && args.select.optimizationNotes) {
+          captured.selectedOptimizationNotes = true;
+        }
         return {
           userId: USER_ID,
           isWizardDraft: true,
-          optimizationNotes: opts.expanded,
+          // When opts.withoutOptimizationNotes is set, return a sentinel
+          // that would fail WizardExpandedPlanSchema if the materializer
+          // tried to parse it — the payload path MUST skip the parse.
+          optimizationNotes: opts.withoutOptimizationNotes
+            ? { wrong: "shape" }
+            : opts.expanded,
         };
       },
     },
@@ -105,7 +142,12 @@ function makeStubs(opts: { expanded: WizardExpandedPlan }) {
     dish: { create: async () => ({ id: "dish-x" }) },
     mealDishLink: { create: async () => ({}) },
     dishIngredient: { create: async () => ({}) },
-    recipeInstructionStep: { create: async () => ({}) },
+    recipeInstructionStep: {
+      create: async (args: { data: CapturedStep }) => {
+        captured.steps.push(args.data);
+        return {};
+      },
+    },
     mealPlanItem: { create: async () => ({}) },
     mealPlanTemplate: {
       create: async (args: { data: Record<string, unknown> }) => {
@@ -162,4 +204,79 @@ describe("materializeWizardDraft — WS7-5b-mobile FIX Template-pair (PRD §2.4)
     }
   });
 
+});
+
+// WS7-5c Block A — payload path. activate/save now run the finalize_steps
+// AI call BEFORE the tx, merge per-dish steps into the details-stage draft,
+// and hand the merged WizardExpandedPlan to materializeWizardDraft via the
+// new `payload` option. The materializer must:
+//   1. Skip the Zod parse of optimizationNotes (those are stepless),
+//   2. Use the passed payload as the source of truth for the meal graph,
+//   3. Still emit RecipeInstructionStep rows for every dish step in payload.
+
+describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
+  it("uses payload.meals[].dishes[].steps for RecipeInstructionStep rows, skipping the stepless optimizationNotes", async () => {
+    const payload = sampleExpanded();
+    // Hand a malformed optimizationNotes blob — if the materializer parses
+    // it, the test fails with a malformed-error. The payload path must
+    // skip that parse entirely.
+    const { prismaStub, txStub, captured } = makeStubs({
+      expanded: payload,
+      withoutOptimizationNotes: true,
+    });
+
+    const result = await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      payload,
+    });
+
+    // Materializer returns the same per-meal accounting whether the shape
+    // came from optimizationNotes or payload. With this payload (2 meals,
+    // 2 dishes total, 1 step each): mealsCreated=2, dishesCreated=2,
+    // 2 RecipeInstructionStep rows.
+    assert.equal(result.mealsCreated, 2);
+    assert.equal(result.dishesCreated, 2);
+    assert.ok(
+      captured.steps.length > 0,
+      "RecipeInstructionStep create must be invoked at least once",
+    );
+    assert.equal(
+      captured.steps.length,
+      2,
+      "one step row per dish (each sample dish has 1 step)",
+    );
+    // Steps came from payload's text — confirm the exact source.
+    const stepText = captured.steps.map((s) => s.stepTextRaw);
+    assert.ok(stepText.includes("Roast at 425F until 165F internal."));
+    assert.ok(stepText.includes("Simmer."));
+  });
+
+  it("rejects a payload that doesn't satisfy WizardExpandedPlanSchema (steps required)", async () => {
+    // Strip steps from one dish — the merged payload contract is "every
+    // dish has at least one step". The defensive Zod check inside the
+    // materializer must catch this and surface as WizardDraftMalformed.
+    const payload = sampleExpanded();
+    (payload.meals[0].dishes[0] as { steps: string[] }).steps = [];
+
+    const { prismaStub, txStub } = makeStubs({
+      expanded: payload,
+      withoutOptimizationNotes: true,
+    });
+
+    await assert.rejects(
+      () =>
+        materializeWizardDraft({
+          prisma: prismaStub as unknown as PrismaClient,
+          tx: txStub as unknown as Prisma.TransactionClient,
+          userId: USER_ID,
+          draftId: DRAFT_ID,
+          payload,
+        }),
+      /Wizard draft malformed/,
+      "payload missing steps must error before any tx write",
+    );
+  });
 });
