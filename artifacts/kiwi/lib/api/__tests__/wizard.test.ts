@@ -296,6 +296,57 @@ test("saveWizardDraft propagates a 422 malformed-draft as ApiError", async () =>
   );
 });
 
+// WS7-5c Block B (mobile) — Block A added a finalize-steps AI call at
+// save/activate; its 502 wraps a userFacingMessage in the `error` field so
+// the Plan Details toast surfaces a friendly message (not "Request failed
+// (502)"). Pins that ApiError.message carries the server's user-facing
+// string through extractUserFacingMessage so the screen handler shows it.
+test("saveWizardDraft 502 finalize-AI failure surfaces userFacingMessage on ApiError.message", async () => {
+  nextResponse = () =>
+    mockJson(
+      {
+        error: "Kiwi couldn't write the steps just now. Try again?",
+        reason: "ai_failed",
+      },
+      502,
+    );
+  await assert.rejects(
+    () => saveWizardDraft("draft-finalize-fail"),
+    (err: unknown) =>
+      err instanceof ApiError &&
+      err.status === 502 &&
+      err.message ===
+        "Kiwi couldn't write the steps just now. Try again?" &&
+      err.userFacingMessage ===
+        "Kiwi couldn't write the steps just now. Try again?",
+  );
+});
+
+// WS7-5c Block B (mobile) — Block A's finalize merge invariant: the AI
+// must produce steps for every (mealIndex,dishIndex). If the merge fails
+// or the merged payload fails its post-merge schema check, the server
+// returns 422 with reason "merge_failed:<detail>". Pinned here so the
+// Plan Details handler keeps surfacing it as a stay-on-screen toast (not
+// a navigation to a broken state).
+test("saveWizardDraft 422 merge_failed surfaces as ApiError with reason intact on body", async () => {
+  nextResponse = () =>
+    mockJson(
+      {
+        error: "draft malformed",
+        reason: "merge_failed:missing_dish_steps:meal=0,dish=1",
+      },
+      422,
+    );
+  await assert.rejects(
+    () => saveWizardDraft("draft-merge-fail"),
+    (err: unknown) =>
+      err instanceof ApiError &&
+      err.status === 422 &&
+      (err.body as { reason?: string })?.reason ===
+        "merge_failed:missing_dish_steps:meal=0,dish=1",
+  );
+});
+
 // ── activateWizardDraft ─────────────────────────────────────────────────────
 
 test("activateWizardDraft POSTs to /wizard/drafts/:id/activate and returns instance", async () => {
@@ -324,6 +375,49 @@ test("activateWizardDraft on a saved draft surfaces 404 as ApiError (dead-tap re
   await assert.rejects(
     () => activateWizardDraft("already-saved-draft"),
     (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+// WS7-5c Block B (mobile) — mirrors the save-side finalize-AI 502 test.
+// Both /save and /activate run the same finalize-steps AI call (Block A),
+// so both routes can fail in the same way and both must surface the same
+// userFacingMessage to the Plan Details toast.
+test("activateWizardDraft 502 finalize-AI failure surfaces userFacingMessage on ApiError.message", async () => {
+  nextResponse = () =>
+    mockJson(
+      {
+        error: "Kiwi couldn't write the steps just now. Try again?",
+        reason: "ai_failed",
+      },
+      502,
+    );
+  await assert.rejects(
+    () => activateWizardDraft("draft-finalize-fail"),
+    (err: unknown) =>
+      err instanceof ApiError &&
+      err.status === 502 &&
+      err.message ===
+        "Kiwi couldn't write the steps just now. Try again?",
+  );
+});
+
+// WS7-5c Block B (mobile) — activate-side merge_failed (same shape as save).
+test("activateWizardDraft 422 merge_failed surfaces as ApiError with reason intact on body", async () => {
+  nextResponse = () =>
+    mockJson(
+      {
+        error: "draft malformed",
+        reason: "merge_failed:dish_step_count_mismatch:meal=2,dish=0",
+      },
+      422,
+    );
+  await assert.rejects(
+    () => activateWizardDraft("draft-merge-fail"),
+    (err: unknown) =>
+      err instanceof ApiError &&
+      err.status === 422 &&
+      (err.body as { reason?: string })?.reason ===
+        "merge_failed:dish_step_count_mismatch:meal=2,dish=0",
   );
 });
 
