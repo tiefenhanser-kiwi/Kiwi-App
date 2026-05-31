@@ -371,14 +371,11 @@ function MealSection({
               </Text>
             </View>
           ))}
-
-          <Text style={s.subSectionLabel}>Steps</Text>
-          {dish.steps.map((step, si) => (
-            <View key={si} style={s.stepRow}>
-              <Text style={s.stepNumber}>{si + 1}.</Text>
-              <Text style={s.stepText}>{step}</Text>
-            </View>
-          ))}
+          {/* WS7-5c Block B — Steps section removed. Plan Details is a
+              draft-validation view (ingredients + per-dish macros), not a
+              cookbook. Steps are produced only at Save / Save and Use by
+              the server's finalize_steps call (Block A) and are rendered
+              from the saved plan's normal meal-detail / Cook Mode path. */}
         </View>
       ))}
     </View>
@@ -576,25 +573,6 @@ const s = StyleSheet.create({
     marginTop: 7,
   },
   bulletText: {
-    flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
-    lineHeight: 18,
-  },
-  stepRow: {
-    flexDirection: "row",
-    gap: KSpacing.sm,
-    alignItems: "flex-start",
-  },
-  stepNumber: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    minWidth: 18,
-  },
-  stepText: {
     flex: 1,
     fontSize: KType.size.sm,
     color: KColors.neutral[800],

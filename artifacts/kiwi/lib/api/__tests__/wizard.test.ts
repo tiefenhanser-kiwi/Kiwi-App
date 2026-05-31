@@ -156,6 +156,22 @@ test("WizardExpandedPlanSchema parses a minimal expanded plan", () => {
   assert.equal(parsed.meals[0].dishes[0].macros?.caloriesPerServing, 420);
 });
 
+// WS7-5c Block B — Block A split server-side expansion so the details
+// stage no longer returns `steps`. Mobile schema must parse the stepless
+// payload without error; legacy drafts that DO carry steps still parse
+// (forward-compat). Pinned here because losing this regresses the new
+// Plan Details validation view to "Kiwi got distracted" on every load.
+test("WizardExpandedPlanSchema parses a stepless dish (WS7-5c Block A contract)", () => {
+  const { steps: _omitSteps, ...stepless } = EXPANDED_PLAN.meals[0].dishes[0];
+  const payload = {
+    ...EXPANDED_PLAN,
+    meals: [{ ...EXPANDED_PLAN.meals[0], dishes: [stepless] }],
+  };
+  const parsed = WizardExpandedPlanSchema.parse(payload);
+  assert.equal(parsed.meals[0].dishes[0].title, "Ribollita");
+  assert.equal(parsed.meals[0].dishes[0].steps, undefined);
+});
+
 test("WizardExpandedPlanSchema accepts a failed-macros dish", () => {
   const withFailedMacros = {
     ...EXPANDED_PLAN,

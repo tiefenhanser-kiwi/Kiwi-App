@@ -95,13 +95,21 @@ const WizardExpandDishMacrosSchema = z
   })
   .passthrough();
 
+// WS7-5c Block B (mobile) — `steps` is now OPTIONAL. Block A split the
+// server-side expansion into details-stage (no steps) + finalize-steps
+// (called at save/activate). The wizard-plan-details screen is a draft-
+// validation view, not a cookbook — steps belong on the post-save meal-
+// detail / Cook Mode path. The server returns no `steps` field for new
+// drafts and strips it from legacy steps-bearing drafts on the GET path,
+// so mobile sees one consistent stepless shape; leaving the schema
+// permissive lets us still parse any older cached payloads in flight.
 const WizardExpandEnrichedDishSchema = z
   .object({
     title: z.string(),
     role: z.enum(["main", "side", "sauce", "topping", "base", "optional"]),
     positionIndex: z.number(),
     ingredients: z.array(WizardExpandDishIngredientSchema),
-    steps: z.array(z.string()),
+    steps: z.array(z.string()).optional(),
     macros: WizardExpandDishMacrosSchema.nullable(),
   })
   .passthrough();
