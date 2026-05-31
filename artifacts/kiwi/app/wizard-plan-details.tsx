@@ -32,13 +32,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
+import { WizardPlanMealCard } from "@/components/WizardPlanMealCard";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
   activateWizardDraft,
   saveWizardDraft,
   WizardExpandedPlanSchema,
   type WizardExpandedPlan,
-  type WizardExpandEnrichedMeal,
 } from "@/lib/api/wizard";
 import { patchPlan } from "@/lib/api/plans";
 import { decidePlanDetailsCta } from "@/lib/plans/wizardPostSaveCta";
@@ -264,9 +264,16 @@ export default function WizardPlanDetailsScreen() {
           </View>
         )}
 
-        {/* One section per meal, each with its dishes / ingredients / steps. */}
+        {/* WS7-5c Block B — one collapsible card per meal. Default state is
+            collapsed (header-only summary) so a 5-day plan doesn't render a
+            wall of text before the user has decided to keep it. Tap to
+            expand → ingredients + per-dish macros (no steps; see Block A). */}
         {plan.meals.map((meal, i) => (
-          <MealSection key={`${meal.title}-${i}`} meal={meal} index={i} />
+          <WizardPlanMealCard
+            key={`${meal.title}-${i}`}
+            meal={meal}
+            index={i}
+          />
         ))}
 
         {/* CTAs at the bottom. Decider drives the labels + use-button target.
@@ -327,57 +334,6 @@ function MacroCell({ value, label }: { value: number; label: string }) {
     <View style={s.macroCell}>
       <Text style={s.macroValue}>{value}</Text>
       <Text style={s.macroLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function MealSection({
-  meal,
-  index,
-}: {
-  meal: WizardExpandEnrichedMeal;
-  index: number;
-}) {
-  return (
-    <View style={s.mealSection}>
-      <Text style={s.mealHeader}>
-        Day {index + 1} · {meal.title}
-      </Text>
-      <Text style={s.mealMeta}>
-        {meal.cuisineType} · {meal.estimatedTimeMinutes} min · serves{" "}
-        {meal.servings}
-      </Text>
-      {meal.dishes.map((dish, di) => (
-        <View key={`${dish.title}-${di}`} style={s.dishCard}>
-          <Text style={s.dishTitle}>{dish.title}</Text>
-          <Text style={s.dishRole}>{dish.role}</Text>
-          {dish.macros && !dish.macros.failed && (
-            <Text style={s.dishMacros}>
-              {Math.round(dish.macros.caloriesPerServing)} cal ·{" "}
-              {Math.round(dish.macros.proteinGPerServing)}g P ·{" "}
-              {Math.round(dish.macros.carbsGPerServing)}g C ·{" "}
-              {Math.round(dish.macros.fatGPerServing)}g F (per serving)
-            </Text>
-          )}
-
-          <Text style={s.subSectionLabel}>Ingredients</Text>
-          {dish.ingredients.map((ing, ii) => (
-            <View key={`${ing.name}-${ii}`} style={s.bulletRow}>
-              <View style={s.bulletDot} />
-              <Text style={s.bulletText}>
-                {ing.quantity} {ing.unit} {ing.name}
-                {ing.preparationNote ? `, ${ing.preparationNote}` : ""}
-                {ing.isOptional ? " (optional)" : ""}
-              </Text>
-            </View>
-          ))}
-          {/* WS7-5c Block B — Steps section removed. Plan Details is a
-              draft-validation view (ingredients + per-dish macros), not a
-              cookbook. Steps are produced only at Save / Save and Use by
-              the server's finalize_steps call (Block A) and are rendered
-              from the saved plan's normal meal-detail / Cook Mode path. */}
-        </View>
-      ))}
     </View>
   );
 }
@@ -506,78 +462,6 @@ const s = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginTop: 2,
     textAlign: "center",
-  },
-  mealSection: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
-    borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
-    gap: KSpacing.sm,
-  },
-  mealHeader: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-  },
-  mealMeta: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-  },
-  dishCard: {
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.md,
-    padding: KSpacing.md,
-    marginTop: KSpacing.sm,
-    gap: 4,
-  },
-  dishTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-  },
-  dishRole: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
-    textTransform: "capitalize",
-  },
-  dishMacros: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-  },
-  subSectionLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[600],
-    fontWeight: KType.weight.semibold,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    fontFamily: "Inter_600SemiBold",
-    marginTop: KSpacing.sm,
-  },
-  bulletRow: {
-    flexDirection: "row",
-    gap: KSpacing.sm,
-    alignItems: "flex-start",
-  },
-  bulletDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: KColors.sage[600],
-    marginTop: 7,
-  },
-  bulletText: {
-    flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
-    lineHeight: 18,
   },
   ctaWrap: {
     marginTop: KSpacing.lg,
