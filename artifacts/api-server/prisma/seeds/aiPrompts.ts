@@ -559,7 +559,7 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 
 # What you produce
 
-1 to 3 distinct candidate plans, each containing exactly 5 dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the 5 \`mealTitles\`, optionally a richer \`meals\` array with \`{title, cuisineType, estimatedTimeMinutes}\` per meal, and per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}).
+1 to 3 distinct candidate plans, each containing exactly 5 dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the 5 \`mealTitles\`, and per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}).
 
 Distinctness is mandatory: three candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing.
 

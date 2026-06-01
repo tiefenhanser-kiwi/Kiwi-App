@@ -38,14 +38,6 @@ export const WizardInputSchema = z.object({
 });
 export type WizardInput = z.infer<typeof WizardInputSchema>;
 
-// PRD §5.7 — preview of one meal inside a candidate plan.
-export const WizardMealPreviewSchema = z.object({
-  title: z.string().min(1).max(120),
-  cuisineType: z.string().optional(),
-  estimatedTimeMinutes: z.number().int().positive().optional(),
-});
-export type WizardMealPreview = z.infer<typeof WizardMealPreviewSchema>;
-
 // PRD §5.7 — single plan candidate.
 // Mirrors WizardPlanCandidate in artifacts/kiwi/lib/types.ts:476.
 export const WizardPlanCandidateSchema = z.object({
@@ -56,7 +48,6 @@ export const WizardPlanCandidateSchema = z.object({
   tags: z.array(z.string()).max(5),
   whyBullets: z.array(z.string()).min(1).max(3),
   mealTitles: z.array(z.string()).min(1).max(7),
-  meals: z.array(WizardMealPreviewSchema).optional(),
   dailyMacros: z.object({
     calories: z.number().nonnegative(),
     proteinG: z.number().nonnegative(),
