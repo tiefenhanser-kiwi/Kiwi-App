@@ -22,15 +22,19 @@ import {
   WizardFinalizeStepsResultSchema,
   type WizardExpandedPlan,
   type WizardExpandedPlanDetails,
+  type WizardExpandEnrichedMealDetails,
+  type WizardFinalizeStepsDish,
   type WizardFinalizeStepsResult,
 } from "./ai/schemas/wizard";
 import { WizardDraftMalformedError, WizardDraftNotFoundError } from "./wizardActivation";
 
-// Steps-only output is much smaller than the old 16k full-expand. 8k
-// covers a 7-meal × 3-dish plan with ~12 steps per dish at ~50 tokens each
-// (~14k worst-case, but real plans land well inside 8k). Held at 8k as
-// the headroom budget; if real telemetry shows tail truncation, raise.
-const WIZARD_FINALIZE_STEPS_MAX_TOKENS = 8192;
+// WS7-5c tail — sized for ONE meal's step output, not the whole plan. A
+// typical meal is ~3 dishes × ~6-10 steps × ~50-80 tokens per step ≈
+// ~1.5-2.5k tokens worst-case. 3k carries ~30% headroom over the realistic
+// ceiling while staying comfortably below the prior 8k plan-wide budget.
+// If real per-meal telemetry shows tail truncation on the longest meals,
+// this is the dial to raise.
+const WIZARD_FINALIZE_STEPS_PER_MEAL_MAX_TOKENS = 3072;
 
 export interface ReadAndFinalizeWizardDraftOptions {
   prisma: PrismaClient;
@@ -91,39 +95,72 @@ export async function readAndFinalizeWizardDraft(
   }
   const details = detailsParse.data;
 
-  // 3. Run the finalize-steps AI call. Sonnet, tool_use. The prompt
-  //    instructs the model to return per-dish steps keyed by
-  //    (mealIndex, dishIndex) so the merge is positional.
-  const ai = await runAICall(
-    "wizard.candidate.finalize_steps",
-    { finalizeInput: details },
-    WizardFinalizeStepsResultSchema,
-    {
-      prisma,
-      userId,
-      maxTokens: WIZARD_FINALIZE_STEPS_MAX_TOKENS,
-    },
+  // 3. Run the finalize-steps AI call SHARDED — one Sonnet call per meal,
+  //    Promise.all fan-out. Mirrors the proven per-meal expand pattern
+  //    (wizardExpansion.ts:83). The pre-shard path issued one whole-plan
+  //    call that measured ~51s on device (May 31 telemetry); fanning out
+  //    cuts wall-clock to ~the slowest single-meal call.
+  //
+  //    Slicing: each shard receives a single-meal details slice (the AI
+  //    prompt is unchanged — it just sees a 1-meal `meals[]` and returns
+  //    mealIndex=0 for each dish). The server re-indexes mealIndex from
+  //    0 → the real meal index during concatenation, so the seeded prompt
+  //    body needs no edit.
+  const perMealResults = await Promise.all(
+    details.meals.map((meal, mi) =>
+      finalizeOneMeal({
+        runAICall,
+        prisma,
+        userId,
+        details,
+        mealIndex: mi,
+        meal,
+      }),
+    ),
   );
-  if (!ai.success) {
+
+  const firstFailure = perMealResults.find((r) => !r.ok);
+  if (firstFailure && !firstFailure.ok) {
     logger.warn(
       {
         event: "wizard_finalize_steps_failed",
         userId,
         draftId,
-        reason: ai.reason,
+        mealIndex: firstFailure.mealIndex,
+        reason: firstFailure.reason,
         promptKey: "wizard.candidate.finalize_steps",
       },
       "Wizard finalize-steps AI call failed",
     );
     return {
       status: "ai_failed",
-      reason: ai.reason,
-      userFacingMessage: ai.userFacingMessage,
+      reason: `meal_failed:${firstFailure.mealIndex}:${firstFailure.reason}`,
+      userFacingMessage: firstFailure.userFacingMessage,
     };
   }
 
-  // 4. Merge: positionally insert steps into the details payload.
-  const merged = mergeFinalizeStepsIntoDetails(details, ai.data);
+  // Concatenate the N per-meal dishSteps[] arrays into a single result,
+  // re-indexing mealIndex from the shard-local 0 to the real meal index.
+  const assembledDishSteps: WizardFinalizeStepsDish[] = [];
+  for (const r of perMealResults) {
+    if (!r.ok) continue; // already returned above; type-narrowing only.
+    for (const entry of r.dishSteps) {
+      assembledDishSteps.push({
+        mealIndex: r.mealIndex,
+        dishIndex: entry.dishIndex,
+        steps: entry.steps,
+      });
+    }
+  }
+  const assembled: WizardFinalizeStepsResult = {
+    dishSteps: assembledDishSteps,
+  };
+
+  // 4. Merge: positionally insert steps into the details payload. The
+  //    mergeFinalizeStepsIntoDetails invariants (no dup / no missing /
+  //    no extra) still apply to the assembled array — that's exactly
+  //    the safety property the per-meal fan-out preserves.
+  const merged = mergeFinalizeStepsIntoDetails(details, assembled);
   if (merged.status !== "ok") {
     logger.warn(
       {
@@ -257,4 +294,74 @@ export function unwrapFinalizeResultOrThrow(
   throw new Error(
     `wizard_finalize_unhandled_status:${result.status}`,
   );
+}
+
+// ── per-meal shard helper ────────────────────────────────────────────────
+
+type PerMealFinalizeResult =
+  | { ok: true; mealIndex: number; dishSteps: WizardFinalizeStepsDish[] }
+  | {
+      ok: false;
+      mealIndex: number;
+      reason: string;
+      userFacingMessage: string;
+    };
+
+interface FinalizeOneMealOptions {
+  runAICall: typeof productionRunAICall;
+  prisma: PrismaClient;
+  userId: string;
+  // The full plan provides candidateId / title / tags / whyBullets so the
+  // single-meal slice we send remains a valid WizardExpandedPlanDetails.
+  details: WizardExpandedPlanDetails;
+  mealIndex: number;
+  meal: WizardExpandEnrichedMealDetails;
+}
+
+/**
+ * Run wizard.candidate.finalize_steps for ONE meal. The AI sees a one-meal
+ * slice and returns dishSteps keyed to that shard-local index space
+ * (mealIndex=0 for every dish). The caller re-indexes mealIndex to the real
+ * plan-level index during concatenation.
+ *
+ * Retry semantics: relies SOLELY on runAICall's built-in retry
+ * (`retryOnValidationFailure: true` → up to 2 attempts). No meal-level
+ * retry wrapper — that would compound to up to 4 Sonnet attempts on a
+ * doomed meal. If runAICall fails for a meal, that meal fails; the caller
+ * fails the whole finalize — all-or-nothing because the merge requires
+ * every (mealIndex, dishIndex) pair.
+ */
+async function finalizeOneMeal(
+  opts: FinalizeOneMealOptions,
+): Promise<PerMealFinalizeResult> {
+  const perMealInput: WizardExpandedPlanDetails = {
+    candidateId: opts.details.candidateId,
+    title: opts.details.title,
+    tags: opts.details.tags,
+    whyBullets: opts.details.whyBullets,
+    meals: [opts.meal],
+  };
+  const ai = await opts.runAICall(
+    "wizard.candidate.finalize_steps",
+    { finalizeInput: perMealInput },
+    WizardFinalizeStepsResultSchema,
+    {
+      prisma: opts.prisma,
+      userId: opts.userId,
+      maxTokens: WIZARD_FINALIZE_STEPS_PER_MEAL_MAX_TOKENS,
+    },
+  );
+  if (!ai.success) {
+    return {
+      ok: false,
+      mealIndex: opts.mealIndex,
+      reason: ai.reason,
+      userFacingMessage: ai.userFacingMessage,
+    };
+  }
+  return {
+    ok: true,
+    mealIndex: opts.mealIndex,
+    dishSteps: ai.data.dishSteps,
+  };
 }
