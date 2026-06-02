@@ -22,6 +22,7 @@ import {
   WizardExpandedPlanSchema,
   type WizardExpandedPlan,
 } from "./ai/schemas/wizard";
+import { lookupPurchaseDefault } from "./ingredientPurchaseDefaults";
 
 export class WizardDraftNotFoundError extends Error {
   constructor(public readonly draftId: string) {
@@ -41,15 +42,16 @@ export class WizardDraftMalformedError extends Error {
 }
 
 // ── inferCategory ────────────────────────────────────────────────────────
-// Maps an ingredient canonical name to the Ingredient.category vocabulary
-// already used in seeded data (prisma/seeds/devData.ts:84-90):
-//   "Produce" | "Protein" | "Dairy" | "Pantry" | "Bakery" | "Frozen"
-// No "Spices" or "Condiments" categories exist in the seeded vocab; those
-// items naturally fall through to "Pantry" (the catch-all for shelf-stable
-// goods, matching how taco seasoning / salt / olive oil are already seeded).
-// D-WS7-065: this is a first-pass deterministic map. Uncommon ingredients
-// will land in "Pantry" by default and may need an AI-reconciliation pass
-// to refine — that pass is out of scope for 5b-server.
+// Maps an ingredient canonical name to the Ingredient.category vocabulary.
+// Seeded vocab (devData.ts) covers "Produce" | "Protein" | "Dairy" |
+// "Pantry" | "Bakery" | "Frozen"; WS7-5d Block 2 extends the wizard-side
+// inference to also emit "Canned" | "Snacks" | "Household" so canned items
+// (crushed tomatoes, enchilada sauce, coconut milk) and the section-map
+// additions Block 1 made in CATEGORY_TO_SECTION route to the right
+// StoreSection instead of falling through to Pantry/extras.
+// D-WS7-065: this is still a first-pass deterministic map. Uncommon
+// ingredients land in "Pantry" by default; a later AI-reconciliation pass
+// can refine — out of scope for this block.
 //
 // Structure: a rules array (keyword → category). Easy to extend; a future
 // reconciliation pass can re-categorize ingredients without touching the
@@ -61,7 +63,10 @@ type IngredientCategory =
   | "Dairy"
   | "Pantry"
   | "Bakery"
-  | "Frozen";
+  | "Frozen"
+  | "Canned"
+  | "Snacks"
+  | "Household";
 
 export const INGREDIENT_CATEGORY_FALLBACK: IngredientCategory = "Pantry";
 
@@ -74,6 +79,44 @@ const CATEGORY_RULES: CategoryRule[] = [
   {
     category: "Frozen",
     keywords: ["frozen", "ice cream", "gelato", "sorbet"],
+  },
+  // WS7-5d Block 2: Canned must come before Produce so multi-token keywords
+  // like "diced tomatoes" / "crushed tomatoes" win over the bare "tomato"
+  // Produce match. Block 1 confirmed live mis-categorizations of these into
+  // Pantry; with the expanded CATEGORY_TO_SECTION map they now route to the
+  // 'canned' StoreSection on activation.
+  {
+    category: "Canned",
+    keywords: [
+      "canned",
+      "diced tomato", "crushed tomato", "stewed tomato",
+      "tomato sauce", "tomato paste", "tomato puree",
+      "enchilada sauce", "marinara",
+      "coconut milk", "coconut cream",
+      "chickpea", "black bean", "kidney bean", "pinto bean",
+      "white bean", "cannellini bean", "navy bean", "refried bean",
+      "tuna",
+    ],
+  },
+  // WS7-5d Block 2: Snacks — conservative keyword set. Bare "chips" matches
+  // word-boundary single-token, so "tortilla chips" / "potato chips" route
+  // here without picking up adjacent terms like "chip cookies".
+  {
+    category: "Snacks",
+    keywords: [
+      "chip", "chips", "pretzel", "popcorn", "crackers",
+      "granola bar", "trail mix", "potato chip", "tortilla chip",
+    ],
+  },
+  // WS7-5d Block 2: Household — non-food groceries. Multi-token keywords
+  // are substring matches so "paper towels" / "trash bags" still route.
+  {
+    category: "Household",
+    keywords: [
+      "paper towel", "toilet paper", "trash bag", "garbage bag",
+      "dish soap", "laundry detergent", "sponge", "aluminum foil",
+      "plastic wrap", "parchment paper", "zip-top bag",
+    ],
   },
   {
     category: "Produce",
@@ -151,9 +194,11 @@ function keywordMatches(name: string, keyword: string): boolean {
 }
 
 /**
- * Infer an Ingredient.category value from a canonical-name string. The
- * vocabulary matches what's already seeded ("Produce" | "Protein" | "Dairy"
- * | "Pantry" | "Bakery" | "Frozen"); unknowns fall back to "Pantry".
+ * Infer an Ingredient.category value from a canonical-name string. Output
+ * is one of: "Produce" | "Protein" | "Dairy" | "Pantry" | "Bakery" |
+ * "Frozen" | "Canned" | "Snacks" | "Household". Unknowns fall back to
+ * "Pantry". CATEGORY_TO_SECTION in groceryList.ts maps every value here to
+ * a StoreSection (WS7-5d Block 1 expanded that map to match).
  *
  * Deterministic, no AI, no I/O. Safe to call inside the activation
  * transaction without inflating latency.
@@ -313,6 +358,15 @@ export async function materializeWizardDraft(
 
   const ingredientIdByCanonical = new Map<string, string>();
   for (const d of discovered.values()) {
+    // WS7-5d Block 2: populate purchaseUnit/Quantity/Display on create when
+    // the canonical name is in the shared defaults table. Without this,
+    // every freshly-wizarded ingredient row has null purchase fields →
+    // guaranteed miss on the cache gate in
+    // groceryListAI.fillPurchaseSizesWithWriteBack → serial Haiku gap-fill
+    // storm on the first generate-grocery-list call. Genuine unknowns
+    // (ingredients NOT in the table) intentionally remain null so the
+    // gap-fill path still handles them on demand.
+    const purchase = lookupPurchaseDefault(d.canonical);
     const upserted = await prisma.ingredient.upsert({
       where: { canonicalName: d.canonical },
       update: {},
@@ -321,6 +375,13 @@ export async function materializeWizardDraft(
         displayName: d.displayName,
         category: inferCategory(d.canonical),
         defaultUnit: d.defaultUnit,
+        ...(purchase
+          ? {
+              purchaseUnit: purchase.purchaseUnit,
+              purchaseQuantity: purchase.purchaseQuantity,
+              purchaseDisplay: purchase.purchaseDisplay,
+            }
+          : {}),
       },
       select: { id: true },
     });

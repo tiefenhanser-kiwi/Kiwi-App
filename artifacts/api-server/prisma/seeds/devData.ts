@@ -19,6 +19,8 @@
 
 import { PrismaClient } from "@prisma/client";
 
+import { INGREDIENT_PURCHASE_DEFAULTS } from "../../src/lib/ingredientPurchaseDefaults";
+
 if (process.env.NODE_ENV === "production") {
   throw new Error(
     "[devData] refusing to run with NODE_ENV=production. This seed is dev-only.",
@@ -98,66 +100,10 @@ interface DevIngredient {
   isOptional?: boolean;
 }
 
-// Purchase-pack defaults keyed by canonical ingredient name (lower-case +
-// trimmed — same shape as `canonicalize()`). Without these the grocery-list
-// gap-fill cache gate (groceryListAI.ts) misses on every freshly-seeded
-// ingredient, triggering serial Haiku calls on the first generate-list run.
-interface IngredientPurchase {
-  purchaseUnit: string;
-  purchaseQuantity: number;
-  purchaseDisplay: string;
-}
-
-const INGREDIENT_PURCHASE_DEFAULTS: Record<string, IngredientPurchase> = {
-  "ground beef": { purchaseUnit: "lb", purchaseQuantity: 1, purchaseDisplay: "1 lb" },
-  bacon: { purchaseUnit: "package", purchaseQuantity: 1, purchaseDisplay: "1 package (12 oz)" },
-  "chicken thighs": { purchaseUnit: "lb", purchaseQuantity: 2, purchaseDisplay: "2 lb" },
-  "chicken breast": { purchaseUnit: "lb", purchaseQuantity: 1, purchaseDisplay: "1 lb" },
-  shrimp: { purchaseUnit: "lb", purchaseQuantity: 1, purchaseDisplay: "1 lb" },
-  "salmon fillets": { purchaseUnit: "lb", purchaseQuantity: 1.5, purchaseDisplay: "1.5 lb (4 fillets)" },
-  lettuce: { purchaseUnit: "head", purchaseQuantity: 1, purchaseDisplay: "1 head" },
-  tomato: { purchaseUnit: "each", purchaseQuantity: 3, purchaseDisplay: "3 tomatoes" },
-  "cherry tomatoes": { purchaseUnit: "pint", purchaseQuantity: 1, purchaseDisplay: "1 pint" },
-  garlic: { purchaseUnit: "head", purchaseQuantity: 1, purchaseDisplay: "1 head" },
-  parsley: { purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch" },
-  cilantro: { purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch" },
-  "fresh dill": { purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch" },
-  "yellow onion": { purchaseUnit: "each", purchaseQuantity: 2, purchaseDisplay: "2 onions" },
-  ginger: { purchaseUnit: "piece", purchaseQuantity: 1, purchaseDisplay: "1 piece (2 in)" },
-  cucumber: { purchaseUnit: "each", purchaseQuantity: 1, purchaseDisplay: "1 cucumber" },
-  lemon: { purchaseUnit: "each", purchaseQuantity: 2, purchaseDisplay: "2 lemons" },
-  lime: { purchaseUnit: "each", purchaseQuantity: 2, purchaseDisplay: "2 limes" },
-  "bean sprouts": { purchaseUnit: "bag", purchaseQuantity: 1, purchaseDisplay: "1 bag (8 oz)" },
-  "bell peppers": { purchaseUnit: "each", purchaseQuantity: 3, purchaseDisplay: "3 peppers" },
-  cheddar: { purchaseUnit: "block", purchaseQuantity: 1, purchaseDisplay: "1 block (8 oz)" },
-  parmesan: { purchaseUnit: "wedge", purchaseQuantity: 1, purchaseDisplay: "1 wedge (6 oz)" },
-  feta: { purchaseUnit: "block", purchaseQuantity: 1, purchaseDisplay: "1 block (8 oz)" },
-  "sour cream": { purchaseUnit: "container", purchaseQuantity: 1, purchaseDisplay: "1 container (16 oz)" },
-  eggs: { purchaseUnit: "dozen", purchaseQuantity: 1, purchaseDisplay: "1 dozen" },
-  butter: { purchaseUnit: "package", purchaseQuantity: 1, purchaseDisplay: "1 package (1 lb, 4 sticks)" },
-  "taco shells": { purchaseUnit: "box", purchaseQuantity: 1, purchaseDisplay: "1 box (12 ct)" },
-  "flour tortillas": { purchaseUnit: "package", purchaseQuantity: 1, purchaseDisplay: "1 package (10 ct)" },
-  spaghetti: { purchaseUnit: "box", purchaseQuantity: 1, purchaseDisplay: "1 box (1 lb)" },
-  "rice noodles": { purchaseUnit: "package", purchaseQuantity: 1, purchaseDisplay: "1 package (8 oz)" },
-  "basmati rice": { purchaseUnit: "bag", purchaseQuantity: 1, purchaseDisplay: "1 bag (2 lb)" },
-  farro: { purchaseUnit: "bag", purchaseQuantity: 1, purchaseDisplay: "1 bag (16 oz)" },
-  salsa: { purchaseUnit: "jar", purchaseQuantity: 1, purchaseDisplay: "1 jar (16 oz)" },
-  tahini: { purchaseUnit: "jar", purchaseQuantity: 1, purchaseDisplay: "1 jar (16 oz)" },
-  "tikka masala paste": { purchaseUnit: "jar", purchaseQuantity: 1, purchaseDisplay: "1 jar (10 oz)" },
-  "tamarind paste": { purchaseUnit: "jar", purchaseQuantity: 1, purchaseDisplay: "1 jar (8 oz)" },
-  "fish sauce": { purchaseUnit: "bottle", purchaseQuantity: 1, purchaseDisplay: "1 bottle (8 oz)" },
-  "olive oil": { purchaseUnit: "bottle", purchaseQuantity: 1, purchaseDisplay: "1 bottle (17 oz)" },
-  "vegetable broth": { purchaseUnit: "carton", purchaseQuantity: 1, purchaseDisplay: "1 carton (32 oz)" },
-  peanuts: { purchaseUnit: "bag", purchaseQuantity: 1, purchaseDisplay: "1 bag (8 oz)" },
-  "taco seasoning": { purchaseUnit: "packet", purchaseQuantity: 1, purchaseDisplay: "1 packet" },
-  "fajita seasoning": { purchaseUnit: "packet", purchaseQuantity: 1, purchaseDisplay: "1 packet" },
-  "black pepper": { purchaseUnit: "container", purchaseQuantity: 1, purchaseDisplay: "1 container" },
-  salt: { purchaseUnit: "container", purchaseQuantity: 1, purchaseDisplay: "1 container" },
-  "coconut milk": { purchaseUnit: "can", purchaseQuantity: 1, purchaseDisplay: "1 can (13.5 oz)" },
-  "diced tomatoes": { purchaseUnit: "can", purchaseQuantity: 1, purchaseDisplay: "1 can (14.5 oz)" },
-  chickpeas: { purchaseUnit: "can", purchaseQuantity: 1, purchaseDisplay: "1 can (15 oz)" },
-};
-
+// WS7-5d Block 2: the table of canonical-name → purchase-pack defaults
+// lives in src/lib/ingredientPurchaseDefaults.ts so wizardActivation's
+// runtime upsert path can read the same data. Re-exported here so existing
+// callers (smoke scripts, the Block-1 test) keep working.
 export const SEED_INGREDIENT_PURCHASE_DEFAULTS = INGREDIENT_PURCHASE_DEFAULTS;
 
 /**

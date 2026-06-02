@@ -16,7 +16,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-import { materializeWizardDraft } from "../wizardActivation";
+import { inferCategory, materializeWizardDraft } from "../wizardActivation";
 import type { WizardExpandedPlan } from "../ai/schemas/wizard";
 
 const USER_ID = "user-mat-test";
@@ -86,6 +86,11 @@ interface CapturedStep {
   stepTextRaw: string;
 }
 
+interface CapturedUpsert {
+  canonicalName: string;
+  create: Record<string, unknown>;
+}
+
 interface CapturedCalls {
   template: CapturedTemplate | null;
   // WS7-5c Block A — track the RecipeInstructionStep create calls so the
@@ -94,6 +99,10 @@ interface CapturedCalls {
   steps: CapturedStep[];
   // Whether the materializer attempted to read optimizationNotes.
   selectedOptimizationNotes: boolean;
+  // WS7-5d Block 2 — capture the Ingredient.upsert create payload so tests
+  // can assert that purchase fields are populated for known common
+  // ingredients and left absent for genuine unknowns.
+  upserts: CapturedUpsert[];
 }
 
 function makeStubs(opts: {
@@ -106,6 +115,7 @@ function makeStubs(opts: {
     template: null,
     steps: [],
     selectedOptimizationNotes: false,
+    upserts: [],
   };
 
   const prismaStub = {
@@ -133,7 +143,14 @@ function makeStubs(opts: {
     ingredient: {
       upsert: async (args: {
         where: { canonicalName: string };
-      }) => ({ id: `ing-${args.where.canonicalName}` }),
+        create: Record<string, unknown>;
+      }) => {
+        captured.upserts.push({
+          canonicalName: args.where.canonicalName,
+          create: args.create,
+        });
+        return { id: `ing-${args.where.canonicalName}` };
+      },
     },
   };
 
@@ -278,5 +295,141 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
       /Wizard draft malformed/,
       "payload missing steps must error before any tx write",
     );
+  });
+});
+
+// WS7-5d Block 2 — wizard-side category inference now emits Canned / Snacks
+// / Household so freshly-wizarded ingredients route to the right StoreSection
+// via the CATEGORY_TO_SECTION map Block 1 expanded. Without these rules,
+// canned items (crushed/diced tomatoes, coconut milk, enchilada sauce) drop
+// into Pantry on every wizard activation.
+
+describe("inferCategory — WS7-5d Block 2 expanded category union", () => {
+  it("infers Canned for common canned items (multi-token keywords win over the Produce 'tomato' single-token)", () => {
+    assert.equal(inferCategory("diced tomatoes"), "Canned");
+    assert.equal(inferCategory("crushed tomatoes"), "Canned");
+    assert.equal(inferCategory("tomato sauce"), "Canned");
+    assert.equal(inferCategory("tomato paste"), "Canned");
+    assert.equal(inferCategory("enchilada sauce"), "Canned");
+    assert.equal(inferCategory("coconut milk"), "Canned");
+    assert.equal(inferCategory("black beans"), "Canned");
+    assert.equal(inferCategory("chickpeas"), "Canned");
+    assert.equal(inferCategory("canned crushed tomatoes"), "Canned");
+  });
+
+  it("infers Snacks for snack items", () => {
+    assert.equal(inferCategory("tortilla chips"), "Snacks");
+    assert.equal(inferCategory("potato chips"), "Snacks");
+    assert.equal(inferCategory("pretzels"), "Snacks");
+    assert.equal(inferCategory("popcorn"), "Snacks");
+    assert.equal(inferCategory("crackers"), "Snacks");
+  });
+
+  it("infers Household for non-food groceries", () => {
+    assert.equal(inferCategory("paper towels"), "Household");
+    assert.equal(inferCategory("toilet paper"), "Household");
+    assert.equal(inferCategory("trash bags"), "Household");
+    assert.equal(inferCategory("aluminum foil"), "Household");
+    assert.equal(inferCategory("dish soap"), "Household");
+  });
+
+  it("still routes fresh produce items containing 'tomato' to Produce (Canned multi-token doesn't poison the single-token match)", () => {
+    // Bare "tomato" and "roma tomato" must still land in Produce — Canned
+    // keywords are intentionally multi-token ("diced tomato", "crushed
+    // tomato", etc.) so the rule ordering doesn't steal fresh produce. The
+    // Produce rule's "tomato" single-token match is what catches these.
+    // Note: the existing \btomatos?\b matcher doesn't handle the irregular
+    // "tomatoes" plural (same reason "Lemons" works but "potatoes" doesn't);
+    // that's a pre-Block-2 limitation, not in scope to fix here.
+    assert.equal(inferCategory("tomato"), "Produce");
+    assert.equal(inferCategory("roma tomato"), "Produce");
+  });
+
+  it("unknowns still fall through to Pantry", () => {
+    assert.equal(inferCategory("xyzzy"), "Pantry");
+    assert.equal(inferCategory(""), "Pantry");
+  });
+});
+
+// WS7-5d Block 2 — Ingredient.upsert now writes purchase fields on create
+// for canonical names in the shared INGREDIENT_PURCHASE_DEFAULTS table.
+// Cache-gate proof: a wizard-activated ingredient with all three purchase
+// fields non-null passes the gate in fillPurchaseSizesWithWriteBack and
+// skips the Haiku gap-fill call — killing the serial-call storm that
+// Block 1 measured on freshly-wizarded plans.
+
+describe("materializeWizardDraft — WS7-5d Block 2 purchase-field write-back", () => {
+  it("populates purchaseUnit/Quantity/Display on create for ingredients in the shared defaults table", async () => {
+    // sampleExpanded uses "Chicken thighs" (canonicalizes to "chicken thighs")
+    // — present in INGREDIENT_PURCHASE_DEFAULTS with 2 lb default.
+    const expanded = sampleExpanded();
+    const { prismaStub, txStub, captured } = makeStubs({ expanded });
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+    });
+
+    const chickenThighsUpsert = captured.upserts.find(
+      (u) => u.canonicalName === "chicken thighs",
+    );
+    assert.ok(chickenThighsUpsert, "chicken thighs upsert was not captured");
+    const create = chickenThighsUpsert.create;
+    assert.equal(create.purchaseUnit, "lb");
+    assert.equal(create.purchaseQuantity, 2);
+    assert.equal(create.purchaseDisplay, "2 lb");
+    // Cache-gate proof: all three fields non-null, so
+    // fillPurchaseSizesWithWriteBack treats this row as a cache hit and
+    // skips the Haiku call.
+    assert.notEqual(create.purchaseUnit, null);
+    assert.notEqual(create.purchaseQuantity, null);
+    assert.notEqual(create.purchaseDisplay, null);
+  });
+
+  it("leaves purchase fields absent for ingredients not in the defaults table (gap-fill path still handles unknowns)", async () => {
+    // sampleExpanded uses "Harissa paste" and "Canned tomatoes" — neither
+    // is in INGREDIENT_PURCHASE_DEFAULTS. The wizard upsert must NOT invent
+    // values; gap-fill is the right path for genuine unknowns.
+    const expanded = sampleExpanded();
+    const { prismaStub, txStub, captured } = makeStubs({ expanded });
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+    });
+
+    const harissaUpsert = captured.upserts.find(
+      (u) => u.canonicalName === "harissa paste",
+    );
+    assert.ok(harissaUpsert, "harissa paste upsert was not captured");
+    // Spread-when-present means the keys are absent (not explicitly null);
+    // either is fine for the cache-gate check, but absence is what we wrote.
+    assert.equal(harissaUpsert.create.purchaseUnit, undefined);
+    assert.equal(harissaUpsert.create.purchaseQuantity, undefined);
+    assert.equal(harissaUpsert.create.purchaseDisplay, undefined);
+  });
+
+  it("sets the category from inferCategory on create — canned items now route to Canned, not Pantry", async () => {
+    // "Canned tomatoes" → canonical "canned tomatoes" → matches the Canned
+    // "canned" keyword → category "Canned" (not "Pantry" as pre-Block 2).
+    const expanded = sampleExpanded();
+    const { prismaStub, txStub, captured } = makeStubs({ expanded });
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+    });
+
+    const cannedTomatoesUpsert = captured.upserts.find(
+      (u) => u.canonicalName === "canned tomatoes",
+    );
+    assert.ok(cannedTomatoesUpsert, "canned tomatoes upsert was not captured");
+    assert.equal(cannedTomatoesUpsert.create.category, "Canned");
   });
 });
