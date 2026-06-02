@@ -11,8 +11,10 @@ import {
   GroceryListAIError,
   categorizeGroceryItem,
   fillPurchaseSizesWithWriteBack,
+  formatPackDisplay,
   gapFillPurchaseSize,
   generateFinalGroceryList,
+  partitionForAI,
 } from "../groceryListAI";
 import { _resetClientCache } from "../ai/runAICall";
 import { _resetRegistryCaches } from "../ai/promptRegistry";
@@ -33,12 +35,6 @@ interface IngredientUpdateCall {
     purchaseQuantity: number;
     purchaseDisplay: string;
   };
-}
-
-interface StubPrisma {
-  prisma: PrismaClient;
-  llmCalls: () => LLMCallLogCreateData[];
-  ingredientUpdates: () => IngredientUpdateCall[];
 }
 
 // Return a synthetic prompt row keyed off the supplied key. The body wraps
@@ -73,9 +69,19 @@ function syntheticPromptRow(key: string): AIPromptRow | null {
   };
 }
 
+interface StubPrisma {
+  prisma: PrismaClient;
+  llmCalls: () => LLMCallLogCreateData[];
+  ingredientUpdates: () => IngredientUpdateCall[];
+  // WS7-5d Block 3 Fix C — assertable count of $transaction(promiseArray)
+  // batched-writeback invocations.
+  transactionCalls: () => number;
+}
+
 function makeStubPrisma(): StubPrisma {
   const llmCalls: LLMCallLogCreateData[] = [];
   const ingredientUpdates: IngredientUpdateCall[] = [];
+  let transactionCalls = 0;
   const inner: PrismaLike & {
     ingredient: {
       update: (args: {
@@ -83,6 +89,7 @@ function makeStubPrisma(): StubPrisma {
         data: IngredientUpdateCall["data"];
       }) => Promise<unknown>;
     };
+    $transaction: (ops: Promise<unknown>[]) => Promise<unknown[]>;
   } = {
     aIPrompt: {
       findUnique: async (args: {
@@ -104,13 +111,25 @@ function makeStubPrisma(): StubPrisma {
         return { id: args.where.id, ...args.data };
       },
     },
+    // WS7-5d Block 3 Fix C — fillPurchaseSizesWithWriteBack batches its
+    // per-row update calls into a single $transaction(promiseArray) so the
+    // real prisma replaces N concurrent UPDATEs with one round-trip. The
+    // stub's update fn already resolves eagerly when called, so $transaction
+    // is effectively `await Promise.all`; the call count is recorded so
+    // tests can assert the batching contract.
+    $transaction: async (ops: Promise<unknown>[]) => {
+      transactionCalls++;
+      return Promise.all(ops);
+    },
   };
   return {
     prisma: inner as unknown as PrismaClient,
     llmCalls: () => llmCalls,
     ingredientUpdates: () => ingredientUpdates,
+    transactionCalls: () => transactionCalls,
   };
 }
+
 
 // ── fake Anthropic client ──────────────────────────────────────────────
 
@@ -454,6 +473,250 @@ describe("fillPurchaseSizesWithWriteBack", () => {
     assert.equal(filled[2].purchaseUnit, "each");
     assert.equal(filled[2].ingredientId, null);
   });
+
+  // ── WS7-5d Block 3 Fix C — parallel gap-fill + batched write-back ────
+
+  it("batches all writebacks into a single $transaction call (Fix C audit response)", async () => {
+    // 3 misses, all with ingredientId → 3 writebacks. Pre-Block-3 this was
+    // 3 concurrent UPDATEs inside a serial for-await loop; Fix C collapses
+    // them to ONE $transaction(promiseArray) envelope.
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      { content: [textBlock({ purchaseUnit: "lb", purchaseQuantity: 1, purchaseDisplay: "1 lb", confidence: "high" })] },
+      { content: [textBlock({ purchaseUnit: "can", purchaseQuantity: 1, purchaseDisplay: "1 can (28 oz)", confidence: "high" })] },
+      { content: [textBlock({ purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch", confidence: "high" })] },
+    ]);
+    const { prisma, ingredientUpdates, transactionCalls } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      makeItem({ canonicalName: "chicken breast", ingredientId: "ing-a" }),
+      makeItem({ canonicalName: "crushed tomatoes", ingredientId: "ing-b" }),
+      makeItem({ canonicalName: "parsley", ingredientId: "ing-c" }),
+    ];
+
+    await fillPurchaseSizesWithWriteBack(items, {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(fake.callCount(), 3, "AI must be called once per miss");
+    assert.equal(ingredientUpdates().length, 3, "writeback per item with ingredientId");
+    assert.equal(transactionCalls(), 1, "all writebacks batched into ONE $transaction");
+  });
+
+  it("skips $transaction entirely when no items have ingredientId", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      { content: [textBlock({ purchaseUnit: "each", purchaseQuantity: 1, purchaseDisplay: "1 each", confidence: "low" })] },
+      { content: [textBlock({ purchaseUnit: "each", purchaseQuantity: 1, purchaseDisplay: "1 each", confidence: "low" })] },
+    ]);
+    const { prisma, ingredientUpdates, transactionCalls } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      makeItem({ ingredientId: null, canonicalName: "kombucha", unit: "each", quantity: 1 }),
+      makeItem({ ingredientId: null, canonicalName: "ramen", unit: "each", quantity: 1 }),
+    ];
+
+    await fillPurchaseSizesWithWriteBack(items, {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(fake.callCount(), 2);
+    assert.equal(ingredientUpdates().length, 0);
+    assert.equal(transactionCalls(), 0, "no $transaction when no writebacks");
+  });
+
+  it("preserves original input order in the filled output (parallel fan-out is order-preserving)", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    // Distinct purchaseUnit values per response so output order is
+    // verifiable against the input order.
+    const fake = makeFakeClient([
+      { content: [textBlock({ purchaseUnit: "lb", purchaseQuantity: 1, purchaseDisplay: "1 lb", confidence: "high" })] },
+      { content: [textBlock({ purchaseUnit: "can", purchaseQuantity: 1, purchaseDisplay: "1 can", confidence: "high" })] },
+      { content: [textBlock({ purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch", confidence: "high" })] },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      // Position 0: cache HIT (pass-through).
+      makeItem({
+        canonicalName: "olive oil",
+        purchaseUnit: "bottle",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 bottle (17 oz)",
+      }),
+      // Position 1: cache MISS.
+      makeItem({ canonicalName: "chicken breast", ingredientId: "ing-a" }),
+      // Position 2: cache HIT.
+      makeItem({
+        canonicalName: "salt",
+        purchaseUnit: "container",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 container (26 oz)",
+      }),
+      // Position 3: cache MISS.
+      makeItem({ canonicalName: "crushed tomatoes", ingredientId: "ing-b" }),
+      // Position 4: cache MISS.
+      makeItem({ canonicalName: "parsley", ingredientId: "ing-c" }),
+    ];
+
+    const filled = await fillPurchaseSizesWithWriteBack(items, {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(filled.length, 5);
+    // Hits unchanged at their original positions.
+    assert.equal(filled[0].purchaseUnit, "bottle");
+    assert.equal(filled[2].purchaseUnit, "container");
+    // Misses filled at their original positions, in input order matching
+    // the queued response order.
+    assert.equal(filled[1].purchaseUnit, "lb");
+    assert.equal(filled[3].purchaseUnit, "can");
+    assert.equal(filled[4].purchaseUnit, "bunch");
+  });
+});
+
+// ── formatPackDisplay (WS7-5d Block 3 Fix B) ───────────────────────────
+
+describe("formatPackDisplay", () => {
+  it("returns displayName unchanged when purchaseDisplay is null", () => {
+    assert.equal(formatPackDisplay("yellow onion", null, null), "yellow onion");
+    assert.equal(formatPackDisplay("xyzzy", null, null), "xyzzy");
+  });
+
+  it("prepends purchaseDisplay for non-'each' units (Format A)", () => {
+    assert.equal(
+      formatPackDisplay("crushed tomatoes", "can", "1 can (28 oz)"),
+      "1 can (28 oz) crushed tomatoes",
+    );
+    assert.equal(
+      formatPackDisplay("chicken breast", "lb", "1 lb"),
+      "1 lb chicken breast",
+    );
+    assert.equal(
+      formatPackDisplay("olive oil", "bottle", "1 bottle (17 oz)"),
+      "1 bottle (17 oz) olive oil",
+    );
+    assert.equal(
+      formatPackDisplay("eggs", "dozen", "1 dozen"),
+      "1 dozen eggs",
+    );
+  });
+
+  it("elides for 'each' items where purchaseDisplay already names the item", () => {
+    assert.equal(formatPackDisplay("lemon", "each", "2 lemons"), "2 lemons");
+    assert.equal(formatPackDisplay("tomato", "each", "3 tomatoes"), "3 tomatoes");
+    assert.equal(formatPackDisplay("cucumber", "each", "1 cucumber"), "1 cucumber");
+    assert.equal(formatPackDisplay("lime", "each", "2 limes"), "2 limes");
+  });
+
+  it("falls back to bare displayName for 'each' qualifier mismatches (no awkward dup)", () => {
+    // "yellow onion" + "2 onions" — the purchase pack is generic. Prepending
+    // would read "2 onions yellow onion"; eliding would drop the meaningful
+    // "yellow" qualifier. Safest fallback is the bare displayName.
+    assert.equal(
+      formatPackDisplay("yellow onion", "each", "2 onions"),
+      "yellow onion",
+    );
+    assert.equal(
+      formatPackDisplay("bell peppers", "each", "3 peppers"),
+      "bell peppers",
+    );
+  });
+});
+
+// ── partitionForAI (WS7-5d Block 3 Fix A) ──────────────────────────────
+
+describe("partitionForAI", () => {
+  function specificItem(overrides: Partial<ConsolidatedItem> = {}): ConsolidatedItem {
+    // "Specific" defaults: non-vague canonical, non-extras section, fully-
+    // populated purchase fields, unique unit per canonical. Items built from
+    // this helper partition to the deterministic side unless overrides
+    // override one of the three criteria.
+    return makeItem({
+      canonicalName: "olive oil",
+      displayName: "olive oil",
+      sectionKey: "pantry",
+      purchaseUnit: "bottle",
+      purchaseQuantity: 1,
+      purchaseDisplay: "1 bottle (17 oz)",
+      ...overrides,
+    });
+  }
+
+  it("routes vague canonicals to the AI subset", () => {
+    const items = [
+      specificItem({ canonicalName: "chicken" }),
+      specificItem({ canonicalName: "berries" }),
+      specificItem({ canonicalName: "yogurt" }),
+      specificItem({ canonicalName: "kale" }), // not vague
+    ];
+    const { deterministic, aiSubset } = partitionForAI(items);
+    assert.equal(aiSubset.length, 3);
+    assert.equal(deterministic.length, 1);
+    assert.equal(deterministic[0].item.canonicalName, "kale");
+  });
+
+  it("routes extras-bucket items to the AI subset", () => {
+    const items = [
+      specificItem({ canonicalName: "chia seeds", sectionKey: "extras" }),
+      specificItem({ canonicalName: "olive oil", sectionKey: "pantry" }),
+    ];
+    const { deterministic, aiSubset } = partitionForAI(items);
+    assert.equal(aiSubset.length, 1);
+    assert.equal(aiSubset[0].item.canonicalName, "chia seeds");
+    assert.equal(deterministic.length, 1);
+  });
+
+  it("routes both sides of a same-canonical-different-unit pair to the AI subset", () => {
+    // Rule-2 reconciliation needs both rows; partition must keep them
+    // together on the AI side.
+    const items = [
+      specificItem({ canonicalName: "olive oil", unit: "tbsp" }),
+      specificItem({ canonicalName: "olive oil", unit: "cup" }),
+      specificItem({ canonicalName: "kale", unit: "bunch" }),
+    ];
+    const { deterministic, aiSubset } = partitionForAI(items);
+    assert.equal(aiSubset.length, 2);
+    assert.equal(deterministic.length, 1);
+    assert.equal(deterministic[0].item.canonicalName, "kale");
+  });
+
+  it("routes all-specific-non-extras-single-unit items entirely to deterministic", () => {
+    const items = [
+      specificItem({ canonicalName: "kale" }),
+      specificItem({ canonicalName: "olive oil" }),
+      specificItem({ canonicalName: "salt" }),
+    ];
+    const { deterministic, aiSubset } = partitionForAI(items);
+    assert.equal(aiSubset.length, 0);
+    assert.equal(deterministic.length, 3);
+  });
+
+  it("preserves original positions in the index field for stable merge ordering", () => {
+    const items = [
+      specificItem({ canonicalName: "kale" }), // deterministic, index 0
+      specificItem({ canonicalName: "chicken" }), // ai, index 1
+      specificItem({ canonicalName: "olive oil" }), // deterministic, index 2
+    ];
+    const { deterministic, aiSubset } = partitionForAI(items);
+    assert.deepEqual(
+      deterministic.map((p) => p.index),
+      [0, 2],
+    );
+    assert.deepEqual(
+      aiSubset.map((p) => p.index),
+      [1],
+    );
+  });
 });
 
 // ── generateFinalGroceryList ───────────────────────────────────────────
@@ -468,491 +731,534 @@ describe("generateFinalGroceryList", () => {
     });
   }
 
-  it("returns the parsed result and forwards the expected input shape", async () => {
-    _resetClientCache();
-    _resetRegistryCaches();
-    const fake = makeFakeClient([
-      {
-        content: [
-          textBlock({
-            items: [
-              {
-                canonicalName: "yellow onion",
-                displayName: "yellow onion",
-                quantity: 2,
-                unit: "each",
-                sectionKey: "produce",
-                isUniversalStaple: false,
-                isUserPantryStaple: false,
-                isRecurringItem: false,
-                notes: null,
-                isAmbiguous: false,
-                wasAiInferred: true,
-              },
-            ],
-          }),
-        ],
-      },
-    ]);
-    const { prisma } = makeStubPrisma();
+  // ── deterministic path (Fix A: no AI when nothing needs AI) ──────────
 
-    const items: ConsolidatedItem[] = [
-      baseInputItem({
-        canonicalName: "yellow onion",
-        displayName: "Onion, yellow, raw",
-        quantity: 2,
-        unit: "each",
-        sectionKey: "produce",
-      }),
-    ];
+  describe("deterministic path (Fix A skip + Fix B formatter)", () => {
+    it("skips the Sonnet call entirely when every item partitions to deterministic", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      // No responses queued — if the helper hits the AI, the fake client
+      // throws ("fake client exhausted"). That's the assertion we want.
+      const fake = makeFakeClient([]);
+      const { prisma } = makeStubPrisma();
 
-    const knownSections = [
-      "produce",
-      "meat_seafood",
-      "dairy_eggs",
-      "bakery_bread",
-      "pantry",
-      "canned",
-      "frozen",
-      "snacks",
-      "household",
-      "extras",
-    ] as const;
+      const items: ConsolidatedItem[] = [
+        baseInputItem({
+          canonicalName: "yellow onion",
+          displayName: "yellow onion",
+          quantity: 2,
+          unit: "each",
+          sectionKey: "produce",
+          purchaseUnit: "each",
+          purchaseQuantity: 2,
+          purchaseDisplay: "2 onions",
+        }),
+        baseInputItem({
+          canonicalName: "chicken breast",
+          displayName: "chicken breast",
+          sectionKey: "meat_seafood",
+          purchaseUnit: "lb",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 lb",
+        }),
+      ];
 
-    const result = await generateFinalGroceryList(
-      "Weeknight Plan",
-      items,
-      [...knownSections],
-      { prisma, userId: TEST_USER_ID, client: fake.client },
-    );
-
-    assert.equal(result.items.length, 1);
-    assert.equal(result.items[0].displayName, "yellow onion");
-
-    const sent = fake.lastUserMessage();
-    assert.ok(sent && sent.includes("Weeknight Plan"));
-    assert.ok(sent && sent.includes("yellow onion"));
-    assert.ok(sent && sent.includes("produce"));
-    // knownSections must be passed through verbatim.
-    assert.ok(sent && sent.includes("household"));
-  });
-
-  it("preserves flags via pass-through when the AI echoes them unchanged", async () => {
-    _resetClientCache();
-    _resetRegistryCaches();
-    const inputItems: ConsolidatedItem[] = [
-      baseInputItem({
-        canonicalName: "salt",
-        displayName: "salt",
-        isUniversalStaple: true,
-        isUserPantryStaple: false,
-        isRecurringItem: false,
-      }),
-      baseInputItem({
-        canonicalName: "olive oil",
-        displayName: "olive oil",
-        isUniversalStaple: true,
-        isUserPantryStaple: true,
-        isRecurringItem: false,
-      }),
-      baseInputItem({
-        canonicalName: "coffee",
-        displayName: "coffee",
-        isUniversalStaple: false,
-        isUserPantryStaple: false,
-        isRecurringItem: true,
-      }),
-      baseInputItem({
-        canonicalName: "kale",
-        displayName: "kale",
-        isUniversalStaple: false,
-        isUserPantryStaple: false,
-        isRecurringItem: false,
-      }),
-    ];
-
-    const echoed = inputItems.map((it) => ({
-      canonicalName: it.canonicalName,
-      displayName: it.displayName,
-      quantity: it.quantity,
-      unit: it.unit,
-      sectionKey: it.sectionKey,
-      isUniversalStaple: it.isUniversalStaple,
-      isUserPantryStaple: it.isUserPantryStaple,
-      isRecurringItem: it.isRecurringItem,
-      notes: null,
-      isAmbiguous: false,
-      wasAiInferred: false,
-    }));
-
-    const fake = makeFakeClient([
-      { content: [textBlock({ items: echoed })] },
-    ]);
-    const { prisma } = makeStubPrisma();
-
-    const result = await generateFinalGroceryList(
-      "Plan",
-      inputItems,
-      ["produce", "pantry", "extras"],
-      { prisma, userId: TEST_USER_ID, client: fake.client },
-    );
-
-    assert.equal(result.items.length, 4);
-    for (let i = 0; i < inputItems.length; i++) {
-      assert.equal(
-        result.items[i].isUniversalStaple,
-        inputItems[i].isUniversalStaple,
-        `isUniversalStaple mismatch at index ${i}`,
+      const result = await generateFinalGroceryList(
+        "Weeknight Plan",
+        items,
+        ["produce", "meat_seafood", "extras"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
       );
-      assert.equal(
-        result.items[i].isUserPantryStaple,
-        inputItems[i].isUserPantryStaple,
-        `isUserPantryStaple mismatch at index ${i}`,
+
+      assert.equal(fake.callCount(), 0, "Sonnet must not be called");
+      assert.equal(result.items.length, 2);
+      // Fix B formatting: prepend for non-'each' units.
+      assert.equal(result.items[1].displayName, "1 lb chicken breast");
+      // Fix B formatting: 'each' qualifier mismatch falls back to bare name.
+      assert.equal(result.items[0].displayName, "yellow onion");
+      // wasAiInferred is false for the deterministic path.
+      assert.ok(result.items.every((i) => i.wasAiInferred === false));
+      assert.ok(result.items.every((i) => i.isAmbiguous === false));
+    });
+
+    it("preserves flags 1:1 on the deterministic path (no AI re-emission risk)", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      const fake = makeFakeClient([]); // would throw on AI call
+      const { prisma } = makeStubPrisma();
+
+      const inputItems: ConsolidatedItem[] = [
+        baseInputItem({
+          canonicalName: "salt",
+          displayName: "salt",
+          isUniversalStaple: true,
+          isUserPantryStaple: false,
+          isRecurringItem: false,
+        }),
+        baseInputItem({
+          canonicalName: "olive oil",
+          displayName: "olive oil",
+          isUniversalStaple: true,
+          isUserPantryStaple: true,
+          isRecurringItem: false,
+        }),
+        baseInputItem({
+          canonicalName: "coffee",
+          displayName: "coffee",
+          isUniversalStaple: false,
+          isUserPantryStaple: false,
+          isRecurringItem: true,
+        }),
+        baseInputItem({
+          canonicalName: "kale",
+          displayName: "kale",
+          isUniversalStaple: false,
+          isUserPantryStaple: false,
+          isRecurringItem: false,
+        }),
+      ];
+
+      const result = await generateFinalGroceryList(
+        "Plan",
+        inputItems,
+        ["produce", "pantry", "extras"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
       );
-      assert.equal(
-        result.items[i].isRecurringItem,
-        inputItems[i].isRecurringItem,
-        `isRecurringItem mismatch at index ${i}`,
+
+      assert.equal(fake.callCount(), 0);
+      assert.equal(result.items.length, 4);
+      for (let i = 0; i < inputItems.length; i++) {
+        assert.equal(
+          result.items[i].isUniversalStaple,
+          inputItems[i].isUniversalStaple,
+          `isUniversalStaple mismatch at index ${i}`,
+        );
+        assert.equal(
+          result.items[i].isUserPantryStaple,
+          inputItems[i].isUserPantryStaple,
+          `isUserPantryStaple mismatch at index ${i}`,
+        );
+        assert.equal(
+          result.items[i].isRecurringItem,
+          inputItems[i].isRecurringItem,
+          `isRecurringItem mismatch at index ${i}`,
+        );
+      }
+    });
+  });
+
+  // ── AI subset path (Fix A: only vague/extras/unit-mismatch reach AI) ─
+
+  describe("AI subset path", () => {
+    it("sends only the AI subset to Sonnet (deterministic items stay local)", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      const fake = makeFakeClient([
+        {
+          content: [
+            textBlock({
+              items: [
+                {
+                  canonicalName: "chicken",
+                  displayName: "boneless skinless chicken breasts, 1 lb",
+                  quantity: 1,
+                  unit: "lb",
+                  sectionKey: "meat_seafood",
+                  isUniversalStaple: false,
+                  isUserPantryStaple: false,
+                  isRecurringItem: false,
+                  notes: null,
+                  isAmbiguous: true,
+                  ambiguityOptions: ["thighs", "rotisserie", "ground"],
+                  wasAiInferred: true,
+                },
+              ],
+            }),
+          ],
+        },
+      ]);
+      const { prisma } = makeStubPrisma();
+
+      const items: ConsolidatedItem[] = [
+        baseInputItem({ canonicalName: "kale", displayName: "kale" }),
+        baseInputItem({
+          canonicalName: "chicken",
+          displayName: "chicken",
+          sectionKey: "meat_seafood",
+        }),
+        baseInputItem({ canonicalName: "olive oil", displayName: "olive oil" }),
+      ];
+
+      const result = await generateFinalGroceryList(
+        "Plan",
+        items,
+        ["produce", "meat_seafood", "pantry", "extras"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
       );
-    }
+
+      assert.equal(fake.callCount(), 1);
+      assert.equal(result.items.length, 3);
+
+      // Sent payload must contain only the chicken item, not kale or olive oil.
+      const sent = fake.lastUserMessage();
+      assert.ok(sent && sent.includes("chicken"));
+      assert.ok(sent && !sent.includes("\"kale\""));
+      assert.ok(sent && !sent.includes("\"olive oil\""));
+
+      // Merged output is index-ordered: kale (0), chicken (1), olive oil (2).
+      assert.equal(result.items[0].canonicalName, "kale");
+      assert.equal(result.items[1].canonicalName, "chicken");
+      assert.equal(result.items[2].canonicalName, "olive oil");
+
+      // AI item carries AI-derived fields; deterministic items don't.
+      assert.equal(result.items[1].isAmbiguous, true);
+      assert.equal(result.items[1].wasAiInferred, true);
+      assert.equal(result.items[0].wasAiInferred, false);
+      assert.equal(result.items[2].wasAiInferred, false);
+    });
+
+    it("threads preparationNote + sourceDishTitle into the AI input payload", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      const fake = makeFakeClient([
+        {
+          content: [
+            textBlock({
+              items: [
+                {
+                  canonicalName: "chicken",
+                  displayName: "boneless skinless chicken breasts, 1 lb",
+                  quantity: 1,
+                  unit: "lb",
+                  sectionKey: "meat_seafood",
+                  isUniversalStaple: false,
+                  isUserPantryStaple: false,
+                  isRecurringItem: false,
+                  notes: null,
+                  isAmbiguous: true,
+                  ambiguityOptions: [
+                    "boneless skinless thighs",
+                    "rotisserie chicken (pulled)",
+                    "ground chicken",
+                  ],
+                  wasAiInferred: true,
+                },
+              ],
+            }),
+          ],
+        },
+      ]);
+      const { prisma } = makeStubPrisma();
+
+      const items: ConsolidatedItem[] = [
+        baseInputItem({
+          canonicalName: "chicken",
+          displayName: "chicken",
+          unit: "lb",
+          quantity: 1,
+          sectionKey: "meat_seafood",
+          preparationNote: "shredded",
+          sourceDishTitle: "Chicken Tacos",
+        }),
+      ];
+
+      await generateFinalGroceryList(
+        "Weeknight Plan",
+        items,
+        ["produce", "meat_seafood", "extras"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
+      );
+
+      const sent = fake.lastUserMessage();
+      assert.ok(sent, "should send a user message");
+      assert.ok(sent.includes("Weeknight Plan"), "plan title must be in the prompt");
+      assert.ok(sent.includes("shredded"), "prep note must be in the prompt");
+      assert.ok(sent.includes("Chicken Tacos"), "dish title must be in the prompt");
+    });
+
+    it("threads isAmbiguous=true + ambiguityOptions back from the AI response", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      const fake = makeFakeClient([
+        {
+          content: [
+            textBlock({
+              items: [
+                {
+                  canonicalName: "berries",
+                  displayName: "blueberries",
+                  quantity: 2,
+                  unit: "cup",
+                  sectionKey: "produce",
+                  isUniversalStaple: false,
+                  isUserPantryStaple: false,
+                  isRecurringItem: false,
+                  notes: null,
+                  isAmbiguous: true,
+                  ambiguityOptions: ["strawberries", "raspberries", "mixed berries"],
+                  wasAiInferred: true,
+                },
+              ],
+            }),
+          ],
+        },
+      ]);
+      const { prisma } = makeStubPrisma();
+
+      const items: ConsolidatedItem[] = [
+        baseInputItem({
+          canonicalName: "berries",
+          displayName: "berries",
+          sectionKey: "produce",
+          unit: "cup",
+          quantity: 2,
+          sourceDishTitle: "Yogurt Parfait",
+        }),
+      ];
+
+      const result = await generateFinalGroceryList(
+        "Weekly Plan",
+        items,
+        ["produce", "extras"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
+      );
+
+      assert.equal(result.items[0].isAmbiguous, true);
+      assert.deepEqual(result.items[0].ambiguityOptions, [
+        "strawberries",
+        "raspberries",
+        "mixed berries",
+      ]);
+      assert.equal(result.items[0].wasAiInferred, true);
+    });
+
+    it("trusts the AI response when it mutates a flag on a vague item", async () => {
+      // This helper does NOT re-inject input flags over the AI response.
+      // A flag-mutation regression should fail in the route-layer smoke
+      // test, not silently here. If the AI flips a flag on an item that
+      // legitimately reached the AI (vague canonical), the helper returns
+      // the flipped value unchanged.
+      _resetClientCache();
+      _resetRegistryCaches();
+      const inputItems: ConsolidatedItem[] = [
+        baseInputItem({
+          canonicalName: "chicken", // vague → goes through AI
+          displayName: "chicken",
+          sectionKey: "meat_seafood",
+          isRecurringItem: true,
+        }),
+      ];
+      const fake = makeFakeClient([
+        {
+          content: [
+            textBlock({
+              items: [
+                {
+                  canonicalName: "chicken",
+                  displayName: "chicken breast, 1 lb",
+                  quantity: inputItems[0].quantity,
+                  unit: inputItems[0].unit,
+                  sectionKey: inputItems[0].sectionKey,
+                  isUniversalStaple: false,
+                  isUserPantryStaple: false,
+                  isRecurringItem: false, // AI mutated this — helper trusts it.
+                  notes: null,
+                  isAmbiguous: false,
+                  wasAiInferred: true,
+                },
+              ],
+            }),
+          ],
+        },
+      ]);
+      const { prisma } = makeStubPrisma();
+
+      const result = await generateFinalGroceryList(
+        "Plan",
+        inputItems,
+        ["produce", "meat_seafood", "extras"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
+      );
+
+      assert.equal(result.items[0].isRecurringItem, false);
+    });
+
+    it("rejects responses where isAmbiguous=true is missing ambiguityOptions (Zod refine)", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      const fake = makeFakeClient([
+        {
+          content: [
+            textBlock({
+              items: [
+                {
+                  canonicalName: "chicken",
+                  displayName: "chicken breast",
+                  quantity: 1,
+                  unit: "lb",
+                  sectionKey: "meat_seafood",
+                  isUniversalStaple: false,
+                  isUserPantryStaple: false,
+                  isRecurringItem: false,
+                  notes: null,
+                  isAmbiguous: true,
+                  // ambiguityOptions omitted — should fail refine
+                  wasAiInferred: true,
+                },
+              ],
+            }),
+          ],
+        },
+        { content: [textBlock("still bad")] },
+      ]);
+      const { prisma } = makeStubPrisma();
+
+      await assert.rejects(
+        () =>
+          generateFinalGroceryList(
+            "Plan",
+            [baseInputItem({ canonicalName: "chicken" })],
+            ["meat_seafood", "extras"],
+            { prisma, userId: TEST_USER_ID, client: fake.client },
+          ),
+        (err: unknown) => err instanceof GroceryListAIError,
+      );
+    });
   });
 
-  it("trusts the AI response when it mutates a flag (Block B decision: route layer guards regressions)", async () => {
-    // Documented Block B decision: this helper does NOT re-inject input flags
-    // over the AI response. A flag-mutation regression should fail in the
-    // route-layer smoke test, not silently here. If the AI flips a flag, the
-    // helper returns the flipped value unchanged.
-    _resetClientCache();
-    _resetRegistryCaches();
-    const inputItems: ConsolidatedItem[] = [
-      baseInputItem({
-        canonicalName: "salt",
-        isUniversalStaple: true,
-      }),
-    ];
-    const fake = makeFakeClient([
-      {
-        content: [
-          textBlock({
-            items: [
-              {
-                canonicalName: "salt",
-                displayName: "salt",
-                quantity: inputItems[0].quantity,
-                unit: inputItems[0].unit,
-                sectionKey: inputItems[0].sectionKey,
-                isUniversalStaple: false, // AI mutated this — helper trusts it.
-                isUserPantryStaple: false,
-                isRecurringItem: false,
-                notes: null,
-                isAmbiguous: false,
-                wasAiInferred: false,
-              },
-            ],
-          }),
-        ],
-      },
-    ]);
-    const { prisma } = makeStubPrisma();
+  // ── invariants ───────────────────────────────────────────────────────
 
-    const result = await generateFinalGroceryList(
-      "Plan",
-      inputItems,
-      ["produce", "pantry", "extras"],
-      { prisma, userId: TEST_USER_ID, client: fake.client },
-    );
+  describe("no-add invariants", () => {
+    it("throws GroceryListAIError when AI returns more items than the AI subset", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      // 3 vague inputs → AI subset of 3. AI returns 4 → local guard throws.
+      const inputItems: ConsolidatedItem[] = [
+        baseInputItem({ canonicalName: "chicken", sectionKey: "meat_seafood" }),
+        baseInputItem({ canonicalName: "berries", sectionKey: "produce" }),
+        baseInputItem({ canonicalName: "cheese", sectionKey: "dairy_eggs" }),
+      ];
+      const fake = makeFakeClient([
+        {
+          content: [
+            textBlock({
+              items: [
+                { canonicalName: "chicken", displayName: "chicken", quantity: 1, unit: "lb", sectionKey: "meat_seafood", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
+                { canonicalName: "berries", displayName: "berries", quantity: 1, unit: "cup", sectionKey: "produce", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
+                { canonicalName: "cheese", displayName: "cheese", quantity: 1, unit: "oz", sectionKey: "dairy_eggs", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
+                { canonicalName: "ghost", displayName: "ghost", quantity: 1, unit: "each", sectionKey: "extras", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
+              ],
+            }),
+          ],
+        },
+      ]);
+      const { prisma } = makeStubPrisma();
 
-    assert.equal(result.items[0].isUniversalStaple, false);
-  });
+      await assert.rejects(
+        () =>
+          generateFinalGroceryList(
+            "Plan",
+            inputItems,
+            ["produce", "meat_seafood", "dairy_eggs", "extras"],
+            { prisma, userId: TEST_USER_ID, client: fake.client },
+          ),
+        (err: unknown) =>
+          err instanceof GroceryListAIError &&
+          /item count must not increase/.test(err.message),
+      );
+    });
 
-  it("throws GroceryListAIError when AI returns more items than input", async () => {
-    _resetClientCache();
-    _resetRegistryCaches();
-    const inputItems: ConsolidatedItem[] = [
-      baseInputItem({ canonicalName: "a" }),
-      baseInputItem({ canonicalName: "b" }),
-      baseInputItem({ canonicalName: "c" }),
-    ];
-    const fake = makeFakeClient([
-      {
-        content: [
-          textBlock({
-            items: [
-              { canonicalName: "a", displayName: "a", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
-              { canonicalName: "b", displayName: "b", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
-              { canonicalName: "c", displayName: "c", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
-              { canonicalName: "d", displayName: "d", quantity: 1, unit: "each", sectionKey: "pantry", isUniversalStaple: false, isUserPantryStaple: false, isRecurringItem: false, notes: null, isAmbiguous: false, wasAiInferred: false },
-            ],
-          }),
-        ],
-      },
-    ]);
-    const { prisma } = makeStubPrisma();
+    it("throws GroceryListAIError when AI returns malformed shape (bad sectionKey)", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      const inputItems: ConsolidatedItem[] = [
+        baseInputItem({ canonicalName: "chicken", sectionKey: "meat_seafood" }),
+      ];
+      const fake = makeFakeClient([
+        {
+          content: [
+            textBlock({
+              items: [
+                {
+                  canonicalName: "chicken",
+                  displayName: "chicken",
+                  quantity: 1,
+                  unit: "each",
+                  sectionKey: "not_a_real_section",
+                  isUniversalStaple: false,
+                  isUserPantryStaple: false,
+                  isRecurringItem: false,
+                  notes: null,
+                  isAmbiguous: false,
+                  wasAiInferred: false,
+                },
+              ],
+            }),
+          ],
+        },
+        { content: [textBlock("still bad")] },
+      ]);
+      const { prisma } = makeStubPrisma();
 
-    await assert.rejects(
-      () =>
-        generateFinalGroceryList(
-          "Plan",
-          inputItems,
-          ["produce", "pantry", "extras"],
-          { prisma, userId: TEST_USER_ID, client: fake.client },
-        ),
-      (err: unknown) =>
-        err instanceof GroceryListAIError &&
-        /item count must not increase/.test(err.message),
-    );
-  });
+      await assert.rejects(
+        () =>
+          generateFinalGroceryList(
+            "Plan",
+            inputItems,
+            ["produce", "meat_seafood", "extras"],
+            { prisma, userId: TEST_USER_ID, client: fake.client },
+          ),
+        (err: unknown) => err instanceof GroceryListAIError,
+      );
+    });
 
-  it("throws GroceryListAIError when AI returns malformed shape (bad sectionKey)", async () => {
-    _resetClientCache();
-    _resetRegistryCaches();
-    const inputItems: ConsolidatedItem[] = [baseInputItem({ canonicalName: "a" })];
-    const fake = makeFakeClient([
-      {
-        content: [
-          textBlock({
-            items: [
-              {
-                canonicalName: "a",
-                displayName: "a",
-                quantity: 1,
-                unit: "each",
-                sectionKey: "not_a_real_section",
-                isUniversalStaple: false,
-                isUserPantryStaple: false,
-                isRecurringItem: false,
-                notes: null,
-                isAmbiguous: false,
-                wasAiInferred: false,
-              },
-            ],
-          }),
-        ],
-      },
-      {
-        content: [textBlock("still bad")],
-      },
-    ]);
-    const { prisma } = makeStubPrisma();
+    it("forwards knownSections to the AI when the subset is non-empty", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      const fake = makeFakeClient([
+        {
+          content: [
+            textBlock({
+              items: [
+                {
+                  canonicalName: "chicken",
+                  displayName: "chicken breast",
+                  quantity: 1,
+                  unit: "lb",
+                  sectionKey: "meat_seafood",
+                  isUniversalStaple: false,
+                  isUserPantryStaple: false,
+                  isRecurringItem: false,
+                  notes: null,
+                  isAmbiguous: false,
+                  wasAiInferred: false,
+                },
+              ],
+            }),
+          ],
+        },
+      ]);
+      const { prisma } = makeStubPrisma();
+      const items: ConsolidatedItem[] = [
+        baseInputItem({
+          canonicalName: "chicken",
+          displayName: "chicken",
+          sectionKey: "meat_seafood",
+        }),
+      ];
 
-    await assert.rejects(
-      () =>
-        generateFinalGroceryList(
-          "Plan",
-          inputItems,
-          ["produce", "pantry", "extras"],
-          { prisma, userId: TEST_USER_ID, client: fake.client },
-        ),
-      (err: unknown) => err instanceof GroceryListAIError,
-    );
-  });
+      await generateFinalGroceryList(
+        "Plan",
+        items,
+        ["produce", "meat_seafood", "household"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
+      );
 
-  // ── 6c-5: prep-note + dish-title + ambiguity threading ───────────────
-
-  it("threads preparationNote + sourceDishTitle into the AI input payload", async () => {
-    _resetClientCache();
-    _resetRegistryCaches();
-    const fake = makeFakeClient([
-      {
-        content: [
-          textBlock({
-            items: [
-              {
-                canonicalName: "chicken",
-                displayName: "boneless skinless chicken breasts, 1 lb",
-                quantity: 1,
-                unit: "lb",
-                sectionKey: "meat_seafood",
-                isUniversalStaple: false,
-                isUserPantryStaple: false,
-                isRecurringItem: false,
-                notes: null,
-                isAmbiguous: true,
-                ambiguityOptions: [
-                  "boneless skinless thighs",
-                  "rotisserie chicken (pulled)",
-                  "ground chicken",
-                ],
-                wasAiInferred: true,
-              },
-            ],
-          }),
-        ],
-      },
-    ]);
-    const { prisma } = makeStubPrisma();
-
-    const items: ConsolidatedItem[] = [
-      baseInputItem({
-        canonicalName: "chicken",
-        displayName: "chicken",
-        unit: "lb",
-        quantity: 1,
-        sectionKey: "meat_seafood",
-        preparationNote: "shredded",
-        sourceDishTitle: "Chicken Tacos",
-      }),
-    ];
-
-    await generateFinalGroceryList(
-      "Weeknight Plan",
-      items,
-      ["produce", "meat_seafood", "extras"],
-      { prisma, userId: TEST_USER_ID, client: fake.client },
-    );
-
-    const sent = fake.lastUserMessage();
-    assert.ok(sent, "should send a user message");
-    assert.ok(sent.includes("shredded"), "prep note must be in the prompt");
-    assert.ok(sent.includes("Chicken Tacos"), "dish title must be in the prompt");
-  });
-
-  it("threads isAmbiguous=true + ambiguityOptions back from the AI response", async () => {
-    _resetClientCache();
-    _resetRegistryCaches();
-    const fake = makeFakeClient([
-      {
-        content: [
-          textBlock({
-            items: [
-              {
-                canonicalName: "berries",
-                displayName: "blueberries",
-                quantity: 2,
-                unit: "cup",
-                sectionKey: "produce",
-                isUniversalStaple: false,
-                isUserPantryStaple: false,
-                isRecurringItem: false,
-                notes: null,
-                isAmbiguous: true,
-                ambiguityOptions: ["strawberries", "raspberries", "mixed berries"],
-                wasAiInferred: true,
-              },
-            ],
-          }),
-        ],
-      },
-    ]);
-    const { prisma } = makeStubPrisma();
-
-    const items: ConsolidatedItem[] = [
-      baseInputItem({
-        canonicalName: "berries",
-        displayName: "berries",
-        sectionKey: "produce",
-        unit: "cup",
-        quantity: 2,
-        sourceDishTitle: "Yogurt Parfait",
-      }),
-    ];
-
-    const result = await generateFinalGroceryList(
-      "Weekly Plan",
-      items,
-      ["produce", "extras"],
-      { prisma, userId: TEST_USER_ID, client: fake.client },
-    );
-
-    assert.equal(result.items[0].isAmbiguous, true);
-    assert.deepEqual(result.items[0].ambiguityOptions, [
-      "strawberries",
-      "raspberries",
-      "mixed berries",
-    ]);
-    assert.equal(result.items[0].wasAiInferred, true);
-  });
-
-  it("threads wasAiInferred=false when the AI passes the item through unchanged", async () => {
-    _resetClientCache();
-    _resetRegistryCaches();
-    const fake = makeFakeClient([
-      {
-        content: [
-          textBlock({
-            items: [
-              {
-                canonicalName: "greek yogurt",
-                displayName: "plain Greek yogurt, 32oz",
-                quantity: 1,
-                unit: "container",
-                sectionKey: "dairy_eggs",
-                isUniversalStaple: false,
-                isUserPantryStaple: false,
-                isRecurringItem: false,
-                notes: null,
-                isAmbiguous: false,
-                wasAiInferred: false,
-              },
-            ],
-          }),
-        ],
-      },
-    ]);
-    const { prisma } = makeStubPrisma();
-
-    const items: ConsolidatedItem[] = [
-      baseInputItem({
-        canonicalName: "greek yogurt",
-        displayName: "plain Greek yogurt, 32oz",
-        sectionKey: "dairy_eggs",
-        unit: "container",
-        quantity: 1,
-      }),
-    ];
-
-    const result = await generateFinalGroceryList(
-      "Weekly Plan",
-      items,
-      ["produce", "dairy_eggs", "extras"],
-      { prisma, userId: TEST_USER_ID, client: fake.client },
-    );
-
-    assert.equal(result.items[0].isAmbiguous, false);
-    assert.equal(result.items[0].wasAiInferred, false);
-    assert.equal(result.items[0].ambiguityOptions, undefined);
-  });
-
-  it("rejects responses where isAmbiguous=true is missing ambiguityOptions (Zod refine)", async () => {
-    _resetClientCache();
-    _resetRegistryCaches();
-    const fake = makeFakeClient([
-      {
-        content: [
-          textBlock({
-            items: [
-              {
-                canonicalName: "chicken",
-                displayName: "chicken breast",
-                quantity: 1,
-                unit: "lb",
-                sectionKey: "meat_seafood",
-                isUniversalStaple: false,
-                isUserPantryStaple: false,
-                isRecurringItem: false,
-                notes: null,
-                isAmbiguous: true,
-                // ambiguityOptions omitted — should fail refine
-                wasAiInferred: true,
-              },
-            ],
-          }),
-        ],
-      },
-      { content: [textBlock("still bad")] },
-    ]);
-    const { prisma } = makeStubPrisma();
-
-    await assert.rejects(
-      () =>
-        generateFinalGroceryList(
-          "Plan",
-          [baseInputItem({ canonicalName: "chicken" })],
-          ["meat_seafood", "extras"],
-          { prisma, userId: TEST_USER_ID, client: fake.client },
-        ),
-      (err: unknown) => err instanceof GroceryListAIError,
-    );
+      const sent = fake.lastUserMessage();
+      // knownSections must be passed through verbatim.
+      assert.ok(sent && sent.includes("household"));
+      assert.ok(sent && sent.includes("produce"));
+    });
   });
 });
 

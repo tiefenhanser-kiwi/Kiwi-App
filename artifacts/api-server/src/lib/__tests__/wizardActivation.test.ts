@@ -338,11 +338,22 @@ describe("inferCategory — WS7-5d Block 2 expanded category union", () => {
     // keywords are intentionally multi-token ("diced tomato", "crushed
     // tomato", etc.) so the rule ordering doesn't steal fresh produce. The
     // Produce rule's "tomato" single-token match is what catches these.
-    // Note: the existing \btomatos?\b matcher doesn't handle the irregular
-    // "tomatoes" plural (same reason "Lemons" works but "potatoes" doesn't);
-    // that's a pre-Block-2 limitation, not in scope to fix here.
     assert.equal(inferCategory("tomato"), "Produce");
     assert.equal(inferCategory("roma tomato"), "Produce");
+  });
+
+  it("handles irregular -oes plurals (D-WS7-078): tomatoes/potatoes route to Produce", () => {
+    // Pre-Block-3 the matcher was `\bkeyword s?\b`, which handles regular -s
+    // plurals (lemon→lemons) but not -oes (tomato→tomatoes, potato→potatoes)
+    // — surfaced in WS7-5d Block 2 wizard-path categorization. Block 3
+    // widens the regex to `(?:es|s)?` (es-first so -oes matches greedily).
+    assert.equal(inferCategory("tomatoes"), "Produce");
+    assert.equal(inferCategory("potatoes"), "Produce");
+    // Regression: regular -s plurals still match.
+    assert.equal(inferCategory("lemons"), "Produce");
+    // Negative: word-boundary still rejects substrings inside unrelated
+    // words ("chip" must NOT match inside "chipotle").
+    assert.equal(inferCategory("chipotle"), "Pantry");
   });
 
   it("unknowns still fall through to Pantry", () => {

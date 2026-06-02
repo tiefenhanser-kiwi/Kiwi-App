@@ -188,9 +188,12 @@ function keywordMatches(name: string, keyword: string): boolean {
     // ("ground beef" should match "1 lb ground beef, lean").
     return name.includes(keyword);
   }
-  // Single-token keyword: word-boundary, with a permissive trailing 's' so
-  // plurals match without bloating the keyword list.
-  return new RegExp(`\\b${escapeRegExp(keyword)}s?\\b`, "i").test(name);
+  // Single-token keyword: word-boundary with permissive trailing plural
+  // suffix. WS7-5d Block 3 D-WS7-078: `(?:es|s)?` (es first so the engine
+  // consumes -oes before falling back to -s) closes the irregular-plural
+  // gap so "tomato"→"tomatoes" and "potato"→"potatoes" both match alongside
+  // the regular "lemon"→"lemons" case.
+  return new RegExp(`\\b${escapeRegExp(keyword)}(?:es|s)?\\b`, "i").test(name);
 }
 
 /**
