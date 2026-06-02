@@ -327,7 +327,10 @@ describe("consolidatePlanIngredients — section mapping", () => {
                 { name: "Cheddar", quantity: 1, unit: "block", category: "Dairy" },
                 { name: "Rice", quantity: 1, unit: "cup", category: "Pantry" },
                 { name: "Bread", quantity: 1, unit: "loaf", category: "Bakery" },
+                { name: "Diced Tomatoes", quantity: 1, unit: "can", category: "Canned" },
                 { name: "Frozen Peas", quantity: 1, unit: "bag", category: "Frozen" },
+                { name: "Pretzels", quantity: 1, unit: "bag", category: "Snacks" },
+                { name: "Paper Towels", quantity: 1, unit: "roll", category: "Household" },
               ],
             },
           ],
@@ -340,7 +343,10 @@ describe("consolidatePlanIngredients — section mapping", () => {
     assert.equal(findItem(out, "cheddar")?.sectionKey, "dairy_eggs");
     assert.equal(findItem(out, "rice")?.sectionKey, "pantry");
     assert.equal(findItem(out, "bread")?.sectionKey, "bakery_bread");
+    assert.equal(findItem(out, "diced tomatoes")?.sectionKey, "canned");
     assert.equal(findItem(out, "frozen peas")?.sectionKey, "frozen");
+    assert.equal(findItem(out, "pretzels")?.sectionKey, "snacks");
+    assert.equal(findItem(out, "paper towels")?.sectionKey, "household");
   });
 
   it("falls back to 'extras' for unknown categories", async () => {

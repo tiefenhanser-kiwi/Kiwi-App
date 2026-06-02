@@ -54,13 +54,20 @@ export class GroceryConsolidationForbiddenError extends Error {
 }
 
 // Ingredient.category → StoreSection. Unknown categories fall back to 'extras'.
+// WS7-5d Block 1 Fix B: extended from 6 → 9 explicit categories so canned/
+// snacks/household route deterministically instead of dropping into 'extras'
+// for the Sonnet final-polish pass to reassign. 'extras' is now a genuine
+// last-resort for truly uncategorized input.
 const CATEGORY_TO_SECTION: Record<string, StoreSection> = {
   Produce: "produce",
   Protein: "meat_seafood",
   Dairy: "dairy_eggs",
   Pantry: "pantry",
   Bakery: "bakery_bread",
+  Canned: "canned",
   Frozen: "frozen",
+  Snacks: "snacks",
+  Household: "household",
 };
 
 function sectionForCategory(category: string | null | undefined): StoreSection {

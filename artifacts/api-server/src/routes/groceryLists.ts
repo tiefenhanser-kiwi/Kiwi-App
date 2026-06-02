@@ -72,13 +72,18 @@ const KNOWN_SECTIONS: StoreSection[] = [
 // 6c-6 Block B — Ingredient.category → StoreSection. Mirrors the table in
 // groceryList.ts (kept duplicated here to avoid widening that file's API
 // surface; the two consumers will diverge as 6c-6+ adds more categories).
+// WS7-5d Block 1 Fix B: kept in sync with the lib copy — both expanded to 9
+// explicit categories so canned/snacks/household route deterministically.
 const CATEGORY_TO_SECTION_LOOKUP: Record<string, SectionKey> = {
   Produce: "produce",
   Protein: "meat_seafood",
   Dairy: "dairy_eggs",
   Pantry: "pantry",
   Bakery: "bakery_bread",
+  Canned: "canned",
   Frozen: "frozen",
+  Snacks: "snacks",
+  Household: "household",
 };
 
 function sectionForCategory(category: string | null | undefined): SectionKey {
