@@ -626,9 +626,17 @@ describe("consolidatePlanIngredients — purchase-size pass-through", () => {
   });
 });
 
-// ── 6c-5: prep-note + source-dish-title threading ───────────────────────
+// ── prep-note + source-dish-title threading ────────────────────────────
+//
+// WS7-5d Block 4 Fix 1 — bucket key dropped `normalizedPrep` so the
+// consolidator now obeys PRD §2.8 (one row per ingredient, summed). The
+// 6c-5 split-by-prep behavior was a wrong call; prep is recipe metadata
+// that belongs on the recipe page, not the grocery list. The first
+// non-null prep observed in a merged bucket still flows on
+// ConsolidatedItem.preparationNote for the downstream AI form-inference
+// path, but rows no longer split on prep.
 
-describe("consolidatePlanIngredients — 6c-5 prep-note + dish title", () => {
+describe("consolidatePlanIngredients — prep-note merging + dish title", () => {
   it("merges same canonical + same prep into one row, preserving prep + summing qty", async () => {
     const prisma = makePrisma({
       items: [
@@ -679,7 +687,7 @@ describe("consolidatePlanIngredients — 6c-5 prep-note + dish title", () => {
     assert.equal(chickenLines[0].preparationNote, "shredded");
   });
 
-  it("splits same canonical with different prep notes into two rows", async () => {
+  it("MERGES same canonical with different prep notes into one row, summing qty + keeping first prep (Block 4 Fix 1)", async () => {
     const prisma = makePrisma({
       items: [
         {
@@ -724,12 +732,13 @@ describe("consolidatePlanIngredients — 6c-5 prep-note + dish title", () => {
     });
     const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
     const chickenLines = out.filter((i) => i.canonicalName === "chicken");
-    assert.equal(chickenLines.length, 2);
-    const preps = chickenLines.map((l) => l.preparationNote).sort();
-    assert.deepEqual(preps, ["diced", "shredded"]);
+    assert.equal(chickenLines.length, 1);
+    assert.equal(chickenLines[0].quantity, 2);
+    // First-seen prep wins ("shredded" from i1; "diced" from i2 is dropped).
+    assert.equal(chickenLines[0].preparationNote, "shredded");
   });
 
-  it("splits one null prep + one non-null prep into two rows (different bucket keys)", async () => {
+  it("MERGES one null prep + one non-null prep into one row, keeping the non-null prep (Block 4 Fix 1)", async () => {
     const prisma = makePrisma({
       items: [
         {
@@ -774,10 +783,11 @@ describe("consolidatePlanIngredients — 6c-5 prep-note + dish title", () => {
     });
     const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
     const chickenLines = out.filter((i) => i.canonicalName === "chicken");
-    assert.equal(chickenLines.length, 2);
-    const preps = chickenLines.map((l) => l.preparationNote);
-    assert.ok(preps.includes(null));
-    assert.ok(preps.includes("shredded"));
+    assert.equal(chickenLines.length, 1);
+    assert.equal(chickenLines[0].quantity, 2);
+    // i1 sees null first → entry.preparationNote = null; i2 then upgrades it
+    // to "shredded" via the null→non-null backfill at groceryList.ts:222.
+    assert.equal(chickenLines[0].preparationNote, "shredded");
   });
 
   it("populates sourceDishTitle from the first contributing dish", async () => {
@@ -868,8 +878,10 @@ describe("consolidatePlanIngredients — 6c-5 prep-note + dish title", () => {
     assert.equal(out[0].sourceDishTitle, null);
   });
 
-  it("normalizes prep casing/whitespace when deciding the bucket (no stemming)", async () => {
-    // "Shredded" + " shredded " → same bucket; "shredded" + "diced" → split.
+  it("normalizes canonical casing/whitespace when deciding the bucket (Block 4 Fix 1)", async () => {
+    // "Chicken" + " chicken " + "the chicken" → all bucket together via the
+    // normalizeIngredientName applied at the bucket key. The 6c-5 prep
+    // casing test it replaces is moot now that prep is no longer in the key.
     const prisma = makePrisma({
       items: [
         {
@@ -882,10 +894,11 @@ describe("consolidatePlanIngredients — 6c-5 prep-note + dish title", () => {
               ingredients: [
                 {
                   name: "Chicken",
+                  canonicalNameOverride: "Chicken",
                   quantity: 1,
                   unit: "lb",
                   category: "Protein",
-                  preparationNote: "Shredded",
+                  preparationNote: "shredded",
                 },
               ],
             },
@@ -901,10 +914,31 @@ describe("consolidatePlanIngredients — 6c-5 prep-note + dish title", () => {
               ingredients: [
                 {
                   name: "Chicken",
+                  canonicalNameOverride: "  chicken  ",
                   quantity: 1,
                   unit: "lb",
                   category: "Protein",
-                  preparationNote: "  shredded  ",
+                  preparationNote: "diced",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "i3",
+          dishes: [
+            {
+              id: "d3",
+              title: "Soup",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Chicken",
+                  canonicalNameOverride: "the chicken",
+                  quantity: 1,
+                  unit: "lb",
+                  category: "Protein",
+                  preparationNote: null,
                 },
               ],
             },
@@ -913,8 +947,84 @@ describe("consolidatePlanIngredients — 6c-5 prep-note + dish title", () => {
       ],
     });
     const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
-    const chickenLines = out.filter((i) => i.canonicalName === "chicken");
+    const chickenLines = out.filter(
+      (i) => i.canonicalName.toLowerCase().trim().replace(/^(the |a )/, "") === "chicken",
+    );
     assert.equal(chickenLines.length, 1);
-    assert.equal(chickenLines[0].quantity, 2);
+    assert.equal(chickenLines[0].quantity, 3);
+  });
+
+  it("multi-meal same-ingredient device-test repro: yellow onion across 3 dishes with 3 prep verbs → ONE row (Block 4 Fix 1 acceptance)", async () => {
+    // Mirrors the device-test pattern Hans saw: same canonical + unit, three
+    // distinct prep verbs across three recipes. Pre-fix this produced 3 rows
+    // (the lime/onion/butter duplicates on the device list). Post-fix:
+    // one merged row, summed quantity.
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Steak Skillet",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Yellow onion",
+                  quantity: 2,
+                  unit: "each",
+                  category: "Produce",
+                  preparationNote: "diced",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "i2",
+          dishes: [
+            {
+              id: "d2",
+              title: "Pico de Gallo",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Yellow onion",
+                  quantity: 2,
+                  unit: "each",
+                  category: "Produce",
+                  preparationNote: "finely diced",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: "i3",
+          dishes: [
+            {
+              id: "d3",
+              title: "Beef Tacos",
+              servingsDefault: 4,
+              ingredients: [
+                {
+                  name: "Yellow onion",
+                  quantity: 1,
+                  unit: "each",
+                  category: "Produce",
+                  preparationNote: "sliced",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    const onions = out.filter((i) => i.canonicalName === "yellow onion");
+    assert.equal(onions.length, 1, "yellow onion should merge to ONE row regardless of prep variation");
+    assert.equal(onions[0].quantity, 5, "summed across all three contributing dishes");
+    // First-seen non-null prep is preserved for AI form-inference.
+    assert.equal(onions[0].preparationNote, "diced");
   });
 });

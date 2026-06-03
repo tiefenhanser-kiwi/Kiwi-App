@@ -96,6 +96,15 @@ const CATEGORY_RULES: CategoryRule[] = [
       "chickpea", "black bean", "kidney bean", "pinto bean",
       "white bean", "cannellini bean", "navy bean", "refried bean",
       "tuna",
+      // WS7-5d Block 4 Fix 3: route pickled items + capers to Canned. Block 2
+      // ordering keeps Canned ahead of Produce so "pickled jalapeño" wins
+      // over the bare "jalapeño" Produce match (same pattern as
+      // "crushed tomato" → Canned over "tomato" → Produce). "pickled" is a
+      // substring keyword so it also catches "pickled onion", "pickled
+      // ginger", "pickled vegetables". "olive" was considered but rejected
+      // — its single-token word-boundary regex catches "olive oil".
+      "pickled",
+      "capers",
     ],
   },
   // WS7-5d Block 2: Snacks — conservative keyword set. Bare "chips" matches

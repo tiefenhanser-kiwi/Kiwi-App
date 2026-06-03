@@ -360,6 +360,27 @@ describe("inferCategory — WS7-5d Block 2 expanded category union", () => {
     assert.equal(inferCategory("xyzzy"), "Pantry");
     assert.equal(inferCategory(""), "Pantry");
   });
+
+  it("WS7-5d Block 4 Fix 3: pickled items + capers route to Canned (ahead of Produce)", () => {
+    // Device-test surfaced "pickled jalapeños" landing in Produce; the bare
+    // "jalapeño" Produce keyword was winning. Adding "pickled" as a Canned
+    // substring keyword (Canned ordered before Produce) routes the pickled
+    // variant correctly while leaving fresh "jalapeño" alone.
+    assert.equal(inferCategory("pickled jalapeños"), "Canned");
+    assert.equal(inferCategory("pickled jalapeno"), "Canned");
+    assert.equal(inferCategory("pickled onions"), "Canned");
+    assert.equal(inferCategory("pickled ginger"), "Canned");
+    assert.equal(inferCategory("capers"), "Canned");
+    // Negative regressions: bare produce variants still land in Produce.
+    assert.equal(inferCategory("jalapeño"), "Produce");
+    assert.equal(inferCategory("jalapeno"), "Produce");
+    assert.equal(inferCategory("yellow onion"), "Produce");
+    assert.equal(inferCategory("ginger"), "Produce");
+    // "olive" was deliberately NOT added — its single-token regex catches
+    // "olive oil" (pantry). This test pins that olive oil stays out of Canned.
+    assert.equal(inferCategory("olive oil"), "Pantry");
+    assert.equal(inferCategory("extra virgin olive oil"), "Pantry");
+  });
 });
 
 // WS7-5d Block 2 — Ingredient.upsert now writes purchase fields on create

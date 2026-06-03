@@ -870,7 +870,7 @@ function GroceryRow({
                   color: KColors.neutral[700],
                 },
               ]}
-              numberOfLines={1}
+              numberOfLines={2}
             >
               {item.name}
             </Text>

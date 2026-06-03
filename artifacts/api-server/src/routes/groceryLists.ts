@@ -108,12 +108,20 @@ const ACTIVE_WINDOW_DAYS = 7;
 // (see prisma/seed.ts + seeds/devData.ts canonicalize). We normalize the
 // AI's output through the same Block A helper before the equals lookup, so
 // casing/whitespace/leading-article drift from AI output still hits the row.
+//
+// WS7-5d Block 4 Fix 2 — signature widened from Prisma.TransactionClient to
+// PrismaClient | TransactionClient so the caller can hoist the lookups out
+// of the interactive transaction (the per-item findFirst storm inside the
+// tx blew the 5s budget on cold-cache generates: P2028, same shape as
+// WS7-5b activate D-WS7-067). Lookups read immutable canonical rows
+// (ingredients are upserted upstream during wizard activation); running
+// them before the tx is race-free in practice.
 async function lookupIngredientIdByCanonicalName(
-  tx: Prisma.TransactionClient,
+  db: PrismaClient | Prisma.TransactionClient,
   canonicalName: string,
 ): Promise<string | null> {
   const normalized = normalizeIngredientName(canonicalName);
-  const row = await tx.ingredient.findFirst({
+  const row = await db.ingredient.findFirst({
     where: { canonicalName: normalized },
     select: { id: true },
   });
@@ -209,10 +217,22 @@ export function createGroceryListsRouter(
           { prisma, userId },
         );
 
-        // 5. Persist GroceryList + items in a single transaction.
-        //    Ingredient lookup runs inside the tx so the lookup sees the
-        //    same view as the createMany write (no torn read on a
-        //    concurrent ingredient backfill).
+        // 5. Resolve canonical → ingredientId for every final-list item
+        //    BEFORE opening the transaction. The previous shape ran one
+        //    findFirst per item inside the interactive tx; on a cold DB
+        //    cache the parallel reads serialized on the connection pool
+        //    and blew the default 5s tx budget (P2028, observed live).
+        //    Lookups read immutable canonical rows (ingredients are
+        //    upserted upstream during wizard activation), so running them
+        //    outside the tx is race-free.
+        const resolvedIngredientIds = await Promise.all(
+          final.items.map((item) =>
+            lookupIngredientIdByCanonicalName(prisma, item.canonicalName),
+          ),
+        );
+
+        // 6. Persist GroceryList + items atomically. Tx now contains only
+        //    the two writes that must commit together.
         const list = await prisma.$transaction(async (tx) => {
           const grocery = await tx.groceryList.create({
             data: {
@@ -226,27 +246,22 @@ export function createGroceryListsRouter(
             },
           });
 
-          const items = await Promise.all(
-            final.items.map(async (item) => ({
-              groceryListId: grocery.id,
-              ingredientId: await lookupIngredientIdByCanonicalName(
-                tx,
-                item.canonicalName,
-              ),
-              displayName: item.displayName,
-              quantity: item.quantity,
-              unit: item.unit,
-              storeSection: item.sectionKey,
-              isUniversalStaple: item.isUniversalStaple,
-              isUserPantryStaple: item.isUserPantryStaple,
-              isRecurringItem: item.isRecurringItem,
-              // 6c-5: AI-determined now, replacing the hardcoded `true`.
-              wasAiInferred: item.wasAiInferred,
-              isAmbiguous: item.isAmbiguous,
-              ambiguityOptions: item.ambiguityOptions ?? [],
-              notes: item.notes,
-            })),
-          );
+          const items = final.items.map((item, idx) => ({
+            groceryListId: grocery.id,
+            ingredientId: resolvedIngredientIds[idx],
+            displayName: item.displayName,
+            quantity: item.quantity,
+            unit: item.unit,
+            storeSection: item.sectionKey,
+            isUniversalStaple: item.isUniversalStaple,
+            isUserPantryStaple: item.isUserPantryStaple,
+            isRecurringItem: item.isRecurringItem,
+            // 6c-5: AI-determined now, replacing the hardcoded `true`.
+            wasAiInferred: item.wasAiInferred,
+            isAmbiguous: item.isAmbiguous,
+            ambiguityOptions: item.ambiguityOptions ?? [],
+            notes: item.notes,
+          }));
 
           if (items.length > 0) {
             await tx.groceryListItem.createMany({ data: items });
@@ -254,7 +269,7 @@ export function createGroceryListsRouter(
           return grocery;
         });
 
-        // 6. Activity log — non-blocking. A duplicate-key or other write
+        // 7. Activity log — non-blocking. A duplicate-key or other write
         //    failure must not fail the user-facing generation.
         prisma.userActivity
           .create({

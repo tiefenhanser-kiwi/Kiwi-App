@@ -80,20 +80,21 @@ const UNIVERSAL_STAPLE_KEYS = new Set(
   UNIVERSAL_STAPLES.map((s) => normalizeIngredientName(s.canonicalName)),
 );
 
-// 6c-5: prep-note added to the bucket key so "shredded chicken" and "diced
-// chicken" stay separate grocery rows. Normalization = lowercase + trim
-// only (no stemming, no synonym mapping); empty string when no prep note,
-// preserving prior single-bucket behavior for the no-prep case.
-function normalizePrep(raw: string | null | undefined): string {
-  return raw?.toLowerCase().trim() ?? "";
-}
-
-function bucketKeyOf(
-  canonical: string,
-  unit: string,
-  normalizedPrep: string,
-): string {
-  return `${canonical}|${unit}|${normalizedPrep}`;
+// WS7-5d Block 4 Fix 1 — bucket key is (normalizedCanonical, unit). Prep is
+// intentionally NOT part of the key. The 6c-5 decision to split rows by prep
+// ("shredded chicken" vs "diced chicken") contradicted the LOCKED PRD §2.8
+// rule that each unique ingredient appears once on the grocery list. For
+// shopping, prep is recipe-metadata: you buy one bag of chicken regardless of
+// how each recipe wants it cooked. The first-seen prep note still flows on
+// ConsolidatedItem.preparationNote for downstream AI form-inference.
+//
+// Normalization on canonical: applied via normalizeIngredientName (lowercase
+// + whitespace + leading-article) as defensive insurance against drift from
+// the wizard write path. The wizard's lowercase+trim should already make
+// this a no-op in practice; the extra normalization costs nothing and lets
+// the bucket survive any future drift.
+function bucketKeyOf(canonical: string, unit: string): string {
+  return `${normalizeIngredientName(canonical)}|${unit}`;
 }
 
 const MAX_SOURCE_DISH_TITLE_LEN = 60;
@@ -159,7 +160,7 @@ export async function consolidatePlanIngredients(
   if (!plan) throw new GroceryConsolidationNotFoundError(planId);
   if (plan.userId !== userId) throw new GroceryConsolidationForbiddenError(planId);
 
-  // Bucket: (canonicalName, unit, normalizedPrep) → consolidated entry.
+  // Bucket: (normalizedCanonical, unit) → consolidated entry.
   const buckets = new Map<string, ConsolidatedItem>();
   // Preserve first-seen order so output is stable.
   const order: string[] = [];
@@ -177,8 +178,7 @@ export async function consolidatePlanIngredients(
         const display = ing?.displayName ?? canonical;
         const unit = di.unit ?? "";
         const prepRaw = di.preparationNote ?? null;
-        const normalizedPrep = normalizePrep(prepRaw);
-        const key = bucketKeyOf(canonical, unit, normalizedPrep);
+        const key = bucketKeyOf(canonical, unit);
         const scaledQty = di.quantity * multiplier;
 
         let entry = buckets.get(key);
@@ -208,17 +208,18 @@ export async function consolidatePlanIngredients(
           buckets.set(key, entry);
           order.push(key);
         } else {
-          // Within a bucket, prep is identical (it's part of the key); the
-          // existing entry's preparationNote is authoritative. Extend the
-          // source-dish-title list with distinct dishes contributing to
-          // this bucket so the AI sees multiple cooking contexts.
+          // Extend the source-dish-title list with distinct dishes
+          // contributing to this bucket so the AI sees multiple cooking
+          // contexts.
           entry.sourceDishTitle = extendSourceDishTitle(
             entry.sourceDishTitle,
             dish.title ?? null,
           );
-          // Defensive: if entry's preparationNote was set to the empty-string
-          // raw form, prefer the first non-null prep note observed (should
-          // not happen given the merge key, but cheap to keep honest).
+          // Block 4 Fix 1: same canonical can now arrive with different prep
+          // notes (the bucket no longer splits on prep). Keep the first
+          // non-null prep observed — that's still useful context for the AI
+          // form-inference path, even though it doesn't surface on the
+          // shopper-facing list.
           if (entry.preparationNote === null && prepRaw !== null) {
             entry.preparationNote = prepRaw;
           }
@@ -264,7 +265,7 @@ export async function consolidatePlanIngredients(
     }
     if (matched) continue;
 
-    const key = bucketKeyOf(norm, "each", "");
+    const key = bucketKeyOf(norm, "each");
     if (buckets.has(key)) {
       // Already added a synthetic bucket for an earlier identical recurring entry.
       const existing = buckets.get(key)!;
