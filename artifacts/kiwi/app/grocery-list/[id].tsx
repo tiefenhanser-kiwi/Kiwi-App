@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   Pressable,
@@ -65,6 +66,22 @@ export default function GroceryListDetail() {
   // and the no-network grocery-list screen smoke test.
   const [list, setList] = useState<GroceryList | null>(() =>
     id.startsWith("demo-grocery-") ? getGroceryListById(id) : null,
+  );
+  // WS7-5d Block 5 Fix 3: distinguish "still fetching" from "fetched + null".
+  // Pre-fix the screen rendered the not-found branch any time `list === null`,
+  // so the GET round-trip on a real list flashed "List not found." for ~the
+  // duration of the request. Loading shows a spinner; the not-found branch
+  // only renders on a resolved error or a demo-stub miss. PRD §12.7 doesn't
+  // pin a skeleton; ActivityIndicator + the existing notFoundWrap layout is
+  // the smallest faithful match to the design system here.
+  const [loadStatus, setLoadStatus] = useState<"loading" | "ready" | "error">(
+    () => {
+      if (!id) return "error";
+      if (id.startsWith("demo-grocery-")) {
+        return getGroceryListById(id) ? "ready" : "error";
+      }
+      return "loading";
+    },
   );
   const [addItemInput, setAddItemInput] = useState("");
   // 6c-6-C — debounced typeahead state. debouncedQuery trails the raw
@@ -142,24 +159,44 @@ export default function GroceryListDetail() {
 
   // WS6 6c-4 Block C — fetch the real list from the API for non-demo ids.
   // Demo lists are stub-only (design review) and were already populated
-  // synchronously above. Errors surface as null list (the existing
-  // "List not found." fallback renders below).
+  // synchronously above. WS7-5d Block 5 Fix 3: success and error paths now
+  // flip loadStatus so the render branches below distinguish "still
+  // fetching" (spinner) from "resolved-empty / error" (not-found text). Pre-
+  // fix both states were indistinguishable and the screen flashed the
+  // not-found branch for the duration of the GET.
   useEffect(() => {
     if (!id || id.startsWith("demo-grocery-")) return;
     let cancelled = false;
     (async () => {
       try {
         const real = await getGroceryList(id);
-        if (!cancelled) setList(real);
+        if (!cancelled) {
+          setList(real);
+          setLoadStatus("ready");
+        }
       } catch (err) {
         console.error("[grocery-list/[id]] load failed", err);
-        if (!cancelled) setList(null);
+        if (!cancelled) {
+          setList(null);
+          setLoadStatus("error");
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [id]);
+
+  if (loadStatus === "loading") {
+    return (
+      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+        <Header showBack title="Grocery List" />
+        <View style={s.notFoundWrap}>
+          <ActivityIndicator size="large" color={KColors.sage[700]} />
+        </View>
+      </View>
+    );
+  }
 
   if (!list) {
     return (

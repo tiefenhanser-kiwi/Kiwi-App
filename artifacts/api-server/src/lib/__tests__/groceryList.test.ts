@@ -485,6 +485,38 @@ describe("consolidatePlanIngredients — staple flags", () => {
     assert.equal(out[0].isUniversalStaple, true);
     assert.equal(out[0].isUserPantryStaple, true);
   });
+
+  it("WS7-5d Block 5 Fix 1: flags 'water' as a universal staple (recipe 'water' does not become a buyable bottle)", async () => {
+    // Device-test surfaced "water" rendering as a buyable grocery row when a
+    // recipe called for "1/2 cup water". Staple-flagging routes it to the
+    // dimmed default-staple state in the UI (same as salt/pepper) — the user
+    // can still opt in if they actually want bottled water on the trip.
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Soup base",
+              servingsDefault: 4,
+              ingredients: [
+                { name: "Water", quantity: 0.5, unit: "cup", category: "Pantry" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({
+      prisma,
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const water = findItem(out, "water");
+    assert.ok(water, "water entry should exist on the consolidated list");
+    assert.equal(water!.isUniversalStaple, true);
+  });
 });
 
 describe("consolidatePlanIngredients — recurring items", () => {

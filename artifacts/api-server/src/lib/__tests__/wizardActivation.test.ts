@@ -361,6 +361,30 @@ describe("inferCategory — WS7-5d Block 2 expanded category union", () => {
     assert.equal(inferCategory(""), "Pantry");
   });
 
+  it("WS7-5d Block 5 Fix 2: broths and stocks route to Canned (ahead of Protein)", () => {
+    // Device-test surfaced "chicken broth" / "low-sodium chicken broth"
+    // landing in Protein because the bare "chicken" keyword wins ahead of
+    // any Canned match. Adding "broth" + "stock" to Canned (ordered before
+    // Protein) resolves it — same ordering trick as the pickled fix below.
+    assert.equal(inferCategory("chicken broth"), "Canned");
+    assert.equal(inferCategory("low-sodium chicken broth"), "Canned");
+    assert.equal(inferCategory("beef broth"), "Canned");
+    assert.equal(inferCategory("vegetable broth"), "Canned");
+    assert.equal(inferCategory("vegetable stock"), "Canned");
+    assert.equal(inferCategory("chicken stock"), "Canned");
+    assert.equal(inferCategory("bone broth"), "Canned");
+
+    // Negative — whole-protein names must NOT get pulled into Canned. The
+    // single-token "broth"/"stock" word-boundary keeps these in Protein
+    // where the existing chicken/beef keywords match. Pinning the negative
+    // here mirrors the "olive oil" rejection in the pickled test below.
+    assert.equal(inferCategory("chicken breast"), "Protein");
+    assert.equal(inferCategory("chicken breasts"), "Protein");
+    assert.equal(inferCategory("chicken thighs"), "Protein");
+    assert.equal(inferCategory("ground chicken"), "Protein");
+    assert.equal(inferCategory("beef brisket"), "Protein");
+  });
+
   it("WS7-5d Block 4 Fix 3: pickled items + capers route to Canned (ahead of Produce)", () => {
     // Device-test surfaced "pickled jalapeños" landing in Produce; the bare
     // "jalapeño" Produce keyword was winning. Adding "pickled" as a Canned

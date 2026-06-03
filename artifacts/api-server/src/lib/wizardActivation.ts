@@ -105,6 +105,16 @@ const CATEGORY_RULES: CategoryRule[] = [
       // — its single-token word-boundary regex catches "olive oil".
       "pickled",
       "capers",
+      // WS7-5d Block 5 Fix 2: route broths/stocks to Canned. Device-test
+      // surfaced "chicken broth" + "low-sodium chicken broth" landing in
+      // Protein because the bare "chicken" keyword wins ahead of any Canned
+      // match. Adding "broth" + "stock" as single-token keywords with Canned
+      // ordered before Protein resolves it (same ordering trick as the
+      // "pickled" → Canned fix above). Single-token word-boundary keeps
+      // "chicken broth" → Canned but leaves plain "chicken breast" /
+      // "chicken thighs" still routing to Protein (no broth/stock token).
+      "broth",
+      "stock",
     ],
   },
   // WS7-5d Block 2: Snacks — conservative keyword set. Bare "chips" matches
