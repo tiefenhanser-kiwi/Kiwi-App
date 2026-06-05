@@ -313,14 +313,33 @@ function makeA2Stub(opts: {
           .slice()
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
       findFirst: async (args: {
-        where: { userId: string; isActiveThisWeek?: boolean };
+        where: {
+          userId: string;
+          isWizardDraft?: boolean;
+          startDate?: { lte: Date };
+          endDate?: { gte: Date };
+        };
       }) =>
-        instances.find(
-          (i) =>
-            i.userId === args.where.userId &&
-            (args.where.isActiveThisWeek === undefined ||
-              i.isActiveThisWeek === args.where.isActiveThisWeek),
-        ) ?? null,
+        // WS7-6 (E): R1 + R6 filter by date range, not by the dropped
+        // isActiveThisWeek flag. Mirror Prisma's filter shape here so the
+        // active-summary tests exercise the real predicate. WS7-5a
+        // isWizardDraft exclusion still applies.
+        instances.find((i) => {
+          if (i.userId !== args.where.userId) return false;
+          if (args.where.isWizardDraft !== undefined) {
+            const drafts = (i as { isWizardDraft?: boolean }).isWizardDraft ?? false;
+            if (drafts !== args.where.isWizardDraft) return false;
+          }
+          if (args.where.startDate !== undefined) {
+            if (i.startDate === null) return false;
+            if (i.startDate.getTime() > args.where.startDate.lte.getTime()) return false;
+          }
+          if (args.where.endDate !== undefined) {
+            if (i.endDate === null) return false;
+            if (i.endDate.getTime() < args.where.endDate.gte.getTime()) return false;
+          }
+          return true;
+        }) ?? null,
       findUnique: async (args: { where: { id: string } }) =>
         instances.find((i) => i.id === args.where.id) ?? null,
     },
@@ -531,11 +550,22 @@ describe("GET /plans — list + filter", () => {
     }
   });
 
-  it("includes the activeThisWeek summary", async () => {
+  it("includes the activeThisWeek summary (date-range predicate, R1)", async () => {
+    // WS7-6 (E): the active summary is filtered by [startDate, endDate]
+    // covering `now`, not by the dropped flag. Fixture must carry dates
+    // that bookend the test's runtime `now` so the new findFirst filter
+    // returns the row.
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
     const harness = await a2SpinUp(
       makeA2Stub({
         instances: [
-          instanceFix({ id: "p-active", name: "Active Plan", isActiveThisWeek: true }),
+          instanceFix({
+            id: "p-active",
+            name: "Active Plan",
+            startDate: new Date(now - 3 * day),
+            endDate: new Date(now + 3 * day),
+          }),
         ],
       }),
     );
@@ -562,6 +592,209 @@ describe("GET /plans — list + filter", () => {
     } finally {
       await harness.close();
     }
+  });
+
+  // ── WS7-6 (E) Block 1 §27 verification — auto-roll + wire shape ─────────
+  //
+  // The model change (drop the stored isActiveThisWeek column, derive from
+  // [startDate, endDate]) is justified by the auto-roll property: a
+  // future-dated plan must become "this week" purely as time passes, with
+  // ZERO write event between the create and the moment the read first
+  // surfaces it (D-WS7-062 — there is no scheduler that could flip a
+  // stored flag). These tests pin that property.
+  describe("WS7-6 (E) §27 — auto-roll proof", () => {
+    it("R1 returns the row whose date range covers `now` over rows that don't (purely by date predicate)", async () => {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-past",
+              name: "Last Week",
+              startDate: new Date(now - 14 * day),
+              endDate: new Date(now - 8 * day),
+              createdAt: new Date("2026-04-01T00:00:00Z"),
+            }),
+            instanceFix({
+              id: "p-future",
+              name: "Next Week",
+              startDate: new Date(now + 8 * day),
+              endDate: new Date(now + 14 * day),
+              createdAt: new Date("2026-04-02T00:00:00Z"),
+            }),
+            instanceFix({
+              id: "p-now",
+              name: "This Week",
+              startDate: new Date(now - 3 * day),
+              endDate: new Date(now + 3 * day),
+              createdAt: new Date("2026-04-03T00:00:00Z"),
+            }),
+          ],
+        }),
+      );
+      try {
+        const res = await fetch(`${harness.baseUrl}/plans`, {
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        });
+        const body = (await res.json()) as {
+          activeThisWeek: { id: string } | null;
+        };
+        // p-now is the only row whose [startDate, endDate] covers `now`.
+        // No write happened between the seed and this read.
+        assert.ok(body.activeThisWeek);
+        assert.equal(body.activeThisWeek.id, "p-now");
+      } finally {
+        await harness.close();
+      }
+    });
+
+    it("R1 returns null when no row covers `now` (auto-roll has not occurred yet)", async () => {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-future",
+              name: "Next Week",
+              startDate: new Date(now + 1 * day),
+              endDate: new Date(now + 7 * day),
+            }),
+          ],
+        }),
+      );
+      try {
+        const res = await fetch(`${harness.baseUrl}/plans`, {
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        });
+        const body = (await res.json()) as { activeThisWeek: unknown };
+        assert.equal(body.activeThisWeek, null);
+      } finally {
+        await harness.close();
+      }
+    });
+  });
+
+  describe("WS7-6 (E) §27 — null-exempt proof", () => {
+    it("a null-dated plan is NEVER returned as activeThisWeek (even if it is the only row)", async () => {
+      // Use-template + wizard-draft + undated save all create null-dated
+      // plans. The DB EXCLUDE constraint is WHERE-clause exempt for nulls
+      // (so multiple undated plans coexist), and the date-range predicate
+      // returns false for them — they're never "this week".
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-undated",
+              name: "Undated",
+              startDate: null,
+              endDate: null,
+            }),
+          ],
+        }),
+      );
+      try {
+        const res = await fetch(`${harness.baseUrl}/plans`, {
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        });
+        const body = (await res.json()) as { activeThisWeek: unknown };
+        assert.equal(body.activeThisWeek, null);
+      } finally {
+        await harness.close();
+      }
+    });
+  });
+
+  describe("WS7-6 (E) §27 — wire-shape round-trip", () => {
+    it("GET /plans/:id ships isActiveThisWeek=true on a covers-now plan", async () => {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-current",
+              name: "Covers now",
+              startDate: new Date(now - 2 * day),
+              endDate: new Date(now + 2 * day),
+            }),
+          ],
+        }),
+      );
+      try {
+        const res = await fetch(`${harness.baseUrl}/plans/p-current`, {
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        });
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as {
+          plan: { id: string; isActiveThisWeek: boolean };
+        };
+        assert.equal(body.plan.id, "p-current");
+        assert.equal(body.plan.isActiveThisWeek, true);
+      } finally {
+        await harness.close();
+      }
+    });
+
+    it("GET /plans/:id ships isActiveThisWeek=false on a future-dated plan (proves no-write auto-roll boundary)", async () => {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-future",
+              name: "Next Week",
+              startDate: new Date(now + 7 * day),
+              endDate: new Date(now + 14 * day),
+            }),
+          ],
+        }),
+      );
+      try {
+        const res = await fetch(`${harness.baseUrl}/plans/p-future`, {
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        });
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as {
+          plan: { id: string; isActiveThisWeek: boolean };
+        };
+        // Future plan does not cover `now` yet — boolean ships as false.
+        // When time advances past startDate, the SAME row will start
+        // shipping true without any write event.
+        assert.equal(body.plan.isActiveThisWeek, false);
+      } finally {
+        await harness.close();
+      }
+    });
+
+    it("GET /plans/:id ships isActiveThisWeek=false on a null-dated plan", async () => {
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-undated",
+              name: "Undated",
+              startDate: null,
+              endDate: null,
+            }),
+          ],
+        }),
+      );
+      try {
+        const res = await fetch(`${harness.baseUrl}/plans/p-undated`, {
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        });
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as {
+          plan: { id: string; isActiveThisWeek: boolean };
+        };
+        assert.equal(body.plan.isActiveThisWeek, false);
+      } finally {
+        await harness.close();
+      }
+    });
   });
 });
 
