@@ -50,7 +50,11 @@ import {
   type InstanceRow,
   type PlanListItem,
 } from "../lib/planQueries";
-import { currentWeekRange, isInstanceActiveThisWeek } from "../lib/planDates";
+import {
+  currentWeekRange,
+  didNewlyCoverNow,
+  isInstanceActiveThisWeek,
+} from "../lib/planDates";
 import { sortPlanItemsCanonical } from "../lib/planItemSort";
 import { composeMealDetail, type MealDetail } from "./meals";
 
@@ -561,6 +565,21 @@ export function createPlansRouter(
           metadata: { isActiveThisWeek },
         });
 
+        // WS7-6 (E) Block 1 c2 — re-pointed plan_activated_this_week.
+        // Fires on the not-current → current transition; for create the
+        // prior state is the absence of a row (treated as not-current),
+        // so a create with dates that cover `now` emits the event.
+        if (didNewlyCoverNow({ startDate: null, endDate: null }, instance)) {
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_activated_this_week",
+            entityType: "MealPlanInstance",
+            entityId: instance.id,
+            metadata: { source: "plans_create" },
+          });
+        }
+
         return instance;
       });
 
@@ -893,12 +912,39 @@ export function createPlansRouter(
             metadata: { from: row.status, to: body.status },
           });
         }
-        // WS7-6 (E) Block 1: the flag-flip emit for plan_activated_this_week
-        // is gone — the field no longer transitions on PATCH. Block 1 c2
-        // re-points the event to fire when a PATCH's date change causes
-        // the plan to NEWLY cover `now` (transition from not-current to
-        // current). Wizard activate continues to emit unconditionally
-        // because it always dates the plan to the current week.
+        // WS7-6 (E) Block 1 c2 — re-pointed plan_activated_this_week.
+        // Emit when this PATCH's date changes cause the plan to NEWLY
+        // cover `now` (transition from not-current to current). Replaces
+        // the legacy flag-flip trigger that died with the column drop.
+        // Same-state writes do not emit. Wizard activate, use-template,
+        // and other paths share the same predicate via didNewlyCoverNow.
+        if (
+          changedFields.has("startDate") ||
+          changedFields.has("endDate")
+        ) {
+          const prevDates = {
+            startDate: row.startDate,
+            endDate: row.endDate,
+          };
+          const nextDates = {
+            startDate: changedFields.has("startDate")
+              ? (nextStartDate ?? null)
+              : row.startDate,
+            endDate: changedFields.has("endDate")
+              ? (nextEndDate ?? null)
+              : row.endDate,
+          };
+          if (didNewlyCoverNow(prevDates, nextDates)) {
+            await emitActivity({
+              tx,
+              userId,
+              eventType: "plan_activated_this_week",
+              entityType: "MealPlanInstance",
+              entityId: id,
+              metadata: { source: "plans_patch" },
+            });
+          }
+        }
         if (changedFields.has("breakfastOverrides")) {
           await emitActivity({
             tx,

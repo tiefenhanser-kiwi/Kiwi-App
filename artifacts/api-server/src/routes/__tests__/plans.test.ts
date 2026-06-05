@@ -1855,10 +1855,49 @@ describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
       // the app layer never issues a demote updateMany.
       assert.equal(recorder.updateManyCalls.length, 0);
 
-      // Activity metadata's computed boolean reflects the new row's
-      // date range covering `now`.
-      assert.equal(recorder.activityWrites.length, 1);
-      assert.deepEqual(recorder.activityWrites[0].metadata, { isActiveThisWeek: true });
+      // Two emits: plan_created (always) + the re-pointed
+      // plan_activated_this_week (because the created row covers now).
+      // c2 adds the second emit — c1 only had plan_created.
+      assert.equal(recorder.activityWrites.length, 2);
+      const createdEvt = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_created",
+      );
+      assert.ok(createdEvt);
+      assert.deepEqual(createdEvt.metadata, { isActiveThisWeek: true });
+      const activated = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.ok(activated, "expected plan_activated_this_week on covers-now create");
+      assert.deepEqual(activated.metadata, { source: "plans_create" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("POST /plans undated body does NOT emit plan_activated_this_week (only plan_created)", async () => {
+    // WS7-6 (E) Block 1 c2 — the re-pointed predicate gates on
+    // not-current → current. An undated create stays not-current
+    // (null-dated → never covers now), so the activation event must
+    // not fire.
+    const recorder: C2Recorder = {
+      createdInstances: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeC2Stub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${signToken(A2_USER)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "Just a Plan" }),
+      });
+      assert.equal(res.status, 201);
+
+      const types = recorder.activityWrites.map((a) => a.eventType);
+      assert.deepEqual(types, ["plan_created"]);
     } finally {
       await harness.close();
     }
@@ -2327,7 +2366,14 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
-  it("startDate + endDate PATCH emits ONE plan_date_range_edited with fields=[startDate,endDate]", async () => {
+  it("startDate + endDate PATCH emits ONE plan_date_range_edited with fields=[startDate,endDate] (+ activated_this_week when new range covers now)", async () => {
+    // WS7-6 (E) Block 1 c2 — date-range PATCHes that newly cover `now`
+    // emit BOTH plan_date_range_edited (one combined event per c4
+    // mapping) AND plan_activated_this_week (the re-pointed activation
+    // event). The fixture starts undated; the new range bookends a
+    // dynamic `now` so the test stays valid as the calendar advances.
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
     const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
     const harness = await mutationSpinUp(
       makeC4PatchStub({
@@ -2336,15 +2382,26 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
       }),
     );
     try {
+      const startIso = new Date(now - 3 * day).toISOString();
+      const endIso = new Date(now + 3 * day).toISOString();
       const res = await patchPlan(harness, "p-1", {
-        startDate: "2026-06-01T00:00:00.000Z",
-        endDate: "2026-06-07T00:00:00.000Z",
+        startDate: startIso,
+        endDate: endIso,
       });
       assert.equal(res.status, 200);
 
-      assert.equal(recorder.activityWrites.length, 1);
-      const meta = recorder.activityWrites[0].metadata as { fields: string[] };
+      const dateEdit = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_date_range_edited",
+      );
+      assert.ok(dateEdit, "expected one plan_date_range_edited");
+      const meta = dateEdit.metadata as { fields: string[] };
       assert.deepEqual(meta.fields, ["startDate", "endDate"]);
+
+      const activated = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.ok(activated, "expected plan_activated_this_week on newly-covers-now PATCH");
+      assert.deepEqual(activated.metadata, { source: "plans_patch" });
     } finally {
       await harness.close();
     }
@@ -2473,19 +2530,110 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
-  it("isActiveThisWeek true -> false does NOT emit plan_activated_this_week (silent demotion)", async () => {
+  it("PATCH that shifts dates from covering-now to not-covering-now does NOT emit plan_activated_this_week (silent demotion)", async () => {
+    // WS7-6 (E) Block 1 c2 — re-pointed predicate. The "covers-now →
+    // not-covering-now" transition does not emit the activation event;
+    // it is a silent demotion. The user did not commit to a new
+    // this-week plan.
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
     const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
     const harness = await mutationSpinUp(
       makeC4PatchStub({
         recorder,
-        instances: [fixturePatch({ id: "p-1", isActiveThisWeek: true })],
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            startDate: new Date(now - 3 * day),
+            endDate: new Date(now + 3 * day),
+          }),
+        ],
       }),
     );
     try {
-      const res = await patchPlan(harness, "p-1", { isActiveThisWeek: false });
+      // Shift dates well into the past — no longer covers now.
+      const res = await patchPlan(harness, "p-1", {
+        startDate: "2025-01-01T00:00:00.000Z",
+        endDate: "2025-01-07T00:00:00.000Z",
+      });
       assert.equal(res.status, 200);
 
       assert.equal(recorder.updateManyCalls.length, 0);
+      const types = recorder.activityWrites.map((a) => a.eventType);
+      assert.equal(types.includes("plan_activated_this_week"), false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("PATCH that newly covers `now` via date change EMITS plan_activated_this_week (re-pointed predicate)", async () => {
+    // WS7-6 (E) Block 1 c2 — the not-current → current transition fires
+    // the re-pointed event. Source metadata distinguishes the path so
+    // analytics can split create vs. patch vs. wizard-activate.
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            // Pre-state: dates in the past (not-current).
+            startDate: new Date("2025-01-01T00:00:00.000Z"),
+            endDate: new Date("2025-01-07T00:00:00.000Z"),
+          }),
+        ],
+      }),
+    );
+    try {
+      const startIso = new Date(now - 3 * day).toISOString();
+      const endIso = new Date(now + 3 * day).toISOString();
+      const res = await patchPlan(harness, "p-1", {
+        startDate: startIso,
+        endDate: endIso,
+      });
+      assert.equal(res.status, 200);
+
+      const emit = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.ok(emit, "expected plan_activated_this_week to fire");
+      assert.deepEqual(emit.metadata, { source: "plans_patch" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("PATCH that re-dates a covers-now plan to another covers-now range does NOT re-emit (same-state)", async () => {
+    // WS7-6 (E) Block 1 c2 — the re-pointed predicate fires only on the
+    // not-current → current transition. A covers-now → covers-now
+    // re-date (user nudging the plan's range while it still covers
+    // today) is not a fresh commitment and must not re-emit.
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            startDate: new Date(now - 5 * day),
+            endDate: new Date(now + 2 * day),
+          }),
+        ],
+      }),
+    );
+    try {
+      const startIso = new Date(now - 2 * day).toISOString();
+      const endIso = new Date(now + 5 * day).toISOString();
+      const res = await patchPlan(harness, "p-1", {
+        startDate: startIso,
+        endDate: endIso,
+      });
+      assert.equal(res.status, 200);
+
       const types = recorder.activityWrites.map((a) => a.eventType);
       assert.equal(types.includes("plan_activated_this_week"), false);
     } finally {

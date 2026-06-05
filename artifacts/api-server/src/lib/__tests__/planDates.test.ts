@@ -7,7 +7,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { currentWeekRange } from "../planDates";
+import {
+  currentWeekRange,
+  didNewlyCoverNow,
+  isInstanceActiveThisWeek,
+} from "../planDates";
 
 describe("currentWeekRange — Sunday-Saturday calendar week (UTC)", () => {
   it("on a Sunday, startDate is that Sunday and endDate is the following Saturday", () => {
@@ -64,5 +68,149 @@ describe("currentWeekRange — Sunday-Saturday calendar week (UTC)", () => {
     const r = currentWeekRange(new Date("2026-12-30T00:00:00.000Z"));
     assert.equal(r.startDate, "2026-12-27");
     assert.equal(r.endDate, "2027-01-02");
+  });
+});
+
+// WS7-6 (E) Block 1 — date-range predicate that replaces the dropped
+// isActiveThisWeek column. The boolean still ships on the wire (decision
+// #2); these tests pin the predicate's edge cases so the readers in
+// plans.ts / home.ts / groceryLists.ts / planQueries.ts agree on
+// semantics with the Postgres EXCLUDE constraint (`tsrange '[]'`).
+describe("isInstanceActiveThisWeek — date-range predicate", () => {
+  const NOW = new Date("2026-06-03T12:00:00.000Z");
+
+  it("returns true when now is strictly inside the range", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        {
+          startDate: new Date("2026-05-31T00:00:00.000Z"),
+          endDate: new Date("2026-06-06T00:00:00.000Z"),
+        },
+        NOW,
+      ),
+      true,
+    );
+  });
+
+  it("returns true on the inclusive start edge", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        { startDate: NOW, endDate: new Date("2026-06-09T00:00:00.000Z") },
+        NOW,
+      ),
+      true,
+    );
+  });
+
+  it("returns true on the inclusive end edge", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        { startDate: new Date("2026-05-31T00:00:00.000Z"), endDate: NOW },
+        NOW,
+      ),
+      true,
+    );
+  });
+
+  it("returns false when now is before the range", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        {
+          startDate: new Date("2026-07-01T00:00:00.000Z"),
+          endDate: new Date("2026-07-07T00:00:00.000Z"),
+        },
+        NOW,
+      ),
+      false,
+    );
+  });
+
+  it("returns false when now is after the range", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        {
+          startDate: new Date("2026-05-01T00:00:00.000Z"),
+          endDate: new Date("2026-05-07T00:00:00.000Z"),
+        },
+        NOW,
+      ),
+      false,
+    );
+  });
+
+  it("returns false when startDate is null (null-dated plan)", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        { startDate: null, endDate: new Date("2026-06-09T00:00:00.000Z") },
+        NOW,
+      ),
+      false,
+    );
+  });
+
+  it("returns false when endDate is null (null-dated plan)", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        { startDate: new Date("2026-05-31T00:00:00.000Z"), endDate: null },
+        NOW,
+      ),
+      false,
+    );
+  });
+
+  it("returns false when both dates are null", () => {
+    assert.equal(
+      isInstanceActiveThisWeek({ startDate: null, endDate: null }, NOW),
+      false,
+    );
+  });
+});
+
+describe("didNewlyCoverNow — re-pointed plan_activated_this_week trigger", () => {
+  const NOW = new Date("2026-06-03T12:00:00.000Z");
+  const covers = {
+    startDate: new Date("2026-05-31T00:00:00.000Z"),
+    endDate: new Date("2026-06-06T00:00:00.000Z"),
+  };
+  const past = {
+    startDate: new Date("2026-05-01T00:00:00.000Z"),
+    endDate: new Date("2026-05-07T00:00:00.000Z"),
+  };
+  const future = {
+    startDate: new Date("2026-07-01T00:00:00.000Z"),
+    endDate: new Date("2026-07-07T00:00:00.000Z"),
+  };
+  const undated = { startDate: null, endDate: null };
+
+  it("undated → covers-now: fires", () => {
+    assert.equal(didNewlyCoverNow(undated, covers, NOW), true);
+  });
+
+  it("past → covers-now: fires", () => {
+    assert.equal(didNewlyCoverNow(past, covers, NOW), true);
+  });
+
+  it("future → covers-now: fires", () => {
+    assert.equal(didNewlyCoverNow(future, covers, NOW), true);
+  });
+
+  it("covers-now → covers-now (same-state re-date): does NOT fire", () => {
+    assert.equal(didNewlyCoverNow(covers, covers, NOW), false);
+  });
+
+  it("covers-now → past: silent demotion, does NOT fire", () => {
+    assert.equal(didNewlyCoverNow(covers, past, NOW), false);
+  });
+
+  it("past → future (both non-covering): does NOT fire", () => {
+    assert.equal(didNewlyCoverNow(past, future, NOW), false);
+  });
+
+  it("undated → undated: does NOT fire", () => {
+    assert.equal(didNewlyCoverNow(undated, undated, NOW), false);
+  });
+
+  it("covers-now → undated: does NOT fire (silent demotion)", () => {
+    assert.equal(didNewlyCoverNow(covers, undated, NOW), false);
   });
 });

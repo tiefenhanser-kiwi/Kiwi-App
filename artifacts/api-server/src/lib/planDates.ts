@@ -67,3 +67,22 @@ export function isInstanceActiveThisWeek(
   return row.startDate.getTime() <= now.getTime()
     && now.getTime() <= row.endDate.getTime();
 }
+
+// WS7-6 (E) Block 1 c2 — analytics predicate for re-pointing the
+// plan_activated_this_week event. Replaces the legacy "isActiveThisWeek
+// flag flipped to true" trigger, which is meaningless after the column
+// drop. Fires only on the not-current → current transition: a date set
+// (POST /plans, wizard activate) or a date change (PATCH /plans/:id)
+// that causes the plan to NEWLY cover `now`. Same-state writes
+// (current → current re-date, not-current → not-current re-date) do
+// not emit; the not-current → current transition does. Preserves the
+// "user committed to a plan this week" analytics signal across the
+// model change.
+export function didNewlyCoverNow(
+  prev: { startDate: Date | null; endDate: Date | null },
+  next: { startDate: Date | null; endDate: Date | null },
+  now: Date = new Date(),
+): boolean {
+  return !isInstanceActiveThisWeek(prev, now)
+    && isInstanceActiveThisWeek(next, now);
+}
