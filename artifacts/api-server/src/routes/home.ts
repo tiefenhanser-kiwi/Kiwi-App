@@ -132,8 +132,19 @@ export function createHomeRouter(
 
     try {
       // ── active plan + today's meal ──────────────────────────────────
+      // WS7-6 (E): "active" is the date-range predicate (now ∈ [startDate,
+      // endDate]); see lib/planDates.ts isInstanceActiveThisWeek. The
+      // per-user EXCLUDE constraint guarantees at most one such row, so
+      // findFirst remains safe. WS7-5a wizard-draft exclusion stays —
+      // hidden drafts are null-dated and would never match the range
+      // filter anyway, but the explicit gate makes intent clearer.
       const activeInstance = await prisma.mealPlanInstance.findFirst({
-        where: { userId, isActiveThisWeek: true },
+        where: {
+          userId,
+          isWizardDraft: false,
+          startDate: { lte: now },
+          endDate: { gte: now },
+        },
         orderBy: { createdAt: "desc" },
         include: {
           template: { select: { title: true } },

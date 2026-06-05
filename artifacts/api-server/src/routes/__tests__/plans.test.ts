@@ -385,6 +385,113 @@ describe("GET /plans — list + filter", () => {
     }
   });
 
+  // WS7-5a — Branch B (PRD §5.6 redline). Hidden wizard drafts are written
+  // on POST /wizard/expand with isWizardDraft=true; my_plans must NOT list
+  // them (the user picks them up via GET /wizard/drafts via the "Resume
+  // where you left off" prompt, not the regular Plans tab).
+  it("my_plans excludes wizard pre-save drafts (isWizardDraft=true)", async () => {
+    // Custom stub: filter by every where key the route passes so we observe
+    // the isWizardDraft: false predicate. Each instance carries the new
+    // flag; only normal plans should be returned.
+    interface DraftAwareInstance {
+      id: string;
+      userId: string;
+      titleOverride: string;
+      isWizardDraft: boolean;
+      isArchived: boolean;
+      isActiveThisWeek: boolean;
+      createdAt: Date;
+      status: string;
+      startDate: Date | null;
+      endDate: Date | null;
+      revisionId: number;
+      prepStatus: string;
+      optimizationNotes: unknown;
+      breakfastOverrides: string | null;
+      lunchOverrides: string | null;
+      template: {
+        title: string;
+        description: string;
+        imageUrl: string | null;
+        tags: string[];
+      };
+      items: unknown[];
+    }
+
+    const fixtures: DraftAwareInstance[] = [
+      // Normal plan — should be returned.
+      {
+        ...instanceFix({ id: "p-real", name: "Real Plan" }),
+        isWizardDraft: false,
+        isArchived: false,
+      },
+      // Wizard draft — must be filtered out.
+      {
+        ...instanceFix({ id: "p-draft", name: "Hidden Wizard Draft" }),
+        isWizardDraft: true,
+        isArchived: false,
+      },
+    ];
+
+    const stub = {
+      mealPlanInstance: {
+        findMany: async (args: {
+          where: {
+            userId: string;
+            isArchived?: boolean;
+            isWizardDraft?: boolean;
+          };
+        }) =>
+          fixtures.filter(
+            (i) =>
+              i.userId === args.where.userId &&
+              (args.where.isArchived === undefined ||
+                i.isArchived === args.where.isArchived) &&
+              (args.where.isWizardDraft === undefined ||
+                i.isWizardDraft === args.where.isWizardDraft),
+          ),
+        findFirst: async (args: {
+          where: {
+            userId: string;
+            isActiveThisWeek?: boolean;
+            isWizardDraft?: boolean;
+          };
+        }) =>
+          fixtures.find(
+            (i) =>
+              i.userId === args.where.userId &&
+              (args.where.isActiveThisWeek === undefined ||
+                i.isActiveThisWeek === args.where.isActiveThisWeek) &&
+              (args.where.isWizardDraft === undefined ||
+                i.isWizardDraft === args.where.isWizardDraft),
+          ) ?? null,
+        findUnique: async (args: { where: { id: string } }) =>
+          fixtures.find((i) => i.id === args.where.id) ?? null,
+      },
+      mealPlanTemplate: { findMany: async () => [] },
+      meal: { findUnique: async () => null },
+      recipeInstructionStep: { findMany: async () => [] },
+      systemSetting: {
+        findMany: async (args: { where: { key: { in: string[] } } }) =>
+          A2_SETTINGS.filter((s) => args.where.key.in.includes(s.key)),
+      },
+    };
+
+    const harness = await a2SpinUp(stub);
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plans: { id: string }[];
+      };
+      assert.deepEqual(body.plans.map((p) => p.id), ["p-real"]);
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("OR semantics: my_plans,featured merges both facets", async () => {
     const harness = await a2SpinUp(
       makeA2Stub({
@@ -495,6 +602,130 @@ describe("GET /plans/:id — composite Plan Review", () => {
       assert.equal(body.plan.items[0].meal?.id, "m-a");
       assert.equal(body.plan.items[0].meal?.calories, 600);
       // (600 + 400) / 2 distinct days = 500/day
+      assert.equal(body.plan.macroDailyAverage.caloriesPerDay, 500);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-6 Fix-Block 2 (D, closes D-WS7-060) — Hans's ratified rule:
+  // per-day average = sum of ASSIGNED meals ÷ count of distinct assigned
+  // days. Numerator and denominator must gate on the SAME assignment
+  // check. Pre-fix the divisor switched to assigned-day count while the
+  // numerator summed ALL items, so a plan with N items and 1 day assigned
+  // returned the SUM of all meals as the per-day value (user read it as
+  // "macros stopped calculating").
+  it("WS7-6 D / D-WS7-060 — partial assignment: numerator gates on assignedDayOfWeek (sum-of-assigned ÷ count-of-assigned-days)", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-partial",
+            name: "Partial Plan",
+            items: [
+              // Assigned — counts in BOTH numerator and denominator.
+              { id: "it-1", mealId: "m-a", positionIndex: 0, assignedDayOfWeek: "Monday" },
+              // UNassigned — pre-fix the 1000-cal meal silently slid into
+              // the numerator while the denominator stayed at 1 (Monday),
+              // bloating the per-day to 1500.
+              { id: "it-2", mealId: "m-big", positionIndex: 1, assignedDayOfWeek: null },
+            ],
+          }),
+        ],
+        meals: [
+          mealFix("m-a", "Assigned meal", 500),
+          mealFix("m-big", "Unassigned big meal", 1000),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-partial`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: { macroDailyAverage: { caloriesPerDay: number | null; proteinGPerDay: number | null } };
+      };
+      // 500 (only the Monday-assigned meal) ÷ 1 assigned day = 500/day.
+      // NOT (500 + 1000) / 1 = 1500 (pre-fix bug).
+      assert.equal(body.plan.macroDailyAverage.caloriesPerDay, 500);
+      // protein: only the assigned meal (mealFix uses 20g) ÷ 1 day = 20.
+      assert.equal(body.plan.macroDailyAverage.proteinGPerDay, 20);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("WS7-6 D — zero meals assigned → all macro fields null (UI renders dash)", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-none",
+            name: "No assignments",
+            items: [
+              { id: "it-1", mealId: "m-a", positionIndex: 0, assignedDayOfWeek: null },
+              { id: "it-2", mealId: "m-b", positionIndex: 1, assignedDayOfWeek: null },
+            ],
+          }),
+        ],
+        meals: [mealFix("m-a", "A", 500), mealFix("m-b", "B", 700)],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-none`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: {
+          macroDailyAverage: {
+            caloriesPerDay: number | null;
+            proteinGPerDay: number | null;
+            carbsGPerDay: number | null;
+            fatGPerDay: number | null;
+          };
+        };
+      };
+      assert.equal(body.plan.macroDailyAverage.caloriesPerDay, null);
+      assert.equal(body.plan.macroDailyAverage.proteinGPerDay, null);
+      assert.equal(body.plan.macroDailyAverage.carbsGPerDay, null);
+      assert.equal(body.plan.macroDailyAverage.fatGPerDay, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("WS7-6 D — all meals assigned: same totals/distinct-day-count math as before (no regression)", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-full",
+            name: "Fully assigned",
+            items: [
+              { id: "it-1", mealId: "m-a", positionIndex: 0, assignedDayOfWeek: "Monday" },
+              { id: "it-2", mealId: "m-b", positionIndex: 1, assignedDayOfWeek: "Tuesday" },
+              { id: "it-3", mealId: "m-c", positionIndex: 2, assignedDayOfWeek: "Wednesday" },
+            ],
+          }),
+        ],
+        meals: [
+          mealFix("m-a", "A", 600),
+          mealFix("m-b", "B", 400),
+          mealFix("m-c", "C", 500),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-full`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: { macroDailyAverage: { caloriesPerDay: number | null } };
+      };
+      // (600 + 400 + 500) / 3 distinct days = 500/day.
       assert.equal(body.plan.macroDailyAverage.caloriesPerDay, 500);
     } finally {
       await harness.close();
@@ -1230,12 +1461,17 @@ describe("POST /plans/use-template/:templateId — happy path", () => {
       assert.ok(body.instance.id.startsWith("created-instance-"));
       assert.equal(body.instance.revisionId, 1);
 
-      // Instance was created with the expected shape.
+      // Instance was created with the expected shape. WS7-6 (E): the
+      // use-template path no longer auto-activates — the new row is
+      // undated and the date-range predicate already treats it as
+      // not-current (null start/end), so isActiveThisWeek is computed
+      // false. Mobile dates the plan with a follow-up PATCH.
       assert.equal(recorder.createdInstances.length, 1);
       const created = recorder.createdInstances[0];
       assert.equal(created.userId, A2_USER);
       assert.equal(created.mealPlanTemplateId, "t-use");
-      assert.equal(created.isActiveThisWeek, true);
+      assert.equal(created.startDate, null);
+      assert.equal(created.endDate, null);
       assert.equal(created.status, "draft");
       assert.equal(created.titleOverride, null);
 
@@ -1253,12 +1489,11 @@ describe("POST /plans/use-template/:templateId — happy path", () => {
       assert.equal(items[0].assignedDayOfWeek, "Monday");
       assert.equal(items[2].assignedDayOfWeek, null);
 
-      // demote-prior-actives happened in the same transaction.
-      assert.equal(recorder.updateManyCalls.length, 1);
-      const updMany = recorder.updateManyCalls[0];
-      assert.equal((updMany.where as { userId: string }).userId, A2_USER);
-      assert.equal((updMany.where as { isActiveThisWeek: boolean }).isActiveThisWeek, true);
-      assert.equal((updMany.data as { isActiveThisWeek: boolean }).isActiveThisWeek, false);
+      // WS7-6 (E): no demote-prior — single-current is enforced by the
+      // per-user EXCLUDE constraint on [startDate, endDate], and the new
+      // row is undated (null-exempt). The use-template path therefore
+      // never touches other rows.
+      assert.equal(recorder.updateManyCalls.length, 0);
 
       // Template.useCount incremented + lastUsedAt bumped.
       assert.equal(recorder.templateUpdates.length, 1);
@@ -1549,19 +1784,25 @@ describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
       assert.ok(body.instance.id.startsWith("created-instance-"));
       assert.equal(body.instance.revisionId, 1);
 
-      // Instance row shape: null template, no name, draft, inactive.
+      // Instance row shape: null template, no name, draft, undated.
+      // WS7-6 (E): isActiveThisWeek is no longer stored; "active" is the
+      // date-range predicate. A minimal-body create is undated → never
+      // current → metadata isActiveThisWeek = false.
       assert.equal(recorder.createdInstances.length, 1);
       const created = recorder.createdInstances[0];
       assert.equal(created.userId, A2_USER);
       assert.equal(created.mealPlanTemplateId, null);
       assert.equal(created.titleOverride, null);
       assert.equal(created.status, "draft");
-      assert.equal(created.isActiveThisWeek, false);
+      assert.equal(created.startDate, null);
+      assert.equal(created.endDate, null);
 
-      // No demote when isActiveThisWeek is false (default).
+      // WS7-6 (E): no demote-prior — the per-user EXCLUDE constraint
+      // enforces single-current, and an undated plan is null-exempt.
       assert.equal(recorder.updateManyCalls.length, 0);
 
-      // Activity emitted with the right shape.
+      // Activity emitted with the right shape — metadata's computed
+      // boolean is false because the row has null dates.
       assert.equal(recorder.activityWrites.length, 1);
       const act = recorder.activityWrites[0];
       assert.equal(act.userId, A2_USER);
@@ -1573,7 +1814,7 @@ describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
     }
   });
 
-  it("creates an Instance with full body, demotes prior actives, emits activity isActiveThisWeek=true", async () => {
+  it("creates an Instance with full body — body dates land verbatim, no demote-prior", async () => {
     const recorder: C2Recorder = {
       createdInstances: [],
       updateManyCalls: [],
@@ -1581,6 +1822,13 @@ describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
     };
     const harness = await mutationSpinUp(makeC2Stub({ recorder }));
     try {
+      // WS7-6 (E): body dates that bookend `now` make the new row
+      // current via the computed predicate. The activity-emit metadata
+      // reflects that computed boolean.
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const startIso = new Date(now - 3 * day).toISOString();
+      const endIso = new Date(now + 3 * day).toISOString();
       const res = await fetch(`${harness.baseUrl}/plans`, {
         method: "POST",
         headers: {
@@ -1589,8 +1837,8 @@ describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
         },
         body: JSON.stringify({
           name: "My Empty Plan",
-          startDate: "2026-06-01T00:00:00.000Z",
-          endDate: "2026-06-07T23:59:59.000Z",
+          startDate: startIso,
+          endDate: endIso,
           isActiveThisWeek: true,
         }),
       });
@@ -1599,18 +1847,16 @@ describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
       assert.equal(recorder.createdInstances.length, 1);
       const created = recorder.createdInstances[0];
       assert.equal(created.titleOverride, "My Empty Plan");
-      assert.equal(created.isActiveThisWeek, true);
       assert.ok(created.startDate instanceof Date);
       assert.ok(created.endDate instanceof Date);
 
-      // Prior actives demoted in same tx.
-      assert.equal(recorder.updateManyCalls.length, 1);
-      const upd = recorder.updateManyCalls[0];
-      assert.equal((upd.where as { userId: string }).userId, A2_USER);
-      assert.equal((upd.where as { isActiveThisWeek: boolean }).isActiveThisWeek, true);
-      assert.equal((upd.data as { isActiveThisWeek: boolean }).isActiveThisWeek, false);
+      // WS7-6 (E): no demote-prior. Single-current is enforced at the
+      // DB by the per-user EXCLUDE constraint on [startDate, endDate];
+      // the app layer never issues a demote updateMany.
+      assert.equal(recorder.updateManyCalls.length, 0);
 
-      // Activity metadata reflects the active state.
+      // Activity metadata's computed boolean reflects the new row's
+      // date range covering `now`.
       assert.equal(recorder.activityWrites.length, 1);
       assert.deepEqual(recorder.activityWrites[0].metadata, { isActiveThisWeek: true });
     } finally {
@@ -1721,7 +1967,10 @@ interface C3DeleteFix {
   id: string;
   userId: string;
   revisionId: number;
-  isActiveThisWeek: boolean;
+  // WS7-6 (E): the stored isActiveThisWeek column is gone; "wasActive"
+  // is now computed at delete time from the row's date range.
+  startDate: Date | null;
+  endDate: Date | null;
 }
 
 interface C3DeleteRecorder {
@@ -1771,7 +2020,7 @@ describe("DELETE /plans/:id — soft-delete (WS7-4-C c3)", () => {
       makeC3DeleteStub({
         recorder,
         instances: [
-          { id: "p-1", userId: A2_USER, revisionId: 3, isActiveThisWeek: false },
+          { id: "p-1", userId: A2_USER, revisionId: 3, startDate: null, endDate: null },
         ],
       }),
     );
@@ -1791,7 +2040,8 @@ describe("DELETE /plans/:id — soft-delete (WS7-4-C c3)", () => {
       assert.equal(upd.data.status, "past");
       assert.ok(upd.data.compostedAt instanceof Date);
       assert.equal(upd.data.isArchived, true);
-      assert.equal(upd.data.isActiveThisWeek, false);
+      // WS7-6 (E): no isActiveThisWeek write — the column is gone.
+      assert.equal(Object.prototype.hasOwnProperty.call(upd.data, "isActiveThisWeek"), false);
       assert.deepEqual(upd.data.revisionId, { increment: 1 });
 
       assert.equal(recorder.activityWrites.length, 1);
@@ -1800,19 +2050,30 @@ describe("DELETE /plans/:id — soft-delete (WS7-4-C c3)", () => {
       assert.equal(act.eventType, "plan_composted");
       assert.equal(act.entityType, "MealPlanInstance");
       assert.equal(act.entityId, "p-1");
+      // undated row → computed wasActive is false.
       assert.deepEqual(act.metadata, { wasActive: false });
     } finally {
       await harness.close();
     }
   });
 
-  it("DELETE on active plan auto-clears isActiveThisWeek and records wasActive=true in metadata (Q-P1-5)", async () => {
+  it("DELETE on active plan records wasActive=true (Q-P1-5) — computed from row's date range", async () => {
     const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    // WS7-6 (E): "active" is now derived. Seed dates that bookend `now`
+    // so the helper computes wasActive=true at delete time.
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
     const harness = await mutationSpinUp(
       makeC3DeleteStub({
         recorder,
         instances: [
-          { id: "p-active", userId: A2_USER, revisionId: 1, isActiveThisWeek: true },
+          {
+            id: "p-active",
+            userId: A2_USER,
+            revisionId: 1,
+            startDate: new Date(now - 3 * day),
+            endDate: new Date(now + 3 * day),
+          },
         ],
       }),
     );
@@ -1823,9 +2084,16 @@ describe("DELETE /plans/:id — soft-delete (WS7-4-C c3)", () => {
       });
       assert.equal(res.status, 200);
 
-      // Single update statement carries the auto-demote.
+      // Single update statement; it does NOT write isActiveThisWeek
+      // (column dropped). status/compostedAt/isArchived/revisionId only.
       assert.equal(recorder.instanceUpdates.length, 1);
-      assert.equal(recorder.instanceUpdates[0].data.isActiveThisWeek, false);
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(
+          recorder.instanceUpdates[0].data,
+          "isActiveThisWeek",
+        ),
+        false,
+      );
 
       // Activity records that this plan WAS active at delete time.
       assert.deepEqual(recorder.activityWrites[0].metadata, { wasActive: true });
@@ -1856,7 +2124,7 @@ describe("DELETE /plans/:id — soft-delete (WS7-4-C c3)", () => {
       makeC3DeleteStub({
         recorder,
         instances: [
-          { id: "p-other", userId: "stranger", revisionId: 1, isActiveThisWeek: false },
+          { id: "p-other", userId: "stranger", revisionId: 1, startDate: null, endDate: null },
         ],
       }),
     );
@@ -2170,15 +2438,21 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
-  it("isActiveThisWeek false -> true demotes prior actives in same tx and emits plan_activated_this_week", async () => {
+  it("PATCH { isActiveThisWeek: true } on a pre-dated plan is now a no-op write (no demote, no emit in this commit)", async () => {
+    // WS7-6 (E) Block 1 — the stored isActiveThisWeek column is gone and
+    // the body field is advisory. On a row that already has dates
+    // unrelated to `now`, PATCH { isActiveThisWeek: true } does not flip
+    // anything: no demote-prior updateMany (single-current is enforced by
+    // the DB EXCLUDE constraint), and the date range is unchanged so the
+    // plan does not transition from not-current to current. Block 1's
+    // analytics path is the legacy "flag flipped" emit, which c2 of this
+    // workstream replaces with the dates-newly-cover-now predicate — at
+    // that point a new test will assert the emit fires when dates change
+    // to cover `now`, NOT when the boolean body flips.
     const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
     const harness = await mutationSpinUp(
       makeC4PatchStub({
         recorder,
-        // Pre-dated fixture isolates the demote + emit assertions from the
-        // WS7-5b-mobile-PRE auto-date envelope (which only fires when the
-        // row is currently undated). Auto-date round-trip is covered in
-        // the dedicated envelope tests below.
         instances: [
           fixturePatch({
             id: "p-1",
@@ -2192,15 +2466,8 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     try {
       const res = await patchPlan(harness, "p-1", { isActiveThisWeek: true });
       assert.equal(res.status, 200);
-
-      assert.equal(recorder.updateManyCalls.length, 1);
-      const upd = recorder.updateManyCalls[0];
-      assert.equal((upd.where as { userId: string }).userId, A2_USER);
-      assert.equal((upd.where as { isActiveThisWeek: boolean }).isActiveThisWeek, true);
-      assert.deepEqual((upd.where as { id: { not: string } }).id, { not: "p-1" });
-
-      assert.equal(recorder.activityWrites.length, 1);
-      assert.equal(recorder.activityWrites[0].eventType, "plan_activated_this_week");
+      assert.equal(recorder.updateManyCalls.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
     } finally {
       await harness.close();
     }
@@ -2488,7 +2755,13 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
-  it("on an ALREADY-dated plan, PATCH {isActiveThisWeek:true} leaves existing dates untouched", async () => {
+  it("on an ALREADY-dated plan, PATCH {isActiveThisWeek:true} leaves existing dates untouched (no-op)", async () => {
+    // WS7-6 (E): the auto-date envelope only fires when the row is
+    // currently undated (`row.startDate === null`). On a pre-dated plan,
+    // the body's advisory isActiveThisWeek=true triggers no field diff
+    // (the column is gone) and the auto-date predicate's
+    // `row.startDate === null` guard is false, so the PATCH becomes a
+    // no-op — instanceUpdates stays empty.
     const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
     const harness = await mutationSpinUp(
       makeC4PatchStub({
@@ -2506,18 +2779,7 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     try {
       const res = await patchPlan(harness, "p-1", { isActiveThisWeek: true });
       assert.equal(res.status, 200);
-
-      assert.equal(recorder.instanceUpdates.length, 1);
-      const wrote = recorder.instanceUpdates[0].data;
-      // Date fields were NOT included in the update payload (no rewrite).
-      assert.equal(
-        Object.prototype.hasOwnProperty.call(wrote, "startDate"),
-        false,
-      );
-      assert.equal(
-        Object.prototype.hasOwnProperty.call(wrote, "endDate"),
-        false,
-      );
+      assert.equal(recorder.instanceUpdates.length, 0);
     } finally {
       await harness.close();
     }
@@ -2557,7 +2819,11 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
-  it("PATCH {isActiveThisWeek:false} does NOT auto-fill dates (only flip-to-true triggers auto-date)", async () => {
+  it("PATCH {isActiveThisWeek:false} does NOT auto-fill dates (only the body's true value triggers auto-date)", async () => {
+    // WS7-6 (E): the auto-date envelope predicate requires
+    // `body.isActiveThisWeek === true`. A body of false is advisory and
+    // produces no field diff — the route returns the noop result and
+    // never calls update.
     const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
     const harness = await mutationSpinUp(
       makeC4PatchStub({
@@ -2575,17 +2841,7 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     try {
       const res = await patchPlan(harness, "p-1", { isActiveThisWeek: false });
       assert.equal(res.status, 200);
-
-      assert.equal(recorder.instanceUpdates.length, 1);
-      const wrote = recorder.instanceUpdates[0].data;
-      assert.equal(
-        Object.prototype.hasOwnProperty.call(wrote, "startDate"),
-        false,
-      );
-      assert.equal(
-        Object.prototype.hasOwnProperty.call(wrote, "endDate"),
-        false,
-      );
+      assert.equal(recorder.instanceUpdates.length, 0);
     } finally {
       await harness.close();
     }

@@ -41,3 +41,29 @@ export function currentWeekRange(now: Date = new Date()): WeekRange {
   );
   return { startDate: ymd(sunday), endDate: ymd(saturday) };
 }
+
+// WS7-6 (E) Block 1 — single canonical predicate for "is this plan in the
+// current week?". Replaces the stored MealPlanInstance.isActiveThisWeek flag
+// dropped in migration 20260605120000_ws7_6e_this_week_computed. All readers
+// — GET /plans active summary, GET /plans/:id, GET /home, grocery list
+// planInstance projection, instanceToListItem — call this; the wire shape
+// still ships a boolean (decision #2) so mobile parsers do not change.
+//
+// Null-dated plans (use-template, wizard-draft, undated save) are never
+// active by this predicate, which matches the DB-side EXCLUDE constraint's
+// null-exempt WHERE clause: an undated plan cannot overlap and cannot
+// auto-roll.
+//
+// Bounds are inclusive on both ends, mirroring the EXCLUDE constraint's
+// `tsrange(..., '[]')` shape so the predicate and the constraint agree on
+// edge instants.
+export function isInstanceActiveThisWeek(
+  row: { startDate: Date | null; endDate: Date | null },
+  now: Date = new Date(),
+): boolean {
+  if (row.startDate === null || row.endDate === null) {
+    return false;
+  }
+  return row.startDate.getTime() <= now.getTime()
+    && now.getTime() <= row.endDate.getTime();
+}

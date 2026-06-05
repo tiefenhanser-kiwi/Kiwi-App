@@ -326,7 +326,9 @@ export async function persistWizardDraft(
       mealPlanTemplateId: null,
       titleOverride: opts.expanded.title,
       status: "draft",
-      isActiveThisWeek: false,
+      // WS7-6 (E): isActiveThisWeek column dropped — wizard drafts are
+      // null-dated and the date-range predicate already treats them as
+      // not-current. Null-exempt from the EXCLUDE constraint.
       isWizardDraft: true,
       startDate: null,
       endDate: null,

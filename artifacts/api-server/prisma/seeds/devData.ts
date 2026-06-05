@@ -1049,7 +1049,9 @@ interface PlanSeed {
   instanceId: string;
   title: string;
   status: "this_week" | "upcoming" | "draft";
-  isActiveThisWeek: boolean;
+  // WS7-6 (E): isActiveThisWeek dropped from the schema. The
+  // [startDate, endDate] range is the source of truth — null = undated
+  // (exempt from EXCLUDE constraint and never current).
   startDate: Date | null;
   endDate: Date | null;
   items: PlanSeedItem[];
@@ -1082,7 +1084,6 @@ async function seedPlan(userId: string, plan: PlanSeed): Promise<void> {
           mealPlanTemplateId: plan.templateId,
           titleOverride: plan.title,
           status: plan.status,
-          isActiveThisWeek: plan.isActiveThisWeek,
           startDate: plan.startDate,
           endDate: plan.endDate,
         },
@@ -1092,7 +1093,6 @@ async function seedPlan(userId: string, plan: PlanSeed): Promise<void> {
           mealPlanTemplateId: plan.templateId,
           titleOverride: plan.title,
           status: plan.status,
-          isActiveThisWeek: plan.isActiveThisWeek,
           startDate: plan.startDate,
           endDate: plan.endDate,
         },
@@ -1130,7 +1130,7 @@ async function seedPlan(userId: string, plan: PlanSeed): Promise<void> {
   );
 
   console.log(
-    `[devData] seeded plan ${plan.instanceId} (${plan.title}): ${plan.items.length} items, status=${plan.status}, active=${plan.isActiveThisWeek}`,
+    `[devData] seeded plan ${plan.instanceId} (${plan.title}): ${plan.items.length} items, status=${plan.status}, dates=[${plan.startDate?.toISOString() ?? "null"}..${plan.endDate?.toISOString() ?? "null"}]`,
   );
 }
 
@@ -1155,13 +1155,19 @@ async function main(): Promise<void> {
 
   const weekStart = startOfWeekMonday(new Date());
   const weekEnd = addDays(weekStart, 6);
+  // WS7-6 (E) Block 1 Phase 1 ruling — demoPlan moves to next week so it
+  // does not overlap weeknightPlan on the per-user EXCLUDE constraint
+  // (build-it-right decision #3). Demo still auto-rolls into current the
+  // following Monday; the existing /plan/demo deep-link continues to
+  // resolve.
+  const nextWeekStart = addDays(weekStart, 7);
+  const nextWeekEnd = addDays(weekStart, 13);
 
   const weeknightPlan: PlanSeed = {
     templateId: DEV_PLAN_IDS.weeknightTemplate,
     instanceId: DEV_PLAN_IDS.weeknightInstance,
     title: "Weeknight Dinners",
     status: "this_week",
-    isActiveThisWeek: true,
     startDate: weekStart,
     endDate: weekEnd,
     items: [
@@ -1197,7 +1203,6 @@ async function main(): Promise<void> {
     instanceId: DEV_PLAN_IDS.spiceInstance,
     title: "Spice It Up",
     status: "upcoming",
-    isActiveThisWeek: false,
     startDate: null,
     endDate: null,
     items: [
@@ -1226,9 +1231,10 @@ async function main(): Promise<void> {
     instanceId: DEV_PLAN_IDS.demoInstance,
     title: "Demo Plan",
     status: "draft",
-    isActiveThisWeek: true,
-    startDate: weekStart,
-    endDate: weekEnd,
+    // Phase 1 ruling: shift demoPlan to next Mon–Sun so weeknightPlan +
+    // demoPlan do not violate the per-user no-overlap EXCLUDE constraint.
+    startDate: nextWeekStart,
+    endDate: nextWeekEnd,
     items: [
       {
         id: "demo-item-1",

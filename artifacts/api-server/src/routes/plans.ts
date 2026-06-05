@@ -50,7 +50,7 @@ import {
   type InstanceRow,
   type PlanListItem,
 } from "../lib/planQueries";
-import { currentWeekRange } from "../lib/planDates";
+import { currentWeekRange, isInstanceActiveThisWeek } from "../lib/planDates";
 import { sortPlanItemsCanonical } from "../lib/planItemSort";
 import { composeMealDetail, type MealDetail } from "./meals";
 
@@ -99,11 +99,20 @@ function coerceOptimizationNotes(
 // exist; this is a plain arithmetic rollup of each item meal's per-serving
 // macros divided by the number of distinct assigned days. See WS7-3 A2
 // Phase 3 report §8 (F-A2-4).
+//
+// WS7-6 Fix-Block 2 (D, closes D-WS7-060). Hans's ruling for PRD §8.3.5:
+// per-day average = sum of ASSIGNED meals ÷ count of ASSIGNED days. Both
+// numerator and denominator gate on the SAME per-item assignment check
+// (`assignedDate ?? assignedDayOfWeek`). Pre-fix divisor switched to
+// assigned-day count while the numerator summed ALL items unconditionally
+// — N items + 1 assigned → per-day = sum-of-all (user read it as "macros
+// stopped calculating"). Empty state (no items assigned) → null per
+// field; UI renders "—". PRD §8.3.5 redline queued for WS7-CLOSE.
 function computeMacroDailyAverage(items: PlanReviewItem[]): {
-  caloriesPerDay: number;
-  proteinGPerDay: number;
-  carbsGPerDay: number;
-  fatGPerDay: number;
+  caloriesPerDay: number | null;
+  proteinGPerDay: number | null;
+  carbsGPerDay: number | null;
+  fatGPerDay: number | null;
 } {
   let cal = 0;
   let pro = 0;
@@ -111,17 +120,25 @@ function computeMacroDailyAverage(items: PlanReviewItem[]): {
   let fat = 0;
   const days = new Set<string>();
   for (const it of items) {
+    const dayKey = it.assignedDate ?? it.assignedDayOfWeek;
+    if (!dayKey) continue;
+    days.add(dayKey);
     if (it.meal) {
       cal += it.meal.calories;
       pro += it.meal.protein;
       carb += it.meal.carbs;
       fat += it.meal.fat;
     }
-    const dayKey = it.assignedDate ?? it.assignedDayOfWeek;
-    if (dayKey) days.add(dayKey);
   }
-  const dayCount =
-    days.size > 0 ? days.size : items.length > 0 ? items.length : 1;
+  if (days.size === 0) {
+    return {
+      caloriesPerDay: null,
+      proteinGPerDay: null,
+      carbsGPerDay: null,
+      fatGPerDay: null,
+    };
+  }
+  const dayCount = days.size;
   const round1 = (n: number): number => Math.round((n / dayCount) * 10) / 10;
   return {
     caloriesPerDay: round1(cal),
@@ -251,12 +268,21 @@ export function createPlansRouter(
       const { page, nextCursor } = paginateById(merged, cursor, limit);
 
       // activeThisWeek — the pinned This-Week callout the Plans tab consumes
-      // (PRD §9.2.1), folded in so the tab fetches one endpoint. WS7-5a:
-      // exclude wizard drafts so a hidden draft never appears as "This
-      // Week" (drafts default isActiveThisWeek=false; isWizardDraft is the
-      // belt-and-suspenders gate against a future write that ships both).
+      // (PRD §9.2.1), folded in so the tab fetches one endpoint. WS7-6 (E):
+      // "active" is now the date-range predicate isInstanceActiveThisWeek
+      // (lib/planDates.ts) — a plan is current iff now ∈ [startDate,
+      // endDate]. The per-user EXCLUDE constraint guarantees at most one
+      // such row, so findFirst is still safe. WS7-5a wizardDraft exclusion
+      // stays: a hidden draft has null dates and would never match the
+      // range filter anyway, but the explicit gate makes intent clearer.
+      const nowForActive = new Date();
       const activeRow = await prisma.mealPlanInstance.findFirst({
-        where: { userId, isActiveThisWeek: true, isWizardDraft: false },
+        where: {
+          userId,
+          isWizardDraft: false,
+          startDate: { lte: nowForActive },
+          endDate: { gte: nowForActive },
+        },
         include: INSTANCE_TEMPLATE_INCLUDE,
         orderBy: { createdAt: "desc" },
       });
@@ -351,7 +377,7 @@ export function createPlansRouter(
           startDate: toYmd(instance.startDate),
           endDate: toYmd(instance.endDate),
           revisionId: instance.revisionId,
-          isActiveThisWeek: instance.isActiveThisWeek,
+          isActiveThisWeek: isInstanceActiveThisWeek(instance),
           userId: instance.userId,
           // sourceType lives on the template, not the instance.
           sourceType: instance.template?.sourceType ?? "manual",
@@ -464,11 +490,14 @@ export function createPlansRouter(
 
   // WS7-4-C c2 — POST /plans — create a new empty MealPlanInstance for
   // the requester. No template; Q-P1-1 (a) ruling lets mealPlanTemplateId
-  // be null. Same-transaction work:
-  //   1) (if body isActiveThisWeek === true) demote prior actives for user;
-  //   2) create the Instance with the body fields applied;
-  //   3) emit plan_created activity (existing enum value at schema.prisma:141).
-  // Fresh Instance starts at revisionId=1 from schema default.
+  // be null. WS7-6 (E): the stored isActiveThisWeek column is gone —
+  // "active" is now derived from [startDate, endDate]. The body field is
+  // accepted for backwards compat with mobile clients still emitting it
+  // (decision #2 — the wire shape stays a boolean while mobile transitions
+  // in Block 2) but is treated as advisory: it is NOT stored, and only
+  // triggers a currentWeekRange() auto-date when the body otherwise has
+  // no dates. The DB-side EXCLUDE constraint enforces "at most one
+  // current plan per user" — no app-level demote-prior is needed.
   const PostPlansBody = z
     .object({
       name: z.string().min(1).max(120).optional(),
@@ -489,39 +518,47 @@ export function createPlansRouter(
       return res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
     }
     const body = parsed.data;
-    const activate = body.isActiveThisWeek === true;
+
+    // Backwards-compat auto-date: if the client said "active" without
+    // supplying dates, fill currentWeekRange() so the plan actually
+    // becomes current under the date-range predicate. Body-supplied dates
+    // always win.
+    let createStartDate: Date | null = body.startDate ? new Date(body.startDate) : null;
+    let createEndDate: Date | null = body.endDate ? new Date(body.endDate) : null;
+    if (
+      body.isActiveThisWeek === true
+      && body.startDate === undefined
+      && body.endDate === undefined
+    ) {
+      const week = currentWeekRange();
+      createStartDate = new Date(week.startDate);
+      createEndDate = new Date(week.endDate);
+    }
 
     try {
       const result = await prisma.$transaction(async (tx) => {
-        if (activate) {
-          await tx.mealPlanInstance.updateMany({
-            where: { userId, isActiveThisWeek: true },
-            data: { isActiveThisWeek: false },
-          });
-        }
-
         const instance = await tx.mealPlanInstance.create({
           data: {
             userId,
             mealPlanTemplateId: null,
             titleOverride: body.name ?? null,
             status: "draft",
-            isActiveThisWeek: activate,
-            startDate: body.startDate ? new Date(body.startDate) : null,
-            endDate: body.endDate ? new Date(body.endDate) : null,
+            startDate: createStartDate,
+            endDate: createEndDate,
             optimizationNotes: Prisma.DbNull,
             breakfastOverrides: null,
             lunchOverrides: null,
           },
         });
 
+        const isActiveThisWeek = isInstanceActiveThisWeek(instance);
         await emitActivity({
           tx,
           userId,
           eventType: "plan_created",
           entityType: "MealPlanInstance",
           entityId: instance.id,
-          metadata: { isActiveThisWeek: instance.isActiveThisWeek },
+          metadata: { isActiveThisWeek },
         });
 
         return instance;
@@ -537,9 +574,12 @@ export function createPlansRouter(
   });
 
   // WS7-4-C c3 — DELETE /plans/:id — soft-delete (compost) the plan.
-  // Q-P1-5 (a) ruling: deleting an active plan auto-clears
-  // isActiveThisWeek in the same statement. The row stays; status flips
-  // to "past", compostedAt is set, isArchived is true, revisionId bumps.
+  // Q-P1-5 (a) ruling: deleting an active plan automatically removes it
+  // from the current-week surface. WS7-6 (E) — "active" is now derived
+  // from [startDate, endDate], so the activity-event "wasActive" flag is
+  // computed at delete time from the row's dates; the row itself stays
+  // (status flips to "past", compostedAt set, isArchived true, revisionId
+  // bumps).
   router.delete(
     "/plans/:id",
     requireAuth,
@@ -558,11 +598,18 @@ export function createPlansRouter(
         const result = await prisma.$transaction(async (tx) => {
           const row = await tx.mealPlanInstance.findUnique({
             where: { id },
-            select: { userId: true, revisionId: true, isActiveThisWeek: true },
+            select: {
+              userId: true,
+              revisionId: true,
+              startDate: true,
+              endDate: true,
+            },
           });
           if (!row || row.userId !== userId) {
             return { kind: "not_found" as const };
           }
+
+          const wasActive = isInstanceActiveThisWeek(row);
 
           const updated = await tx.mealPlanInstance.update({
             where: { id },
@@ -570,7 +617,6 @@ export function createPlansRouter(
               status: "past",
               compostedAt: new Date(),
               isArchived: true,
-              isActiveThisWeek: false,
               revisionId: { increment: 1 },
             },
             select: { id: true, revisionId: true },
@@ -582,7 +628,7 @@ export function createPlansRouter(
             eventType: "plan_composted",
             entityType: "MealPlanInstance",
             entityId: id,
-            metadata: { wasActive: row.isActiveThisWeek },
+            metadata: { wasActive },
           });
 
           return { kind: "deleted" as const, instance: updated };
@@ -683,7 +729,6 @@ export function createPlansRouter(
             startDate: true,
             endDate: true,
             status: true,
-            isActiveThisWeek: true,
             breakfastOverrides: true,
             lunchOverrides: true,
             prepStatus: true,
@@ -724,13 +769,12 @@ export function createPlansRouter(
           changedFields.add("status");
           data.status = body.status;
         }
-        if (
-          body.isActiveThisWeek !== undefined &&
-          body.isActiveThisWeek !== row.isActiveThisWeek
-        ) {
-          changedFields.add("isActiveThisWeek");
-          data.isActiveThisWeek = body.isActiveThisWeek;
-        }
+        // WS7-6 (E) — isActiveThisWeek is no longer stored. The body field
+        // is still accepted (decision #2 — wire shape stays a boolean
+        // while Block 2 mobile transitions); when set true on an undated
+        // plan with no body dates, it triggers the currentWeekRange()
+        // auto-date envelope below. Otherwise it is advisory and not
+        // persisted directly.
         if (
           body.breakfastOverrides !== undefined &&
           body.breakfastOverrides !== row.breakfastOverrides
@@ -756,12 +800,15 @@ export function createPlansRouter(
             Prisma.DbNull;
         }
 
-        // WS7-5b-mobile-PRE — auto-date envelope. Fires ONLY when the PATCH
-        // flips the plan to active-this-week AND the plan is currently
-        // undated AND the body did NOT supply its own dates. Body dates
-        // always win; already-dated plans are never overridden; non-active
-        // and unrelated PATCHes are never touched. Uses the shared Sun-Sat
-        // currentWeekRange() — same definition as draft-activate.
+        // WS7-5b-mobile-PRE — auto-date envelope. Fires when the PATCH
+        // body says "active this week" AND the plan is currently undated
+        // AND the body did NOT supply its own dates. Body dates always
+        // win; already-dated plans are never overridden; non-active and
+        // unrelated PATCHes are never touched. Uses the shared Sun-Sat
+        // currentWeekRange() — same definition as draft-activate. WS7-6
+        // (E): this is now the ONLY way the stored "this week" semantic
+        // is materialized via the boolean body field — Block 2 mobile
+        // will eventually send explicit dates instead.
         if (
           body.isActiveThisWeek === true &&
           row.startDate === null &&
@@ -790,18 +837,6 @@ export function createPlansRouter(
           changedFields.size === 1 && changedFields.has("name");
         if (!isNameOnly) {
           data.revisionId = { increment: 1 };
-        }
-
-        // isActiveThisWeek false -> true: demote prior actives first
-        // (same-tx invariant; mirrors POST /plans/use-template).
-        if (
-          changedFields.has("isActiveThisWeek") &&
-          body.isActiveThisWeek === true
-        ) {
-          await tx.mealPlanInstance.updateMany({
-            where: { userId, isActiveThisWeek: true, id: { not: id } },
-            data: { isActiveThisWeek: false },
-          });
         }
 
         const updated = await tx.mealPlanInstance.update({
@@ -858,19 +893,12 @@ export function createPlansRouter(
             metadata: { from: row.status, to: body.status },
           });
         }
-        if (
-          changedFields.has("isActiveThisWeek") &&
-          body.isActiveThisWeek === true
-        ) {
-          await emitActivity({
-            tx,
-            userId,
-            eventType: "plan_activated_this_week",
-            entityType: "MealPlanInstance",
-            entityId: id,
-            metadata: {},
-          });
-        }
+        // WS7-6 (E) Block 1: the flag-flip emit for plan_activated_this_week
+        // is gone — the field no longer transitions on PATCH. Block 1 c2
+        // re-points the event to fire when a PATCH's date change causes
+        // the plan to NEWLY cover `now` (transition from not-current to
+        // current). Wizard activate continues to emit unconditionally
+        // because it always dates the plan to the current week.
         if (changedFields.has("breakfastOverrides")) {
           await emitActivity({
             tx,
@@ -940,15 +968,22 @@ export function createPlansRouter(
   // WS7-4-B c4 — POST /plans/use-template/:templateId — copy a public (or
   // owner's private) Template into a new MealPlanInstance for the requester.
   // Body is empty. Same-transaction work:
-  //   1) demote any existing isActiveThisWeek instances for this user
-  //      (Q-P1-4 ruling — preserves the "exactly one active" invariant);
-  //   2) create the new Instance with isActiveThisWeek: true and
-  //      optimizationNotes copied from the Template (Ruling 3);
-  //   3) createMany MealPlanItems mirroring the Template's items;
-  //   4) increment Template.useCount + bump lastUsedAt;
-  //   5) emit plan_used_from_browse activity via emitActivity({ tx, ... }).
-  // Fresh Instance starts at revisionId=1 from schema default
-  // (Phase 1 Finding 1+8 — do NOT call bumpPlanRevision).
+  //   1) create the new Instance with null dates (undated — user picks the
+  //      week later via PATCH /plans/:id) and optimizationNotes copied from
+  //      the Template (Ruling 3);
+  //   2) createMany MealPlanItems mirroring the Template's items;
+  //   3) increment Template.useCount + bump lastUsedAt;
+  //   4) emit plan_used_from_browse activity via emitActivity({ tx, ... }).
+  // WS7-6 (E): use-template no longer auto-activates the new plan. The
+  // stored isActiveThisWeek column is gone; "active" is the date-range
+  // predicate, and an undated plan is never current. The per-user
+  // EXCLUDE constraint on [startDate, endDate] is null-exempt, so this
+  // undated row will never collide with the user's existing this-week
+  // plan. Mobile drives the activation explicitly via PATCH (post-WS7-6
+  // mobile sends dates; pre-WS7-6 mobile sends { isActiveThisWeek: true }
+  // and the PATCH auto-date envelope materializes the dates). Fresh
+  // Instance starts at revisionId=1 from schema default (Phase 1 Finding
+  // 1+8 — do NOT call bumpPlanRevision).
   router.post(
     "/plans/use-template/:templateId",
     requireAuth,
@@ -980,20 +1015,16 @@ export function createPlansRouter(
             return { kind: "not_found" as const };
           }
 
-          // Q-P1-4 ruling — demote any existing actives for this user before
-          // creating a new active Instance.
-          await tx.mealPlanInstance.updateMany({
-            where: { userId, isActiveThisWeek: true },
-            data: { isActiveThisWeek: false },
-          });
-
+          // WS7-6 (E): no demote-prior — the stored isActiveThisWeek column
+          // is gone. The new row is created undated; mobile dates it via a
+          // follow-up PATCH /plans/:id, and the per-user EXCLUDE constraint
+          // enforces single-current at that point.
           const instance = await tx.mealPlanInstance.create({
             data: {
               userId,
               mealPlanTemplateId: templateId,
               titleOverride: null,
               status: "draft",
-              isActiveThisWeek: true,
               startDate: null,
               endDate: null,
               optimizationNotes:

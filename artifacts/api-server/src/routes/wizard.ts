@@ -867,27 +867,23 @@ export function createWizardRouter(
           payload,
         });
 
-        // Demote any existing active plans for this user — same pattern as
-        // POST /plans (plans.ts:474-478) and POST /plans/use-template
-        // (plans.ts:940-943).
-        await tx.mealPlanInstance.updateMany({
-          where: { userId, isActiveThisWeek: true },
-          data: { isActiveThisWeek: false },
-        });
-
-        // Flip the draft to active. status stays "draft" (matches the use-
-        // template precedent: status:"draft" + isActiveThisWeek:true marks
-        // an active-now plan). isWizardDraft → false makes the row visible
-        // to my_plans / home filters. WS7-5b-mobile-PRE — also dates the
-        // freshly-activated plan to the current Sun-Sat week via the shared
-        // currentWeekRange() helper, so wizard-activated and PATCH-activated
-        // plans share one "this week" definition.
+        // WS7-6 (E): no demote-prior — the stored isActiveThisWeek column
+        // is gone. Single-current is enforced by the per-user EXCLUDE
+        // constraint on [startDate, endDate]. If the user already has a
+        // plan covering the current Sun-Sat week, this update will fail
+        // at the DB layer (constraint violation surfaces as 500) — that
+        // is the build-it-right Hans-locked decision #3 boundary.
+        //
+        // Flip the draft to materialized: clear isWizardDraft so the row
+        // becomes visible to my_plans / home filters, and date it to the
+        // current Sun-Sat week via the shared currentWeekRange() helper
+        // (same definition as PATCH /plans/:id auto-date) so the
+        // date-range predicate immediately reads the plan as current.
         const week = currentWeekRange();
         const activated = await tx.mealPlanInstance.update({
           where: { id: draftId },
           data: {
             isWizardDraft: false,
-            isActiveThisWeek: true,
             revisionId: { increment: 1 },
             startDate: new Date(week.startDate),
             endDate: new Date(week.endDate),

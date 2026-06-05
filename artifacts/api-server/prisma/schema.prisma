@@ -170,6 +170,7 @@ enum ActivityEventType {
   plan_date_range_edited
   plan_status_changed
   plan_activated_this_week
+  wizard_candidate_expanded
 }
 
 enum SpiceTolerance {
@@ -500,7 +501,17 @@ model MealPlanInstance {
   startDate          DateTime?
   endDate            DateTime?
   status             PlanStatus @default(draft)
-  isActiveThisWeek   Boolean    @default(false)
+  // WS7-6 (E) — "this week" is computed from [startDate, endDate] ∋ now.
+  // The previous stored boolean was dropped because a future-dated plan
+  // cannot auto-roll into the current-week surface without either a
+  // scheduler (we have none — D-WS7-062) or recomputing per request, and
+  // the latter is what we do now. See lib/planDates.ts
+  // isInstanceActiveThisWeek for the single canonical predicate; the
+  // wire shape still ships a boolean field (Block 1 decision #2) so
+  // mobile parsers do not need to change. Single-current is enforced at
+  // the DB by an EXCLUDE constraint with WHERE startDate/endDate IS NOT
+  // NULL (null-dated plans are exempt — see migration
+  // 20260605120000_ws7_6e_this_week_computed).
   lastCooked         DateTime?
   timesCooked        Int        @default(0)
   notes              String?
@@ -508,6 +519,12 @@ model MealPlanInstance {
   optimizationNotes  Json?
   compostedAt        DateTime?
   isArchived         Boolean    @default(false)
+  // WS7-5a — Branch B wizard draft discriminator. true on rows written by
+  // POST /api/wizard/expand; flipped to false on "Save and use" activation
+  // (WS7-5b). my_plans + home + this-week surfaces filter this true.
+  // Distinct from status=draft (the schema default + use-template writes
+  // would otherwise leak the existing active-plan flow into the hidden set).
+  isWizardDraft      Boolean    @default(false)
   breakfastOverrides String?    // null = inherit from UserPreferences.breakfastDefaults; non-null = per-plan override
   lunchOverrides     String?    // null = inherit from UserPreferences.lunchDefaults; non-null = per-plan override
   // WS6 6c-4 / WS7 sync: monotonically increases on plan-content mutations.
@@ -522,6 +539,7 @@ model MealPlanInstance {
   groceryLists       GroceryList[]
   prepWeekStructure  PrepWeekStructure?
 
+  @@index([userId, startDate, endDate])
   @@map("meal_plan_instances")
 }
 

@@ -14,6 +14,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { featuredWhere, hostingFeaturedWhere } from "./featuring";
+import { isInstanceActiveThisWeek } from "./planDates";
 import { getTopRatedSettings } from "./topRated";
 
 export type PlanFilterKey =
@@ -71,13 +72,15 @@ export const toYmd = (d: Date | null): string | null => {
 
 // ── row shapes (structural — accept Prisma's superset results) ──────────
 
+// WS7-6 (E): isActiveThisWeek dropped from the row shape; it is computed
+// from startDate/endDate via isInstanceActiveThisWeek at projection time
+// (instanceToListItem) so the wire shape still ships a boolean.
 export interface InstanceRow {
   id: string;
   titleOverride: string | null;
   status: string;
   startDate: Date | null;
   endDate: Date | null;
-  isActiveThisWeek: boolean;
   revisionId: number;
   createdAt: Date;
   template: {
@@ -112,7 +115,10 @@ const TEMPLATE_SELECT = {
   tags: true,
 } as const;
 
-export function instanceToListItem(row: InstanceRow): PlanListItem {
+export function instanceToListItem(
+  row: InstanceRow,
+  now: Date = new Date(),
+): PlanListItem {
   return {
     id: row.id,
     name: row.titleOverride ?? row.template?.title ?? "",
@@ -123,7 +129,7 @@ export function instanceToListItem(row: InstanceRow): PlanListItem {
     status: row.status,
     startDate: toYmd(row.startDate),
     endDate: toYmd(row.endDate),
-    isActiveThisWeek: row.isActiveThisWeek,
+    isActiveThisWeek: isInstanceActiveThisWeek(row, now),
   };
 }
 
@@ -172,13 +178,19 @@ export async function resolvePlansForFilter(
     // per Q-P1-6). Three taps on the same Template -> three rows here. See
     // D-WS7-058 for the UX-grouping decision (collapse duplicates, filter to
     // active+upcoming only, or leave as-is).
+    //
+    // WS7-5a: exclude wizard pre-save drafts. Branch B of the two-step
+    // wizard commit model writes a hidden MealPlanInstance on "View plan"
+    // so an abandoned-but-liked plan can be resumed (GET /wizard/drafts);
+    // it must NOT appear in the user's general plan list until "Save and
+    // use" flips isWizardDraft -> false.
     const rows = (await prisma.mealPlanInstance.findMany({
-      where: { userId, isArchived: false },
+      where: { userId, isArchived: false, isWizardDraft: false },
       include: INSTANCE_TEMPLATE_INCLUDE,
       orderBy: { createdAt: "desc" },
       take: limit,
     })) as InstanceRow[];
-    return rows.map(instanceToListItem);
+    return rows.map((r) => instanceToListItem(r, now));
   }
 
   if (filter === "featured" || filter === "hosting_events") {

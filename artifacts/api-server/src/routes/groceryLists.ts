@@ -41,6 +41,7 @@ import {
   searchIngredientsByPrefix as productionSearchIngredientsByPrefix,
 } from "../lib/ingredientSearch";
 import { logger } from "../lib/logger";
+import { isInstanceActiveThisWeek } from "../lib/planDates";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 
@@ -407,7 +408,11 @@ export function createGroceryListsRouter(
           planInstance: {
             select: {
               id: true,
-              isActiveThisWeek: true,
+              // WS7-6 (E): the stored isActiveThisWeek column is gone.
+              // Project startDate/endDate and compute the boolean below
+              // so the wire shape mobile parses stays unchanged.
+              startDate: true,
+              endDate: true,
             },
           },
         },
@@ -415,7 +420,16 @@ export function createGroceryListsRouter(
       if (!list) {
         return res.status(404).json({ error: "list_not_found" });
       }
-      return res.status(200).json({ list });
+      const listWithComputedActive = list.planInstance
+        ? {
+            ...list,
+            planInstance: {
+              id: list.planInstance.id,
+              isActiveThisWeek: isInstanceActiveThisWeek(list.planInstance),
+            },
+          }
+        : list;
+      return res.status(200).json({ list: listWithComputedActive });
     } catch (err) {
       logger.error(
         { event: "get_grocery_list_failed", userId, listId, err },

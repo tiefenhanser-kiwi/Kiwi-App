@@ -2025,17 +2025,22 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
     assert.equal(deps.rec.materializeCalls.length, 1);
     assert.equal(deps.rec.materializeCalls[0].draftId, "draft-ok");
 
-    // updateMany demotes any active plans for this user.
-    assert.equal(deps.rec.updateManyCalls.length, 1);
-    const demote = deps.rec.updateManyCalls[0].where as Record<string, unknown>;
-    assert.equal(demote.userId, ACTIVATE_USER_ID);
-    assert.equal(demote.isActiveThisWeek, true);
+    // WS7-6 (E): no demote-prior. Single-current is enforced by the
+    // per-user EXCLUDE constraint on [startDate, endDate]; the activate
+    // path writes the current Sun-Sat range and trusts the DB.
+    assert.equal(deps.rec.updateManyCalls.length, 0);
 
-    // Flip update — sets isWizardDraft=false, isActiveThisWeek=true, bumps revisionId.
+    // Flip update — sets isWizardDraft=false, bumps revisionId, dates
+    // the plan. WS7-6 (E): the stored isActiveThisWeek column is gone,
+    // so the update payload does NOT carry it; "active" is derived from
+    // the freshly-written current-week range.
     assert.equal(deps.rec.updateCalls.length, 1);
     const flip = deps.rec.updateCalls[0].data;
     assert.equal(flip.isWizardDraft, false);
-    assert.equal(flip.isActiveThisWeek, true);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(flip, "isActiveThisWeek"),
+      false,
+    );
     // status is NOT modified (kept as the existing "draft", per use-template precedent).
     assert.equal(Object.prototype.hasOwnProperty.call(flip, "status"), false);
     assert.deepEqual(flip.revisionId, { increment: 1 });

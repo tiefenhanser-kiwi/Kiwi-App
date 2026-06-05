@@ -24,7 +24,11 @@ interface PlanRow {
   userId: string;
   titleOverride: string | null;
   revisionId: number;
-  isActiveThisWeek: boolean;
+  // WS7-6 (E): isActiveThisWeek is no longer stored; the GET grocery
+  // list reader computes it via isInstanceActiveThisWeek(planInstance).
+  // The stub keeps a date range so the helper can read the row.
+  startDate: Date | null;
+  endDate: Date | null;
   template: { title: string };
 }
 
@@ -194,8 +198,10 @@ function makeStubPrisma(state: StubState) {
             const plan = state.plans.find(
               (p) => p.id === list.mealPlanInstanceId,
             );
+            // Mirror the route's new select shape — startDate/endDate are
+            // projected; the route computes the boolean for the response.
             result.planInstance = plan
-              ? { id: plan.id, isActiveThisWeek: plan.isActiveThisWeek }
+              ? { id: plan.id, startDate: plan.startDate, endDate: plan.endDate }
               : null;
           }
           return result;
@@ -427,7 +433,8 @@ function seedPlan(state: StubState, overrides: Partial<PlanRow> = {}): PlanRow {
     userId: USER,
     titleOverride: null,
     revisionId: 7,
-    isActiveThisWeek: false,
+    startDate: null,
+    endDate: null,
     template: { title: "Family Dinners" },
     ...overrides,
   };
@@ -1094,7 +1101,15 @@ describe("GET /api/grocery-lists/:id", () => {
 
   it("surfaces planInstance.isActiveThisWeek=true on the response when the linked plan is the active week", async () => {
     const harness = await spinUp();
-    seedPlan(harness.state, { isActiveThisWeek: true });
+    // WS7-6 (E): "active" is now computed from [startDate, endDate] ∋ now.
+    // Seed a range that bookends `now` on both sides so the helper returns
+    // true regardless of clock drift during the test run.
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    seedPlan(harness.state, {
+      startDate: new Date(now - 3 * day),
+      endDate: new Date(now + 3 * day),
+    });
     seedExistingList(harness.state, { id: "list-this-week" });
     try {
       const token = signToken(USER);
