@@ -14,7 +14,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { featuredWhere, hostingFeaturedWhere } from "./featuring";
-import { isInstanceActiveThisWeek } from "./planDates";
+import { resolveThisWeekWinnerId } from "./planDates";
 import { getTopRatedSettings } from "./topRated";
 
 export type PlanFilterKey =
@@ -70,11 +70,18 @@ export const toYmd = (d: Date | null): string | null => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+// Re-export the winner-id helper so route handlers have one import for
+// "compute the resolver winner once for this request".
+export { resolveThisWeekWinnerId };
+
 // ── row shapes (structural — accept Prisma's superset results) ──────────
 
-// WS7-6 (E): isActiveThisWeek dropped from the row shape; it is computed
-// from startDate/endDate via isInstanceActiveThisWeek at projection time
-// (instanceToListItem) so the wire shape still ships a boolean.
+// WS7-6 (E) Block 1 REWORK: row shape no longer needs activatedAt for the
+// list projection itself — the wire boolean is derived by comparing
+// row.id against a pre-resolved winnerId. The caller (route handler)
+// computes winnerId once per request via resolveThisWeekWinnerId and
+// passes it to instanceToListItem. Memoization across the
+// resolvePlansForFilter loop happens naturally — same winnerId reused.
 export interface InstanceRow {
   id: string;
   titleOverride: string | null;
@@ -117,7 +124,7 @@ const TEMPLATE_SELECT = {
 
 export function instanceToListItem(
   row: InstanceRow,
-  now: Date = new Date(),
+  winnerId: string | null,
 ): PlanListItem {
   return {
     id: row.id,
@@ -129,7 +136,7 @@ export function instanceToListItem(
     status: row.status,
     startDate: toYmd(row.startDate),
     endDate: toYmd(row.endDate),
-    isActiveThisWeek: isInstanceActiveThisWeek(row, now),
+    isActiveThisWeek: winnerId !== null && row.id === winnerId,
   };
 }
 
@@ -161,12 +168,19 @@ export function instanceToSummary(row: InstanceRow): PlanSummary {
 
 // Resolve a single filter key into PlanListItems. `limit` caps the row count
 // (the /home discovery cards pass 5; /plans passes its page size).
+//
+// WS7-6 (E) Block 1 REWORK: `winnerId` is pre-computed once per request by
+// the route handler via resolveThisWeekWinnerId and threaded through so
+// the multi-filter loop does NOT re-query for each filter key. Pass null
+// when no plan covers `now` (template filters ignore winnerId — templates
+// are never "this week").
 export async function resolvePlansForFilter(
   prisma: PrismaClient,
   filter: PlanFilterKey,
   userId: string,
   now: Date,
   limit: number,
+  winnerId: string | null,
 ): Promise<PlanListItem[]> {
   if (filter === "my_plans") {
     // WS7-4-C c7: exclude soft-deleted (composted) plans. MealPlanInstance
@@ -190,7 +204,7 @@ export async function resolvePlansForFilter(
       orderBy: { createdAt: "desc" },
       take: limit,
     })) as InstanceRow[];
-    return rows.map((r) => instanceToListItem(r, now));
+    return rows.map((r) => instanceToListItem(r, winnerId));
   }
 
   if (filter === "featured" || filter === "hosting_events") {

@@ -54,6 +54,7 @@ import {
   currentWeekRange,
   didNewlyCoverNow,
   isInstanceActiveThisWeek,
+  resolveThisWeekWinnerId,
 } from "../lib/planDates";
 import { sortPlanItemsCanonical } from "../lib/planItemSort";
 import { composeMealDetail, type MealDetail } from "./meals";
@@ -256,6 +257,15 @@ export function createPlansRouter(
     const now = new Date();
 
     try {
+      // WS7-6 (E) Block 1 REWORK — compute the resolver winnerId ONCE per
+      // request. Threaded into resolvePlansForFilter so the my_plans
+      // projection derives isActiveThisWeek by id-compare against this
+      // pre-resolved id (no per-row secondary read; no per-filter
+      // recompute even when the multi-select filter list has several
+      // keys). Template-only filters ignore the id (templates are never
+      // "this week").
+      const winnerId = await resolveThisWeekWinnerId(prisma, userId, now);
+
       const blocks: PlanListItem[][] = [];
       for (const key of parsed.keys) {
         blocks.push(
@@ -265,6 +275,7 @@ export function createPlansRouter(
             userId,
             now,
             PLAN_FETCH_CAP,
+            winnerId,
           ),
         );
       }
@@ -272,24 +283,17 @@ export function createPlansRouter(
       const { page, nextCursor } = paginateById(merged, cursor, limit);
 
       // activeThisWeek — the pinned This-Week callout the Plans tab consumes
-      // (PRD §9.2.1), folded in so the tab fetches one endpoint. WS7-6 (E):
-      // "active" is now the date-range predicate isInstanceActiveThisWeek
-      // (lib/planDates.ts) — a plan is current iff now ∈ [startDate,
-      // endDate]. The per-user EXCLUDE constraint guarantees at most one
-      // such row, so findFirst is still safe. WS7-5a wizardDraft exclusion
-      // stays: a hidden draft has null dates and would never match the
-      // range filter anyway, but the explicit gate makes intent clearer.
-      const nowForActive = new Date();
-      const activeRow = await prisma.mealPlanInstance.findFirst({
-        where: {
-          userId,
-          isWizardDraft: false,
-          startDate: { lte: nowForActive },
-          endDate: { gte: nowForActive },
-        },
-        include: INSTANCE_TEMPLATE_INCLUDE,
-        orderBy: { createdAt: "desc" },
-      });
+      // (PRD §9.2.1). WS7-6 (E) Block 1 REWORK: "active" is the resolver
+      // winner under Model 2 — newest activatedAt among covering rows
+      // (nulls last → newest createdAt). winnerId resolved above; one
+      // findUnique hydrates the summary fields. Null winnerId → null
+      // callout (no plan covers now).
+      const activeRow = winnerId
+        ? await prisma.mealPlanInstance.findUnique({
+            where: { id: winnerId },
+            include: INSTANCE_TEMPLATE_INCLUDE,
+          })
+        : null;
       const activeThisWeek = activeRow
         ? instanceToSummary(activeRow as unknown as InstanceRow)
         : null;
@@ -336,6 +340,15 @@ export function createPlansRouter(
         return res.status(404).json({ error: "plan not found" });
       }
 
+      // WS7-6 (E) Block 1 REWORK — resolve "is THIS plan the user's This
+      // Week winner?" against the user's covering subset, not the row in
+      // isolation. The single-row predicate can't tell whether another
+      // covering plan with a fresher activatedAt exists for the same
+      // user. resolveThisWeekWinnerId issues ONE narrow indexed findMany
+      // selecting {id, startDate, endDate, activatedAt, createdAt} — not
+      // full hydration.
+      const winnerId = await resolveThisWeekWinnerId(prisma, userId);
+
       const items: (PlanReviewItem & {
         id: string;
         mealId: string;
@@ -381,7 +394,7 @@ export function createPlansRouter(
           startDate: toYmd(instance.startDate),
           endDate: toYmd(instance.endDate),
           revisionId: instance.revisionId,
-          isActiveThisWeek: isInstanceActiveThisWeek(instance),
+          isActiveThisWeek: winnerId !== null && winnerId === instance.id,
           userId: instance.userId,
           // sourceType lives on the template, not the instance.
           sourceType: instance.template?.sourceType ?? "manual",

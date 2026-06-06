@@ -61,6 +61,7 @@ function planItem(
 function activeInstanceRow(opts: {
   startDate: Date | null;
   items: ReturnType<typeof planItem>[];
+  activatedAt?: Date | null;
 }) {
   return {
     id: "plan-active",
@@ -70,7 +71,12 @@ function activeInstanceRow(opts: {
     endDate: opts.startDate
       ? new Date(opts.startDate.getTime() + 6 * MS_PER_DAY)
       : null,
-    isActiveThisWeek: true,
+    // WS7-6 (E) Block 1 REWORK — resolver tiebreak fields. activatedAt
+    // default null exercises the auto-roll path (sole covering plan with
+    // null activatedAt still wins).
+    activatedAt: opts.activatedAt ?? null,
+    createdAt: new Date("2026-05-01T00:00:00.000Z"),
+    isWizardDraft: false,
     revisionId: 3,
     template: { title: "Weeknight Dinners" },
     items: opts.items,
@@ -131,9 +137,58 @@ interface StubOpts {
 function makeStubPrisma(opts: StubOpts) {
   return {
     mealPlanInstance: {
-      findFirst: async () => opts.activeInstance ?? null,
+      // WS7-6 (E) Block 1 REWORK — R6 active plan is the resolver winner.
+      // findUnique hydrates by winnerId; the narrow findMany below feeds
+      // resolveThisWeekWinnerId.
+      findUnique: async (args: { where: { id: string } }) => {
+        if (
+          opts.activeInstance &&
+          opts.activeInstance.id === args.where.id
+        ) {
+          return opts.activeInstance;
+        }
+        return null;
+      },
       count: async () => opts.savedPlanCount ?? 0,
-      findMany: async () => opts.myPlans ?? [],
+      findMany: async (args: {
+        where: {
+          userId?: string;
+          isWizardDraft?: boolean;
+          isArchived?: boolean;
+          startDate?: { lte: Date; not?: null };
+          endDate?: { gte: Date; not?: null };
+        };
+        select?: { activatedAt?: boolean };
+      }) => {
+        // Narrow covering-subset query for resolveThisWeekWinnerId: the
+        // SELECT carries activatedAt. Return the active instance only if
+        // its dates actually cover `now` (mirrors the real Prisma
+        // semantics: WHERE startDate.lte ≤ now ≤ endDate.gte).
+        if (args.select?.activatedAt && opts.activeInstance) {
+          const inst = opts.activeInstance;
+          if (inst.startDate === null || inst.endDate === null) return [];
+          if (args.where.startDate?.lte) {
+            if (inst.startDate.getTime() > args.where.startDate.lte.getTime()) return [];
+          }
+          if (args.where.endDate?.gte) {
+            if (inst.endDate.getTime() < args.where.endDate.gte.getTime()) return [];
+          }
+          if (args.where.isWizardDraft !== undefined && inst.isWizardDraft !== args.where.isWizardDraft) {
+            return [];
+          }
+          return [
+            {
+              id: inst.id,
+              startDate: inst.startDate,
+              endDate: inst.endDate,
+              activatedAt: inst.activatedAt,
+              createdAt: inst.createdAt,
+            },
+          ];
+        }
+        // Default branch — my_plans discovery list (full hydration).
+        return opts.myPlans ?? [];
+      },
     },
     mealPlanTemplate: {
       findMany: async (args: {

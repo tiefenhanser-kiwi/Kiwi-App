@@ -11,6 +11,8 @@ import {
   currentWeekRange,
   didNewlyCoverNow,
   isInstanceActiveThisWeek,
+  resolveThisWeekPlan,
+  type CoveringCandidate,
 } from "../planDates";
 
 describe("currentWeekRange — Sunday-Saturday calendar week (UTC)", () => {
@@ -212,5 +214,169 @@ describe("didNewlyCoverNow — re-pointed plan_activated_this_week trigger", () 
 
   it("covers-now → undated: does NOT fire (silent demotion)", () => {
     assert.equal(didNewlyCoverNow(covers, undated, NOW), false);
+  });
+});
+
+// WS7-6 (E) Block 1 REWORK — collection-level resolver under Model 2.
+// Active-ness is COMPUTED: among rows whose [startDate, endDate] covers
+// now, the winner has the newest activatedAt (nulls last → newest
+// createdAt). Plans MAY share date ranges; this resolver is the only
+// arbiter. These tests are load-bearing proofs of:
+//   - auto-roll-with-null-activatedAt (a sole covering plan with null
+//     activatedAt STILL wins → zero-write activation as time passes);
+//   - newest-activatedAt wins (Model 2's primary rule);
+//   - null-tiebreak by newest createdAt (deterministic — no coin-flip).
+describe("resolveThisWeekPlan — Model 2 winner among covering rows", () => {
+  const NOW = new Date("2026-06-03T12:00:00.000Z");
+  const COVERING = {
+    startDate: new Date("2026-05-31T00:00:00.000Z"),
+    endDate: new Date("2026-06-06T00:00:00.000Z"),
+  };
+  const FUTURE = {
+    startDate: new Date("2026-07-01T00:00:00.000Z"),
+    endDate: new Date("2026-07-07T00:00:00.000Z"),
+  };
+  const PAST = {
+    startDate: new Date("2026-05-01T00:00:00.000Z"),
+    endDate: new Date("2026-05-07T00:00:00.000Z"),
+  };
+
+  function row(
+    id: string,
+    overrides: Partial<CoveringCandidate> = {},
+  ): CoveringCandidate {
+    return {
+      id,
+      startDate: COVERING.startDate,
+      endDate: COVERING.endDate,
+      activatedAt: null,
+      createdAt: new Date("2026-05-01T00:00:00.000Z"),
+      ...overrides,
+    };
+  }
+
+  it("returns null when there are no rows", () => {
+    assert.equal(resolveThisWeekPlan([], NOW), null);
+  });
+
+  it("AUTO-ROLL: one covering row with NULL activatedAt still wins (zero-write activation)", () => {
+    const sole = row("p-sole", { activatedAt: null });
+    const winner = resolveThisWeekPlan([sole], NOW);
+    assert.ok(winner);
+    assert.equal(winner.id, "p-sole");
+  });
+
+  it("one covering row with set activatedAt wins", () => {
+    const sole = row("p-sole", {
+      activatedAt: new Date("2026-06-01T00:00:00.000Z"),
+    });
+    const winner = resolveThisWeekPlan([sole], NOW);
+    assert.equal(winner?.id, "p-sole");
+  });
+
+  it("NEWEST ACTIVATEDAT wins among two covering rows with non-null activatedAt", () => {
+    const older = row("p-older", {
+      activatedAt: new Date("2026-06-01T08:00:00.000Z"),
+    });
+    const newer = row("p-newer", {
+      activatedAt: new Date("2026-06-02T08:00:00.000Z"),
+    });
+    const winner = resolveThisWeekPlan([older, newer], NOW);
+    assert.equal(winner?.id, "p-newer");
+  });
+
+  it("FLIP: re-stamp the older row with a fresher activatedAt → winner flips", () => {
+    const a = row("p-a", { activatedAt: new Date("2026-06-01T08:00:00.000Z") });
+    const b = row("p-b", { activatedAt: new Date("2026-06-02T08:00:00.000Z") });
+    assert.equal(resolveThisWeekPlan([a, b], NOW)?.id, "p-b");
+    // Restamp a to be even newer than b.
+    const aFresh = { ...a, activatedAt: new Date("2026-06-03T08:00:00.000Z") };
+    assert.equal(resolveThisWeekPlan([aFresh, b], NOW)?.id, "p-a");
+  });
+
+  it("NULL TIEBREAK: covering row with set activatedAt beats covering row with null", () => {
+    const nullRow = row("p-null", { activatedAt: null });
+    const setRow = row("p-set", {
+      activatedAt: new Date("2026-06-01T00:00:00.000Z"),
+    });
+    const winner = resolveThisWeekPlan([nullRow, setRow], NOW);
+    assert.equal(winner?.id, "p-set");
+  });
+
+  it("ALL-NULL TIEBREAK: among rows with null activatedAt, newest createdAt wins", () => {
+    const oldCreated = row("p-old-created", {
+      activatedAt: null,
+      createdAt: new Date("2026-05-01T00:00:00.000Z"),
+    });
+    const newCreated = row("p-new-created", {
+      activatedAt: null,
+      createdAt: new Date("2026-05-20T00:00:00.000Z"),
+    });
+    const winner = resolveThisWeekPlan([oldCreated, newCreated], NOW);
+    assert.equal(winner?.id, "p-new-created");
+  });
+
+  it("NON-COVERING with newest activatedAt cannot beat a covering row with null activatedAt", () => {
+    const nonCoveringFresh = row("p-future", {
+      startDate: FUTURE.startDate,
+      endDate: FUTURE.endDate,
+      activatedAt: new Date("2026-06-10T00:00:00.000Z"),
+    });
+    const coveringNull = row("p-covering", { activatedAt: null });
+    const winner = resolveThisWeekPlan(
+      [nonCoveringFresh, coveringNull],
+      NOW,
+    );
+    assert.equal(winner?.id, "p-covering");
+  });
+
+  it("returns null when only non-covering rows exist (no This Week's plan)", () => {
+    const past = row("p-past", {
+      startDate: PAST.startDate,
+      endDate: PAST.endDate,
+      activatedAt: new Date("2026-06-10T00:00:00.000Z"),
+    });
+    const future = row("p-future", {
+      startDate: FUTURE.startDate,
+      endDate: FUTURE.endDate,
+      activatedAt: new Date("2026-06-10T00:00:00.000Z"),
+    });
+    assert.equal(resolveThisWeekPlan([past, future], NOW), null);
+  });
+
+  it("inclusive start edge counts as covering (startDate === now)", () => {
+    const edge = row("p-edge", {
+      startDate: NOW,
+      endDate: new Date("2026-06-09T00:00:00.000Z"),
+      activatedAt: null,
+    });
+    assert.equal(resolveThisWeekPlan([edge], NOW)?.id, "p-edge");
+  });
+
+  it("inclusive end edge counts as covering (endDate === now)", () => {
+    const edge = row("p-edge", {
+      startDate: new Date("2026-05-31T00:00:00.000Z"),
+      endDate: NOW,
+      activatedAt: null,
+    });
+    assert.equal(resolveThisWeekPlan([edge], NOW)?.id, "p-edge");
+  });
+
+  it("null startDate is never covering (never wins, even with newest activatedAt)", () => {
+    const nullStart = row("p-null-start", {
+      startDate: null,
+      endDate: COVERING.endDate,
+      activatedAt: new Date("2026-06-10T00:00:00.000Z"),
+    });
+    assert.equal(resolveThisWeekPlan([nullStart], NOW), null);
+  });
+
+  it("null endDate is never covering", () => {
+    const nullEnd = row("p-null-end", {
+      startDate: COVERING.startDate,
+      endDate: null,
+      activatedAt: new Date("2026-06-10T00:00:00.000Z"),
+    });
+    assert.equal(resolveThisWeekPlan([nullEnd], NOW), null);
   });
 });

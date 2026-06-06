@@ -24,11 +24,15 @@ interface PlanRow {
   userId: string;
   titleOverride: string | null;
   revisionId: number;
-  // WS7-6 (E): isActiveThisWeek is no longer stored; the GET grocery
-  // list reader computes it via isInstanceActiveThisWeek(planInstance).
-  // The stub keeps a date range so the helper can read the row.
+  // WS7-6 (E) Block 1 REWORK: resolveThisWeekWinnerId reads a narrow
+  // covering subset (id/startDate/endDate/activatedAt/createdAt) and the
+  // resolver picks the winner. The stub keeps these fields so the
+  // mealPlanInstance.findMany branch below can return them.
   startDate: Date | null;
   endDate: Date | null;
+  activatedAt: Date | null;
+  createdAt: Date;
+  isWizardDraft: boolean;
   template: { title: string };
 }
 
@@ -155,6 +159,40 @@ function makeStubPrisma(state: StubState) {
           ) ?? null
         );
       },
+      // WS7-6 (E) Block 1 REWORK — narrow covering-subset query used by
+      // resolveThisWeekWinnerId. Mirrors the real Prisma shape: filters
+      // on userId + isWizardDraft + startDate.lte/endDate.gte (both bounds
+      // inclusive, both non-null) and returns the projected scalars.
+      findMany: async (args: {
+        where: {
+          userId: string;
+          isWizardDraft?: boolean;
+          startDate?: { lte: Date; not?: null };
+          endDate?: { gte: Date; not?: null };
+        };
+      }) => {
+        return state.plans
+          .filter((p) => {
+            if (p.userId !== args.where.userId) return false;
+            if (args.where.isWizardDraft !== undefined && p.isWizardDraft !== args.where.isWizardDraft) return false;
+            if (args.where.startDate?.lte) {
+              if (p.startDate === null) return false;
+              if (p.startDate.getTime() > args.where.startDate.lte.getTime()) return false;
+            }
+            if (args.where.endDate?.gte) {
+              if (p.endDate === null) return false;
+              if (p.endDate.getTime() < args.where.endDate.gte.getTime()) return false;
+            }
+            return true;
+          })
+          .map((p) => ({
+            id: p.id,
+            startDate: p.startDate,
+            endDate: p.endDate,
+            activatedAt: p.activatedAt,
+            createdAt: p.createdAt,
+          }));
+      },
     },
     groceryList: {
       findFirst: async ({
@@ -198,11 +236,10 @@ function makeStubPrisma(state: StubState) {
             const plan = state.plans.find(
               (p) => p.id === list.mealPlanInstanceId,
             );
-            // Mirror the route's new select shape — startDate/endDate are
-            // projected; the route computes the boolean for the response.
-            result.planInstance = plan
-              ? { id: plan.id, startDate: plan.startDate, endDate: plan.endDate }
-              : null;
+            // WS7-6 (E) Block 1 REWORK — the route now selects only the id
+            // on planInstance; the isActiveThisWeek boolean is computed
+            // outside this include via resolveThisWeekWinnerId.
+            result.planInstance = plan ? { id: plan.id } : null;
           }
           return result;
         }
@@ -435,6 +472,9 @@ function seedPlan(state: StubState, overrides: Partial<PlanRow> = {}): PlanRow {
     revisionId: 7,
     startDate: null,
     endDate: null,
+    activatedAt: null,
+    createdAt: new Date("2026-05-01T00:00:00.000Z"),
+    isWizardDraft: false,
     template: { title: "Family Dinners" },
     ...overrides,
   };

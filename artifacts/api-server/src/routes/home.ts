@@ -19,6 +19,7 @@ import {
   toYmd,
   type PlanFilterKey,
 } from "../lib/planQueries";
+import { resolveThisWeekWinnerId } from "../lib/planDates";
 
 export interface HomeRouterDeps {
   prisma: PrismaClient;
@@ -132,28 +133,27 @@ export function createHomeRouter(
 
     try {
       // ── active plan + today's meal ──────────────────────────────────
-      // WS7-6 (E): "active" is the date-range predicate (now ∈ [startDate,
-      // endDate]); see lib/planDates.ts isInstanceActiveThisWeek. The
-      // per-user EXCLUDE constraint guarantees at most one such row, so
-      // findFirst remains safe. WS7-5a wizard-draft exclusion stays —
-      // hidden drafts are null-dated and would never match the range
-      // filter anyway, but the explicit gate makes intent clearer.
-      const activeInstance = await prisma.mealPlanInstance.findFirst({
-        where: {
-          userId,
-          isWizardDraft: false,
-          startDate: { lte: now },
-          endDate: { gte: now },
-        },
-        orderBy: { createdAt: "desc" },
-        include: {
-          template: { select: { title: true } },
-          items: {
-            orderBy: { positionIndex: "asc" },
-            include: { meal: { select: MEAL_LIST_SELECT } },
-          },
-        },
-      });
+      // WS7-6 (E) Block 1 REWORK — Model 2: "active" is the resolver
+      // winner — newest activatedAt among covering rows (nulls last →
+      // newest createdAt). resolveThisWeekWinnerId runs ONE narrow
+      // indexed findMany scoped to (userId, isWizardDraft:false,
+      // covering-now) selecting only {id, startDate, endDate,
+      // activatedAt, createdAt} — not full hydration. The winnerId is
+      // reused below by the discovery-card loop so the my_plans
+      // projection's isActiveThisWeek does not re-query.
+      const winnerId = await resolveThisWeekWinnerId(prisma, userId, now);
+      const activeInstance = winnerId
+        ? await prisma.mealPlanInstance.findUnique({
+            where: { id: winnerId },
+            include: {
+              template: { select: { title: true } },
+              items: {
+                orderBy: { positionIndex: "asc" },
+                include: { meal: { select: MEAL_LIST_SELECT } },
+              },
+            },
+          })
+        : null;
 
       let todaysMeal: unknown = null;
       let activePlan: unknown = null;
@@ -217,6 +217,7 @@ export function createHomeRouter(
           userId,
           now,
           DISCOVERY_CARD_LIMIT,
+          winnerId,
         );
         planDiscoveryCards.push({ badge: key, plans });
       }

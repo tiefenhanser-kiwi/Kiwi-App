@@ -208,6 +208,9 @@ function instanceFix(opts: {
   userId?: string;
   name: string;
   isActiveThisWeek?: boolean;
+  // WS7-6 (E) Block 1 REWORK — resolver tiebreak fields.
+  activatedAt?: Date | null;
+  isWizardDraft?: boolean;
   createdAt?: Date;
   startDate?: Date | null;
   endDate?: Date | null;
@@ -230,6 +233,8 @@ function instanceFix(opts: {
     startDate: opts.startDate ?? (null as Date | null),
     endDate: opts.endDate ?? (null as Date | null),
     isActiveThisWeek: opts.isActiveThisWeek ?? false,
+    activatedAt: opts.activatedAt ?? null,
+    isWizardDraft: opts.isWizardDraft ?? false,
     revisionId: 2,
     prepStatus: opts.prepStatus ?? "not_prepped",
     optimizationNotes: opts.optimizationNotes ?? null,
@@ -307,39 +312,64 @@ function makeA2Stub(opts: {
   const meals = opts.meals ?? [];
   return {
     mealPlanInstance: {
-      findMany: async (args: { where: { userId: string } }) =>
-        instances
-          .filter((i) => i.userId === args.where.userId)
-          .slice()
-          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
-      findFirst: async (args: {
+      // WS7-6 (E) Block 1 REWORK — findMany is dual-purpose:
+      //   (a) full-row my_plans list (no select, with include) — returned
+      //       as full instance fixtures sorted createdAt DESC;
+      //   (b) narrow covering-set query for resolveThisWeekWinnerId
+      //       (select: {id,startDate,endDate,activatedAt,createdAt} +
+      //        where: {userId, isWizardDraft:false, startDate.lte/not:null,
+      //        endDate.gte/not:null}) — returned as the projected scalars.
+      // The branch is detected by the presence of select.activatedAt.
+      findMany: async (args: {
         where: {
           userId: string;
+          isArchived?: boolean;
           isWizardDraft?: boolean;
-          startDate?: { lte: Date };
-          endDate?: { gte: Date };
+          startDate?: { lte: Date; not?: null };
+          endDate?: { gte: Date; not?: null };
         };
-      }) =>
-        // WS7-6 (E): R1 + R6 filter by date range, not by the dropped
-        // isActiveThisWeek flag. Mirror Prisma's filter shape here so the
-        // active-summary tests exercise the real predicate. WS7-5a
-        // isWizardDraft exclusion still applies.
-        instances.find((i) => {
-          if (i.userId !== args.where.userId) return false;
-          if (args.where.isWizardDraft !== undefined) {
-            const drafts = (i as { isWizardDraft?: boolean }).isWizardDraft ?? false;
-            if (drafts !== args.where.isWizardDraft) return false;
-          }
-          if (args.where.startDate !== undefined) {
-            if (i.startDate === null) return false;
-            if (i.startDate.getTime() > args.where.startDate.lte.getTime()) return false;
-          }
-          if (args.where.endDate !== undefined) {
-            if (i.endDate === null) return false;
-            if (i.endDate.getTime() < args.where.endDate.gte.getTime()) return false;
-          }
-          return true;
-        }) ?? null,
+        select?: {
+          id?: boolean;
+          startDate?: boolean;
+          endDate?: boolean;
+          activatedAt?: boolean;
+          createdAt?: boolean;
+        };
+      }) => {
+        if (args.select?.activatedAt) {
+          // Narrow covering-subset query — the resolver's only DB read.
+          return instances
+            .filter((i) => {
+              if (i.userId !== args.where.userId) return false;
+              if (args.where.isWizardDraft !== undefined && i.isWizardDraft !== args.where.isWizardDraft) return false;
+              if (args.where.startDate?.lte) {
+                if (i.startDate === null) return false;
+                if (i.startDate.getTime() > args.where.startDate.lte.getTime()) return false;
+              }
+              if (args.where.endDate?.gte) {
+                if (i.endDate === null) return false;
+                if (i.endDate.getTime() < args.where.endDate.gte.getTime()) return false;
+              }
+              return true;
+            })
+            .map((i) => ({
+              id: i.id,
+              startDate: i.startDate,
+              endDate: i.endDate,
+              activatedAt: i.activatedAt,
+              createdAt: i.createdAt,
+            }));
+        }
+        // Default branch — my_plans list (full hydration).
+        return instances
+          .filter((i) => {
+            if (i.userId !== args.where.userId) return false;
+            if (args.where.isWizardDraft !== undefined && i.isWizardDraft !== args.where.isWizardDraft) return false;
+            return true;
+          })
+          .slice()
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      },
       findUnique: async (args: { where: { id: string } }) =>
         instances.find((i) => i.id === args.where.id) ?? null,
     },
@@ -649,6 +679,49 @@ describe("GET /plans — list + filter", () => {
       }
     });
 
+    // WS7-6 (E) Block 1 REWORK — Model 2 multi-row proof. R1 must pick
+    // the resolver WINNER (newest activatedAt among covering rows), not
+    // just the first covering row. Two plans cover the same window; the
+    // one with the fresher activatedAt wins.
+    it("R1 returns the resolver winner — newest activatedAt — when MULTIPLE rows cover now", async () => {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-older-act",
+              name: "Older activation",
+              startDate: new Date(now - 3 * day),
+              endDate: new Date(now + 3 * day),
+              activatedAt: new Date(now - 2 * day),
+              createdAt: new Date(now - 5 * day),
+            }),
+            instanceFix({
+              id: "p-newer-act",
+              name: "Newer activation",
+              startDate: new Date(now - 1 * day),
+              endDate: new Date(now + 5 * day),
+              activatedAt: new Date(now - 1 * day),
+              createdAt: new Date(now - 1 * day),
+            }),
+          ],
+        }),
+      );
+      try {
+        const res = await fetch(`${harness.baseUrl}/plans`, {
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        });
+        const body = (await res.json()) as {
+          activeThisWeek: { id: string } | null;
+        };
+        assert.ok(body.activeThisWeek);
+        assert.equal(body.activeThisWeek.id, "p-newer-act");
+      } finally {
+        await harness.close();
+      }
+    });
+
     it("R1 returns null when no row covers `now` (auto-roll has not occurred yet)", async () => {
       const now = Date.now();
       const day = 24 * 60 * 60 * 1000;
@@ -764,6 +837,55 @@ describe("GET /plans — list + filter", () => {
         // When time advances past startDate, the SAME row will start
         // shipping true without any write event.
         assert.equal(body.plan.isActiveThisWeek, false);
+      } finally {
+        await harness.close();
+      }
+    });
+
+    // WS7-6 (E) Block 1 REWORK — Model 2 wire-shape proof: a covering
+    // row that is NOT the winner ships isActiveThisWeek=false. Two plans
+    // cover now; the one with the older activatedAt loses the tiebreak
+    // and the wire boolean reflects that.
+    it("GET /plans/:id ships isActiveThisWeek=false on a covering-but-not-winner plan (Model 2 tiebreak)", async () => {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-loser",
+              name: "Older covering",
+              startDate: new Date(now - 3 * day),
+              endDate: new Date(now + 3 * day),
+              activatedAt: new Date(now - 2 * day),
+            }),
+            instanceFix({
+              id: "p-winner",
+              name: "Newer covering",
+              startDate: new Date(now - 1 * day),
+              endDate: new Date(now + 5 * day),
+              activatedAt: new Date(now - 1 * day),
+            }),
+          ],
+        }),
+      );
+      try {
+        const loser = await fetch(`${harness.baseUrl}/plans/p-loser`, {
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        });
+        const loserBody = (await loser.json()) as {
+          plan: { id: string; isActiveThisWeek: boolean };
+        };
+        assert.equal(loserBody.plan.id, "p-loser");
+        assert.equal(loserBody.plan.isActiveThisWeek, false);
+
+        const winner = await fetch(`${harness.baseUrl}/plans/p-winner`, {
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        });
+        const winnerBody = (await winner.json()) as {
+          plan: { id: string; isActiveThisWeek: boolean };
+        };
+        assert.equal(winnerBody.plan.isActiveThisWeek, true);
       } finally {
         await harness.close();
       }
