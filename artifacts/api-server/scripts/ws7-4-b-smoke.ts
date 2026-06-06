@@ -175,7 +175,12 @@ async function main(): Promise<number> {
     };
     assertEq("new plan id matches", newPlanBody.plan.id, createdInstanceId);
     assertEq("new plan revisionId = 1", newPlanBody.plan.revisionId, 1);
-    assertEq("new plan isActiveThisWeek = true (Q-P1-4 ruling)", newPlanBody.plan.isActiveThisWeek, true);
+    // WS7-6 (E) Block 1 REWORK: use-template creates an UNDATED plan (null
+    // dates). Under Model 2, a row with null dates can never cover `now`
+    // and thus is never the resolver winner → wire boolean ships false.
+    // Mobile completes activation via a follow-up PATCH that supplies
+    // dates (seam B stamps activatedAt at that point).
+    assertEq("new plan isActiveThisWeek = false (use-template is undated under Model 2)", newPlanBody.plan.isActiveThisWeek, false);
     assertEq("item count matches template", newPlanBody.plan.items.length, expectedItemCount);
     const actualMealIds = newPlanBody.plan.items
       .slice()
@@ -240,11 +245,11 @@ async function main(): Promise<number> {
       console.log(`[teardown] restored Template.useCount = ${useCountBefore}`);
     }
     if (priorActiveInstanceId) {
-      await prisma.mealPlanInstance.update({
-        where: { id: priorActiveInstanceId },
-        data: { isActiveThisWeek: true },
-      });
-      console.log(`[teardown] restored prior active instance ${priorActiveInstanceId}`);
+      // WS7-6 (E) Block 1 REWORK: nothing to restore — the dropped
+      // isActiveThisWeek column was never written by this smoke run
+      // (use-template creates undated, never activates). The prior
+      // active plan's activatedAt timestamp was never modified.
+      console.log(`[teardown] no-op: prior active plan ${priorActiveInstanceId} was not modified (Model 2)`);
     }
     await harness.close();
     await prisma.$disconnect();

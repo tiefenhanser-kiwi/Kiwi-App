@@ -579,14 +579,17 @@ function canonicalize(name: string): string {
   return name.trim().toLowerCase();
 }
 
-/** Monday of the calendar week containing `date` (in local time). */
-function startOfWeekMonday(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  const dow = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  const offset = dow === 0 ? -6 : 1 - dow;
-  d.setDate(d.getDate() + offset);
-  return d;
+/**
+ * Sunday of the calendar week containing `date` (UTC), matching the runtime
+ * currentWeekRange() helper in src/lib/planDates.ts. Sun = day 0 → offset = -day;
+ * gives Sun-Sat alignment so seeded plan dates and the runtime resolver agree
+ * about which week a row covers. WS7-6 (E) Block 1 REWORK D-WS7-100 fold-in.
+ */
+function startOfWeekSunday(date: Date): Date {
+  const day = date.getUTCDay();
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - day),
+  );
 }
 
 function addDays(date: Date, days: number): Date {
@@ -1049,11 +1052,13 @@ interface PlanSeed {
   instanceId: string;
   title: string;
   status: "this_week" | "upcoming" | "draft";
-  // WS7-6 (E): isActiveThisWeek dropped from the schema. The
-  // [startDate, endDate] range is the source of truth — null = undated
-  // (exempt from EXCLUDE constraint and never current).
+  // WS7-6 (E) Block 1 REWORK: Model 2. Plans MAY share date ranges; the
+  // resolver picks the winner by newest activatedAt among covering rows.
+  // activatedAt is non-null on the intended winner (deterministic) and
+  // null on other rows.
   startDate: Date | null;
   endDate: Date | null;
+  activatedAt: Date | null;
   items: PlanSeedItem[];
 }
 
@@ -1086,6 +1091,7 @@ async function seedPlan(userId: string, plan: PlanSeed): Promise<void> {
           status: plan.status,
           startDate: plan.startDate,
           endDate: plan.endDate,
+          activatedAt: plan.activatedAt,
         },
         create: {
           id: plan.instanceId,
@@ -1095,6 +1101,7 @@ async function seedPlan(userId: string, plan: PlanSeed): Promise<void> {
           status: plan.status,
           startDate: plan.startDate,
           endDate: plan.endDate,
+          activatedAt: plan.activatedAt,
         },
       });
 
@@ -1102,15 +1109,19 @@ async function seedPlan(userId: string, plan: PlanSeed): Promise<void> {
         where: { mealPlanInstanceId: plan.instanceId },
       });
 
-      const weekStart = plan.startDate ? startOfWeekMonday(plan.startDate) : null;
+      // WS7-6 (E) Block 1 REWORK D-WS7-100: align to Sunday-based weeks so
+      // assignedDate offsets agree with runtime currentWeekRange() (Sun-Sat
+      // UTC). Plan.startDate IS the Sunday of the seeded week — same
+      // anchor as the Monday→0 offset table below shifted by one (Sun→0).
+      const weekStart = plan.startDate ? startOfWeekSunday(plan.startDate) : null;
       const dayOffset: Record<string, number> = {
-        Monday: 0,
-        Tuesday: 1,
-        Wednesday: 2,
-        Thursday: 3,
-        Friday: 4,
-        Saturday: 5,
-        Sunday: 6,
+        Sunday: 0,
+        Monday: 1,
+        Tuesday: 2,
+        Wednesday: 3,
+        Thursday: 4,
+        Friday: 5,
+        Saturday: 6,
       };
 
       await tx.mealPlanItem.createMany({
@@ -1153,15 +1164,16 @@ async function main(): Promise<void> {
     await seedDiscoveryTemplate(user.id, t);
   }
 
-  const weekStart = startOfWeekMonday(new Date());
+  // WS7-6 (E) Block 1 REWORK — D-WS7-100. Sunday-based week alignment so
+  // seeded covering dates agree with runtime currentWeekRange() (Sun-Sat
+  // UTC). Plans MAY share date ranges under Model 2 — no EXCLUDE
+  // constraint — so demoPlan returns to current week alongside weeknightPlan
+  // and the resolver picks the winner by newest activatedAt. weeknightPlan
+  // is stamped (the intended This Week's plan); demoPlan stays null-activatedAt
+  // so weeknightPlan wins deterministically.
+  const weekStart = startOfWeekSunday(new Date());
   const weekEnd = addDays(weekStart, 6);
-  // WS7-6 (E) Block 1 Phase 1 ruling — demoPlan moves to next week so it
-  // does not overlap weeknightPlan on the per-user EXCLUDE constraint
-  // (build-it-right decision #3). Demo still auto-rolls into current the
-  // following Monday; the existing /plan/demo deep-link continues to
-  // resolve.
-  const nextWeekStart = addDays(weekStart, 7);
-  const nextWeekEnd = addDays(weekStart, 13);
+  const seedActivatedAt = new Date();
 
   const weeknightPlan: PlanSeed = {
     templateId: DEV_PLAN_IDS.weeknightTemplate,
@@ -1170,6 +1182,7 @@ async function main(): Promise<void> {
     status: "this_week",
     startDate: weekStart,
     endDate: weekEnd,
+    activatedAt: seedActivatedAt,
     items: [
       {
         id: "dev-plan-item-weeknight-tacos",
@@ -1205,6 +1218,7 @@ async function main(): Promise<void> {
     status: "upcoming",
     startDate: null,
     endDate: null,
+    activatedAt: null,
     items: [
       {
         id: "dev-plan-item-spice-tikka",
@@ -1231,10 +1245,14 @@ async function main(): Promise<void> {
     instanceId: DEV_PLAN_IDS.demoInstance,
     title: "Demo Plan",
     status: "draft",
-    // Phase 1 ruling: shift demoPlan to next Mon–Sun so weeknightPlan +
-    // demoPlan do not violate the per-user no-overlap EXCLUDE constraint.
-    startDate: nextWeekStart,
-    endDate: nextWeekEnd,
+    // WS7-6 (E) Block 1 REWORK: returns to current week (no EXCLUDE
+    // constraint under Model 2). activatedAt stays null so it LOSES the
+    // tiebreak to weeknightPlan (which is stamped). Demo still covers
+    // now → wire boolean ships false (covering-but-not-winner) → mobile's
+    // /plan/demo deep-link resolves as a saved plan, not the This Week plan.
+    startDate: weekStart,
+    endDate: weekEnd,
+    activatedAt: null,
     items: [
       {
         id: "demo-item-1",

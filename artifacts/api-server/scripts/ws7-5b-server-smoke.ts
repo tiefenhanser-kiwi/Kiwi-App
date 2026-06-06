@@ -1,28 +1,25 @@
-// WS7-5b2-server smoke — wizard draft "Save for Later" end-to-end.
+// WS7-5b-server smoke — wizard draft activation ("Save and use") end-to-end.
 //
-// Drives the Branch B chain through the new save slice:
+// Drives the full Branch B chain through the new activation slice:
 //   1. POST /api/wizard/build-plans              — generate candidates
 //   2. POST /api/wizard/expand                   — write hidden draft
-//   3. GET  /api/wizard/drafts/:id               — fetch detail
-//   4. POST /api/wizard/drafts/:id/save          — materialize, NO active flip (new)
-//   5. DB check — the saved plan has the materialized graph (meals / dishes /
-//      DishIngredients / RecipeInstructionSteps + macros) AND:
-//        isWizardDraft = false
-//        activatedAt = null         ← Save tail does NOT stamp (vs. activate)
-//        startDate = null           ← undated (vs. activate)
-//        endDate = null             ← undated (vs. activate)
-//      Under Model 2 a row with null dates can never be the resolver
-//      winner, so the wire boolean ships false everywhere.
-//   6. GET /api/wizard/drafts — assert the saved row no longer appears
-//      (isWizardDraft filter excludes it — it's now a real plan).
-//   7. GET /api/plans?filter=my_plans — assert the saved row appears here
-//      as an undated inactive plan (the My Plans landing).
-//   8. activity check — plan_created emitted for the saved id.
+//   3. GET  /api/wizard/drafts/:id               — fetch detail (new)
+//   4. POST /api/wizard/drafts/:id/activate      — materialize + flip (new)
+//   5. DB check — draft is now a real plan: isWizardDraft=false,
+//      activatedAt non-null AND dates cover `now` (Model 2 → freshest
+//      activatedAt makes this the resolver winner), has MealPlanItem
+//      + Meal + Dish + DishIngredient + RecipeInstructionStep rows,
+//      and per-dish *PerServing macros are populated from the wizard
+//      expand pass.
+//   6. GET  /api/wizard/drafts                   — assert the activated row
+//      no longer appears in the drafts list (isWizardDraft filter holds).
+//   7. activity check — plan_activated_this_week emitted for the activated id.
 //
-// Run:  pnpm --filter @workspace/api-server exec tsx scripts/ws7-5b2-server-smoke.ts
+// Real Anthropic API call — hits Sonnet for build-plans + expand, Haiku for
+// the per-dish macro estimator (~3-8s for expand). Activation itself is
+// pure DB work (no AI), so step 4 should be fast.
 //
-// Real Anthropic (Sonnet for build-plans + expand, Haiku for per-dish macro
-// estimator). Save itself is pure DB work (no AI), so step 4 should be fast.
+// Run:   pnpm --filter @workspace/api-server exec tsx scripts/ws7-5b-server-smoke.ts
 //
 // Prereq: prisma:seed (for AIPrompts wizard.candidate.expand v1) AND
 // migrations through 20260528120000_ws7_5a_wizard_draft applied.
@@ -37,8 +34,8 @@ import { createWizardRouter } from "../src/routes/wizard.ts";
 import { createPlansRouter } from "../src/routes/plans.ts";
 
 const prisma = new PrismaClient();
-const SMOKE_USER_ID = "smoke-ws7-5b2-server-user";
-const SMOKE_USER_EMAIL = "smoke+ws7-5b2-server@kiwi.dev";
+const SMOKE_USER_ID = "smoke-ws7-5b-server-user";
+const SMOKE_USER_EMAIL = "smoke+ws7-5b-server@kiwi.dev";
 
 interface SmokeReport {
   buildPlans: { ok: boolean; candidateCount: number; latencyMs: number };
@@ -50,18 +47,17 @@ interface SmokeReport {
     latencyMs: number;
   };
   getDetail: { ok: boolean; mealCountInJson?: number };
-  save: {
+  activate: {
     ok: boolean;
-    savedPlanId?: string;
+    activatedPlanId?: string;
     revisionId?: number;
     latencyMs: number;
   };
   dbCheck: {
     ok: boolean;
     isWizardDraft?: boolean;
-    activatedAt?: Date | null;
-    startDate?: Date | null;
-    endDate?: Date | null;
+    activatedAt?: string | null;
+    coversNow?: boolean;
     status?: string;
     itemCount?: number;
     mealsCreated?: number;
@@ -70,8 +66,7 @@ interface SmokeReport {
     recipeStepsCreated?: number;
     dishesWithMacros?: number;
   };
-  draftsListExcludesSaved: { ok: boolean; foundInDrafts: boolean };
-  myPlansIncludesSaved: { ok: boolean; foundInMyPlans: boolean };
+  draftsListExcludesActivated: { ok: boolean; foundInDrafts: boolean };
   activityEventEmitted: { ok: boolean };
   cleanupPlanId: string | null;
 }
@@ -84,7 +79,7 @@ async function ensureSmokeUser(): Promise<void> {
       id: SMOKE_USER_ID,
       email: SMOKE_USER_EMAIL,
       firstName: "Smoke",
-      lastName: "WizardSave",
+      lastName: "WizardActivate",
       defaultHouseholdSize: 4,
     },
   });
@@ -134,21 +129,20 @@ async function main(): Promise<void> {
     buildPlans: { ok: false, candidateCount: 0, latencyMs: 0 },
     expand: { ok: false, latencyMs: 0 },
     getDetail: { ok: false },
-    save: { ok: false, latencyMs: 0 },
+    activate: { ok: false, latencyMs: 0 },
     dbCheck: { ok: false },
-    draftsListExcludesSaved: { ok: false, foundInDrafts: true },
-    myPlansIncludesSaved: { ok: false, foundInMyPlans: false },
+    draftsListExcludesActivated: { ok: false, foundInDrafts: true },
     activityEventEmitted: { ok: false },
     cleanupPlanId: null,
   };
 
   try {
     console.log("══════════════════════════════════════════════════════════");
-    console.log("WS7-5b2-server smoke — wizard draft Save for Later");
+    console.log("WS7-5b-server smoke — wizard draft activation end-to-end");
     console.log("══════════════════════════════════════════════════════════");
 
     // ── 1. build-plans ────────────────────────────────────────────────
-    console.log("\n[1/8] POST /wizard/build-plans");
+    console.log("\n[1/7] POST /wizard/build-plans");
     const bpStart = Date.now();
     const bpRes = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
       method: "POST",
@@ -185,7 +179,7 @@ async function main(): Promise<void> {
     const chosen = bpBody.candidates[0];
 
     // ── 2. expand ────────────────────────────────────────────────────
-    console.log(`\n[2/8] POST /wizard/expand  candidate="${chosen.title}"`);
+    console.log(`\n[2/7] POST /wizard/expand  candidate="${chosen.title}"`);
     const exStart = Date.now();
     const exRes = await fetch(`${harness.baseUrl}/wizard/expand`, {
       method: "POST",
@@ -231,7 +225,7 @@ async function main(): Promise<void> {
     report.cleanupPlanId = draftId;
 
     // ── 3. GET /wizard/drafts/:id ────────────────────────────────────
-    console.log(`\n[3/8] GET /wizard/drafts/${draftId}`);
+    console.log(`\n[3/7] GET /wizard/drafts/${draftId}`);
     const detailRes = await fetch(`${harness.baseUrl}/wizard/drafts/${draftId}`, {
       headers: auth,
     });
@@ -252,43 +246,43 @@ async function main(): Promise<void> {
       `  ${detailOk ? "✓" : "✗"} status=${detailRes.status}  mealsInJson=${detailBody.expanded?.meals.length}`,
     );
 
-    // ── 4. POST /wizard/drafts/:id/save ──────────────────────────────
-    console.log(`\n[4/8] POST /wizard/drafts/${draftId}/save`);
-    const saveStart = Date.now();
-    const saveRes = await fetch(
-      `${harness.baseUrl}/wizard/drafts/${draftId}/save`,
+    // ── 4. POST /wizard/drafts/:id/activate ──────────────────────────
+    console.log(`\n[4/7] POST /wizard/drafts/${draftId}/activate`);
+    const actStart = Date.now();
+    const actRes = await fetch(
+      `${harness.baseUrl}/wizard/drafts/${draftId}/activate`,
       { method: "POST", headers: jsonAuth },
     );
-    const saveLatency = Date.now() - saveStart;
-    const saveBody = (await saveRes.json()) as {
+    const actLatency = Date.now() - actStart;
+    const actBody = (await actRes.json()) as {
       instance?: { id: string; revisionId: number };
       error?: string;
       reason?: string;
     };
-    if (saveRes.status !== 201 || !saveBody.instance) {
+    if (actRes.status !== 201 || !actBody.instance) {
       console.error(
-        `  ✗ save failed: ${saveRes.status} ${saveBody.error} ${saveBody.reason ?? ""}`,
+        `  ✗ activate failed: ${actRes.status} ${actBody.error} ${actBody.reason ?? ""}`,
       );
-      throw new Error("save failed");
+      throw new Error("activate failed");
     }
-    report.save = {
+    report.activate = {
       ok: true,
-      savedPlanId: saveBody.instance.id,
-      revisionId: saveBody.instance.revisionId,
-      latencyMs: saveLatency,
+      activatedPlanId: actBody.instance.id,
+      revisionId: actBody.instance.revisionId,
+      latencyMs: actLatency,
     };
     console.log(
-      `  ✓ instanceId=${saveBody.instance.id}  revisionId=${saveBody.instance.revisionId}  ${saveLatency}ms`,
+      `  ✓ instanceId=${actBody.instance.id}  revisionId=${actBody.instance.revisionId}  ${actLatency}ms`,
     );
 
-    // ── 5. DB check — graph materialized AND undated/inactive flags ──
-    console.log("\n[5/8] DB check — materialized rows + undated/inactive flags");
-    const saved = await prisma.mealPlanInstance.findUnique({
-      where: { id: saveBody.instance.id },
+    // ── 5. DB check — meal graph materialized + draft flag cleared ───
+    console.log("\n[5/7] DB check — materialized rows + flipped flags");
+    const activated = await prisma.mealPlanInstance.findUnique({
+      where: { id: actBody.instance.id },
       select: {
         isWizardDraft: true,
-        // WS7-6 (E) Block 1 REWORK: column dropped; save tail does NOT
-        // stamp activatedAt (no covering dates → no winner).
+        // WS7-6 (E) Block 1 REWORK: isActiveThisWeek column dropped; the
+        // activate seam now stamps activatedAt + sets covering dates.
         activatedAt: true,
         startDate: true,
         endDate: true,
@@ -322,13 +316,13 @@ async function main(): Promise<void> {
         },
       },
     });
-    if (!saved) {
-      console.error("  ✗ saved plan row not found by id");
-      throw new Error("saved row missing");
+    if (!activated) {
+      console.error("  ✗ activated plan row not found by id");
+      throw new Error("activated row missing");
     }
-    const itemCount = saved.items.length;
-    const mealsCreated = new Set(saved.items.map((i) => i.mealId)).size;
-    const allDishes = saved.items.flatMap((i) =>
+    const itemCount = activated.items.length;
+    const mealsCreated = new Set(activated.items.map((i) => i.mealId)).size;
+    const allDishes = activated.items.flatMap((i) =>
       i.meal.dishLinks.map((l) => l.dish),
     );
     const dishesCreated = allDishes.length;
@@ -348,21 +342,30 @@ async function main(): Promise<void> {
       where: { ownerType: "dish", ownerId: { in: [...dishIdSet] } },
     });
 
+    // WS7-6 (E) Block 1 REWORK — Model 2 activate assertion: the row must
+    // have isWizardDraft=false, activatedAt set (seam C stamp), and the
+    // dates covering `now` (current Sun-Sat week). Together these make
+    // the row the resolver winner (freshest activatedAt among covering
+    // rows) so the wire boolean ships true wherever it appears.
+    const nowAtCheck = new Date();
+    const coversNow =
+      activated.startDate !== null &&
+      activated.endDate !== null &&
+      activated.startDate.getTime() <= nowAtCheck.getTime() &&
+      nowAtCheck.getTime() <= activated.endDate.getTime();
     report.dbCheck = {
       ok:
-        saved.isWizardDraft === false &&
-        saved.activatedAt === null &&
-        saved.startDate === null &&
-        saved.endDate === null &&
+        activated.isWizardDraft === false &&
+        activated.activatedAt !== null &&
+        coversNow &&
         itemCount > 0 &&
         dishesCreated > 0 &&
         dishIngredientsCreated > 0 &&
         recipeSteps > 0,
-      isWizardDraft: saved.isWizardDraft,
-      activatedAt: saved.activatedAt,
-      startDate: saved.startDate,
-      endDate: saved.endDate,
-      status: saved.status,
+      isWizardDraft: activated.isWizardDraft,
+      activatedAt: activated.activatedAt?.toISOString() ?? null,
+      coversNow,
+      status: activated.status,
       itemCount,
       mealsCreated,
       dishesCreated,
@@ -371,60 +374,38 @@ async function main(): Promise<void> {
       dishesWithMacros,
     };
     console.log(
-      `  ${report.dbCheck.ok ? "✓" : "✗"} isWizardDraft=${saved.isWizardDraft}  activatedAt=${saved.activatedAt?.toISOString() ?? "null"}  startDate=${saved.startDate?.toISOString() ?? "null"}  endDate=${saved.endDate?.toISOString() ?? "null"}  status=${saved.status}`,
+      `  ${report.dbCheck.ok ? "✓" : "✗"} isWizardDraft=${activated.isWizardDraft}  activatedAt=${activated.activatedAt?.toISOString() ?? "null"}  coversNow=${coversNow}  status=${activated.status}`,
     );
     console.log(
       `       items=${itemCount}  meals=${mealsCreated}  dishes=${dishesCreated}  dishIngredients=${dishIngredientsCreated}  steps=${recipeSteps}  withMacros=${dishesWithMacros}/${dishesCreated}`,
     );
 
     // ── 6. /wizard/drafts no longer lists it ─────────────────────────
-    console.log("\n[6/8] GET /wizard/drafts  — assert saved is excluded");
+    console.log("\n[6/7] GET /wizard/drafts  — assert activated is excluded");
     const dRes = await fetch(`${harness.baseUrl}/wizard/drafts`, {
       headers: auth,
     });
     const dBody = (await dRes.json()) as {
       drafts: Array<{ id: string }>;
     };
-    const foundInDrafts = dBody.drafts.some((d) => d.id === saveBody.instance!.id);
-    report.draftsListExcludesSaved = {
-      ok: !foundInDrafts,
-      foundInDrafts,
-    };
+    const found = dBody.drafts.some((d) => d.id === actBody.instance!.id);
+    report.draftsListExcludesActivated = { ok: !found, foundInDrafts: found };
     console.log(
-      `  ${!foundInDrafts ? "✓" : "✗"} excluded — drafts.length=${dBody.drafts.length}  foundSaved=${foundInDrafts}`,
+      `  ${!found ? "✓" : "✗"} excluded — drafts.length=${dBody.drafts.length}  foundActivated=${found}`,
     );
 
-    // ── 7. /plans?filter=my_plans includes it (undated/inactive) ─────
-    console.log("\n[7/8] GET /plans?filter=my_plans  — assert saved appears");
-    const mpRes = await fetch(`${harness.baseUrl}/plans?filter=my_plans`, {
-      headers: auth,
-    });
-    const mpBody = (await mpRes.json()) as {
-      plans?: Array<{ id: string }>;
-    };
-    const foundInMyPlans = (mpBody.plans ?? []).some(
-      (p) => p.id === saveBody.instance!.id,
-    );
-    report.myPlansIncludesSaved = {
-      ok: foundInMyPlans,
-      foundInMyPlans,
-    };
-    console.log(
-      `  ${foundInMyPlans ? "✓" : "✗"} present — my_plans.length=${mpBody.plans?.length ?? 0}  foundSaved=${foundInMyPlans}`,
-    );
-
-    // ── 8. activity event ────────────────────────────────────────────
-    console.log("\n[8/8] activity check — plan_created");
+    // ── 7. activity event ────────────────────────────────────────────
+    console.log("\n[7/7] activity check — plan_activated_this_week");
     const activity = await prisma.userActivity.findFirst({
       where: {
         userId: SMOKE_USER_ID,
-        eventType: "plan_created",
-        entityId: saveBody.instance.id,
+        eventType: "plan_activated_this_week",
+        entityId: actBody.instance.id,
       },
       orderBy: { createdAt: "desc" },
     });
     report.activityEventEmitted = { ok: activity !== null };
-    console.log(`  ${activity ? "✓" : "✗"} plan_created event present`);
+    console.log(`  ${activity ? "✓" : "✗"} plan_activated_this_week event present`);
   } finally {
     await harness.close();
   }
@@ -434,10 +415,12 @@ async function main(): Promise<void> {
   console.log("══════════════════════════════════════════════════════════");
   console.log(JSON.stringify(report, null, 2));
 
-  // Cleanup — delete the saved plan + cascade. Keep LLMCallLog rows for
-  // cost audit. Meal/Dish/Ingredient rows persist (shared across activations).
-  // Run-twice-clean: repeated runs create new draft+save graphs without
-  // conflicting.
+  // Cleanup — delete the activated plan + cascade. Keep LLMCallLog rows
+  // for cost audit. Note: cascading delete also clears MealPlanItem rows,
+  // but Meal / Dish / Ingredient rows persist (intentional — Ingredient
+  // upserts are shared, Meal/Dish may be referenced by other future plans).
+  // The smoke is single-user so this is fine; repeat runs will create new
+  // Meal/Dish/MealPlanItem rows each time without conflicting.
   if (report.cleanupPlanId) {
     try {
       await prisma.mealPlanInstance.delete({
@@ -453,10 +436,9 @@ async function main(): Promise<void> {
     report.buildPlans.ok &&
     report.expand.ok &&
     report.getDetail.ok &&
-    report.save.ok &&
+    report.activate.ok &&
     report.dbCheck.ok &&
-    report.draftsListExcludesSaved.ok &&
-    report.myPlansIncludesSaved.ok &&
+    report.draftsListExcludesActivated.ok &&
     report.activityEventEmitted.ok;
   process.exitCode = allOk ? 0 : 1;
   console.log(`\nResult: ${allOk ? "PASS" : "FAIL"}`);

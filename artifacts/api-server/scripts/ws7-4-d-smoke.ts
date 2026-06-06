@@ -122,9 +122,19 @@ async function main(): Promise<number> {
       `[smoke] using meals: A=${mealA.id} (${mealA.title}), B=${mealB.id} (${mealB.title})`,
     );
 
-    // Capture prior active so we can restore it after the smoke completes.
+    // WS7-6 (E) Block 1 REWORK — capture the prior covering plan via date
+    // range; no flag column exists. Recorded for log parity with the
+    // pre-REWORK smoke; this smoke never activates the new plan so the
+    // prior covering plan remains the resolver winner throughout.
+    const now = new Date();
     const priorActive = await prisma.mealPlanInstance.findFirst({
-      where: { userId: user.id, isActiveThisWeek: true },
+      where: {
+        userId: user.id,
+        isWizardDraft: false,
+        startDate: { lte: now, not: null },
+        endDate: { gte: now, not: null },
+      },
+      orderBy: { activatedAt: { sort: "desc", nulls: "last" } },
       select: { id: true },
     });
     priorActiveInstanceId = priorActive?.id ?? null;
@@ -460,15 +470,11 @@ async function main(): Promise<number> {
       console.log(`[teardown] deleted promoted meal ${promotedMealId}`);
     }
     if (priorActiveInstanceId) {
-      // The smoke plan was never activated (we never PATCHed isActiveThisWeek)
-      // but restore prior active for safety.
-      await prisma.mealPlanInstance.update({
-        where: { id: priorActiveInstanceId },
-        data: { isActiveThisWeek: true },
-      });
-      console.log(
-        `[teardown] restored prior active instance ${priorActiveInstanceId}`,
-      );
+      // WS7-6 (E) Block 1 REWORK: nothing to restore. The smoke plan was
+      // never activated (no PATCH /plans with dates that cover now), so
+      // the prior covering plan's activatedAt was never modified and it
+      // remains the resolver winner.
+      console.log(`[teardown] no-op: prior covering plan ${priorActiveInstanceId} was not modified (Model 2)`);
     }
     await harness.close();
     await prisma.$disconnect();

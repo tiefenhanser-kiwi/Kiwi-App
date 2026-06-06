@@ -89,9 +89,19 @@ async function main(): Promise<number> {
     const token = signToken(user.id);
     const authHeader = { Authorization: `Bearer ${token}` };
 
-    // Capture prior active so we can restore it after we demote it in step 5.
+    // WS7-6 (E) Block 1 REWORK — record prior covering plan via date-range
+    // filter (the dropped isActiveThisWeek column is now resolved by the
+    // newest-activatedAt-wins rule at read time). Capture the id so we
+    // can compare/inspect against the resolver winner at the end.
+    const now = new Date();
     const priorActive = await prisma.mealPlanInstance.findFirst({
-      where: { userId: user.id, isActiveThisWeek: true },
+      where: {
+        userId: user.id,
+        isWizardDraft: false,
+        startDate: { lte: now, not: null },
+        endDate: { gte: now, not: null },
+      },
+      orderBy: { activatedAt: { sort: "desc", nulls: "last" } },
       select: { id: true },
     });
     priorActiveInstanceId = priorActive?.id ?? null;
@@ -100,6 +110,10 @@ async function main(): Promise<number> {
     );
 
     // 1) POST /plans -- create an empty plan.
+    // WS7-6 (E) Block 1 REWORK — body field isActiveThisWeek is accepted
+    // (Block 2 mobile compat, D-WS7-101) but advisory; the wire boolean
+    // is now resolver-derived. The create is undated → never covers
+    // `now` → activatedAt stays null on the row.
     const createRes = await fetch(`${harness.baseUrl}/plans`, {
       method: "POST",
       headers: { ...authHeader, "Content-Type": "application/json" },
@@ -120,7 +134,9 @@ async function main(): Promise<number> {
         titleOverride: true,
         mealPlanTemplateId: true,
         status: true,
-        isActiveThisWeek: true,
+        activatedAt: true,
+        startDate: true,
+        endDate: true,
       },
     });
     assertTrue("created row present in DB", createdRow !== null);
@@ -128,7 +144,9 @@ async function main(): Promise<number> {
     assertEq("created.titleOverride matches", createdRow!.titleOverride, "WS7-4-C smoke");
     assertEq("created.mealPlanTemplateId is null (Q-P1-1)", createdRow!.mealPlanTemplateId, null);
     assertEq("created.status = draft", createdRow!.status, "draft");
-    assertEq("created.isActiveThisWeek = false", createdRow!.isActiveThisWeek, false);
+    // Undated create → never covers → activatedAt not stamped (Model 2).
+    assertEq("created.startDate = null", createdRow!.startDate, null);
+    assertEq("created.activatedAt = null (undated, never covers)", createdRow!.activatedAt, null);
     const createdActs = await prisma.userActivity.findMany({
       where: { userId: user.id, entityId: createdInstanceId, eventType: "plan_created" },
     });
@@ -177,7 +195,12 @@ async function main(): Promise<number> {
     });
     assertEq("plan_status_changed count = 1", statusChanges.length, 1);
 
-    // 5) PATCH isActiveThisWeek=true -- prior actives demoted, activity fires.
+    // 5) PATCH isActiveThisWeek=true -- the auto-date envelope materializes
+    // current-week dates; seam B stamps activatedAt = now. Under Model 2
+    // there is NO demote-prior: the prior covering plan stays in my_plans
+    // with its older activatedAt; the resolver makes the new plan win by
+    // freshness. The new plan, just stamped, IS this user's This Week
+    // resolver winner.
     const patch3 = await fetch(`${harness.baseUrl}/plans/${createdInstanceId}`, {
       method: "PATCH",
       headers: { ...authHeader, "Content-Type": "application/json" },
@@ -192,15 +215,34 @@ async function main(): Promise<number> {
       },
     });
     assertEq("plan_activated_this_week count = 1", activations.length, 1);
-    // Verify prior active (if any) was demoted.
+    // Seam B stamped activatedAt = now on the patched row.
+    const stampedRow = await prisma.mealPlanInstance.findUnique({
+      where: { id: createdInstanceId },
+      select: { activatedAt: true, startDate: true, endDate: true },
+    });
+    assertTrue(
+      "patched row activatedAt is set (seam B stamp)",
+      stampedRow!.activatedAt !== null,
+    );
+    // Verify resolver winner is the new plan (it has the freshest activatedAt).
+    const winnerRes = await fetch(`${harness.baseUrl}/plans?filter=my_plans`, {
+      headers: authHeader,
+    });
+    const winnerBody = (await winnerRes.json()) as { activeThisWeek: { id: string } | null };
+    assertEq(
+      "resolver winner is the freshly-stamped plan",
+      winnerBody.activeThisWeek?.id ?? null,
+      createdInstanceId,
+    );
+    // The prior covering plan (if any) is STILL in my_plans, undeleted.
     if (priorActiveInstanceId) {
       const priorRow = await prisma.mealPlanInstance.findUnique({
         where: { id: priorActiveInstanceId },
-        select: { isActiveThisWeek: true },
+        select: { isArchived: true, status: true },
       });
       assertEq(
-        "prior active was demoted",
-        priorRow?.isActiveThisWeek ?? null,
+        "prior covering plan NOT archived under Model 2 (no demote-prior)",
+        priorRow?.isArchived ?? null,
         false,
       );
     }
@@ -231,14 +273,15 @@ async function main(): Promise<number> {
         status: true,
         compostedAt: true,
         isArchived: true,
-        isActiveThisWeek: true,
       },
     });
     assertTrue("composted row still exists (soft delete)", compostedRow !== null);
     assertEq("composted.status = past", compostedRow!.status, "past");
     assertTrue("composted.compostedAt is set", compostedRow!.compostedAt !== null);
     assertEq("composted.isArchived = true", compostedRow!.isArchived, true);
-    assertEq("composted.isActiveThisWeek auto-cleared", compostedRow!.isActiveThisWeek, false);
+    // WS7-6 (E) Block 1 REWORK: under Model 2 the resolver excludes archived
+    // rows (my_plans filters isArchived:false). The dropped flag has no
+    // bearing on resolver winnership.
     const composts = await prisma.userActivity.findMany({
       where: { userId: user.id, entityId: createdInstanceId, eventType: "plan_composted" },
     });
@@ -283,13 +326,12 @@ async function main(): Promise<number> {
       console.log(`[teardown] deleted instance ${createdInstanceId}`);
     }
     if (priorActiveInstanceId) {
-      await prisma.mealPlanInstance.update({
-        where: { id: priorActiveInstanceId },
-        data: { isActiveThisWeek: true },
-      });
-      console.log(
-        `[teardown] restored prior active instance ${priorActiveInstanceId}`,
-      );
+      // WS7-6 (E) Block 1 REWORK: nothing to restore. Under Model 2 there
+      // is no demote-prior write — the prior covering plan was never
+      // modified. Its activatedAt timestamp is intact; when the smoke's
+      // created plan is hard-deleted below, the prior plan becomes the
+      // resolver winner again automatically.
+      console.log(`[teardown] no-op: prior covering plan ${priorActiveInstanceId} was not modified (Model 2)`);
     }
     await harness.close();
     await prisma.$disconnect();
