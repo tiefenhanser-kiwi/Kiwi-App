@@ -501,17 +501,16 @@ model MealPlanInstance {
   startDate          DateTime?
   endDate            DateTime?
   status             PlanStatus @default(draft)
-  // WS7-6 (E) — "this week" is computed from [startDate, endDate] ∋ now.
-  // The previous stored boolean was dropped because a future-dated plan
-  // cannot auto-roll into the current-week surface without either a
-  // scheduler (we have none — D-WS7-062) or recomputing per request, and
-  // the latter is what we do now. See lib/planDates.ts
-  // isInstanceActiveThisWeek for the single canonical predicate; the
-  // wire shape still ships a boolean field (Block 1 decision #2) so
-  // mobile parsers do not need to change. Single-current is enforced at
-  // the DB by an EXCLUDE constraint with WHERE startDate/endDate IS NOT
-  // NULL (null-dated plans are exempt — see migration
-  // 20260605120000_ws7_6e_this_week_computed).
+  // WS7-6 (E) Block 1 REWORK — "this week" is computed under Model 2:
+  // among rows where now ∈ [startDate, endDate], the one with the
+  // greatest activatedAt wins (null loses to set; among nulls, newest
+  // createdAt wins). See lib/planDates.ts resolveThisWeekPlan for the
+  // single canonical resolver; the wire shape still ships
+  // isActiveThisWeek: boolean (Block 1 decision #2) so mobile parsers
+  // do not need to change. Plans may freely share date ranges; no
+  // EXCLUDE constraint. Activation seams stamp activatedAt = now.
+  // Auto-roll: a sole covering plan with null activatedAt still wins.
+  activatedAt        DateTime?
   lastCooked         DateTime?
   timesCooked        Int        @default(0)
   notes              String?
