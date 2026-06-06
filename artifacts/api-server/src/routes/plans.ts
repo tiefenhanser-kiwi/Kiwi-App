@@ -53,7 +53,6 @@ import {
 import {
   currentWeekRange,
   didNewlyCoverNow,
-  isInstanceActiveThisWeek,
   resolveThisWeekWinnerId,
 } from "../lib/planDates";
 import { sortPlanItemsCanonical } from "../lib/planItemSort";
@@ -553,6 +552,21 @@ export function createPlansRouter(
     }
 
     try {
+      // WS7-6 (E) Block 1 REWORK seam A — stamp activatedAt at create
+      // time when the create-time dates cover `now`. The stamp invariant
+      // is: every activation seam (A/B/C) stamps activatedAt = now in the
+      // SAME write that materializes the covering dates. Under the
+      // invariant, the fresh row has the freshest activatedAt in the
+      // user's covering set → wins the resolver tiebreak → "newly covers
+      // now" is equivalent to "newly became winner" for the new row.
+      // Verified by the equivalence test in plans.test.ts.
+      const nowAtCreate = new Date();
+      const coversNowAtCreate =
+        createStartDate !== null &&
+        createEndDate !== null &&
+        createStartDate.getTime() <= nowAtCreate.getTime() &&
+        nowAtCreate.getTime() <= createEndDate.getTime();
+
       const result = await prisma.$transaction(async (tx) => {
         const instance = await tx.mealPlanInstance.create({
           data: {
@@ -562,27 +576,31 @@ export function createPlansRouter(
             status: "draft",
             startDate: createStartDate,
             endDate: createEndDate,
+            activatedAt: coversNowAtCreate ? nowAtCreate : undefined,
             optimizationNotes: Prisma.DbNull,
             breakfastOverrides: null,
             lunchOverrides: null,
           },
         });
 
-        const isActiveThisWeek = isInstanceActiveThisWeek(instance);
+        // Metadata reflects the new row's post-create active-ness — under
+        // the stamp invariant this equals the row's resolver-winner state.
         await emitActivity({
           tx,
           userId,
           eventType: "plan_created",
           entityType: "MealPlanInstance",
           entityId: instance.id,
-          metadata: { isActiveThisWeek },
+          metadata: { isActiveThisWeek: coversNowAtCreate },
         });
 
-        // WS7-6 (E) Block 1 c2 — re-pointed plan_activated_this_week.
-        // Fires on the not-current → current transition; for create the
-        // prior state is the absence of a row (treated as not-current),
-        // so a create with dates that cover `now` emits the event.
-        if (didNewlyCoverNow({ startDate: null, endDate: null }, instance)) {
+        // WS7-6 (E) Block 1 c2 / REWORK c3 — plan_activated_this_week
+        // fires when the new row newly covers `now`. The prior state is
+        // the absence of a row (treated as not-current), so a create with
+        // dates that cover `now` emits the event. Equivalent to "newly
+        // became resolver winner" under the stamp invariant — proven by
+        // the equivalence test in plans.test.ts.
+        if (coversNowAtCreate) {
           await emitActivity({
             tx,
             userId,
@@ -641,7 +659,15 @@ export function createPlansRouter(
             return { kind: "not_found" as const };
           }
 
-          const wasActive = isInstanceActiveThisWeek(row);
+          // WS7-6 (E) Block 1 REWORK — wasActive metadata is now
+          // "was this row the resolver WINNER pre-delete" (Phase 0
+          // ruling). A row whose dates cover `now` but lost the
+          // tiebreak to a sibling with a fresher activatedAt was NOT
+          // this user's This Week's plan and ships wasActive=false.
+          // resolveThisWeekWinnerId runs against the tx client so the
+          // read is consistent with the soft-delete write below.
+          const winnerId = await resolveThisWeekWinnerId(tx, userId);
+          const wasActive = winnerId !== null && winnerId === id;
 
           const updated = await tx.mealPlanInstance.update({
             where: { id },
@@ -871,6 +897,31 @@ export function createPlansRouter(
           data.revisionId = { increment: 1 };
         }
 
+        // WS7-6 (E) Block 1 REWORK seam B — stamp activatedAt iff the
+        // date change makes the plan NEWLY cover `now`. Same-state writes
+        // (covers → covers re-date) and silent demotions (covers →
+        // not-covering) do NOT stamp. Computed once here, reused below
+        // to gate the plan_activated_this_week emit so the stamp and
+        // the emit decision agree by construction. Verified against the
+        // resolver winner by the equivalence test in plans.test.ts.
+        const didNewlyCover =
+          (changedFields.has("startDate") ||
+            changedFields.has("endDate")) &&
+          didNewlyCoverNow(
+            { startDate: row.startDate, endDate: row.endDate },
+            {
+              startDate: changedFields.has("startDate")
+                ? (nextStartDate ?? null)
+                : row.startDate,
+              endDate: changedFields.has("endDate")
+                ? (nextEndDate ?? null)
+                : row.endDate,
+            },
+          );
+        if (didNewlyCover) {
+          data.activatedAt = new Date();
+        }
+
         const updated = await tx.mealPlanInstance.update({
           where: { id },
           data,
@@ -925,38 +976,24 @@ export function createPlansRouter(
             metadata: { from: row.status, to: body.status },
           });
         }
-        // WS7-6 (E) Block 1 c2 — re-pointed plan_activated_this_week.
-        // Emit when this PATCH's date changes cause the plan to NEWLY
-        // cover `now` (transition from not-current to current). Replaces
-        // the legacy flag-flip trigger that died with the column drop.
-        // Same-state writes do not emit. Wizard activate, use-template,
-        // and other paths share the same predicate via didNewlyCoverNow.
-        if (
-          changedFields.has("startDate") ||
-          changedFields.has("endDate")
-        ) {
-          const prevDates = {
-            startDate: row.startDate,
-            endDate: row.endDate,
-          };
-          const nextDates = {
-            startDate: changedFields.has("startDate")
-              ? (nextStartDate ?? null)
-              : row.startDate,
-            endDate: changedFields.has("endDate")
-              ? (nextEndDate ?? null)
-              : row.endDate,
-          };
-          if (didNewlyCoverNow(prevDates, nextDates)) {
-            await emitActivity({
-              tx,
-              userId,
-              eventType: "plan_activated_this_week",
-              entityType: "MealPlanInstance",
-              entityId: id,
-              metadata: { source: "plans_patch" },
-            });
-          }
+        // WS7-6 (E) Block 1 c2 / REWORK c3 — plan_activated_this_week
+        // gates on the SAME didNewlyCover boolean computed above. The
+        // stamp (activatedAt = now in the update data above) and the
+        // emit fire together iff the date change moves the plan from
+        // not-covering to covering. Same-state writes (covers → covers
+        // re-date) and silent demotions (covers → not-covering) do
+        // neither. Verified by the equivalence test in plans.test.ts:
+        // after this branch fires, the patched row IS the resolver
+        // winner (freshest activatedAt wins).
+        if (didNewlyCover) {
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_activated_this_week",
+            entityType: "MealPlanInstance",
+            entityId: id,
+            metadata: { source: "plans_patch" },
+          });
         }
         if (changedFields.has("breakfastOverrides")) {
           await emitActivity({

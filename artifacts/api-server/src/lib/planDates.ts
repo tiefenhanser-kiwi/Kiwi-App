@@ -15,7 +15,7 @@
 // would skew the Sun-Sat boundary against the stored UTC midnights on
 // non-UTC servers.
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 export interface WeekRange {
   startDate: string;
@@ -136,13 +136,16 @@ export function resolveThisWeekPlan<T extends CoveringCandidate>(
 // covering subset selecting {id, startDate, endDate, activatedAt, createdAt}
 // only — NOT full instance hydration. Returns null when no plan covers
 // `now`. Backed by the (userId, startDate, endDate) index from the c1
-// migration.
+// migration. Accepts either the outer PrismaClient or a TransactionClient
+// (the DELETE /plans/:id W5 wasActive metadata path runs the resolver
+// inside the soft-delete transaction for consistent "was winner at delete
+// time" semantics).
 export async function resolveThisWeekWinnerId(
-  prisma: PrismaClient,
+  db: PrismaClient | Prisma.TransactionClient,
   userId: string,
   now: Date = new Date(),
 ): Promise<string | null> {
-  const candidates = await prisma.mealPlanInstance.findMany({
+  const candidates = await db.mealPlanInstance.findMany({
     where: {
       userId,
       isWizardDraft: false,

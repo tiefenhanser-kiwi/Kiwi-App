@@ -2082,6 +2082,35 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
     );
     assert.equal(deps.rec.activityCalls[0].entityId, "draft-ok");
   });
+
+  // WS7-6 (E) Block 1 REWORK c3 — seam C stamp + unconditional emit
+  // verification. The activate path always sets dates to cover now AND
+  // stamps activatedAt = now in the same update. The plan_activated_this_week
+  // emit stays unconditional (every wizard activate is a fresh user
+  // commitment) and carries source: "wizard_draft_activate" plus the
+  // mealsCreated/itemsCreated metadata for funnel analytics.
+  it("seam C: wizard activate STAMPS activatedAt and emits plan_activated_this_week with source + counts", async () => {
+    // The harness above already activated draft-ok in the prior test in this
+    // describe; the recorder captured the update + activity. Re-assert on the
+    // recorded values to pin seam C's stamp + emit contract explicitly.
+    assert.equal(deps.rec.updateCalls.length, 1);
+    const flip = deps.rec.updateCalls[0].data;
+    assert.ok(
+      flip.activatedAt instanceof Date,
+      "seam C: wizard activate must stamp activatedAt",
+    );
+
+    assert.equal(deps.rec.activityCalls.length, 1);
+    const act = deps.rec.activityCalls[0];
+    assert.equal(act.eventType, "plan_activated_this_week");
+    assert.equal(act.entityId, "draft-ok");
+    // Unconditional emit carries the explicit source string + materializer
+    // counts (mealsCreated, itemsCreated) for analytics.
+    const meta = act.metadata as Record<string, unknown>;
+    assert.equal(meta.source, "wizard_draft_activate");
+    assert.equal(typeof meta.mealsCreated, "number");
+    assert.equal(typeof meta.itemsCreated, "number");
+  });
 });
 
 describe("POST /api/wizard/drafts/:id/activate — not found", () => {

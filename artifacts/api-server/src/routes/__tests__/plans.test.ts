@@ -15,7 +15,7 @@ import {
   PlanMacrosNotFoundError,
   type PlanMacrosResult,
 } from "../../lib/planMacros";
-import { currentWeekRange } from "../../lib/planDates";
+import { currentWeekRange, resolveThisWeekPlan } from "../../lib/planDates";
 import { toYmd } from "../../lib/planQueries";
 import { createPlansRouter } from "../plans";
 
@@ -2353,6 +2353,124 @@ describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
       await harness.close();
     }
   });
+
+  // ── WS7-6 (E) Block 1 REWORK c3 — seam A stamp + analytics ─────────
+  it("seam A: POST /plans STAMPS activatedAt when create dates cover now, and emits plan_activated_this_week", async () => {
+    const recorder: C2Recorder = {
+      createdInstances: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeC2Stub({ recorder }));
+    try {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const startDate = new Date(now - 2 * day).toISOString();
+      const endDate = new Date(now + 4 * day).toISOString();
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${signToken(A2_USER)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "Covers Now", startDate, endDate }),
+      });
+      assert.equal(res.status, 201);
+
+      const created = recorder.createdInstances[0];
+      // Seam A — activatedAt stamped because dates cover now.
+      assert.ok(created.activatedAt instanceof Date,
+        "POST /plans should stamp activatedAt when create dates cover now");
+
+      // plan_activated_this_week emitted with source: plans_create.
+      const activated = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.ok(activated, "plan_activated_this_week should emit");
+      assert.deepEqual(activated.metadata, { source: "plans_create" });
+
+      // plan_created emit metadata.isActiveThisWeek = true (covering + stamped).
+      const createdEvt = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_created",
+      );
+      assert.deepEqual(createdEvt?.metadata, { isActiveThisWeek: true });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("seam A: POST /plans does NOT stamp activatedAt when create dates do NOT cover now", async () => {
+    const recorder: C2Recorder = {
+      createdInstances: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeC2Stub({ recorder }));
+    try {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const startDate = new Date(now + 7 * day).toISOString(); // next week
+      const endDate = new Date(now + 13 * day).toISOString();
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${signToken(A2_USER)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "Future", startDate, endDate }),
+      });
+      assert.equal(res.status, 201);
+
+      const created = recorder.createdInstances[0];
+      // Seam A — no stamp because dates don't cover now (future plan).
+      // Stub's create returns the args.data spread, so undefined activatedAt
+      // becomes a missing key (Prisma's undefined → don't write the column).
+      assert.equal(created.activatedAt, undefined,
+        "POST /plans must NOT stamp activatedAt when create dates don't cover now");
+
+      // plan_activated_this_week NOT emitted.
+      const activated = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.equal(activated, undefined,
+        "plan_activated_this_week must NOT emit for a future-dated create");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("seam A: POST /plans undated does NOT stamp activatedAt (null dates → never covers)", async () => {
+    const recorder: C2Recorder = {
+      createdInstances: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(makeC2Stub({ recorder }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${signToken(A2_USER)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "Undated" }),
+      });
+      assert.equal(res.status, 201);
+
+      const created = recorder.createdInstances[0];
+      assert.equal(created.startDate, null);
+      assert.equal(created.endDate, null);
+      assert.equal(created.activatedAt, undefined);
+      assert.equal(
+        recorder.activityWrites.find(
+          (a) => a.eventType === "plan_activated_this_week",
+        ),
+        undefined,
+      );
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 // ── WS7-4-C c3 — DELETE /plans/:id (soft-delete / compost) ────────────────
@@ -2361,10 +2479,15 @@ interface C3DeleteFix {
   id: string;
   userId: string;
   revisionId: number;
-  // WS7-6 (E): the stored isActiveThisWeek column is gone; "wasActive"
-  // is now computed at delete time from the row's date range.
+  // WS7-6 (E) Block 1 REWORK: wasActive is now "was the resolver winner
+  // pre-delete". Resolver tiebreak fields kept on the fixture so the
+  // DELETE-tx-scoped resolveThisWeekWinnerId narrow findMany picks the
+  // winner correctly.
   startDate: Date | null;
   endDate: Date | null;
+  activatedAt?: Date | null;
+  createdAt?: Date;
+  isWizardDraft?: boolean;
 }
 
 interface C3DeleteRecorder {
@@ -2384,6 +2507,42 @@ function makeC3DeleteStub(opts: {
       findUnique: async (args: { where: { id: string } }) => {
         const row = instances.find((i) => i.id === args.where.id);
         return row ?? null;
+      },
+      // WS7-6 (E) Block 1 REWORK — narrow covering-subset query consumed
+      // by resolveThisWeekWinnerId inside the DELETE tx. Mirrors the real
+      // Prisma filter shape (userId + isWizardDraft + startDate.lte/not:null
+      // + endDate.gte/not:null) and projects only the resolver-relevant
+      // scalars.
+      findMany: async (args: {
+        where: {
+          userId: string;
+          isWizardDraft?: boolean;
+          startDate?: { lte: Date; not?: null };
+          endDate?: { gte: Date; not?: null };
+        };
+      }) => {
+        return instances
+          .filter((i) => {
+            if (i.userId !== args.where.userId) return false;
+            const draftFlag = i.isWizardDraft ?? false;
+            if (args.where.isWizardDraft !== undefined && draftFlag !== args.where.isWizardDraft) return false;
+            if (args.where.startDate?.lte) {
+              if (i.startDate === null) return false;
+              if (i.startDate.getTime() > args.where.startDate.lte.getTime()) return false;
+            }
+            if (args.where.endDate?.gte) {
+              if (i.endDate === null) return false;
+              if (i.endDate.getTime() < args.where.endDate.gte.getTime()) return false;
+            }
+            return true;
+          })
+          .map((i) => ({
+            id: i.id,
+            startDate: i.startDate,
+            endDate: i.endDate,
+            activatedAt: i.activatedAt ?? null,
+            createdAt: i.createdAt ?? new Date("2026-05-01T00:00:00.000Z"),
+          }));
       },
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
         recorder.instanceUpdates.push(args);
@@ -2557,6 +2716,58 @@ describe("DELETE /plans/:id — soft-delete (WS7-4-C c3)", () => {
         },
       );
       assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-6 (E) Block 1 REWORK c3 — wasActive is now "was the resolver
+  // WINNER pre-delete" (Phase 0 ruling, Phase 1 accepted as a metadata-
+  // shape change). A covering plan that LOST the tiebreak to a sibling
+  // with a fresher activatedAt ships wasActive=false; the winner ships
+  // wasActive=true. Multi-row proof — distinguishes Model 2's resolver
+  // semantic from the old per-row date-range predicate.
+  it("DELETE of a covering-but-not-winner plan records wasActive=false (resolver loser)", async () => {
+    const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const harness = await mutationSpinUp(
+      makeC3DeleteStub({
+        recorder,
+        instances: [
+          {
+            id: "p-loser",
+            userId: A2_USER,
+            revisionId: 1,
+            startDate: new Date(now - 3 * day),
+            endDate: new Date(now + 3 * day),
+            activatedAt: new Date(now - 2 * day), // older activation
+            createdAt: new Date(now - 5 * day),
+          },
+          {
+            id: "p-winner",
+            userId: A2_USER,
+            revisionId: 1,
+            startDate: new Date(now - 1 * day),
+            endDate: new Date(now + 5 * day),
+            activatedAt: new Date(now - 1 * day), // newer activation → wins
+            createdAt: new Date(now - 1 * day),
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-loser`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+
+      const act = recorder.activityWrites[0];
+      assert.equal(act.eventType, "plan_composted");
+      // Covering but not winner → wasActive=false under Model 2.
+      assert.deepEqual(act.metadata, { wasActive: false },
+        "covering-but-not-winner plan must record wasActive=false");
     } finally {
       await harness.close();
     }
@@ -3345,6 +3556,217 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
       const res = await patchPlan(harness, "p-1", { isActiveThisWeek: false });
       assert.equal(res.status, 200);
       assert.equal(recorder.instanceUpdates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── WS7-6 (E) Block 1 REWORK c3 — seam B stamp + analytics ─────────
+  it("seam B: PATCH newly-covers-now STAMPS activatedAt and emits plan_activated_this_week", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({ id: "p-future", startDate: null, endDate: null }),
+        ],
+      }),
+    );
+    try {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      const startDate = new Date(now - 2 * day).toISOString();
+      const endDate = new Date(now + 4 * day).toISOString();
+      const res = await patchPlan(harness, "p-future", { startDate, endDate });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const upd = recorder.instanceUpdates[0];
+      // Seam B — activatedAt stamped because dates newly cover now.
+      assert.ok(upd.data.activatedAt instanceof Date,
+        "PATCH newly-covers-now must stamp activatedAt");
+
+      // plan_activated_this_week emitted with source: plans_patch.
+      const act = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.ok(act, "plan_activated_this_week must emit");
+      assert.deepEqual(act.metadata, { source: "plans_patch" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // EQUIVALENCE PROOF (test 21b — required by Hans). Direct three-prong
+  // verification that, after a newly-covers-now PATCH on plan Q in a
+  // fixture where another covering plan P already has activatedAt set
+  // in the past:
+  //   (1) Q stamps activatedAt (seam B fired)
+  //   (2) plan_activated_this_week emits for Q
+  //   (3) resolveThisWeekPlan over the user's covering set returns Q
+  // Proves the emit gate's "newly covers" decision and the resolver's
+  // "is the winner" decision AGREE — not just under the stamp invariant
+  // by reasoning, but by direct test.
+  it("EQUIVALENCE: PATCH newly-covers-now → stamp + emit + Q is the resolver winner over a pre-existing covering P", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+
+    // P — pre-existing covering plan with activatedAt in the past.
+    const pCovering = fixturePatch({
+      id: "p-pre-existing",
+      startDate: new Date(now - 5 * day),
+      endDate: new Date(now + 2 * day),
+    });
+    const pActivatedAt = new Date(now - 3 * day);
+
+    // Q — future-dated plan that the PATCH will pull into the covering set.
+    const qFuture = fixturePatch({
+      id: "q-newly-covering",
+      startDate: null,
+      endDate: null,
+    });
+
+    const recorder: C4PatchRecorder = {
+      instanceUpdates: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({ recorder, instances: [pCovering, qFuture] }),
+    );
+    try {
+      const startDate = new Date(now - 1 * day).toISOString();
+      const endDate = new Date(now + 5 * day).toISOString();
+      const res = await patchPlan(harness, "q-newly-covering", {
+        startDate,
+        endDate,
+      });
+      assert.equal(res.status, 200);
+
+      // (1) Seam B fired — Q stamped activatedAt.
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const upd = recorder.instanceUpdates[0];
+      assert.equal(upd.where.id, "q-newly-covering");
+      assert.ok(upd.data.activatedAt instanceof Date,
+        "(1) seam B must stamp activatedAt on Q");
+      const qStampedAt = upd.data.activatedAt as Date;
+
+      // (2) plan_activated_this_week emitted for Q.
+      const act = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.ok(act, "(2) plan_activated_this_week must emit for Q");
+      assert.equal(act.entityId, "q-newly-covering");
+      assert.deepEqual(act.metadata, { source: "plans_patch" });
+
+      // (3) Run the resolver over the post-write candidate set: P (covering,
+      // activatedAt = pActivatedAt) and Q (now covering with the stamped
+      // qStampedAt). The resolver must return Q — proving the analytics
+      // gate's "newly covers" decision agrees with the resolver's "is
+      // winner" decision by direct test, not by reasoning alone.
+      const postWriteCandidates = [
+        {
+          id: pCovering.id,
+          startDate: pCovering.startDate,
+          endDate: pCovering.endDate,
+          activatedAt: pActivatedAt,
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+        },
+        {
+          id: qFuture.id,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          activatedAt: qStampedAt,
+          createdAt: new Date("2026-05-15T00:00:00.000Z"),
+        },
+      ];
+      const winner = resolveThisWeekPlan(postWriteCandidates);
+      assert.ok(winner, "(3) resolver must find a winner");
+      assert.equal(
+        winner.id,
+        "q-newly-covering",
+        "(3) resolver must return Q — emit gate and resolver agree",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("seam B: PATCH covers-now → covers-now re-date does NOT re-stamp activatedAt (same-state)", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            startDate: new Date(now - 3 * day),
+            endDate: new Date(now + 3 * day),
+          }),
+        ],
+      }),
+    );
+    try {
+      // Move dates by 1 day in each direction — still covering, just a re-date.
+      const startDate = new Date(now - 2 * day).toISOString();
+      const endDate = new Date(now + 4 * day).toISOString();
+      const res = await patchPlan(harness, "p-1", { startDate, endDate });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const upd = recorder.instanceUpdates[0];
+      // No restamp — covers→covers does not transition.
+      assert.equal(upd.data.activatedAt, undefined,
+        "PATCH covers→covers same-state must NOT re-stamp activatedAt");
+
+      // No plan_activated_this_week emit.
+      assert.equal(
+        recorder.activityWrites.find(
+          (a) => a.eventType === "plan_activated_this_week",
+        ),
+        undefined,
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("seam B: PATCH covers-now → not-covering does NOT stamp activatedAt (silent demotion)", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({
+            id: "p-1",
+            startDate: new Date(now - 3 * day),
+            endDate: new Date(now + 3 * day),
+          }),
+        ],
+      }),
+    );
+    try {
+      // Demote: push to next week.
+      const startDate = new Date(now + 7 * day).toISOString();
+      const endDate = new Date(now + 13 * day).toISOString();
+      const res = await patchPlan(harness, "p-1", { startDate, endDate });
+      assert.equal(res.status, 200);
+
+      const upd = recorder.instanceUpdates[0];
+      // No stamp on demotion — silent.
+      assert.equal(upd.data.activatedAt, undefined,
+        "PATCH covers→not-covering must NOT stamp activatedAt");
+      assert.equal(
+        recorder.activityWrites.find(
+          (a) => a.eventType === "plan_activated_this_week",
+        ),
+        undefined,
+        "plan_activated_this_week must NOT emit on silent demotion",
+      );
     } finally {
       await harness.close();
     }

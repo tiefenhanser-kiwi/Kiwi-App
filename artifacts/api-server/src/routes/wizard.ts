@@ -867,18 +867,16 @@ export function createWizardRouter(
           payload,
         });
 
-        // WS7-6 (E): no demote-prior — the stored isActiveThisWeek column
-        // is gone. Single-current is enforced by the per-user EXCLUDE
-        // constraint on [startDate, endDate]. If the user already has a
-        // plan covering the current Sun-Sat week, this update will fail
-        // at the DB layer (constraint violation surfaces as 500) — that
-        // is the build-it-right Hans-locked decision #3 boundary.
-        //
-        // Flip the draft to materialized: clear isWizardDraft so the row
-        // becomes visible to my_plans / home filters, and date it to the
-        // current Sun-Sat week via the shared currentWeekRange() helper
-        // (same definition as PATCH /plans/:id auto-date) so the
-        // date-range predicate immediately reads the plan as current.
+        // WS7-6 (E) Block 1 REWORK seam C — stamp activatedAt in the
+        // SAME write that sets the current-week dates. Plans MAY share
+        // date ranges under Model 2 (no EXCLUDE constraint); single-
+        // current is enforced at READ time by the resolver. The fresh
+        // activatedAt timestamp guarantees this row wins the tiebreak
+        // over any pre-existing covering plan with an older activatedAt
+        // (or null) — that pre-existing plan stays in my_plans, undeleted,
+        // simply no longer designated. The unconditional emit below is
+        // preserved (Phase 1 ruling): every wizard activate is a fresh
+        // user commitment, regardless of pre-state.
         const week = currentWeekRange();
         const activated = await tx.mealPlanInstance.update({
           where: { id: draftId },
@@ -887,6 +885,7 @@ export function createWizardRouter(
             revisionId: { increment: 1 },
             startDate: new Date(week.startDate),
             endDate: new Date(week.endDate),
+            activatedAt: new Date(),
             // WS7-5b-mobile FIX (PRD §2.4): link the freshly-created
             // hidden Template, and clear the wizard-JSON blob that pre-fix
             // code wrote into optimizationNotes (Plan Review's mobile
