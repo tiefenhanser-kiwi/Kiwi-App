@@ -7,7 +7,7 @@
 // Permanent deletion is a future cron job (out of scope for Block A).
 
 import { Router, type IRouter } from "express";
-import type { PrismaClient } from "@prisma/client";
+import { type Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
@@ -29,8 +29,11 @@ import { rateLimit } from "../lib/rateLimit";
 import { getTopRatedSettings } from "../lib/topRated";
 import {
   clampLimit,
+  decodeKeysetCursor,
   mergeById,
   paginateById,
+  paginateByKeyset,
+  parseDishSortParam,
   parseFilterParam,
 } from "../lib/listQuery";
 import { MEAL_LIST_SELECT, toListShape, type MealListItem } from "./meals";
@@ -185,6 +188,9 @@ export interface DishListItem {
   image: string | null;
 }
 
+// WS7-6 B-fix Block 1: `createdAt` is selected (not emitted on wire) so the
+// keyset cursor for `sort=date_created` can encode the row's createdAt value.
+// `toDishListShape` ignores the extra field.
 const DISH_LIST_SELECT = {
   id: true,
   title: true,
@@ -197,9 +203,10 @@ const DISH_LIST_SELECT = {
   fatGPerServing: true,
   tags: true,
   imageUrl: true,
+  createdAt: true,
 } as const;
 
-function toDishListShape(d: {
+interface DishListRow {
   id: string;
   title: string;
   estimatedTimeMinutes: number;
@@ -211,7 +218,10 @@ function toDishListShape(d: {
   fatGPerServing: number;
   tags: string[];
   imageUrl: string | null;
-}): DishListItem {
+  createdAt: Date;
+}
+
+function toDishListShape(d: DishListRow): DishListItem {
   return {
     id: d.id,
     title: d.title,
@@ -1362,7 +1372,18 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     }
   });
 
-  // GET /me/dishes?filter=my_dishes,featured,top_rated
+  // GET /me/dishes?filter=my_dishes,featured,top_rated&sort=<alpha|date_created|cook_time>
+  //
+  // WS7-6 B-fix Block 1: sort param + keyset cursor.
+  //   - sort defaults to alpha; unknown values silently fall back to alpha
+  //     (don't 400 — the wire is forgiving so a UI mid-rollout doesn't error).
+  //   - Cursor is opaque base64url JSON encoding (sortKey, sortValue, id);
+  //     a cursor minted under a different sort is treated as no-cursor.
+  //   - last_cooked / times_cooked are intentionally NOT accepted here: the
+  //     backing Dish.lastUsedAt and Dish.timesCooked columns have no write
+  //     path today (Phase 0.1 DB check: 337 dishes, 0 with lastUsedAt set,
+  //     0 with timesCooked > 0). Deferred until a cook-event write path
+  //     exists.
   router.get("/me/dishes", requireAuth, async (req, res) => {
     const parsed = parseFilterParam(req.query.filter, DISHES_FILTER_KEYS, [
       "my_dishes",
@@ -1375,21 +1396,28 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       });
     }
     const limit = clampLimit(req.query.limit);
-    const cursor =
-      typeof req.query.cursor === "string" && req.query.cursor.length > 0
-        ? req.query.cursor
-        : undefined;
+    const sort = parseDishSortParam(req.query.sort);
+    const cursor = decodeKeysetCursor(req.query.cursor);
+
+    // `id: "asc"` is the tiebreaker for every sort so pages are stable when
+    // multiple rows share the primary sort value.
+    const orderBy: Prisma.DishOrderByWithRelationInput[] =
+      sort === "date_created"
+        ? [{ createdAt: "desc" }, { id: "asc" }]
+        : sort === "cook_time"
+          ? [{ estimatedTimeMinutes: "asc" }, { id: "asc" }]
+          : [{ title: "asc" }, { id: "asc" }];
 
     try {
-      const blocks: DishListItem[][] = [];
+      const blocks: DishListRow[][] = [];
       for (const key of parsed.keys) {
         if (key === "my_dishes") {
           const rows = await prisma.dish.findMany({
             where: { userId: req.userId, isArchived: false },
             select: DISH_LIST_SELECT,
-            orderBy: { title: "asc" },
+            orderBy,
           });
-          blocks.push(rows.map(toDishListShape));
+          blocks.push(rows);
         } else {
           // key === "featured" | "top_rated".
           // TODO(D-WS7-039): Dish carries no featuring flags, no isPublic,
@@ -1400,8 +1428,24 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         }
       }
       const merged = mergeById(blocks);
-      const { page, nextCursor } = paginateById(merged, cursor, limit);
-      return res.json({ dishes: page, nextCursor });
+      const getSortValue = (r: DishListRow): string | number => {
+        switch (sort) {
+          case "date_created":
+            return r.createdAt.toISOString();
+          case "cook_time":
+            return r.estimatedTimeMinutes;
+          case "alpha":
+            return r.title;
+        }
+      };
+      const { page, nextCursor } = paginateByKeyset(
+        merged,
+        cursor,
+        limit,
+        sort,
+        getSortValue,
+      );
+      return res.json({ dishes: page.map(toDishListShape), nextCursor });
     } catch (err) {
       logger.error({ err, userId: req.userId }, "GET /me/dishes failed");
       return res.status(500).json({ error: "failed to list dishes" });

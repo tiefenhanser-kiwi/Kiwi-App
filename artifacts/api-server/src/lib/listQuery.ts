@@ -73,3 +73,93 @@ export function paginateById<T extends { id: string }>(
       : null;
   return { page, nextCursor };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS7-6 B-fix Block 1 — sort-aware keyset cursor pagination.
+//
+// Used by GET /me/dishes (and any future sortable list endpoint). The cursor
+// is opaque to clients (base64url-encoded JSON) but self-describes the sort
+// it was minted under. A cursor presented under a different sort is treated
+// as no-cursor (first page) rather than rejected — the wire is forgiving so
+// a UI that flips sort doesn't have to remember to clear its pagination
+// state. Same in-memory model as paginateById: rows arrive pre-sorted by
+// the route (via Prisma `orderBy: [{ <field>, dir }, { id: "asc" }]`) and
+// the cursor's id is found in the merged sorted array; the slice starts at
+// the next index.
+
+export const DISH_SORT_KEYS = ["alpha", "date_created", "cook_time"] as const;
+export type DishSortKey = (typeof DISH_SORT_KEYS)[number];
+
+// Parse ?sort= into a known key. Invalid / missing / unknown silently
+// default to "alpha" — see route prompt: don't 400 on unknown sort.
+export function parseDishSortParam(raw: unknown): DishSortKey {
+  if (typeof raw !== "string") return "alpha";
+  return (DISH_SORT_KEYS as readonly string[]).includes(raw)
+    ? (raw as DishSortKey)
+    : "alpha";
+}
+
+export interface KeysetCursor {
+  k: DishSortKey;
+  v: string | number;
+  i: string;
+}
+
+export function encodeKeysetCursor(c: KeysetCursor): string {
+  return Buffer.from(JSON.stringify(c), "utf8").toString("base64url");
+}
+
+// Best-effort decode. Returns null on anything malformed — unparseable JSON,
+// wrong shape, unknown sort key, missing fields — so the route falls back
+// to first-page behavior. A cross-sort cursor (one whose k differs from the
+// active sort) decodes successfully here and is dropped by paginateByKeyset
+// at slice time.
+export function decodeKeysetCursor(raw: unknown): KeysetCursor | null {
+  if (typeof raw !== "string" || raw.length === 0) return null;
+  try {
+    const json = Buffer.from(raw, "base64url").toString("utf8");
+    const parsed = JSON.parse(json) as Partial<KeysetCursor>;
+    if (
+      (parsed.k === "alpha" ||
+        parsed.k === "date_created" ||
+        parsed.k === "cook_time") &&
+      (typeof parsed.v === "string" || typeof parsed.v === "number") &&
+      typeof parsed.i === "string"
+    ) {
+      return parsed as KeysetCursor;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function paginateByKeyset<T extends { id: string }>(
+  rows: T[],
+  cursor: KeysetCursor | null,
+  limit: number,
+  sortKey: DishSortKey,
+  getSortValue: (row: T) => string | number,
+): { page: T[]; nextCursor: string | null } {
+  let start = 0;
+  // Cross-sort cursor → first page. Same-sort cursor → find by id (rows are
+  // already in the comparator order Prisma applied, so id-lookup matches
+  // the row the cursor was minted from).
+  if (cursor && cursor.k === sortKey) {
+    const idx = rows.findIndex((r) => r.id === cursor.i);
+    start = idx >= 0 ? idx + 1 : rows.length;
+  }
+  const page = rows.slice(start, start + limit);
+  if (start + limit < rows.length && page.length > 0) {
+    const last = page[page.length - 1];
+    return {
+      page,
+      nextCursor: encodeKeysetCursor({
+        k: sortKey,
+        v: getSortValue(last),
+        i: last.id,
+      }),
+    };
+  }
+  return { page, nextCursor: null };
+}

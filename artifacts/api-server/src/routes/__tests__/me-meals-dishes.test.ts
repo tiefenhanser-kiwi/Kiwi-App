@@ -50,12 +50,17 @@ function mealRow(id: string, title: string, opts: MealOpts = {}) {
 function dishRow(
   id: string,
   title: string,
-  opts: { userId?: string | null; isArchived?: boolean } = {},
+  opts: {
+    userId?: string | null;
+    isArchived?: boolean;
+    estimatedTimeMinutes?: number;
+    createdAt?: Date;
+  } = {},
 ) {
   return {
     id,
     title,
-    estimatedTimeMinutes: 25,
+    estimatedTimeMinutes: opts.estimatedTimeMinutes ?? 25,
     servingsDefault: 4,
     difficulty: "easy",
     caloriesPerServing: 300,
@@ -64,6 +69,9 @@ function dishRow(
     fatGPerServing: 10,
     tags: ["side"],
     imageUrl: null,
+    // WS7-6 B-fix Block 1: createdAt selected for the date_created sort
+    // cursor. Default fixed so existing tests don't drift over time.
+    createdAt: opts.createdAt ?? new Date("2026-01-01T00:00:00.000Z"),
     userId: opts.userId ?? null,
     isArchived: opts.isArchived ?? false,
   };
@@ -111,15 +119,47 @@ function makeStubPrisma(opts: {
     dish: {
       findMany: async (args: {
         where: { userId?: string; isArchived?: boolean };
-        orderBy?: { title?: "asc" | "desc" };
+        orderBy?:
+          | { title?: "asc" | "desc" }
+          | Array<Record<string, "asc" | "desc">>;
       }) => {
         let rows = dishes.slice();
         const w = args.where;
         if (w.userId !== undefined) rows = rows.filter((d) => d.userId === w.userId);
         if (w.isArchived !== undefined)
           rows = rows.filter((d) => d.isArchived === w.isArchived);
-        if (args.orderBy?.title === "asc")
-          rows = rows.sort((a, b) => a.title.localeCompare(b.title));
+        // Multi-key orderBy: walk fields in order, first non-equal wins.
+        // Single-object orderBy ({ title: "asc" }) is the legacy form still
+        // used by other meal tests; the dishes route switched to array form
+        // in WS7-6 B-fix Block 1.
+        const ob = args.orderBy;
+        const keys = Array.isArray(ob)
+          ? ob
+          : ob && typeof ob === "object"
+            ? [ob as Record<string, "asc" | "desc">]
+            : [];
+        if (keys.length > 0) {
+          rows = rows.sort((a, b) => {
+            for (const k of keys) {
+              const [field, dir] = Object.entries(k)[0] as [
+                keyof DishRow,
+                "asc" | "desc",
+              ];
+              const av = a[field];
+              const bv = b[field];
+              let cmp = 0;
+              if (av instanceof Date && bv instanceof Date) {
+                cmp = av.getTime() - bv.getTime();
+              } else if (typeof av === "number" && typeof bv === "number") {
+                cmp = av - bv;
+              } else {
+                cmp = String(av).localeCompare(String(bv));
+              }
+              if (cmp !== 0) return dir === "desc" ? -cmp : cmp;
+            }
+            return 0;
+          });
+        }
         return rows;
       },
     },
@@ -432,6 +472,293 @@ describe("GET /me/dishes", () => {
     try {
       const res = await authGet(harness, "/me/dishes", false);
       assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── GET /me/dishes — sort + keyset cursor (WS7-6 B-fix Block 1) ────────
+
+describe("GET /me/dishes sort + keyset cursor", () => {
+  // Five dishes with deliberately interleaved title / createdAt / cook-time
+  // so each sort produces a distinct order — easy to assert against and
+  // catches dimensions accidentally collapsing into one.
+  const fixture = (): DishRow[] => [
+    dishRow("d-1", "Alpha", {
+      userId: USER_ID,
+      estimatedTimeMinutes: 30,
+      createdAt: new Date("2026-03-01T00:00:00.000Z"),
+    }),
+    dishRow("d-2", "Bravo", {
+      userId: USER_ID,
+      estimatedTimeMinutes: 10,
+      createdAt: new Date("2026-01-15T00:00:00.000Z"),
+    }),
+    dishRow("d-3", "Charlie", {
+      userId: USER_ID,
+      estimatedTimeMinutes: 45,
+      createdAt: new Date("2026-05-10T00:00:00.000Z"),
+    }),
+    dishRow("d-4", "Delta", {
+      userId: USER_ID,
+      estimatedTimeMinutes: 20,
+      createdAt: new Date("2026-02-20T00:00:00.000Z"),
+    }),
+    dishRow("d-5", "Echo", {
+      userId: USER_ID,
+      estimatedTimeMinutes: 15,
+      createdAt: new Date("2026-04-04T00:00:00.000Z"),
+    }),
+  ];
+
+  it("default sort is alpha; explicit sort=alpha returns the same order", async () => {
+    const harness = await spinUp(makeStubPrisma({ dishes: fixture() }));
+    try {
+      const a = await (await authGet(harness, "/me/dishes")).json() as {
+        dishes: { id: string }[];
+      };
+      const b = await (await authGet(harness, "/me/dishes?sort=alpha")).json() as {
+        dishes: { id: string }[];
+      };
+      assert.deepEqual(
+        a.dishes.map((d) => d.id),
+        ["d-1", "d-2", "d-3", "d-4", "d-5"],
+      );
+      assert.deepEqual(b.dishes.map((d) => d.id), a.dishes.map((d) => d.id));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("sort=date_created orders newest-first", async () => {
+    const harness = await spinUp(makeStubPrisma({ dishes: fixture() }));
+    try {
+      const res = await authGet(harness, "/me/dishes?sort=date_created");
+      const body = (await res.json()) as { dishes: { id: string }[] };
+      // createdAt desc: d-3 (May) > d-5 (Apr) > d-1 (Mar) > d-4 (Feb) > d-2 (Jan)
+      assert.deepEqual(
+        body.dishes.map((d) => d.id),
+        ["d-3", "d-5", "d-1", "d-4", "d-2"],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("sort=cook_time orders ascending by estimatedTimeMinutes (non-nullable col)", async () => {
+    const harness = await spinUp(makeStubPrisma({ dishes: fixture() }));
+    try {
+      const res = await authGet(harness, "/me/dishes?sort=cook_time");
+      const body = (await res.json()) as {
+        dishes: { id: string; minutes: number }[];
+      };
+      // minutes asc: d-2 (10) < d-5 (15) < d-4 (20) < d-1 (30) < d-3 (45)
+      assert.deepEqual(
+        body.dishes.map((d) => d.id),
+        ["d-2", "d-5", "d-4", "d-1", "d-3"],
+      );
+      assert.deepEqual(
+        body.dishes.map((d) => d.minutes),
+        [10, 15, 20, 30, 45],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("unknown sort value silently falls back to alpha (no 400)", async () => {
+    const harness = await spinUp(makeStubPrisma({ dishes: fixture() }));
+    try {
+      const res = await authGet(harness, "/me/dishes?sort=last_cooked");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { dishes: { id: string }[] };
+      assert.deepEqual(
+        body.dishes.map((d) => d.id),
+        ["d-1", "d-2", "d-3", "d-4", "d-5"],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("paginates 3 pages under sort=date_created with no skips or dupes", async () => {
+    const harness = await spinUp(makeStubPrisma({ dishes: fixture() }));
+    try {
+      const p1 = (await (
+        await authGet(harness, "/me/dishes?sort=date_created&limit=2")
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p1.dishes.map((d) => d.id),
+        ["d-3", "d-5"],
+      );
+      assert.ok(p1.nextCursor, "page 1 should yield a cursor");
+
+      const p2 = (await (
+        await authGet(
+          harness,
+          `/me/dishes?sort=date_created&limit=2&cursor=${encodeURIComponent(
+            p1.nextCursor!,
+          )}`,
+        )
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p2.dishes.map((d) => d.id),
+        ["d-1", "d-4"],
+      );
+      assert.ok(p2.nextCursor, "page 2 should yield a cursor");
+
+      const p3 = (await (
+        await authGet(
+          harness,
+          `/me/dishes?sort=date_created&limit=2&cursor=${encodeURIComponent(
+            p2.nextCursor!,
+          )}`,
+        )
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p3.dishes.map((d) => d.id),
+        ["d-2"],
+      );
+      assert.equal(p3.nextCursor, null);
+
+      // Concatenated pages match a single-page fetch — no skips, no dupes.
+      const merged = [...p1.dishes, ...p2.dishes, ...p3.dishes].map((d) => d.id);
+      assert.deepEqual(merged, ["d-3", "d-5", "d-1", "d-4", "d-2"]);
+      assert.equal(new Set(merged).size, merged.length);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("paginates 3 pages under sort=cook_time with no skips or dupes", async () => {
+    const harness = await spinUp(makeStubPrisma({ dishes: fixture() }));
+    try {
+      const p1 = (await (
+        await authGet(harness, "/me/dishes?sort=cook_time&limit=2")
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      const p2 = (await (
+        await authGet(
+          harness,
+          `/me/dishes?sort=cook_time&limit=2&cursor=${encodeURIComponent(
+            p1.nextCursor!,
+          )}`,
+        )
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      const p3 = (await (
+        await authGet(
+          harness,
+          `/me/dishes?sort=cook_time&limit=2&cursor=${encodeURIComponent(
+            p2.nextCursor!,
+          )}`,
+        )
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      const merged = [...p1.dishes, ...p2.dishes, ...p3.dishes].map((d) => d.id);
+      assert.deepEqual(merged, ["d-2", "d-5", "d-4", "d-1", "d-3"]);
+      assert.equal(p3.nextCursor, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("ties on the primary sort value are stably broken by id (asc tiebreaker)", async () => {
+    // Three dishes share estimatedTimeMinutes = 20 — id order must decide.
+    const tied: DishRow[] = [
+      dishRow("d-y", "Yankee", { userId: USER_ID, estimatedTimeMinutes: 20 }),
+      dishRow("d-a", "Alpha", { userId: USER_ID, estimatedTimeMinutes: 20 }),
+      dishRow("d-m", "Mike", { userId: USER_ID, estimatedTimeMinutes: 20 }),
+      dishRow("d-z", "Zulu", { userId: USER_ID, estimatedTimeMinutes: 5 }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ dishes: tied }));
+    try {
+      // Page 1: cook_time asc → d-z (5), then tied trio in id-asc order:
+      //   d-a, d-m, d-y. limit=2 takes [d-z, d-a].
+      const p1 = (await (
+        await authGet(harness, "/me/dishes?sort=cook_time&limit=2")
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p1.dishes.map((d) => d.id),
+        ["d-z", "d-a"],
+      );
+      // Page 2 starts after d-a — same tie bucket; id-asc puts d-m next, d-y last.
+      const p2 = (await (
+        await authGet(
+          harness,
+          `/me/dishes?sort=cook_time&limit=10&cursor=${encodeURIComponent(
+            p1.nextCursor!,
+          )}`,
+        )
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p2.dishes.map((d) => d.id),
+        ["d-m", "d-y"],
+      );
+      assert.equal(p2.nextCursor, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("cursor minted under a different sort is treated as no-cursor (first page)", async () => {
+    const harness = await spinUp(makeStubPrisma({ dishes: fixture() }));
+    try {
+      // Mint a cursor under sort=date_created at limit=2.
+      const minted = (await (
+        await authGet(harness, "/me/dishes?sort=date_created&limit=2")
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      assert.ok(minted.nextCursor);
+      // Present that cursor under sort=alpha — the request should ignore it
+      // and return page 1 of alpha rather than slicing.
+      const res = (await (
+        await authGet(
+          harness,
+          `/me/dishes?sort=alpha&limit=2&cursor=${encodeURIComponent(
+            minted.nextCursor!,
+          )}`,
+        )
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        res.dishes.map((d) => d.id),
+        ["d-1", "d-2"],
+      );
+      assert.ok(res.nextCursor);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("limit clamp still honored under sort param (1..100)", async () => {
+    const harness = await spinUp(makeStubPrisma({ dishes: fixture() }));
+    try {
+      const lo = (await (
+        await authGet(harness, "/me/dishes?sort=alpha&limit=0")
+      ).json()) as { dishes: { id: string }[] };
+      // clampLimit promotes 0 to 1.
+      assert.equal(lo.dishes.length, 1);
+
+      const garbage = (await (
+        await authGet(harness, "/me/dishes?sort=alpha&limit=not-a-number")
+      ).json()) as { dishes: { id: string }[] };
+      // NaN clamps back to the default 20 → 5 rows fit.
+      assert.equal(garbage.dishes.length, 5);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("malformed cursor is ignored (treated as first page)", async () => {
+    const harness = await spinUp(makeStubPrisma({ dishes: fixture() }));
+    try {
+      const res = (await (
+        await authGet(
+          harness,
+          "/me/dishes?sort=alpha&limit=2&cursor=not-a-real-cursor",
+        )
+      ).json()) as { dishes: { id: string }[] };
+      assert.deepEqual(
+        res.dishes.map((d) => d.id),
+        ["d-1", "d-2"],
+      );
     } finally {
       await harness.close();
     }
