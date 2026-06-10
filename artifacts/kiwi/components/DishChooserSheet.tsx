@@ -13,7 +13,6 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
@@ -28,6 +27,12 @@ export interface DishChooserSheetProps {
   onClose: () => void;
   /** Called when user picks a saved dish OR adds a Simple Dish. */
   onPickSavedDish: (dish: SavedDish) => void;
+  /** WS7-6 Block 1H — "Create from scratch" handler. Appends a blank
+   *  editable dish to the meal under construction (parent owns the
+   *  state). Kept as a clean callback prop so the sheet stays unaware
+   *  of meal-builder internals — WS9 plans to revisit these sheet
+   *  create-modes for reuse/extraction, and this keeps that clean. */
+  onAddEmptyDish: () => void;
   /** Optional override for "Ask Kiwi" submission. WS5 default fires a
    *  "Coming in WS6" alert. Kept for future composition. */
   onAskKiwi?: (prompt: string) => void;
@@ -37,10 +42,10 @@ export function DishChooserSheet({
   visible,
   onClose,
   onPickSavedDish,
+  onAddEmptyDish,
   onAskKiwi,
 }: DishChooserSheetProps) {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const [askPrompt, setAskPrompt] = useState("");
   // PRD: A-Z is the default sort across all sortable surfaces.
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
@@ -118,14 +123,15 @@ export function DishChooserSheet({
     setSimpleDishExpanded(false);
   };
 
-  const handleHaveInMind = () => {
+  // WS7-6 Block 1H — replaces the prior "Have something in mind?" router
+  // push to /dish-builder. That path SAVED a dish to the library but did
+  // NOT attach it to the meal under construction (broken for this
+  // context). Create-from-scratch stays in-sheet and appends a blank
+  // editable dish to the parent's dishes[] via onAddEmptyDish.
+  const handleAddEmptyDish = () => {
     Keyboard.dismiss();
+    onAddEmptyDish();
     onClose();
-    // Match the Import URL/Image card pattern: defer push slightly so the
-    // sheet finishes its slide-out before the new screen mounts.
-    setTimeout(() => {
-      router.push("/dish-builder");
-    }, 150);
   };
 
   return (
@@ -290,20 +296,27 @@ export function DishChooserSheet({
               </View>
             )}
 
-            {/* Section 4: Have something in mind? (stub) */}
+            {/* Section 4: Create from scratch (WS7-6 Block 1H).
+                Replaces the prior route-away "Have something in mind?"
+                stub, which pushed /dish-builder and saved to the library
+                without attaching to the meal under construction. This
+                option stays in-sheet and appends a blank editable dish
+                to the current meal so the user can fill it inline. */}
             <Pressable
-              onPress={handleHaveInMind}
+              onPress={handleAddEmptyDish}
               style={({ pressed }) => [
-                s.haveInMindLink,
-                pressed && { opacity: 0.7 },
+                s.simpleDishCollapsed,
+                pressed && { opacity: 0.85 },
               ]}
+              testID="dish-chooser-create-from-scratch"
             >
-              <Text style={s.haveInMindTitle}>
-                Have something in mind? Add it to your saved Dishes.
-              </Text>
-              <Text style={s.haveInMindSubtitle}>
-                Build a custom dish with ingredients, steps, and macros.
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.sectionTitle}>Create from scratch</Text>
+                <Text style={s.sectionSubtitle}>
+                  Add a blank dish and edit it inline
+                </Text>
+              </View>
+              <Feather name="plus" size={18} color={KColors.sage[700]} />
             </Pressable>
           </ScrollView>
         </View>
@@ -526,24 +539,5 @@ const s = StyleSheet.create({
     color: KColors.neutral[700],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
-  },
-  haveInMindLink: {
-    marginTop: KSpacing.lg,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.md,
-  },
-  haveInMindTitle: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    textAlign: "center",
-  },
-  haveInMindSubtitle: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginTop: 4,
-    textAlign: "center",
   },
 });

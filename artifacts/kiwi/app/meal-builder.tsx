@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   Pressable,
@@ -9,11 +10,12 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
 } from "react-native-draggable-flatlist";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
@@ -27,42 +29,36 @@ import {
   KSpacing,
   KType,
 } from "@/constants/tokens";
+import { useApp } from "@/contexts/AppContext";
+import { fromServerDifficulty, toServerDifficulty } from "@/lib/api/builder";
+import { getDishes } from "@/lib/api/dishes";
+import type { SaveMealInput, UpdateMealInput } from "@/lib/api/meals";
+import { useMeal } from "@/hooks/useMeal";
 import { CUISINES_TIER_1, CUISINES_TIER_2 } from "@/lib/domain";
+import { formatMacro } from "@/lib/format/macros";
 import { parseQuantity } from "@/lib/quantity";
 import {
+  buildManualSaveMealInput,
+  hydrateBuilderDishesFromDraft,
+  hydrateBuilderDishesFromMeal,
+  newDish as makeNewDish,
+  newIngredient as makeNewIngredient,
+  newStep as makeNewStep,
+  pickSavedDishToBuilderDish,
+  validateManualSave,
+  type BuilderDish,
+  type BuilderIngredient,
+  type BuilderStep,
+  type Difficulty,
+} from "@/lib/meal-builder-state";
+import {
   getFeaturedDishes,
-  getMealById,
   getSavedDishes,
   getTopRatedDishes,
 } from "@/lib/stubs";
 import type { DraftMeal, SavedDish } from "@/lib/types";
 
 type Mode = "manual" | "combine" | "ai" | null;
-type Difficulty = "easy" | "medium" | "hard";
-
-interface BuilderIngredient {
-  uid: number;
-  quantity: string;
-  unit: string;
-  name: string;
-}
-
-interface BuilderDish {
-  uid: number;
-  name: string;
-  ingredients: BuilderIngredient[];
-}
-
-interface BuilderStep {
-  uid: number;
-  text: string;
-  estimatedMinutes: string;
-  /** Preserved when populating from a saved meal or imported draft so the
-   *  editor can render the same terracotta-tinted step number circle that
-   *  Meal Detail uses (PRD §10.6.1). No UI affordance to toggle this on a
-   *  manually-added step in WS5 — that's a WS9 polish item. */
-  isTimingSensitive?: boolean;
-}
 
 const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 12;
@@ -72,31 +68,34 @@ const allocUid = () => nextUid++;
 
 const newIngredient = (
   partial?: Partial<Omit<BuilderIngredient, "uid">>,
-): BuilderIngredient => ({
-  uid: allocUid(),
-  quantity: partial?.quantity ?? "",
-  unit: partial?.unit ?? "",
-  name: partial?.name ?? "",
-});
+): BuilderIngredient => makeNewIngredient(allocUid, partial);
 
 const newDish = (
-  partial?: Partial<Omit<BuilderDish, "uid" | "ingredients">> & {
+  partial?: Partial<Omit<BuilderDish, "uid" | "ingredients" | "steps">> & {
     ingredients?: BuilderIngredient[];
+    steps?: BuilderStep[];
   },
-): BuilderDish => ({
-  uid: allocUid(),
-  name: partial?.name ?? "",
-  ingredients: partial?.ingredients ?? [newIngredient()],
-});
+): BuilderDish => makeNewDish(allocUid, partial);
 
 const newStep = (
   partial?: Partial<Omit<BuilderStep, "uid">>,
-): BuilderStep => ({
-  uid: allocUid(),
-  text: partial?.text ?? "",
-  estimatedMinutes: partial?.estimatedMinutes ?? "",
-  isTimingSensitive: partial?.isTimingSensitive,
-});
+): BuilderStep => makeNewStep(allocUid, partial);
+
+// WS7-6 Block 1F — summary copy near the Save button. Lists only the
+// fields still missing so the message shrinks as the user fills the
+// form. Kept here rather than in lib/meal-builder-state because the
+// copy is UI surface, not validation logic.
+function summarizeMissing(v: {
+  nameMissing: boolean;
+  ingredientMissing: boolean;
+  stepMissing: boolean;
+}): string {
+  const parts: string[] = [];
+  if (v.nameMissing) parts.push("a name");
+  if (v.ingredientMissing) parts.push("at least one ingredient");
+  if (v.stepMissing) parts.push("at least one step");
+  return `Needs: ${parts.join(", ")}.`;
+}
 
 export default function MealBuilderScreen() {
   const {
@@ -121,12 +120,22 @@ export default function MealBuilderScreen() {
     addDishId?: string;
   }>();
   const isEditFromPlanContext = !!(mealId && planId && planItemId);
+  // WS7-6 1G — library-context edit (Meal Detail → Edit, no plan params).
+  // Routes to PATCH /me/meals/:id with NO §2.5 prompt (PRD §8.4.4).
+  const isLibraryEditContext = !!(mealId && !planId && !planItemId);
   const isChangeRecipe = source === "change-recipe" && !!mealId;
 
-  const sourceMeal = useMemo(
-    () => (mealId ? getMealById(mealId) : null),
-    [mealId],
-  );
+  // WS7-6 Block 1E — Surface 1 (create) wiring.
+  // WS7-6 1F — updateMeal mutator for the library / "Apply always" edit paths.
+  const { saveMeal, updateMeal, addMealToPlan } = useApp();
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+
+  // WS7-6 1G — hydration now reads from the server (GET /meals/:id) instead
+  // of the lib/stubs catalog. Without this, a library-context edit would
+  // PATCH with stub-derived data and wipe the real meal's sub-graph.
+  const mealDetailQuery = useMeal(mealId ?? "");
+  const sourceMeal = mealDetailQuery.data ?? null;
 
   const draftMeal = useMemo<DraftMeal | null>(() => {
     if (!draftJson) return null;
@@ -157,69 +166,98 @@ export default function MealBuilderScreen() {
   const [estimatedTimeMinutes, setEstimatedTimeMinutes] = useState("30");
   const [servingsDefault, setServingsDefault] = useState(4);
   const [dishes, setDishes] = useState<BuilderDish[]>(() => [newDish()]);
-  // Steps are optional per PRD §10.5 — start empty so the empty-state copy
-  // surfaces and users aren't forced into a forms-y experience for simple dishes.
-  const [steps, setSteps] = useState<BuilderStep[]>([]);
+  // WS7-6 Fix-Block 1B — steps now live per-dish on BuilderDish.steps
+  // (matches the server's polymorphic (ownerType, ownerId) model). The
+  // pre-fix meal-level `steps[]` state was flattened from all dishes at
+  // hydration and re-attached to dish[0] on save, so swapping dish[1]
+  // left stale steps stuck on dish[0]. Optional per PRD §10.5.
   const [notes, setNotes] = useState("");
 
   // ── Combine-mode state ──────────────────────────────────────────
-  const savedDishes = useMemo(() => getSavedDishes(), []);
+  // WS7-6 Block 1D — Mode C picker reads the real /me/dishes catalog so the
+  // `selectedDishIds` are real server ids (needed by the POST /me/meals
+  // `kind:"link"` ownership check). The list-shape endpoint omits per-dish
+  // ingredients; CombineReview gracefully degrades to showing dish names only
+  // (a future block can fetch detail per selected id if review parity is
+  // required pre-save).
+  const dishesQuery = useQuery({
+    queryKey: ["dishes", "list", ["my_dishes"]],
+    queryFn: () => getDishes(["my_dishes"]),
+  });
+  const savedDishes = useMemo<SavedDish[]>(() => {
+    const rows = dishesQuery.data?.dishes ?? [];
+    return rows.map<SavedDish>((d) => ({
+      id: d.id,
+      name: d.title,
+      cuisineType: undefined,
+      imageUrl: d.image ?? undefined,
+      ingredients: [],
+      type: "main",
+      caloriesPerServing: d.calories,
+      proteinGPerServing: d.protein,
+      carbsGPerServing: d.carbs,
+      fatGPerServing: d.fat,
+      mealUseCount: 0,
+      estimatedTimeMinutes: d.minutes,
+    }));
+  }, [dishesQuery.data?.dishes]);
   const [selectedDishIds, setSelectedDishIds] = useState<string[]>([]);
   const [combineReview, setCombineReview] = useState(false);
 
   // ── Dish chooser sheet (Mode B "+ Add Dish") ────────────────────
   const [dishChooserVisible, setDishChooserVisible] = useState(false);
 
-  // Pre-population from existing meal (one-shot on mount when mealId present).
+  // WS7-6 Block 1F — save-disabled clarity. Floor-level interaction
+  // tracking: flipped to true on the FIRST Save tap; gates inline-error
+  // + summary-line display so a pristine form doesn't shout at the user.
+  // Per-field touched-on-blur would be a nice-to-have but the prompt
+  // calls saveAttempted the floor and we stuck to it.
+  const [saveAttempted, setSaveAttempted] = useState(false);
+
+  // WS7-6 1G — hydration from GET /meals/:id (MealDetail shape). Field-name
+  // translations from the renamed-flat server payload back to the form's
+  // domain naming:
+  //   cuisine     (always "" when none) → cuisineType
+  //   minutes                            → estimatedTimeMinutes
+  //   servings                           → servingsDefault
+  //   difficulty (server "fancy")        → UI "hard" via fromServerDifficulty
+  //   dishes[].title                     → BuilderDish.name
+  //   dishes[].steps[]                   → BuilderDish.steps (per-dish own.)
+  //   notes                              → null on the server, so "" here
+  //
+  // WS7-6 Fix-Block 1B: per-dish step ownership. The pre-fix code flattened
+  // every dish's steps into a single meal-level state, which left stale
+  // steps stuck on dish[0] after a sub-dish swap.
   useEffect(() => {
     if (!sourceMeal) return;
     setMealName(sourceMeal.title);
-    setCuisineType(sourceMeal.cuisineType ?? "");
+    setCuisineType(sourceMeal.cuisine);
     if (
-      sourceMeal.cuisineType &&
-      (CUISINES_TIER_2 as readonly string[]).includes(sourceMeal.cuisineType)
+      sourceMeal.cuisine &&
+      (CUISINES_TIER_2 as readonly string[]).includes(sourceMeal.cuisine)
     ) {
       setCuisineExpanded(true);
     }
-    setDifficulty(sourceMeal.difficulty);
-    setEstimatedTimeMinutes(String(sourceMeal.estimatedTimeMinutes));
-    setServingsDefault(sourceMeal.servingsDefault);
-    setDishes(
-      sourceMeal.dishes.map((d) =>
-        newDish({
-          name: d.name,
-          ingredients:
-            d.ingredients.length > 0
-              ? d.ingredients.map((ing) =>
-                  newIngredient({
-                    quantity: String(ing.quantity),
-                    unit: ing.unit,
-                    name: ing.name,
-                  }),
-                )
-              : [newIngredient()],
-        }),
+    setDifficulty(
+      fromServerDifficulty(
+        sourceMeal.difficulty as "easy" | "medium" | "fancy",
       ),
     );
-    setSteps(
-      sourceMeal.steps.length > 0
-        ? sourceMeal.steps.map((st) =>
-            newStep({
-              text: st.text,
-              estimatedMinutes:
-                st.estimatedMinutes !== undefined
-                  ? String(st.estimatedMinutes)
-                  : "",
-              isTimingSensitive: st.isTimingSensitive,
-            }),
-          )
-        : [],
-    );
-    setNotes(sourceMeal.notes ?? "");
+    setEstimatedTimeMinutes(String(sourceMeal.minutes));
+    setServingsDefault(sourceMeal.servings);
+    setDishes(hydrateBuilderDishesFromMeal(sourceMeal, allocUid));
+    // notes is intentionally null on the server today (see meals.test.ts and
+    // MealDetailSchema). Reset to empty so a re-hydrate doesn't strand stale
+    // text from a previous mount.
+    setNotes("");
   }, [sourceMeal]);
 
   // Pre-population from imported draft (one-shot on mount when draftJson present).
   // Distinct from sourceMeal: no Meal record yet, so save = create.
+  //
+  // WS7-6 Fix-Block 1B: drafts carry a single meal-level steps[] (the
+  // importer doesn't know per-dish ownership), so for multi-dish drafts
+  // all steps land on dish[0] — the §10.5.4 "meal IS the dish" collapse.
   useEffect(() => {
     if (sourceMeal || !draftMeal) return;
     setMealName(draftMeal.title);
@@ -233,37 +271,7 @@ export default function MealBuilderScreen() {
     setDifficulty(draftMeal.difficulty);
     setEstimatedTimeMinutes(String(draftMeal.estimatedTimeMinutes));
     setServingsDefault(draftMeal.servingsDefault);
-    setDishes(
-      draftMeal.dishes.map((d) =>
-        newDish({
-          name: d.name,
-          ingredients:
-            d.ingredients.length > 0
-              ? d.ingredients.map((ing) =>
-                  newIngredient({
-                    quantity: String(ing.quantity),
-                    unit: ing.unit,
-                    name: ing.name,
-                  }),
-                )
-              : [newIngredient()],
-        }),
-      ),
-    );
-    setSteps(
-      draftMeal.steps.length > 0
-        ? draftMeal.steps.map((st) =>
-            newStep({
-              text: st.text,
-              estimatedMinutes:
-                st.estimatedMinutes !== undefined
-                  ? String(st.estimatedMinutes)
-                  : "",
-              isTimingSensitive: st.isTimingSensitive,
-            }),
-          )
-        : [],
-    );
+    setDishes(hydrateBuilderDishesFromDraft(draftMeal, allocUid));
     setNotes(draftMeal.notes ?? "");
   }, [draftMeal, sourceMeal]);
 
@@ -303,19 +311,30 @@ export default function MealBuilderScreen() {
     ? `Change recipe: ${sourceMeal.title}`
     : sourceMeal
       ? `Edit Meal: ${sourceMeal.title}`
-      : draftMeal
-        ? "Review imported recipe"
-        : "Create Meal";
+      : mealId
+        // mealId present but hydration not resolved yet — neutral header so
+        // the screen doesn't flash a misleading "Create Meal" title before
+        // GET /meals/:id returns.
+        ? "Edit Meal"
+        : draftMeal
+          ? "Review imported recipe"
+          : "Create Meal";
 
   // ── Mode switching with unsaved-data guard ──────────────────────
   const hasManualData = (): boolean => {
     if (mealName.trim().length > 0) return true;
     if (cuisineType.trim().length > 0) return true;
     if (notes.trim().length > 0) return true;
-    if (dishes.some((d) => d.name.trim() || d.ingredients.some((i) => i.quantity || i.unit || i.name))) {
+    if (
+      dishes.some(
+        (d) =>
+          d.name.trim() ||
+          d.ingredients.some((i) => i.quantity || i.unit || i.name) ||
+          d.steps.some((st) => st.text.trim()),
+      )
+    ) {
       return true;
     }
-    if (steps.some((st) => st.text.trim())) return true;
     return false;
   };
 
@@ -392,15 +411,44 @@ export default function MealBuilderScreen() {
       ),
     );
 
-  const addStep = () => setSteps((prev) => [...prev, newStep()]);
-  const removeStep = (uid: number) =>
-    setSteps((prev) => prev.filter((st) => st.uid !== uid));
+  // WS7-6 Fix-Block 1B — step mutators are now per-dish (each dish owns
+  // its own steps[]). dishUid identifies which dish's steps array to
+  // mutate; targeting the wrong dish would re-create the original swap
+  // bug.
+  const addStep = (dishUid: number) =>
+    setDishes((prev) =>
+      prev.map((d) =>
+        d.uid === dishUid ? { ...d, steps: [...d.steps, newStep()] } : d,
+      ),
+    );
+  const removeStep = (dishUid: number, stepUid: number) =>
+    setDishes((prev) =>
+      prev.map((d) =>
+        d.uid === dishUid
+          ? { ...d, steps: d.steps.filter((st) => st.uid !== stepUid) }
+          : d,
+      ),
+    );
   const updateStep = (
-    uid: number,
+    dishUid: number,
+    stepUid: number,
     patch: Partial<Omit<BuilderStep, "uid">>,
   ) =>
-    setSteps((prev) =>
-      prev.map((st) => (st.uid === uid ? { ...st, ...patch } : st)),
+    setDishes((prev) =>
+      prev.map((d) =>
+        d.uid === dishUid
+          ? {
+              ...d,
+              steps: d.steps.map((st) =>
+                st.uid === stepUid ? { ...st, ...patch } : st,
+              ),
+            }
+          : d,
+      ),
+    );
+  const reorderStepsForDish = (dishUid: number, next: BuilderStep[]) =>
+    setDishes((prev) =>
+      prev.map((d) => (d.uid === dishUid ? { ...d, steps: next } : d)),
     );
 
   // Stable identity so DishPickerRow's memoization holds across parent re-renders
@@ -411,92 +459,267 @@ export default function MealBuilderScreen() {
     );
   }, []);
 
-  // ── Save (stub) ─────────────────────────────────────────────────
-  const manualSaveDisabled =
-    mealName.trim().length === 0 ||
-    !dishes.some((d) =>
-      d.ingredients.some(
-        (i) => i.name.trim().length > 0 || i.quantity.trim().length > 0,
-      ),
-    );
+  // ── Save ────────────────────────────────────────────────────────
+  // WS7-6 Block 1F — manual-mode validation is pulled out to
+  // validateManualSave so the predicate + per-field reasons are unit-
+  // tested directly. PRD §10.5.6: name + ≥1 named ingredient + ≥1 step.
+  //
+  // Predicate tightening vs. pre-F: the old predicate accepted an
+  // ingredient row with ONLY a quantity (no name). The save serializer
+  // at meal-builder-state.ts ~L249 has always filtered ingredients to
+  // those with non-empty NAMES, so the old predicate left a gap where
+  // Save would enable then throw on tap. F closes that.
+  //
+  // Step requirement is NEW in F (was optional pre-F). The walk lives
+  // in validateManualSave and is the single uniform dishes[].steps[]
+  // walk — post-Fix-1B per-dish ownership means there's no meal-level
+  // surface to also check.
+  const manualValidation = useMemo(
+    () => validateManualSave({ mealName, dishes }),
+    [mealName, dishes],
+  );
+  const manualSaveInvalid =
+    manualValidation.nameMissing ||
+    manualValidation.ingredientMissing ||
+    manualValidation.stepMissing;
+  // Mode C is intentionally NOT step-gated: combine-mode dishes are
+  // server-linked saved dishes (kind:"link") whose steps live with the
+  // linked dish, not this builder. The dishesQuery list-shape doesn't
+  // carry per-dish steps so the builder couldn't validate them anyway.
+  // Reported in Phase 3.
   const combineSaveDisabled =
     mealName.trim().length === 0 || selectedDishIds.length === 0;
 
-  const onSave = () => {
-    if (mode === "manual") {
-      const ingredientCount = dishes.reduce(
-        (acc, d) => acc + d.ingredients.length,
-        0,
-      );
-      console.log("[meal-builder] save tapped", {
-        mode,
-        mealName,
-        mealId: sourceMeal?.id,
-        dishCount: dishes.length,
-        ingredientCount,
-      });
-    } else if (mode === "combine") {
-      console.log("[meal-builder] save tapped", {
-        mode,
-        mealName,
-        mealId: sourceMeal?.id,
-        dishCount: selectedDishIds.length,
-      });
+  // WS7-6 Block 1E — translate form state to the POST /me/meals payload.
+  // Throws a user-facing Error when validation fails so the caller can
+  // surface a friendly Alert and stay on screen.
+  //
+  // WS7-6 Fix-Block 1B — manual-mode body is built by the pure helper in
+  // lib/meal-builder-state.ts (so the per-dish step ownership can be
+  // unit-tested directly). Combine-mode stays inline because it composes
+  // kind:"link" entries from selectedDishIds.
+  const buildSaveMealInput = (): SaveMealInput => {
+    if (mode === "combine") {
+      const trimmedName = mealName.trim();
+      if (!trimmedName) {
+        throw new Error("Add a meal name.");
+      }
+      if (selectedDishIds.length === 0) {
+        throw new Error("Pick at least one dish to combine.");
+      }
+      const minutes = parseInt(estimatedTimeMinutes, 10);
+      return {
+        title: trimmedName,
+        description: notes.trim() || undefined,
+        cuisineType: cuisineType.trim() || undefined,
+        servingsDefault,
+        estimatedTimeMinutes:
+          Number.isFinite(minutes) && minutes > 0 ? minutes : undefined,
+        difficulty: toServerDifficulty(difficulty),
+        sourceType: "manual",
+        dishes: selectedDishIds.map((id, i) => ({
+          kind: "link",
+          dishId: id,
+          role: i === 0 ? "main" : "side",
+          positionIndex: i,
+        })),
+      };
     }
-    // §2.5 prompt only when editing an existing meal AND that edit was opened
-    // from a plan context. Drafts (no mealId yet) always go through plain
-    // create-save, even if plan params are present — there's no plan-instance
-    // to override until the Meal record exists.
-    if (isEditFromPlanContext && !draftMeal) {
+    return buildManualSaveMealInput({
+      mealName,
+      cuisineType,
+      difficulty,
+      estimatedTimeMinutes,
+      servingsDefault,
+      notes,
+      dishes,
+      sourceType: draftMeal ? "directed" : "manual",
+    });
+  };
+
+  // WS7-6 1F — translate the SaveMealInput's "new"-only dish shape into the
+  // PATCH /me/meals/:id wipe-and-recreate body. The builder doesn't track
+  // existing dish ids per row, so editing always re-creates the sub-graph
+  // (wipe-and-recreate is the server-side contract).
+  const buildUpdateMealInput = (input: SaveMealInput): UpdateMealInput => {
+    return {
+      title: input.title,
+      description: input.description ?? null,
+      cuisineType: input.cuisineType ?? null,
+      ...(input.servingsDefault !== undefined
+        ? { servingsDefault: input.servingsDefault }
+        : {}),
+      ...(input.estimatedTimeMinutes !== undefined
+        ? { estimatedTimeMinutes: input.estimatedTimeMinutes }
+        : {}),
+      ...(input.difficulty !== undefined
+        ? { difficulty: input.difficulty }
+        : {}),
+      dishes: input.dishes,
+    };
+  };
+
+  // WS7-6 1F + 1G — perform the actual PATCH for both the library-context
+  // edit (no prompt) and the §2.5 "Apply always" branch. Shared helper so
+  // the success/error/post-success-routing copy stays consistent.
+  const runUpdateMeal = async (id: string, input: SaveMealInput) => {
+    setSaving(true);
+    try {
+      await updateMeal(id, buildUpdateMealInput(input));
+      Alert.alert("Saved", `${input.title} was updated.`, [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't save your changes. Try again?";
+      Alert.alert("Couldn't save meal", msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onSave = async () => {
+    Keyboard.dismiss();
+    if (saving) return;
+
+    // WS7-6 Block 1F — flip saveAttempted on the first tap so the
+    // inline errors + summary line surface for manual-mode. Pristine
+    // forms stay quiet; one tap is the floor for "interaction" per the
+    // ruling. We flip BEFORE the validity short-circuit so the user
+    // sees the errors that pinned the disabled state.
+    if (mode === "manual" && !saveAttempted) {
+      setSaveAttempted(true);
+    }
+    if (mode === "manual" && manualSaveInvalid) {
+      // Keep the form open — inline errors + summary line are the user
+      // signal here. No Alert: the on-screen feedback is the point of F.
+      return;
+    }
+
+    // WS7-6 1G — hydration guard. When the user is editing an existing meal
+    // (mealId present), we MUST wait for GET /meals/:id to resolve before
+    // letting them save — otherwise the PATCH would carry blank/partial data
+    // and wipe-and-recreate would destroy the real sub-graph. Drafts and
+    // create-paths (no mealId) skip this guard.
+    if (mealId && !sourceMeal) {
+      if (mealDetailQuery.isError) {
+        Alert.alert(
+          "Can't save",
+          "We couldn't load this meal. Go back and try opening it again.",
+        );
+        return;
+      }
+      // Still loading — block save quietly. The Save button's disabled
+      // state below also reflects this so users don't see a spinner with
+      // no feedback.
+      Alert.alert(
+        "Loading…",
+        "Hold on a moment while we finish loading this meal.",
+      );
+      return;
+    }
+
+    // Build the save payload up front — it's shared by all branches and a
+    // validation error here is the same Alert no matter which branch fires.
+    let input: SaveMealInput;
+    try {
+      input = buildSaveMealInput();
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Couldn't build the save payload.";
+      Alert.alert("Can't save", msg);
+      return;
+    }
+
+    // ── §2.5 EDIT-from-plan branch (WS7-6 1F) ────────────────────────────
+    // PRD §2.5: editing an existing meal IN A PLAN fires the "apply always
+    // vs just this time" prompt. Drafts (no Meal row yet) fall through to
+    // create-save below — there's nothing to override until save.
+    if (isEditFromPlanContext && !draftMeal && mealId) {
       Alert.alert(
         "Save changes",
         "How do you want to apply your edits?",
         [
           {
-            text: "Save changes only on this plan",
+            // RN Alert can't render a disabled button. The "just this time"
+            // override path (writes MealPlanItem.ingredientOverrides) is a
+            // separate follow-on; here the button shows + fires a coming-
+            // soon Alert so users see the option exists.
+            // WS7-6 1F: RN Alert can't disable a button; "just this time"
+            // labeled coming-soon, fires info Alert; ingredientOverrides
+            // write path → 1F-later block (D-WS7-090).
+            text: "Just this time (coming soon)",
             onPress: () => {
-              console.log("[meal-builder] save (just-this-plan) tapped", {
-                mealId,
-                planId,
-                planItemId,
-              });
               Alert.alert(
-                "Coming in WS7",
-                "Saving plan-instance overrides requires the API client. This will be wired in WS7.",
+                "Coming soon",
+                "Saving an edit for just this plan (without changing your saved meal) is on the way. For now, choose \"Apply always\" or cancel.",
               );
             },
           },
           {
-            text: "Save edits for this meal",
+            text: "Apply always",
             onPress: () => {
-              console.log("[meal-builder] save (save-globally) tapped", {
-                mealId,
-                planId,
-                planItemId,
-              });
-              Alert.alert(
-                "Coming in WS7",
-                "Saving meals globally requires the API client. This will be wired in WS7.",
-              );
+              void runUpdateMeal(mealId, input);
             },
           },
           { text: "Cancel", style: "cancel" },
         ],
       );
-    } else if (draftMeal) {
-      Alert.alert(
-        "Coming in WS7",
-        addToPlanId
-          ? "Saving imported recipes requires the API client. When wired, this meal will save to your library and add to your plan."
-          : "Saving imported recipes requires the API client. This will be wired in WS7.",
-      );
-    } else {
-      Alert.alert(
-        "Coming in WS7",
-        addToPlanId
-          ? "Saving meals requires the API client. When wired, this meal will save to your library and add to your plan."
-          : "Saving meals requires the API client. This action will be wired in WS7. Your work is preserved on this screen until you navigate away.",
-      );
+      return;
+    }
+
+    // ── §8.4.4 LIBRARY-context global edit (WS7-6 1G) ────────────────────
+    // Meal Detail → Edit, no plan params, hydrated mealId present. The
+    // user is on the meal's home page; updating saved fields globally is
+    // the intent — NO prompt (per PRD §8.4.4).
+    if (isLibraryEditContext && !draftMeal && mealId) {
+      void runUpdateMeal(mealId, input);
+      return;
+    }
+
+    // ── CREATE branches (Surface 1) — WS7-6 Block 1E ────────────────────
+    setSaving(true);
+    try {
+      const { id: newMealId } = await saveMeal(input);
+      if (addToPlanId) {
+        try {
+          await addMealToPlan(addToPlanId, newMealId);
+          Alert.alert(
+            "Saved and added to plan",
+            `${input.title} is saved and on your plan.`,
+            [{ text: "OK", onPress: () => router.back() }],
+          );
+        } catch (planErr) {
+          // Saved-but-plan-add-failed: STAY on screen per WS7-6 1E spec.
+          const msg =
+            planErr instanceof Error && planErr.message
+              ? planErr.message
+              : "Try adding it from the plan instead.";
+          Alert.alert(
+            "Saved but couldn't add to plan",
+            `${input.title} was saved to your meals, but adding it to the plan failed:\n\n${msg}`,
+          );
+          // Intentionally no router.back() — user keeps the form open.
+        }
+      } else {
+        Alert.alert(
+          draftMeal ? "Recipe saved" : "Meal saved",
+          draftMeal
+            ? `${input.title} was added to your meals.`
+            : `${input.title} was added to your saved meals.`,
+          [{ text: "OK", onPress: () => router.back() }],
+        );
+      }
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : "Saving failed. Try again?";
+      Alert.alert("Couldn't save meal", msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -606,13 +829,19 @@ export default function MealBuilderScreen() {
             addIngredient={addIngredient}
             removeIngredient={removeIngredient}
             updateIngredient={updateIngredient}
-            steps={steps}
             addStep={addStep}
             removeStep={removeStep}
             updateStep={updateStep}
-            reorderSteps={setSteps}
+            reorderStepsForDish={reorderStepsForDish}
             notes={notes}
             setNotes={setNotes}
+            // WS7-6 Block 1F — surface per-field validation reasons
+            // only after the user has tapped Save once (saveAttempted).
+            // Pre-tap the form stays quiet.
+            showFieldErrors={saveAttempted}
+            nameMissing={manualValidation.nameMissing}
+            ingredientMissing={manualValidation.ingredientMissing}
+            stepMissing={manualValidation.stepMissing}
           />
         )}
 
@@ -631,6 +860,9 @@ export default function MealBuilderScreen() {
             servingsDefault={servingsDefault}
             setServingsDefault={setServingsDefault}
             savedDishes={savedDishes}
+            dishesLoading={dishesQuery.isLoading}
+            dishesError={dishesQuery.isError}
+            onRetryDishes={() => void dishesQuery.refetch()}
             selectedDishIds={selectedDishIds}
             onToggle={toggleSelectedDish}
             onContinue={() => {
@@ -651,11 +883,40 @@ export default function MealBuilderScreen() {
 
       {(mode === "manual" || (mode === "combine" && combineReview)) && (
         <View style={s.saveBar}>
+          {/* WS7-6 Block 1F — summary line. Lists ONLY the still-missing
+              requirements so it shrinks as the user fills the form. Only
+              shown after the first Save tap (saveAttempted) so a pristine
+              form doesn't shout. Manual mode only — Mode C keeps its
+              pre-F UX since the prompt scoped F to manual. */}
+          {mode === "manual" && saveAttempted && manualSaveInvalid && (
+            <Text style={s.saveBarSummary} testID="meal-builder-save-summary">
+              {summarizeMissing(manualValidation)}
+            </Text>
+          )}
           <Button
-            label="Save meal"
+            label={
+              saving
+                ? "Saving…"
+                : mealId && !sourceMeal && !mealDetailQuery.isError
+                  ? "Loading…"
+                  : "Save meal"
+            }
             variant="primary"
+            // WS7-6 1G hydration guard: block save until GET /meals/:id has
+            // resolved (or errored — in which case onSave shows the alert).
+            // Prevents a PATCH built from blank/partial state from wiping
+            // the real meal's sub-graph.
+            //
+            // WS7-6 1F: manual-mode disabled state is gated on
+            // saveAttempted so the FIRST tap still fires onSave (which
+            // flips saveAttempted and surfaces the errors); subsequent
+            // renders with invalid state grey the button out + block.
             disabled={
-              mode === "manual" ? manualSaveDisabled : combineSaveDisabled
+              saving ||
+              (mode === "manual"
+                ? saveAttempted && manualSaveInvalid
+                : combineSaveDisabled) ||
+              (!!mealId && !sourceMeal && !mealDetailQuery.isError)
             }
             onPress={onSave}
           />
@@ -666,18 +927,17 @@ export default function MealBuilderScreen() {
         visible={dishChooserVisible}
         onClose={() => setDishChooserVisible(false)}
         onPickSavedDish={(dish) => {
-          const next = newDish({
-            name: dish.name,
-            ingredients: dish.ingredients.map((ing) =>
-              newIngredient({
-                quantity: String(ing.quantity),
-                unit: ing.unit,
-                name: ing.name,
-              }),
-            ),
-          });
-          setDishes((prev) => [...prev, next]);
+          setDishes((prev) => [
+            ...prev,
+            pickSavedDishToBuilderDish(dish, allocUid),
+          ]);
         }}
+        // WS7-6 Block 1H — append a blank editable dish to the meal
+        // under construction. Mirrors the saved-pick append shape but
+        // with newDish() (empty) instead of pickSavedDishToBuilderDish
+        // (hydrated). Kept as a clean named callback so the sheet
+        // stays unaware of meal-builder state — WS9 extraction-friendly.
+        onAddEmptyDish={() => setDishes((prev) => [...prev, newDish()])}
       />
     </View>
   );
@@ -760,6 +1020,10 @@ interface MetaFieldsProps {
   setEstimatedTimeMinutes: (v: string) => void;
   servingsDefault: number;
   setServingsDefault: (v: number) => void;
+  // WS7-6 Block 1F — name-field error surface. Manual mode passes this
+  // through ManualEditor after saveAttempted; CombinePicker leaves it
+  // undefined (Mode C error UX is unchanged in this block).
+  nameError?: boolean;
 }
 
 function MetaFields(p: MetaFieldsProps) {
@@ -777,11 +1041,14 @@ function MetaFields(p: MetaFieldsProps) {
           onChangeText={p.setMealName}
           placeholder="Meal name (e.g., Salmon Teriyaki)"
           placeholderTextColor={KColors.neutral[600]}
-          style={s.textInput}
+          style={[s.textInput, p.nameError && s.inputInvalid]}
           returnKeyType="done"
           blurOnSubmit
           onSubmitEditing={Keyboard.dismiss}
         />
+        {p.nameError && (
+          <Text style={s.invalidBadge}>Add a meal name to save.</Text>
+        )}
       </View>
       {/* TODO(WS9): Add 'Other...' chip + free-text fallback for cuisines
           not in the catalog. Per D-WS5-XXX deferred decisions. */}
@@ -927,27 +1194,51 @@ interface ManualEditorProps extends MetaFieldsProps {
     ingUid: number,
     patch: Partial<Omit<BuilderIngredient, "uid">>,
   ) => void;
-  steps: BuilderStep[];
-  addStep: () => void;
-  removeStep: (uid: number) => void;
-  updateStep: (uid: number, patch: Partial<Omit<BuilderStep, "uid">>) => void;
+  // WS7-6 Fix-Block 1B — step mutators are per-dish (BuilderDish owns its
+  // own steps). dishUid identifies which dish's steps array to mutate.
+  addStep: (dishUid: number) => void;
+  removeStep: (dishUid: number, stepUid: number) => void;
+  updateStep: (
+    dishUid: number,
+    stepUid: number,
+    patch: Partial<Omit<BuilderStep, "uid">>,
+  ) => void;
   // WS5-5P-fix-drag — drag-to-reorder writes the new array back. The
   // step number circle reads from the array index (no stepNumber field
   // on BuilderStep), so reorder is automatic — no renumber pass needed.
-  reorderSteps: (next: BuilderStep[]) => void;
+  // WS7-6 Fix-Block 1B — scoped to a single dish's steps.
+  reorderStepsForDish: (dishUid: number, next: BuilderStep[]) => void;
   notes: string;
   setNotes: (v: string) => void;
+  // WS7-6 Block 1F — per-field validation surface, driven by parent's
+  // saveAttempted gate. Showing errors only when showFieldErrors is true
+  // keeps pristine forms quiet.
+  showFieldErrors: boolean;
+  nameMissing: boolean;
+  ingredientMissing: boolean;
+  stepMissing: boolean;
 }
 
 function ManualEditor(p: ManualEditorProps) {
   const moreThanOneDish = p.dishes.length > 1;
+  // WS7-6 Block 1F — local convenience flags. Don't bother rendering
+  // the section-level error text unless the parent's saveAttempted gate
+  // is open AND that specific section is still missing.
+  const showNameError = p.showFieldErrors && p.nameMissing;
+  const showIngredientError = p.showFieldErrors && p.ingredientMissing;
+  const showStepError = p.showFieldErrors && p.stepMissing;
   return (
     <View style={{ marginTop: KSpacing.lg, gap: KSpacing.lg }}>
-      <MetaFields {...p} />
+      <MetaFields {...p} nameError={showNameError} />
 
       {/* Ingredients */}
       <View style={{ gap: KSpacing.sm }}>
         <Text style={s.subHeader}>Ingredients</Text>
+        {showIngredientError && (
+          <Text style={s.invalidBadge}>
+            Add at least one ingredient with a name.
+          </Text>
+        )}
         {p.dishes.map((dish) => (
           <View key={dish.uid} style={s.dishCard}>
             <View style={s.dishHeaderRow}>
@@ -1073,143 +1364,41 @@ function ManualEditor(p: ManualEditorProps) {
         </View>
       </View>
 
-      {/* Steps — optional per PRD §10.5 */}
+      {/* Steps — REQUIRED per PRD §10.5.6 (WS7-6 Block 1F tightening:
+          previously optional, now ≥1 step text required somewhere in the
+          meal).
+          WS7-6 Fix-Block 1B: rendered per-dish so each dish carries (and
+          edits) its own steps. For single-dish meals this looks identical
+          to the pre-fix UX (one section, no dish-name sub-header). For
+          multi-dish, each dish gets its own steps block stacked below the
+          single "Recipe steps" header — bound to that dish's steps array
+          via dish.uid. */}
       <View style={{ gap: KSpacing.sm }}>
         <Text style={s.subHeader}>Recipe steps</Text>
-        {p.steps.length === 0 && (
+        {showStepError && (
+          <Text style={s.invalidBadge}>
+            Add at least one cooking step.
+          </Text>
+        )}
+        {p.dishes.every((d) => d.steps.length === 0) && (
           <View style={s.stepsEmptyState}>
             <Text style={s.stepsEmptyText}>
-              Cooking steps are optional. Add them yourself, or skip if not
-              needed (store-bought sides, leftovers, simple plating).
+              Add at least one cooking step. Short notes count — even
+              &quot;plate and serve&quot; works for simple meals.
             </Text>
           </View>
         )}
-        {/* WS5-5P-fix-drag — DraggableFlatList for steps. Drag-to-reorder
-            via the always-visible handle (≡) per locked Option A + C.
-            Ingredients intentionally not draggable (Option F).
-
-            scrollEnabled={false} delegates scroll to the outer
-            KeyboardAwareScrollViewCompat — nested-scrollables would
-            otherwise fight for vertical pan. The drag handle uses
-            onPressIn (see Pressable below for the v4-API rationale).
-            Steps lists are short (typically 2–15 items) so disabling
-            virtualization is a non-issue. */}
-        <DraggableFlatList
-          data={p.steps}
-          keyExtractor={(step) => step.uid.toString()}
-          onDragEnd={({ data }) => p.reorderSteps(data)}
-          scrollEnabled={false}
-          renderItem={({
-            item: step,
-            drag,
-            isActive,
-            getIndex,
-          }: RenderItemParams<BuilderStep>) => {
-            // getIndex() returns the cell's last-known index. After
-            // onDragEnd updates state, the array reference changes and
-            // every cell rerenders, so the visible step number stays
-            // in sync with the new order.
-            const i = getIndex() ?? 0;
-            return (
-              <ScaleDecorator>
-                <View
-                  style={[
-                    s.stepRow,
-                    isActive && { opacity: 0.7 },
-                  ]}
-                >
-                  <View
-                    style={[
-                      s.stepCircle,
-                      step.isTimingSensitive && s.stepCircleTiming,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        s.stepCircleText,
-                        step.isTimingSensitive && s.stepCircleTextTiming,
-                      ]}
-                    >
-                      {i + 1}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <TextInput
-                      value={step.text}
-                      onChangeText={(v) =>
-                        p.updateStep(step.uid, { text: v })
-                      }
-                      placeholder="Step description"
-                      placeholderTextColor={KColors.neutral[600]}
-                      style={[s.textInput, s.stepTextInput]}
-                      multiline
-                      returnKeyType="default"
-                      blurOnSubmit={false}
-                    />
-                    <View style={s.suffixRow}>
-                      <TextInput
-                        value={step.estimatedMinutes}
-                        onChangeText={(v) =>
-                          p.updateStep(step.uid, {
-                            estimatedMinutes: v.replace(/[^0-9]/g, ""),
-                          })
-                        }
-                        placeholder="0"
-                        placeholderTextColor={KColors.neutral[600]}
-                        style={[s.textInput, { width: 56 }]}
-                        keyboardType="number-pad"
-                        returnKeyType="done"
-                        blurOnSubmit
-                        onSubmitEditing={Keyboard.dismiss}
-                      />
-                      <Text style={s.suffixLabel}>min</Text>
-                    </View>
-                  </View>
-                  {/* WS5-5P-fix-drag-2 — onPressIn (not onLongPress)
-                      per draggable-flatlist v4 API: the lib's `drag`
-                      callback owns its own long-press timing, so
-                      wiring it to RN's onLongPress double-gates the
-                      gesture and the drag never fires. onPressIn
-                      hands the touch to drag immediately; the lib
-                      then arms its own activation delay before the
-                      pan kicks in. */}
-                  <Pressable
-                    onPressIn={drag}
-                    disabled={isActive}
-                    hitSlop={8}
-                    style={({ pressed }) => [
-                      s.dragHandleBtn,
-                      pressed && { opacity: 0.6 },
-                    ]}
-                  >
-                    <Feather
-                      name="menu"
-                      size={20}
-                      color={KColors.neutral[500]}
-                    />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => p.removeStep(step.uid)}
-                    hitSlop={8}
-                    style={({ pressed }) => [
-                      s.removeIconBtn,
-                      pressed && { opacity: 0.6 },
-                    ]}
-                  >
-                    <Feather
-                      name="x"
-                      size={16}
-                      color={KColors.neutral[700]}
-                    />
-                  </Pressable>
-                </View>
-              </ScaleDecorator>
-            );
-          }}
-        />
-        <View style={s.stepsActionsRow}>
-          <Button label="+ Add step" variant="ghost" onPress={p.addStep} />
-        </View>
+        {p.dishes.map((dish) => (
+          <PerDishSteps
+            key={dish.uid}
+            dish={dish}
+            showDishHeader={moreThanOneDish}
+            addStep={p.addStep}
+            removeStep={p.removeStep}
+            updateStep={p.updateStep}
+            reorderStepsForDish={p.reorderStepsForDish}
+          />
+        ))}
       </View>
 
       {/* Notes */}
@@ -1231,11 +1420,175 @@ function ManualEditor(p: ManualEditorProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Per-dish steps section (WS7-6 Fix-Block 1B)
+//
+// Renders one DraggableFlatList per dish, bound to dish.steps. The pre-
+// fix builder rendered ONE meal-level steps list and re-attached the
+// whole array to dish[0] on save — sub-dish swaps left stale steps stuck
+// on dish[0]. Each PerDishSteps owns reorder/add/remove/update for ITS
+// dish only.
+// ─────────────────────────────────────────────────────────────────
+
+interface PerDishStepsProps {
+  dish: BuilderDish;
+  /** True when the meal has >1 dish — render the dish name as a sub-
+   *  header above the steps list to disambiguate which dish a step row
+   *  belongs to. Single-dish meals suppress the header for visual parity
+   *  with the pre-fix UX. */
+  showDishHeader: boolean;
+  addStep: (dishUid: number) => void;
+  removeStep: (dishUid: number, stepUid: number) => void;
+  updateStep: (
+    dishUid: number,
+    stepUid: number,
+    patch: Partial<Omit<BuilderStep, "uid">>,
+  ) => void;
+  reorderStepsForDish: (dishUid: number, next: BuilderStep[]) => void;
+}
+
+function PerDishSteps(p: PerDishStepsProps) {
+  const dishUid = p.dish.uid;
+  return (
+    <View style={{ gap: KSpacing.sm }}>
+      {p.showDishHeader && (
+        <Text style={s.perDishStepsHeader}>
+          {p.dish.name.trim() || "Untitled dish"}
+        </Text>
+      )}
+      {/* WS5-5P-fix-drag — DraggableFlatList for steps. Drag-to-reorder
+          via the always-visible handle (≡) per locked Option A + C.
+          Ingredients intentionally not draggable (Option F).
+
+          scrollEnabled={false} delegates scroll to the outer
+          KeyboardAwareScrollViewCompat — nested-scrollables would
+          otherwise fight for vertical pan. The drag handle uses
+          onPressIn (see Pressable below for the v4-API rationale).
+          Steps lists are short (typically 2–15 items) so disabling
+          virtualization is a non-issue. */}
+      <DraggableFlatList
+        data={p.dish.steps}
+        keyExtractor={(step) => step.uid.toString()}
+        onDragEnd={({ data }) => p.reorderStepsForDish(dishUid, data)}
+        scrollEnabled={false}
+        renderItem={({
+          item: step,
+          drag,
+          isActive,
+          getIndex,
+        }: RenderItemParams<BuilderStep>) => {
+          const i = getIndex() ?? 0;
+          return (
+            <ScaleDecorator>
+              <View
+                style={[
+                  s.stepRow,
+                  isActive && { opacity: 0.7 },
+                ]}
+              >
+                <View
+                  style={[
+                    s.stepCircle,
+                    step.isTimingSensitive && s.stepCircleTiming,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      s.stepCircleText,
+                      step.isTimingSensitive && s.stepCircleTextTiming,
+                    ]}
+                  >
+                    {i + 1}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <TextInput
+                    value={step.text}
+                    onChangeText={(v) =>
+                      p.updateStep(dishUid, step.uid, { text: v })
+                    }
+                    placeholder="Step description"
+                    placeholderTextColor={KColors.neutral[600]}
+                    style={[s.textInput, s.stepTextInput]}
+                    multiline
+                    returnKeyType="default"
+                    blurOnSubmit={false}
+                  />
+                  <View style={s.suffixRow}>
+                    <TextInput
+                      value={step.estimatedMinutes}
+                      onChangeText={(v) =>
+                        p.updateStep(dishUid, step.uid, {
+                          estimatedMinutes: v.replace(/[^0-9]/g, ""),
+                        })
+                      }
+                      placeholder="0"
+                      placeholderTextColor={KColors.neutral[600]}
+                      style={[s.textInput, { width: 56 }]}
+                      keyboardType="number-pad"
+                      returnKeyType="done"
+                      blurOnSubmit
+                      onSubmitEditing={Keyboard.dismiss}
+                    />
+                    <Text style={s.suffixLabel}>min</Text>
+                  </View>
+                </View>
+                <Pressable
+                  onPressIn={drag}
+                  disabled={isActive}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    s.dragHandleBtn,
+                    pressed && { opacity: 0.6 },
+                  ]}
+                >
+                  <Feather
+                    name="menu"
+                    size={20}
+                    color={KColors.neutral[500]}
+                  />
+                </Pressable>
+                <Pressable
+                  onPress={() => p.removeStep(dishUid, step.uid)}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    s.removeIconBtn,
+                    pressed && { opacity: 0.6 },
+                  ]}
+                >
+                  <Feather
+                    name="x"
+                    size={16}
+                    color={KColors.neutral[700]}
+                  />
+                </Pressable>
+              </View>
+            </ScaleDecorator>
+          );
+        }}
+      />
+      <View style={s.stepsActionsRow}>
+        <Button
+          label="+ Add step"
+          variant="ghost"
+          onPress={() => p.addStep(dishUid)}
+        />
+      </View>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Mode C — Combine picker
 // ─────────────────────────────────────────────────────────────────
 
 interface CombinePickerProps extends MetaFieldsProps {
   savedDishes: SavedDish[];
+  /** WS7-6 1D — true while /me/dishes is in flight. */
+  dishesLoading?: boolean;
+  /** WS7-6 1D — true if /me/dishes errored. Retry button surfaced. */
+  dishesError?: boolean;
+  /** WS7-6 1D — retry callback for the error state. */
+  onRetryDishes?: () => void;
   selectedDishIds: string[];
   onToggle: (id: string) => void;
   onContinue: () => void;
@@ -1258,14 +1611,39 @@ function CombinePicker(p: CombinePickerProps) {
           Selected dishes will become this meal&apos;s components. You can edit
           ingredients afterward.
         </Text>
-        {p.savedDishes.map((dish) => (
-          <DishPickerRow
-            key={dish.id}
-            dish={dish}
-            isSelected={selectedSet.has(dish.id)}
-            onToggle={p.onToggle}
-          />
-        ))}
+        {p.dishesLoading && p.savedDishes.length === 0 ? (
+          <View style={s.dishesStatusRow}>
+            <ActivityIndicator size="small" color={KColors.sage[700]} />
+            <Text style={s.dishesStatusText}>Loading your saved dishes…</Text>
+          </View>
+        ) : p.dishesError ? (
+          <View style={s.dishesStatusRow}>
+            <Text style={s.dishesStatusText}>
+              Couldn&apos;t load your saved dishes.
+            </Text>
+            {p.onRetryDishes && (
+              <Button
+                label="Retry"
+                variant="ghost"
+                onPress={p.onRetryDishes}
+              />
+            )}
+          </View>
+        ) : p.savedDishes.length === 0 ? (
+          <Text style={s.helperText}>
+            You haven&apos;t saved any dishes yet. Use Mode A or B to build one
+            first.
+          </Text>
+        ) : (
+          p.savedDishes.map((dish) => (
+            <DishPickerRow
+              key={dish.id}
+              dish={dish}
+              isSelected={selectedSet.has(dish.id)}
+              onToggle={p.onToggle}
+            />
+          ))
+        )}
         <Button
           label="Continue with selected"
           variant="primary"
@@ -1311,7 +1689,7 @@ const DishPickerRow = memo(function DishPickerRow({
       <View style={{ flex: 1 }}>
         <Text style={s.dishPickerName}>{dish.name}</Text>
         <Text style={s.dishPickerMeta}>
-          {[dish.cuisineType, `${dish.caloriesPerServing} cal/serving`]
+          {[dish.cuisineType, `${formatMacro(dish.caloriesPerServing, "0")} cal/serving`]
             .filter(Boolean)
             .join(" · ")}
         </Text>
@@ -1397,6 +1775,16 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: KColors.neutral[400],
   },
+  // WS7-6 Block 1F — summary line above the Save button. Uses the same
+  // terracotta tint as invalidBadge for visual continuity with the
+  // inline per-field errors.
+  saveBarSummary: {
+    fontSize: KType.size.sm,
+    color: KColors.terracotta[700],
+    fontFamily: "Inter_400Regular",
+    marginBottom: KSpacing.sm,
+    textAlign: "center",
+  },
   sectionHeader: {
     fontSize: KType.size.md,
     color: KColors.neutral[900],
@@ -1436,6 +1824,13 @@ const s = StyleSheet.create({
     lineHeight: 18,
   },
   stepsActionsRow: {
+    marginTop: KSpacing.sm,
+  },
+  perDishStepsHeader: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[800],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
     marginTop: KSpacing.sm,
   },
   modeCard: {
@@ -1710,6 +2105,17 @@ const s = StyleSheet.create({
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
     lineHeight: 18,
+  },
+  dishesStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: KSpacing.sm,
+    paddingVertical: KSpacing.md,
+  },
+  dishesStatusText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
   },
   dishPickerRow: {
     flexDirection: "row",
