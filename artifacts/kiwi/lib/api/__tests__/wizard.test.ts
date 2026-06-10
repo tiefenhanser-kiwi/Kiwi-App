@@ -363,6 +363,52 @@ test("activateWizardDraft POSTs to /wizard/drafts/:id/activate and returns insta
   assert.equal(result.instance.revisionId, 2);
 });
 
+// D-WS7-080 fix — the screen wraps /activate with an AbortController +
+// 90s timeout so the platform fetch default can't punch mid-AI-fan-out
+// and leave the server committing the 201 to nowhere. Pins that the
+// wrapper actually forwards the signal through to fetch (mirrors the
+// expand-side cancel test at :211).
+test("activateWizardDraft forwards an AbortSignal to fetch (D-WS7-080 client timeout)", async () => {
+  nextResponse = () =>
+    mockJson({ instance: { id: "plan-activated-1", revisionId: 2 } }, 201);
+  const controller = new AbortController();
+  await activateWizardDraft("draft-abc-123", { signal: controller.signal });
+  assert.equal(lastSignal, controller.signal);
+});
+
+// D-WS7-080 fix — if the screen's 90s timer fires, the controller aborts
+// and the wrapper surfaces an ApiNetworkError whose cause is an AbortError.
+// The screen branches on that to render a "still working on it" toast
+// instead of a generic network failure, so the surface needs to be stable.
+test("activateWizardDraft surfaces an abort as ApiNetworkError with AbortError cause", async () => {
+  // Replace fetch with one that rejects with a real AbortError when the
+  // signal is already aborted — same shape RN/Node fetch produces.
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    _url: string,
+    init?: { signal?: AbortSignal },
+  ) => {
+    if (init?.signal?.aborted) {
+      const e = new Error("The operation was aborted.");
+      e.name = "AbortError";
+      throw e;
+    }
+    return mockJson({ instance: { id: "x", revisionId: 2 } }, 201);
+  }) as unknown as typeof fetch;
+
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    () =>
+      activateWizardDraft("draft-abc-123", { signal: controller.signal }),
+    (err: unknown) => {
+      if (!(err instanceof Error)) return false;
+      if (err.name !== "ApiNetworkError") return false;
+      const cause = (err as { cause?: unknown }).cause;
+      return cause instanceof Error && cause.name === "AbortError";
+    },
+  );
+});
+
 // WS7-5b-mobile Block A — the load-bearing post-save dead-tap regression:
 // once /save has succeeded, the draft id is dead. A subsequent /activate on
 // the same id MUST be observed by the caller as a 404 ApiError, not a

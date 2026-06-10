@@ -22,13 +22,17 @@ export type GroceryListFilterKey = (typeof GROCERY_LIST_FILTER_KEYS)[number];
 // One row of the grocery-lists screen. `status` is the raw server enum value
 // kept as a plain string (the PRD's status vocabulary is not ratified here —
 // C1 Phase 1 §7). `mealPlanInstanceId` is the source plan's id (not its name),
-// and is null for lists not derived from a plan.
+// and is null for lists not derived from a plan. `isActiveThisWeek` is the
+// resolver-derived flag (WS7-6 (E) Block 2): true on the single list whose
+// linked plan is the user's This-Week winner; false otherwise (including for
+// lists with no linked plan instance).
 export const GroceryListListItemSchema = z.object({
   id: z.string(),
   title: z.string(),
   status: z.string(),
   sourceType: z.string(),
   mealPlanInstanceId: z.string().nullable(),
+  isActiveThisWeek: z.boolean(),
   itemCount: z.number(),
   lastGeneratedAt: z.string().nullable(),
   createdAt: z.string(),

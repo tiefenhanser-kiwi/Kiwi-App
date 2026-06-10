@@ -18,6 +18,8 @@ import { WizardCtaCard } from "@/components/WizardCtaCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { useHomePayload } from "@/hooks/useHomePayload";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
+import { formatMacro } from "@/lib/format/macros";
 import { deriveHeroModel, type HeroModel } from "@/lib/home/heroState";
 import {
   KColors,
@@ -55,6 +57,11 @@ export default function HomeTab() {
   // GET /home is the real source post-WS7-3 C2; while it loads or errors
   // deriveHeroModel collapses to the empty state (Phase 2 Commit 1 ruling).
   const homeQuery = useHomePayload();
+  // WS7-6 (E) Block 2 §6 — focus-driven backstop. Precise ["home"]
+  // invalidations from AppContext mutators are the primary refresh path;
+  // this hook covers the case where a mutation lands while Home is in the
+  // background and the focus-arrival happens after the 60s staleness gate.
+  useRefetchOnFocus(homeQuery);
   const heroModel = deriveHeroModel(homeQuery.data);
 
   const isEmptyState = useMemo(() => {
@@ -103,9 +110,11 @@ export default function HomeTab() {
         </View>
 
         <View style={styles.heroSection}>
-          {heroModel.kind !== "empty" && (
-            <Text style={styles.heroSectionLabel}>— this week</Text>
-          )}
+          {/* WS7-6 (E) Block 2 §3 — section label dropped. The HeroCard
+              renders its own eyebrow ("tonight" / "this week"), so the
+              outer "— this week" header was either contradictory (today
+              kind: "— this week" above "tonight") or duplicative (plan
+              kind: "— this week" above "this week"). */}
           <HeroCard
             model={heroModel}
             onPressPlan={(planId) =>
@@ -198,7 +207,7 @@ function HeroCard({ model, onPressPlan, onPressEmpty }: HeroCardProps) {
     // than the WS5 stub's "min · cal · difficulty".
     const metaParts: string[] = [];
     if (meal.minutes) metaParts.push(`${meal.minutes} min`);
-    if (meal.calories) metaParts.push(`${meal.calories} cal`);
+    if (meal.calories) metaParts.push(`${formatMacro(meal.calories, "0")} cal`);
     return (
       <Pressable
         onPress={() => onPressPlan(model.planId)}
@@ -287,14 +296,6 @@ const styles = StyleSheet.create({
   heroSection: {
     marginTop: KSpacing.xs,
     marginBottom: KSpacing.md,
-  },
-  heroSectionLabel: {
-    color: KColors.neutral[700],
-    fontStyle: "italic",
-    fontSize: KType.size.md,
-    letterSpacing: 0.04,
-    marginBottom: KSpacing.sm,
-    fontFamily: "Inter_400Regular",
   },
   heroCard: {
     flexDirection: "row",

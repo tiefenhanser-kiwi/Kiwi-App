@@ -96,3 +96,128 @@ export async function getDish(id: string): Promise<DishDetail> {
   });
   return body.dish;
 }
+
+// ── Save-canonical (WS7-6 Block 1E) ─────────────────────────────────────
+// POST /me/dishes — standalone Dish save from the Dish Builder. Schemas
+// mirror postMeDishSchema at artifacts/api-server/src/routes/me.ts.
+
+export interface SaveDishMacrosPerServing {
+  caloriesPerServing?: number;
+  proteinGPerServing?: number;
+  carbsGPerServing?: number;
+  fatGPerServing?: number;
+}
+
+export interface SaveDishIngredient {
+  name: string;
+  quantity: number;
+  unit: string;
+  preparationNote?: string | null;
+  isOptional?: boolean;
+}
+
+export interface SaveDishStep {
+  text: string;
+  estimatedMinutes?: number;
+  phaseType?: "prep" | "preheat" | "cook" | "rest" | "assemble" | "hold";
+  parallelGroup?: string | null;
+  isTimingSensitive?: boolean;
+}
+
+export interface SaveDishInput {
+  title: string;
+  description?: string | null;
+  estimatedTimeMinutes?: number;
+  difficulty?: "easy" | "medium" | "fancy";
+  servingsDefault?: number;
+  tags?: string[];
+  sourceType?: "manual" | "wizard" | "directed" | "curated";
+  macros?: SaveDishMacrosPerServing;
+  ingredients: SaveDishIngredient[];
+  steps: SaveDishStep[];
+}
+
+const SaveDishResponseSchema = z.object({
+  dish: z.object({ id: z.string() }),
+});
+
+export interface SaveDishResponse {
+  id: string;
+}
+
+/**
+ * POST /api/me/dishes — save-canonical entry for the Dish Builder.
+ *
+ * Returns `{ id }` so the caller can subsequently reference the new dish in
+ * a Meal-Builder Mode-C link payload.
+ *
+ * Propagates apiClient typed errors: `ApiError` (400 validation, 429 rate
+ * limit, 500 tx), `UnauthenticatedError` (401), `ApiSchemaError` on a
+ * response-shape mismatch.
+ */
+export async function saveDish(
+  input: SaveDishInput,
+  opts: { signal?: AbortSignal } = {},
+): Promise<SaveDishResponse> {
+  const body = await apiClient("/me/dishes", {
+    method: "POST",
+    body: input,
+    schema: SaveDishResponseSchema,
+    signal: opts.signal,
+  });
+  return body.dish;
+}
+
+// ── PATCH /me/dishes/:id (WS7-6 1A) ─────────────────────────────────────
+// Closes D-WS7-086 on the mobile side. Edit-surface for a saved Dish; the
+// server's wipe-and-recreate fires when `ingredients` and/or `steps` are
+// present in the patch. Scalar-only patches (title, difficulty, …) skip
+// the sub-graph wipe.
+//
+// Difficulty is server-enum here (`easy | medium | fancy`) — callers translate
+// UI's "hard" via `toServerDifficulty` from lib/api/builder at the boundary,
+// same convention as `saveDish` / `updateMeal`.
+
+export interface UpdateDishInput {
+  title?: string;
+  description?: string | null;
+  estimatedTimeMinutes?: number;
+  difficulty?: "easy" | "medium" | "fancy";
+  servingsDefault?: number;
+  tags?: string[];
+  imageUrl?: string | null;
+  macros?: SaveDishMacrosPerServing;
+  ingredients?: SaveDishIngredient[];
+  steps?: SaveDishStep[];
+}
+
+const UpdateDishResponseSchema = z.object({
+  dish: z.object({ id: z.string() }),
+});
+
+export interface UpdateDishResponse {
+  id: string;
+}
+
+/**
+ * PATCH /api/me/dishes/:id — global edit of a saved dish. Server enforces an
+ * at-least-one-field refinement; the wipe-and-recreate sub-graph path runs
+ * only when `ingredients` and/or `steps` are present in the patch.
+ *
+ * Propagates apiClient typed errors: `ApiError` (400 validation, 403 not
+ * owned, 404 missing/archived/curated, 429 rate limit, 500 tx),
+ * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function updateDish(
+  id: string,
+  patch: UpdateDishInput,
+  opts: { signal?: AbortSignal } = {},
+): Promise<UpdateDishResponse> {
+  const body = await apiClient(`/me/dishes/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: patch,
+    schema: UpdateDishResponseSchema,
+    signal: opts.signal,
+  });
+  return body.dish;
+}

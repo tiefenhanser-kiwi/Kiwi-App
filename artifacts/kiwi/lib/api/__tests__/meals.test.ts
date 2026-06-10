@@ -19,7 +19,16 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import * as SecureStore from "expo-secure-store";
 
-import { asMealsFilters, getMeal, getMeals, MealListItemSchema } from "../meals";
+import {
+  asMealsFilters,
+  getMeal,
+  getMeals,
+  MealListItemSchema,
+  saveMeal,
+  updateMeal,
+  type SaveMealInput,
+  type UpdateMealInput,
+} from "../meals";
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 import { useMeal } from "@/hooks/useMeal";
@@ -426,4 +435,292 @@ test("useMeals transitions from loading to data", async () => {
   assert.equal(latest!.data?.meals.length, 1);
   assert.equal(latest!.data?.meals[0].id, "meal-list-1");
   renderer.unmount();
+});
+
+// ── saveMeal (WS7-6 Block 1E) ────────────────────────────────────────────
+// Pins POST /me/meals: the wire shape (manual `kind:"new"` vs Mode-C
+// `kind:"link"`), the success envelope parse, and the typed-error surface
+// for the load-bearing failure modes (403 linked-dish-not-owned, 400
+// validation, 401 auth).
+
+const SAVE_MEAL_MANUAL_INPUT: SaveMealInput = {
+  title: "Lemon Roast Chicken Dinner",
+  cuisineType: "American",
+  servingsDefault: 4,
+  estimatedTimeMinutes: 45,
+  difficulty: "fancy",
+  sourceType: "manual",
+  dishes: [
+    {
+      kind: "new",
+      title: "Roast chicken",
+      role: "main",
+      positionIndex: 0,
+      ingredients: [
+        { name: "Whole chicken", quantity: 1, unit: "whole" },
+        { name: "Lemon", quantity: 2, unit: "whole" },
+      ],
+      steps: [
+        { text: "Roast at 425°F for 45 min.", estimatedMinutes: 45 },
+      ],
+    },
+  ],
+};
+
+const SAVE_MEAL_MODE_C_INPUT: SaveMealInput = {
+  title: "Chicken + Pilaf",
+  servingsDefault: 4,
+  sourceType: "manual",
+  dishes: [
+    { kind: "link", dishId: "dish-existing-1", role: "main", positionIndex: 0 },
+    { kind: "link", dishId: "dish-existing-2", role: "side", positionIndex: 1 },
+  ],
+};
+
+interface CapturedRequest {
+  method: string | null;
+  body: string | null;
+  url: string | null;
+}
+
+// Replaces the default fetch stub for one test with one that captures
+// method/body/url. Returns the captured-request handle so the test can
+// assert against the wire shape directly.
+function captureNextRequest(response: Response): CapturedRequest {
+  const captured: CapturedRequest = { method: null, body: null, url: null };
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    captured.url = url;
+    captured.method = init?.method ?? "GET";
+    captured.body = typeof init?.body === "string" ? init.body : null;
+    return response;
+  }) as unknown as typeof fetch;
+  return captured;
+}
+
+test("saveMeal POSTs to /me/meals and returns the new meal id + dishIds", async () => {
+  const captured = captureNextRequest(
+    mockJson(
+      {
+        meal: {
+          id: "meal-new-1",
+          dishIds: ["dish-new-1"],
+          linksCreated: 1,
+        },
+      },
+      201,
+    ),
+  );
+  const result = await saveMeal(SAVE_MEAL_MANUAL_INPUT);
+  assert.equal(captured.method, "POST");
+  assert.ok(
+    captured.url?.endsWith("/me/meals"),
+    `unexpected url: ${captured.url}`,
+  );
+  assert.equal(result.id, "meal-new-1");
+  assert.deepEqual(result.dishIds, ["dish-new-1"]);
+  assert.equal(result.linksCreated, 1);
+});
+
+test("saveMeal sends the manual-mode input shape (kind:'new') verbatim", async () => {
+  const captured = captureNextRequest(
+    mockJson(
+      { meal: { id: "meal-new-2", dishIds: ["dish-new-2"], linksCreated: 1 } },
+      201,
+    ),
+  );
+  await saveMeal(SAVE_MEAL_MANUAL_INPUT);
+  assert.ok(captured.body, "expected a request body");
+  const parsed = JSON.parse(captured.body!);
+  assert.equal(parsed.title, "Lemon Roast Chicken Dinner");
+  assert.equal(parsed.difficulty, "fancy");
+  assert.equal(parsed.dishes[0].kind, "new");
+  assert.equal(parsed.dishes[0].title, "Roast chicken");
+  assert.equal(parsed.dishes[0].ingredients.length, 2);
+});
+
+test("saveMeal sends Mode-C kind:'link' payload with dishId references (WS7-6 1E key contract)", async () => {
+  const captured = captureNextRequest(
+    mockJson(
+      {
+        meal: {
+          id: "meal-mode-c-1",
+          dishIds: ["dish-existing-1", "dish-existing-2"],
+          linksCreated: 2,
+        },
+      },
+      201,
+    ),
+  );
+  const result = await saveMeal(SAVE_MEAL_MODE_C_INPUT);
+  assert.ok(captured.body, "expected a request body");
+  const parsed = JSON.parse(captured.body!);
+  // Critical: each Mode-C dish must be a link discriminant with a real
+  // server dishId — anything else fails the server's ownership/existence
+  // check and fails the save.
+  assert.equal(parsed.dishes.length, 2);
+  assert.equal(parsed.dishes[0].kind, "link");
+  assert.equal(parsed.dishes[0].dishId, "dish-existing-1");
+  assert.equal(parsed.dishes[1].kind, "link");
+  assert.equal(parsed.dishes[1].dishId, "dish-existing-2");
+  // Response surfaces linksCreated for the caller.
+  assert.equal(result.linksCreated, 2);
+});
+
+test("saveMeal 403 (linked dish not owned) propagates as ApiError", async () => {
+  captureNextRequest(
+    mockJson(
+      {
+        error: "linked dish(es) not owned by user",
+        forbidden: ["dish-someone-else"],
+      },
+      403,
+    ),
+  );
+  await assert.rejects(
+    () => saveMeal(SAVE_MEAL_MODE_C_INPUT),
+    (err: unknown) => err instanceof ApiError && err.status === 403,
+  );
+});
+
+test("saveMeal 404 (linked dish not found) propagates as ApiError", async () => {
+  captureNextRequest(
+    mockJson(
+      { error: "linked dish(es) not found", missing: ["dish-missing"] },
+      404,
+    ),
+  );
+  await assert.rejects(
+    () => saveMeal(SAVE_MEAL_MODE_C_INPUT),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+test("saveMeal 400 (validation) propagates as ApiError", async () => {
+  captureNextRequest(mockJson({ error: "invalid body" }, 400));
+  await assert.rejects(
+    () => saveMeal(SAVE_MEAL_MANUAL_INPUT),
+    (err: unknown) => err instanceof ApiError && err.status === 400,
+  );
+});
+
+test("saveMeal 401 propagates as UnauthenticatedError", async () => {
+  captureNextRequest(mockJson({ error: "unauthenticated" }, 401));
+  await assert.rejects(
+    () => saveMeal(SAVE_MEAL_MANUAL_INPUT),
+    (err: unknown) => err instanceof UnauthenticatedError,
+  );
+});
+
+test("saveMeal rejects a malformed response body as ApiSchemaError", async () => {
+  // Server returned the envelope without `dishIds` — schema parse fails.
+  captureNextRequest(mockJson({ meal: { id: "x", linksCreated: 0 } }, 201));
+  await assert.rejects(
+    () => saveMeal(SAVE_MEAL_MANUAL_INPUT),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+// ── updateMeal (PATCH /me/meals/:id) — WS7-6 1A + 1F ────────────────────
+
+const UPDATE_MEAL_SCALAR_INPUT: UpdateMealInput = {
+  title: "Renamed meal",
+  difficulty: "medium",
+};
+
+test("updateMeal PATCHes /me/meals/:id and returns the meal id", async () => {
+  const captured = captureNextRequest(
+    mockJson({ meal: { id: "meal-1" } }, 200),
+  );
+  const result = await updateMeal("meal-1", UPDATE_MEAL_SCALAR_INPUT);
+  assert.equal(captured.method, "PATCH");
+  assert.ok(captured.url?.endsWith("/me/meals/meal-1"));
+  assert.equal(result.id, "meal-1");
+});
+
+test("updateMeal sends the patch body verbatim (scalar-only)", async () => {
+  const captured = captureNextRequest(
+    mockJson({ meal: { id: "meal-1" } }, 200),
+  );
+  await updateMeal("meal-1", UPDATE_MEAL_SCALAR_INPUT);
+  assert.ok(captured.body);
+  const parsed = JSON.parse(captured.body!);
+  assert.equal(parsed.title, "Renamed meal");
+  assert.equal(parsed.difficulty, "medium");
+  assert.equal(Object.keys(parsed).length, 2);
+});
+
+test("updateMeal forwards a dishes[] sub-graph patch (wipe-and-recreate trigger)", async () => {
+  const captured = captureNextRequest(
+    mockJson(
+      {
+        meal: { id: "meal-1", dishIds: ["dish-new-A"], linksCreated: 1 },
+      },
+      200,
+    ),
+  );
+  const result = await updateMeal("meal-1", {
+    dishes: [
+      {
+        kind: "new",
+        title: "Replacement",
+        role: "main",
+        positionIndex: 0,
+        ingredients: [{ name: "Salt", quantity: 1, unit: "tsp" }],
+        steps: [{ text: "Sprinkle." }],
+      },
+    ],
+  });
+  assert.ok(captured.body);
+  const parsed = JSON.parse(captured.body!);
+  assert.equal(parsed.dishes[0].kind, "new");
+  assert.deepEqual(result.dishIds, ["dish-new-A"]);
+  assert.equal(result.linksCreated, 1);
+});
+
+test("updateMeal 403 (foreign-owned) propagates as ApiError", async () => {
+  captureNextRequest(
+    mockJson({ error: "meal not owned by user" }, 403),
+  );
+  await assert.rejects(
+    () => updateMeal("meal-foreign", UPDATE_MEAL_SCALAR_INPUT),
+    (err: unknown) => err instanceof ApiError && err.status === 403,
+  );
+});
+
+test("updateMeal 404 (missing/archived/curated) propagates as ApiError", async () => {
+  captureNextRequest(mockJson({ error: "meal not found" }, 404));
+  await assert.rejects(
+    () => updateMeal("meal-missing", UPDATE_MEAL_SCALAR_INPUT),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+test("updateMeal 400 (validation: empty patch) propagates as ApiError", async () => {
+  captureNextRequest(mockJson({ error: "invalid body" }, 400));
+  await assert.rejects(
+    () => updateMeal("meal-1", {}),
+    (err: unknown) => err instanceof ApiError && err.status === 400,
+  );
+});
+
+test("updateMeal 401 propagates as UnauthenticatedError", async () => {
+  captureNextRequest(mockJson({ error: "unauthenticated" }, 401));
+  await assert.rejects(
+    () => updateMeal("meal-1", UPDATE_MEAL_SCALAR_INPUT),
+    (err: unknown) => err instanceof UnauthenticatedError,
+  );
+});
+
+test("updateMeal URL-encodes the meal id", async () => {
+  // Defensive — the server's :id param is a cuid in production but the
+  // client must not break on edge characters (e.g. a future migration to a
+  // composite identifier). encodeURIComponent matches getMeal's posture.
+  const captured = captureNextRequest(mockJson({ meal: { id: "x" } }, 200));
+  await updateMeal("with spaces/and slashes", UPDATE_MEAL_SCALAR_INPUT);
+  assert.ok(captured.url);
+  assert.ok(!captured.url!.includes(" "));
+  assert.ok(captured.url!.includes("with%20spaces"));
 });

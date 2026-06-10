@@ -28,6 +28,7 @@ import {
 import { useMeal } from "@/hooks/useMeal";
 import { ApiError } from "@/lib/api/errors";
 import type { MealDetail, MealStep } from "@/lib/api/meals";
+import { formatMacro } from "@/lib/format/macros";
 
 const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 12;
@@ -418,19 +419,19 @@ function MealDetailContent({
             <Text style={s.cardTitle}>Per serving</Text>
             <View style={s.macroRow}>
               <View style={s.macroStat}>
-                <Text style={s.macroValue}>{meal.calories}</Text>
+                <Text style={s.macroValue}>{formatMacro(meal.calories)}</Text>
                 <Text style={s.macroLabel}>cal</Text>
               </View>
               <View style={s.macroStat}>
-                <Text style={s.macroValue}>{meal.protein}</Text>
+                <Text style={s.macroValue}>{formatMacro(meal.protein)}</Text>
                 <Text style={s.macroLabel}>g protein</Text>
               </View>
               <View style={s.macroStat}>
-                <Text style={s.macroValue}>{meal.carbs}</Text>
+                <Text style={s.macroValue}>{formatMacro(meal.carbs)}</Text>
                 <Text style={s.macroLabel}>g carbs</Text>
               </View>
               <View style={s.macroStat}>
-                <Text style={s.macroValue}>{meal.fat}</Text>
+                <Text style={s.macroValue}>{formatMacro(meal.fat)}</Text>
                 <Text style={s.macroLabel}>g fat</Text>
               </View>
             </View>

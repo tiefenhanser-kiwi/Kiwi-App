@@ -40,8 +40,22 @@ import {
   WizardExpandedPlanSchema,
   type WizardExpandedPlan,
 } from "@/lib/api/wizard";
-import { patchPlan } from "@/lib/api/plans";
+import { getPlans, patchPlan } from "@/lib/api/plans";
+import { ApiError, ApiNetworkError } from "@/lib/api/errors";
+import { formatMacro } from "@/lib/format/macros";
 import { decidePlanDetailsCta } from "@/lib/plans/wizardPostSaveCta";
+import { resolveActivatedPlanRouteAfter404 } from "@/lib/wizard/activateRecovery";
+
+// D-WS7-080 fix — client-side activate timeout. The server tx budget is
+// 60_000ms + 20_000ms maxWait and observed end-to-end is ~35s (the
+// finalize-steps Sonnet fan-out dominates the pre-tx phase). Platform fetch
+// defaults (Android OkHttp ~10s read; iOS NSURLSession ~60s) can abort
+// mid-flight while the server is still committing the 201, leaving the user
+// staring at a "draft not found" red error on a retry against a draft that
+// already promoted into their plan. 90s sits comfortably past the server
+// ceiling so a successful ~35s call is never perceived as a failure; a true
+// 90s timeout is still informative.
+const ACTIVATE_CLIENT_TIMEOUT_MS = 90_000;
 
 function parseExpanded(raw: string | undefined): WizardExpandedPlan | null {
   if (!raw) return null;
@@ -151,6 +165,16 @@ export default function WizardPlanDetailsScreen() {
     if (useState_.kind === "pending") return;
     setUseState({ kind: "pending" });
 
+    const isDraftActivate = cta.useTarget.kind === "draft-activate";
+
+    // D-WS7-080 — client-side timeout for the draft-activate path. The
+    // server-side post-save PATCH path doesn't run the finalize-steps AI,
+    // so it doesn't need this safety net.
+    const controller = isDraftActivate ? new AbortController() : null;
+    const timeoutId = controller
+      ? setTimeout(() => controller.abort(), ACTIVATE_CLIENT_TIMEOUT_MS)
+      : null;
+
     try {
       let activatedPlanId: string;
       if (cta.useTarget.kind === "draft-activate") {
@@ -163,7 +187,9 @@ export default function WizardPlanDetailsScreen() {
           });
           return;
         }
-        const result = await activateWizardDraft(draftId);
+        const result = await activateWizardDraft(draftId, {
+          signal: controller!.signal,
+        });
         activatedPlanId = result.instance.id;
       } else {
         // Post-save: the draft id is dead (saved-then-activate would 404).
@@ -177,6 +203,10 @@ export default function WizardPlanDetailsScreen() {
 
       setUseState({ kind: "idle" });
       queryClient.invalidateQueries({ queryKey: ["plans"] });
+      // D-WS7-080 fix — ["plans"] prefix does not cover ["home", "payload"],
+      // so the Home tab hero card stays stale (within its 60s staleTime)
+      // unless we invalidate the home query too.
+      queryClient.invalidateQueries({ queryKey: ["home"] });
       // Use replace so back-pop from Plan Review returns to the wizard's
       // entry point (wizard input / tellkiwi), not the now-stale Plan
       // Details screen for a draft that no longer exists.
@@ -185,11 +215,52 @@ export default function WizardPlanDetailsScreen() {
         params: { id: activatedPlanId },
       });
     } catch (err) {
-      const message =
-        err instanceof Error && err.message
+      // D-WS7-080 fix — 404 on draft-activate means the draft was already
+      // consumed by a successful prior call whose 201 the client dropped
+      // (platform fetch timeout / app backgrounding mid-AI). The plan is
+      // safe — recover by fetching it and routing the user to it instead
+      // of surfacing a red error that nudges them into re-running the
+      // wizard (which would displace their own good plan via the
+      // single-active invariant).
+      if (
+        isDraftActivate &&
+        err instanceof ApiError &&
+        err.status === 404
+      ) {
+        try {
+          const route = await resolveActivatedPlanRouteAfter404(getPlans);
+          queryClient.invalidateQueries({ queryKey: ["plans"] });
+          queryClient.invalidateQueries({ queryKey: ["home"] });
+          setUseState({ kind: "idle" });
+          if (route.kind === "plan") {
+            router.replace({
+              pathname: "/plan/[id]",
+              params: { id: route.planId },
+            });
+          } else {
+            router.replace("/(tabs)/plans");
+          }
+          return;
+        } catch {
+          // Recovery fetch itself failed (offline, 5xx). Fall through to
+          // the generic error path so the user at least gets feedback.
+        }
+      }
+      // D-WS7-080 — distinguish a client-side abort (our 90s timeout) from
+      // a network failure so the toast actually tells the user what to do.
+      const isAbort =
+        err instanceof ApiNetworkError &&
+        (err.cause instanceof Error
+          ? err.cause.name === "AbortError"
+          : false);
+      const message = isAbort
+        ? "Kiwi is still working on it. Check your plans in a moment — it may have saved."
+        : err instanceof Error && err.message
           ? err.message
           : "Couldn't activate this plan.";
       setUseState({ kind: "error", message });
+    } finally {
+      if (timeoutId !== null) clearTimeout(timeoutId);
     }
   };
 
@@ -332,7 +403,7 @@ export default function WizardPlanDetailsScreen() {
 function MacroCell({ value, label }: { value: number; label: string }) {
   return (
     <View style={s.macroCell}>
-      <Text style={s.macroValue}>{value}</Text>
+      <Text style={s.macroValue}>{formatMacro(value, "0")}</Text>
       <Text style={s.macroLabel}>{label}</Text>
     </View>
   );

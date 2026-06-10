@@ -11,6 +11,13 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import {
+  addDays,
+  computeNextWeekStart,
+  computeThisWeekStart,
+  parseLocalDate,
+  toLocalDateString,
+} from "@/lib/dates";
 
 export interface PlanDateRangeEditorProps {
   /** ISO "YYYY-MM-DD". Falls back to today's week start when missing. */
@@ -25,54 +32,8 @@ type PresetKey = "this_week" | "next_week" | "custom";
 const MAX_FUTURE_DAYS = 30;
 const DURATION_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 
-/**
- * Format a Date as YYYY-MM-DD using LOCAL time (not UTC).
- * toISOString() converts to UTC, which can shift the date by one day
- * depending on local timezone offset and time of day — making "this
- * Sunday" land on Saturday in the rendered string.
- */
-function toLocalDateString(d: Date): string {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-/**
- * Parse "YYYY-MM-DD" as a LOCAL-time Date. JS's default `new Date(iso)`
- * treats bare-date strings as UTC midnight, which lands on the previous
- * local day for users west of UTC and breaks downstream getDate() /
- * toLocaleDateString() calls.
- */
-function parseLocalDate(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
 function todayISO(): string {
   return toLocalDateString(new Date());
-}
-
-function computeThisWeekStart(): string {
-  const today = new Date();
-  const day = today.getDay(); // 0 = Sunday
-  const start = new Date(today);
-  start.setDate(today.getDate() - day);
-  return toLocalDateString(start);
-}
-
-function computeNextWeekStart(): string {
-  const today = new Date();
-  const day = today.getDay();
-  const start = new Date(today);
-  start.setDate(today.getDate() + (7 - day));
-  return toLocalDateString(start);
-}
-
-function addDays(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const date = new Date(y, m - 1, d + days);
-  return toLocalDateString(date);
 }
 
 function diffDays(startISO: string, endISO: string): number {

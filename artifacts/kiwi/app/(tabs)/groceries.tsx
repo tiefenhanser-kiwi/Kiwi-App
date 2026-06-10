@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { useGroceryLists } from "@/hooks/useGroceryLists";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { formatRelative } from "@/lib/date";
 import type { GroceryListListItem } from "@/lib/api/groceries";
 import {
@@ -32,10 +33,12 @@ const SORT_OPTIONS: Array<{ key: GrocerySortKey; label: string }> = [
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Client-side proxy for the missing `isThisWeek` field on GroceryListListItem
-// (the server's new renamed-flat shape doesn't carry it; PRD §12.14 status
-// vocab is deferred to D-WS7-046). Used only to drive the 3-button "current
-// list" action row vs the 2-button past-list row.
+// Client-side proxy for the action-row split (3-button "current list" vs
+// 2-button past-list). WS7-6 (E) Block 2: the BADGE now uses the server's
+// list.isActiveThisWeek (resolver-derived single winner); this date proxy
+// remains for the action row only — see D-WS7-105 in kiwi_ws6_plan.md §6
+// (resolved for badge, retained for action row pending a dedicated
+// status-vocabulary pass).
 function isCurrentWeek(list: GroceryListListItem): boolean {
   if (!list.lastGeneratedAt) return false;
   const t = Date.parse(list.lastGeneratedAt);
@@ -53,6 +56,8 @@ function statusBadgeLabel(status: string): string | null {
 export default function GroceriesTab() {
   const router = useRouter();
   const listsQuery = useGroceryLists();
+  // WS7-6 (E) Block 2 §6 — focus-driven backstop for returning to the tab.
+  useRefetchOnFocus(listsQuery);
   const lists = listsQuery.data ?? [];
 
   const [query, setQuery] = useState("");
@@ -215,7 +220,11 @@ function ListCard({
   onOrderOnline,
   onReuse,
 }: ListCardProps) {
-  const badge = statusBadgeLabel(list.status);
+  // WS7-6 (E) Block 2 — the single This-Week list shows "This Week" (matches
+  // the detail screen subtitle); all other lists keep the status badge so
+  // Draft/Ordered/Archived/etc. still surface. The status badge collapses
+  // when status is empty.
+  const badge = list.isActiveThisWeek ? "This Week" : statusBadgeLabel(list.status);
   const isCurrent = isCurrentWeek(list);
 
   return (

@@ -23,6 +23,10 @@ import { Stepper } from "@/components/Stepper";
 import { useApp } from "@/contexts/AppContext";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
+  assistIngredients,
+  assistSteps,
+} from "@/lib/api/builder";
+import {
   CUISINES_TIER_1,
   CUISINES_TIER_2,
 } from "@/lib/domain";
@@ -157,6 +161,11 @@ export default function DishBuilderScreen() {
   const { dishId } = useLocalSearchParams<{ dishId?: string }>();
   const { saveDish } = useApp();
   const [form, setForm] = useState<DishBuilderForm>(initialForm);
+  // WS7-6 Block 1C: in-flight flags for the two Kiwi-assist buttons.
+  // Local-only state — each assist call is a one-shot fire that replaces
+  // the form section on success.
+  const [assistingIngredients, setAssistingIngredients] = useState(false);
+  const [assistingSteps, setAssistingSteps] = useState(false);
 
   useEffect(() => {
     if (!dishId) return;
@@ -242,23 +251,139 @@ export default function DishBuilderScreen() {
     setForm((prev) => ({ ...prev, steps: next }));
   };
 
+  // WS7-6 Block 1C — Kiwi-assist handlers. On success the corresponding
+  // toggle flips OFF so the suggested rows are visible in the normal editor
+  // (user can review / tweak before save). On failure the toggle stays ON
+  // so the user can retry without losing the AI mode they opted into.
+  const handleAssistIngredients = async () => {
+    if (!form.name.trim()) {
+      Alert.alert(
+        "Add a name first",
+        "Kiwi needs a dish name to suggest ingredients.",
+      );
+      return;
+    }
+    Keyboard.dismiss();
+    setAssistingIngredients(true);
+    try {
+      const existing = form.ingredients
+        .filter((i) => i.name.trim())
+        .map((i) => ({
+          name: i.name.trim(),
+          quantity: i.quantity > 0 ? i.quantity : undefined,
+          unit: i.unit.trim() || undefined,
+        }));
+      const result = await assistIngredients({
+        dishTitle: form.name.trim(),
+        cuisine: form.cuisineType,
+        existingIngredients: existing,
+        servings: form.servingsDefault,
+      });
+      setForm((prev) => ({
+        ...prev,
+        kiwiAssistIngredients: false,
+        ingredients: result.ingredients.length
+          ? result.ingredients.map((ing) => ({
+              uid: nextUid(),
+              quantity: ing.quantity,
+              unit: ing.unit,
+              name: ing.name,
+            }))
+          : [emptyIngredient()],
+      }));
+      if (result.caveats && result.caveats.length > 0) {
+        Alert.alert("Kiwi's note", result.caveats.join("\n"));
+      }
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't reach Kiwi right now. Try again?";
+      Alert.alert("Suggestion failed", msg);
+    } finally {
+      setAssistingIngredients(false);
+    }
+  };
+
+  const handleAssistSteps = async () => {
+    if (!form.name.trim()) {
+      Alert.alert(
+        "Add a name first",
+        "Kiwi needs a dish name to suggest steps.",
+      );
+      return;
+    }
+    // assist-steps requires a complete ingredient list (server: min 1 with
+    // required quantity + unit). Surface this up-front instead of letting a
+    // 400 round-trip the user back.
+    const usableIngredients = form.ingredients
+      .filter((i) => i.name.trim() && i.quantity > 0 && i.unit.trim())
+      .map((i) => ({
+        name: i.name.trim(),
+        quantity: i.quantity,
+        unit: i.unit.trim(),
+      }));
+    if (usableIngredients.length === 0) {
+      Alert.alert(
+        "Add ingredients first",
+        "Kiwi needs at least one ingredient (with quantity and unit) to suggest steps.",
+      );
+      return;
+    }
+    Keyboard.dismiss();
+    setAssistingSteps(true);
+    try {
+      const result = await assistSteps({
+        dishTitle: form.name.trim(),
+        cuisine: form.cuisineType,
+        ingredients: usableIngredients,
+        servings: form.servingsDefault,
+        cookTimeMinutes:
+          form.estimatedTimeMinutes > 0 ? form.estimatedTimeMinutes : undefined,
+      });
+      setForm((prev) => ({
+        ...prev,
+        kiwiAssistSteps: false,
+        steps: result.steps.map((st) => ({
+          uid: nextUid(),
+          text: st.content,
+          estimatedMinutes: st.estimatedMinutes,
+          isTimingSensitive: st.isTimingSensitive ?? false,
+        })),
+      }));
+      if (result.caveats && result.caveats.length > 0) {
+        Alert.alert("Kiwi's note", result.caveats.join("\n"));
+      }
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't reach Kiwi right now. Try again?";
+      Alert.alert("Suggestion failed", msg);
+    } finally {
+      setAssistingSteps(false);
+    }
+  };
+
   const handleSave = async () => {
     Keyboard.dismiss();
     if (!form.name.trim()) {
       Alert.alert("Add a name", "Give this dish a name to save it.");
       return;
     }
-    // When kiwiAssistIngredients is true, AI fills in ingredients server-side
-    // (WS6); skip manual ingredient validation.
-    if (!form.kiwiAssistIngredients) {
-      const cleanIngredients = form.ingredients.filter((i) => i.name.trim());
-      if (cleanIngredients.length === 0) {
-        Alert.alert(
-          "Add ingredients",
-          "Add at least one ingredient — or check 'Have Kiwi suggest recipe'.",
-        );
-        return;
-      }
+    // WS7-6 Block 1E — server requires at least one ingredient (min 1) on
+    // POST /me/dishes regardless of how it was populated. The Kiwi-assist
+    // flow flips its toggle OFF on success and writes into form.ingredients,
+    // so by save-time the array must be non-empty either way.
+    const cleanIngredients = form.ingredients.filter((i) => i.name.trim());
+    if (cleanIngredients.length === 0) {
+      Alert.alert(
+        "Add ingredients",
+        form.kiwiAssistIngredients
+          ? "Tap 'Get suggestions from Kiwi' first, or add ingredients manually."
+          : "Add at least one ingredient before saving.",
+      );
+      return;
     }
 
     const draft: DishDraft = {
@@ -270,15 +395,11 @@ export default function DishBuilderScreen() {
       type: form.type,
       kiwiAssistIngredients: form.kiwiAssistIngredients,
       kiwiAssistSteps: form.kiwiAssistSteps,
-      ingredients: form.kiwiAssistIngredients
-        ? []
-        : form.ingredients
-            .filter((i) => i.name.trim())
-            .map((i) => ({
-              quantity: i.quantity,
-              unit: i.unit.trim(),
-              name: i.name.trim(),
-            })),
+      ingredients: cleanIngredients.map((i) => ({
+        quantity: i.quantity,
+        unit: i.unit.trim() || "unit",
+        name: i.name.trim(),
+      })),
       steps: form.kiwiAssistSteps
         ? []
         : form.steps
@@ -297,16 +418,22 @@ export default function DishBuilderScreen() {
       notes: form.notes.trim() || undefined,
     };
 
-    const result = await saveDish(draft);
-    console.log("[dish-builder] saved", { result, draft });
-
-    Alert.alert(
-      isEdit ? "Coming in WS7 — saving dish edits" : "Coming in WS7 — saving new dishes",
-      isEdit
-        ? "Edits to existing dishes save to your library when the API client lands."
-        : "New dishes save to your library when the API client lands.",
-      [{ text: "OK", onPress: () => router.back() }],
-    );
+    try {
+      await saveDish(draft);
+      Alert.alert(
+        isEdit ? "Dish saved as new" : "Dish saved",
+        isEdit
+          ? "Editing existing dishes lands in a future block — your changes were saved as a new dish."
+          : "Added to your saved dishes.",
+        [{ text: "OK", onPress: () => router.back() }],
+      );
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : "Saving failed. Try again?";
+      Alert.alert("Couldn't save dish", msg);
+    }
   };
 
   return (
@@ -439,9 +566,22 @@ export default function DishBuilderScreen() {
             />
           </View>
           {form.kiwiAssistIngredients ? (
-            <Text style={[s.assistHint, { marginTop: KSpacing.sm }]}>
-              Kiwi will suggest ingredients based on the dish name and cuisine
-            </Text>
+            <View style={{ marginTop: KSpacing.sm, gap: KSpacing.sm }}>
+              <Text style={s.assistHint}>
+                Kiwi will suggest ingredients based on the dish name and
+                cuisine.
+              </Text>
+              <Button
+                label={
+                  assistingIngredients
+                    ? "Asking Kiwi…"
+                    : "Get suggestions from Kiwi"
+                }
+                variant="ghost"
+                disabled={assistingIngredients || !form.name.trim()}
+                onPress={handleAssistIngredients}
+              />
+            </View>
           ) : (
             <View style={{ marginTop: KSpacing.md, gap: KSpacing.sm }}>
               {form.ingredients.map((ing) => (
@@ -519,9 +659,19 @@ export default function DishBuilderScreen() {
             />
           </View>
           {form.kiwiAssistSteps ? (
-            <Text style={[s.assistHint, { marginTop: KSpacing.sm }]}>
-              Kiwi will write the steps from your ingredients and cuisine
-            </Text>
+            <View style={{ marginTop: KSpacing.sm, gap: KSpacing.sm }}>
+              <Text style={s.assistHint}>
+                Kiwi will write the steps from your ingredients and cuisine.
+              </Text>
+              <Button
+                label={
+                  assistingSteps ? "Asking Kiwi…" : "Get suggestions from Kiwi"
+                }
+                variant="ghost"
+                disabled={assistingSteps || !form.name.trim()}
+                onPress={handleAssistSteps}
+              />
+            </View>
           ) : (
             <View style={{ marginTop: KSpacing.md, gap: KSpacing.md }}>
               {/* WS5-5P-fix-drag — DraggableFlatList for steps. Drag via

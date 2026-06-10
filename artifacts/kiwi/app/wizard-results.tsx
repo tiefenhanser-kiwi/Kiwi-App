@@ -28,6 +28,7 @@ import type {
   BuildFromTextResult,
   ParsedIntent,
 } from "@/lib/api/tellKiwi";
+import { formatMacro } from "@/lib/format/macros";
 import type { TellKiwiInput, WizardPlanCandidate, WizardPreferencesInput } from "@/lib/types";
 
 if (
@@ -560,7 +561,7 @@ function CandidateCard({
   onUsePlan: () => void;
   disabled?: boolean;
 }) {
-  const macrosLine = `Avg ${candidate.dailyMacros.calories} cal/day · ${candidate.dailyMacros.proteinG}g P · ${candidate.dailyMacros.carbsG}g C · ${candidate.dailyMacros.fatG}g F`;
+  const macrosLine = `Avg ${formatMacro(candidate.dailyMacros.calories, "0")} cal/day · ${formatMacro(candidate.dailyMacros.proteinG, "0")}g P · ${formatMacro(candidate.dailyMacros.carbsG, "0")}g C · ${formatMacro(candidate.dailyMacros.fatG, "0")}g F`;
 
   return (
     <View style={s.card}>
@@ -687,7 +688,7 @@ function CandidateCard({
 function MacroCell({ value, label }: { value: number; label: string }) {
   return (
     <View style={s.macroCell}>
-      <Text style={s.macroValue}>{value}</Text>
+      <Text style={s.macroValue}>{formatMacro(value, "0")}</Text>
       <Text style={s.macroLabel}>{label}</Text>
     </View>
   );

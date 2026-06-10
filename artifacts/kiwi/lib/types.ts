@@ -191,12 +191,14 @@ export const DAY_SHORT: Record<DayOfWeek, string> = {
   Thursday: "T", Friday: "F", Saturday: "S",
 };
 
-/** Daily macro averages displayed on Plan Review per PRD §8.3.5. */
+/** Daily macro averages displayed on Plan Review per PRD §8.3.5.
+ *  WS7-6 Fix-Block 2 (D, closes D-WS7-060): null on each field means
+ *  "no meals assigned" (empty state) — UI renders "—". */
 export interface MacroDailyAverage {
-  caloriesPerDay: number;
-  proteinGPerDay: number;
-  carbsGPerDay: number;
-  fatGPerDay: number;
+  caloriesPerDay: number | null;
+  proteinGPerDay: number | null;
+  carbsGPerDay: number | null;
+  fatGPerDay: number | null;
 }
 
 /**
@@ -294,6 +296,11 @@ export interface ReviewPlan {
   weekStartDate?: string;
   /** ISO date string ("YYYY-MM-DD") for the plan's end date. */
   weekEndDate?: string;
+  /** WS7-6 (E) Block 2 §4 — Model 2 resolver-derived flag. True when this
+   *  plan IS the current This-Week winner; the Plan Review screen swaps the
+   *  "Cook This Week" chip for a passive "This Week's Plan" badge in that
+   *  state. Surfaced from PlanDetail.isActiveThisWeek by the adapter. */
+  isActiveThisWeek: boolean;
 }
 
 /**

@@ -16,7 +16,21 @@ import {
   type AddItemPayload,
 } from "@/lib/api/grocery";
 import { buildGroceryList, defaultPlan } from "@/lib/stubs";
+import {
+  saveDish as saveDishAPI,
+  updateDish as updateDishAPI,
+  type UpdateDishInput,
+  type UpdateDishResponse,
+} from "@/lib/api/dishes";
 import * as meAPI from "@/lib/api/me";
+import {
+  saveMeal as saveMealAPI,
+  updateMeal as updateMealAPI,
+  type SaveMealInput,
+  type SaveMealResponse,
+  type UpdateMealInput,
+  type UpdateMealResponse,
+} from "@/lib/api/meals";
 import {
   createPlan as createPlanAPI,
   deletePlanItem,
@@ -123,9 +137,41 @@ interface AppState {
     planId: string,
     range: { startDate?: string; endDate?: string },
   ) => Promise<void>;
-  /** PRD §10.5 — save a dish to user's library. Real persistence WS7.
-   *  WS5: log only; returns assigned id. */
+  /** WS7-6 (E) Model 2 — make this plan the This-Week winner. Routes through
+   *  PATCH /plans/:id { isActiveThisWeek: true }; the resolver demotes prior
+   *  actives silently (Model 2 has no constraint to reject). Drives the
+   *  "Cook This Week" chip in Plan Review. */
+  setPlanActiveThisWeek: (planId: string) => Promise<void>;
+  /** PRD §10.5 — save a dish to user's library. WS7-6 Block 1E wires this
+   *  to POST /me/dishes; returns the server-canonical id. NOTE: edit mode
+   *  (dish.id present) still creates a NEW dish — PATCH /me/dishes/:id is
+   *  out of scope for 1E. */
   saveDish: (dish: DishDraft) => Promise<{ id: string }>;
+  /** PRD §10.4 / WS7-6 Block 1E — save a Meal-Builder draft (Mode B manual,
+   *  Mode C combine, or imported draft) to the user's library. POSTs to
+   *  /me/meals and returns the new meal id plus the canonical dish ids the
+   *  link rows now point at. Callers use `id` to chain into addMealToPlan
+   *  for the "save + add to plan" entry. */
+  saveMeal: (input: SaveMealInput) => Promise<SaveMealResponse>;
+  /** PRD §8.4.4 + §2.5 — global edit of a saved Meal. PATCHes /me/meals/:id;
+   *  invalidates the meals list AND the plans cache (a global meal edit
+   *  affects every plan that uses it). Used by both the Meal Detail edit
+   *  flow (library context, no prompt) and the §2.5 "Apply always" branch
+   *  from a plan-context Meal Builder edit. Throws on failure. */
+  updateMeal: (
+    id: string,
+    patch: UpdateMealInput,
+  ) => Promise<UpdateMealResponse>;
+  /** PRD §8.4.5 / §10.5 — global edit of a saved Dish. PATCHes /me/dishes/:id;
+   *  invalidates the dishes list/detail AND the plans cache (a global dish
+   *  edit can affect any plan that links it via meal sub-graph). Wired-but-
+   *  unconsumed in WS7-6 1A — dish-builder.tsx's edit mode currently still
+   *  creates a new dish on save; pointing it at updateDish requires the same
+   *  server-backed hydration swap meal-builder got in 1G (D-WS7-092). */
+  updateDish: (
+    id: string,
+    patch: UpdateDishInput,
+  ) => Promise<UpdateDishResponse>;
   /** PRD §14.9.1 — update user's display name. PATCHes /me/profile. */
   updateUserName: (name: string) => Promise<void>;
   /** PRD §14.9.1 — request an email change. POSTs /me/email/request-change;
@@ -310,6 +356,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       queryClient.invalidateQueries({ queryKey: ["plans", planId] });
       queryClient.invalidateQueries({ queryKey: ["plans"] });
+      // WS7-6 (E) Block 2 §5 — Home's hero card (GET /home) is independent of
+      // the plans cache, so every plan mutation must also invalidate ["home"]
+      // (a valid prefix of ["home","payload"]) to keep "tonight" / "this week"
+      // in sync with the activation flip and any date / item mutation.
+      queryClient.invalidateQueries({ queryKey: ["home"] });
       if (macrosStale) {
         dispatchRecalcMacros(planId);
       }
@@ -529,11 +580,119 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [handleMutationResult],
   );
 
+  // WS7-6 (E) Block 2 §5 — Model 2 activation wrapper. PATCH /plans/:id with
+  // { isActiveThisWeek: true }; the server resolver demotes any prior winner.
+  // macrosStale is forced false on this flip server-side (no item membership
+  // change), so coalesce to false for symmetry with other plan-level mutators.
+  const setPlanActiveThisWeek = useCallback(
+    async (planId: string): Promise<void> => {
+      const response = await patchPlan(planId, { isActiveThisWeek: true });
+      handleMutationResult(planId, response.macrosStale ?? false);
+    },
+    [handleMutationResult],
+  );
+
+  // WS7-6 Block 1E — POST /me/dishes. Translates the DishDraft form shape to
+  // the server's save-canonical payload (only the fields the route accepts;
+  // kiwiAssist flags + macros = 0 are dropped). Edit mode (dish.id present)
+  // still hits POST — PATCH /me/dishes/:id is a future block.
   const saveDish = async (dish: DishDraft): Promise<{ id: string }> => {
-    // TODO(WS7): wire to POST /me/dishes (create) or PATCH /me/dishes/:id (update)
-    const id = dish.id ?? `dish-${Date.now()}`;
-    console.log("[stub] saveDish", { id, dish });
-    return { id };
+    const macros: {
+      caloriesPerServing?: number;
+      proteinGPerServing?: number;
+      carbsGPerServing?: number;
+      fatGPerServing?: number;
+    } = {};
+    if (dish.caloriesPerServing > 0) {
+      macros.caloriesPerServing = dish.caloriesPerServing;
+    }
+    if (dish.proteinGPerServing > 0) {
+      macros.proteinGPerServing = dish.proteinGPerServing;
+    }
+    if (dish.carbsGPerServing > 0) {
+      macros.carbsGPerServing = dish.carbsGPerServing;
+    }
+    if (dish.fatGPerServing > 0) {
+      macros.fatGPerServing = dish.fatGPerServing;
+    }
+    const result = await saveDishAPI({
+      title: dish.name,
+      description: dish.notes ?? null,
+      estimatedTimeMinutes: dish.estimatedTimeMinutes,
+      servingsDefault: dish.servingsDefault,
+      sourceType: "manual",
+      macros: Object.keys(macros).length > 0 ? macros : undefined,
+      ingredients: dish.ingredients.map((i) => ({
+        name: i.name,
+        quantity: i.quantity,
+        unit: i.unit,
+      })),
+      steps: dish.steps.map((s) => ({
+        text: s.text,
+        estimatedMinutes: s.estimatedMinutes,
+        isTimingSensitive: s.isTimingSensitive,
+      })),
+    });
+    // Refresh the Dishes-tab list so the new dish appears (and so the Mode-C
+    // picker in meal-builder sees it on its next render).
+    await queryClient.invalidateQueries({ queryKey: ["dishes", "list"] });
+    return { id: result.id };
+  };
+
+  // WS7-6 Block 1E — POST /me/meals. Caller has already translated UI
+  // difficulty (`hard → fancy`) via toServerDifficulty before reaching here;
+  // this wrapper only adds cache invalidation so the Meals tab refreshes.
+  const saveMeal = async (
+    input: SaveMealInput,
+  ): Promise<SaveMealResponse> => {
+    const result = await saveMealAPI(input);
+    await queryClient.invalidateQueries({ queryKey: ["meals", "list"] });
+    return result;
+  };
+
+  // WS7-6 1F — PATCH /me/meals/:id. Global edit of a saved meal. Used by
+  // both §8.4.4 (library-context Meal Detail edit, no prompt) and the §2.5
+  // "Apply always" branch from a plan-context edit. Caller has already
+  // translated UI difficulty (`hard → fancy`) before reaching here.
+  // Invalidations: ["meals","list"] for the Meals tab AND ["meals","detail",id]
+  // for the Meal Detail screen; ["plans"] prefix because every plan that
+  // references this meal renders its meta/sub-graph at read time.
+  const updateMeal = async (
+    id: string,
+    patch: UpdateMealInput,
+  ): Promise<UpdateMealResponse> => {
+    const result = await updateMealAPI(id, patch);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["meals", "list"] }),
+      queryClient.invalidateQueries({ queryKey: ["meals", "detail", id] }),
+      queryClient.invalidateQueries({ queryKey: ["plans"] }),
+      // WS7-6 (E) Block 2 §5 — Home's hero (GET /home) renders meal title /
+      // minutes / calories from the plan's meals; a global meal edit must
+      // refresh it.
+      queryClient.invalidateQueries({ queryKey: ["home"] }),
+    ]);
+    return result;
+  };
+
+  // WS7-6 1A — PATCH /me/dishes/:id. Symmetric to updateMeal: caller has
+  // already translated UI difficulty via toServerDifficulty before reaching
+  // here. Plans invalidation is included because a global dish edit can
+  // affect any plan that renders the meal-sub-graph containing this dish.
+  // Wired-but-unconsumed today — see the AppState interface comment.
+  const updateDish = async (
+    id: string,
+    patch: UpdateDishInput,
+  ): Promise<UpdateDishResponse> => {
+    const result = await updateDishAPI(id, patch);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["dishes", "list"] }),
+      queryClient.invalidateQueries({ queryKey: ["dishes", "detail", id] }),
+      queryClient.invalidateQueries({ queryKey: ["plans"] }),
+      // WS7-6 (E) Block 2 §5 — a global dish edit can affect any plan's
+      // meal sub-graph, including the one the Home hero renders.
+      queryClient.invalidateQueries({ queryKey: ["home"] }),
+    ]);
+    return result;
   };
 
   // WS7-2 Block B: profile mutators write through PATCH /me/profile and
@@ -642,6 +801,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (templateId: string) => {
       const { instanceId } = await useTemplateAPI(templateId);
       queryClient.invalidateQueries({ queryKey: ["plans"] });
+      // WS7-6 (E) Block 2 §5 — use-template creates a new Instance + demotes
+      // prior actives server-side; Home's hero needs the refreshed payload.
+      queryClient.invalidateQueries({ queryKey: ["home"] });
       return { instanceId };
     },
     [queryClient],
@@ -662,6 +824,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (mealId: string): Promise<{ planId: string }> => {
       const created = await createPlanAPI({});
       queryClient.invalidateQueries({ queryKey: ["plans"] });
+      // WS7-6 (E) Block 2 §5 — Home's hero may flip to/from "empty" when
+      // the user gains their first plan; invalidate eagerly so the empty-
+      // plan-with-error MVP path still refreshes Home (step 2 may throw
+      // before handleMutationResult runs).
+      queryClient.invalidateQueries({ queryKey: ["home"] });
       const response = await postPlanItem(created.instanceId, {
         mealId,
         slot: "dinner",
@@ -835,7 +1002,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     promoteRecipeOverrideToMeal,
     updatePlanName,
     updatePlanDateRange,
+    setPlanActiveThisWeek,
     saveDish,
+    saveMeal,
+    updateMeal,
+    updateDish,
     updateUserName,
     requestEmailChange,
     updateUserPhone,

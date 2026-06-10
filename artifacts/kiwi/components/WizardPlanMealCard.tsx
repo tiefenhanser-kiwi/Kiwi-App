@@ -22,6 +22,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { formatMacro } from "@/lib/format/macros";
 import type { WizardExpandEnrichedMeal } from "@/lib/api/wizard";
 
 export interface WizardPlanMealCardProps {
@@ -72,10 +73,10 @@ export function WizardPlanMealCard({
             <Text style={s.dishRole}>{dish.role}</Text>
             {dish.macros && !dish.macros.failed && (
               <Text style={s.dishMacros}>
-                {Math.round(dish.macros.caloriesPerServing)} cal ·{" "}
-                {Math.round(dish.macros.proteinGPerServing)}g P ·{" "}
-                {Math.round(dish.macros.carbsGPerServing)}g C ·{" "}
-                {Math.round(dish.macros.fatGPerServing)}g F (per serving)
+                {formatMacro(dish.macros.caloriesPerServing, "0")} cal ·{" "}
+                {formatMacro(dish.macros.proteinGPerServing, "0")}g P ·{" "}
+                {formatMacro(dish.macros.carbsGPerServing, "0")}g C ·{" "}
+                {formatMacro(dish.macros.fatGPerServing, "0")}g F (per serving)
               </Text>
             )}
 

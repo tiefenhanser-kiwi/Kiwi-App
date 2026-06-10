@@ -26,7 +26,8 @@
     "lib/plans/__tests__/**/*",
     "lib/meals/__tests__/**/*",
     "lib/dishes/__tests__/**/*",
-    "lib/wizard/__tests__/**/*"
+    "lib/wizard/__tests__/**/*",
+    "lib/__tests__/**/*"
   ],
   "references": [
     {

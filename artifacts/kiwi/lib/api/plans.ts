@@ -96,11 +96,14 @@ export const PlanDetailItemSchema = z.object({
 });
 export type PlanDetailItem = z.infer<typeof PlanDetailItemSchema>;
 
+// WS7-6 Fix-Block 2 (D, closes D-WS7-060) — fields are nullable so the
+// server can signal "no meals assigned" (empty state) with `null` rather
+// than misleading zeros. Plan Review renders "—" for null.
 const MacroDailyAverageSchema = z.object({
-  caloriesPerDay: z.number(),
-  proteinGPerDay: z.number(),
-  carbsGPerDay: z.number(),
-  fatGPerDay: z.number(),
+  caloriesPerDay: z.number().nullable(),
+  proteinGPerDay: z.number().nullable(),
+  carbsGPerDay: z.number().nullable(),
+  fatGPerDay: z.number().nullable(),
 });
 export type MacroDailyAverage = z.infer<typeof MacroDailyAverageSchema>;
 

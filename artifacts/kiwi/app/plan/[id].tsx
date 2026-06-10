@@ -32,6 +32,7 @@ import { useMeal } from "@/hooks/useMeal";
 import { usePlan } from "@/hooks/usePlan";
 import { ApiError } from "@/lib/api/errors";
 import { buildDayStrip } from "@/lib/domain";
+import { formatMacro } from "@/lib/format/macros";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
 import {
   mealDetailToRow,
@@ -114,6 +115,7 @@ export default function PlanReviewScreen() {
     removeMealFromPlan,
     updatePlanName,
     updatePlanDateRange,
+    setPlanActiveThisWeek,
     isMacrosRecalcInFlight,
   } = useApp();
 
@@ -303,6 +305,16 @@ export default function PlanReviewScreen() {
     void updatePlanDateRange(planId, { startDate: start, endDate: end });
   };
 
+  // WS7-6 (E) Block 2 §4 — Model 2 activation. Optimistically flip the
+  // local chip state so the tap feels instant; the post-mutation refetch
+  // re-seeds reviewPlan from the server's resolver-derived value.
+  const handleCookThisWeek = () => {
+    setReviewPlan((prev) =>
+      prev ? { ...prev, isActiveThisWeek: true } : prev,
+    );
+    void setPlanActiveThisWeek(planId);
+  };
+
   // Block B gate (WS7-3 C4 c1) — server load, error, or adapter-not-yet-seeded
   // states render a loading / error frame. The error branch distinguishes 404
   // (plan not owned / missing) from generic load failure per the same pattern
@@ -384,6 +396,29 @@ export default function PlanReviewScreen() {
             endDate={reviewPlan.weekEndDate}
             onSave={handleSaveDateRange}
           />
+          {/* WS7-6 (E) Block 2 §4 — Cook This Week chip. Lives in the meta
+              strip (NOT the §8.3.2 action bar — that's locked to 3 CTAs).
+              When this plan IS the winner: passive "This Week's Plan" badge.
+              Otherwise: tappable chip activates the plan (resolver demotes
+              prior winner silently — no constraint to reject). */}
+          {reviewPlan.isActiveThisWeek ? (
+            <View style={s.cookThisWeekBadge}>
+              <Feather name="check" size={12} color={KColors.sage[700]} />
+              <Text style={s.cookThisWeekBadgeText}>This Week's Plan</Text>
+            </View>
+          ) : (
+            <Pressable
+              onPress={handleCookThisWeek}
+              hitSlop={6}
+              style={({ pressed }) => [
+                s.cookThisWeekChip,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Feather name="calendar" size={12} color={KColors.neutral[100]} />
+              <Text style={s.cookThisWeekChipText}>Cook This Week</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* §8.3.2 — Sticky-near-top action bar (1+2 stack) */}
@@ -496,25 +531,25 @@ export default function PlanReviewScreen() {
             <View style={s.macroRow}>
               <View style={s.macroStat}>
                 <Text style={s.macroValue}>
-                  {reviewPlan.macroDailyAverage.caloriesPerDay}
+                  {formatMacro(reviewPlan.macroDailyAverage.caloriesPerDay)}
                 </Text>
                 <Text style={s.macroLabel}>cal</Text>
               </View>
               <View style={s.macroStat}>
                 <Text style={s.macroValue}>
-                  {reviewPlan.macroDailyAverage.proteinGPerDay}
+                  {formatMacro(reviewPlan.macroDailyAverage.proteinGPerDay)}
                 </Text>
                 <Text style={s.macroLabel}>g protein</Text>
               </View>
               <View style={s.macroStat}>
                 <Text style={s.macroValue}>
-                  {reviewPlan.macroDailyAverage.carbsGPerDay}
+                  {formatMacro(reviewPlan.macroDailyAverage.carbsGPerDay)}
                 </Text>
                 <Text style={s.macroLabel}>g carbs</Text>
               </View>
               <View style={s.macroStat}>
                 <Text style={s.macroValue}>
-                  {reviewPlan.macroDailyAverage.fatGPerDay}
+                  {formatMacro(reviewPlan.macroDailyAverage.fatGPerDay)}
                 </Text>
                 <Text style={s.macroLabel}>g fat</Text>
               </View>
@@ -525,7 +560,7 @@ export default function PlanReviewScreen() {
                 users understand why moving meals around shifts the average.
                 PRD §8.3.5 redline is queued for WS7-CLOSE. */}
             <Text style={s.macroFootnote}>
-              Macros are calculated based on meals that have assigned days
+              Macros are calculated only from days with meals assigned
             </Text>
           </Card>
         </View>
@@ -851,6 +886,42 @@ const s = StyleSheet.create({
   planMetaSection: {
     gap: 4,
     marginBottom: KSpacing.md,
+  },
+  cookThisWeekChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.sm,
+    borderRadius: KRadius.pill,
+    backgroundColor: KColors.sage[700],
+    marginTop: KSpacing.xs,
+  },
+  cookThisWeekChipText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[100],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+  },
+  cookThisWeekBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.sm,
+    borderRadius: KRadius.pill,
+    borderWidth: 1,
+    borderColor: KColors.sage[700],
+    backgroundColor: KColors.sage[100],
+    marginTop: KSpacing.xs,
+  },
+  cookThisWeekBadgeText: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
   },
   actionBar: {
     backgroundColor: KPalette.bg.card,

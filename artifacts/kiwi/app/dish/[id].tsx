@@ -16,6 +16,7 @@ import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import { useDish } from "@/hooks/useDish";
 import { ApiError } from "@/lib/api/errors";
 import type { DishDetail } from "@/lib/api/dishes";
+import { formatMacro } from "@/lib/format/macros";
 
 // WS7-3 Block C3 c3: dish detail reads GET /dishes/:id via useDish. Adopts
 // the Block B gate/body pattern from app/meal/[id].tsx — DishDetailScreen
@@ -154,7 +155,7 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
           <Text style={s.heroMacros}>
             {macrosAllZero
               ? "Macros not set"
-              : `${dish.calories} cal · ${dish.protein}g P · ${dish.carbs}g C · ${dish.fat}g F`}
+              : `${formatMacro(dish.calories, "0")} cal · ${formatMacro(dish.protein, "0")}g P · ${formatMacro(dish.carbs, "0")}g C · ${formatMacro(dish.fat, "0")}g F`}
           </Text>
         </View>
 

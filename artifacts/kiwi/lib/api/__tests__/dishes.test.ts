@@ -20,6 +20,10 @@ import {
   DishListItemSchema,
   getDish,
   getDishes,
+  saveDish,
+  updateDish,
+  type SaveDishInput,
+  type UpdateDishInput,
 } from "../dishes";
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
@@ -262,4 +266,176 @@ test("useDish is disabled for an empty id", async () => {
   assert.equal(latest!.fetchStatus, "idle");
   assert.equal(latest!.data, undefined);
   renderer.unmount();
+});
+
+// ── saveDish (WS7-6 Block 1E) ────────────────────────────────────────────
+// Pins POST /me/dishes: wire shape, envelope parse, typed-error surface.
+
+const SAVE_DISH_INPUT: SaveDishInput = {
+  title: "Garlic Rice Pilaf",
+  estimatedTimeMinutes: 25,
+  servingsDefault: 4,
+  sourceType: "manual",
+  ingredients: [
+    { name: "Long-grain rice", quantity: 1, unit: "cup" },
+    { name: "Garlic", quantity: 2, unit: "cloves" },
+  ],
+  steps: [{ text: "Toast rice in oil.", estimatedMinutes: 3 }],
+};
+
+interface CapturedRequest {
+  method: string | null;
+  body: string | null;
+  url: string | null;
+}
+
+function captureNextRequest(response: Response): CapturedRequest {
+  const captured: CapturedRequest = { method: null, body: null, url: null };
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    captured.url = url;
+    captured.method = init?.method ?? "GET";
+    captured.body = typeof init?.body === "string" ? init.body : null;
+    return response;
+  }) as unknown as typeof fetch;
+  return captured;
+}
+
+test("saveDish POSTs to /me/dishes and returns the new dish id", async () => {
+  const captured = captureNextRequest(
+    mockJson({ dish: { id: "dish-new-1" } }, 201),
+  );
+  const result = await saveDish(SAVE_DISH_INPUT);
+  assert.equal(captured.method, "POST");
+  assert.ok(
+    captured.url?.endsWith("/me/dishes"),
+    `unexpected url: ${captured.url}`,
+  );
+  assert.equal(result.id, "dish-new-1");
+});
+
+test("saveDish sends ingredients + steps as a JSON body", async () => {
+  const captured = captureNextRequest(
+    mockJson({ dish: { id: "dish-new-2" } }, 201),
+  );
+  await saveDish(SAVE_DISH_INPUT);
+  assert.ok(captured.body, "expected a request body");
+  const parsed = JSON.parse(captured.body!);
+  assert.equal(parsed.title, "Garlic Rice Pilaf");
+  assert.equal(parsed.ingredients.length, 2);
+  assert.equal(parsed.steps[0].text, "Toast rice in oil.");
+});
+
+test("saveDish 400 validation propagates as ApiError", async () => {
+  captureNextRequest(mockJson({ error: "invalid body" }, 400));
+  await assert.rejects(
+    () => saveDish(SAVE_DISH_INPUT),
+    (err: unknown) => err instanceof ApiError && err.status === 400,
+  );
+});
+
+test("saveDish 401 propagates as UnauthenticatedError", async () => {
+  captureNextRequest(mockJson({ error: "unauthenticated" }, 401));
+  await assert.rejects(
+    () => saveDish(SAVE_DISH_INPUT),
+    (err: unknown) => err instanceof UnauthenticatedError,
+  );
+});
+
+test("saveDish rejects a malformed response body as ApiSchemaError", async () => {
+  // Drop `dish` — schema parse fails.
+  captureNextRequest(mockJson({ result: { id: "x" } }, 201));
+  await assert.rejects(
+    () => saveDish(SAVE_DISH_INPUT),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+// ── updateDish (PATCH /me/dishes/:id) — WS7-6 1A ────────────────────────
+
+const UPDATE_DISH_SCALAR_INPUT: UpdateDishInput = {
+  title: "Renamed dish",
+  difficulty: "medium",
+};
+
+test("updateDish PATCHes /me/dishes/:id and returns the dish id", async () => {
+  const captured = captureNextRequest(
+    mockJson({ dish: { id: "dish-1" } }, 200),
+  );
+  const result = await updateDish("dish-1", UPDATE_DISH_SCALAR_INPUT);
+  assert.equal(captured.method, "PATCH");
+  assert.ok(captured.url?.endsWith("/me/dishes/dish-1"));
+  assert.equal(result.id, "dish-1");
+});
+
+test("updateDish sends the scalar-only patch body verbatim", async () => {
+  const captured = captureNextRequest(
+    mockJson({ dish: { id: "dish-1" } }, 200),
+  );
+  await updateDish("dish-1", UPDATE_DISH_SCALAR_INPUT);
+  assert.ok(captured.body);
+  const parsed = JSON.parse(captured.body!);
+  assert.equal(parsed.title, "Renamed dish");
+  assert.equal(parsed.difficulty, "medium");
+  assert.equal(Object.keys(parsed).length, 2);
+});
+
+test("updateDish forwards an ingredients/steps sub-graph patch (wipe-and-recreate trigger)", async () => {
+  const captured = captureNextRequest(
+    mockJson({ dish: { id: "dish-1" } }, 200),
+  );
+  await updateDish("dish-1", {
+    ingredients: [{ name: "Salt", quantity: 1, unit: "tsp" }],
+    steps: [{ text: "Sprinkle." }, { text: "Serve." }],
+  });
+  assert.ok(captured.body);
+  const parsed = JSON.parse(captured.body!);
+  assert.ok(Array.isArray(parsed.ingredients), "ingredients[] forwarded");
+  assert.ok(Array.isArray(parsed.steps), "steps[] forwarded");
+  assert.equal(parsed.ingredients[0].name, "Salt");
+  assert.equal(parsed.steps.length, 2);
+});
+
+test("updateDish 403 (foreign-owned) propagates as ApiError", async () => {
+  captureNextRequest(
+    mockJson({ error: "dish not owned by user" }, 403),
+  );
+  await assert.rejects(
+    () => updateDish("dish-foreign", UPDATE_DISH_SCALAR_INPUT),
+    (err: unknown) => err instanceof ApiError && err.status === 403,
+  );
+});
+
+test("updateDish 404 (missing/archived/curated) propagates as ApiError", async () => {
+  captureNextRequest(mockJson({ error: "dish not found" }, 404));
+  await assert.rejects(
+    () => updateDish("dish-missing", UPDATE_DISH_SCALAR_INPUT),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+test("updateDish 400 (validation: empty patch) propagates as ApiError", async () => {
+  captureNextRequest(mockJson({ error: "invalid body" }, 400));
+  await assert.rejects(
+    () => updateDish("dish-1", {}),
+    (err: unknown) => err instanceof ApiError && err.status === 400,
+  );
+});
+
+test("updateDish 401 propagates as UnauthenticatedError", async () => {
+  captureNextRequest(mockJson({ error: "unauthenticated" }, 401));
+  await assert.rejects(
+    () => updateDish("dish-1", UPDATE_DISH_SCALAR_INPUT),
+    (err: unknown) => err instanceof UnauthenticatedError,
+  );
+});
+
+test("updateDish URL-encodes the dish id (defensive, mirrors updateMeal)", async () => {
+  const captured = captureNextRequest(mockJson({ dish: { id: "x" } }, 200));
+  await updateDish("with spaces/and slashes", UPDATE_DISH_SCALAR_INPUT);
+  assert.ok(captured.url);
+  assert.ok(!captured.url!.includes(" "));
+  assert.ok(captured.url!.includes("with%20spaces"));
 });

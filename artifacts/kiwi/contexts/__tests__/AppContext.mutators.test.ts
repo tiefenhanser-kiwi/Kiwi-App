@@ -1227,3 +1227,478 @@ test("promoteRecipeOverrideToMeal propagates 422 unresolved_ingredient with stru
   assert.equal(body.body?.error, "unresolved_ingredient");
   assert.equal(body.body?.ingredientName, "Unicorn Horn");
 });
+
+// ── WS7-6 Block 1E — saveMeal / saveDish ─────────────────────────────────
+// Pins the AppContext-layer wiring: POSTs to the right route, returns the
+// server-canonical id, and invalidates the corresponding list cache so the
+// catalog tabs refresh after a save. The meal-builder's "save then add to
+// plan" chain composes saveMeal + addMealToPlan back-to-back; the third
+// test below pins that the chain stays atomic-at-the-mutator-level (the
+// saved id survives a downstream plan-add failure so the caller can keep
+// the form open per WS7-6 1E spec).
+
+test("saveMeal POSTs to /me/meals and invalidates the meals-list cache", async () => {
+  const qc = await mountAuthed();
+
+  let postedBody: Record<string, unknown> | null = null;
+  route("POST", "/me/meals", () => {
+    return mockJson(
+      {
+        meal: {
+          id: "meal-new-7",
+          dishIds: ["dish-new-7"],
+          linksCreated: 1,
+        },
+      },
+      201,
+    );
+  });
+  // Stamp the meals-list cache so we can prove invalidation happened.
+  qc.setQueryData(["meals", "list", null], {
+    meals: [{ id: "old", title: "Old" }],
+    nextCursor: null,
+  });
+  const stateBefore = qc.getQueryState(["meals", "list", null]);
+  assert.ok(stateBefore, "cache primed");
+
+  // Capture the POST body separately (route() doesn't expose init).
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "POST" &&
+      String(url).endsWith("/me/meals")
+    ) {
+      postedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(
+        mockJson(
+          {
+            meal: {
+              id: "meal-new-7",
+              dishIds: ["dish-new-7"],
+              linksCreated: 1,
+            },
+          },
+          201,
+        ),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  let result: { id: string; dishIds: string[]; linksCreated: number } | null =
+    null;
+  await act(async () => {
+    result = await app!.saveMeal({
+      title: "Lemon Roast",
+      servingsDefault: 4,
+      difficulty: "fancy",
+      sourceType: "manual",
+      dishes: [
+        {
+          kind: "new",
+          title: "Chicken",
+          role: "main",
+          positionIndex: 0,
+          ingredients: [
+            { name: "Whole chicken", quantity: 1, unit: "whole" },
+          ],
+          steps: [],
+        },
+      ],
+    });
+  });
+
+  assert.ok(postedBody, "POST /me/meals fired with a body");
+  assert.equal((postedBody as { title: string }).title, "Lemon Roast");
+  assert.equal(result!.id, "meal-new-7");
+  // Invalidation: meals-list cache should now be marked stale (or removed).
+  const stateAfter = qc.getQueryState(["meals", "list", null]);
+  assert.ok(
+    !stateAfter || stateAfter.isInvalidated,
+    "meals-list cache was invalidated after saveMeal",
+  );
+});
+
+test("saveDish POSTs to /me/dishes (real call, not stub) and invalidates the dishes-list cache", async () => {
+  const qc = await mountAuthed();
+
+  qc.setQueryData(["dishes", "list", null], {
+    dishes: [{ id: "old-dish" }],
+    nextCursor: null,
+  });
+
+  let postedUrl: string | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "POST" &&
+      String(url).endsWith("/me/dishes")
+    ) {
+      postedUrl = String(url);
+      return Promise.resolve(
+        mockJson({ dish: { id: "dish-new-9" } }, 201),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  let result: { id: string } | null = null;
+  await act(async () => {
+    result = await app!.saveDish({
+      name: "Pilaf",
+      servingsDefault: 4,
+      type: "side",
+      kiwiAssistIngredients: false,
+      kiwiAssistSteps: false,
+      ingredients: [{ quantity: 1, unit: "cup", name: "Rice" }],
+      steps: [],
+      caloriesPerServing: 0,
+      proteinGPerServing: 0,
+      carbsGPerServing: 0,
+      fatGPerServing: 0,
+    });
+  });
+
+  assert.ok(postedUrl, "POST /me/dishes fired");
+  assert.equal(result!.id, "dish-new-9");
+  const stateAfter = qc.getQueryState(["dishes", "list", null]);
+  assert.ok(
+    !stateAfter || stateAfter.isInvalidated,
+    "dishes-list cache was invalidated after saveDish",
+  );
+});
+
+test("saveMeal then addMealToPlan: plan-add failure does NOT undo the saved meal id (WS7-6 1E stay-on-screen contract)", async () => {
+  // The meal-builder onSave handler chains saveMeal → addMealToPlan when
+  // addToPlanId is present. Per spec, a plan-add failure surfaces "saved
+  // but couldn't add to plan" and keeps the form open. This test verifies
+  // the mutator-level invariant the screen depends on: the saveMeal id
+  // remains valid (no rollback / no cache eviction on the meal) when
+  // addMealToPlan throws after a successful save.
+  await mountAuthed();
+
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const u = String(url);
+    const m = (init?.method ?? "GET").toUpperCase();
+    if (m === "POST" && u.endsWith("/me/meals")) {
+      return Promise.resolve(
+        mockJson(
+          {
+            meal: {
+              id: "meal-saved-but-plan-failed",
+              dishIds: ["d"],
+              linksCreated: 1,
+            },
+          },
+          201,
+        ),
+      );
+    }
+    // The plan-add hits POST /plans/:id/items. Simulate a 500.
+    if (m === "POST" && /\/plans\/.+\/items$/.test(u)) {
+      return Promise.resolve(
+        mockJson({ error: "couldn't add item" }, 500),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  let savedId: string | null = null;
+  let planAddErr: unknown = null;
+  await act(async () => {
+    const r = await app!.saveMeal({
+      title: "Will save but plan-add fails",
+      servingsDefault: 4,
+      sourceType: "manual",
+      dishes: [
+        {
+          kind: "new",
+          title: "x",
+          role: "main",
+          positionIndex: 0,
+          ingredients: [{ name: "salt", quantity: 1, unit: "tsp" }],
+          steps: [],
+        },
+      ],
+    });
+    savedId = r.id;
+    try {
+      await app!.addMealToPlan("plan-target-1", r.id);
+    } catch (e) {
+      planAddErr = e;
+    }
+  });
+
+  // The saved meal id is preserved — the screen uses this to render the
+  // "saved but couldn't add to plan" banner without losing the user's work.
+  assert.equal(savedId, "meal-saved-but-plan-failed");
+  assert.ok(planAddErr, "addMealToPlan threw after saveMeal succeeded");
+});
+
+// ── WS7-6 1F — updateMeal ────────────────────────────────────────────────
+// PATCH /me/meals/:id wire-up: the right HTTP method+URL fire, the body
+// forwards verbatim, and BOTH the meals caches AND the plans cache are
+// invalidated (a global meal edit affects every plan that uses it).
+
+test("updateMeal PATCHes /me/meals/:id and invalidates meals + plans caches", async () => {
+  const qc = await mountAuthed();
+
+  // Prime three caches we expect updateMeal to invalidate.
+  qc.setQueryData(["meals", "list", null], {
+    meals: [{ id: "meal-edit-1", title: "Old title" }],
+    nextCursor: null,
+  });
+  qc.setQueryData(["meals", "detail", "meal-edit-1"], {
+    id: "meal-edit-1",
+    title: "Old title",
+  });
+  qc.setQueryData(["plans", "list", null], {
+    plans: [{ id: "plan-1" }],
+    nextCursor: null,
+  });
+
+  let patchedUrl: string | null = null;
+  let patchedBody: Record<string, unknown> | null = null;
+  let patchedMethod: string | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const u = String(url);
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      u.endsWith("/me/meals/meal-edit-1")
+    ) {
+      patchedMethod = (init?.method ?? "").toUpperCase();
+      patchedUrl = u;
+      patchedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(
+        mockJson({ meal: { id: "meal-edit-1" } }, 200),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  let result: { id: string } | null = null;
+  await act(async () => {
+    result = await app!.updateMeal("meal-edit-1", {
+      title: "Patched title",
+      difficulty: "medium",
+    });
+  });
+
+  assert.equal(patchedMethod, "PATCH", "issued a PATCH");
+  assert.ok(patchedUrl?.endsWith("/me/meals/meal-edit-1"));
+  assert.ok(patchedBody);
+  assert.equal((patchedBody as { title: string }).title, "Patched title");
+  assert.equal((patchedBody as { difficulty: string }).difficulty, "medium");
+  assert.equal(result!.id, "meal-edit-1");
+
+  // Invalidations: meals list, meals detail, and the plans prefix.
+  const mealsList = qc.getQueryState(["meals", "list", null]);
+  assert.ok(
+    !mealsList || mealsList.isInvalidated,
+    "meals-list cache was invalidated",
+  );
+  const mealDetail = qc.getQueryState(["meals", "detail", "meal-edit-1"]);
+  assert.ok(
+    !mealDetail || mealDetail.isInvalidated,
+    "meal-detail cache was invalidated",
+  );
+  const plansList = qc.getQueryState(["plans", "list", null]);
+  assert.ok(
+    !plansList || plansList.isInvalidated,
+    "plans cache was invalidated (a global meal edit affects every plan that uses it)",
+  );
+});
+
+test("updateMeal forwards a dishes[] patch (wipe-and-recreate trigger) to the server verbatim", async () => {
+  await mountAuthed();
+
+  let patchedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      String(url).endsWith("/me/meals/meal-with-dishes")
+    ) {
+      patchedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(
+        mockJson(
+          {
+            meal: {
+              id: "meal-with-dishes",
+              dishIds: ["dish-new-A"],
+              linksCreated: 1,
+            },
+          },
+          200,
+        ),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.updateMeal("meal-with-dishes", {
+      title: "Renamed",
+      dishes: [
+        {
+          kind: "new",
+          title: "Replacement",
+          role: "main",
+          positionIndex: 0,
+          ingredients: [{ name: "Garlic", quantity: 2, unit: "clove" }],
+          steps: [{ text: "Mince." }],
+        },
+      ],
+    });
+  });
+
+  assert.ok(patchedBody);
+  assert.ok(
+    Array.isArray((patchedBody as { dishes?: unknown[] }).dishes),
+    "dishes[] is forwarded to trigger wipe-and-recreate",
+  );
+  assert.equal(
+    ((patchedBody as { dishes: Array<{ kind: string }> }).dishes[0]).kind,
+    "new",
+  );
+});
+
+test("updateDish PATCHes /me/dishes/:id and invalidates dishes + plans caches", async () => {
+  const qc = await mountAuthed();
+
+  // Prime three caches we expect updateDish to invalidate.
+  qc.setQueryData(["dishes", "list", null], {
+    dishes: [{ id: "dish-edit-1", title: "Old title" }],
+    nextCursor: null,
+  });
+  qc.setQueryData(["dishes", "detail", "dish-edit-1"], {
+    id: "dish-edit-1",
+    title: "Old title",
+  });
+  qc.setQueryData(["plans", "list", null], {
+    plans: [{ id: "plan-1" }],
+    nextCursor: null,
+  });
+
+  let patchedMethod: string | null = null;
+  let patchedUrl: string | null = null;
+  let patchedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const u = String(url);
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      u.endsWith("/me/dishes/dish-edit-1")
+    ) {
+      patchedMethod = (init?.method ?? "").toUpperCase();
+      patchedUrl = u;
+      patchedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(
+        mockJson({ dish: { id: "dish-edit-1" } }, 200),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  let result: { id: string } | null = null;
+  await act(async () => {
+    result = await app!.updateDish("dish-edit-1", {
+      title: "Patched dish title",
+      difficulty: "medium",
+    });
+  });
+
+  assert.equal(patchedMethod, "PATCH", "issued a PATCH");
+  assert.ok(patchedUrl?.endsWith("/me/dishes/dish-edit-1"));
+  assert.ok(patchedBody);
+  assert.equal((patchedBody as { title: string }).title, "Patched dish title");
+  assert.equal(result!.id, "dish-edit-1");
+
+  // Invalidations: dishes list, dishes detail, AND plans prefix (a global
+  // dish edit can affect any plan that links it via a meal's sub-graph).
+  const dishesList = qc.getQueryState(["dishes", "list", null]);
+  assert.ok(
+    !dishesList || dishesList.isInvalidated,
+    "dishes-list cache was invalidated",
+  );
+  const dishDetail = qc.getQueryState(["dishes", "detail", "dish-edit-1"]);
+  assert.ok(
+    !dishDetail || dishDetail.isInvalidated,
+    "dish-detail cache was invalidated",
+  );
+  const plansList = qc.getQueryState(["plans", "list", null]);
+  assert.ok(
+    !plansList || plansList.isInvalidated,
+    "plans cache was invalidated (global dish edit can affect meals-in-plans)",
+  );
+});
+
+test("updateMeal propagates a 403 (foreign-owned meal) without touching caches", async () => {
+  const qc = await mountAuthed();
+
+  // Prime a cache and assert it stays UN-invalidated on failure.
+  qc.setQueryData(["meals", "list", null], {
+    meals: [{ id: "x" }],
+    nextCursor: null,
+  });
+
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      String(url).endsWith("/me/meals/meal-foreign")
+    ) {
+      return Promise.resolve(
+        mockJson({ error: "meal not owned by user" }, 403),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  let err: unknown = null;
+  await act(async () => {
+    try {
+      await app!.updateMeal("meal-foreign", { title: "x" });
+    } catch (e) {
+      err = e;
+    }
+  });
+  assert.ok(err, "updateMeal rejected on 403");
+
+  const mealsList = qc.getQueryState(["meals", "list", null]);
+  assert.ok(
+    mealsList && !mealsList.isInvalidated,
+    "meals-list cache stayed valid because the PATCH failed",
+  );
+});

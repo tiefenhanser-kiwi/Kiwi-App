@@ -247,3 +247,177 @@ export async function getMeals(
       : "";
   return apiClient(`/me/meals${query}`, { schema: MealListResponseSchema });
 }
+
+// ── Save-canonical (WS7-6 Block 1E) ─────────────────────────────────────
+// POST /me/meals — write the row graph for a meal built in the mobile
+// Meal Builder (manual Mode B, combined Mode C, or imported draft).
+// Schemas mirror postMeMealSchema at artifacts/api-server/src/routes/me.ts.
+// Difficulty enum here is the server's (`easy | medium | fancy`); callers
+// translate `hard → fancy` via `toServerDifficulty` from lib/api/builder.
+
+export interface SaveMealMacrosPerServing {
+  caloriesPerServing?: number;
+  proteinGPerServing?: number;
+  carbsGPerServing?: number;
+  fatGPerServing?: number;
+}
+
+export interface SaveMealIngredient {
+  name: string;
+  quantity: number;
+  unit: string;
+  preparationNote?: string | null;
+  isOptional?: boolean;
+}
+
+export interface SaveMealStep {
+  text: string;
+  estimatedMinutes?: number;
+  phaseType?: "prep" | "preheat" | "cook" | "rest" | "assemble" | "hold";
+  parallelGroup?: string | null;
+  isTimingSensitive?: boolean;
+}
+
+export type SaveMealDishRole =
+  | "main"
+  | "side"
+  | "sauce"
+  | "topping"
+  | "base"
+  | "optional";
+
+export type SaveMealDish =
+  | {
+      kind: "new";
+      title: string;
+      role: SaveMealDishRole;
+      positionIndex: number;
+      estimatedTimeMinutes?: number;
+      difficulty?: "easy" | "medium" | "fancy";
+      servingsDefault?: number;
+      ingredients: SaveMealIngredient[];
+      steps: SaveMealStep[];
+      macros?: SaveMealMacrosPerServing;
+    }
+  | {
+      kind: "link";
+      dishId: string;
+      role: SaveMealDishRole;
+      positionIndex: number;
+    };
+
+export interface SaveMealInput {
+  title: string;
+  description?: string | null;
+  cuisineType?: string | null;
+  mealType?: "breakfast" | "lunch" | "dinner" | "snack" | "mixed";
+  servingsDefault?: number;
+  estimatedTimeMinutes?: number;
+  difficulty?: "easy" | "medium" | "fancy";
+  tags?: string[];
+  sourceType?: "manual" | "wizard" | "directed" | "curated";
+  macros?: SaveMealMacrosPerServing;
+  dishes: SaveMealDish[];
+}
+
+const SaveMealResponseSchema = z.object({
+  meal: z.object({
+    id: z.string(),
+    dishIds: z.array(z.string()),
+    linksCreated: z.number(),
+  }),
+});
+
+export interface SaveMealResponse {
+  id: string;
+  dishIds: string[];
+  linksCreated: number;
+}
+
+/**
+ * POST /api/me/meals — save-canonical entry for the Meal Builder.
+ *
+ * Returns the row-graph IDs created by the server (`id` = the new Meal,
+ * `dishIds` = the canonical dish ids the link rows now point at, including
+ * existing ids for `kind:"link"` entries). Callers use `id` to chain into
+ * `addMealToPlan` for the "save + add to plan" flow.
+ *
+ * Propagates apiClient typed errors: `ApiError` (400 validation, 403 linked
+ * dish not owned, 404 linked dish not found, 429 rate limit, 500 tx),
+ * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function saveMeal(
+  input: SaveMealInput,
+  opts: { signal?: AbortSignal } = {},
+): Promise<SaveMealResponse> {
+  const body = await apiClient("/me/meals", {
+    method: "POST",
+    body: input,
+    schema: SaveMealResponseSchema,
+    signal: opts.signal,
+  });
+  return body.meal;
+}
+
+// ── PATCH /me/meals/:id (WS7-6 1A + 1F) ─────────────────────────────────
+// Edit-surface for both library-context global edits (PRD §8.4.4) and the
+// §2.5 "Apply always" branch from a plan-context Meal Builder edit. The
+// server's PATCH route accepts a partial body (at-least-one-field) and
+// runs the wipe-and-recreate path when `dishes[]` is present. Scalar-only
+// patches skip the wipe.
+
+// All fields optional; at-least-one-field is enforced server-side.
+export interface UpdateMealInput {
+  title?: string;
+  description?: string | null;
+  cuisineType?: string | null;
+  mealType?: "breakfast" | "lunch" | "dinner" | "snack" | "mixed";
+  servingsDefault?: number;
+  estimatedTimeMinutes?: number;
+  difficulty?: "easy" | "medium" | "fancy";
+  tags?: string[];
+  imageUrl?: string | null;
+  macros?: SaveMealMacrosPerServing;
+  dishes?: SaveMealDish[];
+}
+
+// Server's PATCH meal response has two shapes depending on whether dishes[]
+// was in the patch (rematerialize echoes dishIds + linksCreated; scalar-only
+// returns just the id). The mobile client unions both.
+const UpdateMealResponseSchema = z.object({
+  meal: z.object({
+    id: z.string(),
+    dishIds: z.array(z.string()).optional(),
+    linksCreated: z.number().optional(),
+  }),
+});
+
+export interface UpdateMealResponse {
+  id: string;
+  dishIds?: string[];
+  linksCreated?: number;
+}
+
+/**
+ * PATCH /api/me/meals/:id — global edit of a saved meal. Used by both the
+ * Meal Detail edit flow (§8.4.4, no prompt) and the §2.5 "Apply always"
+ * branch from a plan-context Meal Builder edit. Returns the meal id (+
+ * sub-graph echo when dishes were patched).
+ *
+ * Propagates apiClient typed errors: `ApiError` (400 validation, 403 not
+ * owned, 404 missing/archived/curated, 429 rate limit, 500 tx),
+ * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function updateMeal(
+  id: string,
+  patch: UpdateMealInput,
+  opts: { signal?: AbortSignal } = {},
+): Promise<UpdateMealResponse> {
+  const body = await apiClient(`/me/meals/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: patch,
+    schema: UpdateMealResponseSchema,
+    signal: opts.signal,
+  });
+  return body.meal;
+}

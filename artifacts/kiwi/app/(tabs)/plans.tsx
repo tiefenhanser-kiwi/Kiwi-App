@@ -17,6 +17,7 @@ import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlans } from "@/hooks/usePlans";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { asPlanDiscoveryFilters, type PlanFilterKey } from "@/lib/api/plans";
 import { plansFilterDefault } from "@/lib/plans/filterDefault";
@@ -74,6 +75,8 @@ export default function PlansTab() {
   }, [query]);
 
   const plansQuery = usePlans(filters);
+  // WS7-6 (E) Block 2 §6 — focus-driven backstop for returning to the tab.
+  useRefetchOnFocus(plansQuery);
   // activeThisWeek is server-resolved on every GET /plans response (PRD
   // §9.2.1) — the pinned This Week callout reads it off the list query.
   const activeThisWeek = plansQuery.data?.activeThisWeek ?? null;

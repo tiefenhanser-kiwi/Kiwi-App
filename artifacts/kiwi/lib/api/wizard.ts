@@ -252,18 +252,25 @@ export async function saveWizardDraft(
  * { isActiveThisWeek: true })` against the new plan id instead — calling
  * /activate on a saved draft returns 404.
  *
+ * Accepts an optional AbortSignal so the Plan Details screen can impose a
+ * client-side timeout longer than the server's tx budget (D-WS7-080 fix —
+ * platform fetch defaults can punch mid-AI-fan-out and abort while the
+ * server is still committing the 201).
+ *
  * Propagates apiClient typed errors: `UnauthenticatedError` (401),
  * `ApiError` (404 not found / not owned / already-saved/activated,
  * 422 malformed draft, 500 tx), `ApiSchemaError` on a response-shape mismatch.
  */
 export async function activateWizardDraft(
   draftId: string,
+  opts: { signal?: AbortSignal } = {},
 ): Promise<WizardDraftMutationResponse> {
   return apiClient(
     `/wizard/drafts/${encodeURIComponent(draftId)}/activate`,
     {
       method: "POST",
       schema: WizardDraftMutationResponseSchema,
+      signal: opts.signal,
     },
   );
 }
