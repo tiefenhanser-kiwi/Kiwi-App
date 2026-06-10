@@ -58,9 +58,15 @@ function dishRow(
     // WS7-6 B-fix Block 2: MealDishLink count surfaced as `mealUseCount` on
     // the wire and used by `sort=times_cooked`. Defaults to 0 so existing
     // fixtures don't have to opt in.
+    // WS7-6 B-fix Block 3: `mealUseCount` is now the LIVE-meal link count (the
+    // value the wire shows). `archivedLinkCount` adds links to ARCHIVED meals
+    // that must NOT count toward the wire field or the times_cooked ranking.
     mealUseCount?: number;
+    archivedLinkCount?: number;
   } = {},
 ) {
+  const live = opts.mealUseCount ?? 0;
+  const archived = opts.archivedLinkCount ?? 0;
   return {
     id,
     title,
@@ -78,7 +84,13 @@ function dishRow(
     createdAt: opts.createdAt ?? new Date("2026-01-01T00:00:00.000Z"),
     userId: opts.userId ?? null,
     isArchived: opts.isArchived ?? false,
-    _count: { mealLinks: opts.mealUseCount ?? 0 },
+    // WS7-6 B-fix Block 3: link counts split by meal liveness so the stub can
+    // honor the route's FILTERED `_count` select (live count) vs an
+    // unfiltered one (live + archived). `_count` is recomputed per query in
+    // dish.findMany below from these two fields.
+    __liveLinks: live,
+    __archivedLinks: archived,
+    _count: { mealLinks: live },
   };
 }
 
@@ -129,6 +141,15 @@ function makeStubPrisma(opts: {
           | Array<
               Record<string, "asc" | "desc" | { _count: "asc" | "desc" }>
             >;
+        // WS7-6 B-fix Block 3: the route selects a FILTERED relation count;
+        // model just enough of the select shape to read its where clause.
+        select?: {
+          _count?: {
+            select?: {
+              mealLinks?: boolean | { where?: { meal?: { isArchived?: boolean } } };
+            };
+          };
+        };
       }) => {
         let rows = dishes.slice();
         const w = args.where;
@@ -184,7 +205,22 @@ function makeStubPrisma(opts: {
             return 0;
           });
         }
-        return rows;
+        // WS7-6 B-fix Block 3: project `_count.mealLinks` from the select.
+        // A `where: { meal: { isArchived: false } }` clause → live-only count;
+        // an unfiltered `mealLinks: true` → live + archived. This is what the
+        // real filtered relation count does (probe 0.2a).
+        const mlSel = args.select?._count?.select?.mealLinks;
+        const filterLive =
+          typeof mlSel === "object" &&
+          mlSel.where?.meal?.isArchived === false;
+        return rows.map((d) => ({
+          ...d,
+          _count: {
+            mealLinks: filterLive
+              ? d.__liveLinks
+              : d.__liveLinks + d.__archivedLinks,
+          },
+        }));
       },
     },
     systemSetting: {
@@ -936,6 +972,90 @@ describe("GET /me/dishes mealUseCount + sort=times_cooked", () => {
       assert.deepEqual(
         res.dishes.map((d) => d.id),
         ["d-a", "d-b"],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS7-6 B-fix Block 3 — mealUseCount counts LIVE meals only ─────────
+// Hans's June 9 ruling: links to archived meals keep their MealDishLink rows
+// but must NOT count toward the "Used in N meals" label or times_cooked.
+
+describe("GET /me/dishes mealUseCount excludes archived-meal links", () => {
+  it("wire mealUseCount counts live-meal links only, not archived ones", async () => {
+    const dishes: DishRow[] = [
+      // 2 live links + 5 archived → wire should show 2.
+      dishRow("d-mixed", "Mixed", {
+        userId: USER_ID,
+        mealUseCount: 2,
+        archivedLinkCount: 5,
+      }),
+      // 0 live + 3 archived → wire should show 0.
+      dishRow("d-archived-only", "ArchivedOnly", {
+        userId: USER_ID,
+        mealUseCount: 0,
+        archivedLinkCount: 3,
+      }),
+      // 4 live + 0 archived → wire should show 4.
+      dishRow("d-live-only", "LiveOnly", {
+        userId: USER_ID,
+        mealUseCount: 4,
+        archivedLinkCount: 0,
+      }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ dishes }));
+    try {
+      const res = await authGet(harness, "/me/dishes?sort=alpha");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        dishes: { id: string; mealUseCount: number }[];
+      };
+      const byId = new Map(body.dishes.map((d) => [d.id, d.mealUseCount]));
+      assert.equal(byId.get("d-mixed"), 2, "mixed: 2 live (5 archived ignored)");
+      assert.equal(byId.get("d-archived-only"), 0, "archived-only: 0 live");
+      assert.equal(byId.get("d-live-only"), 4, "live-only: 4 live");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("sort=times_cooked ranks by the FILTERED count — archived links can't outrank live ones", async () => {
+    // d-archived-heavy has 11 total links but only 1 live; d-live-heavy has
+    // 3 live and 0 archived. Filtered ranking must put d-live-heavy first.
+    const dishes: DishRow[] = [
+      dishRow("d-archived-heavy", "ArchivedHeavy", {
+        userId: USER_ID,
+        mealUseCount: 1,
+        archivedLinkCount: 10,
+      }),
+      dishRow("d-live-heavy", "LiveHeavy", {
+        userId: USER_ID,
+        mealUseCount: 3,
+        archivedLinkCount: 0,
+      }),
+      dishRow("d-none", "None", {
+        userId: USER_ID,
+        mealUseCount: 0,
+        archivedLinkCount: 4,
+      }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ dishes }));
+    try {
+      const res = await authGet(harness, "/me/dishes?sort=times_cooked");
+      const body = (await res.json()) as {
+        dishes: { id: string; mealUseCount: number }[];
+      };
+      // Filtered counts: live-heavy=3, archived-heavy=1, none=0.
+      // If ranking used TOTAL links (11, 3, 4) the order would be wrong.
+      assert.deepEqual(
+        body.dishes.map((d) => d.id),
+        ["d-live-heavy", "d-archived-heavy", "d-none"],
+      );
+      assert.deepEqual(
+        body.dishes.map((d) => d.mealUseCount),
+        [3, 1, 0],
       );
     } finally {
       await harness.close();

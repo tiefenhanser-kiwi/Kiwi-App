@@ -28,12 +28,22 @@ type Props = {
    *  `mealUseCount` (number of meals using the dish), not literal
    *  cook count. */
   labelOverrides?: Partial<Record<SortKey, string>>;
+  /** WS7-6 B-fix Block 3 — keys rendered greyed/muted and non-selectable.
+   *  Dish contexts pass `["last_cooked"]` (no Dish.lastUsedAt write path,
+   *  D-WS7-111). The option stays visible in the list, just disabled. */
+  disabledKeys?: readonly SortKey[];
 };
 
-export function SortDropdown({ value, onChange, labelOverrides }: Props) {
+export function SortDropdown({
+  value,
+  onChange,
+  labelOverrides,
+  disabledKeys,
+}: Props) {
   const [open, setOpen] = useState(false);
   const labelFor = (key: SortKey, fallback: string) =>
     labelOverrides?.[key] ?? fallback;
+  const isDisabled = (key: SortKey) => disabledKeys?.includes(key) ?? false;
   const current = SORT_OPTIONS.find((o) => o.key === value) ?? SORT_OPTIONS[0];
 
   return (
@@ -52,20 +62,32 @@ export function SortDropdown({ value, onChange, labelOverrides }: Props) {
         <View style={styles.menu}>
           {SORT_OPTIONS.map((opt) => {
             const isOn = opt.key === value;
+            const disabled = isDisabled(opt.key);
             return (
               <Pressable
                 key={opt.key}
+                disabled={disabled}
+                accessibilityState={{ disabled, selected: isOn }}
                 onPress={() => {
+                  if (disabled) return;
                   onChange(opt.key);
                   setOpen(false);
                 }}
                 style={({ pressed }) => [
                   styles.item,
-                  isOn && styles.itemOn,
-                  pressed && { opacity: 0.7 },
+                  isOn && !disabled && styles.itemOn,
+                  !disabled && pressed && { opacity: 0.7 },
                 ]}
               >
-                <Text style={isOn ? styles.itemTextOn : styles.itemText}>
+                <Text
+                  style={
+                    disabled
+                      ? styles.itemTextDisabled
+                      : isOn
+                        ? styles.itemTextOn
+                        : styles.itemText
+                  }
+                >
                   {labelFor(opt.key, opt.label)}
                 </Text>
               </Pressable>
@@ -142,5 +164,10 @@ const styles = StyleSheet.create({
     color: KColors.sage[700],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
+  },
+  itemTextDisabled: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[400],
+    fontFamily: "Inter_400Regular",
   },
 });

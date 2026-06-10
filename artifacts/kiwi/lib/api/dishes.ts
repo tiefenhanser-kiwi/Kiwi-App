@@ -16,6 +16,19 @@ import { MealDetailIngredientSchema, MealStepSchema } from "./meals";
 export const DISH_FILTER_KEYS = ["my_dishes", "featured", "top_rated"] as const;
 export type DishFilterKey = (typeof DISH_FILTER_KEYS)[number];
 
+// ── Sort keys ────────────────────────────────────────────────────────────
+// WS7-6 B-fix Block 3 — server-accepted ?sort= values for GET /me/dishes.
+// Mirrors the server's DISH_SORT_KEYS (artifacts/api-server/src/lib/listQuery.ts).
+// The SortDropdown's extra `last_cooked` key is NOT here — it stays greyed in
+// dish contexts (no write path for Dish.lastUsedAt, D-WS7-111).
+export const DISH_SORT_KEYS = [
+  "alpha",
+  "date_created",
+  "cook_time",
+  "times_cooked",
+] as const;
+export type DishSortKey = (typeof DISH_SORT_KEYS)[number];
+
 // ── Schemas ────────────────────────────────────────────────────────────────
 
 // One row of the Dishes-tab list. A Dish has no cuisine; `difficulty` is
@@ -32,6 +45,11 @@ export const DishListItemSchema = z.object({
   fat: z.number(),
   tags: z.array(z.string()),
   image: z.string().nullable(),
+  // WS7-6 B-fix Block 3: count of LIVE meals using this dish (the server
+  // filters out archived-meal links). Drives the "Used in N meals" label and
+  // the `times_cooked` ("Most used") sort. Non-strict zod previously stripped
+  // this silently; now surfaced so consumers can read it.
+  mealUseCount: z.number(),
 });
 export type DishListItem = z.infer<typeof DishListItemSchema>;
 
@@ -74,15 +92,32 @@ const DishDetailEnvelopeSchema = z.object({ dish: DishDetailSchema });
  * Dishes-tab chips. `filter` is a multi-select subset of DISH_FILTER_KEYS;
  * omitted/empty defers to the server default (`my_dishes`). Returns the
  * cursor-paginated union. Propagates the apiClient typed errors.
+ *
+ * WS7-6 B-fix Block 3: `opts` carries the cursor-pagination + sort params.
+ * `sort` maps 1:1 to the server's DISH_SORT_KEYS; `cursor` is the opaque
+ * `nextCursor` from a prior page; `limit` clamps server-side to [1, 100].
+ * Each option is only appended when provided, so the existing no-opts call
+ * shape (and its wire) is byte-for-byte unchanged.
  */
+export interface GetDishesOptions {
+  limit?: number;
+  cursor?: string;
+  sort?: DishSortKey;
+}
+
 export async function getDishes(
   filter?: readonly DishFilterKey[],
+  opts: GetDishesOptions = {},
 ): Promise<DishListResponse> {
-  const query =
-    filter && filter.length > 0
-      ? `?filter=${encodeURIComponent(filter.join(","))}`
-      : "";
-  return apiClient(`/me/dishes${query}`, { schema: DishListResponseSchema });
+  const params = new URLSearchParams();
+  if (filter && filter.length > 0) params.set("filter", filter.join(","));
+  if (opts.sort) params.set("sort", opts.sort);
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.cursor) params.set("cursor", opts.cursor);
+  const query = params.toString();
+  return apiClient(`/me/dishes${query ? `?${query}` : ""}`, {
+    schema: DishListResponseSchema,
+  });
 }
 
 /**

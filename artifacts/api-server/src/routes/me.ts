@@ -188,8 +188,10 @@ export interface DishListItem {
   image: string | null;
   // WS7-6 B-fix Block 2: number of MealDishLink rows referencing this dish —
   // the source for the DishChooserSheet "Used in N meals" label and the
-  // `sort=times_cooked` ranking. Counts all links, including links to
-  // archived meals (Meal.isArchived flips a flag without removing the link).
+  // `sort=times_cooked` ranking. WS7-6 B-fix Block 3 (Hans's June 9 ruling):
+  // counts links to LIVE meals only (`meal.isArchived: false`). Archived
+  // meals keep their MealDishLink rows (Phase 0.3, Block 2), but a stale
+  // draft would read as "used in a meal I can't find", so it's excluded.
   mealUseCount: number;
 }
 
@@ -198,6 +200,10 @@ export interface DishListItem {
 // WS7-6 B-fix Block 2: `_count.mealLinks` is selected for both the wire field
 // and the `sort=times_cooked` keyset value. `toDishListShape` ignores the
 // extra `createdAt` field.
+// WS7-6 B-fix Block 3: the count is FILTERED to live meals only
+// (`meal.isArchived: false`) per Hans's June 9 ruling. Prisma 6.19.3 supports
+// a filtered relation count in `select` (probe 0.2a) — but NOT in `orderBy`
+// (probe 0.2b), so `sort=times_cooked` ranks in memory off this same value.
 const DISH_LIST_SELECT = {
   id: true,
   title: true,
@@ -211,7 +217,7 @@ const DISH_LIST_SELECT = {
   tags: true,
   imageUrl: true,
   createdAt: true,
-  _count: { select: { mealLinks: true } },
+  _count: { select: { mealLinks: { where: { meal: { isArchived: false } } } } },
 } as const;
 
 interface DishListRow {
@@ -1394,6 +1400,12 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   // the live link table, not the dead `Dish.timesCooked` column. Mobile
   // relabels this key "Most used" in dish contexts. `last_cooked` remains
   // unaccepted (still backed by the writeless `Dish.lastUsedAt`, D-WS7-111).
+  //
+  // WS7-6 B-fix Block 3: the displayed count is now FILTERED to live meals
+  // (`meal.isArchived: false`). Prisma can't ORDER BY a filtered relation
+  // count (probe 0.2b), so for `times_cooked` we fetch in a stable DB order
+  // (id asc) and rank in memory by the same filtered `_count.mealLinks` the
+  // wire shows — keeping the sort and the label consistent.
   router.get("/me/dishes", requireAuth, async (req, res) => {
     const parsed = parseFilterParam(req.query.filter, DISHES_FILTER_KEYS, [
       "my_dishes",
@@ -1410,14 +1422,16 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     const cursor = decodeKeysetCursor(req.query.cursor);
 
     // `id: "asc"` is the tiebreaker for every sort so pages are stable when
-    // multiple rows share the primary sort value.
+    // multiple rows share the primary sort value. `times_cooked` fetches in a
+    // stable id order and is re-ranked in memory below (filtered count can't
+    // be expressed in a Prisma orderBy — probe 0.2b).
     const orderBy: Prisma.DishOrderByWithRelationInput[] =
       sort === "date_created"
         ? [{ createdAt: "desc" }, { id: "asc" }]
         : sort === "cook_time"
           ? [{ estimatedTimeMinutes: "asc" }, { id: "asc" }]
           : sort === "times_cooked"
-            ? [{ mealLinks: { _count: "desc" } }, { id: "asc" }]
+            ? [{ id: "asc" }]
             : [{ title: "asc" }, { id: "asc" }];
 
     try {
@@ -1440,6 +1454,17 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         }
       }
       const merged = mergeById(blocks);
+      // WS7-6 B-fix Block 3: rank `times_cooked` in memory by the filtered
+      // (live-meal-only) link count desc, id asc — the same value the wire
+      // emits and the keyset cursor encodes. Prisma can't ORDER BY a filtered
+      // relation count (probe 0.2b); the route already holds all rows in
+      // memory so this is cheap. Other sorts keep their Prisma order.
+      if (sort === "times_cooked") {
+        merged.sort(
+          (a, b) =>
+            b._count.mealLinks - a._count.mealLinks || a.id.localeCompare(b.id),
+        );
+      }
       const getSortValue = (r: DishListRow): string | number => {
         switch (sort) {
           case "date_created":

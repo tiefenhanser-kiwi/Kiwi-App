@@ -15,13 +15,13 @@ import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
 } from "react-native-draggable-flatlist";
-import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { DishChooserSheet } from "@/components/DishChooserSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import {
   KColors,
   KPalette,
@@ -31,7 +31,8 @@ import {
 } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { fromServerDifficulty, toServerDifficulty } from "@/lib/api/builder";
-import { getDishes } from "@/lib/api/dishes";
+import { type DishSortKey } from "@/lib/api/dishes";
+import { useDishes } from "@/hooks/useDishes";
 import type { SaveMealInput, UpdateMealInput } from "@/lib/api/meals";
 import { useMeal } from "@/hooks/useMeal";
 import { CUISINES_TIER_1, CUISINES_TIER_2 } from "@/lib/domain";
@@ -65,6 +66,15 @@ const SERVINGS_MAX = 12;
 
 let nextUid = 1;
 const allocUid = () => nextUid++;
+
+// WS7-6 B-fix Block 3 — Mode-C dish picker mirrors the Recipes→Dishes sort UX
+// (Hans ruled parity across dish surfaces). `times_cooked` relabels to "Most
+// used"; `last_cooked` is greyed (no Dish.lastUsedAt write path, D-WS7-111).
+const DISH_SORT_LABEL_OVERRIDES = { times_cooked: "Most used" };
+const DISH_DISABLED_SORT_KEYS: readonly SortKey[] = ["last_cooked"];
+function toDishSortKey(key: SortKey): DishSortKey {
+  return key === "last_cooked" ? "alpha" : key;
+}
 
 const newIngredient = (
   partial?: Partial<Omit<BuilderIngredient, "uid">>,
@@ -180,13 +190,13 @@ export default function MealBuilderScreen() {
   // ingredients; CombineReview gracefully degrades to showing dish names only
   // (a future block can fetch detail per selected id if review parity is
   // required pre-save).
-  const dishesQuery = useQuery({
-    queryKey: ["dishes", "list", ["my_dishes"]],
-    queryFn: () => getDishes(["my_dishes"]),
-  });
+  // WS7-6 B-fix Block 3 — Mode C uses the shared infinite useDishes hook
+  // (sort + cursor pagination) for parity with Recipes→Dishes. Sort defaults
+  // to alpha; the picker's SortDropdown drives the server ?sort= param.
+  const [combineSortKey, setCombineSortKey] = useState<SortKey>("alpha");
+  const dishesQuery = useDishes(["my_dishes"], toDishSortKey(combineSortKey));
   const savedDishes = useMemo<SavedDish[]>(() => {
-    const rows = dishesQuery.data?.dishes ?? [];
-    return rows.map<SavedDish>((d) => ({
+    return dishesQuery.dishes.map<SavedDish>((d) => ({
       id: d.id,
       name: d.title,
       cuisineType: undefined,
@@ -197,10 +207,12 @@ export default function MealBuilderScreen() {
       proteinGPerServing: d.protein,
       carbsGPerServing: d.carbs,
       fatGPerServing: d.fat,
-      mealUseCount: 0,
+      // WS7-6 B-fix Block 3: the wire now carries the live-meal use count;
+      // map it through (was hardcoded 0 pre-Block-3).
+      mealUseCount: d.mealUseCount,
       estimatedTimeMinutes: d.minutes,
     }));
-  }, [dishesQuery.data?.dishes]);
+  }, [dishesQuery.dishes]);
   const [selectedDishIds, setSelectedDishIds] = useState<string[]>([]);
   const [combineReview, setCombineReview] = useState(false);
 
@@ -863,6 +875,11 @@ export default function MealBuilderScreen() {
             dishesLoading={dishesQuery.isLoading}
             dishesError={dishesQuery.isError}
             onRetryDishes={() => void dishesQuery.refetch()}
+            sortKey={combineSortKey}
+            onSortChange={setCombineSortKey}
+            hasNextPage={dishesQuery.hasNextPage}
+            isFetchingNextPage={dishesQuery.isFetchingNextPage}
+            onLoadMore={() => void dishesQuery.fetchNextPage()}
             selectedDishIds={selectedDishIds}
             onToggle={toggleSelectedDish}
             onContinue={() => {
@@ -1589,6 +1606,15 @@ interface CombinePickerProps extends MetaFieldsProps {
   dishesError?: boolean;
   /** WS7-6 1D — retry callback for the error state. */
   onRetryDishes?: () => void;
+  /** WS7-6 B-fix Block 3 — sort dropdown state (parity with Recipes→Dishes). */
+  sortKey: SortKey;
+  onSortChange: (key: SortKey) => void;
+  /** WS7-6 B-fix Block 3 — cursor-pagination footer. The picker lives inside
+   *  a ScrollView so it can't host a VirtualizedList onEndReached; a "Load
+   *  more" footer drives fetchNextPage instead. */
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  onLoadMore?: () => void;
   selectedDishIds: string[];
   onToggle: (id: string) => void;
   onContinue: () => void;
@@ -1606,7 +1632,15 @@ function CombinePicker(p: CombinePickerProps) {
     <View style={{ marginTop: KSpacing.lg, gap: KSpacing.lg }}>
       <MetaFields {...p} />
       <View style={{ gap: KSpacing.sm }}>
-        <Text style={s.subHeader}>Pick dishes to combine</Text>
+        <View style={s.combineHeaderRow}>
+          <Text style={s.subHeader}>Pick dishes to combine</Text>
+          <SortDropdown
+            value={p.sortKey}
+            onChange={p.onSortChange}
+            labelOverrides={DISH_SORT_LABEL_OVERRIDES}
+            disabledKeys={DISH_DISABLED_SORT_KEYS}
+          />
+        </View>
         <Text style={s.helperText}>
           Selected dishes will become this meal&apos;s components. You can edit
           ingredients afterward.
@@ -1635,14 +1669,31 @@ function CombinePicker(p: CombinePickerProps) {
             first.
           </Text>
         ) : (
-          p.savedDishes.map((dish) => (
-            <DishPickerRow
-              key={dish.id}
-              dish={dish}
-              isSelected={selectedSet.has(dish.id)}
-              onToggle={p.onToggle}
-            />
-          ))
+          <>
+            {p.savedDishes.map((dish) => (
+              <DishPickerRow
+                key={dish.id}
+                dish={dish}
+                isSelected={selectedSet.has(dish.id)}
+                onToggle={p.onToggle}
+              />
+            ))}
+            {/* WS7-6 B-fix Block 3 — cursor pagination. The picker sits inside
+                the builder's ScrollView, so a "Load more" footer drives
+                fetchNextPage rather than a nested VirtualizedList. */}
+            {p.isFetchingNextPage ? (
+              <View style={s.dishesStatusRow}>
+                <ActivityIndicator size="small" color={KColors.sage[700]} />
+                <Text style={s.dishesStatusText}>Loading more…</Text>
+              </View>
+            ) : p.hasNextPage && p.onLoadMore ? (
+              <Button
+                label="Load more dishes"
+                variant="ghost"
+                onPress={p.onLoadMore}
+              />
+            ) : null}
+          </>
         )}
         <Button
           label="Continue with selected"
@@ -2016,6 +2067,15 @@ const s = StyleSheet.create({
     color: KColors.neutral[900],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
+  },
+  // WS7-6 B-fix Block 3 — header row pairs the "Pick dishes" title with the
+  // sort dropdown (zIndex keeps the open menu above the dish rows below).
+  combineHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: KSpacing.sm,
+    zIndex: 10,
   },
   addLinkBtn: {
     flexDirection: "row",

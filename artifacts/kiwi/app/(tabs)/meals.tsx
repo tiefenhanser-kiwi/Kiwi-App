@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,7 +31,11 @@ import {
   type MealFilterKey,
   type MealListItem,
 } from "@/lib/api/meals";
-import { type DishFilterKey, type DishListItem } from "@/lib/api/dishes";
+import {
+  type DishFilterKey,
+  type DishListItem,
+  type DishSortKey,
+} from "@/lib/api/dishes";
 import { dishesEmptyCopy } from "@/lib/dishes/emptyStateCopy";
 import { dishesFilterDefault } from "@/lib/dishes/filterDefault";
 import { mealsEmptyCopy } from "@/lib/meals/emptyStateCopy";
@@ -69,21 +75,16 @@ function sortMealsClient(
   return out;
 }
 
-// Client-side dish sort — same shape rules as sortMealsClient. The Main/Side
-// type filter UI was dropped in C3 c2 because DishListItem has no `type`
-// field (D-WS7-050 extension).
-function sortDishesClient(
-  list: readonly DishListItem[],
-  key: SortKey,
-): DishListItem[] {
-  const out = [...list];
-  if (key === "alpha") {
-    out.sort((a, b) => a.title.localeCompare(b.title));
-  } else if (key === "cook_time") {
-    out.sort((a, b) => a.minutes - b.minutes);
-  }
-  return out;
+// WS7-6 B-fix Block 3: dishes now sort SERVER-side (the dropdown drives the
+// ?sort= param and the list re-queries). The old client-side sortDishesClient
+// is gone. `last_cooked` is greyed in the dropdown (no Dish.lastUsedAt write
+// path, D-WS7-111) so it's never selectable; map it defensively to alpha.
+function toDishSortKey(key: SortKey): DishSortKey {
+  return key === "last_cooked" ? "alpha" : key;
 }
+
+// Sort keys greyed/disabled in dish contexts.
+const DISH_DISABLED_SORT_KEYS: readonly SortKey[] = ["last_cooked"];
 
 export default function MealsTab() {
   const router = useRouter();
@@ -130,12 +131,11 @@ export default function MealsTab() {
     [mealsQuery.data, mealSort],
   );
 
-  const dishesQuery = useDishes([dishFilter]);
-
-  const visibleDishes = useMemo<DishListItem[]>(
-    () => sortDishesClient(dishesQuery.data?.dishes ?? [], dishSortKey),
-    [dishesQuery.data, dishSortKey],
-  );
+  // Server-side sort + infinite scroll (WS7-6 B-fix Block 3). The dropdown's
+  // key maps 1:1 to the server ?sort= param; changing it re-queries (the key
+  // is part of the React Query key). `dishes` is the flattened page chain.
+  const dishesQuery = useDishes([dishFilter], toDishSortKey(dishSortKey));
+  const visibleDishes: DishListItem[] = dishesQuery.dishes;
 
   const handleAddMeal = () => {
     router.push("/meal-builder");
@@ -196,7 +196,11 @@ export default function MealsTab() {
         }}
       />
       <Header title="Recipes" />
-      <Screen>
+      {/* WS7-6 B-fix Block 3: Screen is non-scroll so the Dishes tab can host
+          its own FlatList (infinite scroll). Each sub-tab owns its scrolling
+          container — nesting a VirtualizedList inside a ScrollView would break
+          onEndReached. */}
+      <Screen scroll={false}>
         {/* Sub-tab toggle */}
         <View style={s.toggleRow}>
           <Pressable
@@ -236,7 +240,7 @@ export default function MealsTab() {
         </View>
 
         {subTab === "meals" ? (
-          <ScrollView contentContainerStyle={s.scroll}>
+          <ScrollView style={s.flex1} contentContainerStyle={s.scroll}>
             <Pressable
               onPress={handleAddMeal}
               style={({ pressed }) => [
@@ -290,63 +294,89 @@ export default function MealsTab() {
             </View>
           </ScrollView>
         ) : (
-          <ScrollView contentContainerStyle={s.scroll}>
-            <Pressable
-              onPress={handleAddDish}
-              style={({ pressed }) => [
-                s.addBtn,
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Text style={s.addBtnText}>+ Add Dish</Text>
-            </Pressable>
+          <FlatList<DishListItem>
+            style={s.flex1}
+            contentContainerStyle={s.scroll}
+            data={visibleDishes}
+            keyExtractor={(d) => d.id}
+            ListHeaderComponent={
+              <View>
+                <Pressable
+                  onPress={handleAddDish}
+                  style={({ pressed }) => [
+                    s.addBtn,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <Text style={s.addBtnText}>+ Add Dish</Text>
+                </Pressable>
 
-            <View style={s.filterWrap}>
-              <FilterChipRow<DishFilterKey>
-                options={DISHES_CHIPS}
-                selected={[dishFilter]}
-                onToggle={(key) => setDishFilter(key)}
+                <View style={s.filterWrap}>
+                  <FilterChipRow<DishFilterKey>
+                    options={DISHES_CHIPS}
+                    selected={[dishFilter]}
+                    onToggle={(key) => setDishFilter(key)}
+                  />
+                </View>
+
+                <View style={[s.controlsRow, s.controlsRowList]}>
+                  <Text style={s.sectionLabel}>
+                    {DISHES_CHIPS.find((c) => c.key === dishFilter)?.label}
+                  </Text>
+                  <SortDropdown
+                    value={dishSortKey}
+                    onChange={setDishSortKey}
+                    labelOverrides={DISH_SORT_LABEL_OVERRIDES}
+                    disabledKeys={DISH_DISABLED_SORT_KEYS}
+                  />
+                </View>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <DishRow
+                dish={item}
+                onPress={() => handleOpenDish(item.id)}
+                onCookNow={handleCookNow}
+                onAddToMeal={(dishId, dishName) =>
+                  setAddDishToMealFor({ dishId, dishName })
+                }
+                sortKey={dishSortKey}
               />
-            </View>
-
-            <View style={s.controlsRow}>
-              <Text style={s.sectionLabel}>
-                {DISHES_CHIPS.find((c) => c.key === dishFilter)?.label}
-              </Text>
-              <SortDropdown
-                value={dishSortKey}
-                onChange={setDishSortKey}
-                labelOverrides={DISH_SORT_LABEL_OVERRIDES}
-              />
-            </View>
-
-            <View style={s.list}>
-              {dishesQuery.isLoading ? (
+            )}
+            ItemSeparatorComponent={() => <View style={s.rowGap} />}
+            // Prefetch-ahead: fire while the user is still 50% of a viewport
+            // from the end so the next page is usually in before they reach it
+            // (Hans-ruled threshold).
+            onEndReachedThreshold={0.5}
+            onEndReached={() => {
+              if (dishesQuery.hasNextPage && !dishesQuery.isFetchingNextPage) {
+                void dishesQuery.fetchNextPage();
+              }
+            }}
+            ListEmptyComponent={
+              dishesQuery.isLoading ? (
                 <Text style={s.loadingText}>Loading…</Text>
               ) : dishesQuery.isError ? (
                 <Text style={s.loadingText}>
                   Couldn’t load dishes right now. Try again in a moment.
                 </Text>
-              ) : visibleDishes.length === 0 ? (
+              ) : (
                 <View style={s.empty}>
                   <Text style={s.emptyText}>{dishesEmptyCopy(dishFilter)}</Text>
                 </View>
-              ) : (
-                visibleDishes.map((dish) => (
-                  <DishRow
-                    key={dish.id}
-                    dish={dish}
-                    onPress={() => handleOpenDish(dish.id)}
-                    onCookNow={handleCookNow}
-                    onAddToMeal={(dishId, dishName) =>
-                      setAddDishToMealFor({ dishId, dishName })
-                    }
-                    sortKey={dishSortKey}
-                  />
-                ))
-              )}
-            </View>
-          </ScrollView>
+              )
+            }
+            // Footer spinner for next-page fetches only — the first-page load
+            // shows in ListEmptyComponent, so the list is never replaced by a
+            // spinner mid-scroll.
+            ListFooterComponent={
+              dishesQuery.isFetchingNextPage ? (
+                <View style={s.footerLoading}>
+                  <ActivityIndicator size="small" color={KColors.sage[700]} />
+                </View>
+              ) : null
+            }
+          />
         )}
       </Screen>
     </View>
@@ -415,6 +445,12 @@ const s = StyleSheet.create({
     marginTop: KSpacing.md,
     gap: KSpacing.sm,
   },
+  flex1: { flex: 1 },
+  // FlatList header's controls row needs the bottom gap the old `s.list`
+  // marginTop used to provide before the first row.
+  controlsRowList: { marginBottom: KSpacing.md },
+  rowGap: { height: KSpacing.sm },
+  footerLoading: { paddingVertical: KSpacing.md, alignItems: "center" },
   loadingText: {
     fontSize: KType.size.sm,
     color: KColors.neutral[600],

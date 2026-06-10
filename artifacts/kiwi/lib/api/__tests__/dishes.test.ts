@@ -47,6 +47,8 @@ const DISH_LIST_ITEM = {
   fat: 9,
   tags: ["side"],
   image: null,
+  // WS7-6 B-fix Block 3: live-meal use count is now a required wire field.
+  mealUseCount: 2,
 };
 
 const DISH_LIST_RESPONSE = {
@@ -170,6 +172,38 @@ test("getDishes propagates a 401 as an UnauthenticatedError", async () => {
   );
 });
 
+// ── getDishes sort/limit/cursor params (WS7-6 B-fix Block 3) ─────────────
+
+test("getDishes omits sort/limit/cursor when no opts are passed", async () => {
+  await getDishes(["my_dishes"]);
+  assert.ok(lastUrl, "expected a url");
+  assert.ok(!lastUrl!.includes("sort="), `sort leaked: ${lastUrl}`);
+  assert.ok(!lastUrl!.includes("limit="), `limit leaked: ${lastUrl}`);
+  assert.ok(!lastUrl!.includes("cursor="), `cursor leaked: ${lastUrl}`);
+  // filter is still present and is the only param.
+  assert.ok(lastUrl!.endsWith("/me/dishes?filter=my_dishes"), lastUrl!);
+});
+
+test("getDishes appends sort, limit and cursor when provided", async () => {
+  await getDishes(["my_dishes"], {
+    sort: "times_cooked",
+    limit: 25,
+    cursor: "opaque-cursor-abc",
+  });
+  assert.ok(lastUrl, "expected a url");
+  assert.ok(lastUrl!.includes("sort=times_cooked"), lastUrl!);
+  assert.ok(lastUrl!.includes("limit=25"), lastUrl!);
+  // URLSearchParams percent-encodes nothing here, but assert the value round-trips.
+  assert.ok(lastUrl!.includes("cursor=opaque-cursor-abc"), lastUrl!);
+});
+
+test("getDishes can send sort with no filter", async () => {
+  await getDishes(undefined, { sort: "cook_time" });
+  assert.ok(lastUrl, "expected a url");
+  assert.ok(!lastUrl!.includes("filter="), `filter leaked: ${lastUrl}`);
+  assert.ok(lastUrl!.endsWith("/me/dishes?sort=cook_time"), lastUrl!);
+});
+
 // ── getDish ─────────────────────────────────────────────────────────────────
 
 test("getDish unwraps and parses the dish envelope", async () => {
@@ -236,7 +270,112 @@ test("useDishes transitions from loading to data", async () => {
   await settle(qc);
 
   assert.equal(latest!.isLoading, false);
-  assert.equal(latest!.data?.dishes.length, 1);
+  // useInfiniteQuery now: the hook exposes a flattened `dishes` helper.
+  assert.equal(latest!.dishes.length, 1);
+  renderer.unmount();
+});
+
+test("useDishes paginates two pages and flattens them; hasNextPage flips false", async () => {
+  // Page 1 (no cursor) → 2 rows + a cursor; page 2 (cursor present) → 1 row,
+  // nextCursor null. The fetch mock branches on the cursor query param.
+  const row = (id: string) => ({ ...DISH_LIST_ITEM, id });
+  (globalThis as { fetch: typeof fetch }).fetch = (async (url: string) => {
+    lastUrl = url;
+    if (url.includes("cursor=")) {
+      return mockJson({ dishes: [row("d-3")], nextCursor: null });
+    }
+    return mockJson({ dishes: [row("d-1"), row("d-2")], nextCursor: "cur-1" });
+  }) as unknown as typeof fetch;
+
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  let latest: ReturnType<typeof useDishes> | null = null;
+  function Probe(): null {
+    latest = useDishes(["my_dishes"]);
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(Probe),
+      ),
+    );
+  });
+  await settle(qc);
+
+  // Page 1 loaded: 2 flattened rows, more pages available.
+  assert.equal(latest!.dishes.length, 2);
+  assert.equal(latest!.hasNextPage, true);
+  assert.deepEqual(
+    latest!.dishes.map((d) => d.id),
+    ["d-1", "d-2"],
+  );
+
+  // Fetch page 2 → flattened to 3, no more pages.
+  await act(async () => {
+    await latest!.fetchNextPage();
+  });
+  await settle(qc);
+
+  assert.equal(latest!.dishes.length, 3);
+  assert.equal(latest!.hasNextPage, false);
+  assert.deepEqual(
+    latest!.dishes.map((d) => d.id),
+    ["d-1", "d-2", "d-3"],
+  );
+  // Page 2 request carried the cursor minted by page 1.
+  assert.ok(lastUrl?.includes("cursor=cur-1"), `unexpected url: ${lastUrl}`);
+  renderer.unmount();
+});
+
+test("useDishes refetches with the new ?sort= when the sort key changes", async () => {
+  const seenSorts: string[] = [];
+  (globalThis as { fetch: typeof fetch }).fetch = (async (url: string) => {
+    lastUrl = url;
+    const m = /[?&]sort=([^&]+)/.exec(url);
+    if (m) seenSorts.push(m[1]);
+    return mockJson(DISH_LIST_RESPONSE);
+  }) as unknown as typeof fetch;
+
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  function Probe({ sort }: { sort: "alpha" | "times_cooked" }): null {
+    useDishes(["my_dishes"], sort);
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(Probe, { sort: "alpha" }),
+      ),
+    );
+  });
+  await settle(qc);
+  assert.ok(seenSorts.includes("alpha"), `alpha not requested: ${seenSorts}`);
+
+  // Flip the sort — a distinct query key → a fresh fetch with the new param.
+  await act(async () => {
+    renderer.update(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(Probe, { sort: "times_cooked" }),
+      ),
+    );
+  });
+  await settle(qc);
+  assert.ok(
+    seenSorts.includes("times_cooked"),
+    `times_cooked not requested after sort change: ${seenSorts}`,
+  );
   renderer.unmount();
 });
 
