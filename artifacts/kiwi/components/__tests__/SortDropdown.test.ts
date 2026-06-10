@@ -46,6 +46,62 @@ async function openMenu(props: {
   return renderer;
 }
 
+// Option rows are the only Pressables carrying an accessibilityState with a
+// `selected` flag (the trigger shows the current label but has no such state,
+// and the backdrop has an accessibilityLabel instead).
+function optionPressables(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root
+    .findAllByType(Pressable)
+    .filter(
+      (p) =>
+        p.props.accessibilityState != null &&
+        "selected" in p.props.accessibilityState,
+    );
+}
+
+test("SortDropdown: menu is hidden until opened, then renders all options in the Modal", async () => {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(SortDropdown, {
+        value: "alpha" as SortKey,
+        onChange: () => {},
+        disabledKeys: ["last_cooked"],
+      }),
+    );
+  });
+  // Closed: only the trigger Pressable exists, no option labels rendered.
+  assert.equal(optionPressables(renderer).length, 0, "menu rendered while closed");
+
+  const trigger = renderer.root.findAllByType(Pressable)[0];
+  await act(async () => {
+    trigger.props.onPress({});
+  });
+  // Open: all five options present (in the Modal portal).
+  assert.equal(optionPressables(renderer).length, 5, "all options should render");
+  renderer.unmount();
+});
+
+test("SortDropdown: tapping the backdrop closes the menu", async () => {
+  const renderer = await openMenu({
+    value: "alpha",
+    onChange: () => {},
+    disabledKeys: ["last_cooked"],
+  });
+  assert.equal(optionPressables(renderer).length, 5);
+
+  // The backdrop is the Pressable labeled for dismissal.
+  const backdrop = renderer.root
+    .findAllByType(Pressable)
+    .find((p) => p.props.accessibilityLabel === "Close sort menu");
+  assert.ok(backdrop, "backdrop not found");
+  await act(async () => {
+    backdrop!.props.onPress({});
+  });
+  assert.equal(optionPressables(renderer).length, 0, "menu should close");
+  renderer.unmount();
+});
+
 test("SortDropdown: a disabledKey option is non-selectable (disabled=true, no onChange)", async () => {
   const picked: SortKey[] = [];
   const renderer = await openMenu({
