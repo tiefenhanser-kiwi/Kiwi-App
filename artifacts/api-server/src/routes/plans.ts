@@ -53,6 +53,7 @@ import {
 import {
   currentWeekRange,
   didNewlyCoverNow,
+  isInstanceActiveThisWeek,
   resolveThisWeekWinnerId,
 } from "../lib/planDates";
 import { sortPlanItemsCanonical } from "../lib/planItemSort";
@@ -827,12 +828,13 @@ export function createPlansRouter(
           changedFields.add("status");
           data.status = body.status;
         }
-        // WS7-6 (E) — isActiveThisWeek is no longer stored. The body field
-        // is still accepted (decision #2 — wire shape stays a boolean
-        // while Block 2 mobile transitions); when set true on an undated
-        // plan with no body dates, it triggers the currentWeekRange()
-        // auto-date envelope below. Otherwise it is advisory and not
-        // persisted directly.
+        // WS7-6 (E) Block 2 — isActiveThisWeek is no longer stored, but
+        // the body field is now load-bearing: it is the chip's one-tap
+        // "make this my week" designation. Effect: (1) the envelope below
+        // sets dates to currentWeekRange() (server owns the week
+        // definition), and (2) the stamp-fallback after seam B guarantees
+        // activatedAt = now so the resolver picks this row as winner.
+        // Never persisted as a column; the projection re-derives it.
         if (
           body.breakfastOverrides !== undefined &&
           body.breakfastOverrides !== row.breakfastOverrides
@@ -858,30 +860,98 @@ export function createPlansRouter(
             Prisma.DbNull;
         }
 
-        // WS7-5b-mobile-PRE — auto-date envelope. Fires when the PATCH
-        // body says "active this week" AND the plan is currently undated
-        // AND the body did NOT supply its own dates. Body dates always
-        // win; already-dated plans are never overridden; non-active and
-        // unrelated PATCHes are never touched. Uses the shared Sun-Sat
-        // currentWeekRange() — same definition as draft-activate. WS7-6
-        // (E): this is now the ONLY way the stored "this week" semantic
-        // is materialized via the boolean body field — Block 2 mobile
-        // will eventually send explicit dates instead.
+        // WS7-6 (E) Block 2 — chip auto-date envelope. Product contract:
+        // "Cook This Week" is a single one-tap "make this my week" action
+        // for a plan in ANY date state (past, future, undated, or
+        // already-this-week). When the body says active=true the dates
+        // ALWAYS move to currentWeekRange(); server owns the week
+        // definition so mobile sends ONLY the boolean. An explicit
+        // body.startDate / body.endDate in the same PATCH wins —
+        // activation does NOT clobber a deliberate date edit (the chip
+        // never co-sends dates, but keeps the contract sane for other
+        // callers). Only adds to changedFields when the value actually
+        // differs from the stored row, so an already-exactly-this-week
+        // plan does not emit a spurious plan_date_range_edited event or
+        // bump revisionId for a no-op date write — the stamp fallback
+        // below catches that case.
         if (
           body.isActiveThisWeek === true &&
-          row.startDate === null &&
           body.startDate === undefined &&
           body.endDate === undefined
         ) {
           const week = currentWeekRange();
           const autoStart = new Date(week.startDate);
           const autoEnd = new Date(week.endDate);
-          data.startDate = autoStart;
-          data.endDate = autoEnd;
-          changedFields.add("startDate");
-          changedFields.add("endDate");
-          nextStartDate = autoStart;
-          nextEndDate = autoEnd;
+          if (isoOrNull(autoStart) !== isoOrNull(row.startDate)) {
+            data.startDate = autoStart;
+            changedFields.add("startDate");
+            nextStartDate = autoStart;
+          }
+          if (isoOrNull(autoEnd) !== isoOrNull(row.endDate)) {
+            data.endDate = autoEnd;
+            changedFields.add("endDate");
+            nextEndDate = autoEnd;
+          }
+        }
+
+        // WS7-6 (E) Block 1 REWORK seam B — stamp activatedAt iff the
+        // date change makes the plan NEWLY cover `now`. Same-state writes
+        // (covers → covers re-date) and silent demotions (covers →
+        // not-covering) do NOT stamp. Computed once here, reused below
+        // to gate the plan_activated_this_week emit so the stamp and
+        // the emit decision agree by construction. Verified against the
+        // resolver winner by the equivalence test in plans.test.ts.
+        //
+        // WS7-6 (E) Block 2 — computed BEFORE the noop guard so the chip
+        // activation stamp fallback can short-circuit the
+        // already-exactly-this-week case (envelope produced no date diff
+        // → changedFields would be empty → noop would skip the stamp).
+        const nextRow = {
+          startDate: changedFields.has("startDate")
+            ? (nextStartDate ?? null)
+            : row.startDate,
+          endDate: changedFields.has("endDate")
+            ? (nextEndDate ?? null)
+            : row.endDate,
+        };
+        const didNewlyCover =
+          (changedFields.has("startDate") ||
+            changedFields.has("endDate")) &&
+          didNewlyCoverNow(
+            { startDate: row.startDate, endDate: row.endDate },
+            nextRow,
+          );
+        if (didNewlyCover) {
+          data.activatedAt = new Date();
+        }
+
+        // WS7-6 (E) Block 2 — chip activation stamp fallback + D-WS7-106
+        // tightening. Seam B above stamps activatedAt when the date
+        // change moves not-covering → covering (the future / past /
+        // undated input states the envelope just transformed). When the
+        // plan ALREADY exactly covered this week before the chip tap,
+        // the envelope produces no startDate / endDate diff and seam B
+        // does not fire — but the contract requires activatedAt to
+        // advance so the resolver picks this row over a pre-existing
+        // covering sibling (greatest activatedAt wins). Stamp here, and
+        // add activatedAt to changedFields so the noop guard below does
+        // not bail out on a flag-only PATCH against an already-this-week
+        // plan.
+        //
+        // D-WS7-106 — both the fallback stamp AND the emit gate also
+        // require the post-PATCH range to cover `now`. A
+        // self-contradictory PATCH like
+        // { isActiveThisWeek: true, startDate: <future>, endDate: <future> }
+        // (the chip never sends this, but the API contract allows it)
+        // must NOT leave a stale activatedAt on a row the resolver
+        // cannot pick. Coverage is checked with the shared day-granular
+        // helper from lib/planDates.ts — single source of truth with the
+        // resolver basis (D-WS7-103). Never stamps on
+        // isActiveThisWeek: false; never when the field is absent.
+        const nextCoversNow = isInstanceActiveThisWeek(nextRow);
+        if (body.isActiveThisWeek === true && !didNewlyCover && nextCoversNow) {
+          data.activatedAt = new Date();
+          changedFields.add("activatedAt");
         }
 
         // Nothing actually changed -- return current row as if it had.
@@ -895,31 +965,6 @@ export function createPlansRouter(
           changedFields.size === 1 && changedFields.has("name");
         if (!isNameOnly) {
           data.revisionId = { increment: 1 };
-        }
-
-        // WS7-6 (E) Block 1 REWORK seam B — stamp activatedAt iff the
-        // date change makes the plan NEWLY cover `now`. Same-state writes
-        // (covers → covers re-date) and silent demotions (covers →
-        // not-covering) do NOT stamp. Computed once here, reused below
-        // to gate the plan_activated_this_week emit so the stamp and
-        // the emit decision agree by construction. Verified against the
-        // resolver winner by the equivalence test in plans.test.ts.
-        const didNewlyCover =
-          (changedFields.has("startDate") ||
-            changedFields.has("endDate")) &&
-          didNewlyCoverNow(
-            { startDate: row.startDate, endDate: row.endDate },
-            {
-              startDate: changedFields.has("startDate")
-                ? (nextStartDate ?? null)
-                : row.startDate,
-              endDate: changedFields.has("endDate")
-                ? (nextEndDate ?? null)
-                : row.endDate,
-            },
-          );
-        if (didNewlyCover) {
-          data.activatedAt = new Date();
         }
 
         const updated = await tx.mealPlanInstance.update({
@@ -977,15 +1022,23 @@ export function createPlansRouter(
           });
         }
         // WS7-6 (E) Block 1 c2 / REWORK c3 — plan_activated_this_week
-        // gates on the SAME didNewlyCover boolean computed above. The
-        // stamp (activatedAt = now in the update data above) and the
-        // emit fire together iff the date change moves the plan from
-        // not-covering to covering. Same-state writes (covers → covers
-        // re-date) and silent demotions (covers → not-covering) do
-        // neither. Verified by the equivalence test in plans.test.ts:
-        // after this branch fires, the patched row IS the resolver
-        // winner (freshest activatedAt wins).
-        if (didNewlyCover) {
+        // fires whenever the PATCH stamps activatedAt: seam B (date
+        // change moves prev→covers) OR Block 2 chip-fallback
+        // (body.isActiveThisWeek=true with no date diff, i.e. plan
+        // already exactly covers this week). Same-state writes without
+        // the flag (covers → covers re-date via explicit dates) and
+        // silent demotions (covers → not-covering) do neither. By
+        // analogy with seam C, every chip tap is a fresh user
+        // commitment regardless of pre-state — so the fallback emits
+        // alongside the stamp.
+        //
+        // D-WS7-106 — both branches require the post-PATCH range to
+        // cover `now`: didNewlyCover is true only when the next range
+        // covers now (by definition), so the OR short-circuits to the
+        // same coverage gate as the stamp. A flag-true PATCH whose
+        // resulting dates do NOT cover now produces neither a stamp nor
+        // an emit.
+        if (didNewlyCover || (body.isActiveThisWeek === true && nextCoversNow)) {
           await emitActivity({
             tx,
             userId,

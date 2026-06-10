@@ -156,6 +156,13 @@ export async function runAICall<T extends z.ZodTypeAny>(
 
   let attempt = 0;
   let lastValidationError: unknown = null;
+  // WS7-5b-server-fix2 — captured for the validation-failure-exhaustion WARN
+  // below. Holds whatever the LAST failing safeParse received as input (raw
+  // tool_use input or parsed JSON from text mode). When zod's flattened error
+  // names a path but the cause is the SHAPE the model returned, this is the
+  // diagnostic that explains "what did the model actually emit?". Truncated
+  // at log time so a runaway payload can't blow up logs.
+  let lastExtractedValue: unknown = null;
   let inputTokens = 0;
   let outputTokens = 0;
 
@@ -272,6 +279,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
     }
 
     lastValidationError = parsed.error.flatten();
+    lastExtractedValue = extracted.value;
     attempt++;
   }
 
@@ -291,6 +299,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
       outputTokens,
       retryCount,
       validationError: lastValidationError,
+      lastExtractedValue: truncateForLog(lastExtractedValue),
     },
     "AI call failed schema validation after retry",
   );
@@ -323,6 +332,24 @@ export async function runAICall<T extends z.ZodTypeAny>(
 }
 
 // ── helpers ──────────────────────────────────────────────────────────
+
+// WS7-5b-server-fix2 — diagnostic-only. Renders the last failing-parse input
+// as a string capped at ~2KB so the validation-failure-exhaustion WARN can
+// include the raw payload without risking log blow-up on a runaway model
+// response. JSON.stringify can throw on circular refs (none expected from
+// tool_use input, but the SDK shape is not in our control) — fall back to
+// String() so this helper never throws.
+const LOG_VALUE_MAX_CHARS = 2048;
+function truncateForLog(value: unknown): string {
+  let serialized: string;
+  try {
+    serialized = typeof value === "string" ? value : JSON.stringify(value);
+  } catch {
+    serialized = String(value);
+  }
+  if (serialized.length <= LOG_VALUE_MAX_CHARS) return serialized;
+  return `${serialized.slice(0, LOG_VALUE_MAX_CHARS)}…[truncated ${serialized.length - LOG_VALUE_MAX_CHARS} chars]`;
+}
 
 // LLMCallLog write — non-fatal. A failed write must not propagate or change
 // the AI call's result. If `prisma` is null (test or unconfigured caller),

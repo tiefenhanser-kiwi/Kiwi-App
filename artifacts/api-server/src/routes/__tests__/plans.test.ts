@@ -3061,41 +3061,6 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
-  it("PATCH { isActiveThisWeek: true } on a pre-dated plan is now a no-op write (no demote, no emit in this commit)", async () => {
-    // WS7-6 (E) Block 1 — the stored isActiveThisWeek column is gone and
-    // the body field is advisory. On a row that already has dates
-    // unrelated to `now`, PATCH { isActiveThisWeek: true } does not flip
-    // anything: no demote-prior updateMany (single-current is enforced by
-    // the DB EXCLUDE constraint), and the date range is unchanged so the
-    // plan does not transition from not-current to current. Block 1's
-    // analytics path is the legacy "flag flipped" emit, which c2 of this
-    // workstream replaces with the dates-newly-cover-now predicate — at
-    // that point a new test will assert the emit fires when dates change
-    // to cover `now`, NOT when the boolean body flips.
-    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
-    const harness = await mutationSpinUp(
-      makeC4PatchStub({
-        recorder,
-        instances: [
-          fixturePatch({
-            id: "p-1",
-            isActiveThisWeek: false,
-            startDate: new Date("2026-03-01T00:00:00.000Z"),
-            endDate: new Date("2026-03-07T00:00:00.000Z"),
-          }),
-        ],
-      }),
-    );
-    try {
-      const res = await patchPlan(harness, "p-1", { isActiveThisWeek: true });
-      assert.equal(res.status, 200);
-      assert.equal(recorder.updateManyCalls.length, 0);
-      assert.equal(recorder.activityWrites.length, 0);
-    } finally {
-      await harness.close();
-    }
-  });
-
   it("PATCH that shifts dates from covering-now to not-covering-now does NOT emit plan_activated_this_week (silent demotion)", async () => {
     // WS7-6 (E) Block 1 c2 — re-pointed predicate. The "covers-now →
     // not-covering-now" transition does not emit the activation event;
@@ -3381,12 +3346,19 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
-  // WS7-5b-mobile-PRE — auto-date envelope. PATCH /plans/:id auto-fills
-  // startDate/endDate from the shared Sun-Sat currentWeekRange() helper
-  // ONLY when ALL of: body sets isActiveThisWeek:true, the row is currently
-  // undated (startDate === null), and the body did NOT supply its own dates.
-  // Body dates always win; already-dated plans are never re-dated; non-active
-  // and unrelated PATCHes never touch the date fields.
+  // WS7-6 (E) Block 2 — chip auto-date envelope + stamp fallback. PATCH
+  // /plans/:id now treats body.isActiveThisWeek:true as the chip's one-tap
+  // "make this my week" designation: the envelope sets dates to the shared
+  // Sun-Sat currentWeekRange() whenever the body says active=true (no
+  // longer gated on row.startDate === null), and a stamp fallback after
+  // seam B guarantees activatedAt = now even when the dates already match
+  // currentWeekRange() exactly (envelope produces no diff). Body
+  // startDate/endDate still win — activation does not clobber an explicit
+  // date edit. Non-active and unrelated PATCHes never touch the date
+  // fields or stamp activatedAt. The three round-trip tests below cover
+  // (a) future-dated, (b) past-dated, and (c) already-exactly-this-week
+  // starting states; each fail-against-old (pre-Block-2 noop) and
+  // pass-against-new (dates + stamp + emit + resolver winner).
 
   it("auto-dates the plan on flip-to-active when undated and body has no dates (Sun-Sat, YYYY-MM-DD round-trip)", async () => {
     const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
@@ -3469,31 +3441,355 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
-  it("on an ALREADY-dated plan, PATCH {isActiveThisWeek:true} leaves existing dates untouched (no-op)", async () => {
-    // WS7-6 (E): the auto-date envelope only fires when the row is
-    // currently undated (`row.startDate === null`). On a pre-dated plan,
-    // the body's advisory isActiveThisWeek=true triggers no field diff
-    // (the column is gone) and the auto-date predicate's
-    // `row.startDate === null` guard is false, so the PATCH becomes a
-    // no-op — instanceUpdates stays empty.
+  // ── Block 2 round-trip (a/b/c): chip designation moves dates to this
+  // week, stamps activatedAt, emits plan_activated_this_week, and the
+  // resolver picks the chipped plan as winner — for every starting state.
+
+  it("round-trip (a) future-dated chip PATCH: dates → this-week, activatedAt stamped, emit, resolver winner over pre-existing P", async () => {
+    // Pre-Block-2: future-dated row + flag PATCH was a noop (envelope's
+    // `row.startDate === null` guard skipped the auto-date branch, no
+    // field diff, no stamp). Under Block 2: envelope ALWAYS rewrites
+    // dates to currentWeekRange() when the flag is true, seam B fires
+    // (didNewlyCoverNow {future} → {this-week} is true → stamp), emit
+    // fires, resolver picks the chipped plan.
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const week = currentWeekRange();
+    const expectedStart = new Date(week.startDate);
+    const expectedEnd = new Date(week.endDate);
+
+    // P — pre-existing covering plan with activatedAt in the past.
+    const pCovering = fixturePatch({
+      id: "p-pre",
+      startDate: new Date(now - 5 * day),
+      endDate: new Date(now + 2 * day),
+    });
+    const pActivatedAt = new Date(now - 3 * day);
+
+    // Q — future-dated plan that the chip will pull to this week.
+    const qFuture = fixturePatch({
+      id: "q-future",
+      startDate: new Date(now + 14 * day),
+      endDate: new Date(now + 20 * day),
+    });
+
     const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
     const harness = await mutationSpinUp(
-      makeC4PatchStub({
-        recorder,
-        instances: [
-          fixturePatch({
-            id: "p-1",
-            isActiveThisWeek: false,
-            startDate: new Date("2026-03-01T00:00:00.000Z"),
-            endDate: new Date("2026-03-07T00:00:00.000Z"),
-          }),
-        ],
-      }),
+      makeC4PatchStub({ recorder, instances: [pCovering, qFuture] }),
     );
     try {
-      const res = await patchPlan(harness, "p-1", { isActiveThisWeek: true });
+      const res = await patchPlan(harness, "q-future", { isActiveThisWeek: true });
       assert.equal(res.status, 200);
-      assert.equal(recorder.instanceUpdates.length, 0);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const upd = recorder.instanceUpdates[0];
+      assert.equal(upd.where.id, "q-future");
+
+      // Dates moved to currentWeekRange().
+      assert.ok(upd.data.startDate instanceof Date, "startDate written");
+      assert.ok(upd.data.endDate instanceof Date, "endDate written");
+      assert.equal((upd.data.startDate as Date).getTime(), expectedStart.getTime());
+      assert.equal((upd.data.endDate as Date).getTime(), expectedEnd.getTime());
+
+      // activatedAt stamped via seam B (date change moves not-covering → covering).
+      assert.ok(upd.data.activatedAt instanceof Date, "activatedAt stamped");
+      const qStampedAt = upd.data.activatedAt as Date;
+
+      // plan_activated_this_week emitted for Q.
+      const act = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.ok(act, "plan_activated_this_week must emit");
+      assert.equal(act.entityId, "q-future");
+      assert.deepEqual(act.metadata, { source: "plans_patch" });
+
+      // Resolver picks Q. Prior winner P's wire-side isActiveThisWeek
+      // flips to false because the projection is id-compared against the
+      // resolver winner id.
+      const postWrite = [
+        {
+          id: pCovering.id,
+          startDate: pCovering.startDate,
+          endDate: pCovering.endDate,
+          activatedAt: pActivatedAt,
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+        },
+        {
+          id: qFuture.id,
+          startDate: expectedStart,
+          endDate: expectedEnd,
+          activatedAt: qStampedAt,
+          createdAt: new Date("2026-05-15T00:00:00.000Z"),
+        },
+      ];
+      const winner = resolveThisWeekPlan(postWrite);
+      assert.ok(winner, "resolver must find a winner");
+      assert.equal(winner.id, "q-future", "Q wins");
+      assert.notEqual(winner.id, pCovering.id, "P (prior winner) demoted");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("round-trip (b) past-dated chip PATCH: dates → this-week, activatedAt stamped, emit, resolver winner over pre-existing P", async () => {
+    // Pre-Block-2: past-dated row + flag PATCH was a noop. Under Block
+    // 2: envelope rewrites dates, seam B stamps (not-covering →
+    // covering), emit fires, resolver picks Q.
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const week = currentWeekRange();
+    const expectedStart = new Date(week.startDate);
+    const expectedEnd = new Date(week.endDate);
+
+    const pCovering = fixturePatch({
+      id: "p-pre",
+      startDate: new Date(now - 5 * day),
+      endDate: new Date(now + 2 * day),
+    });
+    const pActivatedAt = new Date(now - 3 * day);
+
+    // Q — past-dated plan (clearly before this week).
+    const qPast = fixturePatch({
+      id: "q-past",
+      startDate: new Date("2025-01-01T00:00:00.000Z"),
+      endDate: new Date("2025-01-07T00:00:00.000Z"),
+    });
+
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({ recorder, instances: [pCovering, qPast] }),
+    );
+    try {
+      const res = await patchPlan(harness, "q-past", { isActiveThisWeek: true });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const upd = recorder.instanceUpdates[0];
+      assert.equal(upd.where.id, "q-past");
+
+      assert.equal((upd.data.startDate as Date).getTime(), expectedStart.getTime());
+      assert.equal((upd.data.endDate as Date).getTime(), expectedEnd.getTime());
+      assert.ok(upd.data.activatedAt instanceof Date, "activatedAt stamped (seam B)");
+      const qStampedAt = upd.data.activatedAt as Date;
+
+      const act = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.ok(act, "plan_activated_this_week must emit");
+      assert.equal(act.entityId, "q-past");
+      assert.deepEqual(act.metadata, { source: "plans_patch" });
+
+      const postWrite = [
+        {
+          id: pCovering.id,
+          startDate: pCovering.startDate,
+          endDate: pCovering.endDate,
+          activatedAt: pActivatedAt,
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+        },
+        {
+          id: qPast.id,
+          startDate: expectedStart,
+          endDate: expectedEnd,
+          activatedAt: qStampedAt,
+          createdAt: new Date("2026-05-15T00:00:00.000Z"),
+        },
+      ];
+      const winner = resolveThisWeekPlan(postWrite);
+      assert.ok(winner);
+      assert.equal(winner.id, "q-past", "Q wins");
+      assert.notEqual(winner.id, pCovering.id, "P demoted");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("round-trip (c) already-exactly-this-week chip PATCH: dates UNCHANGED, activatedAt stamped via fallback, emit, resolver winner over pre-existing P", async () => {
+    // Pre-Block-2: row with startDate !== null skipped the envelope; no
+    // field diff → noop → no stamp → P kept winning. Under Block 2: the
+    // envelope sees dates already match currentWeekRange() so it does
+    // NOT add to changedFields (no spurious date emit), but the stamp
+    // fallback fires because body.isActiveThisWeek === true && seam B
+    // did not stamp. activatedAt is stamped, emit fires, resolver picks Q.
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const week = currentWeekRange();
+    const thisWeekStart = new Date(week.startDate);
+    const thisWeekEnd = new Date(week.endDate);
+
+    const pCovering = fixturePatch({
+      id: "p-pre",
+      // Same calendar week as currentWeekRange() — both P and Q cover now,
+      // so the resolver must use activatedAt to tiebreak.
+      startDate: thisWeekStart,
+      endDate: thisWeekEnd,
+    });
+    const pActivatedAt = new Date(now - 3 * day);
+
+    // Q — already exactly-this-week before the chip tap.
+    const qAlready = fixturePatch({
+      id: "q-already",
+      startDate: thisWeekStart,
+      endDate: thisWeekEnd,
+    });
+
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({ recorder, instances: [pCovering, qAlready] }),
+    );
+    try {
+      const res = await patchPlan(harness, "q-already", { isActiveThisWeek: true });
+      assert.equal(res.status, 200);
+
+      // One update — the stamp fallback's activatedAt write.
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const upd = recorder.instanceUpdates[0];
+      assert.equal(upd.where.id, "q-already");
+
+      // Dates NOT in the update data — envelope saw they matched and
+      // didn't add to changedFields. No spurious date-range emit.
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(upd.data, "startDate"),
+        false,
+        "startDate not rewritten when already matches currentWeekRange()",
+      );
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(upd.data, "endDate"),
+        false,
+        "endDate not rewritten when already matches currentWeekRange()",
+      );
+
+      // Stamp fallback fired.
+      assert.ok(upd.data.activatedAt instanceof Date, "fallback stamps activatedAt");
+      const qStampedAt = upd.data.activatedAt as Date;
+
+      // No spurious plan_date_range_edited; one plan_activated_this_week.
+      const dateEdit = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_date_range_edited",
+      );
+      assert.equal(dateEdit, undefined, "no spurious plan_date_range_edited");
+
+      const act = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.ok(act, "plan_activated_this_week must emit via fallback path");
+      assert.equal(act.entityId, "q-already");
+      assert.deepEqual(act.metadata, { source: "plans_patch" });
+
+      // Resolver picks Q on activatedAt tiebreak (qStampedAt > pActivatedAt).
+      const postWrite = [
+        {
+          id: pCovering.id,
+          startDate: pCovering.startDate,
+          endDate: pCovering.endDate,
+          activatedAt: pActivatedAt,
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+        },
+        {
+          id: qAlready.id,
+          startDate: qAlready.startDate,
+          endDate: qAlready.endDate,
+          activatedAt: qStampedAt,
+          createdAt: new Date("2026-05-15T00:00:00.000Z"),
+        },
+      ];
+      const winner = resolveThisWeekPlan(postWrite);
+      assert.ok(winner);
+      assert.equal(winner.id, "q-already", "Q wins via fallback stamp");
+      assert.notEqual(winner.id, pCovering.id, "P demoted by activatedAt tiebreak");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── D-WS7-106 — coverage-of-now gate (build-it-right §5). The chip
+  // never sends a self-contradictory body, but the API contract allows
+  // { isActiveThisWeek: true, startDate: <future>, endDate: <future> }.
+  // Such a PATCH must NOT stamp activatedAt and must NOT emit
+  // plan_activated_this_week — otherwise a future-only row would carry a
+  // fresh activatedAt the resolver can't pick up (won't cover until the
+  // dates roll in) and any later silent demotion would inherit stale
+  // activation state. Pins both gates to (flag === true && post-PATCH
+  // dates cover now), reusing the shared day-granular helper.
+  it("D-WS7-106 guard: contradictory {isActiveThisWeek:true} + future body dates → no stamp, no emit, NOT resolver winner", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+
+    // P — pre-existing covering plan with activatedAt in the past.
+    const pCovering = fixturePatch({
+      id: "p-pre",
+      startDate: new Date(now - 5 * day),
+      endDate: new Date(now + 2 * day),
+    });
+    const pActivatedAt = new Date(now - 3 * day);
+
+    // Q — undated, but body explicitly supplies future dates. Body
+    // wins over the envelope (envelope gate requires
+    // body.startDate === undefined), so the post-PATCH range does NOT
+    // cover now.
+    const qUndated = fixturePatch({
+      id: "q-contradiction",
+      startDate: null,
+      endDate: null,
+    });
+
+    const futureStartIso = new Date(now + 14 * day).toISOString();
+    const futureEndIso = new Date(now + 20 * day).toISOString();
+
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({ recorder, instances: [pCovering, qUndated] }),
+    );
+    try {
+      const res = await patchPlan(harness, "q-contradiction", {
+        isActiveThisWeek: true,
+        startDate: futureStartIso,
+        endDate: futureEndIso,
+      });
+      assert.equal(res.status, 200);
+
+      // The write happens (dates were updated) but activatedAt is NOT
+      // stamped — the resulting range does not cover now.
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const upd = recorder.instanceUpdates[0];
+      assert.equal(upd.where.id, "q-contradiction");
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(upd.data, "activatedAt"),
+        false,
+        "D-WS7-106: activatedAt must NOT be stamped when post-PATCH range does not cover now",
+      );
+
+      // No plan_activated_this_week emit.
+      const act = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.equal(
+        act,
+        undefined,
+        "D-WS7-106: plan_activated_this_week must NOT emit on a contradictory flag PATCH",
+      );
+
+      // Resolver still picks P — Q's future range is not eligible.
+      const postWrite = [
+        {
+          id: pCovering.id,
+          startDate: pCovering.startDate,
+          endDate: pCovering.endDate,
+          activatedAt: pActivatedAt,
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+        },
+        {
+          id: qUndated.id,
+          startDate: new Date(futureStartIso),
+          endDate: new Date(futureEndIso),
+          activatedAt: null,
+          createdAt: new Date("2026-05-15T00:00:00.000Z"),
+        },
+      ];
+      const winner = resolveThisWeekPlan(postWrite);
+      assert.ok(winner);
+      assert.equal(winner.id, pCovering.id, "P retains winner — Q is not eligible (future range)");
+      assert.notEqual(winner.id, "q-contradiction");
     } finally {
       await harness.close();
     }
@@ -3686,6 +3982,122 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
         winner.id,
         "q-newly-covering",
         "(3) resolver must return Q — emit gate and resolver agree",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // D-WS7-103 — 21b-redo with the realistic mobile wire shape: date-only
+  // YYYY-MM-DD strings, not full ISO instants. The original 21b sent ISO
+  // timestamps multiple days out and never hit the UTC-midnight-of-today
+  // boundary; the bug was that endDate=today UTC-midnight failed the seam B
+  // gate the moment now passed 00:00 UTC. Here the PATCH body's endDate is
+  // today's UTC YYYY-MM-DD; the route's toNullableDate canonicalizes it
+  // to today's 00:00 UTC Date, mirroring real Prisma storage. The seam B
+  // gate (didNewlyCoverNow) is exercised against the actual now from
+  // inside the handler — so as long as the test runs at any time except
+  // the exact instant of 00:00 UTC today (a sub-millisecond window), the
+  // OLD instant comparison reports "expired" and the NEW UTC-day
+  // comparison reports "covers".
+  it("EQUIVALENCE (D-WS7-103): PATCH with date-only YYYY-MM-DD body on the UTC-day boundary still stamps + wins resolver", async () => {
+    const now = new Date();
+    const ymd = (d: Date): string => {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(d.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${dd}`;
+    };
+    const day = 24 * 60 * 60 * 1000;
+    const sixDaysAgoYmd = ymd(new Date(now.getTime() - 6 * day));
+    const todayYmd = ymd(now);
+
+    // P — pre-existing covering plan with activatedAt in the past. Stored
+    // as arbitrary instants (not UTC midnight) so its coverage is
+    // unambiguous regardless of when the test runs.
+    const pCovering = fixturePatch({
+      id: "p-pre-existing",
+      startDate: new Date(now.getTime() - 5 * day),
+      endDate: new Date(now.getTime() + 2 * day),
+    });
+    const pActivatedAt = new Date(now.getTime() - 3 * day);
+
+    // Q — undated, about to be PATCHed with date-only YYYY-MM-DD where
+    // endDate is today's UTC date. Under OLD code this PATCH would NOT
+    // stamp activatedAt (the endDate Date is 00:00 UTC of today; now is
+    // past that instant); under NEW code the day-truncated compare
+    // admits today's endDate.
+    const qFuture = fixturePatch({
+      id: "q-newly-covering",
+      startDate: null,
+      endDate: null,
+    });
+
+    const recorder: C4PatchRecorder = {
+      instanceUpdates: [],
+      updateManyCalls: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({ recorder, instances: [pCovering, qFuture] }),
+    );
+    try {
+      const res = await patchPlan(harness, "q-newly-covering", {
+        startDate: sixDaysAgoYmd,
+        endDate: todayYmd,
+      });
+      assert.equal(res.status, 200);
+
+      // (1) Seam B fired — Q stamped activatedAt despite endDate being
+      // today's UTC midnight. THIS IS THE BUG: under OLD code, the gate
+      // sees endDate (00:00 UTC today) < now (XX:XX UTC today) and
+      // returns false, so activatedAt is NOT set on update.data.
+      assert.equal(recorder.instanceUpdates.length, 1);
+      const upd = recorder.instanceUpdates[0];
+      assert.equal(upd.where.id, "q-newly-covering");
+      assert.ok(
+        upd.data.activatedAt instanceof Date,
+        "(1) seam B must stamp activatedAt on Q even when endDate is today's UTC midnight (date-only wire shape)",
+      );
+      const qStampedAt = upd.data.activatedAt as Date;
+
+      // (2) plan_activated_this_week emitted for Q.
+      const act = recorder.activityWrites.find(
+        (a) => a.eventType === "plan_activated_this_week",
+      );
+      assert.ok(
+        act,
+        "(2) plan_activated_this_week must emit for Q on UTC-day boundary",
+      );
+      assert.equal(act.entityId, "q-newly-covering");
+      assert.deepEqual(act.metadata, { source: "plans_patch" });
+
+      // (3) Resolver over the post-write candidate set: Q's stored dates
+      // are the UTC-midnight canonical Date objects (mirroring real
+      // Prisma's `new Date("YYYY-MM-DD")` round-trip). Q's fresh
+      // activatedAt beats P's older activatedAt → Q wins.
+      const postWriteCandidates = [
+        {
+          id: pCovering.id,
+          startDate: pCovering.startDate,
+          endDate: pCovering.endDate,
+          activatedAt: pActivatedAt,
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+        },
+        {
+          id: qFuture.id,
+          startDate: new Date(sixDaysAgoYmd),
+          endDate: new Date(todayYmd),
+          activatedAt: qStampedAt,
+          createdAt: new Date("2026-05-15T00:00:00.000Z"),
+        },
+      ];
+      const winner = resolveThisWeekPlan(postWriteCandidates);
+      assert.ok(winner, "(3) resolver must find a winner");
+      assert.equal(
+        winner.id,
+        "q-newly-covering",
+        "(3) resolver must return Q with end=today UTC-midnight — wire-shape proof",
       );
     } finally {
       await harness.close();

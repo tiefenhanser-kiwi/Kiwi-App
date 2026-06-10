@@ -155,9 +155,22 @@ function makeStubs(opts: {
   };
 
   const txStub = {
-    meal: { create: async () => ({ id: "meal-x" }) },
+    meal: {
+      create: async () => ({ id: "meal-x" }),
+      // WS7-6 Fix-Block 3: meal-row update after the per-dish loop writes
+      // the aggregated per-serving macros. No-op in this test — assertions
+      // here focus on the Template-pair shape, not macro values.
+      update: async () => ({}),
+    },
     dish: { create: async () => ({ id: "dish-x" }) },
-    mealDishLink: { create: async () => ({}) },
+    mealDishLink: {
+      create: async () => ({}),
+      // WS7-6 Fix-Block 3: recomputeAndPersistMealMacros reads the link
+      // table to sum dish macros. The sample payload has macros: null on
+      // every dish, so the meal sum is 0 — return an empty list to short-
+      // circuit and let the meal.update write a 0-sum.
+      findMany: async () => [],
+    },
     dishIngredient: { create: async () => ({}) },
     recipeInstructionStep: {
       create: async (args: { data: CapturedStep }) => {

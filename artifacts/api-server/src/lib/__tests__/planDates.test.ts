@@ -12,6 +12,7 @@ import {
   didNewlyCoverNow,
   isInstanceActiveThisWeek,
   resolveThisWeekPlan,
+  resolveThisWeekWinnerId,
   type CoveringCandidate,
 } from "../planDates";
 
@@ -378,5 +379,242 @@ describe("resolveThisWeekPlan — Model 2 winner among covering rows", () => {
       activatedAt: new Date("2026-06-10T00:00:00.000Z"),
     });
     assert.equal(resolveThisWeekPlan([nullEnd], NOW), null);
+  });
+});
+
+// D-WS7-103 — §27 regression proofs for read-time UTC-day-granular coverage.
+// Mobile sends date-only YYYY-MM-DD wire strings; Prisma round-trips those
+// through `new Date("YYYY-MM-DD")` which canonicalizes to UTC midnight per
+// the JS spec. Coverage must therefore compare UTC calendar days, not raw
+// instants, otherwise a plan whose endDate is "today" resolves as expired
+// the moment now passes 00:00 UTC of the same calendar day. These tests
+// pin the day-granular semantics in all three consumers: the helper, the
+// in-memory resolver eligibility filter, and the SQL pre-filter inside
+// resolveThisWeekWinnerId.
+describe("D-WS7-103 — UTC-day-granular coverage (boundary proofs)", () => {
+  // Mid-day mid-week mid-month — `now` falls inside a UTC day whose 00:00
+  // midnight is in the past, so any endDate stored as that day's midnight
+  // would be `< now` under the old instant comparison.
+  const NOW_MIDDAY = new Date("2026-06-06T12:00:00.000Z");
+  const TODAY_UTC_MIDNIGHT = new Date("2026-06-06T00:00:00.000Z");
+  const NEXT_DAY_UTC_MIDNIGHT = new Date("2026-06-07T00:00:00.000Z");
+  const YESTERDAY_END_OF_DAY = new Date("2026-06-05T23:59:59.999Z");
+
+  it("end-day boundary mid-day: endDate=today UTC-midnight, now=midday today → covers (the failing case)", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        {
+          startDate: new Date("2026-05-31T00:00:00.000Z"),
+          endDate: TODAY_UTC_MIDNIGHT,
+        },
+        NOW_MIDDAY,
+      ),
+      true,
+    );
+  });
+
+  it("start-day boundary mid-day: startDate=today UTC-midnight, now=midday today → covers (start edge)", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        {
+          startDate: TODAY_UTC_MIDNIGHT,
+          endDate: new Date("2026-06-12T00:00:00.000Z"),
+        },
+        NOW_MIDDAY,
+      ),
+      true,
+    );
+  });
+
+  it("end-day just before next UTC midnight: endDate=today UTC-midnight, now=23:59:59.999Z same day → covers", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        {
+          startDate: new Date("2026-05-31T00:00:00.000Z"),
+          endDate: TODAY_UTC_MIDNIGHT,
+        },
+        new Date("2026-06-06T23:59:59.999Z"),
+      ),
+      true,
+    );
+  });
+
+  it("end-day past next UTC midnight: endDate=today UTC-midnight, now=next UTC midnight → does NOT cover", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        {
+          startDate: new Date("2026-05-31T00:00:00.000Z"),
+          endDate: TODAY_UTC_MIDNIGHT,
+        },
+        NEXT_DAY_UTC_MIDNIGHT,
+      ),
+      false,
+    );
+  });
+
+  it("day-before start: startDate=today UTC-midnight, now=yesterday 23:59:59.999Z → does NOT cover", () => {
+    assert.equal(
+      isInstanceActiveThisWeek(
+        {
+          startDate: TODAY_UTC_MIDNIGHT,
+          endDate: new Date("2026-06-12T00:00:00.000Z"),
+        },
+        YESTERDAY_END_OF_DAY,
+      ),
+      false,
+    );
+  });
+
+  it("didNewlyCoverNow: prev=undated → next={start=Sunday, end=today UTC-midnight}, now=midday today → fires (seam-B gate)", () => {
+    assert.equal(
+      didNewlyCoverNow(
+        { startDate: null, endDate: null },
+        {
+          startDate: new Date("2026-05-31T00:00:00.000Z"),
+          endDate: TODAY_UTC_MIDNIGHT,
+        },
+        NOW_MIDDAY,
+      ),
+      true,
+    );
+  });
+
+  it("resolveThisWeekPlan: endDate=today UTC-midnight, now=midday today → row is winner (not null)", () => {
+    const row: CoveringCandidate = {
+      id: "p-end-today",
+      startDate: new Date("2026-05-31T00:00:00.000Z"),
+      endDate: TODAY_UTC_MIDNIGHT,
+      activatedAt: new Date("2026-06-06T11:00:00.000Z"),
+      createdAt: new Date("2026-05-15T00:00:00.000Z"),
+    };
+    const winner = resolveThisWeekPlan([row], NOW_MIDDAY);
+    assert.equal(winner?.id, "p-end-today");
+  });
+});
+
+// D-WS7-103 — SQL-vs-helper alignment lock. resolveThisWeekWinnerId issues
+// a narrow indexed findMany whose WHERE clause pre-filters by date bounds
+// BEFORE the in-memory resolver runs. This test isolates the SQL boundary
+// (not just the combined helper) by simulating real Prisma `lte`/`gte`
+// semantics in the stub. A covering plan with endDate=today UTC-midnight
+// must be admitted by the SQL pre-filter when `now` is midday today —
+// otherwise the in-memory helper never gets a chance to see it.
+//
+// This locks the SQL filter and the in-memory helper to the same UTC-day
+// granularity. Bug history: the SQL filter passed raw `now` as the gte
+// bound, so a Prisma row whose endDate was today's UTC midnight was
+// excluded server-side any time `now > 00:00:00.000 UTC` of that day —
+// the in-memory helper fix alone would have left the five route call
+// sites (home / plans / groceryLists / DELETE-tx / W5) broken via this
+// SQL pre-filter. Locking both layers to UTC-day prevents that divergence
+// from reappearing.
+describe("D-WS7-103 — resolveThisWeekWinnerId SQL pre-filter day-granularity", () => {
+  const NOW_MIDDAY = new Date("2026-06-06T12:00:00.000Z");
+
+  interface StubRow {
+    id: string;
+    userId: string;
+    isWizardDraft: boolean;
+    startDate: Date | null;
+    endDate: Date | null;
+    activatedAt: Date | null;
+    createdAt: Date;
+  }
+
+  // Real Prisma semantics: `lte`/`gte` are instant comparisons on the
+  // stored DateTime column. Mirroring that here means the stub MUST
+  // exclude a row whose endDate < args.where.endDate.gte (or whose
+  // startDate > args.where.startDate.lte). If the bound is raw `now`
+  // (pre-fix), an end=today UTC-midnight row is excluded. If the bound is
+  // UTC-day-truncated `nowDay` (post-fix), the row is admitted.
+  function makeStubPrisma(rows: StubRow[]) {
+    return {
+      mealPlanInstance: {
+        findMany: async (args: {
+          where: {
+            userId?: string;
+            isWizardDraft?: boolean;
+            startDate?: { lte?: Date; not?: null };
+            endDate?: { gte?: Date; not?: null };
+          };
+          select?: Record<string, boolean>;
+        }) => {
+          return rows.filter((r) => {
+            if (args.where.userId && r.userId !== args.where.userId) return false;
+            if (
+              args.where.isWizardDraft !== undefined &&
+              r.isWizardDraft !== args.where.isWizardDraft
+            ) {
+              return false;
+            }
+            if (args.where.startDate?.not === null && r.startDate === null) {
+              return false;
+            }
+            if (args.where.endDate?.not === null && r.endDate === null) {
+              return false;
+            }
+            if (args.where.startDate?.lte && r.startDate !== null) {
+              if (r.startDate.getTime() > args.where.startDate.lte.getTime()) {
+                return false;
+              }
+            }
+            if (args.where.endDate?.gte && r.endDate !== null) {
+              if (r.endDate.getTime() < args.where.endDate.gte.getTime()) {
+                return false;
+              }
+            }
+            return true;
+          });
+        },
+      },
+    };
+  }
+
+  it("ALIGNMENT LOCK: endDate=today UTC-midnight, now=midday today → SQL admits the row and resolver returns its id", async () => {
+    const stub = makeStubPrisma([
+      {
+        id: "p-end-today",
+        userId: "u-1",
+        isWizardDraft: false,
+        startDate: new Date("2026-05-31T00:00:00.000Z"),
+        endDate: new Date("2026-06-06T00:00:00.000Z"),
+        activatedAt: new Date("2026-06-05T08:00:00.000Z"),
+        createdAt: new Date("2026-05-15T00:00:00.000Z"),
+      },
+    ]);
+    const winnerId = await resolveThisWeekWinnerId(
+      stub as never,
+      "u-1",
+      NOW_MIDDAY,
+    );
+    assert.equal(
+      winnerId,
+      "p-end-today",
+      "SQL pre-filter must admit end=today UTC-midnight rows at midday — proves the SQL bound and the in-memory helper share UTC-day granularity",
+    );
+  });
+
+  it("ALIGNMENT LOCK: end-day past next UTC midnight → SQL excludes the row (next day → returns null)", async () => {
+    // Same row as above, but now is the very next UTC midnight — past the
+    // inclusive UTC-day boundary. The SQL filter must exclude it; the
+    // resolver returns null. Pins that the day-granular fix did not
+    // accidentally widen the bound by a full day past end.
+    const stub = makeStubPrisma([
+      {
+        id: "p-end-today",
+        userId: "u-1",
+        isWizardDraft: false,
+        startDate: new Date("2026-05-31T00:00:00.000Z"),
+        endDate: new Date("2026-06-06T00:00:00.000Z"),
+        activatedAt: new Date("2026-06-05T08:00:00.000Z"),
+        createdAt: new Date("2026-05-15T00:00:00.000Z"),
+      },
+    ]);
+    const winnerId = await resolveThisWeekWinnerId(
+      stub as never,
+      "u-1",
+      new Date("2026-06-07T00:00:00.000Z"),
+    );
+    assert.equal(winnerId, null);
   });
 });

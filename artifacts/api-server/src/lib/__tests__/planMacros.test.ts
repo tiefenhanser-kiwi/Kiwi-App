@@ -606,9 +606,14 @@ describe("computePlanMacros — aggregation + rounding", () => {
 
 // ── planNeedsMacroEstimation ──────────────────────────────────────────
 
+interface NeedsEstItem {
+  dishes: Array<[number, number, number, number]>;
+  ingredientOverrides?: unknown | null;
+  recipeOverrideJson?: unknown | null;
+}
+
 interface NeedsEstStub {
-  // Each inner array = one item; numbers are per-dish (cal,prot,carb,fat).
-  items: Array<Array<[number, number, number, number]>>;
+  items: NeedsEstItem[];
 }
 
 function makeNeedsEstStub(plan: NeedsEstStub | null): Prisma.TransactionClient {
@@ -617,9 +622,11 @@ function makeNeedsEstStub(plan: NeedsEstStub | null): Prisma.TransactionClient {
       findUnique: async (_args: unknown) => {
         if (!plan) return null;
         return {
-          items: plan.items.map((dishes) => ({
+          items: plan.items.map((item) => ({
+            ingredientOverrides: item.ingredientOverrides ?? null,
+            recipeOverrideJson: item.recipeOverrideJson ?? null,
             meal: {
-              dishLinks: dishes.map(([cal, prot, carb, fat]) => ({
+              dishLinks: item.dishes.map(([cal, prot, carb, fat]) => ({
                 dish: {
                   caloriesPerServing: cal,
                   proteinGPerServing: prot,
@@ -640,8 +647,8 @@ describe("planNeedsMacroEstimation", () => {
   it("returns false when every dish has stored macros", async () => {
     const tx = makeNeedsEstStub({
       items: [
-        [[520, 28, 38, 26]],
-        [[640, 26, 65, 28]],
+        { dishes: [[520, 28, 38, 26]] },
+        { dishes: [[640, 26, 65, 28]] },
       ],
     });
     const result = await planNeedsMacroEstimation({ tx, planId: "plan-1" });
@@ -651,8 +658,8 @@ describe("planNeedsMacroEstimation", () => {
   it("returns true when at least one dish has all-zero macros", async () => {
     const tx = makeNeedsEstStub({
       items: [
-        [[520, 28, 38, 26]],
-        [[0, 0, 0, 0]],
+        { dishes: [[520, 28, 38, 26]] },
+        { dishes: [[0, 0, 0, 0]] },
       ],
     });
     const result = await planNeedsMacroEstimation({ tx, planId: "plan-1" });
@@ -671,5 +678,50 @@ describe("planNeedsMacroEstimation", () => {
       () => planNeedsMacroEstimation({ tx, planId: "missing" }),
       (err: unknown) => err instanceof PlanMacrosNotFoundError,
     );
+  });
+
+  // D-WS7-061 — overrides on an item with a cached-macro dish must trip
+  // the stale flag because computePlanMacros bypasses the cache whenever
+  // hasOverrides(item) is true (planMacros.ts:283). Pre-WS7-5a fix this
+  // returned false, leaving the displayed macros stale until something
+  // else triggered recalc.
+  it("returns true when an item has a recipeOverrideJson on a cached-dish meal", async () => {
+    const tx = makeNeedsEstStub({
+      items: [
+        {
+          dishes: [[520, 28, 38, 26]],
+          recipeOverrideJson: { titleOverride: "Spicy variant" },
+        },
+      ],
+    });
+    const result = await planNeedsMacroEstimation({ tx, planId: "plan-1" });
+    assert.equal(result, true);
+  });
+
+  it("returns true when an item has ingredientOverrides on a cached-dish meal", async () => {
+    const tx = makeNeedsEstStub({
+      items: [
+        {
+          dishes: [[520, 28, 38, 26]],
+          ingredientOverrides: [{ name: "garlic", quantity: 2 }],
+        },
+      ],
+    });
+    const result = await planNeedsMacroEstimation({ tx, planId: "plan-1" });
+    assert.equal(result, true);
+  });
+
+  it("returns false when overrides are null even on cached macros (no drift)", async () => {
+    const tx = makeNeedsEstStub({
+      items: [
+        {
+          dishes: [[520, 28, 38, 26]],
+          ingredientOverrides: null,
+          recipeOverrideJson: null,
+        },
+      ],
+    });
+    const result = await planNeedsMacroEstimation({ tx, planId: "plan-1" });
+    assert.equal(result, false);
   });
 });

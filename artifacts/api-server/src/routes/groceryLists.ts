@@ -361,6 +361,13 @@ export function createGroceryListsRouter(
         include: { _count: { select: { items: true } } },
       });
 
+      // WS7-6 (E) Block 2 — single This-Week winner per request. ONE narrow
+      // resolver call (covering-subset findMany; not full hydration), then
+      // each list item derives isActiveThisWeek by id-compare. Mirrors the
+      // R1/R2/R6/R7 + grocery-list detail GET pattern (§27 single source of
+      // truth — no parallel computation).
+      const winnerId = await resolveThisWeekWinnerId(prisma, userId);
+
       return res.status(200).json({
         groceryLists: lists.map((l) => ({
           id: l.id,
@@ -368,6 +375,10 @@ export function createGroceryListsRouter(
           status: l.status,
           sourceType: l.sourceType,
           mealPlanInstanceId: l.mealPlanInstanceId,
+          isActiveThisWeek:
+            l.mealPlanInstanceId !== null &&
+            winnerId !== null &&
+            l.mealPlanInstanceId === winnerId,
           itemCount: l._count.items,
           lastGeneratedAt: l.lastGeneratedAt
             ? l.lastGeneratedAt.toISOString()

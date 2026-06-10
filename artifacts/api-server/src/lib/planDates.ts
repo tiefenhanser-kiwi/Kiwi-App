@@ -49,6 +49,14 @@ export function currentWeekRange(now: Date = new Date()): WeekRange {
 // in POST /plans + PATCH /plans/:id). Bounds inclusive on both ends.
 // Null-dated rows are never "covering". This predicate does NOT decide
 // "is This Week's plan" by itself — see resolveThisWeekPlan for that.
+//
+// D-WS7-103: coverage is UTC-day-granular. Mobile sends date-only
+// YYYY-MM-DD wire strings; Prisma round-trips those through
+// `new Date("YYYY-MM-DD")` → UTC midnight per the JS spec. A raw instant
+// compare reports endDate < now the moment `now` passes 00:00 UTC of the
+// stored day, so a plan whose endDate is "today" wrongly evaluates as
+// expired. Truncating all three to their UTC calendar day matches the
+// canonical stored basis and the Sun–Sat bounds from currentWeekRange.
 export function isInstanceActiveThisWeek(
   row: { startDate: Date | null; endDate: Date | null },
   now: Date = new Date(),
@@ -56,8 +64,12 @@ export function isInstanceActiveThisWeek(
   if (row.startDate === null || row.endDate === null) {
     return false;
   }
-  return row.startDate.getTime() <= now.getTime()
-    && now.getTime() <= row.endDate.getTime();
+  const toUtcDay = (d: Date): number =>
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const startDay = toUtcDay(row.startDate);
+  const endDay = toUtcDay(row.endDate);
+  const nowDay = toUtcDay(now);
+  return startDay <= nowDay && nowDay <= endDay;
 }
 
 // WS7-6 (E) Block 1 — analytics predicate gating plan_activated_this_week.
@@ -145,12 +157,23 @@ export async function resolveThisWeekWinnerId(
   userId: string,
   now: Date = new Date(),
 ): Promise<string | null> {
+  // D-WS7-103: SQL pre-filter is UTC-day-granular. Storage canonicalizes
+  // YYYY-MM-DD wire strings to UTC midnight, so the bounds compare like
+  // with like — `endDate >= nowDay` admits a plan whose endDate is today.
+  // Passing raw `now` would exclude end=today rows server-side any time
+  // `now > 00:00 UTC` of that day, before the in-memory resolver
+  // (isInstanceActiveThisWeek under the same UTC-day rule) ever sees them.
+  // The in-memory pass still receives the un-truncated `now` so its own
+  // day truncation runs against the actual moment, not the bound.
+  const nowDay = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
   const candidates = await db.mealPlanInstance.findMany({
     where: {
       userId,
       isWizardDraft: false,
-      startDate: { lte: now, not: null },
-      endDate: { gte: now, not: null },
+      startDate: { lte: nowDay, not: null },
+      endDate: { gte: nowDay, not: null },
     },
     select: {
       id: true,

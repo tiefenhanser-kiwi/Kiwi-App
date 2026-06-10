@@ -23,6 +23,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 
 import { estimateDishMacros } from "./dishMacros";
 import { logger } from "./logger";
+import { recomputeAndPersistMealMacros } from "./mealMacros";
 import {
   hasOverrides,
   resolveEffectiveIngredients,
@@ -120,8 +121,22 @@ function dishHasStoredMacros(dish: {
 
 /**
  * Returns true if any dish in the plan lacks canonical stored macros
- * (i.e. all four PerServing fields are 0). Used by mutation routes to
- * decide whether to trigger recalc-macros after a structural change.
+ * (i.e. all four PerServing fields are 0) OR any item carries a recipe-
+ * level / ingredient-level override that bypasses the dish cache. Used by
+ * mutation routes to decide whether to trigger recalc-macros after a
+ * structural change.
+ *
+ * D-WS7-061: pre-WS7-5a this predicate only inspected the four PerServing
+ * fields, so item overrides (ingredientOverrides / recipeOverrideJson)
+ * silently under-fired the stale flag. computePlanMacros bypasses the
+ * cache whenever hasOverrides(item) is true (planMacros.ts:283), so an
+ * override-bearing item with a cached-dish would be told macrosStale=false
+ * yet the next recalc would AI-compute a different per-serving result.
+ * The scope is exactly these two JSON-override fields — servingsOverride
+ * stays out because hasOverrides() ignores it (overrideResolver.ts:41-43)
+ * and the per-day aggregation never multiplies per-serving × servings, so
+ * a servings change does not produce displayed-macro drift (Phase 0 audit
+ * §1B — the WS7-4-F "servings also under-fires" claim was refuted).
  *
  * @throws PlanMacrosNotFoundError when the plan doesn't exist.
  */
@@ -135,6 +150,8 @@ export async function planNeedsMacroEstimation(params: {
     select: {
       items: {
         select: {
+          ingredientOverrides: true,
+          recipeOverrideJson: true,
           meal: {
             select: {
               dishLinks: {
@@ -157,6 +174,9 @@ export async function planNeedsMacroEstimation(params: {
   });
   if (!plan) throw new PlanMacrosNotFoundError(params.planId);
   for (const item of plan.items) {
+    if (item.ingredientOverrides !== null || item.recipeOverrideJson !== null) {
+      return true;
+    }
     for (const link of item.meal.dishLinks) {
       if (!dishHasStoredMacros(link.dish)) return true;
     }
@@ -336,6 +356,7 @@ export async function computePlanMacros(
   // Persist canonical macros + emit dish_macros_estimated for each fresh
   // compute. Sequential is fine here — small N, low latency, simpler than
   // a transaction across N updates.
+  const persistedMealIds = new Set<string>();
   for (const o of outcomes) {
     if (!o.persistMacros) continue;
     try {
@@ -356,12 +377,30 @@ export async function computePlanMacros(
           platform: "api",
         },
       });
+      persistedMealIds.add(o.pending.mealId);
     } catch (err) {
       logger.warn(
         { event: "dish_persist_failed", userId, dishId: o.dishId, err },
         "Failed to persist freshly-computed dish macros",
       );
       // Don't fail the whole recalc — the value is still in the response.
+    }
+  }
+
+  // WS7-6 Fix-Block 3 (Bug 3): every Dish whose macros we just persisted
+  // belongs to one or more Meals whose denormalized *PerServing cache is
+  // now stale. Re-sum from the (newly written) dish macros and overwrite
+  // the parent Meal rows so the next plan-view read shows the right
+  // totals. Failures are warned but non-fatal — same posture as the
+  // dish-persist try/catch above; the response still ships.
+  for (const mealId of persistedMealIds) {
+    try {
+      await recomputeAndPersistMealMacros(prisma, mealId);
+    } catch (err) {
+      logger.warn(
+        { event: "meal_macros_persist_failed", userId, mealId, err },
+        "Failed to persist aggregated meal macros after dish persist",
+      );
     }
   }
 

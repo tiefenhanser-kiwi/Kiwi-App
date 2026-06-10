@@ -1709,6 +1709,20 @@ interface GLFix {
   itemCount: number;
 }
 
+// WS7-6 (E) Block 2 — covering-subset fixture for resolveThisWeekWinnerId.
+// The list-endpoint test now needs a winner resolution path, so the GL
+// harness also accepts plan rows shaped like the resolver's narrow select
+// projection.
+interface GLPlanFix {
+  id: string;
+  userId: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  activatedAt: Date | null;
+  createdAt: Date;
+  isWizardDraft: boolean;
+}
+
 function glFix(opts: Partial<GLFix> & { id: string; userId: string }): GLFix {
   return {
     title: `List ${opts.id}`,
@@ -1722,7 +1736,7 @@ function glFix(opts: Partial<GLFix> & { id: string; userId: string }): GLFix {
   };
 }
 
-function makeGLStub(lists: GLFix[]) {
+function makeGLStub(lists: GLFix[], plans: GLPlanFix[] = []) {
   return {
     groceryList: {
       findMany: async (args: {
@@ -1745,12 +1759,56 @@ function makeGLStub(lists: GLFix[]) {
           .map((l) => ({ ...l, _count: { items: l.itemCount } }));
       },
     },
+    // Narrow covering-subset query used by resolveThisWeekWinnerId. Mirrors
+    // the real Prisma shape: filters on userId + isWizardDraft +
+    // startDate.lte/endDate.gte (both bounds inclusive, both non-null).
+    mealPlanInstance: {
+      findMany: async (args: {
+        where: {
+          userId: string;
+          isWizardDraft?: boolean;
+          startDate?: { lte: Date; not?: null };
+          endDate?: { gte: Date; not?: null };
+        };
+      }) => {
+        return plans
+          .filter((p) => {
+            if (p.userId !== args.where.userId) return false;
+            if (
+              args.where.isWizardDraft !== undefined &&
+              p.isWizardDraft !== args.where.isWizardDraft
+            )
+              return false;
+            if (args.where.startDate?.lte) {
+              if (p.startDate === null) return false;
+              if (p.startDate.getTime() > args.where.startDate.lte.getTime())
+                return false;
+            }
+            if (args.where.endDate?.gte) {
+              if (p.endDate === null) return false;
+              if (p.endDate.getTime() < args.where.endDate.gte.getTime())
+                return false;
+            }
+            return true;
+          })
+          .map((p) => ({
+            id: p.id,
+            startDate: p.startDate,
+            endDate: p.endDate,
+            activatedAt: p.activatedAt,
+            createdAt: p.createdAt,
+          }));
+      },
+    },
   };
 }
 
-async function glSpinUp(lists: GLFix[]): Promise<Harness> {
+async function glSpinUp(
+  lists: GLFix[],
+  plans: GLPlanFix[] = [],
+): Promise<Harness> {
   const router = createGroceryListsRouter({
-    prisma: makeGLStub(lists) as never,
+    prisma: makeGLStub(lists, plans) as never,
   });
   const app: Express = express();
   app.use(express.json());
@@ -1861,6 +1919,116 @@ describe("GET /grocery-lists", () => {
     try {
       const res = await fetch(`${harness.baseUrl}/grocery-lists`);
       assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-6 (E) Block 2 — round-trip: exactly the list whose mealPlanInstanceId
+  // matches the single This-Week winner returns isActiveThisWeek=true.
+  // Lists with null mealPlanInstanceId and lists pointing at a non-winner
+  // covering plan return false. Resolves D-WS7-105 (mobile date proxy
+  // superseded by server field for the badge).
+  it("returns isActiveThisWeek=true only for the list whose plan is the This-Week winner", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    // Two covering plans for the same user. `plan-winner` has the fresher
+    // activatedAt so resolveThisWeekPlan picks it; `plan-loser` covers now
+    // but loses the tiebreak.
+    const plans: GLPlanFix[] = [
+      {
+        id: "plan-winner",
+        userId: GL_USER,
+        startDate: new Date(now - 3 * day),
+        endDate: new Date(now + 3 * day),
+        activatedAt: new Date(now - 1 * day),
+        createdAt: new Date(now - 5 * day),
+        isWizardDraft: false,
+      },
+      {
+        id: "plan-loser",
+        userId: GL_USER,
+        startDate: new Date(now - 2 * day),
+        endDate: new Date(now + 2 * day),
+        activatedAt: new Date(now - 4 * day),
+        createdAt: new Date(now - 6 * day),
+        isWizardDraft: false,
+      },
+    ];
+    const lists: GLFix[] = [
+      glFix({
+        id: "gl-winner",
+        userId: GL_USER,
+        mealPlanInstanceId: "plan-winner",
+      }),
+      glFix({
+        id: "gl-loser",
+        userId: GL_USER,
+        mealPlanInstanceId: "plan-loser",
+      }),
+      glFix({
+        id: "gl-no-plan",
+        userId: GL_USER,
+        mealPlanInstanceId: null,
+        sourceType: "recurring",
+      }),
+    ];
+    const harness = await glSpinUp(lists, plans);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        groceryLists: { id: string; isActiveThisWeek: boolean }[];
+      };
+      const byId = new Map(body.groceryLists.map((g) => [g.id, g]));
+      assert.equal(byId.get("gl-winner")?.isActiveThisWeek, true);
+      assert.equal(byId.get("gl-loser")?.isActiveThisWeek, false);
+      assert.equal(byId.get("gl-no-plan")?.isActiveThisWeek, false);
+      // Exactly one true across the response — the "single This-Week"
+      // invariant the mobile tab depends on.
+      assert.equal(
+        body.groceryLists.filter((g) => g.isActiveThisWeek).length,
+        1,
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns isActiveThisWeek=false on every list when no plan covers now", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    // Plan exists but its window is entirely in the past — resolver
+    // returns null, so no list can be the winner.
+    const plans: GLPlanFix[] = [
+      {
+        id: "plan-past",
+        userId: GL_USER,
+        startDate: new Date(now - 30 * day),
+        endDate: new Date(now - 20 * day),
+        activatedAt: new Date(now - 25 * day),
+        createdAt: new Date(now - 30 * day),
+        isWizardDraft: false,
+      },
+    ];
+    const lists: GLFix[] = [
+      glFix({
+        id: "gl-past",
+        userId: GL_USER,
+        mealPlanInstanceId: "plan-past",
+      }),
+    ];
+    const harness = await glSpinUp(lists, plans);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      const body = (await res.json()) as {
+        groceryLists: { id: string; isActiveThisWeek: boolean }[];
+      };
+      assert.equal(body.groceryLists[0].isActiveThisWeek, false);
     } finally {
       await harness.close();
     }

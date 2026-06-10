@@ -22,7 +22,17 @@ import {
   WizardExpandedPlanSchema,
   type WizardExpandedPlan,
 } from "./ai/schemas/wizard";
-import { lookupPurchaseDefault } from "./ingredientPurchaseDefaults";
+import {
+  inferCategory,
+  resolveIngredients,
+} from "./ingredientResolve";
+import { recomputeAndPersistMealMacros } from "./mealMacros";
+
+// WS7-6 Block 2: inferCategory now lives in ingredientResolve.ts so the new
+// save-canonical materializeMeal can reuse it. Re-exported here so existing
+// importers (wizardActivation.test.ts, anything else referencing the wizard
+// module) don't have to change paths.
+export { inferCategory };
 
 export class WizardDraftNotFoundError extends Error {
   constructor(public readonly draftId: string) {
@@ -39,201 +49,6 @@ export class WizardDraftMalformedError extends Error {
     super(`Wizard draft malformed: ${draftId} (${reason})`);
     this.name = "WizardDraftMalformedError";
   }
-}
-
-// ── inferCategory ────────────────────────────────────────────────────────
-// Maps an ingredient canonical name to the Ingredient.category vocabulary.
-// Seeded vocab (devData.ts) covers "Produce" | "Protein" | "Dairy" |
-// "Pantry" | "Bakery" | "Frozen"; WS7-5d Block 2 extends the wizard-side
-// inference to also emit "Canned" | "Snacks" | "Household" so canned items
-// (crushed tomatoes, enchilada sauce, coconut milk) and the section-map
-// additions Block 1 made in CATEGORY_TO_SECTION route to the right
-// StoreSection instead of falling through to Pantry/extras.
-// D-WS7-065: this is still a first-pass deterministic map. Uncommon
-// ingredients land in "Pantry" by default; a later AI-reconciliation pass
-// can refine — out of scope for this block.
-//
-// Structure: a rules array (keyword → category). Easy to extend; a future
-// reconciliation pass can re-categorize ingredients without touching the
-// activation transaction.
-
-type IngredientCategory =
-  | "Produce"
-  | "Protein"
-  | "Dairy"
-  | "Pantry"
-  | "Bakery"
-  | "Frozen"
-  | "Canned"
-  | "Snacks"
-  | "Household";
-
-export const INGREDIENT_CATEGORY_FALLBACK: IngredientCategory = "Pantry";
-
-interface CategoryRule {
-  category: IngredientCategory;
-  keywords: string[];
-}
-
-const CATEGORY_RULES: CategoryRule[] = [
-  {
-    category: "Frozen",
-    keywords: ["frozen", "ice cream", "gelato", "sorbet"],
-  },
-  // WS7-5d Block 2: Canned must come before Produce so multi-token keywords
-  // like "diced tomatoes" / "crushed tomatoes" win over the bare "tomato"
-  // Produce match. Block 1 confirmed live mis-categorizations of these into
-  // Pantry; with the expanded CATEGORY_TO_SECTION map they now route to the
-  // 'canned' StoreSection on activation.
-  {
-    category: "Canned",
-    keywords: [
-      "canned",
-      "diced tomato", "crushed tomato", "stewed tomato",
-      "tomato sauce", "tomato paste", "tomato puree",
-      "enchilada sauce", "marinara",
-      "coconut milk", "coconut cream",
-      "chickpea", "black bean", "kidney bean", "pinto bean",
-      "white bean", "cannellini bean", "navy bean", "refried bean",
-      "tuna",
-      // WS7-5d Block 4 Fix 3: route pickled items + capers to Canned. Block 2
-      // ordering keeps Canned ahead of Produce so "pickled jalapeño" wins
-      // over the bare "jalapeño" Produce match (same pattern as
-      // "crushed tomato" → Canned over "tomato" → Produce). "pickled" is a
-      // substring keyword so it also catches "pickled onion", "pickled
-      // ginger", "pickled vegetables". "olive" was considered but rejected
-      // — its single-token word-boundary regex catches "olive oil".
-      "pickled",
-      "capers",
-      // WS7-5d Block 5 Fix 2: route broths/stocks to Canned. Device-test
-      // surfaced "chicken broth" + "low-sodium chicken broth" landing in
-      // Protein because the bare "chicken" keyword wins ahead of any Canned
-      // match. Adding "broth" + "stock" as single-token keywords with Canned
-      // ordered before Protein resolves it (same ordering trick as the
-      // "pickled" → Canned fix above). Single-token word-boundary keeps
-      // "chicken broth" → Canned but leaves plain "chicken breast" /
-      // "chicken thighs" still routing to Protein (no broth/stock token).
-      "broth",
-      "stock",
-    ],
-  },
-  // WS7-5d Block 2: Snacks — conservative keyword set. Bare "chips" matches
-  // word-boundary single-token, so "tortilla chips" / "potato chips" route
-  // here without picking up adjacent terms like "chip cookies".
-  {
-    category: "Snacks",
-    keywords: [
-      "chip", "chips", "pretzel", "popcorn", "crackers",
-      "granola bar", "trail mix", "potato chip", "tortilla chip",
-    ],
-  },
-  // WS7-5d Block 2: Household — non-food groceries. Multi-token keywords
-  // are substring matches so "paper towels" / "trash bags" still route.
-  {
-    category: "Household",
-    keywords: [
-      "paper towel", "toilet paper", "trash bag", "garbage bag",
-      "dish soap", "laundry detergent", "sponge", "aluminum foil",
-      "plastic wrap", "parchment paper", "zip-top bag",
-    ],
-  },
-  {
-    category: "Produce",
-    keywords: [
-      "onion", "garlic", "tomato", "lettuce", "spinach", "kale", "arugula",
-      "carrot", "celery", "potato", "sweet potato", "bell pepper",
-      "cucumber", "zucchini", "broccoli", "cauliflower", "mushroom", "avocado",
-      "lemon", "lime", "orange", "apple", "banana", "berries",
-      "strawberry", "blueberry", "raspberry", "blackberry", "mango",
-      "pineapple", "grape", "pear", "peach", "plum",
-      "cilantro", "parsley", "basil", "mint", "rosemary", "thyme", "sage",
-      "dill", "tarragon", "oregano leaves",
-      "scallion", "green onion", "shallot", "leek", "ginger", "chive",
-      "cabbage", "asparagus", "eggplant", "squash", "corn", "peas",
-      "green bean", "radish", "beet", "fennel", "bok choy", "watercress",
-      "jalapeno", "jalapeño", "chili pepper", "chile pepper",
-      "lettuce mix", "salad greens", "spring mix", "romaine", "kale",
-    ],
-  },
-  {
-    category: "Protein",
-    keywords: [
-      "chicken", "beef", "pork", "lamb", "turkey", "duck", "veal",
-      "bacon", "sausage", "ham", "prosciutto", "salami", "pepperoni",
-      "chorizo", "meatballs",
-      "fish", "salmon", "tuna", "cod", "tilapia", "trout", "halibut",
-      "shrimp", "prawn", "crab", "lobster", "scallop", "squid", "calamari",
-      "anchovy", "sardine", "mackerel",
-      "tofu", "tempeh", "seitan",
-      "ground beef", "ground turkey", "ground pork", "ground chicken",
-      "chicken breast", "chicken thigh", "chicken wing", "chicken leg",
-      "steak", "ribeye", "sirloin", "filet", "pork chop", "ribs", "brisket",
-    ],
-  },
-  {
-    category: "Dairy",
-    keywords: [
-      "milk", "buttermilk", "butter", "cream", "heavy cream", "half and half",
-      "yogurt", "yoghurt", "greek yogurt", "sour cream", "creme fraiche",
-      "cheese", "cheddar", "parmesan", "mozzarella", "feta", "ricotta",
-      "goat cheese", "cream cheese", "cottage cheese", "brie", "blue cheese",
-      "swiss", "gouda", "provolone", "havarti", "manchego",
-      "ghee", "egg", "eggs", "egg yolk", "egg white",
-    ],
-  },
-  {
-    category: "Bakery",
-    keywords: [
-      "bread", "tortilla", "bun", "roll", "naan", "pita", "bagel",
-      "croissant", "biscuit", "muffin", "english muffin",
-      "taco shell", "wrap", "baguette", "sourdough", "ciabatta",
-      "focaccia", "brioche", "pretzel",
-    ],
-  },
-  // "Pantry" — implicit fallback. Spices (paprika, cumin, oregano),
-  // condiments (soy sauce, vinegar, ketchup, mustard), oils, vinegars,
-  // grains (rice, quinoa, farro), pasta, flour, sugar, canned goods,
-  // dried beans, seasonings — all land here without an explicit rule,
-  // matching the seeded vocabulary.
-];
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function keywordMatches(name: string, keyword: string): boolean {
-  if (keyword.includes(" ")) {
-    // Multi-token keyword: simple substring is the closest match heuristic
-    // ("ground beef" should match "1 lb ground beef, lean").
-    return name.includes(keyword);
-  }
-  // Single-token keyword: word-boundary with permissive trailing plural
-  // suffix. WS7-5d Block 3 D-WS7-078: `(?:es|s)?` (es first so the engine
-  // consumes -oes before falling back to -s) closes the irregular-plural
-  // gap so "tomato"→"tomatoes" and "potato"→"potatoes" both match alongside
-  // the regular "lemon"→"lemons" case.
-  return new RegExp(`\\b${escapeRegExp(keyword)}(?:es|s)?\\b`, "i").test(name);
-}
-
-/**
- * Infer an Ingredient.category value from a canonical-name string. Output
- * is one of: "Produce" | "Protein" | "Dairy" | "Pantry" | "Bakery" |
- * "Frozen" | "Canned" | "Snacks" | "Household". Unknowns fall back to
- * "Pantry". CATEGORY_TO_SECTION in groceryList.ts maps every value here to
- * a StoreSection (WS7-5d Block 1 expanded that map to match).
- *
- * Deterministic, no AI, no I/O. Safe to call inside the activation
- * transaction without inflating latency.
- */
-export function inferCategory(name: string): string {
-  const lower = name.toLowerCase().trim();
-  if (!lower) return INGREDIENT_CATEGORY_FALLBACK;
-  for (const rule of CATEGORY_RULES) {
-    for (const k of rule.keywords) {
-      if (keywordMatches(lower, k)) return rule.category;
-    }
-  }
-  return INGREDIENT_CATEGORY_FALLBACK;
 }
 
 // ── materializeWizardDraft ──────────────────────────────────────────────
@@ -352,63 +167,16 @@ export async function materializeWizardDraft(
     expanded = parsed.data;
   }
 
-  // Collect unique ingredients, upsert each once.
-  // Preserve the first-occurrence original-cased name as displayName for
-  // newly created rows; the AI-emitted unit becomes defaultUnit. Existing
-  // rows keep their displayName/defaultUnit untouched (update: {}).
-  type Discovered = {
-    canonical: string;
-    displayName: string;
-    defaultUnit: string;
-  };
-  const discovered = new Map<string, Discovered>();
-  for (const m of expanded.meals) {
-    for (const d of m.dishes) {
-      for (const ing of d.ingredients) {
-        const canonical = ing.name.toLowerCase().trim();
-        if (!canonical) continue;
-        if (!discovered.has(canonical)) {
-          discovered.set(canonical, {
-            canonical,
-            displayName: ing.name.trim(),
-            defaultUnit: ing.unit,
-          });
-        }
-      }
-    }
-  }
-
-  const ingredientIdByCanonical = new Map<string, string>();
-  for (const d of discovered.values()) {
-    // WS7-5d Block 2: populate purchaseUnit/Quantity/Display on create when
-    // the canonical name is in the shared defaults table. Without this,
-    // every freshly-wizarded ingredient row has null purchase fields →
-    // guaranteed miss on the cache gate in
-    // groceryListAI.fillPurchaseSizesWithWriteBack → serial Haiku gap-fill
-    // storm on the first generate-grocery-list call. Genuine unknowns
-    // (ingredients NOT in the table) intentionally remain null so the
-    // gap-fill path still handles them on demand.
-    const purchase = lookupPurchaseDefault(d.canonical);
-    const upserted = await prisma.ingredient.upsert({
-      where: { canonicalName: d.canonical },
-      update: {},
-      create: {
-        canonicalName: d.canonical,
-        displayName: d.displayName,
-        category: inferCategory(d.canonical),
-        defaultUnit: d.defaultUnit,
-        ...(purchase
-          ? {
-              purchaseUnit: purchase.purchaseUnit,
-              purchaseQuantity: purchase.purchaseQuantity,
-              purchaseDisplay: purchase.purchaseDisplay,
-            }
-          : {}),
-      },
-      select: { id: true },
-    });
-    ingredientIdByCanonical.set(d.canonical, upserted.id);
-  }
+  // WS7-6 Block 2: upsert + category inference now live in
+  // ingredientResolve.resolveIngredients so the new save-canonical
+  // materializer reuses the same logic. Flatten every dish ingredient
+  // (the resolver dedupes by canonical name internally) and call once.
+  const mentions = expanded.meals.flatMap((m) =>
+    m.dishes.flatMap((d) =>
+      d.ingredients.map((ing) => ({ name: ing.name, unit: ing.unit })),
+    ),
+  );
+  const ingredientIdByCanonical = await resolveIngredients(prisma, mentions);
 
   // ── Pass 2 (transactional): materialize the meal graph. ─────────────
   let mealsCreated = 0;
@@ -519,6 +287,11 @@ export async function materializeWizardDraft(
       }
     }
 
+    // WS7-6 Fix-Block 3 (Bug 3): roll the per-dish per-serving macros up to
+    // the meal row as a simple sum (Hans's ruling — see mealMacros.ts).
+    // Per-dish macros were written above; this is the post-dish-loop fold.
+    await recomputeAndPersistMealMacros(tx, meal.id);
+
     await tx.mealPlanItem.create({
       data: {
         mealPlanInstanceId: draftId,
@@ -563,7 +336,7 @@ export async function materializeWizardDraft(
     mealsCreated,
     dishesCreated,
     itemsCreated,
-    ingredientsTouched: discovered.size,
+    ingredientsTouched: ingredientIdByCanonical.size,
     mealPlanTemplateId: template.id,
   };
 }

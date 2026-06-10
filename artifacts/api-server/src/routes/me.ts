@@ -12,6 +12,17 @@ import { z } from "zod";
 
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
 import { logger } from "../lib/logger";
+import {
+  collectDishMentions,
+  collectMealMentions,
+  collectRematerializeDishMentions,
+  materializeDish,
+  materializeMeal,
+  rematerializeDish,
+  rematerializeMeal,
+  type MaterializeMealDish,
+} from "../lib/mealMaterialize";
+import { resolveIngredients } from "../lib/ingredientResolve";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rateLimit";
@@ -215,6 +226,175 @@ function toDishListShape(d: {
     image: d.imageUrl,
   };
 }
+
+// ── WS7-6 Block 2: save-canonical input schemas ────────────────────────
+// Mode A ParsedMeal, manual Mode B, and Mode C combined builds all coerce
+// to this shape on the client before posting. The materializeMeal /
+// materializeDish helpers (../lib/mealMaterialize.ts) consume the parsed
+// output and write the row graph.
+
+const macrosPerServingSchema = z
+  .object({
+    caloriesPerServing: z.number().nonnegative().max(10000).optional(),
+    proteinGPerServing: z.number().nonnegative().max(1000).optional(),
+    carbsGPerServing: z.number().nonnegative().max(1000).optional(),
+    fatGPerServing: z.number().nonnegative().max(1000).optional(),
+  })
+  .strict();
+
+const ingredientItemSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    quantity: z.number().positive().max(10000),
+    unit: z.string().min(1).max(40),
+    preparationNote: z.string().max(200).nullable().optional(),
+    isOptional: z.boolean().optional(),
+  })
+  .strict();
+
+const stepItemSchema = z
+  .object({
+    text: z.string().min(1).max(500),
+    estimatedMinutes: z.number().int().positive().max(600).optional(),
+    phaseType: z
+      .enum(["prep", "preheat", "cook", "rest", "assemble", "hold"])
+      .optional(),
+    parallelGroup: z.string().max(60).nullable().optional(),
+    isTimingSensitive: z.boolean().optional(),
+  })
+  .strict();
+
+const dishRoleEnum = z.enum([
+  "main",
+  "side",
+  "sauce",
+  "topping",
+  "base",
+  "optional",
+]);
+
+const newDishSchema = z
+  .object({
+    kind: z.literal("new"),
+    title: z.string().min(1).max(200),
+    role: dishRoleEnum,
+    positionIndex: z.number().int().nonnegative().max(20),
+    estimatedTimeMinutes: z.number().int().positive().max(600).optional(),
+    difficulty: z.enum(["easy", "medium", "fancy"]).optional(),
+    servingsDefault: z.number().int().positive().max(99).optional(),
+    ingredients: z.array(ingredientItemSchema).min(1).max(40),
+    steps: z.array(stepItemSchema).max(30),
+    macros: macrosPerServingSchema.optional(),
+  })
+  .strict();
+
+const linkDishSchema = z
+  .object({
+    kind: z.literal("link"),
+    dishId: z.string().min(1).max(100),
+    role: dishRoleEnum,
+    positionIndex: z.number().int().nonnegative().max(20),
+  })
+  .strict();
+
+const dishEntrySchema = z.discriminatedUnion("kind", [
+  newDishSchema,
+  linkDishSchema,
+]);
+
+const postMeMealSchema = z
+  .object({
+    title: z.string().min(1).max(200),
+    description: z.string().max(2000).nullable().optional(),
+    cuisineType: z.string().max(60).nullable().optional(),
+    // Q2: omitted → "dinner" (Mode A has no mealType). Honored when supplied.
+    mealType: z
+      .enum(["breakfast", "lunch", "dinner", "snack", "mixed"])
+      .optional(),
+    servingsDefault: z.number().int().positive().max(99).optional(),
+    estimatedTimeMinutes: z.number().int().positive().max(600).optional(),
+    difficulty: z.enum(["easy", "medium", "fancy"]).optional(),
+    tags: z.array(z.string().min(1).max(40)).max(10).optional(),
+    sourceType: z.enum(["manual", "wizard", "directed", "curated"]).optional(),
+    macros: macrosPerServingSchema.optional(),
+    dishes: z.array(dishEntrySchema).min(1).max(5),
+  })
+  .strict();
+
+const postMeDishSchema = z
+  .object({
+    title: z.string().min(1).max(200),
+    description: z.string().max(2000).nullable().optional(),
+    estimatedTimeMinutes: z.number().int().positive().max(600).optional(),
+    difficulty: z.enum(["easy", "medium", "fancy"]).optional(),
+    servingsDefault: z.number().int().positive().max(99).optional(),
+    tags: z.array(z.string().min(1).max(40)).max(10).optional(),
+    sourceType: z.enum(["manual", "wizard", "directed", "curated"]).optional(),
+    macros: macrosPerServingSchema.optional(),
+    ingredients: z.array(ingredientItemSchema).min(1).max(40),
+    steps: z.array(stepItemSchema).max(30),
+  })
+  .strict();
+
+// ── WS7-6 1A: PATCH schemas (edit surface) ─────────────────────────────
+// Every field optional + at-least-one-field refinement so an empty patch
+// fails with 400 instead of being a silent no-op.
+//
+// Patchable fields mirror PRD §8.4.4 (Meal Detail edit accept list) and
+// §10.5/§8.4.5 (Dish edit). imageUrl is patchable: meal/dish image lives
+// on the row, not behind a separate upload endpoint.
+//
+// dishes[] on the meal PATCH and ingredients[] / steps[] on the dish
+// PATCH trigger the wipe-and-recreate path (see rematerializeMeal /
+// rematerializeDish). Their absence keeps the sub-graph intact and the
+// route falls back to a scalar-only update.
+
+const patchMeMealSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    description: z.string().max(2000).nullable().optional(),
+    cuisineType: z.string().max(60).nullable().optional(),
+    mealType: z
+      .enum(["breakfast", "lunch", "dinner", "snack", "mixed"])
+      .optional(),
+    servingsDefault: z.number().int().positive().max(99).optional(),
+    estimatedTimeMinutes: z.number().int().positive().max(600).optional(),
+    difficulty: z.enum(["easy", "medium", "fancy"]).optional(),
+    tags: z.array(z.string().min(1).max(40)).max(10).optional(),
+    imageUrl: z.string().max(2048).nullable().optional(),
+    macros: macrosPerServingSchema.optional(),
+    dishes: z.array(dishEntrySchema).min(1).max(5).optional(),
+  })
+  .strict()
+  .refine((obj) => Object.keys(obj).length > 0, {
+    message: "patch must include at least one field",
+  });
+
+const patchMeDishSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    description: z.string().max(2000).nullable().optional(),
+    estimatedTimeMinutes: z.number().int().positive().max(600).optional(),
+    difficulty: z.enum(["easy", "medium", "fancy"]).optional(),
+    servingsDefault: z.number().int().positive().max(99).optional(),
+    tags: z.array(z.string().min(1).max(40)).max(10).optional(),
+    imageUrl: z.string().max(2048).nullable().optional(),
+    macros: macrosPerServingSchema.optional(),
+    ingredients: z.array(ingredientItemSchema).min(1).max(40).optional(),
+    steps: z.array(stepItemSchema).max(30).optional(),
+  })
+  .strict()
+  .refine((obj) => Object.keys(obj).length > 0, {
+    message: "patch must include at least one field",
+  });
+
+// Per-user mutation token bucket — same posture as POST /plans
+// (mutationLimiter at 12/min from plans.ts). Save-canonical is editing
+// cadence, not a discovery read.
+const saveMutationLimiter = rateLimit({
+  capacity: 12,
+  refillPerSec: 12 / 60,
+});
 
 export interface MeRouterDeps {
   prisma: PrismaClient;
@@ -720,6 +900,394 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       return res.status(500).json({ error: "failed to fetch favorites" });
     }
   });
+
+  // ── Save-canonical (WS7-6 Block 2) ───────────────────────────────────
+  // POST /me/meals + POST /me/dishes — write the row graph for a meal
+  // built / parsed in the mobile builder. Both routes are FREE tier; the
+  // premium gate lives only on Mode A *parsing* (POST /builder/parse-meal
+  // — see routes/builder.ts:194-208), not on save.
+
+  // POST /me/meals — manual-built meal or Mode-C combined meal (Q1 link
+  // path uses dishes[].kind === "link" with an existing dishId).
+  router.post(
+    "/me/meals",
+    requireAuth,
+    saveMutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+
+      const parsed = postMeMealSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid body",
+          details: parsed.error.flatten(),
+        });
+      }
+      const body = parsed.data;
+
+      // For "link" dishes (Q1 Mode-C), verify each referenced dish exists
+      // and is either owned by the user or has no owner (curated /
+      // featured catalog dishes). A 404 on a missing link target is
+      // clearer than letting the tx hit an FK violation.
+      const linkDishIds = body.dishes
+        .filter((d): d is Extract<typeof d, { kind: "link" }> =>
+          d.kind === "link",
+        )
+        .map((d) => d.dishId);
+
+      if (linkDishIds.length > 0) {
+        const found = await prisma.dish.findMany({
+          where: { id: { in: linkDishIds }, isArchived: false },
+          select: { id: true, userId: true },
+        });
+        const foundIds = new Set(found.map((d) => d.id));
+        const missing = linkDishIds.filter((id) => !foundIds.has(id));
+        if (missing.length > 0) {
+          return res.status(404).json({
+            error: "linked dish(es) not found",
+            missing,
+          });
+        }
+        // Ownership: a dish is linkable when it is the user's own dish OR
+        // an unowned catalog dish (userId === null). Anyone else's dish
+        // is not linkable.
+        const forbidden = found
+          .filter((d) => d.userId !== null && d.userId !== userId)
+          .map((d) => d.id);
+        if (forbidden.length > 0) {
+          return res.status(403).json({
+            error: "linked dish(es) not owned by user",
+            forbidden,
+          });
+        }
+      }
+
+      try {
+        // WS7-6 Fix-Block 1A (P2028): resolve ingredients BEFORE opening the
+        // tx. Each upsert is its own DB roundtrip; awaiting them inside
+        // $transaction counted them against the 5000ms budget. See module-
+        // header comment in mealMaterialize.ts.
+        const payload = {
+          ...body,
+          dishes: body.dishes as MaterializeMealDish[],
+        };
+        const mentions = collectMealMentions(payload);
+        const ingredientIdByCanonical = await resolveIngredients(
+          prisma,
+          mentions,
+        );
+        const result = await prisma.$transaction(
+          async (tx) =>
+            materializeMeal(tx, userId, payload, ingredientIdByCanonical),
+          { timeout: 15000 },
+        );
+        return res.status(201).json({
+          meal: {
+            id: result.mealId,
+            dishIds: result.dishIds,
+            linksCreated: result.linksCreated,
+          },
+        });
+      } catch (err) {
+        logger.error({ err, userId }, "POST /me/meals failed");
+        return res.status(500).json({ error: "failed to create meal" });
+      }
+    },
+  );
+
+  // POST /me/dishes — standalone Dish (no Meal wrapper). Same resolver
+  // path as POST /me/meals for ingredients; steps use polymorphic
+  // ownerType="dish".
+  router.post(
+    "/me/dishes",
+    requireAuth,
+    saveMutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+
+      const parsed = postMeDishSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid body",
+          details: parsed.error.flatten(),
+        });
+      }
+      const body = parsed.data;
+
+      try {
+        // WS7-6 Fix-Block 1A (P2028): hoist Pass 1 out of $transaction.
+        const mentions = collectDishMentions(body);
+        const ingredientIdByCanonical = await resolveIngredients(
+          prisma,
+          mentions,
+        );
+        const result = await prisma.$transaction(
+          async (tx) =>
+            materializeDish(tx, userId, body, ingredientIdByCanonical),
+          { timeout: 15000 },
+        );
+        return res.status(201).json({ dish: { id: result.dishId } });
+      } catch (err) {
+        logger.error({ err, userId }, "POST /me/dishes failed");
+        return res.status(500).json({ error: "failed to create dish" });
+      }
+    },
+  );
+
+  // ── PATCH /me/meals/:id — WS7-6 1A ──────────────────────────────────
+  // Library-context global edit (PRD §8.4.4) AND the §2.5 "Apply always"
+  // branch from a plan-context Meal Builder edit. Owner-gated; archived
+  // and curated/null-owner meals are not patchable by a user.
+  //
+  // dishes[] in the body triggers wipe-and-recreate via rematerializeMeal;
+  // its absence keeps the sub-graph intact and the route does a scalar-
+  // only meal.update.
+  router.patch(
+    "/me/meals/:id",
+    requireAuth,
+    saveMutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const mealId = req.params.id;
+      if (typeof mealId !== "string" || mealId.length === 0 || mealId.length > 100) {
+        return res.status(400).json({ error: "invalid meal id" });
+      }
+
+      const parsed = patchMeMealSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid body",
+          details: parsed.error.flatten(),
+        });
+      }
+      const body = parsed.data;
+
+      // Owner gate — 404 for missing/archived, 403 for foreign-owned or
+      // curated (userId: null) meals. Mirrors the link-dish ownership
+      // gate at POST /me/meals.
+      const meal = await prisma.meal.findUnique({
+        where: { id: mealId },
+        select: { id: true, userId: true, isArchived: true },
+      });
+      if (!meal || meal.isArchived) {
+        return res.status(404).json({ error: "meal not found" });
+      }
+      if (meal.userId === null || meal.userId !== userId) {
+        return res.status(403).json({ error: "meal not owned by user" });
+      }
+
+      // For "link" dishes in the new payload — verify each exists and is
+      // owned-or-catalog. Same gate as POST /me/meals.
+      if (body.dishes) {
+        const linkDishIds = body.dishes
+          .filter((d): d is Extract<typeof d, { kind: "link" }> =>
+            d.kind === "link",
+          )
+          .map((d) => d.dishId);
+
+        if (linkDishIds.length > 0) {
+          const found = await prisma.dish.findMany({
+            where: { id: { in: linkDishIds }, isArchived: false },
+            select: { id: true, userId: true },
+          });
+          const foundIds = new Set(found.map((d) => d.id));
+          const missing = linkDishIds.filter((id) => !foundIds.has(id));
+          if (missing.length > 0) {
+            return res.status(404).json({
+              error: "linked dish(es) not found",
+              missing,
+            });
+          }
+          const forbidden = found
+            .filter((d) => d.userId !== null && d.userId !== userId)
+            .map((d) => d.id);
+          if (forbidden.length > 0) {
+            return res.status(403).json({
+              error: "linked dish(es) not owned by user",
+              forbidden,
+            });
+          }
+        }
+      }
+
+      try {
+        if (body.dishes) {
+          // Full wipe-and-recreate path.
+          // WS7-6 Fix-Block 1A (P2028): the device-test cluster surfaced a
+          // 5045ms / 5000ms tx timeout here on cold paths because the N
+          // ingredient upserts ran inside $transaction. Resolve them first.
+          const payload = {
+            ...body,
+            dishes: body.dishes as MaterializeMealDish[],
+          };
+          const mentions = collectMealMentions(payload);
+          const ingredientIdByCanonical = await resolveIngredients(
+            prisma,
+            mentions,
+          );
+          const result = await prisma.$transaction(
+            async (tx) =>
+              rematerializeMeal(
+                tx,
+                userId,
+                mealId,
+                payload,
+                ingredientIdByCanonical,
+              ),
+            { timeout: 15000 },
+          );
+          return res.json({
+            meal: {
+              id: result.mealId,
+              dishIds: result.dishIds,
+              linksCreated: result.linksCreated,
+            },
+          });
+        }
+
+        // Scalar-only patch — no wipe, no tx (single update).
+        const scalarUpdate: Record<string, unknown> = {};
+        if (body.title !== undefined) scalarUpdate.title = body.title;
+        if (body.description !== undefined)
+          scalarUpdate.description = body.description;
+        if (body.cuisineType !== undefined)
+          scalarUpdate.cuisineType = body.cuisineType;
+        if (body.mealType !== undefined) scalarUpdate.mealType = body.mealType;
+        if (body.servingsDefault !== undefined)
+          scalarUpdate.servingsDefault = body.servingsDefault;
+        if (body.estimatedTimeMinutes !== undefined)
+          scalarUpdate.estimatedTimeMinutes = body.estimatedTimeMinutes;
+        if (body.difficulty !== undefined)
+          scalarUpdate.difficulty = body.difficulty;
+        if (body.tags !== undefined) scalarUpdate.tags = body.tags;
+        if (body.imageUrl !== undefined) scalarUpdate.imageUrl = body.imageUrl;
+        if (body.macros) {
+          if (body.macros.caloriesPerServing !== undefined)
+            scalarUpdate.caloriesPerServing = body.macros.caloriesPerServing;
+          if (body.macros.proteinGPerServing !== undefined)
+            scalarUpdate.proteinGPerServing = body.macros.proteinGPerServing;
+          if (body.macros.carbsGPerServing !== undefined)
+            scalarUpdate.carbsGPerServing = body.macros.carbsGPerServing;
+          if (body.macros.fatGPerServing !== undefined)
+            scalarUpdate.fatGPerServing = body.macros.fatGPerServing;
+        }
+        await prisma.meal.update({
+          where: { id: mealId },
+          data: scalarUpdate,
+        });
+        return res.json({ meal: { id: mealId } });
+      } catch (err) {
+        logger.error({ err, userId, mealId }, "PATCH /me/meals/:id failed");
+        return res.status(500).json({ error: "failed to update meal" });
+      }
+    },
+  );
+
+  // ── PATCH /me/dishes/:id — WS7-6 1A (closes D-WS7-086) ──────────────
+  router.patch(
+    "/me/dishes/:id",
+    requireAuth,
+    saveMutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const dishId = req.params.id;
+      if (typeof dishId !== "string" || dishId.length === 0 || dishId.length > 100) {
+        return res.status(400).json({ error: "invalid dish id" });
+      }
+
+      const parsed = patchMeDishSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid body",
+          details: parsed.error.flatten(),
+        });
+      }
+      const body = parsed.data;
+
+      const dish = await prisma.dish.findUnique({
+        where: { id: dishId },
+        select: { id: true, userId: true, isArchived: true },
+      });
+      if (!dish || dish.isArchived) {
+        return res.status(404).json({ error: "dish not found" });
+      }
+      if (dish.userId === null || dish.userId !== userId) {
+        return res.status(403).json({ error: "dish not owned by user" });
+      }
+
+      const subgraphTouched =
+        body.ingredients !== undefined || body.steps !== undefined;
+
+      try {
+        if (subgraphTouched) {
+          // WS7-6 Fix-Block 1A (P2028): hoist Pass 1 out of $transaction.
+          // Skip the upsert roundtrip entirely when the patch doesn't touch
+          // ingredients (matches the previous in-helper short-circuit).
+          const mentions = collectRematerializeDishMentions(body);
+          const ingredientIdByCanonical =
+            mentions.length > 0
+              ? await resolveIngredients(prisma, mentions)
+              : new Map<string, string>();
+          await prisma.$transaction(
+            async (tx) =>
+              rematerializeDish(
+                tx,
+                userId,
+                dishId,
+                body,
+                ingredientIdByCanonical,
+              ),
+            { timeout: 15000 },
+          );
+          return res.json({ dish: { id: dishId } });
+        }
+
+        // Scalar-only patch.
+        const scalarUpdate: Record<string, unknown> = {};
+        if (body.title !== undefined) scalarUpdate.title = body.title;
+        if (body.description !== undefined)
+          scalarUpdate.description = body.description;
+        if (body.estimatedTimeMinutes !== undefined)
+          scalarUpdate.estimatedTimeMinutes = body.estimatedTimeMinutes;
+        if (body.difficulty !== undefined)
+          scalarUpdate.difficulty = body.difficulty;
+        if (body.servingsDefault !== undefined)
+          scalarUpdate.servingsDefault = body.servingsDefault;
+        if (body.tags !== undefined) scalarUpdate.tags = body.tags;
+        if (body.imageUrl !== undefined) scalarUpdate.imageUrl = body.imageUrl;
+        if (body.macros) {
+          if (body.macros.caloriesPerServing !== undefined)
+            scalarUpdate.caloriesPerServing = body.macros.caloriesPerServing;
+          if (body.macros.proteinGPerServing !== undefined)
+            scalarUpdate.proteinGPerServing = body.macros.proteinGPerServing;
+          if (body.macros.carbsGPerServing !== undefined)
+            scalarUpdate.carbsGPerServing = body.macros.carbsGPerServing;
+          if (body.macros.fatGPerServing !== undefined)
+            scalarUpdate.fatGPerServing = body.macros.fatGPerServing;
+        }
+        await prisma.dish.update({
+          where: { id: dishId },
+          data: scalarUpdate,
+        });
+        return res.json({ dish: { id: dishId } });
+      } catch (err) {
+        logger.error({ err, userId, dishId }, "PATCH /me/dishes/:id failed");
+        return res.status(500).json({ error: "failed to update dish" });
+      }
+    },
+  );
 
   // ── Catalog reads — WS7-3 A2 ──────────────────────────────────────────
   // Multi-select OR filters. Each requested filter contributes a result
