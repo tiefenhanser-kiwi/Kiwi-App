@@ -34,10 +34,14 @@ import {
 import {
   type DishFilterKey,
   type DishListItem,
-  type DishSortKey,
 } from "@/lib/api/dishes";
 import { dishesEmptyCopy } from "@/lib/dishes/emptyStateCopy";
 import { dishesFilterDefault } from "@/lib/dishes/filterDefault";
+import {
+  DISH_DISABLED_SORT_KEYS,
+  DISH_SORT_LABEL_OVERRIDES,
+  toDishSortKey,
+} from "@/lib/dishes/sortMapping";
 import { mealsEmptyCopy } from "@/lib/meals/emptyStateCopy";
 import { mealsFilterDefault } from "@/lib/meals/filterDefault";
 
@@ -56,8 +60,6 @@ const DISHES_CHIPS: FilterChipOption<DishFilterKey>[] = [
   { key: "top_rated", label: "Top Rated" },
 ];
 
-const DISH_SORT_LABEL_OVERRIDES = { times_cooked: "Most used" };
-
 // Client-side meal sort. Only `alpha` and `cook_time` have backing fields on
 // MealListItem today; the cook-stat sort keys (last_cooked / times_cooked /
 // date_created) are no-ops until WS9 lands server-side params (D-WS7-048
@@ -75,16 +77,11 @@ function sortMealsClient(
   return out;
 }
 
-// WS7-6 B-fix Block 3: dishes now sort SERVER-side (the dropdown drives the
-// ?sort= param and the list re-queries). The old client-side sortDishesClient
-// is gone. `last_cooked` is greyed in the dropdown (no Dish.lastUsedAt write
-// path, D-WS7-111) so it's never selectable; map it defensively to alpha.
-function toDishSortKey(key: SortKey): DishSortKey {
-  return key === "last_cooked" ? "alpha" : key;
-}
-
-// Sort keys greyed/disabled in dish contexts.
-const DISH_DISABLED_SORT_KEYS: readonly SortKey[] = ["last_cooked"];
+// WS7-6 B-fix Block 3: dishes sort SERVER-side (the dropdown drives ?sort= and
+// the list re-queries). WS7-6 C-fix Block 4 — toDishSortKey +
+// DISH_SORT_LABEL_OVERRIDES + DISH_DISABLED_SORT_KEYS now live in the shared
+// lib/dishes/sortMapping (Recipes→Dishes, Mode-C, and the Meal→Add-Dish sheet
+// all import them).
 
 export default function MealsTab() {
   const router = useRouter();

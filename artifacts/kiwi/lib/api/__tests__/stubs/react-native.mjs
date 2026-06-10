@@ -22,6 +22,7 @@ export const TextInput = makeHost("rn-text-input");
 export const TouchableOpacity = makeHost("rn-touchable-opacity");
 export const FlatList = makeHost("rn-flatlist");
 export const SafeAreaView = makeHost("rn-safe-area-view");
+export const KeyboardAvoidingView = makeHost("rn-keyboard-avoiding-view");
 
 export function Modal(props) {
   if (!props.visible) return null;

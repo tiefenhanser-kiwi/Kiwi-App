@@ -31,12 +31,17 @@ import {
 } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { fromServerDifficulty, toServerDifficulty } from "@/lib/api/builder";
-import { type DishSortKey } from "@/lib/api/dishes";
 import { useDishes } from "@/hooks/useDishes";
+import { savedDishFromListItem } from "@/lib/dishes/savedDishFromListItem";
+import {
+  DISH_DISABLED_SORT_KEYS,
+  DISH_SORT_LABEL_OVERRIDES,
+  toDishSortKey,
+} from "@/lib/dishes/sortMapping";
 import type { SaveMealInput, UpdateMealInput } from "@/lib/api/meals";
 import { useMeal } from "@/hooks/useMeal";
 import { CUISINES_TIER_1, CUISINES_TIER_2 } from "@/lib/domain";
-import { formatMacro } from "@/lib/format/macros";
+import { formatMacroLine } from "@/lib/format/macros";
 import { parseQuantity } from "@/lib/quantity";
 import {
   buildManualSaveMealInput,
@@ -70,11 +75,9 @@ const allocUid = () => nextUid++;
 // WS7-6 B-fix Block 3 — Mode-C dish picker mirrors the Recipes→Dishes sort UX
 // (Hans ruled parity across dish surfaces). `times_cooked` relabels to "Most
 // used"; `last_cooked` is greyed (no Dish.lastUsedAt write path, D-WS7-111).
-const DISH_SORT_LABEL_OVERRIDES = { times_cooked: "Most used" };
-const DISH_DISABLED_SORT_KEYS: readonly SortKey[] = ["last_cooked"];
-function toDishSortKey(key: SortKey): DishSortKey {
-  return key === "last_cooked" ? "alpha" : key;
-}
+// WS7-6 C-fix Block 4 — the label/disabled consts + toDishSortKey now live in
+// the shared lib/dishes/sortMapping (Recipes→Dishes, Mode-C, and the
+// Meal→Add-Dish sheet all share them).
 
 const newIngredient = (
   partial?: Partial<Omit<BuilderIngredient, "uid">>,
@@ -195,29 +198,22 @@ export default function MealBuilderScreen() {
   // to alpha; the picker's SortDropdown drives the server ?sort= param.
   const [combineSortKey, setCombineSortKey] = useState<SortKey>("alpha");
   const dishesQuery = useDishes(["my_dishes"], toDishSortKey(combineSortKey));
-  const savedDishes = useMemo<SavedDish[]>(() => {
-    return dishesQuery.dishes.map<SavedDish>((d) => ({
-      id: d.id,
-      name: d.title,
-      cuisineType: undefined,
-      imageUrl: d.image ?? undefined,
-      ingredients: [],
-      type: "main",
-      caloriesPerServing: d.calories,
-      proteinGPerServing: d.protein,
-      carbsGPerServing: d.carbs,
-      fatGPerServing: d.fat,
-      // WS7-6 B-fix Block 3: the wire now carries the live-meal use count;
-      // map it through (was hardcoded 0 pre-Block-3).
-      mealUseCount: d.mealUseCount,
-      estimatedTimeMinutes: d.minutes,
-    }));
-  }, [dishesQuery.dishes]);
+  // WS7-6 C-fix Block 4 — the wire→SavedDish field map is now the shared
+  // savedDishFromListItem adapter (also used by the Meal→Add-Dish sheet).
+  const savedDishes = useMemo<SavedDish[]>(
+    () => dishesQuery.dishes.map(savedDishFromListItem),
+    [dishesQuery.dishes],
+  );
   const [selectedDishIds, setSelectedDishIds] = useState<string[]>([]);
   const [combineReview, setCombineReview] = useState(false);
 
   // ── Dish chooser sheet (Mode B "+ Add Dish") ────────────────────
   const [dishChooserVisible, setDishChooserVisible] = useState(false);
+  // WS7-6 C-fix Block 4 — uid of the dish whose name input should auto-focus.
+  // Set when "Create from scratch" appends a blank dish so the user lands in
+  // the editor (the KeyboardAwareScrollView scrolls the focused input into
+  // view). Stays null otherwise so opening the screen never auto-focuses.
+  const [autoFocusDishUid, setAutoFocusDishUid] = useState<number | null>(null);
 
   // WS7-6 Block 1F — save-disabled clarity. Floor-level interaction
   // tracking: flipped to true on the FIRST Save tap; gates inline-error
@@ -835,6 +831,7 @@ export default function MealBuilderScreen() {
             servingsDefault={servingsDefault}
             setServingsDefault={setServingsDefault}
             dishes={dishes}
+            autoFocusDishUid={autoFocusDishUid}
             onOpenDishChooser={() => setDishChooserVisible(true)}
             removeDish={removeDish}
             updateDishName={updateDishName}
@@ -954,7 +951,13 @@ export default function MealBuilderScreen() {
         // with newDish() (empty) instead of pickSavedDishToBuilderDish
         // (hydrated). Kept as a clean named callback so the sheet
         // stays unaware of meal-builder state — WS9 extraction-friendly.
-        onAddEmptyDish={() => setDishes((prev) => [...prev, newDish()])}
+        // WS7-6 C-fix Block 4 — flag the new dish for auto-focus so the user
+        // lands in its name input instead of staring at an unchanged screen.
+        onAddEmptyDish={() => {
+          const dish = newDish();
+          setDishes((prev) => [...prev, dish]);
+          setAutoFocusDishUid(dish.uid);
+        }}
       />
     </View>
   );
@@ -1200,6 +1203,9 @@ function MetaFields(p: MetaFieldsProps) {
 
 interface ManualEditorProps extends MetaFieldsProps {
   dishes: BuilderDish[];
+  /** WS7-6 C-fix Block 4 — uid of the dish whose name input should auto-focus
+   *  (set when "Create from scratch" appends a blank dish). null = none. */
+  autoFocusDishUid: number | null;
   /** Opens DishChooserSheet — replaces the inline "+ Add dish" link. */
   onOpenDishChooser: () => void;
   removeDish: (uid: number) => void;
@@ -1268,6 +1274,10 @@ function ManualEditor(p: ManualEditorProps) {
                 returnKeyType="done"
                 blurOnSubmit
                 onSubmitEditing={Keyboard.dismiss}
+                // WS7-6 C-fix Block 4 — focus the just-appended "Create from
+                // scratch" dish on mount; the KeyboardAwareScrollView then
+                // scrolls it into view.
+                autoFocus={dish.uid === p.autoFocusDishUid}
               />
               {moreThanOneDish && (
                 <Pressable
@@ -1739,10 +1749,26 @@ const DishPickerRow = memo(function DishPickerRow({
       <View style={[s.dishThumb, !dish.imageUrl && s.dishThumbFallback]} />
       <View style={{ flex: 1 }}>
         <Text style={s.dishPickerName}>{dish.name}</Text>
-        <Text style={s.dishPickerMeta}>
-          {[dish.cuisineType, `${formatMacro(dish.caloriesPerServing, "0")} cal/serving`]
-            .filter(Boolean)
-            .join(" · ")}
+        {(() => {
+          // WS7-6 C-fix Block 4 — calories moved into the full macro line
+          // below; the meta line keeps cuisine + cook time (when present).
+          const metaParts = [
+            dish.cuisineType,
+            dish.estimatedTimeMinutes && dish.estimatedTimeMinutes > 0
+              ? `${dish.estimatedTimeMinutes} min`
+              : null,
+          ].filter(Boolean) as string[];
+          return metaParts.length > 0 ? (
+            <Text style={s.dishPickerMeta}>{metaParts.join(" · ")}</Text>
+          ) : null;
+        })()}
+        <Text style={s.dishPickerMacros}>
+          {formatMacroLine(
+            dish.caloriesPerServing,
+            dish.proteinGPerServing,
+            dish.carbsGPerServing,
+            dish.fatGPerServing,
+          )}
         </Text>
       </View>
       {dish.mealUseCount > 0 && (
@@ -2209,6 +2235,12 @@ const s = StyleSheet.create({
   dishPickerMeta: {
     fontSize: KType.size.xs,
     color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
+  },
+  dishPickerMacros: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
     marginTop: 2,
   },

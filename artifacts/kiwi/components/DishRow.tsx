@@ -4,6 +4,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { SortKey } from "@/components/SortDropdown";
 import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
 import type { DishListItem } from "@/lib/api/dishes";
+import { formatMacroLine } from "@/lib/format/macros";
 
 type Props = {
   dish: DishListItem;
@@ -79,6 +80,11 @@ export function DishRow({
               {metaParts.join(" · ")}
             </Text>
           )}
+          {/* WS7-6 C-fix Block 4 — full per-serving macro line (Hans-ruled over
+              the PRD calories-only row). Zeros render as-is (real data). */}
+          <Text style={styles.macros} numberOfLines={1} ellipsizeMode="tail">
+            {formatMacroLine(dish.calories, dish.protein, dish.carbs, dish.fat)}
+          </Text>
           {sortLine && <Text style={styles.sortLine}>{sortLine}</Text>}
         </View>
       </Pressable>
@@ -146,6 +152,11 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: KType.size.xs,
     color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+  },
+  macros: {
+    fontSize: KType.size.xs,
+    color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
   },
   sortLine: {

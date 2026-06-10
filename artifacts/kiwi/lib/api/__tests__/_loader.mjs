@@ -34,6 +34,7 @@ const PHYSICAL_STUBS = new Map([
   ["@expo/vector-icons", "./stubs/expo-vector-icons.mjs"],
   ["react-native-safe-area-context", "./stubs/safe-area-context.mjs"],
   ["expo-router", "./stubs/expo-router.mjs"],
+  ["expo-haptics", "./stubs/expo-haptics.mjs"],
 ]);
 
 // kiwi/ root, used to resolve the `@/*` tsconfig path alias.

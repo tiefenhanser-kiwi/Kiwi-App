@@ -11,7 +11,7 @@ import {
   KSpacing,
   KType,
 } from "@/constants/tokens";
-import { formatMacro } from "@/lib/format/macros";
+import { formatMacroLine } from "@/lib/format/macros";
 import {
   DAY_SHORT,
   type DayOfWeek,
@@ -75,7 +75,12 @@ export function PlanReviewMealRow({
   // Missing individual macros render as 0 to keep the line shape consistent.
   const macrosLine =
     row.caloriesPerServing !== undefined
-      ? `${formatMacro(row.caloriesPerServing, "0")} cal · ${formatMacro(row.proteinGPerServing, "0")}g P · ${formatMacro(row.carbsGPerServing, "0")}g C · ${formatMacro(row.fatGPerServing, "0")}g F`
+      ? formatMacroLine(
+          row.caloriesPerServing,
+          row.proteinGPerServing,
+          row.carbsGPerServing,
+          row.fatGPerServing,
+        )
       : null;
 
   return (
