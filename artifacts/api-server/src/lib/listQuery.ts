@@ -87,7 +87,16 @@ export function paginateById<T extends { id: string }>(
 // the cursor's id is found in the merged sorted array; the slice starts at
 // the next index.
 
-export const DISH_SORT_KEYS = ["alpha", "date_created", "cook_time"] as const;
+// WS7-6 B-fix Block 2: `times_cooked` ranks by MealDishLink count desc
+// (mobile relabels this key "Most used" in dish contexts). The remaining
+// greyed-out option in the mobile dropdown is `last_cooked` only — backed
+// by `Dish.lastUsedAt`, which still has no write path (D-WS7-111).
+export const DISH_SORT_KEYS = [
+  "alpha",
+  "date_created",
+  "cook_time",
+  "times_cooked",
+] as const;
 export type DishSortKey = (typeof DISH_SORT_KEYS)[number];
 
 // Parse ?sort= into a known key. Invalid / missing / unknown silently
@@ -122,7 +131,8 @@ export function decodeKeysetCursor(raw: unknown): KeysetCursor | null {
     if (
       (parsed.k === "alpha" ||
         parsed.k === "date_created" ||
-        parsed.k === "cook_time") &&
+        parsed.k === "cook_time" ||
+        parsed.k === "times_cooked") &&
       (typeof parsed.v === "string" || typeof parsed.v === "number") &&
       typeof parsed.i === "string"
     ) {

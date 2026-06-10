@@ -186,11 +186,18 @@ export interface DishListItem {
   fat: number;
   tags: string[];
   image: string | null;
+  // WS7-6 B-fix Block 2: number of MealDishLink rows referencing this dish —
+  // the source for the DishChooserSheet "Used in N meals" label and the
+  // `sort=times_cooked` ranking. Counts all links, including links to
+  // archived meals (Meal.isArchived flips a flag without removing the link).
+  mealUseCount: number;
 }
 
 // WS7-6 B-fix Block 1: `createdAt` is selected (not emitted on wire) so the
 // keyset cursor for `sort=date_created` can encode the row's createdAt value.
-// `toDishListShape` ignores the extra field.
+// WS7-6 B-fix Block 2: `_count.mealLinks` is selected for both the wire field
+// and the `sort=times_cooked` keyset value. `toDishListShape` ignores the
+// extra `createdAt` field.
 const DISH_LIST_SELECT = {
   id: true,
   title: true,
@@ -204,6 +211,7 @@ const DISH_LIST_SELECT = {
   tags: true,
   imageUrl: true,
   createdAt: true,
+  _count: { select: { mealLinks: true } },
 } as const;
 
 interface DishListRow {
@@ -219,6 +227,7 @@ interface DishListRow {
   tags: string[];
   imageUrl: string | null;
   createdAt: Date;
+  _count: { mealLinks: number };
 }
 
 function toDishListShape(d: DishListRow): DishListItem {
@@ -234,6 +243,7 @@ function toDishListShape(d: DishListRow): DishListItem {
     fat: d.fatGPerServing,
     tags: d.tags,
     image: d.imageUrl,
+    mealUseCount: d._count.mealLinks,
   };
 }
 
@@ -1372,18 +1382,18 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     }
   });
 
-  // GET /me/dishes?filter=my_dishes,featured,top_rated&sort=<alpha|date_created|cook_time>
+  // GET /me/dishes?filter=my_dishes,featured,top_rated&sort=<alpha|date_created|cook_time|times_cooked>
   //
   // WS7-6 B-fix Block 1: sort param + keyset cursor.
   //   - sort defaults to alpha; unknown values silently fall back to alpha
   //     (don't 400 — the wire is forgiving so a UI mid-rollout doesn't error).
   //   - Cursor is opaque base64url JSON encoding (sortKey, sortValue, id);
   //     a cursor minted under a different sort is treated as no-cursor.
-  //   - last_cooked / times_cooked are intentionally NOT accepted here: the
-  //     backing Dish.lastUsedAt and Dish.timesCooked columns have no write
-  //     path today (Phase 0.1 DB check: 337 dishes, 0 with lastUsedAt set,
-  //     0 with timesCooked > 0). Deferred until a cook-event write path
-  //     exists.
+  //
+  // WS7-6 B-fix Block 2: `times_cooked` ranks by MealDishLink count desc —
+  // the live link table, not the dead `Dish.timesCooked` column. Mobile
+  // relabels this key "Most used" in dish contexts. `last_cooked` remains
+  // unaccepted (still backed by the writeless `Dish.lastUsedAt`, D-WS7-111).
   router.get("/me/dishes", requireAuth, async (req, res) => {
     const parsed = parseFilterParam(req.query.filter, DISHES_FILTER_KEYS, [
       "my_dishes",
@@ -1406,7 +1416,9 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         ? [{ createdAt: "desc" }, { id: "asc" }]
         : sort === "cook_time"
           ? [{ estimatedTimeMinutes: "asc" }, { id: "asc" }]
-          : [{ title: "asc" }, { id: "asc" }];
+          : sort === "times_cooked"
+            ? [{ mealLinks: { _count: "desc" } }, { id: "asc" }]
+            : [{ title: "asc" }, { id: "asc" }];
 
     try {
       const blocks: DishListRow[][] = [];
@@ -1434,6 +1446,8 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             return r.createdAt.toISOString();
           case "cook_time":
             return r.estimatedTimeMinutes;
+          case "times_cooked":
+            return r._count.mealLinks;
           case "alpha":
             return r.title;
         }

@@ -55,6 +55,10 @@ function dishRow(
     isArchived?: boolean;
     estimatedTimeMinutes?: number;
     createdAt?: Date;
+    // WS7-6 B-fix Block 2: MealDishLink count surfaced as `mealUseCount` on
+    // the wire and used by `sort=times_cooked`. Defaults to 0 so existing
+    // fixtures don't have to opt in.
+    mealUseCount?: number;
   } = {},
 ) {
   return {
@@ -74,6 +78,7 @@ function dishRow(
     createdAt: opts.createdAt ?? new Date("2026-01-01T00:00:00.000Z"),
     userId: opts.userId ?? null,
     isArchived: opts.isArchived ?? false,
+    _count: { mealLinks: opts.mealUseCount ?? 0 },
   };
 }
 
@@ -121,7 +126,9 @@ function makeStubPrisma(opts: {
         where: { userId?: string; isArchived?: boolean };
         orderBy?:
           | { title?: "asc" | "desc" }
-          | Array<Record<string, "asc" | "desc">>;
+          | Array<
+              Record<string, "asc" | "desc" | { _count: "asc" | "desc" }>
+            >;
       }) => {
         let rows = dishes.slice();
         const w = args.where;
@@ -131,22 +138,39 @@ function makeStubPrisma(opts: {
         // Multi-key orderBy: walk fields in order, first non-equal wins.
         // Single-object orderBy ({ title: "asc" }) is the legacy form still
         // used by other meal tests; the dishes route switched to array form
-        // in WS7-6 B-fix Block 1.
+        // in WS7-6 B-fix Block 1. WS7-6 B-fix Block 2 adds the relation-count
+        // form `{ mealLinks: { _count: "desc" } }` for sort=times_cooked.
         const ob = args.orderBy;
         const keys = Array.isArray(ob)
           ? ob
           : ob && typeof ob === "object"
-            ? [ob as Record<string, "asc" | "desc">]
+            ? [
+                ob as Record<
+                  string,
+                  "asc" | "desc" | { _count: "asc" | "desc" }
+                >,
+              ]
             : [];
         if (keys.length > 0) {
           rows = rows.sort((a, b) => {
             for (const k of keys) {
-              const [field, dir] = Object.entries(k)[0] as [
-                keyof DishRow,
-                "asc" | "desc",
+              const [field, spec] = Object.entries(k)[0] as [
+                string,
+                "asc" | "desc" | { _count: "asc" | "desc" },
               ];
-              const av = a[field];
-              const bv = b[field];
+              let av: unknown;
+              let bv: unknown;
+              let dir: "asc" | "desc";
+              if (typeof spec === "object" && spec !== null && "_count" in spec) {
+                // Relation-count ordering: read from row._count[<relation>].
+                av = a._count[field as keyof typeof a._count];
+                bv = b._count[field as keyof typeof b._count];
+                dir = spec._count;
+              } else {
+                av = a[field as keyof DishRow];
+                bv = b[field as keyof DishRow];
+                dir = spec;
+              }
               let cmp = 0;
               if (av instanceof Date && bv instanceof Date) {
                 cmp = av.getTime() - bv.getTime();
@@ -758,6 +782,160 @@ describe("GET /me/dishes sort + keyset cursor", () => {
       assert.deepEqual(
         res.dishes.map((d) => d.id),
         ["d-1", "d-2"],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS7-6 B-fix Block 2 — mealUseCount wire field + sort=times_cooked ──
+
+describe("GET /me/dishes mealUseCount + sort=times_cooked", () => {
+  it("emits mealUseCount on every row (0, 1, and N links)", async () => {
+    const dishes: DishRow[] = [
+      dishRow("d-zero", "Zero", { userId: USER_ID, mealUseCount: 0 }),
+      dishRow("d-one", "One", { userId: USER_ID, mealUseCount: 1 }),
+      dishRow("d-many", "Many", { userId: USER_ID, mealUseCount: 7 }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ dishes }));
+    try {
+      const res = await authGet(harness, "/me/dishes?sort=alpha");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        dishes: { id: string; mealUseCount: number }[];
+      };
+      // alpha order: Many, One, Zero
+      assert.deepEqual(
+        body.dishes.map((d) => ({ id: d.id, n: d.mealUseCount })),
+        [
+          { id: "d-many", n: 7 },
+          { id: "d-one", n: 1 },
+          { id: "d-zero", n: 0 },
+        ],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("sort=times_cooked orders by link count desc; ties broken by id asc", async () => {
+    // Two dishes share count=2 — id asc decides their order. d-z (count=0)
+    // is the trailing zero bucket.
+    const dishes: DishRow[] = [
+      dishRow("d-y", "Yankee", { userId: USER_ID, mealUseCount: 2 }),
+      dishRow("d-a", "Alpha", { userId: USER_ID, mealUseCount: 2 }),
+      dishRow("d-top", "Top", { userId: USER_ID, mealUseCount: 5 }),
+      dishRow("d-z", "Zulu", { userId: USER_ID, mealUseCount: 0 }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ dishes }));
+    try {
+      const res = await authGet(harness, "/me/dishes?sort=times_cooked");
+      const body = (await res.json()) as {
+        dishes: { id: string; mealUseCount: number }[];
+      };
+      // count desc, then id asc within the count=2 tie bucket.
+      assert.deepEqual(
+        body.dishes.map((d) => d.id),
+        ["d-top", "d-a", "d-y", "d-z"],
+      );
+      assert.deepEqual(
+        body.dishes.map((d) => d.mealUseCount),
+        [5, 2, 2, 0],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("paginates 3 pages under sort=times_cooked with no skips or dupes — tie bucket spans a page boundary", async () => {
+    // counts: d-top=5; tie bucket on count=3 = {d-c1, d-c2, d-c3}; d-low=1.
+    // Page boundary at limit=2 lands inside the count=3 tie bucket.
+    const dishes: DishRow[] = [
+      dishRow("d-c2", "Charlie 2", { userId: USER_ID, mealUseCount: 3 }),
+      dishRow("d-top", "Top", { userId: USER_ID, mealUseCount: 5 }),
+      dishRow("d-c1", "Charlie 1", { userId: USER_ID, mealUseCount: 3 }),
+      dishRow("d-low", "Low", { userId: USER_ID, mealUseCount: 1 }),
+      dishRow("d-c3", "Charlie 3", { userId: USER_ID, mealUseCount: 3 }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ dishes }));
+    try {
+      const p1 = (await (
+        await authGet(harness, "/me/dishes?sort=times_cooked&limit=2")
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      // count desc + id asc: [d-top(5), d-c1(3), d-c2(3), d-c3(3), d-low(1)]
+      assert.deepEqual(
+        p1.dishes.map((d) => d.id),
+        ["d-top", "d-c1"],
+      );
+      assert.ok(p1.nextCursor, "page 1 should yield a cursor");
+
+      const p2 = (await (
+        await authGet(
+          harness,
+          `/me/dishes?sort=times_cooked&limit=2&cursor=${encodeURIComponent(
+            p1.nextCursor!,
+          )}`,
+        )
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      // Page 2 splits the count=3 tie bucket — must continue cleanly.
+      assert.deepEqual(
+        p2.dishes.map((d) => d.id),
+        ["d-c2", "d-c3"],
+      );
+      assert.ok(p2.nextCursor);
+
+      const p3 = (await (
+        await authGet(
+          harness,
+          `/me/dishes?sort=times_cooked&limit=2&cursor=${encodeURIComponent(
+            p2.nextCursor!,
+          )}`,
+        )
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p3.dishes.map((d) => d.id),
+        ["d-low"],
+      );
+      assert.equal(p3.nextCursor, null);
+
+      const merged = [...p1.dishes, ...p2.dishes, ...p3.dishes].map((d) => d.id);
+      assert.deepEqual(merged, ["d-top", "d-c1", "d-c2", "d-c3", "d-low"]);
+      assert.equal(new Set(merged).size, merged.length);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("cursor minted under sort=times_cooked is dropped when presented under sort=alpha (first page)", async () => {
+    const dishes: DishRow[] = [
+      dishRow("d-a", "Alpha", { userId: USER_ID, mealUseCount: 0 }),
+      dishRow("d-b", "Bravo", { userId: USER_ID, mealUseCount: 3 }),
+      dishRow("d-c", "Charlie", { userId: USER_ID, mealUseCount: 1 }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ dishes }));
+    try {
+      const minted = (await (
+        await authGet(harness, "/me/dishes?sort=times_cooked&limit=1")
+      ).json()) as { dishes: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        minted.dishes.map((d) => d.id),
+        ["d-b"],
+      );
+      assert.ok(minted.nextCursor);
+
+      const res = (await (
+        await authGet(
+          harness,
+          `/me/dishes?sort=alpha&limit=2&cursor=${encodeURIComponent(
+            minted.nextCursor!,
+          )}`,
+        )
+      ).json()) as { dishes: { id: string }[] };
+      // Cross-sort cursor is ignored — alpha page 1 returns first two by title.
+      assert.deepEqual(
+        res.dishes.map((d) => d.id),
+        ["d-a", "d-b"],
       );
     } finally {
       await harness.close();
