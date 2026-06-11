@@ -24,6 +24,11 @@ interface MealOpts {
   isArchived?: boolean;
   saveCount?: number;
   useCount?: number;
+  // WS7-6 G2: estimatedTimeMinutes + createdAt are now selected for the
+  // cook_time / date_created keyset sorts. Defaults fixed so existing
+  // fixtures don't drift over time.
+  estimatedTimeMinutes?: number;
+  createdAt?: Date;
 }
 
 function mealRow(id: string, title: string, opts: MealOpts = {}) {
@@ -31,7 +36,7 @@ function mealRow(id: string, title: string, opts: MealOpts = {}) {
     id,
     title,
     cuisineType: "Testian",
-    estimatedTimeMinutes: 30,
+    estimatedTimeMinutes: opts.estimatedTimeMinutes ?? 30,
     servingsDefault: 4,
     caloriesPerServing: 500,
     proteinGPerServing: 30,
@@ -39,6 +44,7 @@ function mealRow(id: string, title: string, opts: MealOpts = {}) {
     fatGPerServing: 20,
     tags: ["weeknight"],
     imageUrl: null,
+    createdAt: opts.createdAt ?? new Date("2026-01-01T00:00:00.000Z"),
     userId: opts.userId ?? null,
     isPublic: opts.isPublic ?? false,
     isArchived: opts.isArchived ?? false,
@@ -120,7 +126,12 @@ function makeStubPrisma(opts: {
     meal: {
       findMany: async (args: {
         where: { userId?: string; isPublic?: boolean; isArchived?: boolean };
-        orderBy?: { title?: "asc" | "desc" };
+        // WS7-6 G2: the /me/meals route switched to the array orderBy form
+        // ([{ title|createdAt|estimatedTimeMinutes }, { id }]) for keyset sort.
+        // The single-object form is no longer emitted but handled for safety.
+        orderBy?:
+          | { title?: "asc" | "desc" }
+          | Array<Record<string, "asc" | "desc">>;
       }) => {
         let rows = meals.slice();
         const w = args.where;
@@ -128,8 +139,37 @@ function makeStubPrisma(opts: {
         if (w.isPublic !== undefined) rows = rows.filter((m) => m.isPublic === w.isPublic);
         if (w.isArchived !== undefined)
           rows = rows.filter((m) => m.isArchived === w.isArchived);
-        if (args.orderBy?.title === "asc")
-          rows = rows.sort((a, b) => a.title.localeCompare(b.title));
+        // Multi-key orderBy: walk fields in order, first non-equal wins
+        // (mirrors the dish stub). Handles Date (createdAt), number
+        // (estimatedTimeMinutes), and string (title / id).
+        const ob = args.orderBy;
+        const keys = Array.isArray(ob)
+          ? ob
+          : ob && typeof ob === "object"
+            ? [ob as Record<string, "asc" | "desc">]
+            : [];
+        if (keys.length > 0) {
+          rows = rows.sort((a, b) => {
+            for (const k of keys) {
+              const [field, dir] = Object.entries(k)[0] as [
+                string,
+                "asc" | "desc",
+              ];
+              const av = a[field as keyof MealRow];
+              const bv = b[field as keyof MealRow];
+              let cmp = 0;
+              if (av instanceof Date && bv instanceof Date) {
+                cmp = av.getTime() - bv.getTime();
+              } else if (typeof av === "number" && typeof bv === "number") {
+                cmp = av - bv;
+              } else {
+                cmp = String(av).localeCompare(String(bv));
+              }
+              if (cmp !== 0) return dir === "desc" ? -cmp : cmp;
+            }
+            return 0;
+          });
+        }
         return rows;
       },
     },
@@ -421,7 +461,10 @@ describe("GET /me/meals", () => {
         p1.meals.map((m) => m.id),
         ["m-0", "m-1"],
       );
-      assert.equal(p1.nextCursor, "m-1");
+      // WS7-6 G2: nextCursor is now an opaque base64url keyset cursor (not the
+      // raw last-row id). It's still URL-safe to pass straight back.
+      assert.equal(typeof p1.nextCursor, "string");
+      assert.notEqual(p1.nextCursor, "m-1");
 
       const r2 = await authGet(
         harness,
@@ -435,7 +478,7 @@ describe("GET /me/meals", () => {
         p2.meals.map((m) => m.id),
         ["m-2", "m-3"],
       );
-      assert.equal(p2.nextCursor, "m-3");
+      assert.equal(typeof p2.nextCursor, "string");
 
       const r3 = await authGet(
         harness,
@@ -450,6 +493,142 @@ describe("GET /me/meals", () => {
         ["m-4"],
       );
       assert.equal(p3.nextCursor, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── WS7-6 G2 scope (iii): sort param + keyset cursor ───────────────────
+
+  it("sort=date_created orders by createdAt desc (newest first)", async () => {
+    const meals = [
+      mealRow("m-old", "Z-old", {
+        userId: USER_ID,
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      }),
+      mealRow("m-new", "A-new", {
+        userId: USER_ID,
+        createdAt: new Date("2026-03-01T00:00:00.000Z"),
+      }),
+      mealRow("m-mid", "M-mid", {
+        userId: USER_ID,
+        createdAt: new Date("2026-02-01T00:00:00.000Z"),
+      }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ meals }));
+    try {
+      const res = await authGet(harness, "/me/meals?sort=date_created");
+      const body = (await res.json()) as { meals: { id: string }[] };
+      assert.deepEqual(
+        body.meals.map((m) => m.id),
+        ["m-new", "m-mid", "m-old"],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("sort=cook_time orders by minutes asc", async () => {
+    const meals = [
+      mealRow("m-slow", "Slow", { userId: USER_ID, estimatedTimeMinutes: 90 }),
+      mealRow("m-fast", "Fast", { userId: USER_ID, estimatedTimeMinutes: 10 }),
+      mealRow("m-med", "Med", { userId: USER_ID, estimatedTimeMinutes: 45 }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ meals }));
+    try {
+      const res = await authGet(harness, "/me/meals?sort=cook_time");
+      const body = (await res.json()) as { meals: { id: string }[] };
+      assert.deepEqual(
+        body.meals.map((m) => m.id),
+        ["m-fast", "m-med", "m-slow"],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("unknown sort falls back to alpha (no 400)", async () => {
+    const meals = [
+      mealRow("m-b", "Bravo", { userId: USER_ID }),
+      mealRow("m-a", "Alpha", { userId: USER_ID }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ meals }));
+    try {
+      const res = await authGet(harness, "/me/meals?sort=bogus");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { meals: { id: string }[] };
+      assert.deepEqual(
+        body.meals.map((m) => m.id),
+        ["m-a", "m-b"],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("id:asc tiebreak when titles are equal (stable page boundary)", async () => {
+    const meals = [
+      mealRow("m-3", "Same", { userId: USER_ID }),
+      mealRow("m-1", "Same", { userId: USER_ID }),
+      mealRow("m-2", "Same", { userId: USER_ID }),
+    ];
+    const harness = await spinUp(makeStubPrisma({ meals }));
+    try {
+      const res = await authGet(harness, "/me/meals");
+      const body = (await res.json()) as { meals: { id: string }[] };
+      assert.deepEqual(
+        body.meals.map((m) => m.id),
+        ["m-1", "m-2", "m-3"],
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("malformed cursor falls back to the first page", async () => {
+    const meals = ["Alpha", "Bravo", "Charlie"].map((t, i) =>
+      mealRow(`m-${i}`, t, { userId: USER_ID }),
+    );
+    const harness = await spinUp(makeStubPrisma({ meals }));
+    try {
+      const res = await authGet(
+        harness,
+        "/me/meals?limit=2&cursor=not-a-valid-cursor",
+      );
+      const body = (await res.json()) as {
+        meals: { id: string }[];
+        nextCursor: string | null;
+      };
+      assert.deepEqual(
+        body.meals.map((m) => m.id),
+        ["m-0", "m-1"],
+      );
+      assert.equal(typeof body.nextCursor, "string");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a cursor minted under a different sort is treated as the first page", async () => {
+    const meals = ["Alpha", "Bravo", "Charlie", "Delta"].map((t, i) =>
+      mealRow(`m-${i}`, t, { userId: USER_ID }),
+    );
+    const harness = await spinUp(makeStubPrisma({ meals }));
+    try {
+      // page 1 under alpha → mints an alpha cursor.
+      const r1 = await authGet(harness, "/me/meals?limit=2&sort=alpha");
+      const p1 = (await r1.json()) as { nextCursor: string | null };
+      // present the alpha cursor under cook_time → cross-sort → first page.
+      // All minutes are equal (30) so cook_time falls to the id:asc tiebreak.
+      const r2 = await authGet(
+        harness,
+        `/me/meals?limit=2&sort=cook_time&cursor=${p1.nextCursor}`,
+      );
+      const p2 = (await r2.json()) as { meals: { id: string }[] };
+      assert.deepEqual(
+        p2.meals.map((m) => m.id),
+        ["m-0", "m-1"],
+      );
     } finally {
       await harness.close();
     }

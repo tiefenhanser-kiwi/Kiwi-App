@@ -34,6 +34,7 @@ import { useApp } from "@/contexts/AppContext";
 import { fromServerDifficulty, toServerDifficulty } from "@/lib/api/builder";
 import { useDishes } from "@/hooks/useDishes";
 import { savedDishFromListItem } from "@/lib/dishes/savedDishFromListItem";
+import { resolvePostSaveNav } from "@/lib/builder/postSaveNav";
 import {
   DISH_DISABLED_SORT_KEYS,
   DISH_SORT_LABEL_OVERRIDES,
@@ -708,13 +709,31 @@ export default function MealBuilderScreen() {
     setSaving(true);
     try {
       const { id: newMealId } = await saveMeal(input);
+      // WS7-6 G2 scope (i): one destination contract for every Add-Meal-
+      // originated save (manual Mode B, combine Mode C, Mode A draft, and the
+      // text/image/URL imports — all funnel through this CREATE branch). A
+      // non-plan save lands on the NEW meal's Meal Detail page (PRD §10.6);
+      // a plan-context save keeps its contextual return to the plan.
+      const nav = resolvePostSaveNav({ newMealId, addToPlanId });
+      const applyNav = () => {
+        // `replace` (not push) drops the builder/input screen so Back returns
+        // to the list, not the half-filled form.
+        if (nav.kind === "meal-detail") {
+          router.replace({
+            pathname: "/meal/[id]",
+            params: { id: nav.mealId },
+          });
+        } else {
+          router.back();
+        }
+      };
       if (addToPlanId) {
         try {
           await addMealToPlan(addToPlanId, newMealId);
           Alert.alert(
             "Saved and added to plan",
             `${input.title} is saved and on your plan.`,
-            [{ text: "OK", onPress: () => router.back() }],
+            [{ text: "OK", onPress: applyNav }],
           );
         } catch (planErr) {
           // Saved-but-plan-add-failed: STAY on screen per WS7-6 1E spec.
@@ -726,7 +745,7 @@ export default function MealBuilderScreen() {
             "Saved but couldn't add to plan",
             `${input.title} was saved to your meals, but adding it to the plan failed:\n\n${msg}`,
           );
-          // Intentionally no router.back() — user keeps the form open.
+          // Intentionally no nav — user keeps the form open.
         }
       } else {
         Alert.alert(
@@ -734,7 +753,7 @@ export default function MealBuilderScreen() {
           draftMeal
             ? `${input.title} was added to your meals.`
             : `${input.title} was added to your saved meals.`,
-          [{ text: "OK", onPress: () => router.back() }],
+          [{ text: "OK", onPress: applyNav }],
         );
       }
     } catch (err) {
@@ -995,6 +1014,18 @@ export default function MealBuilderScreen() {
           const dish = newDish();
           setDishes((prev) => [...prev, dish]);
           setAutoFocusDishUid(dish.uid);
+        }}
+        // WS7-6 G2 scope (ii) — dish-side Mode A goes live (resolves
+        // D-WS7-096). Close the sheet and hand the typed prompt to the dish
+        // "Ask Kiwi" screen, which parses it (POST /builder/parse-dish) and
+        // lands in the Dish Builder as a draft. Replaces the old "Coming in
+        // WS6" alert the sheet fired when no onAskKiwi was passed.
+        onAskKiwi={(prompt) => {
+          setDishChooserVisible(false);
+          router.push({
+            pathname: "/ask-kiwi-dish",
+            params: prompt ? { prompt } : {},
+          });
         }}
       />
     </View>

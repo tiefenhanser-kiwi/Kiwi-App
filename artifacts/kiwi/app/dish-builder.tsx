@@ -35,6 +35,7 @@ import {
   getSavedDishes,
   getTopRatedDishes,
 } from "@/lib/stubs";
+import type { DraftDish } from "@/lib/builder/parsedDishToDraft";
 import type { DishDraft, SavedDish } from "@/lib/types";
 
 const TIME_MIN = 0;
@@ -156,9 +157,52 @@ function dishToForm(dish: SavedDish): DishBuilderForm {
   };
 }
 
+// WS7-6 G2 — Dish Mode A draft hydration. Maps a DraftDish (the
+// parsedDishToDraft output handed in via the draftJson param from the dish-side
+// "Ask Kiwi" screen) into the builder form. Mirrors dishToForm but seeds a NEW
+// dish (no id) — the user reviews/edits before the first save.
+function draftDishToForm(draft: DraftDish): DishBuilderForm {
+  const isTier2 =
+    !!draft.cuisineType &&
+    (CUISINES_TIER_2 as readonly string[]).includes(draft.cuisineType);
+  return {
+    id: undefined,
+    name: draft.name,
+    cuisineType: draft.cuisineType,
+    cuisineExpanded: isTier2,
+    type: draft.type,
+    estimatedTimeMinutes: draft.estimatedTimeMinutes,
+    servingsDefault: draft.servingsDefault,
+    kiwiAssistIngredients: false,
+    kiwiAssistSteps: false,
+    caloriesPerServing: 0,
+    proteinGPerServing: 0,
+    carbsGPerServing: 0,
+    fatGPerServing: 0,
+    ingredients: draft.ingredients.length
+      ? draft.ingredients.map((i) => ({
+          uid: nextUid(),
+          quantity: i.quantity,
+          unit: i.unit,
+          name: i.name,
+        }))
+      : [emptyIngredient()],
+    steps: draft.steps.map((s) => ({
+      uid: nextUid(),
+      text: s.text,
+      estimatedMinutes: s.estimatedMinutes ?? 0,
+      isTimingSensitive: s.isTimingSensitive ?? false,
+    })),
+    notes: "",
+  };
+}
+
 export default function DishBuilderScreen() {
   const router = useRouter();
-  const { dishId } = useLocalSearchParams<{ dishId?: string }>();
+  const { dishId, draftJson } = useLocalSearchParams<{
+    dishId?: string;
+    draftJson?: string;
+  }>();
   const { saveDish } = useApp();
   const [form, setForm] = useState<DishBuilderForm>(initialForm);
   // WS7-6 Block 1C: in-flight flags for the two Kiwi-assist buttons.
@@ -176,6 +220,20 @@ export default function DishBuilderScreen() {
     }
     setForm(dishToForm(dish));
   }, [dishId]);
+
+  // WS7-6 G2 — Dish Mode A: hydrate the form once from a draftJson (DraftDish)
+  // handed in by the dish-side "Ask Kiwi" screen. Guarded behind !dishId so an
+  // edit context (dishId present) always wins. A malformed draft leaves the
+  // blank initial form so the user can still build manually.
+  useEffect(() => {
+    if (dishId || !draftJson) return;
+    try {
+      const draft = JSON.parse(draftJson) as DraftDish;
+      setForm(draftDishToForm(draft));
+    } catch {
+      console.warn("[dish-builder] malformed draftJson ignored");
+    }
+  }, [dishId, draftJson]);
 
   const isEdit = !!form.id;
   const headerTitle = isEdit ? `Edit Dish: ${form.name || "—"}` : "Create Dish";

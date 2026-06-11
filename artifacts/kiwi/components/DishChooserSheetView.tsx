@@ -44,9 +44,9 @@ export interface DishChooserSheetProps {
    *  of meal-builder internals — WS9 plans to revisit these sheet
    *  create-modes for reuse/extraction, and this keeps that clean. */
   onAddEmptyDish: () => void;
-  /** Optional override for "Ask Kiwi" submission. WS5 default fires a
-   *  "Coming in WS6" alert. The card stays disabled until the next
-   *  block (G) wires the dish-side Mode A. Kept for future composition. */
+  /** Ask Kiwi (dish-side Mode A) submission. WS7-6 G2: the Meal Builder mount
+   *  passes this to navigate to the dish "Ask Kiwi" screen. When absent (a
+   *  future reuse that hasn't wired it), the card falls back to an alert. */
   onAskKiwi?: (prompt: string) => void;
 }
 
@@ -93,16 +93,17 @@ export function DishChooserSheetView({
     onClose();
   };
 
-  // Ask Kiwi stays DISABLED this block (goes live in (G)). The default still
-  // fires the "Coming in WS6" alert unless the parent passes onAskKiwi.
+  // WS7-6 G2 — Ask Kiwi is LIVE when the parent passes onAskKiwi (the Meal
+  // Builder mount does). The Alert is a defensive fallback for any future
+  // mount that reuses this sheet without wiring the dish-side Mode A.
   const handleSubmitAsk = (prompt: string) => {
     Keyboard.dismiss();
     if (onAskKiwi) {
       onAskKiwi(prompt);
     } else {
       Alert.alert(
-        "Coming in WS6 — AI orchestration",
-        "Kiwi will draft a dish from your description when AI orchestration ships.",
+        "Ask Kiwi isn't available here yet",
+        "Kiwi will draft a dish from your description once this surface wires it up.",
       );
     }
   };
@@ -265,7 +266,7 @@ export function DishChooserHeader({
 
   return (
     <View>
-      {/* Section 1: Ask Kiwi (locked / premium — stays disabled this block) */}
+      {/* Section 1: Ask Kiwi (dish-side Mode A — premium, gated server-side) */}
       <View style={s.askSection}>
         <View style={s.askHeader}>
           <Text style={s.sectionTitle}>Ask Kiwi</Text>
@@ -274,7 +275,9 @@ export function DishChooserHeader({
             <Text style={s.premiumPillText}>Premium</Text>
           </View>
         </View>
-        <Text style={s.sectionSubtitle}>Coming in WS6</Text>
+        <Text style={s.sectionSubtitle}>
+          Describe a dish and Kiwi drafts the ingredients and steps
+        </Text>
         <View style={s.askRow}>
           <TextInput
             value={askPrompt}

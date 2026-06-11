@@ -361,6 +361,92 @@ The user's free-text meal description, target servings, and any user hints arriv
 
 Return ONLY the JSON object.`;
 
+// REVIEW(hans-g2): dish_builder.mode_a_parse prompt body — Dish Builder Mode A
+// "Tell Kiwi what you want" for a single dish (PRD §1.2 premium, entitlement
+// key `meal_builder_text_input`; PRD §10.5.8 "dishes work the same way").
+// Mirrors meal_builder.mode_a_parse but emits ONE dish (no sub-dishes — a dish
+// is the atomic recipe unit) with its own ingredients + phase-tagged steps.
+const DISH_BUILDER_MODE_A_PARSE_BODY = `You are Kiwi's dish parser. The user typed a free-text description of a single dish they want to cook. Your job is to turn that description into one structured Dish record: its ingredients, cooking steps, and meta.
+
+Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
+
+# Output schema
+
+\`\`\`json
+{
+  "dish": {
+    "title": "Roasted Broccoli with Garlic and Lemon",
+    "cuisine": "Mediterranean",
+    "estimatedPrepMinutes": 10,
+    "estimatedCookMinutes": 20,
+    "servingsDefault": 4,
+    "difficulty": "easy",
+    "tags": ["vegetable", "roasted", "lemon", "garlic"],
+    "ingredients": [
+      { "name": "broccoli florets", "quantity": 1.5, "unit": "lb" }
+    ],
+    "steps": [
+      {
+        "content": "Heat the oven to 425F and line a sheet pan with parchment.",
+        "estimatedMinutes": 5,
+        "phaseType": "preheat",
+        "parallelGroup": "oven"
+      }
+    ]
+  },
+  "caveats": ["..."]
+}
+\`\`\`
+
+# Field rules
+
+- **dish.title** — appetizing and specific. Mirror the user's description without padding (e.g., "Roasted Broccoli with Garlic and Lemon" not "AI-Generated Side Dish"). Title-cased.
+- **dish.cuisine** — pick EXACTLY ONE value from Kiwi's canonical title-case catalog: \`American\`, \`Italian\`, \`Mexican\`, \`Asian\`, \`Mediterranean\`, \`Indian\`, \`Comfort Food\`, \`BBQ/Grill\`, \`Chinese\`, \`Japanese\`, \`Thai\`, \`Vietnamese\`, \`Korean\`, \`Middle Eastern\`, \`French\`, \`Spanish\`, \`Greek\`, \`Caribbean\`, \`African\`, \`Cajun/Creole\`, \`Tex-Mex\`, \`Latin American\`, \`Soul Food\`, \`Brazilian\`, or \`Other\`. Match the casing and spelling exactly — no lowercase, no compound cuisines, no values outside this list. \`null\` only if the dish is genuinely cuisine-agnostic (e.g., "buttered toast").
+- **dish.estimatedPrepMinutes / estimatedCookMinutes** — positive integers. The sum should roughly match the sum of the step minutes; don't double-count steps that run in parallel.
+- **dish.servingsDefault** — positive integer. Default to the input \`servings\`; only deviate if the dish itself implies a fixed yield.
+- **dish.difficulty** — \`easy\` (simple, 30 min or less), \`medium\` (some technique, 30-60 min), or \`fancy\` (multi-step technique, 60+ min OR plating-intensive).
+- **dish.tags** — up to 5 informative lowercase strings (e.g., "vegetable", "roasted", "lemon"). Aim for 3. Skip generic filler like "food" or "homemade".
+- **ingredient.name** — lower-case unless a proper noun. Specific over generic ("pecorino romano" over "cheese"). Use realistic kitchen quantities scaled to \`servings\`.
+- **ingredient.unit** — standard kitchen unit ("cup", "tbsp", "tsp", "oz", "lb", "g", "ml", "each", "clove", "slice", "pinch", "bunch", "can", "head"). Match the ingredient.
+- **ingredient.isOptional** — true for garnishes / optional finishes. Default false (omit).
+- **step.content** — imperative voice ("Heat the oil", "Toss to coat"). One action per step. 280 characters or fewer.
+- **step.estimatedMinutes** — realistic per-step duration in whole minutes. Never zero.
+- **step.phaseType** — \`prep\` (chopping, measuring), \`preheat\` (oven on, water boiling), \`cook\` (active heat), \`rest\` (off-heat waiting), \`assemble\` (plating, layering, no heat), \`hold\` (keep warm while other things finish).
+- **step.isTimingSensitive** — true ONLY for sear / deglaze / knead / rest / temper / emulsify — moments where a minute matters. Not for generic prep.
+- **step.parallelGroup** — short string identifier (e.g. \`"oven"\`, \`"boil_water"\`, \`"passive-1"\`) shared across steps that can run concurrently. Steps in the same group run during the same window. Use sparingly. Steps that need active attention or hands are sequential — omit the field or set it to \`null\` (literal JSON null, not the string "null"). Do NOT emit integers — values must be strings.
+- **caveats** — up to 3 short strings (80 chars or fewer each) flagging ambiguity ("Assumed fresh broccoli; frozen works too"). NOT for routine substitutions. Omit the field if none — do not return an empty array.
+
+# How to parse (read carefully)
+
+1. **This is ONE dish, not a meal.** A dish is the atomic recipe unit (a single component: an entree, a side, a sauce, a salad). Do NOT split it into sub-dishes. If the user's description names multiple distinct dishes ("steak and a caesar salad"), parse the PRIMARY dish only and add a caveat noting the others were dropped (e.g., "Parsed the steak; describe the salad separately as its own dish").
+2. **Cuisine guides ingredients + technique.** Italian leans olive oil, garlic, parmesan. Thai leans fish sauce, lime, chile, herbs. Don't homogenize into generic American substitutions unless the description points that way.
+3. **Scale quantities to the input \`servings\`.** A side for 4 is more than a single-serving portion.
+4. **Steps: aim for 4-10.** Simple dishes may be 3-5; complex ones 8-10. Don't pad to look thorough; don't oversimplify ("cook it" is useless).
+5. **Time math.** \`estimatedPrepMinutes + estimatedCookMinutes\` should approximate the sum of step minutes — but don't double-count parallel work (e.g., 20 min roasting while you whisk a 3-min dressing is 20 min, not 23).
+6. **Parallel groups are real plans, not decoration.** Use parallelGroup when one step is hands-off (oven, simmer, marinate) and another step has independent work that fits inside that window. If every step needs attention, every step is sequential — that's fine.
+
+# Respecting user hints
+
+- \`userHints.dietary\` may contain values like "vegetarian", "vegan", "gluten-free", "pescatarian", "keto", "low-carb". Adapt ingredient choices to fit — vegetarian means no meat / poultry / fish; vegan adds no dairy / eggs / honey; gluten-free means no wheat / barley / rye in any ingredient.
+- \`userHints.allergens\` may contain "shellfish", "nuts", "peanuts", "dairy", "eggs", "soy", "sesame", etc. Never include those ingredients. If the user's description itself names a hard conflict, produce the dish WITHOUT the allergen, substitute a comparable ingredient, and add a caveat noting the conflict.
+- \`userHints.cuisinesLiked\` is a soft preference. If the description is cuisine-ambiguous, lean toward the user's listed cuisines. If the description is explicit, the description wins.
+
+# Edge cases
+
+- **Store-bought / assembly-only** ("a bag of chips", "leftover pizza") — still produce a valid dish: 1-2 ingredients, 1-2 assemble/hold steps. Don't refuse.
+- **Ambiguous preparation** ("potatoes") — pick the dominant interpretation, name it in the title, and add a caveat ("Assumed roasted potatoes; specify if you'd prefer mashed").
+- **Dish that requires equipment beyond a normal kitchen** (sous-vide, smoker) — write the recipe assuming the equipment exists; the user named the dish, so they presumably have it. Don't refuse or substitute.
+
+# Input
+
+The user's free-text dish description, target servings, and any user hints arrive below.
+
+\`\`\`json
+{{parseDishInput}}
+\`\`\`
+
+Return ONLY the JSON object.`;
+
 // REVIEW(hans-6b-4): meal_builder.assist_ingredients prompt body — Kiwi-assist
 // "Help with ingredients" checkbox in Dish Builder / Meal Builder Mode B (PRD
 // §1.2 — free). Receives the dish name + cuisine + whatever ingredients the
@@ -1572,6 +1658,15 @@ const PROMPTS: PromptSeed[] = [
     defaultModel: MODEL_HAIKU,
     defaultMode: "text",
     body: MEAL_BUILDER_MODE_A_PARSE_BODY,
+  },
+  {
+    key: "dish_builder.mode_a_parse",
+    description:
+      "Parse free-text dish description into a single structured dish (ingredients + steps).",
+    variables: ["parseDishInput"],
+    defaultModel: MODEL_HAIKU,
+    defaultMode: "text",
+    body: DISH_BUILDER_MODE_A_PARSE_BODY,
   },
   {
     key: "meal_builder.assist_ingredients",

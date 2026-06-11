@@ -108,6 +108,23 @@ export function parseDishSortParam(raw: unknown): DishSortKey {
     : "alpha";
 }
 
+// WS7-6 G2 scope (iii) — meal sort keys. A strict SUBSET of the dish keys
+// (no `times_cooked` — a meal has no use-count sort), so the keyset cursor
+// infra below (KeysetCursor / encode / decode / paginateByKeyset, all typed to
+// DishSortKey) is reused as-is: every MealSortKey is assignable to DishSortKey.
+// `GET /me/meals` validates its ?sort= against this constant.
+export const MEAL_SORT_KEYS = ["alpha", "date_created", "cook_time"] as const;
+export type MealSortKey = (typeof MEAL_SORT_KEYS)[number];
+
+// Parse ?sort= into a known meal key. Invalid / missing / unknown silently
+// default to "alpha" — same forgiving contract as parseDishSortParam.
+export function parseMealSortParam(raw: unknown): MealSortKey {
+  if (typeof raw !== "string") return "alpha";
+  return (MEAL_SORT_KEYS as readonly string[]).includes(raw)
+    ? (raw as MealSortKey)
+    : "alpha";
+}
+
 export interface KeysetCursor {
   k: DishSortKey;
   v: string | number;

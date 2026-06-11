@@ -14,6 +14,7 @@ import type {
   AssistDishStepsResult,
 } from "../../lib/kiwiAssist";
 import type { ParseMealFromTextResult } from "../../lib/mealBuilder";
+import type { ParseDishFromTextResult } from "../../lib/dishBuilder";
 import type {
   EntitlementResult,
   SubscriptionService,
@@ -176,6 +177,44 @@ function parseMealSuccess(): ParseMealFromTextResult {
   };
 }
 
+function makeParseDish(result: () => Promise<ParseDishFromTextResult>) {
+  let calls = 0;
+  const captured: unknown[] = [];
+  const fn = (async (opts: unknown) => {
+    calls++;
+    captured.push(opts);
+    return result();
+  }) as unknown as Parameters<typeof createBuilderRouter>[0] extends
+    | { parseDishFromText?: infer R }
+    | undefined
+    ? R
+    : never;
+  return { fn, getCalls: () => calls, getCaptured: () => captured };
+}
+
+function parseDishSuccess(): ParseDishFromTextResult {
+  return {
+    status: "success",
+    dish: {
+      title: "Roasted Broccoli with Garlic and Lemon",
+      cuisine: "Mediterranean",
+      estimatedPrepMinutes: 10,
+      estimatedCookMinutes: 20,
+      servingsDefault: 4,
+      difficulty: "easy",
+      tags: ["vegetable", "roasted"],
+      ingredients: [{ name: "broccoli florets", quantity: 1.5, unit: "lb" }],
+      steps: [
+        {
+          content: "Heat the oven to 425F.",
+          estimatedMinutes: 5,
+          phaseType: "preheat",
+        },
+      ],
+    },
+  };
+}
+
 function makeSubscriptionService(
   result: EntitlementResult,
 ): SubscriptionService {
@@ -196,6 +235,8 @@ async function spinUp(deps: {
   assistDishSteps?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parseMealFromText?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  parseDishFromText?: any;
   subscriptionService?: SubscriptionService;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prisma: any;
@@ -650,5 +691,152 @@ describe("POST /api/builder/parse-meal — auth + input validation", () => {
       body: JSON.stringify({ freeText: "x", servings: 4 }),
     });
     assert.equal(res.status, 400);
+  });
+});
+
+// ── tests: parse-dish (Dish Mode A) — WS7-6 G2 ────────────────────────
+
+describe("POST /api/builder/parse-dish — happy path", () => {
+  let harness: Harness;
+  const helper = makeParseDish(async () => parseDishSuccess());
+
+  before(async () => {
+    harness = await spinUp({
+      parseDishFromText: helper.fn,
+      subscriptionService: makeSubscriptionService({ allowed: true }),
+      prisma: makeStubPrisma(),
+    });
+  });
+  after(async () => harness.close());
+
+  it("returns 200 + a single dish on a valid request", async () => {
+    const token = signToken(TEST_USER_ID + "-dish-modea");
+    const res = await fetch(`${harness.baseUrl}/builder/parse-dish`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        freeText: "Roasted broccoli with garlic and lemon",
+        servings: 4,
+      }),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      status: string;
+      dish: { title: string; cuisine: string; ingredients: unknown[] };
+    };
+    assert.equal(body.status, "success");
+    assert.equal(body.dish.cuisine, "Mediterranean");
+    assert.equal(body.dish.ingredients.length, 1);
+    // No sub-dishes — a dish is the atomic unit.
+    assert.equal(
+      (body.dish as Record<string, unknown>).subDishes,
+      undefined,
+    );
+    assert.equal(helper.getCalls(), 1);
+  });
+});
+
+describe("POST /api/builder/parse-dish — premium gate denied", () => {
+  let harness: Harness;
+  const helper = makeParseDish(async () => parseDishSuccess());
+
+  before(async () => {
+    harness = await spinUp({
+      parseDishFromText: helper.fn,
+      subscriptionService: makeSubscriptionService({
+        allowed: false,
+        reason: "Dish Mode A is a premium feature.",
+      }),
+      prisma: makeStubPrisma(),
+    });
+  });
+  after(async () => harness.close());
+
+  it("returns 402 upgrade-required without invoking the helper", async () => {
+    const token = signToken(TEST_USER_ID + "-dish-modea-denied");
+    const res = await fetch(`${harness.baseUrl}/builder/parse-dish`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ freeText: "Roasted broccoli", servings: 4 }),
+    });
+
+    assert.equal(res.status, 402);
+    const body = (await res.json()) as { error: string; reason: string };
+    assert.match(body.error, /upgrade required/);
+    assert.match(body.reason, /premium/);
+    assert.equal(helper.getCalls(), 0);
+  });
+});
+
+describe("POST /api/builder/parse-dish — auth + input validation", () => {
+  let harness: Harness;
+  const helper = makeParseDish(async () => parseDishSuccess());
+
+  before(async () => {
+    harness = await spinUp({
+      parseDishFromText: helper.fn,
+      subscriptionService: makeSubscriptionService({ allowed: true }),
+      prisma: makeStubPrisma(),
+    });
+  });
+  after(async () => harness.close());
+
+  it("rejects 401 when no authorization header", async () => {
+    const res = await fetch(`${harness.baseUrl}/builder/parse-dish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ freeText: "Roasted broccoli", servings: 4 }),
+    });
+    assert.equal(res.status, 401);
+  });
+
+  it("rejects 400 when freeText is too short", async () => {
+    const token = signToken(TEST_USER_ID + "-dish-modea-bad");
+    const res = await fetch(`${harness.baseUrl}/builder/parse-dish`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ freeText: "x", servings: 4 }),
+    });
+    assert.equal(res.status, 400);
+  });
+
+  it("returns 502 when the parse helper soft-fails", async () => {
+    const failHarness = await spinUp({
+      parseDishFromText: makeParseDish(async () => ({
+        status: "failed",
+        error: "Kiwi got distracted.",
+      })).fn,
+      subscriptionService: makeSubscriptionService({ allowed: true }),
+      prisma: makeStubPrisma(),
+    });
+    try {
+      const token = signToken(TEST_USER_ID + "-dish-modea-fail");
+      const res = await fetch(`${failHarness.baseUrl}/builder/parse-dish`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          freeText: "Roasted broccoli with garlic",
+          servings: 4,
+        }),
+      });
+      assert.equal(res.status, 502);
+      const body = (await res.json()) as { status: string };
+      assert.equal(body.status, "failed");
+    } finally {
+      await failHarness.close();
+    }
   });
 });

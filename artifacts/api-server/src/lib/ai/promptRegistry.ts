@@ -190,6 +190,19 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
         "Parse free-text meal description into structured ingredients and steps.",
     },
   ],
+  // WS7-6 G2 — Dish Builder Mode A (parse free-text dish description). The
+  // dish twin of meal_builder.mode_a_parse: single-dish output, no sub-dishes
+  // (PRD §10.5.8). Same Haiku / text+Zod posture.
+  [
+    "dish_builder.mode_a_parse",
+    {
+      body: placeholder("dish_builder.mode_a_parse"),
+      defaultModel: MODEL_HAIKU,
+      defaultMode: "text",
+      toolDescription:
+        "Parse free-text dish description into a single structured dish (ingredients + steps).",
+    },
+  ],
   // 6b-4 — Kiwi-assist checkboxes (Dish Builder + Meal Builder Mode B)
   [
     "meal_builder.assist_ingredients",

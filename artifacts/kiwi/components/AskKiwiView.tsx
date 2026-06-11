@@ -16,6 +16,10 @@ export const ASK_KIWI_SERVINGS_MAX = 12;
 export const ASK_KIWI_SERVINGS_DEFAULT = 4;
 const PLACEHOLDER =
   "e.g. Chicken piccata with a side arugula salad and lemon vinaigrette";
+const SUBTITLE =
+  "Describe the meal in your own words — Kiwi will turn it into a meal with dishes, ingredients, and steps you can review and edit.";
+const HELPER =
+  "Premium · Kiwi reads your description and drafts a full meal. You can change anything before saving.";
 
 export interface AskKiwiViewProps {
   text: string;
@@ -25,6 +29,13 @@ export interface AskKiwiViewProps {
   submitDisabled: boolean;
   onSubmit: () => void;
   errorMessage: string | null;
+  // WS7-6 G2 — optional copy overrides so the dish-side Mode A screen
+  // (app/ask-kiwi-dish.tsx) reuses this view with dish-shaped wording.
+  // Defaults are the original meal copy, so app/ask-kiwi.tsx is unchanged.
+  title?: string;
+  subtitle?: string;
+  placeholder?: string;
+  helperText?: string;
 }
 
 export function AskKiwiView({
@@ -35,19 +46,20 @@ export function AskKiwiView({
   submitDisabled,
   onSubmit,
   errorMessage,
+  title = "Tell Kiwi what you want",
+  subtitle = SUBTITLE,
+  placeholder = PLACEHOLDER,
+  helperText = HELPER,
 }: AskKiwiViewProps) {
   return (
     <View style={s.body}>
-      <Text style={s.title}>Tell Kiwi what you want</Text>
-      <Text style={s.subtitle}>
-        Describe the meal in your own words — Kiwi will turn it into a meal with
-        dishes, ingredients, and steps you can review and edit.
-      </Text>
+      <Text style={s.title}>{title}</Text>
+      <Text style={s.subtitle}>{subtitle}</Text>
 
       <TextInput
         value={text}
         onChangeText={onChangeText}
-        placeholder={PLACEHOLDER}
+        placeholder={placeholder}
         placeholderTextColor={KColors.neutral[600]}
         style={s.textInput}
         multiline
@@ -84,10 +96,7 @@ export function AskKiwiView({
         </Text>
       )}
 
-      <Text style={s.helperText}>
-        Premium · Kiwi reads your description and drafts a full meal. You can
-        change anything before saving.
-      </Text>
+      <Text style={s.helperText}>{helperText}</Text>
     </View>
   );
 }

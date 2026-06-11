@@ -1,10 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -24,7 +23,7 @@ import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDishes } from "@/hooks/useDishes";
-import { useMeals } from "@/hooks/useMeals";
+import { useInfiniteMeals } from "@/hooks/useMeals";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
@@ -45,6 +44,10 @@ import {
 } from "@/lib/dishes/sortMapping";
 import { mealsEmptyCopy } from "@/lib/meals/emptyStateCopy";
 import { mealsFilterDefault } from "@/lib/meals/filterDefault";
+import {
+  MEAL_DISABLED_SORT_KEYS,
+  toMealSortKey,
+} from "@/lib/meals/sortMapping";
 
 type SubTab = "meals" | "dishes";
 
@@ -61,23 +64,12 @@ const DISHES_CHIPS: FilterChipOption<DishFilterKey>[] = [
   { key: "top_rated", label: "Top Rated" },
 ];
 
-// Client-side meal sort. Only `alpha` and `cook_time` have backing fields on
-// MealListItem today; the cook-stat sort keys (last_cooked / times_cooked /
-// date_created) are no-ops until WS9 lands server-side params (D-WS7-048
-// extended). Local helper — kept inline to avoid a 12-line module.
-function sortMealsClient(
-  list: readonly MealListItem[],
-  key: SortKey,
-): MealListItem[] {
-  const out = [...list];
-  if (key === "alpha") {
-    out.sort((a, b) => a.title.localeCompare(b.title));
-  } else if (key === "cook_time") {
-    out.sort((a, b) => a.minutes - b.minutes);
-  }
-  return out;
-}
-
+// WS7-6 G2 scope (iii): the Meals sub-tab now sorts SERVER-side too (the
+// dropdown drives ?sort= and the keyset-paginated list re-queries) — the old
+// client-side sortMealsClient was killed because re-sorting only the cached
+// first page hid newly-saved meals (Hans device-confirmed). Meals support
+// alpha / date_created / cook_time; the dish-only keys stay greyed.
+//
 // WS7-6 B-fix Block 3: dishes sort SERVER-side (the dropdown drives ?sort= and
 // the list re-queries). WS7-6 C-fix Block 4 — toDishSortKey +
 // DISH_SORT_LABEL_OVERRIDES + DISH_DISABLED_SORT_KEYS now live in the shared
@@ -114,7 +106,11 @@ export default function MealsTab() {
     dishName: string;
   } | null>(null);
 
-  const mealsQuery = useMeals([mealFilter]);
+  // WS7-6 G2 scope (iii) — server-sorted + keyset-paginated Meals list (the
+  // dropdown's key maps to ?sort=; changing it re-queries since the key is
+  // part of the React Query key). `meals` is the flattened page chain.
+  const mealsQuery = useInfiniteMeals([mealFilter], toMealSortKey(mealSort));
+  const visibleMeals: MealListItem[] = mealsQuery.meals;
 
   // WS7-6 G1 — focus-driven refetch backstop for the Meals list. The (E)
   // Block 2 useRefetchOnFocus rollout covered Home/Plans/Grocery but missed
@@ -128,14 +124,6 @@ export default function MealsTab() {
     setMealFilter(key);
     setUiState({ lastMealsFilters: [key] });
   };
-
-  // Server already filtered by the selected chip; sort runs client-side
-  // (D-WS7-048 extended — A–Z + cook-time work locally, cook-stat keys are
-  // no-ops until WS9 lands server-side sort params).
-  const visibleMeals = useMemo<MealListItem[]>(
-    () => sortMealsClient(mealsQuery.data?.meals ?? [], mealSort),
-    [mealsQuery.data, mealSort],
-  );
 
   // Server-side sort + infinite scroll (WS7-6 B-fix Block 3). The dropdown's
   // key maps 1:1 to the server ?sort= param; changing it re-queries (the key
@@ -246,59 +234,84 @@ export default function MealsTab() {
         </View>
 
         {subTab === "meals" ? (
-          <ScrollView style={s.flex1} contentContainerStyle={s.scroll}>
-            <Pressable
-              onPress={handleAddMeal}
-              style={({ pressed }) => [
-                s.addBtn,
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Text style={s.addBtnText}>+ Add Meal</Text>
-            </Pressable>
+          <FlatList<MealListItem>
+            style={s.flex1}
+            contentContainerStyle={s.scroll}
+            data={visibleMeals}
+            keyExtractor={(m) => m.id}
+            ListHeaderComponent={
+              <View>
+                <Pressable
+                  onPress={handleAddMeal}
+                  style={({ pressed }) => [
+                    s.addBtn,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <Text style={s.addBtnText}>+ Add Meal</Text>
+                </Pressable>
 
-            <View style={s.filterWrap}>
-              <FilterChipRow<MealFilterKey>
-                options={MEALS_CHIPS}
-                selected={[mealFilter]}
-                onToggle={toggleMealFilter}
+                <View style={s.filterWrap}>
+                  <FilterChipRow<MealFilterKey>
+                    options={MEALS_CHIPS}
+                    selected={[mealFilter]}
+                    onToggle={toggleMealFilter}
+                  />
+                </View>
+
+                <View style={[s.controlsRow, s.controlsRowList]}>
+                  <Text style={s.sectionLabel}>
+                    {MEALS_CHIPS.find((c) => c.key === mealFilter)?.label}
+                  </Text>
+                  <SortDropdown
+                    value={mealSort}
+                    onChange={setMealSort}
+                    disabledKeys={MEAL_DISABLED_SORT_KEYS}
+                  />
+                </View>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <MealRow
+                meal={item}
+                onPress={() => handleOpenMeal(item.id)}
+                onCookNow={handleCookNow}
+                onAddToPlan={(mealId, mealTitle) =>
+                  setAddToPlanFor({ mealId, mealTitle })
+                }
+                sortKey={mealSort}
               />
-            </View>
-
-            <View style={s.controlsRow}>
-              <Text style={s.sectionLabel}>
-                {MEALS_CHIPS.find((c) => c.key === mealFilter)?.label}
-              </Text>
-              <SortDropdown value={mealSort} onChange={setMealSort} />
-            </View>
-
-            <View style={s.list}>
-              {mealsQuery.isLoading ? (
+            )}
+            ItemSeparatorComponent={() => <View style={s.rowGap} />}
+            // Prefetch-ahead while still 50% of a viewport from the end
+            // (matches the Dishes sub-tab; Hans-ruled threshold).
+            onEndReachedThreshold={0.5}
+            onEndReached={() => {
+              if (mealsQuery.hasNextPage && !mealsQuery.isFetchingNextPage) {
+                void mealsQuery.fetchNextPage();
+              }
+            }}
+            ListEmptyComponent={
+              mealsQuery.isLoading ? (
                 <Text style={s.loadingText}>Loading…</Text>
               ) : mealsQuery.isError ? (
                 <Text style={s.loadingText}>
                   Couldn’t load meals right now. Try again in a moment.
                 </Text>
-              ) : visibleMeals.length === 0 ? (
+              ) : (
                 <View style={s.empty}>
                   <Text style={s.emptyText}>{mealsEmptyCopy(mealFilter)}</Text>
                 </View>
-              ) : (
-                visibleMeals.map((meal) => (
-                  <MealRow
-                    key={meal.id}
-                    meal={meal}
-                    onPress={() => handleOpenMeal(meal.id)}
-                    onCookNow={handleCookNow}
-                    onAddToPlan={(mealId, mealTitle) =>
-                      setAddToPlanFor({ mealId, mealTitle })
-                    }
-                    sortKey={mealSort}
-                  />
-                ))
-              )}
-            </View>
-          </ScrollView>
+              )
+            }
+            ListFooterComponent={
+              mealsQuery.isFetchingNextPage ? (
+                <View style={s.footerLoading}>
+                  <ActivityIndicator size="small" color={KColors.sage[700]} />
+                </View>
+              ) : null
+            }
+          />
         ) : (
           <FlatList<DishListItem>
             style={s.flex1}

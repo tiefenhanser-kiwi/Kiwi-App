@@ -25,12 +25,14 @@ import type { PrismaClient } from "@prisma/client";
 import {
   AssistIngredientsInputSchema,
   AssistStepsInputSchema,
+  ParseDishInputSchema,
   ParseMealInputSchema,
 } from "../lib/ai/schemas/mealBuilder";
 import {
   assistDishIngredients as productionAssistDishIngredients,
   assistDishSteps as productionAssistDishSteps,
 } from "../lib/kiwiAssist";
+import { parseDishFromText as productionParseDishFromText } from "../lib/dishBuilder";
 import { parseMealFromText as productionParseMealFromText } from "../lib/mealBuilder";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
@@ -42,6 +44,7 @@ export interface BuilderRouterDeps {
   assistDishIngredients: typeof productionAssistDishIngredients;
   assistDishSteps: typeof productionAssistDishSteps;
   parseMealFromText: typeof productionParseMealFromText;
+  parseDishFromText: typeof productionParseDishFromText;
   subscriptionService: SubscriptionService;
   prisma: PrismaClient;
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
@@ -55,6 +58,8 @@ export function createBuilderRouter(
   const assistDishSteps = deps.assistDishSteps ?? productionAssistDishSteps;
   const parseMealFromText =
     deps.parseMealFromText ?? productionParseMealFromText;
+  const parseDishFromText =
+    deps.parseDishFromText ?? productionParseDishFromText;
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
   const prisma = deps.prisma ?? productionPrisma;
@@ -233,6 +238,73 @@ export function createBuilderRouter(
       return res.json({
         status: "success",
         meal: result.meal,
+        caveats: result.caveats,
+      });
+    },
+  );
+
+  // WS7-6 G2 — /builder/parse-dish (Dish Mode A). The dish twin of
+  // /builder/parse-meal (PRD §10.5.8 "dishes work the same way"). Single-dish
+  // output, no sub-dishes. PREMIUM behind the SAME entitlement key as Mode A
+  // meal parsing (meal_builder_text_input) — today a passthrough in trial
+  // mode; the same Stripe seam locks both once WS8 wires real entitlements.
+  router.post(
+    "/builder/parse-dish",
+    requireAuth,
+    assistLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+
+      const parsed = ParseDishInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid request body",
+          details: parsed.error.flatten(),
+        });
+      }
+
+      const ent = await subscriptionService.can(
+        userId,
+        "meal_builder_text_input",
+      );
+      if (!ent.allowed) {
+        return res.status(402).json({
+          error: "upgrade required",
+          reason:
+            ent.reason ??
+            "Parsing dishes from free text is a premium feature.",
+        });
+      }
+
+      const result = await parseDishFromText({
+        prisma,
+        userId,
+        freeText: parsed.data.freeText,
+        servings: parsed.data.servings,
+        userHints: parsed.data.userHints,
+      });
+
+      if (result.status === "failed") {
+        logger.warn(
+          {
+            event: "builder_parse_dish_failed",
+            userId,
+            error: result.error,
+          },
+          "Dish Mode A parse-dish call failed",
+        );
+        return res.status(502).json({
+          error: result.error,
+          status: "failed",
+        });
+      }
+
+      return res.json({
+        status: "success",
+        dish: result.dish,
         caveats: result.caveats,
       });
     },

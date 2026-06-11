@@ -206,3 +206,46 @@ export const ParseMealResultSchema = z.object({
   caveats: z.array(z.string().max(80)).max(3).optional(),
 });
 export type ParseMealResult = z.infer<typeof ParseMealResultSchema>;
+
+// ─── Dish Mode A: parse dish from free-text (WS7-6 G2) ────────────────────
+//
+// The dish twin of Mode A meal parsing (PRD §10.5.8 — "dishes work the same
+// way"). Same free-text input contract as ParseMealInput; the output is a
+// SINGLE dish (no sub-dishes — a dish is the atomic recipe unit) with its own
+// ingredient list + phase-tagged steps. Premium-gated identically (entitlement
+// key: meal_builder_text_input). Reuses the shared ingredient / step /
+// difficulty / cuisine sub-schemas above so the builder pipeline speaks one
+// vocabulary.
+
+export const ParseDishInputSchema = z.object({
+  freeText: z.string().min(3).max(500),
+  servings: z.number().int().positive().max(99).default(4),
+  userHints: z
+    .object({
+      dietary: z.array(z.string().max(40)).max(10).optional(),
+      allergens: z.array(z.string().max(40)).max(20).optional(),
+      cuisinesLiked: z.array(z.string().max(40)).max(10).optional(),
+    })
+    .optional(),
+});
+export type ParseDishInput = z.infer<typeof ParseDishInputSchema>;
+
+export const ParsedDishSchema = z.object({
+  title: z.string().min(1).max(200),
+  // Nullable when the description doesn't imply a cuisine (e.g. "grain bowl").
+  cuisine: CuisineTypeEnum.nullable(),
+  estimatedPrepMinutes: z.number().int().positive().max(600),
+  estimatedCookMinutes: z.number().int().positive().max(600),
+  servingsDefault: z.number().int().positive().max(99),
+  difficulty: MealDifficultySchema,
+  tags: z.array(z.string().min(1).max(40)).max(5),
+  ingredients: z.array(ParsedSubDishIngredientSchema).min(1).max(30),
+  steps: z.array(ParsedSubDishStepSchema).min(1).max(20),
+});
+export type ParsedDish = z.infer<typeof ParsedDishSchema>;
+
+export const ParseDishResultSchema = z.object({
+  dish: ParsedDishSchema,
+  caveats: z.array(z.string().max(80)).max(3).optional(),
+});
+export type ParseDishResult = z.infer<typeof ParseDishResultSchema>;

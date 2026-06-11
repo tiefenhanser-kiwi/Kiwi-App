@@ -380,6 +380,30 @@ test("getMeals rejects a malformed response body", async () => {
   );
 });
 
+// WS7-6 G2 scope (iii): sort / cursor / limit opts (mirrors getDishes).
+
+test("getMeals appends ?sort= when provided", async () => {
+  nextResponse = () => mockJson(MEAL_LIST_RESPONSE);
+  await getMeals(["my_meals"], { sort: "date_created" });
+  assert.ok(lastUrl?.includes("sort=date_created"), `unexpected url: ${lastUrl}`);
+});
+
+test("getMeals appends cursor + limit when provided", async () => {
+  nextResponse = () => mockJson(MEAL_LIST_RESPONSE);
+  await getMeals(["my_meals"], { cursor: "abc123", limit: 10 });
+  assert.ok(lastUrl?.includes("cursor=abc123"), `unexpected url: ${lastUrl}`);
+  assert.ok(lastUrl?.includes("limit=10"), `unexpected url: ${lastUrl}`);
+});
+
+test("getMeals with no opts omits sort/cursor/limit (byte-identical wire)", async () => {
+  nextResponse = () => mockJson(MEAL_LIST_RESPONSE);
+  await getMeals(["my_meals"]);
+  assert.ok(
+    lastUrl?.endsWith("/me/meals?filter=my_meals"),
+    `unexpected url: ${lastUrl}`,
+  );
+});
+
 // ── asMealsFilters (relocated from lib/stubs.ts in WS7-3 C3 c1) ──────────────
 
 test("asMealsFilters: null / undefined / empty input → []", () => {

@@ -209,6 +209,14 @@ export const MEAL_FILTER_KEYS = [
 ] as const;
 export type MealFilterKey = (typeof MEAL_FILTER_KEYS)[number];
 
+// ── Sort keys ────────────────────────────────────────────────────────────
+// WS7-6 G2 — server-accepted ?sort= values for GET /me/meals. Mirrors the
+// server's MEAL_SORT_KEYS (artifacts/api-server/src/lib/listQuery.ts): the
+// dish keys minus the dish-only times_cooked / last_cooked. The SortDropdown's
+// extra keys stay greyed in meal contexts (see lib/meals/sortMapping).
+export const MEAL_SORT_KEYS = ["alpha", "date_created", "cook_time"] as const;
+export type MealSortKey = (typeof MEAL_SORT_KEYS)[number];
+
 /**
  * Narrows a server-supplied string[] (e.g. user.lastMealsFilters) to the typed
  * MealFilterKey union, dropping unknown values silently. Relocated from
@@ -238,14 +246,30 @@ export type MealListResponse = z.infer<typeof MealListResponseSchema>;
  * Returns the cursor-paginated union. Propagates the apiClient typed errors:
  * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
  */
+// WS7-6 G2 scope (iii): `opts` carries the keyset-pagination + sort params,
+// mirroring getDishes. `sort` maps 1:1 to the server's MEAL_SORT_KEYS; `cursor`
+// is the opaque `nextCursor` from a prior page; `limit` clamps server-side to
+// [1, 100]. Each option is appended only when provided, so the existing
+// no-opts call shape (and its wire) is byte-for-byte unchanged.
+export interface GetMealsOptions {
+  limit?: number;
+  cursor?: string;
+  sort?: MealSortKey;
+}
+
 export async function getMeals(
   filter?: readonly MealFilterKey[],
+  opts: GetMealsOptions = {},
 ): Promise<MealListResponse> {
-  const query =
-    filter && filter.length > 0
-      ? `?filter=${encodeURIComponent(filter.join(","))}`
-      : "";
-  return apiClient(`/me/meals${query}`, { schema: MealListResponseSchema });
+  const params = new URLSearchParams();
+  if (filter && filter.length > 0) params.set("filter", filter.join(","));
+  if (opts.sort) params.set("sort", opts.sort);
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+  if (opts.cursor) params.set("cursor", opts.cursor);
+  const query = params.toString();
+  return apiClient(`/me/meals${query ? `?${query}` : ""}`, {
+    schema: MealListResponseSchema,
+  });
 }
 
 // ── Save-canonical (WS7-6 Block 1E) ─────────────────────────────────────

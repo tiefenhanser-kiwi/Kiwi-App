@@ -31,12 +31,35 @@ import {
   clampLimit,
   decodeKeysetCursor,
   mergeById,
-  paginateById,
   paginateByKeyset,
   parseDishSortParam,
   parseFilterParam,
+  parseMealSortParam,
 } from "../lib/listQuery";
-import { MEAL_LIST_SELECT, toListShape, type MealListItem } from "./meals";
+import { MEAL_LIST_SELECT, toListShape } from "./meals";
+
+// WS7-6 G2 scope (iii) — /me/meals keyset sort needs `createdAt` (the
+// date_created sort value) on each row; toListShape ignores it so the wire
+// output is byte-unchanged. estimatedTimeMinutes (cook_time) + title (alpha)
+// are already in MEAL_LIST_SELECT.
+const MEAL_LIST_SELECT_SORTED = {
+  ...MEAL_LIST_SELECT,
+  createdAt: true,
+} as const;
+type MealListRow = {
+  id: string;
+  title: string;
+  cuisineType: string | null;
+  estimatedTimeMinutes: number;
+  servingsDefault: number;
+  caloriesPerServing: number;
+  proteinGPerServing: number;
+  carbsGPerServing: number;
+  fatGPerServing: number;
+  tags: string[];
+  imageUrl: string | null;
+  createdAt: Date;
+};
 
 // Brute-force protection on password change (matches /auth/login posture).
 const passwordChangeLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 });
@@ -1320,7 +1343,20 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   // block; blocks concatenate in MEALS_FILTER_KEYS order and dedupe by id.
   // Cursor pagination matches GET /meals (opaque id cursor; see paginateById).
 
-  // GET /me/meals?filter=my_meals,featured,top_rated,hosting
+  // GET /me/meals?filter=my_meals,featured,top_rated,hosting&sort=<alpha|date_created|cook_time>
+  //
+  // WS7-6 G2 scope (iii): sort param + keyset cursor, transplanted from the
+  // GET /me/dishes precedent (B-fix Block 1). Migrated OFF paginateById so a
+  // newly-saved meal lands in the server-sorted page chain instead of being
+  // hidden by a client-side re-sort of a stale first page. Sort options:
+  // alpha (default), date_created, cook_time (meals minus the dish-only
+  // times_cooked/last_cooked keys). id:asc tiebreaker on every sort;
+  // unknown/malformed sort or cursor falls back to the first page. The
+  // default-order (alpha) `meals` array is byte-identical to the
+  // pre-migration output; only the opaque nextCursor changes shape (raw id
+  // to base64url keyset cursor — an old raw-id cursor decodes to null and
+  // yields the first page, so the round-trip stays safe). /plans keeps
+  // paginateById (its envelope-merge shape differs).
   router.get("/me/meals", requireAuth, async (req, res) => {
     const parsed = parseFilterParam(req.query.filter, MEALS_FILTER_KEYS, [
       "my_meals",
@@ -1333,28 +1369,40 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       });
     }
     const limit = clampLimit(req.query.limit);
-    const cursor =
-      typeof req.query.cursor === "string" && req.query.cursor.length > 0
-        ? req.query.cursor
-        : undefined;
+    const sort = parseMealSortParam(req.query.sort);
+    const cursor = decodeKeysetCursor(req.query.cursor);
+
+    // id:asc is the stable tiebreaker for every sort. All three meal sorts
+    // are expressible directly in a Prisma orderBy (no in-memory re-rank like
+    // dishes' filtered times_cooked count needs).
+    const orderBy: Prisma.MealOrderByWithRelationInput[] =
+      sort === "date_created"
+        ? [{ createdAt: "desc" }, { id: "asc" }]
+        : sort === "cook_time"
+          ? [{ estimatedTimeMinutes: "asc" }, { id: "asc" }]
+          : [{ title: "asc" }, { id: "asc" }];
 
     try {
-      const blocks: MealListItem[][] = [];
+      const blocks: MealListRow[][] = [];
       for (const key of parsed.keys) {
         if (key === "my_meals") {
           const rows = await prisma.meal.findMany({
             where: { userId: req.userId, isArchived: false },
-            select: MEAL_LIST_SELECT,
-            orderBy: { title: "asc" },
+            select: MEAL_LIST_SELECT_SORTED,
+            orderBy,
           });
-          blocks.push(rows.map(toListShape));
+          blocks.push(rows);
         } else if (key === "top_rated") {
           // No cached score on Meal — rank public meals by the un-decayed
           // weighted counter sum, capped at top_rated.display_count.
           const settings = await getTopRatedSettings(prisma);
           const rows = await prisma.meal.findMany({
             where: { isPublic: true, isArchived: false },
-            select: { ...MEAL_LIST_SELECT, saveCount: true, useCount: true },
+            select: {
+              ...MEAL_LIST_SELECT_SORTED,
+              saveCount: true,
+              useCount: true,
+            },
           });
           const ranked = rows
             .map((m) => ({
@@ -1368,7 +1416,7 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
                 b.score - a.score || a.m.title.localeCompare(b.m.title),
             )
             .slice(0, settings.displayCount)
-            .map((r) => toListShape(r.m));
+            .map((r) => r.m);
           blocks.push(ranked);
         } else {
           // key === "featured" | "hosting".
@@ -1380,8 +1428,24 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         }
       }
       const merged = mergeById(blocks);
-      const { page, nextCursor } = paginateById(merged, cursor, limit);
-      return res.json({ meals: page, nextCursor });
+      const getSortValue = (r: MealListRow): string | number => {
+        switch (sort) {
+          case "date_created":
+            return r.createdAt.toISOString();
+          case "cook_time":
+            return r.estimatedTimeMinutes;
+          case "alpha":
+            return r.title;
+        }
+      };
+      const { page, nextCursor } = paginateByKeyset(
+        merged,
+        cursor,
+        limit,
+        sort,
+        getSortValue,
+      );
+      return res.json({ meals: page.map(toListShape), nextCursor });
     } catch (err) {
       logger.error({ err, userId: req.userId }, "GET /me/meals failed");
       return res.status(500).json({ error: "failed to list meals" });

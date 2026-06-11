@@ -280,3 +280,87 @@ export async function parseMeal(
     caveats: body.caveats,
   };
 }
+
+// ── /builder/parse-dish ──────────────────────────────────────────────────
+// Dish Mode A (WS7-6 G2): free-text → ONE Dish (single dish, no sub-dishes —
+// the dish twin of parse-meal, PRD §10.5.8). Premium-gated server-side (402
+// UpgradeRequiredError propagated to caller). Reuses the parse-meal sub-dish
+// ingredient/step schemas — a dish's ingredients + steps are the same shape.
+
+export interface ParseDishInput {
+  freeText: string;
+  servings?: number;
+  userHints?: {
+    dietary?: string[];
+    allergens?: string[];
+    cuisinesLiked?: string[];
+  };
+}
+
+// Server-shaped parsed dish — `difficulty` is the server enum. Wrapper
+// transforms to `ParsedDish` (UI difficulty) before returning to callers.
+const ServerParsedDishSchema = z.object({
+  title: z.string(),
+  cuisine: z.string().nullable(),
+  estimatedPrepMinutes: z.number(),
+  estimatedCookMinutes: z.number(),
+  servingsDefault: z.number(),
+  difficulty: ServerDifficultyEnum,
+  tags: z.array(z.string()),
+  ingredients: z.array(ParsedSubDishIngredientSchema),
+  steps: z.array(ParsedSubDishStepSchema),
+});
+
+const ParseDishResponseSchema = z.object({
+  status: z.literal("success"),
+  dish: ServerParsedDishSchema,
+  caveats: z.array(z.string()).optional(),
+});
+
+export interface ParsedDish {
+  title: string;
+  cuisine: string | null;
+  estimatedPrepMinutes: number;
+  estimatedCookMinutes: number;
+  servingsDefault: number;
+  /** UI difficulty enum (`fancy → hard` mapped at the wrapper boundary). */
+  difficulty: UiDifficulty;
+  tags: string[];
+  ingredients: ParsedSubDishIngredient[];
+  steps: ParsedSubDishStep[];
+}
+
+export interface ParseDishResult {
+  dish: ParsedDish;
+  caveats?: string[];
+}
+
+/**
+ * POST /api/builder/parse-dish — Dish Mode A free-text parse. Premium-gated
+ * server-side: a 402 surfaces as `UpgradeRequiredError` so the screen can
+ * route to the upgrade modal. The server's `difficulty` enum is normalized
+ * from `fancy` to `hard` at this boundary so downstream callers (Dish Builder
+ * form state) speak one UI vocabulary.
+ *
+ * Propagates apiClient typed errors: `UnauthenticatedError` (401),
+ * `UpgradeRequiredError` (402 premium gate), `ApiError` (502 ai_failed),
+ * `ApiSchemaError` on shape mismatch.
+ */
+export async function parseDish(
+  input: ParseDishInput,
+  opts: { signal?: AbortSignal } = {},
+): Promise<ParseDishResult> {
+  const body = await apiClient("/builder/parse-dish", {
+    method: "POST",
+    body: input,
+    schema: ParseDishResponseSchema,
+    signal: opts.signal,
+  });
+  return {
+    dish: {
+      ...body.dish,
+      difficulty: fromServerDifficulty(body.dish.difficulty),
+    },
+    caveats: body.caveats,
+  };
+}
