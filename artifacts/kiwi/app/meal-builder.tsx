@@ -36,6 +36,10 @@ import { useDishes } from "@/hooks/useDishes";
 import { savedDishFromListItem } from "@/lib/dishes/savedDishFromListItem";
 import { resolvePostSaveNav } from "@/lib/builder/postSaveNav";
 import {
+  armDishHandoff,
+  disarmDishHandoff,
+} from "@/lib/builder/dishHandoff";
+import {
   DISH_DISABLED_SORT_KEYS,
   DISH_SORT_LABEL_OVERRIDES,
   toDishSortKey,
@@ -47,6 +51,7 @@ import { formatMacroLine } from "@/lib/format/macros";
 import { parseQuantity } from "@/lib/quantity";
 import {
   buildManualSaveMealInput,
+  draftDishToBuilderDish,
   hydrateBuilderDishesFromDraft,
   hydrateBuilderDishesFromMeal,
   newDish as makeNewDish,
@@ -236,6 +241,10 @@ export default function MealBuilderScreen() {
   //   notes                              → null on the server, so "" here
   //
   // WS7-6 Fix-Block 1B: per-dish step ownership. The pre-fix code flattened
+  // WS7-6 G3-fix — clear any armed dish handoff if this builder unmounts before
+  // the parsed dish comes back, so a stale closure can't set state post-unmount.
+  useEffect(() => disarmDishHandoff, []);
+
   // every dish's steps into a single meal-level state, which left stale
   // steps stuck on dish[0] after a sub-dish swap.
   useEffect(() => {
@@ -848,6 +857,51 @@ export default function MealBuilderScreen() {
                 });
               }}
             />
+            {/* WS7-6 G3-fix — import parity. Pre-fix the three recipe imports
+                were reachable only from the Plan → Add Meal sheet (#2), so a
+                user adding a meal from Recipes → Meals had fewer options than
+                one adding from inside a plan. They route to the same import
+                screens; addToPlanId is threaded only when present (it isn't on
+                the Recipes-tab path, so those saves land on Meal Detail). */}
+            <ModeCard
+              icon="link"
+              title="Import from URL"
+              subtitle="Paste a recipe link"
+              selected={false}
+              onPress={() => {
+                Keyboard.dismiss();
+                router.push({
+                  pathname: "/import-url",
+                  params: addToPlanId ? { addToPlanId } : {},
+                });
+              }}
+            />
+            <ModeCard
+              icon="image"
+              title="Import from photo"
+              subtitle="Take a photo or pick from your library"
+              selected={false}
+              onPress={() => {
+                Keyboard.dismiss();
+                router.push({
+                  pathname: "/import-image",
+                  params: addToPlanId ? { addToPlanId } : {},
+                });
+              }}
+            />
+            <ModeCard
+              icon="clipboard"
+              title="Import from text"
+              subtitle="Paste a recipe from anywhere"
+              selected={false}
+              onPress={() => {
+                Keyboard.dismiss();
+                router.push({
+                  pathname: "/import-text",
+                  params: addToPlanId ? { addToPlanId } : {},
+                });
+              }}
+            />
             <ModeCard
               icon="edit-3"
               title="Create manually"
@@ -1031,10 +1085,23 @@ export default function MealBuilderScreen() {
         // lands in the Dish Builder as a draft.
         // WS7-6 G3 Scope C — the sheet no longer collects a prompt inline (that
         // embedded TextInput caused the runaway list-scroll); the user types on
-        // the ask-kiwi-dish screen, so no `prompt` seed is threaded.
+        // the ask-kiwi-dish screen.
+        // WS7-6 G3-fix — in-place add: arm a one-shot handoff so when the dish
+        // is parsed it's APPENDED to THIS meal's dishes[] (auto-focused, like
+        // create-from-scratch) and the user pops back here, instead of saving a
+        // standalone dish and landing on Dish Detail. `returnToMeal` tells the
+        // ask-kiwi-dish screen to take the deliver-and-pop branch.
         onAskKiwi={() => {
           setDishChooserVisible(false);
-          router.push({ pathname: "/ask-kiwi-dish" });
+          armDishHandoff((draft) => {
+            const dish = draftDishToBuilderDish(draft, allocUid);
+            setDishes((prev) => [...prev, dish]);
+            setAutoFocusDishUid(dish.uid);
+          });
+          router.push({
+            pathname: "/ask-kiwi-dish",
+            params: { returnToMeal: "1" },
+          });
         }}
       />
     </View>

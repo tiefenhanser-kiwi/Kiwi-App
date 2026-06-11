@@ -16,6 +16,7 @@
 import { parseQuantity } from "./quantity";
 import { toServerDifficulty } from "./api/builder";
 import type { MealDetail, SaveMealDish, SaveMealInput } from "./api/meals";
+import type { DraftDish } from "./builder/parsedDishToDraft";
 import type { DraftMeal, SavedDish } from "./types";
 
 export type Difficulty = "easy" | "medium" | "hard";
@@ -205,6 +206,43 @@ export function pickSavedDishToBuilderDish(
       }),
     ),
     steps: (dish.steps ?? []).map((st) =>
+      newStep(allocUid, {
+        text: st.text,
+        estimatedMinutes:
+          st.estimatedMinutes !== undefined && st.estimatedMinutes > 0
+            ? String(st.estimatedMinutes)
+            : "",
+        isTimingSensitive: st.isTimingSensitive,
+      }),
+    ),
+  });
+}
+
+/**
+ * Map a single DraftDish (dish-side Ask Kiwi parse result) into a BuilderDish,
+ * so the Meal Builder can APPEND a Kiwi-drafted dish to the meal under
+ * construction in place — the same shape pickSavedDishToBuilderDish produces
+ * for a saved-dish pick. WS7-6 G3-fix: this is what lets "Ask Kiwi" from the
+ * Meal Builder's Add-a-dish sheet add the dish to THIS meal (and keep the user
+ * on it) instead of saving a standalone dish and bouncing to Dish Detail.
+ */
+export function draftDishToBuilderDish(
+  draft: DraftDish,
+  allocUid: UidAllocator,
+): BuilderDish {
+  return newDish(allocUid, {
+    name: draft.name,
+    ingredients:
+      draft.ingredients.length > 0
+        ? draft.ingredients.map((ing) =>
+            newIngredient(allocUid, {
+              quantity: String(ing.quantity),
+              unit: ing.unit,
+              name: ing.name,
+            }),
+          )
+        : [newIngredient(allocUid)],
+    steps: draft.steps.map((st) =>
       newStep(allocUid, {
         text: st.text,
         estimatedMinutes:

@@ -32,14 +32,21 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { KColors, KSpacing, KType } from "@/constants/tokens";
 import { parseDish } from "@/lib/api/builder";
 import { runAskKiwiDishSubmit } from "@/lib/builder/askKiwiDishSubmit";
+import { deliverDishToBuilder } from "@/lib/builder/dishHandoff";
+import type { DraftDish } from "@/lib/builder/parsedDishToDraft";
 
 type Phase = "input" | "loading";
 
 export default function AskKiwiDishScreen() {
   const router = useRouter();
-  // `prompt` is an optional seed handed in from the Meal Builder's Add-a-dish
-  // sheet Ask-Kiwi card (its inline text-field content).
-  const { prompt } = useLocalSearchParams<{ prompt?: string }>();
+  // `prompt` is an optional seed (unused now the sheet card carries no text).
+  // `returnToMeal` is set when the Meal Builder launched this flow: on success
+  // the parsed dish is handed back to that builder and we pop, rather than
+  // pushing the standalone Dish Builder.
+  const { prompt, returnToMeal } = useLocalSearchParams<{
+    prompt?: string;
+    returnToMeal?: string;
+  }>();
   const [text, setText] = useState(prompt ?? "");
   const [servings, setServings] = useState(ASK_KIWI_SERVINGS_DEFAULT);
   const [phase, setPhase] = useState<Phase>("input");
@@ -58,6 +65,22 @@ export default function AskKiwiDishScreen() {
       {
         parseDish,
         navigateToDraft: (draftJson) => {
+          // WS7-6 G3-fix — Meal Builder context: hand the parsed dish back to
+          // the builder (still mounted beneath this screen) and pop, so the
+          // dish lands ON the meal under construction. Fall back to the
+          // standalone Dish Builder if the handoff was cleared or the json is
+          // malformed, so the user's draft is never lost.
+          if (returnToMeal) {
+            try {
+              const draft = JSON.parse(draftJson) as DraftDish;
+              if (deliverDishToBuilder(draft)) {
+                router.back();
+                return;
+              }
+            } catch {
+              // fall through to the standalone builder
+            }
+          }
           router.push({
             pathname: "/dish-builder",
             params: { draftJson },
