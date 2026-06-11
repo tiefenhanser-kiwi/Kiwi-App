@@ -18,6 +18,7 @@ import DraggableFlatList, {
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
+import { CombineReview } from "@/components/CombineReview";
 import { DishChooserSheet } from "@/components/DishChooserSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -490,13 +491,20 @@ export default function MealBuilderScreen() {
     manualValidation.nameMissing ||
     manualValidation.ingredientMissing ||
     manualValidation.stepMissing;
-  // Mode C is intentionally NOT step-gated: combine-mode dishes are
-  // server-linked saved dishes (kind:"link") whose steps live with the
-  // linked dish, not this builder. The dishesQuery list-shape doesn't
-  // carry per-dish steps so the builder couldn't validate them anyway.
-  // Reported in Phase 3.
-  const combineSaveDisabled =
-    mealName.trim().length === 0 || selectedDishIds.length === 0;
+  // Mode C is intentionally NOT step-gated, NOR ingredient-gated: combine-mode
+  // dishes are server-linked saved dishes (kind:"link") whose steps +
+  // ingredients live with the linked dish, not this builder. The dishesQuery
+  // list-shape doesn't carry them so the builder couldn't validate them anyway.
+  // The only Mode-C save requirement is a meal name (PRD §10.5.3) + ≥1 dish.
+  //
+  // WS7-6 G1 — Mode-C validation now mirrors manual mode's saveAttempted
+  // pattern (was a flat `combineSaveDisabled` that greyed the Save button dead
+  // with no messaging — see the save-bar + CombineReview below). selectedDish
+  // can't actually be empty on the review surface (Continue gates ≥1), but we
+  // keep the check so the predicate is complete.
+  const combineNameMissing = mealName.trim().length === 0;
+  const combineDishMissing = selectedDishIds.length === 0;
+  const combineSaveInvalid = combineNameMissing || combineDishMissing;
 
   // WS7-6 Block 1E — translate form state to the POST /me/meals payload.
   // Throws a user-facing Error when validation fails so the caller can
@@ -597,12 +605,21 @@ export default function MealBuilderScreen() {
     // forms stay quiet; one tap is the floor for "interaction" per the
     // ruling. We flip BEFORE the validity short-circuit so the user
     // sees the errors that pinned the disabled state.
-    if (mode === "manual" && !saveAttempted) {
+    // WS7-6 G1 — extend the saveAttempted gate to Mode C so the combine Save
+    // button is no longer a dead greyed control. The first tap flips the flag
+    // (surfacing the inline name error + summary line on the review surface),
+    // subsequent taps with invalid state are blocked by the disabled state.
+    if ((mode === "manual" || mode === "combine") && !saveAttempted) {
       setSaveAttempted(true);
     }
     if (mode === "manual" && manualSaveInvalid) {
       // Keep the form open — inline errors + summary line are the user
       // signal here. No Alert: the on-screen feedback is the point of F.
+      return;
+    }
+    if (mode === "combine" && combineSaveInvalid) {
+      // Same on-screen feedback contract as manual: stay on the review
+      // surface, where the name input + summary line are now rendered.
       return;
     }
 
@@ -799,17 +816,21 @@ export default function MealBuilderScreen() {
               selected={mode === "combine"}
               onPress={() => trySetMode("combine")}
             />
+            {/* WS7-6 G1 — Mode A is live. Routes to the dedicated "Ask Kiwi"
+                free-text input screen, which parses and lands back in this
+                builder as a draft (mirrors Import-from-Text). Premium is
+                enforced server-side (parse-meal 402); the UI stays ungated. */}
             <ModeCard
               icon="type"
               title="Tell Kiwi what you want"
-              subtitle="Premium · coming in WS6 — paste a recipe or describe a dish, Kiwi parses it"
+              subtitle="Describe a meal and Kiwi drafts the dishes, ingredients, and steps"
               selected={false}
-              locked
               onPress={() => {
-                Alert.alert(
-                  "Coming in WS6 — AI orchestration",
-                  "Pasting recipe text and having Kiwi parse it requires the AI layer. This will be wired in WS6.",
-                );
+                Keyboard.dismiss();
+                router.push({
+                  pathname: "/ask-kiwi",
+                  params: addToPlanId ? { addToPlanId } : {},
+                });
               }}
             />
           </View>
@@ -891,6 +912,13 @@ export default function MealBuilderScreen() {
             savedDishes={savedDishes}
             selectedDishIds={selectedDishIds}
             onBack={() => setCombineReview(false)}
+            // WS7-6 G1 — name entry lives on the review surface too (PRD
+            // §10.5.3). Pre-fix, the name input was only on the picker; a user
+            // who skipped it landed here with a greyed Save and no way to name
+            // the meal. nameError mirrors manual's saveAttempted gate.
+            mealName={mealName}
+            setMealName={setMealName}
+            nameError={saveAttempted && combineNameMissing}
           />
         )}
       </KeyboardAwareScrollViewCompat>
@@ -905,6 +933,16 @@ export default function MealBuilderScreen() {
           {mode === "manual" && saveAttempted && manualSaveInvalid && (
             <Text style={s.saveBarSummary} testID="meal-builder-save-summary">
               {summarizeMissing(manualValidation)}
+            </Text>
+          )}
+          {/* WS7-6 G1 — Mode-C summary line, parallel to manual's. The only
+              reachable miss on the review surface is the name (Continue
+              guarantees ≥1 dish). */}
+          {mode === "combine" && saveAttempted && combineSaveInvalid && (
+            <Text style={s.saveBarSummary} testID="meal-builder-save-summary">
+              {combineDishMissing
+                ? "Needs: a name, at least one dish."
+                : "Needs: a name."}
             </Text>
           )}
           <Button
@@ -929,7 +967,7 @@ export default function MealBuilderScreen() {
               saving ||
               (mode === "manual"
                 ? saveAttempted && manualSaveInvalid
-                : combineSaveDisabled) ||
+                : saveAttempted && combineSaveInvalid) ||
               (!!mealId && !sourceMeal && !mealDetailQuery.isError)
             }
             onPress={onSave}
@@ -1782,53 +1820,10 @@ const DishPickerRow = memo(function DishPickerRow({
 });
 
 // ─────────────────────────────────────────────────────────────────
-// Mode C — Combine review
+// Mode C — Combine review (extracted to components/CombineReview.tsx in
+// WS7-6 G1 so the greyed-Save fix is testable without the screen's
+// draggable-flatlist dependency).
 // ─────────────────────────────────────────────────────────────────
-
-interface CombineReviewProps {
-  savedDishes: SavedDish[];
-  selectedDishIds: string[];
-  onBack: () => void;
-}
-
-function CombineReview({
-  savedDishes,
-  selectedDishIds,
-  onBack,
-}: CombineReviewProps) {
-  const selected = savedDishes.filter((d) => selectedDishIds.includes(d.id));
-  return (
-    <View style={{ marginTop: KSpacing.lg, gap: KSpacing.md }}>
-      <View style={s.subHeaderRow}>
-        <Text style={s.subHeader}>Review combined meal</Text>
-        <Pressable
-          onPress={onBack}
-          hitSlop={6}
-          style={({ pressed }) => [
-            s.addLinkBtn,
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Feather name="chevron-left" size={14} color={KColors.sage[700]} />
-          <Text style={s.addLinkText}>Back to picker</Text>
-        </Pressable>
-      </View>
-      <Text style={s.helperText}>
-        After saving, you can edit any dish or ingredient individually.
-      </Text>
-      {selected.map((dish) => (
-        <View key={dish.id} style={s.reviewDish}>
-          <Text style={s.reviewDishHeader}>{dish.name}</Text>
-          {dish.ingredients.map((ing, i) => (
-            <Text key={i} style={s.reviewIngredient}>
-              {ing.quantity} {ing.unit} {ing.name}
-            </Text>
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────
 // Styles
@@ -2083,11 +2078,6 @@ const s = StyleSheet.create({
     minWidth: 20,
     textAlign: "center",
   },
-  subHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
   subHeader: {
     fontSize: KType.size.lg,
     color: KColors.neutral[900],
@@ -2248,26 +2238,5 @@ const s = StyleSheet.create({
     fontSize: KType.size.xs,
     color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
-  },
-  reviewDish: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
-    borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
-    gap: 4,
-  },
-  reviewDishHeader: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: 4,
-  },
-  reviewIngredient: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
-    lineHeight: 20,
   },
 });

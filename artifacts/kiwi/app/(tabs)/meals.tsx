@@ -25,6 +25,7 @@ import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDishes } from "@/hooks/useDishes";
 import { useMeals } from "@/hooks/useMeals";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
 import {
   asMealsFilters,
@@ -114,6 +115,14 @@ export default function MealsTab() {
   } | null>(null);
 
   const mealsQuery = useMeals([mealFilter]);
+
+  // WS7-6 G1 — focus-driven refetch backstop for the Meals list. The (E)
+  // Block 2 useRefetchOnFocus rollout covered Home/Plans/Grocery but missed
+  // this tab. saveMeal already invalidates ["meals","list"] precisely, so a
+  // meal saved while this screen is mounted appears on return; this closes the
+  // gap for the stale-after-unmount path (honors the 60s staleTime gate, so a
+  // re-focus inside the window costs nothing).
+  useRefetchOnFocus(mealsQuery);
 
   const toggleMealFilter = (key: MealFilterKey) => {
     setMealFilter(key);

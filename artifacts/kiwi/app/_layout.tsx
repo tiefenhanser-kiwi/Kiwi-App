@@ -53,6 +53,7 @@ function RootLayoutNav() {
       <Stack.Screen name="import-url" />
       <Stack.Screen name="import-image" />
       <Stack.Screen name="import-text" />
+      <Stack.Screen name="ask-kiwi" />
       <Stack.Screen name="grocery-list/[id]" />
       <Stack.Screen name="prep-cook" />
       <Stack.Screen name="upgrade" options={{ presentation: "modal" }} />
