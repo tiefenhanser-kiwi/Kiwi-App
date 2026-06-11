@@ -36,6 +36,7 @@ import {
   getTopRatedDishes,
 } from "@/lib/stubs";
 import type { DraftDish } from "@/lib/builder/parsedDishToDraft";
+import { resolveDishPostSaveNav } from "@/lib/builder/dishPostSaveNav";
 import type { DishDraft, SavedDish } from "@/lib/types";
 
 const TIME_MIN = 0;
@@ -477,13 +478,33 @@ export default function DishBuilderScreen() {
     };
 
     try {
-      await saveDish(draft);
+      const { id: newDishId } = await saveDish(draft);
+      // WS7-6 G3 Scope E / #3 — land on the new dish's Dish Detail on create
+      // (LANDING CONTRACT), via `replace` so Back returns to the list, not the
+      // half-filled builder. Fixes the dish-side Ask-Kiwi flow, which used to
+      // `router.back()` onto the ask-kiwi-dish input screen instead of the
+      // saved dish. Edits keep their contextual back.
+      const nav = resolveDishPostSaveNav({ newDishId, isEdit });
       Alert.alert(
         isEdit ? "Dish saved as new" : "Dish saved",
         isEdit
           ? "Editing existing dishes lands in a future block — your changes were saved as a new dish."
           : "Added to your saved dishes.",
-        [{ text: "OK", onPress: () => router.back() }],
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              if (nav.kind === "dish-detail") {
+                router.replace({
+                  pathname: "/dish/[id]",
+                  params: { id: nav.dishId },
+                });
+              } else {
+                router.back();
+              }
+            },
+          },
+        ],
       );
     } catch (err) {
       const msg =

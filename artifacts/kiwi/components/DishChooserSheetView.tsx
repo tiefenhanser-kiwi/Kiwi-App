@@ -44,10 +44,13 @@ export interface DishChooserSheetProps {
    *  of meal-builder internals — WS9 plans to revisit these sheet
    *  create-modes for reuse/extraction, and this keeps that clean. */
   onAddEmptyDish: () => void;
-  /** Ask Kiwi (dish-side Mode A) submission. WS7-6 G2: the Meal Builder mount
-   *  passes this to navigate to the dish "Ask Kiwi" screen. When absent (a
-   *  future reuse that hasn't wired it), the card falls back to an alert. */
-  onAskKiwi?: (prompt: string) => void;
+  /** Ask Kiwi (dish-side Mode A). WS7-6 G2: the Meal Builder mount passes this
+   *  to navigate to the dish "Ask Kiwi" screen. When absent (a future reuse
+   *  that hasn't wired it), the card falls back to an alert.
+   *  WS7-6 G3 Scope C: no longer takes a prompt — the Ask Kiwi card is now a
+   *  navigation target (the user types on the dedicated ask-kiwi-dish screen),
+   *  not an inline text field embedded in the scrollable list. */
+  onAskKiwi?: () => void;
 }
 
 export interface DishChooserSheetViewProps extends DishChooserSheetProps {
@@ -96,10 +99,13 @@ export function DishChooserSheetView({
   // WS7-6 G2 — Ask Kiwi is LIVE when the parent passes onAskKiwi (the Meal
   // Builder mount does). The Alert is a defensive fallback for any future
   // mount that reuses this sheet without wiring the dish-side Mode A.
-  const handleSubmitAsk = (prompt: string) => {
+  // WS7-6 G3 Scope C — Ask Kiwi now NAVIGATES (the user types on the dedicated
+  // screen); no inline prompt is collected here, so the embedded TextInput that
+  // caused the runaway list-scroll is gone.
+  const handleSubmitAsk = () => {
     Keyboard.dismiss();
     if (onAskKiwi) {
-      onAskKiwi(prompt);
+      onAskKiwi();
     } else {
       Alert.alert(
         "Ask Kiwi isn't available here yet",
@@ -227,7 +233,7 @@ export function DishChooserSheetView({
 export interface DishChooserHeaderProps {
   sortKey: SortKey;
   onSortChange: (key: SortKey) => void;
-  onSubmitAsk: (prompt: string) => void;
+  onSubmitAsk: () => void;
   onSubmitSimpleDish: (name: string) => void;
   onCreateFromScratch: () => void;
 }
@@ -239,16 +245,8 @@ export function DishChooserHeader({
   onSubmitSimpleDish,
   onCreateFromScratch,
 }: DishChooserHeaderProps) {
-  const [askPrompt, setAskPrompt] = useState("");
   const [simpleDishExpanded, setSimpleDishExpanded] = useState(false);
   const [simpleDishName, setSimpleDishName] = useState("");
-
-  const handleAsk = () => {
-    const prompt = askPrompt.trim();
-    if (!prompt) return;
-    onSubmitAsk(prompt);
-    setAskPrompt("");
-  };
 
   const handleAddSimpleDish = () => {
     const trimmed = simpleDishName.trim();
@@ -266,8 +264,19 @@ export function DishChooserHeader({
 
   return (
     <View>
-      {/* Section 1: Ask Kiwi (dish-side Mode A — premium, gated server-side) */}
-      <View style={s.askSection}>
+      {/* Section 1: Ask Kiwi (dish-side Mode A — premium, gated server-side).
+          WS7-6 G3 Scope C: a NAVIGATION card, not an inline text field. The
+          pre-G3 multiline TextInput lived inside this header — which is the
+          FlatList's ListHeaderComponent, i.e. INSIDE the scroll surface — so
+          focusing it fought the sheet's KeyboardAvoidingView and made the list
+          scroll away from the input (the close-gate bug). Tapping now routes to
+          the dedicated ask-kiwi-dish screen where the user types, mirroring the
+          meal-side "Tell Kiwi what you want" flow. */}
+      <Pressable
+        onPress={onSubmitAsk}
+        style={({ pressed }) => [s.askSection, pressed && { opacity: 0.85 }]}
+        testID="dish-chooser-ask-kiwi"
+      >
         <View style={s.askHeader}>
           <Text style={s.sectionTitle}>Ask Kiwi</Text>
           <View style={s.premiumPill}>
@@ -278,31 +287,7 @@ export function DishChooserHeader({
         <Text style={s.sectionSubtitle}>
           Describe a dish and Kiwi drafts the ingredients and steps
         </Text>
-        <View style={s.askRow}>
-          <TextInput
-            value={askPrompt}
-            onChangeText={setAskPrompt}
-            placeholder="Describe what you want — 'roasted broccoli with garlic and lemon' — Kiwi will draft it"
-            placeholderTextColor={KColors.neutral[600]}
-            style={s.askInput}
-            multiline
-            returnKeyType="send"
-            blurOnSubmit
-            onSubmitEditing={handleAsk}
-          />
-          <Pressable
-            onPress={handleAsk}
-            disabled={askPrompt.trim().length === 0}
-            style={({ pressed }) => [
-              s.askBtn,
-              askPrompt.trim().length === 0 && { opacity: 0.4 },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Text style={s.askBtnText}>Ask Kiwi</Text>
-          </Pressable>
-        </View>
-      </View>
+      </Pressable>
 
       {/* Section 2: Add Simple Dish (inline expandable) */}
       {!simpleDishExpanded ? (

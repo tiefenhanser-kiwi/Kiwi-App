@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
+import { AddDishChooserSheet } from "@/components/AddDishChooserSheet";
 import { AddDishToMealSheet } from "@/components/AddDishToMealSheet";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { DishRow } from "@/components/DishRow";
@@ -106,6 +107,10 @@ export default function MealsTab() {
     dishName: string;
   } | null>(null);
 
+  // WS7-6 G3 Scope A — surface #3 "+ Add Dish" now opens a create-mode chooser
+  // (Ask Kiwi / Create manually) instead of jumping straight to the builder.
+  const [addDishOpen, setAddDishOpen] = useState(false);
+
   // WS7-6 G2 scope (iii) — server-sorted + keyset-paginated Meals list (the
   // dropdown's key maps to ?sort=; changing it re-queries since the key is
   // part of the React Query key). `meals` is the flattened page chain.
@@ -136,9 +141,10 @@ export default function MealsTab() {
   };
 
   const handleAddDish = () => {
-    // Per WS5-5O-fix-2: drop the 3-button picker; the Kiwi-assist
-    // checkboxes inside Dish Builder already cover the AI path.
-    router.push("/dish-builder");
+    // WS7-6 G3 Scope A — open the create-mode chooser sheet. (Pre-G3 this
+    // jumped straight to /dish-builder; "Create manually" inside the sheet
+    // preserves that path, and Ask Kiwi adds the dish-side Mode-A entry.)
+    setAddDishOpen(true);
   };
 
   const handleOpenMeal = (mealId: string) => {
@@ -188,6 +194,10 @@ export default function MealsTab() {
           );
           setAddDishToMealFor(null);
         }}
+      />
+      <AddDishChooserSheet
+        visible={addDishOpen}
+        onClose={() => setAddDishOpen(false)}
       />
       <Header title="Recipes" />
       {/* WS7-6 B-fix Block 3: Screen is non-scroll so the Dishes tab can host

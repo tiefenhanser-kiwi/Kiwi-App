@@ -17,9 +17,14 @@ test("non-plan save with undefined addToPlanId still lands on Meal Detail", () =
   assert.deepEqual(nav, { kind: "meal-detail", mealId: "meal-9" });
 });
 
-test("plan-context save keeps its contextual return to the plan", () => {
+test("plan-context save returns to the plan, carrying the planId for dismissTo", () => {
   const nav = resolvePostSaveNav({ newMealId: "meal-123", addToPlanId: "plan-7" });
-  assert.deepEqual(nav, { kind: "plan-back" });
+  assert.deepEqual(nav, { kind: "plan-back", planId: "plan-7" });
+});
+
+test("plan-back threads the addToPlanId through as the dismissTo target", () => {
+  const nav = resolvePostSaveNav({ newMealId: "m1", addToPlanId: "plan-xyz" });
+  assert.equal(nav.kind === "plan-back" ? nav.planId : null, "plan-xyz");
 });
 
 test("the new meal id threads through to the Meal Detail target", () => {

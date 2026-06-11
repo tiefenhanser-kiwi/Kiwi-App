@@ -724,7 +724,15 @@ export default function MealBuilderScreen() {
             params: { id: nav.mealId },
           });
         } else {
-          router.back();
+          // WS7-6 G3 Scope D — dismissTo lands on the plan regardless of how
+          // many intermediate screens (import-*/ask-kiwi) sit between the
+          // builder and the plan. The pre-G3 `router.back()` popped a single
+          // screen, which returned the user to the import/Ask-Kiwi INPUT screen
+          // rather than the plan whenever a create flow funnelled through one.
+          router.dismissTo({
+            pathname: "/plan/[id]",
+            params: { id: nav.planId },
+          });
         }
       };
       if (addToPlanId) {
@@ -821,6 +829,25 @@ export default function MealBuilderScreen() {
         {!mealId && !draftMeal && !addDishId && (
           <View>
             <Text style={s.sectionHeader}>How do you want to build this meal?</Text>
+            {/* WS7-6 G3 Scope A — Ask-Kiwi-first ordering, mirroring the #4
+                reference chooser (Ask Kiwi → create options). WS7-6 G1: Mode A
+                is live — routes to the dedicated "Ask Kiwi" free-text input
+                screen, which parses and lands back in this builder as a draft
+                (mirrors Import-from-Text). Premium is enforced server-side
+                (parse-meal 402); the UI stays ungated. */}
+            <ModeCard
+              icon="type"
+              title="Tell Kiwi what you want"
+              subtitle="Describe a meal and Kiwi drafts the dishes, ingredients, and steps"
+              selected={false}
+              onPress={() => {
+                Keyboard.dismiss();
+                router.push({
+                  pathname: "/ask-kiwi",
+                  params: addToPlanId ? { addToPlanId } : {},
+                });
+              }}
+            />
             <ModeCard
               icon="edit-3"
               title="Create manually"
@@ -834,23 +861,6 @@ export default function MealBuilderScreen() {
               subtitle="Mix dishes from your library into a new meal"
               selected={mode === "combine"}
               onPress={() => trySetMode("combine")}
-            />
-            {/* WS7-6 G1 — Mode A is live. Routes to the dedicated "Ask Kiwi"
-                free-text input screen, which parses and lands back in this
-                builder as a draft (mirrors Import-from-Text). Premium is
-                enforced server-side (parse-meal 402); the UI stays ungated. */}
-            <ModeCard
-              icon="type"
-              title="Tell Kiwi what you want"
-              subtitle="Describe a meal and Kiwi drafts the dishes, ingredients, and steps"
-              selected={false}
-              onPress={() => {
-                Keyboard.dismiss();
-                router.push({
-                  pathname: "/ask-kiwi",
-                  params: addToPlanId ? { addToPlanId } : {},
-                });
-              }}
             />
           </View>
         )}
@@ -1016,16 +1026,15 @@ export default function MealBuilderScreen() {
           setAutoFocusDishUid(dish.uid);
         }}
         // WS7-6 G2 scope (ii) — dish-side Mode A goes live (resolves
-        // D-WS7-096). Close the sheet and hand the typed prompt to the dish
-        // "Ask Kiwi" screen, which parses it (POST /builder/parse-dish) and
-        // lands in the Dish Builder as a draft. Replaces the old "Coming in
-        // WS6" alert the sheet fired when no onAskKiwi was passed.
-        onAskKiwi={(prompt) => {
+        // D-WS7-096). Close the sheet and route to the dish "Ask Kiwi" screen,
+        // which parses the typed description (POST /builder/parse-dish) and
+        // lands in the Dish Builder as a draft.
+        // WS7-6 G3 Scope C — the sheet no longer collects a prompt inline (that
+        // embedded TextInput caused the runaway list-scroll); the user types on
+        // the ask-kiwi-dish screen, so no `prompt` seed is threaded.
+        onAskKiwi={() => {
           setDishChooserVisible(false);
-          router.push({
-            pathname: "/ask-kiwi-dish",
-            params: prompt ? { prompt } : {},
-          });
+          router.push({ pathname: "/ask-kiwi-dish" });
         }}
       />
     </View>

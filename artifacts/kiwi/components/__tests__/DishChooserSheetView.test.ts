@@ -13,7 +13,7 @@ import { test } from "node:test";
 
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { Pressable, Text } from "react-native";
+import { Pressable, Text, TextInput } from "react-native";
 
 import {
   DishChooserHeader,
@@ -79,6 +79,48 @@ test("DishChooserHeader: add-method cards render reordered, above My Dishes", as
   assert.ok(askKiwi < simple, "Ask Kiwi should precede Add Simple Dish");
   assert.ok(simple < scratch, "Add Simple Dish should precede Create from scratch");
   assert.ok(scratch < myDishes, "Create from scratch should precede My Dishes");
+
+  renderer.unmount();
+});
+
+// WS7-6 G3 Scope C — the Ask Kiwi card is now a NAVIGATION target: tapping it
+// fires onSubmitAsk (which the Meal Builder mount routes to ask-kiwi-dish).
+// Crucially it must NOT mount an inline TextInput inside this header — that
+// embedded field (the header is the FlatList's scroll surface) was the
+// runaway-scroll bug. The header here renders no TextInput at all.
+test("DishChooserHeader: Ask Kiwi is a nav card (fires onSubmitAsk, no embedded input)", async () => {
+  let asked = 0;
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(DishChooserHeader, {
+        sortKey: "alpha",
+        onSortChange: () => {},
+        onSubmitAsk: () => {
+          asked += 1;
+        },
+        onSubmitSimpleDish: () => {},
+        onCreateFromScratch: () => {},
+      }),
+    );
+  });
+
+  // No TextInput is mounted by the header (the simple-dish input only appears
+  // after expanding that card — collapsed by default).
+  assert.equal(
+    renderer.root.findAllByType(TextInput).length,
+    0,
+    "header should mount no inline TextInput (the Ask Kiwi embedded field is gone)",
+  );
+
+  const askCard = renderer.root
+    .findAllByType(Pressable)
+    .find((p) => p.props.testID === "dish-chooser-ask-kiwi");
+  assert.ok(askCard, "ask-kiwi nav card not found");
+  await act(async () => {
+    askCard!.props.onPress({});
+  });
+  assert.equal(asked, 1, "tapping the Ask Kiwi card should fire onSubmitAsk");
 
   renderer.unmount();
 });

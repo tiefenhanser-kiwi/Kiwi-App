@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -73,22 +72,19 @@ export function AddMealsSheet({
     onClose();
   };
 
-  const handleWizard = () => {
-    Alert.alert(
-      "Coming in WS6 — AI orchestration",
-      "Running Kitchen Wizard for a single meal requires the AI layer. This will be wired in WS6.",
-    );
-  };
-
-  const handleAskKiwi = () => {
-    Alert.alert(
-      "Coming in WS6 — AI orchestration",
-      "Searching online recipes requires the AI layer. This will be wired in WS6.",
-    );
-  };
-
+  // WS7-6 G3 Scope B — the old "Run Kitchen Wizard for one meal" card and the
+  // bottom "Ask Kiwi for a meal recommendation" section were BOTH dead (each
+  // fired a "Coming in WS6" Alert). They collapse into ONE live "Ask Kiwi"
+  // create option routed to the Mode-A free-text screen (/ask-kiwi) — the same
+  // working flow surface #1's mode picker uses. planId rides along as
+  // addToPlanId so the saved meal returns to THIS plan (LANDING CONTRACT).
   const navigateAfterClose = (
-    path: "/import-url" | "/import-image" | "/import-text" | "/meal-builder",
+    path:
+      | "/ask-kiwi"
+      | "/import-url"
+      | "/import-image"
+      | "/import-text"
+      | "/meal-builder",
   ) => {
     onClose();
     // Defer so the sheet's slide-out animation completes before the
@@ -125,8 +121,46 @@ export function AddMealsSheet({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Section 1: Pick from your meals */}
-          <Text style={s.sectionTitle}>Pick from your meals</Text>
+          {/* Section 1: Add something new — create/import options on top,
+              Ask-Kiwi first (WS7-6 G3 Scope A: mirrors the #4 reference
+              chooser's create-options-top / list-bottom contract). */}
+          <Text style={s.sectionTitle}>Add something new</Text>
+          <View style={s.list}>
+            <PremiumSourceCard
+              icon="zap"
+              title="Ask Kiwi"
+              subtitle="Describe a meal and Kiwi drafts it to fit this plan"
+              onPress={() => navigateAfterClose("/ask-kiwi")}
+            />
+            <NewSourceCard
+              icon="link"
+              title="Import from URL"
+              subtitle="Paste a recipe link"
+              onPress={() => navigateAfterClose("/import-url")}
+            />
+            <NewSourceCard
+              icon="image"
+              title="Import from photo"
+              subtitle="Take a photo or pick from your library"
+              onPress={() => navigateAfterClose("/import-image")}
+            />
+            <NewSourceCard
+              icon="clipboard"
+              title="Import from text"
+              subtitle="Paste a recipe from anywhere"
+              onPress={() => navigateAfterClose("/import-text")}
+            />
+            <NewSourceCard
+              icon="edit-3"
+              title="Create manually"
+              subtitle="Build a new meal from scratch"
+              onPress={() => navigateAfterClose("/meal-builder")}
+            />
+          </View>
+
+          {/* Section 2: Pick from your meals — the saved-meals list scrolls at
+              the BOTTOM (WS7-6 G3 Scope A: list-below-create contract). */}
+          <Text style={[s.sectionTitle, s.sectionGap]}>Pick from your meals</Text>
           <View style={{ marginTop: KSpacing.sm }}>
             <FilterChipRow<MealFilterKey>
               options={FILTER_OPTIONS}
@@ -169,71 +203,6 @@ export function AddMealsSheet({
               ))
             )}
           </View>
-
-          {/* Section 2: Bring in something new */}
-          <Text style={[s.sectionTitle, s.sectionGap]}>
-            Bring in something new
-          </Text>
-          <View style={s.list}>
-            <PremiumSourceCard
-              icon="zap"
-              title="Run Kitchen Wizard for one meal"
-              subtitle="Premium · coming in WS6 — Kiwi will design a meal that fits this plan"
-              onPress={handleWizard}
-            />
-            <NewSourceCard
-              icon="link"
-              title="Import from URL"
-              subtitle="Paste a recipe link"
-              onPress={() => navigateAfterClose("/import-url")}
-            />
-            <NewSourceCard
-              icon="image"
-              title="Import from photo"
-              subtitle="Take a photo or pick from your library"
-              onPress={() => navigateAfterClose("/import-image")}
-            />
-            <NewSourceCard
-              icon="clipboard"
-              title="Import from text"
-              subtitle="Paste a recipe from anywhere"
-              onPress={() => navigateAfterClose("/import-text")}
-            />
-            <NewSourceCard
-              icon="edit-3"
-              title="Create manually"
-              subtitle="Build a new meal from scratch"
-              onPress={() => navigateAfterClose("/meal-builder")}
-            />
-          </View>
-
-          {/* Section 3: Ask Kiwi for a recommendation (premium-locked) */}
-          <Pressable
-            onPress={handleAskKiwi}
-            style={({ pressed }) => [
-              s.askSection,
-              s.sectionGap,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <View style={s.askHeader}>
-              <Text style={s.sectionTitle}>
-                Ask Kiwi for a meal recommendation
-              </Text>
-              <View style={s.premiumPill}>
-                <Feather
-                  name="lock"
-                  size={10}
-                  color={KColors.terracotta[700]}
-                />
-                <Text style={s.premiumPillText}>Premium</Text>
-              </View>
-            </View>
-            <Text style={s.sectionSubtitle}>
-              Premium · coming in WS6 — Kiwi will suggest a meal based on
-              this plan and your preferences
-            </Text>
-          </Pressable>
         </ScrollView>
       </View>
     </Modal>
