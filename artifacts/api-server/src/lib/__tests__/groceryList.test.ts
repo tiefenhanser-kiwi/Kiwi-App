@@ -250,7 +250,9 @@ describe("consolidatePlanIngredients — consolidation", () => {
     assert.equal(out.length, 1);
     assert.equal(out[0].canonicalName, "ground beef");
     assert.equal(out[0].quantity, 2.5);
-    assert.equal(out[0].sourceDishIds.length, 2);
+    // Two meal-plan slots (i1/d1, i2/d2) → two distinct (mealId, dishId) source
+    // pairs on the single consolidated "ground beef" line.
+    assert.equal(out[0].sources.length, 2);
   });
 
   it("keeps separate lines when units differ for the same ingredient", async () => {

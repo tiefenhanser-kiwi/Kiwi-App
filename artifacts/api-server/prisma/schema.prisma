@@ -622,14 +622,40 @@ model GroceryListItem {
   // WS6 6c-4 / WS7 sync: AI-surfaced ambiguity options + user resolution.
   ambiguityOptions   String[]     @default([])
   userResolvedTo     String?
-  sourceMealId       String?
-  sourceDishId       String?
+  // WS7-7-A Block 1: ownership discriminator for delta-reconcile. Generation
+  // rows are plan-derived (false); rows added via POST /:id/items are user
+  // "Extras" (true) and are NEVER touched by reconcile. Distinct from
+  // provenance (GroceryListItemSource) — ownership vs source.
+  isUserAdded        Boolean      @default(false)
   notes              String?
 
-  groceryList GroceryList @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
-  ingredient  Ingredient? @relation(fields: [ingredientId], references: [id])
+  groceryList GroceryList             @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  ingredient  Ingredient?             @relation(fields: [ingredientId], references: [id])
+  sources     GroceryListItemSource[]
 
   @@map("grocery_list_items")
+}
+
+// WS7-7-A Block 1 — per-row plan provenance for delta-scoped reconcile.
+// One row per (groceryListItem, mealId, dishId) contributing source. A
+// consolidated line aggregating an ingredient from multiple meals/dishes
+// gets one source row per contributing (meal, dish) pair, so Block 4 can
+// carry a row forward when ALL its source meals are unchanged and
+// re-resolve it when ANY source meal changed. Plan-derived rows only;
+// user-added + synthetic recurring rows have zero source rows (replaces the
+// dropped singular sourceMealId/sourceDishId columns, which were never read
+// and could not represent multi-source lines).
+model GroceryListItemSource {
+  id                String          @id @default(uuid())
+  groceryListItemId String
+  mealId            String
+  dishId            String
+
+  item GroceryListItem @relation(fields: [groceryListItemId], references: [id], onDelete: Cascade)
+
+  @@index([groceryListItemId])
+  @@index([mealId])
+  @@map("grocery_list_item_sources")
 }
 
 // WS6 6d-2 — Prep the Week structure cache (PRD §13.4 / §13.4.6).

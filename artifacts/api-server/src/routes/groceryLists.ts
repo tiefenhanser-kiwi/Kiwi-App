@@ -16,6 +16,8 @@
 //   • Best-effort Ingredient lookup by canonicalName, normalized via Block A
 //     normalizeIngredientName before the equals match.
 
+import { randomUUID } from "node:crypto";
+
 import { Router, type IRouter } from "express";
 import type { PrismaClient, Prisma, StoreSection } from "@prisma/client";
 
@@ -232,8 +234,23 @@ export function createGroceryListsRouter(
           ),
         );
 
-        // 6. Persist GroceryList + items atomically. Tx now contains only
-        //    the two writes that must commit together.
+        // WS7-7-A Block 1: provenance join map. The consolidator's per-line
+        // (mealId, dishId) source pairs are dropped at the consolidator→final
+        // -pass boundary (GenerateListOutputItem has no source channel), so
+        // re-join `consolidated` to `final.items` by the consolidator's bucket
+        // key (normalizedCanonical, unit) — the only key surviving the AI pass.
+        // Deterministic rows (the majority) join 1:1; AI-merged/renamed tail
+        // rows that no longer match get NO source rows, which Block 4 reads
+        // conservatively as "always re-resolve". This stays a pure persist-time
+        // join — no changes to the AI helper.
+        const sourcesByKey = new Map<string, typeof consolidated[number]["sources"]>();
+        for (const c of consolidated) {
+          sourcesByKey.set(`${normalizeIngredientName(c.canonicalName)}|${c.unit}`, c.sources);
+        }
+
+        // 6. Persist GroceryList + items (+ provenance) atomically. Item ids are
+        //    generated here so the source rows can reference them in the same
+        //    tx without a round-trip read between the two bulk writes.
         const list = await prisma.$transaction(async (tx) => {
           const grocery = await tx.groceryList.create({
             data: {
@@ -248,6 +265,7 @@ export function createGroceryListsRouter(
           });
 
           const items = final.items.map((item, idx) => ({
+            id: randomUUID(),
             groceryListId: grocery.id,
             ingredientId: resolvedIngredientIds[idx],
             displayName: item.displayName,
@@ -261,11 +279,30 @@ export function createGroceryListsRouter(
             wasAiInferred: item.wasAiInferred,
             isAmbiguous: item.isAmbiguous,
             ambiguityOptions: item.ambiguityOptions ?? [],
+            // WS7-7-A Block 1: all generation rows are plan-derived.
+            isUserAdded: false,
             notes: item.notes,
           }));
 
+          // Build source rows by joining each final item back to its
+          // consolidated source set via the bucket key. No match → no rows.
+          const sourceRows = final.items.flatMap((item, idx) => {
+            const sources =
+              sourcesByKey.get(
+                `${normalizeIngredientName(item.canonicalName)}|${item.unit}`,
+              ) ?? [];
+            return sources.map((s) => ({
+              groceryListItemId: items[idx].id,
+              mealId: s.mealId,
+              dishId: s.dishId,
+            }));
+          });
+
           if (items.length > 0) {
             await tx.groceryListItem.createMany({ data: items });
+          }
+          if (sourceRows.length > 0) {
+            await tx.groceryListItemSource.createMany({ data: sourceRows });
           }
           return grocery;
         });
@@ -598,6 +635,9 @@ export function createGroceryListsRouter(
           wasAiInferred: false,
           isAmbiguous: false,
           ambiguityOptions: [],
+          // WS7-7-A Block 1: user "Extras" — owned by the user, no plan source.
+          // Reconcile never touches these; no GroceryListItemSource rows.
+          isUserAdded: true,
           notes: null,
         },
       });

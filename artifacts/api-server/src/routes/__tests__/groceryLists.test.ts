@@ -49,6 +49,9 @@ interface ListRow {
 }
 
 interface ListItemRow {
+  // WS7-7-A Block 1: generation supplies an explicit id (so source rows can
+  // reference it in-tx); POST /items lets the stub assign one.
+  id?: string;
   groceryListId: string;
   ingredientId: string | null;
   displayName: string;
@@ -61,7 +64,18 @@ interface ListItemRow {
   wasAiInferred: boolean;
   isAmbiguous: boolean;
   ambiguityOptions: string[];
+  // WS7-7-A Block 1: ownership discriminator. Optional on the stub so GET-path
+  // seeds that don't exercise provenance stay terse; the write paths always
+  // set it, so rows recorded via the route carry a concrete boolean.
+  isUserAdded?: boolean;
   notes: string | null;
+}
+
+// WS7-7-A Block 1: provenance rows written alongside generation items.
+interface ItemSourceRow {
+  groceryListItemId: string;
+  mealId: string;
+  dishId: string;
 }
 
 interface ActivityRow {
@@ -78,6 +92,7 @@ interface StubState {
   plans: PlanRow[];
   lists: ListRow[];
   listItems: ListItemRow[];
+  itemSources: ItemSourceRow[];
   activities: ActivityRow[];
   // canonicalName → ingredient id (case-insensitive lookup is emulated by
   // lowercasing both sides at compare time).
@@ -93,6 +108,7 @@ function makeState(): StubState {
     plans: [],
     lists: [],
     listItems: [],
+    itemSources: [],
     activities: [],
     ingredients: new Map(),
     ingredientDefaultUnits: new Map(),
@@ -125,6 +141,12 @@ function makeStubPrisma(state: StubState) {
     groceryListItem: {
       createMany: async ({ data }: { data: ListItemRow[] }) => {
         for (const row of data) state.listItems.push(row);
+        return { count: data.length };
+      },
+    },
+    groceryListItemSource: {
+      createMany: async ({ data }: { data: ItemSourceRow[] }) => {
+        for (const row of data) state.itemSources.push(row);
         return { count: data.length };
       },
     },
@@ -308,8 +330,7 @@ function consolidatedItem(
     isUniversalStaple: false,
     isUserPantryStaple: false,
     isRecurringItem: false,
-    sourceMealIds: [],
-    sourceDishIds: [],
+    sources: [],
     purchaseUnit: null,
     purchaseQuantity: null,
     purchaseDisplay: null,
@@ -623,6 +644,113 @@ describe("POST /api/plans/:id/generate-grocery-list — flag persistence", () =>
     // 6c-5: wasAiInferred is now AI-determined per item, not a route default.
     // factories default wasAiInferred to false, so all three should be false.
     assert.ok(items.every((i) => i.wasAiInferred === false));
+  });
+});
+
+// ── WS7-7-A Block 1: provenance (isUserAdded + GroceryListItemSource) ─────
+
+describe("POST /api/plans/:id/generate-grocery-list — provenance", () => {
+  it("marks generation rows isUserAdded:false and writes one source row per (mealId, dishId) pair", async () => {
+    const harness = await spinUp({
+      consolidated: [
+        // Shared ingredient: garlic reaches the same consolidated line from
+        // two different meals — must produce TWO source rows.
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          unit: "clove",
+          sources: [
+            { mealId: "meal-a", dishId: "dish-x" },
+            { mealId: "meal-b", dishId: "dish-y" },
+          ],
+        }),
+        // Single-source ingredient → one source row.
+        consolidatedItem({
+          canonicalName: "tomato",
+          displayName: "Tomato",
+          unit: "each",
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+      finalItems: [
+        finalListItem({ canonicalName: "garlic", displayName: "Garlic", unit: "clove" }),
+        finalListItem({ canonicalName: "tomato", displayName: "Tomato", unit: "each" }),
+      ],
+    });
+    seedPlan(harness.state);
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/plans/plan-1/generate-grocery-list`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      );
+      assert.equal(res.status, 200);
+
+      const items = harness.state.listItems;
+      assert.equal(items.length, 2);
+      // Every generation row is plan-derived.
+      assert.ok(items.every((i) => i.isUserAdded === false));
+
+      const garlic = items.find((i) => i.displayName === "Garlic")!;
+      const tomato = items.find((i) => i.displayName === "Tomato")!;
+      const garlicSources = harness.state.itemSources.filter(
+        (s) => s.groceryListItemId === garlic.id,
+      );
+      const tomatoSources = harness.state.itemSources.filter(
+        (s) => s.groceryListItemId === tomato.id,
+      );
+      // Shared ingredient → two source rows, one per contributing meal.
+      assert.equal(garlicSources.length, 2);
+      assert.deepEqual(
+        garlicSources.map((s) => s.mealId).sort(),
+        ["meal-a", "meal-b"],
+      );
+      // Single-source ingredient → exactly one source row.
+      assert.equal(tomatoSources.length, 1);
+      assert.equal(tomatoSources[0].mealId, "meal-a");
+      assert.equal(tomatoSources[0].dishId, "dish-x");
+      assert.equal(harness.state.itemSources.length, 3);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("writes no source rows for an AI-tail row whose (canonical, unit) no longer joins", async () => {
+    // The Sonnet pass renamed/re-unitised the row, so the persist-time
+    // (normalizedCanonical, unit) join misses — conservative null-source.
+    const harness = await spinUp({
+      consolidated: [
+        consolidatedItem({
+          canonicalName: "chicken",
+          displayName: "Chicken",
+          unit: "lb",
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+      finalItems: [
+        finalListItem({
+          // Different canonical + unit than the consolidated source → no join.
+          canonicalName: "chicken breast",
+          displayName: "Boneless skinless chicken breast",
+          unit: "each",
+        }),
+      ],
+    });
+    seedPlan(harness.state);
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/plans/plan-1/generate-grocery-list`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      );
+      assert.equal(res.status, 200);
+      assert.equal(harness.state.listItems.length, 1);
+      assert.equal(harness.state.listItems[0].isUserAdded, false);
+      // No (canonical, unit) match → conservative: zero source rows.
+      assert.equal(harness.state.itemSources.length, 0);
+    } finally {
+      await harness.close();
+    }
   });
 });
 
@@ -1451,6 +1579,10 @@ describe("POST /api/grocery-lists/:id/items", () => {
 
       assert.equal(harness.state.listItems.length, 1);
       assert.equal(harness.state.listItems[0].displayName, "Lucky Charms");
+      // WS7-7-A Block 1: user-added Extras are owned by the user (isUserAdded
+      // true) and carry no plan provenance.
+      assert.equal(harness.state.listItems[0].isUserAdded, true);
+      assert.equal(harness.state.itemSources.length, 0);
     } finally {
       await harness.close();
     }

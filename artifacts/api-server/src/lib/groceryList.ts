@@ -10,6 +10,16 @@ import type { PrismaClient, StoreSection } from "@prisma/client";
 import { normalizeIngredientName } from "./groceryNormalization";
 import { UNIVERSAL_STAPLES } from "./groceryStaples";
 
+// WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
+// Tracked as (mealId, dishId) PAIRS (not two independent arrays) so per-row
+// provenance survives losslessly into GroceryListItemSource at persist and
+// Block 4 can answer "is this row's source set entirely within the unchanged
+// meals?" The pair preserves which dish within which meal contributed.
+export interface GrocerySource {
+  mealId: string;
+  dishId: string;
+}
+
 export interface ConsolidatedItem {
   ingredientId: string | null;
   canonicalName: string;
@@ -20,8 +30,9 @@ export interface ConsolidatedItem {
   isUniversalStaple: boolean;
   isUserPantryStaple: boolean;
   isRecurringItem: boolean;
-  sourceMealIds: string[];
-  sourceDishIds: string[];
+  // WS7-7-A Block 1: deduplicated (mealId, dishId) provenance pairs. Empty for
+  // synthetic recurring entries (no plan source).
+  sources: GrocerySource[];
   // Block B fills these via AI reconciliation.
   purchaseUnit: string | null;
   purchaseQuantity: number | null;
@@ -193,8 +204,7 @@ export async function consolidatePlanIngredients(
             isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(normalizeIngredientName(canonical)),
             isUserPantryStaple: false, // filled below from user.pantryStaples
             isRecurringItem: false, // filled below from preferences.recurringGroceryItems
-            sourceMealIds: [],
-            sourceDishIds: [],
+            sources: [],
             purchaseUnit: ing?.purchaseUnit ?? null,
             purchaseQuantity: ing?.purchaseQuantity ?? null,
             purchaseDisplay: ing?.purchaseDisplay ?? null,
@@ -226,8 +236,16 @@ export async function consolidatePlanIngredients(
         }
 
         entry.quantity += scaledQty;
-        if (!entry.sourceMealIds.includes(item.mealId)) entry.sourceMealIds.push(item.mealId);
-        if (!entry.sourceDishIds.includes(dish.id)) entry.sourceDishIds.push(dish.id);
+        // Dedup on the (mealId, dishId) PAIR — the same ingredient reached via
+        // the same dish in the same meal is one source; the same dish across
+        // two meal-plan slots, or two dishes in one meal, are distinct sources.
+        if (
+          !entry.sources.some(
+            (s) => s.mealId === item.mealId && s.dishId === dish.id,
+          )
+        ) {
+          entry.sources.push({ mealId: item.mealId, dishId: dish.id });
+        }
       }
     }
   }
@@ -282,8 +300,7 @@ export async function consolidatePlanIngredients(
       isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(norm),
       isUserPantryStaple: userPantryKeys.has(norm),
       isRecurringItem: true,
-      sourceMealIds: [],
-      sourceDishIds: [],
+      sources: [],
       purchaseUnit: null,
       purchaseQuantity: null,
       purchaseDisplay: null,
