@@ -23,6 +23,8 @@ import type { PrismaClient, Prisma, StoreSection } from "@prisma/client";
 
 import {
   AddGroceryListItemInputSchema,
+  UpdateGroceryListItemInputSchema,
+  UpdateGroceryListStatusInputSchema,
   type CategorizeItemResponse,
   type LookupCandidate,
   type SectionKey,
@@ -395,7 +397,11 @@ export function createGroceryListsRouter(
       const lists = await prisma.groceryList.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        include: { _count: { select: { items: true } } },
+        // WS7-7-A Block 2 — itemCount excludes soft-deleted rows so the
+        // library badge matches what GET detail renders.
+        include: {
+          _count: { select: { items: { where: { deletedAt: null } } } },
+        },
       });
 
       // WS7-6 (E) Block 2 — single This-Week winner per request. ONE narrow
@@ -448,6 +454,9 @@ export function createGroceryListsRouter(
         where: { id: listId, userId },
         include: {
           items: {
+            // WS7-7-A Block 2 — soft-deleted rows are hidden from the list
+            // view until restored (§12.9 undo window).
+            where: { deletedAt: null },
             orderBy: [
               { storeSection: "asc" },
               { displayName: "asc" },
@@ -676,6 +685,251 @@ export function createGroceryListsRouter(
       return res.status(500).json({ error: "internal server error" });
     }
   });
+
+  // ── WS7-7-A Block 2 — grocery item mutations ────────────────────────
+  // Ownership gate convention (mirrors POST /:id/items above): a missing
+  // list AND a cross-user list both return 404, never leaking existence.
+  // No literal 403 on any of these routes by design.
+
+  // PATCH /api/grocery-lists/:id — §12.6.3 mark-shopping-done. Bidirectional
+  // active⇄completed; the Zod enum rejects every other target value.
+  router.patch("/grocery-lists/:id", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const listIdRaw = req.params.id;
+    const listId = Array.isArray(listIdRaw) ? listIdRaw[0] : listIdRaw;
+    if (!listId || !UUID_RE.test(listId)) {
+      return res.status(400).json({ error: "invalid_list_id" });
+    }
+
+    const parsed = UpdateGroceryListStatusInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "invalid_body",
+        details: parsed.error.flatten(),
+      });
+    }
+
+    try {
+      const list = await prisma.groceryList.findFirst({
+        where: { id: listId, userId },
+        select: { id: true },
+      });
+      if (!list) {
+        return res.status(404).json({ error: "list_not_found" });
+      }
+
+      const updated = await prisma.groceryList.update({
+        where: { id: listId },
+        data: { status: parsed.data.status },
+      });
+      return res.status(200).json({ list: updated });
+    } catch (err) {
+      logger.error(
+        { event: "grocery_update_list_status_failed", userId, listId, err },
+        "PATCH /grocery-lists/:id failed",
+      );
+      return res.status(500).json({ error: "internal server error" });
+    }
+  });
+
+  // PATCH /api/grocery-lists/:id/items/:itemId — partial item update.
+  // §12.9 inline edits (qty/unit/displayName/section/check), §12.7 staple
+  // opt-in, §12.5 ambiguity resolution. All persist immediately, no save.
+  router.patch(
+    "/grocery-lists/:id/items/:itemId",
+    requireAuth,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const listIdRaw = req.params.id;
+      const listId = Array.isArray(listIdRaw) ? listIdRaw[0] : listIdRaw;
+      const itemIdRaw = req.params.itemId;
+      const itemId = Array.isArray(itemIdRaw) ? itemIdRaw[0] : itemIdRaw;
+      if (!listId || !UUID_RE.test(listId)) {
+        return res.status(400).json({ error: "invalid_list_id" });
+      }
+      if (!itemId || !UUID_RE.test(itemId)) {
+        return res.status(400).json({ error: "invalid_item_id" });
+      }
+
+      const parsed = UpdateGroceryListItemInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid_body",
+          details: parsed.error.flatten(),
+        });
+      }
+      const body = parsed.data;
+
+      try {
+        // Item + list ownership in one read: the item must belong to a list
+        // owned by this user. Missing item, cross-user list, or mismatched
+        // (listId, itemId) pair all 404.
+        const item = await prisma.groceryListItem.findFirst({
+          where: {
+            id: itemId,
+            groceryListId: listId,
+            groceryList: { userId },
+          },
+          select: { id: true },
+        });
+        if (!item) {
+          return res.status(404).json({ error: "item_not_found" });
+        }
+
+        // Build the update from only the provided fields. userResolvedTo
+        // carries §12.5 coherence: a non-null resolution flips isAmbiguous
+        // to false (item is now resolved) while keeping ambiguityOptions as
+        // an audit trail; clearing to null leaves isAmbiguous untouched.
+        const data: Prisma.GroceryListItemUpdateInput = {};
+        if (body.isChecked !== undefined) data.isChecked = body.isChecked;
+        if (body.quantity !== undefined) data.quantity = body.quantity;
+        if (body.unit !== undefined) data.unit = body.unit;
+        if (body.stapleOptedIn !== undefined)
+          data.stapleOptedIn = body.stapleOptedIn;
+        if (body.storeSection !== undefined)
+          data.storeSection = body.storeSection;
+        if (body.displayName !== undefined)
+          data.displayName = body.displayName;
+        if (body.userResolvedTo !== undefined) {
+          data.userResolvedTo = body.userResolvedTo;
+          if (body.userResolvedTo !== null) {
+            data.isAmbiguous = false;
+          }
+        }
+
+        const updated = await prisma.groceryListItem.update({
+          where: { id: itemId },
+          data,
+        });
+        return res.status(200).json({ item: updated });
+      } catch (err) {
+        logger.error(
+          { event: "grocery_update_item_failed", userId, listId, itemId, err },
+          "PATCH /grocery-lists/:id/items/:itemId failed",
+        );
+        return res.status(500).json({ error: "internal server error" });
+      }
+    },
+  );
+
+  // DELETE /api/grocery-lists/:id/items/:itemId — §12.9 soft-delete with a
+  // restore window. Sets deletedAt; the row id is preserved (D-WS6-082:
+  // restore must reuse the same id) and its GroceryListItemSource rows stay
+  // intact (cascade fires on hard delete only). Returns the deleted item so
+  // the mobile undo toast has the shape to restore. Idempotent: deleting an
+  // already-deleted item returns it unchanged.
+  router.delete(
+    "/grocery-lists/:id/items/:itemId",
+    requireAuth,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const listIdRaw = req.params.id;
+      const listId = Array.isArray(listIdRaw) ? listIdRaw[0] : listIdRaw;
+      const itemIdRaw = req.params.itemId;
+      const itemId = Array.isArray(itemIdRaw) ? itemIdRaw[0] : itemIdRaw;
+      if (!listId || !UUID_RE.test(listId)) {
+        return res.status(400).json({ error: "invalid_list_id" });
+      }
+      if (!itemId || !UUID_RE.test(itemId)) {
+        return res.status(400).json({ error: "invalid_item_id" });
+      }
+
+      try {
+        const item = await prisma.groceryListItem.findFirst({
+          where: {
+            id: itemId,
+            groceryListId: listId,
+            groceryList: { userId },
+          },
+          select: { id: true, deletedAt: true },
+        });
+        if (!item) {
+          return res.status(404).json({ error: "item_not_found" });
+        }
+
+        // Already soft-deleted → return as-is (idempotent), don't re-stamp
+        // deletedAt and shorten the undo window on a double-tap.
+        const deleted = item.deletedAt
+          ? await prisma.groceryListItem.findUniqueOrThrow({
+              where: { id: itemId },
+            })
+          : await prisma.groceryListItem.update({
+              where: { id: itemId },
+              data: { deletedAt: new Date() },
+            });
+        return res.status(200).json({ item: deleted });
+      } catch (err) {
+        logger.error(
+          { event: "grocery_delete_item_failed", userId, listId, itemId, err },
+          "DELETE /grocery-lists/:id/items/:itemId failed",
+        );
+        return res.status(500).json({ error: "internal server error" });
+      }
+    },
+  );
+
+  // POST /api/grocery-lists/:id/items/:itemId/restore — undo the soft-delete.
+  // Clears deletedAt on the SAME row (id preserved); provenance survived the
+  // soft-delete so no source rows need rebuilding. Idempotent: restoring a
+  // live item returns it unchanged.
+  router.post(
+    "/grocery-lists/:id/items/:itemId/restore",
+    requireAuth,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const listIdRaw = req.params.id;
+      const listId = Array.isArray(listIdRaw) ? listIdRaw[0] : listIdRaw;
+      const itemIdRaw = req.params.itemId;
+      const itemId = Array.isArray(itemIdRaw) ? itemIdRaw[0] : itemIdRaw;
+      if (!listId || !UUID_RE.test(listId)) {
+        return res.status(400).json({ error: "invalid_list_id" });
+      }
+      if (!itemId || !UUID_RE.test(itemId)) {
+        return res.status(400).json({ error: "invalid_item_id" });
+      }
+
+      try {
+        // Soft-deleted rows are excluded from the GET reads but MUST still be
+        // findable here — restore explicitly targets them, so no deletedAt
+        // filter on the ownership lookup.
+        const item = await prisma.groceryListItem.findFirst({
+          where: {
+            id: itemId,
+            groceryListId: listId,
+            groceryList: { userId },
+          },
+          select: { id: true },
+        });
+        if (!item) {
+          return res.status(404).json({ error: "item_not_found" });
+        }
+
+        const restored = await prisma.groceryListItem.update({
+          where: { id: itemId },
+          data: { deletedAt: null },
+        });
+        return res.status(200).json({ item: restored });
+      } catch (err) {
+        logger.error(
+          { event: "grocery_restore_item_failed", userId, listId, itemId, err },
+          "POST /grocery-lists/:id/items/:itemId/restore failed",
+        );
+        return res.status(500).json({ error: "internal server error" });
+      }
+    },
+  );
 
   return router;
 }

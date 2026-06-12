@@ -80,6 +80,9 @@ enum PrepStatus {
 enum GroceryListStatus {
   draft
   active
+  // WS7-7-A Block 2 — §12.6.3 mark-shopping-done. Bidirectional active⇄completed.
+  // Distinct from `ordered` (reserved for the future retailer order flow).
+  completed
   ordered
   archived
 }
@@ -627,6 +630,16 @@ model GroceryListItem {
   // "Extras" (true) and are NEVER touched by reconcile. Distinct from
   // provenance (GroceryListItemSource) — ownership vs source.
   isUserAdded        Boolean      @default(false)
+  // WS7-7-A Block 2 — §12.7 per-list staple opt-in ("buying this week").
+  // Distinct from isUniversalStaple (the generation-stamped classification,
+  // immutable via the item PATCH route): a universal-staple item renders
+  // greyed/unselected until the user taps to set this true on THIS list.
+  stapleOptedIn      Boolean      @default(false)
+  // WS7-7-A Block 2 — §12.9 soft-delete with restore window (D-WS6-082:
+  // restore must reuse the same row id). Soft-deleted rows are excluded from
+  // GET list/detail reads but keep their GroceryListItemSource rows intact
+  // (cascade fires on hard delete only) so restore re-finds provenance.
+  deletedAt          DateTime?
   notes              String?
 
   groceryList GroceryList             @relation(fields: [groceryListId], references: [id], onDelete: Cascade)

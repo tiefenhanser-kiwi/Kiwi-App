@@ -40,7 +40,7 @@ interface ListRow {
   id: string;
   userId: string;
   mealPlanInstanceId: string;
-  status: "draft" | "active" | "ordered" | "archived";
+  status: "draft" | "active" | "completed" | "ordered" | "archived";
   title: string;
   sourceType: string;
   lastGeneratedFromPlanRevisionId: number | null;
@@ -68,6 +68,12 @@ interface ListItemRow {
   // seeds that don't exercise provenance stay terse; the write paths always
   // set it, so rows recorded via the route carry a concrete boolean.
   isUserAdded?: boolean;
+  // WS7-7-A Block 2: mutable item state. All optional so existing seeds stay
+  // terse; the mutation routes read/write them on the in-memory row.
+  isChecked?: boolean;
+  stapleOptedIn?: boolean;
+  userResolvedTo?: string | null;
+  deletedAt?: Date | null;
   notes: string | null;
 }
 
@@ -246,8 +252,19 @@ function makeStubPrisma(state: StubState) {
           if (!list) return null;
           const result: Record<string, unknown> = { ...list };
           if (include?.items) {
+            // WS7-7-A Block 2 — honor include.items.where.deletedAt:null so
+            // soft-deleted rows are excluded from the GET detail response.
+            const itemsInclude = include.items as {
+              where?: { deletedAt?: null };
+            };
+            const excludeDeleted =
+              itemsInclude?.where?.deletedAt === null;
             result.items = state.listItems
-              .filter((i) => i.groceryListId === list.id)
+              .filter(
+                (i) =>
+                  i.groceryListId === list.id &&
+                  (!excludeDeleted || !i.deletedAt),
+              )
               .sort((a, b) =>
                 a.storeSection === b.storeSection
                   ? a.displayName.localeCompare(b.displayName)
@@ -266,6 +283,19 @@ function makeStubPrisma(state: StubState) {
           return result;
         }
         return null;
+      },
+      // WS7-7-A Block 2 — list-status PATCH surface.
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Partial<ListRow>;
+      }) => {
+        const row = state.lists.find((l) => l.id === where.id);
+        if (!row) throw new Error("list not found");
+        Object.assign(row, data);
+        return row;
       },
     },
     userActivity: {
@@ -306,6 +336,45 @@ function makeStubPrisma(state: StubState) {
         };
         state.listItems.push(row);
         return { id: `item-${state.listItems.length}`, ...row };
+      },
+      // WS7-7-A Block 2 — item-mutation surfaces. findFirst resolves the
+      // (item, list, owner) ownership join the PATCH/DELETE/restore routes
+      // use; update merges a partial patch into the in-memory row.
+      findFirst: async ({
+        where,
+      }: {
+        where: {
+          id: string;
+          groceryListId: string;
+          groceryList?: { userId: string };
+        };
+      }) => {
+        const row = state.listItems.find(
+          (i) => i.id === where.id && i.groceryListId === where.groceryListId,
+        );
+        if (!row) return null;
+        if (where.groceryList?.userId) {
+          const owner = state.lists.find((l) => l.id === row.groceryListId);
+          if (!owner || owner.userId !== where.groceryList.userId) return null;
+        }
+        return row;
+      },
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Partial<ListItemRow>;
+      }) => {
+        const row = state.listItems.find((i) => i.id === where.id);
+        if (!row) throw new Error("item not found");
+        Object.assign(row, data);
+        return row;
+      },
+      findUniqueOrThrow: async ({ where }: { where: { id: string } }) => {
+        const row = state.listItems.find((i) => i.id === where.id);
+        if (!row) throw new Error("item not found");
+        return row;
       },
     },
     $transaction: async <T>(fn: (txClient: typeof tx) => Promise<T>) => {
@@ -2161,6 +2230,544 @@ describe("GET /grocery-lists", () => {
         groceryLists: { id: string; isActiveThisWeek: boolean }[];
       };
       assert.equal(body.groceryLists[0].isActiveThisWeek, false);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS7-7-A Block 2 — item-mutation routes ───────────────────────────────
+//
+// PATCH /grocery-lists/:id (status), PATCH/DELETE/restore on items. Reuses
+// the rich makeStubPrisma harness (spinUp) and seeds lists + items directly
+// into state. Ownership convention: missing AND cross-user both 404 (no
+// existence leak) — the cross-user cases are named accordingly.
+//
+// Route ids must be UUID v1-5 (the routes UUID_RE-validate :id/:itemId), so
+// these fixtures use real v4 uuids rather than the "list-1" shorthand the
+// generate/GET seeds use.
+
+const B2_USER = "test-user-b2";
+const B2_LIST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const B2_ITEM = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const B2_OTHER_LIST = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const B2_MISSING = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+function seedB2List(
+  state: StubState,
+  overrides: Partial<ListRow> = {},
+): ListRow {
+  const row: ListRow = {
+    id: B2_LIST,
+    userId: B2_USER,
+    mealPlanInstanceId: "plan-b2",
+    status: "active",
+    title: "Groceries: B2",
+    sourceType: "plan",
+    lastGeneratedFromPlanRevisionId: 1,
+    lastGeneratedAt: new Date(),
+    createdAt: new Date(),
+    ...overrides,
+  };
+  state.lists.push(row);
+  return row;
+}
+
+function seedB2Item(
+  state: StubState,
+  overrides: Partial<ListItemRow> = {},
+): ListItemRow {
+  const row: ListItemRow = {
+    id: B2_ITEM,
+    groceryListId: B2_LIST,
+    ingredientId: null,
+    displayName: "Tomato",
+    quantity: 1,
+    unit: "each",
+    storeSection: "produce",
+    isUniversalStaple: false,
+    isUserPantryStaple: false,
+    isRecurringItem: false,
+    wasAiInferred: false,
+    isAmbiguous: false,
+    ambiguityOptions: [],
+    isUserAdded: false,
+    isChecked: false,
+    stapleOptedIn: false,
+    userResolvedTo: null,
+    deletedAt: null,
+    notes: null,
+    ...overrides,
+  };
+  state.listItems.push(row);
+  return row;
+}
+
+function bearer(user: string): { Authorization: string; "Content-Type": string } {
+  return {
+    Authorization: `Bearer ${signToken(user)}`,
+    "Content-Type": "application/json",
+  };
+}
+
+// Fetch a single item back through the GET detail read path — the canonical
+// round-trip assertion (write must surface correctly through the serializer).
+async function getItemViaDetail(
+  baseUrl: string,
+  listId: string,
+  itemId: string,
+): Promise<Record<string, unknown> | undefined> {
+  const res = await fetch(`${baseUrl}/grocery-lists/${listId}`, {
+    headers: { Authorization: `Bearer ${signToken(B2_USER)}` },
+  });
+  const body = (await res.json()) as {
+    list: { items: Record<string, unknown>[] };
+  };
+  return body.list.items.find((i) => i.id === itemId);
+}
+
+describe("PATCH /api/grocery-lists/:id — mark shopping done (§12.6.3)", () => {
+  it("active→completed: 200, persists status", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists/${B2_LIST}`, {
+        method: "PATCH",
+        headers: bearer(B2_USER),
+        body: JSON.stringify({ status: "completed" }),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { list: { status: string } };
+      assert.equal(body.list.status, "completed");
+      assert.equal(harness.state.lists[0].status, "completed");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("completed→active: reversible per §12.6.3", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state, { status: "completed" });
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists/${B2_LIST}`, {
+        method: "PATCH",
+        headers: bearer(B2_USER),
+        body: JSON.stringify({ status: "active" }),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(harness.state.lists[0].status, "active");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  for (const bad of ["ordered", "archived", "draft", "bogus"]) {
+    it(`rejects status="${bad}" with 400 (only active/completed settable)`, async () => {
+      const harness = await spinUp();
+      seedB2List(harness.state);
+      try {
+        const res = await fetch(`${harness.baseUrl}/grocery-lists/${B2_LIST}`, {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ status: bad }),
+        });
+        assert.equal(res.status, 400);
+        // status unchanged
+        assert.equal(harness.state.lists[0].status, "active");
+      } finally {
+        await harness.close();
+      }
+    });
+  }
+
+  it("404 when the list is missing", async () => {
+    const harness = await spinUp();
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists/${B2_MISSING}`, {
+        method: "PATCH",
+        headers: bearer(B2_USER),
+        body: JSON.stringify({ status: "completed" }),
+      });
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("404 by design (no existence leak) when the list belongs to another user", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state, { userId: "stranger-b2" });
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists/${B2_LIST}`, {
+        method: "PATCH",
+        headers: bearer(B2_USER),
+        body: JSON.stringify({ status: "completed" }),
+      });
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("PATCH /api/grocery-lists/:id/items/:itemId", () => {
+  it("isChecked round-trips through GET detail (farmer's-market flow)", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ isChecked: true }),
+        },
+      );
+      assert.equal(res.status, 200);
+      const read = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      assert.equal(read?.isChecked, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("quantity+unit round-trip", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ quantity: 3, unit: "lb" }),
+        },
+      );
+      assert.equal(res.status, 200);
+      const read = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      assert.equal(read?.quantity, 3);
+      assert.equal(read?.unit, "lb");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("stapleOptedIn opt-in round-trip (§12.7); leaves isUniversalStaple untouched", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    // A universal-staple classification item, opted-out by default.
+    seedB2Item(harness.state, { isUniversalStaple: true, stapleOptedIn: false });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ stapleOptedIn: true }),
+        },
+      );
+      assert.equal(res.status, 200);
+      const read = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      assert.equal(read?.stapleOptedIn, true);
+      // Classification flag is immutable via this route.
+      assert.equal(read?.isUniversalStaple, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("multi-field: displayName + storeSection together", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({
+            displayName: "Roma tomatoes",
+            storeSection: "produce",
+          }),
+        },
+      );
+      assert.equal(res.status, 200);
+      const read = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      assert.equal(read?.displayName, "Roma tomatoes");
+      assert.equal(read?.storeSection, "produce");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("userResolvedTo sets isAmbiguous:false, keeps ambiguityOptions as audit (§12.5)", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state, {
+      isAmbiguous: true,
+      ambiguityOptions: ["thighs", "breast", "ground"],
+      userResolvedTo: null,
+    });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ userResolvedTo: "thighs" }),
+        },
+      );
+      assert.equal(res.status, 200);
+      const read = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      assert.equal(read?.userResolvedTo, "thighs");
+      assert.equal(read?.isAmbiguous, false);
+      assert.deepEqual(read?.ambiguityOptions, ["thighs", "breast", "ground"]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("userResolvedTo:null leaves isAmbiguous as-is (clearing a resolution)", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state, {
+      isAmbiguous: true,
+      ambiguityOptions: ["a", "b"],
+      userResolvedTo: "a",
+    });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ userResolvedTo: null }),
+        },
+      );
+      assert.equal(res.status, 200);
+      const read = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      assert.equal(read?.userResolvedTo, null);
+      // isAmbiguous untouched — caller explicitly cleared the resolution.
+      assert.equal(read?.isAmbiguous, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("empty body → 400 (refine requires at least one field)", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({}),
+        },
+      );
+      assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("404 when the item is missing", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_MISSING}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ isChecked: true }),
+        },
+      );
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("404 by design (no existence leak) when the list belongs to another user", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state, { userId: "stranger-b2" });
+    seedB2Item(harness.state);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ isChecked: true }),
+        },
+      );
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("404 when the item exists but under a different list (mismatched pair)", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2List(harness.state, { id: B2_OTHER_LIST });
+    // Item lives under B2_OTHER_LIST, but the request targets B2_LIST.
+    seedB2Item(harness.state, { groceryListId: B2_OTHER_LIST });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ isChecked: true }),
+        },
+      );
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("DELETE + restore /api/grocery-lists/:id/items/:itemId (§12.9 soft-delete)", () => {
+  it("soft-delete: 200, returns the item, stamps deletedAt, excludes from GET; restore brings it back with the SAME id", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state);
+    // Provenance rows that must survive the soft-delete for restore.
+    harness.state.itemSources.push(
+      { groceryListItemId: B2_ITEM, mealId: "m1", dishId: "d1" },
+      { groceryListItemId: B2_ITEM, mealId: "m2", dishId: "d2" },
+    );
+    try {
+      // Delete.
+      const del = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        { method: "DELETE", headers: bearer(B2_USER) },
+      );
+      assert.equal(del.status, 200);
+      const delBody = (await del.json()) as {
+        item: { id: string; deletedAt: string | null };
+      };
+      assert.equal(delBody.item.id, B2_ITEM);
+      assert.notEqual(delBody.item.deletedAt, null);
+
+      // Excluded from GET detail.
+      const gone = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      assert.equal(gone, undefined);
+
+      // Source rows untouched (cascade fires on hard delete only).
+      assert.equal(
+        harness.state.itemSources.filter((s) => s.groceryListItemId === B2_ITEM)
+          .length,
+        2,
+      );
+
+      // Restore.
+      const restore = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}/restore`,
+        { method: "POST", headers: bearer(B2_USER) },
+      );
+      assert.equal(restore.status, 200);
+      const restoreBody = (await restore.json()) as {
+        item: { id: string; deletedAt: string | null };
+      };
+      assert.equal(restoreBody.item.id, B2_ITEM); // same row id
+      assert.equal(restoreBody.item.deletedAt, null);
+
+      // Present again in GET detail, same id, provenance still attached.
+      const back = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      assert.equal(back?.id, B2_ITEM);
+      assert.equal(
+        harness.state.itemSources.filter((s) => s.groceryListItemId === B2_ITEM)
+          .length,
+        2,
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("double-delete is idempotent (does not re-stamp / shorten the undo window)", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    const firstStamp = new Date("2026-06-01T00:00:00.000Z");
+    seedB2Item(harness.state, { deletedAt: firstStamp });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        { method: "DELETE", headers: bearer(B2_USER) },
+      );
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { item: { deletedAt: string } };
+      assert.equal(new Date(body.item.deletedAt).getTime(), firstStamp.getTime());
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("restore of a live (non-deleted) item is idempotent", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state, { deletedAt: null });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}/restore`,
+        { method: "POST", headers: bearer(B2_USER) },
+      );
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { item: { deletedAt: string | null } };
+      assert.equal(body.item.deletedAt, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("DELETE 404 when the item is missing", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_MISSING}`,
+        { method: "DELETE", headers: bearer(B2_USER) },
+      );
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("DELETE 404 by design (no existence leak) when the list belongs to another user", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state, { userId: "stranger-b2" });
+    seedB2Item(harness.state);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        { method: "DELETE", headers: bearer(B2_USER) },
+      );
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("restore 404 by design (no existence leak) when the list belongs to another user", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state, { userId: "stranger-b2" });
+    seedB2Item(harness.state, { deletedAt: new Date() });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}/restore`,
+        { method: "POST", headers: bearer(B2_USER) },
+      );
+      assert.equal(res.status, 404);
     } finally {
       await harness.close();
     }

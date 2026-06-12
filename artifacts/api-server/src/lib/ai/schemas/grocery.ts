@@ -84,6 +84,49 @@ export const AddGroceryListItemInputSchema = z.object({
 });
 export type AddGroceryListItemInput = z.infer<typeof AddGroceryListItemInputSchema>;
 
+// === WS7-7-A Block 2 — grocery item-mutation route bodies ===
+
+// PATCH /grocery-lists/:id — §12.6.3 mark-shopping-done, bidirectional.
+// Only active⇄completed are user-settable here. draft is the pre-generation
+// state; archived is library lifecycle; ordered is reserved for the future
+// retailer order flow — all three are rejected with a clear Zod error.
+export const UpdateGroceryListStatusInputSchema = z.object({
+  status: z.enum(["active", "completed"], {
+    errorMap: () => ({
+      message:
+        "status must be 'active' or 'completed' (draft/archived/ordered are not settable here)",
+    }),
+  }),
+});
+export type UpdateGroceryListStatusInput = z.infer<
+  typeof UpdateGroceryListStatusInputSchema
+>;
+
+// PATCH /grocery-lists/:id/items/:itemId — partial item update. Every field
+// optional; the refine requires at least one so an empty body 400s rather
+// than no-op'ing. Notes:
+//   • stapleOptedIn is the §12.7 per-list opt-in toggle (NOT isUniversalStaple,
+//     which is the immutable generation-stamped classification).
+//   • userResolvedTo is the §12.5 resolution write; coherence with isAmbiguous
+//     is applied in the route (set → isAmbiguous:false, options kept for audit;
+//     null → isAmbiguous left as-is). isAmbiguous itself is not client-settable.
+export const UpdateGroceryListItemInputSchema = z
+  .object({
+    isChecked: z.boolean().optional(),
+    quantity: z.number().positive().optional(),
+    unit: z.string().max(40).optional(),
+    stapleOptedIn: z.boolean().optional(),
+    storeSection: SectionKeySchema.optional(),
+    displayName: z.string().min(1).max(140).optional(),
+    userResolvedTo: z.string().min(1).max(120).nullable().optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, {
+    message: "at least one field must be provided",
+  });
+export type UpdateGroceryListItemInput = z.infer<
+  typeof UpdateGroceryListItemInputSchema
+>;
+
 // === 6c-4 Block B — grocery.gap_fill_purchase_size ===
 // Map a single recipe ingredient need to its standard purchase size. Haiku,
 // called once per ingredient missing purchaseUnit/Quantity/Display on the
