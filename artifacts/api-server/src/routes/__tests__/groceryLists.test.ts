@@ -143,11 +143,36 @@ function makeStubPrisma(state: StubState) {
         state.lists.push(row);
         return row;
       },
+      // WS7-7-A Block 4 — reconcile stamps the revision pointer inside the
+      // same transaction as the row mutations.
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Partial<ListRow>;
+      }) => {
+        const row = state.lists.find((l) => l.id === where.id);
+        if (!row) throw new Error("list not found");
+        Object.assign(row, data);
+        return row;
+      },
     },
     groceryListItem: {
       createMany: async ({ data }: { data: ListItemRow[] }) => {
         for (const row of data) state.listItems.push(row);
         return { count: data.length };
+      },
+      // WS7-7-A Block 4 — reconcile hard-deletes superseded/removed-meal rows;
+      // the in-memory stub mirrors the DB cascade onto GroceryListItemSource.
+      deleteMany: async ({ where }: { where: { id: { in: string[] } } }) => {
+        const ids = new Set(where.id.in);
+        const before = state.listItems.length;
+        state.listItems = state.listItems.filter((i) => !ids.has(i.id ?? ""));
+        state.itemSources = state.itemSources.filter(
+          (s) => !ids.has(s.groceryListItemId),
+        );
+        return { count: before - state.listItems.length };
       },
     },
     groceryListItemSource: {
@@ -336,6 +361,24 @@ function makeStubPrisma(state: StubState) {
         };
         state.listItems.push(row);
         return { id: `item-${state.listItems.length}`, ...row };
+      },
+      // WS7-7-A Block 4 — reconcile reads ALL rows for the list (incl.
+      // soft-deleted, the D-WS7-126 suppression signal) with their provenance
+      // joined. The stub attaches each row's GroceryListItemSource rows.
+      findMany: async ({
+        where,
+      }: {
+        where: { groceryListId: string };
+      }) => {
+        return state.listItems
+          .filter((i) => i.groceryListId === where.groceryListId)
+          .map((i) => ({
+            ...i,
+            isUserAdded: i.isUserAdded ?? false,
+            sources: state.itemSources
+              .filter((s) => s.groceryListItemId === (i.id ?? ""))
+              .map((s) => ({ mealId: s.mealId })),
+          }));
       },
       // WS7-7-A Block 2 — item-mutation surfaces. findFirst resolves the
       // (item, list, owner) ownership join the PATCH/DELETE/restore routes
@@ -2770,6 +2813,808 @@ describe("DELETE + restore /api/grocery-lists/:id/items/:itemId (§12.9 soft-del
       assert.equal(res.status, 404);
     } finally {
       await harness.close();
+    }
+  });
+});
+
+// ── WS7-7-A Block 4 — GET-triggered incremental reconcile (D-WS7-079) ─────
+//
+// These exercise the reconcile-on-read consumer directly through GET
+// /grocery-lists/:id. The consolidator + AI helpers are stubbed input-aware:
+// the consolidator returns a per-test "current plan" array (the live plan
+// state) and the final-pass echoes its subset 1:1 (a deterministic no-op AI).
+// Existing rows + their GroceryListItemSource rows are seeded to represent the
+// PRIOR generation. The delta is computed from those two — no separate plan-
+// items query exists, by design (Phase 0 Q1 / Option A).
+
+const R_USER = "recon-user-ws7-7a-b4";
+const R_PLAN = "plan-recon";
+const R_LIST = "list-recon";
+
+interface ReconSpies {
+  consolidate: number;
+  fill: number;
+  finalPass: number;
+}
+
+interface ReconHarness {
+  baseUrl: string;
+  state: StubState;
+  spies: ReconSpies;
+  close: () => Promise<void>;
+}
+
+function finalFromConsolidated(
+  items: ConsolidatedItem[],
+): GenerateGroceryListResult["items"] {
+  return items.map((c) => ({
+    canonicalName: c.canonicalName,
+    displayName: c.displayName,
+    quantity: c.quantity,
+    unit: c.unit,
+    sectionKey: c.sectionKey,
+    isUniversalStaple: c.isUniversalStaple,
+    isUserPantryStaple: c.isUserPantryStaple,
+    isRecurringItem: c.isRecurringItem,
+    notes: null,
+    isAmbiguous: false,
+    wasAiInferred: false,
+  }));
+}
+
+async function spinUpReconcile(opts: {
+  current: ConsolidatedItem[];
+  aiThrows?: Error;
+}): Promise<ReconHarness> {
+  const state = makeState();
+  const stubPrisma = makeStubPrisma(state);
+  const spies: ReconSpies = { consolidate: 0, fill: 0, finalPass: 0 };
+
+  const router = createGroceryListsRouter({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prisma: stubPrisma as any,
+    consolidatePlanIngredients: (async () => {
+      spies.consolidate++;
+      return opts.current;
+    }) as never,
+    // Echo the resolution subset through unchanged (cache-hit shape).
+    fillPurchaseSizesWithWriteBack: (async (items: ConsolidatedItem[]) => {
+      spies.fill++;
+      return items;
+    }) as never,
+    generateFinalGroceryList: (async (
+      _planTitle: string,
+      items: ConsolidatedItem[],
+    ) => {
+      spies.finalPass++;
+      if (opts.aiThrows) throw opts.aiThrows;
+      return { items: finalFromConsolidated(items) };
+    }) as never,
+  });
+
+  const app: Express = express();
+  app.use(express.json());
+  app.use("/api", router);
+
+  return await new Promise<ReconHarness>((resolve, reject) => {
+    const server: Server = app.listen(0, () => {
+      const addr = server.address();
+      if (typeof addr !== "object" || !addr) {
+        reject(new Error("server did not bind"));
+        return;
+      }
+      resolve({
+        baseUrl: `http://127.0.0.1:${addr.port}/api`,
+        state,
+        spies,
+        close: () =>
+          new Promise<void>((r, j) => server.close((e) => (e ? j(e) : r()))),
+      });
+    });
+  });
+}
+
+function seedReconPlan(state: StubState, revisionId: number): void {
+  seedPlan(state, { id: R_PLAN, userId: R_USER, revisionId });
+}
+
+function seedReconList(
+  state: StubState,
+  lastGeneratedFromPlanRevisionId: number,
+): void {
+  seedExistingList(state, {
+    id: R_LIST,
+    userId: R_USER,
+    mealPlanInstanceId: R_PLAN,
+    lastGeneratedFromPlanRevisionId,
+  });
+}
+
+function seedReconItem(
+  state: StubState,
+  itemRow: Partial<ListItemRow> & { id: string },
+): void {
+  state.listItems.push({
+    groceryListId: R_LIST,
+    ingredientId: null,
+    displayName: "",
+    quantity: 1,
+    unit: "",
+    storeSection: "pantry",
+    isUniversalStaple: false,
+    isUserPantryStaple: false,
+    isRecurringItem: false,
+    wasAiInferred: false,
+    isAmbiguous: false,
+    ambiguityOptions: [],
+    isUserAdded: false,
+    notes: null,
+    ...itemRow,
+  });
+}
+
+function seedReconSource(
+  state: StubState,
+  itemId: string,
+  mealId: string,
+  dishId: string,
+): void {
+  state.itemSources.push({ groceryListItemId: itemId, mealId, dishId });
+}
+
+async function getList(h: ReconHarness): Promise<Response> {
+  return fetch(`${h.baseUrl}/grocery-lists/${R_LIST}`, {
+    headers: { Authorization: `Bearer ${signToken(R_USER)}` },
+  });
+}
+
+function findRow(state: StubState, id: string): ListItemRow | undefined {
+  return state.listItems.find((i) => i.id === id);
+}
+
+describe("WS7-7-A B4 — reconcile: revision-equal serves as-is", () => {
+  it("does zero work (no consolidator/fill/final calls) and leaves rows untouched", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 7);
+    seedReconList(h.state, 7); // equal → no drift
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 3,
+      isChecked: true,
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(h.spies.consolidate, 0);
+      assert.equal(h.spies.fill, 0);
+      assert.equal(h.spies.finalPass, 0);
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 7);
+      assert.equal(findRow(h.state, "it-garlic")!.quantity, 3);
+      assert.equal(findRow(h.state, "it-garlic")!.isChecked, true);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — reconcile: unchanged meal carries row forward", () => {
+  it("preserves full B2 user state byte-identical and skips re-resolution", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 2,
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 8);
+    seedReconList(h.state, 7); // stale
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 3, // user-edited
+      isChecked: true,
+      stapleOptedIn: true,
+      storeSection: "produce",
+      userResolvedTo: "garlic clove",
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(h.spies.consolidate, 1);
+      assert.equal(h.spies.fill, 0);
+      assert.equal(h.spies.finalPass, 0);
+      const g = findRow(h.state, "it-garlic")!;
+      assert.equal(g.quantity, 3);
+      assert.equal(g.isChecked, true);
+      assert.equal(g.stapleOptedIn, true);
+      assert.equal(g.storeSection, "produce");
+      assert.equal(g.userResolvedTo, "garlic clove");
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 8);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — reconcile: changed meal (swap) re-resolves", () => {
+  it("re-resolves the swapped-in meal and does NOT preserve prior check-state (D-WS7-124)", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "chicken",
+          displayName: "Chicken",
+          ingredientId: "ing-chicken",
+          unit: "lb",
+          quantity: 2,
+          sources: [{ mealId: "meal-b", dishId: "dish-z" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 9);
+    seedReconList(h.state, 8);
+    seedReconItem(h.state, {
+      id: "it-chicken",
+      ingredientId: "ing-chicken",
+      displayName: "Chicken",
+      unit: "lb",
+      quantity: 1,
+      isChecked: true, // must NOT survive re-resolution
+    });
+    seedReconSource(h.state, "it-chicken", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(h.spies.finalPass, 1);
+      assert.equal(findRow(h.state, "it-chicken"), undefined);
+      const fresh = h.state.listItems.find((i) => i.displayName === "Chicken")!;
+      assert.equal(fresh.quantity, 2);
+      assert.notEqual(fresh.isChecked, true);
+      const srcs = h.state.itemSources.filter(
+        (s) => s.groceryListItemId === fresh.id,
+      );
+      assert.equal(srcs.length, 1);
+      assert.equal(srcs[0].mealId, "meal-b");
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 9);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — reconcile: added meal", () => {
+  it("appends new rows with provenance and leaves the unchanged row alone", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+        consolidatedItem({
+          canonicalName: "basil",
+          displayName: "Basil",
+          ingredientId: "ing-basil",
+          unit: "bunch",
+          quantity: 1,
+          sources: [{ mealId: "meal-b", dishId: "dish-z" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 5);
+    seedReconList(h.state, 4);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      isChecked: true,
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(findRow(h.state, "it-garlic")!.isChecked, true);
+      const basil = h.state.listItems.find((i) => i.displayName === "Basil")!;
+      assert.ok(basil);
+      assert.equal(basil.isUserAdded, false);
+      const srcs = h.state.itemSources.filter(
+        (s) => s.groceryListItemId === basil.id,
+      );
+      assert.equal(srcs.length, 1);
+      assert.equal(srcs[0].mealId, "meal-b");
+      assert.equal(h.spies.finalPass, 1);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — reconcile: removed meal", () => {
+  it("hard-deletes the removed meal's rows (and its sources) without re-resolution", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 6);
+    seedReconList(h.state, 5);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    seedReconItem(h.state, {
+      id: "it-basil",
+      ingredientId: "ing-basil",
+      displayName: "Basil",
+      unit: "bunch",
+    });
+    seedReconSource(h.state, "it-basil", "meal-b", "dish-z");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.ok(findRow(h.state, "it-garlic"));
+      assert.equal(findRow(h.state, "it-basil"), undefined);
+      assert.equal(
+        h.state.itemSources.filter((s) => s.groceryListItemId === "it-basil")
+          .length,
+        0,
+      );
+      assert.equal(h.spies.finalPass, 0);
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 6);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("hard-deletes a removed meal's row even when the user had checked it off", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 6);
+    seedReconList(h.state, 5);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    seedReconItem(h.state, {
+      id: "it-basil",
+      ingredientId: "ing-basil",
+      displayName: "Basil",
+      unit: "bunch",
+      isChecked: true, // checked off, still removed
+    });
+    seedReconSource(h.state, "it-basil", "meal-b", "dish-z");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(findRow(h.state, "it-basil"), undefined);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — reconcile: suppression vs resurrection (D-WS7-126)", () => {
+  it("keeps a user-deleted row deleted when its source meal is unchanged (suppression)", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 6);
+    seedReconList(h.state, 5);
+    const deletedAt = new Date("2026-06-10T00:00:00.000Z");
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      deletedAt,
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      const g = findRow(h.state, "it-garlic")!;
+      assert.ok(g);
+      assert.equal(g.deletedAt, deletedAt);
+      assert.equal(h.spies.finalPass, 0);
+      assert.equal(
+        h.state.listItems.filter((i) => i.displayName === "Garlic").length,
+        1,
+      );
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("may regenerate a user-deleted row when its source meal changed (resurrection)", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          sources: [{ mealId: "meal-b", dishId: "dish-z" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 6);
+    seedReconList(h.state, 5);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      deletedAt: new Date("2026-06-10T00:00:00.000Z"),
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(findRow(h.state, "it-garlic"), undefined);
+      const fresh = h.state.listItems.find((i) => i.displayName === "Garlic")!;
+      assert.ok(fresh);
+      assert.ok(!fresh.deletedAt);
+      assert.equal(h.spies.finalPass, 1);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — reconcile: never touches isUserAdded rows", () => {
+  it("leaves a user-added (zero-source, non-recurring) row untouched across an added-meal reconcile", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+        consolidatedItem({
+          canonicalName: "basil",
+          displayName: "Basil",
+          ingredientId: "ing-basil",
+          unit: "bunch",
+          sources: [{ mealId: "meal-b", dishId: "dish-z" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 5);
+    seedReconList(h.state, 4);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    seedReconItem(h.state, {
+      id: "it-extra",
+      displayName: "Sea salt",
+      unit: "each",
+      isUserAdded: true,
+      isChecked: true,
+    });
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      const extra = findRow(h.state, "it-extra")!;
+      assert.ok(extra);
+      assert.equal(extra.isUserAdded, true);
+      assert.equal(extra.isChecked, true);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — reconcile: zero-source discriminator (recurring vs AI-tail)", () => {
+  it("preserves a recurring zero-source row + its user state (not treated as AI tail)", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "basil",
+          displayName: "Basil",
+          ingredientId: "ing-basil",
+          unit: "bunch",
+          sources: [{ mealId: "meal-b", dishId: "dish-z" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 5);
+    seedReconList(h.state, 4);
+    seedReconItem(h.state, {
+      id: "it-towels",
+      displayName: "Paper towels",
+      unit: "each",
+      isRecurringItem: true,
+      isChecked: true,
+    });
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      const t = findRow(h.state, "it-towels")!;
+      assert.ok(t);
+      assert.equal(t.isRecurringItem, true);
+      assert.equal(t.isChecked, true);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("re-resolves an AI-tail zero-source row (isRecurringItem:false) and preserves the AI flag faithfully", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "chicken",
+          displayName: "Chicken",
+          ingredientId: "ing-chicken",
+          unit: "lb",
+          quantity: 2,
+          isRecurringItem: false,
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 5);
+    seedReconList(h.state, 4);
+    seedReconItem(h.state, {
+      id: "it-tail",
+      ingredientId: null,
+      displayName: "1 lb chicken breast",
+      unit: "lb",
+      isRecurringItem: false,
+      isChecked: true, // not preserved through re-resolution
+    });
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(findRow(h.state, "it-tail"), undefined);
+      const fresh = h.state.listItems.find((i) => i.displayName === "Chicken")!;
+      assert.ok(fresh);
+      assert.equal(fresh.isRecurringItem, false);
+      assert.notEqual(fresh.isChecked, true);
+      assert.equal(h.spies.finalPass, 1);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — reconcile: mixed and bucket-merge edge cases", () => {
+  it("re-resolves a row whose sources span unchanged + removed meals (stale-down)", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 2,
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 6);
+    seedReconList(h.state, 5);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 4, // reflected both meals at gen
+      isChecked: true,
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    seedReconSource(h.state, "it-garlic", "meal-b", "dish-y");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(findRow(h.state, "it-garlic"), undefined);
+      const fresh = h.state.listItems.find((i) => i.displayName === "Garlic")!;
+      assert.equal(fresh.quantity, 2);
+      assert.notEqual(fresh.isChecked, true);
+      assert.equal(h.spies.finalPass, 1);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("loses prior user state when an unchanged-meal ingredient bucket-merges with an added meal (D-WS7-124 widened)", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 4,
+          sources: [
+            { mealId: "meal-a", dishId: "dish-x" },
+            { mealId: "meal-b", dishId: "dish-z" },
+          ],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 6);
+    seedReconList(h.state, 5);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 2,
+      isChecked: true, // state LOST on bucket-merge re-resolve
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(findRow(h.state, "it-garlic"), undefined);
+      const fresh = h.state.listItems.find((i) => i.displayName === "Garlic")!;
+      assert.equal(fresh.quantity, 4);
+      assert.notEqual(fresh.isChecked, true);
+      const srcMeals = h.state.itemSources
+        .filter((s) => s.groceryListItemId === fresh.id)
+        .map((s) => s.mealId)
+        .sort();
+      assert.deepEqual(srcMeals, ["meal-a", "meal-b"]);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — reconcile: failure path", () => {
+  it("on GroceryListAIError serves prior state un-stamped (no writes, pointer not advanced)", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+        consolidatedItem({
+          canonicalName: "basil",
+          displayName: "Basil",
+          ingredientId: "ing-basil",
+          unit: "bunch",
+          sources: [{ mealId: "meal-b", dishId: "dish-z" }],
+        }),
+      ],
+      aiThrows: new GroceryListAIError("simulated AI failure"),
+    });
+    seedReconPlan(h.state, 6);
+    seedReconList(h.state, 5);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      isChecked: true,
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200); // never 5xx on a failed background reconcile
+      assert.equal(h.spies.finalPass, 1); // AI was attempted
+      const g = findRow(h.state, "it-garlic")!;
+      assert.equal(g.isChecked, true);
+      assert.equal(
+        h.state.listItems.find((i) => i.displayName === "Basil"),
+        undefined,
+      );
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 5);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — reconcile: lists with no plan link skip entirely", () => {
+  it("does not reconcile a null-plan list (no consolidator call)", async () => {
+    const h = await spinUpReconcile({ current: [] });
+    h.state.lists.push({
+      id: R_LIST,
+      userId: R_USER,
+      mealPlanInstanceId: null as unknown as string,
+      status: "active",
+      title: "Recurring stock",
+      sourceType: "recurring",
+      lastGeneratedFromPlanRevisionId: null,
+      lastGeneratedAt: null,
+      createdAt: new Date(),
+    });
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(h.spies.consolidate, 0);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B4 — 409 generate contract regression pin", () => {
+  it("returns the byte-stable 409 wire shape (error/existingListId/message)", async () => {
+    const h = await spinUpReconcile({ current: [] });
+    seedReconPlan(h.state, 3);
+    h.state.lists.push({
+      id: "list-existing-pin",
+      userId: R_USER,
+      mealPlanInstanceId: R_PLAN,
+      status: "active",
+      title: "Groceries",
+      sourceType: "plan",
+      lastGeneratedFromPlanRevisionId: 3,
+      lastGeneratedAt: new Date(),
+      createdAt: new Date(),
+    });
+    try {
+      const res = await fetch(
+        `${h.baseUrl}/plans/${R_PLAN}/generate-grocery-list`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${signToken(R_USER)}` },
+        },
+      );
+      assert.equal(res.status, 409);
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.equal(body.error, "list_exists");
+      assert.equal(body.existingListId, "list-existing-pin");
+      assert.equal(body.message, "A grocery list already exists for this plan.");
+    } finally {
+      await h.close();
     }
   });
 });

@@ -40,6 +40,7 @@ import {
   generateFinalGroceryList as productionGenerateFinalGroceryList,
   GroceryListAIError,
 } from "../lib/groceryListAI";
+import { reconcileGroceryListIfStale } from "../lib/groceryReconcile";
 import { normalizeIngredientName } from "../lib/groceryNormalization";
 import {
   searchIngredientsByPrefix as productionSearchIngredientsByPrefix,
@@ -450,6 +451,34 @@ export function createGroceryListsRouter(
     }
 
     try {
+      // WS7-7-A Block 4 (D-WS7-079) — incremental reconcile-on-read. If the
+      // source plan has advanced past lastGeneratedFromPlanRevisionId, this
+      // re-resolves the changed/added/removed-meal subset and stamps the
+      // pointer; revision-equal lists pay nothing. Reconcile is best-effort:
+      // a GroceryListAIError (or any failure) aborts before its single write
+      // transaction, so the list is unchanged and un-stamped — we log and
+      // serve the prior persisted state rather than 5xx the read (the next
+      // GET retries). All consolidation + AI work happens inside the service
+      // before any DB write, so a failure never leaves a half-reconciled list.
+      try {
+        await reconcileGroceryListIfStale(listId, userId, {
+          prisma,
+          consolidatePlanIngredients,
+          fillPurchaseSizesWithWriteBack,
+          generateFinalGroceryList,
+        });
+      } catch (reconcileErr) {
+        logger.warn(
+          {
+            event: "grocery_reconcile_failed",
+            userId,
+            listId,
+            err: reconcileErr,
+          },
+          "Grocery list reconcile failed; serving prior state un-stamped",
+        );
+      }
+
       const list = await prisma.groceryList.findFirst({
         where: { id: listId, userId },
         include: {
