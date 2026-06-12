@@ -635,6 +635,12 @@ export interface GroceryListItem {
     | "extras";
   /** PRD §12.7 — pantry staple (default unselected, badge shown) */
   isUniversalStaple: boolean;
+  /** PRD §12.7 — per-list staple opt-in ("buying this week"). WS7-7-A
+   *  Block 3: now a real server field (`stapleOptedIn`) driving the
+   *  active/dimmed staple render. Optional so demo-stub fixtures and
+   *  optimistic local rows (which default to not-opted-in) stay terse;
+   *  read as `?? false`. */
+  stapleOptedIn?: boolean;
   /** PRD §12.8 — user's recurring item (default selected, badge shown) */
   isRecurringItem: boolean;
   /** PRD §12.5 — flagged for ambiguity at order time */

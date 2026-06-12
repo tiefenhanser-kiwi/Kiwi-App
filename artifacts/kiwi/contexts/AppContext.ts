@@ -13,6 +13,10 @@ import { buildDevTestPlan } from "@/lib/dev/devPlanFixture";
 import { loadJSON, removeKey, saveJSON } from "@/lib/storage";
 import {
   addGroceryListItem,
+  updateGroceryListStatus,
+  updateGroceryListItem,
+  deleteGroceryListItem,
+  restoreGroceryListItem,
   type AddItemPayload,
 } from "@/lib/api/grocery";
 import { buildGroceryList, defaultPlan } from "@/lib/stubs";
@@ -46,6 +50,7 @@ import type {
   DayOfWeek,
   DishDraft,
   GroceryItem,
+  GroceryList,
   GroceryListItem,
   MealPlan,
   RecipeOverride,
@@ -229,17 +234,30 @@ interface AppState {
   isMacrosRecalcInFlight: boolean;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
-  // ── Grocery list system (PRD §12; WS5 stubs, WS7 wires real persistence) ──
-  /** PRD §12.6.2 — toggle item complete (strikethrough). */
+  // ── Grocery list system (PRD §12; WS7-7-A B3 wires real persistence) ──
+  /** PRD §12.6.2 — persist item checked state. WS7-7-A B3: PATCH item
+   *  { isChecked }. Returns the server row; throws on failure so the caller
+   *  reverts its optimistic update. */
   toggleGroceryItemCompleted: (
     listId: string,
     itemId: string,
-  ) => Promise<void>;
-  /** PRD §12.7 — toggle universal staple selection (greyed → active). */
+    isChecked: boolean,
+  ) => Promise<GroceryListItem>;
+  /** PRD §12.7 — persist per-list staple opt-in. WS7-7-A B3: PATCH item
+   *  { stapleOptedIn }. Returns the server row; throws on failure. */
   toggleGroceryStapleSelection: (
     listId: string,
     itemId: string,
-  ) => Promise<void>;
+    optedIn: boolean,
+  ) => Promise<GroceryListItem>;
+  /** PRD §12.9 — persist an inline quantity/unit edit. WS7-7-A B3: PATCH
+   *  item { quantity, unit }. Returns the server row; throws on failure. */
+  updateGroceryItemQuantity: (
+    listId: string,
+    itemId: string,
+    quantity: number,
+    unit: string,
+  ) => Promise<GroceryListItem>;
   /** PRD §12.6.1 — append an item to a grocery list. 6c-6-C wired the
    *  payload to the real POST /grocery-lists/:id/items endpoint; the
    *  returned item carries the server-generated id so the screen can
@@ -248,10 +266,21 @@ interface AppState {
     listId: string,
     payload: AddItemPayload,
   ) => Promise<GroceryListItem>;
-  /** PRD §12.9 — remove an item from the list. */
+  /** PRD §12.9 — soft-delete an item. WS7-7-A B3: DELETE item. Throws on
+   *  failure so the caller restores its optimistic removal. */
   removeGroceryItem: (listId: string, itemId: string) => Promise<void>;
-  /** PRD §12.6.3 — mark shopping done. Reversible. */
-  markGroceryShoppingDone: (listId: string, done: boolean) => Promise<void>;
+  /** PRD §12.9 — undo a soft-delete. WS7-7-A B3: POST item/restore;
+   *  resurrects the SAME row id. Returns the restored server row. */
+  restoreGroceryItem: (
+    listId: string,
+    itemId: string,
+  ) => Promise<GroceryListItem>;
+  /** PRD §12.6.3 — mark shopping done. Reversible. WS7-7-A B3: PATCH list
+   *  { status }. Returns the new mobile-side status. */
+  markGroceryShoppingDone: (
+    listId: string,
+    done: boolean,
+  ) => Promise<GroceryList["status"]>;
   favorites: string[];
   toggleFavorite: (recipeId: string) => Promise<void>;
   isFavorite: (recipeId: string) => boolean;
@@ -850,24 +879,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [groceries],
   );
 
-  // ── Grocery list mutators (PRD §12; WS5 stubs, WS7 wires real persistence) ──
+  // ── Grocery list mutators (PRD §12; WS7-7-A B3 wires real persistence) ──
+  // Each persists then invalidates the Groceries-tab list query so its
+  // itemCount/status badge reflects the change (the detail screen manages
+  // its own optimistic state and reconciles to the returned row). Errors
+  // bubble so the screen reverts its optimistic update and surfaces the
+  // failure — no silent revert (§12.9).
+  const invalidateGroceryLists = () =>
+    queryClient.invalidateQueries({ queryKey: ["groceries", "list"] });
+
   const toggleGroceryItemCompleted = async (
     listId: string,
     itemId: string,
-  ): Promise<void> => {
-    // TODO(WS7): wire to PATCH /grocery-lists/{id}/items/{itemId}
-    console.log("[AppContext] toggleGroceryItemCompleted", { listId, itemId });
+    isChecked: boolean,
+  ): Promise<GroceryListItem> => {
+    const item = await updateGroceryListItem(listId, itemId, { isChecked });
+    void invalidateGroceryLists();
+    return item;
   };
 
   const toggleGroceryStapleSelection = async (
     listId: string,
     itemId: string,
-  ): Promise<void> => {
-    // TODO(WS7): wire to PATCH /grocery-lists/{id}/items/{itemId}
-    console.log("[AppContext] toggleGroceryStapleSelection", {
-      listId,
-      itemId,
+    optedIn: boolean,
+  ): Promise<GroceryListItem> => {
+    const item = await updateGroceryListItem(listId, itemId, {
+      stapleOptedIn: optedIn,
     });
+    void invalidateGroceryLists();
+    return item;
+  };
+
+  const updateGroceryItemQuantity = async (
+    listId: string,
+    itemId: string,
+    quantity: number,
+    unit: string,
+  ): Promise<GroceryListItem> => {
+    const item = await updateGroceryListItem(listId, itemId, {
+      quantity,
+      unit,
+    });
+    void invalidateGroceryLists();
+    return item;
   };
 
   const addGroceryItem = async (
@@ -876,23 +930,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ): Promise<GroceryListItem> => {
     // 6c-6-C: real wire. Errors bubble so callers (grocery-list/[id].tsx
     // optimistic-add) can roll back the local row.
-    return await addGroceryListItem(listId, payload);
+    const item = await addGroceryListItem(listId, payload);
+    void invalidateGroceryLists();
+    return item;
   };
 
   const removeGroceryItem = async (
     listId: string,
     itemId: string,
   ): Promise<void> => {
-    // TODO(WS7): wire to DELETE /grocery-lists/{id}/items/{itemId}
-    console.log("[AppContext] removeGroceryItem", { listId, itemId });
+    await deleteGroceryListItem(listId, itemId);
+    void invalidateGroceryLists();
+  };
+
+  const restoreGroceryItem = async (
+    listId: string,
+    itemId: string,
+  ): Promise<GroceryListItem> => {
+    const item = await restoreGroceryListItem(listId, itemId);
+    void invalidateGroceryLists();
+    return item;
   };
 
   const markGroceryShoppingDone = async (
     listId: string,
     done: boolean,
-  ): Promise<void> => {
-    // TODO(WS7): wire to PATCH /grocery-lists/{id} { status: done ? "completed" : "active" }
-    console.log("[AppContext] markGroceryShoppingDone", { listId, done });
+  ): Promise<GroceryList["status"]> => {
+    const status = await updateGroceryListStatus(
+      listId,
+      done ? "completed" : "active",
+    );
+    void invalidateGroceryLists();
+    return status;
   };
 
   // Optimistic toggle: write the React Query cache immediately, then POST /
@@ -1022,8 +1091,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toggleGrocery,
     toggleGroceryItemCompleted,
     toggleGroceryStapleSelection,
+    updateGroceryItemQuantity,
     addGroceryItem,
     removeGroceryItem,
+    restoreGroceryItem,
     markGroceryShoppingDone,
     favorites,
     toggleFavorite,

@@ -55,10 +55,16 @@ export default function GroceryListDetail() {
   const {
     toggleGroceryItemCompleted,
     toggleGroceryStapleSelection,
+    updateGroceryItemQuantity,
     addGroceryItem,
     removeGroceryItem,
+    restoreGroceryItem,
     markGroceryShoppingDone,
   } = useApp();
+  // Demo lists ("demo-grocery-*") are local fixtures for design review with
+  // non-UUID ids the server rejects — keep their mutations purely optimistic
+  // (no network call) so the design-review screen stays self-contained.
+  const isDemo = id.startsWith("demo-grocery-");
 
   // Optimistic local state. WS5 stubs were log-only; WS6 6c-4 Block C now
   // loads real lists via the API for non-demo ids. Demo ids
@@ -91,14 +97,10 @@ export default function GroceryListDetail() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [candidates, setCandidates] = useState<GroceryItemCandidate[]>([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
-  // PRD §12.7 — staples ship in "default" (dimmed, not yet on the trip).
-  // Opting in promotes them to a normal item; isCompleted strikethrough
-  // only fires after opt-in so "include in shopping" stays decoupled
-  // from "checked off while shopping". WS7 promotes this to a real
-  // schema field.
-  const [stapleOptedInSet, setStapleOptedInSet] = useState<Set<string>>(
-    () => new Set(),
-  );
+  // PRD §12.7 — staple opt-in ("buying this week") is now a server field
+  // (`stapleOptedIn` on the item), driving the active/dimmed render. WS7-7-A
+  // Block 3 retired the local stapleOptedInSet in favour of the persisted
+  // per-list flag, so opt-in survives reload.
   const [recentlyRemoved, setRecentlyRemoved] = useState<RemovedItem | null>(
     null,
   );
@@ -211,6 +213,24 @@ export default function GroceryListDetail() {
 
   const listId = list.id;
 
+  // Optimistic single-item patch into the local list state. Used by every
+  // mutation handler to apply (and revert) without re-fetching.
+  const applyItemPatch = (
+    itemId: string,
+    patch: Partial<GroceryListItem>,
+  ) => {
+    setList((prev) =>
+      prev
+        ? {
+            ...prev,
+            items: prev.items.map((it) =>
+              it.id === itemId ? { ...it, ...patch } : it,
+            ),
+          }
+        : prev,
+    );
+  };
+
   const handleItemTap = (item: GroceryListItem) => {
     // Tapping anywhere on the row while a quantity edit is open should
     // commit + exit edit (matches the ambient "tap-out to confirm"
@@ -219,90 +239,96 @@ export default function GroceryListDetail() {
       commitQuantityEdit();
       return;
     }
-    if (item.isUniversalStaple) {
-      const isOptedIn = stapleOptedInSet.has(item.id);
-      if (!isOptedIn) {
-        // Staple's first tap = opt in for this trip; don't strike.
-        setStapleOptedInSet((prev) => {
-          const next = new Set(prev);
-          next.add(item.id);
-          return next;
-        });
-        void toggleGroceryStapleSelection(listId, item.id);
-        return;
-      }
-      // Already opted in: fall through to normal complete-toggle.
+    if (item.isUniversalStaple && !(item.stapleOptedIn ?? false)) {
+      // Staple's first tap = opt in for this trip; don't strike. Optimistic
+      // local flip, then persist (§12.7); revert + surface on failure.
+      applyItemPatch(item.id, { stapleOptedIn: true });
+      if (isDemo) return;
+      toggleGroceryStapleSelection(listId, item.id, true).catch((err) => {
+        console.warn("[grocery-list] staple opt-in failed", err);
+        applyItemPatch(item.id, { stapleOptedIn: false });
+        Alert.alert(
+          "Couldn't update item",
+          "Something went wrong. Please try again.",
+        );
+      });
+      return;
     }
-    setList((prev) =>
-      prev
-        ? {
-            ...prev,
-            items: prev.items.map((it) =>
-              it.id === item.id ? { ...it, isCompleted: !it.isCompleted } : it,
-            ),
-          }
-        : prev,
-    );
-    void toggleGroceryItemCompleted(listId, item.id);
+    // Standard complete-toggle (incl. already-opted-in staples).
+    const nextChecked = !item.isCompleted;
+    applyItemPatch(item.id, { isCompleted: nextChecked });
+    if (isDemo) return;
+    toggleGroceryItemCompleted(listId, item.id, nextChecked).catch((err) => {
+      console.warn("[grocery-list] check-off failed", err);
+      applyItemPatch(item.id, { isCompleted: !nextChecked });
+      Alert.alert(
+        "Couldn't update item",
+        "Something went wrong. Please try again.",
+      );
+    });
   };
 
   const handleRemove = (item: GroceryListItem) => {
     if (item.isUniversalStaple) {
       // X on a staple just clears the opt-in (returns to dimmed state).
       // Default-staple X is hidden in GroceryRow, so this branch only
-      // fires for opted-in staples.
-      setStapleOptedInSet((prev) => {
-        const next = new Set(prev);
-        next.delete(item.id);
-        return next;
+      // fires for opted-in staples. Also clear any strikethrough.
+      applyItemPatch(item.id, { stapleOptedIn: false, isCompleted: false });
+      if (isDemo) return;
+      toggleGroceryStapleSelection(listId, item.id, false).catch((err) => {
+        console.warn("[grocery-list] staple opt-out failed", err);
+        applyItemPatch(item.id, { stapleOptedIn: true });
+        Alert.alert(
+          "Couldn't update item",
+          "Something went wrong. Please try again.",
+        );
       });
-      // Also clear any strikethrough if the staple was opted-in then checked.
-      setList((prev) =>
-        prev
-          ? {
-              ...prev,
-              items: prev.items.map((it) =>
-                it.id === item.id ? { ...it, isCompleted: false } : it,
-              ),
-            }
-          : prev,
-      );
-      void toggleGroceryStapleSelection(listId, item.id);
       return;
     }
-    // Standard item: optimistic remove with undo banner.
+    // Standard item: optimistic remove with undo banner. Soft-delete on the
+    // server; the row id is preserved so undo restores the SAME row.
     setList((prev) =>
       prev
         ? { ...prev, items: prev.items.filter((it) => it.id !== item.id) }
         : prev,
     );
     setRecentlyRemoved({ item });
-    void removeGroceryItem(listId, item.id);
+    if (isDemo) return;
+    removeGroceryItem(listId, item.id).catch((err) => {
+      console.warn("[grocery-list] remove failed; restoring row", err);
+      // Re-insert the optimistically-removed row and drop the undo banner.
+      setList((prev) =>
+        prev ? { ...prev, items: [...prev.items, item] } : prev,
+      );
+      setRecentlyRemoved(null);
+      Alert.alert(
+        "Couldn't remove item",
+        "Something went wrong. Please try again.",
+      );
+    });
   };
 
   const handleUndo = () => {
     if (!recentlyRemoved) return;
     const { item } = recentlyRemoved;
+    // Re-insert immediately; the restore endpoint resurrects the SAME row id
+    // (WS7-7-A B2), so no fresh-row reconciliation is needed.
     setList((prev) =>
       prev ? { ...prev, items: [...prev.items, item] } : prev,
     );
     setRecentlyRemoved(null);
-    // 6c-6-C — restore via the real POST. Preserves the original
-    // section + quantity so the undone item lands in the same place
-    // it was removed from. The original item's server id is lost
-    // (this writes a fresh row); WS7 swaps for a real undo endpoint
-    // that resurrects the row by id. Errors swallowed — the local
-    // row is already back on screen.
-    const restorePayload: AddItemPayload = {
-      itemName: item.name,
-      sectionKey: item.sectionKey,
-      quantity: item.quantityAmount
-        ? parseFloat(item.quantityAmount) || 1
-        : 1,
-      unit: item.quantityUnit ?? undefined,
-    };
-    void addGroceryItem(listId, restorePayload).catch((err) => {
-      console.warn("[grocery-list] undo restore failed", err);
+    if (isDemo) return;
+    restoreGroceryItem(listId, item.id).catch((err) => {
+      console.warn("[grocery-list] undo restore failed; removing again", err);
+      setList((prev) =>
+        prev
+          ? { ...prev, items: prev.items.filter((it) => it.id !== item.id) }
+          : prev,
+      );
+      Alert.alert(
+        "Couldn't restore item",
+        "Something went wrong. Please try again.",
+      );
     });
   };
 
@@ -324,14 +350,17 @@ export default function GroceryListDetail() {
       console.log("[grocery-list] commit no-op (no active edit)");
       return;
     }
+    const itemId = editingItemId;
     const amt = editAmount.trim() || undefined;
     const unit = editUnit.trim() || undefined;
+    // Snapshot the pre-edit values so a failed persist can revert cleanly.
+    const prior = list?.items.find((it) => it.id === itemId);
     setList((prev) =>
       prev
         ? {
             ...prev,
             items: prev.items.map((it) =>
-              it.id === editingItemId
+              it.id === itemId
                 ? {
                     ...it,
                     quantityAmount: amt,
@@ -346,13 +375,6 @@ export default function GroceryListDetail() {
           }
         : prev,
     );
-    // TODO(WS7): wire to PATCH /grocery-lists/{id}/items/{itemId}
-    console.log("[grocery-list] quantity edit commit", {
-      listId,
-      itemId: editingItemId,
-      quantityAmount: amt,
-      quantityUnit: unit,
-    });
     // Order matters (WS5-5Q-fix-4): dismiss keyboard FIRST so the keyboard
     // animation and layout shift start before React re-renders the row;
     // then clear edit state, which unmounts the TextInput and naturally
@@ -361,7 +383,37 @@ export default function GroceryListDetail() {
     // stuck until the next scroll resets it.
     Keyboard.dismiss();
     setEditingItemId(null);
-    console.log("[grocery-list] quantity edit committed; ready for next tap");
+
+    if (isDemo) return;
+    // Persist (§12.9). The server stores quantity as a positive Float; when
+    // the amount is cleared/invalid we fall back to the prior numeric (or 1)
+    // so a unit-only edit still round-trips a valid quantity.
+    const parsed = amt ? parseQuantity(amt) : null;
+    const priorNum = prior?.quantityAmount
+      ? parseFloat(prior.quantityAmount)
+      : NaN;
+    const quantity =
+      parsed != null && parsed > 0
+        ? parsed
+        : Number.isFinite(priorNum) && priorNum > 0
+          ? priorNum
+          : 1;
+    updateGroceryItemQuantity(listId, itemId, quantity, unit ?? "").catch(
+      (err) => {
+        console.warn("[grocery-list] quantity edit persist failed", err);
+        if (prior) {
+          applyItemPatch(itemId, {
+            quantityAmount: prior.quantityAmount,
+            quantityUnit: prior.quantityUnit,
+            quantity: prior.quantity,
+          });
+        }
+        Alert.alert(
+          "Couldn't update quantity",
+          "Something went wrong. Please try again.",
+        );
+      },
+    );
   };
 
   // 6c-6-C — optimistic-add core. Resolves quantity/unit from candidate
@@ -403,6 +455,7 @@ export default function GroceryListDetail() {
       quantityUnit: unit || undefined,
       sectionKey,
       isUniversalStaple: false,
+      stapleOptedIn: false,
       isRecurringItem: false,
       isAmbiguous: false,
       isOptional: false,
@@ -483,13 +536,31 @@ export default function GroceryListDetail() {
   }, [addItemInput, debouncedQuery, candidates, candidatesLoading]);
 
   const handleMarkDone = () => {
-    void markGroceryShoppingDone(listId, true);
-    setList((prev) => (prev ? { ...prev, status: "completed" } : prev));
+    const prev = list.status;
+    setList((p) => (p ? { ...p, status: "completed" } : p));
+    if (isDemo) return;
+    markGroceryShoppingDone(listId, true).catch((err) => {
+      console.warn("[grocery-list] mark-done failed", err);
+      setList((p) => (p ? { ...p, status: prev } : p));
+      Alert.alert(
+        "Couldn't update list",
+        "Something went wrong. Please try again.",
+      );
+    });
   };
 
   const handleUnmarkDone = () => {
-    void markGroceryShoppingDone(listId, false);
-    setList((prev) => (prev ? { ...prev, status: "active" } : prev));
+    const prev = list.status;
+    setList((p) => (p ? { ...p, status: "active" } : p));
+    if (isDemo) return;
+    markGroceryShoppingDone(listId, false).catch((err) => {
+      console.warn("[grocery-list] unmark-done failed", err);
+      setList((p) => (p ? { ...p, status: prev } : p));
+      Alert.alert(
+        "Couldn't update list",
+        "Something went wrong. Please try again.",
+      );
+    });
   };
 
   const handleAmbiguousReview = () => {
@@ -723,7 +794,7 @@ export default function GroceryListDetail() {
                     <GroceryRow
                       key={item.id}
                       item={item}
-                      stapleOptedIn={stapleOptedInSet.has(item.id)}
+                      stapleOptedIn={item.stapleOptedIn ?? false}
                       isEditing={editingItemId === item.id}
                       editAmount={editAmount}
                       editUnit={editUnit}

@@ -103,6 +103,10 @@ const GroceryListItemWireSchema = z
     isUniversalStaple: z.boolean(),
     isUserPantryStaple: z.boolean(),
     isRecurringItem: z.boolean(),
+    // WS7-7-A Block 3 — per-list staple opt-in ("buying this week", §12.7),
+    // now a real server column. Drives GroceryRow's active/dimmed staple
+    // render; replaces the screen's local stapleOptedInSet.
+    stapleOptedIn: z.boolean(),
     ambiguityOptions: z.array(z.string()),
     userResolvedTo: z.string().nullable(),
     notes: z.string().nullable(),
@@ -114,7 +118,11 @@ const GroceryListWireSchema = z
     id: z.string(),
     title: z.string(),
     mealPlanInstanceId: z.string().nullable(),
-    status: z.enum(["draft", "active", "ordered", "archived"]),
+    // WS7-7-A Block 3 — `completed` added (B2 enum value). Without it, a
+    // marked-done list FAILS to parse on read-back (ApiSchemaError). The
+    // wire enum lists the full server vocabulary; normalizeList maps it to
+    // the mobile-side union below.
+    status: z.enum(["draft", "active", "completed", "ordered", "archived"]),
     createdAt: z.string(),
     items: z.array(GroceryListItemWireSchema),
     planInstance: z
@@ -153,6 +161,7 @@ function normalizeListItem(wire: GroceryListItemWire): GroceryListItem {
     // separate `isUserPantryStaple` field today — fold both into the
     // universal-staple flag for UI dimming purposes (PRD §12.7).
     isUniversalStaple: wire.isUniversalStaple || wire.isUserPantryStaple,
+    stapleOptedIn: wire.stapleOptedIn,
     isRecurringItem: wire.isRecurringItem,
     isAmbiguous: wire.isAmbiguous,
     ambiguityOptions:
@@ -325,4 +334,115 @@ export function parseSuggestedQuantity(
   const qty = parseFloat(match[1]);
   if (!isFinite(qty) || qty <= 0) return { quantity: 1, unit: match[2] };
   return { quantity: qty, unit: match[2] };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS7-7-A Block 3 — item-mutation clients (PATCH list/item, DELETE, restore)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * PATCH /api/grocery-lists/:id — §12.6.3 mark-shopping-done. Bidirectional;
+ * the server accepts only "active" | "completed". Returns the new status
+ * (mobile-side union). The response carries the bare list row (no items), so
+ * a minimal schema is used rather than the full GroceryListWireSchema.
+ */
+const UpdateListStatusResponseSchema = z.object({
+  list: z
+    .object({
+      id: z.string(),
+      status: z.enum(["draft", "active", "completed", "ordered", "archived"]),
+    })
+    .passthrough(),
+});
+
+export async function updateGroceryListStatus(
+  listId: string,
+  status: "active" | "completed",
+): Promise<GroceryList["status"]> {
+  const body = await apiClient(
+    `/grocery-lists/${encodeURIComponent(listId)}`,
+    {
+      method: "PATCH",
+      body: { status },
+      schema: UpdateListStatusResponseSchema,
+    },
+  );
+  // 'archived' never surfaces in normal flows; fold to 'completed' for the
+  // mobile union (same mapping as normalizeList).
+  return body.list.status === "archived" ? "completed" : body.list.status;
+}
+
+/**
+ * PATCH /api/grocery-lists/:id/items/:itemId — partial item update. Pass any
+ * subset of the editable fields; the server requires ≥1. Returns the
+ * normalized mobile-side item. Errors throw — callers revert their optimistic
+ * update and surface the failure.
+ *
+ * `userResolvedTo`/`isAmbiguous` belong to the B5 clarify UI; this block only
+ * wires isChecked / quantity+unit / stapleOptedIn.
+ */
+export interface UpdateGroceryListItemPatch {
+  isChecked?: boolean;
+  quantity?: number;
+  unit?: string;
+  stapleOptedIn?: boolean;
+  storeSection?: GroceryListItem["sectionKey"];
+  displayName?: string;
+  userResolvedTo?: string | null;
+}
+
+const UpdateItemResponseSchema = z.object({ item: GroceryListItemWireSchema });
+
+export async function updateGroceryListItem(
+  listId: string,
+  itemId: string,
+  patch: UpdateGroceryListItemPatch,
+): Promise<GroceryListItem> {
+  const body = await apiClient(
+    `/grocery-lists/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}`,
+    {
+      method: "PATCH",
+      body: patch as Record<string, unknown>,
+      schema: UpdateItemResponseSchema,
+    },
+  );
+  return normalizeListItem(body.item);
+}
+
+/**
+ * DELETE /api/grocery-lists/:id/items/:itemId — soft-delete. Returns the
+ * deleted item shape (for the undo banner). The row id is preserved server-
+ * side so {@link restoreGroceryListItem} resurrects the SAME row.
+ */
+export async function deleteGroceryListItem(
+  listId: string,
+  itemId: string,
+): Promise<GroceryListItem> {
+  const body = await apiClient(
+    `/grocery-lists/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}`,
+    {
+      method: "DELETE",
+      schema: UpdateItemResponseSchema,
+    },
+  );
+  return normalizeListItem(body.item);
+}
+
+/**
+ * POST /api/grocery-lists/:id/items/:itemId/restore — undo a soft-delete.
+ * Returns the restored item with its ORIGINAL id (D-WS6-082), so the undo
+ * flow re-inserts the same row rather than minting a fresh one.
+ */
+export async function restoreGroceryListItem(
+  listId: string,
+  itemId: string,
+): Promise<GroceryListItem> {
+  const body = await apiClient(
+    `/grocery-lists/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}/restore`,
+    {
+      method: "POST",
+      schema: UpdateItemResponseSchema,
+    },
+  );
+  return normalizeListItem(body.item);
 }
