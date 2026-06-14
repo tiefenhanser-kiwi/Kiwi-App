@@ -69,7 +69,7 @@ import {
   getSavedDishes,
   getTopRatedDishes,
 } from "@/lib/stubs";
-import type { DraftMeal, SavedDish } from "@/lib/types";
+import type { DraftMeal, RecipeOverride, SavedDish } from "@/lib/types";
 
 type Mode = "manual" | "combine" | "ai" | null;
 
@@ -147,7 +147,8 @@ export default function MealBuilderScreen() {
 
   // WS7-6 Block 1E — Surface 1 (create) wiring.
   // WS7-6 1F — updateMeal mutator for the library / "Apply always" edit paths.
-  const { saveMeal, updateMeal, addMealToPlan } = useApp();
+  const { saveMeal, updateMeal, addMealToPlan, changeRecipeForPlanItem } =
+    useApp();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
 
@@ -585,13 +586,66 @@ export default function MealBuilderScreen() {
     };
   };
 
+  // WS7-7-A B5 — translate the builder's edited dishes into a per-instance
+  // RecipeOverride (PRD §8.4.3) for the "just this time" path. Maps each dish's
+  // ingredients in position order so the consolidator can re-resolve quantities
+  // for THIS plan only. "link" dishes (combine mode) carry no inline
+  // ingredients — they don't occur in an edit-from-plan recipe edit, but we
+  // emit an empty list defensively to keep dish-position alignment.
+  const buildRecipeOverride = (input: SaveMealInput): RecipeOverride => ({
+    titleOverride: input.title,
+    dishes: input.dishes.map((d) => ({
+      name: d.kind === "new" ? d.title : "Dish",
+      ingredients:
+        d.kind === "new"
+          ? d.ingredients.map((ing) => ({
+              name: ing.name,
+              quantity: ing.quantity,
+              unit: ing.unit,
+            }))
+          : [],
+    })),
+    createdAt: new Date().toISOString(),
+  });
+
+  // WS7-7-A B5 — "Just this time": persist the edit as the plan item's
+  // recipeOverrideJson (D-WS7-090). The global Meal is untouched; only this
+  // plan instance + its grocery list reflect the change.
+  const runSaveJustThisTime = async (input: SaveMealInput) => {
+    if (!planId || !planItemId) return;
+    setSaving(true);
+    try {
+      await changeRecipeForPlanItem(planId, planItemId, buildRecipeOverride(input));
+      Alert.alert("Saved for this plan", `${input.title} was updated here.`, [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't save your changes. Try again?";
+      Alert.alert("Couldn't save meal", msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // WS7-6 1F + 1G — perform the actual PATCH for both the library-context
   // edit (no prompt) and the §2.5 "Apply always" branch. Shared helper so
   // the success/error/post-success-routing copy stays consistent.
-  const runUpdateMeal = async (id: string, input: SaveMealInput) => {
+  // WS7-7-A B5 — bumpPlanId is set on the "Apply always"-from-a-plan path so
+  // the current plan's grocery list reconciles to the global edit.
+  const runUpdateMeal = async (
+    id: string,
+    input: SaveMealInput,
+    bumpPlanId?: string,
+  ) => {
     setSaving(true);
     try {
-      await updateMeal(id, buildUpdateMealInput(input));
+      await updateMeal(id, {
+        ...buildUpdateMealInput(input),
+        ...(bumpPlanId ? { bumpPlanId } : {}),
+      });
       Alert.alert("Saved", `${input.title} was updated.`, [
         { text: "OK", onPress: () => router.back() },
       ]);
@@ -678,25 +732,20 @@ export default function MealBuilderScreen() {
         "How do you want to apply your edits?",
         [
           {
-            // RN Alert can't render a disabled button. The "just this time"
-            // override path (writes MealPlanItem.ingredientOverrides) is a
-            // separate follow-on; here the button shows + fires a coming-
-            // soon Alert so users see the option exists.
-            // WS7-6 1F: RN Alert can't disable a button; "just this time"
-            // labeled coming-soon, fires info Alert; ingredientOverrides
-            // write path → 1F-later block (D-WS7-090).
-            text: "Just this time (coming soon)",
+            // WS7-7-A B5 (D-WS7-090) — "just this time" writes the plan item's
+            // recipeOverrideJson; the saved Meal is untouched, only this plan
+            // instance + its grocery list change.
+            text: "Just this time",
             onPress: () => {
-              Alert.alert(
-                "Coming soon",
-                "Saving an edit for just this plan (without changing your saved meal) is on the way. For now, choose \"Apply always\" or cancel.",
-              );
+              void runSaveJustThisTime(input);
             },
           },
           {
             text: "Apply always",
             onPress: () => {
-              void runUpdateMeal(mealId, input);
+              // WS7-7-A B5 — "forever, starting now": edit the global meal AND
+              // bump THIS plan so its grocery list reconciles immediately.
+              void runUpdateMeal(mealId, input, planId);
             },
           },
           { text: "Cancel", style: "cancel" },

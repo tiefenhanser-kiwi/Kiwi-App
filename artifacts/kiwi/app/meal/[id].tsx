@@ -106,10 +106,11 @@ function HeartButton({ mealId }: { mealId: string }) {
 // "meal not found" view, and a retry-able error banner for everything else —
 // and hands the resolved MealDetail to <MealDetailContent>.
 export default function MealDetailScreen() {
-  const { id, planId, planItemId } = useLocalSearchParams<{
+  const { id, planId, planItemId, servingsOverride } = useLocalSearchParams<{
     id: string;
     planId?: string;
     planItemId?: string;
+    servingsOverride?: string;
   }>();
   const mealId = id ?? "";
   const router = useRouter();
@@ -163,8 +164,20 @@ export default function MealDetailScreen() {
     );
   }
 
+  // WS7-7-A B5 — parse the plan-instance servings override (passed as a string
+  // route param). Falsy/NaN → undefined (inherit the meal default).
+  const parsedOverride = servingsOverride ? Number(servingsOverride) : NaN;
+  const initialServings = Number.isFinite(parsedOverride)
+    ? parsedOverride
+    : undefined;
+
   return (
-    <MealDetailContent meal={meal} planId={planId} planItemId={planItemId} />
+    <MealDetailContent
+      meal={meal}
+      planId={planId}
+      planItemId={planItemId}
+      initialServings={initialServings}
+    />
   );
 }
 
@@ -172,12 +185,15 @@ function MealDetailContent({
   meal,
   planId,
   planItemId,
+  initialServings,
 }: {
   meal: MealDetail;
   planId?: string;
   planItemId?: string;
+  initialServings?: number;
 }) {
   const router = useRouter();
+  const { setServingsForPlanItem } = useApp();
 
   // §2.5 banner context — present only when the screen was opened from a plan
   // item. GET /meals/:id has no per-plan override concept, so this is derived
@@ -185,8 +201,14 @@ function MealDetailContent({
   const hasOverride = !!(planId && planItemId);
 
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  const [displayServings, setDisplayServings] = useState(meal.servings);
+  // WS7-7-A B5 — in a plan, seed from the instance override; otherwise the
+  // meal's own default. The stepper is display-only in the library context
+  // (no plan item to persist to) and persists in the plan context.
+  const [displayServings, setDisplayServings] = useState(
+    initialServings ?? meal.servings,
+  );
   const [addToPlanVisible, setAddToPlanVisible] = useState(false);
+  const canPersistServings = !!(planId && planItemId);
 
   const showBanner = hasOverride && !bannerDismissed;
   const servingsMultiplier = displayServings / meal.servings;
@@ -237,12 +259,28 @@ function MealDetailContent({
     </View>
   );
 
-  const decrementServings = () => {
-    setDisplayServings((n) => Math.max(SERVINGS_MIN, n - 1));
+  // WS7-7-A B5 — apply a servings delta. In a plan, optimistically update the
+  // display and persist the new value as servingsOverride (which bumps the plan
+  // revision → the grocery list reconciles to the new quantities). On failure
+  // we revert the display and surface the error. In the library context there's
+  // no plan item to write to, so the stepper stays display-only.
+  const applyServings = (next: number) => {
+    const clamped = Math.max(SERVINGS_MIN, Math.min(SERVINGS_MAX, next));
+    if (clamped === displayServings) return;
+    const prev = displayServings;
+    setDisplayServings(clamped);
+    if (canPersistServings) {
+      void setServingsForPlanItem(planId!, planItemId!, clamped).catch(() => {
+        setDisplayServings(prev);
+        Alert.alert(
+          "Couldn't update servings",
+          "We couldn't save that change. Please try again.",
+        );
+      });
+    }
   };
-  const incrementServings = () => {
-    setDisplayServings((n) => Math.min(SERVINGS_MAX, n + 1));
-  };
+  const decrementServings = () => applyServings(displayServings - 1);
+  const incrementServings = () => applyServings(displayServings + 1);
 
   const onSaveGlobally = () => {
     console.log("[meal-detail] save-globally tapped", {

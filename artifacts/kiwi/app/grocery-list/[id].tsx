@@ -104,6 +104,9 @@ export default function GroceryListDetail() {
   const [recentlyRemoved, setRecentlyRemoved] = useState<RemovedItem | null>(
     null,
   );
+  // WS7-7-A B5 — shown when the GET reconciled the list to plan changes
+  // (data-driven off the server's `reconciled` flag, not a timer). Dismissable.
+  const [showReconciledBanner, setShowReconciledBanner] = useState(false);
   // WS5-5Q-fix-2 — inline quantity edit (mirrors meal-builder's two-input
   // amount + unit pattern; parent owns edit state so a focus-swap between
   // the two inputs doesn't unmount the row mid-edit).
@@ -171,10 +174,13 @@ export default function GroceryListDetail() {
     let cancelled = false;
     (async () => {
       try {
-        const real = await getGroceryList(id);
+        const { list: real, reconciled } = await getGroceryList(id);
         if (!cancelled) {
           setList(real);
           setLoadStatus("ready");
+          // The list self-maintained to match plan edits — tell the user so
+          // a changed quantity doesn't look like a glitch (PRD: no staleness).
+          if (reconciled) setShowReconciledBanner(true);
         }
       } catch (err) {
         console.error("[grocery-list/[id]] load failed", err);
@@ -860,6 +866,23 @@ export default function GroceryListDetail() {
         )}
       </KeyboardAwareScrollViewCompat>
 
+      {/* WS7-7-A B5 — reconcile notice. Reuses the undo-banner shape; sits a
+          row higher so it doesn't collide with the undo banner. */}
+      {showReconciledBanner && (
+        <View style={s.reconcileBanner} pointerEvents="box-none">
+          <View style={s.undoBannerInner}>
+            <Text style={s.undoBannerText}>Updated to match your plan.</Text>
+            <Pressable
+              onPress={() => setShowReconciledBanner(false)}
+              hitSlop={6}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            >
+              <Text style={s.undoBannerAction}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       {recentlyRemoved && (
         <View style={s.undoBanner} pointerEvents="box-none">
           <View style={s.undoBannerInner}>
@@ -1441,6 +1464,14 @@ const s = StyleSheet.create({
     left: KSpacing.lg,
     right: KSpacing.lg,
     bottom: KSpacing.lg,
+    alignItems: "center",
+  },
+  // WS7-7-A B5 — reconcile notice, stacked above the undo banner's slot.
+  reconcileBanner: {
+    position: "absolute",
+    left: KSpacing.lg,
+    right: KSpacing.lg,
+    bottom: KSpacing.lg + 64,
     alignItems: "center",
   },
   undoBannerInner: {

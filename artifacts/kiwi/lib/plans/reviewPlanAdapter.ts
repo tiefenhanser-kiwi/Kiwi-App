@@ -77,6 +77,8 @@ function itemToRow(
     carbsGPerServing: meal.carbs,
     fatGPerServing: meal.fat,
     dayStrip: buildDayStrip(day),
+    // WS7-7-A B5 — carry the plan-instance servings override to Meal Detail.
+    servingsOverride: item.servingsOverride,
   };
 }
 

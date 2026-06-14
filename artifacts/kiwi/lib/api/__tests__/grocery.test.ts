@@ -103,7 +103,7 @@ afterEach(() => {
 
 test("getGroceryList parses a completed-status list WITHOUT error (B3 wire-shape fix)", async () => {
   nextResponse = () => mockJson({ list: wireList({ status: "completed" }) });
-  const list = await getGroceryList("list-1");
+  const { list } = await getGroceryList("list-1");
   // The pre-fix enum (draft/active/ordered/archived) would have thrown
   // ApiSchemaError here; `completed` now round-trips to the mobile union.
   assert.equal(list.status, "completed");
@@ -114,8 +114,20 @@ test("getGroceryList maps the server stapleOptedIn flag onto each item", async (
     mockJson({
       list: wireList({ items: [wireItem({ stapleOptedIn: true })] }),
     });
-  const list = await getGroceryList("list-1");
+  const { list } = await getGroceryList("list-1");
   assert.equal(list.items[0].stapleOptedIn, true);
+});
+
+test("getGroceryList surfaces the server reconciled flag (B5)", async () => {
+  nextResponse = () => mockJson({ list: wireList({}), reconciled: true });
+  const { reconciled } = await getGroceryList("list-1");
+  assert.equal(reconciled, true);
+});
+
+test("getGroceryList defaults reconciled to false when the server omits it", async () => {
+  nextResponse = () => mockJson({ list: wireList({}) });
+  const { reconciled } = await getGroceryList("list-1");
+  assert.equal(reconciled, false);
 });
 
 test("getGroceryList still rejects an unknown status value (enum stays strict)", async () => {

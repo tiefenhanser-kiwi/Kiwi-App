@@ -876,6 +876,64 @@ test("changeRecipeForPlanItem PATCHes /items with { recipeOverrideJson: override
   assert.deepEqual(capturedBody, { recipeOverrideJson: override });
 });
 
+// ── WS7-7-A B5 — setServingsForPlanItem ──────────────────────────────────
+
+test("setServingsForPlanItem PATCHes /items with { servingsOverride }", async () => {
+  await mountAuthed();
+
+  let capturedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      String(url).endsWith("/plans/plan-1/items/item-1")
+    ) {
+      capturedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(mockJson(itemMutationResponse("plan-1", "item-1")));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.setServingsForPlanItem("plan-1", "item-1", 8);
+  });
+
+  assert.deepEqual(capturedBody, { servingsOverride: 8 });
+});
+
+test("setServingsForPlanItem sends null to clear the override", async () => {
+  await mountAuthed();
+
+  let capturedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      String(url).endsWith("/plans/plan-1/items/item-1")
+    ) {
+      capturedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(mockJson(itemMutationResponse("plan-1", "item-1")));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.setServingsForPlanItem("plan-1", "item-1", null);
+  });
+
+  assert.deepEqual(capturedBody, { servingsOverride: null });
+});
+
 test("promoteRecipeOverrideToMeal POSTs to /promote-override and invalidates caches", async () => {
   const qc = await mountAuthed();
   qc.setQueryData(["plans", "plan-1"], { id: "plan-1" });

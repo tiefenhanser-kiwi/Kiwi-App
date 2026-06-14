@@ -134,7 +134,12 @@ const GroceryListWireSchema = z
   })
   .passthrough();
 
-const GetGroceryListResponseSchema = z.object({ list: GroceryListWireSchema });
+const GetGroceryListResponseSchema = z.object({
+  list: GroceryListWireSchema,
+  // WS7-7-A B5 — true when this read reconciled the list to plan changes.
+  // Optional for forward-compat with any pre-B5 server.
+  reconciled: z.boolean().optional(),
+});
 
 type GroceryListItemWire = z.infer<typeof GroceryListItemWireSchema>;
 type GroceryListWire = z.infer<typeof GroceryListWireSchema>;
@@ -193,11 +198,19 @@ function normalizeList(wire: GroceryListWire): GroceryList {
   };
 }
 
-export async function getGroceryList(listId: string): Promise<GroceryList> {
+export interface GetGroceryListResult {
+  list: GroceryList;
+  // WS7-7-A B5 — drives the transient "updating to match plan changes" banner.
+  reconciled: boolean;
+}
+
+export async function getGroceryList(
+  listId: string,
+): Promise<GetGroceryListResult> {
   const body = await apiClient(`/grocery-lists/${encodeURIComponent(listId)}`, {
     schema: GetGroceryListResponseSchema,
   });
-  return normalizeList(body.list);
+  return { list: normalizeList(body.list), reconciled: body.reconciled ?? false };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

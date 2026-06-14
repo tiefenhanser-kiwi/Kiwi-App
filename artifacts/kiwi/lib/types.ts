@@ -260,6 +260,10 @@ export interface ReviewPlanMealRow {
   fatGPerServing?: number;
   /** Day strip — 7 entries Sun-Sat with assignment state. */
   dayStrip: DayAssignment[];
+  /** WS7-7-A B5 — per-instance servings (MealPlanItem.servingsOverride); null
+   *  = inherit the meal's default. Plumbed to Meal Detail so the servings
+   *  stepper initializes from the plan's value and persists back to it. */
+  servingsOverride?: number | null;
 }
 
 /** Optimization panel bullet per PRD §8.3.4. */

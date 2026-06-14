@@ -130,6 +130,13 @@ interface AppState {
     planItemId: string,
     override: RecipeOverride,
   ) => Promise<void>;
+  /** WS7-7-A B5 — set per-instance servings (servingsOverride) for a plan item;
+   *  flows to this plan's grocery list. `null` clears the override. */
+  setServingsForPlanItem: (
+    planId: string,
+    planItemId: string,
+    servings: number | null,
+  ) => Promise<void>;
   /** PRD §2.5 + §8.4.3 — promote a plan-item's recipeOverrideJson into the underlying Meal record. Clears the override after promotion. */
   promoteRecipeOverrideToMeal: (
     planId: string,
@@ -582,6 +589,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const promoteRecipeOverrideToMeal = useCallback(
     async (planId: string, planItemId: string): Promise<void> => {
       const response = await promoteItemOverride(planId, planItemId);
+      handleMutationResult(planId, response.macrosStale);
+    },
+    [handleMutationResult],
+  );
+
+  // WS7-7-A B5 — per-instance servings. Bumps the plan revision server-side
+  // (D-WS7-134), so the next grocery-list GET reconciles the new quantities.
+  const setServingsForPlanItem = useCallback(
+    async (
+      planId: string,
+      planItemId: string,
+      servings: number | null,
+    ): Promise<void> => {
+      const response = await patchPlanItem(planId, planItemId, {
+        servingsOverride: servings,
+      });
       handleMutationResult(planId, response.macrosStale);
     },
     [handleMutationResult],
@@ -1068,6 +1091,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     removeMealFromPlan,
     changeMealForPlanItem,
     changeRecipeForPlanItem,
+    setServingsForPlanItem,
     promoteRecipeOverrideToMeal,
     updatePlanName,
     updatePlanDateRange,

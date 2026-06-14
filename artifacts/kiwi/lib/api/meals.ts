@@ -403,6 +403,11 @@ export interface UpdateMealInput {
   imageUrl?: string | null;
   macros?: SaveMealMacrosPerServing;
   dishes?: SaveMealDish[];
+  // WS7-7-A B5 — "apply every time" from inside a plan. When set, the server
+  // bumps THIS plan instance's revision in the same transaction as the edit so
+  // the current plan's grocery list reconciles. Other plans keep their
+  // snapshot. Omitted for plain library edits (D-WS7-136 forward-only).
+  bumpPlanId?: string;
 }
 
 // Server's PATCH meal response has two shapes depending on whether dishes[]

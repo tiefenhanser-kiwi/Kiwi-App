@@ -51,7 +51,16 @@ export function PlanReviewMealRow({
   const navigateToDetail = () => {
     router.push({
       pathname: "/meal/[id]",
-      params: { id: row.mealId, planId, planItemId: row.planItemId },
+      params: {
+        id: row.mealId,
+        planId,
+        planItemId: row.planItemId,
+        // WS7-7-A B5 — seed the servings stepper from the plan's override so it
+        // shows the plan's value (not the meal default) on open.
+        ...(row.servingsOverride != null
+          ? { servingsOverride: String(row.servingsOverride) }
+          : {}),
+      },
     });
   };
 
