@@ -257,6 +257,31 @@ test("toggleGroceryStapleSelection PATCHes { stapleOptedIn } (opt-in and opt-out
   assert.deepEqual(captured?.body, { stapleOptedIn: false });
 });
 
+// ── WS7-7-A B5 — resolveGroceryItemAmbiguity (clarify-any-time) ──────────────
+
+test("resolveGroceryItemAmbiguity with a value PATCHes { userResolvedTo } (resolve)", async () => {
+  await mountAuthed();
+  route("PATCH", "/grocery-lists/list-1/items/item-1", () =>
+    mockJson({ item: wireItem({ userResolvedTo: "chicken thighs" }) }),
+  );
+  await act(async () => {
+    await app!.resolveGroceryItemAmbiguity("list-1", "item-1", "chicken thighs");
+  });
+  assert.equal(captured?.method, "PATCH");
+  assert.deepEqual(captured?.body, { userResolvedTo: "chicken thighs" });
+});
+
+test("resolveGroceryItemAmbiguity with null PATCHes { acknowledgeAmbiguity } (leave-as-is)", async () => {
+  await mountAuthed();
+  route("PATCH", "/grocery-lists/list-1/items/item-1", () =>
+    mockJson({ item: wireItem({ isAmbiguous: false }) }),
+  );
+  await act(async () => {
+    await app!.resolveGroceryItemAmbiguity("list-1", "item-1", null);
+  });
+  assert.deepEqual(captured?.body, { acknowledgeAmbiguity: true });
+});
+
 // ── updateGroceryItemQuantity ───────────────────────────────────────────────
 
 test("updateGroceryItemQuantity PATCHes { quantity, unit }", async () => {

@@ -265,6 +265,15 @@ interface AppState {
     quantity: number,
     unit: string,
   ) => Promise<GroceryListItem>;
+  /** PRD §12.5 — clarify-any-time (WS7-7-A B5). `resolution` non-null writes
+   *  userResolvedTo (flips isAmbiguous→false, projection-rendered); `null` is
+   *  "leave-as-is" → acknowledgeAmbiguity (clears the flag, no resolution
+   *  value). Returns the server row; throws on failure. */
+  resolveGroceryItemAmbiguity: (
+    listId: string,
+    itemId: string,
+    resolution: string | null,
+  ) => Promise<GroceryListItem>;
   /** PRD §12.6.1 — append an item to a grocery list. 6c-6-C wired the
    *  payload to the real POST /grocery-lists/:id/items endpoint; the
    *  returned item carries the server-generated id so the screen can
@@ -947,6 +956,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return item;
   };
 
+  // WS7-7-A B5 — clarify-any-time. Resolve (userResolvedTo) vs leave-as-is
+  // (acknowledgeAmbiguity); both clear isAmbiguous server-side, differing only
+  // in whether a resolution value is recorded for projection rendering.
+  const resolveGroceryItemAmbiguity = async (
+    listId: string,
+    itemId: string,
+    resolution: string | null,
+  ): Promise<GroceryListItem> => {
+    const item = await updateGroceryListItem(
+      listId,
+      itemId,
+      resolution !== null
+        ? { userResolvedTo: resolution }
+        : { acknowledgeAmbiguity: true },
+    );
+    void invalidateGroceryLists();
+    return item;
+  };
+
   const addGroceryItem = async (
     listId: string,
     payload: AddItemPayload,
@@ -1116,6 +1144,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toggleGroceryItemCompleted,
     toggleGroceryStapleSelection,
     updateGroceryItemQuantity,
+    resolveGroceryItemAmbiguity,
     addGroceryItem,
     removeGroceryItem,
     restoreGroceryItem,

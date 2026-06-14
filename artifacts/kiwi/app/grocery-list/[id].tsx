@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -60,6 +61,7 @@ export default function GroceryListDetail() {
     removeGroceryItem,
     restoreGroceryItem,
     markGroceryShoppingDone,
+    resolveGroceryItemAmbiguity,
   } = useApp();
   // Demo lists ("demo-grocery-*") are local fixtures for design review with
   // non-UUID ids the server rejects — keep their mutations purely optimistic
@@ -569,11 +571,95 @@ export default function GroceryListDetail() {
     });
   };
 
+  // ── WS7-7-A B5 — clarify-any-time ──────────────────────────────────────
+  // Unresolved = isAmbiguous === true. Computed live off the items so an
+  // optimistic resolve/leave-as-is updates the banner + queue immediately
+  // (the denormalized list.ambiguousItemCount can lag a single-item patch).
+  const unresolvedItems = useMemo(
+    () => (list?.items ?? []).filter((it) => it.isAmbiguous),
+    [list],
+  );
+
+  // The clarify sheet walks a snapshot queue of item ids, advancing an index.
+  // Resolve / leave-as-is / skip all advance; resolve + leave-as-is also flip
+  // isAmbiguous off (so they leave the unresolved set), skip leaves it on.
+  const [clarifyQueue, setClarifyQueue] = useState<string[]>([]);
+  const [clarifyIndex, setClarifyIndex] = useState(0);
+  const [clarifyOtherText, setClarifyOtherText] = useState("");
+  const [clarifyOtherOpen, setClarifyOtherOpen] = useState(false);
+
+  const clarifyOpen = clarifyQueue.length > 0;
+  const currentClarifyItem = clarifyOpen
+    ? list?.items.find((it) => it.id === clarifyQueue[clarifyIndex])
+    : undefined;
+
   const handleAmbiguousReview = () => {
-    Alert.alert(
-      "Coming in WS6 — ambiguous item resolution",
-      "Resolving flagged items needs the AI orchestration layer.",
-    );
+    const queue = unresolvedItems.map((it) => it.id);
+    if (queue.length === 0) return;
+    setClarifyQueue(queue);
+    setClarifyIndex(0);
+    setClarifyOtherText("");
+    setClarifyOtherOpen(false);
+  };
+
+  const closeClarify = () => {
+    // Exit affordance — leave the flow; all partial progress is already
+    // persisted (resolved + leave-as-is permanent; skipped stays pending).
+    setClarifyQueue([]);
+    setClarifyIndex(0);
+    setClarifyOtherText("");
+    setClarifyOtherOpen(false);
+  };
+
+  const advanceClarify = () => {
+    setClarifyOtherText("");
+    setClarifyOtherOpen(false);
+    if (clarifyIndex + 1 < clarifyQueue.length) {
+      setClarifyIndex(clarifyIndex + 1);
+    } else {
+      // End of this pass. Skipped items remain unresolved → the banner
+      // persists and the user can reopen to clear them.
+      closeClarify();
+    }
+  };
+
+  const resolveCurrent = (value: string) => {
+    const item = currentClarifyItem;
+    if (!item) return;
+    const resolution = value.trim();
+    if (!resolution) return;
+    const prevResolved = item.userResolvedTo;
+    // Optimistic: project the resolved value + drop the flag.
+    applyItemPatch(item.id, { userResolvedTo: resolution, isAmbiguous: false });
+    advanceClarify();
+    if (isDemo) return;
+    resolveGroceryItemAmbiguity(listId, item.id, resolution).catch((err) => {
+      console.warn("[grocery-list] resolve failed; reverting", err);
+      applyItemPatch(item.id, {
+        userResolvedTo: prevResolved,
+        isAmbiguous: true,
+      });
+      Alert.alert("Couldn't save", "Something went wrong. Please try again.");
+    });
+  };
+
+  const leaveAsIsCurrent = () => {
+    const item = currentClarifyItem;
+    if (!item) return;
+    // Accept the current value: clear the flag WITHOUT a resolution value.
+    applyItemPatch(item.id, { isAmbiguous: false });
+    advanceClarify();
+    if (isDemo) return;
+    resolveGroceryItemAmbiguity(listId, item.id, null).catch((err) => {
+      console.warn("[grocery-list] leave-as-is failed; reverting", err);
+      applyItemPatch(item.id, { isAmbiguous: true });
+      Alert.alert("Couldn't save", "Something went wrong. Please try again.");
+    });
+  };
+
+  const skipCurrent = () => {
+    // Item stays unresolved (isAmbiguous untouched); just advance.
+    advanceClarify();
   };
 
   const handleEmail = () => {
@@ -641,7 +727,7 @@ export default function GroceryListDetail() {
         // the "tap on qty during keyboard dismiss is eaten" bug.
         keyboardShouldPersistTaps="handled"
       >
-        {list.ambiguousItemCount > 0 && (
+        {unresolvedItems.length > 0 && (
           <View style={s.ambiguousBanner}>
             <View style={s.ambiguousIcon}>
               <Feather
@@ -655,14 +741,16 @@ export default function GroceryListDetail() {
                 Kiwi needs a few specifics
               </Text>
               <Text style={s.ambiguousSubtitle}>
-                A few items need clarification before adding to online order.
+                Some items need clarifying before they can be ordered. Tap to
+                specify.
               </Text>
               <Pressable
                 onPress={handleAmbiguousReview}
                 style={({ pressed }) => [pressed && { opacity: 0.7 }]}
               >
                 <Text style={s.ambiguousLink}>
-                  Review {list.ambiguousItemCount} flagged items →
+                  Clarify {unresolvedItems.length}{" "}
+                  {unresolvedItems.length === 1 ? "item" : "items"} →
                 </Text>
               </Pressable>
             </View>
@@ -897,6 +985,107 @@ export default function GroceryListDetail() {
           </View>
         </View>
       )}
+
+      {/* WS7-7-A B5 — clarify-any-time sheet. Auto-advances through unresolved
+          items; per item: resolve (chip / Other), skip, leave-as-is, exit. */}
+      <Modal
+        visible={clarifyOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={closeClarify}
+      >
+        <View style={s.clarifyBackdrop}>
+          <View style={s.clarifySheet}>
+            {currentClarifyItem && (
+              <>
+                <View style={s.clarifyHeaderRow}>
+                  {/* Exit affordance — back chevron leaves the flow; progress
+                      is already persisted. */}
+                  <Pressable onPress={closeClarify} hitSlop={8}>
+                    <Feather
+                      name="chevron-left"
+                      size={24}
+                      color={KColors.neutral[700]}
+                    />
+                  </Pressable>
+                  <Text style={s.clarifyProgress}>
+                    {clarifyIndex + 1} of {clarifyQueue.length}
+                  </Text>
+                  <Pressable onPress={closeClarify} hitSlop={8}>
+                    <Text style={s.clarifyDone}>Done</Text>
+                  </Pressable>
+                </View>
+
+                <Text style={s.clarifyTitle}>Which one did you mean?</Text>
+                <Text style={s.clarifyItemName}>{currentClarifyItem.name}</Text>
+
+                <View style={s.clarifyChips}>
+                  {(currentClarifyItem.ambiguityOptions ?? []).map((opt) => (
+                    <Pressable
+                      key={opt}
+                      onPress={() => resolveCurrent(opt)}
+                      style={({ pressed }) => [
+                        s.clarifyChip,
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <Text style={s.clarifyChipText}>{opt}</Text>
+                    </Pressable>
+                  ))}
+                  <Pressable
+                    onPress={() => setClarifyOtherOpen((v) => !v)}
+                    style={({ pressed }) => [
+                      s.clarifyChip,
+                      clarifyOtherOpen && s.clarifyChipActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <Text style={s.clarifyChipText}>Other…</Text>
+                  </Pressable>
+                </View>
+
+                {clarifyOtherOpen && (
+                  <View style={s.clarifyOtherRow}>
+                    <TextInput
+                      value={clarifyOtherText}
+                      onChangeText={setClarifyOtherText}
+                      placeholder="Type what you want"
+                      placeholderTextColor={KColors.neutral[600]}
+                      style={s.clarifyOtherInput}
+                      autoFocus
+                      returnKeyType="done"
+                      onSubmitEditing={() => resolveCurrent(clarifyOtherText)}
+                    />
+                    <Button
+                      label="Confirm"
+                      variant="primary"
+                      onPress={() => resolveCurrent(clarifyOtherText)}
+                      disabled={clarifyOtherText.trim().length === 0}
+                    />
+                  </View>
+                )}
+
+                <View style={s.clarifyActions}>
+                  <Pressable
+                    onPress={skipCurrent}
+                    hitSlop={6}
+                    style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                  >
+                    <Text style={s.clarifySecondaryAction}>Skip</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={leaveAsIsCurrent}
+                    hitSlop={6}
+                    style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                  >
+                    <Text style={s.clarifySecondaryAction}>Leave as is</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1003,7 +1192,10 @@ function GroceryRow({
               ]}
               numberOfLines={2}
             >
-              {item.name}
+              {/* WS7-7-A B5 projection — a resolved item renders its
+                  userResolvedTo value over displayName; underlying fields stay
+                  intact. */}
+              {item.userResolvedTo ?? item.name}
             </Text>
             {item.isUniversalStaple && (
               <Tag
@@ -1183,6 +1375,95 @@ const s = StyleSheet.create({
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
     marginTop: 4,
+  },
+  // WS7-7-A B5 — clarify-any-time sheet.
+  clarifyBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end",
+  },
+  clarifySheet: {
+    backgroundColor: KColors.neutral[0],
+    borderTopLeftRadius: KRadius.lg,
+    borderTopRightRadius: KRadius.lg,
+    padding: KSpacing.lg,
+    paddingBottom: KSpacing.lg + 16,
+    gap: KSpacing.md,
+  },
+  clarifyHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  clarifyProgress: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+  },
+  clarifyDone: {
+    fontSize: KType.size.md,
+    color: KColors.sage[700],
+    fontFamily: "Inter_600SemiBold",
+    fontWeight: KType.weight.semibold,
+  },
+  clarifyTitle: {
+    fontSize: KType.size.lg,
+    color: KColors.neutral[900],
+    fontFamily: "Inter_600SemiBold",
+    fontWeight: KType.weight.semibold,
+  },
+  clarifyItemName: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[700],
+    fontFamily: "Inter_400Regular",
+  },
+  clarifyChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: KSpacing.sm,
+  },
+  clarifyChip: {
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.sm,
+    borderRadius: KRadius.lg,
+    borderWidth: 1,
+    borderColor: KPalette.border.default,
+    backgroundColor: KPalette.bg.card,
+  },
+  clarifyChipActive: {
+    borderColor: KColors.sage[700],
+    backgroundColor: KColors.sage[100],
+  },
+  clarifyChipText: {
+    fontSize: KType.size.sm,
+    color: KColors.neutral[800],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
+  },
+  clarifyOtherRow: {
+    gap: KSpacing.sm,
+  },
+  clarifyOtherInput: {
+    borderWidth: 1,
+    borderColor: KPalette.border.default,
+    borderRadius: KRadius.md,
+    paddingHorizontal: KSpacing.md,
+    paddingVertical: KSpacing.sm,
+    fontSize: KType.size.md,
+    color: KColors.neutral[900],
+    fontFamily: "Inter_400Regular",
+  },
+  clarifyActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: KSpacing.xs,
+  },
+  clarifySecondaryAction: {
+    fontSize: KType.size.md,
+    color: KColors.neutral[600],
+    fontFamily: "Inter_500Medium",
+    fontWeight: KType.weight.medium,
   },
   viewPlanLink: {
     flexDirection: "row",

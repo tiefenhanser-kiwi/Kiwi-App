@@ -391,8 +391,10 @@ export async function updateGroceryListStatus(
  * normalized mobile-side item. Errors throw — callers revert their optimistic
  * update and surface the failure.
  *
- * `userResolvedTo`/`isAmbiguous` belong to the B5 clarify UI; this block only
- * wires isChecked / quantity+unit / stapleOptedIn.
+ * `userResolvedTo` is the §12.5 resolution write (B5 clarify UI): a non-null
+ * value flips isAmbiguous→false server-side. `acknowledgeAmbiguity:true` is the
+ * "leave-as-is" path — clears isAmbiguous WITHOUT a resolution value (permanent;
+ * userResolvedTo stays null). isAmbiguous itself is not client-settable.
  */
 export interface UpdateGroceryListItemPatch {
   isChecked?: boolean;
@@ -402,6 +404,7 @@ export interface UpdateGroceryListItemPatch {
   storeSection?: GroceryListItem["sectionKey"];
   displayName?: string;
   userResolvedTo?: string | null;
+  acknowledgeAmbiguity?: true;
 }
 
 const UpdateItemResponseSchema = z.object({ item: GroceryListItemWireSchema });
