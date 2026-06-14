@@ -172,14 +172,25 @@ function detailMeal(
 
 type StepFixture = ReturnType<typeof step>;
 
+// WS7-7-A B5 — a plan item carrying a per-instance recipeOverrideJson, for the
+// GET /meals/:id?planItemId override-read tests.
+interface PlanItemFixture {
+  id: string;
+  mealId: string;
+  userId: string;
+  recipeOverrideJson: unknown;
+}
+
 function makeStubPrisma(opts: {
   listMeals?: ReturnType<typeof listMeal>[];
   detailMeals?: DetailMealFixture[];
   steps?: StepFixture[];
+  planItems?: PlanItemFixture[];
 }) {
   const listMeals = opts.listMeals ?? [];
   const detailMeals = opts.detailMeals ?? [];
   const steps = opts.steps ?? [];
+  const planItems = opts.planItems ?? [];
   let lastFindManyArgs: { take?: number } | null = null;
 
   return {
@@ -238,6 +249,28 @@ function makeStubPrisma(opts: {
           .filter((s) => s.ownerType === ownerType && matchOwner(s))
           .slice()
           .sort((a, b) => a.stepIndex - b.stepIndex);
+      },
+    },
+    // Honors the route's ownership-scoped item read: id + mealId + the parent
+    // plan's userId must all match, else null (→ canonical recipe served).
+    mealPlanItem: {
+      findFirst: async (args: {
+        where: {
+          id: string;
+          mealId: string;
+          planInstance: { userId: string };
+        };
+      }) => {
+        const { id, mealId, planInstance } = args.where;
+        const item = planItems.find(
+          (p) =>
+            p.id === id &&
+            p.mealId === mealId &&
+            p.userId === planInstance.userId,
+        );
+        return item
+          ? { recipeOverrideJson: item.recipeOverrideJson }
+          : null;
       },
     },
   };
@@ -542,6 +575,125 @@ describe("GET /meals/:id", () => {
       // Top-level steps mirror the meal-owned steps in the fallback case.
       const topSteps = meal.steps as { text: string }[];
       assert.equal(topSteps.length, 2);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-7-A B5 (D-WS7-090 read-side) — ?planItemId applies the plan item's
+  // per-instance recipeOverrideJson so a "just this time" edit is visible here.
+  // r-pasta-shaped fixture: a curated (userId null) 3-ingredient single-dish
+  // meal; the override REMOVES "Heavy cream" and bumps pasta quantity.
+  const PASTA_MEAL = {
+    ...detailMeal("r-pasta", "Creamy Mushroom Pasta", [
+      {
+        positionIndex: 0,
+        roleLabel: "main",
+        dish: dish("d-pasta", "Creamy Mushroom Pasta", [
+          dishIngredient("Pappardelle", "Pantry", 1, "lb", 0),
+          dishIngredient("Cremini mushrooms", "Produce", 1, "lb", 1),
+          dishIngredient("Heavy cream", "Dairy", 1, "cup", 2),
+        ]),
+      },
+    ]),
+    userId: null,
+  };
+  const PASTA_OVERRIDE = {
+    titleOverride: "Creamy Mushroom Pasta",
+    dishes: [
+      {
+        name: "Creamy Mushroom Pasta",
+        // Heavy cream omitted (removed "just this time"); pasta bumped to 2 lb.
+        ingredients: [
+          { name: "Pappardelle", quantity: 2, unit: "lb" },
+          { name: "Cremini mushrooms", quantity: 1, unit: "lb" },
+        ],
+      },
+    ],
+    createdAt: "2026-06-14T00:00:00.000Z",
+  };
+
+  it("applies the plan item override: a removed ingredient stays absent and quantities reflect the override", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        detailMeals: [PASTA_MEAL],
+        planItems: [
+          {
+            id: "item-1",
+            mealId: "r-pasta",
+            userId: USER_ID,
+            recipeOverrideJson: PASTA_OVERRIDE,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/meals/r-pasta?planItemId=item-1");
+      assert.equal(res.status, 200);
+      const { meal } = (await res.json()) as { meal: Record<string, unknown> };
+      const dishes = meal.dishes as {
+        ingredients: { name: string; quantity: number; unit: string }[];
+      }[];
+      const names = dishes[0].ingredients.map((i) => i.name);
+      // Removal honored: Heavy cream is gone, not merged back from the base.
+      assert.deepEqual(names, ["Pappardelle", "Cremini mushrooms"]);
+      assert.equal(dishes[0].ingredients[0].quantity, 2);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("without ?planItemId serves the canonical recipe (override not applied)", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        detailMeals: [PASTA_MEAL],
+        planItems: [
+          {
+            id: "item-1",
+            mealId: "r-pasta",
+            userId: USER_ID,
+            recipeOverrideJson: PASTA_OVERRIDE,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/meals/r-pasta");
+      assert.equal(res.status, 200);
+      const { meal } = (await res.json()) as { meal: Record<string, unknown> };
+      const dishes = meal.dishes as { ingredients: { name: string }[] }[];
+      const names = dishes[0].ingredients.map((i) => i.name);
+      assert.deepEqual(names, [
+        "Pappardelle",
+        "Cremini mushrooms",
+        "Heavy cream",
+      ]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a foreign-owned plan item is ignored: canonical recipe served (no cross-user override read)", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        detailMeals: [PASTA_MEAL],
+        planItems: [
+          {
+            id: "item-1",
+            mealId: "r-pasta",
+            userId: "someone-else",
+            recipeOverrideJson: PASTA_OVERRIDE,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/meals/r-pasta?planItemId=item-1");
+      assert.equal(res.status, 200);
+      const { meal } = (await res.json()) as { meal: Record<string, unknown> };
+      const dishes = meal.dishes as { ingredients: { name: string }[] }[];
+      // Heavy cream still present — the foreign item's override was not read.
+      assert.equal(dishes[0].ingredients.length, 3);
     } finally {
       await harness.close();
     }

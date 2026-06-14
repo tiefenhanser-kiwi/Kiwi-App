@@ -186,9 +186,20 @@ export type MealDetail = z.infer<typeof MealDetailSchema>;
  * envelope with per-dish ingredients + steps. Propagates the apiClient typed
  * errors: `ApiError` (status 404 for a missing or archived meal),
  * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
+ *
+ * WS7-7-A B5 (D-WS7-090 read-side) — when opened from a plan item, pass
+ * `planItemId` so the server applies that item's per-instance recipeOverrideJson
+ * ("just this time" edit, incl. a removed ingredient) to the returned detail.
+ * Omitted → the canonical meal.
  */
-export async function getMeal(id: string): Promise<MealDetail> {
-  const body = await apiClient(`/meals/${encodeURIComponent(id)}`, {
+export async function getMeal(
+  id: string,
+  planItemId?: string,
+): Promise<MealDetail> {
+  const query = planItemId
+    ? `?planItemId=${encodeURIComponent(planItemId)}`
+    : "";
+  const body = await apiClient(`/meals/${encodeURIComponent(id)}${query}`, {
     schema: MealDetailEnvelopeSchema,
   });
   return body.meal;

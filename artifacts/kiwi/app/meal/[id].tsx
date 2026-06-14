@@ -115,7 +115,10 @@ export default function MealDetailScreen() {
   const mealId = id ?? "";
   const router = useRouter();
 
-  const mealQuery = useMeal(mealId);
+  // WS7-7-A B5 (D-WS7-090 read-side) — when opened from a plan item, thread
+  // planItemId so the server applies that item's "just this time" override
+  // (incl. a removed ingredient) to the detail we render here.
+  const mealQuery = useMeal(mealId, planItemId);
 
   if (mealQuery.isLoading) {
     return (

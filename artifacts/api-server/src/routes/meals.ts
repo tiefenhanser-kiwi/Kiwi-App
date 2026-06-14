@@ -27,6 +27,7 @@ import {
   type FindSimilarResult,
   type MealCandidate,
 } from "../lib/ai/schemas/findSimilar";
+import { normalizeIngredientName } from "../lib/groceryNormalization";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
@@ -207,13 +208,107 @@ export interface MealDetail extends MealListItem {
   notes: null;
 }
 
+// WS7-7-A B5 (D-WS7-090 read-side) — per-instance RecipeOverride applied to a
+// composed meal detail. Mirrors the grocery consolidator's WHOLESALE-replace
+// semantics (groceryList.ts:329-341): an override dish at a position replaces
+// that base dish's ingredient list ENTIRELY, so a "just this time" removal
+// stays absent on re-open instead of being merged back from the canonical
+// recipe. Tolerant of malformed JSON (a null/garbage override → canonical
+// recipe). Only `titleOverride` + `dishes[].ingredients[]` are read — the
+// fields the meal-detail view needs.
+interface ParsedOverrideDishForView {
+  ingredients: { name: string; quantity: number; unit: string }[];
+}
+interface ParsedRecipeOverrideForView {
+  titleOverride: string | null;
+  dishes: ParsedOverrideDishForView[];
+}
+
+export function parseRecipeOverrideForView(
+  json: unknown,
+): ParsedRecipeOverrideForView | null {
+  if (!json || typeof json !== "object" || Array.isArray(json)) return null;
+  const obj = json as { titleOverride?: unknown; dishes?: unknown };
+  if (!Array.isArray(obj.dishes)) return null;
+  const dishes: ParsedOverrideDishForView[] = obj.dishes.map((d) => {
+    const ings =
+      d && typeof d === "object"
+        ? (d as { ingredients?: unknown }).ingredients
+        : undefined;
+    const list: ParsedOverrideDishForView["ingredients"] = [];
+    if (Array.isArray(ings)) {
+      for (const ig of ings) {
+        if (!ig || typeof ig !== "object") continue;
+        const { name, quantity, unit } = ig as {
+          name?: unknown;
+          quantity?: unknown;
+          unit?: unknown;
+        };
+        if (
+          typeof name === "string" &&
+          typeof quantity === "number" &&
+          typeof unit === "string"
+        ) {
+          list.push({ name, quantity, unit });
+        }
+      }
+    }
+    return { ingredients: list };
+  });
+  return {
+    titleOverride:
+      typeof obj.titleOverride === "string" ? obj.titleOverride : null,
+    dishes,
+  };
+}
+
+// Apply a parsed override onto the composed dishes. Matched to base dishes by
+// POSITION INDEX (same as the consolidator): an override dish at index i
+// replaces base dish i's ingredient list wholesale. Base dishes with no
+// override entry (override shorter than the meal, or a missing position) keep
+// their canonical ingredients. Category / prep-note / isOptional are carried
+// from the base ingredient by normalized name when the override keeps it;
+// brand-new override ingredients default (category "" → the view's "other"
+// grouping, no prep, not optional).
+export function applyRecipeOverrideToDishes(
+  dishes: MealDetailDish[],
+  override: ParsedRecipeOverrideForView,
+): MealDetailDish[] {
+  return dishes.map((dish, index) => {
+    const od = override.dishes[index];
+    if (!od) return dish;
+    const baseByName = new Map<string, MealDetailDish["ingredients"][number]>();
+    for (const bi of dish.ingredients) {
+      baseByName.set(normalizeIngredientName(bi.name), bi);
+    }
+    const ingredients = od.ingredients.map((oi) => {
+      const base = baseByName.get(normalizeIngredientName(oi.name));
+      return {
+        name: oi.name,
+        quantity: oi.quantity,
+        unit: oi.unit,
+        preparationNote: base?.preparationNote ?? null,
+        category: base?.category ?? "",
+        isOptional: base?.isOptional ?? false,
+      };
+    });
+    return { ...dish, ingredients };
+  });
+}
+
 // Compose the full meal-detail payload — meal meta + per-dish ingredients +
 // dish-owned (or legacy meal-owned fallback) steps. Returns null when the
 // meal is missing or archived. Shared by GET /meals/:id and the per-item
 // Meal expansion in GET /plans/:id.
+//
+// WS7-7-A B5 (D-WS7-090 read-side): when `recipeOverrideJson` is supplied (the
+// caller passes a plan item's per-instance override), the override is applied
+// to the dishes + title so a "just this time" edit is visible here, not only on
+// the grocery list. Omitted/null → the canonical meal (unchanged behavior).
 export async function composeMealDetail(
   prisma: PrismaClient,
   id: string,
+  recipeOverrideJson?: unknown,
 ): Promise<MealDetail | null> {
   const meal = await prisma.meal.findUnique({
     where: { id },
@@ -291,18 +386,31 @@ export async function composeMealDetail(
     };
   });
 
+  // WS7-7-A B5 — apply the per-instance override (when supplied) to the
+  // canonical dishes + title. A null/garbage override parses to null → no-op.
+  const override =
+    recipeOverrideJson != null
+      ? parseRecipeOverrideForView(recipeOverrideJson)
+      : null;
+  const effectiveDishes = override
+    ? applyRecipeOverrideToDishes(dishes, override)
+    : dishes;
+
   return {
     // Shared meal-meta fields reuse the GET /meals list shape (toListShape):
     // id, title, cuisine, minutes, servings, calories/protein/carbs/fat,
     // tags, image. Detail-only fields keep their DB-style names.
     ...toListShape(meal),
+    // A "just this time" rename rides on titleOverride; apply it over the
+    // canonical title when present.
+    ...(override?.titleOverride ? { title: override.titleOverride } : {}),
     description: meal.description,
     difficulty: meal.difficulty,
     mealType: meal.mealType,
     sourceType: meal.sourceType,
     isPublic: meal.isPublic,
     userId: meal.userId,
-    dishes,
+    dishes: effectiveDishes,
     // Top-level meal-owned steps — populated for legacy single-dish meals,
     // empty when dishes carry their own steps. Defensive shape: mobile reads
     // meal.dishes[].steps first.
@@ -523,8 +631,36 @@ export function createMealsRouter(
       return res.status(400).json({ error: "invalid meal id" });
     }
 
+    // WS7-7-A B5 (D-WS7-090 read-side) — optional plan context. When the caller
+    // passes ?planItemId=, load that plan item's per-instance recipeOverrideJson
+    // and apply it so a "just this time" edit (incl. a removed ingredient) is
+    // visible here, not only on the grocery list. The item read is ownership-
+    // scoped to the requester (via the parent plan) AND must reference THIS meal
+    // — a missing / foreign / mismatched item leaves the override unset, so the
+    // canonical recipe is served (no existence leak, no cross-user read).
+    const planItemIdRaw = req.query.planItemId;
+    const planItemId =
+      typeof planItemIdRaw === "string" &&
+      planItemIdRaw.length > 0 &&
+      planItemIdRaw.length <= 100
+        ? planItemIdRaw
+        : null;
+
     try {
-      const meal = await composeMealDetail(prisma, id);
+      let recipeOverrideJson: unknown = undefined;
+      if (planItemId) {
+        const item = await prisma.mealPlanItem.findFirst({
+          where: {
+            id: planItemId,
+            mealId: id,
+            planInstance: { userId: req.userId! },
+          },
+          select: { recipeOverrideJson: true },
+        });
+        recipeOverrideJson = item?.recipeOverrideJson ?? undefined;
+      }
+
+      const meal = await composeMealDetail(prisma, id, recipeOverrideJson);
       if (!meal) {
         return res.status(404).json({ error: "meal not found" });
       }
