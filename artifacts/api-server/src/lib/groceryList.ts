@@ -5,6 +5,8 @@
 // with AI for purchase-pack reconciliation, ambiguity surfacing, and
 // purchase-display strings.
 
+import { createHash } from "node:crypto";
+
 import type { PrismaClient, StoreSection } from "@prisma/client";
 
 import { normalizeIngredientName } from "./groceryNormalization";
@@ -18,6 +20,14 @@ import { UNIVERSAL_STAPLES } from "./groceryStaples";
 export interface GrocerySource {
   mealId: string;
   dishId: string;
+  // WS7-7-A Block 5 (Q1 change-signature) — captured per source so reconcile
+  // detects an intra-meal edit on a meal that keeps its mealId. `servings` is
+  // the effectiveServings (servingsOverride ?? dish.servingsDefault); the two
+  // axes (servings vs ingredient set) are independent so the signature uses
+  // base un-multiplied quantities. `ingredientSignature` is a stable hash of
+  // this source dish's EFFECTIVE base ingredient set (override-applied).
+  servings: number;
+  ingredientSignature: string;
 }
 
 export interface ConsolidatedItem {
@@ -129,6 +139,127 @@ function extendSourceDishTitle(
   return candidate;
 }
 
+// WS7-7-A Block 5 — the effective (override-applied) form of one dish
+// ingredient. Unifies the canonical-recipe path and the recipeOverrideJson
+// "just this time" path so a single bucketing loop + one signature pass
+// handle both. `ingredient` is null when no Ingredient row resolves (a
+// brand-new override ingredient or a dish ingredient with no canonical row),
+// in which case `canonicalFallback` is the bucket/signature canonical.
+interface EffectiveDishIngredient {
+  ingredient: {
+    id: string;
+    canonicalName: string;
+    displayName: string;
+    category: string;
+    purchaseUnit: string | null;
+    purchaseQuantity: number | null;
+    purchaseDisplay: string | null;
+  } | null;
+  canonicalFallback: string;
+  unit: string;
+  quantity: number;
+  preparationNote: string | null;
+}
+
+interface RecipeOverrideDishLite {
+  ingredients: { name: string; quantity: number; unit: string }[];
+}
+
+// Defensive read of MealPlanItem.recipeOverrideJson (PRD §8.4.3 RecipeOverride).
+// The write path validates via RecipeOverrideSchema (plans.ts), so persisted
+// data is well-formed; this stays tolerant of malformed JSON (returns null →
+// fall back to the live canonical recipe). Only `dishes[].ingredients[]` is
+// read — the field the consolidator needs. ingredientOverrides (the freeform
+// Json? sibling) is intentionally NOT read here: "just this time" persists a
+// full RecipeOverride, not a delta (D-WS7-090 as-built refinement).
+function parseRecipeOverrideDishes(
+  json: unknown,
+): RecipeOverrideDishLite[] | null {
+  if (!json || typeof json !== "object" || Array.isArray(json)) return null;
+  const dishes = (json as { dishes?: unknown }).dishes;
+  if (!Array.isArray(dishes)) return null;
+  return dishes.map((d) => {
+    const ings =
+      d && typeof d === "object"
+        ? (d as { ingredients?: unknown }).ingredients
+        : undefined;
+    const list: RecipeOverrideDishLite["ingredients"] = [];
+    if (Array.isArray(ings)) {
+      for (const ig of ings) {
+        if (!ig || typeof ig !== "object") continue;
+        const { name, quantity, unit } = ig as {
+          name?: unknown;
+          quantity?: unknown;
+          unit?: unknown;
+        };
+        if (
+          typeof name === "string" &&
+          typeof quantity === "number" &&
+          typeof unit === "string"
+        ) {
+          list.push({ name, quantity, unit });
+        }
+      }
+    }
+    return { ingredients: list };
+  });
+}
+
+// Resolve a recipeOverride dish's ingredients into the effective shape,
+// looking up each by normalized canonical name. A per-call cache dedupes
+// repeated names across dishes. No match → ingredient:null (brand-new
+// override ingredient), bucketed under its normalized name.
+async function resolveOverrideIngredients(
+  prisma: PrismaClient,
+  overrideDish: RecipeOverrideDishLite,
+  cache: Map<string, EffectiveDishIngredient["ingredient"]>,
+): Promise<EffectiveDishIngredient[]> {
+  const out: EffectiveDishIngredient[] = [];
+  for (const ovr of overrideDish.ingredients) {
+    const norm = normalizeIngredientName(ovr.name);
+    let ingredient = cache.get(norm);
+    if (ingredient === undefined) {
+      ingredient = await prisma.ingredient.findFirst({
+        where: { canonicalName: norm },
+        select: {
+          id: true,
+          canonicalName: true,
+          displayName: true,
+          category: true,
+          purchaseUnit: true,
+          purchaseQuantity: true,
+          purchaseDisplay: true,
+        },
+      });
+      cache.set(norm, ingredient);
+    }
+    out.push({
+      ingredient,
+      canonicalFallback: norm,
+      unit: ovr.unit ?? "",
+      quantity: ovr.quantity,
+      preparationNote: null,
+    });
+  }
+  return out;
+}
+
+// Q1 change-signature: stable hash of a dish's EFFECTIVE base ingredient set.
+// Sorted (canonical|quantity|unit) tuples → order-independent; base quantity
+// (servings captured separately on the source). Equal signature ⇒ this source's
+// ingredient contribution is unchanged ⇒ reconcile may carry the row untouched.
+function signatureOfEffective(effective: EffectiveDishIngredient[]): string {
+  const tuples = effective
+    .map((e) => {
+      const canonical = normalizeIngredientName(
+        e.ingredient?.canonicalName ?? e.canonicalFallback,
+      );
+      return `${canonical}|${e.quantity}|${e.unit}`;
+    })
+    .sort();
+  return createHash("sha1").update(tuples.join("\n")).digest("hex");
+}
+
 export async function consolidatePlanIngredients(
   opts: ConsolidateOptions,
 ): Promise<ConsolidatedItem[]> {
@@ -176,21 +307,47 @@ export async function consolidatePlanIngredients(
   // Preserve first-seen order so output is stable.
   const order: string[] = [];
 
+  // WS7-7-A Block 5 — per-call cache: override ingredient name → Ingredient
+  // row, dedup across dishes within this consolidation.
+  const ingredientByName = new Map<string, EffectiveDishIngredient["ingredient"]>();
+
   for (const item of plan.items) {
+    // recipeOverrideJson (PRD §8.4.3) replaces the meal's recipe for THIS plan
+    // instance only ("just this time"). Matched to dishes by position index.
+    const overrideDishes = parseRecipeOverrideDishes(item.recipeOverrideJson);
+    let dishIndex = -1;
     for (const link of item.meal.dishLinks) {
+      dishIndex += 1;
       const dish = link.dish;
       const baseServings = dish.servingsDefault > 0 ? dish.servingsDefault : 1;
       const effectiveServings = item.servingsOverride ?? baseServings;
       const multiplier = effectiveServings / baseServings;
 
-      for (const di of dish.dishIngredients) {
-        const ing = di.ingredient;
-        const canonical = ing?.canonicalName ?? di.id; // unique fallback if no ingredient row
+      // Effective (override-applied) ingredient list for this dish. An override
+      // dish at this position replaces the canonical ingredients wholesale;
+      // absent an override the live canonical ingredients are used unchanged.
+      const overrideDish = overrideDishes?.[dishIndex];
+      const effective: EffectiveDishIngredient[] = overrideDish
+        ? await resolveOverrideIngredients(prisma, overrideDish, ingredientByName)
+        : dish.dishIngredients.map((di) => ({
+            ingredient: di.ingredient,
+            canonicalFallback: di.id, // unique fallback if no ingredient row
+            unit: di.unit ?? "",
+            quantity: di.quantity,
+            preparationNote: di.preparationNote ?? null,
+          }));
+
+      // Q1 change-signature for this source dish — base set, servings-independent.
+      const ingredientSignature = signatureOfEffective(effective);
+
+      for (const eff of effective) {
+        const ing = eff.ingredient;
+        const canonical = ing?.canonicalName ?? eff.canonicalFallback;
         const display = ing?.displayName ?? canonical;
-        const unit = di.unit ?? "";
-        const prepRaw = di.preparationNote ?? null;
+        const unit = eff.unit;
+        const prepRaw = eff.preparationNote;
         const key = bucketKeyOf(canonical, unit);
-        const scaledQty = di.quantity * multiplier;
+        const scaledQty = eff.quantity * multiplier;
 
         let entry = buckets.get(key);
         if (!entry) {
@@ -239,12 +396,19 @@ export async function consolidatePlanIngredients(
         // Dedup on the (mealId, dishId) PAIR — the same ingredient reached via
         // the same dish in the same meal is one source; the same dish across
         // two meal-plan slots, or two dishes in one meal, are distinct sources.
+        // The signature is identical for every ingredient of the same dish, so
+        // the first push for the pair fixes the source's change-signature.
         if (
           !entry.sources.some(
             (s) => s.mealId === item.mealId && s.dishId === dish.id,
           )
         ) {
-          entry.sources.push({ mealId: item.mealId, dishId: dish.id });
+          entry.sources.push({
+            mealId: item.mealId,
+            dishId: dish.id,
+            servings: effectiveServings,
+            ingredientSignature,
+          });
         }
       }
     }

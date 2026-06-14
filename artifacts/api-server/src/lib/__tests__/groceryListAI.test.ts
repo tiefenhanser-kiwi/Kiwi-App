@@ -230,7 +230,14 @@ function makeItem(overrides: Partial<ConsolidatedItem> = {}): ConsolidatedItem {
     isUniversalStaple: false,
     isUserPantryStaple: false,
     isRecurringItem: false,
-    sources: [{ mealId: "meal-1", dishId: "dish-1" }],
+    sources: [
+      {
+        mealId: "meal-1",
+        dishId: "dish-1",
+        servings: 4,
+        ingredientSignature: "sig-1",
+      },
+    ],
     purchaseUnit: null,
     purchaseQuantity: null,
     purchaseDisplay: null,

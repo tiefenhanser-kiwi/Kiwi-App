@@ -49,6 +49,15 @@ interface Captured {
   stepDeleteMany: Array<{ where: Record<string, unknown> }>;
   dishFindMany: Array<{ where: Record<string, unknown> }>;
   dishDeleteMany: Array<{ where: Record<string, unknown> }>;
+  // WS7-7-A Block 5 — captures each mealPlanInstance.update (the bumpPlanId
+  // revision bump) so apply-every-time tests can assert WHICH plan moved.
+  planBumps: Array<{ id: string }>;
+}
+
+interface PlanRow {
+  id: string;
+  userId: string;
+  revisionId: number;
 }
 
 interface MealRow {
@@ -73,6 +82,8 @@ interface StubOpts {
   // which dishes are linked to the meal being patched (and which of
   // those are shared with other meals).
   links?: LinkRow[];
+  // WS7-7-A Block 5 — plans the bumpPlanId path can target.
+  plans?: PlanRow[];
 }
 
 function makeStub(opts: StubOpts = {}) {
@@ -91,11 +102,13 @@ function makeStub(opts: StubOpts = {}) {
     stepDeleteMany: [],
     dishFindMany: [],
     dishDeleteMany: [],
+    planBumps: [],
   };
 
   const meals = [...(opts.meals ?? [])];
   const dishes = [...(opts.dishes ?? [])];
   let links = [...(opts.links ?? [])];
+  const plans = [...(opts.plans ?? [])];
 
   let nextMealId = 1;
   let nextDishId = 1;
@@ -252,10 +265,34 @@ function makeStub(opts: StubOpts = {}) {
         return { count: 0 };
       },
     },
+    // WS7-7-A Block 5 — apply-every-time current-plan bump. findFirst is the
+    // ownership gate; update is bumpPlanRevision's increment.
+    mealPlanInstance: {
+      findFirst: async (args: {
+        where: { id: string; userId: string };
+        select?: Record<string, boolean>;
+      }) => {
+        const p = plans.find(
+          (row) => row.id === args.where.id && row.userId === args.where.userId,
+        );
+        return p ? { id: p.id } : null;
+      },
+      update: async (args: {
+        where: { id: string };
+        data: Record<string, unknown>;
+        select?: Record<string, boolean>;
+      }) => {
+        captured.planBumps.push({ id: args.where.id });
+        const p = plans.find((row) => row.id === args.where.id);
+        if (!p) throw new Error("plan not found");
+        p.revisionId += 1;
+        return { revisionId: p.revisionId };
+      },
+    },
     $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(surface),
   };
 
-  return { prisma: surface, captured, getLinks: () => links };
+  return { prisma: surface, captured, getPlans: () => plans, getLinks: () => links };
 }
 
 interface Harness {
@@ -441,6 +478,73 @@ describe("PATCH /me/meals/:id (scalar-only)", () => {
       assert.equal(captured.dishCreates.length, 0);
       assert.equal(captured.linkCreates.length, 0);
       assert.equal(captured.stepCreates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── PATCH /me/meals/:id — Block 5 apply-every-time (bumpPlanId) ──────────
+
+describe("PATCH /me/meals/:id (bumpPlanId / apply-every-time)", () => {
+  it("bumps ONLY the named plan's revision; other plans keep their snapshot", async () => {
+    const { prisma, captured, getPlans } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+      plans: [
+        { id: "plan-current", userId: USER_ID, revisionId: 3 },
+        { id: "plan-other", userId: USER_ID, revisionId: 9 },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Edited globally",
+        bumpPlanId: "plan-current",
+      });
+      assert.equal(res.status, 200);
+      assert.equal(captured.mealUpdates.length, 1); // global meal edited
+      // Exactly one plan bumped — the current one.
+      assert.deepEqual(captured.planBumps, [{ id: "plan-current" }]);
+      const plans = getPlans();
+      assert.equal(plans.find((p) => p.id === "plan-current")!.revisionId, 4);
+      // The OTHER plan that also contains this meal is untouched (boundary).
+      assert.equal(plans.find((p) => p.id === "plan-other")!.revisionId, 9);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("absent bumpPlanId touches no plan (D-WS7-136 forward-only for library edits)", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+      plans: [{ id: "plan-x", userId: USER_ID, revisionId: 1 }],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Plain library edit",
+      });
+      assert.equal(res.status, 200);
+      assert.equal(captured.planBumps.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a foreign-owned bumpPlanId is silently skipped; the meal edit still succeeds", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+      plans: [{ id: "plan-foreign", userId: "someone-else", revisionId: 2 }],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Edit",
+        bumpPlanId: "plan-foreign",
+      });
+      assert.equal(res.status, 200);
+      assert.equal(captured.mealUpdates.length, 1);
+      assert.equal(captured.planBumps.length, 0); // ownership gate held
     } finally {
       await harness.close();
     }

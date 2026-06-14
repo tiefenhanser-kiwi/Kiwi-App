@@ -110,6 +110,12 @@ export type UpdateGroceryListStatusInput = z.infer<
 //   • userResolvedTo is the §12.5 resolution write; coherence with isAmbiguous
 //     is applied in the route (set → isAmbiguous:false, options kept for audit;
 //     null → isAmbiguous left as-is). isAmbiguous itself is not client-settable.
+//   • acknowledgeAmbiguity (WS7-7-A Block 5 "leave-as-is") is the value-less
+//     way to clear the ambiguous flag: accept the current displayName as-is.
+//     The route maps `true` → isAmbiguous:false WITHOUT writing userResolvedTo
+//     (it stays null), so the item is permanently un-flagged but renders its
+//     own value, not a resolved projection. No migration: representable on the
+//     existing columns.
 export const UpdateGroceryListItemInputSchema = z
   .object({
     isChecked: z.boolean().optional(),
@@ -119,6 +125,7 @@ export const UpdateGroceryListItemInputSchema = z
     storeSection: SectionKeySchema.optional(),
     displayName: z.string().min(1).max(140).optional(),
     userResolvedTo: z.string().min(1).max(120).nullable().optional(),
+    acknowledgeAmbiguity: z.literal(true).optional(),
   })
   .refine((b) => Object.keys(b).length > 0, {
     message: "at least one field must be provided",

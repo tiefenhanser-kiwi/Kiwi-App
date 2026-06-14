@@ -41,6 +41,9 @@ interface ItemStub {
   id: string;
   positionIndex?: number;
   servingsOverride?: number | null;
+  // WS7-7-A Block 5 — per-instance RecipeOverride (PRD §8.4.3). dishes[] by
+  // position index; ingredients[] replace the dish's canonical ingredients.
+  recipeOverrideJson?: unknown;
   dishes: DishStub[];
 }
 
@@ -64,7 +67,7 @@ function buildPlanRow(plan: PlanStub) {
       assignedDate: null,
       servingsOverride: it.servingsOverride ?? null,
       ingredientOverrides: null,
-      recipeOverrideJson: null,
+      recipeOverrideJson: it.recipeOverrideJson ?? null,
       isBreakfast: false,
       isLunch: false,
       isDinner: true,
@@ -140,10 +143,41 @@ function buildPlanRow(plan: PlanStub) {
   };
 }
 
-function makePrisma(plan: PlanStub | null): PrismaClient {
+// WS7-7-A Block 5 — the override path resolves ingredient names via
+// prisma.ingredient.findFirst. `ingredients` seeds that lookup (by normalized
+// canonical name); unseeded names resolve to null (brand-new override item).
+function makePrisma(
+  plan: PlanStub | null,
+  ingredients: Array<{
+    canonicalName: string;
+    id: string;
+    displayName?: string;
+    category?: string;
+  }> = [],
+): PrismaClient {
+  const byName = new Map(ingredients.map((i) => [i.canonicalName, i]));
   return {
     mealPlanInstance: {
       findUnique: async () => (plan ? buildPlanRow(plan) : null),
+    },
+    ingredient: {
+      findFirst: async ({
+        where,
+      }: {
+        where: { canonicalName: string };
+      }) => {
+        const hit = byName.get(where.canonicalName);
+        if (!hit) return null;
+        return {
+          id: hit.id,
+          canonicalName: hit.canonicalName,
+          displayName: hit.displayName ?? hit.canonicalName,
+          category: hit.category ?? "Pantry",
+          purchaseUnit: null,
+          purchaseQuantity: null,
+          purchaseDisplay: null,
+        };
+      },
     },
   } as unknown as PrismaClient;
 }
@@ -309,6 +343,155 @@ describe("consolidatePlanIngredients — consolidation", () => {
     const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
     assert.equal(out.length, 1);
     assert.equal(out[0].quantity, 2); // 1 lb * (8/4)
+  });
+});
+
+describe("consolidatePlanIngredients — Block 5 overrides + change-signature", () => {
+  const flourDish = (qty: number) => ({
+    items: [
+      {
+        id: "i1",
+        dishes: [
+          {
+            id: "d1",
+            title: "Bread",
+            servingsDefault: 4,
+            ingredients: [
+              { name: "Flour", quantity: qty, unit: "cup", category: "Pantry" },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("recipeOverrideJson replaces a dish's ingredients (quantity reflects override)", async () => {
+    const prisma = makePrisma(
+      {
+        items: [
+          {
+            id: "i1",
+            recipeOverrideJson: {
+              dishes: [{ ingredients: [{ name: "Flour", quantity: 5, unit: "cup" }] }],
+            },
+            dishes: [
+              {
+                id: "d1",
+                title: "Bread",
+                servingsDefault: 4,
+                ingredients: [
+                  { name: "Flour", quantity: 2, unit: "cup", category: "Pantry" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      [{ canonicalName: "flour", id: "ing-flour", displayName: "Flour" }],
+    );
+    const out = await consolidatePlanIngredients({
+      prisma,
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const flour = findItem(out, "flour")!;
+    assert.ok(flour, "override ingredient present");
+    assert.equal(flour.quantity, 5); // override value, NOT the canonical 2
+    assert.equal(flour.ingredientId, "ing-flour"); // resolved by name
+  });
+
+  it("override that adds a brand-new ingredient buckets it with null ingredientId", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          recipeOverrideJson: {
+            dishes: [{ ingredients: [{ name: "Saffron", quantity: 1, unit: "pinch" }] }],
+          },
+          dishes: [
+            {
+              id: "d1",
+              title: "Rice",
+              servingsDefault: 4,
+              ingredients: [
+                { name: "Rice", quantity: 2, unit: "cup", category: "Pantry" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({
+      prisma,
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    assert.equal(out.length, 1); // canonical rice gone, saffron in
+    const saffron = findItem(out, "saffron")!;
+    assert.ok(saffron);
+    assert.equal(saffron.ingredientId, null);
+  });
+
+  it("emits servings + a stable ingredientSignature per source; signature moves when the set changes", async () => {
+    const seed: Array<{ canonicalName: string; id: string }> = [
+      { canonicalName: "flour", id: "ing-flour" },
+    ];
+    const out2 = await consolidatePlanIngredients({
+      prisma: makePrisma(flourDish(2), seed),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const out5 = await consolidatePlanIngredients({
+      prisma: makePrisma(flourDish(5), seed),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const src2 = findItem(out2, "flour")!.sources[0];
+    const src5 = findItem(out5, "flour")!.sources[0];
+    assert.equal(src2.servings, 4); // baseServings, no override
+    assert.ok(src2.ingredientSignature.length > 0);
+    assert.notEqual(src2.ingredientSignature, src5.ingredientSignature); // 2cup ≠ 5cup
+  });
+
+  it("signature is order-independent for the same set (stable carry)", async () => {
+    const twoIng = (order: "ab" | "ba") => ({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Mix",
+              servingsDefault: 4,
+              ingredients:
+                order === "ab"
+                  ? [
+                      { name: "Flour", quantity: 2, unit: "cup" },
+                      { name: "Sugar", quantity: 1, unit: "cup" },
+                    ]
+                  : [
+                      { name: "Sugar", quantity: 1, unit: "cup" },
+                      { name: "Flour", quantity: 2, unit: "cup" },
+                    ],
+            },
+          ],
+        },
+      ],
+    });
+    const ab = await consolidatePlanIngredients({
+      prisma: makePrisma(twoIng("ab")),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const ba = await consolidatePlanIngredients({
+      prisma: makePrisma(twoIng("ba")),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    assert.equal(
+      findItem(ab, "flour")!.sources[0].ingredientSignature,
+      findItem(ba, "flour")!.sources[0].ingredientSignature,
+    );
   });
 });
 

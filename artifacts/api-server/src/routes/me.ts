@@ -23,6 +23,7 @@ import {
   type MaterializeMealDish,
 } from "../lib/mealMaterialize";
 import { resolveIngredients } from "../lib/ingredientResolve";
+import { bumpPlanRevision } from "../lib/planRevision";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rateLimit";
@@ -413,6 +414,13 @@ const patchMeMealSchema = z
     imageUrl: z.string().max(2048).nullable().optional(),
     macros: macrosPerServingSchema.optional(),
     dishes: z.array(dishEntrySchema).min(1).max(5).optional(),
+    // WS7-7-A Block 5 (D2) — "apply every time" from inside a plan. When set,
+    // bump THIS plan instance's revisionId in the same transaction as the meal
+    // edit so the current plan's grocery list reconciles to the edited global
+    // meal (which the plan reads live). Absent → a plain library edit, no plan
+    // touched (preserves D-WS7-136 forward-only behavior for incidental edits).
+    // Only the current plan is bumped — other plans keep their snapshot.
+    bumpPlanId: z.string().min(1).max(100).optional(),
   })
   .strict()
   .refine((obj) => Object.keys(obj).length > 0, {
@@ -436,6 +444,25 @@ const patchMeDishSchema = z
   .refine((obj) => Object.keys(obj).length > 0, {
     message: "patch must include at least one field",
   });
+
+// WS7-7-A Block 5 (D2) — ownership-checked plan-revision bump for the
+// "apply every time" path. bumpPlanRevision is id-only, so we gate on
+// ownership here: a missing or foreign-owned bumpPlanId is silently skipped
+// (the global meal edit still succeeds and no other user's plan is touched).
+// Runs inside the meal-edit transaction so the bump is atomic with the edit.
+async function bumpCurrentPlanRevision(
+  tx: Prisma.TransactionClient,
+  planId: string,
+  userId: string,
+): Promise<void> {
+  const owned = await tx.mealPlanInstance.findFirst({
+    where: { id: planId, userId },
+    select: { id: true },
+  });
+  if (owned) {
+    await bumpPlanRevision(planId, tx);
+  }
+}
 
 // Per-user mutation token bucket — same posture as POST /plans
 // (mutationLimiter at 12/min from plans.ts). Save-canonical is editing
@@ -1184,14 +1211,22 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             mentions,
           );
           const result = await prisma.$transaction(
-            async (tx) =>
-              rematerializeMeal(
+            async (tx) => {
+              const materialized = await rematerializeMeal(
                 tx,
                 userId,
                 mealId,
                 payload,
                 ingredientIdByCanonical,
-              ),
+              );
+              // WS7-7-A Block 5 — "apply every time" current-plan bump, atomic
+              // with the meal edit so there's no window where the meal updated
+              // but the plan's grocery list didn't reconcile.
+              if (body.bumpPlanId) {
+                await bumpCurrentPlanRevision(tx, body.bumpPlanId, userId);
+              }
+              return materialized;
+            },
             { timeout: 15000 },
           );
           return res.json({
@@ -1229,10 +1264,20 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           if (body.macros.fatGPerServing !== undefined)
             scalarUpdate.fatGPerServing = body.macros.fatGPerServing;
         }
-        await prisma.meal.update({
-          where: { id: mealId },
-          data: scalarUpdate,
-        });
+        // WS7-7-A Block 5 — a scalar-only "apply every time" (e.g. servings
+        // default) still bumps the current plan; wrap update + bump in one tx.
+        if (body.bumpPlanId) {
+          const bumpPlanId = body.bumpPlanId;
+          await prisma.$transaction(async (tx) => {
+            await tx.meal.update({ where: { id: mealId }, data: scalarUpdate });
+            await bumpCurrentPlanRevision(tx, bumpPlanId, userId);
+          });
+        } else {
+          await prisma.meal.update({
+            where: { id: mealId },
+            data: scalarUpdate,
+          });
+        }
         return res.json({ meal: { id: mealId } });
       } catch (err) {
         logger.error({ err, userId, mealId }, "PATCH /me/meals/:id failed");

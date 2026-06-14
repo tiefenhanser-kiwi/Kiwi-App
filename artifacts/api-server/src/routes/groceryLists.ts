@@ -298,6 +298,9 @@ export function createGroceryListsRouter(
               groceryListItemId: items[idx].id,
               mealId: s.mealId,
               dishId: s.dishId,
+              // WS7-7-A Block 5 — persist the Q1 change-signature per source.
+              servings: s.servings,
+              ingredientSignature: s.ingredientSignature,
             }));
           });
 
@@ -460,13 +463,19 @@ export function createGroceryListsRouter(
       // serve the prior persisted state rather than 5xx the read (the next
       // GET retries). All consolidation + AI work happens inside the service
       // before any DB write, so a failure never leaves a half-reconciled list.
+      // WS7-7-A Block 5 — surface whether this read reconciled the list to plan
+      // changes, so the client can show the "updating to match plan changes"
+      // banner (data-driven, not a timer). False on the revision-equal fast
+      // path and on a reconcile failure (we served prior state).
+      let reconciled = false;
       try {
-        await reconcileGroceryListIfStale(listId, userId, {
+        const result = await reconcileGroceryListIfStale(listId, userId, {
           prisma,
           consolidatePlanIngredients,
           fillPurchaseSizesWithWriteBack,
           generateFinalGroceryList,
         });
+        reconciled = result.reconciled;
       } catch (reconcileErr) {
         logger.warn(
           {
@@ -516,7 +525,9 @@ export function createGroceryListsRouter(
             })(),
           }
         : list;
-      return res.status(200).json({ list: listWithComputedActive });
+      return res
+        .status(200)
+        .json({ list: listWithComputedActive, reconciled });
     } catch (err) {
       logger.error(
         { event: "get_grocery_list_failed", userId, listId, err },
@@ -830,6 +841,14 @@ export function createGroceryListsRouter(
           if (body.userResolvedTo !== null) {
             data.isAmbiguous = false;
           }
+        }
+        // WS7-7-A Block 5 "leave-as-is" — clear the ambiguous flag without a
+        // resolution value. Permanent (won't re-surface on view/reconcile);
+        // userResolvedTo stays null so the row renders its own displayName, not
+        // a projection. Distinct from userResolvedTo:null (which leaves the flag
+        // untouched). Ignored if the same request also resolves to a value.
+        if (body.acknowledgeAmbiguity === true && body.userResolvedTo == null) {
+          data.isAmbiguous = false;
         }
 
         const updated = await prisma.groceryListItem.update({

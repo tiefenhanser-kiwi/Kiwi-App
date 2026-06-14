@@ -663,6 +663,16 @@ model GroceryListItemSource {
   groceryListItemId String
   mealId            String
   dishId            String
+  // WS7-7-A Block 5 (D-WS7-137) — per-source change-signature. Lets reconcile
+  // detect an INTRA-meal edit (servings or ingredient add/remove/qty/unit/name)
+  // on a meal that stays in the plan: same mealId, but a changed contribution.
+  // `servings` = effectiveServings (servingsOverride ?? dish.servingsDefault)
+  // used at generation; `ingredientSignature` = stable hash of this source
+  // dish's EFFECTIVE base ingredient set (canonical|quantity|unit, override-
+  // applied). Nullable so pre-existing rows backfill to null and re-resolve
+  // once on first post-deploy reconcile (D1: correctness over saving one pass).
+  servings            Int?
+  ingredientSignature String?
 
   item GroceryListItem @relation(fields: [groceryListItemId], references: [id], onDelete: Cascade)
 

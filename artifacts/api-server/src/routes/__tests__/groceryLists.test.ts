@@ -13,7 +13,7 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import { GroceryListAIError } from "../../lib/groceryListAI";
-import type { ConsolidatedItem } from "../../lib/groceryList";
+import type { ConsolidatedItem, GrocerySource } from "../../lib/groceryList";
 import { createGroceryListsRouter } from "../groceryLists";
 import type { GenerateGroceryListResult } from "../../lib/ai/schemas/grocery";
 
@@ -82,6 +82,9 @@ interface ItemSourceRow {
   groceryListItemId: string;
   mealId: string;
   dishId: string;
+  // WS7-7-A Block 5 — per-source change-signature (nullable for pre-B5 rows).
+  servings?: number | null;
+  ingredientSignature?: string | null;
 }
 
 interface ActivityRow {
@@ -377,7 +380,12 @@ function makeStubPrisma(state: StubState) {
             isUserAdded: i.isUserAdded ?? false,
             sources: state.itemSources
               .filter((s) => s.groceryListItemId === (i.id ?? ""))
-              .map((s) => ({ mealId: s.mealId })),
+              .map((s) => ({
+                mealId: s.mealId,
+                dishId: s.dishId,
+                servings: s.servings ?? null,
+                ingredientSignature: s.ingredientSignature ?? null,
+              })),
           }));
       },
       // WS7-7-A Block 2 — item-mutation surfaces. findFirst resolves the
@@ -429,9 +437,21 @@ function makeStubPrisma(state: StubState) {
 
 // ── helpers ────────────────────────────────────────────────────────────
 
+// WS7-7-A Block 5 — default change-signature for test sources. Existing
+// carry/no-drift fixtures pair a consolidator source with a seeded DB source;
+// both default to these values so signaturesMatch stays true and the row
+// carries. Change-detection tests override servings/ingredientSignature.
+const TEST_DEFAULT_SERVINGS = 4;
+const TEST_DEFAULT_SIG = "sig-default";
+
 function consolidatedItem(
-  overrides: Partial<ConsolidatedItem> = {},
+  overrides: Partial<Omit<ConsolidatedItem, "sources">> & {
+    sources?: Array<
+      Pick<GrocerySource, "mealId" | "dishId"> & Partial<GrocerySource>
+    >;
+  } = {},
 ): ConsolidatedItem {
+  const { sources: sourceOverrides, ...rest } = overrides;
   return {
     ingredientId: null,
     canonicalName: "olive oil",
@@ -442,13 +462,17 @@ function consolidatedItem(
     isUniversalStaple: false,
     isUserPantryStaple: false,
     isRecurringItem: false,
-    sources: [],
     purchaseUnit: null,
     purchaseQuantity: null,
     purchaseDisplay: null,
     preparationNote: null,
     sourceDishTitle: null,
-    ...overrides,
+    ...rest,
+    sources: (sourceOverrides ?? []).map((s) => ({
+      servings: TEST_DEFAULT_SERVINGS,
+      ingredientSignature: TEST_DEFAULT_SIG,
+      ...s,
+    })),
   };
 }
 
@@ -2600,6 +2624,33 @@ describe("PATCH /api/grocery-lists/:id/items/:itemId", () => {
     }
   });
 
+  it("acknowledgeAmbiguity clears isAmbiguous WITHOUT writing userResolvedTo (B5 leave-as-is)", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state, {
+      isAmbiguous: true,
+      ambiguityOptions: ["thighs", "breast"],
+      userResolvedTo: null,
+    });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ acknowledgeAmbiguity: true }),
+        },
+      );
+      assert.equal(res.status, 200);
+      const read = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      // Flag dropped permanently; value left as-is (no projection).
+      assert.equal(read?.isAmbiguous, false);
+      assert.equal(read?.userResolvedTo, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("empty body → 400 (refine requires at least one field)", async () => {
     const harness = await spinUp();
     seedB2List(harness.state);
@@ -2958,8 +3009,18 @@ function seedReconSource(
   itemId: string,
   mealId: string,
   dishId: string,
+  opts: { servings?: number | null; ingredientSignature?: string | null } = {},
 ): void {
-  state.itemSources.push({ groceryListItemId: itemId, mealId, dishId });
+  state.itemSources.push({
+    groceryListItemId: itemId,
+    mealId,
+    dishId,
+    servings: opts.servings === undefined ? TEST_DEFAULT_SERVINGS : opts.servings,
+    ingredientSignature:
+      opts.ingredientSignature === undefined
+        ? TEST_DEFAULT_SIG
+        : opts.ingredientSignature,
+  });
 }
 
 async function getList(h: ReconHarness): Promise<Response> {
@@ -2998,6 +3059,10 @@ describe("WS7-7-A B4 — reconcile: revision-equal serves as-is", () => {
     try {
       const res = await getList(h);
       assert.equal(res.status, 200);
+      assert.equal(
+        ((await res.json()) as { reconciled: boolean }).reconciled,
+        false,
+      ); // fast path, no banner
       assert.equal(h.spies.consolidate, 0);
       assert.equal(h.spies.fill, 0);
       assert.equal(h.spies.finalPass, 0);
@@ -3050,6 +3115,210 @@ describe("WS7-7-A B4 — reconcile: unchanged meal carries row forward", () => {
       assert.equal(g.stapleOptedIn, true);
       assert.equal(g.storeSection, "produce");
       assert.equal(g.userResolvedTo, "garlic clove");
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 8);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+// ── WS7-7-A Block 5 — intra-meal change-signature detection ─────────────
+// These exercise the load-bearing D-WS7-134 fix: a meal STAYS in the plan
+// (same mealId+dishId, so B4's meal-id-set arithmetic sees "unchanged") but
+// its contribution moved — servings or ingredient set. The per-source change-
+// signature is what makes reconcile re-resolve instead of no-op carrying a
+// stale quantity forward.
+
+describe("WS7-7-A B5 — reconcile: servings-only change re-resolves", () => {
+  it("re-resolves a same-mealId source when effective servings moved (D-WS7-134)", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 6, // recomputed for the new servings
+          // Same mealId+dishId, same ingredient signature, but servings 4 → 8.
+          sources: [
+            {
+              mealId: "meal-a",
+              dishId: "dish-x",
+              servings: 8,
+              ingredientSignature: TEST_DEFAULT_SIG,
+            },
+          ],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 9);
+    seedReconList(h.state, 8); // stale
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 3, // pre-edit quantity — must NOT be carried forward
+      isChecked: true,
+    });
+    // Seeded source: servings 4 (the pre-edit value), default signature.
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x", { servings: 4 });
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(
+        ((await res.json()) as { reconciled: boolean }).reconciled,
+        true,
+      ); // surfaced to client
+      assert.equal(h.spies.finalPass, 1); // re-resolved, not carried
+      assert.equal(findRow(h.state, "it-garlic"), undefined); // old row gone
+      const fresh = h.state.listItems.find(
+        (i) => i.displayName === "Garlic" && i.id !== "it-garlic",
+      )!;
+      assert.ok(fresh);
+      assert.equal(fresh.quantity, 6); // reflects new servings
+      const srcs = h.state.itemSources.filter(
+        (s) => s.groceryListItemId === fresh.id,
+      );
+      assert.equal(srcs[0].servings, 8); // fresh signature persisted
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 9);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B5 — reconcile: ingredient-only change re-resolves", () => {
+  it("re-resolves a same-mealId source when the ingredient signature moved", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 5,
+          // Same mealId+dishId+servings, but the ingredient set changed.
+          sources: [
+            {
+              mealId: "meal-a",
+              dishId: "dish-x",
+              servings: TEST_DEFAULT_SERVINGS,
+              ingredientSignature: "sig-changed",
+            },
+          ],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 9);
+    seedReconList(h.state, 8);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 2,
+      isChecked: true,
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x"); // default sig
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(h.spies.finalPass, 1);
+      assert.equal(findRow(h.state, "it-garlic"), undefined);
+      const fresh = h.state.listItems.find(
+        (i) => i.displayName === "Garlic" && i.id !== "it-garlic",
+      )!;
+      assert.equal(fresh.quantity, 5);
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 9);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B5 — reconcile: truly-unchanged carries forward (signature match)", () => {
+  it("matching servings AND signature carries the row with B2 user state intact", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 2,
+          sources: [
+            {
+              mealId: "meal-a",
+              dishId: "dish-x",
+              servings: TEST_DEFAULT_SERVINGS,
+              ingredientSignature: TEST_DEFAULT_SIG,
+            },
+          ],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 8);
+    seedReconList(h.state, 7); // stale (some OTHER meal changed → revision bumped)
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 3, // user-edited
+      isChecked: true,
+      stapleOptedIn: true,
+      userResolvedTo: "garlic clove",
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x"); // matching defaults
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(h.spies.finalPass, 0); // carried, not re-resolved
+      const g = findRow(h.state, "it-garlic")!;
+      assert.equal(g.quantity, 3); // user edit preserved
+      assert.equal(g.isChecked, true);
+      assert.equal(g.stapleOptedIn, true);
+      assert.equal(g.userResolvedTo, "garlic clove");
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 8);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("WS7-7-A B5 — reconcile: pre-B5 null signature re-resolves once (D1)", () => {
+  it("a null stored signature fails the carry test and re-resolves on first reconcile", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 2,
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }], // computed sig
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 8);
+    seedReconList(h.state, 7);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 2,
+    });
+    // Pre-B5 row: null servings + null signature (column didn't exist yet).
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x", {
+      servings: null,
+      ingredientSignature: null,
+    });
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(h.spies.finalPass, 1); // re-resolved once (self-heals)
       assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 8);
     } finally {
       await h.close();

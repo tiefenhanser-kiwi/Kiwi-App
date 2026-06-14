@@ -123,7 +123,15 @@ interface ExistingRow {
   unit: string;
   isRecurringItem: boolean;
   isUserAdded: boolean;
-  sources: { mealId: string }[];
+  // WS7-7-A Block 5 — servings/ingredientSignature are null on rows generated
+  // before this column existed (D1 re-resolve-once: null ≠ computed ⇒ the row
+  // re-resolves on its first post-deploy reconcile, then self-heals).
+  sources: {
+    mealId: string;
+    dishId: string;
+    servings: number | null;
+    ingredientSignature: string | null;
+  }[];
 }
 
 function allMealsIn(mealIds: string[], allowed: Set<string>): boolean {
@@ -193,7 +201,16 @@ export async function reconcileGroceryListIfStale(
       unit: true,
       isRecurringItem: true,
       isUserAdded: true,
-      sources: { select: { mealId: true } },
+      // WS7-7-A Block 5 — pull the per-source change-signature so the carry
+      // test can detect an intra-meal edit (same mealId, changed contribution).
+      sources: {
+        select: {
+          mealId: true,
+          dishId: true,
+          servings: true,
+          ingredientSignature: true,
+        },
+      },
     },
   });
   const existing: ExistingRow[] = existingRaw as ExistingRow[];
@@ -234,6 +251,24 @@ export async function reconcileGroceryListIfStale(
     );
   }
 
+  // 6b. Live change-signatures keyed by (mealId, dishId). Every source of the
+  //     same dish carries an identical signature, so last-write is harmless.
+  //     This is how reconcile detects an INTRA-meal edit: the meal stays in the
+  //     plan (mealId unchanged) but its dish's servings or ingredient set moved,
+  //     so the stored source signature no longer matches the live one.
+  const liveSourceSig = new Map<
+    string,
+    { servings: number; ingredientSignature: string }
+  >();
+  for (const line of consolidated) {
+    for (const s of line.sources) {
+      liveSourceSig.set(`${s.mealId}|${s.dishId}`, {
+        servings: s.servings,
+        ingredientSignature: s.ingredientSignature,
+      });
+    }
+  }
+
   // 7. Classify existing plan-derived rows → carry (keep untouched) or delete.
   const carriedKeys = new Set<string>();
   const deleteIds: string[] = [];
@@ -251,8 +286,23 @@ export async function reconcileGroceryListIfStale(
     const key = matchKey(r.ingredientId, r.unit, r.displayName);
     const line = consByKey.get(key);
     const rowMealIds = r.sources.map((s) => s.mealId);
+    // WS7-7-A Block 5 — intra-meal change detection. Every stored source must
+    // still exist live (same mealId+dishId) AND match on both axes: servings
+    // and ingredientSignature. Any drift (or a null pre-B5 signature) fails the
+    // test → the row re-resolves with the recomputed quantity instead of being
+    // carried forward with a stale one. This is the load-bearing fix that lets
+    // a servings-only or ingredient-only edit reach the list (D-WS7-134).
+    const signaturesMatch = r.sources.every((s) => {
+      const live = liveSourceSig.get(`${s.mealId}|${s.dishId}`);
+      return (
+        live != null &&
+        live.servings === s.servings &&
+        live.ingredientSignature === s.ingredientSignature
+      );
+    });
     const carry =
       line != null &&
+      signaturesMatch &&
       allMealsIn(rowMealIds, unchanged) &&
       allMealsIn(
         line.sources.map((s) => s.mealId),
@@ -343,6 +393,9 @@ export async function reconcileGroceryListIfStale(
         groceryListItemId: ids[idx],
         mealId: s.mealId,
         dishId: s.dishId,
+        // WS7-7-A Block 5 — re-resolved rows carry the fresh change-signature.
+        servings: s.servings,
+        ingredientSignature: s.ingredientSignature,
       }));
     });
   }
