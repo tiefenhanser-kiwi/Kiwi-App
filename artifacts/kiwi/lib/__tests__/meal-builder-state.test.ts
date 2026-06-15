@@ -23,6 +23,7 @@ import { test } from "node:test";
 
 import {
   buildManualSaveMealInput,
+  buildRecipeOverride,
   hydrateBuilderDishesFromDraft,
   hydrateBuilderDishesFromMeal,
   newDish,
@@ -794,4 +795,155 @@ test("Block 1H append shape: setDishes(prev => [...prev, newDish()]) yields a 2-
   assert.equal(next[1].ingredients.length, 1);
   assert.equal(next[1].ingredients[0].name, "");
   assert.equal(next[1].steps.length, 0);
+});
+
+// ── WS7-7-A B5 follow-on (D-WS7-141) — override seed + apply-always ──────
+//
+// The editor's seed read now threads planItemId (meal-builder.tsx Fix 1a), so
+// when opened from a plan it hydrates the per-instance OVERRIDE-applied detail
+// (GET /meals/:id?planItemId= → composeMealDetail applies recipeOverrideJson)
+// instead of the canonical meal. These tests pin the consequences with the
+// pure builders the screen shares:
+//   (a) hydration seeds the reduced (override) ingredient set — a "just this
+//       time" removal stays absent on re-open.
+//   (b) apply-always writes BOTH the override and the template from the SAME
+//       on-screen dishes (single `input` source).
+//   (c) re-saving an unedited override-seeded form reproduces the same override
+//       — the removed ingredient is NOT clobbered back in (the destructive
+//       round-trip the pre-fix canonical seed caused).
+
+// A MealDetail as returned by GET /meals/:id?planItemId= AFTER the server
+// applied a "just this time" override that REMOVED "Parmesan" from the only
+// dish (canonical had Pasta + Parmesan). composeMealDetail preserves canonical
+// steps via the {...dish} spread, so the detail still carries steps even though
+// the override JSON omits them (D-WS7-142).
+function makeOverrideAppliedMeal(): MealDetail {
+  return {
+    id: "meal-ov",
+    title: "Weeknight Pasta",
+    cuisine: "Italian",
+    minutes: 20,
+    servings: 4,
+    calories: 500,
+    protein: 20,
+    carbs: 70,
+    fat: 15,
+    tags: [],
+    image: null,
+    description: null,
+    difficulty: "easy",
+    mealType: "dinner",
+    sourceType: "manual",
+    isPublic: false,
+    userId: "u1",
+    notes: null,
+    dishes: [
+      {
+        dishId: "dish-pasta",
+        title: "Pasta",
+        roleLabel: "main",
+        positionIndex: 0,
+        minutes: 20,
+        difficulty: "easy",
+        servings: 4,
+        // Override removed "Parmesan" — only "Pasta" remains.
+        ingredients: [mealIng("Pasta", 1, "lb")],
+        steps: [mealStep(0, "Boil pasta"), mealStep(1, "Toss with sauce")],
+      },
+    ],
+    steps: [],
+  };
+}
+
+function pastaSourceState(dishes: BuilderDish[]) {
+  return {
+    mealName: "Weeknight Pasta",
+    cuisineType: "Italian",
+    difficulty: "easy" as const,
+    estimatedTimeMinutes: "20",
+    servingsDefault: 4,
+    notes: "",
+    dishes,
+    sourceType: "manual" as const,
+  };
+}
+
+test("(D-WS7-141 Fix 1a) editor seeds the OVERRIDE ingredient set — removed ingredient stays absent + steps round-trip", () => {
+  const alloc = makeAlloc();
+  const dishes = hydrateBuilderDishesFromMeal(makeOverrideAppliedMeal(), alloc);
+  assert.equal(dishes.length, 1);
+  const names = dishes[0].ingredients.map((i) => i.name);
+  assert.deepEqual(names, ["Pasta"]);
+  assert.ok(
+    !names.includes("Parmesan"),
+    "the override-removed ingredient must not reappear in the seed",
+  );
+  // Canonical steps survive the override read → present in the seeded form
+  // (confirms the Phase-1 steps round-trip: no steps loss from threading
+  // planItemId).
+  assert.deepEqual(
+    dishes[0].steps.map((s) => s.text),
+    ["Boil pasta", "Toss with sauce"],
+  );
+});
+
+test("(D-WS7-141 Fix 1b) apply-always: override + template writes derive from the SAME form state", () => {
+  const alloc = makeAlloc();
+  const dishes = hydrateBuilderDishesFromMeal(makeOverrideAppliedMeal(), alloc);
+  const input = buildManualSaveMealInput(pastaSourceState(dishes));
+  const override = buildRecipeOverride(input);
+
+  // The template PATCH sends `input.dishes` verbatim (buildUpdateMealInput:
+  // `dishes: input.dishes`), and the instance override is built from the SAME
+  // `input` — so both writes carry the identical edited ingredient set.
+  assert.equal(override.titleOverride, input.title);
+  assert.equal(override.dishes.length, input.dishes.length);
+  override.dishes.forEach((od, i) => {
+    const formDish = input.dishes[i];
+    assert.equal(formDish.kind, "new");
+    if (formDish.kind !== "new") return;
+    assert.deepEqual(
+      od.ingredients.map((g) => ({
+        name: g.name,
+        quantity: g.quantity,
+        unit: g.unit,
+      })),
+      formDish.ingredients.map((g) => ({
+        name: g.name,
+        quantity: g.quantity,
+        unit: g.unit,
+      })),
+    );
+  });
+  // Both writes reflect the removal.
+  assert.deepEqual(
+    override.dishes[0].ingredients.map((g) => g.name),
+    ["Pasta"],
+  );
+});
+
+test("(D-WS7-141 Fix 1c) just-this-time idempotency: re-saving an unedited override-seeded form reproduces the same override — no clobber", () => {
+  const alloc = makeAlloc();
+  // Seed from the override-applied detail (Parmesan already removed), make NO
+  // edits, then serialize + rebuild the override exactly as runSaveJustThisTime
+  // does (buildManualSaveMealInput → buildRecipeOverride → changeRecipeForPlanItem).
+  // The removed ingredient must NOT reappear — the pre-fix canonical seed would
+  // have re-introduced it and silently clobbered the prior override.
+  const dishes = hydrateBuilderDishesFromMeal(makeOverrideAppliedMeal(), alloc);
+  const input = buildManualSaveMealInput(pastaSourceState(dishes));
+  const override = buildRecipeOverride(input);
+
+  assert.equal(override.dishes.length, 1);
+  const names = override.dishes[0].ingredients.map((g) => g.name);
+  assert.deepEqual(names, ["Pasta"]);
+  assert.ok(
+    !names.includes("Parmesan"),
+    "an unedited re-save must not clobber the prior removal back in",
+  );
+  // Quantity/unit round-trip cleanly too (String→parseQuantity→number).
+  assert.deepEqual(override.dishes[0].ingredients[0], {
+    name: "Pasta",
+    quantity: 1,
+    unit: "lb",
+  });
 });

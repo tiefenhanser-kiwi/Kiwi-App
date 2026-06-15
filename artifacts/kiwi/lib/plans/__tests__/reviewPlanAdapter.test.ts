@@ -254,6 +254,39 @@ test("planDetailToReviewPlan: meta line uses difficulty + minutes + servings fro
   assert.equal(result.scheduledMeals[0].metaLine, "Medium · 45 min · serves 6");
 });
 
+test("planDetailToReviewPlan: meta line uses servingsOverride when the plan item has one (D-WS7-141 Fix 2)", () => {
+  const result = planDetailToReviewPlan(
+    makeDetail({
+      items: [
+        makeItem({
+          assignedDayOfWeek: "Monday",
+          servingsOverride: 8,
+          meal: makeMeal({ difficulty: "medium", minutes: 45, servings: 4 }),
+        }),
+      ],
+    }),
+  );
+  // The bumped per-instance servings (8) wins over the canonical default (4).
+  assert.equal(result.scheduledMeals[0].metaLine, "Medium · 45 min · serves 8");
+  // The override still rides onto the row for the meal-detail stepper seed.
+  assert.equal(result.scheduledMeals[0].servingsOverride, 8);
+});
+
+test("planDetailToReviewPlan: meta line falls back to meal.servings when servingsOverride is null (D-WS7-141 Fix 2)", () => {
+  const result = planDetailToReviewPlan(
+    makeDetail({
+      items: [
+        makeItem({
+          assignedDayOfWeek: "Monday",
+          servingsOverride: null,
+          meal: makeMeal({ difficulty: "easy", minutes: 30, servings: 5 }),
+        }),
+      ],
+    }),
+  );
+  assert.equal(result.scheduledMeals[0].metaLine, "Easy · 30 min · serves 5");
+});
+
 test("mealDetailToRow: deep-link injection row carries cuisine + macros, empty day strip", () => {
   const row = mealDetailToRow(
     makeMeal({ id: "m-9", title: "Tacos", cuisine: "Mexican" }),

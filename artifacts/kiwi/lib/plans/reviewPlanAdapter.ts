@@ -62,6 +62,12 @@ function itemToRow(
   day: ReturnType<typeof toDayOfWeek>,
 ): ReviewPlanMealRow {
   const meal = item.meal;
+  // WS7-7-A B5 follow-on (D-WS7-141 Fix 2) — the meta line's "serves N" must
+  // reflect the plan-instance servings override when set, not the canonical
+  // meal default. The override already rides onto the row (servingsOverride
+  // below) for the stepper; the displayed string was the one surface still
+  // reading meal.servings.
+  const effectiveServings = item.servingsOverride ?? meal.servings;
   return {
     planItemId: item.id,
     mealId: item.mealId,
@@ -71,7 +77,7 @@ function itemToRow(
     // can read row.cuisine directly instead of an extra getMealById lookup.
     // Server `cuisine` is always a string ("" when none — see MealListItemSchema).
     cuisine: meal.cuisine.length > 0 ? meal.cuisine : undefined,
-    metaLine: formatMealDetailMetaLine(meal),
+    metaLine: formatMealDetailMetaLine(meal, effectiveServings),
     caloriesPerServing: meal.calories,
     proteinGPerServing: meal.protein,
     carbsGPerServing: meal.carbs,
@@ -82,8 +88,14 @@ function itemToRow(
   };
 }
 
-function formatMealDetailMetaLine(meal: MealDetail): string {
-  return `${capitalize(meal.difficulty)} · ${meal.minutes} min · serves ${meal.servings}`;
+// `servings` defaults to the canonical meal default so the deep-link inject
+// path (mealDetailToRow — no plan item, no override) is unchanged; itemToRow
+// passes the override-aware effective servings (D-WS7-141 Fix 2).
+function formatMealDetailMetaLine(
+  meal: MealDetail,
+  servings: number = meal.servings,
+): string {
+  return `${capitalize(meal.difficulty)} · ${meal.minutes} min · serves ${servings}`;
 }
 
 // Used by the deep-link `?addMealId=...` injection path in app/plan/[id].tsx.

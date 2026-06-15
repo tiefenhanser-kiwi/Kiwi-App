@@ -17,7 +17,7 @@ import { parseQuantity } from "./quantity";
 import { toServerDifficulty } from "./api/builder";
 import type { MealDetail, SaveMealDish, SaveMealInput } from "./api/meals";
 import type { DraftDish } from "./builder/parsedDishToDraft";
-import type { DraftMeal, SavedDish } from "./types";
+import type { DraftMeal, RecipeOverride, SavedDish } from "./types";
 
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -394,4 +394,36 @@ export function buildManualSaveMealInput(
     throw new Error("Add at least one dish with ingredients.");
   }
   return { ...baseMeta, dishes: newDishes };
+}
+
+// ── Per-instance recipe override builder ────────────────────────────────
+// WS7-7-A B5 — translate a save payload into a per-instance RecipeOverride
+// (PRD §8.4.3) for the "just this time" path AND the apply-always instance
+// write (D-WS7-141 Fix 1b). Maps each dish's ingredients in position order so
+// the consolidator can re-resolve quantities for THIS plan only. "link" dishes
+// (combine mode) carry no inline ingredients — they don't occur in an
+// edit-from-plan recipe edit, but we emit an empty list defensively to keep
+// dish-position alignment.
+//
+// WS7-7-A B5 follow-on — extracted from app/meal-builder.tsx so it can be the
+// SINGLE source both save branches share (just-this-time and apply-always) and
+// so the seed→serialize→override round-trip is unit-testable. Steps are
+// intentionally omitted from the override (overrides are ingredient + title
+// only; the read re-merges canonical steps) — see D-WS7-142.
+export function buildRecipeOverride(input: SaveMealInput): RecipeOverride {
+  return {
+    titleOverride: input.title,
+    dishes: input.dishes.map((d) => ({
+      name: d.kind === "new" ? d.title : "Dish",
+      ingredients:
+        d.kind === "new"
+          ? d.ingredients.map((ing) => ({
+              name: ing.name,
+              quantity: ing.quantity,
+              unit: ing.unit,
+            }))
+          : [],
+    })),
+    createdAt: new Date().toISOString(),
+  };
 }

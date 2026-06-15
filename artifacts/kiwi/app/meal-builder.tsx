@@ -51,6 +51,7 @@ import { formatMacroLine } from "@/lib/format/macros";
 import { parseQuantity } from "@/lib/quantity";
 import {
   buildManualSaveMealInput,
+  buildRecipeOverride,
   draftDishToBuilderDish,
   hydrateBuilderDishesFromDraft,
   hydrateBuilderDishesFromMeal,
@@ -69,7 +70,7 @@ import {
   getSavedDishes,
   getTopRatedDishes,
 } from "@/lib/stubs";
-import type { DraftMeal, RecipeOverride, SavedDish } from "@/lib/types";
+import type { DraftMeal, SavedDish } from "@/lib/types";
 
 type Mode = "manual" | "combine" | "ai" | null;
 
@@ -155,7 +156,16 @@ export default function MealBuilderScreen() {
   // WS7-6 1G — hydration now reads from the server (GET /meals/:id) instead
   // of the lib/stubs catalog. Without this, a library-context edit would
   // PATCH with stub-derived data and wipe the real meal's sub-graph.
-  const mealDetailQuery = useMeal(mealId ?? "");
+  //
+  // WS7-7-A B5 follow-on (D-WS7-141 Fix 1a) — thread planItemId so an
+  // edit-from-plan / change-recipe open seeds from the per-instance override
+  // (GET /meals/:id?planItemId= → composeMealDetail applies recipeOverrideJson)
+  // instead of the canonical meal. planItemId is undefined in library-edit
+  // context → canonical, unchanged. Without this the form re-seeds the
+  // un-removed ingredient set and a "Just this time" save silently clobbers
+  // the prior override (the removal reappears). This also aligns the editor
+  // onto the cache key ["meals","detail",id,planItemId] the B5 write invalidates.
+  const mealDetailQuery = useMeal(mealId ?? "", planItemId);
   const sourceMeal = mealDetailQuery.data ?? null;
 
   const draftMeal = useMemo<DraftMeal | null>(() => {
@@ -586,28 +596,6 @@ export default function MealBuilderScreen() {
     };
   };
 
-  // WS7-7-A B5 — translate the builder's edited dishes into a per-instance
-  // RecipeOverride (PRD §8.4.3) for the "just this time" path. Maps each dish's
-  // ingredients in position order so the consolidator can re-resolve quantities
-  // for THIS plan only. "link" dishes (combine mode) carry no inline
-  // ingredients — they don't occur in an edit-from-plan recipe edit, but we
-  // emit an empty list defensively to keep dish-position alignment.
-  const buildRecipeOverride = (input: SaveMealInput): RecipeOverride => ({
-    titleOverride: input.title,
-    dishes: input.dishes.map((d) => ({
-      name: d.kind === "new" ? d.title : "Dish",
-      ingredients:
-        d.kind === "new"
-          ? d.ingredients.map((ing) => ({
-              name: ing.name,
-              quantity: ing.quantity,
-              unit: ing.unit,
-            }))
-          : [],
-    })),
-    createdAt: new Date().toISOString(),
-  });
-
   // WS7-7-A B5 — "Just this time": persist the edit as the plan item's
   // recipeOverrideJson (D-WS7-090). The global Meal is untouched; only this
   // plan instance + its grocery list reflect the change.
@@ -635,13 +623,31 @@ export default function MealBuilderScreen() {
   // the success/error/post-success-routing copy stays consistent.
   // WS7-7-A B5 — bumpPlanId is set on the "Apply always"-from-a-plan path so
   // the current plan's grocery list reconciles to the global edit.
+  //
+  // WS7-7-A B5 follow-on (D-WS7-141 Fix 1b) — overridePlanItemId is set on the
+  // apply-always-from-a-plan path. Per the locked product model, "Apply always"
+  // writes the per-instance override (so THIS plan keeps the edit) AND PATCHes
+  // the template (so future plans pull it). Both writes derive from the SAME
+  // on-screen `input` via buildRecipeOverride / buildUpdateMealInput. The
+  // override is written FIRST so the plan-local guarantee lands even if the
+  // template PATCH fails; a failure of either surfaces the shared error Alert
+  // rather than half-applying silently. Library-context edits pass neither
+  // bumpPlanId nor overridePlanItemId → template-only, unchanged.
   const runUpdateMeal = async (
     id: string,
     input: SaveMealInput,
     bumpPlanId?: string,
+    overridePlanItemId?: string,
   ) => {
     setSaving(true);
     try {
+      if (bumpPlanId && overridePlanItemId) {
+        await changeRecipeForPlanItem(
+          bumpPlanId,
+          overridePlanItemId,
+          buildRecipeOverride(input),
+        );
+      }
       await updateMeal(id, {
         ...buildUpdateMealInput(input),
         ...(bumpPlanId ? { bumpPlanId } : {}),
@@ -745,7 +751,10 @@ export default function MealBuilderScreen() {
             onPress: () => {
               // WS7-7-A B5 — "forever, starting now": edit the global meal AND
               // bump THIS plan so its grocery list reconciles immediately.
-              void runUpdateMeal(mealId, input, planId);
+              // WS7-7-A B5 follow-on (D-WS7-141 Fix 1b) — also write the
+              // per-instance override (planItemId) so this plan keeps the edit
+              // from the same on-screen dishes.
+              void runUpdateMeal(mealId, input, planId, planItemId);
             },
           },
           { text: "Cancel", style: "cancel" },
