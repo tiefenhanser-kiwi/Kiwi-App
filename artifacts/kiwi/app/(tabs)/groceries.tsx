@@ -14,7 +14,7 @@ import { Screen } from "@/components/Screen";
 import { useGroceryLists } from "@/hooks/useGroceryLists";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { formatRelative } from "@/lib/date";
-import type { GroceryListListItem } from "@/lib/api/groceries";
+import { chipLabel, type GroceryListListItem } from "@/lib/api/groceries";
 import {
   KColors,
   KPalette,
@@ -46,13 +46,6 @@ function isCurrentWeek(list: GroceryListListItem): boolean {
   return Date.now() - t < WEEK_MS;
 }
 
-// D5 — single status badge, raw server enum title-cased. Returns null when
-// the field is empty so the badge slot collapses.
-function statusBadgeLabel(status: string): string | null {
-  if (!status) return null;
-  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-}
-
 export default function GroceriesTab() {
   const router = useRouter();
   const listsQuery = useGroceryLists();
@@ -82,25 +75,10 @@ export default function GroceriesTab() {
     router.push({ pathname: "/grocery-list/[id]", params: { id } });
   };
 
-  const handleGetList = () => {
-    Alert.alert(
-      "Coming in WS6 — list generation",
-      "Generating a fresh grocery list from a meal plan requires the API workstream (POST /grocery-lists per PRD §12.3.2).",
-    );
-  };
-
+  // WS7-7-A B6 item 7 — interim placeholder; no retailer wiring (the `ordered`
+  // status stays reserved for the future retailer flow, D-WS7-125).
   const handleOrderOnline = () => {
-    Alert.alert(
-      "Coming in WS6 — retailer integration",
-      "Online ordering requires the retailer adapter pattern from PRD §12.12.",
-    );
-  };
-
-  const handleReuse = () => {
-    Alert.alert(
-      "Coming in WS7 — list reuse",
-      "Cloning a past list to a new draft requires the API client.",
-    );
+    Alert.alert("Online ordering — coming soon.");
   };
 
   const currentSortLabel =
@@ -193,9 +171,7 @@ export default function GroceriesTab() {
                 key={list.id}
                 list={list}
                 onViewList={() => handleViewList(list.id)}
-                onGetList={handleGetList}
                 onOrderOnline={handleOrderOnline}
-                onReuse={handleReuse}
               />
             ))}
           </View>
@@ -208,23 +184,11 @@ export default function GroceriesTab() {
 type ListCardProps = {
   list: GroceryListListItem;
   onViewList: () => void;
-  onGetList: () => void;
   onOrderOnline: () => void;
-  onReuse: () => void;
 };
 
-function ListCard({
-  list,
-  onViewList,
-  onGetList,
-  onOrderOnline,
-  onReuse,
-}: ListCardProps) {
-  // WS7-6 (E) Block 2 — the single This-Week list shows "This Week" (matches
-  // the detail screen subtitle); all other lists keep the status badge so
-  // Draft/Ordered/Archived/etc. still surface. The status badge collapses
-  // when status is empty.
-  const badge = list.isActiveThisWeek ? "This Week" : statusBadgeLabel(list.status);
+function ListCard({ list, onViewList, onOrderOnline }: ListCardProps) {
+  const badge = chipLabel(list);
   const isCurrent = isCurrentWeek(list);
 
   return (
@@ -246,24 +210,19 @@ function ListCard({
         {list.itemCount} items · {formatRelative(list.createdAt)}
       </Text>
 
-      <View style={styles.actionsRow}>
-        {isCurrent ? (
-          <>
-            <CardButton variant="primary" onPress={onViewList} label="View List" />
-            <CardButton variant="outline" onPress={onGetList} label="Get List ✓" />
-            <CardButton
-              variant="terra"
-              onPress={onOrderOnline}
-              label="Order Online"
-            />
-          </>
-        ) : (
-          <>
-            <CardButton variant="outline" onPress={onViewList} label="View List" />
-            <CardButton variant="primary" onPress={onReuse} label="Reuse" />
-          </>
-        )}
-      </View>
+      {/* WS7-7-A B6 items 2/3/4 — the whole card is pressable → View List, so
+          the redundant View List button is removed; Get List + Reuse are gone.
+          Current-week cards keep Order Online only; past cards are button-less
+          (the card tap is the affordance). */}
+      {isCurrent && (
+        <View style={styles.actionsRow}>
+          <CardButton
+            variant="terra"
+            onPress={onOrderOnline}
+            label="Order Online"
+          />
+        </View>
+      )}
     </Pressable>
   );
 }

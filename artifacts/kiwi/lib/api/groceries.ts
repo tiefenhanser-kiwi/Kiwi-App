@@ -39,6 +39,20 @@ export const GroceryListListItemSchema = z.object({
 });
 export type GroceryListListItem = z.infer<typeof GroceryListListItemSchema>;
 
+// WS7-7-A B6 item 5 — grocery-card chip whitelist. The resolver-driven
+// This-Week winner wins the single badge slot; otherwise only `completed` and
+// `ordered` surface a chip. Draft / Active / Archived render no chip (this
+// replaces the old title-case-everything statusBadgeLabel). Lives here next to
+// the list-item type so the groceries screen and its tests share one source.
+export function chipLabel(
+  list: Pick<GroceryListListItem, "isActiveThisWeek" | "status">,
+): string | null {
+  if (list.isActiveThisWeek) return "This Week";
+  if (list.status === "completed") return "Completed";
+  if (list.status === "ordered") return "Ordered";
+  return null;
+}
+
 const GroceryListsResponseSchema = z.object({
   groceryLists: z.array(GroceryListListItemSchema),
 });

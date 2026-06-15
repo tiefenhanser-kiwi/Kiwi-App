@@ -15,7 +15,7 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import * as SecureStore from "expo-secure-store";
 
-import { getGroceryLists, GroceryListListItemSchema } from "../groceries";
+import { chipLabel, getGroceryLists, GroceryListListItemSchema } from "../groceries";
 import { ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 import { useGroceryLists } from "@/hooks/useGroceryLists";
@@ -91,6 +91,26 @@ test("GroceryListListItemSchema parses plan-derived and standalone rows", () => 
     GroceryListListItemSchema.parse(STANDALONE_LIST).mealPlanInstanceId,
     null,
   );
+});
+
+// ── chipLabel (WS7-7-A B6 item 5 — chip whitelist) ───────────────────────────
+
+test("chipLabel: isActiveThisWeek wins the slot regardless of status", () => {
+  // Even when the underlying status is completed/ordered, This Week wins.
+  assert.equal(chipLabel({ isActiveThisWeek: true, status: "active" }), "This Week");
+  assert.equal(chipLabel({ isActiveThisWeek: true, status: "completed" }), "This Week");
+  assert.equal(chipLabel({ isActiveThisWeek: true, status: "ordered" }), "This Week");
+});
+
+test("chipLabel: completed and ordered surface their own chip", () => {
+  assert.equal(chipLabel({ isActiveThisWeek: false, status: "completed" }), "Completed");
+  assert.equal(chipLabel({ isActiveThisWeek: false, status: "ordered" }), "Ordered");
+});
+
+test("chipLabel: draft / active / archived render no chip", () => {
+  assert.equal(chipLabel({ isActiveThisWeek: false, status: "draft" }), null);
+  assert.equal(chipLabel({ isActiveThisWeek: false, status: "active" }), null);
+  assert.equal(chipLabel({ isActiveThisWeek: false, status: "archived" }), null);
 });
 
 // ── getGroceryLists ─────────────────────────────────────────────────────────
