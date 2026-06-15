@@ -222,12 +222,18 @@ export interface PatchPlanBody {
  */
 export async function getPlans(
   filter?: readonly PlanFilterKey[],
+  // WS7-7-A B6 — `cursor` is the opaque `nextCursor` from a prior page (the
+  // server paginates GET /plans via paginateById). Additive: existing callers
+  // that omit it get page 1, unchanged.
+  opts: { cursor?: string } = {},
 ): Promise<PlanListResponse> {
-  const query =
-    filter && filter.length > 0
-      ? `?filter=${encodeURIComponent(filter.join(","))}`
-      : "";
-  return apiClient(`/plans${query}`, { schema: PlanListResponseSchema });
+  const params = new URLSearchParams();
+  if (filter && filter.length > 0) params.set("filter", filter.join(","));
+  if (opts.cursor) params.set("cursor", opts.cursor);
+  const qs = params.toString();
+  return apiClient(`/plans${qs ? `?${qs}` : ""}`, {
+    schema: PlanListResponseSchema,
+  });
 }
 
 /**

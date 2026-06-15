@@ -18,7 +18,11 @@ import { WizardCtaCard } from "@/components/WizardCtaCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useApp } from "@/contexts/AppContext";
 import { useHomePayload } from "@/hooks/useHomePayload";
+import { usePlans } from "@/hooks/usePlans";
+import { useGroceryGeneration } from "@/hooks/useGroceryGeneration";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
+import { GroceryGeneratingOverlay } from "@/components/GroceryGeneratingOverlay";
+import { decideGroceryEntry } from "@/lib/groceryPicker";
 import { formatMacro } from "@/lib/format/macros";
 import { deriveHeroModel, type HeroModel } from "@/lib/home/heroState";
 import {
@@ -40,6 +44,11 @@ export default function HomeTab() {
   const router = useRouter();
   const { user } = useAuth();
   const { currentPlan } = useApp();
+  // D-WS5-033 — the Get Groceries CTA fans out on plan count; usePlans is the
+  // canonical server source (NOT useApp().plans, the legacy AsyncStorage cache).
+  // First page is enough for the 0/1/2+ branch (limit 20 ⇒ 2+ always ≥2 rows).
+  const plansQuery = usePlans(["my_plans"]);
+  const { generate: generateGroceries, isGenerating } = useGroceryGeneration();
 
   const greeting = useMemo(() => {
     const tod = timeOfDayGreeting();
@@ -89,10 +98,19 @@ export default function HomeTab() {
     router.push("/cook-now");
   };
 
-  // PRD §4.2.6 — route to the Groceries tab. The intermediate "pick a
-  // list" screen for users with multiple plans ships in WS5-5Q-bis.
+  // PRD §4.2.6 / D-WS5-033 — Get Groceries fans out by plan count:
+  //   0 plans (or not yet loaded) → today's behavior: open the Groceries tab.
+  //   1 plan  → straight to that plan's grocery flow (shared generate handoff).
+  //   2+ plans → the intermediate multi-plan picker.
   const handleGetGroceriesPress = () => {
-    router.push("/(tabs)/groceries");
+    const decision = decideGroceryEntry(plansQuery.data?.plans ?? []);
+    if (decision.kind === "picker") {
+      router.push("/grocery-plan-picker");
+    } else if (decision.kind === "single") {
+      void generateGroceries(decision.planId);
+    } else {
+      router.push("/(tabs)/groceries");
+    }
   };
 
   // WS5-5R — routes to /prep-cook stub page (matches /upgrade pattern).
@@ -189,6 +207,8 @@ export default function HomeTab() {
           </View>
         </View>
       </Screen>
+      {/* D-WS5-033 — 1-plan direct generate (5-15s AI pipeline) loading cover. */}
+      <GroceryGeneratingOverlay visible={isGenerating} />
     </View>
   );
 }
