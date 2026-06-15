@@ -1696,6 +1696,9 @@ interface C4Recorder {
   templateUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
   updateManyCalls: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>;
   activityWrites: Array<Record<string, unknown>>;
+  // WS7-7-A B5 fix2 — fork-on-acquire: each Meal.create issued by the fork
+  // helper (foreign/null-owner template meals cloned into user-owned copies).
+  forkedMeals?: Array<Record<string, unknown>>;
 }
 
 function makeC4Stub(opts: {
@@ -1703,10 +1706,17 @@ function makeC4Stub(opts: {
   recorder: C4Recorder;
   /** Throw after the createMany — exercises rollback. */
   throwOnUpdate?: boolean;
+  /**
+   * WS7-7-A B5 fix2 — ownership of the template's item meals, for the
+   * fork-on-acquire gate. A mealId absent here is treated as not-owned (→ fork).
+   */
+  meals?: Array<{ id: string; userId: string | null }>;
 }) {
   const templates = opts.templates ?? [];
   const recorder = opts.recorder;
+  const meals = opts.meals ?? [];
   let instanceCounter = 0;
+  let forkCounter = 0;
 
   const txClient = {
     mealPlanTemplate: {
@@ -1719,6 +1729,41 @@ function makeC4Stub(opts: {
         recorder.templateUpdates.push(args);
         return { id: args.where.id };
       },
+    },
+    // WS7-7-A B5 fix2 — the fork gate's owner lookup + the fork helper's reads
+    // and writes. Sources are synthesized minimal (no dishes) — the deep-clone
+    // fidelity is covered by lib/__tests__/mealFork.test.ts; here we only need
+    // the rebind + ownership routing.
+    meal: {
+      findMany: async (args: { where: { id: { in: string[] } } }) =>
+        meals.filter((m) => args.where.id.in.includes(m.id)),
+      findUnique: async (args: { where: { id: string } }) => ({
+        id: args.where.id,
+        userId: meals.find((m) => m.id === args.where.id)?.userId ?? null,
+        title: `T-${args.where.id}`,
+        description: null,
+        mealType: "dinner",
+        sourceType: "curated",
+        cuisineType: null,
+        difficulty: "easy",
+        estimatedTimeMinutes: 30,
+        imageUrl: null,
+        servingsDefault: 4,
+        tags: [],
+        caloriesPerServing: 0,
+        proteinGPerServing: 0,
+        carbsGPerServing: 0,
+        fatGPerServing: 0,
+        dishLinks: [],
+      }),
+      create: async (args: { data: Record<string, unknown> }) => {
+        (recorder.forkedMeals ??= []).push(args.data);
+        forkCounter += 1;
+        return { id: `fork-${forkCounter}` };
+      },
+    },
+    recipeInstructionStep: {
+      findMany: async () => [] as unknown[],
     },
     mealPlanInstance: {
       updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
@@ -1804,6 +1849,14 @@ describe("POST /plans/use-template/:templateId — happy path", () => {
             ],
           }),
         ],
+        // The template's meals are owned by "owner" (a public template) — all
+        // foreign to A2_USER, so each is forked-on-acquire into a user-owned
+        // copy and the new plan's items rebind to the forks.
+        meals: [
+          { id: "m-a", userId: "owner" },
+          { id: "m-b", userId: "owner" },
+          { id: "m-c", userId: "owner" },
+        ],
       }),
     );
     try {
@@ -1836,13 +1889,32 @@ describe("POST /plans/use-template/:templateId — happy path", () => {
       assert.equal(notes.length, 1);
       assert.equal(notes[0].text, "Batch sauce");
 
-      // 3 items copied, ordered by positionIndex, with day assignments preserved.
+      // 3 items copied, ordered by positionIndex, with day assignments
+      // preserved. WS7-7-A B5 fix2: each foreign template meal was forked, so
+      // the items rebind to the user-owned fork ids (NOT the original m-a/b/c).
       assert.equal(recorder.createManyItemsCalls.length, 1);
       const items = recorder.createManyItemsCalls[0].data;
       assert.equal(items.length, 3);
-      assert.equal(items[0].mealId, "m-a");
       assert.equal(items[0].assignedDayOfWeek, "Monday");
       assert.equal(items[2].assignedDayOfWeek, null);
+      for (const it of items) {
+        assert.ok(
+          String(it.mealId).startsWith("fork-"),
+          "item rebinds to a forked, user-owned meal",
+        );
+      }
+      assert.notDeepEqual(
+        items.map((i) => i.mealId),
+        ["m-a", "m-b", "m-c"],
+      );
+
+      // Three forks minted (one per distinct foreign meal), each user-owned
+      // and private.
+      assert.equal(recorder.forkedMeals?.length, 3);
+      for (const fm of recorder.forkedMeals ?? []) {
+        assert.equal(fm.userId, A2_USER);
+        assert.equal(fm.isPublic, false);
+      }
 
       // WS7-6 (E): no demote-prior — single-current is enforced by the
       // per-user EXCLUDE constraint on [startDate, endDate], and the new
@@ -4211,6 +4283,8 @@ interface D1ItemRecorder {
   itemCreates: Array<{ data: Record<string, unknown> }>;
   instanceUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
   activityWrites: Array<Record<string, unknown>>;
+  // WS7-7-A B5 fix2 — Meal.create calls issued by the fork helper.
+  forkedMeals?: Array<Record<string, unknown>>;
 }
 
 function makeD1Stub(opts: {
@@ -4245,10 +4319,41 @@ function makeD1Stub(opts: {
       },
     },
     meal: {
+      // Serves both the fork gate (reads userId/isPublic/isArchived) and the
+      // fork helper's include read (dishLinks). Sources are synthesized minimal
+      // (no dishes) — deep-clone fidelity is covered by mealFork.test.ts.
       findUnique: async (args: { where: { id: string } }) => {
         const m = meals.find((mm) => mm.id === args.where.id);
-        return m ? { userId: m.userId, isPublic: m.isPublic, isArchived: m.isArchived } : null;
+        if (!m) return null;
+        return {
+          userId: m.userId,
+          isPublic: m.isPublic,
+          isArchived: m.isArchived,
+          title: m.title,
+          description: null,
+          mealType: "dinner",
+          sourceType: "curated",
+          cuisineType: null,
+          difficulty: "easy",
+          estimatedTimeMinutes: 30,
+          imageUrl: null,
+          servingsDefault: 4,
+          tags: [] as string[],
+          caloriesPerServing: 0,
+          proteinGPerServing: 0,
+          carbsGPerServing: 0,
+          fatGPerServing: 0,
+          dishLinks: [] as unknown[],
+        };
       },
+      // WS7-7-A B5 fix2 — fork-on-acquire write.
+      create: async (args: { data: Record<string, unknown> }) => {
+        (recorder.forkedMeals ??= []).push(args.data);
+        return { id: `fork-${(recorder.forkedMeals ?? []).length}` };
+      },
+    },
+    recipeInstructionStep: {
+      findMany: async () => [] as unknown[],
     },
     mealPlanItem: {
       aggregate: async (args: {
@@ -4399,6 +4504,71 @@ describe("POST /plans/:id/items (WS7-4-D c1)", () => {
       const meta = act.metadata as { mealId: string; slot: string };
       assert.equal(meta.mealId, "m-1");
       assert.equal(meta.slot, "dinner");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-7-A B5 fix2 (D-WS7-139) — fork-on-acquire at #2 add-to-plan.
+  it("forks a curated (null-owner) meal on add and binds the item to the user-owned copy", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 2 }],
+        // r-pasta-shaped: a public, curated, null-owner catalog meal.
+        meals: [
+          { id: "r-pasta", userId: null, isPublic: true, isArchived: false, title: "Creamy Mushroom Pasta" },
+        ],
+      }),
+    );
+    try {
+      const res = await postPlanItem(harness, "p-1", { mealId: "r-pasta" });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as { item: { mealId: string } };
+
+      // The item binds to the fork, NOT the curated null-owner meal.
+      assert.equal(recorder.itemCreates.length, 1);
+      const bound = recorder.itemCreates[0].data.mealId as string;
+      assert.ok(bound.startsWith("fork-"), "item rebinds to a forked meal");
+      assert.equal(body.item.mealId, bound);
+
+      // One fork minted, user-owned + private → the me.ts:1160 ownership gate
+      // (meal.userId === null || !== userId) now PASSES for this bound meal,
+      // so a subsequent PATCH /me/meals would not 403 (Failure 2 fixed).
+      assert.equal(recorder.forkedMeals?.length, 1);
+      assert.equal(recorder.forkedMeals?.[0].userId, A2_USER);
+      assert.equal(recorder.forkedMeals?.[0].isPublic, false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // Boundary: a meal the requester already owns is bound as-is (no self-copy).
+  it("does NOT fork a meal the requester already owns (binds as-is)", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 2 }],
+        meals: [
+          { id: "m-own", userId: A2_USER, isPublic: false, isArchived: false, title: "Mine" },
+        ],
+      }),
+    );
+    try {
+      const res = await postPlanItem(harness, "p-1", { mealId: "m-own" });
+      assert.equal(res.status, 201);
+      assert.equal(recorder.itemCreates[0].data.mealId, "m-own");
+      assert.equal(recorder.forkedMeals, undefined);
     } finally {
       await harness.close();
     }
@@ -4943,6 +5113,8 @@ interface D3Recorder {
   itemDeletes: Array<{ where: { id: string } }>;
   instanceUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
   activityWrites: Array<Record<string, unknown>>;
+  // WS7-7-A B5 fix2 — Meal.create calls issued by the swap fork helper.
+  forkedMeals?: Array<Record<string, unknown>>;
 }
 
 function d3ItemFix(opts: Partial<D3ItemFix> & { id: string; mealPlanInstanceId: string; mealId: string }): D3ItemFix {
@@ -5069,10 +5241,41 @@ function makeD3Stub(opts: {
       },
     },
     meal: {
+      // Serves the swap fork gate (userId/isPublic/isArchived) AND the fork
+      // helper's include read (dishLinks). Minimal source — deep-clone fidelity
+      // is covered by mealFork.test.ts.
       findUnique: async (args: { where: { id: string } }) => {
         const m = meals.find((mm) => mm.id === args.where.id);
-        return m ? { userId: m.userId, isPublic: m.isPublic, isArchived: m.isArchived } : null;
+        if (!m) return null;
+        return {
+          userId: m.userId,
+          isPublic: m.isPublic,
+          isArchived: m.isArchived,
+          title: m.title,
+          description: null,
+          mealType: "dinner",
+          sourceType: "curated",
+          cuisineType: null,
+          difficulty: "easy",
+          estimatedTimeMinutes: 30,
+          imageUrl: null,
+          servingsDefault: 4,
+          tags: [] as string[],
+          caloriesPerServing: 0,
+          proteinGPerServing: 0,
+          carbsGPerServing: 0,
+          fatGPerServing: 0,
+          dishLinks: [] as unknown[],
+        };
       },
+      // WS7-7-A B5 fix2 — fork-on-acquire write on swap-in.
+      create: async (args: { data: Record<string, unknown> }) => {
+        (recorder.forkedMeals ??= []).push(args.data);
+        return { id: `fork-${(recorder.forkedMeals ?? []).length}` };
+      },
+    },
+    recipeInstructionStep: {
+      findMany: async () => [] as unknown[],
     },
     userActivity: {
       create: async (args: { data: Record<string, unknown> }) => {
@@ -5431,6 +5634,49 @@ describe("PATCH /plans/:id/items/:itemId (WS7-4-D c3)", () => {
       assert.ok(meta.newItemId.startsWith("swapped-item-"));
       assert.equal(meta.oldMealId, "m-old");
       assert.equal(meta.newMealId, "m-new");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-7-A B5 fix2 (D-WS7-139) — fork-on-acquire at #4 swap. Swapping in a
+  // curated (null-owner) meal forks it; the new item binds to the user-owned
+  // copy. (Swapping to an already-owned meal — the test above — binds as-is.)
+  it("forks a curated meal swapped in and binds the new item to the user-owned copy", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: [
+          { id: "m-old", userId: A2_USER, isPublic: false, isArchived: false, title: "Old" },
+          { id: "r-pasta", userId: null, isPublic: true, isArchived: false, title: "Creamy Mushroom Pasta" },
+        ],
+        items: [
+          d3ItemFix({
+            id: "it-old", mealPlanInstanceId: "p-1", mealId: "m-old",
+            positionIndex: 2, assignedDayOfWeek: "Friday",
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await patchPlanItemReq(harness, "p-1", "it-old", { mealId: "r-pasta" });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { item: { mealId: string } };
+
+      // The swapped-in item binds to the fork, not the curated null-owner meal.
+      const created = recorder.itemCreates[0].data;
+      assert.ok(String(created.mealId).startsWith("fork-"));
+      assert.equal(body.item.mealId, created.mealId);
+
+      // One fork minted, user-owned + private (the me.ts:1160 gate now passes).
+      assert.equal(recorder.forkedMeals?.length, 1);
+      assert.equal(recorder.forkedMeals?.[0].userId, A2_USER);
+      assert.equal(recorder.forkedMeals?.[0].isPublic, false);
     } finally {
       await harness.close();
     }

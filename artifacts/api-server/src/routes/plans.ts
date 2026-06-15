@@ -33,6 +33,7 @@ import {
   createMealWithDishes,
   IngredientResolutionError,
 } from "../lib/mealCreate";
+import { forkMealForUser } from "../lib/mealFork";
 import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
 import {
@@ -360,7 +361,15 @@ export function createPlansRouter(
         notes: string | null;
       })[] = [];
       for (const item of instance.items) {
-        const meal = await composeMealDetail(prisma, item.mealId);
+        // WS7-7-A B5 (D-WS7-090 read-side) — apply the item's per-instance
+        // recipeOverrideJson so the Plan Review expansion reflects a "just this
+        // time" edit (incl. a removed ingredient), consistent with GET
+        // /meals/:id?planItemId and the grocery consolidator.
+        const meal = await composeMealDetail(
+          prisma,
+          item.mealId,
+          item.recipeOverrideJson,
+        );
         items.push({
           id: item.id,
           mealId: item.mealId,
@@ -1185,10 +1194,36 @@ export function createPlansRouter(
           });
 
           if (template.items.length > 0) {
+            // WS7-7-A B5 fix2 (D-WS7-139) — fork-on-acquire. Template items
+            // bind the template's mealIds, which for a public/featured template
+            // are curated/null-owner or another user's meals. Clone each
+            // not-already-owned source meal into a user-owned copy so the new
+            // plan's meals are editable. Dedup by source mealId: a meal that
+            // appears in two slots of the template shares ONE forked copy
+            // (preserving the template's intra-plan sharing); already-owned
+            // meals bind as-is.
+            const distinctMealIds = [
+              ...new Set(template.items.map((it) => it.mealId)),
+            ];
+            const owners = await tx.meal.findMany({
+              where: { id: { in: distinctMealIds } },
+              select: { id: true, userId: true },
+            });
+            const ownerById = new Map(owners.map((m) => [m.id, m.userId]));
+            const boundBySource = new Map<string, string>();
+            for (const sourceMealId of distinctMealIds) {
+              const owner = ownerById.get(sourceMealId);
+              boundBySource.set(
+                sourceMealId,
+                owner === userId
+                  ? sourceMealId
+                  : (await forkMealForUser(tx, sourceMealId, userId)).mealId,
+              );
+            }
             await tx.mealPlanItem.createMany({
               data: template.items.map((it) => ({
                 mealPlanInstanceId: instance.id,
-                mealId: it.mealId,
+                mealId: boundBySource.get(it.mealId) ?? it.mealId,
                 positionIndex: it.positionIndex,
                 assignedDayOfWeek: it.assignedDayOfWeek,
                 isBreakfast: it.isBreakfast,
@@ -1299,6 +1334,16 @@ export function createPlansRouter(
             return { kind: "not_found_meal" as const };
           }
 
+          // WS7-7-A B5 fix2 (D-WS7-139) — fork-on-acquire. Adding a meal the
+          // requester does NOT own (curated/null-owner or another user's
+          // public meal) clones it into a user-owned copy and binds THAT, so
+          // the user can later edit it (PATCH /me/meals passes the me.ts:1160
+          // gate). Already-owned → bind as-is (no self-copy).
+          const boundMealId =
+            meal.userId === userId
+              ? body.mealId
+              : (await forkMealForUser(tx, body.mealId, userId)).mealId;
+
           // positionIndex = max(existing) + 1; 0 for empty plans.
           const agg = await tx.mealPlanItem.aggregate({
             where: { mealPlanInstanceId: planId },
@@ -1310,7 +1355,7 @@ export function createPlansRouter(
           const created = await tx.mealPlanItem.create({
             data: {
               mealPlanInstanceId: planId,
-              mealId: body.mealId,
+              mealId: boundMealId,
               positionIndex: nextPosition,
               assignedDayOfWeek: body.assignedDayOfWeek ?? null,
               servingsOverride: body.servingsOverride ?? null,
@@ -1659,12 +1704,22 @@ export function createPlansRouter(
             const oldMealId = current.mealId;
             const oldItemId = itemId;
 
+            // WS7-7-A B5 fix2 (D-WS7-139) — fork-on-acquire. Swapping in a meal
+            // the requester does NOT own clones it into a user-owned copy so the
+            // swapped-in meal stays editable. Already-owned (e.g. swapping back
+            // to your own meal) binds as-is — no self-copy. The same-mealId case
+            // already short-circuited as a no-op above.
+            const boundMealId =
+              newMeal.userId === userId
+                ? body.mealId
+                : (await forkMealForUser(tx, body.mealId, userId)).mealId;
+
             // CRITICAL: validate newMeal BEFORE deleting old item (R3).
             await tx.mealPlanItem.delete({ where: { id: itemId } });
             const created = await tx.mealPlanItem.create({
               data: {
                 mealPlanInstanceId: planId,
-                mealId: body.mealId,
+                mealId: boundMealId,
                 positionIndex: current.positionIndex,
                 assignedDayOfWeek: current.assignedDayOfWeek,
                 assignedDate: current.assignedDate,
@@ -1705,6 +1760,9 @@ export function createPlansRouter(
                 oldItemId,
                 newItemId: created.id,
                 oldMealId,
+                // The meal the user swapped to (their catalog pick). When that
+                // meal wasn't owned, the bound row is a fork of it (created.mealId
+                // on the response carries the actual bound id).
                 newMealId: body.mealId,
                 dayPreserved: current.assignedDayOfWeek,
               },
