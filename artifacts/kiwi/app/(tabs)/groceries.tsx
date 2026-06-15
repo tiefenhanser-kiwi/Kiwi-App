@@ -14,7 +14,11 @@ import { Screen } from "@/components/Screen";
 import { useGroceryLists } from "@/hooks/useGroceryLists";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { formatRelative } from "@/lib/date";
-import { chipLabel, type GroceryListListItem } from "@/lib/api/groceries";
+import {
+  chipLabel,
+  planLinkTarget,
+  type GroceryListListItem,
+} from "@/lib/api/groceries";
 import {
   KColors,
   KPalette,
@@ -172,6 +176,12 @@ export default function GroceriesTab() {
                 list={list}
                 onViewList={() => handleViewList(list.id)}
                 onOrderOnline={handleOrderOnline}
+                onViewPlan={(() => {
+                  // WS7-7-A B6 item 6 — link present only for plan-derived
+                  // lists; planLinkTarget returns null otherwise.
+                  const target = planLinkTarget(list);
+                  return target ? () => router.push(target) : undefined;
+                })()}
               />
             ))}
           </View>
@@ -185,9 +195,17 @@ type ListCardProps = {
   list: GroceryListListItem;
   onViewList: () => void;
   onOrderOnline: () => void;
+  // WS7-7-A B6 item 6 — present only when the list is plan-derived; the card
+  // renders the "View Meal Plan" link iff this is defined.
+  onViewPlan?: () => void;
 };
 
-function ListCard({ list, onViewList, onOrderOnline }: ListCardProps) {
+function ListCard({
+  list,
+  onViewList,
+  onOrderOnline,
+  onViewPlan,
+}: ListCardProps) {
   const badge = chipLabel(list);
   const isCurrent = isCurrentWeek(list);
 
@@ -209,6 +227,22 @@ function ListCard({ list, onViewList, onOrderOnline }: ListCardProps) {
       <Text style={styles.metaLine}>
         {list.itemCount} items · {formatRelative(list.createdAt)}
       </Text>
+
+      {/* WS7-7-A B6 item 6 — text link (not a button) under the meta line,
+          only for plan-derived lists. stopPropagation so it doesn't also fire
+          the card's onPress (View List). */}
+      {onViewPlan && (
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            onViewPlan();
+          }}
+          hitSlop={6}
+          style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+        >
+          <Text style={styles.planLink}>View Meal Plan</Text>
+        </Pressable>
+      )}
 
       {/* WS7-7-A B6 items 2/3/4 — the whole card is pressable → View List, so
           the redundant View List button is removed; Get List + Reuse are gone.
@@ -422,6 +456,13 @@ const styles = StyleSheet.create({
     fontSize: KType.size.sm,
     color: KColors.neutral[600],
     fontFamily: "Inter_400Regular",
+  },
+  planLink: {
+    fontSize: KType.size.sm,
+    color: KColors.sage[700],
+    fontWeight: KType.weight.semibold,
+    fontFamily: "Inter_600SemiBold",
+    marginTop: KSpacing.xs,
   },
   actionsRow: {
     flexDirection: "row",

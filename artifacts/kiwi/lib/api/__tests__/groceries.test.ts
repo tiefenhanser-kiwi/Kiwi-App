@@ -15,7 +15,12 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import * as SecureStore from "expo-secure-store";
 
-import { chipLabel, getGroceryLists, GroceryListListItemSchema } from "../groceries";
+import {
+  chipLabel,
+  getGroceryLists,
+  GroceryListListItemSchema,
+  planLinkTarget,
+} from "../groceries";
 import { ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 import { useGroceryLists } from "@/hooks/useGroceryLists";
@@ -111,6 +116,20 @@ test("chipLabel: draft / active / archived render no chip", () => {
   assert.equal(chipLabel({ isActiveThisWeek: false, status: "draft" }), null);
   assert.equal(chipLabel({ isActiveThisWeek: false, status: "active" }), null);
   assert.equal(chipLabel({ isActiveThisWeek: false, status: "archived" }), null);
+});
+
+// ── planLinkTarget (WS7-7-A B6 item 6 — View Meal Plan link) ──────────────────
+
+test("planLinkTarget: builds the /plan/[id] descriptor for a plan-derived list", () => {
+  const target = planLinkTarget({ mealPlanInstanceId: "plan-42" });
+  assert.deepEqual(target, {
+    pathname: "/plan/[id]",
+    params: { id: "plan-42" },
+  });
+});
+
+test("planLinkTarget: returns null when the list has no linked plan (no link rendered)", () => {
+  assert.equal(planLinkTarget({ mealPlanInstanceId: null }), null);
 });
 
 // ── getGroceryLists ─────────────────────────────────────────────────────────

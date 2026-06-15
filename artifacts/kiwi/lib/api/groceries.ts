@@ -53,6 +53,19 @@ export function chipLabel(
   return null;
 }
 
+// WS7-7-A B6 item 6 — "View Meal Plan" link target. Returns the /plan/[id]
+// nav descriptor (same shape Home uses, app/(tabs)/index.tsx) when the list is
+// plan-derived, or null when it has no linked plan instance — in which case the
+// card renders no link. Keeps the render condition + nav param shape in one
+// unit-testable place (the groceries screen lives under app/, outside the test
+// glob).
+export function planLinkTarget(
+  list: Pick<GroceryListListItem, "mealPlanInstanceId">,
+): { pathname: "/plan/[id]"; params: { id: string } } | null {
+  if (!list.mealPlanInstanceId) return null;
+  return { pathname: "/plan/[id]", params: { id: list.mealPlanInstanceId } };
+}
+
 const GroceryListsResponseSchema = z.object({
   groceryLists: z.array(GroceryListListItemSchema),
 });
