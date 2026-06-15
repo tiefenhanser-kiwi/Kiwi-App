@@ -591,8 +591,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         recipeOverrideJson: override,
       });
       handleMutationResult(planId, response.macrosStale);
+      // WS7-7-A B5 (Issue B) — the meal-detail screen caches the resolved
+      // recipe under ["meals","detail",mealId,planItemId] with a 60s staleTime
+      // and stays mounted under the change-recipe screen. handleMutationResult
+      // only invalidates the plans/home caches, so on router.back() the pre-
+      // override read would be served stale. Prefix-invalidate meals-detail
+      // (we have planItemId but not mealId) to force the ?planItemId re-read.
+      queryClient.invalidateQueries({ queryKey: ["meals", "detail"] });
     },
-    [handleMutationResult],
+    [handleMutationResult, queryClient],
   );
 
   const promoteRecipeOverrideToMeal = useCallback(

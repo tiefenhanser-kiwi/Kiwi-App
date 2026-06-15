@@ -197,6 +197,41 @@ export default function GroceryListDetail() {
     };
   }, [id]);
 
+  // WS7-7-A B5 (Issue A) — these six hooks previously sat below the early
+  // returns (loading / !list), making them conditional and crashing the
+  // loading→ready transition with "Rendered more hooks than during the
+  // previous render". They are hoisted above BOTH early returns so the hook
+  // count is identical on every render path (loading, empty, ready). Each is
+  // safe above the !list guard: the useMemos already read `list?` optionally
+  // and the useStates take no list dependency.
+
+  // Visibility for the floating typeahead panel. Show as soon as the
+  // user has typed *anything* — covers the "lookup pending → eventually
+  // empty" case (so the user sees the spinner instead of a blank gap)
+  // and the "candidates returned" case. Hidden when input is empty.
+  const typeaheadVisible = useMemo(() => {
+    const hasInput = addItemInput.trim().length > 0;
+    if (!hasInput) return false;
+    const debounceLag = addItemInput.trim() !== debouncedQuery;
+    return candidatesLoading || candidates.length > 0 || debounceLag;
+  }, [addItemInput, debouncedQuery, candidates, candidatesLoading]);
+
+  // Unresolved = isAmbiguous === true. Computed live off the items so an
+  // optimistic resolve/leave-as-is updates the banner + queue immediately
+  // (the denormalized list.ambiguousItemCount can lag a single-item patch).
+  const unresolvedItems = useMemo(
+    () => (list?.items ?? []).filter((it) => it.isAmbiguous),
+    [list],
+  );
+
+  // The clarify sheet walks a snapshot queue of item ids, advancing an index.
+  // Resolve / leave-as-is / skip all advance; resolve + leave-as-is also flip
+  // isAmbiguous off (so they leave the unresolved set), skip leaves it on.
+  const [clarifyQueue, setClarifyQueue] = useState<string[]>([]);
+  const [clarifyIndex, setClarifyIndex] = useState(0);
+  const [clarifyOtherText, setClarifyOtherText] = useState("");
+  const [clarifyOtherOpen, setClarifyOtherOpen] = useState(false);
+
   if (loadStatus === "loading") {
     return (
       <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
@@ -532,17 +567,6 @@ export default function GroceryListDetail() {
     performAdd(null, trimmed);
   };
 
-  // Visibility for the floating typeahead panel. Show as soon as the
-  // user has typed *anything* — covers the "lookup pending → eventually
-  // empty" case (so the user sees the spinner instead of a blank gap)
-  // and the "candidates returned" case. Hidden when input is empty.
-  const typeaheadVisible = useMemo(() => {
-    const hasInput = addItemInput.trim().length > 0;
-    if (!hasInput) return false;
-    const debounceLag = addItemInput.trim() !== debouncedQuery;
-    return candidatesLoading || candidates.length > 0 || debounceLag;
-  }, [addItemInput, debouncedQuery, candidates, candidatesLoading]);
-
   const handleMarkDone = () => {
     const prev = list.status;
     setList((p) => (p ? { ...p, status: "completed" } : p));
@@ -572,22 +596,6 @@ export default function GroceryListDetail() {
   };
 
   // ── WS7-7-A B5 — clarify-any-time ──────────────────────────────────────
-  // Unresolved = isAmbiguous === true. Computed live off the items so an
-  // optimistic resolve/leave-as-is updates the banner + queue immediately
-  // (the denormalized list.ambiguousItemCount can lag a single-item patch).
-  const unresolvedItems = useMemo(
-    () => (list?.items ?? []).filter((it) => it.isAmbiguous),
-    [list],
-  );
-
-  // The clarify sheet walks a snapshot queue of item ids, advancing an index.
-  // Resolve / leave-as-is / skip all advance; resolve + leave-as-is also flip
-  // isAmbiguous off (so they leave the unresolved set), skip leaves it on.
-  const [clarifyQueue, setClarifyQueue] = useState<string[]>([]);
-  const [clarifyIndex, setClarifyIndex] = useState(0);
-  const [clarifyOtherText, setClarifyOtherText] = useState("");
-  const [clarifyOtherOpen, setClarifyOtherOpen] = useState(false);
-
   const clarifyOpen = clarifyQueue.length > 0;
   const currentClarifyItem = clarifyOpen
     ? list?.items.find((it) => it.id === clarifyQueue[clarifyIndex])

@@ -876,6 +876,51 @@ test("changeRecipeForPlanItem PATCHes /items with { recipeOverrideJson: override
   assert.deepEqual(capturedBody, { recipeOverrideJson: override });
 });
 
+test("changeRecipeForPlanItem invalidates the meals-detail cache so the meal screen re-reads the override (WS7-7-A B5 Issue B)", async () => {
+  const qc = await mountAuthed();
+
+  // Prime the meal-detail cache row the meal/[id] screen reads under
+  // ["meals","detail",mealId,planItemId]. handleMutationResult only touches
+  // the plans/home caches, so before the fix this row stayed fresh (60s
+  // staleTime) and router.back() served the pre-override read. The mutator
+  // must prefix-invalidate ["meals","detail"] to force the refetch.
+  qc.setQueryData(["meals", "detail", "m-1", "item-1"], {
+    id: "m-1",
+    title: "Pre-override",
+  });
+  const before = qc.getQueryState(["meals", "detail", "m-1", "item-1"]);
+  assert.ok(before && !before.isInvalidated, "meal-detail primed and fresh");
+
+  route("PATCH", "/plans/plan-1/items/item-1", () =>
+    mockJson(itemMutationResponse("plan-1", "item-1", "m-1")),
+  );
+
+  await act(async () => {
+    await app!.changeRecipeForPlanItem(
+      "plan-1",
+      "item-1",
+      {
+        titleOverride: "Post-override",
+        dishes: [
+          { name: "Main", ingredients: [{ name: "salt", quantity: 1, unit: "tsp" }] },
+        ],
+        steps: ["Mix all"],
+        createdAt: "2026-05-26T00:00:00Z",
+      } as Parameters<AppValue["changeRecipeForPlanItem"]>[2],
+    );
+  });
+
+  // Prefix invalidation marks the deeper ["meals","detail",mealId,planItemId]
+  // row stale — that staleness is what overrides the 60s staleTime and forces
+  // the ?planItemId read to re-run on the still-mounted meal screen.
+  const after = qc.getQueryState(["meals", "detail", "m-1", "item-1"]);
+  assert.equal(
+    after?.isInvalidated,
+    true,
+    "meal-detail cache invalidated so the override surfaces on read-back",
+  );
+});
+
 // ── WS7-7-A B5 — setServingsForPlanItem ──────────────────────────────────
 
 test("setServingsForPlanItem PATCHes /items with { servingsOverride }", async () => {

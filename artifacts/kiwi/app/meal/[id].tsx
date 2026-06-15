@@ -367,7 +367,10 @@ function MealDetailContent({
     meal.cuisine,
     difficultyLabel,
     `${meal.minutes} min`,
-    `${meal.servings} servings`,
+    // WS7-7-A B5 (Issue C) — hero quick-stats track the live (possibly
+    // overridden) servings, matching the stepper + ingredient scaling, not
+    // the static server default `meal.servings`.
+    `${displayServings} servings`,
   ].filter(Boolean) as string[];
 
   return (
