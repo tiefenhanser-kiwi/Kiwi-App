@@ -733,6 +733,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["meals", "list"] }),
       queryClient.invalidateQueries({ queryKey: ["meals", "detail", id] }),
+      // WS7-7-A B5 follow-on (D-WS7-141) — a dishes[] edit PATCHes the meal
+      // via wipe-and-recreate (rematerializeMeal), which deletes the old Dish
+      // rows and mints new ones. The Recipes "My Dishes" sub-tab
+      // (["dishes","list"]) and dish-detail (["dishes","detail",id]) are served
+      // from caches updateMeal previously never touched — so an Apply-Always
+      // ingredient edit showed stale dish data there even though the canonical
+      // write succeeded. Invalidate symmetrically with updateDish. The detail
+      // key is a BARE PREFIX: recreate changes dish ids, so the client can't
+      // target the old/new id — invalidate the whole dishes/detail namespace.
+      queryClient.invalidateQueries({ queryKey: ["dishes", "list"] }),
+      queryClient.invalidateQueries({ queryKey: ["dishes", "detail"] }),
       queryClient.invalidateQueries({ queryKey: ["plans"] }),
       // WS7-6 (E) Block 2 §5 — Home's hero (GET /home) renders meal title /
       // minutes / calories from the plan's meals; a global meal edit must

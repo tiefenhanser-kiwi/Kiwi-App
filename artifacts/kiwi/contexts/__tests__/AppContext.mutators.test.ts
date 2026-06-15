@@ -1571,6 +1571,17 @@ test("updateMeal PATCHes /me/meals/:id and invalidates meals + plans caches", as
     plans: [{ id: "plan-1" }],
     nextCursor: null,
   });
+  // WS7-7-A B5 follow-on (D-WS7-141) — the meal's wipe-and-recreate touches
+  // Dish rows, so the Recipes "My Dishes" + dish-detail caches must invalidate
+  // too. Prime both to prove updateMeal now clears them.
+  qc.setQueryData(["dishes", "list", null], {
+    dishes: [{ id: "dish-old", title: "Old patties" }],
+    nextCursor: null,
+  });
+  qc.setQueryData(["dishes", "detail", "dish-old"], {
+    id: "dish-old",
+    title: "Old patties",
+  });
 
   let patchedUrl: string | null = null;
   let patchedBody: Record<string, unknown> | null = null;
@@ -1627,6 +1638,20 @@ test("updateMeal PATCHes /me/meals/:id and invalidates meals + plans caches", as
   assert.ok(
     !plansList || plansList.isInvalidated,
     "plans cache was invalidated (a global meal edit affects every plan that uses it)",
+  );
+  // WS7-7-A B5 follow-on (D-WS7-141) — dishes caches must invalidate because
+  // the meal's wipe-and-recreate deletes + re-mints Dish rows. The detail key
+  // is invalidated via the bare ["dishes","detail"] prefix (dish ids churn on
+  // recreate, so the client can't target a specific id).
+  const dishesList = qc.getQueryState(["dishes", "list", null]);
+  assert.ok(
+    !dishesList || dishesList.isInvalidated,
+    "dishes-list cache was invalidated (Recipes My Dishes must reflect the meal's dish edits)",
+  );
+  const dishDetail = qc.getQueryState(["dishes", "detail", "dish-old"]);
+  assert.ok(
+    !dishDetail || dishDetail.isInvalidated,
+    "dish-detail cache was invalidated via the bare prefix",
   );
 });
 
