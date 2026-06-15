@@ -45,6 +45,13 @@ import { normalizeIngredientName } from "../lib/groceryNormalization";
 import {
   searchIngredientsByPrefix as productionSearchIngredientsByPrefix,
 } from "../lib/ingredientSearch";
+// WS7-7-A Block 6 (D-WS7-143) — keyset cursor pagination for GET /grocery-lists,
+// reusing the GET /me/dishes in-memory precedent verbatim (fetch-all + slice).
+import {
+  clampLimit,
+  decodeKeysetCursor,
+  paginateByKeyset,
+} from "../lib/listQuery";
 import { logger } from "../lib/logger";
 import { resolveThisWeekWinnerId } from "../lib/planDates";
 import { prisma as productionPrisma } from "../lib/prisma";
@@ -363,8 +370,12 @@ export function createGroceryListsRouter(
   );
 
   // GET /api/grocery-lists — list the user's grocery lists (WS7-3 A2).
-  // No pagination at MVP (per-user list count is small). Optional ?filter=
-  // active|past splits on the ACTIVE_WINDOW_DAYS recency window.
+  // Optional ?filter=active|past splits on the ACTIVE_WINDOW_DAYS recency
+  // window. WS7-7-A Block 6 (D-WS7-143): keyset-cursor paginated, mirroring
+  // GET /me/dishes (in-memory slice). ?limit (default 20, [1,100]) + opaque
+  // base64url ?cursor; the filter narrows the fetched set BEFORE the cursor
+  // slice, so a cursor can't bypass the filter. The additive nextCursor is the
+  // only wire change — every existing row field is preserved (§27).
   router.get("/grocery-lists", requireAuth, async (req, res) => {
     const userId = req.userId;
     if (!userId) {
@@ -382,6 +393,9 @@ export function createGroceryListsRouter(
         });
       }
     }
+    const limit = clampLimit(req.query.limit);
+    // Forgiving decode: malformed/unknown cursor → null → first page.
+    const cursor = decodeKeysetCursor(req.query.cursor);
 
     try {
       const cutoff = new Date(
@@ -400,7 +414,10 @@ export function createGroceryListsRouter(
 
       const lists = await prisma.groceryList.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        // WS7-7-A Block 6 — createdAt desc keeps most-recent-first; the id desc
+        // tiebreaker makes same-createdAt rows slice stably under the keyset
+        // cursor (id is the cursor's tiebreaker, mirroring GET /me/dishes).
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         // WS7-7-A Block 2 — itemCount excludes soft-deleted rows so the
         // library badge matches what GET detail renders.
         include: {
@@ -413,26 +430,40 @@ export function createGroceryListsRouter(
       // each list item derives isActiveThisWeek by id-compare. Mirrors the
       // R1/R2/R6/R7 + grocery-list detail GET pattern (§27 single source of
       // truth — no parallel computation).
+      // WS7-7-A Block 6 — resolved over the FULL fetched set BEFORE the cursor
+      // slice, so a winner row that falls on a later page still gets the flag.
       const winnerId = await resolveThisWeekWinnerId(prisma, userId);
 
-      return res.status(200).json({
-        groceryLists: lists.map((l) => ({
-          id: l.id,
-          title: l.title,
-          status: l.status,
-          sourceType: l.sourceType,
-          mealPlanInstanceId: l.mealPlanInstanceId,
-          isActiveThisWeek:
-            l.mealPlanInstanceId !== null &&
-            winnerId !== null &&
-            l.mealPlanInstanceId === winnerId,
-          itemCount: l._count.items,
-          lastGeneratedAt: l.lastGeneratedAt
-            ? l.lastGeneratedAt.toISOString()
-            : null,
-          createdAt: l.createdAt.toISOString(),
-        })),
-      });
+      const rows = lists.map((l) => ({
+        id: l.id,
+        title: l.title,
+        status: l.status,
+        sourceType: l.sourceType,
+        mealPlanInstanceId: l.mealPlanInstanceId,
+        isActiveThisWeek:
+          l.mealPlanInstanceId !== null &&
+          winnerId !== null &&
+          l.mealPlanInstanceId === winnerId,
+        itemCount: l._count.items,
+        lastGeneratedAt: l.lastGeneratedAt
+          ? l.lastGeneratedAt.toISOString()
+          : null,
+        createdAt: l.createdAt.toISOString(),
+      }));
+
+      // WS7-7-A Block 6 — in-memory keyset slice over the pre-sorted, already-
+      // filtered rows (verbatim GET /me/dishes precedent). Fixed sort key
+      // "date_created" + createdAt value reuse the shared helper unchanged; the
+      // cross-sort guard is moot (this list has a single fixed ordering).
+      const { page, nextCursor } = paginateByKeyset(
+        rows,
+        cursor,
+        limit,
+        "date_created",
+        (r) => r.createdAt,
+      );
+
+      return res.status(200).json({ groceryLists: page, nextCursor });
     } catch (err) {
       logger.error(
         { event: "list_grocery_lists_failed", userId, err },

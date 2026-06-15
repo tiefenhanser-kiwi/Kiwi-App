@@ -2021,9 +2021,16 @@ function makeGLStub(lists: GLFix[], plans: GLPlanFix[] = []) {
           rows = rows.filter((l) => l.createdAt > w.createdAt!.gt!);
         if (w.createdAt?.lte)
           rows = rows.filter((l) => l.createdAt <= w.createdAt!.lte!);
+        // WS7-7-A Block 6 — mirror the route's orderBy: createdAt desc with an
+        // id desc tiebreaker, so same-createdAt rows order stably under the
+        // keyset cursor (the route relies on this DB ordering before slicing).
         return rows
           .slice()
-          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .sort(
+            (a, b) =>
+              b.createdAt.getTime() - a.createdAt.getTime() ||
+              b.id.localeCompare(a.id),
+          )
           .map((l) => ({ ...l, _count: { items: l.itemCount } }));
       },
     },
@@ -2297,6 +2304,334 @@ describe("GET /grocery-lists", () => {
         groceryLists: { id: string; isActiveThisWeek: boolean }[];
       };
       assert.equal(body.groceryLists[0].isActiveThisWeek, false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── WS7-7-A Block 6 (D-WS7-143) — keyset cursor pagination ──────────────
+  // Mirrors the GET /me/dishes in-memory precedent: ?limit + opaque base64url
+  // ?cursor, additive nextCursor envelope, every existing field preserved.
+
+  // newest-first sequence: gl-0 (newest) … gl-(n-1) (oldest). Distinct
+  // createdAt per row so the createdAt-desc order is deterministic.
+  function glSeq(
+    n: number,
+    userId: string,
+    opts: Partial<GLFix> = {},
+  ): GLFix[] {
+    const base = new Date("2026-05-20T00:00:00Z").getTime();
+    const day = 24 * 60 * 60 * 1000;
+    return Array.from({ length: n }, (_, i) =>
+      glFix({
+        id: `gl-${i}`,
+        userId,
+        createdAt: new Date(base - i * day),
+        ...opts,
+      }),
+    );
+  }
+
+  it("page 1 returns `limit` rows + a non-null nextCursor when more remain", async () => {
+    const harness = await glSpinUp(glSeq(5, GL_USER));
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists?limit=2`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        groceryLists: { id: string }[];
+        nextCursor: string | null;
+      };
+      assert.deepEqual(
+        body.groceryLists.map((g) => g.id),
+        ["gl-0", "gl-1"],
+      );
+      assert.ok(
+        typeof body.nextCursor === "string" && body.nextCursor.length > 0,
+        "expected a non-null nextCursor on page 1",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("page 2 via the cursor continues with no overlap and no gap", async () => {
+    const harness = await glSpinUp(glSeq(5, GL_USER));
+    try {
+      const auth = { Authorization: `Bearer ${signToken(GL_USER)}` };
+      const p1 = (await (
+        await fetch(`${harness.baseUrl}/grocery-lists?limit=2`, {
+          headers: auth,
+        })
+      ).json()) as { groceryLists: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p1.groceryLists.map((g) => g.id),
+        ["gl-0", "gl-1"],
+      );
+      assert.ok(p1.nextCursor);
+
+      // Cursor round-trip: the opaque base64url nextCursor minted on page 1 is
+      // handed straight back to fetch page 2 (encode → decode → next page).
+      const p2 = (await (
+        await fetch(
+          `${harness.baseUrl}/grocery-lists?limit=2&cursor=${encodeURIComponent(
+            p1.nextCursor!,
+          )}`,
+          { headers: auth },
+        )
+      ).json()) as { groceryLists: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p2.groceryLists.map((g) => g.id),
+        ["gl-2", "gl-3"],
+      );
+      // No overlap between page 1 and page 2.
+      const p1ids = new Set(p1.groceryLists.map((g) => g.id));
+      assert.ok(p2.groceryLists.every((g) => !p1ids.has(g.id)));
+      assert.ok(p2.nextCursor, "one row (gl-4) still remains after page 2");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("last page returns nextCursor: null", async () => {
+    const harness = await glSpinUp(glSeq(3, GL_USER));
+    try {
+      const auth = { Authorization: `Bearer ${signToken(GL_USER)}` };
+      const p1 = (await (
+        await fetch(`${harness.baseUrl}/grocery-lists?limit=2`, {
+          headers: auth,
+        })
+      ).json()) as { groceryLists: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p1.groceryLists.map((g) => g.id),
+        ["gl-0", "gl-1"],
+      );
+      assert.ok(p1.nextCursor);
+
+      const p2 = (await (
+        await fetch(
+          `${harness.baseUrl}/grocery-lists?limit=2&cursor=${encodeURIComponent(
+            p1.nextCursor!,
+          )}`,
+          { headers: auth },
+        )
+      ).json()) as { groceryLists: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p2.groceryLists.map((g) => g.id),
+        ["gl-2"],
+      );
+      assert.equal(p2.nextCursor, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("cross-page winner: isActiveThisWeek=true on a winner row that falls on page 2, not page 1", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const plans: GLPlanFix[] = [
+      {
+        id: "plan-winner",
+        userId: GL_USER,
+        startDate: new Date(now - 3 * day),
+        endDate: new Date(now + 3 * day),
+        activatedAt: new Date(now - 1 * day),
+        createdAt: new Date(now - 5 * day),
+        isWizardDraft: false,
+      },
+    ];
+    // 4 lists newest→oldest: gl-0, gl-1 (page 1), gl-2 (winner, page 2), gl-3.
+    const base = new Date("2026-05-20T00:00:00Z").getTime();
+    const lists: GLFix[] = [
+      glFix({ id: "gl-0", userId: GL_USER, createdAt: new Date(base) }),
+      glFix({ id: "gl-1", userId: GL_USER, createdAt: new Date(base - day) }),
+      glFix({
+        id: "gl-2",
+        userId: GL_USER,
+        createdAt: new Date(base - 2 * day),
+        mealPlanInstanceId: "plan-winner",
+      }),
+      glFix({ id: "gl-3", userId: GL_USER, createdAt: new Date(base - 3 * day) }),
+    ];
+    const harness = await glSpinUp(lists, plans);
+    try {
+      const auth = { Authorization: `Bearer ${signToken(GL_USER)}` };
+      const p1 = (await (
+        await fetch(`${harness.baseUrl}/grocery-lists?limit=2`, {
+          headers: auth,
+        })
+      ).json()) as {
+        groceryLists: { id: string; isActiveThisWeek: boolean }[];
+        nextCursor: string | null;
+      };
+      // Winner is NOT on page 1 — and no page-1 row is falsely flagged.
+      assert.deepEqual(
+        p1.groceryLists.map((g) => g.id),
+        ["gl-0", "gl-1"],
+      );
+      assert.ok(p1.groceryLists.every((g) => g.isActiveThisWeek === false));
+
+      const p2 = (await (
+        await fetch(
+          `${harness.baseUrl}/grocery-lists?limit=2&cursor=${encodeURIComponent(
+            p1.nextCursor!,
+          )}`,
+          { headers: auth },
+        )
+      ).json()) as {
+        groceryLists: { id: string; isActiveThisWeek: boolean }[];
+        nextCursor: string | null;
+      };
+      const winner = p2.groceryLists.find((g) => g.id === "gl-2");
+      assert.ok(winner, "winner gl-2 should be on page 2");
+      // The load-bearing case: the winner resolved over the full set, so it
+      // still gets the flag despite not being on page 1.
+      assert.equal(winner.isActiveThisWeek, true);
+      assert.equal(
+        p2.groceryLists.find((g) => g.id === "gl-3")?.isActiveThisWeek,
+        false,
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("preserves every existing response field on a row (§27 wire-break pin)", async () => {
+    const harness = await glSpinUp([
+      glFix({
+        id: "gl-fields",
+        userId: GL_USER,
+        title: "Groceries: Field Pin",
+        status: "completed",
+        sourceType: "plan",
+        mealPlanInstanceId: "plan-x",
+        lastGeneratedAt: new Date("2026-05-19T00:00:00Z"),
+        createdAt: new Date("2026-05-20T00:00:00Z"),
+        itemCount: 9,
+      }),
+    ]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        groceryLists: Record<string, unknown>[];
+        nextCursor: string | null;
+      };
+      // Default limit (20) easily fits one row → single page, no cursor.
+      assert.equal(body.nextCursor, null);
+      const row = body.groceryLists[0];
+      // Every field the mobile GroceryListListItemSchema consumes must be
+      // present — a dropped field is the §27 wire-break.
+      assert.deepEqual(Object.keys(row).sort(), [
+        "createdAt",
+        "id",
+        "isActiveThisWeek",
+        "itemCount",
+        "lastGeneratedAt",
+        "mealPlanInstanceId",
+        "sourceType",
+        "status",
+        "title",
+      ]);
+      assert.equal(row.id, "gl-fields");
+      assert.equal(row.title, "Groceries: Field Pin");
+      assert.equal(row.status, "completed");
+      assert.equal(row.sourceType, "plan");
+      assert.equal(row.mealPlanInstanceId, "plan-x");
+      assert.equal(row.isActiveThisWeek, false);
+      assert.equal(row.itemCount, 9);
+      assert.equal(row.lastGeneratedAt, "2026-05-19T00:00:00.000Z");
+      assert.equal(row.createdAt, "2026-05-20T00:00:00.000Z");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("filter composes with cursor: ?filter=past paginates only past rows", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const harness = await glSpinUp([
+      // Recent rows — excluded by the past filter, must never appear.
+      glFix({ id: "gl-recent-1", userId: GL_USER, createdAt: new Date(now - 1 * day) }),
+      glFix({ id: "gl-recent-2", userId: GL_USER, createdAt: new Date(now - 2 * day) }),
+      // Past rows (older than the 7-day active window), newest→oldest.
+      glFix({ id: "gl-past-1", userId: GL_USER, createdAt: new Date(now - 10 * day) }),
+      glFix({ id: "gl-past-2", userId: GL_USER, createdAt: new Date(now - 20 * day) }),
+      glFix({ id: "gl-past-3", userId: GL_USER, createdAt: new Date(now - 30 * day) }),
+    ]);
+    try {
+      const auth = { Authorization: `Bearer ${signToken(GL_USER)}` };
+      const p1 = (await (
+        await fetch(`${harness.baseUrl}/grocery-lists?filter=past&limit=2`, {
+          headers: auth,
+        })
+      ).json()) as { groceryLists: { id: string }[]; nextCursor: string | null };
+      assert.deepEqual(
+        p1.groceryLists.map((g) => g.id),
+        ["gl-past-1", "gl-past-2"],
+      );
+      assert.ok(p1.nextCursor);
+
+      const p2 = (await (
+        await fetch(
+          `${harness.baseUrl}/grocery-lists?filter=past&limit=2&cursor=${encodeURIComponent(
+            p1.nextCursor!,
+          )}`,
+          { headers: auth },
+        )
+      ).json()) as { groceryLists: { id: string }[]; nextCursor: string | null };
+      // Only the remaining past row — the cursor did NOT bypass the filter to
+      // surface recent rows.
+      assert.deepEqual(
+        p2.groceryLists.map((g) => g.id),
+        ["gl-past-3"],
+      );
+      assert.equal(p2.nextCursor, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("empty list → { groceryLists: [], nextCursor: null }", async () => {
+    const harness = await glSpinUp([]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists?limit=2`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        groceryLists: unknown[];
+        nextCursor: string | null;
+      };
+      assert.deepEqual(body.groceryLists, []);
+      assert.equal(body.nextCursor, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a malformed cursor falls back to the first page (forgiving decode)", async () => {
+    const harness = await glSpinUp(glSeq(3, GL_USER));
+    try {
+      const auth = { Authorization: `Bearer ${signToken(GL_USER)}` };
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists?limit=2&cursor=not-a-valid-cursor`,
+        { headers: auth },
+      );
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        groceryLists: { id: string }[];
+        nextCursor: string | null;
+      };
+      // Same as a no-cursor first page — decodeKeysetCursor returned null.
+      assert.deepEqual(
+        body.groceryLists.map((g) => g.id),
+        ["gl-0", "gl-1"],
+      );
+      assert.ok(body.nextCursor);
     } finally {
       await harness.close();
     }
