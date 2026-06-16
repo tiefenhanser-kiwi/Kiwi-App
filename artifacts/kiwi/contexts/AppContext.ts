@@ -406,6 +406,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // (a valid prefix of ["home","payload"]) to keep "tonight" / "this week"
       // in sync with the activation flip and any date / item mutation.
       queryClient.invalidateQueries({ queryKey: ["home"] });
+      // WS7-7-A B6 (D-WS7-143 follow-on) — the grocery library's per-row
+      // isActiveThisWeek is server-derived from the plan set (same as the hero),
+      // so a this-week activation / date edit that moves the winner must also
+      // refresh the grocery lists. Without this the "This Week" chip lags until
+      // staleTime (60s) or a focus-refetch. ["groceries"] is a valid prefix of
+      // ["groceries","list",filter].
+      queryClient.invalidateQueries({ queryKey: ["groceries"] });
       if (macrosStale) {
         dispatchRecalcMacros(planId);
       }

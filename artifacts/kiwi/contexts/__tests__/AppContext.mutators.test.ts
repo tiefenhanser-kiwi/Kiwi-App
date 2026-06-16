@@ -643,6 +643,49 @@ test("unassignDayFromPlanItem PATCHes /items with { assignedDayOfWeek: null }", 
   assert.deepEqual(capturedBody, { assignedDayOfWeek: null });
 });
 
+test("setPlanActiveThisWeek PATCHes { isActiveThisWeek: true } and invalidates groceries + plans + home (B6 — This Week chip refresh)", async () => {
+  const qc = await mountAuthed();
+  // Prime all three server-derived caches so we can prove the activation flip
+  // invalidates each. The grocery library's per-row isActiveThisWeek is derived
+  // server-side from the plan set, so without the ["groceries"] invalidation the
+  // "This Week" chip lags until staleTime / a focus-refetch (the device-test
+  // observation that motivated the fix).
+  qc.setQueryData(["groceries", "list", null], []);
+  qc.setQueryData(["plans"], { plans: [], activeThisWeek: null, nextCursor: null });
+  qc.setQueryData(["home"], {});
+
+  let capturedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      String(url).endsWith("/plans/plan-1")
+    ) {
+      capturedBody = init?.body
+        ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+        : null;
+      return Promise.resolve(mockJson({ instance: { id: "plan-1", revisionId: 2 } }));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.setPlanActiveThisWeek("plan-1");
+  });
+
+  assert.deepEqual(capturedBody, { isActiveThisWeek: true });
+  assert.equal(
+    qc.getQueryState(["groceries", "list", null])?.isInvalidated,
+    true,
+    "grocery library cache invalidated so the This Week chip refreshes immediately",
+  );
+  assert.equal(qc.getQueryState(["plans"])?.isInvalidated, true);
+  assert.equal(qc.getQueryState(["home"])?.isInvalidated, true);
+});
+
 test("assignDayToPlanItem propagates a server error (Q-P0-8: no swallow)", async () => {
   await mountAuthed();
 

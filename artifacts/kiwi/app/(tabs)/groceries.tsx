@@ -27,12 +27,14 @@ import {
   KType,
 } from "@/constants/tokens";
 
-type GrocerySortKey = "recent" | "plan" | "alpha";
+// WS7-7-A B6 — sort vocabulary matches the Get-Groceries picker (Recent / A–Z).
+// The old "By plan" option was a no-op (it sorted by title, same as A–Z — the
+// list row carries no separate plan-name field), so it's dropped.
+type GrocerySortKey = "recent" | "alpha";
 
 const SORT_OPTIONS: Array<{ key: GrocerySortKey; label: string }> = [
-  { key: "recent", label: "Most recent" },
-  { key: "plan", label: "By plan" },
-  { key: "alpha", label: "Alphabetical" },
+  { key: "recent", label: "Recent" },
+  { key: "alpha", label: "A–Z" },
 ];
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -59,7 +61,6 @@ export default function GroceriesTab() {
 
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<GrocerySortKey>("recent");
-  const [sortOpen, setSortOpen] = useState(false);
 
   const sorted = useMemo(() => {
     const filtered = query.trim()
@@ -67,12 +68,11 @@ export default function GroceriesTab() {
           l.title.toLowerCase().includes(query.trim().toLowerCase()),
         )
       : lists;
-    return [...filtered].sort((a, b) => {
-      if (sortKey === "recent") return b.createdAt.localeCompare(a.createdAt);
-      // "plan" + "alphabetical" both order by title (the GroceryListListItem
-      // has no separate plan-name field — the title is the canonical label).
-      return a.title.localeCompare(b.title);
-    });
+    return [...filtered].sort((a, b) =>
+      sortKey === "recent"
+        ? b.createdAt.localeCompare(a.createdAt) // newest first
+        : a.title.localeCompare(b.title), // A–Z
+    );
   }, [lists, query, sortKey]);
 
   const handleViewList = (id: string) => {
@@ -85,13 +85,12 @@ export default function GroceriesTab() {
     Alert.alert("Online ordering — coming soon.");
   };
 
-  const currentSortLabel =
-    SORT_OPTIONS.find((o) => o.key === sortKey)?.label ?? "Most recent";
-
   return (
     <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
       <Header title="Groceries" subtitle="your saved lists" />
       <Screen>
+        {/* WS7-7-A B6 — search + Recent/A–Z toggle, matching the Get-Groceries
+            plan picker so the two grocery surfaces share one control idiom. */}
         <View style={styles.controlsRow}>
           <View style={styles.searchWrap}>
             <TextInput
@@ -102,47 +101,27 @@ export default function GroceriesTab() {
               style={styles.searchInput}
             />
           </View>
-          <View style={styles.sortWrap}>
-            <Pressable
-              onPress={() => setSortOpen((o) => !o)}
-              style={({ pressed }) => [
-                styles.sortTrigger,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={styles.sortTriggerLabel}>Sort: </Text>
-              <Text style={styles.sortTriggerValue}>{currentSortLabel}</Text>
-              <Text style={styles.chev}>{sortOpen ? "▴" : "▾"}</Text>
-            </Pressable>
-            {sortOpen && (
-              <View style={styles.sortMenu}>
-                {SORT_OPTIONS.map((o) => (
-                  <Pressable
-                    key={o.key}
-                    onPress={() => {
-                      setSortKey(o.key);
-                      setSortOpen(false);
-                    }}
-                    style={({ pressed }) => [
-                      styles.sortItem,
-                      pressed && { backgroundColor: KColors.neutral[200] },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.sortItemText,
-                        o.key === sortKey && {
-                          color: KColors.sage[700],
-                          fontWeight: KType.weight.semibold,
-                        },
-                      ]}
-                    >
-                      {o.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
+          <View style={styles.sortToggle}>
+            {SORT_OPTIONS.map((o) => (
+              <Pressable
+                key={o.key}
+                onPress={() => setSortKey(o.key)}
+                style={({ pressed }) => [
+                  styles.sortChip,
+                  o.key === sortKey && styles.sortChipActive,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.sortChipText,
+                    o.key === sortKey && styles.sortChipTextActive,
+                  ]}
+                >
+                  {o.label}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         </View>
 
@@ -333,56 +312,31 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     paddingVertical: KSpacing.sm,
   },
-  sortWrap: {
-    position: "relative",
-  },
-  sortTrigger: {
+  // WS7-7-A B6 — Recent/A–Z toggle, mirroring the Get-Groceries picker.
+  sortToggle: {
     flexDirection: "row",
-    alignItems: "center",
     backgroundColor: KPalette.bg.card,
     borderRadius: KRadius.md,
     borderWidth: 1,
     borderColor: KColors.neutral[400],
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: 10,
+    overflow: "hidden",
   },
-  sortTriggerLabel: {
+  sortChip: {
+    paddingHorizontal: KSpacing.md,
+    justifyContent: "center",
+  },
+  sortChipActive: {
+    backgroundColor: KColors.sage[100],
+  },
+  sortChipText: {
     fontSize: KType.size.sm,
     color: KColors.neutral[700],
     fontFamily: "Inter_400Regular",
   },
-  sortTriggerValue: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
+  sortChipTextActive: {
+    color: KColors.sage[700],
     fontWeight: KType.weight.semibold,
     fontFamily: "Inter_600SemiBold",
-  },
-  chev: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    marginLeft: 4,
-  },
-  sortMenu: {
-    position: "absolute",
-    top: "100%",
-    right: 0,
-    marginTop: 4,
-    minWidth: 160,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
-    borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    paddingVertical: KSpacing.xs,
-    zIndex: 20,
-  },
-  sortItem: {
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-  },
-  sortItemText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
   },
   loadingText: {
     fontSize: KType.size.sm,
