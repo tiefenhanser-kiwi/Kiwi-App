@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 type Props = {
   onPress: () => void;
@@ -25,12 +25,12 @@ export function CookNowCtaCard({ onPress, locked }: Props) {
             cx="12"
             cy="12"
             r="10"
-            stroke={KColors.sage[200]}
+            stroke={Colors.sage[200]}
             strokeWidth={1.4}
           />
           <Path
             d="M8 12h8M12 8v8"
-            stroke={KColors.terracotta[400]}
+            stroke={Colors.terracotta[400]}
             strokeWidth={1.6}
             strokeLinecap="round"
           />
@@ -51,12 +51,12 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
-    padding: KSpacing.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
+    padding: Spacing[3],
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    gap: KSpacing.md,
+    borderColor: Colors.neutral[300],
+    gap: Spacing[3],
   },
   cardLocked: {
     opacity: 0.6,
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: KColors.sage[50],
+    backgroundColor: Colors.sage[50],
     justifyContent: "center",
     alignItems: "center",
   },
@@ -73,20 +73,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   label: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   sub: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   arrow: {
-    fontSize: KType.size.lg,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
   },
 });

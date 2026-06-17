@@ -11,7 +11,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { Chip } from "@/components/Chip";
 import { COMMON_RECURRING_ITEMS } from "@/lib/domain";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 import { pickerStyles } from "./shared";
 
@@ -64,7 +64,7 @@ export function RecurringItemsPicker({
                 hitSlop={8}
                 style={({ pressed }) => pressed && { opacity: 0.6 }}
               >
-                <Feather name="x" size={16} color={KColors.neutral[600]} />
+                <Feather name="x" size={16} color={Colors.neutral[600]} />
               </Pressable>
             </View>
           ))}
@@ -88,7 +88,7 @@ export function RecurringItemsPicker({
           value={draft}
           onChangeText={setDraft}
           placeholder="Add custom item..."
-          placeholderTextColor={KColors.neutral[600]}
+          placeholderTextColor={Colors.neutral[600]}
           returnKeyType="done"
           blurOnSubmit
           onSubmitEditing={handleAddDraft}
@@ -104,7 +104,7 @@ export function RecurringItemsPicker({
             pressed && draft.trim() && { opacity: 0.7 },
           ]}
         >
-          <Feather name="plus" size={20} color={KColors.neutral[0]} />
+          <Feather name="plus" size={20} color={Colors.neutral[0]} />
         </Pressable>
       </View>
     </View>
@@ -113,55 +113,55 @@ export function RecurringItemsPicker({
 
 const s = StyleSheet.create({
   list: {
-    gap: KSpacing.xs,
-    marginBottom: KSpacing.sm,
+    gap: Spacing[1],
+    marginBottom: Spacing[2],
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: KSpacing.sm,
-    paddingHorizontal: KSpacing.md,
-    backgroundColor: KColors.neutral[100],
-    borderRadius: KRadius.md,
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    backgroundColor: Colors.neutral[100],
+    borderRadius: Radius.md,
   },
   rowText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   subLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
-    marginTop: KSpacing.lg,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
+    marginTop: Spacing[4],
   },
   addRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    marginTop: KSpacing.md,
+    gap: Spacing[2],
+    marginTop: Spacing[3],
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[400],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
   },
   addBtn: {
     width: 40,
     height: 40,
-    borderRadius: KRadius.md,
-    backgroundColor: KColors.sage[700],
+    borderRadius: Radius.md,
+    backgroundColor: Colors.sage[700],
     alignItems: "center",
     justifyContent: "center",
   },

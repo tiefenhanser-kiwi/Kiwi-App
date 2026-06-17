@@ -26,11 +26,11 @@ import { decideGroceryEntry } from "@/lib/groceryPicker";
 import { formatMacro } from "@/lib/format/macros";
 import { deriveHeroModel, type HeroModel } from "@/lib/home/heroState";
 import {
-  KColors,
-  KPalette,
-  KRadius,
-  KSpacing,
-  KType,
+  Colors,
+  Palette,
+  Radius,
+  Spacing,
+  Typography,
 } from "@/constants/tokens";
 
 function timeOfDayGreeting(): string {
@@ -120,7 +120,7 @@ export default function HomeTab() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <HomeHeader />
       <Screen>
         <View style={styles.greetingBlock}>
@@ -169,10 +169,10 @@ export default function HomeTab() {
                 <Svg width={18} height={18} viewBox="0 0 16 16" fill="none">
                   <Path
                     d="M2 2h12l-1.5 9H3.5L2 2z"
-                    fill={KColors.sage[700]}
+                    fill={Colors.sage[700]}
                   />
-                  <Circle cx="6" cy="14.2" r="1.2" fill={KColors.sage[700]} />
-                  <Circle cx="11" cy="14.2" r="1.2" fill={KColors.sage[700]} />
+                  <Circle cx="6" cy="14.2" r="1.2" fill={Colors.sage[700]} />
+                  <Circle cx="11" cy="14.2" r="1.2" fill={Colors.sage[700]} />
                 </Svg>
               }
               label="Get Groceries"
@@ -186,10 +186,10 @@ export default function HomeTab() {
             <HomeActionButton
               icon={
                 <Svg width={18} height={18} viewBox="0 0 16 16" fill="none">
-                  <Circle cx="8" cy="5" r="2.8" fill={KColors.sage[700]} />
+                  <Circle cx="8" cy="5" r="2.8" fill={Colors.sage[700]} />
                   <Path
                     d="M3 13.5c0-2.8 2.2-5 5-5s5 2.2 5 5"
-                    stroke={KColors.sage[700]}
+                    stroke={Colors.sage[700]}
                     strokeWidth={1.3}
                     fill="none"
                     strokeLinecap="round"
@@ -304,46 +304,46 @@ function HeroCard({ model, onPressPlan, onPressEmpty }: HeroCardProps) {
 
 const styles = StyleSheet.create({
   greetingBlock: {
-    paddingTop: KSpacing.lg,
-    paddingBottom: KSpacing.md,
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[3],
   },
   greeting: {
-    fontSize: KType.size.xxl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xxl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serifItalic[500],
   },
   heroSection: {
-    marginTop: KSpacing.xs,
-    marginBottom: KSpacing.md,
+    marginTop: Spacing[1],
+    marginBottom: Spacing[3],
   },
   heroCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KPalette.bg.card,
+    gap: Spacing[3],
+    backgroundColor: Palette.background.card,
     borderWidth: 1,
-    borderColor: KPalette.border.default,
-    borderRadius: KRadius.lg,
-    padding: KSpacing.md,
+    borderColor: Palette.border.default,
+    borderRadius: Radius.lg,
+    padding: Spacing[3],
     minHeight: 100,
   },
   heroThumbWrap: {
     width: 80,
     height: 80,
-    borderRadius: KRadius.md,
+    borderRadius: Radius.md,
     overflow: "hidden",
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   heroThumbImage: {
     width: 80,
     height: 80,
   },
   heroThumbPlaceholder: {
-    backgroundColor: KColors.sage[200],
+    backgroundColor: Colors.sage[200],
   },
   heroThumbEmptyPlaceholder: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   heroTextCol: {
     flex: 1,
@@ -351,45 +351,45 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   heroEyebrow: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
     fontStyle: "italic",
-    fontFamily: "Inter_400Regular",
+    fontFamily: Typography.face.serifItalic[400],
   },
   heroTitle: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   heroMeta: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   heroEmptyTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
   heroEmptyCta: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[400],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[400],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
     marginTop: 4,
   },
   ctaBlock: {
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   wizardRow: {
     flexDirection: "row",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   actionRow: {
     flexDirection: "row",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
 });

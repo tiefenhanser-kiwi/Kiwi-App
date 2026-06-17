@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { patchProfile } from "@/lib/api/me";
 import type { User } from "@/lib/types";
 
@@ -77,7 +77,7 @@ export default function FirstRunDestination() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header title="You're all set" />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
@@ -105,7 +105,7 @@ export default function FirstRunDestination() {
               <Feather
                 name={choice.icon}
                 size={20}
-                color={KColors.sage[700]}
+                color={Colors.sage[700]}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -115,7 +115,7 @@ export default function FirstRunDestination() {
             <Feather
               name="chevron-right"
               size={18}
-              color={KColors.neutral[600]}
+              color={Colors.neutral[600]}
             />
           </Pressable>
         ))}
@@ -126,59 +126,59 @@ export default function FirstRunDestination() {
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl * 2,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[8] * 2,
+    gap: Spacing[3],
   },
   introCard: {
-    backgroundColor: KColors.sage[100],
-    borderRadius: KRadius.lg,
+    backgroundColor: Colors.sage[100],
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.sage[300],
-    padding: KSpacing.lg,
+    borderColor: Colors.sage[300],
+    padding: Spacing[4],
   },
   introHeading: {
-    fontSize: KType.size.lg,
-    color: KColors.sage[800],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.sage[800],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
   },
   introBody: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 4,
     lineHeight: 18,
   },
   choiceCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    gap: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.lg,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[4],
   },
   choiceIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
     alignItems: "center",
     justifyContent: "center",
   },
   choiceTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
   },
   choiceBody: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
     lineHeight: 18,
   },

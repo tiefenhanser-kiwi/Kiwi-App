@@ -17,7 +17,7 @@ import {
 } from "@/components/FilterChipRow";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   getFeaturedMeals,
   getHostingMeals,
@@ -96,7 +96,7 @@ export function AddDishToMealSheet({
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
+      <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
         <View style={s.handle} />
         <View style={s.header}>
           <View style={{ flex: 1 }}>
@@ -108,7 +108,7 @@ export function AddDishToMealSheet({
             )}
           </View>
           <Pressable onPress={onClose} hitSlop={12}>
-            <Feather name="x" size={22} color={KColors.neutral[800]} />
+            <Feather name="x" size={22} color={Colors.neutral[800]} />
           </Pressable>
         </View>
 
@@ -172,7 +172,7 @@ export function AddDishToMealSheet({
                   <Feather
                     name="chevron-right"
                     size={18}
-                    color={KColors.neutral[600]}
+                    color={Colors.neutral[600]}
                   />
                 </Pressable>
               ))
@@ -192,7 +192,7 @@ export function AddDishToMealSheet({
               <Feather
                 name="plus-square"
                 size={20}
-                color={KColors.sage[700]}
+                color={Colors.sage[700]}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -204,7 +204,7 @@ export function AddDishToMealSheet({
             <Feather
               name="chevron-right"
               size={18}
-              color={KColors.neutral[600]}
+              color={Colors.neutral[600]}
             />
           </Pressable>
         </ScrollView>
@@ -224,131 +224,131 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     height: "85%",
-    backgroundColor: KColors.neutral[100],
-    borderTopLeftRadius: KRadius.xl,
-    borderTopRightRadius: KRadius.xl,
+    backgroundColor: Colors.neutral[100],
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: KColors.neutral[400],
+    backgroundColor: Colors.neutral[400],
     alignSelf: "center",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: KSpacing.lg,
-    paddingVertical: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: KColors.neutral[300],
-    gap: KSpacing.sm,
+    borderBottomColor: Colors.neutral[300],
+    gap: Spacing[2],
   },
   title: {
-    fontSize: KType.size.xl,
-    fontWeight: KType.weight.bold,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.serif[600],
   },
   subtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   scrollContent: {
-    padding: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl,
+    padding: Spacing[4],
+    paddingBottom: Spacing[8],
   },
   sectionTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   sectionGap: {
-    marginTop: KSpacing.lg,
+    marginTop: Spacing[4],
   },
   filterWrap: {
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   controlsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   chipLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   list: {
-    gap: KSpacing.sm,
-    marginTop: KSpacing.sm,
+    gap: Spacing[2],
+    marginTop: Spacing[2],
   },
   emptyText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
     textAlign: "center",
-    paddingVertical: KSpacing.md,
+    paddingVertical: Spacing[3],
   },
   mealRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    gap: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[3],
   },
   mealName: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   mealMeta: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   newMealCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    gap: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
-    marginTop: KSpacing.sm,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[3],
+    marginTop: Spacing[2],
   },
   newMealIcon: {
     width: 36,
     height: 36,
-    borderRadius: KRadius.sm,
-    backgroundColor: KColors.sage[50],
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.sage[50],
     alignItems: "center",
     justifyContent: "center",
   },
   newMealTitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   newMealSubtitle: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
 });

@@ -15,7 +15,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { importRecipeFromImage } from "@/lib/api/recipeImport";
 
 type Phase = "input" | "loading";
@@ -121,7 +121,7 @@ export default function ImportImageScreen() {
       <View style={styles.bg}>
         <Header title="Import from photo" />
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={KColors.sage[700]} />
+          <ActivityIndicator size="large" color={Colors.sage[700]} />
           <Text style={styles.loadingTitle}>Reading your recipe...</Text>
           <Text style={styles.loadingSubtitle}>
             Kiwi is parsing the {pluralPhotos} into structured ingredients and
@@ -151,7 +151,7 @@ export default function ImportImageScreen() {
             disabled={atCapacity}
             onPress={handleLibraryPick}
             iconLeft={
-              <Feather name="image" size={18} color={KColors.neutral[100]} />
+              <Feather name="image" size={18} color={Colors.neutral[100]} />
             }
           />
         </View>
@@ -162,7 +162,7 @@ export default function ImportImageScreen() {
             disabled={atCapacity}
             onPress={handleCameraPick}
             iconLeft={
-              <Feather name="camera" size={18} color={KColors.sage[700]} />
+              <Feather name="camera" size={18} color={Colors.sage[700]} />
             }
           />
         </View>
@@ -184,7 +184,7 @@ export default function ImportImageScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={`Remove image ${idx + 1}`}
                   >
-                    <Feather name="x" size={14} color={KColors.neutral[100]} />
+                    <Feather name="x" size={14} color={Colors.neutral[100]} />
                   </Pressable>
                 </View>
               ))}
@@ -216,44 +216,44 @@ export default function ImportImageScreen() {
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: KColors.neutral[100] },
+  bg: { flex: 1, backgroundColor: Colors.neutral[100] },
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.xl,
-    paddingBottom: KSpacing.xxxl,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[5],
+    paddingBottom: Spacing[8],
   },
   title: {
-    fontSize: KType.size.xl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.xl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
   },
   subtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
-    marginBottom: KSpacing.xl,
+    marginBottom: Spacing[5],
   },
   buttonWrap: {
-    marginBottom: KSpacing.md,
+    marginBottom: Spacing[3],
   },
   thumbStrip: {
-    paddingVertical: KSpacing.sm,
-    gap: KSpacing.sm,
+    paddingVertical: Spacing[2],
+    gap: Spacing[2],
   },
   thumbWrap: {
     width: 72,
     height: 72,
-    marginRight: KSpacing.sm,
+    marginRight: Spacing[2],
     position: "relative",
   },
   thumb: {
     width: 72,
     height: 72,
-    borderRadius: KRadius.md,
-    backgroundColor: KPalette.bg.card,
+    borderRadius: Radius.md,
+    backgroundColor: Palette.background.card,
   },
   removeBadge: {
     position: "absolute",
@@ -262,52 +262,52 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: KColors.terracotta[700],
+    backgroundColor: Colors.terracotta[700],
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: KColors.neutral[100],
+    borderColor: Colors.neutral[100],
   },
   counter: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginBottom: KSpacing.md,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    marginBottom: Spacing[3],
   },
   errorText: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   helperText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
-    marginTop: KSpacing.lg,
+    marginTop: Spacing[4],
   },
   loadingWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: KSpacing.xl,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[5],
+    gap: Spacing[3],
   },
   loadingTitle: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: KSpacing.md,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginTop: Spacing[3],
   },
   loadingSubtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
     lineHeight: 20,
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
   },
 });

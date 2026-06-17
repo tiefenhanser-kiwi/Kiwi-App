@@ -9,7 +9,7 @@ import {
 import { useRouter } from "expo-router";
 
 import type { PlanListItem } from "@/lib/api/plans";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 type Props = {
   plan: PlanListItem;
@@ -82,33 +82,33 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
-    padding: KSpacing.sm,
+    gap: Spacing[2],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
+    padding: Spacing[2],
     borderWidth: 1,
-    borderColor: KColors.neutral[200],
+    borderColor: Colors.neutral[200],
   },
   thumb: {
     width: 56,
     height: 56,
     borderRadius: 8,
     overflow: "hidden",
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   thumbImage: { width: "100%", height: "100%" },
-  thumbFallback: { width: "100%", height: "100%", backgroundColor: KColors.sage[100] },
+  thumbFallback: { width: "100%", height: "100%", backgroundColor: Colors.sage[100] },
   body: { flex: 1, gap: 2 },
   title: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   meta: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   tagRow: {
     flexDirection: "row",
@@ -119,24 +119,24 @@ const styles = StyleSheet.create({
   tag: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    backgroundColor: KColors.sage[50],
+    backgroundColor: Colors.sage[50],
     borderRadius: 4,
   },
   tagText: {
     fontSize: 10,
-    color: KColors.sage[700],
-    fontFamily: "Inter_500Medium",
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[500],
   },
   openBtn: {
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 8,
-    borderRadius: KRadius.md,
-    backgroundColor: KColors.sage[700],
+    borderRadius: Radius.md,
+    backgroundColor: Colors.sage[700],
   },
   openText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
 });

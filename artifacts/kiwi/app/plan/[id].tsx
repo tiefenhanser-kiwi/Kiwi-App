@@ -26,7 +26,7 @@ import { LoadingShim } from "@/components/LoadingShim";
 import { PlanDateRangeEditor } from "@/components/PlanDateRangeEditor";
 import { PlanNameEditor } from "@/components/PlanNameEditor";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { useMeal } from "@/hooks/useMeal";
 import { usePlan } from "@/hooks/usePlan";
@@ -321,7 +321,7 @@ export default function PlanReviewScreen() {
   // app/dish/[id].tsx adopted in C3 c3.
   if (planQuery.isLoading || (!reviewPlan && !planQuery.isError)) {
     return (
-      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header showBack title="Plan Review" />
         <View style={s.gateWrap}>
           <LoadingShim variant="screen" />
@@ -334,7 +334,7 @@ export default function PlanReviewScreen() {
     const err = planQuery.error;
     const isNotFound = err instanceof ApiError && err.status === 404;
     return (
-      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header showBack title="Plan Review" />
         <View style={s.gateWrap}>
           <Text style={s.gateText}>
@@ -367,7 +367,7 @@ export default function PlanReviewScreen() {
     reviewPlan.unscheduledMeals.length > 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       {/* §8.3.1 — Header with back button, page label, passive Saved pill.
           Plan name + date range live in the editable meta strip below the
           header (PRD §8 / §11). */}
@@ -403,7 +403,7 @@ export default function PlanReviewScreen() {
               prior winner silently — no constraint to reject). */}
           {reviewPlan.isActiveThisWeek ? (
             <View style={s.cookThisWeekBadge}>
-              <Feather name="check" size={12} color={KColors.sage[700]} />
+              <Feather name="check" size={12} color={Colors.sage[700]} />
               <Text style={s.cookThisWeekBadgeText}>This Week's Plan</Text>
             </View>
           ) : (
@@ -415,7 +415,7 @@ export default function PlanReviewScreen() {
                 pressed && { opacity: 0.7 },
               ]}
             >
-              <Feather name="calendar" size={12} color={KColors.neutral[100]} />
+              <Feather name="calendar" size={12} color={Colors.neutral[100]} />
               <Text style={s.cookThisWeekChipText}>Cook This Week</Text>
             </Pressable>
           )}
@@ -435,7 +435,7 @@ export default function PlanReviewScreen() {
             <View style={s.actionCol}>
               <Button
                 label="Get Groceries Online"
-                variant="terra"
+                variant="primary"
                 onPress={() => {
                   console.log("[plan-review] get-groceries-online tapped", {
                     planId,
@@ -467,7 +467,7 @@ export default function PlanReviewScreen() {
         <View style={s.section}>
           {reviewPlan.prepStatus === "not_prepped" ? (
             <View style={s.prepBanner}>
-              <Feather name="zap" size={16} color={KColors.sage[700]} />
+              <Feather name="zap" size={16} color={Colors.sage[700]} />
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={s.prepBannerText}>
                   Prep these meals with Kiwi to save time during the week
@@ -498,13 +498,13 @@ export default function PlanReviewScreen() {
           <View style={s.section}>
             <Card>
               <Text style={s.cardTitle}>Smart optimization</Text>
-              <View style={{ gap: KSpacing.sm, marginTop: KSpacing.sm }}>
+              <View style={{ gap: Spacing[2], marginTop: Spacing[2] }}>
                 {reviewPlan.optimizationNotes.map((note, i) => (
                   <View key={i} style={s.noteRow}>
                     <Feather
                       name={note.type === "prep" ? "zap" : "dollar-sign"}
                       size={14}
-                      color={KColors.sage[700]}
+                      color={Colors.sage[700]}
                     />
                     <Text style={s.noteText}>{note.text}</Text>
                   </View>
@@ -524,7 +524,7 @@ export default function PlanReviewScreen() {
           <Card>
             <Text style={s.cardTitle}>Daily averages</Text>
             {isMacrosRecalcInFlight && (
-              <View style={{ marginTop: KSpacing.sm }}>
+              <View style={{ marginTop: Spacing[2] }}>
                 <LoadingShim variant="inline" label="Updating macros…" />
               </View>
             )}
@@ -644,7 +644,7 @@ export default function PlanReviewScreen() {
             <Feather
               name={breakfastOpen ? "chevron-up" : "chevron-down"}
               size={18}
-              color={KColors.sage[700]}
+              color={Colors.sage[700]}
             />
           </Pressable>
           {breakfastOpen && (
@@ -652,7 +652,7 @@ export default function PlanReviewScreen() {
               value={breakfastDraft}
               onChangeText={setBreakfastDraft}
               placeholder="Try: eggs, yogurt, oatmeal, fresh fruit"
-              placeholderTextColor={KColors.neutral[600]}
+              placeholderTextColor={Colors.neutral[600]}
               style={s.collapseInput}
               multiline
               returnKeyType="done"
@@ -680,7 +680,7 @@ export default function PlanReviewScreen() {
             <Feather
               name={lunchOpen ? "chevron-up" : "chevron-down"}
               size={18}
-              color={KColors.sage[700]}
+              color={Colors.sage[700]}
             />
           </Pressable>
           {lunchOpen && (
@@ -688,7 +688,7 @@ export default function PlanReviewScreen() {
               value={lunchDraft}
               onChangeText={setLunchDraft}
               placeholder="Try: leftovers, sandwiches, salads"
-              placeholderTextColor={KColors.neutral[600]}
+              placeholderTextColor={Colors.neutral[600]}
               style={s.collapseInput}
               multiline
               returnKeyType="done"
@@ -851,237 +851,237 @@ export default function PlanReviewScreen() {
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
     paddingBottom: 200, // keyboard clearance for bottommost TextInputs
   },
   gateWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: KSpacing.lg,
-    gap: KSpacing.md,
+    padding: Spacing[4],
+    gap: Spacing[3],
   },
   gateText: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   gateBtnWrap: {
     width: "60%",
   },
   savedPill: {
-    backgroundColor: KColors.sage[100],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: KSpacing.xs,
+    backgroundColor: Colors.sage[100],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[1],
   },
   savedPillText: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   planMetaSection: {
     gap: 4,
-    marginBottom: KSpacing.md,
+    marginBottom: Spacing[3],
   },
   cookThisWeekChip: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
     gap: 6,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    borderRadius: KRadius.pill,
-    backgroundColor: KColors.sage[700],
-    marginTop: KSpacing.xs,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    borderRadius: Radius.full,
+    backgroundColor: Colors.sage[700],
+    marginTop: Spacing[1],
   },
   cookThisWeekChipText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[100],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[100],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   cookThisWeekBadge: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
     gap: 6,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    borderRadius: KRadius.pill,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: KColors.sage[700],
-    backgroundColor: KColors.sage[100],
-    marginTop: KSpacing.xs,
+    borderColor: Colors.sage[700],
+    backgroundColor: Colors.sage[100],
+    marginTop: Spacing[1],
   },
   cookThisWeekBadgeText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   actionBar: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    padding: KSpacing.md,
-    gap: KSpacing.sm,
+    borderColor: Colors.neutral[400],
+    padding: Spacing[3],
+    gap: Spacing[2],
   },
   actionRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   actionCol: { flex: 1 },
   addMealsWrap: {
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   section: {
-    marginTop: KSpacing.lg,
+    marginTop: Spacing[4],
   },
   prepBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: KSpacing.sm,
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.lg,
+    gap: Spacing[2],
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.sage[300],
-    padding: KSpacing.md,
+    borderColor: Colors.sage[300],
+    padding: Spacing[3],
   },
   prepBannerText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
   prepLink: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   prepBadge: {
     alignSelf: "flex-start",
-    backgroundColor: KColors.sage[100],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.md,
+    backgroundColor: Colors.sage[100],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 6,
   },
   prepBadgeText: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   cardTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   noteRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   noteText: {
     flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
   macroRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   macroStat: { alignItems: "center", flex: 1 },
   macroValue: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   macroLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   macroFootnote: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginTop: KSpacing.sm,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    marginTop: Spacing[2],
     lineHeight: 16,
   },
   sectionHeader: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
   },
   subSectionHeader: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: KSpacing.lg,
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginTop: Spacing[4],
+    marginBottom: Spacing[2],
   },
   placeholder: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
-    paddingVertical: KSpacing.lg,
+    paddingVertical: Spacing[4],
     textAlign: "center",
   },
   emptyMeals: {
     alignItems: "center",
-    gap: KSpacing.md,
-    paddingVertical: KSpacing.xl,
+    gap: Spacing[3],
+    paddingVertical: Spacing[5],
   },
   emptyMealsText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   collapseHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.md,
+    borderColor: Colors.neutral[400],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
   },
   collapseTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   collapseInput: {
-    marginTop: KSpacing.sm,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    marginTop: Spacing[2],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.md,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     minHeight: 60,
   },
 });

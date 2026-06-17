@@ -9,9 +9,9 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
-type Variant = "primary" | "secondary" | "terra" | "ghost";
+type Variant = "primary" | "secondary" | "ghost";
 
 interface Props {
   label: string;
@@ -71,40 +71,44 @@ export function Button({
   );
 }
 
+// v4 (A1): primary CTA is now terracotta (was sage). The old `terra`
+// variant — identical to the new primary — was removed; no callers used it.
 const VARIANTS: Record<
   Variant,
   { bg: string; text: string; border?: string }
 > = {
-  primary: { bg: KColors.sage[700], text: KColors.neutral[100] },
-  secondary: {
-    bg: KColors.neutral[100],
-    text: KColors.sage[700],
-    border: KColors.sage[300],
+  primary: {
+    bg: Palette.button.primary.background,
+    text: Palette.button.primary.text,
   },
-  terra: { bg: KColors.terracotta[400], text: "#ffffff" },
+  secondary: {
+    bg: Palette.button.secondary.background,
+    text: Palette.button.secondary.text,
+    border: Palette.button.secondary.border,
+  },
   ghost: {
-    bg: "transparent",
-    text: KColors.sage[700],
-    border: KColors.neutral[400],
+    bg: Palette.button.ghost.background,
+    text: Palette.button.ghost.text,
+    border: Palette.button.ghost.border,
   },
 };
 
 const styles = StyleSheet.create({
   base: {
     paddingVertical: 14,
-    paddingHorizontal: KSpacing.lg,
-    borderRadius: KRadius.lg,
+    paddingHorizontal: Spacing[4],
+    borderRadius: Radius.lg,
     alignItems: "center",
     justifyContent: "center",
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   text: {
-    fontSize: KType.size.lg,
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
 });

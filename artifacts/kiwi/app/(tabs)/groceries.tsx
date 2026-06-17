@@ -20,11 +20,11 @@ import {
   type GroceryListListItem,
 } from "@/lib/api/groceries";
 import {
-  KColors,
-  KPalette,
-  KRadius,
-  KSpacing,
-  KType,
+  Colors,
+  Palette,
+  Radius,
+  Spacing,
+  Typography,
 } from "@/constants/tokens";
 
 // WS7-7-A B6 — sort vocabulary matches the Get-Groceries picker (Recent / A–Z).
@@ -86,7 +86,7 @@ export default function GroceriesTab() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header title="Groceries" subtitle="your saved lists" />
       <Screen>
         {/* WS7-7-A B6 — search + Recent/A–Z toggle, matching the Get-Groceries
@@ -97,7 +97,7 @@ export default function GroceriesTab() {
               value={query}
               onChangeText={setQuery}
               placeholder="Search lists…"
-              placeholderTextColor={KColors.neutral[600]}
+              placeholderTextColor={Colors.neutral[600]}
               style={styles.searchInput}
             />
           </View>
@@ -252,20 +252,20 @@ function CardButton({
   const palette =
     variant === "primary"
       ? {
-          bg: KColors.sage[700],
-          text: KColors.neutral[0],
-          border: KColors.sage[700],
+          bg: Colors.sage[700],
+          text: Colors.neutral[0],
+          border: Colors.sage[700],
         }
       : variant === "terra"
         ? {
-            bg: KColors.terracotta[400],
-            text: KColors.neutral[0],
-            border: KColors.terracotta[400],
+            bg: Colors.terracotta[400],
+            text: Colors.neutral[0],
+            border: Colors.terracotta[400],
           }
         : {
             bg: "transparent",
-            text: KColors.sage[700],
-            border: KColors.sage[300],
+            text: Colors.sage[700],
+            border: Colors.sage[300],
           };
 
   return (
@@ -293,151 +293,151 @@ function CardButton({
 const styles = StyleSheet.create({
   controlsRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
-    marginBottom: KSpacing.md,
+    gap: Spacing[2],
+    marginBottom: Spacing[3],
     zIndex: 10,
   },
   searchWrap: {
     flex: 1,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    paddingHorizontal: KSpacing.md,
+    borderColor: Colors.neutral[400],
+    paddingHorizontal: Spacing[3],
     justifyContent: "center",
   },
   searchInput: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
-    paddingVertical: KSpacing.sm,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
+    paddingVertical: Spacing[2],
   },
   // WS7-7-A B6 — Recent/A–Z toggle, mirroring the Get-Groceries picker.
   sortToggle: {
     flexDirection: "row",
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
+    borderColor: Colors.neutral[400],
     overflow: "hidden",
   },
   sortChip: {
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
     justifyContent: "center",
   },
   sortChipActive: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   sortChipText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   sortChipTextActive: {
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   loadingText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
-    paddingVertical: KSpacing.lg,
+    paddingVertical: Spacing[4],
   },
   empty: {
-    paddingTop: KSpacing.xxl,
-    paddingHorizontal: KSpacing.lg,
+    paddingTop: Spacing[6],
+    paddingHorizontal: Spacing[4],
     alignItems: "center",
-    gap: KSpacing.lg,
+    gap: Spacing[4],
   },
   emptyText: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[700],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[700],
     textAlign: "center",
     lineHeight: 22,
-    fontFamily: "Inter_400Regular",
+    fontFamily: Typography.face.sans[400],
   },
   emptyBtn: {
-    backgroundColor: KColors.sage[700],
-    borderRadius: KRadius.lg,
-    paddingHorizontal: KSpacing.xl,
+    backgroundColor: Colors.sage[700],
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing[5],
     paddingVertical: 12,
   },
   emptyBtnText: {
-    color: KColors.neutral[0],
-    fontSize: KType.size.md,
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.neutral[0],
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   list: {
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.xl,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: KPalette.border.default,
-    padding: KSpacing.md,
-    gap: KSpacing.xs,
+    borderColor: Palette.border.default,
+    padding: Spacing[3],
+    gap: Spacing[1],
   },
   cardTopRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   statusBadge: {
-    backgroundColor: KColors.sage[100],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
+    backgroundColor: Colors.sage[100],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 4,
   },
   statusBadgeText: {
     fontSize: 10,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   planName: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: KSpacing.xs,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginTop: Spacing[1],
   },
   metaLine: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
   planLink: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: KSpacing.xs,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+    marginTop: Spacing[1],
   },
   actionsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: KSpacing.sm,
-    marginTop: KSpacing.sm,
+    gap: Spacing[2],
+    marginTop: Spacing[2],
   },
   cardBtn: {
     flexGrow: 1,
     flexBasis: 0,
     minWidth: 100,
-    paddingHorizontal: KSpacing.sm,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 10,
-    borderRadius: KRadius.md,
+    borderRadius: Radius.md,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   cardBtnText: {
-    fontSize: KType.size.sm,
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
 });

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export interface PlanNameEditorProps {
   currentName: string;
@@ -43,7 +43,7 @@ export function PlanNameEditor({ currentName, onSave }: PlanNameEditorProps) {
           maxLength={60}
           style={s.input}
           placeholder="Plan name"
-          placeholderTextColor={KColors.neutral[600]}
+          placeholderTextColor={Colors.neutral[600]}
         />
       </View>
     );
@@ -58,7 +58,7 @@ export function PlanNameEditor({ currentName, onSave }: PlanNameEditorProps) {
       <Text style={s.name} numberOfLines={1} ellipsizeMode="tail">
         {currentName || "Untitled plan"}
       </Text>
-      <Feather name="edit-2" size={14} color={KColors.sage[700]} />
+      <Feather name="edit-2" size={14} color={Colors.sage[700]} />
     </Pressable>
   );
 }
@@ -67,13 +67,13 @@ const s = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   name: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
     flexShrink: 1,
   },
   editingRow: {
@@ -82,15 +82,15 @@ const s = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    backgroundColor: KPalette.bg.card,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+    backgroundColor: Palette.background.card,
     borderWidth: 1,
-    borderColor: KColors.sage[300],
-    borderRadius: KRadius.sm,
-    paddingHorizontal: KSpacing.sm,
+    borderColor: Colors.sage[300],
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 6,
   },
 });

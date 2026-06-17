@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Chip } from "@/components/Chip";
 import { Stepper } from "@/components/Stepper";
 import { PICKY_AVOIDANCES } from "@/lib/domain";
-import { KColors, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 import { pickerStyles, toggleInArray } from "./shared";
 
@@ -49,7 +49,7 @@ export function PickyEatersPicker({
         suffix={pickyCount === 1 ? "person" : "people"}
       />
       {pickyCount > 0 && (
-        <View style={{ marginTop: KSpacing.md }}>
+        <View style={{ marginTop: Spacing[3] }}>
           <Text style={s.subLabel}>What they avoid</Text>
           <View style={pickerStyles.chipRow}>
             {PICKY_AVOIDANCES.map((p) => (
@@ -71,10 +71,10 @@ export function PickyEatersPicker({
 
 const s = StyleSheet.create({
   subLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
   },
 });

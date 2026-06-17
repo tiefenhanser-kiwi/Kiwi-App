@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 type Props = {
   icon: React.ReactNode;
@@ -26,11 +26,11 @@ export function HomeActionButton({ icon, label, subLabel, onPress }: Props) {
 const styles = StyleSheet.create({
   button: {
     flex: 1,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
-    padding: KSpacing.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
+    padding: Spacing[3],
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
+    borderColor: Colors.neutral[300],
     alignItems: "flex-start",
     gap: 6,
     minHeight: 100,
@@ -39,20 +39,20 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: KColors.sage[50],
+    backgroundColor: Colors.sage[50],
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 2,
   },
   label: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   sub: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
 });

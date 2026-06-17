@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useDish } from "@/hooks/useDish";
 import { ApiError } from "@/lib/api/errors";
 import type { DishDetail } from "@/lib/api/dishes";
@@ -35,10 +35,10 @@ export default function DishDetailScreen() {
 
   if (dishQuery.isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header title="Dish" showBack />
         <View style={s.gateWrap}>
-          <ActivityIndicator color={KColors.sage[700]} />
+          <ActivityIndicator color={Colors.sage[700]} />
         </View>
       </View>
     );
@@ -50,7 +50,7 @@ export default function DishDetailScreen() {
     const isNotFound =
       dishId === "" || (err instanceof ApiError && err.status === 404);
     return (
-      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header title="Dish" showBack />
         <View style={s.gateWrap}>
           <Text style={s.gateText}>
@@ -135,7 +135,7 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
   ].filter(Boolean) as string[];
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header showBack title={dish.title} />
       <ScrollView
         contentContainerStyle={s.scrollContent}
@@ -221,91 +221,91 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
     paddingBottom: 200,
   },
   gateWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: KSpacing.xl,
-    gap: KSpacing.md,
+    padding: Spacing[5],
+    gap: Spacing[3],
   },
   gateText: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   gateBtnWrap: {
     minWidth: 160,
   },
   hero: {
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   heroImage: {
     width: "100%",
     height: 200,
-    borderRadius: KRadius.lg,
-    backgroundColor: KColors.neutral[200],
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.neutral[200],
   },
   heroFallback: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   heroTitle: {
-    fontSize: KType.size.xl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
-    marginTop: KSpacing.sm,
+    fontSize: Typography.fontSize.xl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
+    marginTop: Spacing[2],
   },
   heroDescription: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
     lineHeight: 18,
   },
   heroMeta: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
   heroMacros: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   primaryActionStack: {
-    gap: KSpacing.sm,
-    marginTop: KSpacing.lg,
+    gap: Spacing[2],
+    marginTop: Spacing[4],
   },
   actionRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
-    marginTop: KSpacing.sm,
+    gap: Spacing[2],
+    marginTop: Spacing[2],
   },
   section: {
-    marginTop: KSpacing.lg,
+    marginTop: Spacing[4],
   },
   sectionHeader: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.md,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[3],
   },
   ingredientLine: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
   },
   stepRow: {
     flexDirection: "row",
-    gap: KSpacing.md,
-    marginBottom: KSpacing.md,
+    gap: Spacing[3],
+    marginBottom: Spacing[3],
     alignItems: "flex-start",
   },
   stepCircle: {
@@ -316,32 +316,32 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   stepCircleNormal: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   stepCircleTiming: {
-    backgroundColor: KColors.terracotta[200],
+    backgroundColor: Colors.terracotta[200],
   },
   stepCircleTextNormal: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   stepCircleTextTiming: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   stepText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
   },
   stepMeta: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
 });

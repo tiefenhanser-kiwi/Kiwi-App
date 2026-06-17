@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 
 // TODO(WS9): wire ToS + Privacy Policy links to real legal pages
 // when those screens exist. For WS5, both fire a "coming soon" alert.
@@ -47,7 +47,7 @@ export default function Welcome() {
     <View
       style={[
         styles.bg,
-        { paddingTop: insets.top, paddingBottom: insets.bottom + KSpacing.lg },
+        { paddingTop: insets.top, paddingBottom: insets.bottom + Spacing[4] },
       ]}
     >
       <View style={styles.heroWrap}>
@@ -67,7 +67,7 @@ export default function Welcome() {
         {FEATURES.map((f) => (
           <View key={f.title} style={styles.featureCard}>
             <View style={styles.featureIconWrap}>
-              <Feather name={f.icon} size={20} color={KColors.terracotta[300]} />
+              <Feather name={f.icon} size={20} color={Colors.terracotta[300]} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.featureTitle}>{f.title}</Text>
@@ -80,7 +80,7 @@ export default function Welcome() {
       <View style={styles.actions}>
         <Button
           label="Start Free 30-Day Trial"
-          variant="terra"
+          variant="primary"
           onPress={() => router.push("/(auth)/sign-up")}
         />
         <Button
@@ -108,8 +108,8 @@ export default function Welcome() {
 const styles = StyleSheet.create({
   bg: {
     flex: 1,
-    backgroundColor: KColors.sage[700],
-    paddingHorizontal: KSpacing.xl,
+    backgroundColor: Colors.sage[700],
+    paddingHorizontal: Spacing[5],
     justifyContent: "space-between",
   },
   heroWrap: { alignItems: "center", marginTop: 24 },
@@ -117,37 +117,37 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 28,
-    backgroundColor: KColors.sage[800],
+    backgroundColor: Colors.sage[800],
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    marginBottom: KSpacing.lg,
+    marginBottom: Spacing[4],
   },
   icon: { width: 96, height: 96 },
   brand: {
     fontSize: 44,
     fontWeight: "700",
-    color: KColors.neutral[100],
-    fontFamily: "Inter_700Bold",
+    color: Colors.neutral[100],
+    fontFamily: Typography.face.serifItalic[600],
     letterSpacing: -1,
   },
   tag: {
-    fontSize: KType.size.md,
+    fontSize: Typography.fontSize.md,
     color: "rgba(232,239,226,0.85)",
     textAlign: "center",
-    marginTop: KSpacing.sm,
-    paddingHorizontal: KSpacing.md,
+    marginTop: Spacing[2],
+    paddingHorizontal: Spacing[3],
     lineHeight: 22,
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
-  features: { gap: KSpacing.md, marginVertical: KSpacing.lg },
+  features: { gap: Spacing[3], marginVertical: Spacing[4] },
   featureCard: {
     flexDirection: "row",
-    gap: KSpacing.md,
-    backgroundColor: KColors.sage[800],
-    borderRadius: KRadius.lg,
-    padding: KSpacing.md,
+    gap: Spacing[3],
+    backgroundColor: Colors.sage[800],
+    borderRadius: Radius.lg,
+    padding: Spacing[3],
     alignItems: "flex-start",
   },
   featureIconWrap: {
@@ -159,31 +159,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   featureTitle: {
-    fontSize: KType.size.md,
+    fontSize: Typography.fontSize.md,
     fontWeight: "600",
-    color: KColors.neutral[100],
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.neutral[100],
+    fontFamily: Typography.face.serif[600],
   },
   featureBody: {
-    fontSize: KType.size.sm,
+    fontSize: Typography.fontSize.sm,
     color: "rgba(232,239,226,0.78)",
     marginTop: 2,
     lineHeight: 18,
-    fontFamily: "Inter_400Regular",
+    fontFamily: Typography.face.sans[400],
   },
-  actions: { gap: KSpacing.md },
+  actions: { gap: Spacing[3] },
   legalLine: {
-    fontSize: KType.size.xs,
+    fontSize: Typography.fontSize.xs,
     color: "rgba(232,239,226,0.7)",
     textAlign: "center",
-    marginTop: KSpacing.xs,
+    marginTop: Spacing[1],
     lineHeight: 16,
-    fontFamily: "Inter_400Regular",
+    fontFamily: Typography.face.sans[400],
   },
   legalLink: {
-    color: KColors.neutral[100],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.neutral[100],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     textDecorationLine: "underline",
   },
 });

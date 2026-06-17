@@ -21,7 +21,7 @@ import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { asPlanDiscoveryFilters, type PlanFilterKey } from "@/lib/api/plans";
 import { plansFilterDefault } from "@/lib/plans/filterDefault";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function PlansTab() {
   const router = useRouter();
@@ -111,7 +111,7 @@ export default function PlansTab() {
   }, [plansQuery.data, debouncedQuery, sortKey]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header title="Plans" />
       <Screen>
         {activeThisWeek && (
@@ -152,7 +152,7 @@ export default function PlansTab() {
               value={query}
               onChangeText={setQuery}
               placeholder="Search plans…"
-              placeholderTextColor={KColors.neutral[600]}
+              placeholderTextColor={Colors.neutral[600]}
               style={s.searchInput}
             />
           </View>
@@ -218,121 +218,121 @@ const s = StyleSheet.create({
   thisWeekCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
-    padding: KSpacing.md,
+    gap: Spacing[2],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
+    padding: Spacing[3],
     borderWidth: 1,
-    borderColor: KColors.terracotta[200],
-    marginTop: KSpacing.md,
-    marginBottom: KSpacing.lg,
+    borderColor: Colors.terracotta[200],
+    marginTop: Spacing[3],
+    marginBottom: Spacing[4],
   },
   thisWeekBadge: {
-    backgroundColor: KColors.terracotta[400],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
+    backgroundColor: Colors.terracotta[400],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 4,
   },
   thisWeekBadgeText: {
     fontSize: 10,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   thisWeekTitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   openBtn: {
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 8,
-    borderRadius: KRadius.md,
-    backgroundColor: KColors.sage[700],
+    borderRadius: Radius.md,
+    backgroundColor: Colors.sage[700],
   },
   openText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
-  filterWrap: { marginTop: KSpacing.sm },
+  filterWrap: { marginTop: Spacing[2] },
   controlsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    marginTop: KSpacing.md,
+    gap: Spacing[2],
+    marginTop: Spacing[3],
   },
   searchWrap: {
     flex: 1,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.md,
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[3],
     paddingVertical: 4,
   },
   searchInput: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     paddingVertical: 6,
   },
   list: {
-    marginTop: KSpacing.md,
-    gap: KSpacing.sm,
+    marginTop: Spacing[3],
+    gap: Spacing[2],
   },
   loadingText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
-    paddingVertical: KSpacing.lg,
+    paddingVertical: Spacing[4],
   },
   empty: {
-    paddingVertical: KSpacing.xxl,
+    paddingVertical: Spacing[6],
     alignItems: "center",
-    gap: KSpacing.lg,
+    gap: Spacing[4],
   },
   emptyText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
     lineHeight: 20,
-    paddingHorizontal: KSpacing.lg,
+    paddingHorizontal: Spacing[4],
   },
   emptyButtons: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   btnPrimary: {
-    backgroundColor: KColors.sage[700],
-    paddingHorizontal: KSpacing.md,
+    backgroundColor: Colors.sage[700],
+    paddingHorizontal: Spacing[3],
     paddingVertical: 10,
-    borderRadius: KRadius.md,
+    borderRadius: Radius.md,
   },
   btnPrimaryText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   btnSecondary: {
-    backgroundColor: KPalette.bg.card,
-    paddingHorizontal: KSpacing.md,
+    backgroundColor: Palette.background.card,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 10,
-    borderRadius: KRadius.md,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
+    borderColor: Colors.neutral[300],
   },
   btnSecondaryText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
 });

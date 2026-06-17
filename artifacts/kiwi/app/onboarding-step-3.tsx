@@ -14,7 +14,7 @@ import { PickyEatersPicker } from "@/components/preference-pickers/PickyEatersPi
 import { SpicePicker } from "@/components/preference-pickers/SpicePicker";
 import { StovetopPicker } from "@/components/preference-pickers/StovetopPicker";
 import { useApp } from "@/contexts/AppContext";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { UserPreferencesData } from "@/lib/types";
 
 const KIDS_MIN = 0;
@@ -189,7 +189,7 @@ export default function OnboardingStep3() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header showBack title="Tell Kiwi more" subtitle="Step 3 of 3" />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
@@ -216,7 +216,7 @@ export default function OnboardingStep3() {
             value={form.cookingEquipment}
             onChange={(next) => update("cookingEquipment", next)}
           />
-          <Text style={[s.subLabel, { marginTop: KSpacing.lg }]}>
+          <Text style={[s.subLabel, { marginTop: Spacing[4] }]}>
             Stovetop type
           </Text>
           <StovetopPicker
@@ -297,7 +297,7 @@ export default function OnboardingStep3() {
         <View style={s.footer}>
           <Button
             label="Finish setup"
-            variant="terra"
+            variant="primary"
             loading={finishing}
             disabled={finishing}
             onPress={handleFinish}
@@ -343,88 +343,88 @@ function CollapsibleSection({
         <Feather
           name={isOpen ? "chevron-up" : "chevron-down"}
           size={20}
-          color={KColors.neutral[600]}
+          color={Colors.neutral[600]}
         />
       </Pressable>
-      {isOpen && <View style={{ marginTop: KSpacing.md }}>{children}</View>}
+      {isOpen && <View style={{ marginTop: Spacing[3] }}>{children}</View>}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl * 2,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[8] * 2,
+    gap: Spacing[3],
   },
   helperCard: {
-    backgroundColor: KColors.sage[100],
-    borderRadius: KRadius.lg,
+    backgroundColor: Colors.sage[100],
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.sage[300],
-    padding: KSpacing.md,
+    borderColor: Colors.sage[300],
+    padding: Spacing[3],
   },
   helperHeading: {
-    fontSize: KType.size.md,
-    color: KColors.sage[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.sage[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   helperBody: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 4,
     lineHeight: 18,
   },
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.lg,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[4],
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   cardTitle: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   cardSubtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   subLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+    marginBottom: Spacing[2],
   },
   footer: {
-    marginTop: KSpacing.lg,
-    gap: KSpacing.sm,
+    marginTop: Spacing[4],
+    gap: Spacing[2],
     alignItems: "stretch",
   },
   footerHint: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   footerError: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
     textAlign: "center",
   },
 });

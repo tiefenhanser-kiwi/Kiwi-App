@@ -18,12 +18,12 @@ import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import {
-  KColors,
-  KCopy,
-  KPalette,
-  KRadius,
-  KSpacing,
-  KType,
+  Colors,
+  Copy,
+  Palette,
+  Radius,
+  Spacing,
+  Typography,
 } from "@/constants/tokens";
 import { useMeal } from "@/hooks/useMeal";
 import { ApiError } from "@/lib/api/errors";
@@ -95,7 +95,7 @@ function HeartButton({ mealId }: { mealId: string }) {
       <Ionicons
         name={favorited ? "heart" : "heart-outline"}
         size={24}
-        color={favorited ? KColors.terracotta[600] : KColors.sage[700]}
+        color={favorited ? Colors.terracotta[600] : Colors.sage[700]}
       />
     </Pressable>
   );
@@ -122,10 +122,10 @@ export default function MealDetailScreen() {
 
   if (mealQuery.isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header title="Meal" showBack />
         <View style={s.gateWrap}>
-          <ActivityIndicator color={KColors.sage[700]} />
+          <ActivityIndicator color={Colors.sage[700]} />
         </View>
       </View>
     );
@@ -139,7 +139,7 @@ export default function MealDetailScreen() {
     const isNotFound =
       mealId === "" || (err instanceof ApiError && err.status === 404);
     return (
-      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header title="Meal" showBack />
         <View style={s.gateWrap}>
           <Text style={s.gateText}>
@@ -374,7 +374,7 @@ function MealDetailContent({
   ].filter(Boolean) as string[];
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <AddMealToPlanSheet
         visible={addToPlanVisible}
         mealId={meal.id}
@@ -446,14 +446,14 @@ function MealDetailContent({
             sit below as a row. */}
         <View style={s.primaryActionStack}>
           <Button label="Cook Now" variant="primary" onPress={onCookNow} />
-          <Button label="Add to Plan" variant="terra" onPress={onAddToPlan} />
+          <Button label="Add to Plan" variant="primary" onPress={onAddToPlan} />
         </View>
         <View style={s.actionRow}>
           <View style={{ flex: 1 }}>
             <Button label="Edit" variant="ghost" onPress={onEdit} />
           </View>
           <View style={{ flex: 1 }}>
-            <Button label={KCopy.delete} variant="ghost" onPress={onCompost} />
+            <Button label={Copy.delete} variant="ghost" onPress={onCompost} />
           </View>
         </View>
 
@@ -498,7 +498,7 @@ function MealDetailContent({
                   pressed && { opacity: 0.6 },
                 ]}
               >
-                <Feather name="minus" size={16} color={KColors.sage[700]} />
+                <Feather name="minus" size={16} color={Colors.sage[700]} />
               </Pressable>
               <Text style={s.stepperValue}>{displayServings}</Text>
               <Pressable
@@ -511,7 +511,7 @@ function MealDetailContent({
                   pressed && { opacity: 0.6 },
                 ]}
               >
-                <Feather name="plus" size={16} color={KColors.sage[700]} />
+                <Feather name="plus" size={16} color={Colors.sage[700]} />
               </Pressable>
             </View>
             <Text style={s.servingsLabel}>servings</Text>
@@ -557,139 +557,139 @@ function MealDetailContent({
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
     paddingBottom: 200,
   },
   gateWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: KSpacing.xl,
-    gap: KSpacing.md,
+    padding: Spacing[5],
+    gap: Spacing[3],
   },
   gateText: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   gateBtnWrap: {
     minWidth: 160,
   },
   banner: {
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.lg,
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.sage[300],
-    padding: KSpacing.md,
-    gap: KSpacing.sm,
-    marginBottom: KSpacing.lg,
+    borderColor: Colors.sage[300],
+    padding: Spacing[3],
+    gap: Spacing[2],
+    marginBottom: Spacing[4],
   },
   bannerText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
   bannerBtnRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   hero: {
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   heroImage: {
     width: "100%",
     height: 200,
-    borderRadius: KRadius.lg,
-    backgroundColor: KColors.neutral[200],
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.neutral[200],
   },
   heroFallback: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   heroTitle: {
-    fontSize: KType.size.xl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
-    marginTop: KSpacing.sm,
+    fontSize: Typography.fontSize.xl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
+    marginTop: Spacing[2],
   },
   heroDescription: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
     lineHeight: 18,
   },
   heroQuickStats: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
   primaryActionStack: {
-    gap: KSpacing.sm,
-    marginTop: KSpacing.lg,
+    gap: Spacing[2],
+    marginTop: Spacing[4],
   },
   actionRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
-    marginTop: KSpacing.sm,
+    gap: Spacing[2],
+    marginTop: Spacing[2],
   },
   section: {
-    marginTop: KSpacing.lg,
+    marginTop: Spacing[4],
   },
   cardTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   macroRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   macroStat: { alignItems: "center", flex: 1 },
   macroValue: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   macroLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   sectionHeader: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.md,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[3],
   },
   servingsAdjuster: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    marginBottom: KSpacing.md,
+    gap: Spacing[2],
+    marginBottom: Spacing[3],
   },
   servingsLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   stepperRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    gap: Spacing[2],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.sm,
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[2],
     paddingVertical: 4,
   },
   stepperBtn: {
@@ -699,34 +699,34 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   stepperValue: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     minWidth: 20,
     textAlign: "center",
   },
   dishBlock: {
-    marginTop: KSpacing.md,
+    marginTop: Spacing[3],
     gap: 4,
   },
   dishHeader: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
     marginBottom: 4,
   },
   ingredientLine: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
   },
   stepRow: {
     flexDirection: "row",
-    gap: KSpacing.md,
-    marginBottom: KSpacing.md,
+    gap: Spacing[3],
+    marginBottom: Spacing[3],
     alignItems: "flex-start",
   },
   stepCircle: {
@@ -737,33 +737,33 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   stepCircleNormal: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   stepCircleTiming: {
-    backgroundColor: KColors.terracotta[200],
+    backgroundColor: Colors.terracotta[200],
   },
   stepCircleTextNormal: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   stepCircleTextTiming: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   stepText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
   },
   stepMeta: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
   heartBtn: {
     width: 44,

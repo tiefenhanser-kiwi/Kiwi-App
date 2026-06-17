@@ -13,7 +13,7 @@ import React from "react";
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { SavedDish } from "@/lib/types";
 
 export interface CombineReviewProps {
@@ -38,7 +38,7 @@ export function CombineReview({
 }: CombineReviewProps) {
   const selected = savedDishes.filter((d) => selectedDishIds.includes(d.id));
   return (
-    <View style={{ marginTop: KSpacing.lg, gap: KSpacing.md }}>
+    <View style={{ marginTop: Spacing[4], gap: Spacing[3] }}>
       <View style={s.subHeaderRow}>
         <Text style={s.subHeader}>Review combined meal</Text>
         <Pressable
@@ -46,7 +46,7 @@ export function CombineReview({
           hitSlop={6}
           style={({ pressed }) => [s.addLinkBtn, pressed && { opacity: 0.7 }]}
         >
-          <Feather name="chevron-left" size={14} color={KColors.sage[700]} />
+          <Feather name="chevron-left" size={14} color={Colors.sage[700]} />
           <Text style={s.addLinkText}>Back to picker</Text>
         </Pressable>
       </View>
@@ -59,7 +59,7 @@ export function CombineReview({
           value={mealName}
           onChangeText={setMealName}
           placeholder="Meal name (e.g., Salmon Teriyaki)"
-          placeholderTextColor={KColors.neutral[600]}
+          placeholderTextColor={Colors.neutral[600]}
           style={[s.textInput, nameError && s.inputInvalid]}
           returnKeyType="done"
           blurOnSubmit
@@ -95,77 +95,77 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
   },
   subHeader: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   addLinkBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     paddingVertical: 4,
-    paddingHorizontal: KSpacing.xs,
+    paddingHorizontal: Spacing[1],
   },
   addLinkText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   fieldLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     marginBottom: 4,
   },
   textInput: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
   },
   inputInvalid: {
-    borderColor: KColors.terracotta[400],
+    borderColor: Colors.terracotta[400],
   },
   invalidBadge: {
-    fontSize: KType.size.xs,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
     marginLeft: 4,
   },
   helperText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
   reviewDish: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[3],
     gap: 4,
   },
   reviewDishHeader: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
     marginBottom: 4,
   },
   reviewIngredient: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
   },
 });

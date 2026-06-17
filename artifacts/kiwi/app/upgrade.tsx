@@ -6,7 +6,7 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function Upgrade() {
   const router = useRouter();
@@ -17,7 +17,7 @@ export default function Upgrade() {
       <Screen>
         <View style={s.card}>
           <View style={s.iconWrap}>
-            <Feather name="credit-card" size={32} color={KColors.sage[700]} />
+            <Feather name="credit-card" size={32} color={Colors.sage[700]} />
           </View>
           <Text style={s.heading}>
             <Text style={s.headingItalic}>Coming in WS6</Text> — Stripe
@@ -43,59 +43,59 @@ export default function Upgrade() {
 const s = StyleSheet.create({
   bg: {
     flex: 1,
-    backgroundColor: KColors.neutral[100],
+    backgroundColor: Colors.neutral[100],
   },
   card: {
-    marginTop: KSpacing.xl,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.xl,
+    marginTop: Spacing[5],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: KPalette.border.default,
-    paddingHorizontal: KSpacing.lg,
-    paddingVertical: KSpacing.xxl,
+    borderColor: Palette.border.default,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[6],
     alignItems: "center",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   iconWrap: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: KColors.sage[50],
+    backgroundColor: Colors.sage[50],
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: KSpacing.sm,
+    marginBottom: Spacing[2],
   },
   heading: {
-    fontSize: KType.size.xl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
     textAlign: "center",
   },
   headingItalic: {
     fontStyle: "italic",
-    color: KColors.terracotta[400],
+    color: Colors.terracotta[400],
   },
   body: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[800],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[800],
     textAlign: "center",
     lineHeight: 22,
-    fontFamily: "Inter_400Regular",
-    paddingHorizontal: KSpacing.sm,
+    fontFamily: Typography.face.sans[400],
+    paddingHorizontal: Spacing[2],
   },
   bodyMuted: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
     textAlign: "center",
     lineHeight: 20,
-    fontFamily: "Inter_400Regular",
+    fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
-    paddingHorizontal: KSpacing.sm,
-    marginTop: KSpacing.xs,
+    paddingHorizontal: Spacing[2],
+    marginTop: Spacing[1],
   },
   actions: {
     width: "100%",
-    marginTop: KSpacing.lg,
+    marginTop: Spacing[4],
   },
 });

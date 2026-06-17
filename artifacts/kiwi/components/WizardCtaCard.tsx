@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export type WizardIcon = "preferences" | "freeform";
 
@@ -18,10 +18,10 @@ function IconGlyph({ kind }: { kind: WizardIcon }) {
   if (kind === "preferences") {
     return (
       <Svg width={18} height={18} viewBox="0 0 16 16" fill="none">
-        <Circle cx="8" cy="8" r="6" stroke={KColors.sage[200]} strokeWidth={1.2} />
+        <Circle cx="8" cy="8" r="6" stroke={Colors.sage[200]} strokeWidth={1.2} />
         <Path
           d="M5 8l2 2 4-4"
-          stroke={KColors.terracotta[400]}
+          stroke={Colors.terracotta[400]}
           strokeWidth={1.6}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -34,11 +34,11 @@ function IconGlyph({ kind }: { kind: WizardIcon }) {
     <Svg width={18} height={18} viewBox="0 0 16 16" fill="none">
       <Path
         d="M2 4h12M2 8h8M2 12h5"
-        stroke={KColors.sage[200]}
+        stroke={Colors.sage[200]}
         strokeWidth={1.3}
         strokeLinecap="round"
       />
-      <Circle cx="13" cy="11" r="2.2" fill={KColors.terracotta[400]} />
+      <Circle cx="13" cy="11" r="2.2" fill={Colors.terracotta[400]} />
     </Svg>
   );
 }
@@ -68,11 +68,11 @@ export function WizardCtaCard({ icon, subLabel, onPress, locked }: Props) {
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
-    padding: KSpacing.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
+    padding: Spacing[3],
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
+    borderColor: Colors.neutral[300],
     minHeight: 124,
     justifyContent: "space-between",
   },
@@ -86,28 +86,28 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: KColors.sage[50],
+    backgroundColor: Colors.sage[50],
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: KSpacing.sm,
+    marginBottom: Spacing[2],
   },
   label: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
     marginBottom: 2,
   },
   sub: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 14,
   },
   arrow: {
-    fontSize: KType.size.lg,
-    color: KColors.sage[700],
+    fontSize: Typography.fontSize.lg,
+    color: Colors.sage[700],
     alignSelf: "flex-end",
-    fontWeight: KType.weight.semibold,
+    fontWeight: Typography.fontWeight.semibold,
   },
 });

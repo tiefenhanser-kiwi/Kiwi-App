@@ -29,11 +29,11 @@ import { GROCERY_SECTIONS } from "@/lib/domain";
 import { parseQuantity } from "@/lib/quantity";
 import { getGroceryListById } from "@/lib/stubs";
 import {
-  KColors,
-  KPalette,
-  KRadius,
-  KSpacing,
-  KType,
+  Colors,
+  Palette,
+  Radius,
+  Spacing,
+  Typography,
 } from "@/constants/tokens";
 import type { GroceryList, GroceryListItem } from "@/lib/types";
 
@@ -234,10 +234,10 @@ export default function GroceryListDetail() {
 
   if (loadStatus === "loading") {
     return (
-      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header showBack title="Grocery List" />
         <View style={s.notFoundWrap}>
-          <ActivityIndicator size="large" color={KColors.sage[700]} />
+          <ActivityIndicator size="large" color={Colors.sage[700]} />
         </View>
       </View>
     );
@@ -245,7 +245,7 @@ export default function GroceryListDetail() {
 
   if (!list) {
     return (
-      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header showBack title="Grocery List" />
         <View style={s.notFoundWrap}>
           <Text style={s.notFoundText}>List not found.</Text>
@@ -707,7 +707,7 @@ export default function GroceryListDetail() {
     : list.planName;
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header
         showBack
         title="Grocery List"
@@ -741,7 +741,7 @@ export default function GroceryListDetail() {
               <Feather
                 name="alert-triangle"
                 size={20}
-                color={KColors.terracotta[500]}
+                color={Colors.terracotta[500]}
               />
             </View>
             <View style={{ flex: 1, gap: 4 }}>
@@ -776,7 +776,7 @@ export default function GroceryListDetail() {
             <Feather
               name="external-link"
               size={14}
-              color={KColors.sage[700]}
+              color={Colors.sage[700]}
             />
             <Text style={s.viewPlanText} numberOfLines={1}>
               View meal plan: {list.planName}
@@ -784,7 +784,7 @@ export default function GroceryListDetail() {
             <Feather
               name="chevron-right"
               size={14}
-              color={KColors.sage[700]}
+              color={Colors.sage[700]}
             />
           </Pressable>
         )}
@@ -798,7 +798,7 @@ export default function GroceryListDetail() {
               value={addItemInput}
               onChangeText={setAddItemInput}
               placeholder="Add an item…"
-              placeholderTextColor={KColors.neutral[600]}
+              placeholderTextColor={Colors.neutral[600]}
               style={s.addItemInput}
               returnKeyType="done"
               // Keep keyboard up after Done so the user can add several
@@ -869,7 +869,7 @@ export default function GroceryListDetail() {
           <View style={{ flex: 1 }}>
             <Button
               label="Order Online →"
-              variant="terra"
+              variant="primary"
               onPress={handleOrderOnline}
             />
           </View>
@@ -920,7 +920,7 @@ export default function GroceryListDetail() {
               <Feather
                 name="check-circle"
                 size={32}
-                color={KColors.sage[700]}
+                color={Colors.sage[700]}
               />
             </View>
             <Text style={s.completionHeading}>Shopping complete!</Text>
@@ -938,7 +938,7 @@ export default function GroceryListDetail() {
               <View style={{ flex: 1 }}>
                 <Button
                   label="Start Prep & Cook →"
-                  variant="terra"
+                  variant="primary"
                   onPress={handlePrepCook}
                 />
               </View>
@@ -1013,7 +1013,7 @@ export default function GroceryListDetail() {
                     <Feather
                       name="chevron-left"
                       size={24}
-                      color={KColors.neutral[700]}
+                      color={Colors.neutral[700]}
                     />
                   </Pressable>
                   <Text style={s.clarifyProgress}>
@@ -1058,7 +1058,7 @@ export default function GroceryListDetail() {
                       value={clarifyOtherText}
                       onChangeText={setClarifyOtherText}
                       placeholder="Type what you want"
-                      placeholderTextColor={KColors.neutral[600]}
+                      placeholderTextColor={Colors.neutral[600]}
                       style={s.clarifyOtherInput}
                       autoFocus
                       returnKeyType="done"
@@ -1168,21 +1168,21 @@ function GroceryRow({
           style={[
             s.check,
             showCheck && {
-              backgroundColor: KColors.sage[700],
-              borderColor: KColors.sage[700],
+              backgroundColor: Colors.sage[700],
+              borderColor: Colors.sage[700],
             },
             useDashedCheckbox && {
-              borderColor: KColors.neutral[400],
+              borderColor: Colors.neutral[400],
               backgroundColor: "transparent",
               borderStyle: "dashed",
             },
           ]}
         >
           {showCheck && (
-            <Feather name="check" size={14} color={KColors.neutral[0]} />
+            <Feather name="check" size={14} color={Colors.neutral[0]} />
           )}
           {showPlusAffordance && (
-            <Feather name="plus" size={12} color={KColors.neutral[500]} />
+            <Feather name="plus" size={12} color={Colors.neutral[500]} />
           )}
         </View>
         <View style={{ flex: 1 }}>
@@ -1192,10 +1192,10 @@ function GroceryRow({
                 s.itemName,
                 showStrikethrough && {
                   textDecorationLine: "line-through",
-                  color: KColors.neutral[600],
+                  color: Colors.neutral[600],
                 },
                 isDefaultStaple && {
-                  color: KColors.neutral[700],
+                  color: Colors.neutral[700],
                 },
               ]}
               numberOfLines={2}
@@ -1225,7 +1225,7 @@ function GroceryRow({
             value={editAmount}
             onChangeText={onEditAmount}
             placeholder="Qty"
-            placeholderTextColor={KColors.neutral[600]}
+            placeholderTextColor={Colors.neutral[600]}
             style={[
               s.qtyInput,
               editAmountInvalid && s.qtyInputInvalid,
@@ -1242,7 +1242,7 @@ function GroceryRow({
             value={editUnit}
             onChangeText={onEditUnit}
             placeholder="Unit"
-            placeholderTextColor={KColors.neutral[600]}
+            placeholderTextColor={Colors.neutral[600]}
             style={s.unitInput}
             autoCapitalize="none"
             returnKeyType="done"
@@ -1272,7 +1272,7 @@ function GroceryRow({
             style={[
               s.qty,
               (isDefaultStaple || item.isCompleted) && {
-                color: KColors.neutral[600],
+                color: Colors.neutral[600],
               },
             ]}
           >
@@ -1288,7 +1288,7 @@ function GroceryRow({
           hitSlop={8}
           style={({ pressed }) => [s.removeBtn, pressed && { opacity: 0.6 }]}
         >
-          <Feather name="x" size={16} color={KColors.neutral[500]} />
+          <Feather name="x" size={16} color={Colors.neutral[500]} />
         </Pressable>
       )}
     </View>
@@ -1304,8 +1304,8 @@ function Tag({
 }) {
   const palette =
     tone === "sage"
-      ? { bg: KColors.sage[100], text: KColors.sage[700] }
-      : { bg: KColors.neutral[200], text: KColors.neutral[700] };
+      ? { bg: Colors.sage[100], text: Colors.sage[700] }
+      : { bg: Colors.neutral[200], text: Colors.neutral[700] };
   return (
     <View
       style={[
@@ -1320,68 +1320,68 @@ function Tag({
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[8],
+    gap: Spacing[3],
   },
   notFoundWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: KSpacing.lg,
+    padding: Spacing[4],
   },
   notFoundText: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   orderHeaderBtn: {
-    backgroundColor: KColors.terracotta[400],
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
+    backgroundColor: Colors.terracotta[400],
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 6,
   },
   orderHeaderBtnText: {
-    color: KColors.neutral[0],
-    fontSize: KType.size.sm,
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.neutral[0],
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   ambiguousBanner: {
     flexDirection: "row",
-    gap: KSpacing.md,
-    backgroundColor: KColors.terracotta[50],
-    borderRadius: KRadius.lg,
+    gap: Spacing[3],
+    backgroundColor: Colors.terracotta[50],
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.terracotta[200],
-    padding: KSpacing.md,
+    borderColor: Colors.terracotta[200],
+    padding: Spacing[3],
   },
   ambiguousIcon: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: KColors.terracotta[100],
+    backgroundColor: Colors.terracotta[100],
     alignItems: "center",
     justifyContent: "center",
   },
   ambiguousHeading: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   ambiguousSubtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
   ambiguousLink: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[500],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[500],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     marginTop: 4,
   },
   // WS7-7-A B5 — clarify-any-time sheet.
@@ -1391,12 +1391,12 @@ const s = StyleSheet.create({
     justifyContent: "flex-end",
   },
   clarifySheet: {
-    backgroundColor: KColors.neutral[0],
-    borderTopLeftRadius: KRadius.lg,
-    borderTopRightRadius: KRadius.lg,
-    padding: KSpacing.lg,
-    paddingBottom: KSpacing.lg + 16,
-    gap: KSpacing.md,
+    backgroundColor: Colors.neutral[0],
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
+    padding: Spacing[4],
+    paddingBottom: Spacing[4] + 16,
+    gap: Spacing[3],
   },
   clarifyHeaderRow: {
     flexDirection: "row",
@@ -1404,92 +1404,92 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
   },
   clarifyProgress: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   clarifyDone: {
-    fontSize: KType.size.md,
-    color: KColors.sage[700],
-    fontFamily: "Inter_600SemiBold",
-    fontWeight: KType.weight.semibold,
+    fontSize: Typography.fontSize.md,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[600],
+    fontWeight: Typography.fontWeight.semibold,
   },
   clarifyTitle: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_600SemiBold",
-    fontWeight: KType.weight.semibold,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.serif[600],
+    fontWeight: Typography.fontWeight.semibold,
   },
   clarifyItemName: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.serif[400],
   },
   clarifyChips: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   clarifyChip: {
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    borderRadius: KRadius.lg,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KPalette.border.default,
-    backgroundColor: KPalette.bg.card,
+    borderColor: Palette.border.default,
+    backgroundColor: Palette.background.card,
   },
   clarifyChipActive: {
-    borderColor: KColors.sage[700],
-    backgroundColor: KColors.sage[100],
+    borderColor: Colors.sage[700],
+    backgroundColor: Colors.sage[100],
   },
   clarifyChipText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   clarifyOtherRow: {
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   clarifyOtherInput: {
     borderWidth: 1,
-    borderColor: KPalette.border.default,
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Palette.border.default,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
   },
   clarifyActions: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: KSpacing.xs,
+    marginTop: Spacing[1],
   },
   clarifySecondaryAction: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   viewPlanLink: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    gap: Spacing[2],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KPalette.border.default,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
+    borderColor: Palette.border.default,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
   },
   viewPlanText: {
     flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
   // 6c-6-C — relative-positioned wrapper so the floating <TypeaheadList>
   // can absolute-anchor below the input row. zIndex lifts it above the
@@ -1503,113 +1503,113 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     top: "100%",
-    marginTop: KSpacing.xs,
+    marginTop: Spacing[1],
   },
   candidateRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   candidateName: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   candidateSection: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   candidateChip: {
-    backgroundColor: KColors.sage[100],
-    borderRadius: KRadius.sm,
-    paddingHorizontal: KSpacing.sm,
+    backgroundColor: Colors.sage[100],
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 2,
   },
   candidateChipText: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[700],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   addItemRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
     alignItems: "stretch",
   },
   addItemInput: {
     flex: 1,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    paddingHorizontal: KSpacing.md,
+    borderColor: Colors.neutral[400],
+    paddingHorizontal: Spacing[3],
     paddingVertical: 10,
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
   },
   addItemBtn: {
-    backgroundColor: KColors.sage[700],
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.lg,
+    backgroundColor: Colors.sage[700],
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[4],
     alignItems: "center",
     justifyContent: "center",
   },
   addItemBtnText: {
-    color: KColors.neutral[0],
-    fontSize: KType.size.md,
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.neutral[0],
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   actionRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   sectionsWrap: {
-    gap: KSpacing.lg,
+    gap: Spacing[4],
   },
   section: {
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: KSpacing.xs,
+    paddingHorizontal: Spacing[1],
   },
   sectionHeader: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[600],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[600],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     letterSpacing: 0.6,
     textTransform: "uppercase",
   },
   addItemInline: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
   itemList: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KPalette.border.default,
+    borderColor: Palette.border.default,
     overflow: "hidden",
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.md,
+    gap: Spacing[3],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: KPalette.border.muted,
+    borderBottomColor: Palette.border.muted,
   },
   // Sibling tap area (checkbox + name + tags). flex:1 so it consumes
   // all width left over by the qty + X siblings. Keeping its own
@@ -1621,170 +1621,170 @@ const s = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   check: {
     width: 22,
     height: 22,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: KColors.neutral[500],
+    borderColor: Colors.neutral[500],
     alignItems: "center",
     justifyContent: "center",
   },
   itemTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.xs,
+    gap: Spacing[1],
     flexWrap: "wrap",
   },
   itemName: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   qty: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   qtyTapTarget: {
     paddingVertical: 4,
-    paddingHorizontal: KSpacing.xs,
-    borderRadius: KRadius.sm,
+    paddingHorizontal: Spacing[1],
+    borderRadius: Radius.sm,
   },
   qtyEditWrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.xs,
+    gap: Spacing[1],
   },
   // Mirrors meal-builder's s.ingQty (width 56) + s.ingUnit (width 64)
   // so the inline edit pair matches the meal editor exactly.
   qtyInput: {
     width: 56,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
   },
   qtyInputInvalid: {
-    borderColor: KColors.terracotta[400],
+    borderColor: Colors.terracotta[400],
   },
   unitInput: {
     width: 64,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
   },
   removeBtn: {
     width: 32,
     height: 32,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: KSpacing.xs,
-    marginRight: -KSpacing.xs,
+    marginLeft: Spacing[1],
+    marginRight: -Spacing[1],
   },
   tag: {
-    paddingHorizontal: KSpacing.sm,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 2,
-    borderRadius: KRadius.pill,
+    borderRadius: Radius.full,
   },
   tagText: {
     fontSize: 10,
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     letterSpacing: 0.3,
   },
   markDoneWrap: {
-    marginTop: KSpacing.lg,
+    marginTop: Spacing[4],
   },
   completionWrap: {
-    marginTop: KSpacing.lg,
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.xl,
+    marginTop: Spacing[4],
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: KColors.sage[200],
-    padding: KSpacing.lg,
+    borderColor: Colors.sage[200],
+    padding: Spacing[4],
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   completionIcon: {
-    marginBottom: KSpacing.xs,
+    marginBottom: Spacing[1],
   },
   completionHeading: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   completionSubtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   completionActions: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
     width: "100%",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   unmarkLink: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     textDecorationLine: "underline",
-    marginTop: KSpacing.xs,
+    marginTop: Spacing[1],
   },
   undoBanner: {
     position: "absolute",
-    left: KSpacing.lg,
-    right: KSpacing.lg,
-    bottom: KSpacing.lg,
+    left: Spacing[4],
+    right: Spacing[4],
+    bottom: Spacing[4],
     alignItems: "center",
   },
   // WS7-7-A B5 — reconcile notice, stacked above the undo banner's slot.
   reconcileBanner: {
     position: "absolute",
-    left: KSpacing.lg,
-    right: KSpacing.lg,
-    bottom: KSpacing.lg + 64,
+    left: Spacing[4],
+    right: Spacing[4],
+    bottom: Spacing[4] + 64,
     alignItems: "center",
   },
   undoBannerInner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: KColors.neutral[800],
-    borderRadius: KRadius.lg,
-    paddingHorizontal: KSpacing.lg,
-    paddingVertical: KSpacing.md,
+    backgroundColor: Colors.neutral[800],
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
     width: "100%",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   undoBannerText: {
-    color: KColors.neutral[0],
-    fontSize: KType.size.md,
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    color: Colors.neutral[0],
+    fontSize: Typography.fontSize.md,
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   undoBannerAction: {
-    color: KColors.terracotta[300],
-    fontSize: KType.size.md,
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.terracotta[300],
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },

@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { formatSubscriptionState } from "@/lib/domain";
 import { getCurrentSubscription } from "@/lib/stubs";
 import type { SubscriptionInfo } from "@/lib/types";
@@ -27,7 +27,7 @@ export default function ManageAccount() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header showBack title="Account & Subscription" />
       <ScrollView
         contentContainerStyle={s.scrollContent}
@@ -61,7 +61,7 @@ export default function ManageAccount() {
           <View style={s.primaryAction}>
             <Button
               label="Deactivate account"
-              variant="terra"
+              variant="primary"
               onPress={handleDeactivate}
             />
           </View>
@@ -73,63 +73,63 @@ export default function ManageAccount() {
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl * 2,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[8] * 2,
+    gap: Spacing[3],
   },
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[3],
   },
   cardTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
   },
   subscriptionState: {
-    fontSize: KType.size.lg,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     marginTop: 2,
   },
   subscriptionHint: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginTop: KSpacing.xs,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    marginTop: Spacing[1],
   },
   primaryAction: {
-    marginTop: KSpacing.md,
+    marginTop: Spacing[3],
   },
   dangerSpacer: {
-    height: KSpacing.lg,
+    height: Spacing[4],
   },
   dangerCard: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.terracotta[200],
-    padding: KSpacing.md,
+    borderColor: Colors.terracotta[200],
+    padding: Spacing[3],
   },
   dangerHeading: {
-    fontSize: KType.size.md,
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.terracotta[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
     marginTop: 2,
   },
   dangerSubtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginTop: KSpacing.xs,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    marginTop: Spacing[1],
     lineHeight: 18,
   },
 });

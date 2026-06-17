@@ -30,7 +30,7 @@ import {
 } from "@/components/AskKiwiView";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { KColors, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Spacing, Typography } from "@/constants/tokens";
 import { parseMeal } from "@/lib/api/builder";
 import { runAskKiwiSubmit } from "@/lib/builder/askKiwiSubmit";
 
@@ -85,7 +85,7 @@ export default function AskKiwiScreen() {
       <View style={styles.bg}>
         <Header title="Tell Kiwi what you want" />
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={KColors.sage[700]} />
+          <ActivityIndicator size="large" color={Colors.sage[700]} />
           <Text style={styles.loadingTitle}>Building your meal...</Text>
           <Text style={styles.loadingSubtitle}>
             Kiwi is turning your description into dishes, ingredients, and steps.
@@ -120,32 +120,32 @@ export default function AskKiwiScreen() {
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: KColors.neutral[100] },
+  bg: { flex: 1, backgroundColor: Colors.neutral[100] },
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.xl,
-    paddingBottom: KSpacing.xxxl,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[5],
+    paddingBottom: Spacing[8],
   },
   loadingWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: KSpacing.xl,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[5],
+    gap: Spacing[3],
   },
   loadingTitle: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: KSpacing.md,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginTop: Spacing[3],
   },
   loadingSubtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
     lineHeight: 20,
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
   },
 });

@@ -10,7 +10,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   addDays,
   computeNextWeekStart,
@@ -81,9 +81,9 @@ export function PlanDateRangeEditor({
         style={({ pressed }) => [s.trigger, pressed && { opacity: 0.7 }]}
         hitSlop={6}
       >
-        <Feather name="calendar" size={14} color={KColors.sage[700]} />
+        <Feather name="calendar" size={14} color={Colors.sage[700]} />
         <Text style={s.triggerText}>{displayLabel}</Text>
-        <Feather name="edit-2" size={12} color={KColors.sage[700]} />
+        <Feather name="edit-2" size={12} color={Colors.sage[700]} />
       </Pressable>
       {open && (
         <DateRangeSheet
@@ -182,13 +182,13 @@ function DateRangeSheet({
     >
       <Pressable style={s.backdrop} onPress={onClose} />
       <View
-        style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}
+        style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}
       >
         <View style={s.handle} />
         <View style={s.header}>
           <Text style={s.title}>Plan dates</Text>
           <Pressable onPress={onClose} hitSlop={12}>
-            <Feather name="x" size={22} color={KColors.neutral[800]} />
+            <Feather name="x" size={22} color={Colors.neutral[800]} />
           </Pressable>
         </View>
 
@@ -248,7 +248,7 @@ function DateRangeSheet({
                   ]}
                   disabled={customStart <= today}
                 >
-                  <Feather name="minus" size={16} color={KColors.sage[700]} />
+                  <Feather name="minus" size={16} color={Colors.sage[700]} />
                 </Pressable>
                 <Text style={s.stepperValue}>
                   {formatDate(customStart)}
@@ -261,7 +261,7 @@ function DateRangeSheet({
                     pressed && { opacity: 0.6 },
                   ]}
                 >
-                  <Feather name="plus" size={16} color={KColors.sage[700]} />
+                  <Feather name="plus" size={16} color={Colors.sage[700]} />
                 </Pressable>
               </View>
               <Text style={s.fieldHint}>
@@ -270,7 +270,7 @@ function DateRangeSheet({
                   : `${diffDays(today, customStart)} day${diffDays(today, customStart) === 1 ? "" : "s"} from today`}
               </Text>
 
-              <Text style={[s.fieldLabel, { marginTop: KSpacing.lg }]}>
+              <Text style={[s.fieldLabel, { marginTop: Spacing[4] }]}>
                 Duration
               </Text>
               <View style={s.durationRow}>
@@ -357,10 +357,10 @@ const s = StyleSheet.create({
     paddingVertical: 4,
   },
   triggerText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   backdrop: {
     flex: 1,
@@ -371,91 +371,91 @@ const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: KColors.neutral[100],
-    borderTopLeftRadius: KRadius.xl,
-    borderTopRightRadius: KRadius.xl,
+    backgroundColor: Colors.neutral[100],
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
     maxHeight: "85%",
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: KColors.neutral[400],
+    backgroundColor: Colors.neutral[400],
     alignSelf: "center",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: KSpacing.lg,
-    paddingVertical: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: KColors.neutral[300],
+    borderBottomColor: Colors.neutral[300],
   },
   title: {
-    fontSize: KType.size.xl,
-    fontWeight: KType.weight.bold,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.serif[600],
   },
   scrollContent: {
-    padding: KSpacing.lg,
-    gap: KSpacing.md,
+    padding: Spacing[4],
+    gap: Spacing[3],
   },
   presetRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   presetBtn: {
     flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: KSpacing.sm,
-    borderRadius: KRadius.md,
+    paddingHorizontal: Spacing[2],
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    backgroundColor: KPalette.bg.card,
+    borderColor: Colors.neutral[400],
+    backgroundColor: Palette.background.card,
     alignItems: "center",
   },
   presetBtnActive: {
-    backgroundColor: KColors.sage[700],
-    borderColor: KColors.sage[700],
+    backgroundColor: Colors.sage[700],
+    borderColor: Colors.sage[700],
   },
   presetBtnText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_600SemiBold",
-    fontWeight: KType.weight.semibold,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[600],
+    fontWeight: Typography.fontWeight.semibold,
   },
   presetBtnTextActive: {
-    color: KColors.neutral[0],
+    color: Colors.neutral[0],
   },
   customWrap: {
-    backgroundColor: KPalette.bg.card,
+    backgroundColor: Palette.background.card,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    borderRadius: KRadius.md,
-    padding: KSpacing.md,
-    gap: KSpacing.sm,
+    borderColor: Colors.neutral[300],
+    borderRadius: Radius.md,
+    padding: Spacing[3],
+    gap: Spacing[2],
   },
   fieldLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   fieldHint: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
   stepperRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KColors.neutral[100],
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
+    gap: Spacing[3],
+    backgroundColor: Colors.neutral[100],
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 6,
     alignSelf: "flex-start",
   },
@@ -466,10 +466,10 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   stepperValue: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     minWidth: 80,
     textAlign: "center",
   },
@@ -482,47 +482,47 @@ const s = StyleSheet.create({
     minWidth: 36,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: KRadius.md,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    backgroundColor: KColors.neutral[100],
+    borderColor: Colors.neutral[400],
+    backgroundColor: Colors.neutral[100],
     alignItems: "center",
   },
   durationChipActive: {
-    backgroundColor: KColors.sage[700],
-    borderColor: KColors.sage[700],
+    backgroundColor: Colors.sage[700],
+    borderColor: Colors.sage[700],
   },
   durationChipText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   durationChipTextActive: {
-    color: KColors.neutral[0],
+    color: Colors.neutral[0],
   },
   errorText: {
-    fontSize: KType.size.xs,
-    color: KColors.terracotta[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.terracotta[600],
+    fontFamily: Typography.face.sans[400],
   },
   footer: {
-    paddingHorizontal: KSpacing.lg,
-    paddingVertical: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
     borderTopWidth: 1,
-    borderTopColor: KColors.neutral[300],
-    backgroundColor: KColors.neutral[100],
+    borderTopColor: Colors.neutral[300],
+    backgroundColor: Colors.neutral[100],
   },
   saveBtn: {
-    backgroundColor: KColors.sage[700],
-    borderRadius: KRadius.md,
+    backgroundColor: Colors.sage[700],
+    borderRadius: Radius.md,
     paddingVertical: 12,
     alignItems: "center",
   },
   saveBtnText: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
 });

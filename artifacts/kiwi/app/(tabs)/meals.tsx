@@ -26,7 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDishes } from "@/hooks/useDishes";
 import { useInfiniteMeals } from "@/hooks/useMeals";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   asMealsFilters,
   type MealFilterKey,
@@ -160,7 +160,7 @@ export default function MealsTab() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <AddMealToPlanSheet
         visible={addToPlanFor !== null}
         mealId={addToPlanFor?.mealId ?? ""}
@@ -317,7 +317,7 @@ export default function MealsTab() {
             ListFooterComponent={
               mealsQuery.isFetchingNextPage ? (
                 <View style={s.footerLoading}>
-                  <ActivityIndicator size="small" color={KColors.sage[700]} />
+                  <ActivityIndicator size="small" color={Colors.sage[700]} />
                 </View>
               ) : null
             }
@@ -401,7 +401,7 @@ export default function MealsTab() {
             ListFooterComponent={
               dishesQuery.isFetchingNextPage ? (
                 <View style={s.footerLoading}>
-                  <ActivityIndicator size="small" color={KColors.sage[700]} />
+                  <ActivityIndicator size="small" color={Colors.sage[700]} />
                 </View>
               ) : null
             }
@@ -415,87 +415,87 @@ export default function MealsTab() {
 const s = StyleSheet.create({
   toggleRow: {
     flexDirection: "row",
-    backgroundColor: KColors.neutral[200],
-    borderRadius: KRadius.md,
+    backgroundColor: Colors.neutral[200],
+    borderRadius: Radius.md,
     padding: 4,
-    marginTop: KSpacing.md,
+    marginTop: Spacing[3],
     gap: 4,
   },
   toggleBtn: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: KRadius.md,
+    borderRadius: Radius.md,
     alignItems: "center",
   },
   toggleBtnActive: {
-    backgroundColor: KColors.sage[700],
+    backgroundColor: Colors.sage[700],
   },
   toggleText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   toggleTextActive: {
-    color: KColors.neutral[0],
+    color: Colors.neutral[0],
   },
   scroll: {
-    paddingTop: KSpacing.md,
-    paddingBottom: KSpacing.xxxl,
+    paddingTop: Spacing[3],
+    paddingBottom: Spacing[8],
   },
   addBtn: {
-    backgroundColor: KColors.sage[700],
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
+    backgroundColor: Colors.sage[700],
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 12,
     alignItems: "center",
   },
   addBtnText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
-  filterWrap: { marginTop: KSpacing.sm },
+  filterWrap: { marginTop: Spacing[2] },
   controlsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: KSpacing.sm,
-    marginTop: KSpacing.md,
+    gap: Spacing[2],
+    marginTop: Spacing[3],
   },
   sectionLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   list: {
-    marginTop: KSpacing.md,
-    gap: KSpacing.sm,
+    marginTop: Spacing[3],
+    gap: Spacing[2],
   },
   flex1: { flex: 1 },
   // FlatList header's controls row needs the bottom gap the old `s.list`
   // marginTop used to provide before the first row.
-  controlsRowList: { marginBottom: KSpacing.md },
-  rowGap: { height: KSpacing.sm },
-  footerLoading: { paddingVertical: KSpacing.md, alignItems: "center" },
+  controlsRowList: { marginBottom: Spacing[3] },
+  rowGap: { height: Spacing[2] },
+  footerLoading: { paddingVertical: Spacing[3], alignItems: "center" },
   loadingText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
-    paddingVertical: KSpacing.lg,
+    paddingVertical: Spacing[4],
   },
   empty: {
-    paddingVertical: KSpacing.xxl,
-    paddingHorizontal: KSpacing.lg,
+    paddingVertical: Spacing[6],
+    paddingHorizontal: Spacing[4],
     alignItems: "center",
   },
   emptyText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
     lineHeight: 20,
   },

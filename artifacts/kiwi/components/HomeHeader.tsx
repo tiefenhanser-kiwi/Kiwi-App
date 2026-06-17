@@ -3,12 +3,12 @@ import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { TrialBadge } from "@/components/TrialBadge";
-import { KColors, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 export function HomeHeader() {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.container, { paddingTop: insets.top + KSpacing.md }]}>
+    <View style={[styles.container, { paddingTop: insets.top + Spacing[3] }]}>
       <View style={styles.left}>
         <Text style={styles.wordmark}>Kiwi</Text>
         <Text style={styles.tagline}>
@@ -24,27 +24,27 @@ export function HomeHeader() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: KSpacing.lg,
-    paddingBottom: KSpacing.md,
-    backgroundColor: KColors.neutral[300],
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[3],
+    backgroundColor: Colors.neutral[300],
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   left: { flex: 1 },
   right: { paddingTop: 4 },
   wordmark: {
-    fontSize: KType.size.xxl,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.xxl,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
     letterSpacing: -0.5,
   },
   tagline: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
 });

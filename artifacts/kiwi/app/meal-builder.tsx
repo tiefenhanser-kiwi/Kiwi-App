@@ -24,11 +24,11 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import {
-  KColors,
-  KPalette,
-  KRadius,
-  KSpacing,
-  KType,
+  Colors,
+  Palette,
+  Radius,
+  Spacing,
+  Typography,
 } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { fromServerDifficulty, toServerDifficulty } from "@/lib/api/builder";
@@ -843,7 +843,7 @@ export default function MealBuilderScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header showBack title={headerTitle} />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
@@ -1203,22 +1203,22 @@ function ModeCard({
           size={20}
           color={
             locked
-              ? KColors.neutral[600]
+              ? Colors.neutral[600]
               : selected
-                ? KColors.sage[700]
-                : KColors.neutral[800]
+                ? Colors.sage[700]
+                : Colors.neutral[800]
           }
         />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[s.modeTitle, locked && { color: KColors.neutral[700] }]}>
+        <Text style={[s.modeTitle, locked && { color: Colors.neutral[700] }]}>
           {title}
         </Text>
         <Text style={s.modeSubtitle}>{subtitle}</Text>
       </View>
       {locked && (
         <View style={s.premiumPill}>
-          <Feather name="lock" size={10} color={KColors.terracotta[700]} />
+          <Feather name="lock" size={10} color={Colors.terracotta[700]} />
           <Text style={s.premiumPillText}>Premium</Text>
         </View>
       )}
@@ -1256,14 +1256,14 @@ function MetaFields(p: MetaFieldsProps) {
     p.setServingsDefault(Math.min(SERVINGS_MAX, p.servingsDefault + 1));
 
   return (
-    <View style={{ gap: KSpacing.md }}>
+    <View style={{ gap: Spacing[3] }}>
       <View>
         <Text style={s.fieldLabel}>Meal name</Text>
         <TextInput
           value={p.mealName}
           onChangeText={p.setMealName}
           placeholder="Meal name (e.g., Salmon Teriyaki)"
-          placeholderTextColor={KColors.neutral[600]}
+          placeholderTextColor={Colors.neutral[600]}
           style={[s.textInput, p.nameError && s.inputInvalid]}
           returnKeyType="done"
           blurOnSubmit
@@ -1301,11 +1301,11 @@ function MetaFields(p: MetaFieldsProps) {
           <Feather
             name={p.cuisineExpanded ? "chevron-up" : "chevron-down"}
             size={14}
-            color={KColors.sage[700]}
+            color={Colors.sage[700]}
           />
         </Pressable>
         {p.cuisineExpanded && (
-          <View style={[s.chipRow, { marginTop: KSpacing.sm }]}>
+          <View style={[s.chipRow, { marginTop: Spacing[2] }]}>
             {CUISINES_TIER_2.map((c) => (
               <Chip
                 key={c}
@@ -1356,7 +1356,7 @@ function MetaFields(p: MetaFieldsProps) {
               }
               keyboardType="number-pad"
               placeholder="30"
-              placeholderTextColor={KColors.neutral[600]}
+              placeholderTextColor={Colors.neutral[600]}
               style={[s.textInput, { flex: 1 }]}
               returnKeyType="done"
               blurOnSubmit
@@ -1378,7 +1378,7 @@ function MetaFields(p: MetaFieldsProps) {
                 pressed && { opacity: 0.6 },
               ]}
             >
-              <Feather name="minus" size={16} color={KColors.sage[700]} />
+              <Feather name="minus" size={16} color={Colors.sage[700]} />
             </Pressable>
             <Text style={s.stepperValue}>{p.servingsDefault}</Text>
             <Pressable
@@ -1391,7 +1391,7 @@ function MetaFields(p: MetaFieldsProps) {
                 pressed && { opacity: 0.6 },
               ]}
             >
-              <Feather name="plus" size={16} color={KColors.sage[700]} />
+              <Feather name="plus" size={16} color={Colors.sage[700]} />
             </Pressable>
           </View>
         </View>
@@ -1454,11 +1454,11 @@ function ManualEditor(p: ManualEditorProps) {
   const showIngredientError = p.showFieldErrors && p.ingredientMissing;
   const showStepError = p.showFieldErrors && p.stepMissing;
   return (
-    <View style={{ marginTop: KSpacing.lg, gap: KSpacing.lg }}>
+    <View style={{ marginTop: Spacing[4], gap: Spacing[4] }}>
       <MetaFields {...p} nameError={showNameError} />
 
       {/* Ingredients */}
-      <View style={{ gap: KSpacing.sm }}>
+      <View style={{ gap: Spacing[2] }}>
         <Text style={s.subHeader}>Ingredients</Text>
         {showIngredientError && (
           <Text style={s.invalidBadge}>
@@ -1472,7 +1472,7 @@ function ManualEditor(p: ManualEditorProps) {
                 value={dish.name}
                 onChangeText={(v) => p.updateDishName(dish.uid, v)}
                 placeholder="Dish name (optional)"
-                placeholderTextColor={KColors.neutral[600]}
+                placeholderTextColor={Colors.neutral[600]}
                 style={[s.textInput, { flex: 1 }]}
                 returnKeyType="done"
                 blurOnSubmit
@@ -1491,11 +1491,11 @@ function ManualEditor(p: ManualEditorProps) {
                     pressed && { opacity: 0.6 },
                   ]}
                 >
-                  <Feather name="trash-2" size={16} color={KColors.terracotta[600]} />
+                  <Feather name="trash-2" size={16} color={Colors.terracotta[600]} />
                 </Pressable>
               )}
             </View>
-            <View style={{ gap: KSpacing.xs, marginTop: KSpacing.sm }}>
+            <View style={{ gap: Spacing[1], marginTop: Spacing[2] }}>
               {dish.ingredients.map((ing) => {
                 // Quantity supports decimals + fractions ("1/2", "1 1/2").
                 // Invalid only when non-empty AND parser rejects.
@@ -1511,7 +1511,7 @@ function ManualEditor(p: ManualEditorProps) {
                           p.updateIngredient(dish.uid, ing.uid, { quantity: v })
                         }
                         placeholder="Qty"
-                        placeholderTextColor={KColors.neutral[600]}
+                        placeholderTextColor={Colors.neutral[600]}
                         style={[
                           s.textInput,
                           s.ingQty,
@@ -1529,7 +1529,7 @@ function ManualEditor(p: ManualEditorProps) {
                           p.updateIngredient(dish.uid, ing.uid, { unit: v })
                         }
                         placeholder="Unit"
-                        placeholderTextColor={KColors.neutral[600]}
+                        placeholderTextColor={Colors.neutral[600]}
                         style={[s.textInput, s.ingUnit]}
                         autoCapitalize="none"
                         returnKeyType="done"
@@ -1542,7 +1542,7 @@ function ManualEditor(p: ManualEditorProps) {
                           p.updateIngredient(dish.uid, ing.uid, { name: v })
                         }
                         placeholder="Ingredient"
-                        placeholderTextColor={KColors.neutral[600]}
+                        placeholderTextColor={Colors.neutral[600]}
                         style={[s.textInput, { flex: 1 }]}
                         returnKeyType="done"
                         blurOnSubmit
@@ -1559,7 +1559,7 @@ function ManualEditor(p: ManualEditorProps) {
                         <Feather
                           name="x"
                           size={16}
-                          color={KColors.neutral[700]}
+                          color={Colors.neutral[700]}
                         />
                       </Pressable>
                     </View>
@@ -1579,7 +1579,7 @@ function ManualEditor(p: ManualEditorProps) {
                   pressed && { opacity: 0.7 },
                 ]}
               >
-                <Feather name="plus" size={14} color={KColors.sage[700]} />
+                <Feather name="plus" size={14} color={Colors.sage[700]} />
                 <Text style={s.addLinkText}>Add ingredient</Text>
               </Pressable>
             </View>
@@ -1603,7 +1603,7 @@ function ManualEditor(p: ManualEditorProps) {
           multi-dish, each dish gets its own steps block stacked below the
           single "Recipe steps" header — bound to that dish's steps array
           via dish.uid. */}
-      <View style={{ gap: KSpacing.sm }}>
+      <View style={{ gap: Spacing[2] }}>
         <Text style={s.subHeader}>Recipe steps</Text>
         {showStepError && (
           <Text style={s.invalidBadge}>
@@ -1632,13 +1632,13 @@ function ManualEditor(p: ManualEditorProps) {
       </View>
 
       {/* Notes */}
-      <View style={{ gap: KSpacing.sm }}>
+      <View style={{ gap: Spacing[2] }}>
         <Text style={s.subHeader}>Notes (optional)</Text>
         <TextInput
           value={p.notes}
           onChangeText={p.setNotes}
           placeholder="Add any notes about this meal..."
-          placeholderTextColor={KColors.neutral[600]}
+          placeholderTextColor={Colors.neutral[600]}
           style={[s.textInput, s.notesInput]}
           multiline
           returnKeyType="default"
@@ -1679,7 +1679,7 @@ interface PerDishStepsProps {
 function PerDishSteps(p: PerDishStepsProps) {
   const dishUid = p.dish.uid;
   return (
-    <View style={{ gap: KSpacing.sm }}>
+    <View style={{ gap: Spacing[2] }}>
       {p.showDishHeader && (
         <Text style={s.perDishStepsHeader}>
           {p.dish.name.trim() || "Untitled dish"}
@@ -1737,7 +1737,7 @@ function PerDishSteps(p: PerDishStepsProps) {
                       p.updateStep(dishUid, step.uid, { text: v })
                     }
                     placeholder="Step description"
-                    placeholderTextColor={KColors.neutral[600]}
+                    placeholderTextColor={Colors.neutral[600]}
                     style={[s.textInput, s.stepTextInput]}
                     multiline
                     returnKeyType="default"
@@ -1752,7 +1752,7 @@ function PerDishSteps(p: PerDishStepsProps) {
                         })
                       }
                       placeholder="0"
-                      placeholderTextColor={KColors.neutral[600]}
+                      placeholderTextColor={Colors.neutral[600]}
                       style={[s.textInput, { width: 56 }]}
                       keyboardType="number-pad"
                       returnKeyType="done"
@@ -1774,7 +1774,7 @@ function PerDishSteps(p: PerDishStepsProps) {
                   <Feather
                     name="menu"
                     size={20}
-                    color={KColors.neutral[500]}
+                    color={Colors.neutral[500]}
                   />
                 </Pressable>
                 <Pressable
@@ -1788,7 +1788,7 @@ function PerDishSteps(p: PerDishStepsProps) {
                   <Feather
                     name="x"
                     size={16}
-                    color={KColors.neutral[700]}
+                    color={Colors.neutral[700]}
                   />
                 </Pressable>
               </View>
@@ -1842,9 +1842,9 @@ function CombinePicker(p: CombinePickerProps) {
   );
 
   return (
-    <View style={{ marginTop: KSpacing.lg, gap: KSpacing.lg }}>
+    <View style={{ marginTop: Spacing[4], gap: Spacing[4] }}>
       <MetaFields {...p} />
-      <View style={{ gap: KSpacing.sm }}>
+      <View style={{ gap: Spacing[2] }}>
         <View style={s.combineHeaderRow}>
           <Text style={s.subHeader}>Pick dishes to combine</Text>
           <SortDropdown
@@ -1860,7 +1860,7 @@ function CombinePicker(p: CombinePickerProps) {
         </Text>
         {p.dishesLoading && p.savedDishes.length === 0 ? (
           <View style={s.dishesStatusRow}>
-            <ActivityIndicator size="small" color={KColors.sage[700]} />
+            <ActivityIndicator size="small" color={Colors.sage[700]} />
             <Text style={s.dishesStatusText}>Loading your saved dishes…</Text>
           </View>
         ) : p.dishesError ? (
@@ -1896,7 +1896,7 @@ function CombinePicker(p: CombinePickerProps) {
                 fetchNextPage rather than a nested VirtualizedList. */}
             {p.isFetchingNextPage ? (
               <View style={s.dishesStatusRow}>
-                <ActivityIndicator size="small" color={KColors.sage[700]} />
+                <ActivityIndicator size="small" color={Colors.sage[700]} />
                 <Text style={s.dishesStatusText}>Loading more…</Text>
               </View>
             ) : p.hasNextPage && p.onLoadMore ? (
@@ -1947,7 +1947,7 @@ const DishPickerRow = memo(function DishPickerRow({
       <Feather
         name={isSelected ? "check-square" : "square"}
         size={20}
-        color={isSelected ? KColors.sage[700] : KColors.neutral[600]}
+        color={isSelected ? Colors.sage[700] : Colors.neutral[600]}
       />
       <View style={[s.dishThumb, !dish.imageUrl && s.dishThumbFallback]} />
       <View style={{ flex: 1 }}>
@@ -1996,8 +1996,8 @@ const DishPickerRow = memo(function DishPickerRow({
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
     paddingBottom: 240,
   },
   saveBar: {
@@ -2005,142 +2005,142 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.md,
-    paddingBottom: KSpacing.xl,
-    backgroundColor: KColors.neutral[100],
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    paddingBottom: Spacing[5],
+    backgroundColor: Colors.neutral[100],
     borderTopWidth: 1,
-    borderTopColor: KColors.neutral[400],
+    borderTopColor: Colors.neutral[400],
   },
   // WS7-6 Block 1F — summary line above the Save button. Uses the same
   // terracotta tint as invalidBadge for visual continuity with the
   // inline per-field errors.
   saveBarSummary: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_400Regular",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[400],
+    marginBottom: Spacing[2],
     textAlign: "center",
   },
   sectionHeader: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
   },
   contextInfo: {
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.md,
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.sage[300],
-    padding: KSpacing.md,
-    marginBottom: KSpacing.md,
+    borderColor: Colors.sage[300],
+    padding: Spacing[3],
+    marginBottom: Spacing[3],
   },
   contextInfoText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
   addDishWrap: {
-    marginTop: KSpacing.md,
-    marginBottom: KSpacing.lg,
+    marginTop: Spacing[3],
+    marginBottom: Spacing[4],
   },
   stepsEmptyState: {
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
     alignItems: "center",
   },
   stepsEmptyText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
     textAlign: "center",
     lineHeight: 18,
   },
   stepsActionsRow: {
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   perDishStepsHeader: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: KSpacing.sm,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginTop: Spacing[2],
   },
   modeCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    gap: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    padding: KSpacing.md,
-    marginBottom: KSpacing.sm,
+    borderColor: Colors.neutral[400],
+    padding: Spacing[3],
+    marginBottom: Spacing[2],
   },
   modeCardSelected: {
-    backgroundColor: KColors.sage[100],
-    borderColor: KColors.sage[300],
+    backgroundColor: Colors.sage[100],
+    borderColor: Colors.sage[300],
   },
   modeCardLocked: {
     opacity: 0.85,
-    backgroundColor: KColors.neutral[50],
+    backgroundColor: Colors.neutral[50],
   },
   modeIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: KRadius.md,
-    backgroundColor: KColors.neutral[100],
+    borderRadius: Radius.md,
+    backgroundColor: Colors.neutral[100],
     alignItems: "center",
     justifyContent: "center",
   },
   modeTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   modeSubtitle: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   premiumPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: KColors.terracotta[100],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
+    backgroundColor: Colors.terracotta[100],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 4,
   },
   premiumPillText: {
-    fontSize: KType.size.xs,
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.terracotta[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   fieldLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     marginBottom: 4,
   },
   textInput: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
   },
   chipRow: {
     flexDirection: "row",
@@ -2151,22 +2151,22 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
     alignSelf: "flex-start",
   },
   expandLinkText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   inputInvalid: {
-    borderColor: KColors.terracotta[400],
+    borderColor: Colors.terracotta[400],
   },
   invalidBadge: {
-    fontSize: KType.size.xs,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
     marginLeft: 4,
   },
@@ -2176,56 +2176,56 @@ const s = StyleSheet.create({
   },
   difficultyRow: {
     flexDirection: "row",
-    gap: KSpacing.xs,
+    gap: Spacing[1],
   },
   difficultyBtn: {
     flex: 1,
-    paddingVertical: KSpacing.sm,
-    borderRadius: KRadius.md,
+    paddingVertical: Spacing[2],
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    backgroundColor: KPalette.bg.card,
+    borderColor: Colors.neutral[300],
+    backgroundColor: Palette.background.card,
     alignItems: "center",
   },
   difficultyBtnOn: {
-    backgroundColor: KColors.sage[700],
-    borderColor: KColors.sage[700],
+    backgroundColor: Colors.sage[700],
+    borderColor: Colors.sage[700],
   },
   difficultyBtnTextOn: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   difficultyBtnTextOff: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
   timeServingsRow: {
     flexDirection: "row",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   suffixRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   suffixLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   stepperRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    gap: Spacing[2],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.sm,
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[2],
     paddingVertical: 4,
     alignSelf: "flex-start",
   },
@@ -2236,18 +2236,18 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   stepperValue: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     minWidth: 20,
     textAlign: "center",
   },
   subHeader: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   // WS7-6 B-fix Block 3 — header row pairs the "Pick dishes" title with the
   // sort dropdown (zIndex keeps the open menu above the dish rows below).
@@ -2255,7 +2255,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
     zIndex: 10,
   },
   addLinkBtn: {
@@ -2263,38 +2263,38 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     paddingVertical: 4,
-    paddingHorizontal: KSpacing.xs,
+    paddingHorizontal: Spacing[1],
   },
   addLinkText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   dishCard: {
-    backgroundColor: KColors.neutral[50],
-    borderRadius: KRadius.md,
+    backgroundColor: Colors.neutral[50],
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.sm,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[2],
   },
   dishHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   ingredientRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.xs,
+    gap: Spacing[1],
   },
   ingQty: {
     width: 56,
-    paddingHorizontal: KSpacing.sm,
+    paddingHorizontal: Spacing[2],
   },
   ingUnit: {
     width: 64,
-    paddingHorizontal: KSpacing.sm,
+    paddingHorizontal: Spacing[2],
   },
   removeIconBtn: {
     width: 28,
@@ -2314,94 +2314,94 @@ const s = StyleSheet.create({
   stepRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   stepCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
   },
   stepCircleText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   stepCircleTiming: {
-    backgroundColor: KColors.terracotta[200],
+    backgroundColor: Colors.terracotta[200],
   },
   stepCircleTextTiming: {
-    color: KColors.terracotta[700],
+    color: Colors.terracotta[700],
   },
   stepTextInput: {
     minHeight: 60,
     textAlignVertical: "top",
   },
   helperText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
   dishesStatusRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    paddingVertical: KSpacing.md,
+    gap: Spacing[2],
+    paddingVertical: Spacing[3],
   },
   dishesStatusText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   dishPickerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    gap: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.sm,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[2],
   },
   dishPickerRowSelected: {
-    backgroundColor: KColors.sage[50],
-    borderColor: KColors.sage[300],
+    backgroundColor: Colors.sage[50],
+    borderColor: Colors.sage[300],
   },
   dishThumb: {
     width: 40,
     height: 40,
-    borderRadius: KRadius.sm,
-    backgroundColor: KColors.neutral[200],
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.neutral[200],
   },
   dishThumbFallback: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   dishPickerName: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   dishPickerMeta: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   dishPickerMacros: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   dishPickerUse: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
 });

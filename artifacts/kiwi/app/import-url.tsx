@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { importRecipeFromUrl } from "@/lib/api/recipeImport";
 
 type Phase = "input" | "loading";
@@ -96,7 +96,7 @@ export default function ImportUrlScreen() {
       <View style={styles.bg}>
         <Header title="Import from URL" />
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={KColors.sage[700]} />
+          <ActivityIndicator size="large" color={Colors.sage[700]} />
           <Text style={styles.loadingTitle}>Reading your recipe...</Text>
           <Text style={styles.loadingSubtitle}>
             Kiwi is parsing the page into structured ingredients and steps.
@@ -125,7 +125,7 @@ export default function ImportUrlScreen() {
             if (errorMessage) setErrorMessage(null);
           }}
           placeholder="https://www.allrecipes.com/recipe/..."
-          placeholderTextColor={KColors.neutral[600]}
+          placeholderTextColor={Colors.neutral[600]}
           style={[styles.urlInput, errorMessage && styles.urlInputInvalid]}
           autoCapitalize="none"
           autoCorrect={false}
@@ -154,76 +154,76 @@ export default function ImportUrlScreen() {
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: KColors.neutral[100] },
+  bg: { flex: 1, backgroundColor: Colors.neutral[100] },
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.xl,
-    paddingBottom: KSpacing.xxxl,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[5],
+    paddingBottom: Spacing[8],
   },
   title: {
-    fontSize: KType.size.xl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.xl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
   },
   subtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
-    marginBottom: KSpacing.xl,
+    marginBottom: Spacing[5],
   },
   urlInput: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.md,
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
   },
   urlInputInvalid: {
-    borderColor: KColors.terracotta[400],
+    borderColor: Colors.terracotta[400],
   },
   errorText: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_400Regular",
-    marginTop: KSpacing.sm,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[400],
+    marginTop: Spacing[2],
   },
   helperText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   buttonWrap: {
-    marginTop: KSpacing.xl,
+    marginTop: Spacing[5],
   },
   loadingWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: KSpacing.xl,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[5],
+    gap: Spacing[3],
   },
   loadingTitle: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: KSpacing.md,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginTop: Spacing[3],
   },
   loadingSubtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
     lineHeight: 20,
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
   },
 });

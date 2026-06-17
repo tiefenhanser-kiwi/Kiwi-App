@@ -3,13 +3,13 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import {
-  KColors,
-  KCopy,
-  KPalette,
-  KRadius,
-  KShadow,
-  KSpacing,
-  KType,
+  Colors,
+  Copy,
+  Palette,
+  Radius,
+  Shadow,
+  Spacing,
+  Typography,
 } from "@/constants/tokens";
 import { formatMacroLine } from "@/lib/format/macros";
 import {
@@ -233,7 +233,7 @@ export function PlanReviewMealRow({
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >
-          <Text style={styles.actionText}>{KCopy.delete}</Text>
+          <Text style={styles.actionText}>{Copy.delete}</Text>
         </Pressable>
       </View>
     </View>
@@ -242,73 +242,73 @@ export function PlanReviewMealRow({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    padding: KSpacing.md,
-    marginBottom: KSpacing.sm,
-    ...KShadow.card,
+    borderColor: Colors.neutral[400],
+    padding: Spacing[3],
+    marginBottom: Spacing[2],
+    ...Shadow.card,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   titlePressable: {
     flex: 1,
   },
   bodyRow: {
     flexDirection: "row",
-    gap: KSpacing.md,
+    gap: Spacing[3],
     alignItems: "center",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   thumb: {
     width: 56,
     height: 56,
-    borderRadius: KRadius.md,
-    backgroundColor: KColors.neutral[200],
+    borderRadius: Radius.md,
+    backgroundColor: Colors.neutral[200],
   },
   thumbFallback: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   textCol: {
     flex: 1,
-    gap: KSpacing.xs,
+    gap: Spacing[1],
   },
   title: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   metaLine: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   macros: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
   cookNowBtn: {
-    backgroundColor: KColors.sage[700],
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: KSpacing.xs,
-    borderRadius: KRadius.md,
+    backgroundColor: Colors.sage[700],
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[1],
+    borderRadius: Radius.md,
   },
   cookNowText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   dayStrip: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   dayPill: {
     width: 32,
@@ -318,41 +318,41 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dayPillOn: {
-    backgroundColor: KColors.sage[700],
+    backgroundColor: Colors.sage[700],
   },
   dayPillOff: {
-    backgroundColor: KColors.neutral[100],
+    backgroundColor: Colors.neutral[100],
   },
   dayPillTextOn: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   dayPillTextOff: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   actionRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: KSpacing.xs,
-    marginTop: KSpacing.sm,
+    gap: Spacing[1],
+    marginTop: Spacing[2],
   },
   actionBtn: {
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: KSpacing.xs,
-    borderRadius: KRadius.md,
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[1],
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    backgroundColor: KPalette.bg.card,
+    borderColor: Colors.neutral[300],
+    backgroundColor: Palette.background.card,
   },
   actionText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
 });

@@ -9,7 +9,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Button } from "@/components/Button";
 import { Stepper } from "@/components/Stepper";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export const ASK_KIWI_SERVINGS_MIN = 1;
 export const ASK_KIWI_SERVINGS_MAX = 12;
@@ -60,7 +60,7 @@ export function AskKiwiView({
         value={text}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={KColors.neutral[600]}
+        placeholderTextColor={Colors.neutral[600]}
         style={s.textInput}
         multiline
         numberOfLines={6}
@@ -104,56 +104,56 @@ export function AskKiwiView({
 const s = StyleSheet.create({
   body: { gap: 0 },
   title: {
-    fontSize: KType.size.xl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.xl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
   },
   subtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
-    marginBottom: KSpacing.xl,
+    marginBottom: Spacing[5],
   },
   textInput: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.md,
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     minHeight: 140,
   },
   servingsRow: {
-    marginTop: KSpacing.lg,
-    gap: KSpacing.sm,
+    marginTop: Spacing[4],
+    gap: Spacing[2],
   },
   fieldLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   buttonWrap: {
-    marginTop: KSpacing.xl,
+    marginTop: Spacing[5],
   },
   errorText: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   helperText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
-    marginTop: KSpacing.lg,
+    marginTop: Spacing[4],
   },
 });

@@ -20,7 +20,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { getTemplate, type TemplateDetail } from "@/lib/api/plans";
 
 export interface PlanPreviewModalProps {
@@ -63,7 +63,7 @@ export function PlanPreviewModal({
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
+      <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
         <View style={s.handle} />
         <View style={s.header}>
           <View style={{ flex: 1 }}>
@@ -78,7 +78,7 @@ export function PlanPreviewModal({
             ) : null}
           </View>
           <Pressable onPress={onClose} hitSlop={12} testID="plan-preview-close">
-            <Feather name="x" size={22} color={KColors.neutral[800]} />
+            <Feather name="x" size={22} color={Colors.neutral[800]} />
           </Pressable>
         </View>
 
@@ -88,7 +88,7 @@ export function PlanPreviewModal({
         >
           {query.isLoading && (
             <View style={s.loadingBlock}>
-              <ActivityIndicator color={KColors.sage[700]} />
+              <ActivityIndicator color={Colors.sage[700]} />
             </View>
           )}
 
@@ -178,146 +178,146 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     height: "85%",
-    backgroundColor: KColors.neutral[100],
-    borderTopLeftRadius: KRadius.xl,
-    borderTopRightRadius: KRadius.xl,
+    backgroundColor: Colors.neutral[100],
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: KColors.neutral[400],
+    backgroundColor: Colors.neutral[400],
     alignSelf: "center",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: KSpacing.lg,
-    paddingVertical: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: KColors.neutral[300],
-    gap: KSpacing.sm,
+    borderBottomColor: Colors.neutral[300],
+    gap: Spacing[2],
   },
   title: {
-    fontSize: KType.size.xl,
-    fontWeight: KType.weight.bold,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.serif[600],
   },
   subtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   scrollContent: {
-    padding: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl,
+    padding: Spacing[4],
+    paddingBottom: Spacing[8],
   },
   loadingBlock: {
-    paddingVertical: KSpacing.xl,
+    paddingVertical: Spacing[5],
     alignItems: "center",
   },
   errorText: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
-    paddingVertical: KSpacing.md,
+    paddingVertical: Spacing[3],
   },
   description: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
-    marginBottom: KSpacing.md,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
+    marginBottom: Spacing[3],
   },
   tagRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: KSpacing.sm,
-    marginBottom: KSpacing.md,
+    gap: Spacing[2],
+    marginBottom: Spacing[3],
   },
   tagPill: {
-    paddingHorizontal: KSpacing.sm,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 3,
-    borderRadius: KRadius.pill,
-    backgroundColor: KColors.sage[100],
+    borderRadius: Radius.full,
+    backgroundColor: Colors.sage[100],
   },
   tagText: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[700],
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[600],
   },
   notesBlock: {
-    backgroundColor: KColors.sage[100],
-    borderRadius: KRadius.md,
-    padding: KSpacing.md,
-    marginBottom: KSpacing.md,
+    backgroundColor: Colors.sage[100],
+    borderRadius: Radius.md,
+    padding: Spacing[3],
+    marginBottom: Spacing[3],
     gap: 4,
   },
   noteText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
   },
   sectionTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
   },
   itemList: {
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    gap: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.sm,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[2],
   },
   itemThumb: {
     width: 44,
     height: 44,
-    borderRadius: KRadius.sm,
-    backgroundColor: KColors.sage[100],
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.sage[100],
   },
   itemName: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.serif[600],
   },
   itemDay: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   emptyText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
     textAlign: "center",
-    paddingVertical: KSpacing.md,
+    paddingVertical: Spacing[3],
   },
   cta: {
-    marginTop: KSpacing.lg,
-    backgroundColor: KColors.sage[700],
-    paddingVertical: KSpacing.md,
-    borderRadius: KRadius.md,
+    marginTop: Spacing[4],
+    backgroundColor: Colors.sage[700],
+    paddingVertical: Spacing[3],
+    borderRadius: Radius.md,
     alignItems: "center",
   },
   ctaText: {
-    color: KColors.neutral[100],
-    fontSize: KType.size.md,
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
+    color: Colors.neutral[100],
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.sans[600],
   },
 });

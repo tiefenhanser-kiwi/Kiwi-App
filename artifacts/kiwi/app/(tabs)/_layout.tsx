@@ -4,7 +4,7 @@ import React from "react";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { KColors } from "@/constants/tokens";
+import { Colors, Typography } from "@/constants/tokens";
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -12,11 +12,11 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: KColors.sage[700],
-        tabBarInactiveTintColor: KColors.neutral[600],
+        tabBarActiveTintColor: Colors.sage[700],
+        tabBarInactiveTintColor: Colors.neutral[600],
         tabBarStyle: {
-          backgroundColor: KColors.neutral[200],
-          borderTopColor: KColors.neutral[400],
+          backgroundColor: Colors.neutral[200],
+          borderTopColor: Colors.neutral[400],
           borderTopWidth: 1,
           paddingBottom: insets.bottom,
           height:
@@ -25,7 +25,7 @@ export default function TabLayout() {
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "500",
-          fontFamily: "Inter_500Medium",
+          fontFamily: Typography.face.sans[500],
         },
         headerShown: false,
       }}

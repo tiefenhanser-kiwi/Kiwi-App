@@ -24,7 +24,7 @@ import {
   fetchAllPlans,
   type PickerSort,
 } from "@/lib/groceryPicker";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 const SORTS: Array<{ key: PickerSort; label: string }> = [
   { key: "recent", label: "Recent" },
@@ -55,7 +55,7 @@ export default function GroceryPlanPickerScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header title="Get Groceries" subtitle="pick a plan" />
       <Screen>
         {plansQuery.isLoading ? (
@@ -84,7 +84,7 @@ export default function GroceryPlanPickerScreen() {
                   value={query}
                   onChangeText={setQuery}
                   placeholder="Search plans…"
-                  placeholderTextColor={KColors.neutral[600]}
+                  placeholderTextColor={Colors.neutral[600]}
                   style={styles.searchInput}
                 />
               </View>
@@ -174,107 +174,107 @@ function PlanRow({
 
 const styles = StyleSheet.create({
   intro: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginBottom: KSpacing.md,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    marginBottom: Spacing[3],
   },
   message: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
-    paddingVertical: KSpacing.lg,
+    paddingVertical: Spacing[4],
   },
   controlsRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
-    marginTop: KSpacing.md,
-    marginBottom: KSpacing.md,
+    gap: Spacing[2],
+    marginTop: Spacing[3],
+    marginBottom: Spacing[3],
   },
   searchWrap: {
     flex: 1,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    paddingHorizontal: KSpacing.md,
+    borderColor: Colors.neutral[400],
+    paddingHorizontal: Spacing[3],
     justifyContent: "center",
   },
   searchInput: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
-    paddingVertical: KSpacing.sm,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
+    paddingVertical: Spacing[2],
   },
   sortToggle: {
     flexDirection: "row",
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
+    borderColor: Colors.neutral[400],
     overflow: "hidden",
   },
   sortChip: {
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
     justifyContent: "center",
   },
   sortChipActive: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   sortChipText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   sortChipTextActive: {
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   list: {
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.xl,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: KPalette.border.default,
-    padding: KSpacing.md,
-    gap: KSpacing.xs,
+    borderColor: Palette.border.default,
+    padding: Spacing[3],
+    gap: Spacing[1],
   },
   cardPinned: {
-    borderColor: KColors.sage[300],
-    marginBottom: KSpacing.xs,
+    borderColor: Colors.sage[300],
+    marginBottom: Spacing[1],
   },
   cardTopRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   badge: {
-    backgroundColor: KColors.sage[100],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
+    backgroundColor: Colors.sage[100],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 4,
   },
   badgeText: {
     fontSize: 10,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   planName: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: KSpacing.xs,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginTop: Spacing[1],
   },
   planDesc: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
 });

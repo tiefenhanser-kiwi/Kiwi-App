@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { KColors, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 interface Props {
   title?: string;
@@ -36,7 +36,7 @@ export function Header({
             hitSlop={12}
             style={styles.iconBtn}
           >
-            <Feather name="chevron-left" size={24} color={KColors.sage[700]} />
+            <Feather name="chevron-left" size={24} color={Colors.sage[700]} />
           </Pressable>
         ) : (
           <View style={styles.iconBtn} />
@@ -49,7 +49,7 @@ export function Header({
           <View style={styles.rightSlot}>{rightContent}</View>
         ) : rightIcon ? (
           <Pressable onPress={onRightPress} hitSlop={12} style={styles.iconBtn}>
-            <Feather name={rightIcon} size={22} color={KColors.sage[700]} />
+            <Feather name={rightIcon} size={22} color={Colors.sage[700]} />
           </Pressable>
         ) : (
           <View style={styles.iconBtn} />
@@ -61,11 +61,11 @@ export function Header({
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: KColors.neutral[300],
-    paddingHorizontal: KSpacing.lg,
-    paddingBottom: KSpacing.md,
+    backgroundColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: KColors.neutral[400],
+    borderBottomColor: Colors.neutral[400],
   },
   row: {
     flexDirection: "row",
@@ -82,18 +82,19 @@ const styles = StyleSheet.create({
     minHeight: 40,
     alignItems: "flex-end",
     justifyContent: "center",
-    paddingHorizontal: KSpacing.xs,
+    paddingHorizontal: Spacing[1],
   },
   titleWrap: { flex: 1, alignItems: "center" },
   title: {
-    fontSize: KType.size.lg,
-    fontWeight: KType.weight.semibold,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.neutral[900],
+    // v4: screen/card titles render Roman Fraunces (serif).
+    fontFamily: Typography.face.serif[600],
   },
   subtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
 });

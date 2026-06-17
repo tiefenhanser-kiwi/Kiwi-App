@@ -18,7 +18,7 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { LoadingShim } from "@/components/LoadingShim";
 import { Stepper } from "@/components/Stepper";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   ALLERGIES_AND_AVOIDANCES,
   EATING_STYLES,
@@ -139,7 +139,7 @@ export default function TellKiwi() {
   const charCount = form.description.length;
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header
         showBack
         title="Kitchen Wizard"
@@ -157,14 +157,14 @@ export default function TellKiwi() {
             List your meals or what you're into. Kiwi builds the plan,
             reviews ingredients, and optimizes across the week.
           </Text>
-          <View style={{ marginTop: KSpacing.md }}>
+          <View style={{ marginTop: Spacing[3] }}>
             <TextInput
               value={form.description}
               onChangeText={(v) =>
                 update("description", v.slice(0, DESCRIPTION_MAX))
               }
               placeholder={PLACEHOLDER}
-              placeholderTextColor={KColors.neutral[600]}
+              placeholderTextColor={Colors.neutral[600]}
               multiline
               maxLength={DESCRIPTION_MAX}
               returnKeyType="default"
@@ -198,10 +198,10 @@ export default function TellKiwi() {
               value={form.wantsLeftovers}
               onValueChange={(v) => update("wantsLeftovers", v)}
               trackColor={{
-                false: KColors.neutral[400],
-                true: KColors.sage[700],
+                false: Colors.neutral[400],
+                true: Colors.sage[700],
               }}
-              thumbColor={KColors.neutral[0]}
+              thumbColor={Colors.neutral[0]}
             />
           </View>
         </Section>
@@ -225,7 +225,7 @@ export default function TellKiwi() {
             <Feather
               name={form.dietExpanded ? "chevron-up" : "chevron-down"}
               size={20}
-              color={KColors.neutral[700]}
+              color={Colors.neutral[700]}
             />
           </Pressable>
 
@@ -243,7 +243,7 @@ export default function TellKiwi() {
                 ))}
               </View>
 
-              <Text style={[s.subSectionLabel, { marginTop: KSpacing.lg }]}>
+              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
                 Allergies & avoidances
               </Text>
               <ExpandLink
@@ -254,7 +254,7 @@ export default function TellKiwi() {
                 }
               />
               {form.allergiesExpanded && (
-                <View style={[s.chipRow, { marginTop: KSpacing.sm }]}>
+                <View style={[s.chipRow, { marginTop: Spacing[2] }]}>
                   {ALLERGIES_AND_AVOIDANCES.map((a) => (
                     <Chip
                       key={a}
@@ -266,14 +266,14 @@ export default function TellKiwi() {
                 </View>
               )}
 
-              <Text style={[s.subSectionLabel, { marginTop: KSpacing.lg }]}>
+              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
                 Anything else?
               </Text>
               <TextInput
                 value={form.dietaryNotes}
                 onChangeText={(v) => update("dietaryNotes", v)}
                 placeholder="e.g., 'no shellfish', 'low sodium'"
-                placeholderTextColor={KColors.neutral[600]}
+                placeholderTextColor={Colors.neutral[600]}
                 returnKeyType="done"
                 blurOnSubmit
                 onSubmitEditing={Keyboard.dismiss}
@@ -301,7 +301,7 @@ export default function TellKiwi() {
                 {mutation.data.needsClarification?.reason ??
                   "Tell me a bit more — what kind of week do you want, or any meals you've been craving?"}
               </Text>
-              <View style={{ marginTop: KSpacing.sm }}>
+              <View style={{ marginTop: Spacing[2] }}>
                 <Button
                   label="Edit my message"
                   variant="ghost"
@@ -315,7 +315,7 @@ export default function TellKiwi() {
         <View style={s.footer}>
           <Button
             label={mutation.isPending ? "Kiwi is thinking…" : "Build my plan"}
-            variant="terra"
+            variant="primary"
             onPress={handleSubmit}
             disabled={mutation.isPending}
           />
@@ -359,7 +359,7 @@ function Section({
       <Text style={s.sectionLabel}>{label}</Text>
       <Text style={s.cardTitle}>{title}</Text>
       {subtitle && <Text style={s.cardSubtitle}>{subtitle}</Text>}
-      <View style={{ marginTop: KSpacing.md }}>{children}</View>
+      <View style={{ marginTop: Spacing[3] }}>{children}</View>
     </View>
   );
 }
@@ -386,7 +386,7 @@ function ExpandLink({
       <Feather
         name={expanded ? "chevron-up" : "chevron-down"}
         size={14}
-        color={KColors.sage[700]}
+        color={Colors.sage[700]}
       />
     </Pressable>
   );
@@ -394,37 +394,37 @@ function ExpandLink({
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl * 2,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[8] * 2,
+    gap: Spacing[3],
   },
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.lg,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[4],
   },
   sectionLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[600],
-    fontWeight: KType.weight.semibold,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[600],
+    fontWeight: Typography.fontWeight.semibold,
     letterSpacing: 0.8,
     textTransform: "uppercase",
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: Typography.face.sans[600],
     marginBottom: 6,
   },
   cardTitle: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   cardSubtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
     lineHeight: 20,
   },
@@ -436,134 +436,134 @@ const s = StyleSheet.create({
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   toggleSubtitle: {
     flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   dietHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   dietBody: {
-    marginTop: KSpacing.lg,
+    marginTop: Spacing[4],
   },
   subSectionLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+    marginBottom: Spacing[2],
   },
   expandLink: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
     alignSelf: "flex-start",
   },
   expandLinkText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   input: {
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[400],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     textAlignVertical: "top",
   },
   descriptionInput: {
     minHeight: 110,
     maxHeight: 220,
-    paddingVertical: KSpacing.md,
+    paddingVertical: Spacing[3],
     lineHeight: 22,
   },
   charCount: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginTop: KSpacing.xs,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    marginTop: Spacing[1],
     textAlign: "right",
   },
   footer: {
-    marginTop: KSpacing.lg,
-    gap: KSpacing.sm,
+    marginTop: Spacing[4],
+    gap: Spacing[2],
     alignItems: "center",
   },
   footerHint: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   cancelLink: {
-    paddingVertical: KSpacing.sm,
-    paddingHorizontal: KSpacing.md,
-    marginTop: KSpacing.xs,
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    marginTop: Spacing[1],
   },
   cancelText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
   noticeCard: {
-    backgroundColor: KColors.terracotta[50],
-    borderRadius: KRadius.lg,
+    backgroundColor: Colors.terracotta[50],
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.terracotta[300],
-    padding: KSpacing.md,
-    marginTop: KSpacing.md,
+    borderColor: Colors.terracotta[300],
+    padding: Spacing[3],
+    marginTop: Spacing[3],
   },
   noticeTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
     marginBottom: 4,
   },
   noticeBody: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
   },
   clarifyCard: {
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.lg,
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.sage[300],
-    padding: KSpacing.md,
-    marginTop: KSpacing.md,
+    borderColor: Colors.sage[300],
+    padding: Spacing[3],
+    marginTop: Spacing[3],
   },
   clarifyTitle: {
-    fontSize: KType.size.md,
-    color: KColors.sage[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.sage[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
     marginBottom: 4,
   },
   clarifyBody: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
   },
   thinkingRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
 });

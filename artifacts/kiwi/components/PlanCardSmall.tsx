@@ -10,7 +10,7 @@ import {
 import { useRouter } from "expo-router";
 
 import type { PlanListItem } from "@/lib/api/plans";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 type Props = {
   plan: PlanListItem;
@@ -141,15 +141,15 @@ export function PlanCardSmall({ plan, onPreviewTemplate, onUseTemplate }: Props)
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
-    padding: KSpacing.sm,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
+    padding: Spacing[2],
     borderWidth: 1,
-    borderColor: KColors.neutral[200],
+    borderColor: Colors.neutral[200],
   },
   row: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
     alignItems: "center",
   },
   thumb: {
@@ -157,16 +157,16 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 8,
     overflow: "hidden",
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   thumbImage: { width: "100%", height: "100%" },
-  thumbFallback: { width: "100%", height: "100%", backgroundColor: KColors.sage[100] },
+  thumbFallback: { width: "100%", height: "100%", backgroundColor: Colors.sage[100] },
   body: { flex: 1 },
   title: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   tagRow: {
     flexDirection: "row",
@@ -177,55 +177,55 @@ const styles = StyleSheet.create({
   tag: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    backgroundColor: KColors.sage[50],
+    backgroundColor: Colors.sage[50],
     borderRadius: 4,
   },
   tagText: {
     fontSize: 10,
-    color: KColors.sage[700],
-    fontFamily: "Inter_500Medium",
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[500],
   },
   expandedBlock: {
-    marginTop: KSpacing.sm,
-    paddingTop: KSpacing.sm,
+    marginTop: Spacing[2],
+    paddingTop: Spacing[2],
     borderTopWidth: 1,
-    borderTopColor: KColors.neutral[200],
+    borderTopColor: Colors.neutral[200],
   },
   mealList: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    marginBottom: Spacing[2],
     lineHeight: 16,
   },
   actionRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   actionBtn: {
     flex: 1,
     paddingVertical: 8,
-    borderRadius: KRadius.md,
+    borderRadius: Radius.md,
     alignItems: "center",
   },
   actionBtnSecondary: {
-    backgroundColor: KColors.neutral[100],
+    backgroundColor: Colors.neutral[100],
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
+    borderColor: Colors.neutral[300],
   },
   actionBtnPrimary: {
-    backgroundColor: KColors.sage[700],
+    backgroundColor: Colors.sage[700],
   },
   actionTextSecondary: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   actionTextPrimary: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
 });

@@ -16,7 +16,7 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError } from "@/lib/api/errors";
 import { formatSubscriptionState } from "@/lib/domain";
 import { getCurrentSubscription } from "@/lib/stubs";
@@ -253,7 +253,7 @@ export default function ProfileTab() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header title="Profile" />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
@@ -319,7 +319,7 @@ export default function ProfileTab() {
                 <Feather
                   name={pwOpen ? "chevron-up" : "chevron-right"}
                   size={16}
-                  color={KColors.neutral[600]}
+                  color={Colors.neutral[600]}
                 />
               </View>
             </Pressable>
@@ -401,7 +401,7 @@ export default function ProfileTab() {
             <Feather
               name="chevron-right"
               size={18}
-              color={KColors.neutral[600]}
+              color={Colors.neutral[600]}
             />
           </View>
           <Text style={s.subscriptionState}>
@@ -453,7 +453,7 @@ export default function ProfileTab() {
             <Feather
               name="chevron-right"
               size={18}
-              color={KColors.neutral[600]}
+              color={Colors.neutral[600]}
             />
           </View>
           <Text style={s.subscriptionHint}>
@@ -514,7 +514,7 @@ function EditableRow({
           keyboardType={keyboardType ?? "default"}
           autoCapitalize={autoCapitalize ?? "sentences"}
           placeholder={placeholder}
-          placeholderTextColor={KColors.neutral[600]}
+          placeholderTextColor={Colors.neutral[600]}
           style={s.editInput}
         />
       ) : (
@@ -528,7 +528,7 @@ function EditableRow({
           >
             {display}
           </Text>
-          <Feather name="edit-2" size={14} color={KColors.neutral[600]} />
+          <Feather name="edit-2" size={14} color={Colors.neutral[600]} />
         </View>
       )}
     </Pressable>
@@ -556,7 +556,7 @@ function NavCard({
       <Feather
         name="chevron-right"
         size={18}
-        color={KColors.neutral[600]}
+        color={Colors.neutral[600]}
       />
     </Pressable>
   );
@@ -580,7 +580,7 @@ function PasswordField({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={KColors.neutral[600]}
+        placeholderTextColor={Colors.neutral[600]}
         secureTextEntry
         autoCapitalize="none"
         autoCorrect={false}
@@ -592,59 +592,59 @@ function PasswordField({
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl * 2,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[8] * 2,
+    gap: Spacing[3],
   },
   userCard: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.lg,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[4],
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   avatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: KColors.sage[700],
+    backgroundColor: Colors.sage[700],
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
-    color: KColors.neutral[0],
+    color: Colors.neutral[0],
     fontSize: 28,
     fontWeight: "700",
-    fontFamily: "Inter_700Bold",
+    fontFamily: Typography.face.sans[700],
   },
   userName: {
-    fontSize: KType.size.xl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
-    marginTop: KSpacing.xs,
+    fontSize: Typography.fontSize.xl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
+    marginTop: Spacing[1],
   },
   userEmail: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[3],
   },
   cardTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
   },
   fieldList: {
     gap: 0,
@@ -653,160 +653,160 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: KSpacing.md,
-    paddingVertical: KSpacing.sm,
+    gap: Spacing[3],
+    paddingVertical: Spacing[2],
     borderBottomWidth: 1,
-    borderBottomColor: KColors.neutral[200],
+    borderBottomColor: Colors.neutral[200],
     minHeight: 40,
   },
   fieldLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
   fieldRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
     flexShrink: 1,
   },
   fieldValue: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
     textAlign: "right",
     maxWidth: 220,
   },
   fieldValueMuted: {
-    color: KColors.neutral[600],
+    color: Colors.neutral[600],
     fontStyle: "italic",
   },
   editInput: {
     flex: 1,
     minWidth: 0,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
     textAlign: "right",
     paddingVertical: 4,
-    paddingHorizontal: KSpacing.sm,
+    paddingHorizontal: Spacing[2],
     borderWidth: 1,
-    borderColor: KColors.sage[600],
-    borderRadius: KRadius.sm,
-    backgroundColor: KColors.sage[50],
-    marginLeft: KSpacing.sm,
+    borderColor: Colors.sage[600],
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.sage[50],
+    marginLeft: Spacing[2],
   },
   changePasswordValue: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   statusText: {
-    fontSize: KType.size.sm,
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
-    marginTop: KSpacing.sm,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
+    marginTop: Spacing[2],
   },
   statusSuccess: {
-    color: KColors.sage[700],
+    color: Colors.sage[700],
   },
   statusError: {
-    color: KColors.terracotta[700],
+    color: Colors.terracotta[700],
   },
   pwForm: {
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   pwField: {
-    gap: KSpacing.xs,
+    gap: Spacing[1],
   },
   pwLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
   pwInput: {
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[400],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
   },
   navCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    gap: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[3],
   },
   navCardTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
   },
   navCardSubtitle: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   subscriptionState: {
-    fontSize: KType.size.lg,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
     marginTop: 2,
   },
   subscriptionHint: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginTop: KSpacing.xs,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    marginTop: Spacing[1],
   },
   cardHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   devHint: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
+    marginBottom: Spacing[2],
     fontStyle: "italic",
   },
   devButton: {
-    paddingVertical: KSpacing.sm,
-    paddingHorizontal: KSpacing.md,
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
     borderWidth: 1,
-    borderColor: KColors.sage[600],
-    borderRadius: KRadius.sm,
-    backgroundColor: KColors.sage[50],
-    marginTop: KSpacing.sm,
+    borderColor: Colors.sage[600],
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.sage[50],
+    marginTop: Spacing[2],
     alignItems: "center",
   },
   devButtonDestructive: {
-    borderColor: KColors.terracotta[600],
-    backgroundColor: KColors.terracotta[50],
+    borderColor: Colors.terracotta[600],
+    backgroundColor: Colors.terracotta[50],
   },
   devButtonText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   devButtonTextDestructive: {
-    color: KColors.terracotta[700],
+    color: Colors.terracotta[700],
   },
 });

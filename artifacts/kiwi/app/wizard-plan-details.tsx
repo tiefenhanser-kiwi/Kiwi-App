@@ -33,7 +33,7 @@ import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { WizardPlanMealCard } from "@/components/WizardPlanMealCard";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   activateWizardDraft,
   saveWizardDraft,
@@ -268,7 +268,7 @@ export default function WizardPlanDetailsScreen() {
 
   if (!plan || !draftId) {
     return (
-      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header showBack onBack={handleHeaderBack} title="Plan Details" />
         <Screen>
           <View style={s.errorBox}>
@@ -279,7 +279,7 @@ export default function WizardPlanDetailsScreen() {
               Plan details weren't passed through. Head back to results and
               tap "View Plan Details" again.
             </Text>
-            <View style={{ marginTop: KSpacing.md }}>
+            <View style={{ marginTop: Spacing[3] }}>
               <Button
                 label="Back to results"
                 variant="primary"
@@ -293,7 +293,7 @@ export default function WizardPlanDetailsScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header showBack onBack={handleHeaderBack} title="Plan Details" />
       <ScrollView
         contentContainerStyle={s.scrollContent}
@@ -359,7 +359,7 @@ export default function WizardPlanDetailsScreen() {
           )}
           {cta.saveButton.saved ? (
             <View style={s.savedBadge}>
-              <Feather name="check" size={16} color={KColors.sage[700]} />
+              <Feather name="check" size={16} color={Colors.sage[700]} />
               <Text style={s.savedBadgeText}>{cta.saveButton.label}</Text>
             </View>
           ) : (
@@ -411,37 +411,37 @@ function MacroCell({ value, label }: { value: number; label: string }) {
 
 const s = StyleSheet.create({
   scrollContent: {
-    padding: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl,
-    gap: KSpacing.md,
+    padding: Spacing[4],
+    paddingBottom: Spacing[8],
+    gap: Spacing[3],
   },
   errorBox: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.lg,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[4],
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   errorTitle: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
     textAlign: "center",
   },
   errorBody: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   planTitle: {
-    fontSize: KType.size.xxl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.xxl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
   },
   tagRow: {
     flexDirection: "row",
@@ -449,114 +449,114 @@ const s = StyleSheet.create({
     gap: 6,
   },
   tag: {
-    paddingHorizontal: KSpacing.sm,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 3,
-    backgroundColor: KColors.sage[100],
-    borderRadius: KRadius.pill,
+    backgroundColor: Colors.sage[100],
+    borderRadius: Radius.full,
   },
   tagText: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
   whyBox: {
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.md,
-    padding: KSpacing.md,
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.md,
+    padding: Spacing[3],
     gap: 6,
   },
   whyLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[600],
-    fontWeight: KType.weight.semibold,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[600],
+    fontWeight: Typography.fontWeight.semibold,
     letterSpacing: 0.8,
     textTransform: "uppercase",
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: Typography.face.sans[600],
     marginBottom: 2,
   },
   whyRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
     alignItems: "flex-start",
   },
   whyDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: KColors.terracotta[400],
+    backgroundColor: Colors.terracotta[400],
     marginTop: 7,
   },
   whyText: {
     flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
     lineHeight: 20,
-    fontFamily: "Inter_400Regular",
+    fontFamily: Typography.face.sans[400],
   },
   macrosCard: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
-    gap: KSpacing.sm,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[3],
+    gap: Spacing[2],
   },
   sectionLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[600],
-    fontWeight: KType.weight.semibold,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[600],
+    fontWeight: Typography.fontWeight.semibold,
     letterSpacing: 0.8,
     textTransform: "uppercase",
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: Typography.face.sans[600],
   },
   macrosGrid: {
     flexDirection: "row",
-    gap: KSpacing.xs,
+    gap: Spacing[1],
   },
   macroCell: {
     flex: 1,
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.md,
-    paddingVertical: KSpacing.sm,
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.md,
+    paddingVertical: Spacing[2],
     alignItems: "center",
   },
   macroValue: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   macroLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
     textAlign: "center",
   },
   ctaWrap: {
-    marginTop: KSpacing.lg,
-    gap: KSpacing.sm,
+    marginTop: Spacing[4],
+    gap: Spacing[2],
   },
   ctaError: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[600],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   savedBadge: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: KSpacing.sm,
-    backgroundColor: KColors.sage[100],
-    borderRadius: KRadius.md,
-    paddingVertical: KSpacing.md,
+    gap: Spacing[2],
+    backgroundColor: Colors.sage[100],
+    borderRadius: Radius.md,
+    paddingVertical: Spacing[3],
   },
   savedBadgeText: {
-    fontSize: KType.size.md,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
 });

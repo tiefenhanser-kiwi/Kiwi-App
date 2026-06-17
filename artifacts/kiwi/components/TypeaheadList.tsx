@@ -24,12 +24,12 @@ import {
 } from "react-native";
 
 import {
-  KColors,
-  KPalette,
-  KRadius,
-  KShadow,
-  KSpacing,
-  KType,
+  Colors,
+  Palette,
+  Radius,
+  Shadow,
+  Spacing,
+  Typography,
 } from "@/constants/tokens";
 
 export interface TypeaheadListProps<T> {
@@ -71,7 +71,7 @@ export function TypeaheadList<T>({
     <View style={[s.panel, { maxHeight }, style]}>
       {loading ? (
         <View style={s.statusRow}>
-          <ActivityIndicator size="small" color={KColors.sage[700]} />
+          <ActivityIndicator size="small" color={Colors.sage[700]} />
           <Text style={s.statusText}>Searching…</Text>
         </View>
       ) : showEmpty ? (
@@ -98,7 +98,7 @@ export function TypeaheadList<T>({
                 accessibilityLabel={label}
                 style={({ pressed }) => [
                   s.row,
-                  pressed && { backgroundColor: KColors.sage[50] },
+                  pressed && { backgroundColor: Colors.sage[50] },
                 ]}
               >
                 {renderItem(item)}
@@ -113,37 +113,37 @@ export function TypeaheadList<T>({
 
 const s = StyleSheet.create({
   panel: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
+    borderColor: Colors.neutral[300],
     overflow: "hidden",
-    ...KShadow.card,
+    ...Shadow.card,
   },
   row: {
     minHeight: 48,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
     justifyContent: "center",
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: KPalette.border.muted,
+    borderBottomColor: Palette.border.muted,
   },
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.md,
+    gap: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
   },
   statusText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   emptyText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
   },
 });

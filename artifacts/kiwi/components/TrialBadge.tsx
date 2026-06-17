@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 
 type TrialState = "active" | "expiring" | "expired" | "hidden";
 
@@ -82,43 +82,43 @@ export function TrialBadge() {
 
 const styles = StyleSheet.create({
   containerActive: {
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 6,
-    borderRadius: KRadius.pill,
-    backgroundColor: KColors.sage[100],
+    borderRadius: Radius.full,
+    backgroundColor: Colors.sage[100],
     borderWidth: 1,
-    borderColor: KColors.sage[300],
+    borderColor: Colors.sage[300],
   },
   containerExpiring: {
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 6,
-    borderRadius: KRadius.pill,
-    backgroundColor: KColors.terracotta[50],
+    borderRadius: Radius.full,
+    backgroundColor: Colors.terracotta[50],
     borderWidth: 1,
-    borderColor: KColors.terracotta[200],
+    borderColor: Colors.terracotta[200],
   },
   containerExpired: {
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 6,
-    borderRadius: KRadius.pill,
-    backgroundColor: KColors.terracotta[400],
+    borderRadius: Radius.full,
+    backgroundColor: Colors.terracotta[400],
   },
   textActive: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[700],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   textExpiring: {
-    fontSize: KType.size.xs,
-    color: KColors.terracotta[600],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.terracotta[600],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   textExpired: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[0],
-    fontFamily: "Inter_600SemiBold",
-    fontWeight: KType.weight.semibold,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[0],
+    fontFamily: Typography.face.sans[600],
+    fontWeight: Typography.fontWeight.semibold,
   },
 });

@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LoadingShim } from "@/components/LoadingShim";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useFindSimilarMeals } from "@/hooks/useFindSimilarMeals";
 import { useMeal } from "@/hooks/useMeal";
 import { useMeals } from "@/hooks/useMeals";
@@ -214,7 +214,7 @@ export function FindSimilarSheet({
           gap because the sheet is the bottom child of a screen-filling box. */}
       <View style={s.container}>
         <Pressable style={s.backdrop} onPress={onClose} />
-        <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
+        <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
           <View style={s.handle} />
           <View style={s.header}>
             <View style={{ flex: 1 }}>
@@ -224,7 +224,7 @@ export function FindSimilarSheet({
               )}
             </View>
             <Pressable onPress={onClose} hitSlop={12}>
-              <Feather name="x" size={22} color={KColors.neutral[800]} />
+              <Feather name="x" size={22} color={Colors.neutral[800]} />
             </Pressable>
           </View>
 
@@ -248,7 +248,7 @@ export function FindSimilarSheet({
               <Feather
                 name="alert-circle"
                 size={14}
-                color={KColors.terracotta[700]}
+                color={Colors.terracotta[700]}
               />
               <Text style={s.errorBannerText}>
                 Couldn&apos;t reach Kiwi — try again.
@@ -335,9 +335,9 @@ const s = StyleSheet.create({
   },
   sheet: {
     maxHeight: "90%",
-    backgroundColor: KColors.neutral[100],
-    borderTopLeftRadius: KRadius.xl,
-    borderTopRightRadius: KRadius.xl,
+    backgroundColor: Colors.neutral[100],
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
   },
   // flexShrink lets the scroll area give back space when the sheet hits its
   // maxHeight, so the list scrolls instead of overflowing; with a short list
@@ -349,140 +349,140 @@ const s = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: KColors.neutral[400],
+    backgroundColor: Colors.neutral[400],
     alignSelf: "center",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: KSpacing.sm,
-    paddingHorizontal: KSpacing.lg,
-    paddingVertical: KSpacing.md,
+    gap: Spacing[2],
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: KColors.neutral[300],
+    borderBottomColor: Colors.neutral[300],
   },
   title: {
-    fontSize: KType.size.xl,
-    fontWeight: KType.weight.bold,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.serif[600],
   },
   subtitle: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   scrollContent: {
-    padding: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl,
+    padding: Spacing[4],
+    paddingBottom: Spacing[8],
   },
   errorBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.xs,
-    backgroundColor: KColors.terracotta[100],
-    borderRadius: KRadius.sm,
-    paddingVertical: KSpacing.xs,
-    paddingHorizontal: KSpacing.sm,
-    marginTop: KSpacing.sm,
+    gap: Spacing[1],
+    backgroundColor: Colors.terracotta[100],
+    borderRadius: Radius.sm,
+    paddingVertical: Spacing[1],
+    paddingHorizontal: Spacing[2],
+    marginTop: Spacing[2],
   },
   errorBannerText: {
-    fontSize: KType.size.xs,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[500],
     flex: 1,
   },
   sectionTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   sectionTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   list: {
-    gap: KSpacing.sm,
-    marginTop: KSpacing.sm,
+    gap: Spacing[2],
+    marginTop: Spacing[2],
   },
   loadingCard: {
-    marginTop: KSpacing.lg,
+    marginTop: Spacing[4],
     alignItems: "center",
-    gap: KSpacing.sm,
-    padding: KSpacing.lg,
+    gap: Spacing[2],
+    padding: Spacing[4],
   },
   loadingText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   emptyCard: {
-    marginTop: KSpacing.sm,
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.md,
+    marginTop: Spacing[2],
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.sage[300],
-    padding: KSpacing.md,
-    gap: KSpacing.xs,
+    borderColor: Colors.sage[300],
+    padding: Spacing[3],
+    gap: Spacing[1],
   },
   emptyTitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   emptyBody: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
   mealRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    gap: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.sm,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[2],
   },
   thumb: {
     width: 48,
     height: 48,
-    borderRadius: KRadius.sm,
-    backgroundColor: KColors.neutral[200],
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.neutral[200],
   },
   thumbFallback: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   mealTitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   mealMeta: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   mealMacros: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   useCount: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
   },
 });

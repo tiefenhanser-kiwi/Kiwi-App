@@ -6,7 +6,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
 import { useAuth } from "@/contexts/AuthContext";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -36,7 +36,7 @@ export default function SignInPage() {
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
       <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
-        <Feather name="chevron-left" size={26} color={KColors.sage[700]} />
+        <Feather name="chevron-left" size={26} color={Colors.sage[700]} />
       </Pressable>
       <View style={styles.body}>
         <Text style={styles.title}>Sign in</Text>
@@ -62,7 +62,7 @@ export default function SignInPage() {
         {error && <Text style={styles.errorText}>{error}</Text>}
         {submitting ? (
           <View style={styles.buttonLoading}>
-            <ActivityIndicator color={KColors.sage[700]} />
+            <ActivityIndicator color={Colors.sage[700]} />
           </View>
         ) : (
           <Button onPress={handleSubmit} label="Sign in" />
@@ -78,12 +78,12 @@ export default function SignInPage() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: KColors.neutral[100], padding: KSpacing.lg },
-  back: { marginBottom: KSpacing.md },
-  body: { gap: KSpacing.md },
-  title: { fontSize: KType.size.xl * 1.4, fontWeight: "700", color: KColors.neutral[900], fontFamily: "Inter_700Bold" },
-  input: { borderWidth: 1, borderColor: KColors.neutral[400], borderRadius: KRadius.md, padding: KSpacing.md, fontSize: KType.size.md, backgroundColor: KPalette.bg.card, fontFamily: "Inter_400Regular" },
-  errorText: { color: KColors.terracotta?.[700] ?? "#c04a2e", fontSize: KType.size.sm, fontFamily: "Inter_500Medium" },
-  buttonLoading: { alignItems: "center", padding: KSpacing.md },
-  link: { color: KColors.sage[700], fontSize: KType.size.md, textAlign: "center", marginTop: KSpacing.sm, fontFamily: "Inter_500Medium" },
+  wrap: { flex: 1, backgroundColor: Colors.neutral[100], padding: Spacing[4] },
+  back: { marginBottom: Spacing[3] },
+  body: { gap: Spacing[3] },
+  title: { fontSize: Typography.fontSize.xl * 1.4, fontWeight: "700", color: Colors.neutral[900], fontFamily: Typography.face.serif[600] },
+  input: { borderWidth: 1, borderColor: Colors.neutral[400], borderRadius: Radius.md, padding: Spacing[3], fontSize: Typography.fontSize.md, backgroundColor: Palette.background.card, fontFamily: Typography.face.sans[400] },
+  errorText: { color: Colors.terracotta?.[700] ?? "#c04a2e", fontSize: Typography.fontSize.sm, fontFamily: Typography.face.sans[500] },
+  buttonLoading: { alignItems: "center", padding: Spacing[3] },
+  link: { color: Colors.sage[700], fontSize: Typography.fontSize.md, textAlign: "center", marginTop: Spacing[2], fontFamily: Typography.face.sans[500] },
 });

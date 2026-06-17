@@ -16,7 +16,7 @@ import { Feather, FontAwesome } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/contexts/AuthContext";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 function showOauthStub() {
   Alert.alert(
@@ -109,13 +109,13 @@ export default function SignUpPage() {
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
       <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
-        <Feather name="chevron-left" size={26} color={KColors.sage[700]} />
+        <Feather name="chevron-left" size={26} color={Colors.sage[700]} />
       </Pressable>
       <KeyboardAwareScrollViewCompat
         style={{ flex: 1 }}
         contentContainerStyle={[
           styles.body,
-          { paddingBottom: insets.bottom + KSpacing.xl },
+          { paddingBottom: insets.bottom + Spacing[5] },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -127,14 +127,14 @@ export default function SignUpPage() {
           onPress={showOauthStub}
           style={({ pressed }) => [styles.oauthButton, pressed && { opacity: 0.85 }]}
         >
-          <FontAwesome name="apple" size={20} color={KColors.neutral[900]} />
+          <FontAwesome name="apple" size={20} color={Colors.neutral[900]} />
           <Text style={styles.oauthLabel}>Continue with Apple</Text>
         </Pressable>
         <Pressable
           onPress={showOauthStub}
           style={({ pressed }) => [styles.oauthButton, pressed && { opacity: 0.85 }]}
         >
-          <FontAwesome name="google" size={18} color={KColors.neutral[900]} />
+          <FontAwesome name="google" size={18} color={Colors.neutral[900]} />
           <Text style={styles.oauthLabel}>Continue with Google</Text>
         </Pressable>
 
@@ -227,7 +227,7 @@ export default function SignUpPage() {
         {error && <Text style={styles.errorText}>{error}</Text>}
         {submitting ? (
           <View style={styles.buttonLoading}>
-            <ActivityIndicator color={KColors.sage[700]} />
+            <ActivityIndicator color={Colors.sage[700]} />
           </View>
         ) : (
           <Button onPress={handleSubmit} label="Create account" />
@@ -258,7 +258,7 @@ function ConsentRow({
       <Feather
         name={checked ? "check-square" : "square"}
         size={20}
-        color={checked ? KColors.sage[700] : KColors.neutral[600]}
+        color={checked ? Colors.sage[700] : Colors.neutral[600]}
       />
       <Text style={styles.consentLabel}>{label}</Text>
     </Pressable>
@@ -268,95 +268,95 @@ function ConsentRow({
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    backgroundColor: KColors.neutral[100],
-    paddingHorizontal: KSpacing.lg,
+    backgroundColor: Colors.neutral[100],
+    paddingHorizontal: Spacing[4],
   },
-  back: { marginBottom: KSpacing.sm },
-  body: { gap: KSpacing.md },
+  back: { marginBottom: Spacing[2] },
+  body: { gap: Spacing[3] },
   stepIndicator: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
   title: {
-    fontSize: KType.size.xl * 1.4,
+    fontSize: Typography.fontSize.xl * 1.4,
     fontWeight: "700",
-    color: KColors.neutral[900],
-    fontFamily: "Inter_700Bold",
-    marginTop: -KSpacing.xs,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.serif[600],
+    marginTop: -Spacing[1],
   },
   oauthButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: KSpacing.sm,
-    backgroundColor: KPalette.bg.card,
+    gap: Spacing[2],
+    backgroundColor: Palette.background.card,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    borderRadius: KRadius.lg,
+    borderColor: Colors.neutral[400],
+    borderRadius: Radius.lg,
     paddingVertical: 14,
-    paddingHorizontal: KSpacing.lg,
+    paddingHorizontal: Spacing[4],
   },
   oauthLabel: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    marginVertical: KSpacing.xs,
+    gap: Spacing[3],
+    marginVertical: Spacing[1],
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: KColors.neutral[400],
+    backgroundColor: Colors.neutral[400],
   },
   dividerText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
     letterSpacing: 1,
   },
   input: {
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    borderRadius: KRadius.md,
-    padding: KSpacing.md,
-    fontSize: KType.size.md,
-    backgroundColor: KPalette.bg.card,
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[400],
+    borderRadius: Radius.md,
+    padding: Spacing[3],
+    fontSize: Typography.fontSize.md,
+    backgroundColor: Palette.background.card,
+    fontFamily: Typography.face.sans[400],
   },
   consentRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
     paddingVertical: 4,
   },
   consentLabel: {
     flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
     lineHeight: 18,
-    fontFamily: "Inter_400Regular",
+    fontFamily: Typography.face.sans[400],
   },
   errorText: {
-    color: KColors.terracotta?.[700] ?? "#c04a2e",
-    fontSize: KType.size.sm,
-    fontFamily: "Inter_500Medium",
+    color: Colors.terracotta?.[700] ?? "#c04a2e",
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.face.sans[500],
   },
-  buttonLoading: { alignItems: "center", padding: KSpacing.md },
+  buttonLoading: { alignItems: "center", padding: Spacing[3] },
   trustSignal: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
     textAlign: "center",
-    marginTop: -KSpacing.xs,
-    fontFamily: "Inter_400Regular",
+    marginTop: -Spacing[1],
+    fontFamily: Typography.face.sans[400],
   },
 });

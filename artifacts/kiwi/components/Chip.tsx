@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 interface Props {
   label: string;
@@ -17,9 +17,11 @@ export function Chip({ label, selected, onPress }: Props) {
         styles.base,
         {
           backgroundColor: selected
-            ? KColors.sage[700]
-            : KColors.neutral[100],
-          borderColor: selected ? KColors.sage[700] : KColors.neutral[400],
+            ? Palette.chip.selected.background
+            : Palette.chip.default.background,
+          borderColor: selected
+            ? Palette.chip.selected.border
+            : Palette.chip.default.border,
           opacity: pressed ? 0.85 : 1,
         },
       ]}
@@ -28,7 +30,9 @@ export function Chip({ label, selected, onPress }: Props) {
         style={[
           styles.label,
           {
-            color: selected ? KColors.neutral[100] : KColors.sage[600],
+            color: selected
+              ? Palette.chip.selected.text
+              : Palette.chip.default.text,
           },
         ]}
       >
@@ -40,14 +44,14 @@ export function Chip({ label, selected, onPress }: Props) {
 
 const styles = StyleSheet.create({
   base: {
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    borderRadius: KRadius.pill,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    borderRadius: Radius.full,
     borderWidth: 1,
   },
   label: {
-    fontSize: KType.size.sm,
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
 });

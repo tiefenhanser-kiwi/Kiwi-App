@@ -3,7 +3,7 @@ import { View } from "react-native";
 
 import { Chip } from "@/components/Chip";
 import { ALLERGIES_AND_AVOIDANCES } from "@/lib/domain";
-import { KSpacing } from "@/constants/tokens";
+import { Spacing } from "@/constants/tokens";
 
 import { ExpandLink, pickerStyles, toggleInArray } from "./shared";
 
@@ -23,7 +23,7 @@ export function AllergiesPicker({ value, onChange }: AllergiesPickerProps) {
         onPress={() => setExpanded((v) => !v)}
       />
       {expanded && (
-        <View style={[pickerStyles.chipRow, { marginTop: KSpacing.sm }]}>
+        <View style={[pickerStyles.chipRow, { marginTop: Spacing[2] }]}>
           {ALLERGIES_AND_AVOIDANCES.map((a) => (
             <Chip
               key={a}

@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
 
 import type { PlanFilterKey } from "@/lib/api/plans";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export type FilterChipOption<K extends string> = {
   key: K;
@@ -68,33 +68,33 @@ export function FilterChipRow<K extends string>({
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
-    gap: KSpacing.sm,
-    paddingVertical: KSpacing.xs,
+    gap: Spacing[2],
+    paddingVertical: Spacing[1],
   },
   chip: {
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 6,
-    borderRadius: KRadius.pill,
+    borderRadius: Radius.full,
     borderWidth: 1,
   },
   chipOn: {
-    backgroundColor: KColors.sage[700],
-    borderColor: KColors.sage[700],
+    backgroundColor: Colors.sage[700],
+    borderColor: Colors.sage[700],
   },
   chipOff: {
-    backgroundColor: KPalette.bg.card,
-    borderColor: KColors.neutral[300],
+    backgroundColor: Palette.background.card,
+    borderColor: Colors.neutral[300],
   },
   textOn: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[0],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   textOff: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
 });

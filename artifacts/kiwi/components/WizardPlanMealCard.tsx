@@ -21,7 +21,7 @@ import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { formatMacro } from "@/lib/format/macros";
 import type { WizardExpandEnrichedMeal } from "@/lib/api/wizard";
 
@@ -62,7 +62,7 @@ export function WizardPlanMealCard({
         <Feather
           name={expanded ? "chevron-up" : "chevron-down"}
           size={18}
-          color={KColors.sage[700]}
+          color={Colors.sage[700]}
         />
       </Pressable>
 
@@ -99,84 +99,84 @@ export function WizardPlanMealCard({
 
 const s = StyleSheet.create({
   mealSection: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
-    gap: KSpacing.sm,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[3],
+    gap: Spacing[2],
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   headerText: {
     flex: 1,
   },
   mealHeader: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   mealMeta: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   dishCard: {
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.md,
-    padding: KSpacing.md,
-    marginTop: KSpacing.sm,
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.md,
+    padding: Spacing[3],
+    marginTop: Spacing[2],
     gap: 4,
   },
   dishTitle: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   dishRole: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
     textTransform: "capitalize",
   },
   dishMacros: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   subSectionLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.sage[600],
-    fontWeight: KType.weight.semibold,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[600],
+    fontWeight: Typography.fontWeight.semibold,
     letterSpacing: 0.8,
     textTransform: "uppercase",
-    fontFamily: "Inter_600SemiBold",
-    marginTop: KSpacing.sm,
+    fontFamily: Typography.face.sans[600],
+    marginTop: Spacing[2],
   },
   bulletRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
     alignItems: "flex-start",
   },
   bulletDot: {
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: KColors.sage[600],
+    backgroundColor: Colors.sage[600],
     marginTop: 7,
   },
   bulletText: {
     flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
 });

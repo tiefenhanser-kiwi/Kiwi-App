@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
-import { KColors, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 
 interface Props {
   value: number;
@@ -45,7 +45,7 @@ export function Stepper({
           pressed && !disabledMin && { opacity: 0.6 },
         ]}
       >
-        <Feather name="minus" size={18} color={KColors.sage[700]} />
+        <Feather name="minus" size={18} color={Colors.sage[700]} />
       </Pressable>
       <View style={s.center}>
         <Text style={s.value}>{value}</Text>
@@ -61,7 +61,7 @@ export function Stepper({
           pressed && !disabledMax && { opacity: 0.6 },
         ]}
       >
-        <Feather name="plus" size={18} color={KColors.sage[700]} />
+        <Feather name="plus" size={18} color={Colors.sage[700]} />
       </Pressable>
     </View>
   );
@@ -71,12 +71,12 @@ const s = StyleSheet.create({
   wrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: KColors.neutral[100],
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
+    backgroundColor: Colors.neutral[100],
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 6,
     alignSelf: "flex-start",
-    gap: KSpacing.lg,
+    gap: Spacing[4],
     minWidth: 180,
     justifyContent: "space-between",
   },
@@ -91,15 +91,15 @@ const s = StyleSheet.create({
     minWidth: 80,
   },
   value: {
-    fontSize: KType.size.xl,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.xl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.sans[700],
   },
   suffix: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
 });

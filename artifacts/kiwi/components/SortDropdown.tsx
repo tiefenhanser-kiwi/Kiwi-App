@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export type SortKey =
   | "last_cooked"
@@ -92,9 +92,9 @@ export function SortDropdown({
   const menuPosition = anchor
     ? {
         top: anchor.y + anchor.height + 4,
-        right: Math.max(KSpacing.md, screen.width - (anchor.x + anchor.width)),
+        right: Math.max(Spacing[3], screen.width - (anchor.x + anchor.width)),
       }
-    : { top: KSpacing.xxl, right: KSpacing.md };
+    : { top: Spacing[6], right: Spacing[3] };
 
   return (
     <View style={styles.wrap}>
@@ -168,28 +168,28 @@ const styles = StyleSheet.create({
   trigger: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 8,
-    borderRadius: KRadius.md,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    backgroundColor: KPalette.bg.card,
+    borderColor: Colors.neutral[300],
+    backgroundColor: Palette.background.card,
     gap: 4,
   },
   triggerLabel: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   triggerValue: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   chev: {
     fontSize: 12,
-    color: KColors.sage[700],
+    color: Colors.sage[700],
     fontWeight: "700",
     marginLeft: 2,
   },
@@ -199,10 +199,10 @@ const styles = StyleSheet.create({
   },
   menu: {
     minWidth: 160,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
+    borderColor: Colors.neutral[300],
     paddingVertical: 4,
     elevation: 4,
     shadowColor: "#000",
@@ -216,26 +216,26 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   item: {
-    paddingHorizontal: KSpacing.md,
+    paddingHorizontal: Spacing[3],
     paddingVertical: 8,
   },
   itemOn: {
-    backgroundColor: KColors.sage[50],
+    backgroundColor: Colors.sage[50],
   },
   itemText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
   },
   itemTextOn: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   itemTextDisabled: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[400],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[400],
+    fontFamily: Typography.face.sans[400],
   },
 });

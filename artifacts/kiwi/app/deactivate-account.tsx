@@ -14,7 +14,7 @@ import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useApp } from "@/contexts/AppContext";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 const CONFIRM_PHRASE = "deactivate";
 
@@ -55,7 +55,7 @@ export default function DeactivateAccount() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header showBack title="Deactivate account" />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
@@ -66,7 +66,7 @@ export default function DeactivateAccount() {
             <Feather
               name="alert-triangle"
               size={22}
-              color={KColors.terracotta[600]}
+              color={Colors.terracotta[600]}
             />
             <Text style={s.warningHeading}>
               This will deactivate your account
@@ -88,7 +88,7 @@ export default function DeactivateAccount() {
             value={input}
             onChangeText={setInput}
             placeholder={CONFIRM_PHRASE}
-            placeholderTextColor={KColors.neutral[600]}
+            placeholderTextColor={Colors.neutral[600]}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="done"
@@ -104,7 +104,7 @@ export default function DeactivateAccount() {
         <View style={s.footer}>
           <Button
             label="Deactivate account"
-            variant="terra"
+            variant="primary"
             loading={busy}
             disabled={!isConfirmed || busy}
             onPress={handleConfirmDeactivate}
@@ -128,103 +128,103 @@ export default function DeactivateAccount() {
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl * 2,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[8] * 2,
+    gap: Spacing[3],
   },
   warningCard: {
-    backgroundColor: KColors.terracotta[50],
-    borderRadius: KRadius.lg,
+    backgroundColor: Colors.terracotta[50],
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.terracotta[200],
-    padding: KSpacing.lg,
+    borderColor: Colors.terracotta[200],
+    padding: Spacing[4],
   },
   warningHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
-    marginBottom: KSpacing.md,
+    gap: Spacing[2],
+    marginBottom: Spacing[3],
   },
   warningHeading: {
     flex: 1,
-    fontSize: KType.size.lg,
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.terracotta[700],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
   },
   bulletList: {
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   bulletRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   bulletDot: {
-    fontSize: KType.size.md,
-    color: KColors.terracotta[600],
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.md,
+    color: Colors.terracotta[600],
+    fontFamily: Typography.face.sans[700],
     lineHeight: 20,
   },
   bulletText: {
     flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     lineHeight: 20,
   },
   frictionCard: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.lg,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[4],
   },
   frictionHeading: {
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+    marginBottom: Spacing[2],
   },
   input: {
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[400],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
   },
   frictionHint: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
-    marginTop: KSpacing.sm,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    marginTop: Spacing[2],
   },
   footer: {
-    marginTop: KSpacing.lg,
-    gap: KSpacing.sm,
+    marginTop: Spacing[4],
+    gap: Spacing[2],
     alignItems: "center",
   },
   errorText: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
     textAlign: "center",
   },
   cancelLink: {
-    paddingVertical: KSpacing.sm,
-    paddingHorizontal: KSpacing.md,
-    marginTop: KSpacing.xs,
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    marginTop: Spacing[1],
   },
   cancelText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
 });

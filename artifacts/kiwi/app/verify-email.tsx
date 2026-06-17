@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { verifyEmailChange } from "@/lib/api/me";
 
 // WS7-2 Block D (Commit 1): the verify-side landing screen for the two-step
@@ -61,12 +61,12 @@ export default function VerifyEmail() {
   const goHome = () => router.replace("/(tabs)");
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header title="Verify email" />
       <View style={s.body}>
         {state.kind === "verifying" && (
           <View style={s.card}>
-            <ActivityIndicator color={KColors.sage[700]} />
+            <ActivityIndicator color={Colors.sage[700]} />
             <Text style={s.message}>Verifying your new email…</Text>
           </View>
         )}
@@ -77,7 +77,7 @@ export default function VerifyEmail() {
               <Feather
                 name="check-circle"
                 size={32}
-                color={KColors.sage[700]}
+                color={Colors.sage[700]}
               />
             </View>
             <Text style={s.heading}>Email updated</Text>
@@ -96,7 +96,7 @@ export default function VerifyEmail() {
               <Feather
                 name="alert-triangle"
                 size={32}
-                color={KColors.terracotta[600]}
+                color={Colors.terracotta[600]}
               />
             </View>
             <Text style={s.heading}>Couldn't verify email</Text>
@@ -115,41 +115,41 @@ const s = StyleSheet.create({
   body: {
     flex: 1,
     justifyContent: "center",
-    paddingHorizontal: KSpacing.lg,
+    paddingHorizontal: Spacing[4],
   },
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.xl,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[5],
     alignItems: "center",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   iconWrap: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
     alignItems: "center",
     justifyContent: "center",
   },
   heading: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.bold,
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[600],
     textAlign: "center",
   },
   message: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
     lineHeight: 20,
   },
   actionWrap: {
     alignSelf: "stretch",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
 });

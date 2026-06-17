@@ -2,7 +2,7 @@ import React from "react";
 import { ScrollView, StyleSheet, View, ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { KColors, KSpacing } from "@/constants/tokens";
+import { Colors, Spacing } from "@/constants/tokens";
 
 interface Props {
   children: React.ReactNode;
@@ -21,7 +21,7 @@ export function Screen({
 }: Props) {
   const insets = useSafeAreaInsets();
   const padStyle: ViewStyle = padded
-    ? { paddingHorizontal: KSpacing.lg, paddingTop: KSpacing.lg }
+    ? { paddingHorizontal: Spacing[4], paddingTop: Spacing[4] }
     : {};
 
   if (scroll) {
@@ -54,5 +54,5 @@ export function Screen({
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: KColors.neutral[100] },
+  bg: { flex: 1, backgroundColor: Colors.neutral[100] },
 });

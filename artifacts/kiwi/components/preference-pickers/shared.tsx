@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
-import { KColors, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 export const pickerStyles = StyleSheet.create({
   chipRow: {
@@ -14,14 +14,14 @@ export const pickerStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
     alignSelf: "flex-start",
   },
   expandLinkText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
 });
 
@@ -44,7 +44,7 @@ export function ExpandLink({
       <Feather
         name={expanded ? "chevron-up" : "chevron-down"}
         size={14}
-        color={KColors.sage[700]}
+        color={Colors.sage[700]}
       />
     </Pressable>
   );

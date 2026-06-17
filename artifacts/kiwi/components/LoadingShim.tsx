@@ -21,7 +21,7 @@
 import React from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export type LoadingShimVariant = "status-box" | "screen" | "inline";
 
@@ -38,7 +38,7 @@ export function LoadingShim({
   if (variant === "status-box") {
     return (
       <View style={s.statusBox}>
-        <ActivityIndicator size="large" color={KColors.sage[700]} />
+        <ActivityIndicator size="large" color={Colors.sage[700]} />
         <Text style={s.statusText}>{label}</Text>
       </View>
     );
@@ -46,14 +46,14 @@ export function LoadingShim({
   if (variant === "screen") {
     return (
       <View style={s.screen}>
-        <ActivityIndicator size="large" color={KColors.sage[700]} />
+        <ActivityIndicator size="large" color={Colors.sage[700]} />
         <Text style={s.screenText}>{label}</Text>
       </View>
     );
   }
   return (
     <View style={s.inline}>
-      <ActivityIndicator size="small" color={KColors.sage[700]} />
+      <ActivityIndicator size="small" color={Colors.sage[700]} />
       <Text style={s.inlineText}>{label}</Text>
     </View>
   );
@@ -61,38 +61,38 @@ export function LoadingShim({
 
 const s = StyleSheet.create({
   statusBox: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.lg,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[4],
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   statusText: {
-    fontSize: KType.size.md,
-    color: KColors.sage[700],
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.md,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[500],
   },
   screen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   screenText: {
-    fontSize: KType.size.md,
-    color: KColors.sage[700],
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.md,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[500],
   },
   inline: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   inlineText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[400],
   },
 });

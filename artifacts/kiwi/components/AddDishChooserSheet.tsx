@@ -17,7 +17,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export interface AddDishChooserSheetProps {
   visible: boolean;
@@ -44,12 +44,12 @@ export function AddDishChooserSheet({
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
+      <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
         <View style={s.handle} />
         <View style={s.header}>
           <Text style={s.title}>Add a dish</Text>
           <Pressable onPress={onClose} hitSlop={12}>
-            <Feather name="x" size={22} color={KColors.neutral[800]} />
+            <Feather name="x" size={22} color={Colors.neutral[800]} />
           </Pressable>
         </View>
 
@@ -61,7 +61,7 @@ export function AddDishChooserSheet({
             testID="add-dish-ask-kiwi"
           >
             <View style={s.askIcon}>
-              <Feather name="zap" size={18} color={KColors.sage[700]} />
+              <Feather name="zap" size={18} color={Colors.sage[700]} />
             </View>
             <View style={{ flex: 1 }}>
               <View style={s.askTitleRow}>
@@ -70,7 +70,7 @@ export function AddDishChooserSheet({
                   <Feather
                     name="lock"
                     size={10}
-                    color={KColors.terracotta[700]}
+                    color={Colors.terracotta[700]}
                   />
                   <Text style={s.premiumPillText}>Premium</Text>
                 </View>
@@ -79,7 +79,7 @@ export function AddDishChooserSheet({
                 Describe a dish and Kiwi drafts the ingredients and steps
               </Text>
             </View>
-            <Feather name="chevron-right" size={18} color={KColors.neutral[600]} />
+            <Feather name="chevron-right" size={18} color={Colors.neutral[600]} />
           </Pressable>
 
           {/* Create manually — the pre-G3 direct destination, now behind the
@@ -90,7 +90,7 @@ export function AddDishChooserSheet({
             testID="add-dish-create-manually"
           >
             <View style={s.cardIcon}>
-              <Feather name="edit-3" size={18} color={KColors.sage[700]} />
+              <Feather name="edit-3" size={18} color={Colors.sage[700]} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.cardTitle}>Create manually</Text>
@@ -98,7 +98,7 @@ export function AddDishChooserSheet({
                 Add ingredients and steps directly
               </Text>
             </View>
-            <Feather name="chevron-right" size={18} color={KColors.neutral[600]} />
+            <Feather name="chevron-right" size={18} color={Colors.neutral[600]} />
           </Pressable>
         </View>
       </View>
@@ -116,70 +116,70 @@ const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: KColors.neutral[100],
-    borderTopLeftRadius: KRadius.xl,
-    borderTopRightRadius: KRadius.xl,
+    backgroundColor: Colors.neutral[100],
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: KColors.neutral[400],
+    backgroundColor: Colors.neutral[400],
     alignSelf: "center",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: KSpacing.lg,
-    paddingVertical: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: KColors.neutral[300],
+    borderBottomColor: Colors.neutral[300],
   },
   title: {
-    fontSize: KType.size.xl,
-    fontWeight: KType.weight.bold,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_700Bold",
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.serif[600],
   },
   body: {
-    padding: KSpacing.lg,
-    gap: KSpacing.sm,
+    padding: Spacing[4],
+    gap: Spacing[2],
   },
   card: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
+    gap: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.md,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[3],
   },
   askCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
-    backgroundColor: KColors.sage[50],
-    borderRadius: KRadius.md,
+    gap: Spacing[3],
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: KColors.sage[300],
-    padding: KSpacing.md,
+    borderColor: Colors.sage[300],
+    padding: Spacing[3],
   },
   cardIcon: {
     width: 36,
     height: 36,
-    borderRadius: KRadius.sm,
-    backgroundColor: KColors.sage[50],
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.sage[50],
     alignItems: "center",
     justifyContent: "center",
   },
   askIcon: {
     width: 36,
     height: 36,
-    borderRadius: KRadius.sm,
-    backgroundColor: KPalette.bg.card,
+    borderRadius: Radius.sm,
+    backgroundColor: Palette.background.card,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -187,33 +187,33 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   cardTitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   cardSubtitle: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   premiumPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: KColors.terracotta[100],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
+    backgroundColor: Colors.terracotta[100],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 4,
   },
   premiumPillText: {
-    fontSize: KType.size.xs,
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.terracotta[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
 });

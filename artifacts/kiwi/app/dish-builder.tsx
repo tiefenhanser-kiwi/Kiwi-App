@@ -21,7 +21,7 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Stepper } from "@/components/Stepper";
 import { useApp } from "@/contexts/AppContext";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   assistIngredients,
   assistSteps,
@@ -516,7 +516,7 @@ export default function DishBuilderScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header
         showBack
         title={headerTitle}
@@ -529,14 +529,14 @@ export default function DishBuilderScreen() {
         {/* Section 1: Dish Details */}
         <View style={s.card}>
           <Text style={s.cardTitle}>Dish details</Text>
-          <View style={{ marginTop: KSpacing.md, gap: KSpacing.md }}>
+          <View style={{ marginTop: Spacing[3], gap: Spacing[3] }}>
             <View>
               <Text style={s.fieldLabel}>Dish name</Text>
               <TextInput
                 value={form.name}
                 onChangeText={(v) => update("name", v)}
                 placeholder="What's the dish called?"
-                placeholderTextColor={KColors.neutral[600]}
+                placeholderTextColor={Colors.neutral[600]}
                 returnKeyType="done"
                 blurOnSubmit
                 onSubmitEditing={Keyboard.dismiss}
@@ -568,7 +568,7 @@ export default function DishBuilderScreen() {
                 }
               />
               {form.cuisineExpanded && (
-                <View style={[s.chipRow, { marginTop: KSpacing.sm }]}>
+                <View style={[s.chipRow, { marginTop: Spacing[2] }]}>
                   {CUISINES_TIER_2.map((c) => (
                     <Chip
                       key={c}
@@ -606,7 +606,7 @@ export default function DishBuilderScreen() {
         {/* Section 2: Logistics */}
         <View style={s.card}>
           <Text style={s.cardTitle}>Logistics</Text>
-          <View style={{ marginTop: KSpacing.md, gap: KSpacing.lg }}>
+          <View style={{ marginTop: Spacing[3], gap: Spacing[4] }}>
             <View>
               <Text style={s.fieldLabel}>Cook time</Text>
               <Stepper
@@ -634,7 +634,7 @@ export default function DishBuilderScreen() {
         {/* Section 3: What's in this dish (ingredients + Kiwi-assist) */}
         <View style={s.card}>
           <Text style={s.cardTitle}>What's in this dish</Text>
-          <View style={{ marginTop: KSpacing.sm }}>
+          <View style={{ marginTop: Spacing[2] }}>
             <CheckboxRow
               checked={form.kiwiAssistIngredients}
               label="Have Kiwi suggest recipe"
@@ -645,7 +645,7 @@ export default function DishBuilderScreen() {
             />
           </View>
           {form.kiwiAssistIngredients ? (
-            <View style={{ marginTop: KSpacing.sm, gap: KSpacing.sm }}>
+            <View style={{ marginTop: Spacing[2], gap: Spacing[2] }}>
               <Text style={s.assistHint}>
                 Kiwi will suggest ingredients based on the dish name and
                 cuisine.
@@ -662,7 +662,7 @@ export default function DishBuilderScreen() {
               />
             </View>
           ) : (
-            <View style={{ marginTop: KSpacing.md, gap: KSpacing.sm }}>
+            <View style={{ marginTop: Spacing[3], gap: Spacing[2] }}>
               {form.ingredients.map((ing) => (
                 <View key={ing.uid} style={s.ingredientRow}>
                   <TextInput
@@ -674,7 +674,7 @@ export default function DishBuilderScreen() {
                       });
                     }}
                     placeholder="Qty"
-                    placeholderTextColor={KColors.neutral[600]}
+                    placeholderTextColor={Colors.neutral[600]}
                     keyboardType="decimal-pad"
                     returnKeyType="done"
                     blurOnSubmit
@@ -684,7 +684,7 @@ export default function DishBuilderScreen() {
                     value={ing.unit}
                     onChangeText={(v) => updateIngredient(ing.uid, { unit: v })}
                     placeholder="unit"
-                    placeholderTextColor={KColors.neutral[600]}
+                    placeholderTextColor={Colors.neutral[600]}
                     returnKeyType="done"
                     blurOnSubmit
                     style={[s.input, s.unitInput]}
@@ -693,7 +693,7 @@ export default function DishBuilderScreen() {
                     value={ing.name}
                     onChangeText={(v) => updateIngredient(ing.uid, { name: v })}
                     placeholder="ingredient"
-                    placeholderTextColor={KColors.neutral[600]}
+                    placeholderTextColor={Colors.neutral[600]}
                     returnKeyType="done"
                     blurOnSubmit
                     style={[s.input, { flex: 1 }]}
@@ -706,7 +706,7 @@ export default function DishBuilderScreen() {
                       pressed && { opacity: 0.6 },
                     ]}
                   >
-                    <Feather name="x" size={16} color={KColors.neutral[700]} />
+                    <Feather name="x" size={16} color={Colors.neutral[700]} />
                   </Pressable>
                 </View>
               ))}
@@ -718,7 +718,7 @@ export default function DishBuilderScreen() {
                 ]}
                 hitSlop={6}
               >
-                <Feather name="plus" size={14} color={KColors.sage[700]} />
+                <Feather name="plus" size={14} color={Colors.sage[700]} />
                 <Text style={s.addRowText}>Add ingredient</Text>
               </Pressable>
             </View>
@@ -729,7 +729,7 @@ export default function DishBuilderScreen() {
         <View style={s.card}>
           <Text style={s.cardTitle}>How to make it</Text>
           <Text style={s.cardSubtitle}>Optional</Text>
-          <View style={{ marginTop: KSpacing.sm }}>
+          <View style={{ marginTop: Spacing[2] }}>
             <CheckboxRow
               checked={form.kiwiAssistSteps}
               label="Have Kiwi suggest steps"
@@ -738,7 +738,7 @@ export default function DishBuilderScreen() {
             />
           </View>
           {form.kiwiAssistSteps ? (
-            <View style={{ marginTop: KSpacing.sm, gap: KSpacing.sm }}>
+            <View style={{ marginTop: Spacing[2], gap: Spacing[2] }}>
               <Text style={s.assistHint}>
                 Kiwi will write the steps from your ingredients and cuisine.
               </Text>
@@ -752,7 +752,7 @@ export default function DishBuilderScreen() {
               />
             </View>
           ) : (
-            <View style={{ marginTop: KSpacing.md, gap: KSpacing.md }}>
+            <View style={{ marginTop: Spacing[3], gap: Spacing[3] }}>
               {/* WS5-5P-fix-drag — DraggableFlatList for steps. Drag via
                   always-visible handle (≡) per locked Option A + C.
                   Ingredients intentionally not draggable (Option F).
@@ -788,7 +788,7 @@ export default function DishBuilderScreen() {
                 ]}
                 hitSlop={6}
               >
-                <Feather name="plus" size={14} color={KColors.sage[700]} />
+                <Feather name="plus" size={14} color={Colors.sage[700]} />
                 <Text style={s.addRowText}>Add step</Text>
               </Pressable>
             </View>
@@ -799,12 +799,12 @@ export default function DishBuilderScreen() {
         <View style={s.card}>
           <Text style={s.cardTitle}>Notes</Text>
           <Text style={s.cardSubtitle}>Optional</Text>
-          <View style={{ marginTop: KSpacing.md }}>
+          <View style={{ marginTop: Spacing[3] }}>
             <TextInput
               value={form.notes}
               onChangeText={(v) => update("notes", v)}
               placeholder="Anything else worth remembering"
-              placeholderTextColor={KColors.neutral[600]}
+              placeholderTextColor={Colors.neutral[600]}
               multiline
               returnKeyType="default"
               blurOnSubmit
@@ -817,7 +817,7 @@ export default function DishBuilderScreen() {
         <View style={s.footer}>
           <Button
             label={isEdit ? "Save changes" : "Save dish"}
-            variant="terra"
+            variant="primary"
             onPress={handleSave}
           />
           <Text style={s.footerHint}>
@@ -864,12 +864,12 @@ function CheckboxRow({
       <Feather
         name={checked ? "check-square" : "square"}
         size={18}
-        color={checked ? KColors.sage[700] : KColors.neutral[600]}
+        color={checked ? Colors.sage[700] : Colors.neutral[600]}
       />
       <Text style={s.checkboxLabel}>{label}</Text>
       {premiumLabel && (
         <View style={s.premiumPill}>
-          <Feather name="lock" size={10} color={KColors.terracotta[700]} />
+          <Feather name="lock" size={10} color={Colors.terracotta[700]} />
           <Text style={s.premiumPillText}>{premiumLabel}</Text>
         </View>
       )}
@@ -911,12 +911,12 @@ function StepEditor({
           {index + 1}
         </Text>
       </View>
-      <View style={{ flex: 1, gap: KSpacing.xs }}>
+      <View style={{ flex: 1, gap: Spacing[1] }}>
         <TextInput
           value={step.text}
           onChangeText={(v) => onChange({ text: v })}
           placeholder="Describe this step…"
-          placeholderTextColor={KColors.neutral[600]}
+          placeholderTextColor={Colors.neutral[600]}
           multiline
           returnKeyType="default"
           blurOnSubmit
@@ -932,7 +932,7 @@ function StepEditor({
               onChange({ estimatedMinutes: Number.isFinite(n) ? n : 0 });
             }}
             placeholder="min"
-            placeholderTextColor={KColors.neutral[600]}
+            placeholderTextColor={Colors.neutral[600]}
             keyboardType="number-pad"
             returnKeyType="done"
             blurOnSubmit
@@ -954,8 +954,8 @@ function StepEditor({
               size={12}
               color={
                 step.isTimingSensitive
-                  ? KColors.terracotta[700]
-                  : KColors.neutral[700]
+                  ? Colors.terracotta[700]
+                  : Colors.neutral[700]
               }
             />
             <Text
@@ -979,14 +979,14 @@ function StepEditor({
         hitSlop={8}
         style={({ pressed }) => [s.dragHandleBtn, pressed && { opacity: 0.6 }]}
       >
-        <Feather name="menu" size={20} color={KColors.neutral[500]} />
+        <Feather name="menu" size={20} color={Colors.neutral[500]} />
       </Pressable>
       <Pressable
         onPress={onRemove}
         hitSlop={8}
         style={({ pressed }) => [s.removeBtn, pressed && { opacity: 0.6 }]}
       >
-        <Feather name="x" size={16} color={KColors.neutral[700]} />
+        <Feather name="x" size={16} color={Colors.neutral[700]} />
       </Pressable>
     </View>
     </ScaleDecorator>
@@ -1012,7 +1012,7 @@ function ExpandLink({
       <Feather
         name={expanded ? "chevron-up" : "chevron-down"}
         size={14}
-        color={KColors.sage[700]}
+        color={Colors.sage[700]}
       />
     </Pressable>
   );
@@ -1020,36 +1020,36 @@ function ExpandLink({
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl * 2,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[8] * 2,
+    gap: Spacing[3],
   },
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.lg,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[4],
   },
   cardTitle: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   cardSubtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   fieldLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.xs,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+    marginBottom: Spacing[1],
   },
   chipRow: {
     flexDirection: "row",
@@ -1060,73 +1060,73 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
     alignSelf: "flex-start",
   },
   expandLinkText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   input: {
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[400],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     textAlignVertical: "top",
   },
   checkboxRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   checkboxLabel: {
     flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
   assistHint: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   premiumPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: KColors.terracotta[100],
-    borderRadius: KRadius.pill,
-    paddingHorizontal: KSpacing.sm,
+    backgroundColor: Colors.terracotta[100],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 2,
   },
   premiumPillText: {
-    fontSize: KType.size.xs,
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.terracotta[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   ingredientRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.xs,
+    gap: Spacing[1],
   },
   qtyInput: {
     width: 56,
-    paddingHorizontal: KSpacing.sm,
+    paddingHorizontal: Spacing[2],
   },
   unitInput: {
     width: 70,
-    paddingHorizontal: KSpacing.sm,
+    paddingHorizontal: Spacing[2],
   },
   removeBtn: {
     width: 32,
@@ -1149,17 +1149,17 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     alignSelf: "flex-start",
-    paddingVertical: KSpacing.xs,
+    paddingVertical: Spacing[1],
   },
   addRowText: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   stepEditorRow: {
     flexDirection: "row",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
     alignItems: "flex-start",
   },
   stepCircle: {
@@ -1171,76 +1171,76 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   stepCircleNormal: {
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   stepCircleTiming: {
-    backgroundColor: KColors.terracotta[200],
+    backgroundColor: Colors.terracotta[200],
   },
   stepCircleTextNormal: {
-    fontSize: KType.size.sm,
-    color: KColors.sage[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   stepCircleTextTiming: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   stepMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
   },
   minutesInput: {
     width: 72,
-    paddingHorizontal: KSpacing.sm,
+    paddingHorizontal: Spacing[2],
   },
   timingToggle: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: KSpacing.sm,
-    paddingVertical: KSpacing.xs,
-    borderRadius: KRadius.pill,
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[1],
+    borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    backgroundColor: KPalette.bg.card,
+    borderColor: Colors.neutral[400],
+    backgroundColor: Palette.background.card,
   },
   timingToggleActive: {
-    borderColor: KColors.terracotta[300],
-    backgroundColor: KColors.terracotta[50],
+    borderColor: Colors.terracotta[300],
+    backgroundColor: Colors.terracotta[50],
   },
   timingToggleText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[500],
   },
   timingToggleTextActive: {
-    color: KColors.terracotta[700],
-    fontWeight: KType.weight.semibold,
+    color: Colors.terracotta[700],
+    fontWeight: Typography.fontWeight.semibold,
   },
   footer: {
-    marginTop: KSpacing.lg,
-    gap: KSpacing.sm,
+    marginTop: Spacing[4],
+    gap: Spacing[2],
     alignItems: "center",
   },
   footerHint: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   cancelLink: {
-    paddingVertical: KSpacing.sm,
-    paddingHorizontal: KSpacing.md,
-    marginTop: KSpacing.xs,
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    marginTop: Spacing[1],
   },
   cancelText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
 });

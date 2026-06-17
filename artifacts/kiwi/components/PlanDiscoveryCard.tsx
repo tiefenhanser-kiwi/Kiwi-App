@@ -11,7 +11,7 @@ import { usePlans } from "@/hooks/usePlans";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { asPlanDiscoveryFilters, type PlanFilterKey } from "@/lib/api/plans";
 import { homeFilterDefault } from "@/lib/home/filterDefault";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 // PRD §4.2.5 — the Home discovery card previews up to five plans.
 const HOME_DISCOVERY_PREVIEW_LIMIT = 5;
@@ -133,11 +133,11 @@ export function PlanDiscoveryCard() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
-    padding: KSpacing.md,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
+    padding: Spacing[3],
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
+    borderColor: Colors.neutral[300],
   },
   header: {
     flexDirection: "row",
@@ -147,26 +147,26 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.sm,
+    gap: Spacing[2],
     flex: 1,
   },
   thumbDot: {
     width: 36,
     height: 36,
     borderRadius: 9,
-    backgroundColor: KColors.sage[100],
+    backgroundColor: Colors.sage[100],
   },
   title: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   sub: {
     fontSize: 10,
-    color: KColors.sage[700],
+    color: Colors.sage[700],
     marginTop: 1,
-    fontFamily: "Inter_400Regular",
+    fontFamily: Typography.face.sans[400],
   },
   headerRight: {
     flexDirection: "row",
@@ -175,27 +175,27 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     fontSize: 10,
-    color: KColors.sage[700],
-    fontFamily: "Inter_500Medium",
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[500],
   },
   chev: {
     fontSize: 14,
-    color: KColors.sage[700],
+    color: Colors.sage[700],
     fontWeight: "700",
   },
   body: {
-    marginTop: KSpacing.md,
-    gap: KSpacing.sm,
+    marginTop: Spacing[3],
+    gap: Spacing[2],
   },
   cardList: {
-    gap: KSpacing.sm,
-    marginTop: KSpacing.sm,
+    gap: Spacing[2],
+    marginTop: Spacing[2],
   },
   emptyText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
-    paddingVertical: KSpacing.md,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
+    paddingVertical: Spacing[3],
     textAlign: "center",
     lineHeight: 16,
   },

@@ -30,7 +30,7 @@ import { SpicePicker } from "@/components/preference-pickers/SpicePicker";
 import { StovetopPicker } from "@/components/preference-pickers/StovetopPicker";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { KColors, KPalette, KRadius, KSpacing, KType } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { DEFAULT_RETAILERS, PLAN_DURATION_PRESETS } from "@/lib/domain";
 import { getPreferences, type UserPreferences } from "@/lib/api/me";
 import type { UserPreferencesData } from "@/lib/types";
@@ -144,7 +144,7 @@ export default function Preferences() {
   // Loading / error gate — render nothing editable until the form is seeded.
   if (!form) {
     return (
-      <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header showBack title="Preferences" />
         <View style={s.loadingWrap}>
           {prefsQuery.isError ? (
@@ -152,7 +152,7 @@ export default function Preferences() {
               Couldn't load your preferences. Pull back and try again.
             </Text>
           ) : (
-            <ActivityIndicator color={KColors.sage[700]} />
+            <ActivityIndicator color={Colors.sage[700]} />
           )}
         </View>
       </View>
@@ -162,7 +162,7 @@ export default function Preferences() {
   const cuisineSelectedCount = form.cuisines.length;
 
   return (
-    <View style={{ flex: 1, backgroundColor: KColors.neutral[100] }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header showBack title="Preferences" />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
@@ -179,7 +179,7 @@ export default function Preferences() {
             suffix={form.householdSize === 1 ? "person" : "people"}
           />
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>
+          <SubLabel style={{ marginTop: Spacing[4] }}>
             Plan length default
           </SubLabel>
           <View style={s.chipRow}>
@@ -194,7 +194,7 @@ export default function Preferences() {
           </View>
           <Text style={s.helpText}>days per plan</Text>
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>
+          <SubLabel style={{ marginTop: Spacing[4] }}>
             Wants leftovers
           </SubLabel>
           <View style={s.toggleRow}>
@@ -205,14 +205,14 @@ export default function Preferences() {
               value={form.wantsLeftovers}
               onValueChange={(v) => update("wantsLeftovers", v)}
               trackColor={{
-                false: KColors.neutral[400],
-                true: KColors.sage[700],
+                false: Colors.neutral[400],
+                true: Colors.sage[700],
               }}
-              thumbColor={KColors.neutral[0]}
+              thumbColor={Colors.neutral[0]}
             />
           </View>
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>
+          <SubLabel style={{ marginTop: Spacing[4] }}>
             Kids in household
           </SubLabel>
           <Stepper
@@ -226,7 +226,7 @@ export default function Preferences() {
           />
           {/* Kid ages sub-section removed per WS5-5P-bis-fix. */}
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>Picky eaters</SubLabel>
+          <SubLabel style={{ marginTop: Spacing[4] }}>Picky eaters</SubLabel>
           <PickyEatersPicker
             pickyCount={form.pickyEaterCount}
             pickyAvoidances={form.pickyAvoidances}
@@ -259,7 +259,7 @@ export default function Preferences() {
             onChange={(next) => update("eatingStyles", next)}
           />
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>
+          <SubLabel style={{ marginTop: Spacing[4] }}>
             Allergies & avoidances
           </SubLabel>
           <AllergiesPicker
@@ -267,7 +267,7 @@ export default function Preferences() {
             onChange={(next) => update("allergiesAndAvoidances", next)}
           />
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>
+          <SubLabel style={{ marginTop: Spacing[4] }}>
             Anything else?
           </SubLabel>
           <TextInput
@@ -276,7 +276,7 @@ export default function Preferences() {
               update("dietaryNotes", v.length > 0 ? v : undefined)
             }
             placeholder="e.g., 'no cilantro', 'lower sodium'"
-            placeholderTextColor={KColors.neutral[600]}
+            placeholderTextColor={Colors.neutral[600]}
             returnKeyType="done"
             blurOnSubmit
             onSubmitEditing={Keyboard.dismiss}
@@ -292,7 +292,7 @@ export default function Preferences() {
             onChange={(next) => update("cookingSkill", next)}
           />
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>
+          <SubLabel style={{ marginTop: Spacing[4] }}>
             Spice tolerance
           </SubLabel>
           <SpicePicker
@@ -300,13 +300,13 @@ export default function Preferences() {
             onChange={(next) => update("spiceTolerance", next)}
           />
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>Equipment</SubLabel>
+          <SubLabel style={{ marginTop: Spacing[4] }}>Equipment</SubLabel>
           <EquipmentPicker
             value={form.cookingEquipment}
             onChange={(next) => update("cookingEquipment", next)}
           />
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>
+          <SubLabel style={{ marginTop: Spacing[4] }}>
             Stovetop type
           </SubLabel>
           <StovetopPicker
@@ -323,7 +323,7 @@ export default function Preferences() {
             onChange={(next) => update("healthGoals", next)}
           />
 
-          <SubLabel style={{ marginTop: KSpacing.lg }}>Budget level</SubLabel>
+          <SubLabel style={{ marginTop: Spacing[4] }}>Budget level</SubLabel>
           <BudgetLevelPicker
             value={form.budgetLevel}
             onChange={(next) => update("budgetLevel", next)}
@@ -369,13 +369,13 @@ export default function Preferences() {
                 handleMarketingToggle("marketingConsentEmail", v)
               }
               trackColor={{
-                false: KColors.neutral[400],
-                true: KColors.sage[700],
+                false: Colors.neutral[400],
+                true: Colors.sage[700],
               }}
-              thumbColor={KColors.neutral[0]}
+              thumbColor={Colors.neutral[0]}
             />
           </View>
-          <View style={[s.toggleRow, { marginTop: KSpacing.md }]}>
+          <View style={[s.toggleRow, { marginTop: Spacing[3] }]}>
             <Text style={s.toggleSubtitle}>
               Text me with Kiwi tips and updates
             </Text>
@@ -385,10 +385,10 @@ export default function Preferences() {
                 handleMarketingToggle("marketingConsentSms", v)
               }
               trackColor={{
-                false: KColors.neutral[400],
-                true: KColors.sage[700],
+                false: Colors.neutral[400],
+                true: Colors.sage[700],
               }}
-              thumbColor={KColors.neutral[0]}
+              thumbColor={Colors.neutral[0]}
             />
           </View>
           {marketingStatus && (
@@ -402,7 +402,7 @@ export default function Preferences() {
         <View style={s.footer}>
           <Button
             label="Save preferences"
-            variant="terra"
+            variant="primary"
             loading={saving}
             disabled={saving}
             onPress={handleSave}
@@ -450,7 +450,7 @@ function Section({
     <View style={s.card}>
       <Text style={s.cardTitle}>{title}</Text>
       {subtitle && <Text style={s.cardSubtitle}>{subtitle}</Text>}
-      <View style={{ marginTop: KSpacing.md }}>{children}</View>
+      <View style={{ marginTop: Spacing[3] }}>{children}</View>
     </View>
   );
 }
@@ -467,55 +467,55 @@ function SubLabel({
 
 const s = StyleSheet.create({
   scrollContent: {
-    paddingHorizontal: KSpacing.lg,
-    paddingTop: KSpacing.lg,
-    paddingBottom: KSpacing.xxxl * 2,
-    gap: KSpacing.md,
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[8] * 2,
+    gap: Spacing[3],
   },
   loadingWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: KSpacing.xl,
+    padding: Spacing[5],
   },
   loadingError: {
-    fontSize: KType.size.sm,
-    color: KColors.terracotta[700],
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
     textAlign: "center",
   },
   card: {
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.lg,
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: KColors.neutral[300],
-    padding: KSpacing.lg,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[4],
   },
   cardTitle: {
-    fontSize: KType.size.lg,
-    color: KColors.neutral[900],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
   },
   cardSubtitle: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   subSectionLabel: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[800],
-    fontWeight: KType.weight.semibold,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: KSpacing.sm,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+    marginBottom: Spacing[2],
   },
   helpText: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[600],
-    fontFamily: "Inter_400Regular",
-    marginTop: KSpacing.xs,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
+    marginTop: Spacing[1],
   },
   chipRow: {
     flexDirection: "row",
@@ -525,59 +525,59 @@ const s = StyleSheet.create({
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: KSpacing.md,
+    gap: Spacing[3],
   },
   toggleSubtitle: {
     flex: 1,
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   input: {
     borderWidth: 1,
-    borderColor: KColors.neutral[400],
-    backgroundColor: KPalette.bg.card,
-    borderRadius: KRadius.md,
-    paddingHorizontal: KSpacing.md,
-    paddingVertical: KSpacing.sm,
-    fontSize: KType.size.md,
-    color: KColors.neutral[900],
-    fontFamily: "Inter_400Regular",
+    borderColor: Colors.neutral[400],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
     textAlignVertical: "top",
   },
   statusText: {
-    fontSize: KType.size.sm,
-    fontFamily: "Inter_500Medium",
-    fontWeight: KType.weight.medium,
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
     textAlign: "center",
-    marginTop: KSpacing.sm,
+    marginTop: Spacing[2],
   },
   statusSuccess: {
-    color: KColors.sage[700],
+    color: Colors.sage[700],
   },
   statusError: {
-    color: KColors.terracotta[700],
+    color: Colors.terracotta[700],
   },
   footer: {
-    marginTop: KSpacing.lg,
-    gap: KSpacing.sm,
+    marginTop: Spacing[4],
+    gap: Spacing[2],
     alignItems: "center",
   },
   footerHint: {
-    fontSize: KType.size.xs,
-    color: KColors.neutral[700],
-    fontFamily: "Inter_400Regular",
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
   cancelLink: {
-    paddingVertical: KSpacing.sm,
-    paddingHorizontal: KSpacing.md,
-    marginTop: KSpacing.xs,
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    marginTop: Spacing[1],
   },
   cancelText: {
-    fontSize: KType.size.sm,
-    color: KColors.neutral[700],
-    fontWeight: KType.weight.medium,
-    fontFamily: "Inter_500Medium",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
 });
