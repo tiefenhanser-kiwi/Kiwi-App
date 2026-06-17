@@ -22,6 +22,7 @@ import type {
   MealDetail,
   MealFilterKey,
 } from "@/lib/api/meals";
+import { formatMacroLine } from "@/lib/format/macros";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
 
@@ -183,6 +184,17 @@ export function FindSimilarSheet({
       !!sourceMealId &&
       (sourceMealQuery.isLoading || candidatesQuery.isLoading));
 
+  // The error state covers BOTH failure modes uniformly: the AI ranking call
+  // failing (hadError) AND either underlying read failing. Without the read
+  // branch, killing the network before the source/candidate reads land would
+  // skip the mutation entirely (the effect guards on data presence) and fall
+  // through to the "no similar meals" empty card — an inconsistent message.
+  const showError =
+    hadError ||
+    (visible &&
+      !!sourceMealId &&
+      (sourceMealQuery.isError || candidatesQuery.isError));
+
   const handlePick = (meal: MealSummary) => {
     onPickReplacement(meal);
     onClose();
@@ -195,26 +207,33 @@ export function FindSimilarSheet({
       transparent
       onRequestClose={onClose}
     >
-      <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
-        <View style={s.handle} />
-        <View style={s.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.title}>Find similar</Text>
-            {sourceCuisine && (
-              <Text style={s.subtitle}>Cuisine: {sourceCuisine}</Text>
-            )}
+      {/* Full-screen flex container pins the sheet flush to the true screen
+          bottom (justify flex-end). The earlier `position:absolute; bottom:0;
+          height:85%` left a strip of the Plan Review screen showing under the
+          sheet on devices where the Modal content is inset; this pattern can't
+          gap because the sheet is the bottom child of a screen-filling box. */}
+      <View style={s.container}>
+        <Pressable style={s.backdrop} onPress={onClose} />
+        <View style={[s.sheet, { paddingBottom: insets.bottom + KSpacing.md }]}>
+          <View style={s.handle} />
+          <View style={s.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.title}>Find similar</Text>
+              {sourceCuisine && (
+                <Text style={s.subtitle}>Cuisine: {sourceCuisine}</Text>
+              )}
+            </View>
+            <Pressable onPress={onClose} hitSlop={12}>
+              <Feather name="x" size={22} color={KColors.neutral[800]} />
+            </Pressable>
           </View>
-          <Pressable onPress={onClose} hitSlop={12}>
-            <Feather name="x" size={22} color={KColors.neutral[800]} />
-          </Pressable>
-        </View>
 
-        <ScrollView
-          contentContainerStyle={s.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+          <ScrollView
+            style={s.scroll}
+            contentContainerStyle={s.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           <View style={s.sectionTitleRow}>
             <Text style={s.sectionTitle}>Similar meals</Text>
             <SortDropdown value={sortKey} onChange={setSortKey} />
@@ -224,7 +243,7 @@ export function FindSimilarSheet({
             <View style={s.loadingCard}>
               <LoadingShim variant="inline" />
             </View>
-          ) : hadError ? (
+          ) : showError ? (
             <View style={s.errorBanner}>
               <Feather
                 name="alert-circle"
@@ -253,7 +272,8 @@ export function FindSimilarSheet({
               ))}
             </View>
           )}
-        </ScrollView>
+          </ScrollView>
+        </View>
       </View>
     </Modal>
   );
@@ -271,7 +291,15 @@ function MealRow({
     capitalize(meal.difficulty),
     `${meal.estimatedTimeMinutes} min`,
   ].filter(Boolean);
-  const macrosLine = `${meal.caloriesPerServing} cal · ${meal.proteinGPerServing}g P · ${meal.carbsGPerServing}g C · ${meal.fatGPerServing}g F`;
+  // Shared formatter rounds each macro to a whole number — kills the
+  // "75.39999…g" float artifact that surfaces when the server stores fractional
+  // per-serving macros (lib/format/macros.ts).
+  const macrosLine = formatMacroLine(
+    meal.caloriesPerServing,
+    meal.proteinGPerServing,
+    meal.carbsGPerServing,
+    meal.fatGPerServing,
+  );
   return (
     <Pressable
       onPress={onPress}
@@ -297,19 +325,25 @@ function MealRow({
 }
 
 const s = StyleSheet.create({
-  backdrop: {
+  container: {
     flex: 1,
+    justifyContent: "flex-end",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(20,35,18,0.5)",
   },
   sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "85%",
+    maxHeight: "90%",
     backgroundColor: KColors.neutral[100],
     borderTopLeftRadius: KRadius.xl,
     borderTopRightRadius: KRadius.xl,
+  },
+  // flexShrink lets the scroll area give back space when the sheet hits its
+  // maxHeight, so the list scrolls instead of overflowing; with a short list
+  // the sheet still hugs its content.
+  scroll: {
+    flexShrink: 1,
   },
   handle: {
     width: 36,

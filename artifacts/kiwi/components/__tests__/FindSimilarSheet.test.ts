@@ -250,3 +250,74 @@ test("FindSimilarSheet: picking a match hands a real candidate-pool meal to the 
 
   renderer.unmount();
 });
+
+// NOTE: the read-failure error state (network dies before the source/candidate
+// reads land → the sheet shows the SAME "Couldn't reach Kiwi" state instead of
+// the empty card) is NOT unit-tested here. It depends on a useQuery transition
+// from loading → error being reflected in the rendered tree, which this harness
+// (react-test-renderer + react-query's useSyncExternalStore) does not propagate
+// — the sibling AddMealsSheet test documents the same loading-branch limitation.
+// The `showError` branch covering `sourceMealQuery.isError || candidatesQuery.
+// isError` is verified by code review; the AI-failure path above covers the
+// mutation half of the same error UI.
+
+test("FindSimilarSheet: fractional server macros render rounded to whole numbers", async () => {
+  // The server legitimately stores fractional per-serving macros (e.g. birria
+  // tacos at 75.39999…g protein); the row must round for display.
+  const FRACTIONAL: MealListResponse = {
+    meals: [
+      {
+        ...listItem("c-2", "Bucatini Amatriciana"),
+        protein: 75.39999999999999,
+        fat: 51.6,
+      },
+    ],
+    nextCursor: null,
+  };
+  fetchImpl = () => ({
+    ok: true,
+    status: 200,
+    text: async () =>
+      JSON.stringify({
+        matches: [{ mealId: "c-2", similarityScore: 0.9, reason: "x" }],
+        metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
+      }),
+  });
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
+      mutations: { retry: false },
+    },
+  });
+  client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
+  client.setQueryData(["meals", "list", BUCKETS], FRACTIONAL);
+
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        React.createElement(FindSimilarSheet, {
+          visible: true,
+          sourceMealId: SOURCE_ID,
+          sourceMealTitle: "Spaghetti Carbonara",
+          sourceCuisine: "Italian",
+          onClose: () => {},
+          onPickReplacement: () => {},
+        }),
+      ),
+    );
+    await wait(100);
+  });
+
+  const joined = textLeavesOf(renderer.root).join(" | ");
+  assert.ok(joined.includes("75g P"), `protein should round to 75g P: ${joined}`);
+  assert.ok(joined.includes("52g F"), `fat should round to 52g F: ${joined}`);
+  assert.ok(
+    !joined.includes("75.3") && !joined.includes("51.6"),
+    `no float artifacts should render: ${joined}`,
+  );
+
+  renderer.unmount();
+});
