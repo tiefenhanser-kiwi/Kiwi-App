@@ -863,9 +863,9 @@ test("Ruling 7 retirement: AppContext no longer exposes swapMealInCurrentPlan", 
 // of useApp().findSimilarMeals across artifacts/kiwi (pre-deletion grep
 // pasted in the c4 commit body). The real Find Similar flow runs through
 // useFindSimilarMeals → lib/api/meals → POST /meals/find-similar; the
-// FindSimilarSheet uses findSimilarMealsByCuisine from lib/stubs for the
-// free-tier cuisine-match path. Compile-time enforced by interface removal;
-// this test pins runtime shape too.
+// server folds the free-tier cuisine-match fallback into that same response
+// (the client-side findSimilarMealsByCuisine stub was removed in WS7-7-B).
+// Compile-time enforced by interface removal; this test pins runtime shape too.
 test("WS7-4-E retirement: AppContext no longer exposes findSimilarMeals", async () => {
   await mountAuthed();
   const v = app as unknown as Record<string, unknown>;

@@ -23,7 +23,6 @@ import type {
   MealFilterKey,
 } from "@/lib/api/meals";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
-import { findSimilarMealsByCuisine } from "@/lib/stubs";
 import type { MealSummary } from "@/lib/types";
 
 // All four catalog buckets in one request. The server unions per-filter
@@ -35,6 +34,12 @@ const FIND_SIMILAR_BUCKETS: readonly MealFilterKey[] = [
   "top_rated",
   "hosting",
 ];
+
+// MealListItem (GET /me/meals) has no mealType column, so candidate payloads
+// can't carry a real per-meal type the way the source (MealDetail) does. A
+// uniform placeholder keeps the required AI field populated without inventing a
+// discriminating signal. D-WS7-146 tracks widening the list shape to carry it.
+const CANDIDATE_MEAL_TYPE = "dinner";
 
 // MealDetail -> MealCandidatePayload (only the 5 AI-relevant fields). The
 // existing mealSummaryToCandidate helper in lib/api/meals.ts works on
@@ -79,7 +84,7 @@ export function FindSimilarSheet({
   const insets = useSafeAreaInsets();
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
   const [aiOrderedIds, setAiOrderedIds] = useState<string[] | null>(null);
-  const [usedFallback, setUsedFallback] = useState(false);
+  const [hadError, setHadError] = useState(false);
 
   const findSimilarMutation = useFindSimilarMeals();
 
@@ -111,7 +116,7 @@ export function FindSimilarSheet({
   useEffect(() => {
     if (!visible) {
       setAiOrderedIds(null);
-      setUsedFallback(false);
+      setHadError(false);
       findSimilarMutation.reset();
       return;
     }
@@ -120,26 +125,33 @@ export function FindSimilarSheet({
       return;
     }
     setAiOrderedIds(null);
-    setUsedFallback(false);
+    setHadError(false);
     findSimilarMutation.mutate(
       {
         source: mealDetailToCandidate(sourceMeal),
-        candidates: candidatePool.map((m) => ({
-          id: m.id,
-          title: m.title,
-          cuisine: m.cuisineType ?? null,
-          mealType: "dinner",
-          tags: undefined,
-        })),
+        // Candidates map straight off the GET /me/meals rows (not the
+        // MealSummary pool) so real `tags` survive into the AI payload — the
+        // MealSummary adapter drops them. `mealType` has no column in the list
+        // shape, so it uses the uniform CANDIDATE_MEAL_TYPE placeholder; the
+        // source carries its real mealType via MealDetail.
+        candidates: candidatesQuery.data.meals
+          .filter((m) => m.id !== sourceMealId)
+          .map((m) => ({
+            id: m.id,
+            title: m.title,
+            cuisine: m.cuisine.length > 0 ? m.cuisine : null,
+            mealType: CANDIDATE_MEAL_TYPE,
+            tags: m.tags,
+          })),
         limit: 10,
       },
       {
         onSuccess: (data) => {
           setAiOrderedIds(data.matches.map((m) => m.mealId));
-          setUsedFallback(false);
+          setHadError(false);
         },
         onError: () => {
-          setUsedFallback(true);
+          setHadError(true);
         },
       },
     );
@@ -149,23 +161,19 @@ export function FindSimilarSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, sourceMealId, sourceMeal, candidatesQuery.data]);
 
-  // Build the rendered list. AI path: respect AI's score order unless the
-  // user picked a different sort. Fallback path: cuisine-only filter from
-  // the existing stub helper (WS6 territory; stays until WS6+).
+  // Build the rendered list from the AI's score order, unless the user picked a
+  // different sort. There is no client-side fallback ranking on AI hard-failure
+  // — the error state renders instead (see hadError). The server's free-tier
+  // cuisine fallback arrives in-band as a normal `matches` response, so it
+  // flows through this same AI path without branching.
   const matches = useMemo<MealSummary[]>(() => {
-    if (!sourceMealId) return [];
-    if (aiOrderedIds) {
-      const byId = new Map(candidatePool.map((m) => [m.id, m]));
-      const ordered = aiOrderedIds
-        .map((id) => byId.get(id))
-        .filter((m): m is MealSummary => !!m);
-      return sortKey === "alpha" ? ordered : sortMeals(ordered, sortKey);
-    }
-    if (usedFallback) {
-      return sortMeals(findSimilarMealsByCuisine(sourceMealId), sortKey);
-    }
-    return [];
-  }, [sourceMealId, aiOrderedIds, usedFallback, sortKey, candidatePool]);
+    if (!sourceMealId || !aiOrderedIds) return [];
+    const byId = new Map(candidatePool.map((m) => [m.id, m]));
+    const ordered = aiOrderedIds
+      .map((id) => byId.get(id))
+      .filter((m): m is MealSummary => !!m);
+    return sortKey === "alpha" ? ordered : sortMeals(ordered, sortKey);
+  }, [sourceMealId, aiOrderedIds, sortKey, candidatePool]);
 
   // Show the loading shim while the AI call is in flight OR while the
   // underlying source + candidates reads haven't both landed yet.
@@ -207,19 +215,6 @@ export function FindSimilarSheet({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {usedFallback && (
-            <View style={s.fallbackBanner}>
-              <Feather
-                name="alert-circle"
-                size={14}
-                color={KColors.terracotta[700]}
-              />
-              <Text style={s.fallbackBannerText}>
-                Showing cuisine matches — couldn&apos;t reach Kiwi
-              </Text>
-            </View>
-          )}
-
           <View style={s.sectionTitleRow}>
             <Text style={s.sectionTitle}>Similar meals</Text>
             <SortDropdown value={sortKey} onChange={setSortKey} />
@@ -228,6 +223,17 @@ export function FindSimilarSheet({
           {isLoading ? (
             <View style={s.loadingCard}>
               <LoadingShim variant="inline" />
+            </View>
+          ) : hadError ? (
+            <View style={s.errorBanner}>
+              <Feather
+                name="alert-circle"
+                size={14}
+                color={KColors.terracotta[700]}
+              />
+              <Text style={s.errorBannerText}>
+                Couldn&apos;t reach Kiwi — try again.
+              </Text>
             </View>
           ) : matches.length === 0 ? (
             <View style={s.emptyCard}>
@@ -339,7 +345,7 @@ const s = StyleSheet.create({
     padding: KSpacing.lg,
     paddingBottom: KSpacing.xxxl,
   },
-  fallbackBanner: {
+  errorBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: KSpacing.xs,
@@ -347,9 +353,9 @@ const s = StyleSheet.create({
     borderRadius: KRadius.sm,
     paddingVertical: KSpacing.xs,
     paddingHorizontal: KSpacing.sm,
-    marginBottom: KSpacing.sm,
+    marginTop: KSpacing.sm,
   },
-  fallbackBannerText: {
+  errorBannerText: {
     fontSize: KType.size.xs,
     color: KColors.terracotta[700],
     fontFamily: "Inter_500Medium",
