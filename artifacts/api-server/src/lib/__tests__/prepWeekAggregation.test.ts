@@ -33,6 +33,7 @@ interface DishIngredientFixture {
 interface DishFixture {
   id: string;
   title: string;
+  servingsDefault: number;
   dishIngredients: DishIngredientFixture[];
 }
 
@@ -109,6 +110,7 @@ function plan(opts?: Partial<PlanFixture>): PlanFixture {
               dish: {
                 id: DISH_A1,
                 title: "Beef tacos",
+                servingsDefault: 4,
                 dishIngredients: [
                   {
                     quantity: 2,
@@ -118,6 +120,7 @@ function plan(opts?: Partial<PlanFixture>): PlanFixture {
                     ingredient: {
                       id: ING_ONION,
                       displayName: "yellow onion",
+                      category: "Produce",
                     },
                   },
                   {
@@ -128,6 +131,7 @@ function plan(opts?: Partial<PlanFixture>): PlanFixture {
                     ingredient: {
                       id: ING_GARLIC,
                       displayName: "garlic",
+                      category: "Produce",
                     },
                   },
                 ],
@@ -153,6 +157,7 @@ function plan(opts?: Partial<PlanFixture>): PlanFixture {
               dish: {
                 id: DISH_B1,
                 title: "Chicken stir fry",
+                servingsDefault: 4,
                 dishIngredients: [
                   {
                     quantity: 1,
@@ -162,6 +167,7 @@ function plan(opts?: Partial<PlanFixture>): PlanFixture {
                     ingredient: {
                       id: ING_ONION,
                       displayName: "yellow onion",
+                      category: "Produce",
                     },
                   },
                 ],
@@ -232,7 +238,7 @@ describe("loadPrepWeekInput — payload shape", () => {
     assert.equal(input.meals.length, 2);
   });
 
-  it("applies servingsOverride when present", async () => {
+  it("carries servingsOverride through un-applied (scaling is the adapter's job)", async () => {
     const prisma = makePrismaStub([plan()]);
     const { input } = await loadPrepWeekInput({
       planId: PLAN_ID,
@@ -241,11 +247,19 @@ describe("loadPrepWeekInput — payload shape", () => {
     });
     const stirFry = input.meals.find((m) => m.mealId === MEAL_B);
     assert.ok(stirFry);
-    // item-b sets servingsOverride: 6 — override wins over servingsDefault 4.
-    assert.equal(stirFry.servings, 6);
+    // item-b sets servingsOverride: 6 — carried verbatim, not pre-applied.
+    assert.equal(stirFry.servingsOverride, 6);
+    // Dish base servings = dish.servingsDefault (the adapter's scaling base).
+    assert.equal(stirFry.dishes[0].baseServings, 4);
+    // Quantity stays RAW (1), NOT scaled to 1.5 — the loader never scales.
+    const onion = stirFry.dishes[0].ingredients.find(
+      (i) => i.ingredientId === ING_ONION,
+    );
+    assert.ok(onion);
+    assert.equal(onion.quantity, 1);
   });
 
-  it("falls back to meal.servingsDefault when override is null", async () => {
+  it("carries servingsOverride=null when the plan-item has no override", async () => {
     const prisma = makePrismaStub([plan()]);
     const { input } = await loadPrepWeekInput({
       planId: PLAN_ID,
@@ -254,30 +268,13 @@ describe("loadPrepWeekInput — payload shape", () => {
     });
     const tacos = input.meals.find((m) => m.mealId === MEAL_A);
     assert.ok(tacos);
-    // item-a leaves servingsOverride null — falls through to servingsDefault 4.
-    assert.equal(tacos.servings, 4);
+    // item-a leaves servingsOverride null — carried as null (adapter falls
+    // back to the dish base when scaling).
+    assert.equal(tacos.servingsOverride, null);
+    assert.equal(tacos.dishes[0].baseServings, 4);
   });
 
-  it("falls back to 1 when both override and servingsDefault are 0/null", async () => {
-    const p = plan();
-    p.items[0].servingsOverride = null;
-    p.items[0].meal.servingsDefault = 0 as unknown as number;
-    const prisma = makePrismaStub([p]);
-    const { input } = await loadPrepWeekInput({
-      planId: PLAN_ID,
-      userId: USER_ID,
-      prisma,
-    });
-    const tacos = input.meals.find((m) => m.mealId === MEAL_A);
-    assert.ok(tacos);
-    // 0 is truthy-zero for `??`, so falls through? Actually `0 ?? 1` is 0.
-    // The loader uses `?? 1` only when null/undefined. We accept 0 here —
-    // covering the override=null/defaultZero edge separately would require
-    // a guard the loader intentionally omits.
-    assert.ok(tacos.servings === 0 || tacos.servings === 1);
-  });
-
-  it("threads preparationNotes through when present, omits when null", async () => {
+  it("carries Ingredient.category onto each ingredient", async () => {
     const prisma = makePrismaStub([plan()]);
     const { input } = await loadPrepWeekInput({
       planId: PLAN_ID,
@@ -290,7 +287,23 @@ describe("loadPrepWeekInput — payload shape", () => {
       (i) => i.ingredientId === ING_ONION,
     );
     assert.ok(onion);
-    assert.equal(onion.preparationNotes, "diced");
+    assert.equal(onion.category, "Produce");
+  });
+
+  it("carries preparationNote (singular) — value when present, null when absent", async () => {
+    const prisma = makePrismaStub([plan()]);
+    const { input } = await loadPrepWeekInput({
+      planId: PLAN_ID,
+      userId: USER_ID,
+      prisma,
+    });
+    const tacos = input.meals.find((m) => m.mealId === MEAL_A);
+    assert.ok(tacos);
+    const onion = tacos.dishes[0].ingredients.find(
+      (i) => i.ingredientId === ING_ONION,
+    );
+    assert.ok(onion);
+    assert.equal(onion.preparationNote, "diced");
 
     // Force a null prepNote and re-run.
     const p2 = plan();
@@ -307,8 +320,8 @@ describe("loadPrepWeekInput — payload shape", () => {
       (i) => i.ingredientId === ING_ONION,
     );
     assert.ok(onion2);
-    // Field absent (not null) on no-prep ingredients.
-    assert.equal("preparationNotes" in onion2, false);
+    // Present as null (not omitted) on no-prep ingredients.
+    assert.equal(onion2.preparationNote, null);
   });
 
   it("threads cuisineType into the meal payload when present", async () => {
@@ -322,6 +335,7 @@ describe("loadPrepWeekInput — payload shape", () => {
     const stirFry = input.meals.find((m) => m.mealId === MEAL_B);
     assert.ok(tacos && stirFry);
     assert.equal(tacos.cuisine, "Mexican");
-    assert.equal("cuisine" in stirFry, false);
+    // cuisine is now always present as a field; null when the meal has none.
+    assert.equal(stirFry.cuisine, null);
   });
 });

@@ -39,7 +39,11 @@ const MODEL_HAIKU = "claude-haiku-4-5-20251001";
 // surgery. AIPromptVersion rows cascade via the FK relation. This array
 // is the reusable seam — append future retirements as keys are removed
 // from PROMPTS.
-const RETIRED_KEYS: readonly string[] = ["grocery.ambiguous_item_flag"];
+const RETIRED_KEYS: readonly string[] = [
+  "grocery.ambiguous_item_flag",
+  // WS7-8a B2 — replaced by prep.narrate_steps (BLENDED: code does the math).
+  "prep.aggregation_logic",
+];
 
 const placeholder = (key: string): string =>
   `[PLACEHOLDER for ${key} — replace via 6a-3+ sub-phase]`;
@@ -1086,108 +1090,47 @@ Return ONLY the JSON object.`;
 // Free per PRD §13.5.5 (infrastructure AI; reorders + annotates existing
 // steps — does NOT rewrite step text). Single-dish meals skip the AI entirely
 // at the loader; this body is only invoked when dishCount >= 2.
-// WS6 6d-2 — prep.aggregation_logic. Sonnet, tool_use. Aggregates a
-// week's meals into the 4-phase Prep the Week structure per PRD §13.4.1
-// + §13.4.3 + §13.4.6. Premium per PRD §1.2 (content-generating AI).
-const PREP_AGGREGATION_LOGIC_BODY = `You are Kiwi's Prep the Week aggregation planner. The user has chosen a meal plan and wants to do "Prep the Week" — batch-prep ingredients in advance so weeknight cooking is fast. Your job: take the plan's meals + ingredients and produce a 4-phase prep structure that batches same-ingredient work across meals.
+// WS7-8a B2 — prep.narrate_steps. Sonnet, tool_use. NARRATES a
+// pre-computed prep-step plan (the deterministic engine already did all
+// grouping, summing, scaling, attribution, and phase placement). The AI
+// returns prose only — it never returns or alters a quantity or a meal
+// attribution. Premium per PRD §1.2 (content-generating AI).
+const PREP_NARRATE_STEPS_BODY = `You are Kiwi's Prep the Week narrator. The user has chosen a meal plan and wants to batch-prep ahead so weeknight cooking is fast. The hard work — grouping ingredients across meals, summing quantities, scaling for servings, deciding phases, and tracking which meals each item feeds — is ALREADY DONE. You are handed a finished step plan. Your only job: write friendly, imperative Cook Mode prose for each step.
 
-Your sole deliverable is the structured tool_use response. Do not narrate, summarize, or add commentary. The JSON is the entire response. Never break character with chatbot phrases.
+Your sole deliverable is the structured tool_use response. Do not narrate, summarize, or add commentary outside the tool call. The JSON is the entire response. Never break character with chatbot phrases.
 
-# What you produce
+# What you are given
 
-A \`phases\` array of EXACTLY 4 entries, in this fixed order:
+A 'planName' and a 'steps' array. Each step has:
+- 'stepId' — an opaque id. Echo it back EXACTLY on the matching output step. This is how your prose is re-joined to the computed step. Never change, omit, merge, or invent a stepId.
+- 'phase' — one of 'seasonings_dry', 'sauces_marinades', 'produce', 'proteins'. Context for tone only.
+- 'isBlend' — when true, the step's components are several dry seasonings meant to be pre-measured together into one blend. Narrate them as a single "mix your blend ahead" action.
+- 'components' — the ingredients this step covers. Each has 'ingredientName', 'totalQuantity', 'unit', optional 'preparationNote', and 'forMeals' (the meal names it feeds). These numbers are FINAL.
 
-1. \`seasonings_dry\` — measuring spice blends, dry rubs, dry mixes. Phase title: "Seasonings & dry ingredients". \`skippable: true\`.
-2. \`sauces_marinades\` — whisking dressings, mixing marinades, prepping garnishes, blending sauces. Phase title: "Sauces, marinades & garnishes". \`skippable: true\`.
-3. \`produce\` — washing, chopping, slicing, mincing all vegetables and fresh herbs. Phase title: "Produce". \`skippable: false\`.
-4. \`proteins\` — trimming, portioning, cubing, brining, marinating. ALWAYS LAST for food safety. Phase title: "Proteins". \`skippable: false\`.
+# What you return
 
-If a phase has no real work (e.g. the plan has no spice blends), STILL emit it with \`steps: []\`. The 4-phase shape is invariant.
+Exactly ONE output object per input step, with the SAME 'stepId'. Same count, same ids — no more, no fewer. For each:
+- 'stepId' — the echoed id.
+- 'title' — short imperative ("Dice all yellow onion", "Mix the taco blend"). <=120 chars, no filler.
+- 'instructions' — imperative voice, the actual prep. Use the provided 'totalQuantity' + 'unit' for each component VERBATIM (e.g. "Dice 3 each yellow onion"). You may name the 'forMeals' meals ("for the tacos and the fajitas"). <=800 chars. No fluff.
+- 'storageNote' (optional) — where/how to store after prep (e.g. "Airtight container in the fridge, up to 3 days"). Skip when self-evident.
+- 'estimatedMinutes' — your realistic estimate of the prep time for this step, 1-60. This is the ONE number you decide.
 
-Also return \`totalEstimatedMinutes\` — the sum of all step \`estimatedMinutes\` across all 4 phases. With good batching this should be substantially less than cooking these meals individually from scratch.
+# Hard rules (do not break)
 
-# Each step
-
-- \`number\` — 1-based sequential within the phase (1, 2, 3, …). Restart at 1 in each phase.
-- \`title\` — short imperative ("Mince all garlic", "Dice all yellow onion"). ≤120 chars. No filler.
-- \`instructions\` — the actual prep, in imperative voice ("Mince 6 garlic cloves at once — 3 for the tacos, 3 for the stir-fry"). Include exact quantities aggregated across meals. Cook Mode tone, no fluff. ≤800 chars.
-- \`estimatedMinutes\` — realistic prep minutes for the batched quantity. Range 1-60.
-- \`contributesToMealIds\` — array of mealIds (from the input) this step contributes to. Must reference real mealIds; NEVER invent a UUID. ≥1, ≤20.
-- \`storageNote\` (optional) — where to store after prep (e.g. "Airtight container in fridge, up to 4 days"). Skip for self-evident cases.
-
-# Aggregation rules (this is the value you add)
-
-1. **Same ingredient + similar prep method → single batched step.** If meal A wants "diced onion" and meal B wants "diced onion", chop them in one pass — one step, both mealIds in \`contributesToMealIds\`.
-2. **Same ingredient + different prep methods → separate steps in the same phase.** "Diced onion" for meal A and "thinly sliced onion" for meal B = two steps in Phase 3, each labeled with its destination meal(s).
-3. **Servings scaling.** Each meal's \`servings\` field is its effective serving count (override already applied). When a recipe wants 1 onion per 4 servings and the user is cooking that meal for 6, scale to 1.5. Then aggregate scaled quantities across meals into one batched step.
-4. **No meal-day labeling in the prep instructions.** Don't write "Tuesday's tacos" — meal-day information isn't in your input and the UI renders the meal labels from \`contributesToMealIds\` itself.
-
-# Phase-specific guidance
-
-- **Phase 1 (seasonings_dry):** Measure and combine dry spice blends ahead of time so the user grabs a pre-measured bowl on cook night. Examples: taco seasoning, curry blend, dry rub. Quick wins — usually 1-3 minutes each.
-- **Phase 2 (sauces_marinades):** Whisk dressings, mix marinades, blend sauces, slice garnishes (e.g. green-onion tops, fresh herbs for finishing). Storage matters here — many sauces/dressings need a sealed container.
-- **Phase 3 (produce):** The biggest aggregation opportunity. Wash everything first, then group by cut: all dicing, then all slicing, then all mincing. The goal is to use the same cutting board + knife for runs of similar work. If multiple meals want the same vegetable cut the same way, batch it once.
-- **Phase 4 (proteins):** ALWAYS LAST, food safety. When the plan contains MULTIPLE protein types (e.g. chicken AND fish, or beef AND pork), include an explicit step instructing the user to wash the cutting board and knife between protein types. This is required by PRD §13.4.1, not optional. Place that step between the two protein blocks. Marinating belongs here too — start any marinades the user wants ahead and note refrigerator storage.
-
-# Hard rules
-
-- The \`phases\` array has EXACTLY 4 entries in the order above. Never skip a phase, never reorder, never invent a 5th.
-- Phase 4 \`proteins\` is ALWAYS last, even if there's only one protein in the plan.
-- \`skippable\` is \`true\` for seasonings_dry + sauces_marinades, \`false\` for produce + proteins.
-- Every step's \`contributesToMealIds\` must be a real mealId from the input. The route validates this.
-- Step instructions are imperative voice. "Mince all garlic" not "The user should mince the garlic". Match Kiwi's Cook Mode tone (see meal_builder.assist_steps + sequencer.step_ordering for register).
-- Compute \`totalEstimatedMinutes\` as the SUM of all step \`estimatedMinutes\` across all 4 phases. The route handler sanity-checks this; mismatches are logged.
-
-# Examples
-
-Input: 3 meals — Taco Tuesday (4 servings, 2 dishes), Stir Fry (4 servings, 1 dish), Salmon Plate (2 servings, 2 dishes). Multiple meals use yellow onion, garlic, bell pepper. Tacos has a spice blend. Salmon has a homemade vinaigrette. Two protein types: ground beef + salmon.
-
-Good Phase 3 step (produce, onion):
-\`\`\`
-{
-  "number": 1,
-  "title": "Dice all yellow onion",
-  "instructions": "Dice 3 medium yellow onions total — 2 for the tacos, 1 for the stir-fry.",
-  "estimatedMinutes": 5,
-  "contributesToMealIds": ["meal-tacos-uuid", "meal-stirfry-uuid"],
-  "storageNote": "Airtight container in fridge, up to 3 days"
-}
-\`\`\`
-
-Good Phase 4 (proteins, multi-protein):
-\`\`\`
-{
-  "number": 1,
-  "title": "Portion ground beef",
-  "instructions": "Divide 1 lb ground beef into a single portion for taco night. Wrap and refrigerate.",
-  "estimatedMinutes": 2,
-  "contributesToMealIds": ["meal-tacos-uuid"]
-},
-{
-  "number": 2,
-  "title": "Wash cutting board and knife",
-  "instructions": "Wash and dry your cutting board and knife thoroughly before handling the fish — different protein, no cross-contamination.",
-  "estimatedMinutes": 1,
-  "contributesToMealIds": ["meal-tacos-uuid", "meal-salmon-uuid"]
-},
-{
-  "number": 3,
-  "title": "Portion salmon",
-  "instructions": "Pat 2 salmon fillets dry, season lightly with salt, and refrigerate covered until cook night.",
-  "estimatedMinutes": 2,
-  "contributesToMealIds": ["meal-salmon-uuid"]
-}
-\`\`\`
+- NEVER change a 'totalQuantity', a 'unit', an ingredient, or which meals a step feeds. Those are computed and final — you only describe them. If a quantity looks odd, narrate it as given anyway.
+- NEVER add, drop, split, merge, or reorder steps. One output per input 'stepId', same id.
+- NEVER invent ingredients, quantities, meals, or stepIds not in the input.
+- Do NOT write weekday/meal-day labels beyond the 'forMeals' names you are given.
+- Imperative voice. "Mince all garlic", not "The user should mince the garlic". Match Kiwi's Cook Mode tone.
 
 # Input
 
-The plan and its meals + dishes + ingredients arrive below. Every \`servings\` value already reflects the user's per-instance override (no further scaling needed before aggregating).
-
 \`\`\`json
-{{aggregationInput}}
+{{prepNarrationInput}}
 \`\`\`
 
-Return ONLY the tool_use call with the 4-phase \`phases\` array (in seasonings_dry → sauces_marinades → produce → proteins order) and the summed \`totalEstimatedMinutes\`.`;
+Return ONLY the tool_use call: one narration object per input step, each echoing its 'stepId'.`;
 
 const SEQUENCER_STEP_ORDERING_BODY = `You are Kiwi's Cook Mode sequencer. The user is about to start cooking a meal made of multiple dishes. Each dish has its own ordered steps; your job is to weave them into ONE top-to-bottom sequence the user can follow so every dish finishes at roughly the same time.
 
@@ -1687,13 +1630,13 @@ const PROMPTS: PromptSeed[] = [
     body: MEAL_BUILDER_ASSIST_STEPS_BODY,
   },
   {
-    key: "prep.aggregation_logic",
+    key: "prep.narrate_steps",
     description:
-      "Aggregate cross-meal prep into the 4-phase Prep the Week structure.",
-    variables: ["aggregationInput"],
+      "Narrate a code-computed Prep the Week step plan into Cook Mode prose (no math, no attribution).",
+    variables: ["prepNarrationInput"],
     defaultModel: MODEL_SONNET,
     defaultMode: "tool",
-    body: PREP_AGGREGATION_LOGIC_BODY,
+    body: PREP_NARRATE_STEPS_BODY,
   },
   {
     key: "sequencer.step_ordering",

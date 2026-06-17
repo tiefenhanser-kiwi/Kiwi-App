@@ -29,6 +29,14 @@ import {
   PrepWeekResultSchema,
   type PrepWeekResult,
 } from "../lib/ai/schemas/prepWeek";
+import { buildPrepCombineInput } from "../lib/prepCombineAdapter";
+import { combinePrep } from "../lib/prepCombineEngine";
+import {
+  buildStepPlan,
+  assemblePrepWeekResult,
+  PrepNarrationIncompleteError,
+} from "../lib/prepWeekAssembly";
+import { PrepNarrationResultSchema } from "../lib/ai/schemas/prepNarration";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
@@ -198,11 +206,23 @@ export function createCookingRouter(
         });
       }
 
-      // 4. Cache miss or stale — call the AI.
+      // 4. Cache miss or stale. BLENDED path: deterministic engine does ALL
+      //    grouping / summing / scaling / attribution / phase placement; the
+      //    AI is called only to narrate the computed step plan into prose.
+      const combineInput = buildPrepCombineInput(input);
+      const combineResult = combinePrep(combineInput);
+      const stepPlan = buildStepPlan(combineResult, input.planName);
+
+      // Nothing in the plan is prep-worthy (all denylisted / buy-and-use) —
+      // same 400 + copy as a structurally empty plan.
+      if (stepPlan.steps.length === 0) {
+        return res.status(400).json({ error: EMPTY_PLAN_COPY });
+      }
+
       const aiResult = await runAICall(
-        "prep.aggregation_logic",
-        { aggregationInput: input },
-        PrepWeekResultSchema,
+        "prep.narrate_steps",
+        { prepNarrationInput: stepPlan.narrationInput },
+        PrepNarrationResultSchema,
         { prisma, userId },
       );
 
@@ -213,9 +233,9 @@ export function createCookingRouter(
             userId,
             planId,
             reason: aiResult.reason,
-            promptKey: "prep.aggregation_logic",
+            promptKey: "prep.narrate_steps",
           },
-          "Prep the Week AI call failed",
+          "Prep the Week narration AI call failed",
         );
         return res.status(502).json({
           error: aiResult.userFacingMessage,
@@ -223,33 +243,60 @@ export function createCookingRouter(
         });
       }
 
-      // 5. Sanity-check totalEstimatedMinutes vs sum of step estimates.
-      //    Model arithmetic drift is common; tolerate ±2 min, warn but
-      //    don't fail. The model's number is what we persist.
-      const recomputedTotal = aiResult.data.phases.reduce(
-        (sum, p) => sum + p.steps.reduce((s, step) => s + step.estimatedMinutes, 0),
-        0,
-      );
-      const reportedTotal = aiResult.data.totalEstimatedMinutes;
-      if (Math.abs(recomputedTotal - reportedTotal) > 2) {
-        logger.warn(
-          {
-            event: "prep_week_total_minutes_mismatch",
-            userId,
-            planId,
-            reportedTotal,
-            recomputedTotal,
-          },
-          "Prep the Week totalEstimatedMinutes drifts from step sum",
-        );
+      // 5. Assemble the response IN CODE. Numeric + attribution fields come
+      //    from the engine/step plan; only title/instructions/storageNote/
+      //    estimatedMinutes come from the AI. The narration schema has no
+      //    quantity or mealId field, so prose cannot move the math — fail
+      //    closed if the AI didn't narrate every planned step.
+      let assembled: PrepWeekResult;
+      try {
+        assembled = assemblePrepWeekResult(stepPlan, aiResult.data);
+      } catch (err) {
+        if (err instanceof PrepNarrationIncompleteError) {
+          logger.warn(
+            {
+              event: "prep_week_narration_incomplete",
+              userId,
+              planId,
+              missing: err.missingStepIds.slice(0, 10),
+              missingCount: err.missingStepIds.length,
+            },
+            "Prep the Week narration omitted planned steps",
+          );
+          return res.status(502).json({
+            error: "Kiwi got distracted. Try again?",
+            reason: "narration_incomplete",
+          });
+        }
+        throw err;
       }
 
-      // 6. Validate that every contributesToMealIds entry references a
-      //    real mealId from the input. Belt-and-braces against an AI
-      //    that invents UUIDs despite the prompt's hard rule.
+      // 6. Defensive: the assembled result must satisfy the locked wire
+      //    contract (mobile shape unchanged). Step/phase ceilings live here.
+      const validated = PrepWeekResultSchema.safeParse(assembled);
+      if (!validated.success) {
+        logger.warn(
+          {
+            event: "prep_week_assembly_invalid",
+            userId,
+            planId,
+            error: validated.error.flatten(),
+          },
+          "Assembled Prep the Week result failed schema validation",
+        );
+        return res.status(502).json({
+          error: "Kiwi got distracted. Try again?",
+          reason: "assembly_invalid",
+        });
+      }
+      const result = validated.data;
+
+      // 7. Defensive assertion — attribution is now code-owned, so this should
+      //    never fire. Kept as a guard that every contributesToMealId traces
+      //    to a real input meal.
       const validMealIds = new Set(input.meals.map((m) => m.mealId));
       const invalidRefs: string[] = [];
-      for (const phase of aiResult.data.phases) {
+      for (const phase of result.phases) {
         for (const step of phase.steps) {
           for (const id of step.contributesToMealIds) {
             if (!validMealIds.has(id)) invalidRefs.push(id);
@@ -265,7 +312,7 @@ export function createCookingRouter(
             invalidRefs: invalidRefs.slice(0, 10),
             invalidCount: invalidRefs.length,
           },
-          "Prep the Week AI produced unknown mealIds",
+          "Prep the Week produced unknown mealIds (code-owned — unexpected)",
         );
         return res.status(502).json({
           error: "Kiwi got distracted. Try again?",
@@ -273,11 +320,11 @@ export function createCookingRouter(
         });
       }
 
-      // 7. Cache write. UPSERT keyed by planId — covers create (cache
+      // 8. Cache write. UPSERT keyed by planId — covers create (cache
       //    miss, no prior row) AND stale-update (revisionId moved) in
       //    one operation.
       const promptVersion = aiResult.metadata.promptVersion ?? 0;
-      const structureJson = aiResult.data as unknown as object;
+      const structureJson = result as unknown as object;
       try {
         await prisma.prepWeekStructure.upsert({
           where: { planId },
@@ -307,7 +354,7 @@ export function createCookingRouter(
 
       return res.json({
         cacheHit: false,
-        result: aiResult.data,
+        result,
         planRevisionId,
         generatedAt: new Date().toISOString(),
         promptVersion,

@@ -327,7 +327,10 @@ function makeCacheStub() {
   };
 }
 
-// Minimal loader stub: returns a valid PrepWeekInput shape.
+// Enriched loader stub: returns the PrepLoadedPlan shape the adapter+engine
+// consume. Each meal carries one diced produce onion (same ingredientId across
+// meals → the engine groups it into ONE produce step whose contributesToMealIds
+// is the union of all the meals).
 function makeLoaderStub(opts: {
   planRevisionId: number;
   mealIds: string[];
@@ -344,20 +347,24 @@ function makeLoaderStub(opts: {
       input: {
         planId: params.planId,
         planName: "Test Plan",
-        meals: opts.mealIds.map((mealId) => ({
+        meals: opts.mealIds.map((mealId, idx) => ({
           mealId,
-          mealName: "M",
-          servings: 4,
+          mealName: `Meal ${idx + 1}`,
+          cuisine: null,
+          servingsOverride: null,
           dishes: [
             {
-              dishId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-              dishName: "D",
+              dishId: `dddddddd-dddd-4ddd-8ddd-${String(idx).padStart(12, "0")}`,
+              dishName: "Dish",
+              baseServings: 4,
               ingredients: [
                 {
                   ingredientId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-                  ingredientName: "onion",
+                  ingredientName: "yellow onion",
+                  category: "Produce",
                   quantity: 1,
-                  unit: "medium",
+                  unit: "each",
+                  preparationNote: "diced",
                 },
               ],
             },
@@ -369,13 +376,23 @@ function makeLoaderStub(opts: {
   }) as never;
 }
 
+// Narration AI stub. The route now calls runAICall ONLY to narrate the
+// code-computed step plan; this stub ECHOES the stepIds it is handed back with
+// canned prose. It cannot return a quantity or a mealId — the narration schema
+// has no such field — which is exactly the by-construction guarantee.
 function makeAICallStub(opts: {
-  result?: PrepWeekResult;
   failure?: { reason: string; userFacingMessage: string };
   onCall?: () => void;
   promptVersion?: number;
+  estimatedMinutes?: number;
+  // Override the echoed steps (e.g. drop one to force narration_incomplete,
+  // or inject garbage prose to prove it can't move the math).
+  narrate?: (steps: { stepId: string }[]) => unknown[];
 }) {
-  return (async () => {
+  return (async (
+    _promptKey: string,
+    vars: { prepNarrationInput?: { steps: { stepId: string }[] } },
+  ) => {
     opts.onCall?.();
     if (opts.failure) {
       return {
@@ -385,11 +402,20 @@ function makeAICallStub(opts: {
         metadata: {},
       };
     }
+    const inputSteps = vars.prepNarrationInput?.steps ?? [];
+    const steps = opts.narrate
+      ? opts.narrate(inputSteps)
+      : inputSteps.map((s, i) => ({
+          stepId: s.stepId,
+          title: `Step ${i + 1}`,
+          instructions: `Do step ${i + 1}.`,
+          estimatedMinutes: opts.estimatedMinutes ?? 5,
+        }));
     return {
       success: true,
-      data: opts.result ?? happyPrepWeekResult(),
+      data: { steps },
       metadata: {
-        promptKey: "prep.aggregation_logic",
+        promptKey: "prep.narrate_steps",
         promptVersion: opts.promptVersion ?? 1,
         model: "claude-sonnet-4-6",
         mode: "tool",
@@ -678,31 +704,75 @@ describe("POST /api/plans/:planId/prep-week — loader error mapping", () => {
   });
 });
 
-describe("POST /api/plans/:planId/prep-week — invalid meal reference guard", () => {
-  it("returns 502 when AI returns a contributesToMealIds entry not in input", async () => {
+describe("POST /api/plans/:planId/prep-week — prose cannot move the math", () => {
+  it("contributesToMealIds come from the engine, not the AI narration", async () => {
     const cache = makeCacheStub();
-    const bogus = happyPrepWeekResult();
-    // Replace the meal-id with an invented UUID not present in the input.
-    bogus.phases[2].steps[0].contributesToMealIds = [
-      "ffffffff-ffff-4fff-8fff-ffffffffffff",
-    ];
+    const MEAL_A = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const MEAL_B = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
     const harness = await spinUp({
-      loadPrepWeekInput: makeLoaderStub({ planRevisionId: 1, mealIds: [MEAL_ID_X] }),
-      runAICall: makeAICallStub({ result: bogus }),
+      // Two meals share the same onion ingredientId → one produce step whose
+      // attribution is the union of both meals.
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 1,
+        mealIds: [MEAL_A, MEAL_B],
+      }),
+      // Narration returns garbage prose — and literally cannot return mealIds.
+      runAICall: makeAICallStub({
+        narrate: (steps) =>
+          steps.map((s) => ({
+            stepId: s.stepId,
+            title: "TOTALLY WRONG TITLE",
+            instructions: "Ignore the numbers entirely.",
+            estimatedMinutes: 9,
+          })),
+      }),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       prisma: cache.prisma as any,
       subscriptionService: { can: async () => ({ allowed: true }) },
     });
     try {
-      const token = signToken("u-bogus");
+      const token = signToken("u-construct");
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { result: PrepWeekResult };
+      const produce = body.result.phases.find((p) => p.phase === "produce")!;
+      assert.equal(produce.steps.length, 1);
+      // Attribution is code-owned: BOTH meals, regardless of the narration.
+      assert.deepEqual(
+        [...produce.steps[0].contributesToMealIds].sort(),
+        [MEAL_A, MEAL_B].sort(),
+      );
+      // Prose is the AI's; numbers/attribution are not.
+      assert.equal(produce.steps[0].title, "TOTALLY WRONG TITLE");
+      assert.equal(produce.steps[0].number, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 502 (narration_incomplete) when the AI drops a planned step", async () => {
+    const cache = makeCacheStub();
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({ planRevisionId: 1, mealIds: [MEAL_ID_X] }),
+      // Narrate nothing → the single planned step is unmatched.
+      runAICall: makeAICallStub({ narrate: () => [] }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const token = signToken("u-incomplete");
       const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
       assert.equal(res.status, 502);
       const body = (await res.json()) as { reason: string };
-      assert.equal(body.reason, "invalid_meal_reference");
-      // Cache must NOT be written on failure.
+      assert.equal(body.reason, "narration_incomplete");
+      // Nothing persisted on failure.
       assert.equal(cache.writeCount(), 0);
     } finally {
       await harness.close();

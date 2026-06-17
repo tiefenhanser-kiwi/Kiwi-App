@@ -224,15 +224,16 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
         "Generate phase-tagged cooking steps from a dish's ingredient list + cuisine.",
     },
   ],
-  // 6d-2 — Prep the Week aggregation
+  // 6d-2 / WS7-8a B2 — Prep the Week narration (BLENDED: code does the math,
+  // AI only writes prose).
   [
-    "prep.aggregation_logic",
+    "prep.narrate_steps",
     {
-      body: placeholder("prep.aggregation_logic"),
+      body: placeholder("prep.narrate_steps"),
       defaultModel: MODEL_SONNET,
       defaultMode: "tool",
       toolDescription:
-        "Aggregate cross-meal prep into the 4-phase Prep the Week structure.",
+        "Narrate a code-computed Prep the Week step plan into Cook Mode prose (no math, no attribution).",
     },
   ],
   // 6d-1 — Cooking Sequencer
