@@ -71,6 +71,12 @@ export const PrepWeekStepSchema = z.object({
   // Optional. Use only when storage is non-trivial (e.g. airtight
   // container, 4 days max). Skip for self-evident cases.
   storageNote: z.string().max(200).optional(),
+  // WS7-8a B2b (D-WS7-150) — narration-suggested skip. Set true when the
+  // step's ingredients appear ONLY in a season-and-cook step (judged by the
+  // AI from step prose), so the user does it while cooking, not at prep time.
+  // Pure annotation: code-owned number / contributesToMealIds / quantities
+  // are untouched. Mobile renders skipSuggested steps muted (Block 8b).
+  skipSuggested: z.boolean().optional(),
 });
 export type PrepWeekStep = z.infer<typeof PrepWeekStepSchema>;
 

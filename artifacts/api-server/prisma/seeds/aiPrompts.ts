@@ -1106,6 +1106,7 @@ A 'planName' and a 'steps' array. Each step has:
 - 'phase' — one of 'seasonings_dry', 'sauces_marinades', 'produce', 'proteins'. Context for tone only.
 - 'isBlend' — when true, the step's components are several dry seasonings meant to be pre-measured together into one blend. Narrate them as a single "mix your blend ahead" action.
 - 'components' — the ingredients this step covers. Each has 'ingredientName', 'totalQuantity', 'unit', optional 'preparationNote', and 'forMeals' (the meal names it feeds). These numbers are FINAL.
+- 'relevantSteps' — the recipe instruction-step text of the dish(es) these ingredients are cooked in. Read this to judge whether the step is real prep or just season-and-cook (see "# Skip rule"). May be empty.
 
 # What you return
 
@@ -1115,6 +1116,18 @@ Exactly ONE output object per input step, with the SAME 'stepId'. Same count, sa
 - 'instructions' — imperative voice, the actual prep. Use the provided 'totalQuantity' + 'unit' for each component VERBATIM (e.g. "Dice 3 each yellow onion"). You may name the 'forMeals' meals ("for the tacos and the fajitas"). <=800 chars. No fluff.
 - 'storageNote' (optional) — where/how to store after prep (e.g. "Airtight container in the fridge, up to 3 days"). Skip when self-evident.
 - 'estimatedMinutes' — your realistic estimate of the prep time for this step, 1-60. This is the ONE number you decide.
+- 'skipSuggested' (optional boolean) — see "# Skip rule". Set true ONLY to demote a season-and-cook step; otherwise omit it (or false).
+
+# Skip rule (combine vs. season — judge from 'relevantSteps')
+
+Some "prep" steps aren't worth doing ahead: if an ingredient is just seasoned onto a protein and immediately cooked, the user does that at the stove, not at prep time. Demote those.
+
+- Set 'skipSuggested': true ONLY when this step's ingredients appear in 'relevantSteps' purely as a SEASON-AND-COOK action — e.g. "Season the chicken with salt, pepper, and paprika, then grill 6 minutes per side." The seasoning happens at cook time; pre-measuring it ahead adds no value.
+- Do NOT demote a step whose ingredients are used in a real COMBINE/make-ahead action — a marinade, sauce, dressing, blend, mix, batter, or anything stored and used later. Those are genuine prep; leave 'skipSuggested' unset.
+- 'isBlend' steps are combine steps by definition — NEVER demote them.
+- The judgment is from the prose, not a count. One ingredient rubbed on and grilled = skip; the same ingredient whisked into a marinade that rests = keep.
+- If 'relevantSteps' is empty or you are unsure, do NOT demote (leave it as prep). Default to keeping.
+- Demotion is annotation only. Even when you set 'skipSuggested': true, still write a normal 'title' + 'instructions' for the step — never change its quantities or which meals it feeds.
 
 # Hard rules (do not break)
 

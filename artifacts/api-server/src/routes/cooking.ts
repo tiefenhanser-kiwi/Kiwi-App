@@ -211,7 +211,19 @@ export function createCookingRouter(
       //    AI is called only to narrate the computed step plan into prose.
       const combineInput = buildPrepCombineInput(input);
       const combineResult = combinePrep(combineInput);
-      const stepPlan = buildStepPlan(combineResult, input.planName);
+      // WS7-8a B2b — step text per dishId (folded dish + meal owned) so the
+      // narration layer can judge combine-vs-season and demote skip steps.
+      const stepTextByDishId = new Map<string, string[]>();
+      for (const meal of input.meals) {
+        for (const dish of meal.dishes) {
+          stepTextByDishId.set(dish.dishId, dish.stepTexts);
+        }
+      }
+      const stepPlan = buildStepPlan(
+        combineResult,
+        input.planName,
+        stepTextByDishId,
+      );
 
       // Nothing in the plan is prep-worthy (all denylisted / buy-and-use) —
       // same 400 + copy as a structurally empty plan.

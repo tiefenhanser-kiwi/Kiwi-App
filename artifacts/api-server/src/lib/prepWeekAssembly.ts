@@ -63,6 +63,9 @@ export interface PlannedStep {
   contributesToMealIds: string[];
   isBlend: boolean;
   components: PrepNarrationComponent[];
+  // WS7-8a B2b — raw step text of the dish(es) this step's ingredients are
+  // cooked in, for the AI's combine-vs-season judgment.
+  relevantSteps: string[];
 }
 
 export interface StepPlan {
@@ -96,11 +99,27 @@ function mealIdsOf(entry: PrepIngredientGroup): string[] {
   return entry.lines.flatMap((l) => l.contributions.map((c) => c.mealId));
 }
 
+function dishIdsOf(entry: PrepIngredientGroup): string[] {
+  return entry.lines.flatMap((l) => l.contributions.map((c) => c.dishId));
+}
+
 export function buildStepPlan(
   result: PrepCombineResult,
   planName: string,
+  // WS7-8a B2b — raw step text per dishId (dish-owned + meal-owned folded in,
+  // built by the route from the loader output). A step's relevantSteps is the
+  // deduped union over the dishes its ingredients are cooked in. Defaults to
+  // an empty map so callers/tests that don't need the skip rule still work.
+  stepTextByDishId: Map<string, string[]> = new Map(),
 ): StepPlan {
   const steps: PlannedStep[] = [];
+
+  const relevantStepsFor = (group: PrepIngredientGroup[]): string[] =>
+    dedupe(
+      [...new Set(group.flatMap(dishIdsOf))].flatMap(
+        (dishId) => stepTextByDishId.get(dishId) ?? [],
+      ),
+    );
 
   for (const phase of result.phases) {
     const key = phase.phase;
@@ -117,6 +136,7 @@ export function buildStepPlan(
         contributesToMealIds: dedupe(group.flatMap(mealIdsOf)),
         isBlend,
         components: group.flatMap(componentsOf),
+        relevantSteps: relevantStepsFor(group),
       });
     };
 
@@ -135,6 +155,7 @@ export function buildStepPlan(
       phase: s.phase,
       isBlend: s.isBlend,
       components: s.components,
+      relevantSteps: s.relevantSteps,
     })),
   };
 
@@ -168,6 +189,9 @@ export function assemblePrepWeekResult(
       estimatedMinutes: prose.estimatedMinutes, // AI (time judgment)
       contributesToMealIds: planned.contributesToMealIds, // CODE — never from prose
       ...(prose.storageNote ? { storageNote: prose.storageNote } : {}),
+      // WS7-8a B2b — AI demotion annotation. Only emit when true so the wire
+      // shape stays minimal; false/undefined → field absent (= keep as prep).
+      ...(prose.skipSuggested ? { skipSuggested: true } : {}),
     });
   }
 

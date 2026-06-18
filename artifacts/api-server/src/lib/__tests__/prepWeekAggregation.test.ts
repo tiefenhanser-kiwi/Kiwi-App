@@ -67,13 +67,38 @@ interface PlanFixture {
   items: ItemFixture[];
 }
 
-function makePrismaStub(plans: PlanFixture[]): PrismaClient {
+interface StepFixture {
+  ownerType: "dish" | "meal";
+  ownerId: string;
+  stepIndex: number;
+  stepTextRaw: string;
+}
+
+function makePrismaStub(
+  plans: PlanFixture[],
+  steps: StepFixture[] = [],
+): PrismaClient {
   return {
     mealPlanInstance: {
       findUnique: async ({ where }: { where: { id: string } }) => {
         const p = plans.find((pp) => pp.id === where.id);
         return p ?? null;
       },
+    },
+    recipeInstructionStep: {
+      findMany: async ({
+        where,
+      }: {
+        where: { ownerType: string; ownerId: { in: string[] } };
+      }) =>
+        steps
+          .filter(
+            (s) =>
+              s.ownerType === where.ownerType &&
+              where.ownerId.in.includes(s.ownerId),
+          )
+          .sort((a, b) => a.stepIndex - b.stepIndex)
+          .map((s) => ({ ownerId: s.ownerId, stepTextRaw: s.stepTextRaw })),
     },
   } as unknown as PrismaClient;
 }
@@ -337,5 +362,52 @@ describe("loadPrepWeekInput — payload shape", () => {
     assert.equal(tacos.cuisine, "Mexican");
     // cuisine is now always present as a field; null when the meal has none.
     assert.equal(stirFry.cuisine, null);
+  });
+});
+
+describe("loadPrepWeekInput — step text (WS7-8a B2b)", () => {
+  it("folds BOTH dish-owned and meal-owned steps into a dish's stepTexts", async () => {
+    const steps: StepFixture[] = [
+      // dish-owned (multi-dish path)
+      { ownerType: "dish", ownerId: DISH_A1, stepIndex: 1, stepTextRaw: "Dice the onion." },
+      { ownerType: "dish", ownerId: DISH_A1, stepIndex: 0, stepTextRaw: "Mince the garlic." },
+      // meal-owned (single-dish path) on the SAME meal
+      { ownerType: "meal", ownerId: MEAL_A, stepIndex: 0, stepTextRaw: "Season the beef and brown it." },
+      // dish-owned on the other meal's dish
+      { ownerType: "dish", ownerId: DISH_B1, stepIndex: 0, stepTextRaw: "Stir-fry everything." },
+    ];
+    const prisma = makePrismaStub([plan()], steps);
+    const { input } = await loadPrepWeekInput({
+      planId: PLAN_ID,
+      userId: USER_ID,
+      prisma,
+    });
+    const tacos = input.meals.find((m) => m.mealId === MEAL_A);
+    assert.ok(tacos);
+    // dish-owned steps (stepIndex order) THEN the meal-owned step.
+    assert.deepEqual(tacos.dishes[0].stepTexts, [
+      "Mince the garlic.",
+      "Dice the onion.",
+      "Season the beef and brown it.",
+    ]);
+
+    const stirFry = input.meals.find((m) => m.mealId === MEAL_B);
+    assert.ok(stirFry);
+    // MEAL_B has no meal-owned steps → only its dish-owned step.
+    assert.deepEqual(stirFry.dishes[0].stepTexts, ["Stir-fry everything."]);
+  });
+
+  it("leaves stepTexts empty when no steps exist", async () => {
+    const prisma = makePrismaStub([plan()], []);
+    const { input } = await loadPrepWeekInput({
+      planId: PLAN_ID,
+      userId: USER_ID,
+      prisma,
+    });
+    for (const meal of input.meals) {
+      for (const dish of meal.dishes) {
+        assert.deepEqual(dish.stepTexts, []);
+      }
+    }
   });
 });

@@ -12,7 +12,11 @@ import {
   PrepNarrationIncompleteError,
   type StepPlan,
 } from "../prepWeekAssembly";
-import type { PrepNarrationResult } from "../ai/schemas/prepNarration";
+import {
+  PrepNarrationResultSchema,
+  type PrepNarrationResult,
+} from "../ai/schemas/prepNarration";
+import { PrepWeekResultSchema } from "../ai/schemas/prepWeek";
 
 const MEAL_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const MEAL_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -200,5 +204,92 @@ describe("assemblePrepWeekResult", () => {
       () => assemblePrepWeekResult(sp, partial),
       (err) => err instanceof PrepNarrationIncompleteError,
     );
+  });
+});
+
+// ── B2b: step text + skipSuggested ───────────────────────────────────────────
+
+describe("buildStepPlan — relevantSteps (B2b)", () => {
+  it("attaches deduped step text from the dishes a group's ingredients come from", () => {
+    const map = new Map<string, string[]>([
+      ["d-a", ["Season the beef.", "Brown it."]],
+      ["d-b", ["Char the peppers."]],
+    ]);
+    const sp = buildStepPlan(combinePrep(plan()), "P", map);
+    // onion appears in d-a AND d-b → union of both dishes' steps.
+    const produce = sp.steps.find((s) => s.phase === "produce")!;
+    assert.deepEqual(
+      [...produce.relevantSteps].sort(),
+      ["Brown it.", "Char the peppers.", "Season the beef."].sort(),
+    );
+    // narrationInput mirrors it for the AI.
+    const ni = sp.narrationInput.steps.find((s) => s.stepId === produce.stepId)!;
+    assert.deepEqual(ni.relevantSteps, produce.relevantSteps);
+  });
+
+  it("defaults relevantSteps to empty when no step-text map is supplied", () => {
+    const sp = buildStepPlan(combinePrep(plan()), "P");
+    for (const s of sp.steps) assert.deepEqual(s.relevantSteps, []);
+  });
+});
+
+describe("assemblePrepWeekResult — skipSuggested (B2b)", () => {
+  it("flags the step the AI demoted and omits the field otherwise", () => {
+    const sp = buildStepPlan(combinePrep(plan()), "P");
+    const protein = sp.steps.find((s) => s.phase === "proteins")!;
+    const narration: PrepNarrationResult = {
+      steps: sp.steps.map((s) => ({
+        stepId: s.stepId,
+        title: "T",
+        instructions: "I",
+        estimatedMinutes: 5,
+        ...(s.stepId === protein.stepId ? { skipSuggested: true } : {}),
+      })),
+    };
+    const result = assemblePrepWeekResult(sp, narration);
+    // Wire schema round-trips skipSuggested.
+    assert.ok(PrepWeekResultSchema.safeParse(result).success);
+    const proteins = result.phases.find((p) => p.phase === "proteins")!;
+    assert.equal(proteins.steps[0].skipSuggested, true);
+    const produce = result.phases.find((p) => p.phase === "produce")!;
+    assert.equal("skipSuggested" in produce.steps[0], false);
+  });
+
+  it("INVARIANT: demotion never changes code-owned number / attribution", () => {
+    const sp = buildStepPlan(combinePrep(plan()), "P");
+    const plain: PrepNarrationResult = {
+      steps: sp.steps.map((s) => ({
+        stepId: s.stepId,
+        title: "T",
+        instructions: "I",
+        estimatedMinutes: 5,
+      })),
+    };
+    const allDemoted: PrepNarrationResult = {
+      steps: plain.steps.map((s) => ({ ...s, skipSuggested: true })),
+    };
+    const a = assemblePrepWeekResult(sp, plain);
+    const b = assemblePrepWeekResult(sp, allDemoted);
+    const codeOwned = (r: ReturnType<typeof assemblePrepWeekResult>) =>
+      r.phases.map((p) =>
+        p.steps.map((s) => ({
+          number: s.number,
+          contributesToMealIds: s.contributesToMealIds,
+        })),
+      );
+    // Numbers + attribution identical whether or not every step was demoted.
+    assert.deepEqual(codeOwned(a), codeOwned(b));
+  });
+});
+
+describe("narration + wire schemas accept skipSuggested (B2b)", () => {
+  it("PrepNarrationResultSchema parses a step with skipSuggested", () => {
+    const ok = PrepNarrationResultSchema.safeParse({
+      steps: [
+        { stepId: "produce#1", title: "T", instructions: "I", estimatedMinutes: 5, skipSuggested: true },
+        { stepId: "proteins#1", title: "T", instructions: "I", estimatedMinutes: 5 },
+      ],
+    });
+    assert.ok(ok.success);
   });
 });

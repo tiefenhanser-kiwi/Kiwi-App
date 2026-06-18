@@ -37,6 +37,11 @@ export interface PrepNarrationStepInput {
   phase: PrepPhaseKey;
   isBlend: boolean;
   components: PrepNarrationComponent[];
+  // WS7-8a B2b (D-WS7-150) — raw instruction-step text from the dish(es) this
+  // step's ingredients are cooked in. The AI reads this to judge combine-vs-
+  // season: if the ingredients appear only in a season-and-cook step, it sets
+  // skipSuggested. Empty when no step text was available (then never demote).
+  relevantSteps: string[];
 }
 
 export interface PrepNarrationInput {
@@ -55,6 +60,10 @@ export const PrepNarrationStepResultSchema = z.object({
   // The one number the AI owns: a prep-time judgment (not a quantity, not an
   // attribution). Code sums these into totalEstimatedMinutes.
   estimatedMinutes: z.number().int().min(1).max(60),
+  // WS7-8a B2b (D-WS7-150) — the AI's combine-vs-season judgment. true =
+  // demote this step (its ingredients are only seasoned-and-cooked, not
+  // prepped ahead). Annotation only; code-owned numbers/attribution stand.
+  skipSuggested: z.boolean().optional(),
 });
 export type PrepNarrationStepResult = z.infer<typeof PrepNarrationStepResultSchema>;
 

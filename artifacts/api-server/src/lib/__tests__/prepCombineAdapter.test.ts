@@ -34,6 +34,7 @@ function loaded(overrides: {
             dishId: "dish-1",
             dishName: "Dish 1",
             baseServings: overrides.baseServings,
+            stepTexts: [],
             ingredients: [
               {
                 ingredientId: "ing-1",

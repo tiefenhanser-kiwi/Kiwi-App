@@ -35,6 +35,14 @@ export interface PrepLoadedDish {
   // dish.servingsDefault — the scaling base (matches groceryList.ts).
   baseServings: number;
   ingredients: PrepLoadedIngredient[];
+  // WS7-8a B2b (D-WS7-150) — raw instruction-step text for this dish, in
+  // stepIndex order, so the narration layer can judge combine-vs-season from
+  // prose. Includes the dish's own (ownerType="dish") steps AND its meal's
+  // (ownerType="meal") steps folded in — single-dish meals keep meal-owned
+  // steps, so a dish-centric consumer would otherwise miss them entirely.
+  // RecipeInstructionStep is polymorphic (ownerType/ownerId, app-enforced),
+  // so this is a separate keyed query, not a relation traversal.
+  stepTexts: string[];
 }
 
 export interface PrepLoadedMeal {
@@ -153,6 +161,7 @@ export async function loadPrepWeekInput(
           dishName: dish.title,
           baseServings: dish.servingsDefault,
           ingredients,
+          stepTexts: [] as string[], // filled below from a keyed step query
         };
       })
       // Skip dishes with no ingredients — nothing to prep.
@@ -172,6 +181,49 @@ export async function loadPrepWeekInput(
   // After filtering empty meals/dishes, we may still have nothing to prep —
   // treat as empty plan.
   if (meals.length === 0) throw new PrepWeekEmptyPlanError(planId);
+
+  // WS7-8a B2b — fetch instruction-step text for BOTH polymorphic owner
+  // types (mirrors cookingSequence.ts:107-111). Dish-owned steps cover
+  // multi-dish meals; meal-owned steps cover single-dish meals. We can't
+  // JOIN (the FK is app-enforced), so it's two keyed findMany calls.
+  const dishIds = meals.flatMap((m) => m.dishes.map((d) => d.dishId));
+  const mealIds = meals.map((m) => m.mealId);
+  const [dishSteps, mealSteps] = await Promise.all([
+    prisma.recipeInstructionStep.findMany({
+      where: { ownerType: "dish", ownerId: { in: dishIds } },
+      orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
+      select: { ownerId: true, stepTextRaw: true },
+    }),
+    prisma.recipeInstructionStep.findMany({
+      where: { ownerType: "meal", ownerId: { in: mealIds } },
+      orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
+      select: { ownerId: true, stepTextRaw: true },
+    }),
+  ]);
+
+  const dishStepsByOwner = new Map<string, string[]>();
+  for (const s of dishSteps) {
+    const list = dishStepsByOwner.get(s.ownerId);
+    if (list) list.push(s.stepTextRaw);
+    else dishStepsByOwner.set(s.ownerId, [s.stepTextRaw]);
+  }
+  const mealStepsByOwner = new Map<string, string[]>();
+  for (const s of mealSteps) {
+    const list = mealStepsByOwner.get(s.ownerId);
+    if (list) list.push(s.stepTextRaw);
+    else mealStepsByOwner.set(s.ownerId, [s.stepTextRaw]);
+  }
+
+  // Fold a dish's own steps + its meal's steps into one list. For multi-dish
+  // meals the meal list is empty; for single-dish meals the dish list is
+  // empty — so each dish ends up with the steps that actually cook it.
+  for (const meal of meals) {
+    const mealOwned = mealStepsByOwner.get(meal.mealId) ?? [];
+    for (const dish of meal.dishes) {
+      const dishOwned = dishStepsByOwner.get(dish.dishId) ?? [];
+      dish.stepTexts = [...dishOwned, ...mealOwned];
+    }
+  }
 
   const planName =
     plan.titleOverride ??
