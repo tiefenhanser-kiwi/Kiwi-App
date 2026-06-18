@@ -57,8 +57,17 @@ export class PrepNarrationIncompleteError extends Error {
 
 export interface PlannedStep {
   stepId: string;
+  // WS7-8a B3 (D-WS7-153) — STABLE per-step key for checkbox persistence,
+  // distinct from the transient positional `stepId`. Derived from the engine's
+  // ingredientId (1:1 with phase), so it survives a regenerate. Carried onto
+  // the wire step in assemblePrepWeekResult.
+  stepKey: string;
   phase: PrepPhaseKey;
   number: number;
+  // The engine ingredientId this step's key is derived from. null for the
+  // collapsed seasonings_dry blend step (it folds many ingredientIds into one
+  // step, keyed by the `seasonings_dry#blend` sentinel instead).
+  ingredientId: string | null;
   // CODE-OWNED attribution — the dedup union of the contributing meal ids.
   contributesToMealIds: string[];
   isBlend: boolean;
@@ -129,10 +138,17 @@ export function buildStepPlan(
     let number = 0;
     const pushStep = (isBlend: boolean, group: PrepIngredientGroup[]): void => {
       number += 1;
+      // Stable key derivation (D-WS7-153). The blend step collapses many
+      // ingredientIds → sentinel key; a normal step is exactly one group, so
+      // group[0].ingredientId is its stable identity.
+      const ingredientId = isBlend ? null : group[0].ingredientId;
+      const stepKey = isBlend ? `${key}#blend` : `${key}#${ingredientId}`;
       steps.push({
         stepId: `${key}#${number}`,
+        stepKey,
         phase: key,
         number,
+        ingredientId,
         contributesToMealIds: dedupe(group.flatMap(mealIdsOf)),
         isBlend,
         components: group.flatMap(componentsOf),
@@ -184,6 +200,7 @@ export function assemblePrepWeekResult(
     total += prose.estimatedMinutes;
     stepsByPhase.get(planned.phase)!.push({
       number: planned.number, // CODE
+      stepKey: planned.stepKey, // CODE — stable persistence identity
       title: prose.title, // AI
       instructions: prose.instructions, // AI
       estimatedMinutes: prose.estimatedMinutes, // AI (time judgment)

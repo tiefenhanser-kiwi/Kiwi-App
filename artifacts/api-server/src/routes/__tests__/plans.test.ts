@@ -215,6 +215,10 @@ function instanceFix(opts: {
   startDate?: Date | null;
   endDate?: Date | null;
   prepStatus?: "not_prepped" | "partial" | "prepped";
+  prepStatusIsManual?: boolean;
+  // WS7-8a B3 — checked stepKeys for this plan (drives the per-meal derivation;
+  // the step set itself comes from the injected loadPrepStepSet stub).
+  completions?: string[];
   optimizationNotes?: unknown;
   breakfastOverrides?: string | null;
   lunchOverrides?: string | null;
@@ -237,6 +241,8 @@ function instanceFix(opts: {
     isWizardDraft: opts.isWizardDraft ?? false,
     revisionId: 2,
     prepStatus: opts.prepStatus ?? "not_prepped",
+    prepStatusIsManual: opts.prepStatusIsManual ?? false,
+    _completions: opts.completions ?? [],
     optimizationNotes: opts.optimizationNotes ?? null,
     breakfastOverrides: opts.breakfastOverrides ?? null,
     lunchOverrides: opts.lunchOverrides ?? null,
@@ -373,6 +379,16 @@ function makeA2Stub(opts: {
       findUnique: async (args: { where: { id: string } }) =>
         instances.find((i) => i.id === args.where.id) ?? null,
     },
+    // WS7-8a B3 — GET /plans/:id reads completion rows for the per-meal
+    // derivation. Keyed off the fixture's _completions (default none).
+    prepStepCompletion: {
+      findMany: async (args: { where: { planId: string } }) => {
+        const inst = instances.find((i) => i.id === args.where.planId) as
+          | (ReturnType<typeof instanceFix> & { _completions?: string[] })
+          | undefined;
+        return (inst?._completions ?? []).map((stepKey) => ({ stepKey }));
+      },
+    },
     mealPlanTemplate: {
       findMany: async (args: {
         where?: { isFeatured?: boolean; isHostingFeatured?: boolean };
@@ -396,10 +412,17 @@ function makeA2Stub(opts: {
   };
 }
 
-function a2SpinUp(stub: unknown): Promise<Harness> {
+// WS7-8a B3 — GET /plans/:id derives per-meal prep from the freshly assembled
+// step set (loadPrepStepSet). Inject a stub: default returns no steps (every
+// meal vacuously prepped), or supply a known step set for the isPrepped tests.
+function a2SpinUp(
+  stub: unknown,
+  loadPrepStepSet: () => Promise<{ stepKey: string; contributesToMealIds: string[] }[]> = async () => [],
+): Promise<Harness> {
   return spinUp({
     prisma: stub as never,
     computePlanMacros: (async () => HAPPY_RESULT) as never,
+    loadPrepStepSet: loadPrepStepSet as never,
   });
 }
 
@@ -1203,6 +1226,10 @@ describe("GET /plans/:id — composite Plan Review", () => {
             id: "p-widened",
             name: "Widened Fields",
             prepStatus: "partial",
+            // WS7-8a B3 — pinned manual so the stored value passes through the
+            // now-derived rollup (an unpinned plan would report the derived
+            // value instead).
+            prepStatusIsManual: true,
             optimizationNotes: [{ type: "prep", text: "Batch-cook Sunday" }],
             breakfastOverrides: "yogurt + berries",
             lunchOverrides: "Sat: leftovers",
@@ -1232,6 +1259,145 @@ describe("GET /plans/:id — composite Plan Review", () => {
     } finally {
       await harness.close();
     }
+  });
+
+  // ── WS7-8a B3 — per-meal prep surfacing on GET /plans/:id (D-WS7-153) ──
+  describe("GET /plans/:id — per-meal prep state (B3)", () => {
+    const STEP_ONION = {
+      stepKey: "produce#onion",
+      contributesToMealIds: ["meal-x", "meal-y"],
+    };
+    const STEP_BEEF = { stepKey: "proteins#beef", contributesToMealIds: ["meal-x"] };
+
+    async function getPlan(harness: Harness, id: string) {
+      const res = await fetch(`${harness.baseUrl}/plans/${id}`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      return (await res.json()) as {
+        plan: {
+          prepStatus: string;
+          prepStatusIsManual: boolean;
+          items: { mealId: string; isPrepped: boolean }[];
+        };
+      };
+    }
+
+    it("item.isPrepped reflects checked contributing steps; rollup is derived (partial)", async () => {
+      // onion (→ both meals) checked; beef (→ meal-x) NOT. So meal-y is fully
+      // prepped (its only step is onion); meal-x still needs beef.
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-prep",
+              name: "Prep Plan",
+              completions: ["produce#onion"],
+              items: [
+                { id: "it-x", mealId: "meal-x", positionIndex: 0, assignedDayOfWeek: null },
+                { id: "it-y", mealId: "meal-y", positionIndex: 1, assignedDayOfWeek: null },
+              ],
+            }),
+          ],
+          meals: [mealFix("meal-x", "Tacos", 500), mealFix("meal-y", "Fajitas", 450)],
+        }),
+        async () => [STEP_ONION, STEP_BEEF],
+      );
+      try {
+        const body = await getPlan(harness, "p-prep");
+        const itemX = body.plan.items.find((i) => i.mealId === "meal-x")!;
+        const itemY = body.plan.items.find((i) => i.mealId === "meal-y")!;
+        assert.equal(itemY.isPrepped, true);
+        assert.equal(itemX.isPrepped, false);
+        assert.equal(body.plan.prepStatus, "partial");
+        assert.equal(body.plan.prepStatusIsManual, false);
+      } finally {
+        await harness.close();
+      }
+    });
+
+    it("all contributing steps checked → every item prepped, rollup prepped", async () => {
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-done",
+              name: "Done Plan",
+              completions: ["produce#onion", "proteins#beef"],
+              items: [
+                { id: "it-x", mealId: "meal-x", positionIndex: 0, assignedDayOfWeek: null },
+                { id: "it-y", mealId: "meal-y", positionIndex: 1, assignedDayOfWeek: null },
+              ],
+            }),
+          ],
+          meals: [mealFix("meal-x", "Tacos", 500), mealFix("meal-y", "Fajitas", 450)],
+        }),
+        async () => [STEP_ONION, STEP_BEEF],
+      );
+      try {
+        const body = await getPlan(harness, "p-done");
+        assert.ok(body.plan.items.every((i) => i.isPrepped));
+        assert.equal(body.plan.prepStatus, "prepped");
+      } finally {
+        await harness.close();
+      }
+    });
+
+    it("all-easy plan (no prep-worthy steps) → items vacuously prepped, rollup prepped", async () => {
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-easy",
+              name: "Easy Plan",
+              items: [
+                { id: "it-x", mealId: "meal-x", positionIndex: 0, assignedDayOfWeek: null },
+              ],
+            }),
+          ],
+          meals: [mealFix("meal-x", "Big Salad", 200)],
+        }),
+        async () => [], // deterministic recompute yields zero prep steps
+      );
+      try {
+        const body = await getPlan(harness, "p-easy");
+        assert.equal(body.plan.items[0].isPrepped, true);
+        assert.equal(body.plan.prepStatus, "prepped");
+      } finally {
+        await harness.close();
+      }
+    });
+
+    it("a manual pin overrides the derived rollup on read", async () => {
+      // No steps checked (would derive not_prepped), but a manual prepped pin
+      // wins.
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-pinned",
+              name: "Pinned",
+              prepStatus: "prepped",
+              prepStatusIsManual: true,
+              items: [
+                { id: "it-x", mealId: "meal-x", positionIndex: 0, assignedDayOfWeek: null },
+              ],
+            }),
+          ],
+          meals: [mealFix("meal-x", "Tacos", 500)],
+        }),
+        async () => [STEP_BEEF], // meal-x needs beef, unchecked → derived not_prepped
+      );
+      try {
+        const body = await getPlan(harness, "p-pinned");
+        assert.equal(body.plan.prepStatus, "prepped"); // pin wins
+        assert.equal(body.plan.prepStatusIsManual, true);
+        // …but the per-item derived flag still reflects reality.
+        assert.equal(body.plan.items[0].isPrepped, false);
+      } finally {
+        await harness.close();
+      }
+    });
   });
 
   // WS7-4-D c15 — items must come back Sun→Sat with unscheduled pinned at
@@ -2859,6 +3025,7 @@ interface C4PatchFix {
   breakfastOverrides: string | null;
   lunchOverrides: string | null;
   prepStatus: "not_prepped" | "partial" | "prepped";
+  prepStatusIsManual: boolean;
   revisionId: number;
 }
 
@@ -2928,6 +3095,7 @@ function fixturePatch(opts: Partial<C4PatchFix> & { id: string }): C4PatchFix {
     breakfastOverrides: opts.breakfastOverrides ?? null,
     lunchOverrides: opts.lunchOverrides ?? null,
     prepStatus: opts.prepStatus ?? "not_prepped",
+    prepStatusIsManual: opts.prepStatusIsManual ?? false,
     revisionId: opts.revisionId ?? 1,
   };
 }
@@ -3293,6 +3461,8 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
       assert.equal(res.status, 200);
       assert.equal(recorder.activityWrites.length, 1);
       assert.equal(recorder.activityWrites[0].eventType, "plan_prep_started");
+      // WS7-8a B3 — a forward manual PATCH pins the override.
+      assert.equal(recorder.instanceUpdates[0].data.prepStatusIsManual, true);
     } finally {
       await harness.close();
     }
@@ -3303,7 +3473,7 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     const harness = await mutationSpinUp(
       makeC4PatchStub({
         recorder,
-        instances: [fixturePatch({ id: "p-1", prepStatus: "prepped" })],
+        instances: [fixturePatch({ id: "p-1", prepStatus: "prepped", prepStatusIsManual: true })],
       }),
     );
     try {
@@ -3312,6 +3482,27 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
       assert.equal(recorder.instanceUpdates.length, 1);
       assert.equal(recorder.instanceUpdates[0].data.prepStatus, "not_prepped");
       assert.equal(recorder.activityWrites.length, 0);
+      // WS7-8a B3 — un-mark/reset clears the pin, returning control to derived.
+      assert.equal(recorder.instanceUpdates[0].data.prepStatusIsManual, false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("end-of-session Done (not_prepped -> prepped) pins manual=true + emits plan_prep_started", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-1", prepStatus: "not_prepped", prepStatusIsManual: false })],
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-1", { prepStatus: "prepped" });
+      assert.equal(res.status, 200);
+      assert.equal(recorder.instanceUpdates[0].data.prepStatus, "prepped");
+      assert.equal(recorder.instanceUpdates[0].data.prepStatusIsManual, true);
+      assert.equal(recorder.activityWrites[0].eventType, "plan_prep_started");
     } finally {
       await harness.close();
     }

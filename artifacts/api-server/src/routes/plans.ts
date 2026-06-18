@@ -58,12 +58,21 @@ import {
   resolveThisWeekWinnerId,
 } from "../lib/planDates";
 import { sortPlanItemsCanonical } from "../lib/planItemSort";
+import {
+  derivePrepCompletion,
+  effectivePrepStatus,
+} from "../lib/prepCompletion";
+import { loadPrepStepSet as productionLoadPrepStepSet } from "../lib/prepStepSet";
 import { composeMealDetail, type MealDetail } from "./meals";
 
 export interface PlansRouterDeps {
   computePlanMacros: typeof productionComputePlanMacros;
   planNeedsMacroEstimation: typeof productionPlanNeedsMacroEstimation;
   prisma: PrismaClient;
+  // WS7-8a B3 — deterministic prep step-set loader for the GET /plans/:id
+  // per-meal prep derivation. Injectable so tests supply a known step set
+  // without standing up the full prep loader's deep include.
+  loadPrepStepSet: typeof productionLoadPrepStepSet;
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
   mutationLimiterOpts?: { capacity: number; refillPerSec: number };
 }
@@ -161,6 +170,7 @@ export function createPlansRouter(
   const planNeedsMacroEstimation =
     deps.planNeedsMacroEstimation ?? productionPlanNeedsMacroEstimation;
   const prisma = deps.prisma ?? productionPrisma;
+  const loadPrepStepSet = deps.loadPrepStepSet ?? productionLoadPrepStepSet;
   // Same per-user token-bucket pattern + ceiling as meals.ts. Recalc
   // CAN fan out to N AI calls in the worst case, but real Plan Review
   // editing flows (remove an ingredient, re-trigger; tweak servings,
@@ -341,6 +351,35 @@ export function createPlansRouter(
         return res.status(404).json({ error: "plan not found" });
       }
 
+      // WS7-8a B3 (D-WS7-153) — derive per-meal prepped state + the plan-level
+      // prepStatus rollup. Join checked stepKeys against the FRESHLY ASSEMBLED
+      // deterministic step set (no AI) so an all-easy plan rolls up to prepped
+      // and a fresh prep-worthy plan to not_prepped. Denominator = the plan's
+      // full meal universe (a zero-prep meal is vacuously prepped). A manual
+      // pin (prepStatusIsManual) wins over the derived rollup; otherwise derived
+      // drives. The cooking-sequence route is left untouched — per-meal prep is
+      // plan-scoped, surfaced here where Cook Mode launches.
+      const completionRows = await prisma.prepStepCompletion.findMany({
+        where: { planId: instance.id },
+        select: { stepKey: true },
+      });
+      const allMealIds = [...new Set(instance.items.map((it) => it.mealId))];
+      const prepSteps = await loadPrepStepSet({
+        planId: instance.id,
+        userId,
+        prisma,
+      });
+      const { perMeal, derivedPrepStatus } = derivePrepCompletion(
+        allMealIds,
+        prepSteps,
+        new Set(completionRows.map((r) => r.stepKey)),
+      );
+      const rolledUpPrepStatus = effectivePrepStatus(
+        instance.prepStatusIsManual,
+        instance.prepStatus,
+        derivedPrepStatus,
+      );
+
       // WS7-6 (E) Block 1 REWORK — resolve "is THIS plan the user's This
       // Week winner?" against the user's covering subset, not the row in
       // isolation. The single-row predicate can't tell whether another
@@ -359,6 +398,10 @@ export function createPlansRouter(
         isLunch: boolean;
         isDinner: boolean;
         notes: string | null;
+        // WS7-8a B3 — derived: is every prep step contributing to this meal
+        // checked off? Defaults true for a zero-prep meal. Cook Mode (8b) reads
+        // this to default its "did you prep this?" prompt.
+        isPrepped: boolean;
       })[] = [];
       for (const item of instance.items) {
         // WS7-7-A B5 (D-WS7-090 read-side) — apply the item's per-instance
@@ -383,6 +426,9 @@ export function createPlansRouter(
           isLunch: item.isLunch,
           isDinner: item.isDinner,
           notes: item.notes,
+          // perMeal is keyed by every plan mealId; a meal with no prep steps
+          // is vacuously true.
+          isPrepped: perMeal[item.mealId] ?? true,
           meal,
         });
       }
@@ -407,7 +453,11 @@ export function createPlansRouter(
           userId: instance.userId,
           // sourceType lives on the template, not the instance.
           sourceType: instance.template?.sourceType ?? "manual",
-          prepStatus: instance.prepStatus,
+          // WS7-8a B3 — derived rollup (or the manual pin when set), not the
+          // raw stored column. prepStatusIsManual surfaces which one is in play
+          // so the client can show "auto" vs "pinned".
+          prepStatus: rolledUpPrepStatus,
+          prepStatusIsManual: instance.prepStatusIsManual,
           optimizationNotes: coerceOptimizationNotes(instance.optimizationNotes),
           breakfastOverrides: instance.breakfastOverrides ?? "",
           lunchOverrides: instance.lunchOverrides ?? "",
@@ -800,6 +850,7 @@ export function createPlansRouter(
             breakfastOverrides: true,
             lunchOverrides: true,
             prepStatus: true,
+            prepStatusIsManual: true,
             revisionId: true,
           },
         });
@@ -858,9 +909,25 @@ export function createPlansRouter(
           changedFields.add("lunchOverrides");
           data.lunchOverrides = body.lunchOverrides;
         }
-        if (body.prepStatus !== undefined && body.prepStatus !== row.prepStatus) {
-          changedFields.add("prepStatus");
-          data.prepStatus = body.prepStatus;
+        if (body.prepStatus !== undefined) {
+          // WS7-8a B3 (D-WS7-153) — manual-override pin. An explicit prepStatus
+          // PATCH to partial/prepped (incl. end-of-session "Done") PINS the
+          // value over the derived rollup (prepStatusIsManual = true); an
+          // un-mark/reset to not_prepped hands control back to the derived
+          // rollup (false). The flag is internal display-control state, NOT
+          // plan content: it never enters changedFields, so it neither emits an
+          // activity event nor bumps revisionId on its own — it only rides
+          // along when the prepStatus VALUE itself changes. (Edge: a re-pin to
+          // the value already stored is a visual no-op and is skipped by the
+          // noop guard below; the derived/displayed value is already correct.)
+          const nextManual = body.prepStatus !== "not_prepped";
+          if (body.prepStatus !== row.prepStatus) {
+            changedFields.add("prepStatus");
+            data.prepStatus = body.prepStatus;
+          }
+          if (nextManual !== row.prepStatusIsManual) {
+            data.prepStatusIsManual = nextManual;
+          }
         }
         if (body.optimizationNotes !== undefined) {
           changedFields.add("optimizationNotes");

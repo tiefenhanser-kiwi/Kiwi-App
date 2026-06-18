@@ -16,6 +16,8 @@ const MEAL_ID_B = "22222222-2222-4222-8222-222222222222";
 function step(opts?: Partial<PrepWeekResult["phases"][number]["steps"][number]>) {
   return {
     number: 1,
+    // WS7-8a B3 — stepKey is now a required wire field (stable persistence id).
+    stepKey: "produce#11111111-1111-4111-8111-111111111111",
     title: "Dice onion",
     instructions: "Dice 3 onions total — 2 for tacos, 1 for stir-fry.",
     estimatedMinutes: 5,

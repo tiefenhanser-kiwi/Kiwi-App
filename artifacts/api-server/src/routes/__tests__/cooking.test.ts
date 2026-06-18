@@ -258,6 +258,7 @@ function happyPrepWeekResult(): PrepWeekResult {
         steps: [
           {
             number: 1,
+            stepKey: "produce#ing-onion",
             title: "Dice onion",
             instructions: "Dice 2 onions total.",
             estimatedMinutes: 5,
@@ -272,6 +273,7 @@ function happyPrepWeekResult(): PrepWeekResult {
         steps: [
           {
             number: 1,
+            stepKey: "proteins#ing-chicken",
             title: "Portion chicken",
             instructions: "Cube 1 lb chicken.",
             estimatedMinutes: 3,
@@ -283,15 +285,28 @@ function happyPrepWeekResult(): PrepWeekResult {
   };
 }
 
-// In-memory cache stub for PrepWeekStructure.upsert/findUnique.
+// In-memory cache stub for PrepWeekStructure + (B3) PrepStepCompletion and the
+// MealPlanInstance ownership/structure lookup the completion endpoints use.
 function makeCacheStub() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = new Map<string, any>();
+  const rows = new Map<string, any>(); // prepWeekStructure rows by planId
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const planHolder = new Map<string, any>(); // mealPlanInstance config by planId
+  let completions: { planId: string; stepKey: string; checkedAt: Date }[] = [];
   let writeCount = 0;
   let llmLogWrites = 0;
+  let pruneCalls = 0;
   return {
     rows,
+    completionRows: () => completions,
+    completionKeys: (planId: string) =>
+      completions.filter((c) => c.planId === planId).map((c) => c.stepKey).sort(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setPlan: (planId: string, cfg: any) => planHolder.set(planId, cfg),
+    seedCompletion: (planId: string, stepKey: string) =>
+      completions.push({ planId, stepKey, checkedAt: new Date() }),
     writeCount: () => writeCount,
+    pruneCalls: () => pruneCalls,
     llmLogWrites: () => llmLogWrites,
     incLog: () => {
       llmLogWrites++;
@@ -321,6 +336,78 @@ function makeCacheStub() {
           const row = { id: `row-${rows.size + 1}`, ...create, ...where };
           rows.set(where.planId, row);
           return row;
+        },
+      },
+      prepStepCompletion: {
+        findMany: async ({ where }: { where: { planId: string } }) =>
+          completions
+            .filter((c) => c.planId === where.planId)
+            .sort((a, b) => a.checkedAt.getTime() - b.checkedAt.getTime())
+            .map((c) => ({ stepKey: c.stepKey, checkedAt: c.checkedAt })),
+        upsert: async ({
+          where,
+        }: {
+          where: { planId_stepKey: { planId: string; stepKey: string } };
+        }) => {
+          const { planId, stepKey } = where.planId_stepKey;
+          const ex = completions.find(
+            (c) => c.planId === planId && c.stepKey === stepKey,
+          );
+          if (ex) return ex; // idempotent — keep original checkedAt
+          const row = { planId, stepKey, checkedAt: new Date() };
+          completions.push(row);
+          return row;
+        },
+        deleteMany: async ({
+          where,
+        }: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          where: { planId: string; stepKey?: any };
+        }) => {
+          const { planId, stepKey } = where;
+          const before = completions.length;
+          if (stepKey && typeof stepKey === "object" && Array.isArray(stepKey.notIn)) {
+            // Orphan-prune: keep only rows whose key is in the fresh set.
+            pruneCalls++;
+            const keep = new Set<string>(stepKey.notIn);
+            completions = completions.filter(
+              (c) => c.planId !== planId || keep.has(c.stepKey),
+            );
+          } else {
+            // Exact uncheck (or no-op on a missing key).
+            completions = completions.filter(
+              (c) => !(c.planId === planId && c.stepKey === stepKey),
+            );
+          }
+          return { count: before - completions.length };
+        },
+      },
+      mealPlanInstance: {
+        findUnique: async ({
+          where,
+          select,
+        }: {
+          where: { id: string };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          select?: any;
+        }) => {
+          const cfg = planHolder.get(where.id);
+          if (!cfg) return null;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const out: any = {};
+          if (select?.userId) out.userId = cfg.userId;
+          if (select?.prepStatus) out.prepStatus = cfg.prepStatus ?? "not_prepped";
+          if (select?.prepStatusIsManual)
+            out.prepStatusIsManual = cfg.prepStatusIsManual ?? false;
+          if (select?.items)
+            out.items = (cfg.mealIds ?? []).map((mealId: string) => ({ mealId }));
+          if (select?.prepWeekStructure) {
+            const row = rows.get(where.id);
+            out.prepWeekStructure = row
+              ? { structureJson: row.structureJson }
+              : null;
+          }
+          return out;
         },
       },
     },
@@ -775,6 +862,217 @@ describe("POST /api/plans/:planId/prep-week — prose cannot move the math", () 
       assert.equal(body.reason, "narration_incomplete");
       // Nothing persisted on failure.
       assert.equal(cache.writeCount(), 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS7-8a B3 — prep-step checkbox persistence endpoints ─────────────────────
+
+// The onion ingredientId the loader stub emits → its derived produce stepKey.
+const ONION_STEP_KEY = "produce#eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const COMPLETION_OWNER = "u-completions";
+
+// Spin up a router whose plan PLAN_ID is owned by COMPLETION_OWNER. The read
+// endpoint recomputes the step set from the injected loader (spinCompletion's
+// makeLoaderStub: one onion produce step → ONION_STEP_KEY, for [MEAL_ID_X]).
+function completionHarness(opts?: {
+  mealIds?: string[];
+  prepStatus?: "not_prepped" | "partial" | "prepped";
+  prepStatusIsManual?: boolean;
+}) {
+  const cache = makeCacheStub();
+  cache.setPlan(PLAN_ID, {
+    userId: COMPLETION_OWNER,
+    mealIds: opts?.mealIds ?? [MEAL_ID_X],
+    prepStatus: opts?.prepStatus ?? "not_prepped",
+    prepStatusIsManual: opts?.prepStatusIsManual ?? false,
+  });
+  return cache;
+}
+
+async function spinCompletion(cache: ReturnType<typeof makeCacheStub>) {
+  return spinUp({
+    loadPrepWeekInput: makeLoaderStub({ planRevisionId: 1, mealIds: [MEAL_ID_X] }),
+    runAICall: makeAICallStub({}),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prisma: cache.prisma as any,
+    subscriptionService: { can: async () => ({ allowed: true }) },
+  });
+}
+
+const completionUrl = (base: string) =>
+  `${base}/plans/${PLAN_ID}/prep-week/completions`;
+
+describe("prep-week completions — auth + ownership + validation (B3)", () => {
+  it("401 without auth on GET/PUT/DELETE", async () => {
+    const harness = await spinCompletion(completionHarness());
+    try {
+      for (const method of ["GET", "PUT", "DELETE"]) {
+        const res = await fetch(completionUrl(harness.baseUrl), {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: method === "GET" ? undefined : JSON.stringify({ stepKey: ONION_STEP_KEY }),
+        });
+        assert.equal(res.status, 401, `${method} should be 401`);
+      }
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("404 (no leak) when the plan is not the caller's", async () => {
+    const harness = await spinCompletion(completionHarness());
+    try {
+      const token = signToken("not-the-owner");
+      const res = await fetch(completionUrl(harness.baseUrl), {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(res.status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("400 on a non-UUID plan id and on a missing stepKey body", async () => {
+    const harness = await spinCompletion(completionHarness());
+    try {
+      const token = signToken(COMPLETION_OWNER);
+      const badPlan = await fetch(
+        `${harness.baseUrl}/plans/not-a-uuid/prep-week/completions`,
+        { method: "GET", headers: { Authorization: `Bearer ${token}` } },
+      );
+      assert.equal(badPlan.status, 400);
+      const badBody = await fetch(completionUrl(harness.baseUrl), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ notStepKey: "x" }),
+      });
+      assert.equal(badBody.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+});
+
+describe("prep-week completions — check / read / uncheck round-trip (B3)", () => {
+  it("check → read flips perMeal + rollup; uncheck → reverts", async () => {
+    const cache = completionHarness();
+    const harness = await spinCompletion(cache);
+    try {
+      const token = signToken(COMPLETION_OWNER);
+      const auth = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const read = async () =>
+        (await (
+          await fetch(completionUrl(harness.baseUrl), {
+            method: "GET",
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        ).json()) as {
+          completions: { stepKey: string; checkedAt: string }[];
+          perMeal: Record<string, boolean>;
+          prepStatus: string;
+          derivedPrepStatus: string;
+        };
+
+      // Initially nothing checked → meal not prepped, rollup not_prepped.
+      const empty = await read();
+      assert.deepEqual(empty.completions, []);
+      assert.equal(empty.perMeal[MEAL_ID_X], false);
+      assert.equal(empty.derivedPrepStatus, "not_prepped");
+
+      // Check the onion step (the recomputed key for the loader's single step).
+      const checkRes = await fetch(completionUrl(harness.baseUrl), {
+        method: "PUT",
+        headers: auth,
+        body: JSON.stringify({ stepKey: ONION_STEP_KEY }),
+      });
+      assert.equal(checkRes.status, 200);
+      assert.deepEqual(await checkRes.json(), { stepKey: ONION_STEP_KEY, checked: true });
+
+      // Read back: one row; the only contributing step is checked → meal
+      // prepped → derived rollup prepped.
+      const afterCheck = await read();
+      assert.equal(afterCheck.completions.length, 1);
+      assert.equal(afterCheck.completions[0].stepKey, ONION_STEP_KEY);
+      assert.ok(afterCheck.completions[0].checkedAt); // ISO string present
+      assert.equal(afterCheck.perMeal[MEAL_ID_X], true);
+      assert.equal(afterCheck.derivedPrepStatus, "prepped");
+
+      // Idempotent re-check → still one row.
+      await fetch(completionUrl(harness.baseUrl), {
+        method: "PUT",
+        headers: auth,
+        body: JSON.stringify({ stepKey: ONION_STEP_KEY }),
+      });
+      assert.equal(cache.completionKeys(PLAN_ID).length, 1);
+
+      // Uncheck → gone, rollup reverts.
+      const uncheckRes = await fetch(completionUrl(harness.baseUrl), {
+        method: "DELETE",
+        headers: auth,
+        body: JSON.stringify({ stepKey: ONION_STEP_KEY }),
+      });
+      assert.equal(uncheckRes.status, 200);
+      assert.deepEqual(await uncheckRes.json(), { stepKey: ONION_STEP_KEY, checked: false });
+
+      const afterUncheck = await read();
+      assert.deepEqual(afterUncheck.completions, []);
+      assert.equal(afterUncheck.perMeal[MEAL_ID_X], false);
+      assert.equal(afterUncheck.derivedPrepStatus, "not_prepped");
+
+      // Uncheck again is an idempotent no-op (200).
+      const uncheckAgain = await fetch(completionUrl(harness.baseUrl), {
+        method: "DELETE",
+        headers: auth,
+        body: JSON.stringify({ stepKey: ONION_STEP_KEY }),
+      });
+      assert.equal(uncheckAgain.status, 200);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("prep-week completions — orphan-prune on regenerate (B3)", () => {
+  it("regenerate prunes orphan keys but keeps still-valid ones", async () => {
+    const cache = makeCacheStub();
+    // Seed two completions BEFORE regenerate: the onion key the fresh assembly
+    // will re-emit (survives) + an orphan whose step was dropped (pruned).
+    cache.seedCompletion(PLAN_ID, ONION_STEP_KEY);
+    cache.seedCompletion(PLAN_ID, "produce#orphan-removed-ingredient");
+    // Stale cache row so the POST takes the regenerate path (revision moved).
+    cache.rows.set(PLAN_ID, {
+      id: "row-stale",
+      planId: PLAN_ID,
+      structureJson: happyPrepWeekResult(),
+      lastGeneratedFromPlanRevisionId: 1,
+      lastGeneratedAt: new Date("2026-05-01T12:00:00Z"),
+      promptVersion: 1,
+    });
+    const harness = await spinUp({
+      // revisionId 2 ≠ cached 1 → regenerate.
+      loadPrepWeekInput: makeLoaderStub({ planRevisionId: 2, mealIds: [MEAL_ID_X] }),
+      runAICall: makeAICallStub({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const token = signToken("u-prune");
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { cacheHit: boolean };
+      assert.equal(body.cacheHit, false); // regenerated
+      // Prune ran once; orphan gone, valid onion key kept.
+      assert.equal(cache.pruneCalls(), 1);
+      assert.deepEqual(cache.completionKeys(PLAN_ID), [ONION_STEP_KEY]);
     } finally {
       await harness.close();
     }

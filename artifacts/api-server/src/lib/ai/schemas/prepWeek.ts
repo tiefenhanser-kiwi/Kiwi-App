@@ -60,6 +60,14 @@ export type PrepWeekInput = z.infer<typeof PrepWeekInputSchema>;
 
 export const PrepWeekStepSchema = z.object({
   number: z.number().int().min(1).max(50),
+  // WS7-8a B3 (D-WS7-153) — STABLE per-step identity for checkbox persistence.
+  // Code-owned, derived from (phase, ingredientId): `${phase}#${ingredientId}`
+  // for a normal step, `seasonings_dry#blend` for the collapsed dry-blend step.
+  // Survives a structureJson regenerate (same ingredient → same key regardless
+  // of array position), unlike `number`. Persisted on the wire so mobile and
+  // the PrepStepCompletion rollup share one identity. Longest value is
+  // `sauces_marinades#<uuid>` ≈ 53 chars; 80 is a safe ceiling.
+  stepKey: z.string().min(1).max(80),
   title: z.string().min(1).max(120),
   instructions: z.string().min(1).max(800),
   estimatedMinutes: z.number().int().min(1).max(60),

@@ -518,6 +518,14 @@ model MealPlanInstance {
   timesCooked        Int        @default(0)
   notes              String?
   prepStatus         PrepStatus @default(not_prepped)
+  // WS7-8a B3 (D-WS7-153) — manual-override pin for the prep-status rollup.
+  // false = prepStatus is auto-derived from per-meal PrepStepCompletion state
+  // on read; true = a user PATCH /plans/:id { prepStatus } pinned an explicit
+  // value (incl. end-of-session "Done" → prepped) that wins over the derived
+  // value until cleared (un-mark / reset flips this back to false). Kept as an
+  // explicit boolean rather than overloading prepStatus so derived vs pinned is
+  // unambiguous and the rollup can resume driving prepStatus when unpinned.
+  prepStatusIsManual Boolean    @default(false)
   optimizationNotes  Json?
   compostedAt        DateTime?
   isArchived         Boolean    @default(false)
@@ -540,6 +548,7 @@ model MealPlanInstance {
   items              MealPlanItem[]
   groceryLists       GroceryList[]
   prepWeekStructure  PrepWeekStructure?
+  prepStepCompletions PrepStepCompletion[]
 
   @@index([userId, startDate, endDate])
   @@map("meal_plan_instances")
@@ -700,6 +709,31 @@ model PrepWeekStructure {
   plan MealPlanInstance @relation(fields: [planId], references: [id], onDelete: Cascade)
 
   @@map("prep_week_structures")
+}
+
+// WS7-8a B3 (D-WS7-153) — per-step "marked done" persistence for Prep the Week
+// (PRD §13.4.5). One row per checked step; the row's presence IS the checked
+// state (uncheck = delete the row). Keyed by a STABLE stepKey derived in code
+// (`${phase}#${ingredientId}` for normal steps, `seasonings_dry#blend` for the
+// collapsed dry-blend step) — NOT the positional step number, which is unstable
+// across a structureJson regenerate. State deliberately lives OUTSIDE
+// PrepWeekStructure.structureJson (which is overwritten wholesale on regenerate);
+// the regenerate path prunes rows whose stepKey is absent from the freshly
+// assembled step set. Per-meal prepped state + the plan-level prepStatus rollup
+// are DERIVED from these rows joined against contributesToMealIds — not stored.
+// Chosen over a JSON column for queryability, row-per-check concurrency safety,
+// and declarative cascade lifecycle.
+model PrepStepCompletion {
+  id        String   @id @default(uuid())
+  planId    String
+  stepKey   String
+  checkedAt DateTime @default(now())
+
+  plan MealPlanInstance @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, stepKey])
+  @@index([planId])
+  @@map("prep_step_completions")
 }
 
 model Retailer {

@@ -10,6 +10,7 @@
 
 import { Router, type IRouter, type Request } from "express";
 import type { PrismaClient } from "@prisma/client";
+import { z } from "zod";
 
 import {
   runCookingSequence as productionRunCookingSequence,
@@ -37,6 +38,12 @@ import {
   PrepNarrationIncompleteError,
 } from "../lib/prepWeekAssembly";
 import { PrepNarrationResultSchema } from "../lib/ai/schemas/prepNarration";
+import {
+  stepKeysOfResult,
+  derivePrepCompletion,
+  effectivePrepStatus,
+} from "../lib/prepCompletion";
+import { loadPrepStepSet } from "../lib/prepStepSet";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
@@ -58,6 +65,10 @@ export interface CookingRouterDeps {
   runAICall: typeof productionRunAICall;
   subscriptionService: SubscriptionService;
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
+  // WS7-8a B3 — separate (more generous) bucket for the free checkbox
+  // toggle/read endpoints; checking off a prep list is bursty and must not
+  // share the tight 12/min AI-launch bucket above.
+  completionLimiterOpts?: { capacity: number; refillPerSec: number };
 }
 
 export function createCookingRouter(
@@ -78,6 +89,12 @@ export function createCookingRouter(
   const limiterOpts = deps.rateLimiterOpts ?? {
     capacity: 12,
     refillPerSec: 12 / 60,
+  };
+  // WS7-8a B3 — checkbox toggle/read tier. Matches plans.ts mutationLimiter
+  // (60/min, 1/sec sustained) so rapid box-ticking isn't throttled.
+  const completionLimiterOpts = deps.completionLimiterOpts ?? {
+    capacity: 60,
+    refillPerSec: 60 / 60,
   };
 
   const router: IRouter = Router();
@@ -354,6 +371,16 @@ export function createCookingRouter(
             promptVersion,
           },
         });
+
+        // WS7-8a B3 — orphan-prune. structureJson is regenerated wholesale, so
+        // any PrepStepCompletion row whose stepKey is no longer in the fresh
+        // step set is stale (its step was dropped / re-keyed by the edit that
+        // bumped the revision). Prune to the new set — do NOT merge-forward
+        // blindly. Still-valid keys (same ingredient → same key) survive.
+        const keepKeys = [...stepKeysOfResult(result)];
+        await prisma.prepStepCompletion.deleteMany({
+          where: { planId, stepKey: { notIn: keepKeys } },
+        });
       } catch (err) {
         // Cache-write failures must not bubble up — the AI result is
         // already in memory and the caller can still use it. Next call
@@ -374,6 +401,170 @@ export function createCookingRouter(
           latencyMs: aiResult.metadata.latencyMs,
         },
       });
+    },
+  );
+
+  // ── WS7-8a B3 — prep-step checkbox persistence (D-WS7-153) ────────────
+  // Free (no entitlement check — only AI generation above is premium). Plan
+  // ownership is enforced as-404 (cookingSequence convention: never leak a
+  // plan's existence to a non-owner). State is one PrepStepCompletion row per
+  // checked step; the row's presence IS the checked state.
+
+  const completionLimiter = rateLimit({
+    ...completionLimiterOpts,
+    keyFn: (req: Request) => `prepcompletion:${req.userId ?? "anonymous"}`,
+  });
+
+  const StepKeyBody = z
+    .object({ stepKey: z.string().min(1).max(80) })
+    .strict();
+
+  // Shared planId param guard.
+  const readPlanId = (req: Request): string | null => {
+    const raw = req.params.planId;
+    const planId = Array.isArray(raw) ? raw[0] : raw;
+    if (!planId || typeof planId !== "string" || !UUID_RE.test(planId)) {
+      return null;
+    }
+    return planId;
+  };
+
+  // GET …/prep-week/completions — all checked rows + derived per-meal map +
+  // the rolled-up (or manually-pinned) prepStatus.
+  router.get(
+    "/plans/:planId/prep-week/completions",
+    requireAuth,
+    completionLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) return res.status(401).json({ error: "unauthenticated" });
+      const planId = readPlanId(req);
+      if (!planId) return res.status(400).json({ error: "invalid plan id" });
+
+      const plan = await prisma.mealPlanInstance.findUnique({
+        where: { id: planId },
+        select: {
+          userId: true,
+          prepStatus: true,
+          prepStatusIsManual: true,
+          items: { select: { mealId: true } },
+        },
+      });
+      if (!plan || plan.userId !== userId) {
+        return res.status(404).json({ error: "plan not found" });
+      }
+
+      const rows = await prisma.prepStepCompletion.findMany({
+        where: { planId },
+        orderBy: { checkedAt: "asc" },
+        select: { stepKey: true, checkedAt: true },
+      });
+
+      // Denominator = the plan's full meal universe (deduped). Zero-prep meals
+      // roll up as vacuously prepped (D-WS7-153 ruling). Steps = the freshly
+      // assembled deterministic set (no AI), so an all-easy plan correctly
+      // reports prepped and a fresh prep-worthy plan reports not_prepped.
+      const allMealIds = [...new Set(plan.items.map((i) => i.mealId))];
+      const steps = await loadPrepStepSet({
+        planId,
+        userId,
+        prisma,
+        loadPrepWeekInput,
+      });
+      const checkedKeys = new Set(rows.map((r) => r.stepKey));
+      const { perMeal, derivedPrepStatus } = derivePrepCompletion(
+        allMealIds,
+        steps,
+        checkedKeys,
+      );
+
+      return res.json({
+        completions: rows.map((r) => ({
+          stepKey: r.stepKey,
+          checkedAt: r.checkedAt.toISOString(),
+        })),
+        perMeal,
+        derivedPrepStatus,
+        prepStatusIsManual: plan.prepStatusIsManual,
+        prepStatus: effectivePrepStatus(
+          plan.prepStatusIsManual,
+          plan.prepStatus,
+          derivedPrepStatus,
+        ),
+      });
+    },
+  );
+
+  // PUT …/prep-week/completions — check a step (idempotent upsert). Per the B3
+  // design, a check is just a row upsert: there is no stepKey allowlist here.
+  // Orphan rows (a key not in the freshly assembled step set) are ignored by
+  // the per-meal derivation and swept by the regenerate prune, so the rollup
+  // can never be corrupted by a junk key — keeping this endpoint a cheap write
+  // (ownership only, no structure load on the bursty check path).
+  router.put(
+    "/plans/:planId/prep-week/completions",
+    requireAuth,
+    completionLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) return res.status(401).json({ error: "unauthenticated" });
+      const planId = readPlanId(req);
+      if (!planId) return res.status(400).json({ error: "invalid plan id" });
+
+      const parsed = StepKeyBody.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid body" });
+      }
+      const { stepKey } = parsed.data;
+
+      const plan = await prisma.mealPlanInstance.findUnique({
+        where: { id: planId },
+        select: { userId: true },
+      });
+      if (!plan || plan.userId !== userId) {
+        return res.status(404).json({ error: "plan not found" });
+      }
+
+      await prisma.prepStepCompletion.upsert({
+        where: { planId_stepKey: { planId, stepKey } },
+        create: { planId, stepKey },
+        update: {}, // idempotent — keep the original checkedAt on re-check.
+      });
+
+      return res.json({ stepKey, checked: true });
+    },
+  );
+
+  // DELETE …/prep-week/completions — uncheck a step (idempotent delete). No
+  // structure lookup: deleting a missing/orphan row is a harmless no-op, which
+  // is exactly the desired uncheck semantics.
+  router.delete(
+    "/plans/:planId/prep-week/completions",
+    requireAuth,
+    completionLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) return res.status(401).json({ error: "unauthenticated" });
+      const planId = readPlanId(req);
+      if (!planId) return res.status(400).json({ error: "invalid plan id" });
+
+      const parsed = StepKeyBody.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid body" });
+      }
+      const { stepKey } = parsed.data;
+
+      const plan = await prisma.mealPlanInstance.findUnique({
+        where: { id: planId },
+        select: { userId: true },
+      });
+      if (!plan || plan.userId !== userId) {
+        return res.status(404).json({ error: "plan not found" });
+      }
+
+      await prisma.prepStepCompletion.deleteMany({ where: { planId, stepKey } });
+
+      return res.json({ stepKey, checked: false });
     },
   );
 

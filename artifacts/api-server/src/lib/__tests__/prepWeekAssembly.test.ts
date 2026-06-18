@@ -120,6 +120,138 @@ describe("buildStepPlan", () => {
   });
 });
 
+// ── B3: stable stepKey derivation (D-WS7-153) ────────────────────────────────
+
+const MEAL_C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+// Same plan as plan(), but meals are REORDERED (Fajitas first) and a third
+// meal with a brand-new produce ingredient is appended. This simulates a
+// structureJson regenerate after a plan edit: positional step numbers shift,
+// but a given ingredient's stable key must NOT.
+function reorderedPlanWithAddedMeal(): PrepCombineInput {
+  const onion = {
+    ingredientId: "ing-onion",
+    ingredientName: "yellow onion",
+    category: "Produce",
+    quantity: 1,
+    unit: "each",
+    preparationNote: "diced",
+  };
+  return {
+    meals: [
+      {
+        mealId: MEAL_C,
+        mealName: "Stir Fry",
+        dishes: [
+          {
+            dishId: "d-c",
+            dishName: "Veg Stir Fry",
+            ingredients: [
+              // A NEW produce ingredient, in a meal placed FIRST — it takes
+              // produce#1 positionally, pushing onion to produce#2. Proves the
+              // stepKey is not positional.
+              { ingredientId: "ing-carrot", ingredientName: "carrot", category: "Produce", quantity: 3, unit: "each", preparationNote: "julienned" },
+            ],
+          },
+        ],
+      },
+      {
+        mealId: MEAL_B,
+        mealName: "Fajitas",
+        dishes: [
+          { dishId: "d-b", dishName: "Fajitas", ingredients: [{ ...onion, quantity: 2 }] },
+        ],
+      },
+      {
+        mealId: MEAL_A,
+        mealName: "Tacos",
+        dishes: [
+          {
+            dishId: "d-a",
+            dishName: "Seasoned Beef",
+            ingredients: [
+              onion,
+              { ingredientId: "ing-cumin", ingredientName: "cumin", category: "Pantry", quantity: 1, unit: "tsp" },
+              { ingredientId: "ing-paprika", ingredientName: "paprika", category: "Pantry", quantity: 1, unit: "tsp" },
+              { ingredientId: "ing-chili", ingredientName: "chili powder", category: "Pantry", quantity: 2, unit: "tsp" },
+              { ingredientId: "ing-beef", ingredientName: "ground beef", category: "Protein", quantity: 1, unit: "lb" },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe("buildStepPlan — stable stepKey (B3 / D-WS7-153)", () => {
+  it("(i) every normal step gets a `${phase}#${ingredientId}` key", () => {
+    const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
+    const produce = sp.steps.find((s) => s.phase === "produce")!;
+    const protein = sp.steps.find((s) => s.phase === "proteins")!;
+    assert.equal(produce.stepKey, "produce#ing-onion");
+    assert.equal(produce.ingredientId, "ing-onion");
+    assert.equal(protein.stepKey, "proteins#ing-beef");
+    assert.equal(protein.ingredientId, "ing-beef");
+  });
+
+  it("(ii) the collapsed dry-blend step gets the seasonings_dry#blend sentinel", () => {
+    const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
+    const blend = sp.steps.find((s) => s.phase === "seasonings_dry")!;
+    assert.equal(blend.isBlend, true);
+    assert.equal(blend.stepKey, "seasonings_dry#blend");
+    // The blend folds many ingredientIds, so it carries no single one.
+    assert.equal(blend.ingredientId, null);
+  });
+
+  it("(iii) keys are STABLE across a regenerate with reordered/added meals", () => {
+    const before = buildStepPlan(combinePrep(plan()), "Test Plan");
+    const after = buildStepPlan(combinePrep(reorderedPlanWithAddedMeal()), "Test Plan");
+
+    const keyByIngredient = (sp: StepPlan, phase: string, ingredientName: string) =>
+      sp.steps.find(
+        (s) => s.phase === phase && s.components.some((c) => c.ingredientName === ingredientName),
+      )?.stepKey;
+
+    // Onion's produce key is identical despite Fajitas now being first AND a
+    // new carrot step taking produce#1 positionally.
+    assert.equal(keyByIngredient(before, "produce", "yellow onion"), "produce#ing-onion");
+    assert.equal(keyByIngredient(after, "produce", "yellow onion"), "produce#ing-onion");
+    // The positional number DID move (proves the key is not positional).
+    const onionBefore = before.steps.find((s) => s.phase === "produce")!;
+    const onionAfter = after.steps.find(
+      (s) => s.phase === "produce" && s.components.some((c) => c.ingredientName === "yellow onion"),
+    )!;
+    assert.equal(onionBefore.number, 1);
+    assert.equal(onionAfter.number, 2); // carrot took #1
+    assert.notEqual(onionBefore.number, onionAfter.number);
+    assert.equal(onionBefore.stepKey, onionAfter.stepKey); // …but the key held.
+
+    // Beef + blend keys also hold.
+    assert.equal(keyByIngredient(before, "proteins", "ground beef"), "proteins#ing-beef");
+    assert.equal(keyByIngredient(after, "proteins", "ground beef"), "proteins#ing-beef");
+    assert.equal(
+      before.steps.find((s) => s.phase === "seasonings_dry")!.stepKey,
+      after.steps.find((s) => s.phase === "seasonings_dry")!.stepKey,
+    );
+
+    // The new carrot ingredient gets its own stable key.
+    assert.equal(keyByIngredient(after, "produce", "carrot"), "produce#ing-carrot");
+  });
+
+  it("stepKey survives onto the assembled wire step + validates", () => {
+    const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
+    const result = assemblePrepWeekResult(sp, echo(sp));
+    assert.ok(PrepWeekResultSchema.safeParse(result).success);
+    const produce = result.phases.find((p) => p.phase === "produce")!;
+    assert.equal(produce.steps[0].stepKey, "produce#ing-onion");
+    const blend = result.phases.find((p) => p.phase === "seasonings_dry")!;
+    assert.equal(blend.steps[0].stepKey, "seasonings_dry#blend");
+    // Keys are unique across the whole result (no collisions within a plan).
+    const allKeys = result.phases.flatMap((p) => p.steps.map((s) => s.stepKey));
+    assert.equal(allKeys.length, new Set(allKeys).size);
+  });
+});
+
 // ── assemblePrepWeekResult ───────────────────────────────────────────────────
 
 describe("assemblePrepWeekResult", () => {
