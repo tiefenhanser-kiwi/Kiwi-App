@@ -149,6 +149,7 @@ const PLAN_DETAIL_RESPONSE = {
     userId: "user-1",
     sourceType: "curated",
     prepStatus: "not_prepped" as const,
+    prepStatusIsManual: false,
     optimizationNotes: [],
     breakfastOverrides: "",
     lunchOverrides: "",
@@ -164,6 +165,7 @@ const PLAN_DETAIL_RESPONSE = {
         isLunch: false,
         isDinner: true,
         notes: null,
+        isPrepped: false,
         meal: MEAL_DETAIL,
       },
       {
@@ -177,6 +179,7 @@ const PLAN_DETAIL_RESPONSE = {
         isLunch: true,
         isDinner: false,
         notes: "Use up leftovers.",
+        isPrepped: true,
         meal: null,
       },
     ],
@@ -243,6 +246,31 @@ test("PlanDetailSchema parses items with present and null meals", () => {
   assert.equal(plan.items[0].meal?.id, "meal-1");
   assert.equal(plan.items[1].meal, null);
   assert.equal(plan.macroDailyAverage.caloriesPerDay, 540);
+});
+
+// WS7-8b B1 regression — the Phase 0 audit found the WS7-8a per-meal `isPrepped`
+// and plan-level `prepStatusIsManual` were silently STRIPPED by the (non-strict)
+// schema. Pin that the extended schema now surfaces both on the typed object.
+test("PlanDetailSchema surfaces per-item isPrepped + plan prepStatusIsManual (no longer stripped)", () => {
+  const plan = PlanDetailSchema.parse(PLAN_DETAIL_RESPONSE.plan);
+  assert.equal(plan.prepStatusIsManual, false);
+  // Distinct per-item values prove the field is read per item, not defaulted.
+  assert.equal(plan.items[0].isPrepped, false);
+  assert.equal(plan.items[1].isPrepped, true);
+});
+
+test("getPlan round-trips the new prep fields end-to-end through the wire", async () => {
+  nextResponse = () => mockJson(PLAN_DETAIL_RESPONSE);
+  const plan = await getPlan("plan-1");
+  assert.equal(plan.prepStatusIsManual, false);
+  assert.equal(plan.items[0].isPrepped, false);
+  assert.equal(plan.items[1].isPrepped, true);
+});
+
+test("PlanDetailSchema rejects a plan missing prepStatusIsManual", () => {
+  const { prepStatusIsManual, ...withoutManual } = PLAN_DETAIL_RESPONSE.plan;
+  void prepStatusIsManual;
+  assert.equal(PlanDetailSchema.safeParse(withoutManual).success, false);
 });
 
 // ── getPlans ────────────────────────────────────────────────────────────────
@@ -787,6 +815,7 @@ test(
             userId: "user-1",
             sourceType: "user_created",
             prepStatus: "not_prepped" as const,
+            prepStatusIsManual: false,
             optimizationNotes: [],
             breakfastOverrides: "",
             lunchOverrides: "",
@@ -802,6 +831,7 @@ test(
                 isLunch: false,
                 isDinner: true,
                 notes: null,
+                isPrepped: true,
                 meal: MEAL_DETAIL,
               },
             ],

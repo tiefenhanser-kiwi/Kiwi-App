@@ -80,7 +80,14 @@ export type PlanListResponse = z.infer<typeof PlanListResponseSchema>;
 
 // One item of a Plan Review payload — a plan slot plus its fully-composed
 // Meal. `meal` is null when the meal row is missing/archived server-side.
-// WS7-4-D c5: exported so the item mutation response schemas can reuse it.
+// WS7-4-D c5: exported so the item mutation response schemas can reuse it
+// (they consume the isPrepped-less subset — see PlanItemMutationResponseSchema).
+//
+// WS7-8b B1 — `isPrepped` is the WS7-8a B3 (D-WS7-153) per-meal derived flag:
+// is every prep step contributing to this item's meal checked off? Defaults
+// true server-side for a zero-prep meal. The GET /plans/:id projection
+// (src/routes/plans.ts:431) is the ONLY server builder that emits it; the
+// item-mutation envelopes do NOT (see the .omit at the mutation schema below).
 export const PlanDetailItemSchema = z.object({
   id: z.string(),
   mealId: z.string(),
@@ -92,6 +99,7 @@ export const PlanDetailItemSchema = z.object({
   isLunch: z.boolean(),
   isDinner: z.boolean(),
   notes: z.string().nullable(),
+  isPrepped: z.boolean(),
   meal: MealDetailSchema.nullable(),
 });
 export type PlanDetailItem = z.infer<typeof PlanDetailItemSchema>;
@@ -127,7 +135,12 @@ export const PlanDetailSchema = z.object({
   userId: z.string(),
   sourceType: z.string(),
   // WS7-4-A c6 — new MealPlanInstance fields from PRD §8.3.3 / §8.3.4 / §8.3.7.
+  // WS7-8b B1 — `prepStatus` is now the WS7-8a B3 effective rollup (the manual
+  // pin when prepStatusIsManual, else the derived per-meal rollup); the field
+  // name + enum are unchanged, only the server-side value source. `prepStatusIsManual`
+  // surfaces which one is in play so the client can show "auto" vs "pinned".
   prepStatus: z.enum(["not_prepped", "partial", "prepped"]),
+  prepStatusIsManual: z.boolean(),
   optimizationNotes: z.array(OptimizationNoteSchema),
   breakfastOverrides: z.string(),
   lunchOverrides: z.string(),
@@ -332,8 +345,13 @@ export async function createPlan(
 // per Q-P0-8, but the helpers parse the full envelope so smoke + future
 // skip-refetch callers get assertion surface.
 
+// The item-mutation envelopes (POST/PATCH /items + promote-override) return the
+// plan-review item shape MINUS `isPrepped` — those builders (src/routes/plans.ts
+// :1483 / :2276) predate WS7-8a B3 and were not extended with the derived prep
+// flag. Omit it here so a mutation response still parses; the prep state is
+// re-read from the next GET /plans/:id (which does carry it).
 const PlanItemMutationResponseSchema = z.object({
-  item: PlanDetailItemSchema,
+  item: PlanDetailItemSchema.omit({ isPrepped: true }),
   planId: z.string(),
   revisionId: z.number(),
   macrosStale: z.boolean(),

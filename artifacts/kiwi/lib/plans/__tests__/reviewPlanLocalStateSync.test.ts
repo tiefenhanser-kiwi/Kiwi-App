@@ -71,6 +71,7 @@ function makeItem(over: Partial<PlanDetailItem> = {}): PlanDetailItem {
     isLunch: false,
     isDinner: true,
     notes: null,
+    isPrepped: true,
     meal: makeMeal(),
     ...over,
   };
@@ -88,6 +89,7 @@ function makeDetail(over: Partial<PlanDetail> = {}): PlanDetail {
     userId: "user-1",
     sourceType: "user",
     prepStatus: "not_prepped",
+    prepStatusIsManual: false,
     optimizationNotes: [],
     breakfastOverrides: "",
     lunchOverrides: "",
