@@ -77,7 +77,12 @@ export function PlanReviewMealRow({
       planItemId: row.planItemId,
       mealId: row.mealId,
     });
-    router.push("/prep-cook");
+    // WS7-8b B2 — meal-context "Cook Now" → temporary /cook-session stub (the
+    // Hub took over /prep-cook). Block 3 owns the real single-meal Cook session.
+    router.push({
+      pathname: "/cook-session",
+      params: { mealId: row.mealId, planItemId: row.planItemId },
+    });
   };
 
   // Macros line — only render when at least caloriesPerServing exists.

@@ -698,8 +698,15 @@ export default function GroceryListDetail() {
     }
   };
 
+  // WS7-8b B2 — plan-context entry: land on the real Prep & Cook Hub for this
+  // list's plan. Fall back to a bare push (Hub self-resolves) if the list has
+  // no planId.
   const handlePrepCook = () => {
-    router.push("/prep-cook");
+    if (list.planId) {
+      router.push({ pathname: "/prep-cook", params: { id: list.planId } });
+    } else {
+      router.push("/prep-cook");
+    }
   };
 
   const subtitle = list.isThisWeek

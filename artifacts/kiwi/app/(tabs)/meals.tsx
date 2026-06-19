@@ -155,8 +155,11 @@ export default function MealsTab() {
     router.push({ pathname: "/dish/[id]", params: { id: dishId } });
   };
 
+  // WS7-8b B2 — meal-context "Cook Now". The Hub took over /prep-cook, so this
+  // points at the temporary /cook-session stub (Block 3 replaces it with the
+  // real single-meal Cook session and owns the proper rewire).
   const handleCookNow = () => {
-    router.push("/prep-cook");
+    router.push("/cook-session");
   };
 
   return (

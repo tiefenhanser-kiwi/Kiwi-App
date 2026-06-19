@@ -317,7 +317,9 @@ function MealDetailContent({
 
   const onCookNow = () => {
     console.log("[meal-detail] cook-now tapped", { mealId: meal.id });
-    router.push("/prep-cook");
+    // WS7-8b B2 — meal-context "Cook Now" → temporary /cook-session stub (the
+    // Hub took over /prep-cook). Block 3 owns the real single-meal Cook session.
+    router.push({ pathname: "/cook-session", params: { mealId: meal.id } });
   };
 
   const onAddToPlan = () => {

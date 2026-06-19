@@ -113,8 +113,10 @@ export default function HomeTab() {
     }
   };
 
-  // WS5-5R — routes to /prep-cook stub page (matches /upgrade pattern).
-  // Prep & Cook Hub workstream replaces the stub page with the real UI.
+  // WS7-8b B2 — the real Prep & Cook Hub now lives at /prep-cook. Home carries
+  // no plan id at this call site, so we push without one (Option A): the Hub
+  // resolves "this week's" plan from the server (activeThisWeek) and shows its
+  // own "no plan this week" empty state when there isn't one.
   const handlePrepAndCookPress = () => {
     router.push("/prep-cook");
   };

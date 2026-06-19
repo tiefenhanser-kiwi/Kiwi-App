@@ -28,6 +28,7 @@
     "lib/dishes/__tests__/**/*",
     "lib/wizard/__tests__/**/*",
     "lib/builder/__tests__/**/*",
+    "lib/cooking/__tests__/**/*",
     "lib/__tests__/**/*"
   ],
   "references": [

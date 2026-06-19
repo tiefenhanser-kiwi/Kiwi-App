@@ -86,7 +86,9 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
 
   const onCookNow = () => {
     console.log("[dish-detail] cook-now tapped", { dishId: dish.id });
-    router.push("/prep-cook");
+    // WS7-8b B2 — meal-context "Cook Now" → temporary /cook-session stub (the
+    // Hub took over /prep-cook). Block 3 owns the real single-meal Cook session.
+    router.push({ pathname: "/cook-session", params: { dishId: dish.id } });
   };
 
   const onEdit = () => {

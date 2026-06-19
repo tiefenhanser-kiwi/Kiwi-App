@@ -428,7 +428,8 @@ export default function PlanReviewScreen() {
             variant="primary"
             onPress={() => {
               console.log("[plan-review] prep-and-cook tapped", { planId });
-              router.push("/prep-cook");
+              // WS7-8b B2 — plan-context entry: land on the Hub for this plan.
+              router.push({ pathname: "/prep-cook", params: { id: planId } });
             }}
           />
           <View style={s.actionRow}>
