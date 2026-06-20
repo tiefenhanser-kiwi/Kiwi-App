@@ -77,11 +77,12 @@ export function PlanReviewMealRow({
       planItemId: row.planItemId,
       mealId: row.mealId,
     });
-    // WS7-8b B2 — meal-context "Cook Now" → temporary /cook-session stub (the
-    // Hub took over /prep-cook). Block 3 owns the real single-meal Cook session.
+    // WS7-8b B3 — Cook Mode launch WITH plan context: planId + planItemId let
+    // the cook screen read this item's isPrepped (via usePlan) and drive the
+    // prep gate without asking the user.
     router.push({
       pathname: "/cook-session",
-      params: { mealId: row.mealId, planItemId: row.planItemId },
+      params: { mealId: row.mealId, planId, planItemId: row.planItemId },
     });
   };
 

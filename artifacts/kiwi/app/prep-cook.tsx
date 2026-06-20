@@ -80,18 +80,20 @@ export default function PrepCook() {
   };
 
   // ── Navigation handoffs ───────────────────────────────────────────────────
-  // Block 3 replaces /cook-session with the real single-meal Cook session;
-  // params are forward-compatible (it ignores extras today).
+  // WS7-8b B3 — Cook Mode launch WITH plan context: pass planId (the resolved
+  // Hub plan) + planItemId so the cook screen reads isPrepped via usePlan and
+  // drives the prep gate without asking.
   const goCookSession = (mealId: string, planItemId: string) =>
     router.push({
       pathname: "/cook-session",
-      params: { mealId, planItemId },
+      params: { mealId, planId: resolvedId, planItemId },
     });
 
-  // "Cook a meal" lane = meal selection. For now the selection list IS the
-  // Hub's own "This week's meals"; the lane CTA routes to the Cook-session
-  // placeholder (no meal chosen yet) until Block 3 ships a picker.
-  const goCookAMeal = () => router.push("/cook-session");
+  // WS7-8b B3 — the "Cook a meal" lane's no-param /cook-session handoff is
+  // SEVERED: the cook session must never launch without a meal. The lane's
+  // button-vs-text redesign (what it should do instead) is D-WS7-158, its own
+  // block; for now this is intentionally inert. Layout left untouched.
+  const goCookAMeal = () => {};
 
   // "Prep the Week" → Week Prep (Block 4). Temporary stub, flagged — not faked.
   const goPrepWeek = () =>

@@ -9,6 +9,14 @@
 // server response builders verbatim (artifacts/api-server/src/routes/cooking.ts
 // :434-568); the implementation wins where it differs from any PRD.
 //
+// WS7-8b Block 3 (Build Block 2B) — adds the Cooking Sequencer client
+// `getCookingSequence(mealId)` (POST /meals/:mealId/cooking-sequence). The
+// Sequencer is FREE read-only infrastructure (PRD §13.5.5): it reorders +
+// annotates existing step data and generates nothing — no write path, nothing
+// stored client-side. The response Zod mirror is verbatim against the server's
+// route envelope (cooking.ts:128-133) + SequencedStepSchema (ai/schemas/
+// sequencer.ts:72-91); §27 two-direction validation.
+//
 // These are FREE endpoints (no entitlement gate — only AI prep generation is
 // premium). Auth is the apiClient default (Bearer token); plan ownership is
 // enforced server-side as a 404 (never leak a plan's existence), surfacing as
@@ -132,3 +140,67 @@ export async function getPrepWeekCompletions(
 // Re-export for callers/tests that want to validate the stepKey bound before a
 // write (the server caps it at 80 chars).
 export { StepKeySchema };
+
+// ── Cooking Sequencer (POST /meals/:mealId/cooking-sequence) ────────────────
+// WS7-8b Block 3 (Build Block 2B). Verbatim Zod mirror of the server wire —
+// the route returns `{ sequence, totalEstimatedMinutes, dishCount, usedAI }`
+// (cooking.ts:128-133), NOT the bare SequencedStepsResultSchema. Each entry is
+// an ORDERING + ANNOTATION over steps the client already holds: it references
+// the source step by (dishId, originalStepIndex) and carries NO step text /
+// phase / minutes — those are joined back on the held meal detail. `reason` is
+// the optional, server-composed parallel cue ("While the chicken rests, start
+// the sauce"). Constraints (int / nonnegative / max 140) match sequencer.ts so
+// a malformed payload is rejected in both directions (§27).
+
+const SequencedStepSchema = z.object({
+  dishId: z.string().min(1),
+  originalStepIndex: z.number().int().min(0),
+  sequenceIndex: z.number().int().min(0),
+  startsAtMinutes: z.number().int().nonnegative(),
+  // Optional inline cue shown in Cook Mode; server-composed, never client-side.
+  reason: z.string().max(140).optional(),
+  // Optional hard dependencies the ordering already enforces — mirrored for
+  // completeness; the mobile flow consumes the linear order, not these edges.
+  dependsOn: z
+    .array(
+      z.object({
+        dishId: z.string().min(1),
+        originalStepIndex: z.number().int().min(0),
+      }),
+    )
+    .optional(),
+});
+export type SequencedStep = z.infer<typeof SequencedStepSchema>;
+
+const CookingSequenceResponseSchema = z.object({
+  sequence: z.array(SequencedStepSchema),
+  totalEstimatedMinutes: z.number().int().positive(),
+  // = meal.dishLinks.length server-side; always >= 2 on the AI path we call.
+  dishCount: z.number().int().nonnegative(),
+  // true on the multi-dish AI path, false on the single-dish branch (which the
+  // client never reaches — it degrades to naive ordering without calling).
+  usedAI: z.boolean(),
+});
+export type CookingSequence = z.infer<typeof CookingSequenceResponseSchema>;
+
+/**
+ * POST …/meals/:mealId/cooking-sequence — the Cooking Sequencer (PRD §13.5.4).
+ * mealId travels in the PATH; there is NO request body (the server loads all
+ * step data itself). Returns the intermixed execution order for a multi-dish
+ * meal plus per-step parallel cues.
+ *
+ * Callers MUST only invoke this for genuine multi-dish meals (degrade to naive
+ * ordering otherwise, §7.13) and SHOULD treat any failure as non-fatal —
+ * falling back to naive ordering (§13.5.5: the Sequencer only improves order,
+ * the meal always cooks). Propagates apiClient typed errors: `ApiError` (404
+ * missing/non-owned, 400 empty meal, 502 AI failure, 429 rate limit),
+ * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function getCookingSequence(
+  mealId: string,
+): Promise<CookingSequence> {
+  return apiClient(`/meals/${encodeURIComponent(mealId)}/cooking-sequence`, {
+    method: "POST",
+    schema: CookingSequenceResponseSchema,
+  });
+}

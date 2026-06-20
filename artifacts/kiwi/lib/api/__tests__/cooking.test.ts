@@ -13,6 +13,7 @@ import {
   checkPrepStep,
   uncheckPrepStep,
   getPrepWeekCompletions,
+  getCookingSequence,
 } from "../cooking";
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
@@ -206,6 +207,111 @@ test("getPrepWeekCompletions rejects a non-boolean perMeal value", async () => {
     });
   await assert.rejects(
     () => getPrepWeekCompletions("plan-1"),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+// ── getCookingSequence (POST /meals/:mealId/cooking-sequence) ─────────────────
+// WS7-8b Build Block 2B. Verbatim mirror of the server wire envelope
+// (cooking.ts:128-133) + SequencedStepSchema. The fixture carries a cue
+// (`reason`) on one step and omits it on another — proving the optional cue
+// round-trips both present and absent.
+
+const SEQUENCE_RESPONSE = {
+  sequence: [
+    {
+      dishId: "dish-a",
+      originalStepIndex: 0,
+      sequenceIndex: 0,
+      startsAtMinutes: 0,
+      reason: "Lead with the protein sear.",
+    },
+    {
+      dishId: "dish-b",
+      originalStepIndex: 0,
+      sequenceIndex: 1,
+      startsAtMinutes: 1,
+      // no reason — the optional cue must round-trip as absent
+    },
+  ],
+  totalEstimatedMinutes: 12,
+  dishCount: 2,
+  usedAI: true,
+};
+
+test("getCookingSequence POSTs to the path with NO body and round-trips the envelope", async () => {
+  nextResponse = () => mockJson(SEQUENCE_RESPONSE);
+  const res = await getCookingSequence("meal-multi");
+
+  assert.equal(lastMethod, "POST");
+  assert.ok(
+    lastUrl?.endsWith("/meals/meal-multi/cooking-sequence"),
+    `unexpected url: ${lastUrl}`,
+  );
+  // mealId travels in the PATH — the server loads step data itself, no body.
+  assert.equal(lastBody, null);
+
+  assert.equal(res.dishCount, 2);
+  assert.equal(res.usedAI, true);
+  assert.equal(res.totalEstimatedMinutes, 12);
+  assert.equal(res.sequence.length, 2);
+  assert.equal(res.sequence[0].reason, "Lead with the protein sear.");
+  assert.equal(res.sequence[0].sequenceIndex, 0);
+  assert.equal(res.sequence[1].reason, undefined); // optional cue absent
+});
+
+test("getCookingSequence encodes the mealId path segment", async () => {
+  nextResponse = () => mockJson(SEQUENCE_RESPONSE);
+  await getCookingSequence("meal/with space");
+  assert.ok(
+    lastUrl?.includes("/meals/meal%2Fwith%20space/cooking-sequence"),
+    `unexpected url: ${lastUrl}`,
+  );
+});
+
+test("getCookingSequence propagates a 502 AI failure as an ApiError (caller degrades)", async () => {
+  nextResponse = () =>
+    mockJson({ error: "Kiwi got distracted. Try again?", reason: "validation_failed" }, 502);
+  await assert.rejects(
+    () => getCookingSequence("meal-multi"),
+    (err: unknown) => err instanceof ApiError && err.status === 502,
+  );
+});
+
+test("getCookingSequence propagates ownership-as-404 as an ApiError", async () => {
+  nextResponse = () => mockJson({ error: "meal not found" }, 404);
+  await assert.rejects(
+    () => getCookingSequence("ghost"),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+test("getCookingSequence rejects a malformed step (non-integer originalStepIndex)", async () => {
+  nextResponse = () =>
+    mockJson({
+      sequence: [
+        { dishId: "d", originalStepIndex: 0.5, sequenceIndex: 0, startsAtMinutes: 0 },
+      ],
+      totalEstimatedMinutes: 5,
+      dishCount: 2,
+      usedAI: true,
+    });
+  await assert.rejects(
+    () => getCookingSequence("meal-multi"),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+test("getCookingSequence rejects a missing envelope field (no usedAI)", async () => {
+  nextResponse = () =>
+    mockJson({
+      sequence: [],
+      totalEstimatedMinutes: 5,
+      dishCount: 2,
+      // usedAI omitted
+    });
+  await assert.rejects(
+    () => getCookingSequence("meal-multi"),
     (err: unknown) => err instanceof ApiSchemaError,
   );
 });

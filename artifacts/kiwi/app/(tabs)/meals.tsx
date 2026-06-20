@@ -155,11 +155,15 @@ export default function MealsTab() {
     router.push({ pathname: "/dish/[id]", params: { id: dishId } });
   };
 
-  // WS7-8b B2 — meal-context "Cook Now". The Hub took over /prep-cook, so this
-  // points at the temporary /cook-session stub (Block 3 replaces it with the
-  // real single-meal Cook session and owns the proper rewire).
-  const handleCookNow = () => {
-    router.push("/cook-session");
+  // WS7-8b B3 — Cook Mode launches. This tab has two entry points: a meal row
+  // (multi-dish-capable meal) and a dish row (forced single-dish). They pass
+  // distinct params; both are no-plan-context launches, so the cook screen's
+  // prep gate asks "did you prep this?" (state 3).
+  const handleCookMeal = (mealId: string) => {
+    router.push({ pathname: "/cook-session", params: { mealId } });
+  };
+  const handleCookDish = (dishId: string) => {
+    router.push({ pathname: "/cook-session", params: { dishId } });
   };
 
   return (
@@ -288,7 +292,7 @@ export default function MealsTab() {
               <MealRow
                 meal={item}
                 onPress={() => handleOpenMeal(item.id)}
-                onCookNow={handleCookNow}
+                onCookNow={() => handleCookMeal(item.id)}
                 onAddToPlan={(mealId, mealTitle) =>
                   setAddToPlanFor({ mealId, mealTitle })
                 }
@@ -368,7 +372,7 @@ export default function MealsTab() {
               <DishRow
                 dish={item}
                 onPress={() => handleOpenDish(item.id)}
-                onCookNow={handleCookNow}
+                onCookNow={handleCookDish}
                 onAddToMeal={(dishId, dishName) =>
                   setAddDishToMealFor({ dishId, dishName })
                 }
