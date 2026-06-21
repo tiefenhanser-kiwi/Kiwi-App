@@ -800,28 +800,57 @@ A single \`dishSteps\` array. EVERY dish in the input — every entry of every \
 \`\`\`json
 {
   "dishSteps": [
-    { "mealIndex": 0, "dishIndex": 0, "steps": ["...", "..."] },
-    { "mealIndex": 0, "dishIndex": 1, "steps": ["..."] },
-    { "mealIndex": 1, "dishIndex": 0, "steps": ["...", "..."] }
+    {
+      "mealIndex": 0,
+      "dishIndex": 0,
+      "steps": [
+        { "text": "Dice the onion and mince the garlic.", "phaseType": "prep", "estimatedMinutes": 4 },
+        { "text": "Heat 2 tablespoons olive oil in a large skillet over medium-high and sear the pork shoulder 4 minutes per side until browned.", "phaseType": "cook", "estimatedMinutes": 10 },
+        { "text": "Transfer the seared pork to the slow cooker with the onion and garlic and cook on low 8 hours.", "phaseType": "cook", "estimatedMinutes": 480 }
+      ]
+    },
+    {
+      "mealIndex": 0,
+      "dishIndex": 1,
+      "steps": [
+        { "text": "Whisk the dressing ingredients in a small bowl.", "phaseType": "assemble", "estimatedMinutes": 3 },
+        { "text": "Just before serving, slice the avocado and toss it with the greens and dressing.", "phaseType": "assemble", "estimatedMinutes": 3 }
+      ]
+    }
   ]
 }
 \`\`\`
 
 - \`mealIndex\` — 0-based index into the input's \`meals\` array.
 - \`dishIndex\` — 0-based index into that meal's \`dishes\` array.
-- \`steps\` — array of cooking step strings, ordered.
+- \`steps\` — array of step objects, ordered. Each object has \`text\`, \`phaseType\`, and \`estimatedMinutes\` (all three are REQUIRED on every step).
 
 The server merges your output back into the plan by (mealIndex, dishIndex) — keys MUST match the input shape exactly. Missing or extra entries fail the merge and the save errors out, so the user has to retry.
 
 # Step rules
 
 - 4–10 steps per dish, ordered. Begin with prep (chop, measure, preheat), end with serving/plating.
-- Each step is one sentence, imperative voice ("Heat 2 tablespoons olive oil in a large skillet over medium-high.").
-- Each step is ≤400 characters. Use 1–20 steps per dish.
+- Each step's \`text\` is one sentence, imperative voice ("Heat 2 tablespoons olive oil in a large skillet over medium-high.").
+- Each step's \`text\` is ≤400 characters. Use 1–20 steps per dish.
 - Include specific quantities, temperatures, and times in the step text — never write "season to taste" without a starting amount. The ingredient list is the source of truth for quantities; reuse those numbers in the steps.
-- Mention parallel windows where natural ("While the pasta cooks, ...").
+- Mention parallel windows ONLY when the cooking step is genuinely hands-off — long, unattended cooking where the cook is not actively working the food. Hands-off = baking, roasting, braising, slow-cooking, boiling, or a simmer needing only occasional stirring; the cook can step away (e.g. "While the pasta boils, ..." or "While it braises, slice the green onions"). NOT hands-off = searing, sautéing, stir-frying, pan-frying, or anything needing frequent turning, flipping, or constant attention — never stack prep onto these (do NOT say "while the steak sears, shred the cabbage" — the cook is turning the meat). Guardrail: only overlap into a cook step with at least ~20 minutes of unattended time, and the hands-off stretch should be at least ~2x the prep length. When in doubt, sequence the prep before cooking starts rather than overlapping it.
 - For genuinely simple sides (warmed bread, a steamed vegetable), 1–3 steps is fine; don't pad.
-- The downstream sequencer/cook-now AI will phase-tag the steps; do NOT add explicit phase labels in the step text.
+
+# Per-step \`phaseType\` and \`estimatedMinutes\` (REQUIRED on every step)
+
+Every step MUST carry a \`phaseType\` and an \`estimatedMinutes\`. These drive the in-app prep gate (which hides finished prep work during cooking) and the per-step timers, so tag each step by what the cook is actually DOING — do not default everything to \`cook\`.
+
+\`phaseType\` is exactly one of these 6 values:
+- \`prep\` — hands-on work on raw or not-yet-heated components, done before any heat touches that dish: chopping, dicing, mincing, measuring, marinating, mixing a marinade, trimming, peeling, patting dry, making a spice rub. HARD RULE: the "before heat" boundary is absolute and per-dish. Once any heat has been applied to a dish, NO later step in that dish may be \`prep\` — because it depends on cooking that already happened and so cannot be done ahead of time. Steps like "transfer the seared pork to the slow cooker," "return the chicken to the pan," or "add the browned beef to the sauce" are \`cook\` (or \`assemble\`/\`hold\`), never \`prep\`. \`prep\` is the prep-gate's "already done ahead" bucket, so anything that physically can't be done ahead must not land there.
+- \`preheat\` — bringing equipment up to temperature with nothing cooking yet: preheating the oven, heating oil/water, getting a pan hot.
+- \`cook\` — active cooking with heat applied to the food: searing, sautéing, boiling, roasting, simmering, frying, grilling, baking.
+- \`rest\` — passive waiting with no active work: resting cooked meat, letting dough proof, chilling, cooling, marinating that just sits.
+- \`assemble\` — combining finished components without (further) cooking: plating, tossing a salad, building a bowl, whisking a no-cook dressing, garnishing.
+- \`hold\` — keeping a finished component warm/ready while other dishes finish.
+
+Default to make-ahead prep. Chopping, dicing, slicing, measuring, and mixing marinades/sauces/dressings should normally be tagged \`prep\` so they can be done up front — keep the default strong so the prep phase stays substantial. EXCEPTION: if doing a prep task too early would degrade the dish's quality — browning (cut apples, avocado, banana), wilting (dressed greens), sogginess, melting, or lost crunch/texture — do NOT force that step into the upfront prep phase; tag it where it actually belongs in the cooking sequence (often \`assemble\`, near serving). For example, slicing avocado for a salad belongs at serving time (\`assemble\`), not in upfront \`prep\`, because cut avocado browns. Invoke this exception ONLY when you can name a real quality/freshness reason; otherwise default to \`prep\`.
+
+\`estimatedMinutes\` is a realistic positive integer for that single step (1–600). Use sensible real-world durations: a quick dice is ~3–5, searing a side of chicken ~5–6, roasting ~20–40, a 10-minute rest is 10. Do not make everything 1 — a 1-minute estimate should be rare and only for genuinely instant actions.
 
 # Use the dish context
 

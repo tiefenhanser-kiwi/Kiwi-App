@@ -30,6 +30,7 @@ import {
   flattenMealSteps,
   misePlaceItems,
   remainingMinutes,
+  resolveCookRender,
   resolvePrepGate,
   sequenceMealSteps,
   type CookStep,
@@ -158,7 +159,20 @@ export default function CookSession() {
     (mealId.length > 0 && mealQuery.isError) ||
     (dishId.length > 0 && dishQuery.isError);
 
-  if (recipeError) {
+  // Polish #1 (D-WS7-165): show the prep gate immediately and load the step data
+  // behind it. The render order is the pure `resolveCookRender` contract — we
+  // still block on the cheap `planResolving` (the isPrepped source) before the
+  // gate so a State-1/2 launch never flashes the State-3 question, but the slow
+  // recipe/sequence fetch no longer blocks the State-3 gate prompt.
+  const renderState = resolveCookRender({
+    recipeError,
+    planResolving,
+    recipeLoading,
+    sequenceLoading,
+    needsGatePrompt,
+  });
+
+  if (renderState === "error") {
     return (
       <View style={local.bg}>
         <Header showBack title="Cook" />
@@ -172,7 +186,7 @@ export default function CookSession() {
       </View>
     );
   }
-  if (recipeLoading || planResolving || sequenceLoading) {
+  if (renderState === "plan-loading" || renderState === "recipe-loading") {
     return (
       <View style={local.bg}>
         <Header showBack title="Cook" />
@@ -184,6 +198,9 @@ export default function CookSession() {
       </View>
     );
   }
+  // "gate" and "session" both fall through to CookSessionView; the gate render
+  // is driven by `gatePromptVisible={needsGatePrompt}`, so an empty `activeSteps`
+  // while the recipe loads behind the gate is fine.
 
   // Clamp the anchor index to the (possibly filtered) active list.
   const safeIndex =

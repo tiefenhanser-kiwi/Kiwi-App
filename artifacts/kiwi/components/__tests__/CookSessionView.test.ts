@@ -1,7 +1,7 @@
 // WS7-8b Block 3 — Cook Mode screen render/interaction tests.
 
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { mock, test } from "node:test";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -265,7 +265,11 @@ test("timer chip: tapping start begins a visible countdown and the active-timer 
   // The active-timer strip labels it from the step text ("Boil pasta" → "Boil pasta").
   assert.ok(texts.includes("🟢"), `active-timer strip missing: ${texts}`);
   assert.ok(!texts.includes("Start 8:00 timer"), "idle label should be replaced by the countdown");
-  renderer.unmount();
+  // Flush the passive-effect cleanup (clearInterval) synchronously, so the live
+  // 1s interval is gone before any later test enables mock.timers — otherwise a
+  // pending real interval would be "cleared" by the mocked clearInterval (a
+  // no-op on real timers) and leak, hanging the process on exit.
+  act(() => renderer.unmount());
 });
 
 // ── Sequencer parallel cue (2B) ──────────────────────────────────────────────
@@ -297,6 +301,87 @@ test("cue: no annotation line when cue is undefined", () => {
     !texts.includes("While the chicken rests"),
     "cue line should be absent when cue is undefined",
   );
+});
+
+// ── Timer #4: Add-a-minute + dismiss ─────────────────────────────────────────
+
+test("timer #4: 'Add a minute' on a RUNNING timer pushes the end out by a minute", () => {
+  const steps: CookStep[] = [
+    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
+  ];
+  const renderer = renderView({ steps });
+  act(() =>
+    (findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "Start 8:00 timer")!
+      .props!.onPress as () => void)(),
+  );
+  assert.ok(flat(renderer.toJSON() as RenderedNode | null).includes("8:00"), "running timer should read 8:00");
+
+  const add = findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "Add a minute");
+  assert.ok(add, "'Add a minute' control missing on the running chip");
+  act(() => (add!.props!.onPress as () => void)());
+
+  const texts = flat(renderer.toJSON() as RenderedNode | null);
+  // endsAt pushed out by 60s (8:00 → 9:00), rounded up by formatClock.
+  assert.ok(texts.includes("9:00"), `running extend should read 9:00: ${texts}`);
+  act(() => renderer.unmount()); // flush clearInterval before the mock-timers test
+});
+
+test("timer #4: 'Add a minute' on a DONE timer re-arms a fresh 1:00 from now", () => {
+  // Mock the clock so we can drive a 1-minute timer to completion deterministically.
+  mock.timers.enable({ apis: ["setInterval", "Date"] });
+  try {
+    const steps: CookStep[] = [
+      { key: "a", text: "Boil egg", phaseType: "cook", estimatedMinutes: 1, isPrep: false, isTimingSensitive: false },
+    ];
+    const renderer = renderView({ steps });
+    act(() =>
+      (findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "Start 1:00 timer")!
+        .props!.onPress as () => void)(),
+    );
+    // Advance past the 60s end — the 1s interval bumps nowMs past endsAt.
+    act(() => {
+      mock.timers.tick(61_000);
+    });
+    assert.ok(
+      flat(renderer.toJSON() as RenderedNode | null).includes("Timer done"),
+      "timer should read done after the clock passes its end",
+    );
+
+    const add = findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "Add a minute");
+    assert.ok(add, "'Add a minute' control missing on the done chip");
+    act(() => (add!.props!.onPress as () => void)());
+
+    const texts = flat(renderer.toJSON() as RenderedNode | null);
+    // Re-armed to now + 60s → a fresh 1:00, no longer done.
+    assert.ok(texts.includes("1:00"), `done extend should re-arm to 1:00: ${texts}`);
+    assert.ok(!texts.includes("Timer done"), `done extend should clear the done state: ${texts}`);
+    // Unmount (flushing clearInterval) while mock.timers is still enabled, then
+    // reset — so the component's interval is torn down under the mocked timers.
+    act(() => renderer.unmount());
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("timer #4: the '✕' dismiss control clears the timer (persists until then — no auto-dismiss)", () => {
+  const steps: CookStep[] = [
+    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
+  ];
+  const renderer = renderView({ steps });
+  act(() =>
+    (findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "Start 8:00 timer")!
+      .props!.onPress as () => void)(),
+  );
+  assert.ok(flat(renderer.toJSON() as RenderedNode | null).includes("🟢"), "active-timer strip should appear");
+
+  const dismiss = findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "✕");
+  assert.ok(dismiss, "'✕' dismiss control missing");
+  act(() => (dismiss!.props!.onPress as () => void)());
+
+  const texts = flat(renderer.toJSON() as RenderedNode | null);
+  assert.ok(texts.includes("Start 8:00 timer"), `dismiss should return to the idle chip: ${texts}`);
+  assert.ok(!texts.includes("🟢"), "active-timer strip should be gone after dismiss");
+  act(() => renderer.unmount());
 });
 
 test("timer chip: timing-sensitive step renders the chip with the warm alert treatment", () => {

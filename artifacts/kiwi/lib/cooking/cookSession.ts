@@ -179,6 +179,41 @@ export function remainingMinutes(steps: CookStep[], fromIndex: number): number {
     .reduce((sum, s) => sum + (s.estimatedMinutes || 0), 0);
 }
 
+// ── Cook-screen render selector (WS7-8b B3 polish #1) ───────────────────────
+// Pure decision for what the route (app/cook-session.tsx) renders, extracted so
+// the gate-vs-load ordering is unit-testable without driving expo-router +
+// react-query. The ORDER is the contract (PRD §7.12 gate seam):
+//   1. recipeError  → terminal error screen.
+//   2. planResolving → block on the CHEAP plan fetch FIRST. isPrepped is the
+//      gate-state source; resolving it before showing the gate prevents the
+//      State-3 ("did you prep?") flash on a launch that is actually State 1/2.
+//   3. needsGatePrompt → show the State-3 gate NOW, even while the slow recipe/
+//      sequence fetch is still in flight (load the step data behind the gate).
+//   4. recipeLoading || sequenceLoading → only reached once the gate is answered
+//      (or no prompt is needed); spinner while the step data finishes.
+//   5. session → render the full cook flow.
+
+export type CookRenderState =
+  | "error"
+  | "plan-loading"
+  | "gate"
+  | "recipe-loading"
+  | "session";
+
+export function resolveCookRender(input: {
+  recipeError: boolean;
+  planResolving: boolean;
+  recipeLoading: boolean;
+  sequenceLoading: boolean;
+  needsGatePrompt: boolean;
+}): CookRenderState {
+  if (input.recipeError) return "error";
+  if (input.planResolving) return "plan-loading";
+  if (input.needsGatePrompt) return "gate";
+  if (input.recipeLoading || input.sequenceLoading) return "recipe-loading";
+  return "session";
+}
+
 // ── Per-step timer chips (WS7-8b B3 Build Block 2A) ─────────────────────────
 // Wall-clock model: a started timer stores `endsAt` (epoch ms). A single ticking
 // "now" drives every chip's remaining time, so concurrency (many timers at once)

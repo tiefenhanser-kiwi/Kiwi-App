@@ -25,16 +25,20 @@ import {
   type WizardExpandEnrichedMealDetails,
   type WizardFinalizeStepsDish,
   type WizardFinalizeStepsResult,
+  type WizardStep,
 } from "./ai/schemas/wizard";
 import { WizardDraftMalformedError, WizardDraftNotFoundError } from "./wizardActivation";
 
 // WS7-5c tail — sized for ONE meal's step output, not the whole plan. A
 // typical meal is ~3 dishes × ~6-10 steps × ~50-80 tokens per step ≈
-// ~1.5-2.5k tokens worst-case. 3k carries ~30% headroom over the realistic
-// ceiling while staying comfortably below the prior 8k plan-wide budget.
-// If real per-meal telemetry shows tail truncation on the longest meals,
-// this is the dial to raise.
-const WIZARD_FINALIZE_STEPS_PER_MEAL_MAX_TOKENS = 3072;
+// ~1.5-2.5k tokens worst-case. If real per-meal telemetry shows tail
+// truncation on the longest meals, this is the dial to raise.
+//
+// BUG #3 (D-WS7-165) — bumped 3072 → 4096. Each step now also emits phaseType
+// (a short enum) + estimatedMinutes (a small int) ≈ +10-20 tokens/step; on a
+// long multi-dish meal that could brush the old 3k cap, and a truncated
+// finalize call is silent step-data loss. Proactive headroom per the ruling.
+const WIZARD_FINALIZE_STEPS_PER_MEAL_MAX_TOKENS = 4096;
 
 export interface ReadAndFinalizeWizardDraftOptions {
   prisma: PrismaClient;
@@ -213,7 +217,10 @@ export function mergeFinalizeStepsIntoDetails(
   details: WizardExpandedPlanDetails,
   result: WizardFinalizeStepsResult,
 ): MergeFinalizeStepsResult {
-  const keyed = new Map<string, string[]>();
+  // BUG #3 (D-WS7-165) — steps are now WizardStep objects, not strings. The
+  // merge logic is shape-agnostic (it carries entry.steps through untouched);
+  // only this type annotation widens.
+  const keyed = new Map<string, WizardStep[]>();
   for (const entry of result.dishSteps) {
     const key = `${entry.mealIndex}:${entry.dishIndex}`;
     if (keyed.has(key)) {

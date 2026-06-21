@@ -1,5 +1,22 @@
 import { z } from "zod";
 
+import { StepPhaseTypeSchema } from "./mealBuilder";
+
+// BUG #3 (D-WS7-165) — wizard step contract. Pre-fix, wizard steps were bare
+// strings, so the materializer had no phaseType / estimatedMinutes to persist
+// and every wizard step fell to the DB column defaults (phaseType='cook',
+// estimatedMinutes=1) — breaking the Cook Mode prep filter and per-step
+// durations. The contract is now an object carrying both, aligned with the
+// already-ratified builder/import step shape (mealBuilder.ts AssistedStep /
+// ParsedSubDishStep). phaseType reuses StepPhaseTypeSchema (its 6 values match
+// the Prisma StepPhase enum); estimatedMinutes mirrors the builder's bounds.
+export const WizardStepSchema = z.object({
+  text: z.string().min(1).max(400),
+  phaseType: StepPhaseTypeSchema,
+  estimatedMinutes: z.number().int().positive().max(600),
+});
+export type WizardStep = z.infer<typeof WizardStepSchema>;
+
 // PRD §5.7 — Set Preferences wizard input shape.
 // Mirrors WizardPreferencesInput in artifacts/kiwi/lib/types.ts:521.
 export const WizardInputSchema = z.object({
@@ -127,7 +144,11 @@ export const WizardExpandDishSchema = z.object({
   // materializer-validated read-side shape) — both directions of the wire stay
   // in sync from this single edit.
   ingredients: z.array(WizardExpandDishIngredientSchema).min(1),
-  steps: z.array(z.string().min(1).max(400)).min(1).max(20),
+  // BUG #3 (D-WS7-165) — widened string → object so phaseType / estimatedMinutes
+  // survive to the materializer. Cascades via .extend() to
+  // WizardExpandEnrichedDishSchema → WizardExpandedPlanSchema (the read-side
+  // shape validated in wizardFinalize.ts + wizardActivation.ts).
+  steps: z.array(WizardStepSchema).min(1).max(20),
 });
 export type WizardExpandDish = z.infer<typeof WizardExpandDishSchema>;
 
@@ -273,7 +294,10 @@ export type WizardExpandedPlanDetails = z.infer<
 export const WizardFinalizeStepsDishSchema = z.object({
   mealIndex: z.number().int().nonnegative(),
   dishIndex: z.number().int().nonnegative(),
-  steps: z.array(z.string().min(1).max(400)).min(1).max(20),
+  // BUG #3 (D-WS7-165) — widened string → object. The finalize_steps AI now
+  // emits per-step phaseType + estimatedMinutes (prompt body inverted to
+  // require them); these merge positionally into the details plan and persist.
+  steps: z.array(WizardStepSchema).min(1).max(20),
 });
 export type WizardFinalizeStepsDish = z.infer<
   typeof WizardFinalizeStepsDishSchema

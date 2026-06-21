@@ -11,7 +11,7 @@
 //
 // WS7-5c tail — adds Block 4: readAndFinalizeWizardDraft per-meal sharding.
 // Asserts fan-out (one runAICall per meal with a single-meal slice + the
-// per-call 3k maxTokens guardrail), mealIndex re-indexing on concat, §27
+// per-call 4k maxTokens guardrail), mealIndex re-indexing on concat, §27
 // round-trip via the parallel path, and per-meal failure propagation
 // (ai_failed surface for a shard failure, merge_failed for assembled-array
 // invariant violations).
@@ -122,23 +122,53 @@ function fullStepsResult(): WizardFinalizeStepsResult {
         mealIndex: 0,
         dishIndex: 0,
         steps: [
-          "Preheat the oven to 425F.",
-          "Toss 1.5 lb chicken thighs with 3 tablespoons harissa and 2 tablespoons olive oil.",
-          "Roast for 25 minutes until 165F internal.",
+          {
+            text: "Preheat the oven to 425F.",
+            phaseType: "preheat",
+            estimatedMinutes: 10,
+          },
+          {
+            text: "Toss 1.5 lb chicken thighs with 3 tablespoons harissa and 2 tablespoons olive oil.",
+            phaseType: "prep",
+            estimatedMinutes: 5,
+          },
+          {
+            text: "Roast for 25 minutes until 165F internal.",
+            phaseType: "cook",
+            estimatedMinutes: 25,
+          },
         ],
       },
       {
         mealIndex: 0,
         dishIndex: 1,
-        steps: ["Steam 1 lb broccoli for 5 minutes."],
+        steps: [
+          {
+            text: "Steam 1 lb broccoli for 5 minutes.",
+            phaseType: "cook",
+            estimatedMinutes: 5,
+          },
+        ],
       },
       {
         mealIndex: 1,
         dishIndex: 0,
         steps: [
-          "Sweat 1 diced yellow onion in olive oil over medium heat for 5 minutes.",
-          "Add 28 oz canned tomatoes; simmer 15 minutes.",
-          "Blend until smooth and serve.",
+          {
+            text: "Sweat 1 diced yellow onion in olive oil over medium heat for 5 minutes.",
+            phaseType: "cook",
+            estimatedMinutes: 5,
+          },
+          {
+            text: "Add 28 oz canned tomatoes; simmer 15 minutes.",
+            phaseType: "cook",
+            estimatedMinutes: 15,
+          },
+          {
+            text: "Blend until smooth and serve.",
+            phaseType: "assemble",
+            estimatedMinutes: 3,
+          },
         ],
       },
     ],
@@ -287,7 +317,13 @@ describe("mergeFinalizeStepsIntoDetails — positional merge invariants", () => 
     extra.dishSteps.push({
       mealIndex: 5,
       dishIndex: 0,
-      steps: ["this dish doesn't exist"],
+      steps: [
+        {
+          text: "this dish doesn't exist",
+          phaseType: "cook",
+          estimatedMinutes: 5,
+        },
+      ],
     });
     const merged = mergeFinalizeStepsIntoDetails(detailsPlan(), extra);
     assert.equal(merged.status, "error");
@@ -303,7 +339,9 @@ describe("mergeFinalizeStepsIntoDetails — positional merge invariants", () => 
     dup.dishSteps.push({
       mealIndex: 0,
       dishIndex: 0,
-      steps: ["duplicate entry"],
+      steps: [
+        { text: "duplicate entry", phaseType: "cook", estimatedMinutes: 5 },
+      ],
     });
     const merged = mergeFinalizeStepsIntoDetails(detailsPlan(), dup);
     assert.equal(merged.status, "error");
@@ -477,7 +515,18 @@ function shardLocalDishSteps(
     dishSteps: Array.from({ length: dishCount }, (_, di) => ({
       mealIndex: 0,
       dishIndex: di,
-      steps: [`${stepPrefix} dish ${di} step 1`, `${stepPrefix} dish ${di} step 2`],
+      steps: [
+        {
+          text: `${stepPrefix} dish ${di} step 1`,
+          phaseType: "prep" as const,
+          estimatedMinutes: 5,
+        },
+        {
+          text: `${stepPrefix} dish ${di} step 2`,
+          phaseType: "cook" as const,
+          estimatedMinutes: 10,
+        },
+      ],
     })),
   };
 }
@@ -486,7 +535,7 @@ describe("readAndFinalizeWizardDraft — per-meal fan-out", () => {
   const userId = "u-finalize";
   const draftId = "d-finalize";
 
-  it("fans out one runAICall per meal with a single-meal slice and the 3k per-call maxTokens", async () => {
+  it("fans out one runAICall per meal with a single-meal slice and the 4k per-call maxTokens", async () => {
     const details = detailsPlan();
     const { fn, calls } = makeFinalizeRunAICallStub((mealTitle, dishCount) =>
       finalizeAISuccess(shardLocalDishSteps(dishCount, mealTitle)),
@@ -519,9 +568,10 @@ describe("readAndFinalizeWizardDraft — per-meal fan-out", () => {
       details.meals.map((m) => m.dishes.length),
     );
 
-    // Per-call maxTokens dropped from the 8k plan-wide budget to 3k.
+    // Per-call maxTokens: per-meal budget, bumped to 4k in BUG #3 (D-WS7-165)
+    // to absorb the added per-step phaseType + estimatedMinutes fields.
     for (const c of calls) {
-      assert.equal(c.maxTokens, 3072, "expected per-call maxTokens=3072");
+      assert.equal(c.maxTokens, 4096, "expected per-call maxTokens=4096");
     }
   });
 
@@ -549,12 +599,12 @@ describe("readAndFinalizeWizardDraft — per-meal fan-out", () => {
     const meal0Steps = result.payload.meals[0].dishes[0].steps;
     const meal1Steps = result.payload.meals[1].dishes[0].steps;
     assert.ok(
-      meal0Steps[0].startsWith(details.meals[0].title),
-      `meal 0 first step should reference meal 0 title; got: ${meal0Steps[0]}`,
+      meal0Steps[0].text.startsWith(details.meals[0].title),
+      `meal 0 first step should reference meal 0 title; got: ${meal0Steps[0].text}`,
     );
     assert.ok(
-      meal1Steps[0].startsWith(details.meals[1].title),
-      `meal 1 first step should reference meal 1 title; got: ${meal1Steps[0]}`,
+      meal1Steps[0].text.startsWith(details.meals[1].title),
+      `meal 1 first step should reference meal 1 title; got: ${meal1Steps[0].text}`,
     );
   });
 
@@ -631,7 +681,9 @@ describe("readAndFinalizeWizardDraft — per-meal fan-out", () => {
         base.dishSteps.push({
           mealIndex: 0,
           dishIndex: 0,
-          steps: ["dup entry step"],
+          steps: [
+            { text: "dup entry step", phaseType: "cook", estimatedMinutes: 5 },
+          ],
         });
         return finalizeAISuccess(base);
       }

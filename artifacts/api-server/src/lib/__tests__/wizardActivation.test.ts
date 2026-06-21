@@ -47,7 +47,18 @@ function sampleExpanded(): WizardExpandedPlan {
               { name: "Chicken thighs", quantity: 2, unit: "lb" },
               { name: "Harissa paste", quantity: 2, unit: "tbsp" },
             ],
-            steps: ["Roast at 425F until 165F internal."],
+            steps: [
+              {
+                text: "Pat chicken dry and rub with harissa.",
+                phaseType: "prep",
+                estimatedMinutes: 8,
+              },
+              {
+                text: "Roast at 425F until 165F internal.",
+                phaseType: "cook",
+                estimatedMinutes: 30,
+              },
+            ],
             macros: null,
           },
         ],
@@ -66,7 +77,13 @@ function sampleExpanded(): WizardExpandedPlan {
             ingredients: [
               { name: "Canned tomatoes", quantity: 28, unit: "oz" },
             ],
-            steps: ["Simmer."],
+            steps: [
+              {
+                text: "Simmer until thickened.",
+                phaseType: "cook",
+                estimatedMinutes: 20,
+              },
+            ],
             macros: null,
           },
         ],
@@ -84,6 +101,10 @@ interface CapturedStep {
   ownerId: string;
   stepIndex: number;
   stepTextRaw: string;
+  // BUG #3 (D-WS7-165) — the materializer now persists these from the widened
+  // step object instead of letting them fall to the DB column defaults.
+  phaseType?: string;
+  estimatedMinutes?: number;
 }
 
 interface CapturedUpsert {
@@ -265,8 +286,8 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
 
     // Materializer returns the same per-meal accounting whether the shape
     // came from optimizationNotes or payload. With this payload (2 meals,
-    // 2 dishes total, 1 step each): mealsCreated=2, dishesCreated=2,
-    // 2 RecipeInstructionStep rows.
+    // 2 dishes total; dish 0 has 2 steps, dish 1 has 1): mealsCreated=2,
+    // dishesCreated=2, 3 RecipeInstructionStep rows.
     assert.equal(result.mealsCreated, 2);
     assert.equal(result.dishesCreated, 2);
     assert.ok(
@@ -275,13 +296,56 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
     );
     assert.equal(
       captured.steps.length,
-      2,
-      "one step row per dish (each sample dish has 1 step)",
+      3,
+      "one step row per step across both dishes (2 + 1)",
     );
     // Steps came from payload's text — confirm the exact source.
     const stepText = captured.steps.map((s) => s.stepTextRaw);
     assert.ok(stepText.includes("Roast at 425F until 165F internal."));
-    assert.ok(stepText.includes("Simmer."));
+    assert.ok(stepText.includes("Simmer until thickened."));
+  });
+
+  // BUG #3 (D-WS7-165) — the materializer must persist phaseType +
+  // estimatedMinutes from the widened step object rather than letting them
+  // fall to the DB column defaults (cook / 1 min). This is the regression
+  // guard for the prep-filter + per-step-duration bug.
+  it("persists phaseType + estimatedMinutes from the step object (non-cook, non-1)", async () => {
+    const payload = sampleExpanded();
+    const { prismaStub, txStub, captured } = makeStubs({
+      expanded: payload,
+      withoutOptimizationNotes: true,
+    });
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      payload,
+    });
+
+    // The "Pat chicken dry and rub with harissa." step is tagged prep / 8 min
+    // in the fixture — proves a non-cook phase and a non-1 duration survive.
+    const prepStep = captured.steps.find(
+      (s) => s.stepTextRaw === "Pat chicken dry and rub with harissa.",
+    );
+    assert.ok(prepStep, "prep step row must be created");
+    assert.equal(prepStep!.phaseType, "prep");
+    assert.equal(prepStep!.estimatedMinutes, 8);
+
+    // Every persisted step carries both fields (none left undefined → none
+    // would fall to a column default).
+    for (const s of captured.steps) {
+      assert.ok(
+        s.phaseType !== undefined && s.estimatedMinutes !== undefined,
+        `step "${s.stepTextRaw}" must carry phaseType + estimatedMinutes`,
+      );
+      assert.notEqual(
+        s.estimatedMinutes,
+        1,
+        "no fixture step uses the 1-min default value",
+      );
+    }
   });
 
   it("rejects a payload that doesn't satisfy WizardExpandedPlanSchema (steps required)", async () => {
@@ -289,7 +353,7 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
     // dish has at least one step". The defensive Zod check inside the
     // materializer must catch this and surface as WizardDraftMalformed.
     const payload = sampleExpanded();
-    (payload.meals[0].dishes[0] as { steps: string[] }).steps = [];
+    (payload.meals[0].dishes[0] as { steps: unknown[] }).steps = [];
 
     const { prismaStub, txStub } = makeStubs({
       expanded: payload,

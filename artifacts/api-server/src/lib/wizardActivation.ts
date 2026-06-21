@@ -274,14 +274,22 @@ export async function materializeWizardDraft(
       }
 
       for (let si = 0; si < d.steps.length; si++) {
-        const text = d.steps[si];
+        const step = d.steps[si];
+        // BUG #3 (D-WS7-165) — persist phaseType + estimatedMinutes from the
+        // widened step object instead of letting them fall to the DB column
+        // defaults (cook / 1 min). Set unconditionally: the widened
+        // WizardStepSchema makes both fields required, so no optional-spread
+        // guard is needed (intentional divergence from mealMaterialize.ts,
+        // whose builder step fields are optional).
         await tx.recipeInstructionStep.create({
           data: {
             ownerType: "dish",
             ownerId: dish.id,
             stepIndex: si,
-            stepTextRaw: text,
-            stepTextTranslated: text,
+            stepTextRaw: step.text,
+            stepTextTranslated: step.text,
+            phaseType: step.phaseType,
+            estimatedMinutes: step.estimatedMinutes,
           },
         });
       }

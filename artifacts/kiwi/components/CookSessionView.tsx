@@ -70,20 +70,26 @@ function shortLabel(text: string): string {
 }
 
 // Per-step timer chip. Renders only on time-bearing steps (estimatedMinutes>0).
-// Idle → "⏱ Start M:00 timer"; running → "⏱ M:SS" (tap to cancel); done →
-// "✓ Timer done" (tap to clear). Timing-sensitive steps use the warm alert tone.
+// Idle → "⏱ Start M:00 timer" (a single Pressable). Once started, the chip is a
+// row carrying the live label plus two explicit controls (polish #4): "Add a
+// minute" (extends — running pushes the end out, done re-arms a fresh 1:00) and
+// "✕" (dismiss/clear). The done chip persists until the ✕ is tapped — nothing
+// auto-clears, so a finished timer never vanishes while hands are busy.
+// Timing-sensitive steps use the warm alert tone on the idle chip.
 function TimerChip({
   step,
   timer,
   nowMs,
   onStart,
   onClear,
+  onAddMinute,
 }: {
   step: CookStep;
   timer: ActiveTimer | undefined;
   nowMs: number;
   onStart: () => void;
   onClear: () => void;
+  onAddMinute: () => void;
 }) {
   if (step.estimatedMinutes <= 0) return null;
   const sensitive = step.isTimingSensitive;
@@ -105,24 +111,33 @@ function TimerChip({
     );
   }
 
-  if (isTimerDone(timer, nowMs)) {
-    return (
-      <Pressable
-        onPress={onClear}
-        style={({ pressed }) => [s.chip, s.chipDone, pressed && { opacity: 0.8 }]}
-      >
-        <Text style={s.chipTextDone}>✓ Timer done</Text>
-      </Pressable>
-    );
-  }
+  const done = isTimerDone(timer, nowMs);
+  const label = done
+    ? "✓ Timer done"
+    : `⏱ ${formatClock(timerRemainingMs(timer, nowMs))}`;
+  const labelStyle = done ? s.chipTextDone : s.chipTextRunning;
+  const actionStyle = done ? s.chipActionTextDone : s.chipActionText;
 
   return (
-    <Pressable
-      onPress={onClear}
-      style={({ pressed }) => [s.chip, s.chipRunning, pressed && { opacity: 0.8 }]}
-    >
-      <Text style={s.chipTextRunning}>{`⏱ ${formatClock(timerRemainingMs(timer, nowMs))}`}</Text>
-    </Pressable>
+    <View style={[s.chip, done ? s.chipDone : s.chipRunning, s.chipRow]}>
+      <Text style={labelStyle}>{label}</Text>
+      <Pressable
+        onPress={onAddMinute}
+        hitSlop={8}
+        accessibilityLabel="Add a minute"
+        style={({ pressed }) => [s.chipAction, pressed && { opacity: 0.6 }]}
+      >
+        <Text style={actionStyle}>Add a minute</Text>
+      </Pressable>
+      <Pressable
+        onPress={onClear}
+        hitSlop={8}
+        accessibilityLabel="Dismiss timer"
+        style={({ pressed }) => [s.chipAction, pressed && { opacity: 0.6 }]}
+      >
+        <Text style={actionStyle}>✕</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -215,6 +230,22 @@ export function CookSessionView({
       delete next[key];
       return next;
     });
+  };
+  // Polish #4 (D-WS7-165) — "Add a minute", state-dependent:
+  //   • running timer → push the original end out by a minute (endsAt + 60s).
+  //   • done timer    → re-arm to a fresh 1:00 from now (now + 60s).
+  // Either way re-arm the completion haptic and refresh `nowMs` so the chip
+  // updates on the same tap.
+  const extendTimer = (key: string) => {
+    const now = Date.now();
+    setTimers((t) => {
+      const cur = t[key];
+      if (!cur) return t;
+      const endsAt = isTimerDone(cur, now) ? now + 60_000 : cur.endsAt + 60_000;
+      return { ...t, [key]: { endsAt, durationMs: cur.durationMs + 60_000 } };
+    });
+    firedRef.current.delete(key);
+    setNowMs(now);
   };
 
   if (gatePromptVisible) {
@@ -377,6 +408,7 @@ export function CookSessionView({
                 nowMs={nowMs}
                 onStart={() => startTimer(step)}
                 onClear={() => clearTimer(step.key)}
+                onAddMinute={() => extendTimer(step.key)}
               />
             </Pressable>
           );
@@ -617,6 +649,29 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
   },
+  // Started-timer row: live label + the "Add a minute" / "✕" controls (#4).
+  chipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[2],
+  },
+  chipAction: {
+    paddingHorizontal: Spacing[1],
+  },
+  // Action labels sit on the running chip (sage on sage[50]) — readable accent.
+  chipActionText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+  },
+  // On the done chip (sage[600] fill) the controls invert to read on the dark tone.
+  chipActionTextDone: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+  },
 
   // active-timer strip
   timerStrip: {
@@ -669,23 +724,34 @@ const s = StyleSheet.create({
   footerBack: { width: 64 },
   footerNext: { flex: 1 },
 
-  // toast
+  // toast (#4 — polish #2): the View is now a transparent full-screen centering
+  // layer (pointerEvents="none", so it never blocks taps) and the Text carries
+  // the green pill. This is the seam that lets us center on screen rather than
+  // bottom-anchor while restyling only these two rules — the JSX is untouched.
   toast: {
     position: "absolute",
-    left: Spacing[4],
-    right: Spacing[4],
-    bottom: Spacing[12],
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing[6], // keeps the pill clear of the screen edges
+  },
+  // Bigger height (more vertical padding) + a little less wide (maxWidth) +
+  // centered (via the layer above). Copy literal is untouched.
+  toastText: {
+    maxWidth: 320,
     backgroundColor: Colors.sage[700],
     borderRadius: Radius.lg,
-    paddingVertical: Spacing[3],
-    paddingHorizontal: Spacing[4],
-    ...Shadow.overlay,
-  },
-  toastText: {
-    fontSize: Typography.fontSize.md,
+    paddingVertical: Spacing[5],
+    paddingHorizontal: Spacing[5],
+    overflow: "hidden", // clip the rounded corners around the Text fill
+    fontSize: Typography.fontSize.lg,
     color: Colors.neutral[0],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
     textAlign: "center",
+    ...Shadow.overlay,
   },
 });

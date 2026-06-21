@@ -12,6 +12,7 @@ import {
   isTimerDone,
   misePlaceItems,
   remainingMinutes,
+  resolveCookRender,
   resolvePrepGate,
   sequenceMealSteps,
   timerRemainingMs,
@@ -177,6 +178,68 @@ test("resolvePrepGate: no plan context → unknown; plan context → prepped/not
   assert.equal(resolvePrepGate(false, true), "unknown");
   assert.equal(resolvePrepGate(true, true), "prepped");
   assert.equal(resolvePrepGate(true, false), "not_prepped");
+});
+
+// ── resolveCookRender (polish #1 — gate shows while step data loads) ──────────
+
+const baseRender = {
+  recipeError: false,
+  planResolving: false,
+  recipeLoading: false,
+  sequenceLoading: false,
+  needsGatePrompt: false,
+};
+
+test("resolveCookRender: error wins over everything (even if other flags are set)", () => {
+  assert.equal(
+    resolveCookRender({
+      ...baseRender,
+      recipeError: true,
+      planResolving: true,
+      needsGatePrompt: true,
+    }),
+    "error",
+  );
+});
+
+test("resolveCookRender: blocks on the cheap plan fetch before the gate (no State-3 flash)", () => {
+  // A plan-context launch still resolving isPrepped: even though the gate would
+  // read 'unknown' (planItem not yet found), we must NOT show the State-3 prompt
+  // — we wait on the plan so a State-1/2 launch never flashes the question.
+  assert.equal(
+    resolveCookRender({ ...baseRender, planResolving: true, needsGatePrompt: true }),
+    "plan-loading",
+  );
+});
+
+test("resolveCookRender: shows the gate WHILE the recipe/sequence load behind it", () => {
+  // The slow recipe/sequence fetch no longer blocks the State-3 gate prompt.
+  assert.equal(
+    resolveCookRender({
+      ...baseRender,
+      recipeLoading: true,
+      sequenceLoading: true,
+      needsGatePrompt: true,
+    }),
+    "gate",
+  );
+});
+
+test("resolveCookRender: after the gate is answered, falls through to the spinner if step data is still in flight", () => {
+  // needsGatePrompt flips false once answered; remaining recipe/sequence load
+  // is then surfaced as the spinner.
+  assert.equal(
+    resolveCookRender({ ...baseRender, recipeLoading: true, needsGatePrompt: false }),
+    "recipe-loading",
+  );
+  assert.equal(
+    resolveCookRender({ ...baseRender, sequenceLoading: true, needsGatePrompt: false }),
+    "recipe-loading",
+  );
+});
+
+test("resolveCookRender: everything resolved → the full session", () => {
+  assert.equal(resolveCookRender(baseRender), "session");
 });
 
 // ── filter / recap / remaining ──────────────────────────────────────────────

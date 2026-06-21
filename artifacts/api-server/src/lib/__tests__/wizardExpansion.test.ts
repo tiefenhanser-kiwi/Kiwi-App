@@ -75,7 +75,10 @@ function makeMeal(title: string): WizardExpandResult["meals"][number] {
           { name: "ingredient b", quantity: 2, unit: "tablespoon" },
           { name: "ingredient c", quantity: 1, unit: "pound" },
         ],
-        steps: ["step one", "step two"],
+        steps: [
+          { text: "step one", phaseType: "prep", estimatedMinutes: 5 },
+          { text: "step two", phaseType: "cook", estimatedMinutes: 10 },
+        ],
       },
     ],
   };
@@ -331,7 +334,18 @@ describe("WizardExpandDishSchema — dish ingredient floor (WS7-5b-server-fix2)"
                 { name: "yellow onion", quantity: 0.5, unit: "each" },
                 { name: "garlic", quantity: 3, unit: "clove" },
               ],
-              steps: ["Form lamb into skewers.", "Grill until cooked."],
+              steps: [
+                {
+                  text: "Form lamb into skewers.",
+                  phaseType: "prep",
+                  estimatedMinutes: 10,
+                },
+                {
+                  text: "Grill until cooked.",
+                  phaseType: "cook",
+                  estimatedMinutes: 12,
+                },
+              ],
             },
             {
               title: "Warm Pita",
@@ -341,7 +355,13 @@ describe("WizardExpandDishSchema — dish ingredient floor (WS7-5b-server-fix2)"
               ingredients: [
                 { name: "pita bread", quantity: 4, unit: "each" },
               ],
-              steps: ["Warm in oven for 2 minutes."],
+              steps: [
+                {
+                  text: "Warm in oven for 2 minutes.",
+                  phaseType: "cook",
+                  estimatedMinutes: 2,
+                },
+              ],
             },
           ],
         },
@@ -371,7 +391,13 @@ describe("WizardExpandDishSchema — dish ingredient floor (WS7-5b-server-fix2)"
               ingredients: [
                 { name: "pita bread", quantity: 4, unit: "each" },
               ],
-              steps: ["Warm in oven for 2 minutes."],
+              steps: [
+                {
+                  text: "Warm in oven for 2 minutes.",
+                  phaseType: "cook",
+                  estimatedMinutes: 2,
+                },
+              ],
               macros: {
                 caloriesPerServing: 180,
                 proteinGPerServing: 6,
@@ -401,7 +427,9 @@ describe("WizardExpandDishSchema — dish ingredient floor (WS7-5b-server-fix2)"
               role: "main",
               positionIndex: 0,
               ingredients: [],
-              steps: ["serve"],
+              steps: [
+                { text: "serve", phaseType: "assemble", estimatedMinutes: 1 },
+              ],
             },
           ],
         },
