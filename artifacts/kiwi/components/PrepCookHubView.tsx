@@ -36,8 +36,6 @@ import type {
 
 interface Props {
   model: HubModel;
-  /** "Cook a meal" lane CTA — meal selection (temporary Cook-session stub). */
-  onCookAMeal: () => void;
   /** "Prep the Week" lane CTA — Week Prep (Block 4; temporary stub for now). */
   onPrepWeek: () => void;
   /** A "This week's meals" row / today's-meal callout tap. */
@@ -62,7 +60,6 @@ const CREAM = Palette.text.inverse; // #FBF7EF
 
 export function PrepCookHubView({
   model,
-  onCookAMeal,
   onPrepWeek,
   onSelectMeal,
   onMakePlan,
@@ -82,7 +79,6 @@ export function PrepCookHubView({
   return (
     <Hub
       model={model}
-      onCookAMeal={onCookAMeal}
       onPrepWeek={onPrepWeek}
       onSelectMeal={onSelectMeal}
     />
@@ -205,12 +201,10 @@ function PromotePlanCard({
 // ── The Hub ─────────────────────────────────────────────────────────────────
 function Hub({
   model,
-  onCookAMeal,
   onPrepWeek,
   onSelectMeal,
 }: {
   model: PrepCookHubModel;
-  onCookAMeal: () => void;
   onPrepWeek: () => void;
   onSelectMeal: (mealId: string, planItemId: string) => void;
 }) {
@@ -272,21 +266,10 @@ function Hub({
           </Pressable>
         )}
 
-        {/* Two primary action lanes. */}
+        {/* Prep-the-week lane (the "Cook a meal" lane is now a text prompt over
+            the meal list below — D-WS7-158: the action is tapping a meal row,
+            so a separate CTA card was drift). */}
         <View style={s.lanes}>
-          {/* Cook a meal — white card, terracotta CTA. */}
-          <View style={s.cookLane}>
-            <Text style={s.laneTitle}>Cook a meal</Text>
-            <Text style={s.laneBody}>
-              Pick a meal from this week and cook it step by step.
-            </Text>
-            <Button
-              label="Cook a meal"
-              variant="primary"
-              onPress={onCookAMeal}
-            />
-          </View>
-
           {/* Prep the week — sage surface, cream CTA. Disabled when prepped. */}
           <View style={s.prepLane}>
             <View style={s.prepLaneHead}>
@@ -318,8 +301,12 @@ function Hub({
           </View>
         </View>
 
-        {/* This week's meals. */}
-        <Text style={s.sectionLabel}>This week&apos;s meals</Text>
+        {/* Cook a meal — the lane is now a text prompt over this-week's meals;
+            tapping a row launches Cook Mode (D-WS7-158). */}
+        <Text style={s.laneTitle}>Cook a meal</Text>
+        <Text style={s.cookPrompt}>
+          Pick a meal from your plan and cook.
+        </Text>
         <View style={s.mealList}>
           {model.meals.map((row) => {
             const pillTone = TONE_STYLE[row.pill.tone];
@@ -443,26 +430,19 @@ const s = StyleSheet.create({
 
   // lanes
   lanes: { gap: Spacing[3], marginBottom: Spacing[5] },
-  cookLane: {
-    backgroundColor: Palette.background.card,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Palette.border.default,
-    padding: Spacing[4],
-    gap: Spacing[2],
-    ...Shadow.card,
-  },
   laneTitle: {
     fontSize: Typography.fontSize.lg,
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.serif[600],
   },
-  laneBody: {
+  // "Cook a meal" text prompt over the meal list (replaces the old CTA card).
+  cookPrompt: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[700],
+    color: Colors.neutral[600],
     fontFamily: Typography.face.sans[400],
-    marginBottom: Spacing[1],
+    marginTop: Spacing[1],
+    marginBottom: Spacing[2],
   },
   prepLane: {
     backgroundColor: SAGE_SURFACE,

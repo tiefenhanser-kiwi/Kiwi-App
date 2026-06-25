@@ -102,6 +102,18 @@ export async function findSimilarMeals(
 
 // A recipe step — shared by the per-dish steps and the top-level meal-owned
 // fallback array. `stepIndex` is 0-based and restarts per owner.
+// WS7-8b BUG-003 Block 1 — sidecar step→ingredient reference link. One entry
+// per matched amount span; `quantity` is the AUTHORED LITERAL at base servings
+// (0.75 for "¾ cup"), scaled at render by the meal-detail multiplier. Absent or
+// null on every legacy step (→ plain-text render, exactly as today).
+export const AmountRefSchema = z.object({
+  ingredientId: z.string(),
+  quantity: z.number(),
+  unit: z.string(),
+  charStart: z.number(),
+  charEnd: z.number(),
+});
+
 export const MealStepSchema = z.object({
   stepIndex: z.number(),
   text: z.string(),
@@ -112,6 +124,13 @@ export const MealStepSchema = z.object({
   requiresRest: z.boolean(),
   requiresMarination: z.boolean(),
   isTimingSensitive: z.boolean(),
+  // Optional + nullable: legacy steps omit it / send null.
+  amountRefs: z.array(AmountRefSchema).nullish(),
+  // WS7-8b BUG-003 Block 1 — DERIVED read-side (server toStepShape), never
+  // stored. true only when a wired step has ≥1 non-by-design amount that
+  // resolved to no unique ingredient → drives the subtle clarify-any-time
+  // signal. Absent/false on legacy + fully-matched steps.
+  unmatchedAmount: z.boolean().optional(),
 });
 
 export const MealDetailIngredientSchema = z.object({
@@ -171,10 +190,16 @@ export const MealDetailSchema = MealListItemSchema.extend({
   dishes: z.array(MealDetailDishSchema),
   steps: z.array(MealStepSchema),
   notes: z.null(),
+  // WS7-8b (D-WS7-169 keystone) — the plan-instance-resolved servings
+  // (servingsOverride ?? servingsDefault). Distinct from the authored
+  // `servings`, which the Meal Detail ingredient scaler uses as its
+  // denominator. Without a plan item, the server returns it === `servings`.
+  effectiveServings: z.number(),
 });
 
 const MealDetailEnvelopeSchema = z.object({ meal: MealDetailSchema });
 
+export type AmountRef = z.infer<typeof AmountRefSchema>;
 export type MealListItem = z.infer<typeof MealListItemSchema>;
 export type MealStep = z.infer<typeof MealStepSchema>;
 export type MealDetailIngredient = z.infer<typeof MealDetailIngredientSchema>;

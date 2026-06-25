@@ -24,6 +24,7 @@ import { test } from "node:test";
 import {
   buildManualSaveMealInput,
   buildRecipeOverride,
+  buildUpdateMealInput,
   hydrateBuilderDishesFromDraft,
   hydrateBuilderDishesFromMeal,
   newDish,
@@ -78,6 +79,7 @@ function makeMultiDishMeal(): MealDetail {
     cuisine: "American",
     minutes: 35,
     servings: 4,
+    effectiveServings: 4,
     calories: 600,
     protein: 30,
     carbs: 40,
@@ -135,6 +137,7 @@ function makeSingleDishMeal(): MealDetail {
     cuisine: "Japanese",
     minutes: 25,
     servings: 4,
+    effectiveServings: 4,
     calories: 540,
     protein: 38,
     carbs: 32,
@@ -511,6 +514,71 @@ test("PICK-INTO-EDIT: picking a saved dish into a 1-dish meal during edit adds a
   assert.equal(d1.steps[2].isTimingSensitive, true);
 });
 
+// ── Servings split: CREATE keeps, EDIT drops (BUG-002) ──────────────────
+// WS7-8b BUG-002 reverses the EDIT-path servings flow: the create-only
+// stepper feeds servingsDefault, but edit mode must DROP it from the PATCH
+// body (it would persist a count that disagrees with the unscaled ingredient
+// amounts and corrupt the canonical recipe). The two tests below pin the full
+// split — create KEEPS, edit DROPS.
+test("buildManualSaveMealInput (CREATE): carries a non-default servingsDefault through to output", () => {
+  const alloc = makeAlloc();
+  const hydrated = hydrateBuilderDishesFromMeal(makeSingleDishMeal(), alloc);
+
+  const input = buildManualSaveMealInput({
+    mealName: "Big batch chili",
+    cuisineType: "American",
+    difficulty: "easy",
+    estimatedTimeMinutes: "45",
+    servingsDefault: 10,
+    notes: "",
+    dishes: hydrated,
+    sourceType: "manual",
+  });
+
+  assert.equal(input.servingsDefault, 10);
+});
+
+test("buildUpdateMealInput (EDIT): DROPS servingsDefault from the PATCH body even when the input carries a non-default count (BUG-002 corruption guard)", () => {
+  // The SaveMealInput fed to the edit path carries servingsDefault (the create
+  // builders always set it). The edit PATCH must NOT forward it — otherwise an
+  // "Apply always" edit would persist a servings count divorced from the
+  // unscaled ingredient amounts, corrupting the canonical recipe.
+  const input: SaveMealInput = {
+    title: "Edited meal",
+    description: undefined,
+    cuisineType: "American",
+    servingsDefault: 10,
+    estimatedTimeMinutes: 45,
+    difficulty: "medium",
+    sourceType: "manual",
+    dishes: [
+      {
+        kind: "new",
+        title: "Chili",
+        role: "main",
+        positionIndex: 0,
+        ingredients: [{ name: "Beans", quantity: 2, unit: "cup" }],
+        steps: [{ text: "Simmer" }],
+      },
+    ],
+  };
+
+  const patch = buildUpdateMealInput(input);
+
+  // Assert ABSENCE of the key, not merely an undefined value — the corruption
+  // guard is "the property is not present in the PATCH body".
+  assert.ok(
+    !("servingsDefault" in patch),
+    "servingsDefault must be absent from the edit PATCH body",
+  );
+  // The rest of the scalar body still round-trips (extraction is behavior-
+  // preserving — same body the screen produced before).
+  assert.equal(patch.title, "Edited meal");
+  assert.equal(patch.estimatedTimeMinutes, 45);
+  assert.equal(patch.difficulty, "medium");
+  assert.equal(patch.dishes.length, 1);
+});
+
 // ── Validation gates ────────────────────────────────────────────────────
 
 test("buildManualSaveMealInput: no meal name throws a friendly error", () => {
@@ -824,6 +892,7 @@ function makeOverrideAppliedMeal(): MealDetail {
     cuisine: "Italian",
     minutes: 20,
     servings: 4,
+    effectiveServings: 4,
     calories: 500,
     protein: 20,
     carbs: 70,

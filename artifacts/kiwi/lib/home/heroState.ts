@@ -13,7 +13,15 @@ import type { MealListItem } from "@/lib/api/meals";
 // by `kind`. Carries only what each branch draws so the screen does no
 // further data-shape juggling.
 export type HeroModel =
-  | { kind: "today"; planId: string; meal: MealListItem }
+  | {
+      kind: "today";
+      planId: string;
+      /** The plan-slot id — threaded so the today card opens Meal Detail with
+       *  full plan-item context (servings override + "just this time" edits via
+       *  useMeal(mealId, planItemId)). Maps from todaysMeal.mealPlanItemId. */
+      planItemId: string;
+      meal: MealListItem;
+    }
   | { kind: "plan"; planId: string; name: string; durationDays: number | null }
   | { kind: "empty" };
 
@@ -45,6 +53,7 @@ export function deriveHeroModel(payload: HomePayload | undefined): HeroModel {
     return {
       kind: "today",
       planId: payload.todaysMeal.planId,
+      planItemId: payload.todaysMeal.mealPlanItemId,
       meal: payload.todaysMeal.meal,
     };
   }

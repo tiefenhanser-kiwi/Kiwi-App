@@ -69,6 +69,9 @@ test("deriveHeroModel: today's meal → today branch", () => {
   assert.equal(model.kind, "today");
   if (model.kind === "today") {
     assert.equal(model.planId, "plan-1");
+    // #1 — mealPlanItemId is threaded so the today card can open Meal Detail
+    // with full plan-item context (no longer dropped).
+    assert.equal(model.planItemId, "item-1");
     assert.equal(model.meal.id, "meal-1");
     assert.equal(model.meal.minutes, 30);
   }

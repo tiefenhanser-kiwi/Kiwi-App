@@ -1022,6 +1022,41 @@ test("setServingsForPlanItem sends null to clear the override", async () => {
   assert.deepEqual(capturedBody, { servingsOverride: null });
 });
 
+test("setServingsForPlanItem invalidates the meals-detail cache so the meal screen re-reads the new servings (BUG-001)", async () => {
+  const qc = await mountAuthed();
+
+  // Prime the meal-detail cache row the meal/[id] screen reads under
+  // ["meals","detail",mealId,planItemId]. handleMutationResult only touches
+  // the plans/home caches, so before the fix this row stayed fresh (60s
+  // staleTime) and a fast back-out + re-entry re-seeded displayServings from
+  // the stale effectiveServings. The mutator must prefix-invalidate
+  // ["meals","detail"] to force the refetch (mirrors changeRecipeForPlanItem).
+  qc.setQueryData(["meals", "detail", "m-1", "item-1"], {
+    id: "m-1",
+    effectiveServings: 4,
+  });
+  const before = qc.getQueryState(["meals", "detail", "m-1", "item-1"]);
+  assert.ok(before && !before.isInvalidated, "meal-detail primed and fresh");
+
+  route("PATCH", "/plans/plan-1/items/item-1", () =>
+    mockJson(itemMutationResponse("plan-1", "item-1", "m-1")),
+  );
+
+  await act(async () => {
+    await app!.setServingsForPlanItem("plan-1", "item-1", 8);
+  });
+
+  // Prefix invalidation marks the deeper ["meals","detail",mealId,planItemId]
+  // row stale — that staleness overrides the 60s staleTime and forces the
+  // ?planItemId read to re-run on re-entry so the new servings surface.
+  const after = qc.getQueryState(["meals", "detail", "m-1", "item-1"]);
+  assert.equal(
+    after?.isInvalidated,
+    true,
+    "meal-detail cache invalidated so the new servings surface on read-back",
+  );
+});
+
 test("promoteRecipeOverrideToMeal POSTs to /promote-override and invalidates caches", async () => {
   const qc = await mountAuthed();
   qc.setQueryData(["plans", "plan-1"], { id: "plan-1" });

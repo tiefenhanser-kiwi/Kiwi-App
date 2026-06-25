@@ -453,6 +453,15 @@ model RecipeInstructionStep {
   requiresRest       Boolean   @default(false)
   requiresMarination Boolean   @default(false)
   isTimingSensitive  Boolean   @default(false)
+  // WS7-8b BUG-003 Block 1 (D-WS7-171 scope: dish-owned steps only). Sidecar
+  // step→ingredient reference links, DERIVED server-side at materialize time
+  // from the dish's own DishIngredient rows. Each ref:
+  //   { ingredientId, quantity, unit, charStart, charEnd }
+  // where `quantity` is the step's authored literal at base servings (0.75 for
+  // "¾ cup"), NOT the DishIngredient canonical total — so partial/split steps
+  // render correctly when scaled. Forward-only: null on every legacy step and
+  // on steps with no matchable amounts; render falls back to plain text.
+  amountRefs         Json?
 
   @@index([ownerType, ownerId])
   @@map("recipe_instruction_steps")

@@ -85,6 +85,7 @@ const MEAL_DETAIL = {
   cuisine: "Japanese",
   minutes: 30,
   servings: 4,
+  effectiveServings: 4,
   calories: 540,
   protein: 38,
   carbs: 32,

@@ -629,8 +629,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         servingsOverride: servings,
       });
       handleMutationResult(planId, response.macrosStale);
+      // BUG-001 — mirrors changeRecipeForPlanItem's meals-detail invalidation
+      // for the same unmount-staleness reason: Meal Detail caches the resolved
+      // read under ["meals","detail",mealId,planItemId] (60s staleTime). A fast
+      // back-out + re-entry re-seeds displayServings from the STALE cached
+      // effectiveServings, so the servings change appears lost. We have
+      // planItemId but not mealId, so prefix-invalidate ["meals","detail"].
+      queryClient.invalidateQueries({ queryKey: ["meals", "detail"] });
     },
-    [handleMutationResult],
+    [handleMutationResult, queryClient],
   );
 
   // WS7-4-E c2 — Q3:A — plan-level mutators also consume macrosStale for

@@ -89,11 +89,9 @@ export default function PrepCook() {
       params: { mealId, planId: resolvedId, planItemId },
     });
 
-  // WS7-8b B3 — the "Cook a meal" lane's no-param /cook-session handoff is
-  // SEVERED: the cook session must never launch without a meal. The lane's
-  // button-vs-text redesign (what it should do instead) is D-WS7-158, its own
-  // block; for now this is intentionally inert. Layout left untouched.
-  const goCookAMeal = () => {};
+  // WS7-8b D-WS7-158 — the "Cook a meal" lane is now a text prompt over the
+  // this-week meal list; the action is tapping a meal row (goCookSession), so
+  // there is no separate lane handler. The old inert no-param handoff is gone.
 
   // "Prep the Week" → Week Prep (Block 4). Temporary stub, flagged — not faked.
   const goPrepWeek = () =>
@@ -126,7 +124,6 @@ export default function PrepCook() {
     return (
       <PrepCookHubView
         model={model}
-        onCookAMeal={goCookAMeal}
         onPrepWeek={goPrepWeek}
         onSelectMeal={goCookSession}
         onMakePlan={goMakePlan}

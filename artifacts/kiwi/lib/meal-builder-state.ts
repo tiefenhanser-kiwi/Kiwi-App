@@ -15,7 +15,12 @@
 
 import { parseQuantity } from "./quantity";
 import { toServerDifficulty } from "./api/builder";
-import type { MealDetail, SaveMealDish, SaveMealInput } from "./api/meals";
+import type {
+  MealDetail,
+  SaveMealDish,
+  SaveMealInput,
+  UpdateMealInput,
+} from "./api/meals";
 import type { DraftDish } from "./builder/parsedDishToDraft";
 import type { DraftMeal, RecipeOverride, SavedDish } from "./types";
 
@@ -394,6 +399,33 @@ export function buildManualSaveMealInput(
     throw new Error("Add at least one dish with ingredients.");
   }
   return { ...baseMeta, dishes: newDishes };
+}
+
+// ── Edit-path PATCH body builder ─────────────────────────────────────────
+// WS7-6 1F — translate the SaveMealInput's "new"-only dish shape into the
+// PATCH /me/meals/:id wipe-and-recreate body. The builder doesn't track
+// existing dish ids per row, so editing always re-creates the sub-graph
+// (wipe-and-recreate is the server-side contract).
+//
+// WS7-8b BUG-002 — extracted from app/meal-builder.tsx so the corruption
+// guard (servingsDefault is dropped from the edit PATCH) is unit-testable.
+// Pure: a function of `input` only, no screen-state closure.
+export function buildUpdateMealInput(input: SaveMealInput): UpdateMealInput {
+  // WS7-8b BUG-002 — servingsDefault is intentionally NOT carried into the
+  // PATCH body. Edit mode no longer authors servings (the stepper is
+  // create-only): persisting a count that disagrees with the unscaled
+  // ingredient amounts corrupts the canonical recipe. Servings is a
+  // render-time concern on Meal Detail (servingsMultiplier).
+  return {
+    title: input.title,
+    description: input.description ?? null,
+    cuisineType: input.cuisineType ?? null,
+    ...(input.estimatedTimeMinutes !== undefined
+      ? { estimatedTimeMinutes: input.estimatedTimeMinutes }
+      : {}),
+    ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
+    dishes: input.dishes,
+  };
 }
 
 // ── Per-instance recipe override builder ────────────────────────────────

@@ -144,7 +144,6 @@ function plan(overrides: Partial<PlanDetail> = {}): PlanDetail {
 const NOOP = () => {};
 
 interface Handlers {
-  onCookAMeal?: () => void;
   onPrepWeek?: () => void;
   onSelectMeal?: (mealId: string, planItemId: string) => void;
   onMakePlan?: () => void;
@@ -158,7 +157,6 @@ function render(model: HubModel, handlers: Handlers = {}) {
     renderer = TestRenderer.create(
       React.createElement(PrepCookHubView, {
         model,
-        onCookAMeal: handlers.onCookAMeal ?? NOOP,
         onPrepWeek: handlers.onPrepWeek ?? NOOP,
         onSelectMeal: handlers.onSelectMeal ?? NOOP,
         onMakePlan: handlers.onMakePlan ?? NOOP,
@@ -192,13 +190,57 @@ test("Hub renders header, prep indicator, both lanes, and a meal row with its pi
   assert.ok(texts.includes("2 meals this week"), `missing subtitle: ${texts}`);
   // Effective prep indicator (partial).
   assert.ok(texts.includes("Mostly prepped"), `missing indicator: ${texts}`);
-  // Two lanes.
-  assert.ok(texts.includes("Cook a meal"), `missing Cook lane CTA: ${texts}`);
+  // "Cook a meal" is now a text prompt over the meal list (D-WS7-158), and the
+  // Prep-the-Week lane remains a CTA.
+  assert.ok(texts.includes("Cook a meal"), `missing Cook prompt: ${texts}`);
+  assert.ok(
+    texts.includes("Pick a meal from your plan and cook"),
+    `missing Cook prompt body: ${texts}`,
+  );
   assert.ok(texts.includes("Prep the Week"), `missing Prep lane CTA: ${texts}`);
   // Meal rows + pills.
   assert.ok(texts.includes("Done Meal"), `missing meal title: ${texts}`);
   assert.ok(texts.includes("Prepped ✓"), `missing prepped pill: ${texts}`);
 
+  renderer.unmount();
+});
+
+test("Hub: 'Cook a meal' is a non-pressable text prompt (no CTA button); D-WS7-158", () => {
+  // The old "Cook a meal" lane was a button-CTA; the redesign drops the button
+  // and reframes the meal list as the tap target. Assert no pressable carries
+  // the "Cook a meal" label (the prompt is plain text; the rows route instead).
+  const model = buildPrepCookHubModel(
+    plan({
+      items: [
+        item({
+          id: "pi-x",
+          mealId: "meal-x",
+          assignedDayOfWeek: "Monday",
+          meal: meal({ id: "meal-x", title: "Tap Target" }),
+        }),
+      ],
+    }),
+    "Sunday",
+  );
+  const selected: Array<[string, string]> = [];
+  const renderer = render(model, {
+    onSelectMeal: ((m: string, p: string) => {
+      selected.push([m, p]);
+    }) as never,
+  });
+  const tree = renderer.toJSON() as RenderedNode | null;
+
+  // No pressable is labelled "Cook a meal" — it is a heading, not a CTA.
+  const cta = findPressableByText(tree, "Cook a meal");
+  assert.equal(cta, null, "'Cook a meal' should no longer be a pressable CTA");
+
+  // The meal row is the tap target and still routes with both ids.
+  const row = findPressableByText(tree, "Tap Target");
+  assert.ok(row, "meal row not found");
+  act(() => {
+    (row!.props!.onPress as () => void)();
+  });
+  assert.deepEqual(selected[0], ["meal-x", "pi-x"]);
   renderer.unmount();
 });
 

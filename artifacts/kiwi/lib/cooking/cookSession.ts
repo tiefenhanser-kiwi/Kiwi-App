@@ -13,9 +13,46 @@
 
 import type { SequencedStep } from "@/lib/api/cooking";
 import type { DishDetail } from "@/lib/api/dishes";
-import type { MealDetail, MealStep } from "@/lib/api/meals";
+import type { AmountRef, MealDetail, MealStep } from "@/lib/api/meals";
 
 export const PREP_PHASE = "prep";
+
+/**
+ * WS7-8b BUG-006 — the multiplier Cook Mode renders amountRefs through, so the
+ * cook screen scales to the SAME quantities as Meal Detail. Numerator is the
+ * plan-resolved effectiveServings (servingsOverride ?? servingsDefault);
+ * denominator is the authored servingsDefault. NEVER effectiveServings on both
+ * sides (that collapses to 1). The dishId launch path passes 1 directly
+ * (standalone dish has no plan override — D-WS7-175).
+ *
+ * Guard: a 0/missing/non-finite authored denominator falls back to 1 rather
+ * than dividing by zero / emitting NaN.
+ */
+export function resolveAmountMultiplier(
+  effectiveServings: number,
+  servingsDefault: number,
+): number {
+  if (!Number.isFinite(servingsDefault) || servingsDefault <= 0) return 1;
+  if (!Number.isFinite(effectiveServings) || effectiveServings <= 0) return 1;
+  return effectiveServings / servingsDefault;
+}
+
+/**
+ * WS7-8b BUG-006 follow-up — params for launching Cook Mode for a meal. Plan
+ * context (planId + planItemId) is included ONLY when BOTH are present, so Cook
+ * Mode's useMeal(mealId, planItemId) resolves the per-instance servingsOverride
+ * and scales correctly. A Library launch (no plan context) passes just
+ * { mealId } → base amounts, which is correct there. Never fabricates a
+ * planItemId. Mirrors the plan-card path (PlanReviewMealRow.tsx).
+ */
+export function buildCookSessionParams(args: {
+  mealId: string;
+  planId?: string;
+  planItemId?: string;
+}): Record<string, string> {
+  const { mealId, planId, planItemId } = args;
+  return planId && planItemId ? { mealId, planId, planItemId } : { mealId };
+}
 
 /** One flattened, ordered step in a cook session. */
 export interface CookStep {
@@ -30,6 +67,10 @@ export interface CookStep {
   isTimingSensitive: boolean;
   /** Set only for multi-dish meals, to label which dish a step belongs to. */
   dishTitle?: string;
+  /** WS7-8b BUG-003 Block 1 — sidecar step→ingredient refs. Ref-bearing steps
+   *  render the structured amount instead of the highlightQuantities regex;
+   *  null/absent on legacy + sequenced-path steps → regex fallback. */
+  amountRefs?: AmountRef[] | null;
   /**
    * Sequencer parallel-cue (the server-composed `reason`, e.g. "While the
    * chicken rests, start the sauce"). Set only on the multi-dish sequenced
@@ -48,6 +89,7 @@ function toCookStep(s: MealStep, key: string, dishTitle?: string): CookStep {
     isPrep: s.phaseType === PREP_PHASE,
     isTimingSensitive: s.isTimingSensitive,
     dishTitle,
+    amountRefs: s.amountRefs ?? null,
   };
 }
 

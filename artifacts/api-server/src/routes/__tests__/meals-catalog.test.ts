@@ -179,6 +179,9 @@ interface PlanItemFixture {
   mealId: string;
   userId: string;
   recipeOverrideJson: unknown;
+  // WS7-8b (D-WS7-169 keystone) — per-instance servings override. Omitted →
+  // null (effectiveServings falls back to the meal's servingsDefault).
+  servingsOverride?: number | null;
 }
 
 function makeStubPrisma(opts: {
@@ -269,7 +272,10 @@ function makeStubPrisma(opts: {
             p.userId === planInstance.userId,
         );
         return item
-          ? { recipeOverrideJson: item.recipeOverrideJson }
+          ? {
+              recipeOverrideJson: item.recipeOverrideJson,
+              servingsOverride: item.servingsOverride ?? null,
+            }
           : null;
       },
     },
@@ -694,6 +700,84 @@ describe("GET /meals/:id", () => {
       const dishes = meal.dishes as { ingredients: { name: string }[] }[];
       // Heavy cream still present — the foreign item's override was not read.
       assert.equal(dishes[0].ingredients.length, 3);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS7-8b (D-WS7-169 keystone) — composeMealDetail resolves the plan item's
+  // servingsOverride into a DISTINCT effectiveServings field; the authored
+  // `servings` (= servingsDefault, the mobile scaling denominator) is untouched.
+  it("resolves effectiveServings from the item's servingsOverride; authored servings stays the denominator", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        detailMeals: [PASTA_MEAL], // servingsDefault: 4
+        planItems: [
+          {
+            id: "item-1",
+            mealId: "r-pasta",
+            userId: USER_ID,
+            recipeOverrideJson: null,
+            servingsOverride: 8,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/meals/r-pasta?planItemId=item-1");
+      assert.equal(res.status, 200);
+      const { meal } = (await res.json()) as {
+        meal: { servings: number; effectiveServings: number };
+      };
+      // Denominator integrity: authored servings unchanged at the default…
+      assert.equal(meal.servings, 4);
+      // …while effectiveServings reflects the per-instance override.
+      assert.equal(meal.effectiveServings, 8);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("effectiveServings falls back to servingsDefault when the item has no servingsOverride", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        detailMeals: [PASTA_MEAL], // servingsDefault: 4
+        planItems: [
+          {
+            id: "item-1",
+            mealId: "r-pasta",
+            userId: USER_ID,
+            recipeOverrideJson: null,
+            // servingsOverride omitted → null
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/meals/r-pasta?planItemId=item-1");
+      assert.equal(res.status, 200);
+      const { meal } = (await res.json()) as {
+        meal: { servings: number; effectiveServings: number };
+      };
+      assert.equal(meal.servings, 4);
+      assert.equal(meal.effectiveServings, 4);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("without ?planItemId effectiveServings === servings (canonical/deep-link read)", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({ detailMeals: [PASTA_MEAL] }),
+    );
+    try {
+      const res = await authGet(harness, "/meals/r-pasta");
+      assert.equal(res.status, 200);
+      const { meal } = (await res.json()) as {
+        meal: { servings: number; effectiveServings: number };
+      };
+      assert.equal(meal.effectiveServings, meal.servings);
+      assert.equal(meal.effectiveServings, 4);
     } finally {
       await harness.close();
     }

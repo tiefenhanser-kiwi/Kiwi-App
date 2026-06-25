@@ -42,6 +42,7 @@ import type { Prisma } from "@prisma/client";
 
 import { type IngredientMention } from "./ingredientResolve";
 import { recomputeAndPersistMealMacros } from "./mealMacros";
+import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
 
 // ── payload shape ───────────────────────────────────────────────────────
 //
@@ -272,8 +273,20 @@ export async function materializeMeal(
         });
       }
 
+      // WS7-8b BUG-003 Block 1 — the dish's ingredient rows for server-side
+      // ref derivation (every id is present; the loop above threw otherwise).
+      const matcherIngredients: MatcherIngredient[] = d.ingredients.map((ing) => ({
+        ingredientId: ingredientIdByCanonical.get(ing.name.toLowerCase().trim()) ?? "",
+        name: ing.name,
+        quantity: ing.quantity,
+        unit: ing.unit,
+      }));
+
       for (let si = 0; si < d.steps.length; si++) {
         const s = d.steps[si];
+        // WS7-8b BUG-003 Block 1 — derive step→ingredient refs (always stored,
+        // even [], so reads can tell a derived step from a legacy null one).
+        const { amountRefs } = deriveAmountRefs(s.text, matcherIngredients);
         await tx.recipeInstructionStep.create({
           data: {
             ownerType: "dish",
@@ -281,6 +294,7 @@ export async function materializeMeal(
             stepIndex: si,
             stepTextRaw: s.text,
             stepTextTranslated: s.text,
+            amountRefs: amountRefs as unknown as Prisma.InputJsonValue,
             ...(s.estimatedMinutes !== undefined
               ? { estimatedMinutes: s.estimatedMinutes }
               : {}),
@@ -405,8 +419,20 @@ export async function materializeDish(
     });
   }
 
+  // WS7-8b BUG-003 Block 1 — the dish's ingredient rows for server-side ref
+  // derivation (every id is present; the loop above threw otherwise).
+  const matcherIngredients: MatcherIngredient[] = payload.ingredients.map((ing) => ({
+    ingredientId: ingredientIdByCanonical.get(ing.name.toLowerCase().trim()) ?? "",
+    name: ing.name,
+    quantity: ing.quantity,
+    unit: ing.unit,
+  }));
+
   for (let si = 0; si < payload.steps.length; si++) {
     const s = payload.steps[si];
+    // WS7-8b BUG-003 Block 1 — derive step→ingredient refs (always stored,
+    // even [], so reads can tell a derived step from a legacy null one).
+    const { amountRefs } = deriveAmountRefs(s.text, matcherIngredients);
     await tx.recipeInstructionStep.create({
       data: {
         ownerType: "dish",
@@ -414,6 +440,7 @@ export async function materializeDish(
         stepIndex: si,
         stepTextRaw: s.text,
         stepTextTranslated: s.text,
+        amountRefs: amountRefs as unknown as Prisma.InputJsonValue,
         ...(s.estimatedMinutes !== undefined
           ? { estimatedMinutes: s.estimatedMinutes }
           : {}),

@@ -73,6 +73,7 @@ const SINGLE_DISH_MEAL = {
     cuisine: "Japanese",
     minutes: 30,
     servings: 4,
+    effectiveServings: 4,
     calories: 540,
     protein: 38,
     carbs: 32,
@@ -112,6 +113,7 @@ const MULTI_DISH_MEAL = {
     cuisine: "American",
     minutes: 35,
     servings: 4,
+    effectiveServings: 4,
     calories: 640,
     protein: 38,
     carbs: 48,
@@ -203,6 +205,11 @@ test("getMeal parses a single-dish response", async () => {
   assert.equal(meal.steps.length, 1);
   assert.equal(meal.dishes[0].steps.length, 1);
   assert.equal(meal.dishes[0].title, "Salmon");
+  // WS7-8b (D-WS7-169 keystone) — the resolved display target is surfaced
+  // distinctly from the authored `servings` scaling denominator. The Meal
+  // Detail stepper seeds from this field.
+  assert.equal(meal.effectiveServings, 4);
+  assert.equal(meal.servings, 4);
 });
 
 test("getMeal parses a multi-dish response", async () => {

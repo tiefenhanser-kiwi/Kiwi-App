@@ -37,11 +37,16 @@ import {
   type ActiveTimer,
   type CookStep,
 } from "@/lib/cooking/cookSession";
+import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
+import type { AmountRef } from "@/lib/api/meals";
 
 interface Props {
   title: string;
   /** Active (prep-filtered when on the prepped path) ordered steps. */
   steps: CookStep[];
+  /** WS7-8b BUG-006 — multiplier amountRef spans render through, so Cook Mode
+   *  scales to the plan's effectiveServings (matching Meal Detail). 1 = base. */
+  amountMultiplier: number;
   currentIndex: number;
   /** Prepped path → render the mise-en-place recap card above the steps. */
   prepped: boolean;
@@ -141,9 +146,37 @@ function TimerChip({
   );
 }
 
-// Renders step text with quantities bolded terracotta. Best-effort + lossless:
-// highlightQuantities guarantees the segments rejoin to the original string.
-function StepText({ text, style }: { text: string; style: object }) {
+// Renders step text with quantities bolded terracotta.
+// WS7-8b BUG-003 Block 1 — ref-bearing steps render the structured amount
+// (multiplier 1: Cook Mode shows the base structured value, not a scaled one)
+// and bypass the regex. Legacy/no-ref steps keep highlightQuantities, whose
+// segments losslessly rejoin to the original string.
+function StepText({
+  text,
+  amountRefs,
+  amountMultiplier,
+  style,
+}: {
+  text: string;
+  amountRefs?: AmountRef[] | null;
+  amountMultiplier: number;
+  style: object;
+}) {
+  if (amountRefs && amountRefs.length > 0) {
+    return (
+      <Text style={style}>
+        {buildAmountRefSegments(text, amountRefs, amountMultiplier).map((seg, i) =>
+          seg.isRef ? (
+            <Text key={i} style={s.quantity}>
+              {seg.text}
+            </Text>
+          ) : (
+            <Text key={i}>{seg.text}</Text>
+          ),
+        )}
+      </Text>
+    );
+  }
   const segments = highlightQuantities(text);
   return (
     <Text style={style}>
@@ -163,6 +196,7 @@ function StepText({ text, style }: { text: string; style: object }) {
 export function CookSessionView({
   title,
   steps,
+  amountMultiplier,
   currentIndex,
   prepped,
   showSkipBar,
@@ -321,19 +355,40 @@ export function CookSessionView({
         {total > 0 ? `— step ${currentIndex + 1} of ${total} —` : "— the cook —"}
       </Text>
 
-      {/* Persistent active-timer strip (§13.5.1). */}
+      {/* Persistent active-timer strip (§13.5.1). Each pill carries the same two
+          controls as the per-step chip (#2) — "+1 min" and "✕" — wired to the
+          shared extendTimer/clearTimer handlers so a timer can be extended or
+          dismissed from the top without scrolling to its step. extendTimer
+          already branches running-vs-done internally, so both apply in either
+          state (running → push out / done → re-arm; either → dismiss). */}
       {timerEntries.length > 0 && (
         <View style={s.timerStrip}>
           {timerEntries.map((entry) => (
             <View
               key={entry.key}
-              style={[s.timerPill, entry.done && s.timerPillDone]}
+              style={[s.timerPill, entry.done && s.timerPillDone, s.timerPillRow]}
             >
               <Text style={s.timerPillText}>
                 {entry.done
                   ? `🔔 ${entry.label} done`
                   : `🟢 ${entry.label} ${formatClock(entry.remaining)}`}
               </Text>
+              <Pressable
+                onPress={() => extendTimer(entry.key)}
+                hitSlop={8}
+                accessibilityLabel="Add a minute (strip)"
+                style={({ pressed }) => [s.timerPillAction, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={s.timerPillActionText}>+1 min</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => clearTimer(entry.key)}
+                hitSlop={8}
+                accessibilityLabel="Dismiss timer (strip)"
+                style={({ pressed }) => [s.timerPillAction, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={s.timerPillActionText}>✕</Text>
+              </Pressable>
             </View>
           ))}
         </View>
@@ -397,6 +452,8 @@ export function CookSessionView({
               {step.cue && <Text style={s.cue}>{step.cue}</Text>}
               <StepText
                 text={step.text}
+                amountRefs={step.amountRefs}
+                amountMultiplier={amountMultiplier}
                 style={isCurrent ? s.stepTextCurrent : s.stepText}
               />
               {step.estimatedMinutes > 0 && (
@@ -696,6 +753,21 @@ const s = StyleSheet.create({
   timerPillText: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+  },
+  // Strip pill is a row when it carries the +1 / ✕ controls (#2).
+  timerPillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[1],
+  },
+  timerPillAction: {
+    paddingHorizontal: Spacing[1],
+  },
+  timerPillActionText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
   },

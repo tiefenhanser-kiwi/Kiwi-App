@@ -30,6 +30,7 @@ import {
   flattenMealSteps,
   misePlaceItems,
   remainingMinutes,
+  resolveAmountMultiplier,
   resolveCookRender,
   resolvePrepGate,
   sequenceMealSteps,
@@ -107,6 +108,22 @@ export default function CookSession() {
     if (dishId && dishQuery.data) return flattenDishSteps(dishQuery.data);
     return [];
   }, [mealId, dishId, mealQuery.data, dishQuery.data, isMultiDish, seqQuery.data]);
+
+  // ── WS7-8b BUG-006 — amount-ref scale ───────────────────────────────────────
+  // Cook Mode renders amountRefs through this so the cook screen scales to the
+  // same quantities as Meal Detail. Meal path: effectiveServings (plan-resolved)
+  // ÷ authored servingsDefault (= MealDetail.servings). DishId path: 1 — a
+  // standalone dish has no plan override (the dish-of-an-overridden-plan-meal
+  // case is a chosen limitation, D-WS7-175).
+  const amountMultiplier = useMemo(() => {
+    if (mealId && mealQuery.data) {
+      return resolveAmountMultiplier(
+        mealQuery.data.effectiveServings,
+        mealQuery.data.servings,
+      );
+    }
+    return 1;
+  }, [mealId, mealQuery.data]);
 
   // ── Prep gate (read-only) ──────────────────────────────────────────────────
   const wantPlan = planId.length > 0 && planItemId.length > 0;
@@ -226,6 +243,7 @@ export default function CookSession() {
     <CookSessionView
       title={title}
       steps={activeSteps}
+      amountMultiplier={amountMultiplier}
       currentIndex={safeIndex}
       prepped={prepped}
       showSkipBar={showSkipBar}

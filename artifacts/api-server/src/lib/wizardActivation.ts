@@ -27,6 +27,7 @@ import {
   resolveIngredients,
 } from "./ingredientResolve";
 import { recomputeAndPersistMealMacros } from "./mealMacros";
+import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
 
 // WS7-6 Block 2: inferCategory now lives in ingredientResolve.ts so the new
 // save-canonical materializeMeal can reuse it. Re-exported here so existing
@@ -273,8 +274,21 @@ export async function materializeWizardDraft(
         });
       }
 
+      // WS7-8b BUG-003 Block 1 — the dish's ingredient rows for server-side
+      // ref derivation. Every id is present (the loop above threw otherwise).
+      const matcherIngredients: MatcherIngredient[] = d.ingredients.map((ing) => ({
+        ingredientId: ingredientIdByCanonical.get(ing.name.toLowerCase().trim()) ?? "",
+        name: ing.name,
+        quantity: ing.quantity,
+        unit: ing.unit,
+      }));
+
       for (let si = 0; si < d.steps.length; si++) {
         const step = d.steps[si];
+        // WS7-8b BUG-003 Block 1 — derive step→ingredient refs from the dish's
+        // own ingredients. Always stored (even []) so the read side can tell a
+        // derived step from a legacy (null) one; see D-WS7-171 notes.
+        const { amountRefs } = deriveAmountRefs(step.text, matcherIngredients);
         // BUG #3 (D-WS7-165) — persist phaseType + estimatedMinutes from the
         // widened step object instead of letting them fall to the DB column
         // defaults (cook / 1 min). Set unconditionally: the widened
@@ -290,6 +304,7 @@ export async function materializeWizardDraft(
             stepTextTranslated: step.text,
             phaseType: step.phaseType,
             estimatedMinutes: step.estimatedMinutes,
+            amountRefs: amountRefs as unknown as Prisma.InputJsonValue,
           },
         });
       }

@@ -70,6 +70,26 @@ function findInnermostPressableByText(
   return null;
 }
 
+// Exact-match on accessibilityLabel — used to disambiguate the per-step chip
+// controls from the top-strip controls (#2), which share the "✕" glyph. The
+// chip labels are "Dismiss timer"/"Add a minute"; the strip labels are the same
+// suffixed with " (strip)", so an EXACT match targets one surface unambiguously.
+function findByA11yLabel(
+  node: RenderedNode | string | null,
+  label: string,
+): RenderedNode | null {
+  if (node == null || typeof node === "string") return null;
+  const props = (node.props ?? {}) as { accessibilityLabel?: unknown };
+  if (props.accessibilityLabel === label) return node;
+  if (Array.isArray(node.children)) {
+    for (const c of node.children) {
+      const hit = findByA11yLabel(c, label);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 const STEPS: CookStep[] = [
   { key: "0", text: "Sear the chicken", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
   { key: "1", text: "Add 2 cups diced tomatoes", phaseType: "cook", estimatedMinutes: 5, isPrep: false, isTimingSensitive: false },
@@ -93,6 +113,7 @@ interface Overrides {
   onSkipToCooking?: () => void;
   onPrepAnswer?: (p: boolean) => void;
   onExit?: () => void;
+  amountMultiplier?: number;
 }
 
 function renderView(o: Overrides = {}) {
@@ -102,6 +123,7 @@ function renderView(o: Overrides = {}) {
       React.createElement(CookSessionView, {
         title: "Test Meal",
         steps: o.steps ?? STEPS,
+        amountMultiplier: o.amountMultiplier ?? 1,
         currentIndex: o.currentIndex ?? 0,
         prepped: o.prepped ?? false,
         showSkipBar: o.showSkipBar ?? false,
@@ -139,6 +161,38 @@ test("gate prompt: renders the one-tap question and fires onPrepAnswer", () => {
   act(() => (yes!.props!.onPress as () => void)());
   assert.deepEqual(answers, [true]);
   renderer.unmount();
+});
+
+// ── WS7-8b BUG-006 — amountRefs render through amountMultiplier ───────────────
+
+const REF_STEPS: CookStep[] = [
+  {
+    key: "0",
+    text: "Add 2 cups diced tomatoes",
+    phaseType: "cook",
+    estimatedMinutes: 5,
+    isPrep: false,
+    isTimingSensitive: false,
+    // ref covers the "2 cups" span [4,10]
+    amountRefs: [
+      { ingredientId: "tom", quantity: 2, unit: "cups", charStart: 4, charEnd: 10 },
+    ],
+  },
+];
+
+test("BUG-006: a ref-bearing step scales by amountMultiplier (×1.5 → 3 cups, not 2)", () => {
+  const texts = flat(
+    renderView({ steps: REF_STEPS, amountMultiplier: 1.5 }).toJSON() as RenderedNode | null,
+  );
+  assert.ok(texts.includes("3 cups"), `expected scaled amount: ${texts}`);
+  assert.ok(!texts.includes("2 cups"), `stale base amount leaked: ${texts}`);
+});
+
+test("BUG-006: multiplier 1 (no override / dishId path) renders the base amount", () => {
+  const texts = flat(
+    renderView({ steps: REF_STEPS, amountMultiplier: 1 }).toJSON() as RenderedNode | null,
+  );
+  assert.ok(texts.includes("2 cups"), `expected base amount: ${texts}`);
 });
 
 // ── Session render + engine ──────────────────────────────────────────────────
@@ -363,7 +417,7 @@ test("timer #4: 'Add a minute' on a DONE timer re-arms a fresh 1:00 from now", (
   }
 });
 
-test("timer #4: the '✕' dismiss control clears the timer (persists until then — no auto-dismiss)", () => {
+test("timer #4: the chip '✕' dismiss control clears the timer (persists until then — no auto-dismiss)", () => {
   const steps: CookStep[] = [
     { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
   ];
@@ -374,13 +428,67 @@ test("timer #4: the '✕' dismiss control clears the timer (persists until then 
   );
   assert.ok(flat(renderer.toJSON() as RenderedNode | null).includes("🟢"), "active-timer strip should appear");
 
-  const dismiss = findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "✕");
-  assert.ok(dismiss, "'✕' dismiss control missing");
+  // Once a timer runs, BOTH the chip and the strip render a "✕" (#2); target the
+  // CHIP's dismiss by its exact accessibilityLabel so this stays unambiguous.
+  const dismiss = findByA11yLabel(renderer.toJSON() as RenderedNode | null, "Dismiss timer");
+  assert.ok(dismiss, "chip '✕' dismiss control missing");
   act(() => (dismiss!.props!.onPress as () => void)());
 
   const texts = flat(renderer.toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Start 8:00 timer"), `dismiss should return to the idle chip: ${texts}`);
   assert.ok(!texts.includes("🟢"), "active-timer strip should be gone after dismiss");
+  act(() => renderer.unmount());
+});
+
+// ── Timer #2: strip controls (mirror the chip's +1 / ✕ on the top strip) ──────
+
+test("strip #2: the top-strip '✕' dismisses the timer without scrolling to the step", () => {
+  const steps: CookStep[] = [
+    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
+  ];
+  const renderer = renderView({ steps });
+  act(() =>
+    (findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "Start 8:00 timer")!
+      .props!.onPress as () => void)(),
+  );
+  assert.ok(flat(renderer.toJSON() as RenderedNode | null).includes("🟢"), "active-timer strip should appear");
+
+  const stripDismiss = findByA11yLabel(
+    renderer.toJSON() as RenderedNode | null,
+    "Dismiss timer (strip)",
+  );
+  assert.ok(stripDismiss, "strip '✕' dismiss control missing");
+  act(() => (stripDismiss!.props!.onPress as () => void)());
+
+  const texts = flat(renderer.toJSON() as RenderedNode | null);
+  assert.ok(!texts.includes("🟢"), "strip should be gone after a strip-dismiss");
+  assert.ok(texts.includes("Start 8:00 timer"), `the step chip should return to idle: ${texts}`);
+  act(() => renderer.unmount());
+});
+
+test("strip #2: the top-strip '+1 min' extends a running timer (8:00 → 9:00)", () => {
+  const steps: CookStep[] = [
+    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
+  ];
+  const renderer = renderView({ steps });
+  act(() =>
+    (findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "Start 8:00 timer")!
+      .props!.onPress as () => void)(),
+  );
+  assert.ok(flat(renderer.toJSON() as RenderedNode | null).includes("8:00"), "running timer should read 8:00");
+
+  const stripAdd = findByA11yLabel(
+    renderer.toJSON() as RenderedNode | null,
+    "Add a minute (strip)",
+  );
+  assert.ok(stripAdd, "strip '+1 min' control missing");
+  act(() => (stripAdd!.props!.onPress as () => void)());
+
+  // endsAt pushed out by 60s — both the strip pill and the chip now read 9:00.
+  assert.ok(
+    flat(renderer.toJSON() as RenderedNode | null).includes("9:00"),
+    "strip extend should push the running timer to 9:00",
+  );
   act(() => renderer.unmount());
 });
 

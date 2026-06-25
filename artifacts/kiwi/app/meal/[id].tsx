@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -28,39 +28,13 @@ import {
 import { useMeal } from "@/hooks/useMeal";
 import { ApiError } from "@/lib/api/errors";
 import type { MealDetail, MealStep } from "@/lib/api/meals";
+import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
+import { buildCookSessionParams } from "@/lib/cooking/cookSession";
 import { formatMacro } from "@/lib/format/macros";
+import { formatQuantity } from "@/lib/format/quantity";
 
 const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 12;
-
-// PRD §11.3 — quantity rounding for ingredient display.
-// Approximate; per-unit precision is a polish pass (WS9).
-function formatQuantity(qty: number, unit: string): string {
-  const wholeUnits = ["whole", "clove"];
-  if (wholeUnits.includes(unit.toLowerCase())) {
-    return String(Math.ceil(qty));
-  }
-  // Round to nearest 1/8 for cooking measures.
-  const rounded = Math.round(qty * 8) / 8;
-  const whole = Math.floor(rounded);
-  const frac = rounded - whole;
-  const fracMap: Record<string, string> = {
-    "0.125": "⅛",
-    "0.250": "¼",
-    "0.375": "⅜",
-    "0.500": "½",
-    "0.625": "⅝",
-    "0.750": "¾",
-    "0.875": "⅞",
-  };
-  const fracKey = frac.toFixed(3);
-  const fracStr = fracMap[fracKey] ?? "";
-  if (whole === 0 && fracStr) return fracStr;
-  if (whole > 0 && fracStr) return `${whole}${fracStr}`;
-  if (whole > 0 && !fracStr) return String(whole);
-  // Fallback: tiny non-mappable fraction (shouldn't happen after 1/8 rounding).
-  return rounded.toFixed(2);
-}
 
 // WS7-2 Block D (Commit 3): first UI consumer of the favorites API. Block B
 // migrated favorites to React Query but nothing toggled them; this heart sits
@@ -106,11 +80,10 @@ function HeartButton({ mealId }: { mealId: string }) {
 // "meal not found" view, and a retry-able error banner for everything else —
 // and hands the resolved MealDetail to <MealDetailContent>.
 export default function MealDetailScreen() {
-  const { id, planId, planItemId, servingsOverride } = useLocalSearchParams<{
+  const { id, planId, planItemId } = useLocalSearchParams<{
     id: string;
     planId?: string;
     planItemId?: string;
-    servingsOverride?: string;
   }>();
   const mealId = id ?? "";
   const router = useRouter();
@@ -167,19 +140,17 @@ export default function MealDetailScreen() {
     );
   }
 
-  // WS7-7-A B5 — parse the plan-instance servings override (passed as a string
-  // route param). Falsy/NaN → undefined (inherit the meal default).
-  const parsedOverride = servingsOverride ? Number(servingsOverride) : NaN;
-  const initialServings = Number.isFinite(parsedOverride)
-    ? parsedOverride
-    : undefined;
-
+  // WS7-8b (D-WS7-169 keystone) — the plan-instance servings now resolve
+  // server-side into meal.effectiveServings (for BOTH the today-card and Plans
+  // entry paths, via useMeal's planItemId). The old `servingsOverride` route-
+  // param seed is retired — both paths read one resolved server value, so they
+  // can no longer disagree. (Partial down-payment on D-WS7-169: PlanReviewMealRow
+  // still passes the now-ignored param; retiring that is the deferral's scope.)
   return (
     <MealDetailContent
       meal={meal}
       planId={planId}
       planItemId={planItemId}
-      initialServings={initialServings}
     />
   );
 }
@@ -188,12 +159,10 @@ function MealDetailContent({
   meal,
   planId,
   planItemId,
-  initialServings,
 }: {
   meal: MealDetail;
   planId?: string;
   planItemId?: string;
-  initialServings?: number;
 }) {
   const router = useRouter();
   const { setServingsForPlanItem } = useApp();
@@ -204,16 +173,37 @@ function MealDetailContent({
   const hasOverride = !!(planId && planItemId);
 
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  // WS7-7-A B5 — in a plan, seed from the instance override; otherwise the
-  // meal's own default. The stepper is display-only in the library context
-  // (no plan item to persist to) and persists in the plan context.
-  const [displayServings, setDisplayServings] = useState(
-    initialServings ?? meal.servings,
-  );
+  // WS7-8b (D-WS7-169 keystone) — seed + display from the server-resolved
+  // effectiveServings (servingsOverride ?? servingsDefault). In the library
+  // context (no plan item) the server returns it === meal.servings, so this is
+  // the canonical default. The stepper stays locally adjustable (optimistic +
+  // rollback in applyServings); the authored meal.servings remains the scaling
+  // denominator below.
+  const [displayServings, setDisplayServings] = useState(meal.effectiveServings);
   const [addToPlanVisible, setAddToPlanVisible] = useState(false);
   const canPersistServings = !!(planId && planItemId);
+  // BUG-006 follow-up — the latest in-flight servings write (already
+  // .catch-guarded, so awaiting it never throws). Cook Now awaits this so it
+  // never navigates ahead of a pending override write. Null when none pending.
+  const pendingServingsWrite = useRef<Promise<void> | null>(null);
+
+  // WS7-8b (D-WS7-169 / 3b) — re-sync the stepper when the server's resolved
+  // servings changes under a mounted screen. The driving case is Apply-Always:
+  // the edit refetches a new effectiveServings while this screen stays in the
+  // stack, and the mount-once useState above would otherwise show the stale
+  // pre-edit value. Keyed on the resolved value only, so it fires for genuine
+  // server writes — a local stepper tap PATCHes synchronously, so the refetch
+  // lands on the same value and this is a no-op for in-progress adjustments.
+  useEffect(() => {
+    setDisplayServings(meal.effectiveServings);
+  }, [meal.effectiveServings]);
 
   const showBanner = hasOverride && !bannerDismissed;
+  // WS7-8b (D-WS7-169) — DENOMINATOR is the authored meal.servings
+  // (= servingsDefault), NOT effectiveServings. Ingredient quantities are
+  // authored for servingsDefault, so scaling must divide by it. The numerator
+  // is the live (possibly overridden) displayServings. Do NOT swap meal.servings
+  // for effectiveServings here or the multiplier collapses to 1 and under-scales.
   const servingsMultiplier = displayServings / meal.servings;
   const onlyOneDish = meal.dishes.length === 1;
 
@@ -254,7 +244,36 @@ function MealDetailContent({
         </Text>
       </View>
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={s.stepText}>{step.text}</Text>
+        {/* WS7-8b BUG-003 Block 1 — ref-bearing steps render the structured
+            amount × the SAME servingsMultiplier the ingredient list uses;
+            null/[] amountRefs render plain text exactly as before. */}
+        {step.amountRefs && step.amountRefs.length > 0 ? (
+          <Text style={s.stepText}>
+            {buildAmountRefSegments(step.text, step.amountRefs, servingsMultiplier).map(
+              (seg, i) =>
+                seg.isRef ? (
+                  <Text key={i} style={s.stepQuantity}>
+                    {seg.text}
+                  </Text>
+                ) : (
+                  <Text key={i}>{seg.text}</Text>
+                ),
+            )}
+          </Text>
+        ) : (
+          <Text style={s.stepText}>{step.text}</Text>
+        )}
+        {/* Subtle, non-blocking clarify-any-time signal — only when a wired
+            step has a real ingredient amount that resolved to no ingredient.
+            Matched amounts in the same step still scale above. */}
+        {step.unmatchedAmount === true && (
+          <View style={s.stepUnmatchedHint}>
+            <Feather name="alert-triangle" size={12} color={Colors.terracotta[500]} />
+            <Text style={s.stepUnmatchedHintText}>
+              Double-check the amounts in this step
+            </Text>
+          </View>
+        )}
         {step.estimatedMinutes !== undefined && (
           <Text style={s.stepMeta}>{step.estimatedMinutes} min</Text>
         )}
@@ -273,7 +292,13 @@ function MealDetailContent({
     const prev = displayServings;
     setDisplayServings(clamped);
     if (canPersistServings) {
-      void setServingsForPlanItem(planId!, planItemId!, clamped).catch(() => {
+      // Track the in-flight write so Cook Now can await it (BUG-006 follow-up).
+      // The .catch keeps the stored promise non-rejecting (it does the rollback).
+      pendingServingsWrite.current = setServingsForPlanItem(
+        planId!,
+        planItemId!,
+        clamped,
+      ).catch(() => {
         setDisplayServings(prev);
         Alert.alert(
           "Couldn't update servings",
@@ -315,11 +340,21 @@ function MealDetailContent({
     });
   };
 
-  const onCookNow = () => {
+  const onCookNow = async () => {
     console.log("[meal-detail] cook-now tapped", { mealId: meal.id });
-    // WS7-8b B2 — meal-context "Cook Now" → temporary /cook-session stub (the
-    // Hub took over /prep-cook). Block 3 owns the real single-meal Cook session.
-    router.push({ pathname: "/cook-session", params: { mealId: meal.id } });
+    // BUG-006 — pass plan context (planId + planItemId) so Cook Mode resolves
+    // this item's servingsOverride and scales amounts, matching the plan-card
+    // path. Omitted in the Library (no plan context) → base amounts, correct.
+    // First await any in-flight servings write so Cook Mode reads the current
+    // value, not the prior override (tap-then-immediately-cook race). No
+    // pending write → no await, no perceptible delay.
+    if (pendingServingsWrite.current) {
+      await pendingServingsWrite.current;
+    }
+    router.push({
+      pathname: "/cook-session",
+      params: buildCookSessionParams({ mealId: meal.id, planId, planItemId }),
+    });
   };
 
   const onAddToPlan = () => {
@@ -761,6 +796,23 @@ const s = StyleSheet.create({
     color: Colors.neutral[900],
     fontFamily: Typography.face.sans[400],
     lineHeight: 20,
+  },
+  // WS7-8b BUG-003 Block 1 — structured ref amount, terracotta (mirrors the
+  // Cook Mode quantity treatment, Palette.cookMode.quantity).
+  stepQuantity: {
+    color: Palette.cookMode.quantity.color,
+    fontFamily: Typography.face.sans[700],
+  },
+  // Subtle clarify-any-time signal (terracotta tint, non-blocking, no modal).
+  stepUnmatchedHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[1],
+  },
+  stepUnmatchedHintText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.terracotta[600],
+    fontFamily: Typography.face.sans[400],
   },
   stepMeta: {
     fontSize: Typography.fontSize.xs,

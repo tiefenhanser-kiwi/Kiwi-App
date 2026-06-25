@@ -31,6 +31,7 @@ import { normalizeIngredientName } from "../lib/groceryNormalization";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
+import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
 import {
   subscriptionService as productionSubscriptionService,
   type SubscriptionService,
@@ -159,6 +160,10 @@ export function toStepShape(s: {
   requiresRest: boolean;
   requiresMarination: boolean;
   isTimingSensitive: boolean;
+  // WS7-8b BUG-003 Block 1 — sidecar step→ingredient refs. The DB column is
+  // Json?; null on legacy/unwired steps, an array (possibly []) on steps
+  // derived by a Block-1 generation/create seam.
+  amountRefs?: unknown;
 }) {
   return {
     stepIndex: s.stepIndex,
@@ -170,6 +175,11 @@ export function toStepShape(s: {
     requiresRest: s.requiresRest,
     requiresMarination: s.requiresMarination,
     isTimingSensitive: s.isTimingSensitive,
+    // Pass the stored Json through verbatim — null stays null (legacy → plain
+    // render), an array stays an array. Mobile MealStepSchema validates shape.
+    amountRefs: (s.amountRefs ?? null) as AmountRef[] | null,
+    // WS7-8b BUG-003 Block 1 — derived read-side (not stored); false on legacy.
+    unmatchedAmount: hasUnmatchedAmount(s.stepTextTranslated, s.amountRefs ?? null),
   };
 }
 
@@ -206,6 +216,11 @@ export interface MealDetail extends MealListItem {
   dishes: MealDetailDish[];
   steps: MealStepShape[];
   notes: null;
+  // WS7-8b (D-WS7-169 keystone) — the plan-instance-resolved servings
+  // (servingsOverride ?? servingsDefault). DISTINCT from the authored
+  // `servings` (= servingsDefault), which stays the ingredient-scaling
+  // denominator. No plan item / no override → effectiveServings === servings.
+  effectiveServings: number;
 }
 
 // WS7-7-A B5 (D-WS7-090 read-side) — per-instance RecipeOverride applied to a
@@ -309,6 +324,7 @@ export async function composeMealDetail(
   prisma: PrismaClient,
   id: string,
   recipeOverrideJson?: unknown,
+  servingsOverride?: number | null,
 ): Promise<MealDetail | null> {
   const meal = await prisma.meal.findUnique({
     where: { id },
@@ -396,6 +412,15 @@ export async function composeMealDetail(
     ? applyRecipeOverrideToDishes(dishes, override)
     : dishes;
 
+  // WS7-8b (D-WS7-169 keystone) — resolve the per-instance servings override
+  // into a DISTINCT field. The authored `servings` (from toListShape =
+  // servingsDefault) is left untouched so the mobile ingredient scaler keeps
+  // using it as the denominator; effectiveServings is the display target.
+  const effectiveServings =
+    typeof servingsOverride === "number"
+      ? servingsOverride
+      : meal.servingsDefault;
+
   return {
     // Shared meal-meta fields reuse the GET /meals list shape (toListShape):
     // id, title, cuisine, minutes, servings, calories/protein/carbs/fat,
@@ -416,6 +441,7 @@ export async function composeMealDetail(
     // meal.dishes[].steps first.
     steps: mealSteps.map(toStepShape),
     notes: null,
+    effectiveServings,
   };
 }
 
@@ -648,6 +674,9 @@ export function createMealsRouter(
 
     try {
       let recipeOverrideJson: unknown = undefined;
+      // WS7-8b (D-WS7-169 keystone) — also read the item's per-instance
+      // servingsOverride so the composed detail resolves effectiveServings.
+      let servingsOverride: number | null = null;
       if (planItemId) {
         const item = await prisma.mealPlanItem.findFirst({
           where: {
@@ -655,12 +684,18 @@ export function createMealsRouter(
             mealId: id,
             planInstance: { userId: req.userId! },
           },
-          select: { recipeOverrideJson: true },
+          select: { recipeOverrideJson: true, servingsOverride: true },
         });
         recipeOverrideJson = item?.recipeOverrideJson ?? undefined;
+        servingsOverride = item?.servingsOverride ?? null;
       }
 
-      const meal = await composeMealDetail(prisma, id, recipeOverrideJson);
+      const meal = await composeMealDetail(
+        prisma,
+        id,
+        recipeOverrideJson,
+        servingsOverride,
+      );
       if (!meal) {
         return res.status(404).json({ error: "meal not found" });
       }

@@ -412,6 +412,9 @@ export function createPlansRouter(
           prisma,
           item.mealId,
           item.recipeOverrideJson,
+          // WS7-8b (D-WS7-169 keystone) — resolve effectiveServings on the plan
+          // card path too, so it agrees with GET /meals/:id?planItemId.
+          item.servingsOverride,
         );
         items.push({
           id: item.id,
@@ -1479,7 +1482,15 @@ export function createPlansRouter(
           return res.status(404).json({ error: "meal not found" });
         }
 
-        const composedMeal = await composeMealDetail(prisma, result.item.mealId);
+        const composedMeal = await composeMealDetail(
+          prisma,
+          result.item.mealId,
+          undefined,
+          // WS7-8b (D-WS7-169 keystone) — echo the resolved effectiveServings in
+          // the post-mutation item envelope so a servings PATCH response is
+          // self-consistent with the read endpoints.
+          result.item.servingsOverride,
+        );
         return res.status(201).json({
           item: {
             id: result.item.id,
@@ -2059,7 +2070,15 @@ export function createPlansRouter(
         }
 
         // Noop or success — compose item for response (Q-P1-5 rich envelope).
-        const composedMeal = await composeMealDetail(prisma, result.item.mealId);
+        const composedMeal = await composeMealDetail(
+          prisma,
+          result.item.mealId,
+          undefined,
+          // WS7-8b (D-WS7-169 keystone) — echo the resolved effectiveServings in
+          // the post-mutation item envelope so a servings PATCH response is
+          // self-consistent with the read endpoints.
+          result.item.servingsOverride,
+        );
         const itemPayload = {
           id: "id" in result.item ? result.item.id : result.itemId,
           mealId: result.item.mealId,

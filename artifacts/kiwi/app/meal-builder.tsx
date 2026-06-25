@@ -44,7 +44,7 @@ import {
   DISH_SORT_LABEL_OVERRIDES,
   toDishSortKey,
 } from "@/lib/dishes/sortMapping";
-import type { SaveMealInput, UpdateMealInput } from "@/lib/api/meals";
+import type { SaveMealInput } from "@/lib/api/meals";
 import { useMeal } from "@/hooks/useMeal";
 import { CUISINES_TIER_1, CUISINES_TIER_2 } from "@/lib/domain";
 import { formatMacroLine } from "@/lib/format/macros";
@@ -52,6 +52,7 @@ import { parseQuantity } from "@/lib/quantity";
 import {
   buildManualSaveMealInput,
   buildRecipeOverride,
+  buildUpdateMealInput,
   draftDishToBuilderDish,
   hydrateBuilderDishesFromDraft,
   hydrateBuilderDishesFromMeal,
@@ -274,7 +275,14 @@ export default function MealBuilderScreen() {
       ),
     );
     setEstimatedTimeMinutes(String(sourceMeal.minutes));
-    setServingsDefault(sourceMeal.servings);
+    // WS7-8b BUG-002 — the edit-side servings seed (D-WS7-169 keystone) was
+    // intentionally REVERTED. Edit mode no longer authors servings: the
+    // stepper is create-only and servingsDefault is dropped from the PATCH
+    // body, so there is nothing to seed here. Do NOT restore a
+    // setServingsDefault(sourceMeal.effectiveServings) line — it would feed a
+    // count that disagrees with the unscaled ingredient amounts. The
+    // Meal-Detail half of the keystone (effectiveServings → render-time
+    // servingsMultiplier) STAYS.
     setDishes(hydrateBuilderDishesFromMeal(sourceMeal, allocUid));
     // notes is intentionally null on the server today (see meals.test.ts and
     // MealDetailSchema). Reset to empty so a re-hydrate doesn't strand stale
@@ -572,28 +580,6 @@ export default function MealBuilderScreen() {
       dishes,
       sourceType: draftMeal ? "directed" : "manual",
     });
-  };
-
-  // WS7-6 1F — translate the SaveMealInput's "new"-only dish shape into the
-  // PATCH /me/meals/:id wipe-and-recreate body. The builder doesn't track
-  // existing dish ids per row, so editing always re-creates the sub-graph
-  // (wipe-and-recreate is the server-side contract).
-  const buildUpdateMealInput = (input: SaveMealInput): UpdateMealInput => {
-    return {
-      title: input.title,
-      description: input.description ?? null,
-      cuisineType: input.cuisineType ?? null,
-      ...(input.servingsDefault !== undefined
-        ? { servingsDefault: input.servingsDefault }
-        : {}),
-      ...(input.estimatedTimeMinutes !== undefined
-        ? { estimatedTimeMinutes: input.estimatedTimeMinutes }
-        : {}),
-      ...(input.difficulty !== undefined
-        ? { difficulty: input.difficulty }
-        : {}),
-      dishes: input.dishes,
-    };
   };
 
   // WS7-7-A B5 — "Just this time": persist the edit as the plan item's
@@ -992,6 +978,7 @@ export default function MealBuilderScreen() {
             setEstimatedTimeMinutes={setEstimatedTimeMinutes}
             servingsDefault={servingsDefault}
             setServingsDefault={setServingsDefault}
+            isEditMode={!!mealId}
             dishes={dishes}
             autoFocusDishUid={autoFocusDishUid}
             onOpenDishChooser={() => setDishChooserVisible(true)}
@@ -1030,6 +1017,7 @@ export default function MealBuilderScreen() {
             setEstimatedTimeMinutes={setEstimatedTimeMinutes}
             servingsDefault={servingsDefault}
             setServingsDefault={setServingsDefault}
+            isEditMode={!!mealId}
             savedDishes={savedDishes}
             dishesLoading={dishesQuery.isLoading}
             dishesError={dishesQuery.isError}
@@ -1243,6 +1231,13 @@ interface MetaFieldsProps {
   setEstimatedTimeMinutes: (v: string) => void;
   servingsDefault: number;
   setServingsDefault: (v: number) => void;
+  // WS7-8b BUG-002 — true when editing an existing meal (mealId present).
+  // The "Default servings" stepper is CREATE-ONLY: in edit mode it would
+  // change the servings count without rescaling the authored ingredient
+  // quantities, persisting a count that disagrees with the amounts and
+  // corrupting the canonical recipe. Editing servings happens at render
+  // time on Meal Detail (servingsMultiplier), not here.
+  isEditMode: boolean;
   // WS7-6 Block 1F — name-field error surface. Manual mode passes this
   // through ManualEditor after saveAttempted; CombinePicker leaves it
   // undefined (Mode C error UX is unchanged in this block).
@@ -1365,36 +1360,43 @@ function MetaFields(p: MetaFieldsProps) {
             <Text style={s.suffixLabel}>min</Text>
           </View>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={s.fieldLabel}>Default servings</Text>
-          <View style={s.stepperRow}>
-            <Pressable
-              onPress={decServings}
-              disabled={p.servingsDefault <= SERVINGS_MIN}
-              hitSlop={6}
-              style={({ pressed }) => [
-                s.stepperBtn,
-                p.servingsDefault <= SERVINGS_MIN && { opacity: 0.4 },
-                pressed && { opacity: 0.6 },
-              ]}
-            >
-              <Feather name="minus" size={16} color={Colors.sage[700]} />
-            </Pressable>
-            <Text style={s.stepperValue}>{p.servingsDefault}</Text>
-            <Pressable
-              onPress={incServings}
-              disabled={p.servingsDefault >= SERVINGS_MAX}
-              hitSlop={6}
-              style={({ pressed }) => [
-                s.stepperBtn,
-                p.servingsDefault >= SERVINGS_MAX && { opacity: 0.4 },
-                pressed && { opacity: 0.6 },
-              ]}
-            >
-              <Feather name="plus" size={16} color={Colors.sage[700]} />
-            </Pressable>
+        {/* WS7-8b BUG-002 — CREATE-ONLY. The stepper sets servingsDefault but
+            does NOT rescale authored ingredient quantities; in edit mode that
+            persists a servings count that disagrees with the amounts and
+            corrupts the canonical recipe. Editing servings is a render-time
+            concern on Meal Detail (servingsMultiplier), not here. */}
+        {!p.isEditMode && (
+          <View style={{ flex: 1 }}>
+            <Text style={s.fieldLabel}>Default servings</Text>
+            <View style={s.stepperRow}>
+              <Pressable
+                onPress={decServings}
+                disabled={p.servingsDefault <= SERVINGS_MIN}
+                hitSlop={6}
+                style={({ pressed }) => [
+                  s.stepperBtn,
+                  p.servingsDefault <= SERVINGS_MIN && { opacity: 0.4 },
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Feather name="minus" size={16} color={Colors.sage[700]} />
+              </Pressable>
+              <Text style={s.stepperValue}>{p.servingsDefault}</Text>
+              <Pressable
+                onPress={incServings}
+                disabled={p.servingsDefault >= SERVINGS_MAX}
+                hitSlop={6}
+                style={({ pressed }) => [
+                  s.stepperBtn,
+                  p.servingsDefault >= SERVINGS_MAX && { opacity: 0.4 },
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Feather name="plus" size={16} color={Colors.sage[700]} />
+              </Pressable>
+            </View>
           </View>
-        </View>
+        )}
       </View>
     </View>
   );

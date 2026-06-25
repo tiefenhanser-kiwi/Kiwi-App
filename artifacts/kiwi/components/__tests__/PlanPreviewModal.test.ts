@@ -51,7 +51,7 @@ const TEMPLATE_RESPONSE = {
         isDinner: true,
         meal: {
           id: "meal-a", title: "Meal A", cuisine: "American", minutes: 30,
-          servings: 4, calories: 500, protein: 30, carbs: 40, fat: 18,
+          servings: 4, effectiveServings: 4, calories: 500, protein: 30, carbs: 40, fat: 18,
           tags: [], image: null, description: null, difficulty: "easy",
           mealType: "dinner", sourceType: "curated", isPublic: true,
           userId: null, dishes: [], steps: [], notes: null,
@@ -67,7 +67,7 @@ const TEMPLATE_RESPONSE = {
         isDinner: true,
         meal: {
           id: "meal-b", title: "Meal B", cuisine: "Italian", minutes: 25,
-          servings: 4, calories: 600, protein: 28, carbs: 50, fat: 22,
+          servings: 4, effectiveServings: 4, calories: 600, protein: 28, carbs: 50, fat: 22,
           tags: [], image: null, description: null, difficulty: "easy",
           mealType: "dinner", sourceType: "curated", isPublic: true,
           userId: null, dishes: [], steps: [], notes: null,

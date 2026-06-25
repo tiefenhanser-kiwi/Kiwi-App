@@ -10,8 +10,10 @@ import {
   formatClock,
   highlightQuantities,
   isTimerDone,
+  buildCookSessionParams,
   misePlaceItems,
   remainingMinutes,
+  resolveAmountMultiplier,
   resolveCookRender,
   resolvePrepGate,
   sequenceMealSteps,
@@ -21,6 +23,48 @@ import {
 import type { SequencedStep } from "@/lib/api/cooking";
 import type { MealDetail, MealStep } from "@/lib/api/meals";
 import type { DishDetail } from "@/lib/api/dishes";
+
+// ── WS7-8b BUG-006 — resolveAmountMultiplier ─────────────────────────────────
+
+test("resolveAmountMultiplier: override scales (effective 6 / authored 4 = 1.5)", () => {
+  assert.equal(resolveAmountMultiplier(6, 4), 1.5);
+});
+
+test("resolveAmountMultiplier: no override is a no-op (effective === authored → 1)", () => {
+  assert.equal(resolveAmountMultiplier(4, 4), 1);
+  assert.equal(resolveAmountMultiplier(10, 10), 1);
+});
+
+test("resolveAmountMultiplier: 0/missing authored denominator guards to 1 (no NaN/Infinity)", () => {
+  assert.equal(resolveAmountMultiplier(6, 0), 1);
+  assert.equal(resolveAmountMultiplier(6, Number.NaN), 1);
+  assert.equal(resolveAmountMultiplier(6, undefined as unknown as number), 1);
+  // a bad numerator also falls back rather than emitting 0/NaN
+  assert.equal(resolveAmountMultiplier(Number.NaN, 4), 1);
+  assert.equal(resolveAmountMultiplier(0, 4), 1);
+});
+
+// ── WS7-8b BUG-006 follow-up — buildCookSessionParams ────────────────────────
+
+test("buildCookSessionParams: includes planId + planItemId when both present (plan launch)", () => {
+  assert.deepEqual(
+    buildCookSessionParams({ mealId: "m1", planId: "p1", planItemId: "pi1" }),
+    { mealId: "m1", planId: "p1", planItemId: "pi1" },
+  );
+});
+
+test("buildCookSessionParams: omits plan context in the Library (no fabrication)", () => {
+  assert.deepEqual(buildCookSessionParams({ mealId: "m1" }), { mealId: "m1" });
+});
+
+test("buildCookSessionParams: omits plan context when only one of the pair is present", () => {
+  // partial context is unusable — never half-pass it
+  assert.deepEqual(buildCookSessionParams({ mealId: "m1", planId: "p1" }), { mealId: "m1" });
+  assert.deepEqual(
+    buildCookSessionParams({ mealId: "m1", planItemId: "pi1" }),
+    { mealId: "m1" },
+  );
+});
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
