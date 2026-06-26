@@ -32,6 +32,10 @@ import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
 import { buildCookSessionParams } from "@/lib/cooking/cookSession";
 import { formatMacro } from "@/lib/format/macros";
 import { formatQuantity } from "@/lib/format/quantity";
+import {
+  clampServings,
+  shouldShowSaveServings,
+} from "@/lib/meals/servingsSaveGate";
 
 const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 12;
@@ -188,12 +192,14 @@ function MealDetailContent({
   const pendingServingsWrite = useRef<Promise<void> | null>(null);
 
   // WS7-8b (D-WS7-169 / 3b) — re-sync the stepper when the server's resolved
-  // servings changes under a mounted screen. The driving case is Apply-Always:
-  // the edit refetches a new effectiveServings while this screen stays in the
-  // stack, and the mount-once useState above would otherwise show the stale
-  // pre-edit value. Keyed on the resolved value only, so it fires for genuine
-  // server writes — a local stepper tap PATCHes synchronously, so the refetch
-  // lands on the same value and this is a no-op for in-progress adjustments.
+  // servings changes under a mounted screen. Two drivers: (1) Apply-Always —
+  // an edit refetches a new effectiveServings while this screen stays in the
+  // stack; (2) WS7-8 BUG-003 B2.2 — an explicit servings Save invalidates
+  // ["meals","detail"], refetching effectiveServings to the just-saved value
+  // (clearing the dirty signal). Keyed on the resolved value only. Note the
+  // stepper no longer writes per tap, so a stepped-but-unsaved value lives ONLY
+  // in local displayServings — backing out (unmount) or any refetch resyncs the
+  // display to the saved effectiveServings, silently discarding it (Hans-ruled).
   useEffect(() => {
     setDisplayServings(meal.effectiveServings);
   }, [meal.effectiveServings]);
@@ -284,34 +290,57 @@ function MealDetailContent({
     </View>
   );
 
-  // WS7-7-A B5 — apply a servings delta. In a plan, optimistically update the
-  // display and persist the new value as servingsOverride (which bumps the plan
-  // revision → the grocery list reconciles to the new quantities). On failure
-  // we revert the display and surface the error. In the library context there's
-  // no plan item to write to, so the stepper stays display-only.
+  // WS7-8 BUG-003 B2.2 (PRD §10.6.1) — the stepper changes the DISPLAYED
+  // servings ONLY; it no longer writes per tap. Persistence is an explicit
+  // Save gate (onSaveServings below). In the library context there is no plan
+  // item to write to either way, so the stepper stays purely display-only.
   const applyServings = (next: number) => {
-    const clamped = Math.max(SERVINGS_MIN, Math.min(SERVINGS_MAX, next));
+    const clamped = clampServings(next, SERVINGS_MIN, SERVINGS_MAX);
     if (clamped === displayServings) return;
-    const prev = displayServings;
     setDisplayServings(clamped);
-    if (canPersistServings) {
-      // Track the in-flight write so Cook Now can await it (BUG-006 follow-up).
-      // The .catch keeps the stored promise non-rejecting (it does the rollback).
-      pendingServingsWrite.current = setServingsForPlanItem(
-        planId!,
-        planItemId!,
-        clamped,
-      ).catch(() => {
+  };
+  const decrementServings = () => applyServings(displayServings - 1);
+  const incrementServings = () => applyServings(displayServings + 1);
+
+  // The plan instance is dirty when the displayed servings diverges from the
+  // server-resolved (saved) effectiveServings. Save is offered only in a plan
+  // context — the library/canonical Save is Sub-block 3.
+  const showSaveServings = shouldShowSaveServings(
+    canPersistServings,
+    displayServings,
+    meal.effectiveServings,
+  );
+  const [savingServings, setSavingServings] = useState(false);
+
+  // WS7-8 BUG-003 B2.2 — explicit Save. Persists the displayed value as the
+  // plan item's servingsOverride (bumps the plan revision → grocery list
+  // reconciles). Keeps the optimistic-set + rollback-on-failure posture; the
+  // in-flight promise is tracked so onCookNow can await an explicit Save (NOT a
+  // per-tap write) before navigating. On success the row is no longer dirty, so
+  // the Save button disappears.
+  const onSaveServings = () => {
+    if (!canPersistServings || savingServings) return;
+    const prev = meal.effectiveServings;
+    const next = displayServings;
+    setSavingServings(true);
+    pendingServingsWrite.current = setServingsForPlanItem(
+      planId!,
+      planItemId!,
+      next,
+    )
+      .catch(() => {
+        // Roll the display back to the last saved value so the dirty signal
+        // (and the Save button) reflect reality after a failed write.
         setDisplayServings(prev);
         Alert.alert(
           "Couldn't update servings",
           "We couldn't save that change. Please try again.",
         );
+      })
+      .finally(() => {
+        setSavingServings(false);
       });
-    }
   };
-  const decrementServings = () => applyServings(displayServings - 1);
-  const incrementServings = () => applyServings(displayServings + 1);
 
   const onSaveGlobally = () => {
     console.log("[meal-detail] save-globally tapped", {
@@ -557,6 +586,21 @@ function MealDetailContent({
             <Text style={s.servingsLabel}>servings</Text>
           </View>
 
+          {/* WS7-8 BUG-003 B2.2 (PRD §10.6.1) — explicit Save gate. Appears
+              ONLY in a plan context with an unsaved stepper change; tapping it
+              persists the displayed servings as the plan item's override.
+              Navigating away without saving silently discards the change. */}
+          {showSaveServings && (
+            <View style={s.saveServingsRow}>
+              <Button
+                label="Save changes"
+                variant="primary"
+                onPress={onSaveServings}
+                loading={savingServings}
+              />
+            </View>
+          )}
+
           {meal.dishes.map((dish) => (
             <View key={dish.dishId} style={s.dishBlock}>
               {!onlyOneDish && (
@@ -714,6 +758,11 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing[2],
+    marginBottom: Spacing[3],
+  },
+  // WS7-8 BUG-003 B2.2 — explicit servings-Save affordance; sits between the
+  // stepper and the ingredient list, full-width to match the primary actions.
+  saveServingsRow: {
     marginBottom: Spacing[3],
   },
   servingsLabel: {
