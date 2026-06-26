@@ -36,3 +36,30 @@ export function shouldShowSaveServings(
 ): boolean {
   return canPersist && isServingsDirty(displayServings, effectiveServings);
 }
+
+/**
+ * WS7-8 BUG-003 B2.3 — the CANONICAL Save gate for the library/canonical Meal
+ * Detail. Distinct from {@link shouldShowSaveServings} on two axes:
+ *
+ *   - CONTEXT: it fires ONLY when NOT in a plan context (`!canPersist`) — the
+ *     mirror image of the instance gate. The two are mutually exclusive, so a
+ *     given screen render shows at most one Save affordance.
+ *   - DIRTY BASELINE: the instance gate compares to the plan-resolved
+ *     `effectiveServings`; this one compares to the meal's authored
+ *     `servingsDefault` (the base being PROMOTED). A canonical Save scalar-PATCHes
+ *     servingsDefault only — the immutable authored anchor never moves.
+ *
+ * Also gated on `isOwner`: canonical edits are owner-only (the server 403s a
+ * curated/foreign meal anyway, but we never surface Save for a meal the user
+ * can't promote).
+ */
+export function shouldShowCanonicalSaveServings(
+  canPersist: boolean,
+  isOwner: boolean,
+  displayServings: number,
+  servingsDefault: number,
+): boolean {
+  return (
+    !canPersist && isOwner && isServingsDirty(displayServings, servingsDefault)
+  );
+}

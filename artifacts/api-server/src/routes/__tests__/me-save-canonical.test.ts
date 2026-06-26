@@ -726,9 +726,29 @@ describe("WS7-6 Fix-Block 3: meal-row macros = Σ dish per-serving macros", () =
 interface OrderingHarnessOpts {
   // When set, makes the dish.findUnique / meal.findUnique calls return a
   // pre-existing row for the PATCH routes (used by both rematerialize
-  // tests).
-  existingMeal?: { id: string; userId: string };
+  // tests). WS7-8 BUG-003 B2.3 — the anchor fields are optional so a test can
+  // model a PROMOTED meal (servingsDefault diverged from authoredServingsDefault)
+  // or a legacy null-anchor meal; rematerializeMeal reads them pre-update.
+  existingMeal?: {
+    id: string;
+    userId: string;
+    isArchived?: boolean;
+    authoredServingsDefault?: number | null;
+    servingsDefault?: number;
+  };
   existingDish?: { id: string; userId: string; isArchived?: boolean };
+  // WS7-8 BUG-003 B2.3 — exclusive dishes currently linked to the meal, so the
+  // rematerialize wipe actually deletes a row and the recreate/carry-forward
+  // path is exercised (not vacuous). `existingLinks` are returned by the
+  // currentLinks query; `existingLinkedDishes` by the dish.findMany that
+  // partitions exclusive vs shared.
+  existingLinks?: string[];
+  existingLinkedDishes?: Array<{
+    id: string;
+    userId: string;
+    authoredServingsDefault?: number | null;
+    servingsDefault?: number;
+  }>;
 }
 
 function makeOrderingStub(opts: OrderingHarnessOpts = {}) {
@@ -764,9 +784,12 @@ function makeOrderingStub(opts: OrderingHarnessOpts = {}) {
         }
         return null;
       },
-      findMany: async () => {
+      findMany: async (args: { where?: { id?: { in: string[] } } }) => {
         events.push(`dish.findMany`);
-        return [];
+        const ids = args?.where?.id?.in ?? [];
+        return (opts.existingLinkedDishes ?? []).filter((d) =>
+          ids.includes(d.id),
+        );
       },
       create: async (args: { data: Record<string, unknown> }) => {
         events.push(`dish.create`);
@@ -803,8 +826,30 @@ function makeOrderingStub(opts: OrderingHarnessOpts = {}) {
       },
     },
     mealDishLink: {
-      findMany: async () => {
+      findMany: async (args: {
+        where?: { mealId?: unknown; dishId?: unknown };
+        select?: { dish?: unknown; dishId?: unknown };
+      }) => {
         events.push(`mealDishLink.findMany`);
+        // recomputeAndPersistMealMacros: select { dish: {...} } — same
+        // where { mealId } as currentLinks, distinguished by the select shape.
+        // Return zero-macro rows (these tests don't assert meal macros).
+        if (args?.select?.dish) {
+          return (opts.existingLinkedDishes ?? []).map(() => ({
+            dish: {
+              caloriesPerServing: 0,
+              proteinGPerServing: 0,
+              carbsGPerServing: 0,
+              fatGPerServing: 0,
+            },
+          }));
+        }
+        // currentLinks query: where { mealId } only → the meal's linked dishes.
+        // otherLinks query: where { dishId: {in}, mealId: {not} } → shared
+        // links elsewhere; none, so every linked dish is exclusive.
+        if (args?.where?.mealId !== undefined && args.where.dishId === undefined) {
+          return (opts.existingLinks ?? []).map((dishId) => ({ dishId }));
+        }
         return [];
       },
       create: async () => {
@@ -1130,9 +1175,34 @@ describe("WS7-8 BUG-003: authored-servings anchor (create-once, then frozen)", (
     }
   });
 
-  it("PATCH /me/meals/:id with a dishes subgraph (rematerialize) never writes the anchor on recreated rows or the meal update", async () => {
+  // WS7-8 BUG-003 B2.3 — anchor-preservation guard (Option 1, meal-anchor
+  // inheritance). REWRITTEN from the Sub-block-1 contract ("rematerialize never
+  // writes the anchor"): that left recreated dishes with a null anchor → they
+  // fell back to the (possibly promoted) servingsDefault, silently re-basing the
+  // anchor on the next content edit. The guard now carries the meal's immutable
+  // authored anchor onto recreated dishes so the anchor is truly frozen across
+  // BOTH the scalar path AND rematerialize.
+  it("PATCH /me/meals/:id with a dishes subgraph (rematerialize) carries the meal's authored anchor onto recreated dishes (NOT the promoted servingsDefault)", async () => {
+    // A PROMOTED meal: a prior canonical Save moved servingsDefault to 8 while
+    // the immutable anchor stayed 4. It has one exclusive owner-owned linked
+    // dish, so the wipe deletes a real row and the recreate path is exercised
+    // (the old vacuous stub had no linked dishes).
     const { prisma, captured } = makeOrderingStub({
-      existingMeal: { id: "meal-existing", userId: USER_ID },
+      existingMeal: {
+        id: "meal-existing",
+        userId: USER_ID,
+        authoredServingsDefault: 4,
+        servingsDefault: 8,
+      },
+      existingLinks: ["dish-old"],
+      existingLinkedDishes: [
+        {
+          id: "dish-old",
+          userId: USER_ID,
+          authoredServingsDefault: 4,
+          servingsDefault: 8,
+        },
+      ],
     });
     const harness = await spinUp(prisma);
     try {
@@ -1157,21 +1227,156 @@ describe("WS7-8 BUG-003: authored-servings anchor (create-once, then frozen)", (
         }),
       });
       assert.equal(res.status, 200);
-      // rematerializeMeal recreates dishes — none of the recreated rows may
-      // carry the anchor (it is set ONLY at the original create seam).
+      // Each recreated dish must INHERIT the meal's immutable anchor (4), NOT
+      // the promoted servingsDefault (8). This closes the Sub-block-1 hole.
       assert.ok(captured.dishCreates.length >= 1);
       for (const d of captured.dishCreates) {
         assert.equal(
           d.authoredServingsDefault,
-          undefined,
-          "rematerialize must NOT set the anchor on recreated dishes",
+          4,
+          "recreated dish must inherit meal.authoredServingsDefault (4), not the promoted servingsDefault (8)",
         );
       }
-      // The internal meal scalar update (servingsDefault present) likewise
-      // never carries the anchor.
+      // The meal scalar update moves servingsDefault to 8 but STILL never writes
+      // the anchor on the meal row itself (immutable across both paths).
       for (const m of captured.mealUpdates) {
         assert.equal(m.authoredServingsDefault, undefined);
       }
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("PATCH /me/meals/:id rematerialize on a LEGACY null-anchor meal falls back to the meal's PRIOR servingsDefault (read pre-update)", async () => {
+    // Legacy/seed meal: anchor is null, prior servingsDefault is 5. A content
+    // edit also sends a NEW servingsDefault (10). The recreated dish must
+    // inherit the PRIOR servingsDefault (5) — proving the value is read
+    // pre-update and the fallback is "prior servingsDefault", not the new one.
+    const { prisma, captured } = makeOrderingStub({
+      existingMeal: {
+        id: "meal-legacy",
+        userId: USER_ID,
+        authoredServingsDefault: null,
+        servingsDefault: 5,
+      },
+      existingLinks: ["dish-old"],
+      existingLinkedDishes: [
+        { id: "dish-old", userId: USER_ID, authoredServingsDefault: null, servingsDefault: 5 },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await fetch(`${harness.baseUrl}/me/meals/meal-legacy`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${signToken(USER_ID)}`,
+        },
+        body: JSON.stringify({
+          servingsDefault: 10,
+          dishes: [
+            {
+              kind: "new",
+              title: "Rebuilt dish",
+              role: "main",
+              positionIndex: 0,
+              ingredients: [{ name: "Butter", quantity: 2, unit: "tbsp" }],
+              steps: [{ text: "Melt." }],
+            },
+          ],
+        }),
+      });
+      assert.equal(res.status, 200);
+      assert.ok(captured.dishCreates.length >= 1);
+      for (const d of captured.dishCreates) {
+        assert.equal(
+          d.authoredServingsDefault,
+          5,
+          "null-anchor legacy meal must inherit the PRIOR servingsDefault (5), not the new one (10)",
+        );
+      }
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS7-8 BUG-003 — the drift-free KEYSTONE (the bug's proof) ───────────────
+//
+// The whole point of Approach D: a canonical servings change writes ONLY the
+// scalar servingsDefault; the authored anchor and the stored quantities NEVER
+// move. Two successive promotes (4→8, then 8→6) must NOT compound or drift —
+// the render multiplier always resolves against the FROZEN anchor (4), so after
+// the second promote it is 6/4 = 1.5, not the 6/8 = 0.75 a re-based anchor would
+// produce.
+describe("WS7-8 BUG-003 keystone: two scalar promotes stay drift-free", () => {
+  it("promote 4→8 then 8→6 via scalar PATCHes — anchor frozen at 4, NO subgraph touched, final multiplier = 6/4 = 1.5", async () => {
+    const ANCHOR = 4; // immutable authoredServingsDefault, set once at create.
+    const { prisma, captured, events } = makeOrderingStub({
+      existingMeal: {
+        id: "meal-keystone",
+        userId: USER_ID,
+        authoredServingsDefault: ANCHOR,
+        servingsDefault: ANCHOR,
+      },
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const patchServings = async (servingsDefault: number) =>
+        fetch(`${harness.baseUrl}/me/meals/meal-keystone`, {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            Authorization: `Bearer ${signToken(USER_ID)}`,
+          },
+          body: JSON.stringify({ servingsDefault }),
+        });
+
+      const r1 = await patchServings(8);
+      assert.equal(r1.status, 200);
+      const r2 = await patchServings(6);
+      assert.equal(r2.status, 200);
+
+      // Two scalar updates, each moving servingsDefault, NEITHER touching the
+      // anchor — the anchor stays 4 throughout.
+      assert.equal(captured.mealUpdates.length, 2);
+      assert.equal(captured.mealUpdates[0].servingsDefault, 8);
+      assert.equal(captured.mealUpdates[1].servingsDefault, 6);
+      for (const m of captured.mealUpdates) {
+        assert.equal(
+          m.authoredServingsDefault,
+          undefined,
+          "a scalar promote must NEVER write the anchor",
+        );
+      }
+
+      // Scalar path: NO transaction, NO subgraph mutation. The stored ingredient
+      // quantities + step amountRefs are therefore byte-identical to authored —
+      // nothing wrote them. (The stub records every write as an event.)
+      assert.ok(
+        !events.includes("tx:start"),
+        "scalar servings PATCH must not open the rematerialize transaction",
+      );
+      const subgraphWrites = events.filter(
+        (e) =>
+          e.startsWith("dishIngredient.") ||
+          e.startsWith("recipeInstructionStep.") ||
+          e === "dish.create" ||
+          e === "dish.deleteMany",
+      );
+      assert.deepEqual(
+        subgraphWrites,
+        [],
+        `scalar promote must not touch the sub-graph; saw: ${subgraphWrites.join(", ")}`,
+      );
+
+      // The keystone: render multiplier = effectiveServings / FROZEN anchor.
+      // After the final promote effective = 6, anchor = 4 → 1.5. A drifted
+      // (re-based) anchor of 8 would give 6/8 = 0.75 — the bug we prevent.
+      const finalServings = captured.mealUpdates[1].servingsDefault as number;
+      const multiplier = finalServings / ANCHOR;
+      assert.equal(multiplier, 1.5);
+      assert.notEqual(multiplier, finalServings / 8); // not the drifted 0.75
     } finally {
       await harness.close();
     }

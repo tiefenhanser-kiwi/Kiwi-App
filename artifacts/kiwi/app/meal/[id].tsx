@@ -12,6 +12,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
@@ -34,6 +35,7 @@ import { formatMacro } from "@/lib/format/macros";
 import { formatQuantity } from "@/lib/format/quantity";
 import {
   clampServings,
+  shouldShowCanonicalSaveServings,
   shouldShowSaveServings,
 } from "@/lib/meals/servingsSaveGate";
 
@@ -169,7 +171,8 @@ function MealDetailContent({
   planItemId?: string;
 }) {
   const router = useRouter();
-  const { setServingsForPlanItem } = useApp();
+  const { setServingsForPlanItem, updateMeal } = useApp();
+  const { user: authUser } = useAuth();
 
   // §2.5 banner context — present only when the screen was opened from a plan
   // item. GET /meals/:id has no per-plan override concept, so this is derived
@@ -339,6 +342,46 @@ function MealDetailContent({
       })
       .finally(() => {
         setSavingServings(false);
+      });
+  };
+
+  // WS7-8 BUG-003 B2.3 — the CANONICAL Save gate + handler for the
+  // library/canonical Meal Detail (no plan context). Owner-only, and dirty
+  // against the authored base `meal.servings` (the value being promoted), NOT
+  // effectiveServings. Mutually exclusive with the instance gate above: this
+  // fires only when !canPersistServings, that one only when canPersistServings.
+  const isOwner = !!meal.userId && meal.userId === authUser?.id;
+  const showCanonicalSaveServings = shouldShowCanonicalSaveServings(
+    canPersistServings,
+    isOwner,
+    displayServings,
+    meal.servings,
+  );
+  const [savingCanonicalServings, setSavingCanonicalServings] = useState(false);
+
+  // WS7-8 BUG-003 B2.3 — explicit CANONICAL Save. Scalar-PATCHes the meal's
+  // servingsDefault to the displayed value (NO dishes[] → server's scalar path,
+  // sub-graph + amountRefs untouched, immutable anchor frozen). Same optimistic
+  // posture as onSaveServings: the display already holds the stepped value;
+  // roll it back to the saved `meal.servings` on failure. On success updateMeal
+  // invalidates ["meals","detail",id]; the refetch re-seeds displayServings from
+  // the new effectiveServings, clearing the dirty signal. Back-out without
+  // saving silently discards (the stepper-only value lives in local state).
+  const onSaveCanonicalServings = () => {
+    if (canPersistServings || !isOwner || savingCanonicalServings) return;
+    const prev = meal.servings;
+    const next = displayServings;
+    setSavingCanonicalServings(true);
+    updateMeal(meal.id, { servingsDefault: next })
+      .catch(() => {
+        setDisplayServings(prev);
+        Alert.alert(
+          "Couldn't update servings",
+          "We couldn't save that change. Please try again.",
+        );
+      })
+      .finally(() => {
+        setSavingCanonicalServings(false);
       });
   };
 
@@ -597,6 +640,22 @@ function MealDetailContent({
                 variant="primary"
                 onPress={onSaveServings}
                 loading={savingServings}
+              />
+            </View>
+          )}
+
+          {/* WS7-8 BUG-003 B2.3 — CANONICAL Save gate. Appears ONLY in the
+              library/canonical context (no plan item), owner-only, with the
+              stepper diverged from the authored base. Tapping it scalar-promotes
+              the meal's servingsDefault. Mutually exclusive with the instance
+              Save above. Same silent-discard-on-back-out posture. */}
+          {showCanonicalSaveServings && (
+            <View style={s.saveServingsRow}>
+              <Button
+                label="Save changes"
+                variant="primary"
+                onPress={onSaveCanonicalServings}
+                loading={savingCanonicalServings}
               />
             </View>
           )}

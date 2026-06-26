@@ -11,6 +11,7 @@ import { test } from "node:test";
 import {
   clampServings,
   isServingsDirty,
+  shouldShowCanonicalSaveServings,
   shouldShowSaveServings,
 } from "../servingsSaveGate";
 
@@ -51,9 +52,46 @@ test("Save appears only in a plan context AND only when dirty", () => {
 
 // ── scope guard (d) — the non-plan/canonical path never offers Save ──────────
 
-test("the non-plan (canonical) path never shows Save, even when stepped", () => {
-  // canPersist === false: dirty or not, no Save affordance → nothing to persist.
+test("the non-plan (canonical) path never shows the INSTANCE Save, even when stepped", () => {
+  // canPersist === false: dirty or not, no instance Save → nothing to persist.
+  // (The CANONICAL gate below is what fires here instead.)
   assert.equal(shouldShowSaveServings(false, 6, 4), false);
   assert.equal(shouldShowSaveServings(false, 4, 4), false);
   assert.equal(shouldShowSaveServings(false, 1, 12), false);
+});
+
+// ── shouldShowCanonicalSaveServings — the CANONICAL gate (B2.3) ───────────────
+// Distinct truth table from the instance gate: fires ONLY in the non-plan,
+// owner-owned, dirty-vs-servingsDefault corner. The two gates are mutually
+// exclusive on the canPersist axis, so a screen render shows at most one Save.
+
+test("canonical Save shows ONLY in the non-plan, owner, dirty corner", () => {
+  // !canPersist && isOwner && dirty vs servingsDefault → show.
+  assert.equal(shouldShowCanonicalSaveServings(false, true, 6, 4), true);
+  assert.equal(shouldShowCanonicalSaveServings(false, true, 2, 4), true);
+});
+
+test("canonical Save hides when clean (display === servingsDefault)", () => {
+  assert.equal(shouldShowCanonicalSaveServings(false, true, 4, 4), false);
+});
+
+test("canonical Save hides on a non-owned (curated/foreign) meal even when dirty", () => {
+  assert.equal(shouldShowCanonicalSaveServings(false, false, 6, 4), false);
+});
+
+test("canonical Save never fires in a plan context (that's the instance gate's job)", () => {
+  // canPersist === true: even owner + dirty must NOT show the canonical Save,
+  // so the two gates can never both fire on the same render.
+  assert.equal(shouldShowCanonicalSaveServings(true, true, 6, 4), false);
+  assert.equal(shouldShowCanonicalSaveServings(true, true, 4, 4), false);
+});
+
+test("the two gates are mutually exclusive across the canPersist axis", () => {
+  // Same dirty values, flip canPersist: exactly one gate is ever true.
+  // Plan context → instance gate true, canonical false.
+  assert.equal(shouldShowSaveServings(true, 6, 4), true);
+  assert.equal(shouldShowCanonicalSaveServings(true, true, 6, 4), false);
+  // Library context → canonical gate true (owner), instance false.
+  assert.equal(shouldShowSaveServings(false, 6, 4), false);
+  assert.equal(shouldShowCanonicalSaveServings(false, true, 6, 4), true);
 });

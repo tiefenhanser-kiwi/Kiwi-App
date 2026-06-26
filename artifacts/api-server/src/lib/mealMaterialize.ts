@@ -507,6 +507,25 @@ export async function rematerializeMeal(
   payload: RematerializeMealPayload,
   ingredientIdByCanonical: Map<string, string>,
 ): Promise<MaterializeMealResult> {
+  // WS7-8 BUG-003 B2.3 — anchor-preservation guard (Option 1, meal-anchor
+  // inheritance). Read the meal's immutable authored anchor BEFORE the scalar
+  // update below (which may MOVE servingsDefault on a promoted meal). Recreated
+  // exclusive dishes inherit THIS value instead of defaulting to null → the
+  // (possibly promoted) servingsDefault, which would silently re-base the anchor
+  // and re-introduce the BUG-003 desync. Meal-anchor inheritance is the ruled
+  // approach (no per-dish old→new matching): all recreated dishes take the
+  // single meal-level anchor. Legacy/seed meals whose anchor is null fall back
+  // to the meal's PRIOR servingsDefault (read here, pre-update).
+  const mealAnchorRow = await tx.meal.findUnique({
+    where: { id: mealId },
+    select: { authoredServingsDefault: true, servingsDefault: true },
+  });
+  const inheritedAuthoredServings =
+    mealAnchorRow?.authoredServingsDefault ??
+    mealAnchorRow?.servingsDefault ??
+    payload.servingsDefault ??
+    4;
+
   // ── Pass 2 (in-tx): wipe.
   // Find currently linked dishes and partition into exclusively-owned
   // (delete) vs shared/catalog (unlink only).
@@ -617,6 +636,10 @@ export async function rematerializeMeal(
           difficulty: d.difficulty ?? payload.difficulty ?? "easy",
           servingsDefault:
             d.servingsDefault ?? payload.servingsDefault ?? 4,
+          // WS7-8 BUG-003 B2.3 — inherit the meal's immutable authored anchor
+          // (read pre-update) so a content edit on a promoted meal does NOT
+          // re-base the anchor to the promoted servingsDefault.
+          authoredServingsDefault: inheritedAuthoredServings,
           isArchived: false,
           ...macros,
         },
