@@ -171,15 +171,14 @@ function MealDetailContent({
   planItemId?: string;
 }) {
   const router = useRouter();
-  const { setServingsForPlanItem, updateMeal } = useApp();
+  const { setServingsForPlanItem, updateMeal, addMealToPlan, removeMealFromPlan } =
+    useApp();
   const { user: authUser } = useAuth();
 
-  // §2.5 banner context — present only when the screen was opened from a plan
-  // item. GET /meals/:id has no per-plan override concept, so this is derived
-  // from the route params alone (the stub did the same via overrideContext).
-  const hasOverride = !!(planId && planItemId);
-
-  const [bannerDismissed, setBannerDismissed] = useState(false);
+  // Plan-instance context — true only when the screen was opened from a plan
+  // item (both ids present); false in the Library (My Recipes). Gates the
+  // Add-to-Plan button (Library only) and the Compost branch (plan vs library).
+  const inPlanContext = !!(planId && planItemId);
   // WS7-8b (D-WS7-169 keystone) — seed + display from the server-resolved
   // effectiveServings (servingsOverride ?? servingsDefault). In the library
   // context (no plan item) the server returns it === meal.servings, so this is
@@ -207,7 +206,6 @@ function MealDetailContent({
     setDisplayServings(meal.effectiveServings);
   }, [meal.effectiveServings]);
 
-  const showBanner = hasOverride && !bannerDismissed;
   // WS7-8b (D-WS7-169) / WS7-8 BUG-003 — DENOMINATOR is the immutable authored
   // anchor (meal.authoredServingsDefault), NOT effectiveServings and NOT the
   // (mutable) meal.servings. Ingredient quantities are authored against the
@@ -385,23 +383,6 @@ function MealDetailContent({
       });
   };
 
-  const onSaveGlobally = () => {
-    console.log("[meal-detail] save-globally tapped", {
-      mealId: meal.id,
-      planId,
-      planItemId,
-    });
-    Alert.alert(
-      "Coming in WS7",
-      "Saving changes globally requires the API client. This action will be wired in WS7.",
-    );
-  };
-
-  const onKeepPlanOnly = () => {
-    console.log("[meal-detail] keep-plan-only tapped", { mealId: meal.id });
-    setBannerDismissed(true);
-  };
-
   const onEdit = () => {
     console.log("[meal-detail] edit tapped", { mealId: meal.id });
     // Forward plan context (when present) so Meal Builder's Save flow can
@@ -439,6 +420,37 @@ function MealDetailContent({
 
   const onCompost = () => {
     console.log("[meal-detail] compost tapped", { mealId: meal.id });
+    // BUG-008 case 2 — plan-context Compost removes this meal's plan item
+    // (the Meal stays in My Meals), matching the Plan Review card path
+    // exactly (handleCompostFromPlan → removeMealFromPlan → deletePlanItem).
+    // We then route back to Plan Review, whose re-fetch (via the mutator's
+    // query invalidation) shows the row gone — no local optimistic drop here
+    // since this screen owns no plan list to filter.
+    if (inPlanContext) {
+      Alert.alert(
+        "Compost meal",
+        `Compost ${meal.title} from your plan? You can add it back later.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Compost",
+            style: "destructive",
+            onPress: () => {
+              console.log("[meal-detail] compost-from-plan confirmed", {
+                mealId: meal.id,
+                planId,
+                planItemId,
+              });
+              void removeMealFromPlan(planId!, planItemId!);
+              router.replace({ pathname: "/plan/[id]", params: { id: planId! } });
+            },
+          },
+        ],
+      );
+      return;
+    }
+    // BUG-008 case 3 — Library (My Recipes) meal soft-delete is net-new
+    // backend, out of scope for this block. Unchanged WS5 stub behavior.
     Alert.alert(
       "Compost meal",
       `Compost ${meal.title}? It'll be removed from your meals and any plans it's in.`,
@@ -448,12 +460,6 @@ function MealDetailContent({
           text: "Compost",
           style: "destructive",
           onPress: () => {
-            // For WS5: confirmation flow only — real soft-delete +
-            // active-plan cleanup requires the API client (WS7).
-            // The double-alert pattern keeps the flow feeling real
-            // for smoke testing. WS7 reviewer: replace the inner
-            // "Coming in WS7" alert with deleteMealAndCleanup() →
-            // router.back().
             console.log("[meal-detail] compost confirmed", {
               mealId: meal.id,
             });
@@ -493,15 +499,29 @@ function MealDetailContent({
         mealTitle={meal.title}
         onClose={() => setAddToPlanVisible(false)}
         onPickExistingPlan={(plan) => {
+          // BUG-004 — real wiring to the existing add-to-plan path
+          // (addMealToPlan → POST /plans/:id/items). The sheet closes itself
+          // on pick; we fire the mutation and confirm/err via Alert (the app
+          // has no toast component — Alert is the standard affordance).
           console.log("[meal-detail] add-to-plan picked", {
             planId: plan.id,
             mealId: meal.id,
           });
-          Alert.alert(
-            "Coming in WS7",
-            `When the API client lands, ${meal.title} will be added to "${plan.name}".`,
-          );
-          setAddToPlanVisible(false);
+          void addMealToPlan(plan.id, meal.id)
+            .then(() => {
+              Alert.alert("Added to plan", `${meal.title} was added to "${plan.name}".`);
+            })
+            .catch((err) => {
+              console.warn("[meal-detail] add-to-plan failed", {
+                planId: plan.id,
+                mealId: meal.id,
+                err,
+              });
+              Alert.alert(
+                "Couldn't add to plan",
+                "Something went wrong. Please try again.",
+              );
+            });
         }}
       />
       <Header
@@ -513,32 +533,6 @@ function MealDetailContent({
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* §2.5 — Save Globally banner (only when accessed from a plan with active override) */}
-        {showBanner && (
-          <View style={s.banner}>
-            <Text style={s.bannerText}>
-              This recipe is customized for this plan. Save these changes to
-              your saved meal so future plans use them too?
-            </Text>
-            <View style={s.bannerBtnRow}>
-              <View style={{ flex: 1 }}>
-                <Button
-                  label="Save to my meal forever"
-                  variant="primary"
-                  onPress={onSaveGlobally}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button
-                  label="Keep plan-only"
-                  variant="ghost"
-                  onPress={onKeepPlanOnly}
-                />
-              </View>
-            </View>
-          </View>
-        )}
-
         {/* Hero — image + title + description + quick stats */}
         <View style={s.hero}>
           {meal.image ? (
@@ -558,7 +552,11 @@ function MealDetailContent({
             sit below as a row. */}
         <View style={s.primaryActionStack}>
           <Button label="Cook Now" variant="primary" onPress={onCookNow} />
-          <Button label="Add to Plan" variant="primary" onPress={onAddToPlan} />
+          {/* BUG-004 — Add to Plan only in the Library (My Recipes) context;
+              hidden when the meal is already in a plan (inPlanContext). */}
+          {!inPlanContext && (
+            <Button label="Add to Plan" variant="primary" onPress={onAddToPlan} />
+          )}
         </View>
         <View style={s.actionRow}>
           <View style={{ flex: 1 }}>
@@ -719,25 +717,6 @@ const s = StyleSheet.create({
   },
   gateBtnWrap: {
     minWidth: 160,
-  },
-  banner: {
-    backgroundColor: Colors.sage[50],
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.sage[300],
-    padding: Spacing[3],
-    gap: Spacing[2],
-    marginBottom: Spacing[4],
-  },
-  bannerText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[900],
-    fontFamily: Typography.face.sans[400],
-    lineHeight: 18,
-  },
-  bannerBtnRow: {
-    flexDirection: "row",
-    gap: Spacing[2],
   },
   hero: {
     gap: Spacing[2],
