@@ -124,6 +124,10 @@ interface CapturedCalls {
   // can assert that purchase fields are populated for known common
   // ingredients and left absent for genuine unknowns.
   upserts: CapturedUpsert[];
+  // WS7-8 BUG-003 — capture meal/dish create payloads to pin the immutable
+  // authored-servings anchor (== servingsDefault) at the wizard create seam.
+  meals: Record<string, unknown>[];
+  dishes: Record<string, unknown>[];
 }
 
 function makeStubs(opts: {
@@ -137,6 +141,8 @@ function makeStubs(opts: {
     steps: [],
     selectedOptimizationNotes: false,
     upserts: [],
+    meals: [],
+    dishes: [],
   };
 
   const prismaStub = {
@@ -177,13 +183,21 @@ function makeStubs(opts: {
 
   const txStub = {
     meal: {
-      create: async () => ({ id: "meal-x" }),
+      create: async (args: { data: Record<string, unknown> }) => {
+        captured.meals.push(args.data);
+        return { id: "meal-x" };
+      },
       // WS7-6 Fix-Block 3: meal-row update after the per-dish loop writes
       // the aggregated per-serving macros. No-op in this test — assertions
       // here focus on the Template-pair shape, not macro values.
       update: async () => ({}),
     },
-    dish: { create: async () => ({ id: "dish-x" }) },
+    dish: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        captured.dishes.push(args.data);
+        return { id: "dish-x" };
+      },
+    },
     mealDishLink: {
       create: async () => ({}),
       // WS7-6 Fix-Block 3: recomputeAndPersistMealMacros reads the link
@@ -255,6 +269,36 @@ describe("materializeWizardDraft — WS7-5b-mobile FIX Template-pair (PRD §2.4)
     }
   });
 
+});
+
+// WS7-8 BUG-003 — the wizard create seam must set the immutable authored
+// anchor (authoredServingsDefault) == servingsDefault on BOTH the Meal and the
+// Dish at create time, so every freshly-wizarded meal/dish is born anchored.
+describe("materializeWizardDraft — WS7-8 BUG-003 authored-servings anchor", () => {
+  it("sets authoredServingsDefault == servingsDefault on every created Meal and Dish", async () => {
+    const expanded = sampleExpanded(); // both meals have servings: 4
+    const { prismaStub, txStub, captured } = makeStubs({ expanded });
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+    });
+
+    assert.equal(captured.meals.length, 2, "two meals created");
+    assert.equal(captured.dishes.length, 2, "two dishes created");
+    for (const m of captured.meals) {
+      assert.equal(m.servingsDefault, 4);
+      assert.equal(m.authoredServingsDefault, 4);
+      assert.equal(m.authoredServingsDefault, m.servingsDefault);
+    }
+    for (const d of captured.dishes) {
+      assert.equal(d.servingsDefault, 4);
+      assert.equal(d.authoredServingsDefault, 4);
+      assert.equal(d.authoredServingsDefault, d.servingsDefault);
+    }
+  });
 });
 
 // WS7-5c Block A — payload path. activate/save now run the finalize_steps

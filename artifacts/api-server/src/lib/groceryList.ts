@@ -319,8 +319,14 @@ export async function consolidatePlanIngredients(
     for (const link of item.meal.dishLinks) {
       dishIndex += 1;
       const dish = link.dish;
-      const baseServings = dish.servingsDefault > 0 ? dish.servingsDefault : 1;
-      const effectiveServings = item.servingsOverride ?? baseServings;
+      // WS7-8 BUG-003 — DENOMINATOR is the immutable authored anchor
+      // (authoredServingsDefault ?? servingsDefault); the NUMERATOR keeps its
+      // no-override fallback of the live servingsDefault. Anchor == servingsDefault
+      // until a future canonical promote, so today the multiplier is unchanged.
+      const authoredBase =
+        dish.authoredServingsDefault ?? dish.servingsDefault;
+      const baseServings = authoredBase > 0 ? authoredBase : 1;
+      const effectiveServings = item.servingsOverride ?? dish.servingsDefault;
       const multiplier = effectiveServings / baseServings;
 
       // Effective (override-applied) ingredient list for this dish. An override

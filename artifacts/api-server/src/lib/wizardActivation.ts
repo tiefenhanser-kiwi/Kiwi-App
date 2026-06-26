@@ -197,6 +197,8 @@ export async function materializeWizardDraft(
         difficulty: m.difficulty,
         estimatedTimeMinutes: m.estimatedTimeMinutes,
         servingsDefault: m.servings,
+        // WS7-8 BUG-003 — anchor frozen == servingsDefault at create.
+        authoredServingsDefault: m.servings,
         isPublic: false,
         isArchived: false,
       },
@@ -231,6 +233,8 @@ export async function materializeWizardDraft(
           estimatedTimeMinutes: m.estimatedTimeMinutes,
           difficulty: m.difficulty,
           servingsDefault: m.servings,
+          // WS7-8 BUG-003 — anchor frozen == servingsDefault at create.
+          authoredServingsDefault: m.servings,
           isArchived: false,
           ...macros,
         },

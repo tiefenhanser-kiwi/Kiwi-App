@@ -187,6 +187,8 @@ export async function materializeMeal(
       mealType: payload.mealType ?? "dinner",
       sourceType: payload.sourceType ?? "manual",
       servingsDefault: payload.servingsDefault ?? 4,
+      // WS7-8 BUG-003 — anchor frozen == servingsDefault at create.
+      authoredServingsDefault: payload.servingsDefault ?? 4,
       estimatedTimeMinutes: payload.estimatedTimeMinutes ?? 30,
       difficulty: payload.difficulty ?? "easy",
       tags: payload.tags ?? [],
@@ -240,6 +242,9 @@ export async function materializeMeal(
             d.estimatedTimeMinutes ?? payload.estimatedTimeMinutes ?? 30,
           difficulty: d.difficulty ?? payload.difficulty ?? "easy",
           servingsDefault:
+            d.servingsDefault ?? payload.servingsDefault ?? 4,
+          // WS7-8 BUG-003 — anchor frozen == servingsDefault at create.
+          authoredServingsDefault:
             d.servingsDefault ?? payload.servingsDefault ?? 4,
           isArchived: false,
           ...macros,
@@ -390,6 +395,8 @@ export async function materializeDish(
       estimatedTimeMinutes: payload.estimatedTimeMinutes ?? 30,
       difficulty: payload.difficulty ?? "easy",
       servingsDefault: payload.servingsDefault ?? 4,
+      // WS7-8 BUG-003 — anchor frozen == servingsDefault at create.
+      authoredServingsDefault: payload.servingsDefault ?? 4,
       tags: payload.tags ?? [],
       isArchived: false,
       ...macros,

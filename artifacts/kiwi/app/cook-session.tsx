@@ -112,14 +112,15 @@ export default function CookSession() {
   // ── WS7-8b BUG-006 — amount-ref scale ───────────────────────────────────────
   // Cook Mode renders amountRefs through this so the cook screen scales to the
   // same quantities as Meal Detail. Meal path: effectiveServings (plan-resolved)
-  // ÷ authored servingsDefault (= MealDetail.servings). DishId path: 1 — a
-  // standalone dish has no plan override (the dish-of-an-overridden-plan-meal
-  // case is a chosen limitation, D-WS7-175).
+  // ÷ the immutable authored anchor (authoredServingsDefault), matching Meal
+  // Detail's denominator (WS7-8 BUG-003). DishId path: 1 — a standalone dish has
+  // no plan override (the dish-of-an-overridden-plan-meal case is a chosen
+  // limitation, D-WS7-175).
   const amountMultiplier = useMemo(() => {
     if (mealId && mealQuery.data) {
       return resolveAmountMultiplier(
         mealQuery.data.effectiveServings,
-        mealQuery.data.servings,
+        mealQuery.data.authoredServingsDefault,
       );
     }
     return 1;

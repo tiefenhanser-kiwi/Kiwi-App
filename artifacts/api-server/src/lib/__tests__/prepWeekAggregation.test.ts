@@ -34,6 +34,8 @@ interface DishFixture {
   id: string;
   title: string;
   servingsDefault: number;
+  // WS7-8 BUG-003 — immutable authored anchor; null = legacy/seed row.
+  authoredServingsDefault: number | null;
   dishIngredients: DishIngredientFixture[];
 }
 
@@ -136,6 +138,8 @@ function plan(opts?: Partial<PlanFixture>): PlanFixture {
                 id: DISH_A1,
                 title: "Beef tacos",
                 servingsDefault: 4,
+                // Legacy/seed row — no anchor; loader carries null through.
+                authoredServingsDefault: null,
                 dishIngredients: [
                   {
                     quantity: 2,
@@ -183,6 +187,8 @@ function plan(opts?: Partial<PlanFixture>): PlanFixture {
                 id: DISH_B1,
                 title: "Chicken stir fry",
                 servingsDefault: 4,
+                // Fresh row — anchor set at create (== servingsDefault).
+                authoredServingsDefault: 4,
                 dishIngredients: [
                   {
                     quantity: 1,
@@ -276,6 +282,8 @@ describe("loadPrepWeekInput — payload shape", () => {
     assert.equal(stirFry.servingsOverride, 6);
     // Dish base servings = dish.servingsDefault (the adapter's scaling base).
     assert.equal(stirFry.dishes[0].baseServings, 4);
+    // WS7-8 BUG-003 — anchor carried through verbatim (fresh row → 4).
+    assert.equal(stirFry.dishes[0].authoredBaseServings, 4);
     // Quantity stays RAW (1), NOT scaled to 1.5 — the loader never scales.
     const onion = stirFry.dishes[0].ingredients.find(
       (i) => i.ingredientId === ING_ONION,
@@ -297,6 +305,8 @@ describe("loadPrepWeekInput — payload shape", () => {
     // back to the dish base when scaling).
     assert.equal(tacos.servingsOverride, null);
     assert.equal(tacos.dishes[0].baseServings, 4);
+    // WS7-8 BUG-003 — legacy row's null anchor carried through verbatim.
+    assert.equal(tacos.dishes[0].authoredBaseServings, null);
   });
 
   it("carries Ingredient.category onto each ingredient", async () => {

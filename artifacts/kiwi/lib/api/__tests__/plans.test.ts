@@ -85,6 +85,7 @@ const MEAL_DETAIL = {
   cuisine: "Japanese",
   minutes: 30,
   servings: 4,
+  authoredServingsDefault: 4,
   effectiveServings: 4,
   calories: 540,
   protein: 38,
@@ -107,6 +108,7 @@ const MEAL_DETAIL = {
       minutes: 30,
       difficulty: "easy",
       servings: 4,
+      authoredServingsDefault: 4,
       ingredients: [
         {
           name: "Salmon fillets",

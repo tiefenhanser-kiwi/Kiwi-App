@@ -199,12 +199,15 @@ function MealDetailContent({
   }, [meal.effectiveServings]);
 
   const showBanner = hasOverride && !bannerDismissed;
-  // WS7-8b (D-WS7-169) — DENOMINATOR is the authored meal.servings
-  // (= servingsDefault), NOT effectiveServings. Ingredient quantities are
-  // authored for servingsDefault, so scaling must divide by it. The numerator
-  // is the live (possibly overridden) displayServings. Do NOT swap meal.servings
-  // for effectiveServings here or the multiplier collapses to 1 and under-scales.
-  const servingsMultiplier = displayServings / meal.servings;
+  // WS7-8b (D-WS7-169) / WS7-8 BUG-003 — DENOMINATOR is the immutable authored
+  // anchor (meal.authoredServingsDefault), NOT effectiveServings and NOT the
+  // (mutable) meal.servings. Ingredient quantities are authored against the
+  // anchor, so scaling must divide by it; once a future canonical servings
+  // change moves meal.servings, the anchor stays put and amounts rescale
+  // correctly. The numerator is the live (possibly overridden) displayServings.
+  // (The wire always sends authoredServingsDefault, falling back to
+  // servingsDefault for legacy/seed rows, so this is never NaN.)
+  const servingsMultiplier = displayServings / meal.authoredServingsDefault;
   const onlyOneDish = meal.dishes.length === 1;
 
   // Recipe steps. PRD §10.6 wants steps grouped by sub-dish, mirroring the

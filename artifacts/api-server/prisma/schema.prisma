@@ -355,6 +355,11 @@ model Dish {
   difficulty           DifficultyLevel @default(easy)
   imageUrl             String?
   servingsDefault      Int             @default(4)
+  // WS7-8 BUG-003 — immutable authored-servings anchor. Set once at create
+  // (== servingsDefault) and NEVER updated on edit; render scales as
+  // authoredQuantity × servingsDefault / authoredServingsDefault. Nullable:
+  // legacy/seed rows are null and fall back to servingsDefault at render.
+  authoredServingsDefault Int?
   tags                 String[]        @default([])
   caloriesPerServing   Float           @default(0)
   proteinGPerServing   Float           @default(0)
@@ -401,6 +406,11 @@ model Meal {
   estimatedTimeMinutes Int             @default(30)
   imageUrl             String?
   servingsDefault      Int             @default(4)
+  // WS7-8 BUG-003 — immutable authored-servings anchor. Set once at create
+  // (== servingsDefault) and NEVER updated on edit; render scales as
+  // authoredQuantity × servingsDefault / authoredServingsDefault. Nullable:
+  // legacy/seed rows are null and fall back to servingsDefault at render.
+  authoredServingsDefault Int?
   tags                 String[]        @default([])
   caloriesPerServing   Float           @default(0)
   proteinGPerServing   Float           @default(0)

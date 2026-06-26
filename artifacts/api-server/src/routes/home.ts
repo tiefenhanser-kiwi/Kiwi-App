@@ -69,6 +69,8 @@ interface PlanItemLite {
     cuisineType: string | null;
     estimatedTimeMinutes: number;
     servingsDefault: number;
+    // WS7-8 BUG-003 — authored-servings anchor (in MEAL_LIST_SELECT).
+    authoredServingsDefault: number | null;
     caloriesPerServing: number;
     proteinGPerServing: number;
     carbsGPerServing: number;

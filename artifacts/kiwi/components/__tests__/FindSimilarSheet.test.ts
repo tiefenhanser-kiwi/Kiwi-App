@@ -59,6 +59,7 @@ function listItem(id: string, title: string) {
     cuisine: "Italian",
     minutes: 30,
     servings: 2,
+    authoredServingsDefault: 2,
     calories: 500,
     protein: 20,
     carbs: 40,

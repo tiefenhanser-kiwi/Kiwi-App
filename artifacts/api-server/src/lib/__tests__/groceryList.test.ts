@@ -34,6 +34,8 @@ interface DishStub {
   id: string;
   title: string;
   servingsDefault: number;
+  // WS7-8 BUG-003 — immutable authored anchor; omit/null = legacy/seed row.
+  authoredServingsDefault?: number | null;
   ingredients: IngStub[];
 }
 
@@ -86,6 +88,7 @@ function buildPlanRow(plan: PlanStub) {
             id: d.id,
             title: d.title,
             servingsDefault: d.servingsDefault,
+            authoredServingsDefault: d.authoredServingsDefault ?? null,
             dishIngredients: d.ingredients.map((ing, ii) => {
               const hasIngredient = ing.ingredientId !== null;
               return {
@@ -343,6 +346,56 @@ describe("consolidatePlanIngredients — consolidation", () => {
     const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
     assert.equal(out.length, 1);
     assert.equal(out[0].quantity, 2); // 1 lb * (8/4)
+  });
+
+  // ── WS7-8 BUG-003 — authored-servings anchor as the denominator ──────────────
+
+  it("divides by the authored anchor, NOT the live servingsDefault", async () => {
+    // Simulate a future canonical promote: servingsDefault moved to 8, but the
+    // anchor (where quantities were authored) stays 4. No override → numerator
+    // falls back to the live servingsDefault 8, denominator is the anchor 4 → ×2.
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Tacos",
+              servingsDefault: 8,
+              authoredServingsDefault: 4,
+              ingredients: [{ name: "Ground Beef", quantity: 1, unit: "lb", category: "Protein" }],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].quantity, 2); // 1 lb * (8/4)
+  });
+
+  it("null anchor (legacy/seed row) falls back to servingsDefault — no rescale", async () => {
+    // Regression guard: a null anchor behaves exactly like today (multiplier 1).
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "Tacos",
+              servingsDefault: 4,
+              authoredServingsDefault: null,
+              ingredients: [{ name: "Ground Beef", quantity: 1, unit: "lb", category: "Protein" }],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].quantity, 1); // 1 lb * 1
   });
 });
 

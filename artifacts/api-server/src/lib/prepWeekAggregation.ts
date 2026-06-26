@@ -32,8 +32,13 @@ export interface PrepLoadedIngredient {
 export interface PrepLoadedDish {
   dishId: string;
   dishName: string;
-  // dish.servingsDefault — the scaling base (matches groceryList.ts).
+  // dish.servingsDefault — the live base; also the numerator's no-override
+  // fallback (matches groceryList.ts).
   baseServings: number;
+  // WS7-8 BUG-003 — dish.authoredServingsDefault, the immutable scaling
+  // DENOMINATOR. Null for legacy/seed rows; the adapter falls back to
+  // baseServings so a null anchor degrades to today's behavior.
+  authoredBaseServings: number | null;
   ingredients: PrepLoadedIngredient[];
   // WS7-8a B2b (D-WS7-150) — raw instruction-step text for this dish, in
   // stepIndex order, so the narration layer can judge combine-vs-season from
@@ -160,6 +165,7 @@ export async function loadPrepWeekInput(
           dishId: dish.id,
           dishName: dish.title,
           baseServings: dish.servingsDefault,
+          authoredBaseServings: dish.authoredServingsDefault,
           ingredients,
           stepTexts: [] as string[], // filled below from a keyed step query
         };

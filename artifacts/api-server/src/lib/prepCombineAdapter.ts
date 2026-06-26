@@ -45,8 +45,14 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
       mealId: meal.mealId,
       mealName: meal.mealName,
       dishes: meal.dishes.map((dish) => {
-        const base = dish.baseServings > 0 ? dish.baseServings : 1;
-        const effective = meal.servingsOverride ?? base;
+        // WS7-8 BUG-003 — DENOMINATOR is the immutable authored anchor
+        // (authoredBaseServings ?? baseServings); the NUMERATOR keeps its
+        // no-override fallback of the live baseServings (= servingsDefault).
+        // Anchor == baseServings until a future canonical promote, so today the
+        // multiplier is unchanged.
+        const authoredBase = dish.authoredBaseServings ?? dish.baseServings;
+        const base = authoredBase > 0 ? authoredBase : 1;
+        const effective = meal.servingsOverride ?? dish.baseServings;
         const multiplier = effective / base;
         return {
           dishId: dish.dishId,

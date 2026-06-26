@@ -154,6 +154,9 @@ const MealDetailDishSchema = z.object({
   minutes: z.number(),
   difficulty: z.string(),
   servings: z.number(),
+  // WS7-8 BUG-003 — per-dish authored-servings anchor. Server always emits it
+  // (authoredServingsDefault ?? servingsDefault), so it's never absent.
+  authoredServingsDefault: z.number(),
   ingredients: z.array(MealDetailIngredientSchema),
   steps: z.array(MealStepSchema),
 });
@@ -168,6 +171,10 @@ export const MealListItemSchema = z.object({
   cuisine: z.string(),
   minutes: z.number(),
   servings: z.number(),
+  // WS7-8 BUG-003 — immutable authored-servings anchor; the Meal Detail and
+  // Cook Mode ingredient scalers divide by THIS, not `servings`. Server always
+  // emits it (authoredServingsDefault ?? servingsDefault), so never absent.
+  authoredServingsDefault: z.number(),
   calories: z.number(),
   protein: z.number(),
   carbs: z.number(),

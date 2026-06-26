@@ -73,6 +73,7 @@ const SINGLE_DISH_MEAL = {
     cuisine: "Japanese",
     minutes: 30,
     servings: 4,
+    authoredServingsDefault: 4,
     effectiveServings: 4,
     calories: 540,
     protein: 38,
@@ -95,6 +96,7 @@ const SINGLE_DISH_MEAL = {
         minutes: 30,
         difficulty: "easy",
         servings: 4,
+        authoredServingsDefault: 4,
         ingredients: [ingredient("Salmon fillets", 1.5, "lb")],
         steps: [step(0, "Sear the salmon.", true)],
       },
@@ -113,6 +115,7 @@ const MULTI_DISH_MEAL = {
     cuisine: "American",
     minutes: 35,
     servings: 4,
+    authoredServingsDefault: 4,
     effectiveServings: 4,
     calories: 640,
     protein: 38,
@@ -135,6 +138,7 @@ const MULTI_DISH_MEAL = {
         minutes: 15,
         difficulty: "medium",
         servings: 4,
+        authoredServingsDefault: 4,
         ingredients: [ingredient("Salmon fillets", 4, "6 oz")],
         steps: [step(0, "Pat salmon dry; season.")],
       },
@@ -146,6 +150,7 @@ const MULTI_DISH_MEAL = {
         minutes: 25,
         difficulty: "easy",
         servings: 4,
+        authoredServingsDefault: 4,
         ingredients: [ingredient("Jasmine rice", 1, "cup")],
         steps: [step(0, "Toast the rice."), step(1, "Simmer covered.")],
       },
@@ -260,6 +265,31 @@ test("getMeal rejects a malformed response body", async () => {
   );
 });
 
+// WS7-8 BUG-003 — the wire carries the immutable authored anchor as a distinct,
+// REQUIRED number on both the meal and each dish; it is the render-time scaling
+// denominator (Meal Detail + Cook Mode), separate from `servings`/effectiveServings.
+test("getMeal surfaces authoredServingsDefault distinct from servings", async () => {
+  nextResponse = () => mockJson(SINGLE_DISH_MEAL);
+  const meal = await getMeal("meal-single");
+  assert.equal(meal.authoredServingsDefault, 4);
+  assert.equal(meal.dishes[0].authoredServingsDefault, 4);
+});
+
+test("getMeal rejects a response missing the required authoredServingsDefault anchor", async () => {
+  // The server always emits it (authoredServingsDefault ?? servingsDefault), so
+  // its absence is a contract violation the schema must reject.
+  const { authoredServingsDefault: _omit, ...mealNoAnchor } =
+    SINGLE_DISH_MEAL.meal;
+  nextResponse = () => mockJson({ meal: mealNoAnchor });
+  await assert.rejects(
+    () => getMeal("meal-single"),
+    (err: unknown) => {
+      assert.ok(err instanceof ApiSchemaError);
+      return true;
+    },
+  );
+});
+
 // ── useMeal ─────────────────────────────────────────────────────────────────
 
 test("useMeal transitions from loading to data", async () => {
@@ -339,6 +369,7 @@ const MEAL_LIST_RESPONSE = {
       cuisine: "Indian",
       minutes: 40,
       servings: 4,
+      authoredServingsDefault: 4,
       calories: 610,
       protein: 44,
       carbs: 28,

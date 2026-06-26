@@ -733,6 +733,14 @@ interface OrderingHarnessOpts {
 
 function makeOrderingStub(opts: OrderingHarnessOpts = {}) {
   const events: string[] = [];
+  // WS7-8 BUG-003 — capture create/update payloads so the anchor tests can
+  // assert authoredServingsDefault is set at create and NEVER on rematerialize.
+  const captured = {
+    mealCreates: [] as Record<string, unknown>[],
+    dishCreates: [] as Record<string, unknown>[],
+    mealUpdates: [] as Record<string, unknown>[],
+    dishUpdates: [] as Record<string, unknown>[],
+  };
   let nextMealId = 1;
   let nextDishId = 1;
 
@@ -760,9 +768,15 @@ function makeOrderingStub(opts: OrderingHarnessOpts = {}) {
         events.push(`dish.findMany`);
         return [];
       },
-      create: async () => {
+      create: async (args: { data: Record<string, unknown> }) => {
         events.push(`dish.create`);
+        captured.dishCreates.push(args.data);
         return { id: `dish-${nextDishId++}` };
+      },
+      update: async (args: { data: Record<string, unknown> }) => {
+        events.push(`dish.update`);
+        captured.dishUpdates.push(args.data);
+        return {};
       },
       deleteMany: async () => {
         events.push(`dish.deleteMany`);
@@ -777,12 +791,14 @@ function makeOrderingStub(opts: OrderingHarnessOpts = {}) {
         }
         return null;
       },
-      create: async () => {
+      create: async (args: { data: Record<string, unknown> }) => {
         events.push(`meal.create`);
+        captured.mealCreates.push(args.data);
         return { id: `meal-${nextMealId++}` };
       },
-      update: async () => {
+      update: async (args: { data: Record<string, unknown> }) => {
         events.push(`meal.update`);
+        captured.mealUpdates.push(args.data);
         return {};
       },
     },
@@ -831,7 +847,7 @@ function makeOrderingStub(opts: OrderingHarnessOpts = {}) {
     },
   };
 
-  return { prisma: surface, events };
+  return { prisma: surface, events, captured };
 }
 
 function assertAllUpsertsBeforeTx(events: string[]): void {
@@ -995,6 +1011,167 @@ describe("WS7-6 Fix-Block 1A: ingredient resolution happens before $transaction"
       assert.equal(upserts.length, 0);
       // tx:start still fires because the steps patch triggers subgraph work.
       assert.ok(events.includes("tx:start"));
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS7-8 BUG-003 — immutable authored-servings anchor ──────────────────────
+//
+// Two contracts, both load-bearing for the render-time scaling rewrite:
+//   (a) CREATE seams set authoredServingsDefault == servingsDefault at birth
+//       (POST /me/meals → materializeMeal, POST /me/dishes → materializeDish).
+//   (b) IMMUTABILITY: no edit path EVER writes authoredServingsDefault — a
+//       canonical servings change writes ONLY servingsDefault. Covers the
+//       scalar-only update paths (the future canonical-change route) AND the
+//       rematerialize subgraph rebuild.
+describe("WS7-8 BUG-003: authored-servings anchor (create-once, then frozen)", () => {
+  it("POST /me/meals sets authoredServingsDefault == servingsDefault on the meal AND its dishes", async () => {
+    const { prisma, captured } = makeOrderingStub();
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPost(harness, "/me/meals", {
+        title: "Anchored meal",
+        servingsDefault: 6,
+        dishes: [
+          {
+            kind: "new",
+            title: "Dish A",
+            role: "main",
+            positionIndex: 0,
+            ingredients: [{ name: "Salt", quantity: 1, unit: "tsp" }],
+            steps: [{ text: "Mix." }],
+          },
+        ],
+      });
+      assert.equal(res.status, 201);
+      assert.equal(captured.mealCreates.length, 1);
+      assert.equal(captured.mealCreates[0].servingsDefault, 6);
+      assert.equal(captured.mealCreates[0].authoredServingsDefault, 6);
+      assert.equal(captured.dishCreates.length, 1);
+      assert.equal(captured.dishCreates[0].servingsDefault, 6);
+      assert.equal(captured.dishCreates[0].authoredServingsDefault, 6);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("POST /me/dishes sets authoredServingsDefault == servingsDefault on the dish", async () => {
+    const { prisma, captured } = makeOrderingStub();
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPost(harness, "/me/dishes", {
+        title: "Anchored dish",
+        servingsDefault: 6,
+        ingredients: [{ name: "Flour", quantity: 1, unit: "cup" }],
+        steps: [{ text: "Combine." }],
+      });
+      assert.equal(res.status, 201);
+      assert.equal(captured.dishCreates.length, 1);
+      assert.equal(captured.dishCreates[0].servingsDefault, 6);
+      assert.equal(captured.dishCreates[0].authoredServingsDefault, 6);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("PATCH /me/meals/:id servingsDefault writes servingsDefault but NEVER the anchor (scalar-only canonical-change path)", async () => {
+    const { prisma, captured } = makeOrderingStub({
+      existingMeal: { id: "meal-existing", userId: USER_ID },
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await fetch(`${harness.baseUrl}/me/meals/meal-existing`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${signToken(USER_ID)}`,
+        },
+        body: JSON.stringify({ servingsDefault: 8 }),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(captured.mealUpdates.length, 1);
+      assert.equal(captured.mealUpdates[0].servingsDefault, 8);
+      assert.equal(
+        captured.mealUpdates[0].authoredServingsDefault,
+        undefined,
+        "the canonical-change path must NOT touch the immutable anchor",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("PATCH /me/dishes/:id servingsDefault writes servingsDefault but NEVER the anchor (scalar-only canonical-change path)", async () => {
+    const { prisma, captured } = makeOrderingStub({
+      existingDish: { id: "dish-existing", userId: USER_ID, isArchived: false },
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await fetch(`${harness.baseUrl}/me/dishes/dish-existing`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${signToken(USER_ID)}`,
+        },
+        body: JSON.stringify({ servingsDefault: 8 }),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(captured.dishUpdates.length, 1);
+      assert.equal(captured.dishUpdates[0].servingsDefault, 8);
+      assert.equal(
+        captured.dishUpdates[0].authoredServingsDefault,
+        undefined,
+        "the canonical-change path must NOT touch the immutable anchor",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("PATCH /me/meals/:id with a dishes subgraph (rematerialize) never writes the anchor on recreated rows or the meal update", async () => {
+    const { prisma, captured } = makeOrderingStub({
+      existingMeal: { id: "meal-existing", userId: USER_ID },
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await fetch(`${harness.baseUrl}/me/meals/meal-existing`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${signToken(USER_ID)}`,
+        },
+        body: JSON.stringify({
+          servingsDefault: 8,
+          dishes: [
+            {
+              kind: "new",
+              title: "Rebuilt dish",
+              role: "main",
+              positionIndex: 0,
+              ingredients: [{ name: "Butter", quantity: 2, unit: "tbsp" }],
+              steps: [{ text: "Melt." }],
+            },
+          ],
+        }),
+      });
+      assert.equal(res.status, 200);
+      // rematerializeMeal recreates dishes — none of the recreated rows may
+      // carry the anchor (it is set ONLY at the original create seam).
+      assert.ok(captured.dishCreates.length >= 1);
+      for (const d of captured.dishCreates) {
+        assert.equal(
+          d.authoredServingsDefault,
+          undefined,
+          "rematerialize must NOT set the anchor on recreated dishes",
+        );
+      }
+      // The internal meal scalar update (servingsDefault present) likewise
+      // never carries the anchor.
+      for (const m of captured.mealUpdates) {
+        assert.equal(m.authoredServingsDefault, undefined);
+      }
     } finally {
       await harness.close();
     }

@@ -444,6 +444,7 @@ function makeLoaderStub(opts: {
               dishId: `dddddddd-dddd-4ddd-8ddd-${String(idx).padStart(12, "0")}`,
               dishName: "Dish",
               baseServings: 4,
+              authoredBaseServings: 4,
               stepTexts: [],
               ingredients: [
                 {

@@ -93,6 +93,10 @@ export interface MealListItem {
   cuisine: string;
   minutes: number;
   servings: number;
+  // WS7-8 BUG-003 — immutable authored-servings anchor (== servings until a
+  // future canonical promote). Render denominator; null anchor degrades to
+  // servings via the ?? fallback below, so this is always a number on the wire.
+  authoredServingsDefault: number;
   calories: number;
   protein: number;
   carbs: number;
@@ -109,6 +113,7 @@ export const MEAL_LIST_SELECT = {
   cuisineType: true,
   estimatedTimeMinutes: true,
   servingsDefault: true,
+  authoredServingsDefault: true,
   caloriesPerServing: true,
   proteinGPerServing: true,
   carbsGPerServing: true,
@@ -126,6 +131,7 @@ export function toListShape(m: {
   cuisineType: string | null;
   estimatedTimeMinutes: number;
   servingsDefault: number;
+  authoredServingsDefault: number | null;
   caloriesPerServing: number;
   proteinGPerServing: number;
   carbsGPerServing: number;
@@ -139,6 +145,8 @@ export function toListShape(m: {
     cuisine: m.cuisineType ?? "",
     minutes: m.estimatedTimeMinutes,
     servings: m.servingsDefault,
+    // WS7-8 BUG-003 — null anchor (legacy/seed rows) degrades to servingsDefault.
+    authoredServingsDefault: m.authoredServingsDefault ?? m.servingsDefault,
     calories: m.caloriesPerServing,
     protein: m.proteinGPerServing,
     carbs: m.carbsGPerServing,
@@ -195,6 +203,9 @@ export interface MealDetailDish {
   minutes: number;
   difficulty: string;
   servings: number;
+  // WS7-8 BUG-003 — per-dish authored-servings anchor (== servings until a
+  // future canonical promote). Null anchor degrades to servings on the wire.
+  authoredServingsDefault: number;
   ingredients: {
     name: string;
     quantity: number;
@@ -390,6 +401,8 @@ export async function composeMealDetail(
       minutes: d.estimatedTimeMinutes,
       difficulty: d.difficulty,
       servings: d.servingsDefault,
+      // WS7-8 BUG-003 — null anchor (legacy/seed rows) degrades to servingsDefault.
+      authoredServingsDefault: d.authoredServingsDefault ?? d.servingsDefault,
       ingredients: d.dishIngredients.map((di) => ({
         name: di.ingredient.displayName,
         quantity: di.quantity,

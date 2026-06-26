@@ -19,6 +19,9 @@ function loaded(overrides: {
   category?: string;
   ingredientName?: string;
   preparationNote?: string | null;
+  // WS7-8 BUG-003 — undefined → mirror a freshly-created row (anchor == base);
+  // pass null to exercise the legacy/seed null-anchor fallback.
+  authoredBaseServings?: number | null;
 }): PrepLoadedPlan {
   return {
     planId: "plan-1",
@@ -34,6 +37,10 @@ function loaded(overrides: {
             dishId: "dish-1",
             dishName: "Dish 1",
             baseServings: overrides.baseServings,
+            authoredBaseServings:
+              overrides.authoredBaseServings === undefined
+                ? overrides.baseServings
+                : overrides.authoredBaseServings,
             stepTexts: [],
             ingredients: [
               {
@@ -107,6 +114,53 @@ describe("buildPrepCombineInput — servings scaling", () => {
     );
     assert.equal(ing.unit, "oz");
     assert.equal(ing.quantity, 18);
+  });
+
+  // ── WS7-8 BUG-003 — authored-servings anchor as the denominator ──────────────
+
+  it("divides by the authored anchor, NOT the live baseServings", () => {
+    // Simulate a future canonical promote: live base moved to 8 but the anchor
+    // (where the quantities were authored) stays 4. No override → numerator
+    // falls back to the live base 8, denominator is the anchor 4 → ×2. raw 2 → 4.
+    const ing = firstIngredient(
+      loaded({
+        servingsOverride: null,
+        baseServings: 8,
+        authoredBaseServings: 4,
+        quantity: 2,
+        unit: "each",
+      }),
+    );
+    assert.equal(ing.quantity, 4);
+  });
+
+  it("override numerator over the authored-anchor denominator", () => {
+    // override 6 / anchor 4 → ×1.5 (live base 8 is ignored as denominator).
+    const ing = firstIngredient(
+      loaded({
+        servingsOverride: 6,
+        baseServings: 8,
+        authoredBaseServings: 4,
+        quantity: 2,
+        unit: "each",
+      }),
+    );
+    assert.equal(ing.quantity, 3);
+  });
+
+  it("null anchor (legacy/seed row) falls back to baseServings — no rescale", () => {
+    // Regression guard: a null anchor must behave exactly like today. No
+    // override, base 4, anchor null → multiplier 1. raw 2 → 2.
+    const ing = firstIngredient(
+      loaded({
+        servingsOverride: null,
+        baseServings: 4,
+        authoredBaseServings: null,
+        quantity: 2,
+        unit: "each",
+      }),
+    );
+    assert.equal(ing.quantity, 2);
   });
 });
 

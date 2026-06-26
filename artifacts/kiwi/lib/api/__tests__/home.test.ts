@@ -32,6 +32,7 @@ const MEAL_LIST_ITEM = {
   cuisine: "Japanese",
   minutes: 30,
   servings: 4,
+  authoredServingsDefault: 4,
   calories: 540,
   protein: 38,
   carbs: 32,
