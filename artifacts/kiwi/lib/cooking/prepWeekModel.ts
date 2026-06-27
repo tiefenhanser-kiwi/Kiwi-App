@@ -180,3 +180,45 @@ export function buildPrepWeekModel(
 }
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
+
+// ── Meal-label lookup builder (from the plan detail) ────────────────────────
+
+/**
+ * The minimal plan-item shape this builder needs — a structural subset of
+ * `PlanDetailItem` (lib/api/plans.ts), declared locally so this pure module
+ * never imports the plans API surface. `usePlan(...).data.items` satisfies it.
+ */
+export interface PlanItemForLabel {
+  mealId: string;
+  /** Day-of-week string (PlanDetailItem.assignedDayOfWeek); null when unassigned. */
+  assignedDayOfWeek: string | null;
+  /** The expanded meal; null when the row is missing/archived server-side. */
+  meal: { title: string } | null;
+}
+
+/**
+ * Build a {@link MealLabelLookup} from a plan's items: mealId → { name, day }.
+ * Pure. Block 2 calls this with `usePlan(planId).data.items` and injects the
+ * result into {@link buildPrepWeekModel} so destination rows can show
+ * "Chicken Fajitas · Tuesday".
+ *
+ * MULTI-SLOT COLLAPSE (D-WS7-182, owner WS9): if the SAME meal is scheduled to
+ * more than one day, only the FIRST slot's day is retained — the map is keyed by
+ * mealId. This is a display-only label limitation; the server's per-step
+ * attribution via `contributesToMealIds` is unaffected. Logged, not fixed.
+ */
+export function buildMealLabelLookup(
+  items: readonly PlanItemForLabel[],
+): MealLabelLookup {
+  const map = new Map<string, MealLabelInfo>();
+  for (const item of items) {
+    // First slot wins — see the multi-slot collapse note above.
+    if (!map.has(item.mealId)) {
+      map.set(item.mealId, {
+        name: item.meal?.title ?? null,
+        day: item.assignedDayOfWeek,
+      });
+    }
+  }
+  return (mealId: string) => map.get(mealId);
+}

@@ -5,7 +5,9 @@ import { test } from "node:test";
 
 import {
   buildPrepWeekModel,
+  buildMealLabelLookup,
   type MealLabelLookup,
+  type PlanItemForLabel,
 } from "../prepWeekModel";
 import type { PrepWeekResult } from "@/lib/api/cooking";
 
@@ -217,4 +219,61 @@ test("buildPrepWeekModel: a checked key that matches no step does not inflate th
   const vm = buildPrepWeekModel(result(), { checkedStepKeys: checked });
   assert.equal(vm.doneCount, 0);
   assert.equal(vm.allDone, false);
+});
+
+// ── buildMealLabelLookup (plan items → mealId labels) ─────────────────────────
+
+function planItem(overrides: Partial<PlanItemForLabel> = {}): PlanItemForLabel {
+  return {
+    mealId: M1,
+    assignedDayOfWeek: "Tuesday",
+    meal: { title: "Chicken Fajitas" },
+    ...overrides,
+  };
+}
+
+test("buildMealLabelLookup: maps mealId → { name from meal.title, day from assignedDayOfWeek }", () => {
+  const lk = buildMealLabelLookup([
+    planItem({ mealId: M1, assignedDayOfWeek: "Tuesday", meal: { title: "Chicken Fajitas" } }),
+    planItem({ mealId: M2, assignedDayOfWeek: "Wednesday", meal: { title: "Veggie Risotto" } }),
+  ]);
+  assert.deepEqual(lk(M1), { name: "Chicken Fajitas", day: "Tuesday" });
+  assert.deepEqual(lk(M2), { name: "Veggie Risotto", day: "Wednesday" });
+});
+
+test("buildMealLabelLookup: a missing meal (null) yields a null name, not a throw", () => {
+  const lk = buildMealLabelLookup([planItem({ mealId: M1, meal: null })]);
+  assert.deepEqual(lk(M1), { name: null, day: "Tuesday" });
+});
+
+test("buildMealLabelLookup: a null assignedDayOfWeek yields a null day", () => {
+  const lk = buildMealLabelLookup([
+    planItem({ mealId: M1, assignedDayOfWeek: null, meal: { title: "Soup" } }),
+  ]);
+  assert.deepEqual(lk(M1), { name: "Soup", day: null });
+});
+
+test("buildMealLabelLookup: an unknown mealId returns undefined (composer falls back)", () => {
+  const lk = buildMealLabelLookup([planItem({ mealId: M1 })]);
+  assert.equal(lk(M3), undefined);
+});
+
+test("buildMealLabelLookup: multi-slot collapse — same meal on two days keeps the FIRST slot (D-WS7-182)", () => {
+  const lk = buildMealLabelLookup([
+    planItem({ mealId: M1, assignedDayOfWeek: "Tuesday", meal: { title: "Fajitas" } }),
+    planItem({ mealId: M1, assignedDayOfWeek: "Friday", meal: { title: "Fajitas" } }),
+  ]);
+  // First slot wins — display-only limitation; server attribution unaffected.
+  assert.deepEqual(lk(M1), { name: "Fajitas", day: "Tuesday" });
+});
+
+test("buildMealLabelLookup feeds buildPrepWeekModel end-to-end (lookup → destination labels)", () => {
+  const lk = buildMealLabelLookup([
+    planItem({ mealId: M1, assignedDayOfWeek: "Tuesday", meal: { title: "Chicken Fajitas" } }),
+    planItem({ mealId: M2, assignedDayOfWeek: null, meal: { title: "Veggie Risotto" } }),
+  ]);
+  const dests = buildPrepWeekModel(result(), { mealLabel: lk }).phases[2].steps[0]
+    .destinations;
+  assert.equal(dests[0].label, "Chicken Fajitas · Tuesday");
+  assert.equal(dests[1].label, "Veggie Risotto"); // day null → name only
 });
