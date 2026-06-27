@@ -15,6 +15,19 @@ import type { SequencedStep } from "@/lib/api/cooking";
 import type { DishDetail } from "@/lib/api/dishes";
 import type { AmountRef, MealDetail, MealStep } from "@/lib/api/meals";
 
+// WS7-8b Block 4 (Block 1) — four shared primitives were lifted out of this
+// module into dedicated, screen-agnostic homes so the Week Prep screen can
+// import them too. They are RE-EXPORTED here unchanged so every existing
+// importer (and the Cook Mode tests) keeps resolving them from cookSession.
+export { highlightQuantities, type TextSegment } from "./quantityHighlight";
+export {
+  formatClock,
+  isTimerDone,
+  timerRemainingMs,
+  type ActiveTimer,
+} from "./timer";
+export { remainingMinutes } from "./stepTiming";
+
 export const PREP_PHASE = "prep";
 
 /**
@@ -214,13 +227,6 @@ export function misePlaceItems(steps: CookStep[]): string[] {
   return steps.filter((s) => s.isPrep).map((s) => s.text);
 }
 
-/** Sum of estimated minutes for the steps from `fromIndex` to the end. */
-export function remainingMinutes(steps: CookStep[], fromIndex: number): number {
-  return steps
-    .slice(Math.max(0, fromIndex))
-    .reduce((sum, s) => sum + (s.estimatedMinutes || 0), 0);
-}
-
 // ── Cook-screen render selector (WS7-8b B3 polish #1) ───────────────────────
 // Pure decision for what the route (app/cook-session.tsx) renders, extracted so
 // the gate-vs-load ordering is unit-testable without driving expo-router +
@@ -256,88 +262,7 @@ export function resolveCookRender(input: {
   return "session";
 }
 
-// ── Per-step timer chips (WS7-8b B3 Build Block 2A) ─────────────────────────
-// Wall-clock model: a started timer stores `endsAt` (epoch ms). A single ticking
-// "now" drives every chip's remaining time, so concurrency (many timers at once)
-// and continuation across navigation / brief app-background come for free — the
-// remaining is always `endsAt - now`, independent of which step is the anchor.
-// Live state + the interval live in the View; these helpers are the pure math.
-
-export interface ActiveTimer {
-  /** Epoch ms at which the countdown reaches zero. */
-  endsAt: number;
-  /** The full duration it was started with (for progress/restart). */
-  durationMs: number;
-}
-
-/** Remaining milliseconds, clamped at 0. */
-export function timerRemainingMs(timer: ActiveTimer, nowMs: number): number {
-  return Math.max(0, timer.endsAt - nowMs);
-}
-
-/** True once the wall clock has reached/passed the timer's end. */
-export function isTimerDone(timer: ActiveTimer, nowMs: number): boolean {
-  return nowMs >= timer.endsAt;
-}
-
-/**
- * Format remaining ms as "M:SS" (minutes uncapped). Rounds UP to the next whole
- * second so a freshly-started 5-minute timer reads "5:00", not "4:59".
- */
-export function formatClock(ms: number): string {
-  const totalSeconds = Math.ceil(Math.max(0, ms) / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-// ── Inline-quantity highlighter (best-effort, guaranteed-reconstruct) ────────
-
-export interface TextSegment {
-  text: string;
-  isQuantity: boolean;
-}
-
-// Allowlisted units only, so we never bold an arbitrary trailing word. Time
-// units included so cook-step durations ("4 minutes") highlight too.
-const UNIT_WORDS = [
-  "cups?", "tbsps?", "tablespoons?", "tsps?", "teaspoons?",
-  "cloves?", "ozs?", "ounces?", "lbs?", "pounds?",
-  "grams?", "g", "kgs?", "kilograms?",
-  "mls?", "milliliters?", "millilitres?", "ls?", "liters?", "litres?",
-  "pinch(?:es)?", "cans?", "sticks?", "slices?", "pieces?", "sprigs?",
-  "minutes?", "mins?", "hours?", "hrs?", "seconds?", "secs?",
-];
-
-// A number form: integer, decimal (1.5 / 1,5), simple fraction (1/2), range
-// (2-3 / 2–3), or a unicode vulgar fraction — optionally followed by an
-// allowlisted unit. The `g` flag drives String.matchAll (which does not mutate
-// lastIndex, so the shared regex is safe across calls).
-const NUMBER = String.raw`\d+(?:[.,]\d+)?(?:\s*[\/\-–]\s*\d+(?:[.,]\d+)?)?|[½¼¾⅓⅔⅛⅜⅝⅞]`;
-const QUANTITY_RE = new RegExp(
-  `(?:${NUMBER})(?:\\s*(?:${UNIT_WORDS.join("|")}))?`,
-  "gi",
-);
-
-/**
- * Split step text into plain + quantity segments for render-time bolding.
- *
- * GUARANTEE: `highlightQuantities(t).map(s => s.text).join("") === t` for every
- * input — segments are sliced contiguously on match indices, so no character is
- * ever dropped, reordered, or mangled. No match → a single plain segment. Never
- * throws. Full step text is always reconstructable (8a recovery path).
- */
-export function highlightQuantities(text: string): TextSegment[] {
-  const out: TextSegment[] = [];
-  let last = 0;
-  for (const m of text.matchAll(QUANTITY_RE)) {
-    const start = m.index ?? 0;
-    const matched = m[0];
-    if (!matched) continue; // defensive: never emit a zero-length match
-    if (start > last) out.push({ text: text.slice(last, start), isQuantity: false });
-    out.push({ text: matched, isQuantity: true });
-    last = start + matched.length;
-  }
-  if (last < text.length) out.push({ text: text.slice(last), isQuantity: false });
-  return out.length > 0 ? out : [{ text, isQuantity: false }];
-}
+// ── Per-step timer chips + inline-quantity highlighter ──────────────────────
+// Both were lifted to dedicated modules (./timer, ./quantityHighlight) in
+// WS7-8b Block 4 so the Week Prep screen can reuse them. Re-exported above for
+// back-compat; see those files for the implementations.

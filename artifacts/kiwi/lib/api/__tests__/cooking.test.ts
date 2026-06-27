@@ -14,6 +14,7 @@ import {
   uncheckPrepStep,
   getPrepWeekCompletions,
   getCookingSequence,
+  getPrepWeek,
 } from "../cooking";
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
@@ -313,5 +314,185 @@ test("getCookingSequence rejects a missing envelope field (no usedAI)", async ()
   await assert.rejects(
     () => getCookingSequence("meal-multi"),
     (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+// ── getPrepWeek (POST /plans/:planId/prep-week — GENERATE) ────────────────────
+// WS7-8b Block 4 (Block 1). §27 two-direction wire mirror: parse a representative
+// cache-HIT envelope (no metadata) AND a cache-MISS envelope (metadata.latencyMs
+// present) — both must satisfy the same schema. 402 surfaces as a typed
+// non-fatal outcome; every other failure propagates as a throw.
+
+// Two real plan mealIds (uuid — the result schema mirrors the server's .uuid()).
+const M1 = "11111111-1111-4111-8111-111111111111";
+const M2 = "22222222-2222-4222-8222-222222222222";
+
+// A faithful 4-phase result in the fixed order. seasonings/sauces are emitted
+// empty (skippable); produce + proteins carry one combined step each. The
+// proteins step exercises the optional storageNote + skipSuggested round-trip.
+const PREP_RESULT = {
+  totalEstimatedMinutes: 45,
+  phases: [
+    { phase: "seasonings_dry", title: "Seasonings & dry", skippable: true, steps: [] },
+    { phase: "sauces_marinades", title: "Sauces & marinades", skippable: true, steps: [] },
+    {
+      phase: "produce",
+      title: "Produce",
+      skippable: false,
+      steps: [
+        {
+          number: 1,
+          stepKey: `produce#${M1}`,
+          title: "Dice onions",
+          instructions: "Dice 2 onions for the week.",
+          estimatedMinutes: 6,
+          contributesToMealIds: [M1, M2],
+        },
+      ],
+    },
+    {
+      phase: "proteins",
+      title: "Proteins",
+      skippable: false,
+      steps: [
+        {
+          number: 2,
+          stepKey: `proteins#${M1}`,
+          title: "Trim chicken",
+          instructions: "Trim 2 lb chicken thighs.",
+          estimatedMinutes: 10,
+          contributesToMealIds: [M1],
+          storageNote: "Airtight, 2 days max",
+          skipSuggested: true,
+        },
+      ],
+    },
+  ],
+};
+
+const HIT_ENVELOPE = {
+  cacheHit: true,
+  result: PREP_RESULT,
+  planRevisionId: 3,
+  generatedAt: "2026-06-20T08:00:00.000Z",
+  promptVersion: 2,
+  // NO metadata — the cache-hit branch omits it.
+};
+
+const MISS_ENVELOPE = {
+  cacheHit: false,
+  result: PREP_RESULT,
+  planRevisionId: 4,
+  generatedAt: "2026-06-20T08:05:00.000Z",
+  promptVersion: 2,
+  metadata: { latencyMs: 1234 }, // present only on the miss branch
+};
+
+test("getPrepWeek POSTs to the prep-week path with NO body and parses the cache-HIT envelope", async () => {
+  nextResponse = () => mockJson(HIT_ENVELOPE);
+  const out = await getPrepWeek("plan-1");
+
+  assert.equal(lastMethod, "POST");
+  assert.ok(
+    lastUrl?.endsWith("/plans/plan-1/prep-week"),
+    `unexpected url: ${lastUrl}`,
+  );
+  assert.equal(lastBody, null); // planId is in the path; no request body
+
+  assert.equal(out.kind, "ok");
+  if (out.kind !== "ok") return; // narrow
+  assert.equal(out.envelope.cacheHit, true);
+  assert.equal(out.envelope.metadata, undefined); // hit branch carries none
+  assert.equal(out.envelope.planRevisionId, 3);
+  assert.equal(out.envelope.result.phases.length, 4);
+  assert.deepEqual(
+    out.envelope.result.phases.map((p) => p.phase),
+    ["seasonings_dry", "sauces_marinades", "produce", "proteins"],
+  );
+  // optional step fields round-trip
+  const protein = out.envelope.result.phases[3].steps[0];
+  assert.equal(protein.skipSuggested, true);
+  assert.equal(protein.storageNote, "Airtight, 2 days max");
+});
+
+test("getPrepWeek parses the cache-MISS envelope (metadata.latencyMs present)", async () => {
+  nextResponse = () => mockJson(MISS_ENVELOPE);
+  const out = await getPrepWeek("plan-1");
+  assert.equal(out.kind, "ok");
+  if (out.kind !== "ok") return;
+  assert.equal(out.envelope.cacheHit, false);
+  assert.equal(out.envelope.metadata?.latencyMs, 1234);
+});
+
+test("getPrepWeek surfaces a 402 as a typed upgrade_required outcome (non-fatal, not thrown)", async () => {
+  nextResponse = () =>
+    mockJson(
+      { error: "upgrade required", reason: "Prep the Week is a Premium feature" },
+      402,
+    );
+  // Must NOT throw — the gate is recoverable, never a hard paywall.
+  const out = await getPrepWeek("plan-1");
+  assert.equal(out.kind, "upgrade_required");
+  if (out.kind !== "upgrade_required") return;
+  assert.equal(out.message, "upgrade required"); // userFacingMessage ← body.error
+});
+
+test("getPrepWeek propagates a 404 (missing/non-owned) as an ApiError — hard failure", async () => {
+  nextResponse = () => mockJson({ error: "plan not found" }, 404);
+  await assert.rejects(
+    () => getPrepWeek("ghost"),
+    (err: unknown) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+test("getPrepWeek propagates a 502 AI/assembly failure as an ApiError", async () => {
+  nextResponse = () =>
+    mockJson({ error: "Kiwi got distracted. Try again?", reason: "assembly_invalid" }, 502);
+  await assert.rejects(
+    () => getPrepWeek("plan-1"),
+    (err: unknown) => err instanceof ApiError && err.status === 502,
+  );
+});
+
+test("getPrepWeek rejects a malformed result — phases out of the fixed order (§27 both-direction)", async () => {
+  // Swap produce ahead of sauces_marinades — the superRefine must reject it,
+  // proving the mobile mirror enforces the same order the server does.
+  const reordered = {
+    ...HIT_ENVELOPE,
+    result: {
+      ...PREP_RESULT,
+      phases: [
+        PREP_RESULT.phases[0],
+        PREP_RESULT.phases[2], // produce where sauces_marinades must be
+        PREP_RESULT.phases[1],
+        PREP_RESULT.phases[3],
+      ],
+    },
+  };
+  nextResponse = () => mockJson(reordered);
+  await assert.rejects(
+    () => getPrepWeek("plan-1"),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+test("getPrepWeek rejects a result with the wrong phase count (not 4)", async () => {
+  const threePhase = {
+    ...HIT_ENVELOPE,
+    result: { ...PREP_RESULT, phases: PREP_RESULT.phases.slice(0, 3) },
+  };
+  nextResponse = () => mockJson(threePhase);
+  await assert.rejects(
+    () => getPrepWeek("plan-1"),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+test("getPrepWeek encodes the planId path segment", async () => {
+  nextResponse = () => mockJson(HIT_ENVELOPE);
+  await getPrepWeek("plan/with space");
+  assert.ok(
+    lastUrl?.includes("/plans/plan%2Fwith%20space/prep-week"),
+    `unexpected url: ${lastUrl}`,
   );
 });
