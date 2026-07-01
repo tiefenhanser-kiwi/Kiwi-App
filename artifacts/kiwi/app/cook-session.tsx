@@ -14,11 +14,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
 
-import { Button } from "@/components/Button";
 import { CookSessionView } from "@/components/CookSessionView";
 import { Header } from "@/components/Header";
+import { PrepWeekScreen } from "@/components/PrepWeekScreen";
 import { Screen } from "@/components/Screen";
 import { useCookingSequence } from "@/hooks/useCookingSequence";
 import { useDish } from "@/hooks/useDish";
@@ -36,7 +35,7 @@ import {
   sequenceMealSteps,
   type CookStep,
 } from "@/lib/cooking/cookSession";
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 const TOAST_MS = 2500;
 
@@ -155,9 +154,11 @@ export default function CookSession() {
     }
   }, [mode, mealId, dishId, router]);
 
-  // ── Prep-week stub — Block 4 owns this route; left untouched. ───────────────
+  // ── Week Prep (Screen 3) — the real screen replaces the Block-2 stub. planId
+  // arrives via goPrepWeek's push params (Option A, the Hub's single resolution
+  // path); an empty planId renders a graceful no-plan state inside the screen. ─
   if (mode === "prep-week") {
-    return <PrepWeekStub onBack={() => router.back()} />;
+    return <PrepWeekScreen planId={planId} onExit={() => router.back()} />;
   }
 
   if (!mealId && !dishId) {
@@ -262,32 +263,6 @@ export default function CookSession() {
   );
 }
 
-// Temporary Week-Prep stub (Block 4). Unchanged behavior from the Block 2 stub.
-function PrepWeekStub({ onBack }: { onBack: () => void }) {
-  return (
-    <View style={local.bg}>
-      <Header showBack title="Prep the Week" />
-      <Screen>
-        <View style={local.stubCard}>
-          <View style={local.stubIcon}>
-            <Feather name="check-square" size={32} color={Colors.sage[700]} />
-          </View>
-          <Text style={local.stubHeading}>
-            <Text style={local.stubHeadingItalic}>Coming in the next step</Text>
-          </Text>
-          <Text style={local.stubBody}>
-            The guided Week Prep flow — combined chopping, marinades and
-            make-ahead steps — lands in an upcoming step.
-          </Text>
-          <View style={local.stubActions}>
-            <Button label="Back" variant="ghost" onPress={onBack} />
-          </View>
-        </View>
-      </Screen>
-    </View>
-  );
-}
-
 const local = StyleSheet.create({
   bg: { flex: 1, backgroundColor: Colors.neutral[100] },
   center: { paddingTop: Spacing[8], alignItems: "center" },
@@ -298,45 +273,4 @@ const local = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     paddingHorizontal: Spacing[5],
   },
-  stubCard: {
-    marginTop: Spacing[5],
-    backgroundColor: Palette.background.card,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Palette.border.default,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[6],
-    alignItems: "center",
-    gap: Spacing[3],
-  },
-  stubIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.sage[50],
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing[2],
-  },
-  stubHeading: {
-    fontSize: Typography.fontSize.xl,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serif[600],
-    textAlign: "center",
-  },
-  stubHeadingItalic: {
-    fontStyle: "italic",
-    color: Colors.terracotta[400],
-    fontFamily: Typography.face.serifItalic[600],
-  },
-  stubBody: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.neutral[700],
-    textAlign: "center",
-    lineHeight: 22,
-    fontFamily: Typography.face.sans[400],
-    paddingHorizontal: Spacing[2],
-  },
-  stubActions: { width: "100%", marginTop: Spacing[4] },
 });

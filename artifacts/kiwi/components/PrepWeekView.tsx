@@ -60,6 +60,11 @@ interface Props {
   onAdvancePhase: () => void;
   onPrevPhase: () => void;
   onSkipPhase: () => void;
+  /** Last-phase finish — fires the §7.12 payoff toast + routes out (container). */
+  onFinish: () => void;
+  /** The Week-Prep completion toast — shown by the container after finish. This
+   *  is DISTINCT from the Cook-Mode "already prepped" (§7.12) toast copy. */
+  toastVisible: boolean;
   onExit: () => void;
   /**
    * Block 3 wires this to the completion endpoints. When omitted (this block),
@@ -163,6 +168,8 @@ export function PrepWeekView({
   onAdvancePhase,
   onPrevPhase,
   onSkipPhase,
+  onFinish,
+  toastVisible,
   onExit,
   onToggleStep,
 }: Props) {
@@ -234,17 +241,26 @@ export function PrepWeekView({
         <Text style={s.footerNote}>{FOOTER_NOTE}</Text>
       </ScrollView>
 
-      {/* Footer nav (shared primitive). Advance hidden on the last phase — the
-          finish/handoff is Block 3 territory. */}
+      {/* Footer nav (shared primitive). On the last phase the advance becomes the
+          finish action (fires the §7.12 payoff toast in the container); earlier
+          phases advance the local pointer. */}
       <CookFooter
         nextLabel={!onLastPhase && nextPhase ? nextPhase.title : null}
         remainingMins={phaseMins}
         backDisabled={phaseIndex <= 0}
-        showAdvance={!onLastPhase}
+        showAdvance
         onPrevStep={onPrevPhase}
-        onAdvance={onAdvancePhase}
-        advanceLabel="Done with phase ✓"
+        onAdvance={onLastPhase ? onFinish : onAdvancePhase}
+        advanceLabel={onLastPhase ? "Finish prep ✓" : "Done with phase ✓"}
       />
+
+      {/* Week-Prep completion toast — DISTINCT from the Cook-Mode "already
+          prepped" (§7.12) copy. Non-blocking overlay. */}
+      {toastVisible && (
+        <View style={s.toast} pointerEvents="none">
+          <Text style={s.toastText}>Woohoo! You just made your week easier!</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -443,5 +459,31 @@ const s = StyleSheet.create({
     fontStyle: "italic",
     textAlign: "center",
     paddingTop: Spacing[2],
+  },
+
+  // §7.12 payoff toast — centered overlay; the layer never blocks taps.
+  toast: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing[6],
+  },
+  toastText: {
+    maxWidth: 320,
+    backgroundColor: Colors.sage[700],
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing[5],
+    paddingHorizontal: Spacing[5],
+    overflow: "hidden",
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+    textAlign: "center",
+    ...Shadow.overlay,
   },
 });

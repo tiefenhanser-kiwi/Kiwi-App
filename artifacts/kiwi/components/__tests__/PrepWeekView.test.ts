@@ -132,6 +132,8 @@ interface Overrides {
   onAdvancePhase?: () => void;
   onPrevPhase?: () => void;
   onSkipPhase?: () => void;
+  onFinish?: () => void;
+  toastVisible?: boolean;
   onExit?: () => void;
   onToggleStep?: (stepKey: string) => void;
 }
@@ -149,6 +151,8 @@ function renderView(o: Overrides = {}) {
         onAdvancePhase: o.onAdvancePhase ?? NOOP,
         onPrevPhase: o.onPrevPhase ?? NOOP,
         onSkipPhase: o.onSkipPhase ?? NOOP,
+        onFinish: o.onFinish ?? NOOP,
+        toastVisible: o.toastVisible ?? false,
         onExit: o.onExit ?? NOOP,
         onToggleStep: o.onToggleStep,
       }),
@@ -248,19 +252,49 @@ test("checkbox: becomes interactive when onToggleStep is supplied (Block 3 wirin
 
 // ── Footer / phase progression ────────────────────────────────────────────────
 
-test("footer: 'Done with phase ✓' advances the phase pointer (not the last phase)", () => {
+test("footer: 'Done with phase ✓' fires onAdvancePhase ONLY (the write channel), never skip", () => {
   let advanced = 0;
-  const renderer = renderView({ phaseIndex: 2, onAdvancePhase: () => (advanced += 1) });
+  let skipped = 0;
+  const renderer = renderView({
+    phaseIndex: 2,
+    onAdvancePhase: () => (advanced += 1),
+    onSkipPhase: () => (skipped += 1),
+  });
   const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Done with phase");
   assert.ok(btn, "advance button missing");
   act(() => (btn!.props!.onPress as () => void)());
   assert.equal(advanced, 1);
+  assert.equal(skipped, 0, "Done must not travel the write-free skip channel");
 });
 
-test("footer: the advance CTA is hidden on the last phase (proteins)", () => {
-  const texts = flat(renderView({ phaseIndex: 3 }).toJSON() as RenderedNode | null);
+test("footer: the last phase swaps advance to 'Finish prep ✓' and fires onFinish (Block 3)", () => {
+  let finished = 0;
+  const renderer = renderView({ phaseIndex: 3, onFinish: () => (finished += 1) });
+  const texts = flat(renderer.toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Phase 4 of 4"));
-  assert.ok(!texts.includes("Done with phase"), "advance should hide on the last phase");
+  assert.ok(!texts.includes("Done with phase"), "last phase swaps the advance label");
+  const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Finish prep");
+  assert.ok(btn, "finish button missing on the last phase");
+  act(() => (btn!.props!.onPress as () => void)());
+  assert.equal(finished, 1);
+});
+
+test("toast: the Week-Prep completion copy renders when toastVisible (R2 — distinct from §7.12)", () => {
+  const texts = flat(renderView({ toastVisible: true }).toJSON() as RenderedNode | null);
+  assert.ok(
+    texts.includes("Woohoo! You just made your week easier!"),
+    `missing/incorrect Week-Prep toast copy: ${texts}`,
+  );
+  // Must NOT reuse the Cook-Mode "already prepped" (§7.12) string.
+  assert.ok(
+    !texts.includes("you-in-the-past"),
+    "the Week-Prep finish toast must not reuse the §7.12 copy",
+  );
+});
+
+test("toast: absent when not visible", () => {
+  const texts = flat(renderView({ toastVisible: false }).toJSON() as RenderedNode | null);
+  assert.ok(!texts.includes("Woohoo!"), "toast should be hidden by default");
 });
 
 test("footer: the make-ahead note always renders", () => {
@@ -273,13 +307,19 @@ test("footer: the make-ahead note always renders", () => {
 
 // ── Skip (skippable phases only) ──────────────────────────────────────────────
 
-test("skip: skippable phases show 'Skip this phase' and it fires onSkipPhase", () => {
+test("skip: 'Skip this phase' fires onSkipPhase ONLY — never the writing advance channel (R1)", () => {
   let skipped = 0;
-  const renderer = renderView({ phaseIndex: 0, onSkipPhase: () => (skipped += 1) }); // seasonings_dry
+  let advanced = 0;
+  const renderer = renderView({
+    phaseIndex: 0, // seasonings_dry (skippable)
+    onSkipPhase: () => (skipped += 1),
+    onAdvancePhase: () => (advanced += 1),
+  });
   const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Skip this phase");
   assert.ok(btn, "skip button missing on a skippable phase");
   act(() => (btn!.props!.onPress as () => void)());
   assert.equal(skipped, 1);
+  assert.equal(advanced, 0, "skip must not fire the write/advance channel (skip ≠ done)");
 });
 
 test("skip: non-skippable phases (produce/proteins) show NO skip button", () => {

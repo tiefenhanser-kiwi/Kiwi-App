@@ -93,9 +93,14 @@ export default function PrepCook() {
   // this-week meal list; the action is tapping a meal row (goCookSession), so
   // there is no separate lane handler. The old inert no-param handoff is gone.
 
-  // "Prep the Week" → Week Prep (Block 4). Temporary stub, flagged — not faked.
+  // "Prep the Week" → Week Prep (Block 4). Pass the resolved Hub planId (Option A,
+  // same single resolution path goCookSession uses) so the cook-session route can
+  // mount <PrepWeekScreen planId={…}/> and call getPrepWeek + the completion verbs.
   const goPrepWeek = () =>
-    router.push({ pathname: "/cook-session", params: { mode: "prep-week" } });
+    router.push({
+      pathname: "/cook-session",
+      params: { mode: "prep-week", planId: resolvedId },
+    });
 
   const goMakePlan = () => router.push("/wizard");
 
