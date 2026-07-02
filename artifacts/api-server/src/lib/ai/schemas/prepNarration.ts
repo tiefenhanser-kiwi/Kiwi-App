@@ -18,17 +18,35 @@ import type { PrepPhaseKey } from "../../prepCombineEngine";
 // One component per summed line. A normal step has a single component; a
 // collapsed spice-blend step (seasonings_dry) carries several.
 
+// WS7-8b FIX 1/2 — one per-dish measure within a component. Each carries a
+// CODE-FORMATTED, kitchen-ready quantity string (fraction-rounded, unit
+// appended — see formatMeasure in prepWeekAssembly.ts) so the narrator echoes
+// it verbatim and never sees a raw decimal. Per-dish (not summed) so every
+// number is directly usable and nothing has to be re-portioned. Sourced from
+// the engine's line.contributions[]; code still owns the math.
+export interface PrepMeasure {
+  // Finished display string, e.g. "1 tbsp", "½ tsp", "2 each". Echo verbatim.
+  amount: string;
+  // The dish this specific measure is for ("the taco mix", "the chili").
+  forDish: string;
+  preparationNote?: string;
+}
+
 export interface PrepNarrationComponent {
   ingredientName: string;
-  // Code-owned, already summed + servings-scaled. The AI must echo this
-  // number verbatim in prose and never recompute it.
+  // Code-owned, already summed + servings-scaled. RETAINED for reference/
+  // back-compat only — the narrator measures from `measures[]` per-dish, NOT
+  // from this rolled-up total (WS7-8b FIX 1). Never recomputed by the AI.
   totalQuantity: number;
   unit: string;
   preparationNote?: string;
-  // Meal NAMES this component contributes to (for "for Monday's tacos and
-  // Thursday's bowls"-style prose). The authoritative id-level attribution is
-  // kept in code, out of the AI's reach.
+  // Meal NAMES this component contributes to (retained for reference). The
+  // authoritative id-level attribution is kept in code, out of the AI's reach.
   forMeals: string[];
+  // WS7-8b FIX 1/2 — the per-dish measures the narrator actually writes. One
+  // entry per contributing dish, each already fraction-formatted. This is what
+  // replaces "echo the summed totalQuantity" in the narration prompt.
+  measures: PrepMeasure[];
 }
 
 export interface PrepNarrationStepInput {

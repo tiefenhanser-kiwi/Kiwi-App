@@ -134,6 +134,12 @@ export function buildPrepWeekModel(
 
   let weekDone = 0;
   let weekTotal = 0;
+  // WS7-8b BUG-011 — the header/footer prep-time must reflect KEPT steps only.
+  // The server's result.totalEstimatedMinutes sums EVERY step including
+  // skipSuggested-demoted ones (prepWeekAssembly.ts), so we recompute here from
+  // steps where skipSuggested !== true. Same clamp the server used (1..240) so a
+  // fully-demoted plan floors at 1 min rather than showing 0.
+  let keptMinutes = 0;
 
   const phases: PrepPhaseVM[] = result.phases.map((phase) => {
     const steps: PrepStepVM[] = phase.steps.map((step) => {
@@ -158,6 +164,10 @@ export function buildPrepWeekModel(
     const totalCount = steps.length;
     weekDone += doneCount;
     weekTotal += totalCount;
+    keptMinutes += steps.reduce(
+      (n, s) => n + (s.skipSuggested ? 0 : s.estimatedMinutes),
+      0,
+    );
 
     return {
       phase: phase.phase,
@@ -171,7 +181,8 @@ export function buildPrepWeekModel(
   });
 
   return {
-    totalEstimatedMinutes: result.totalEstimatedMinutes,
+    // BUG-011 — kept-steps only, clamped to the server's 1..240 range.
+    totalEstimatedMinutes: Math.min(240, Math.max(1, keptMinutes)),
     phases,
     doneCount: weekDone,
     totalCount: weekTotal,

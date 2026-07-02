@@ -167,9 +167,10 @@ test("header: renders 'Prep the Week', the plan name, and the meals/min subtitle
   const texts = flat(renderView().toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Prep the Week"), `missing header: ${texts}`);
   assert.ok(texts.includes("Hearty Week"), `missing plan name: ${texts}`);
-  // "— 2 meals combined · ~45 min —"
+  // "— 2 meals combined · ~6 min —". BUG-011: kept-only total — the 10-min
+  // proteins step is skipSuggested, so only the 6-min produce step counts.
   assert.ok(texts.includes("2 meals combined"), `missing subtitle meals: ${texts}`);
-  assert.ok(texts.includes("45 min"), `missing subtitle minutes: ${texts}`);
+  assert.ok(texts.includes("6 min"), `missing subtitle minutes: ${texts}`);
 });
 
 test("phase indicator: shows 'Phase X of 4' for the current pointer", () => {

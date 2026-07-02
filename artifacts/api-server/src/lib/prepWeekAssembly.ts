@@ -24,11 +24,13 @@
 
 import {
   PREP_PHASE_ORDER,
+  canonicalizeUnit,
   type PrepPhaseKey,
   type PrepCombineResult,
   type PrepIngredientGroup,
 } from "./prepCombineEngine";
 import type {
+  PrepMeasure,
   PrepNarrationComponent,
   PrepNarrationInput,
   PrepNarrationResult,
@@ -86,20 +88,81 @@ function dedupe(values: string[]): string[] {
   return [...new Set(values)];
 }
 
-// One narration component per summed line of a group. Carries the code-owned
-// quantity + the first observed prep note + the contributing meal NAMES.
+// ── WS7-8b FIX 2 — kitchen-fraction formatter (code owns the math) ───────────
+// Turns a raw engine decimal + unit into a finished display string the narrator
+// echoes verbatim, so "prose can't move the math" still holds. Per-family
+// policy (Hans-ratified):
+//   - tsp/tbsp/cup/oz/lb → round UP to the nearest 1/8, rendered as a mixed
+//     number with a vulgar-fraction glyph ("¾ cup", "1 ½ tbsp").
+//   - ml/g              → round to a whole number (no fractions, no decimals).
+//   - counts + unknown  → whole where clean, else the number as-is (e.g. eggs).
+// Unit token comes from the engine's own canonicalizer so spelling variants
+// ("teaspoons" → "tsp") collapse; magnitude is never converted here (each
+// contribution keeps its own unit), only the spelling is normalized.
+
+const EIGHTH_UNITS: ReadonlySet<string> = new Set(["tsp", "tbsp", "cup", "oz", "lb"]);
+const WHOLE_UNITS: ReadonlySet<string> = new Set(["ml", "g"]);
+
+// rem (1..7) eighths → vulgar-fraction glyph. 4/8 reduces to ½, etc.
+const EIGHTH_GLYPH: Record<number, string> = {
+  1: "⅛", // ⅛
+  2: "¼", // ¼
+  3: "⅜", // ⅜
+  4: "½", // ½
+  5: "⅝", // ⅝
+  6: "¾", // ¾
+  7: "⅞", // ⅞
+};
+
+// Round UP to the nearest 1/8 and render as a mixed number ("¾", "1 ½", "2").
+function toEighths(q: number): string {
+  const eighths = Math.ceil(q * 8 - 1e-9); // fp guard so 0.5 → 4, not 5
+  const whole = Math.floor(eighths / 8);
+  const rem = eighths % 8;
+  if (rem === 0) return String(whole);
+  const glyph = EIGHTH_GLYPH[rem];
+  return whole > 0 ? `${whole} ${glyph}` : glyph;
+}
+
+// Render a count/unknown quantity: integer where clean, else the raw number
+// (trimmed of fp noise) — no forced fractions.
+function toCount(q: number): string {
+  const rounded = Math.round(q);
+  if (Math.abs(q - rounded) < 1e-9) return String(rounded);
+  return String(Number(q.toFixed(2)));
+}
+
+export function formatMeasure(quantity: number, rawUnit: string): string {
+  const { token } = canonicalizeUnit(rawUnit);
+  if (EIGHTH_UNITS.has(token)) return `${toEighths(quantity)} ${token}`;
+  if (WHOLE_UNITS.has(token)) return `${Math.max(1, Math.round(quantity))} ${token}`;
+  return `${toCount(quantity)} ${token}`;
+}
+
+// One narration component per summed line of a group. Retains the code-owned
+// summed total + meal names for reference, but the narrator writes from
+// `measures[]` — the PER-DISH breakdown (WS7-8b FIX 1), each amount already
+// fraction-formatted (FIX 2). Per-dish so nothing has to be re-portioned.
 function componentsOf(entry: PrepIngredientGroup): PrepNarrationComponent[] {
   return entry.lines.map((line) => {
     const prep = line.contributions.find(
       (c) => (c.preparationNote ?? "").trim() !== "",
     )?.preparationNote;
     const forMeals = dedupe(line.contributions.map((c) => c.mealName));
+    const measures: PrepMeasure[] = line.contributions.map((c) => ({
+      amount: formatMeasure(c.quantity, c.unit),
+      forDish: c.dishName,
+      ...((c.preparationNote ?? "").trim()
+        ? { preparationNote: (c.preparationNote ?? "").trim() }
+        : {}),
+    }));
     return {
       ingredientName: entry.ingredientName,
       totalQuantity: line.totalQuantity,
       unit: line.unit,
       ...(prep ? { preparationNote: prep } : {}),
       forMeals,
+      measures,
     };
   });
 }

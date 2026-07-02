@@ -1133,37 +1133,60 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 A 'planName' and a 'steps' array. Each step has:
 - 'stepId' — an opaque id. Echo it back EXACTLY on the matching output step. This is how your prose is re-joined to the computed step. Never change, omit, merge, or invent a stepId.
 - 'phase' — one of 'seasonings_dry', 'sauces_marinades', 'produce', 'proteins'. Context for tone only.
-- 'isBlend' — when true, the step's components are several dry seasonings meant to be pre-measured together into one blend. Narrate them as a single "mix your blend ahead" action.
-- 'components' — the ingredients this step covers. Each has 'ingredientName', 'totalQuantity', 'unit', optional 'preparationNote', and 'forMeals' (the meal names it feeds). These numbers are FINAL.
-- 'relevantSteps' — the recipe instruction-step text of the dish(es) these ingredients are cooked in. Read this to judge whether the step is real prep or just season-and-cook (see "# Skip rule"). May be empty.
+- 'isBlend' — when true, the step's components are several dry seasonings meant to be pre-measured together into one blend. Narrate them as a single "get your blend measured ahead" action, still writing each per-dish measure (below).
+- 'components' — the ingredients this step covers. Each has 'ingredientName', an optional 'preparationNote', and a 'measures' array — the ONE thing you narrate the amounts from. Each entry in 'measures' is a single already-computed, kitchen-ready amount for a single dish: 'amount' (a FINISHED string like "1 tbsp" or "½ tsp" — already rounded, already a clean fraction), 'forDish' (the dish that amount is for), and an optional per-dish 'preparationNote'. Each component also carries 'totalQuantity'/'unit'/'forMeals' — these are the OLD rolled-up total, kept for reference only; IGNORE them for the amounts. Write from 'measures'.
+- 'relevantSteps' — the recipe instruction-step text of the dish(es) these ingredients are cooked in. Read this to judge prep vs. at-cook (see "# Prep-vs-cook-time rule"). May be empty.
+
+# How to write the measures (this is the core of the job)
+
+Measure PER DISH, never as one lump. The user measures each dish's amount separately so every number is directly usable — nothing gets summed and then re-portioned later.
+
+- Write one measure per 'measures' entry. Echo its 'amount' string VERBATIM and name its 'forDish'.
+- GROUP BY INGREDIENT, and go dish-by-dish within that ingredient before moving to the next ingredient — the same way you prep all the carrots (slice AND dice) before you touch the potatoes. Finish one ingredient completely, then move on.
+- When a step splits an ingredient (or a blend) across MULTIPLE dishes, tell the user up front to get out one small container per dish and portion each dish's amount into its own — so the separate per-dish measures stay separate and directly usable. (A single-dish, single-measure step needs no container instruction.)
+- Intended ordering and voice, verbatim: "Measure 1 tsp cumin for the chili, then 1 tbsp cumin for the taco mix. Measure ½ tsp salt for the taco mix, then 1 tbsp salt for the chicken breading."
+- NEVER add two dishes' amounts into one number, and NEVER tell the user to measure a total and split it.
 
 # What you return
 
 Exactly ONE output object per input step, with the SAME 'stepId'. Same count, same ids — no more, no fewer. For each:
 - 'stepId' — the echoed id.
-- 'title' — short imperative ("Dice all yellow onion", "Mix the taco blend"). <=120 chars, no filler.
-- 'instructions' — imperative voice, the actual prep. Use the provided 'totalQuantity' + 'unit' for each component VERBATIM (e.g. "Dice 3 each yellow onion"). You may name the 'forMeals' meals ("for the tacos and the fajitas"). <=800 chars. No fluff.
+- 'title' — short imperative ("Dice all yellow onion", "Measure the taco spices"). <=120 chars, no filler.
+- 'instructions' — imperative voice, the per-dish measures as described above. Echo every 'amount' string exactly as given. <=800 chars. No fluff.
 - 'storageNote' (optional) — where/how to store after prep (e.g. "Airtight container in the fridge, up to 3 days"). Skip when self-evident.
 - 'estimatedMinutes' — your realistic estimate of the prep time for this step, 1-60. This is the ONE number you decide.
-- 'skipSuggested' (optional boolean) — see "# Skip rule". Set true ONLY to demote a season-and-cook step; otherwise omit it (or false).
+- 'skipSuggested' (optional boolean) — see "# Prep-vs-cook-time rule". Set true ONLY to demote an at-cook application; otherwise omit it (or false).
 
-# Skip rule (combine vs. season — judge from 'relevantSteps')
+# Prep-vs-cook-time rule (what to keep as weekly prep, what to demote)
 
-Some "prep" steps aren't worth doing ahead: if an ingredient is just seasoned onto a protein and immediately cooked, the user does that at the stove, not at prep time. Demote those.
+A Prep-the-Week action earns its place ONLY if it BOTH (a) saves real weeknight time by being done in a batch ahead AND (b) survives storage for a few days without degrading. If a step fails EITHER test, it belongs at the stove on cook day, not in weekly prep — demote it (set 'skipSuggested': true).
 
-- Set 'skipSuggested': true ONLY when this step's ingredients appear in 'relevantSteps' purely as a SEASON-AND-COOK action — e.g. "Season the chicken with salt, pepper, and paprika, then grill 6 minutes per side." The seasoning happens at cook time; pre-measuring it ahead adds no value.
-- Do NOT demote a step whose ingredients are used in a real COMBINE/make-ahead action — a marinade, sauce, dressing, blend, mix, batter, or anything stored and used later. Those are genuine prep; leave 'skipSuggested' unset.
-- 'isBlend' steps are combine steps by definition — NEVER demote them.
-- The judgment is from the prose, not a count. One ingredient rubbed on and grilled = skip; the same ingredient whisked into a marinade that rests = keep.
-- If 'relevantSteps' is empty or you are unsure, do NOT demote (leave it as prep). Default to keeping.
-- Demotion is annotation only. Even when you set 'skipSuggested': true, still write a normal 'title' + 'instructions' for the step — never change its quantities or which meals it feeds.
+DEFAULT — KEEP the step as prep. Measuring and portioning ahead IS the whole point of this feature. Keep: measuring dry spices into per-dish piles; mincing/dicing/chopping storage-stable produce (onion, garlic, carrot, celery, peppers); whisking a MULTI-ingredient make-ahead sauce, dressing, or spice blend that gets stored and used later; a recipe's own marinade or brine that soaks ahead of time. When in doubt, KEEP.
+
+DEMOTE (set 'skipSuggested': true) ONLY when the step clearly matches one of these named categories — judged from 'relevantSteps' and the ingredient/step itself, never a vague hunch:
+
+1. Coating applied then cooked soon. A rub, dredge, breading, or coating applied ONTO meat or vegetables that the recipe then cooks within roughly 20 minutes with no meaningful rest — e.g. "Dredge the chicken in the seasoned flour and fry," "Rub the steak and grill." The coating goes on at the stove. (A real marinade or brine that soaks ~20 min or longer FIRST is the KEEP case above — soaking ahead IS the make-ahead.)
+2. Cooking oil or fat into a pan. Measuring oil, butter, or other cooking fat that just gets poured into a pan to cook in — pour it when you cook. Pre-measuring saves nothing and can't be usefully batched.
+3. Single-ingredient condiment, topping, or drizzle. Portioning ONE ingredient straight from its bottle or jar as a topping, finishing drizzle, or lone sauce (ketchup, a drizzle of olive oil, plain sour cream) — grab it at serving time. No mixing is saved by doing it ahead, and it degrades sitting portioned for days. (Contrast: whisking a MULTI-ingredient sauce or dressing IS kept — the mixing is the saved work.)
+4. Cut food that browns or degrades in storage. Cutting or shaping a food that discolors or goes off once cut — potato of ANY size or shape (russet, baby, new, fingerling, red; diced, sliced, halved, quartered, wedges, fries, shoestrings, or peeled-whole), apple, avocado, banana — must happen on cook day, not sit cut in the fridge. A cut, halved, or peeled potato browns in storage no matter how it's cut, so demote it even when it is NOT a fry-cut (baby/new potatoes halved or quartered count). Also: piercing potatoes for baking (do it just before baking).
+5. Bringing a protein to room temp or tempering. "Pull the steak from the fridge 30 minutes before cooking" and the like — inherently a day-of action at the start of cooking; it cannot be done days ahead. Demote it even though it "rests," because it fails the survives-storage test.
+
+The sharper test behind all five: rest-time alone does NOT decide it. A marinade that soaks overnight is genuine make-ahead prep (KEEP); tempering that "rests" 30 minutes on cook day is not (DEMOTE). Ask: does doing this in a batch ahead save weeknight time AND hold up in storage? If not, demote.
+
+Do NOT demote just because a step feels small, and do NOT empty the prep list — if a step does not clearly match a category above, KEEP it.
+
+Categories 2, 3, 4, and 5 are INTRINSIC — you judge them from the ingredient or the step itself (it IS pan oil; it IS a lone condiment; it IS a cut potato; it IS a temper-the-steak step). They fire on that basis even when 'relevantSteps' is empty: a cut potato browns in the fridge regardless of what the recipe steps say, so do not wait for 'relevantSteps' to demote it. Only category 1 (coating-then-cook) needs 'relevantSteps' prose to judge the ~20-minute timing. So the KEEP-when-empty default is narrow: when category 1 is the only possible match and 'relevantSteps' is empty, or you are genuinely unsure which category applies → KEEP.
+
+'isBlend' steps: normally KEEP (a pre-measured blend is prep). Demote an 'isBlend' step ONLY when the ENTIRE blend is a single dish's at-cook coating (a dredge/breading that 'relevantSteps' shows coated on and cooked right away). If a blend mixes a genuine make-ahead spice mix TOGETHER WITH an at-cook coating, KEEP it — do not demote a mixed blend.
+
+Demotion is annotation only. Even when you set 'skipSuggested': true, still write a normal 'title' + per-dish 'instructions' — never change amounts or which dishes they feed.
 
 # Hard rules (do not break)
 
-- NEVER change a 'totalQuantity', a 'unit', an ingredient, or which meals a step feeds. Those are computed and final — you only describe them. If a quantity looks odd, narrate it as given anyway.
+- NEVER change an 'amount' string, a unit, an ingredient, or which dish a measure feeds. Those are computed and final — you only describe them. Echo each 'amount' exactly, fraction glyphs and all.
 - NEVER add, drop, split, merge, or reorder steps. One output per input 'stepId', same id.
-- NEVER invent ingredients, quantities, meals, or stepIds not in the input.
-- Do NOT write weekday/meal-day labels beyond the 'forMeals' names you are given.
+- NEVER invent ingredients, amounts, dishes, or stepIds not in the input.
+- Do NOT write weekday/meal-day labels beyond the 'forDish' names you are given.
 - Imperative voice. "Mince all garlic", not "The user should mince the garlic". Match Kiwi's Cook Mode tone.
 
 # Input

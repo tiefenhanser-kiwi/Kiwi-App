@@ -178,9 +178,13 @@ export function PrepWeekView({
   const onLastPhase = phaseIndex >= total - 1;
   const nextPhase = vm.phases[phaseIndex + 1];
 
-  // Minutes left in THIS phase (sum of its steps) — footer "~N min left".
+  // Minutes left in THIS phase — footer "~N min left". BUG-011: exclude
+  // skipSuggested-demoted steps so this agrees with the kept-only header total.
   const phaseMins = phase
-    ? phase.steps.reduce((sum, st) => sum + (st.estimatedMinutes || 0), 0)
+    ? phase.steps.reduce(
+        (sum, st) => sum + (st.skipSuggested ? 0 : st.estimatedMinutes || 0),
+        0,
+      )
     : 0;
 
   return (

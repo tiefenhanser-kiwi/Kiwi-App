@@ -9,6 +9,7 @@ import { combinePrep, type PrepCombineInput } from "../prepCombineEngine";
 import {
   buildStepPlan,
   assemblePrepWeekResult,
+  formatMeasure,
   PrepNarrationIncompleteError,
   type StepPlan,
 } from "../prepWeekAssembly";
@@ -411,6 +412,102 @@ describe("assemblePrepWeekResult — skipSuggested (B2b)", () => {
       );
     // Numbers + attribution identical whether or not every step was demoted.
     assert.deepEqual(codeOwned(a), codeOwned(b));
+  });
+});
+
+// ── WS7-8b FIX 2: fraction formatter (code owns the math) ────────────────────
+
+describe("formatMeasure — kitchen-fraction formatting", () => {
+  it("rounds tsp/tbsp/cup UP to the nearest 1/8 with vulgar glyphs", () => {
+    const rows: Array<[number, string, string]> = [
+      // exact eighths
+      [0.125, "tsp", "⅛ tsp"],
+      [0.25, "tsp", "¼ tsp"],
+      [0.5, "tsp", "½ tsp"],
+      [0.75, "cup", "¾ cup"],
+      [0.875, "cup", "⅞ cup"],
+      // whole + mixed
+      [1, "tsp", "1 tsp"],
+      [1.5, "tbsp", "1 ½ tbsp"],
+      [2, "cup", "2 cup"],
+      // rounds UP: 0.6425 cup → next eighth above ⅝(0.625) is ¾(0.75)
+      [0.6425, "cup", "¾ cup"],
+      // just over an eighth still bumps up
+      [0.13, "tsp", "¼ tsp"],
+      // 5/8 lands exactly (0.625) — not rounded further
+      [0.625, "cup", "⅝ cup"],
+    ];
+    for (const [q, unit, want] of rows) {
+      assert.equal(formatMeasure(q, unit), want, `${q} ${unit}`);
+    }
+  });
+
+  it("applies the same 1/8 policy to weight units oz/lb", () => {
+    assert.equal(formatMeasure(0.5, "oz"), "½ oz");
+    assert.equal(formatMeasure(1.3, "lb"), "1 ⅜ lb"); // 1.3 → 1.375 up
+    assert.equal(formatMeasure(2, "oz"), "2 oz");
+  });
+
+  it("rounds g/ml to whole numbers (no fractions, floor of 1)", () => {
+    assert.equal(formatMeasure(12.4, "g"), "12 g");
+    assert.equal(formatMeasure(0.2, "ml"), "1 ml"); // clamps up to 1, never 0
+    assert.equal(formatMeasure(250.6, "ml"), "251 ml");
+  });
+
+  it("renders counts whole where clean, else as-is; unknown tokens pass through", () => {
+    assert.equal(formatMeasure(3, "each"), "3 each");
+    assert.equal(formatMeasure(2, "clove"), "2 clove");
+    assert.equal(formatMeasure(1.5, "each"), "1.5 each"); // half an onion stays
+    assert.equal(formatMeasure(1, "sprig"), "1 sprig"); // unknown token kept
+  });
+
+  it("normalizes unit spelling variants via the engine canonicalizer", () => {
+    assert.equal(formatMeasure(1, "teaspoons"), "1 tsp");
+    assert.equal(formatMeasure(2, "Tablespoons"), "2 tbsp");
+    assert.equal(formatMeasure(1.5, "cups"), "1 ½ cup");
+  });
+});
+
+// ── WS7-8b FIX 1: per-dish measures survive to the narration input ───────────
+
+describe("componentsOf via buildStepPlan — per-dish measures (FIX 1)", () => {
+  it("keeps onion's per-dish measures separate (NOT summed) and names each dish", () => {
+    const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
+    const produce = sp.steps.find((s) => s.phase === "produce")!;
+    // one component (onion), two per-dish measures
+    assert.equal(produce.components.length, 1);
+    const measures = produce.components[0].measures;
+    const byDish = Object.fromEntries(measures.map((m) => [m.forDish, m.amount]));
+    // d-a onion qty 1, d-b onion qty 2 — kept PER DISH, not summed to 3.
+    assert.deepEqual(byDish, {
+      "Seasoned Beef": "1 each",
+      Fajitas: "2 each",
+    });
+    // prep note rides along per-dish.
+    assert.ok(measures.every((m) => m.preparationNote === "diced"));
+  });
+
+  it("carries the per-dish prep breakdown onto the narration input verbatim", () => {
+    const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
+    const produce = sp.steps.find((s) => s.phase === "produce")!;
+    const ni = sp.narrationInput.steps.find((s) => s.stepId === produce.stepId)!;
+    assert.deepEqual(
+      ni.components[0].measures,
+      produce.components[0].measures,
+    );
+  });
+
+  it("blend step keeps a fraction-formatted per-dish measure for each spice", () => {
+    const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
+    const blend = sp.steps.find((s) => s.phase === "seasonings_dry")!;
+    // cumin/paprika 1 tsp, chili powder 2 tsp — each a single-dish measure.
+    const amounts = blend.components.flatMap((c) =>
+      c.measures.map((m) => `${c.ingredientName}:${m.amount}`),
+    );
+    assert.deepEqual(
+      amounts.sort(),
+      ["chili powder:2 tsp", "cumin:1 tsp", "paprika:1 tsp"].sort(),
+    );
   });
 });
 

@@ -77,7 +77,9 @@ test("buildPrepWeekModel: preserves the 4 phases in fixed server order", () => {
     vm.phases.map((p) => p.phase),
     ["seasonings_dry", "sauces_marinades", "produce", "proteins"],
   );
-  assert.equal(vm.totalEstimatedMinutes, 45);
+  // BUG-011: total is recomputed from KEPT steps (produce 6 min); the 10-min
+  // proteins step is skipSuggested, so it is excluded — NOT the server's 45.
+  assert.equal(vm.totalEstimatedMinutes, 6);
   // phase metadata passes through
   assert.equal(vm.phases[0].skippable, true);
   assert.equal(vm.phases[2].skippable, false);
@@ -154,6 +156,77 @@ test("buildPrepWeekModel: with no lookup at all, every destination uses the fall
     dests.map((d) => d.label),
     ["A planned meal", "A planned meal"],
   );
+});
+
+// ── BUG-011: header/footer total = KEPT steps only ───────────────────────────
+
+test("buildPrepWeekModel: totalEstimatedMinutes sums KEPT steps only (excludes skipSuggested)", () => {
+  // produce 6 (kept) + proteins 10 (skipSuggested) → 6, not 16, and not the
+  // server's passthrough 45.
+  const vm = buildPrepWeekModel(result());
+  assert.equal(vm.totalEstimatedMinutes, 6);
+});
+
+test("buildPrepWeekModel: a fully-demoted plan floors at 1 min (never 0)", () => {
+  const r = result({
+    phases: [
+      { phase: "seasonings_dry", title: "S", skippable: true, steps: [] },
+      { phase: "sauces_marinades", title: "M", skippable: true, steps: [] },
+      { phase: "produce", title: "Produce", skippable: false, steps: [] },
+      {
+        phase: "proteins",
+        title: "Proteins",
+        skippable: false,
+        steps: [
+          {
+            number: 1,
+            stepKey: `proteins#${M1}`,
+            title: "Temper the steak",
+            instructions: "Pull the steak 30 min before cooking.",
+            estimatedMinutes: 12,
+            contributesToMealIds: [M1],
+            skipSuggested: true,
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(buildPrepWeekModel(r).totalEstimatedMinutes, 1);
+});
+
+test("buildPrepWeekModel: with no demoted steps, total = plain sum of kept minutes", () => {
+  const r = result({
+    totalEstimatedMinutes: 999, // server value must be ignored
+    phases: [
+      { phase: "seasonings_dry", title: "S", skippable: true, steps: [] },
+      { phase: "sauces_marinades", title: "M", skippable: true, steps: [] },
+      {
+        phase: "produce",
+        title: "Produce",
+        skippable: false,
+        steps: [
+          {
+            number: 1,
+            stepKey: `produce#${M1}`,
+            title: "Dice onions",
+            instructions: "Dice onions.",
+            estimatedMinutes: 6,
+            contributesToMealIds: [M1],
+          },
+          {
+            number: 2,
+            stepKey: `produce#${M2}`,
+            title: "Chop carrots",
+            instructions: "Chop carrots.",
+            estimatedMinutes: 4,
+            contributesToMealIds: [M2],
+          },
+        ],
+      },
+      { phase: "proteins", title: "P", skippable: false, steps: [] },
+    ],
+  });
+  assert.equal(buildPrepWeekModel(r).totalEstimatedMinutes, 10);
 });
 
 // ── skipSuggested passthrough ─────────────────────────────────────────────────
