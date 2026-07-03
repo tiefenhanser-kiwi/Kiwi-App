@@ -89,6 +89,7 @@ function singleIngredientPlan(
           {
             dishId: "d1",
             dishName: "Dish 1",
+            dishRole: "main",
             ingredients: units.map((u) => ({
               ingredientId: "ing-x",
               ingredientName: "test veg",
@@ -219,6 +220,7 @@ function mirepoixPlan(): PrepCombineInput {
           {
             dishId: "soup-d1",
             dishName: "Lentil Soup",
+            dishRole: "main",
             ingredients: [
               mk(ING.onion, "yellow onion", 1, "each"),
               mk(ING.celery, "celery", 2, "stalks"),
@@ -234,6 +236,7 @@ function mirepoixPlan(): PrepCombineInput {
           {
             dishId: "potpie-d1",
             dishName: "Chicken Pot Pie",
+            dishRole: "main",
             ingredients: [
               mk(ING.onion, "yellow onion", 1, "each"),
               mk(ING.celery, "celery", 1, "stalk"), // singular spelling
@@ -249,6 +252,7 @@ function mirepoixPlan(): PrepCombineInput {
           {
             dishId: "shep-d1",
             dishName: "Shepherd's Pie",
+            dishRole: "main",
             ingredients: [
               mk(ING.onion, "yellow onion", 0.5, "each"),
               mk(ING.carrot, "carrot", 1, "each"),
@@ -321,6 +325,7 @@ describe("combinePrep — variant ingredients stay separate", () => {
             {
               dishId: "d1",
               dishName: "Greek Salad",
+              dishRole: "main",
               ingredients: [
                 {
                   ingredientId: "ing-red-onion",
@@ -366,6 +371,7 @@ function tacoBlendPlan(): PrepCombineInput {
           {
             dishId: "beef",
             dishName: "Seasoned Ground Beef",
+            dishRole: "main",
             ingredients: [
               { ingredientId: "ing-cumin", ingredientName: "cumin", category: "Pantry", quantity: 1, unit: "tsp" },
               { ingredientId: "ing-paprika", ingredientName: "paprika", category: "Pantry", quantity: 1, unit: "tsp" },
@@ -412,6 +418,7 @@ describe("combinePrep — prep-worthy filter tiers", () => {
             {
               dishId: "d1",
               dishName: "Roast",
+              dishRole: "main",
               ingredients: [
                 { ingredientId: "ing-pepper-veg", ingredientName: "bell peppers", category: "Produce", quantity: 2, unit: "each" },
               ],
@@ -447,6 +454,7 @@ describe("combinePrep — prep-worthy filter tiers", () => {
             {
               dishId: "d1",
               dishName: "Simple",
+              dishRole: "main",
               ingredients: [
                 { ingredientId: "ing-cumin-lone", ingredientName: "cumin", category: "Pantry", quantity: 1, unit: "tsp" },
                 { ingredientId: "ing-paprika-lone", ingredientName: "paprika", category: "Pantry", quantity: 1, unit: "tsp" },
@@ -515,6 +523,7 @@ function realSeedPlan(): PrepCombineInput {
           {
             dishId: "dev-dish-beef-tacos",
             dishName: "Seasoned Ground Beef",
+            dishRole: "main",
             ingredients: [
               { ingredientId: "ing-garlic", ingredientName: "garlic", category: "Produce", quantity: 3, unit: "clove", preparationNote: "minced" },
               { ingredientId: "ing-yellow-onion", ingredientName: "yellow onion", category: "Produce", quantity: 1, unit: "each", preparationNote: "diced" },
@@ -532,6 +541,7 @@ function realSeedPlan(): PrepCombineInput {
           {
             dishId: "dev-dish-sheet-pan-fajitas",
             dishName: "Sheet-Pan Chicken Fajitas",
+            dishRole: "main",
             ingredients: [
               { ingredientId: "ing-garlic", ingredientName: "garlic", category: "Produce", quantity: 4, unit: "cloves", preparationNote: "minced" },
               { ingredientId: "ing-yellow-onion", ingredientName: "yellow onion", category: "Produce", quantity: 1, unit: "each" },

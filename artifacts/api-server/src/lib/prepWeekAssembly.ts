@@ -66,9 +66,10 @@ export interface PlannedStep {
   stepKey: string;
   phase: PrepPhaseKey;
   number: number;
-  // The engine ingredientId this step's key is derived from. null for the
-  // collapsed seasonings_dry blend step (it folds many ingredientIds into one
-  // step, keyed by the `seasonings_dry#blend` sentinel instead).
+  // The engine ingredientId this step's key is derived from. null for a
+  // per-dish seasonings_dry blend step (it folds a dish's many spice
+  // ingredientIds into one step, keyed `seasonings_dry#dish#${dishId}` — BUG-016
+  // / D-WS7-187) and for a grouped sauces_marinades dish-step (`…#dish#${dishId}`).
   ingredientId: string | null;
   // CODE-OWNED attribution — the dedup union of the contributing meal ids.
   contributesToMealIds: string[];
@@ -77,6 +78,13 @@ export interface PlannedStep {
   // WS7-8a B2b — raw step text of the dish(es) this step's ingredients are
   // cooked in, for the AI's combine-vs-season judgment.
   relevantSteps: string[];
+  // WS7-8b #5 — set ONLY on a grouped sauces_marinades dish-step whose dish
+  // ALSO has dry spices that survived into the seasonings_dry blend step. The
+  // value is that dish's name; the narrator emits the mandatory linkage wording
+  // ("combine … with the <name> spices from your seasoning blend") only when
+  // present. Absent when the sauce's dry spices were dropped upstream as noise
+  // (<3-per-dish blend), so the wording never points at spices that aren't there.
+  blendSpiceDish?: string;
 }
 
 export interface StepPlan {
@@ -152,6 +160,7 @@ function componentsOf(entry: PrepIngredientGroup): PrepNarrationComponent[] {
     const measures: PrepMeasure[] = line.contributions.map((c) => ({
       amount: formatMeasure(c.quantity, c.unit),
       forDish: c.dishName,
+      dishRole: c.dishRole,
       ...((c.preparationNote ?? "").trim()
         ? { preparationNote: (c.preparationNote ?? "").trim() }
         : {}),
@@ -165,6 +174,45 @@ function componentsOf(entry: PrepIngredientGroup): PrepNarrationComponent[] {
       measures,
     };
   });
+}
+
+// WS7-8b #5 — per-dishId-filtered sibling of componentsOf (the committed FIX 1
+// per-entry builder above). Used ONLY by the grouped sauces_marinades dish-step
+// path: given one ingredient group and a target dishId, emit components built
+// from just that dish's contributions, so a sauce dish-step shows only its own
+// wet parts. Sits BESIDE componentsOf (does not replace the committed path).
+// totalQuantity/unit stay reference-only (narrator writes from measures[]);
+// here they are per-dish scoped — the sum of just this dish's contributions.
+function componentsForDish(
+  entry: PrepIngredientGroup,
+  dishId: string,
+): PrepNarrationComponent[] {
+  const out: PrepNarrationComponent[] = [];
+  for (const line of entry.lines) {
+    const contribs = line.contributions.filter((c) => c.dishId === dishId);
+    if (contribs.length === 0) continue;
+    const prep = contribs.find(
+      (c) => (c.preparationNote ?? "").trim() !== "",
+    )?.preparationNote;
+    const forMeals = dedupe(contribs.map((c) => c.mealName));
+    const measures: PrepMeasure[] = contribs.map((c) => ({
+      amount: formatMeasure(c.quantity, c.unit),
+      forDish: c.dishName,
+      dishRole: c.dishRole,
+      ...((c.preparationNote ?? "").trim()
+        ? { preparationNote: (c.preparationNote ?? "").trim() }
+        : {}),
+    }));
+    out.push({
+      ingredientName: entry.ingredientName,
+      totalQuantity: contribs.reduce((s, c) => s + c.quantity, 0),
+      unit: line.unit,
+      ...(prep ? { preparationNote: prep } : {}),
+      forMeals,
+      measures,
+    });
+  }
+  return out;
 }
 
 function mealIdsOf(entry: PrepIngredientGroup): string[] {
@@ -193,37 +241,146 @@ export function buildStepPlan(
       ),
     );
 
+  // WS7-8b #5 — dishIds (→ dish name) whose dry spices actually SURVIVE into the
+  // collapsed seasonings_dry blend step. phase.entries are already include +
+  // uncertain only (a <3-per-dish blend is dropped as noise upstream, see
+  // classifyPrepWorthy), so this is precisely the set of dishes with real blend
+  // spices. A grouped sauce step for one of these dishes gets a blendSpiceDish
+  // marker → the narrator emits the linkage wording. Absent otherwise → no
+  // false pointer at spices that were dropped.
+  const blendSpiceDishByDishId = new Map<string, string>();
+  const seasoningsPhase = result.phases.find((p) => p.phase === "seasonings_dry");
+  if (seasoningsPhase) {
+    for (const entry of seasoningsPhase.entries) {
+      for (const line of entry.lines) {
+        for (const c of line.contributions) {
+          if (!blendSpiceDishByDishId.has(c.dishId)) {
+            blendSpiceDishByDishId.set(c.dishId, c.dishName);
+          }
+        }
+      }
+    }
+  }
+
   for (const phase of result.phases) {
     const key = phase.phase;
     const entries = phase.entries; // include + uncertain only (excluded dropped)
     if (entries.length === 0) continue;
 
     let number = 0;
-    const pushStep = (isBlend: boolean, group: PrepIngredientGroup[]): void => {
+    const pushStep = (step: Omit<PlannedStep, "stepId" | "number" | "phase">): void => {
       number += 1;
-      // Stable key derivation (D-WS7-153). The blend step collapses many
-      // ingredientIds → sentinel key; a normal step is exactly one group, so
-      // group[0].ingredientId is its stable identity.
-      const ingredientId = isBlend ? null : group[0].ingredientId;
-      const stepKey = isBlend ? `${key}#blend` : `${key}#${ingredientId}`;
       steps.push({
         stepId: `${key}#${number}`,
-        stepKey,
         phase: key,
         number,
-        ingredientId,
-        contributesToMealIds: dedupe(group.flatMap(mealIdsOf)),
-        isBlend,
-        components: group.flatMap(componentsOf),
-        relevantSteps: relevantStepsFor(group),
+        ...step,
       });
     };
 
     if (key === "seasonings_dry") {
-      // B1: collapse all blend components into ONE blend step.
-      pushStep(true, entries);
+      // BUG-016 (D-WS7-187) — split the collapsed blend PER DISH. The B1 ruling
+      // (D-WS7-151) folded every dish's dry-seasoning components into ONE
+      // `seasonings_dry#blend` step; on a big plan (~30 per-dish measures) that
+      // step's single AI `instructions` field can't fit under the 800-char cap
+      // → retry → 502. Keying one blend step per dish keeps each step small and
+      // each checkbox meaningful. Mirrors the sauces_marinades group-by-dishId
+      // pattern below: key `seasonings_dry#dish#${dishId}` (stable across
+      // regenerate, honors D-WS7-153; recomputes identically in loadPrepStepSet).
+      //
+      // D-WS7-187 note: a single dish's dry blend — make-ahead spices AND an
+      // at-cook dredge alike — stays in that ONE dish step (intra-dish integrity
+      // = the genuine D-WS7-183 guard). Only the cross-dish collapse (D-WS7-151)
+      // is reversed here.
+      const dishOrder: string[] = [];
+      const entriesByDish = new Map<string, PrepIngredientGroup[]>();
+      for (const entry of entries) {
+        for (const dishId of [...new Set(dishIdsOf(entry))]) {
+          let list = entriesByDish.get(dishId);
+          if (!list) {
+            list = [];
+            entriesByDish.set(dishId, list);
+            dishOrder.push(dishId);
+          }
+          list.push(entry);
+        }
+      }
+      for (const dishId of dishOrder) {
+        const dishEntries = entriesByDish.get(dishId)!;
+        const mealIds = dedupe(
+          dishEntries.flatMap((e) =>
+            e.lines.flatMap((l) =>
+              l.contributions
+                .filter((c) => c.dishId === dishId)
+                .map((c) => c.mealId),
+            ),
+          ),
+        );
+        pushStep({
+          stepKey: `${key}#dish#${dishId}`,
+          ingredientId: null,
+          contributesToMealIds: mealIds,
+          isBlend: true,
+          components: dishEntries.flatMap((e) => componentsForDish(e, dishId)),
+          relevantSteps: dedupe(stepTextByDishId.get(dishId) ?? []),
+        });
+      }
+    } else if (key === "sauces_marinades") {
+      // WS7-8b #5 — group by dishId so a sauce's wet components (vinegar +
+      // ketchup + mayo) land in ONE "make the sauce" step instead of stranding
+      // per-ingredient. Entries are ingredient-level groups; an ingredient can
+      // touch >1 dish, so we bucket each entry under every dishId its
+      // contributions reach, then emit one step per dishId (stable first-seen
+      // order). Key on `#dish#${dishId}` (stable across regenerate, honors
+      // D-WS7-153; recomputes identically in loadPrepStepSet).
+      const dishOrder: string[] = [];
+      const entriesByDish = new Map<string, PrepIngredientGroup[]>();
+      for (const entry of entries) {
+        for (const dishId of [...new Set(dishIdsOf(entry))]) {
+          let list = entriesByDish.get(dishId);
+          if (!list) {
+            list = [];
+            entriesByDish.set(dishId, list);
+            dishOrder.push(dishId);
+          }
+          list.push(entry);
+        }
+      }
+      for (const dishId of dishOrder) {
+        const dishEntries = entriesByDish.get(dishId)!;
+        const mealIds = dedupe(
+          dishEntries.flatMap((e) =>
+            e.lines.flatMap((l) =>
+              l.contributions
+                .filter((c) => c.dishId === dishId)
+                .map((c) => c.mealId),
+            ),
+          ),
+        );
+        const blendSpiceDish = blendSpiceDishByDishId.get(dishId);
+        pushStep({
+          stepKey: `${key}#dish#${dishId}`,
+          ingredientId: null,
+          contributesToMealIds: mealIds,
+          isBlend: false,
+          components: dishEntries.flatMap((e) => componentsForDish(e, dishId)),
+          relevantSteps: dedupe(stepTextByDishId.get(dishId) ?? []),
+          ...(blendSpiceDish ? { blendSpiceDish } : {}),
+        });
+      }
     } else {
-      for (const entry of entries) pushStep(false, [entry]);
+      // One step per ingredient group (produce, proteins). group[0] === entry,
+      // so entry.ingredientId is its stable identity (D-WS7-153).
+      for (const entry of entries) {
+        pushStep({
+          stepKey: `${key}#${entry.ingredientId}`,
+          ingredientId: entry.ingredientId,
+          contributesToMealIds: dedupe(mealIdsOf(entry)),
+          isBlend: false,
+          components: componentsOf(entry),
+          relevantSteps: relevantStepsFor([entry]),
+        });
+      }
     }
   }
 
@@ -235,6 +392,7 @@ export function buildStepPlan(
       isBlend: s.isBlend,
       components: s.components,
       relevantSteps: s.relevantSteps,
+      ...(s.blendSpiceDish ? { blendSpiceDish: s.blendSpiceDish } : {}),
     })),
   };
 

@@ -733,8 +733,9 @@ model PrepWeekStructure {
 // WS7-8a B3 (D-WS7-153) — per-step "marked done" persistence for Prep the Week
 // (PRD §13.4.5). One row per checked step; the row's presence IS the checked
 // state (uncheck = delete the row). Keyed by a STABLE stepKey derived in code
-// (`${phase}#${ingredientId}` for normal steps, `seasonings_dry#blend` for the
-// collapsed dry-blend step) — NOT the positional step number, which is unstable
+// (`${phase}#${ingredientId}` for normal steps, `${phase}#dish#${dishId}` for
+// per-dish grouped steps — seasonings_dry blends (BUG-016 / D-WS7-187) and
+// sauces_marinades dishes) — NOT the positional step number, which is unstable
 // across a structureJson regenerate. State deliberately lives OUTSIDE
 // PrepWeekStructure.structureJson (which is overwritten wholesale on regenerate);
 // the regenerate path prunes rows whose stepKey is absent from the freshly

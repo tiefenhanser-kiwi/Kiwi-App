@@ -88,6 +88,17 @@ const CATEGORY_RULES: CategoryRule[] = [
     ],
   },
   {
+    // WS7-8b #2 — shelf-stable dry forms of otherwise-fresh produce. Placed
+    // BEFORE Produce so "garlic powder"/"onion powder" route to Pantry instead
+    // of matching the bare "garlic"/"onion" Produce keywords, and dried herbs
+    // (dried thyme/oregano/basil) land in Pantry (shelf-stable), not Produce.
+    // Verified no fresh-produce name contains powder/granulated/dried, so this
+    // never mis-shelves a fresh item. Create-time only — no backfill of
+    // existing rows (fresh-generate is the go-forward path).
+    category: "Pantry",
+    keywords: ["powder", "granulated", "dried"],
+  },
+  {
     category: "Produce",
     keywords: [
       "onion", "garlic", "tomato", "lettuce", "spinach", "kale", "arugula",

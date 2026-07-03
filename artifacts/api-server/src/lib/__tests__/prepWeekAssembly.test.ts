@@ -41,6 +41,7 @@ function plan(): PrepCombineInput {
           {
             dishId: "d-a",
             dishName: "Seasoned Beef",
+            dishRole: "main",
             ingredients: [
               onionA,
               { ingredientId: "ing-cumin", ingredientName: "cumin", category: "Pantry", quantity: 1, unit: "tsp" },
@@ -58,6 +59,7 @@ function plan(): PrepCombineInput {
           {
             dishId: "d-b",
             dishName: "Fajitas",
+            dishRole: "main",
             ingredients: [{ ...onionA, quantity: 2 }],
           },
         ],
@@ -147,6 +149,7 @@ function reorderedPlanWithAddedMeal(): PrepCombineInput {
           {
             dishId: "d-c",
             dishName: "Veg Stir Fry",
+            dishRole: "main",
             ingredients: [
               // A NEW produce ingredient, in a meal placed FIRST — it takes
               // produce#1 positionally, pushing onion to produce#2. Proves the
@@ -160,7 +163,7 @@ function reorderedPlanWithAddedMeal(): PrepCombineInput {
         mealId: MEAL_B,
         mealName: "Fajitas",
         dishes: [
-          { dishId: "d-b", dishName: "Fajitas", ingredients: [{ ...onion, quantity: 2 }] },
+          { dishId: "d-b", dishName: "Fajitas", dishRole: "main", ingredients: [{ ...onion, quantity: 2 }] },
         ],
       },
       {
@@ -170,6 +173,7 @@ function reorderedPlanWithAddedMeal(): PrepCombineInput {
           {
             dishId: "d-a",
             dishName: "Seasoned Beef",
+            dishRole: "main",
             ingredients: [
               onion,
               { ingredientId: "ing-cumin", ingredientName: "cumin", category: "Pantry", quantity: 1, unit: "tsp" },
@@ -195,11 +199,14 @@ describe("buildStepPlan — stable stepKey (B3 / D-WS7-153)", () => {
     assert.equal(protein.ingredientId, "ing-beef");
   });
 
-  it("(ii) the collapsed dry-blend step gets the seasonings_dry#blend sentinel", () => {
+  it("(ii) a dish's dry-blend step gets a `seasonings_dry#dish#${dishId}` key (D-WS7-187)", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
     const blend = sp.steps.find((s) => s.phase === "seasonings_dry")!;
     assert.equal(blend.isBlend, true);
-    assert.equal(blend.stepKey, "seasonings_dry#blend");
+    // BUG-016 (D-WS7-187): per-dish blend key, symmetric with sauces#dish#.
+    // (Was the collapsed `seasonings_dry#blend` sentinel.) plan()'s dry spices
+    // all sit in dish d-a, so this plan has one blend step keyed on d-a.
+    assert.equal(blend.stepKey, "seasonings_dry#dish#d-a");
     // The blend folds many ingredientIds, so it carries no single one.
     assert.equal(blend.ingredientId, null);
   });
@@ -246,7 +253,7 @@ describe("buildStepPlan — stable stepKey (B3 / D-WS7-153)", () => {
     const produce = result.phases.find((p) => p.phase === "produce")!;
     assert.equal(produce.steps[0].stepKey, "produce#ing-onion");
     const blend = result.phases.find((p) => p.phase === "seasonings_dry")!;
-    assert.equal(blend.steps[0].stepKey, "seasonings_dry#blend");
+    assert.equal(blend.steps[0].stepKey, "seasonings_dry#dish#d-a");
     // Keys are unique across the whole result (no collisions within a plan).
     const allKeys = result.phases.flatMap((p) => p.steps.map((s) => s.stepKey));
     assert.equal(allKeys.length, new Set(allKeys).size);
@@ -520,5 +527,199 @@ describe("narration + wire schemas accept skipSuggested (B2b)", () => {
       ],
     });
     assert.ok(ok.success);
+  });
+});
+
+// ── WS7-8b #5 — sauces_marinades grouped by dishId + blendSpiceDish linkage ──
+// Reflects REAL engine routing: only names that hit a sauce hint (vinegar/oil/
+// sauce/juice/…) land in sauces_marinades; plain condiments/spices route to the
+// seasonings_dry blend. The fix groups a dish's wet sauce members into ONE step
+// keyed by dishId, and marks it with blendSpiceDish when that dish also has
+// spices surviving in the blend (so the narrator can bridge them).
+
+const MEAL_D = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+// One meal, two sauce dishes:
+//  - House Dressing (base): 3 WET members (all hit sauce hints) → grouped into
+//    one sauces_marinades step; PLUS 3 dry spices → they survive into the blend
+//    → the dressing's sauce step gets blendSpiceDish="House Dressing".
+//  - Quick Salsa (sauce): 1 WET member (lime juice) + only denylisted salt →
+//    NO surviving blend spices → its sauce step omits blendSpiceDish.
+function saucePlan(): PrepCombineInput {
+  return {
+    meals: [
+      {
+        mealId: MEAL_D,
+        mealName: "Dinner",
+        dishes: [
+          {
+            dishId: "d-dressing",
+            dishName: "House Dressing",
+            dishRole: "base",
+            ingredients: [
+              { ingredientId: "ing-rwv", ingredientName: "red wine vinegar", category: "Pantry", quantity: 1, unit: "tbsp" },
+              { ingredientId: "ing-sesame", ingredientName: "sesame oil", category: "Pantry", quantity: 1, unit: "tbsp" },
+              { ingredientId: "ing-soy", ingredientName: "soy sauce", category: "Pantry", quantity: 2, unit: "tbsp" },
+              { ingredientId: "ing-cumin", ingredientName: "cumin", category: "Pantry", quantity: 1, unit: "tsp" },
+              { ingredientId: "ing-coriander", ingredientName: "coriander", category: "Pantry", quantity: 1, unit: "tsp" },
+              { ingredientId: "ing-paprika", ingredientName: "smoked paprika", category: "Pantry", quantity: 1, unit: "tsp" },
+            ],
+          },
+          {
+            dishId: "d-salsa",
+            dishName: "Quick Salsa",
+            dishRole: "sauce",
+            ingredients: [
+              { ingredientId: "ing-lime", ingredientName: "lime juice", category: "Pantry", quantity: 2, unit: "tbsp" },
+              { ingredientId: "ing-salt", ingredientName: "salt", category: "Pantry", quantity: 1, unit: "tsp" },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe("buildStepPlan — #5 sauce grouping by dishId", () => {
+  it("groups a dish's wet sauce members into ONE sauces_marinades step keyed by dishId", () => {
+    const sp = buildStepPlan(combinePrep(saucePlan()), "Dinner");
+    const dressing = sp.steps.filter(
+      (s) => s.phase === "sauces_marinades" && s.stepKey === "sauces_marinades#dish#d-dressing",
+    );
+    // ONE step for the dressing (not three stranded per-ingredient steps).
+    assert.equal(dressing.length, 1);
+    const names = dressing[0].components.map((c) => c.ingredientName).sort();
+    assert.deepEqual(names, ["red wine vinegar", "sesame oil", "soy sauce"]);
+    // Every measure is for the dressing dish (grouped, not cross-dish).
+    const forDishes = new Set(
+      dressing[0].components.flatMap((c) => c.measures.map((m) => m.forDish)),
+    );
+    assert.deepEqual([...forDishes], ["House Dressing"]);
+  });
+
+  it("stepKey shape is `sauces_marinades#dish#${dishId}` (stable, not per-ingredient)", () => {
+    const sp = buildStepPlan(combinePrep(saucePlan()), "Dinner");
+    const sauceKeys = sp.steps
+      .filter((s) => s.phase === "sauces_marinades")
+      .map((s) => s.stepKey)
+      .sort();
+    assert.deepEqual(sauceKeys, [
+      "sauces_marinades#dish#d-dressing",
+      "sauces_marinades#dish#d-salsa",
+    ]);
+    // The grouped sauce step folds many ingredientIds → carries no single one.
+    const dressing = sp.steps.find((s) => s.stepKey === "sauces_marinades#dish#d-dressing")!;
+    assert.equal(dressing.ingredientId, null);
+  });
+
+  it("recomputes identically (deterministic — Block-2 rollup consistency)", () => {
+    const a = buildStepPlan(combinePrep(saucePlan()), "Dinner");
+    const b = buildStepPlan(combinePrep(saucePlan()), "Dinner");
+    assert.deepEqual(
+      a.steps.map((s) => s.stepKey),
+      b.steps.map((s) => s.stepKey),
+    );
+  });
+
+  it("stamps blendSpiceDish when the sauce dish's dry spices survive into the blend", () => {
+    const sp = buildStepPlan(combinePrep(saucePlan()), "Dinner");
+    const dressing = sp.steps.find((s) => s.stepKey === "sauces_marinades#dish#d-dressing")!;
+    assert.equal(dressing.blendSpiceDish, "House Dressing");
+    // narrationInput mirrors it verbatim for the AI.
+    const ni = sp.narrationInput.steps.find((s) => s.stepId === dressing.stepId)!;
+    assert.equal(ni.blendSpiceDish, "House Dressing");
+  });
+
+  it("OMITS blendSpiceDish when the sauce dish has no surviving blend spices (no false pointer)", () => {
+    const sp = buildStepPlan(combinePrep(saucePlan()), "Dinner");
+    const salsa = sp.steps.find((s) => s.stepKey === "sauces_marinades#dish#d-salsa")!;
+    assert.equal(salsa.blendSpiceDish, undefined);
+    // Field is absent (not just falsy) on the narration input, so the prompt's
+    // "present ONLY" gate never emits a linkage for it.
+    const ni = sp.narrationInput.steps.find((s) => s.stepId === salsa.stepId)!;
+    assert.equal("blendSpiceDish" in ni, false);
+  });
+
+  it("#4 signal: dishRole rides every measure (KEEP-vs-DEMOTE input)", () => {
+    const sp = buildStepPlan(combinePrep(saucePlan()), "Dinner");
+    const dressing = sp.steps.find((s) => s.stepKey === "sauces_marinades#dish#d-dressing")!;
+    assert.ok(
+      dressing.components.every((c) => c.measures.every((m) => m.dishRole === "base")),
+    );
+    const salsa = sp.steps.find((s) => s.stepKey === "sauces_marinades#dish#d-salsa")!;
+    assert.ok(
+      salsa.components.every((c) => c.measures.every((m) => m.dishRole === "sauce")),
+    );
+  });
+});
+
+// ── WS7-8b 183 guard — a dish's dry blend (make-ahead spices AND an at-cook
+// dredge alike) stays in that ONE undemoted isBlend step; code never force-
+// demotes it (demotion is an AI-only skipSuggested annotation). BUG-016
+// (D-WS7-187) split the blend PER DISH, so two dishes now yield two steps — but
+// each dish's full spice set stays together (intra-dish integrity = the genuine
+// 183 rule). The old `=== 1` here encoded the D-WS7-151 CROSS-dish collapse,
+// which BUG-016 intentionally reverses; it was never the 183 rule.
+
+const MEAL_E = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+
+function mixedBlendPlan(): PrepCombineInput {
+  const spices = (suffix: string) => [
+    { ingredientId: `ing-cumin-${suffix}`, ingredientName: "cumin", category: "Pantry", quantity: 1, unit: "tsp" },
+    { ingredientId: `ing-paprika-${suffix}`, ingredientName: "paprika", category: "Pantry", quantity: 1, unit: "tsp" },
+    { ingredientId: `ing-oregano-${suffix}`, ingredientName: "oregano", category: "Pantry", quantity: 1, unit: "tsp" },
+  ];
+  return {
+    meals: [
+      {
+        mealId: MEAL_E,
+        mealName: "Two-Dish Dinner",
+        dishes: [
+          { dishId: "d-x", dishName: "Braise", dishRole: "main", ingredients: spices("x") },
+          { dishId: "d-y", dishName: "Rub Chicken", dishRole: "side", ingredients: spices("y") },
+        ],
+      },
+    ],
+  };
+}
+
+describe("buildStepPlan — 183: per-dish blend keeps each dish's full spice set undemoted", () => {
+  it("splits two dishes' dry blends into one isBlend step PER DISH (D-WS7-187)", () => {
+    const sp = buildStepPlan(combinePrep(mixedBlendPlan()), "Two-Dish Dinner");
+    const blends = sp.steps.filter((s) => s.phase === "seasonings_dry");
+    // BUG-016 (D-WS7-187): the collapsed single blend is now split per dish, so
+    // two dishes → two blend steps. (Was `=== 1`; that encoded the D-WS7-151
+    // cross-dish collapse being reversed, NOT the genuine 183 rule.)
+    assert.equal(blends.length, 2);
+    // The split never drops isBlend — each per-dish step is still a real blend.
+    assert.ok(blends.every((b) => b.isBlend === true));
+    // Stable per-dish keys, symmetric with sauces_marinades#dish#.
+    assert.deepEqual(
+      blends.map((b) => b.stepKey).sort(),
+      ["seasonings_dry#dish#d-x", "seasonings_dry#dish#d-y"],
+    );
+    // Genuine 183 intra-dish integrity: each dish's FULL spice set (cumin +
+    // paprika + oregano = 3 groups) stays together in that dish's ONE step —
+    // make-ahead + at-cook spices are never split apart within a dish.
+    const byKey = new Map(blends.map((b) => [b.stepKey, b]));
+    const braise = byKey.get("seasonings_dry#dish#d-x")!;
+    const chicken = byKey.get("seasonings_dry#dish#d-y")!;
+    assert.equal(braise.components.length, 3);
+    assert.equal(chicken.components.length, 3);
+    // Each step names ONLY its own dish (no cross-dish leakage after the split).
+    const forDishesOf = (b: (typeof blends)[number]) =>
+      new Set(b.components.flatMap((c) => c.measures.map((m) => m.forDish)));
+    assert.deepEqual([...forDishesOf(braise)], ["Braise"]);
+    assert.deepEqual([...forDishesOf(chicken)], ["Rub Chicken"]);
+  });
+
+  it("code never force-demotes any per-dish blend (skipSuggested absent unless the AI sets it)", () => {
+    const sp = buildStepPlan(combinePrep(mixedBlendPlan()), "Two-Dish Dinner");
+    // Narration that does NOT demote → no wire blend step carries skipSuggested.
+    const result = assemblePrepWeekResult(sp, echo(sp));
+    const blend = result.phases.find((p) => p.phase === "seasonings_dry")!;
+    // Two dishes → two per-dish blend steps (was `=== 1` under the collapse).
+    assert.equal(blend.steps.length, 2);
+    assert.ok(blend.steps.every((s) => !("skipSuggested" in s)));
   });
 });

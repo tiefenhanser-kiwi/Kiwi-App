@@ -47,9 +47,24 @@ export interface PrepCombineIngredient {
   preparationNote?: string | null;
 }
 
+// WS7-8b #4 — MealDishLink.roleLabel (schema DishRole enum). A local string
+// union so the engine stays PURE (no @prisma/client import); the loader's
+// prisma `DishRole` value is structurally identical and assigns cleanly.
+export type DishRoleT =
+  | "main"
+  | "side"
+  | "sauce"
+  | "topping"
+  | "base"
+  | "optional";
+
 export interface PrepCombineDish {
   dishId: string;
   dishName: string;
+  // WS7-8b #4 — dish's structural role, carried onto each contribution so the
+  // narrator can judge KEEP (combines-into-a-mix: sauce/topping/base) vs.
+  // DEMOTE (lone standalone measure) without relying on recipe prose.
+  dishRole: DishRoleT;
   ingredients: PrepCombineIngredient[];
 }
 
@@ -81,6 +96,9 @@ export interface PrepContribution {
   mealName: string;
   dishId: string;
   dishName: string;
+  // WS7-8b #4 — dish role of the dish this contribution came from (assembly
+  // reads it to narrate KEEP-vs-DEMOTE; grouping #5 keys on dishId, not this).
+  dishRole: DishRoleT;
   quantity: number;
   unit: string;
   preparationNote?: string | null;
@@ -415,6 +433,7 @@ export function combinePrep(input: PrepCombineInput): PrepCombineResult {
           mealName: meal.mealName,
           dishId: dish.dishId,
           dishName: dish.dishName,
+          dishRole: dish.dishRole,
           quantity: ing.quantity,
           unit: ing.unit,
           ...(ing.preparationNote != null

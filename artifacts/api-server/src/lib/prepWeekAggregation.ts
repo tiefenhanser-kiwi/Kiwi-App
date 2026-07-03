@@ -13,7 +13,7 @@
 // (prepCombineAdapter.ts), mirroring groceryList.ts (base = dish.servingsDefault).
 // The old all-AI PrepWeekInput shape (which scaled in the AI prompt) is retired.
 
-import type { PrismaClient } from "@prisma/client";
+import type { DishRole, PrismaClient } from "@prisma/client";
 
 // ── enriched loader output (engine-ready, pre-scaling) ──────────────────────
 
@@ -32,6 +32,11 @@ export interface PrepLoadedIngredient {
 export interface PrepLoadedDish {
   dishId: string;
   dishName: string;
+  // WS7-8b #4 — MealDishLink.roleLabel (DishRole enum: main|side|sauce|
+  // topping|base|optional). Available with zero query change (the include
+  // returns all MealDishLink scalars). Threaded to the engine so the narrator
+  // can judge KEEP-vs-DEMOTE structurally.
+  dishRole: DishRole;
   // dish.servingsDefault — the live base; also the numerator's no-override
   // fallback (matches groceryList.ts).
   baseServings: number;
@@ -164,6 +169,7 @@ export async function loadPrepWeekInput(
         return {
           dishId: dish.id,
           dishName: dish.title,
+          dishRole: link.roleLabel,
           baseServings: dish.servingsDefault,
           authoredBaseServings: dish.authoredServingsDefault,
           ingredients,

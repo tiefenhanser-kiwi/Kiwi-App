@@ -12,7 +12,7 @@
 
 import { z } from "zod";
 
-import type { PrepPhaseKey } from "../../prepCombineEngine";
+import type { DishRoleT, PrepPhaseKey } from "../../prepCombineEngine";
 
 // ── narration input (code-built, passed to the prompt as JSON) ──────────────
 // One component per summed line. A normal step has a single component; a
@@ -29,6 +29,12 @@ export interface PrepMeasure {
   amount: string;
   // The dish this specific measure is for ("the taco mix", "the chili").
   forDish: string;
+  // WS7-8b #4 — INPUT ONLY (structural KEEP-vs-DEMOTE signal for the narrator;
+  // no matching output field, so prose still can't move the math). The role of
+  // forDish's dish: sauce/topping/base = a mix/component dish (a lone measure
+  // combining INTO it → KEEP); main/side = a cooked dish (a lone cooking fat
+  // poured into a pan → DEMOTE). Judged alongside relevantSteps.
+  dishRole: DishRoleT;
   preparationNote?: string;
 }
 
@@ -60,6 +66,13 @@ export interface PrepNarrationStepInput {
   // season: if the ingredients appear only in a season-and-cook step, it sets
   // skipSuggested. Empty when no step text was available (then never demote).
   relevantSteps: string[];
+  // WS7-8b #5 — INPUT ONLY (code-owned; no matching output field, so prose
+  // still can't move the math). Present ONLY on a grouped sauces_marinades
+  // dish-step whose dish also has dry spices that survived into the
+  // seasonings_dry blend step; the value is that dish's name. When present, the
+  // narrator MUST tell the user to combine the sauce's wet parts with "the
+  // <name> spices from your seasoning blend." Absent → no linkage wording.
+  blendSpiceDish?: string;
 }
 
 export interface PrepNarrationInput {

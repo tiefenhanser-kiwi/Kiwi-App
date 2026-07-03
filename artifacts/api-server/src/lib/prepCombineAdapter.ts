@@ -57,6 +57,7 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
         return {
           dishId: dish.dishId,
           dishName: dish.dishName,
+          dishRole: dish.dishRole,
           ingredients: dish.ingredients.map((ing) => {
             const split = splitCompoundUnit(ing.quantity, ing.unit);
             const category =

@@ -80,6 +80,33 @@ describe("inferCategory — extracted shared helper", () => {
   });
 });
 
+// ── WS7-8b #2 — powder/granulated/dried route to Pantry, not Produce ──────
+// A new Pantry rule placed BEFORE Produce so shelf-stable dry forms of
+// otherwise-fresh produce stop matching the bare Produce keyword. Create-time
+// only (no backfill of existing rows). Verified against fresh-produce
+// non-collision: the bare names still resolve to Produce.
+
+describe("inferCategory — WS7-8b dry-form Pantry rule (#2)", () => {
+  it("routes garlic/onion powder to Pantry (was Produce via the bare keyword)", () => {
+    assert.equal(inferCategory("garlic powder"), "Pantry");
+    assert.equal(inferCategory("onion powder"), "Pantry");
+    assert.equal(inferCategory("granulated garlic"), "Pantry");
+  });
+
+  it("routes dried herbs to Pantry (shelf-stable, not fresh Produce)", () => {
+    assert.equal(inferCategory("dried thyme"), "Pantry");
+    assert.equal(inferCategory("dried oregano"), "Pantry");
+    assert.equal(inferCategory("dried basil"), "Pantry");
+  });
+
+  it("CORRUPTION GUARD: fresh produce names (no powder/granulated/dried) still resolve to Produce", () => {
+    assert.equal(inferCategory("garlic"), "Produce");
+    assert.equal(inferCategory("onion"), "Produce");
+    assert.equal(inferCategory("thyme"), "Produce");
+    assert.equal(inferCategory("basil"), "Produce");
+  });
+});
+
 // ── resolveIngredients — dedup + upsert-shape ──────────────────────────
 
 describe("resolveIngredients — extracted shared upsert path", () => {

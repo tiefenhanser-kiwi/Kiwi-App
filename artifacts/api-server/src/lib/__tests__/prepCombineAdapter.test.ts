@@ -36,6 +36,7 @@ function loaded(overrides: {
           {
             dishId: "dish-1",
             dishName: "Dish 1",
+            dishRole: "main",
             baseServings: overrides.baseServings,
             authoredBaseServings:
               overrides.authoredBaseServings === undefined
