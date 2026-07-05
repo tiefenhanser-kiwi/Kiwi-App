@@ -1,37 +1,42 @@
-// WS7-8b Block 1 addendum — one-time Ingredient re-categorize backfill.
+// WS7-8b Block 1 — Ingredient re-categorize backfill.
 //
-// WHY: the #2 create-time fix (the powder/granulated/dried Pantry rule inserted
-// before Produce in ingredientResolve.ts) only runs when a NEW Ingredient row is
-// created. Ingredient is a shared catalog (canonicalName @unique, find-or-
-// create), so "garlic powder" / "onion powder" rows that already exist from
-// earlier generations with category="Produce" are REUSED by a fresh plan — the
-// fixed rule never re-runs on them, and they stay mis-shelved into the Produce
-// prep phase. This script re-infers the category for the existing catalog.
+// WHY: the create-time categorizer (inferCategory in ingredientResolve.ts) only
+// runs when a NEW Ingredient row is created. Ingredient is a shared catalog
+// (canonicalName @unique, find-or-create, write-once `update: {}`), so rows
+// minted before a rule fix are REUSED forever with their stale category — the
+// fixed rule never re-runs on them. This script re-infers the category for the
+// existing catalog so a rule change can be swept over historical rows.
 //
-// SAFETY: reuses the EXACT production inferCategory (imported, not reimplemented)
-// so the backfill cannot drift from the create-time categorizer. It feeds
-// inferCategory the SAME field the create path feeds it: canonicalName.
+// SAFETY: reuses the EXACT production inferCategory (imported, not
+// reimplemented) so the backfill cannot drift from the create-time categorizer.
+// It feeds inferCategory the SAME field the create path feeds it: canonicalName.
 // Justification — resolveIngredients() computes `canonical = name.toLowerCase()
 // .trim()`, stores it as `canonicalName`, and writes `category:
-// inferCategory(d.canonical)` (ingredientResolve.ts:217, 234-237, 248). So the
-// stored category IS inferCategory(canonicalName); re-inferring from any other
-// field (e.g. displayName, which keeps original casing/prefixes) could write a
-// DIFFERENT category than the create path would. canonicalName is the only
-// faithful input.
+// inferCategory(d.canonical)` (ingredientResolve.ts). So the stored category IS
+// inferCategory(canonicalName); re-inferring from any other field (e.g.
+// displayName, which keeps original casing/prefixes) could write a DIFFERENT
+// category than the create path would. canonicalName is the only faithful input.
 //
 // DRY-RUN by default (writes nothing). Pass --apply to persist, wrapped in a
 // single transaction, updating ONLY changed rows. Idempotent: a second --apply
 // run reports zero changes.
 //
-// SCOPING (--spices-only): restricts the changeset to rows whose canonicalName
-// contains powder/granulated/dried — the #2 rule's actual domain. A blind
-// full-catalog re-infer would corrupt curated rows (fish sauce→Protein, peanut
-// butter→Dairy, blueberries→Pantry, …) via inferCategory's substring/plural
-// gaps, so --apply is REFUSED unless --spices-only is also passed. The unscoped
-// run stays available as a DRY-RUN audit view only.
+// MODES:
+//   (default) FULL-SWEEP  — re-infer EVERY catalog row; the changeset is every
+//     row where inferCategory(canonicalName) !== stored category. This is the
+//     BUG-017 mode: the rule table was corrected FIRST (fish sauce→Pantry,
+//     peanut butter→Pantry, corn tortilla→Bakery, berry -ies plurals, edamame/
+//     dough/sprout/san-marzano coverage), so a blind full re-infer is now SAFE
+//     and is the intended go-forward path (the USDA fallback block will mint
+//     many new rows through this same create path).
+//   --spices-only         — BUG-012 back-compat scope: restrict the changeset
+//     to rows whose canonicalName contains powder/granulated/dried (the #2
+//     dry-form rule's domain). Preserved so the original scoped apply still
+//     works; the full sweep now supersedes it for general use.
 //
 // Run (PowerShell, from artifacts/api-server):
-//   AUDIT (full, dry):   node --env-file=.env --import tsx scripts/ws7-8b-b1-recategorize-ingredients.ts
+//   FULL-SWEEP DRY-RUN:  node --env-file=.env --import tsx scripts/ws7-8b-b1-recategorize-ingredients.ts
+//   FULL-SWEEP APPLY:    node --env-file=.env --import tsx scripts/ws7-8b-b1-recategorize-ingredients.ts --apply
 //   SCOPED DRY-RUN:      node --env-file=.env --import tsx scripts/ws7-8b-b1-recategorize-ingredients.ts --spices-only
 //   SCOPED APPLY:        node --env-file=.env --import tsx scripts/ws7-8b-b1-recategorize-ingredients.ts --spices-only --apply
 
@@ -49,11 +54,8 @@ interface Change {
   newCategory: string;
 }
 
-// The #2 rule's actual domain — the dry-form keywords the create-time Pantry
-// rule keys on. Scoping the changeset to these keeps the backfill from
-// re-inferring (and thereby corrupting) curated rows that inferCategory's coarse
-// substring/plural matching gets wrong (fish sauce→Protein, peanut butter→Dairy,
-// blueberries→Pantry, …). Substring match, matching how the create rule fires.
+// BUG-012 --spices-only domain — the dry-form keywords the create-time Pantry
+// rule keys on. Substring match, matching how the create rule fires.
 const SPICE_SCOPE_KEYWORDS = ["powder", "granulated", "dried"];
 
 function inSpiceScope(canonicalName: string): boolean {
@@ -65,21 +67,7 @@ async function main(): Promise<void> {
   const apply = process.argv.includes("--apply");
   const spicesOnly = process.argv.includes("--spices-only");
 
-  // SAFETY: writing is ONLY permitted within the scoped changeset. The
-  // full-catalog view is audit-only and must never be writable, because a blind
-  // re-infer would corrupt curated rows (see file header + Block 1 addendum).
-  if (apply && !spicesOnly) {
-    console.error(
-      "\nREFUSED: --apply requires --spices-only.\n" +
-        "The full-catalog re-infer is audit-only (a blind apply would corrupt\n" +
-        "curated rows via inferCategory's substring/plural gaps). Re-run as:\n" +
-        "  ... --spices-only --apply\n",
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  const scope = spicesOnly ? "spices-only" : "full-catalog";
+  const scope = spicesOnly ? "spices-only" : "full-sweep";
   const mode = apply ? "APPLY" : "DRY-RUN";
   console.log(`\n=== WS7-8b B1 re-categorize (${mode}, ${scope}) ===\n`);
 
@@ -112,7 +100,7 @@ async function main(): Promise<void> {
     console.log(`Rows that WOULD change (${changes.length}):\n`);
     for (const c of changes) {
       console.log(
-        `  ${c.canonicalName}  ·  ${c.displayName}  ·  ${c.oldCategory} → ${c.newCategory}`,
+        `  ${c.canonicalName}  ·  ${c.oldCategory} → ${c.newCategory}`,
       );
     }
   }
@@ -160,8 +148,7 @@ async function main(): Promise<void> {
   }
 
   // Re-scan to confirm idempotency. Scope the drift check to the SAME set we
-  // applied — full-catalog drift is intentionally left as-is (audit-only), so
-  // counting it here would be misleading.
+  // applied.
   const after = await prisma.ingredient.findMany({
     select: { canonicalName: true, category: true },
   });

@@ -107,6 +107,127 @@ describe("inferCategory — WS7-8b dry-form Pantry rule (#2)", () => {
   });
 });
 
+// ── BUG-017 (WS7-8b B1 Phase 1) — categorizer rule fixes ──────────────────
+// Every REQUIRED outcome from the BUG-017 prompt gets a pin here. Grouped by
+// the failure mode it fixes; regression pins guard the rules these overrides
+// sit in front of.
+
+describe("inferCategory — BUG-017 condiment SAUCES route to Pantry", () => {
+  it("jar/bottle sauces → Pantry (beating the Protein keywords they contain)", () => {
+    assert.equal(inferCategory("fish sauce"), "Pantry");
+    assert.equal(inferCategory("duck sauce"), "Pantry");
+    assert.equal(inferCategory("cocktail sauce"), "Pantry");
+    assert.equal(inferCategory("shrimp cocktail sauce"), "Pantry");
+    assert.equal(inferCategory("soy sauce"), "Pantry");
+    assert.equal(inferCategory("hot sauce"), "Pantry");
+    assert.equal(inferCategory("worcestershire"), "Pantry");
+    assert.equal(inferCategory("worcestershire sauce"), "Pantry");
+  });
+
+  it("CANNED GUARD: the tomato-family sauces stay Canned", () => {
+    assert.equal(inferCategory("tomato sauce"), "Canned");
+    assert.equal(inferCategory("enchilada sauce"), "Canned");
+    assert.equal(inferCategory("marinara"), "Canned");
+    assert.equal(inferCategory("marinara sauce"), "Canned");
+  });
+});
+
+describe("inferCategory — BUG-017 nut/seed butters route to Pantry", () => {
+  it("nut/seed butters → Pantry (beating the bare 'butter' Dairy keyword)", () => {
+    assert.equal(inferCategory("peanut butter"), "Pantry");
+    assert.equal(inferCategory("almond butter"), "Pantry");
+    assert.equal(inferCategory("cashew butter"), "Pantry");
+    assert.equal(inferCategory("sunflower butter"), "Pantry");
+    assert.equal(inferCategory("sunbutter"), "Pantry");
+    assert.equal(inferCategory("tahini"), "Pantry");
+  });
+
+  it("DAIRY GUARD: bare butter / buttermilk stay Dairy", () => {
+    assert.equal(inferCategory("butter"), "Dairy");
+    assert.equal(inferCategory("unsalted butter"), "Dairy");
+    assert.equal(inferCategory("buttermilk"), "Dairy");
+  });
+});
+
+describe("inferCategory — BUG-017 corn tortilla routes to Bakery", () => {
+  it("corn tortillas → Bakery (tortilla beats the bare 'corn' Produce keyword)", () => {
+    assert.equal(inferCategory("corn tortilla"), "Bakery");
+    assert.equal(inferCategory("corn tortillas"), "Bakery");
+    assert.equal(inferCategory("small corn tortillas"), "Bakery");
+    assert.equal(inferCategory("flour tortilla"), "Bakery");
+  });
+
+  it("PRODUCE GUARD: bare corn stays Produce", () => {
+    assert.equal(inferCategory("corn"), "Produce");
+    assert.equal(inferCategory("sweet corn"), "Produce");
+  });
+
+  it("SNACKS GUARD: tortilla chips stay Snacks (Snacks rule fires first)", () => {
+    assert.equal(inferCategory("tortilla chips"), "Snacks");
+  });
+});
+
+describe("inferCategory — BUG-017 consonant+y berries match -ies plurals", () => {
+  it("berry plurals → Produce", () => {
+    assert.equal(inferCategory("blueberries"), "Produce");
+    assert.equal(inferCategory("strawberries"), "Produce");
+    assert.equal(inferCategory("raspberries"), "Produce");
+    assert.equal(inferCategory("blackberries"), "Produce");
+  });
+
+  it("PLURAL GUARD: vowel+y keywords keep their -s plural (turkey → turkeys)", () => {
+    assert.equal(inferCategory("turkey"), "Protein");
+    assert.equal(inferCategory("turkeys"), "Protein");
+    // Regression: -oes irregular plural still works via the (?:es|s)? path.
+    assert.equal(inferCategory("tomatoes"), "Produce");
+    assert.equal(inferCategory("potatoes"), "Produce");
+  });
+});
+
+describe("inferCategory — BUG-017 new keyword coverage", () => {
+  it("edamame → Produce; frozen edamame → Frozen (Frozen rule wins)", () => {
+    assert.equal(inferCategory("edamame"), "Produce");
+    assert.equal(inferCategory("cooked edamame"), "Produce");
+    assert.equal(inferCategory("frozen edamame"), "Frozen");
+  });
+
+  it("pizza dough → Bakery (dough keyword)", () => {
+    assert.equal(inferCategory("pizza dough"), "Bakery");
+    assert.equal(inferCategory("dough"), "Bakery");
+    // GUARD: sourdough is not matched by the \\bdough\\b keyword (stays Bakery
+    // anyway via the sourdough keyword — pinned to prove no accidental change).
+    assert.equal(inferCategory("sourdough"), "Bakery");
+  });
+
+  it("bean sprouts / sprouts → Produce", () => {
+    assert.equal(inferCategory("bean sprouts"), "Produce");
+    assert.equal(inferCategory("bean sprout"), "Produce");
+    assert.equal(inferCategory("sprouts"), "Produce");
+  });
+
+  it("san marzano → Canned", () => {
+    assert.equal(inferCategory("san marzano"), "Canned");
+    assert.equal(inferCategory("san marzano tomatoes"), "Canned");
+  });
+});
+
+describe("inferCategory — BUG-017 regression pins (must not move)", () => {
+  it("holds the existing curated buckets", () => {
+    assert.equal(inferCategory("garlic powder"), "Pantry");
+    assert.equal(inferCategory("chicken broth"), "Canned");
+    assert.equal(inferCategory("vegetable broth"), "Canned");
+    assert.equal(inferCategory("chicken breast"), "Protein");
+    assert.equal(inferCategory("diced tomatoes"), "Canned");
+    assert.equal(inferCategory("pickled jalapeños"), "Canned");
+    assert.equal(inferCategory("olive oil"), "Pantry");
+    assert.equal(inferCategory("coconut milk"), "Canned");
+    assert.equal(inferCategory("milk"), "Dairy");
+    assert.equal(inferCategory("eggs"), "Dairy");
+    assert.equal(inferCategory("garlic"), "Produce");
+    assert.equal(inferCategory("tomato"), "Produce");
+  });
+});
+
 // ── resolveIngredients — dedup + upsert-shape ──────────────────────────
 
 describe("resolveIngredients — extracted shared upsert path", () => {

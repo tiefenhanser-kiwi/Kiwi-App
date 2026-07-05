@@ -31,6 +31,19 @@ import { lookupPurchaseDefault } from "./ingredientPurchaseDefaults";
 // "tomato" Produce match (WS7-5d Block 2 fix). Same trick for "pickled" →
 // Canned over "jalapeño" → Produce, and "broth"/"stock" → Canned over the
 // bare "chicken" → Protein keyword (WS7-5d Blocks 4, 5).
+//
+// BUG-017 (WS7-8b B1 Phase 1) extended the same override discipline to fix
+// substring false-positives and coverage gaps. Two Pantry override rules and
+// one Bakery override rule sit BEFORE the bare-keyword rules they must beat:
+//   • Pantry condiments/nut-butters BEFORE Protein & Dairy, so "fish sauce"
+//     stops matching "fish" (Protein) and "peanut butter" stops matching
+//     "butter" (Dairy). Uses only specific multi-token names, so it never
+//     touches the Canned tomato-family ("tomato sauce" etc. stay Canned) or
+//     bare "butter" (stays Dairy).
+//   • Bakery override ("tortilla"/"dough") BEFORE Produce, so "corn tortilla"
+//     beats the bare "corn" Produce keyword; bare "corn" still → Produce.
+// keywordMatches also learned consonant+y → ies pluralization so single-word
+// berry keywords match their -ies plurals (blueberry → blueberries).
 
 type IngredientCategory =
   | "Produce"
@@ -61,7 +74,7 @@ const CATEGORY_RULES: CategoryRule[] = [
       "canned",
       "diced tomato", "crushed tomato", "stewed tomato",
       "tomato sauce", "tomato paste", "tomato puree",
-      "enchilada sauce", "marinara",
+      "enchilada sauce", "marinara", "san marzano",
       "coconut milk", "coconut cream",
       "chickpea", "black bean", "kidney bean", "pinto bean",
       "white bean", "cannellini bean", "navy bean", "refried bean",
@@ -99,6 +112,36 @@ const CATEGORY_RULES: CategoryRule[] = [
     keywords: ["powder", "granulated", "dried"],
   },
   {
+    // BUG-017 — shelf-stable jar/bottle condiment SAUCES and nut/seed butters.
+    // Placed BEFORE Protein and Dairy so specific multi-token names win over
+    // the bare single-token keywords they contain: "fish sauce"/"duck sauce"
+    // beat "fish"/"duck" (Protein), "shrimp cocktail sauce" beats "shrimp"
+    // (Protein), and "peanut butter"/"almond butter"/… beat "butter" (Dairy).
+    // Every keyword here is specific (multi-token or a unique single word), so
+    // it never shadows the Canned tomato-family ("tomato sauce"/"enchilada
+    // sauce"/"marinara" stay Canned via the earlier Canned rule) nor bare
+    // "butter" (stays Dairy). Hans's ruling (July 5): shelf-stable jar/can/
+    // bottle condiments and nut/seed butters → Pantry; coconut milk stays
+    // Canned (handled by the Canned rule above).
+    category: "Pantry",
+    keywords: [
+      "fish sauce", "duck sauce", "cocktail sauce", "shrimp cocktail sauce",
+      "soy sauce", "hot sauce", "worcestershire",
+      "peanut butter", "almond butter", "cashew butter", "sunflower butter",
+      "sunbutter", "tahini",
+    ],
+  },
+  {
+    // BUG-017 — Bakery override placed BEFORE Produce so "corn tortilla" (incl.
+    // "small corn tortillas") routes to Bakery instead of matching the bare
+    // "corn" Produce keyword. "dough" (pizza dough / bread dough) is a bakery
+    // staple with no Produce collision. Bare "corn" still → Produce below.
+    // Note: tortilla CHIPS are caught earlier by the Snacks rule, so this only
+    // fires on actual tortillas. \bdough\b won't match inside "sourdough".
+    category: "Bakery",
+    keywords: ["tortilla", "dough"],
+  },
+  {
     category: "Produce",
     keywords: [
       "onion", "garlic", "tomato", "lettuce", "spinach", "kale", "arugula",
@@ -114,6 +157,10 @@ const CATEGORY_RULES: CategoryRule[] = [
       "green bean", "radish", "beet", "fennel", "bok choy", "watercress",
       "jalapeno", "jalapeño", "chili pepper", "chile pepper",
       "lettuce mix", "salad greens", "spring mix", "romaine", "kale",
+      // BUG-017 coverage gaps. "edamame" fresh/shelled → Produce ("frozen
+      // edamame" is caught earlier by the Frozen rule). "bean sprout"/"sprout"
+      // → Produce (bean sprouts, brussels sprouts, alfalfa sprouts).
+      "edamame", "bean sprout", "sprout",
     ],
   },
   {
@@ -145,7 +192,9 @@ const CATEGORY_RULES: CategoryRule[] = [
   {
     category: "Bakery",
     keywords: [
-      "bread", "tortilla", "bun", "roll", "naan", "pita", "bagel",
+      // "tortilla" + "dough" live in the BUG-017 Bakery override above (before
+      // Produce) so they beat the bare "corn" Produce keyword.
+      "bread", "bun", "roll", "naan", "pita", "bagel",
       "croissant", "biscuit", "muffin", "english muffin",
       "taco shell", "wrap", "baguette", "sourdough", "ciabatta",
       "focaccia", "brioche", "pretzel",
@@ -160,6 +209,16 @@ function escapeRegExp(s: string): string {
 function keywordMatches(name: string, keyword: string): boolean {
   if (keyword.includes(" ")) {
     return name.includes(keyword);
+  }
+  // BUG-017 — consonant+y keywords also match their -ies plural
+  // (blueberry → blueberries, strawberry → strawberries). The English rule is
+  // consonant+y → ies; vowel+y stays +s (turkey → turkeys), so we only rewrite
+  // when the char before the final "y" is a consonant. This leaves the regular
+  // (?:es|s)? path — which already handles -oes plurals — untouched for every
+  // non-consonant+y keyword.
+  const consonantY = keyword.match(/^(.*[^aeiou])y$/i);
+  if (consonantY) {
+    return new RegExp(`\\b${escapeRegExp(consonantY[1])}(?:y|ies)\\b`, "i").test(name);
   }
   return new RegExp(`\\b${escapeRegExp(keyword)}(?:es|s)?\\b`, "i").test(name);
 }
