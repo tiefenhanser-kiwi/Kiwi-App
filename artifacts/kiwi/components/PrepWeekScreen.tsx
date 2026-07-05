@@ -36,9 +36,14 @@ const TOAST_MS = 2500; // PRD §7.12 — 2-3s
 export function PrepWeekScreen({
   planId,
   onExit,
+  onSaveExit,
 }: {
   planId: string;
+  /** Header back + the celebratory finish exit (router.back → the Hub). */
   onExit: () => void;
+  /** BUG-020 — "Save & Exit": a quiet, write-free exit to this plan's Meal Plan
+   *  Detail screen. Navigation target owned by the route. */
+  onSaveExit: () => void;
 }) {
   const prepQuery = usePrepWeek(planId);
   const planQuery = usePlan(planId);
@@ -105,12 +110,14 @@ export function PrepWeekScreen({
 
   const prevPhase = () => setPhaseIndex((i) => Math.max(0, i - 1));
 
-  // "Skip this phase" (skippable phases only) — a PURE pointer advance. Skipping
-  // is NOT doing, so it writes nothing (distinct from "Done with phase ✓").
+  // "Skip this Prep" (BUG-020) — a PURE pointer advance. Skipping is NOT doing,
+  // so it writes nothing (distinct from "Mark all complete"); the server keeps
+  // those meals not-prepped, which is the intended Cook-gate outcome. Hidden on
+  // the last phase by the view (no next phase — Save & Exit covers the exit).
   const skipPhase = () =>
     setPhaseIndex((i) => Math.min(i + 1, LAST_PHASE_INDEX));
 
-  // R1 — "Done with phase ✓" / "Finish prep ✓" assert the whole phase is done:
+  // R1 — "Mark all complete" asserts the whole phase is done:
   // batch-check every not-yet-checked step (one optimistic write + one
   // invalidation via completePhase), THEN run `after` (advance / finish). On
   // failure we do NOT advance — stay on the phase and surface the banner so the
@@ -209,7 +216,8 @@ export function PrepWeekScreen({
         phaseIndex={phaseIndex}
         onAdvancePhase={advancePhase}
         onPrevPhase={prevPhase}
-        onSkipPhase={skipPhase} // pure pointer advance — skipping writes nothing
+        onSkipPhase={skipPhase} // "Skip this Prep" — pure pointer advance, no writes
+        onSaveExit={onSaveExit} // "Save & Exit" — quiet write-free exit to plan detail
         onFinish={finishPrep}
         toastVisible={toastVisible}
         onExit={onExit}

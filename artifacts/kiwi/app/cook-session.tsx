@@ -158,7 +158,20 @@ export default function CookSession() {
   // arrives via goPrepWeek's push params (Option A, the Hub's single resolution
   // path); an empty planId renders a graceful no-plan state inside the screen. ─
   if (mode === "prep-week") {
-    return <PrepWeekScreen planId={planId} onExit={() => router.back()} />;
+    // onExit (Header back + celebratory finish) → router.back() lands on the Hub.
+    // onSaveExit (BUG-020 "Save & Exit") → a quiet replace to this plan's Meal
+    // Plan Detail screen; guard an empty planId by falling back to back().
+    return (
+      <PrepWeekScreen
+        planId={planId}
+        onExit={() => router.back()}
+        onSaveExit={() =>
+          planId.length > 0
+            ? router.replace({ pathname: "/plan/[id]", params: { id: planId } })
+            : router.back()
+        }
+      />
+    );
   }
 
   if (!mealId && !dishId) {

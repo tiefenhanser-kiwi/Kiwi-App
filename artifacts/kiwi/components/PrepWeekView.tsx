@@ -17,7 +17,6 @@
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { Button } from "@/components/Button";
 import { CookFooter } from "@/components/cooking/CookFooter";
 import { HighlightedText } from "@/components/cooking/HighlightedText";
 import { ProgressSegments } from "@/components/cooking/ProgressSegments";
@@ -57,10 +56,23 @@ interface Props {
   mealCount: number;
   /** Current phase pointer, 0..3 (clamped by the container). */
   phaseIndex: number;
+  /** Primary "Mark all complete" (non-last): completePhase writes + advance. */
   onAdvancePhase: () => void;
   onPrevPhase: () => void;
+  /**
+   * BUG-020 — "Skip this Prep": a pure pointer advance, ZERO writes (unchecked
+   * steps stay unchecked; the user can return). Shown on every phase EXCEPT the
+   * last (no next phase there — Save & Exit covers the write-free exit).
+   */
   onSkipPhase: () => void;
-  /** Last-phase finish — fires the §7.12 payoff toast + routes out (container). */
+  /**
+   * BUG-020 — "Save & Exit": ZERO writes, a quiet exit out of Prep the Week to
+   * this plan's Meal Plan Detail screen (no celebratory toast). Shown on every
+   * phase. Navigation target is owned by the route (container prop).
+   */
+  onSaveExit: () => void;
+  /** Last-phase primary "Mark all complete": writes + the §7.12 payoff toast +
+   *  routes out (container). */
   onFinish: () => void;
   /** The Week-Prep completion toast — shown by the container after finish. This
    *  is DISTINCT from the Cook-Mode "already prepped" (§7.12) toast copy. */
@@ -168,6 +180,7 @@ export function PrepWeekView({
   onAdvancePhase,
   onPrevPhase,
   onSkipPhase,
+  onSaveExit,
   onFinish,
   toastVisible,
   onExit,
@@ -177,6 +190,23 @@ export function PrepWeekView({
   const phase: PrepPhaseVM | undefined = vm.phases[phaseIndex];
   const onLastPhase = phaseIndex >= total - 1;
   const nextPhase = vm.phases[phaseIndex + 1];
+
+  // BUG-020 (Hans-ruled footer) — three actions live in the footer, never in the
+  // phase card. "Skip this Prep" (pure write-free advance) is hidden on the last
+  // phase; "Save & Exit" (quiet write-free exit) is always present.
+  const footerSecondaryActions = [
+    ...(!onLastPhase ? [{ label: "Skip this Prep", onPress: onSkipPhase }] : []),
+    { label: "Save & Exit", onPress: onSaveExit },
+  ];
+
+  // BUG-020 (Option B) — phases advanced past with unchecked steps render partial
+  // on the progress bar. Derived client-side from the vm (PrepStepVM.done → phase
+  // allDone); NO server call. A phase is partial iff not every step is done; the
+  // bar only paints it partial once it's in the done band (i < currentIndex). An
+  // empty phase is vacuously allDone, so a skipped empty phase stays solid sage.
+  const partialIndices = vm.phases
+    .map((p, i) => (p.allDone ? -1 : i))
+    .filter((i) => i >= 0);
 
   // Minutes left in THIS phase — footer "~N min left". BUG-011: exclude
   // skipSuggested-demoted steps so this agrees with the kept-only header total.
@@ -202,28 +232,24 @@ export function PrepWeekView({
       <Text style={s.phaseIndicator}>
         Phase {Math.min(phaseIndex + 1, total)} of {total}
       </Text>
-      <ProgressSegments segmentCount={total} currentIndex={phaseIndex} />
+      <ProgressSegments
+        segmentCount={total}
+        currentIndex={phaseIndex}
+        partialIndices={partialIndices}
+      />
 
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Current-phase card (deep sage). */}
+        {/* Current-phase card (deep sage) — name + blurb only. Per the Hans-ruled
+            footer redesign, NO action button lives in this component; all actions
+            (Mark all complete / Skip this Prep / Save & Exit) are in the footer. */}
         {phase && (
           <View style={s.phaseCard}>
             <Text style={s.phaseName}>{phase.title}</Text>
             <Text style={s.phaseDesc}>{PHASE_BLURB[phase.phase]}</Text>
-            {phase.skippable && (
-              <View style={s.skipWrap}>
-                <Button
-                  label="Skip this phase"
-                  variant="secondary"
-                  onPress={onSkipPhase}
-                  fullWidth={false}
-                />
-              </View>
-            )}
           </View>
         )}
 
@@ -245,9 +271,10 @@ export function PrepWeekView({
         <Text style={s.footerNote}>{FOOTER_NOTE}</Text>
       </ScrollView>
 
-      {/* Footer nav (shared primitive). On the last phase the advance becomes the
-          finish action (fires the §7.12 payoff toast in the container); earlier
-          phases advance the local pointer. */}
+      {/* Footer nav (shared primitive). Primary "Mark all complete" force-completes
+          the phase (writes + advance; on the last phase, writes + the §7.12 payoff
+          finish). The write-free secondary actions — "Skip this Prep" (hidden on
+          the last phase) and "Save & Exit" — render in the footer's secondary row. */}
       <CookFooter
         nextLabel={!onLastPhase && nextPhase ? nextPhase.title : null}
         remainingMins={phaseMins}
@@ -255,7 +282,8 @@ export function PrepWeekView({
         showAdvance
         onPrevStep={onPrevPhase}
         onAdvance={onLastPhase ? onFinish : onAdvancePhase}
-        advanceLabel={onLastPhase ? "Finish prep ✓" : "Done with phase ✓"}
+        advanceLabel="Mark all complete"
+        secondaryActions={footerSecondaryActions}
       />
 
       {/* Week-Prep completion toast — DISTINCT from the Cook-Mode "already
@@ -325,7 +353,6 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     lineHeight: 22,
   },
-  skipWrap: { marginTop: Spacing[3], alignSelf: "flex-start" },
 
   // step card
   stepCard: {

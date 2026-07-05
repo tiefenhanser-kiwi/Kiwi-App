@@ -9,13 +9,16 @@ import { test } from "node:test";
 
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
+import { StyleSheet } from "react-native";
 
 import { PrepWeekView } from "../PrepWeekView";
+import { ProgressSegments } from "../cooking/ProgressSegments";
 import {
   buildPrepWeekModel,
   buildMealLabelLookup,
 } from "@/lib/cooking/prepWeekModel";
 import type { PrepWeekResult } from "@/lib/api/cooking";
+import { Colors } from "@/constants/tokens";
 
 interface RenderedNode {
   type?: string;
@@ -136,10 +139,18 @@ interface Overrides {
   toastVisible?: boolean;
   onExit?: () => void;
   onToggleStep?: (stepKey: string) => void;
+  onSaveExit?: () => void;
+  /** BUG-020 — persisted checked stepKeys, so tests can vary the doneCount. */
+  checked?: Iterable<string>;
+  /** BUG-020 — swap the fixture (e.g. a skippable phase that HAS a step). */
+  resultOverride?: PrepWeekResult;
 }
 
 function renderView(o: Overrides = {}) {
-  const vm = buildPrepWeekModel(result(), { mealLabel: lookup });
+  const vm = buildPrepWeekModel(o.resultOverride ?? result(), {
+    mealLabel: lookup,
+    checkedStepKeys: o.checked ? new Set(o.checked) : undefined,
+  });
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
@@ -151,6 +162,7 @@ function renderView(o: Overrides = {}) {
         onAdvancePhase: o.onAdvancePhase ?? NOOP,
         onPrevPhase: o.onPrevPhase ?? NOOP,
         onSkipPhase: o.onSkipPhase ?? NOOP,
+        onSaveExit: o.onSaveExit ?? NOOP,
         onFinish: o.onFinish ?? NOOP,
         toastVisible: o.toastVisible ?? false,
         onExit: o.onExit ?? NOOP,
@@ -253,31 +265,40 @@ test("checkbox: becomes interactive when onToggleStep is supplied (Block 3 wirin
 
 // ── Footer / phase progression ────────────────────────────────────────────────
 
-test("footer: 'Done with phase ✓' fires onAdvancePhase ONLY (the write channel), never skip", () => {
+test("footer: primary 'Mark all complete' fires onAdvancePhase ONLY (the write channel)", () => {
   let advanced = 0;
   let skipped = 0;
+  let saved = 0;
   const renderer = renderView({
     phaseIndex: 2,
     onAdvancePhase: () => (advanced += 1),
     onSkipPhase: () => (skipped += 1),
+    onSaveExit: () => (saved += 1),
   });
-  const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Done with phase");
-  assert.ok(btn, "advance button missing");
+  const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Mark all complete");
+  assert.ok(btn, "Mark all complete primary missing");
   act(() => (btn!.props!.onPress as () => void)());
   assert.equal(advanced, 1);
-  assert.equal(skipped, 0, "Done must not travel the write-free skip channel");
+  assert.equal(skipped, 0, "primary must not travel the write-free skip channel");
+  assert.equal(saved, 0, "primary must not travel the write-free save-exit channel");
 });
 
-test("footer: the last phase swaps advance to 'Finish prep ✓' and fires onFinish (Block 3)", () => {
+test("footer: last phase keeps 'Mark all complete' and fires onFinish (writes + finish), not plain advance", () => {
   let finished = 0;
-  const renderer = renderView({ phaseIndex: 3, onFinish: () => (finished += 1) });
+  let advanced = 0;
+  const renderer = renderView({
+    phaseIndex: 3,
+    onFinish: () => (finished += 1),
+    onAdvancePhase: () => (advanced += 1),
+  });
   const texts = flat(renderer.toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Phase 4 of 4"));
-  assert.ok(!texts.includes("Done with phase"), "last phase swaps the advance label");
-  const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Finish prep");
-  assert.ok(btn, "finish button missing on the last phase");
+  assert.ok(texts.includes("Mark all complete"), `last-phase primary must stay Mark all complete: ${texts}`);
+  const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Mark all complete");
+  assert.ok(btn, "Mark all complete missing on the last phase");
   act(() => (btn!.props!.onPress as () => void)());
-  assert.equal(finished, 1);
+  assert.equal(finished, 1, "last-phase primary fires the finish (write) channel");
+  assert.equal(advanced, 0);
 });
 
 test("toast: the Week-Prep completion copy renders when toastVisible (R2 — distinct from §7.12)", () => {
@@ -306,28 +327,6 @@ test("footer: the make-ahead note always renders", () => {
   );
 });
 
-// ── Skip (skippable phases only) ──────────────────────────────────────────────
-
-test("skip: 'Skip this phase' fires onSkipPhase ONLY — never the writing advance channel (R1)", () => {
-  let skipped = 0;
-  let advanced = 0;
-  const renderer = renderView({
-    phaseIndex: 0, // seasonings_dry (skippable)
-    onSkipPhase: () => (skipped += 1),
-    onAdvancePhase: () => (advanced += 1),
-  });
-  const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Skip this phase");
-  assert.ok(btn, "skip button missing on a skippable phase");
-  act(() => (btn!.props!.onPress as () => void)());
-  assert.equal(skipped, 1);
-  assert.equal(advanced, 0, "skip must not fire the write/advance channel (skip ≠ done)");
-});
-
-test("skip: non-skippable phases (produce/proteins) show NO skip button", () => {
-  const texts = flat(renderView({ phaseIndex: 2 }).toJSON() as RenderedNode | null);
-  assert.ok(!texts.includes("Skip this phase"), "produce is not skippable — no skip button");
-});
-
 // ── Empty phase ───────────────────────────────────────────────────────────────
 
 test("empty phase: a phase with zero steps shows the all-set note", () => {
@@ -336,4 +335,139 @@ test("empty phase: a phase with zero steps shows the all-set note", () => {
     texts.includes("Nothing to prep ahead in this phase"),
     `missing empty-phase note: ${texts}`,
   );
+});
+
+// ── BUG-020 (Hans-ruled 3-action footer): Skip this Prep / Save & Exit ─────────
+
+// A subtree has an interactive control iff any descendant carries an onPress.
+function hasOnPress(node: RenderedNode | string | null): boolean {
+  if (node == null || typeof node === "string") return false;
+  if ((node.props ?? {}).onPress) return true;
+  if (Array.isArray(node.children)) {
+    for (const c of node.children) if (hasOnPress(c)) return true;
+  }
+  return false;
+}
+
+// Locate the deep-sage phase card by its background token (the RN stub returns
+// raw style objects, so flattened style is inspectable).
+function findByBg(
+  node: RenderedNode | string | null,
+  bg: string,
+): RenderedNode | null {
+  if (node == null || typeof node === "string") return null;
+  const style = StyleSheet.flatten((node.props ?? {}).style as never) as {
+    backgroundColor?: string;
+  };
+  if (style && style.backgroundColor === bg) return node;
+  if (Array.isArray(node.children)) {
+    for (const c of node.children) {
+      const hit = findByBg(c, bg);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+test("phase card: renders NO action button — all actions live in the footer (rule 1)", () => {
+  const renderer = renderView({ phaseIndex: 2 });
+  const card = findByBg(renderer.toJSON() as RenderedNode | null, Colors.sage[700]);
+  assert.ok(card, "deep-sage phase card missing");
+  assert.equal(
+    hasOnPress(card),
+    false,
+    "the phase card must contain no action button — actions belong in the footer",
+  );
+});
+
+test("skip: 'Skip this Prep' fires onSkipPhase ONLY — never write/finish/save channels", () => {
+  let skipped = 0;
+  let advanced = 0;
+  let finished = 0;
+  let saved = 0;
+  const toggled: string[] = [];
+  const renderer = renderView({
+    phaseIndex: 2, // produce (a required phase — Skip now shows regardless of skippable)
+    onSkipPhase: () => (skipped += 1),
+    onAdvancePhase: () => (advanced += 1),
+    onFinish: () => (finished += 1),
+    onSaveExit: () => (saved += 1),
+    onToggleStep: (k) => toggled.push(k),
+  });
+  const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Skip this Prep");
+  assert.ok(btn, "Skip this Prep missing on a non-last phase");
+  act(() => (btn!.props!.onPress as () => void)());
+  assert.equal(skipped, 1);
+  assert.equal(advanced, 0, "skip must not fire the write/advance channel");
+  assert.equal(finished, 0);
+  assert.equal(saved, 0);
+  assert.deepEqual(toggled, [], "skip must fire no per-step completion write");
+});
+
+test("skip: 'Skip this Prep' is HIDDEN on the last phase (2 footer actions, not 3)", () => {
+  const texts = flat(renderView({ phaseIndex: 3 }).toJSON() as RenderedNode | null);
+  assert.ok(!texts.includes("Skip this Prep"), `last phase must hide Skip this Prep: ${texts}`);
+  // The two survivors on the last phase:
+  assert.ok(texts.includes("Mark all complete"), `last phase must keep the primary: ${texts}`);
+  assert.ok(texts.includes("Save & Exit"), `last phase must keep Save & Exit: ${texts}`);
+});
+
+test("save-exit: 'Save & Exit' fires onSaveExit ONLY — never write/advance/finish/skip channels", () => {
+  let saved = 0;
+  let advanced = 0;
+  let finished = 0;
+  let skipped = 0;
+  const toggled: string[] = [];
+  const renderer = renderView({
+    phaseIndex: 2,
+    onSaveExit: () => (saved += 1),
+    onAdvancePhase: () => (advanced += 1),
+    onFinish: () => (finished += 1),
+    onSkipPhase: () => (skipped += 1),
+    onToggleStep: (k) => toggled.push(k),
+  });
+  const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Save & Exit");
+  assert.ok(btn, "Save & Exit missing");
+  act(() => (btn!.props!.onPress as () => void)());
+  assert.equal(saved, 1);
+  assert.equal(advanced, 0, "Save & Exit must never fire the write/advance channel");
+  assert.equal(finished, 0);
+  assert.equal(skipped, 0);
+  assert.deepEqual(toggled, [], "Save & Exit must fire no per-step completion write");
+});
+
+test("save-exit: 'Save & Exit' is present on the last phase too", () => {
+  let saved = 0;
+  const renderer = renderView({ phaseIndex: 3, onSaveExit: () => (saved += 1) });
+  const btn = findPressableByText(renderer.toJSON() as RenderedNode | null, "Save & Exit");
+  assert.ok(btn, "Save & Exit must remain on the last phase");
+  act(() => (btn!.props!.onPress as () => void)());
+  assert.equal(saved, 1);
+});
+
+// ── BUG-020 (Option B): partialIndices derivation from the vm ─────────────────
+
+function partialIndicesOf(renderer: TestRenderer.ReactTestRenderer): unknown {
+  return renderer.root.findByType(ProgressSegments).props.partialIndices;
+}
+
+test("progress bar: partialIndices marks every phase with an unchecked step (nothing checked)", () => {
+  // phases 0,1 empty → vacuously allDone; produce(2) + proteins(3) each have 1
+  // unchecked step → partial.
+  const renderer = renderView({ phaseIndex: 2 });
+  assert.deepEqual(partialIndicesOf(renderer), [2, 3]);
+});
+
+test("progress bar: a fully-checked phase drops out of partialIndices", () => {
+  const renderer = renderView({ phaseIndex: 3, checked: [`produce#${M1}`] });
+  // produce(2) now fully done → not partial; proteins(3) still unchecked → partial.
+  assert.deepEqual(partialIndicesOf(renderer), [3]);
+});
+
+test("progress bar: no unchecked steps anywhere → empty partialIndices", () => {
+  const renderer = renderView({
+    phaseIndex: 3,
+    checked: [`produce#${M1}`, `proteins#${M1}`],
+  });
+  assert.deepEqual(partialIndicesOf(renderer), []);
 });
