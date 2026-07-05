@@ -631,6 +631,64 @@ describe("POST /api/plans/:planId/prep-week — cache miss → AI → write", ()
       await harness.close();
     }
   });
+
+  // BUG-022 — the narration call must raise max_tokens well above runAICall's
+  // 4096 default; the whole week is narrated in one shot and a heavy plan
+  // truncates the forced tool_use JSON at 4096 → {} → "steps: Required" → 502.
+  it("passes a raised maxTokens to the narration call (guards against 4096-truncation)", async () => {
+    const cache = makeCacheStub();
+    let capturedOpts: { maxTokens?: number } | undefined;
+    const capturingRunAICall = (async (
+      _promptKey: string,
+      vars: { prepNarrationInput?: { steps: { stepId: string }[] } },
+      _schema: unknown,
+      opts?: { maxTokens?: number },
+    ) => {
+      capturedOpts = opts;
+      const inputSteps = vars.prepNarrationInput?.steps ?? [];
+      return {
+        success: true,
+        data: {
+          steps: inputSteps.map((s, i) => ({
+            stepId: s.stepId,
+            title: `Step ${i + 1}`,
+            instructions: `Do step ${i + 1}.`,
+            estimatedMinutes: 5,
+          })),
+        },
+        metadata: {
+          promptKey: "prep.narrate_steps",
+          promptVersion: 1,
+          model: "claude-sonnet-4-6",
+          mode: "tool",
+          latencyMs: 1,
+          inputTokens: 100,
+          outputTokens: 200,
+          costEstimateUsd: 0.01,
+          retryCount: 0,
+        },
+      };
+    }) as never;
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({ planRevisionId: 3, mealIds: [MEAL_ID_X] }),
+      runAICall: capturingRunAICall,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const token = signToken("u-maxtokens");
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(res.status, 200);
+      assert.ok(capturedOpts, "runAICall opts must be passed");
+      assert.equal(capturedOpts!.maxTokens, 16384);
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 describe("POST /api/plans/:planId/prep-week — cache hit", () => {

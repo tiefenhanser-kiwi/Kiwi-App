@@ -58,6 +58,18 @@ import { requireAuth } from "../middleware/auth";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// BUG-022 — prep.narrate_steps output ceiling. runAICall defaults to 4096
+// output tokens, but this call narrates the WHOLE week in one shot:
+// PrepNarrationResultSchema.steps is a flat array up to 120 entries, each with
+// instructions ≤800 chars (~200 tok) + title + storageNote (~340 tok worst case,
+// ~120 typical). A heavy real plan (~30-50 steps) blows past 4096, so the forced
+// tool_use JSON truncates mid-array → parses to {} → "steps: Required" → 502
+// (observed: 48.8k-input plan, both attempts capped at exactly 4096 out). max_tokens
+// is a CEILING (billed only for tokens generated), so we size it generously for
+// realistic plans. Residual: a pathological plan near the 120-step schema ceiling
+// could still truncate — the durable fix there is chunked narration (deferral TBD).
+const PREP_NARRATION_MAX_TOKENS = 16384;
+
 export interface CookingRouterDeps {
   runCookingSequence: typeof productionRunCookingSequence;
   loadPrepWeekInput: typeof productionLoadPrepWeekInput;
@@ -252,7 +264,7 @@ export function createCookingRouter(
         "prep.narrate_steps",
         { prepNarrationInput: stepPlan.narrationInput },
         PrepNarrationResultSchema,
-        { prisma, userId },
+        { prisma, userId, maxTokens: PREP_NARRATION_MAX_TOKENS },
       );
 
       if (!aiResult.success) {
