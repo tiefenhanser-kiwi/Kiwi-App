@@ -50,6 +50,35 @@ export interface NutritionRefMiss {
 export type NutritionRef = NutritionRefMatched | NutritionRefMiss;
 
 /**
+ * Build the matched per-100g record written to nutritionRefPerUnit. Single
+ * source of truth for the shape — shared by reactive enrichment (enrichOne)
+ * and the Block 2 backfill script so the two paths can never drift.
+ */
+export function buildMatchedRef(
+  food: FdcFood,
+  per100g: Per100gMacros,
+  fetchedAt: string,
+): NutritionRefMatched {
+  return {
+    basis: "per100g",
+    per100g,
+    source: "usda",
+    fdcId: food.fdcId,
+    dataType: food.dataType ?? null,
+    foodCategory: foodCategoryLabel(food),
+    fetchedAt,
+  };
+}
+
+/**
+ * Build the miss-marker written when a search returns but nothing passes the
+ * guardrail. Shared shape (see buildMatchedRef).
+ */
+export function buildMissMarker(fetchedAt: string): NutritionRefMiss {
+  return { source: "usda", matched: false, fetchedAt };
+}
+
+/**
  * True when the stored ref carries usable per-100g macro grounding. Miss
  * markers and nulls return false. Used by the estimator-grounding thread.
  */
@@ -233,7 +262,7 @@ async function enrichOne(
 
   if (!picked) {
     // Definitive miss: search returned but nothing passed the guardrail.
-    const miss: NutritionRefMiss = { source: "usda", matched: false, fetchedAt };
+    const miss = buildMissMarker(fetchedAt);
     await prisma.ingredient.update({
       where: { id: target.id },
       data: { nutritionRefPerUnit: miss as unknown as Prisma.InputJsonValue },
@@ -242,15 +271,7 @@ async function enrichOne(
     return;
   }
 
-  const record: NutritionRefMatched = {
-    basis: "per100g",
-    per100g: picked.per100g,
-    source: "usda",
-    fdcId: picked.food.fdcId,
-    dataType: picked.food.dataType ?? null,
-    foodCategory: foodCategoryLabel(picked.food),
-    fetchedAt,
-  };
+  const record = buildMatchedRef(picked.food, picked.per100g, fetchedAt);
   await prisma.ingredient.update({
     where: { id: target.id },
     data: { nutritionRefPerUnit: record as unknown as Prisma.InputJsonValue },
