@@ -17,7 +17,12 @@
 
 import type { PrismaClient } from "@prisma/client";
 
+import { logger } from "./logger";
 import { lookupPurchaseDefault } from "./ingredientPurchaseDefaults";
+import {
+  enrichIngredients,
+  type EnrichIngredientTarget,
+} from "./usda/ingredientEnrichment";
 
 // ── inferCategory ───────────────────────────────────────────────────────
 // Deterministic keyword map, no AI, no I/O — safe to call hot.
@@ -296,6 +301,11 @@ export async function resolveIngredients(
   }
 
   const out = new Map<string, string>();
+  // WS7-8b USDA Block 1 — rows that carry no nutrition ref yet (null: neither
+  // a matched record nor a miss-marker) are candidates for post-create USDA
+  // enrichment. A matched record OR a miss-marker both make the field
+  // non-null, so an already-enriched row is skipped and never re-searched.
+  const enrichTargets: EnrichIngredientTarget[] = [];
   for (const d of discovered.values()) {
     const purchase = lookupPurchaseDefault(d.canonical);
     const upserted = await prisma.ingredient.upsert({
@@ -314,9 +324,28 @@ export async function resolveIngredients(
             }
           : {}),
       },
-      select: { id: true },
+      select: { id: true, nutritionRefPerUnit: true },
     });
     out.set(d.canonical, upserted.id);
+    if (upserted.nutritionRefPerUnit === null) {
+      enrichTargets.push({ id: upserted.id, canonicalName: d.canonical });
+    }
   }
+
+  // WS7-8b USDA Block 1 — fire-and-forget enrichment. Deliberately NOT
+  // awaited: the resolver's return value, latency, and error behavior are
+  // byte-for-byte unchanged. enrichIngredients never throws on its own, but
+  // the .catch is defensive so a rejected promise can never surface as an
+  // unhandledRejection. Uses the same plain PrismaClient (outside any caller
+  // tx). No-ops silently when the USDA key is absent.
+  if (enrichTargets.length > 0) {
+    void enrichIngredients(prisma, enrichTargets).catch((err: unknown) => {
+      logger.warn(
+        { event: "usda_enrich_dispatch_failed", err },
+        "USDA enrichment dispatch failed",
+      );
+    });
+  }
+
   return out;
 }

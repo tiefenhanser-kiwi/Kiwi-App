@@ -24,6 +24,18 @@ export const MacroEstimateInputSchema = z.object({
       // instructs the model to skip optional ingredients in the math but to
       // still consider them present for any flavor/category caveats.
       isOptional: z.boolean().optional(),
+      // WS7-8b USDA Block 1 — per-100g USDA reference macros. Present only for
+      // ingredients with a matched USDA record; the prompt uses these as
+      // grounding (scaled by gram weight). Documentary — the estimate input is
+      // not runtime-validated against this schema, but the shape stays honest.
+      nutritionRefPer100g: z
+        .object({
+          calories: z.number().nonnegative(),
+          protein: z.number().nonnegative(),
+          carbs: z.number().nonnegative(),
+          fat: z.number().nonnegative(),
+        })
+        .optional(),
     }),
   ),
 });

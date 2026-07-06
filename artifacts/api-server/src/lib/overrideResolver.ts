@@ -19,11 +19,19 @@
 
 import type { DishIngredient, Ingredient, MealPlanItem } from "@prisma/client";
 
+import type { Per100gMacros } from "./usda/fdcClient";
+import { isMatchedRef } from "./usda/ingredientEnrichment";
+
 export interface EffectiveIngredient {
   name: string;
   quantity: number;
   unit: string;
   isOptional: boolean;
+  // WS7-8b USDA Block 1 — per-100g USDA reference macros, present ONLY when
+  // the ingredient row carries a MATCHED usda record (miss-markers and nulls
+  // omit this). Threads through to estimateDishMacros as grounding. Absent =
+  // ungrounded, exactly as before.
+  nutritionRefPer100g?: Per100gMacros;
 }
 
 export type DishWithIngredients = {
@@ -55,10 +63,16 @@ export function resolveEffectiveIngredients(
   _item: Pick<MealPlanItem, "ingredientOverrides" | "recipeOverrideJson">,
   dish: DishWithIngredients,
 ): EffectiveIngredient[] {
-  return dish.dishIngredients.map((di) => ({
-    name: di.ingredient.displayName,
-    quantity: di.quantity,
-    unit: di.unit,
-    isOptional: di.isOptional,
-  }));
+  return dish.dishIngredients.map((di) => {
+    const ref = di.ingredient.nutritionRefPerUnit;
+    return {
+      name: di.ingredient.displayName,
+      quantity: di.quantity,
+      unit: di.unit,
+      isOptional: di.isOptional,
+      // Only a MATCHED usda record grounds the estimate; miss-markers / null
+      // leave the field absent so the ingredient reads as ungrounded.
+      ...(isMatchedRef(ref) ? { nutritionRefPer100g: ref.per100g } : {}),
+    };
+  });
 }

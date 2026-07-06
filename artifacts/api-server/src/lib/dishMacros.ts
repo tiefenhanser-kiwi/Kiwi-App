@@ -53,6 +53,17 @@ export interface DishMacroIngredientInput {
   quantity: number;
   unit: string;
   isOptional?: boolean;
+  // WS7-8b USDA Block 1 — per-100g USDA reference macros used to GROUND the
+  // AI estimate (the model scales these by the ingredient's gram weight).
+  // Present only for ingredients with a matched USDA record; absent ingredients
+  // are estimated exactly as before. See the grounding block in the
+  // nutrition.ingredient_estimate prompt body.
+  nutritionRefPer100g?: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
 }
 
 export interface EstimateDishMacrosOptions {
