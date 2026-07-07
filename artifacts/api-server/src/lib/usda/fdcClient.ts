@@ -150,9 +150,36 @@ async function fetchJson<T>(
 }
 
 /**
+ * Sanitize an ingredient name into a USDA-searchable query string. BUG-028:
+ * USDA's /foods/search query parser returns HTTP 400 on some punctuation even
+ * when correctly percent-encoded — notably a slash between digits
+ * ("80/20 ground beef" → 400, "80 20 ground beef" → 200). This is a USDA
+ * parser quirk, not a Kiwi encoding bug, so we degrade the OUTBOUND query to
+ * plain searchable tokens. The Kiwi ingredient name in the DB is NOT changed.
+ *
+ * Transform: replace every character that is not a Unicode letter, Unicode
+ * number, whitespace, apostrophe, or hyphen with a space (this covers
+ * / \ % # & and other stray punctuation), then collapse whitespace runs and
+ * trim. Letters (incl. accented, e.g. jalapeño), digits, intra-word hyphens,
+ * and apostrophes are preserved so distinct names stay distinct.
+ *
+ * Over-strip guard: if sanitization yields an empty string (a name that was
+ * ALL punctuation), fall back to the original query rather than sending an
+ * empty search — the residual 400 is then handled per-row by the backfill.
+ */
+export function sanitizeUsdaQuery(query: string): string {
+  const cleaned = query
+    .replace(/[^\p{L}\p{N}\s'-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length > 0 ? cleaned : query;
+}
+
+/**
  * Search FDC foods. Defaults the dataType filter to Foundation + SR Legacy so
  * generic ingredient lookups aren't swamped by Branded products. Returns the
- * `foods` array (possibly empty) on success.
+ * `foods` array (possibly empty) on success. The query is sanitized
+ * (see sanitizeUsdaQuery) before the request.
  */
 export async function searchFoods(
   query: string,
@@ -165,7 +192,7 @@ export async function searchFoods(
   const pageSize = opts.pageSize ?? DEFAULT_SEARCH_PAGE_SIZE;
   const params = new URLSearchParams({
     api_key: key,
-    query,
+    query: sanitizeUsdaQuery(query),
     pageSize: String(pageSize),
   });
   for (const dt of dataType) params.append("dataType", dt);

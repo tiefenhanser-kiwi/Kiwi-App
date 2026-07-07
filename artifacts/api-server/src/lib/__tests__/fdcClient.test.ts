@@ -12,6 +12,7 @@ import {
   extractPer100gMacros,
   isUsdaEnabled,
   foodCategoryLabel,
+  sanitizeUsdaQuery,
   type FdcFood,
 } from "../usda/fdcClient";
 
@@ -179,7 +180,51 @@ describe("client disabled mode (no API key)", () => {
 
 // ── searchFoods happy path + filters ───────────────────────────────────
 
+// ── BUG-028 query sanitization ─────────────────────────────────────────
+
+describe("sanitizeUsdaQuery", () => {
+  it("replaces slashes between digits with a space (the 400 case)", () => {
+    assert.equal(sanitizeUsdaQuery("80/20 ground beef"), "80 20 ground beef");
+    assert.equal(sanitizeUsdaQuery("half\\half"), "half half");
+  });
+  it("leaves normal names unchanged", () => {
+    assert.equal(sanitizeUsdaQuery("ground beef"), "ground beef");
+    assert.equal(sanitizeUsdaQuery("chicken breast"), "chicken breast");
+  });
+  it("spaces out other problem punctuation and collapses whitespace", () => {
+    assert.equal(sanitizeUsdaQuery("half & half"), "half half");
+    assert.equal(sanitizeUsdaQuery("9/11-style edge"), "9 11-style edge"); // intra-word hyphen kept
+    assert.equal(sanitizeUsdaQuery("50% cream"), "50 cream");
+    assert.equal(sanitizeUsdaQuery("mac # cheese"), "mac cheese");
+  });
+  it("preserves accented letters and apostrophes", () => {
+    assert.equal(sanitizeUsdaQuery("jalapeño"), "jalapeño");
+    assert.equal(sanitizeUsdaQuery("confectioner's sugar"), "confectioner's sugar");
+  });
+  it("OVER-STRIP GUARD: an all-punctuation name falls back to the original", () => {
+    assert.equal(sanitizeUsdaQuery("///"), "///");
+    assert.equal(sanitizeUsdaQuery("%%%"), "%%%");
+  });
+  it("COLLISION GUARD: genuinely-different names do not collapse together", () => {
+    assert.notEqual(
+      sanitizeUsdaQuery("80/20 ground beef"),
+      sanitizeUsdaQuery("90/10 ground beef"),
+    );
+  });
+});
+
 describe("searchFoods", () => {
+  it("sanitizes the outbound query so a slash-in-name never hits the 400 path", async () => {
+    installFetch([{ jsonBody: { foods: [fullFood()] } }]);
+    const res = await searchFoods("80/20 ground beef");
+    assert.equal(res.ok, true);
+    const url = calls[0].url;
+    // URLSearchParams encodes spaces as '+'; the slash must be gone.
+    assert.match(url, /query=80\+20\+ground\+beef/);
+    assert.doesNotMatch(url, /%2F/i); // no encoded slash
+    assert.doesNotMatch(url, /80%2F20|80\/20/); // no raw or encoded 80/20
+  });
+
   it("returns the foods array and applies Foundation/SR Legacy dataType filter", async () => {
     installFetch([{ jsonBody: { foods: [fullFood()] } }]);
     const res = await searchFoods("onion");

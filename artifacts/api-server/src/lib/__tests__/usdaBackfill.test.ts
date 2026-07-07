@@ -20,6 +20,7 @@ import {
   applyDataForAction,
   parseAiPickReply,
   CSV_HEADER,
+  UNSEARCHABLE_REASON_PREFIX,
   type CatalogRow,
   type AiPickFn,
   type SearchFn,
@@ -59,6 +60,11 @@ const okSearch =
 const failSearch =
   (): SearchFn =>
   async () => ({ ok: false, reason: "rate_limited", status: 429 });
+const httpFail =
+  (status: number): SearchFn =>
+  async () => ({ ok: false, reason: "http_error", status });
+const networkFail: SearchFn = async () => ({ ok: false, reason: "network" });
+const timeoutFail: SearchFn = async () => ({ ok: false, reason: "timeout" });
 const aiPick =
   (result: { pick: number | null; reason: string }): AiPickFn =>
   async () => result;
@@ -215,6 +221,55 @@ describe("decideForIngredient", () => {
   it("throws BackfillAbortError on a USDA search failure", async () => {
     await assert.rejects(
       () => decideForIngredient("onion", { search: failSearch(), aiPick: NEVER_AI }),
+      BackfillAbortError,
+    );
+  });
+});
+
+// ── BUG-028: deterministic-4xx → per-row MISS; transient → abort ────────
+
+describe("decideForIngredient — failure split (BUG-028)", () => {
+  it("400 → per-row MISS with a distinct reason, run CONTINUES (no throw)", async () => {
+    const d = await decideForIngredient("80/20 ground beef", {
+      search: httpFail(400),
+      aiPick: NEVER_AI,
+    });
+    assert.equal(d.decision, "MISS");
+    assert.equal(d.aiReason, `${UNSEARCHABLE_REASON_PREFIX}400`);
+    assert.notEqual(d.aiReason, "no USDA candidates"); // distinct from genuine MISS
+    assert.equal(d.candidateCount, 0);
+  });
+
+  it("other deterministic 4xx (404) also → per-row MISS", async () => {
+    const d = await decideForIngredient("weird name", { search: httpFail(404), aiPick: NEVER_AI });
+    assert.equal(d.decision, "MISS");
+    assert.equal(d.aiReason, `${UNSEARCHABLE_REASON_PREFIX}404`);
+  });
+
+  it("429 rate-limit → still ABORTS", async () => {
+    await assert.rejects(
+      () => decideForIngredient("onion", { search: failSearch(), aiPick: NEVER_AI }),
+      BackfillAbortError,
+    );
+  });
+
+  it("5xx → ABORTS (transient/server-side)", async () => {
+    await assert.rejects(
+      () => decideForIngredient("onion", { search: httpFail(503), aiPick: NEVER_AI }),
+      BackfillAbortError,
+    );
+  });
+
+  it("network error → ABORTS", async () => {
+    await assert.rejects(
+      () => decideForIngredient("onion", { search: networkFail, aiPick: NEVER_AI }),
+      BackfillAbortError,
+    );
+  });
+
+  it("timeout → ABORTS", async () => {
+    await assert.rejects(
+      () => decideForIngredient("onion", { search: timeoutFail, aiPick: NEVER_AI }),
       BackfillAbortError,
     );
   });

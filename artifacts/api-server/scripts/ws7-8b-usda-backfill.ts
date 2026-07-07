@@ -60,6 +60,9 @@ import {
 // ── constants ─────────────────────────────────────────────────────────────
 
 export const AI_ASSIST_TOP_N = 10;
+// BUG-028 — CSV aiReason marker for a name USDA rejects with a deterministic
+// 4xx (un-searchable at USDA), distinct from a genuine no-candidates MISS.
+export const UNSEARCHABLE_REASON_PREFIX = "usda_unsearchable_";
 const THROTTLE_MS = 350; // ~2.8 req/s — well under the 1000/hr ceiling
 const OUTPUT_DIR = join(dirname(fileURLToPath(import.meta.url)), "output");
 
@@ -204,8 +207,31 @@ export async function decideForIngredient(
 ): Promise<DecisionResult> {
   const res = await deps.search(name);
   if (!res.ok) {
+    // BUG-028 — split deterministic-4xx from transient failures.
+    //   DETERMINISTIC 4xx (http_error with a 400-499 status): re-running would
+    //     fail identically (USDA's parser rejects the name even after the
+    //     Fix-A sanitizer). Record THIS ONE ingredient as a per-row MISS with a
+    //     distinct reason so Hans can spot it in review, and CONTINUE the run.
+    //   TRANSIENT (429 rate-limit, network, timeout, malformed, any 5xx, or an
+    //     http_error with no status): keep the abort — a blip must NOT be
+    //     recorded as a false MISS (Block 2 rationale stands).
+    if (
+      res.reason === "http_error" &&
+      typeof res.status === "number" &&
+      res.status >= 400 &&
+      res.status < 500
+    ) {
+      return {
+        decision: "MISS",
+        food: null,
+        per100g: null,
+        aiReason: `${UNSEARCHABLE_REASON_PREFIX}${res.status}`,
+        candidateCount: 0,
+      };
+    }
     throw new BackfillAbortError(
-      `USDA search failed for "${name}" (reason: ${res.reason}). ` +
+      `USDA search failed for "${name}" (reason: ${res.reason}` +
+        `${typeof res.status === "number" ? ` ${res.status}` : ""}). ` +
         `Partial CSV kept — re-run later.`,
     );
   }
