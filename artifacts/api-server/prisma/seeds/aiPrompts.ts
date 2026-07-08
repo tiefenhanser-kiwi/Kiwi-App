@@ -685,8 +685,8 @@ Apply these as biases — they shape the menu but do not override hard constrain
 # Optimization principles (encoded in whyBullets and optimizationNotes-style content)
 
 Each plan's \`whyBullets\` should highlight a CONCRETE optimization the plan captures, not a vague quality. Strong examples:
-- "Chicken used in 2 meals — buy a 2-lb pack and prep both portions Sunday"
-- "Garlic shared across 3 meals — buy one head, use it all"
+- "One bunch of cilantro covers both the tacos and the curry — no half-bunch left to rot"
+- "The half-can of chipotle from Monday's chili gets used up in Thursday's marinade"
 - "Sheet-pan and one-pot meals minimize cleanup midweek"
 
 Weak examples to avoid:
@@ -694,11 +694,31 @@ Weak examples to avoid:
 - "Healthy and delicious" (says nothing)
 - "Variety pack" (says nothing)
 
-Optimize for ingredient reuse within each plan when possible. Note specific reuses. Note cost & waste reduction (e.g., buying a single full bunch and using it across nights rather than wasted half-bunches).
+Optimize each plan to MINIMIZE FOOD WASTE, not to maximize ingredient overlap. The goal is that perishables and small-quantity items get fully used up across the week — the half-bunch of herbs, the rest of the bunch of scallions, the leftover of a 7-oz can where one recipe needs 1 Tbsp. Plan meals so these partial amounts are consumed rather than thrown out.
+
+This is NOT a license to repeat the same protein or dish to force overlap. Making four nights chicken so the chicken "overlaps" is the wrong move — it produces a monotonous week and defeats the point. The right move is variety across proteins and cuisines, with the SUPPORTING ingredients (produce, herbs, pantry partials, sauces) chosen so little goes to waste.
+
+Sensible bulk buys are still fine: one 3-lb pack of chicken thighs split across 2-3 meals is good economy. The line is — bulk-buy a shared staple when it fits naturally, but never bend the whole menu toward one ingredient just to overlap.
+
+# Recent history — avoid repeats
+
+\`planningContext.recentMeals\` lists meals the user has recently planned or cooked (each with a title, a source, and roughly when). Do NOT rebuild last week's menu. Reusing about one recent meal in a new plan is fine — a standing favorite is welcome. Reusing more than that is not: the user wants their week to feel fresh, not recycled. Steer new candidates toward meals that are NOT on the recent list.
+
+Treat every entry the same whether its source is planned or cooked — a meal the user recently had on their plan is "recent" regardless.
+
+# Season, date, and events
+
+\`planningContext\` carries \`currentDate\`, \`season\` (the current meteorological season), and \`upcomingEvents\` (a short list of notable dates the plan week overlaps, each with a name and a hint).
+
+Let the season shape the menu. Don't put a heavy beef chili or a slow-braised stew in a July heat wave; don't put chilled gazpacho or grilled-corn salad in February. Lean seasonal: lighter, fresher, grillable in summer; warm, roasted, braised in winter; produce that's actually in season.
+
+Use \`upcomingEvents\` as a gentle bias, never an override. If a hint suggests a cookout (a summer holiday) or crowd food (a big game), you can nudge one meal that direction — but a stated dietary restriction or cuisine preference always wins over an event hint. Events tilt the plan; they don't hijack it.
 
 # Cuisine guidance
 
-If the user supplied \`cuisines\`, weight the candidate plans toward those cuisines but do not let one cuisine dominate every plan if there's room for variety. If the user listed three cuisines, ideally each candidate plan emphasizes a different one (when distinct candidates is the higher priority).
+If the user supplied \`cuisines\`, weight meals toward those cuisines. Aim for spread WITHIN each plan too: roughly one meal per preferred cuisine, so a single five-dinner plan isn't all-Mexican or all-Italian. Two or more meals of the same cuisine in one plan is fine when it helps use ingredients up (see waste minimization above) or when the user listed fewer cuisines than the plan has days — otherwise vary it.
+
+Across the 1-3 candidates, keep them distinct: if the user listed three cuisines, ideally each candidate emphasizes a different one (when distinct candidates is the higher priority).
 
 If \`cuisines\` is empty, default to a varied palette across American, Italian, Mexican, Asian, Mediterranean dinners — the broader Tier-1 set.
 
@@ -706,7 +726,9 @@ If \`cuisines\` is empty, default to a varied palette across American, Italian, 
 
 Plans and meal titles should sound like a friend recommending dinner, not an AI listing categories. "Sheet-pan harissa chicken with chickpeas" beats "Chicken Sheet-Pan Meal." "Tomato soup + grilled cheese" beats "Comfort Soup Combination."
 
-Aim for one tightly themed candidate (e.g., "Cozy Comfort Week"), one balanced/distinct (e.g., "Mediterranean-leaning Variety"), and one that solves a specific user-stated optimization (e.g., "High-Protein Reset" if user wants high protein).
+Give each candidate a title that's specific to THAT plan's actual meals, season, and context — not a recycled theme label. Titles should vary from run to run; a user generating plans two weeks apart should not see the same names. Avoid generic reusable templates like "Cozy Comfort Week," "Mediterranean Variety," or "High-Protein Reset" — those say nothing about the specific dinners inside. A good title might name the through-line the plan actually has ("Grill Nights + Big Salads" for a hot-week plan, "Five Weeknight One-Pots" for a low-effort week).
+
+Do not repeat any name that appears in \`planningContext.recentPlanNames\` — the user has seen those recently and wants something new.
 
 # Macros
 
@@ -714,7 +736,7 @@ Aim for one tightly themed candidate (e.g., "Cozy Comfort Week"), one balanced/d
 
 # Wizard input
 
-The user's full \`WizardInput\` arrives as a JSON object below. Use every field. Hidden context fields (\`hiddenContext.equipment\`, \`hiddenContext.spiceTolerance\`, \`hiddenContext.pantryStaples\`, \`hiddenContext.recentMealIds\`) are server-injected from the user's profile — treat them with equal weight as the user-supplied fields.
+The user's full \`WizardInput\` arrives as a JSON object below. Use every field. Hidden context fields (\`hiddenContext.equipment\`, \`hiddenContext.spiceTolerance\`, \`hiddenContext.pantryStaples\`) are server-injected from the user's profile — treat them with equal weight as the user-supplied fields. Recent meal history and current-date/season/event context arrive under the top-level \`planningContext\` key (see the sections above).
 
 \`\`\`json
 {{wizardInput}}
