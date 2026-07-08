@@ -78,6 +78,15 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
         return data;
       },
     },
+    // Cookbook Phase A — buildPlanningContext reads recent meals + plan names.
+    // Empty is fine for the build-plans / build-from-text route tests (they
+    // assert planningContext PRESENCE, not history contents).
+    mealPlanInstance: {
+      findMany: async () => [],
+    },
+    meal: {
+      findMany: async () => [],
+    },
     lLMCallLog: {
       create: async ({ data }: { data: unknown }) => {
         llmCalls.push(data);
@@ -359,6 +368,57 @@ describe("POST /api/wizard/build-plans — happy path", () => {
     assert.deepEqual(ctx.pickyAvoidances, ["cilantro"]);
     assert.deepEqual(ctx.recurringItems, ["olive_oil", "salt"]);
     assert.deepEqual(ctx.pantryStaples, ["garlic", "rice"]);
+  });
+});
+
+describe("POST /api/wizard/build-plans — planning-context wiring", () => {
+  // Cookbook Phase A Block 1 — planningContext must ride on wizardInput.
+  let harness: Harness;
+  const ai = makeRunAICall(async () => happyResult());
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: ai.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+  });
+  after(async () => harness.close());
+
+  it("attaches planningContext (season/date/events/history) to wizardInput", async () => {
+    const token = signToken(TEST_USER_ID);
+    await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(VALID_BODY),
+    });
+
+    const lastVars = ai.getVars().at(-1) as
+      | {
+          wizardInput?: {
+            planningContext?: {
+              currentDate?: string;
+              season?: string;
+              upcomingEvents?: unknown[];
+              recentMeals?: unknown[];
+              recentPlanNames?: unknown[];
+            };
+          };
+        }
+      | undefined;
+    const pc = lastVars?.wizardInput?.planningContext;
+    assert.ok(pc, "planningContext missing from wizardInput");
+    assert.match(pc.currentDate ?? "", /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(
+      ["winter", "spring", "summer", "fall"].includes(pc.season ?? ""),
+      `unexpected season ${pc.season}`,
+    );
+    assert.ok(Array.isArray(pc.upcomingEvents));
+    assert.ok(Array.isArray(pc.recentMeals));
+    assert.ok(Array.isArray(pc.recentPlanNames));
   });
 });
 
@@ -860,6 +920,73 @@ describe("POST /api/wizard/build-from-text — partial scenario", () => {
     const generateInput = (genCall.vars as { generateInput?: { parsedIntent: ParsedIntent } })
       .generateInput;
     assert.deepEqual(generateInput?.parsedIntent.explicitMeals, ["Tacos", "Pasta"]);
+  });
+});
+
+describe("POST /api/wizard/build-from-text — planning-context wiring", () => {
+  // Cookbook Phase A Block 1 — planningContext must reach the GENERATE step but
+  // NOT the parse step (keeps the Haiku classifier's token count flat).
+  let harness: Harness;
+  const runner = makeTellKiwiRunner({
+    parse: () =>
+      parseSuccess({
+        scenario: "vague",
+        explicitMeals: [],
+        intentDescriptors: ["easy"],
+        mealCount: 5,
+      }),
+    generate: () => genSuccess(threeCandidates("wiring")),
+  });
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: runner.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+  });
+  after(async () => harness.close());
+
+  it("sends planningContext to generate, and withholds it from parse", async () => {
+    const token = signToken(TELL_KIWI_USER_ID + "-wiring");
+    const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(TELL_KIWI_BODY),
+    });
+    assert.equal(res.status, 200);
+
+    const calls = runner.getCalls();
+    const parseCall = calls.find(
+      (c) => c.promptKey === "wizard.directed.parse_intent",
+    );
+    const genCall = calls.find(
+      (c) => c.promptKey === "wizard.directed.generate",
+    );
+
+    // Regression pin: parse input must NOT carry planningContext.
+    const parseInput = (parseCall?.vars as { parseInput?: Record<string, unknown> })
+      ?.parseInput;
+    assert.ok(parseInput, "parseInput missing");
+    assert.equal(
+      "planningContext" in (parseInput as Record<string, unknown>),
+      false,
+      "planningContext leaked into parseInput",
+    );
+
+    // Generate input must carry a well-formed planningContext.
+    const generateInput = (genCall?.vars as {
+      generateInput?: { planningContext?: { season?: string } };
+    })?.generateInput;
+    assert.ok(generateInput?.planningContext, "planningContext missing from generateInput");
+    assert.ok(
+      ["winter", "spring", "summer", "fall"].includes(
+        generateInput.planningContext.season ?? "",
+      ),
+    );
   });
 });
 

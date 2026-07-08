@@ -49,6 +49,10 @@ import {
 } from "../lib/wizardExpansion";
 import { readAndFinalizeWizardDraft as productionReadAndFinalizeWizardDraft } from "../lib/wizardFinalize";
 import { currentWeekRange } from "../lib/planDates";
+import {
+  buildPlanningContext,
+  type PlanningContext,
+} from "../lib/planningContext";
 import { requireAuth } from "../middleware/auth";
 
 export interface WizardRouterDeps {
@@ -274,7 +278,17 @@ export function createWizardRouter(
 
       // 4. Inject hidden context from the user's profile.
       const hiddenContext = await buildHiddenContext(userId);
-      const wizardInput: WizardInput = { ...parsed.data, hiddenContext };
+      // Cookbook Phase A — planning context (season / upcoming events / recent
+      // history) rides alongside hiddenContext on the generate input. The prompt
+      // body doesn't reference these keys yet (Block 2 does the wording), so the
+      // extra JSON is inert until then. NOT added to buildHiddenContext because
+      // that feed also powers the cheap Haiku parse_intent call.
+      const planningContext = await buildPlanningContext(prisma, userId);
+      const wizardInput: WizardInput & { planningContext: PlanningContext } = {
+        ...parsed.data,
+        hiddenContext,
+        planningContext,
+      };
 
       // 5. Run the AI call.
       const result = await runAICall(
@@ -460,6 +474,11 @@ export function createWizardRouter(
       //    schema. The prompt is responsible for honoring scenario rules
       //    (1 candidate for fully_specified/overflow, 3 for vague/partial,
       //    explicitMeals locked into every candidate for partial).
+      // Cookbook Phase A — planning context is added to the GENERATE input only.
+      // parseInput above deliberately does NOT get it, keeping the Haiku
+      // classifier's token count flat. Computed here (after the `unclear`
+      // short-circuit) so the DB reads are skipped when no plan is generated.
+      const planningContext = await buildPlanningContext(prisma, userId);
       const generateInput = {
         parsedIntent,
         userInput: directed.description,
@@ -470,6 +489,7 @@ export function createWizardRouter(
         allergiesAndAvoidances: directed.allergiesAndAvoidances,
         dietaryNotes: directed.dietaryNotes ?? "",
         hiddenContext,
+        planningContext,
       };
 
       const genResult = await runAICall(
