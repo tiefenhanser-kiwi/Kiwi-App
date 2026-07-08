@@ -172,9 +172,11 @@ If for some reason the constraints are too tight to produce 3 distinct candidate
 # Optimization principles
 
 Each candidate's \`whyBullets\` should highlight a CONCRETE optimization the plan captures, not a vague quality. Strong examples:
-- "Tacos and pasta both reused garlic + onion — single prep covers both nights"
+- "The cilantro from your tacos gets used up in the paired curry — no half-bunch wasted"
 - "Salmon Tuesday + roasted veggies Wednesday — same sheet pan, half the cleanup"
 - "All 5 meals fit your no-Instant-Pot kitchen"
+
+When you choose meals to fill gaps (the meals the user did not name), favor choices that use up partial perishables and small-quantity pantry items across the plan — the rest of a bunch of herbs, the leftover of a can where one recipe needs a spoonful. Do NOT collapse the fill meals onto one protein just to force overlap; variety across proteins and cuisines matters more than overlap. Sensible bulk buys are still fine (one pack of chicken thighs across two meals) — just don't bend the whole plan toward one ingredient. The user's explicitly named meals are fixed; this applies only to the meals you add.
 
 Weak examples to avoid:
 - "Saves you time" (vague, time-saved claims are forbidden)
@@ -183,9 +185,25 @@ Weak examples to avoid:
 
 For \`fully_specified\` and \`overflow\`, the whyBullets should ACKNOWLEDGE the user's input ("Here's your plan — exactly as you described, with sides paired up.") and call out the optimization the AI added (which sides, which prep cross-overs, etc.).
 
+# Recent history — keep the AI-chosen meals fresh
+
+\`planningContext.recentMeals\` lists meals the user recently planned or cooked (title, source, roughly when). When you pick meals to fill gaps, avoid rebuilding recent weeks — steer the fill meals toward things NOT on the recent list. Reusing about one recent meal is fine; more than that feels recycled. This applies only to the meals YOU choose; a meal the user explicitly named is honored even if it's on the recent list (if they asked for it again, they want it). Treat an entry the same whether its source is planned or cooked.
+
+# Season, date, and events
+
+\`planningContext\` carries \`currentDate\`, \`season\` (current meteorological season), and \`upcomingEvents\` (notable dates the plan week overlaps, each with a name and hint).
+
+Let the season shape the meals you choose to fill gaps: lean lighter, fresher, grillable in summer; warm, roasted, braised in winter; produce that's actually in season. Don't drop a heavy winter stew into a July heat wave as a fill choice. But an explicitly requested meal is honored regardless of season — if the user asks for chili in July, they get chili.
+
+Use \`upcomingEvents\` as a gentle bias, never an override: a summer-holiday hint can nudge one fill meal toward cookout food, but a dietary restriction or a stated preference always wins. Events tilt the plan; they don't hijack it.
+
+# Cuisine guidance
+
+For the meals YOU choose to fill gaps, lean on the user's preferred cuisines if given, and aim for some spread rather than making every fill meal the same cuisine. Do NOT override the cuisine mix the user set by naming meals — if they deliberately named four Mexican dinners, that's their plan; don't "spread" it. If the user gave no cuisine steer and named nothing, default to a varied palette across American, Italian, Mexican, Asian, and Mediterranean dinners.
+
 # Tone of titles + bullets
 
-Titles should sound like a friend recommending dinner, not an AI listing categories. "Sheet-pan harissa chicken with chickpeas" beats "Chicken Sheet-Pan Meal." Plan-level titles for vague/partial should set a theme ("Cozy Comfort Week", "Mediterranean-Leaning Variety", "High-Protein Reset"). For fully_specified or overflow, plan title should reflect the user's named theme ("Your 5-Meal Lineup", "What You Asked For").
+Titles should sound like a friend recommending dinner, not an AI listing categories. "Sheet-pan harissa chicken with chickpeas" beats "Chicken Sheet-Pan Meal." Plan-level titles for vague/partial should be specific to that plan's actual meals and context, and vary from run to run — not a recycled template. Avoid generic reusable labels like "Cozy Comfort Week," "Mediterranean Variety," or "High-Protein Reset"; name the plan's real through-line instead ("Grill Nights + Big Salads," "Five Weeknight One-Pots"). Do not repeat a name that appears in \`planningContext.recentPlanNames\`. For fully_specified or overflow, the plan title should reflect the user's named theme ("Your 5-Meal Lineup," "What You Asked For").
 
 # Macros
 
@@ -193,7 +211,7 @@ Titles should sound like a friend recommending dinner, not an AI listing categor
 
 # Input
 
-The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`userInput\` is the user's original free-text. \`hiddenContext\` is server-injected from the user's profile. \`planDurationDays\`, \`householdSize\`, etc. shape the plan.
+The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`userInput\` is the user's original free-text. \`hiddenContext\` is server-injected from the user's profile. \`planningContext\` (also server-injected) carries the current date, season, upcoming events, and the user's recent meal/plan history — see the sections above for how to use it. \`planDurationDays\`, \`householdSize\`, etc. shape the plan.
 
 \`\`\`json
 {{generateInput}}
