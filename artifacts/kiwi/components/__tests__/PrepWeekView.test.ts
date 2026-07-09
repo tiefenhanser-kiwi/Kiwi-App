@@ -147,6 +147,7 @@ interface Overrides {
   onSkipPhase?: () => void;
   onFinish?: () => void;
   toastVisible?: boolean;
+  advanceToast?: { fromPhase: string; toPhase: string } | null;
   onExit?: () => void;
   onToggleStep?: (stepKey: string) => void;
   onSaveExit?: () => void;
@@ -175,6 +176,7 @@ function renderView(o: Overrides = {}) {
         onSaveExit: o.onSaveExit ?? NOOP,
         onFinish: o.onFinish ?? NOOP,
         toastVisible: o.toastVisible ?? false,
+        advanceToast: o.advanceToast ?? null,
         onExit: o.onExit ?? NOOP,
         onToggleStep: o.onToggleStep,
       }),
@@ -329,6 +331,37 @@ test("toast: the Week-Prep completion copy renders when toastVisible (R2 — dis
 test("toast: absent when not visible", () => {
   const texts = flat(renderView({ toastVisible: false }).toJSON() as RenderedNode | null);
   assert.ok(!texts.includes("Woohoo!"), "toast should be hidden by default");
+});
+
+test("advance toast: BUG-024 intermediate copy renders with the VM phase display names", () => {
+  const texts = flat(
+    renderView({
+      advanceToast: { fromPhase: "Seasonings & dry", toPhase: "Sauces & marinades" },
+    }).toJSON() as RenderedNode | null,
+  );
+  assert.ok(
+    texts.includes("Done with Seasonings & dry, moving to Sauces & marinades"),
+    `missing/incorrect advance toast copy: ${texts}`,
+  );
+});
+
+test("advance toast: absent by default (null)", () => {
+  const texts = flat(renderView().toJSON() as RenderedNode | null);
+  assert.ok(!texts.includes("moving to"), "advance toast should be hidden by default");
+});
+
+test("advance toast: the terminal 'Woohoo!' toast takes precedence when both are set", () => {
+  const texts = flat(
+    renderView({
+      toastVisible: true,
+      advanceToast: { fromPhase: "Produce", toPhase: "Proteins" },
+    }).toJSON() as RenderedNode | null,
+  );
+  assert.ok(texts.includes("Woohoo!"), "terminal toast must still render");
+  assert.ok(
+    !texts.includes("moving to Proteins"),
+    "the intermediate toast must not double up with the terminal one",
+  );
 });
 
 test("footer: the make-ahead note always renders", () => {

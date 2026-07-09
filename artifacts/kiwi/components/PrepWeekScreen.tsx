@@ -14,7 +14,7 @@
 // Entitlement (PRD §13.4.6 vs. trial): a 402 resolves as a GENTLE recoverable
 // "upgrade" state (never a hard paywall). The gate is inert in trial today.
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
@@ -29,6 +29,12 @@ import {
   buildMealLabelLookup,
   buildPrepWeekModel,
 } from "@/lib/cooking/prepWeekModel";
+import {
+  isPrepAllDoneEdge,
+  releasePrepAdvance,
+  requestPrepAdvance,
+  type PrepAllDoneObservation,
+} from "@/lib/cooking/prepAutoAdvance";
 
 const LAST_PHASE_INDEX = 3; // 4 fixed phases, 0..3
 const TOAST_MS = 2500; // PRD §7.12 — 2-3s
@@ -53,6 +59,21 @@ export function PrepWeekScreen({
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [toastVisible, setToastVisible] = useState(false);
   const [writeError, setWriteError] = useState(false);
+  // BUG-024 — the intermediate "Done with X, moving to Y" toast (distinct from
+  // the terminal "Woohoo!"). Phase display names come from the VM, never hardcoded.
+  const [advanceToast, setAdvanceToast] = useState<{
+    fromPhase: string;
+    toPhase: string;
+  } | null>(null);
+
+  // BUG-024 auto-advance guard state (see lib/cooking/prepAutoAdvance.ts):
+  //  • latchRef  — the phase index whose all-done episode we've already advanced
+  //    from, so the per-step effect and the "Mark all complete" button can't both
+  //    advance the same phase (the double-advance guard).
+  //  • lastAllDoneRef — the prior all-done observation, for false→true edge
+  //    detection (so mount / empty / resumed-complete phases never auto-advance).
+  const latchRef = useRef<number | null>(null);
+  const lastAllDoneRef = useRef<PrepAllDoneObservation | null>(null);
 
   const outcome = prepQuery.data;
 
@@ -108,6 +129,62 @@ export function PrepWeekScreen({
     return () => clearTimeout(t);
   }, [writeError]);
 
+  // Intermediate advance toast auto-dismiss — clears itself, does NOT route out
+  // (we stay in Prep on the next phase; only the terminal toast exits).
+  useEffect(() => {
+    if (!advanceToast) return;
+    const t = setTimeout(() => setAdvanceToast(null), TOAST_MS);
+    return () => clearTimeout(t);
+  }, [advanceToast]);
+
+  // BUG-024 — one idempotent advance/finish for a COMPLETED phase index. Called
+  // BOTH by the "Mark all complete" button (after its batch write) AND by the
+  // per-step all-done effect; the latch guarantees it fires once per all-done
+  // episode whichever caller arrives first. Non-last → intermediate toast + an
+  // ABSOLUTE pointer move (so a double call can't skip a phase); last → the
+  // terminal "Woohoo!" toast (unchanged; never double-toasted).
+  const commitAdvance = useCallback(
+    (completedIndex: number) => {
+      const phaseCount = vm?.phases.length ?? LAST_PHASE_INDEX + 1;
+      const { latch, effect } = requestPrepAdvance(
+        latchRef.current,
+        completedIndex,
+        phaseCount,
+      );
+      latchRef.current = latch;
+      if (effect.kind === "finish") {
+        setToastVisible(true);
+      } else if (effect.kind === "advance") {
+        const fromPhase = vm?.phases[effect.from]?.title;
+        const toPhase = vm?.phases[effect.to]?.title;
+        if (fromPhase && toPhase) setAdvanceToast({ fromPhase, toPhase });
+        setPhaseIndex(effect.to);
+      }
+    },
+    [vm],
+  );
+
+  // BUG-024 — auto-advance when the CURRENT phase flips to all-done via per-step
+  // checking. Fires only on a false→true edge (mount / empty / resumed-complete
+  // phases are not edges), and defers the once-per-episode decision to
+  // commitAdvance's latch (so it can't double with the button path). Leaving
+  // all-done releases the latch, so re-completing the phase advances again.
+  const currentPhaseAllDone = vm?.phases[phaseIndex]?.allDone ?? false;
+  useEffect(() => {
+    if (!vm || !vm.phases[phaseIndex]) return;
+    const edge = isPrepAllDoneEdge(
+      lastAllDoneRef.current,
+      phaseIndex,
+      currentPhaseAllDone,
+    );
+    lastAllDoneRef.current = { index: phaseIndex, allDone: currentPhaseAllDone };
+    if (!currentPhaseAllDone) {
+      latchRef.current = releasePrepAdvance(latchRef.current, phaseIndex);
+      return;
+    }
+    if (edge) commitAdvance(phaseIndex);
+  }, [vm, phaseIndex, currentPhaseAllDone, commitAdvance]);
+
   const prevPhase = () => setPhaseIndex((i) => Math.max(0, i - 1));
 
   // "Skip this Prep" (BUG-020) — a PURE pointer advance. Skipping is NOT doing,
@@ -131,11 +208,11 @@ export function PrepWeekScreen({
       .catch(() => setWriteError(true));
   };
 
-  const advancePhase = () =>
-    completeCurrentPhase(() =>
-      setPhaseIndex((i) => Math.min(i + 1, LAST_PHASE_INDEX)),
-    );
-  const finishPrep = () => completeCurrentPhase(() => setToastVisible(true));
+  // The button path still asserts the whole phase via the batch write; the
+  // advance/finish now routes through commitAdvance so it can't double with the
+  // per-step effect. On the last phase commitAdvance resolves to finish.
+  const advancePhase = () => completeCurrentPhase(() => commitAdvance(phaseIndex));
+  const finishPrep = () => completeCurrentPhase(() => commitAdvance(phaseIndex));
 
   // Per-step write: flip vs. the current checked set; optimistic + revert live in
   // the toggle hook. A rejection surfaces a non-blocking banner (state already
@@ -220,6 +297,7 @@ export function PrepWeekScreen({
         onSaveExit={onSaveExit} // "Save & Exit" — quiet write-free exit to plan detail
         onFinish={finishPrep}
         toastVisible={toastVisible}
+        advanceToast={advanceToast}
         onExit={onExit}
         onToggleStep={onToggleStep}
       />

@@ -77,6 +77,13 @@ interface Props {
   /** The Week-Prep completion toast — shown by the container after finish. This
    *  is DISTINCT from the Cook-Mode "already prepped" (§7.12) toast copy. */
   toastVisible: boolean;
+  /**
+   * BUG-024 — the intermediate "Done with {fromPhase}, moving to {toPhase}" toast
+   * shown when a phase auto-advances (per-step full-check or "Mark all complete").
+   * Phase display names are plumbed from the VM. Null when no advance toast is up.
+   * Mutually exclusive with the terminal `toastVisible` (the terminal one wins).
+   */
+  advanceToast?: { fromPhase: string; toPhase: string } | null;
   onExit: () => void;
   /**
    * Block 3 wires this to the completion endpoints. When omitted (this block),
@@ -183,6 +190,7 @@ export function PrepWeekView({
   onSaveExit,
   onFinish,
   toastVisible,
+  advanceToast,
   onExit,
   onToggleStep,
 }: Props) {
@@ -291,6 +299,16 @@ export function PrepWeekView({
       {toastVisible && (
         <View style={s.toast} pointerEvents="none">
           <Text style={s.toastText}>Woohoo! You just made your week easier!</Text>
+        </View>
+      )}
+
+      {/* BUG-024 — intermediate advance toast. Same presentation as the terminal
+          toast for consistency; the terminal toast takes precedence if both set. */}
+      {advanceToast && !toastVisible && (
+        <View style={s.toast} pointerEvents="none">
+          <Text style={s.toastText}>
+            {`Done with ${advanceToast.fromPhase}, moving to ${advanceToast.toPhase}`}
+          </Text>
         </View>
       )}
     </View>
