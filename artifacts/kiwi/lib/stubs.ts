@@ -1938,6 +1938,12 @@ export function getCurrentUserPreferences(): UserPreferencesData {
 
     // Dietary notes
     dietaryNotes: undefined,
+
+    // Cookbook Phase B Block 1 — new stored prefs (defaults mirror the server).
+    discoveryMealsPerWeek: 0,
+    saucePreference: "balanced",
+    maxCookTimeMinutes: null,
+    maxCookTimeCoverage: "most",
   };
 }
 

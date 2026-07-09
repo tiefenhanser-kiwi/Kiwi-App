@@ -56,6 +56,12 @@ export const UserPreferencesSchema = z.object({
   wantsLeftovers: z.boolean(),
   // Free-text notes — nullable.
   dietaryNotes: z.string().nullable(),
+  // Cookbook Phase B Block 1 — new stored prefs. Enums have server defaults so
+  // they are always present; maxCookTimeMinutes is Prisma Int? → explicit null.
+  discoveryMealsPerWeek: z.number().int(),
+  saucePreference: z.enum(["store_bought", "balanced", "homemade"]),
+  maxCookTimeMinutes: z.number().int().nullable(),
+  maxCookTimeCoverage: z.enum(["all", "most"]),
 });
 
 export type UserPreferences = z.infer<typeof UserPreferencesSchema>;

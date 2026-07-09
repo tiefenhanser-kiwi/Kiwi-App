@@ -36,6 +36,11 @@ interface PrefsRow {
   planLengthDefault: number;
   defaultRetailer: string | null;
   dietaryNotes: string | null;
+  // Cookbook Phase B Block 1 — new stored prefs.
+  discoveryMealsPerWeek: number;
+  saucePreference: string;
+  maxCookTimeMinutes: number | null;
+  maxCookTimeCoverage: string;
   updatedAt: Date;
 }
 
@@ -61,6 +66,13 @@ function defaultsFor(userId: string): PrefsRow {
     planLengthDefault: 7,
     defaultRetailer: null,
     dietaryNotes: null,
+    // Cookbook Phase B Block 1 — models a row after the additive migration:
+    // Postgres backfills these column defaults, so a pre-existing row reads
+    // back with them already applied (the server serializer just spreads).
+    discoveryMealsPerWeek: 0,
+    saucePreference: "balanced",
+    maxCookTimeMinutes: null,
+    maxCookTimeCoverage: "most",
     updatedAt: new Date("2026-05-19T12:00:00Z"),
   };
 }
@@ -165,6 +177,11 @@ describe("GET /me/preferences", () => {
       assert.equal(body.preferences.userId, USER_ID);
       assert.equal(body.preferences.spiceTolerance, "medium");
       assert.equal(body.preferences.planLengthDefault, 7);
+      // Cookbook Phase B Block 1 — new fields surface with their DB defaults.
+      assert.equal(body.preferences.discoveryMealsPerWeek, 0);
+      assert.equal(body.preferences.saucePreference, "balanced");
+      assert.equal(body.preferences.maxCookTimeMinutes, null);
+      assert.equal(body.preferences.maxCookTimeCoverage, "most");
       assert.ok(prisma._row(), "row should be persisted");
     } finally {
       await harness.close();
@@ -237,6 +254,82 @@ describe("PATCH /me/preferences", () => {
       const out = (await res.json()) as { preferences: PrefsRow };
       assert.equal(out.preferences.spiceTolerance, "hot");
       assert.deepEqual(out.preferences.cuisines, ["thai"]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── Cookbook Phase B Block 1 — new preference fields round-trip ──────────
+  it("Phase B: sets and reads back all four new preference fields", async () => {
+    const prisma = makeStubPrisma(defaultsFor(USER_ID));
+    const harness = await spinUp(prisma);
+    try {
+      const token = signToken(USER_ID);
+      const res = await fetch(`${harness.baseUrl}/me/preferences`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          discoveryMealsPerWeek: 2,
+          saucePreference: "homemade",
+          maxCookTimeMinutes: 45,
+          maxCookTimeCoverage: "all",
+        }),
+      });
+      assert.equal(res.status, 200);
+      const out = (await res.json()) as { preferences: PrefsRow };
+      assert.equal(out.preferences.discoveryMealsPerWeek, 2);
+      assert.equal(out.preferences.saucePreference, "homemade");
+      assert.equal(out.preferences.maxCookTimeMinutes, 45);
+      assert.equal(out.preferences.maxCookTimeCoverage, "all");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("Phase B: accepts an explicit null for maxCookTimeMinutes (uncapped)", async () => {
+    const seed = defaultsFor(USER_ID);
+    seed.maxCookTimeMinutes = 30;
+    const prisma = makeStubPrisma(seed);
+    const harness = await spinUp(prisma);
+    try {
+      const token = signToken(USER_ID);
+      const res = await fetch(`${harness.baseUrl}/me/preferences`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ maxCookTimeMinutes: null }),
+      });
+      assert.equal(res.status, 200);
+      const out = (await res.json()) as { preferences: PrefsRow };
+      assert.equal(out.preferences.maxCookTimeMinutes, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("Phase B: rejects out-of-range discoveryMealsPerWeek and bad saucePreference", async () => {
+    const harness = await spinUp(makeStubPrisma(defaultsFor(USER_ID)));
+    try {
+      const token = signToken(USER_ID);
+      const bad = async (payload: Record<string, unknown>) => {
+        const res = await fetch(`${harness.baseUrl}/me/preferences`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        return res.status;
+      };
+      assert.equal(await bad({ discoveryMealsPerWeek: 3 }), 400);
+      assert.equal(await bad({ saucePreference: "instant" }), 400);
+      assert.equal(await bad({ maxCookTimeCoverage: "half" }), 400);
     } finally {
       await harness.close();
     }

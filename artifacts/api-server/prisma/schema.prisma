@@ -302,6 +302,14 @@ model UserPreferences {
   planLengthDefault       Int             @default(7)
   defaultRetailer         String?
   dietaryNotes            String?
+  // Cookbook Phase B — new preference fields (Block 1: storage + wire only;
+  // generation wiring is Block 2, mobile UI is Block 3). String-with-default
+  // for the categorical prefs matches the newer cookingSkill/stovetopType
+  // convention (Zod validates the value set, not the DB).
+  discoveryMealsPerWeek   Int             @default(0)
+  saucePreference         String          @default("balanced")
+  maxCookTimeMinutes      Int?
+  maxCookTimeCoverage     String          @default("most")
   updatedAt               DateTime        @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

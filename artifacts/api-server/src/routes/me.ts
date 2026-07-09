@@ -181,6 +181,13 @@ const preferencesPatchSchema = z
     planLengthDefault: z.number().int().min(1).max(7).optional(),
     defaultRetailer: z.string().max(120).nullable().optional(),
     dietaryNotes: z.string().max(500).nullable().optional(),
+    // Cookbook Phase B Block 1 — new preference fields. maxCookTimeMinutes
+    // stays a permissive nullable int (the 30/45/60/null UI gate is Block 3);
+    // the others are value-set-validated here since the DB stores plain int/String.
+    discoveryMealsPerWeek: z.number().int().min(0).max(2).optional(),
+    saucePreference: z.enum(["store_bought", "balanced", "homemade"]).optional(),
+    maxCookTimeMinutes: z.number().int().nullable().optional(),
+    maxCookTimeCoverage: z.enum(["all", "most"]).optional(),
   })
   .strict();
 

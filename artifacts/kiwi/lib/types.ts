@@ -173,6 +173,14 @@ export interface UserPreferencesData {
   defaultRetailer?: string;
   /** Free-text dietary notes (carries over from wizard's "Anything else?") */
   dietaryNotes?: string;
+
+  // Cookbook Phase B Block 1 — new stored prefs (storage + wire only; the
+  // preferences UI that edits them lands in Block 3). Non-null with server
+  // defaults except maxCookTimeMinutes, which is null when uncapped.
+  discoveryMealsPerWeek: number;   // 0 | 1 | 2
+  saucePreference: "store_bought" | "balanced" | "homemade";
+  maxCookTimeMinutes: number | null;
+  maxCookTimeCoverage: "all" | "most";
 }
 
 // ─────────────────────────────────────────────────────────────────
