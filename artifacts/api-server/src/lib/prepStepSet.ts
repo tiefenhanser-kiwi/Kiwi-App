@@ -41,6 +41,52 @@ export interface LoadPrepStepSetParams {
   loadPrepWeekInput?: typeof productionLoadPrepWeekInput;
 }
 
+// WS7-8b Block 2 (D-WS7-184) — Mechanism 2 flag overlay. The AI-free recompute
+// above cannot see the narration-time `skipSuggested` flag, but
+// assemblePrepWeekResult already persisted it onto every demoted step inside
+// PrepWeekStructure.structureJson (cooking.ts generate path). Read that blob and
+// return the set of stepKeys the narrator demoted, so the required-set can drop
+// them (BUG-013 / server-exclude half of BUG-015).
+//
+// DEGRADES TO KEEP-DEFAULT on any absence/malformation — never throws, never
+// excludes when uncertain:
+//   • no structure row (never generated / all-easy plan) → empty set → nothing
+//     excluded (and with no structure nothing is checked either, so the meal is
+//     correctly not_prepped, not falsely prepped);
+//   • stale structure → stepKeys are stable across regenerate (same ingredient →
+//     same key), so old flags still map; a genuinely-new key simply isn't in the
+//     old blob → kept, matching the narrator's own "when unsure, KEEP";
+//   • malformed/partial JSON → treated as no demotions.
+//
+// MIXED-BLEND GUARD (D-WS7-183): holds by construction — the narrator never sets
+// `skipSuggested` on an `isBlend` step (aiPrompts.ts), so a
+// `seasonings_dry#dish#<dishId>` blend key can never carry the flag and is never
+// added here. We only ever collect keys where `skipSuggested === true`.
+export function demotedStepKeysFromStructure(structureJson: unknown): Set<string> {
+  const demoted = new Set<string>();
+  const structure = structureJson as
+    | { phases?: unknown }
+    | null
+    | undefined;
+  if (!structure || !Array.isArray(structure.phases)) return demoted;
+  for (const phase of structure.phases as unknown[]) {
+    const steps = (phase as { steps?: unknown } | null)?.steps;
+    if (!Array.isArray(steps)) continue;
+    for (const step of steps as unknown[]) {
+      const s = step as { stepKey?: unknown; skipSuggested?: unknown } | null;
+      if (
+        s &&
+        s.skipSuggested === true &&
+        typeof s.stepKey === "string" &&
+        s.stepKey.length > 0
+      ) {
+        demoted.add(s.stepKey);
+      }
+    }
+  }
+  return demoted;
+}
+
 export async function loadPrepStepSet(
   params: LoadPrepStepSetParams,
 ): Promise<PrepStepRef[]> {
@@ -55,10 +101,27 @@ export async function loadPrepStepSet(
       combinePrep(buildPrepCombineInput(input)),
       input.planName,
     );
-    return stepPlan.steps.map((s) => ({
+    const refs = stepPlan.steps.map((s) => ({
       stepKey: s.stepKey,
       contributesToMealIds: s.contributesToMealIds,
     }));
+
+    // WS7-8b Block 2 (D-WS7-184) — overlay the persisted `skipSuggested` flags
+    // from the cached structure and drop demoted steps from the required-set.
+    // The read is best-effort: a failure to reach the cache must not 5xx the
+    // rollup, so treat any error as "no demotions" (KEEP-default).
+    let demoted: Set<string>;
+    try {
+      const cached = await params.prisma.prepWeekStructure.findUnique({
+        where: { planId: params.planId },
+      });
+      demoted = demotedStepKeysFromStructure(cached?.structureJson);
+    } catch {
+      demoted = new Set<string>();
+    }
+    return demoted.size === 0
+      ? refs
+      : refs.filter((r) => !demoted.has(r.stepKey));
   } catch (err) {
     // No cookable meals (empty) or non-owner/missing → no prep steps. The
     // caller's meal universe still drives the (vacuous) per-meal rollup; an

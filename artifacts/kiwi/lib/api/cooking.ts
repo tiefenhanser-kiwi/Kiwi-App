@@ -37,7 +37,7 @@ const PrepStatusSchema = z.enum(["not_prepped", "partial", "prepped"]);
 export type PrepStatusValue = z.infer<typeof PrepStatusSchema>;
 
 // `stepKey` is an opaque stable identity minted server-side
-// (`<phaseKey>#<ingredientId>` or `<phaseKey>#blend` — prepWeekAssembly.ts).
+// (`<phaseKey>#<ingredientId>` or `<phaseKey>#dish#<dishId>` — prepWeekAssembly.ts).
 // The mobile client treats it as opaque: the write path validates only
 // min(1)/max(80) server-side, with no allowlist, so we mirror a plain string.
 const StepKeySchema = z.string().min(1).max(80);
@@ -231,7 +231,7 @@ export type PrepWeekPhaseKey = z.infer<typeof PrepWeekPhaseKeySchema>;
 // the mobile parse accepts precisely what the server emits and nothing looser.
 const PrepWeekStepSchema = z.object({
   number: z.number().int().min(1).max(50),
-  // Opaque stable identity, `${phase}#${ingredientId}` (or `…#blend`); the
+  // Opaque stable identity, `${phase}#${ingredientId}` (or `…#dish#${dishId}`); the
   // completion write-back (Block 3) keys on this. Server caps it at 80.
   stepKey: z.string().min(1).max(80),
   title: z.string().min(1).max(120),

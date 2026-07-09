@@ -76,7 +76,8 @@ function findByA11yLabel(
 }
 
 // ── Fixture: 4-phase result (seasonings/sauces skippable+empty; produce step
-// combines 2 meals + storageNote; proteins step is skipSuggested, 1 meal). ────
+// combines 2 meals + storageNote; proteins has one KEPT step (feeds M1) and one
+// demoted/skipSuggested step (feeds M2) that D-WS7-184 OMITS from render). ─────
 
 const M1 = "11111111-1111-4111-8111-111111111111";
 const M2 = "22222222-2222-4222-8222-222222222222";
@@ -115,6 +116,15 @@ function result(): PrepWeekResult {
             instructions: "Trim 2 lb chicken thighs.",
             estimatedMinutes: 10,
             contributesToMealIds: [M1],
+          },
+          {
+            // D-WS7-184 — demoted: omitted from render, excluded from the total.
+            number: 3,
+            stepKey: `proteins#${M2}`,
+            title: "Rub the steak",
+            instructions: "Rub the steak and grill.",
+            estimatedMinutes: 8,
+            contributesToMealIds: [M2],
             skipSuggested: true,
           },
         ],
@@ -179,10 +189,11 @@ test("header: renders 'Prep the Week', the plan name, and the meals/min subtitle
   const texts = flat(renderView().toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Prep the Week"), `missing header: ${texts}`);
   assert.ok(texts.includes("Hearty Week"), `missing plan name: ${texts}`);
-  // "— 2 meals combined · ~6 min —". BUG-011: kept-only total — the 10-min
-  // proteins step is skipSuggested, so only the 6-min produce step counts.
+  // "— 2 meals combined · ~16 min —". BUG-011 / D-WS7-184: kept-only total —
+  // produce 6 + proteins-trim 10 = 16; the 8-min demoted "Rub the steak" is
+  // excluded (and omitted from render).
   assert.ok(texts.includes("2 meals combined"), `missing subtitle meals: ${texts}`);
-  assert.ok(texts.includes("6 min"), `missing subtitle minutes: ${texts}`);
+  assert.ok(texts.includes("16 min"), `missing subtitle minutes: ${texts}`);
 });
 
 test("phase indicator: shows 'Phase X of 4' for the current pointer", () => {
@@ -235,12 +246,13 @@ test("storageNote: rendered when present", () => {
   assert.ok(texts.includes("Airtight, 4 days"), `missing storage note: ${texts}`);
 });
 
-test("skipSuggested: a flagged step renders the 'optional' affordance (not hidden)", () => {
+test("skipSuggested: a demoted step is OMITTED from render (D-WS7-184 reverses flag-don't-drop)", () => {
   const texts = flat(renderView({ phaseIndex: 3 }).toJSON() as RenderedNode | null);
-  // the step is still shown...
-  assert.ok(texts.includes("Trim chicken"), `skipSuggested step should still render: ${texts}`);
-  // ...with an optional cue
-  assert.ok(texts.includes("optional"), `missing optional affordance: ${texts}`);
+  // The kept proteins step renders...
+  assert.ok(texts.includes("Trim chicken"), `kept step should render: ${texts}`);
+  // ...but the demoted "Rub the steak" is dropped from the list entirely (the
+  // VM omits it, so the coupled server-exclude keeps isPrepped reachable).
+  assert.ok(!texts.includes("Rub the steak"), `demoted step must be omitted: ${texts}`);
 });
 
 // ── Checkbox (display-only this block) ─────────────────────────────────────────

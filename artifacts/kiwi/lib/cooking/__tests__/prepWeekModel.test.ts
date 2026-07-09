@@ -16,8 +16,10 @@ const M1 = "11111111-1111-4111-8111-111111111111";
 const M2 = "22222222-2222-4222-8222-222222222222";
 const M3 = "33333333-3333-4333-8333-333333333333";
 
-// A faithful 4-phase result: seasonings/sauces empty, produce with one step that
-// combines two meals, proteins with one skip-suggested step that feeds one meal.
+// A faithful 4-phase result: seasonings/sauces empty, produce with one kept step
+// that combines two meals, proteins with one KEPT step (feeds M1) and one
+// skip-suggested/demoted step (feeds M2). Per D-WS7-184 the demoted step is
+// OMITTED from the render model, but it still exercises the minute-exclusion.
 function result(overrides: Partial<PrepWeekResult> = {}): PrepWeekResult {
   return {
     totalEstimatedMinutes: 45,
@@ -52,6 +54,15 @@ function result(overrides: Partial<PrepWeekResult> = {}): PrepWeekResult {
             estimatedMinutes: 10,
             contributesToMealIds: [M1],
             storageNote: "Airtight, 2 days max",
+          },
+          {
+            // D-WS7-184 — demoted: omitted from render, excluded from the total.
+            number: 3,
+            stepKey: `proteins#${M2}`,
+            title: "Rub the steak",
+            instructions: "Rub the steak and grill.",
+            estimatedMinutes: 8,
+            contributesToMealIds: [M2],
             skipSuggested: true,
           },
         ],
@@ -77,9 +88,10 @@ test("buildPrepWeekModel: preserves the 4 phases in fixed server order", () => {
     vm.phases.map((p) => p.phase),
     ["seasonings_dry", "sauces_marinades", "produce", "proteins"],
   );
-  // BUG-011: total is recomputed from KEPT steps (produce 6 min); the 10-min
-  // proteins step is skipSuggested, so it is excluded — NOT the server's 45.
-  assert.equal(vm.totalEstimatedMinutes, 6);
+  // BUG-011 / D-WS7-184: total is recomputed from KEPT steps (produce 6 +
+  // proteins-trim 10 = 16); the 8-min demoted "Rub the steak" is excluded —
+  // NOT the server's passthrough 45.
+  assert.equal(vm.totalEstimatedMinutes, 16);
   // phase metadata passes through
   assert.equal(vm.phases[0].skippable, true);
   assert.equal(vm.phases[2].skippable, false);
@@ -161,10 +173,10 @@ test("buildPrepWeekModel: with no lookup at all, every destination uses the fall
 // ── BUG-011: header/footer total = KEPT steps only ───────────────────────────
 
 test("buildPrepWeekModel: totalEstimatedMinutes sums KEPT steps only (excludes skipSuggested)", () => {
-  // produce 6 (kept) + proteins 10 (skipSuggested) → 6, not 16, and not the
-  // server's passthrough 45.
+  // produce 6 + proteins-trim 10 (both kept) = 16; the 8-min demoted "Rub the
+  // steak" is excluded, and the server's passthrough 45 is ignored.
   const vm = buildPrepWeekModel(result());
-  assert.equal(vm.totalEstimatedMinutes, 6);
+  assert.equal(vm.totalEstimatedMinutes, 16);
 });
 
 test("buildPrepWeekModel: a fully-demoted plan floors at 1 min (never 0)", () => {
@@ -229,12 +241,29 @@ test("buildPrepWeekModel: with no demoted steps, total = plain sum of kept minut
   assert.equal(buildPrepWeekModel(r).totalEstimatedMinutes, 10);
 });
 
-// ── skipSuggested passthrough ─────────────────────────────────────────────────
+// ── D-WS7-184: demoted steps are OMITTED from render ─────────────────────────
 
-test("buildPrepWeekModel: skipSuggested passes through; defaults to false when absent", () => {
+test("buildPrepWeekModel: skipSuggested steps are omitted from the rendered list (D-WS7-184)", () => {
   const vm = buildPrepWeekModel(result());
-  assert.equal(vm.phases[3].steps[0].skipSuggested, true); // explicitly set
+  // Proteins had a kept trim step + a demoted "Rub the steak" — only the kept
+  // one survives into the VM; the demoted one is dropped entirely.
+  const proteinKeys = vm.phases[3].steps.map((s) => s.stepKey);
+  assert.deepEqual(proteinKeys, [`proteins#${M1}`]);
+  assert.equal(vm.phases[3].totalCount, 1);
+  // Every rendered step is a kept step, so skipSuggested is false on all of them.
+  assert.ok(vm.phases[3].steps.every((s) => s.skipSuggested === false));
   assert.equal(vm.phases[2].steps[0].skipSuggested, false); // absent → false
+});
+
+test("buildPrepWeekModel: a checked demoted (omitted) stepKey does not inflate the rollup", () => {
+  // The demoted step is absent from the VM, so a stale check on its key is a
+  // no-op for the done rollup — consistent with the server excluding it too.
+  const vm = buildPrepWeekModel(result(), {
+    checkedStepKeys: new Set([`proteins#${M2}`]),
+  });
+  assert.equal(vm.phases[3].doneCount, 0);
+  assert.equal(vm.phases[3].totalCount, 1);
+  assert.equal(vm.doneCount, 0);
 });
 
 test("buildPrepWeekModel: storageNote passes through (and is undefined when absent)", () => {

@@ -30,7 +30,7 @@ const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 const COMPLETIONS_RESPONSE = {
   completions: [
     { stepKey: "produce_wash#carrot-1", checkedAt: "2026-06-18T09:00:00.000Z" },
-    { stepKey: "seasonings_dry#blend", checkedAt: "2026-06-18T09:05:00.000Z" },
+    { stepKey: "seasonings_dry#dish#11111111-1111-4111-8111-111111111111", checkedAt: "2026-06-18T09:05:00.000Z" },
   ],
   perMeal: { "meal-1": true, "meal-2": false },
   derivedPrepStatus: "partial" as const,
@@ -107,8 +107,8 @@ test("checkPrepStep encodes the planId path segment", async () => {
 // body stripping). Verified against client.ts:138-158.
 test("uncheckPrepStep sends { stepKey } in the DELETE body to the wire", async () => {
   nextResponse = () =>
-    mockJson({ stepKey: "seasonings_dry#blend", checked: false });
-  const res = await uncheckPrepStep("plan-1", "seasonings_dry#blend");
+    mockJson({ stepKey: "seasonings_dry#dish#11111111-1111-4111-8111-111111111111", checked: false });
+  const res = await uncheckPrepStep("plan-1", "seasonings_dry#dish#11111111-1111-4111-8111-111111111111");
 
   assert.equal(lastMethod, "DELETE");
   assert.ok(
@@ -116,8 +116,8 @@ test("uncheckPrepStep sends { stepKey } in the DELETE body to the wire", async (
     `unexpected url: ${lastUrl}`,
   );
   // The body must reach the wire — this is the regression pin for DELETE bodies.
-  assert.equal(lastBody, JSON.stringify({ stepKey: "seasonings_dry#blend" }));
-  assert.equal(res.stepKey, "seasonings_dry#blend");
+  assert.equal(lastBody, JSON.stringify({ stepKey: "seasonings_dry#dish#11111111-1111-4111-8111-111111111111" }));
+  assert.equal(res.stepKey, "seasonings_dry#dish#11111111-1111-4111-8111-111111111111");
   assert.equal(res.checked, false);
 });
 

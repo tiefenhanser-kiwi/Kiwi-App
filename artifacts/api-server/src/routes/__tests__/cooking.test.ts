@@ -1096,6 +1096,170 @@ describe("prep-week completions — check / read / uncheck round-trip (B3)", () 
   });
 });
 
+// ── WS7-8b Block 2 (D-WS7-184) — demoted-step exclusion (BUG-013 / BUG-015) ──
+// The GET completions endpoint routes through the real loadPrepStepSet, so the
+// skipSuggested overlay read from structureJson is exercised end-to-end: a
+// demoted-and-unchecked step no longer blocks the meal from ever reaching
+// prepped (the forever-nag), while a real required step still gates it.
+
+const CARROT_ID = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+const CARROT_STEP_KEY = `produce#${CARROT_ID}`;
+
+// A loader producing TWO distinct produce steps for MEAL_ID_X (onion + carrot),
+// so one can be demoted while the other still gates the meal.
+function makeTwoProduceLoaderStub(planRevisionId: number) {
+  return (async (params: { planId: string }) => ({
+    input: {
+      planId: params.planId,
+      planName: "Two Produce Plan",
+      meals: [
+        {
+          mealId: MEAL_ID_X,
+          mealName: "Meal 1",
+          cuisine: null,
+          servingsOverride: null,
+          dishes: [
+            {
+              dishId: "dddddddd-dddd-4ddd-8ddd-000000000000",
+              dishName: "Dish",
+              baseServings: 4,
+              authoredBaseServings: 4,
+              stepTexts: [],
+              ingredients: [
+                {
+                  ingredientId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+                  ingredientName: "yellow onion",
+                  category: "Produce",
+                  quantity: 1,
+                  unit: "each",
+                  preparationNote: "diced",
+                },
+                {
+                  ingredientId: CARROT_ID,
+                  ingredientName: "carrot",
+                  category: "Produce",
+                  quantity: 2,
+                  unit: "each",
+                  preparationNote: "diced",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    planRevisionId,
+  })) as never;
+}
+
+async function spinTwoProduce(cache: ReturnType<typeof makeCacheStub>) {
+  return spinUp({
+    loadPrepWeekInput: makeTwoProduceLoaderStub(1),
+    runAICall: makeAICallStub({}),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prisma: cache.prisma as any,
+    subscriptionService: { can: async () => ({ allowed: true }) },
+  });
+}
+
+describe("prep-week completions — demoted-step exclusion (D-WS7-184)", () => {
+  it("a demoted-and-unchecked step is excluded; checking the real required step reaches prepped", async () => {
+    const cache = completionHarness();
+    // structureJson demotes the ONION step (skipSuggested); the carrot step is
+    // kept (no flag). This is the persisted narration artifact loadPrepStepSet
+    // overlays onto the recomputed set.
+    cache.rows.set(PLAN_ID, {
+      id: "row-demoted",
+      planId: PLAN_ID,
+      structureJson: {
+        phases: [
+          {
+            phase: "produce",
+            steps: [
+              { stepKey: ONION_STEP_KEY, skipSuggested: true },
+              { stepKey: CARROT_STEP_KEY },
+            ],
+          },
+        ],
+      },
+    });
+    const harness = await spinTwoProduce(cache);
+    try {
+      const token = signToken(COMPLETION_OWNER);
+      const auth = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const read = async () =>
+        (await (
+          await fetch(completionUrl(harness.baseUrl), {
+            method: "GET",
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        ).json()) as { perMeal: Record<string, boolean>; derivedPrepStatus: string };
+
+      // Nothing checked: the demoted onion is EXCLUDED, but the kept carrot is
+      // still required and unchecked → meal not prepped (exclusion did not make
+      // it vacuously prepped).
+      const empty = await read();
+      assert.equal(empty.perMeal[MEAL_ID_X], false);
+      assert.equal(empty.derivedPrepStatus, "not_prepped");
+
+      // Check ONLY the carrot (its real required step). The onion is demoted, so
+      // it never needs a check — the meal reaches prepped. Without the exclusion
+      // the unchecked onion would nag forever (BUG-013 / BUG-015).
+      const checkRes = await fetch(completionUrl(harness.baseUrl), {
+        method: "PUT",
+        headers: auth,
+        body: JSON.stringify({ stepKey: CARROT_STEP_KEY }),
+      });
+      assert.equal(checkRes.status, 200);
+
+      const afterCheck = await read();
+      assert.equal(afterCheck.perMeal[MEAL_ID_X], true, "meal reaches prepped with the demoted step unchecked");
+      assert.equal(afterCheck.derivedPrepStatus, "prepped");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("with NO structure row, BOTH steps are required (degrade-to-KEEP)", async () => {
+    const cache = completionHarness(); // no structure row seeded
+    const harness = await spinTwoProduce(cache);
+    try {
+      const token = signToken(COMPLETION_OWNER);
+      const auth = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const read = async () =>
+        (await (
+          await fetch(completionUrl(harness.baseUrl), {
+            method: "GET",
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        ).json()) as { perMeal: Record<string, boolean>; derivedPrepStatus: string };
+
+      // Absence → nothing excluded → both onion + carrot required. Checking only
+      // the carrot leaves the onion required → still not prepped.
+      await fetch(completionUrl(harness.baseUrl), {
+        method: "PUT",
+        headers: auth,
+        body: JSON.stringify({ stepKey: CARROT_STEP_KEY }),
+      });
+      const afterCarrot = await read();
+      assert.equal(afterCarrot.perMeal[MEAL_ID_X], false, "onion still required when no structure demotes it");
+      assert.equal(afterCarrot.derivedPrepStatus, "not_prepped");
+
+      // Checking the onion too → both required steps checked → prepped.
+      await fetch(completionUrl(harness.baseUrl), {
+        method: "PUT",
+        headers: auth,
+        body: JSON.stringify({ stepKey: ONION_STEP_KEY }),
+      });
+      const afterBoth = await read();
+      assert.equal(afterBoth.perMeal[MEAL_ID_X], true);
+      assert.equal(afterBoth.derivedPrepStatus, "prepped");
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
 describe("prep-week completions — orphan-prune on regenerate (B3)", () => {
   it("regenerate prunes orphan keys but keeps still-valid ones", async () => {
     const cache = makeCacheStub();

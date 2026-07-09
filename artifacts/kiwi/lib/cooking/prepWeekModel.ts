@@ -139,10 +139,21 @@ export function buildPrepWeekModel(
   // skipSuggested-demoted ones (prepWeekAssembly.ts), so we recompute here from
   // steps where skipSuggested !== true. Same clamp the server used (1..240) so a
   // fully-demoted plan floors at 1 min rather than showing 0.
+  //
+  // WS7-8b Block 2 (D-WS7-184) — RENDER-OMIT: demoted (skipSuggested === true)
+  // steps are dropped from the rendered list entirely (not just zeroed in the
+  // minute total). This is the render half of the coupled omit + server-exclude
+  // change: once they're gone from `phase.steps`, PrepWeekScreen's "Done with
+  // phase" batch (phase.steps.map(st => st.stepKey)) naturally stops writing
+  // their keys, and the server (loadPrepStepSet) excludes them from the required-
+  // set so the meal can still reach isPrepped. The minute total is unchanged by
+  // the omit: the dropped steps are exactly the ones that already contributed 0
+  // to keptMinutes below.
   let keptMinutes = 0;
 
   const phases: PrepPhaseVM[] = result.phases.map((phase) => {
-    const steps: PrepStepVM[] = phase.steps.map((step) => {
+    const keptSteps = phase.steps.filter((step) => step.skipSuggested !== true);
+    const steps: PrepStepVM[] = keptSteps.map((step) => {
       const destinations = step.contributesToMealIds.map((mealId) =>
         composeDestination(mealId, lookup?.(mealId)),
       );
