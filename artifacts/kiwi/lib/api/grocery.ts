@@ -271,13 +271,19 @@ function normalizeCandidate(wire: LookupCandidateWire): GroceryItemCandidate {
  * GET /api/grocery-items/lookup?q=<query>
  * Returns lookup-first candidates with AI fallback. Errors throw — caller
  * (debounced effect in grocery-list/[id].tsx) catches and resets to [].
+ *
+ * BUG-027: accepts an optional AbortSignal. The prefix path is fast, but the
+ * zero-hit AI fallback (Haiku) can hang; the apiClient layer imposes no
+ * client-side timeout, so the caller wraps this with an AbortController +
+ * short timeout to convert an infinite spinner into a bounded abort.
  */
 export async function lookupGroceryItemCandidates(
   query: string,
+  opts: { signal?: AbortSignal } = {},
 ): Promise<LookupResponse> {
   const body = await apiClient(
     `/grocery-items/lookup?q=${encodeURIComponent(query)}`,
-    { schema: LookupResponseSchema },
+    { schema: LookupResponseSchema, signal: opts.signal },
   );
   return {
     source: body.source,

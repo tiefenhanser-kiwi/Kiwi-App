@@ -11,12 +11,13 @@ import * as SecureStore from "expo-secure-store";
 
 import {
   getGroceryList,
+  lookupGroceryItemCandidates,
   updateGroceryListStatus,
   updateGroceryListItem,
   deleteGroceryListItem,
   restoreGroceryListItem,
 } from "../grocery";
-import { ApiSchemaError } from "../errors";
+import { ApiNetworkError, ApiSchemaError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 
 const TOKEN_KEY = "kiwi_authToken";
@@ -71,11 +72,13 @@ let nextResponse: () => Response;
 let lastUrl: string | null;
 let lastMethod: string | null;
 let lastBody: Record<string, unknown> | null;
+let lastSignal: AbortSignal | null;
 
 beforeEach(() => {
   lastUrl = null;
   lastMethod = null;
   lastBody = null;
+  lastSignal = null;
   nextResponse = () => mockJson({ item: wireItem() });
   (globalThis as { fetch: typeof fetch }).fetch = (async (
     url: string,
@@ -86,6 +89,7 @@ beforeEach(() => {
     lastBody = init?.body
       ? (JSON.parse(String(init.body)) as Record<string, unknown>)
       : null;
+    lastSignal = init?.signal ?? null;
     return nextResponse();
   }) as unknown as typeof fetch;
   (
@@ -224,5 +228,55 @@ test("updateGroceryListItem rejects a malformed item response (schema guard)", a
   await assert.rejects(
     () => updateGroceryListItem("list-1", "item-1", { isChecked: true }),
     (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+// ── lookupGroceryItemCandidates — BUG-027 client-timeout/abort ────────────────
+// The add-item predictive search could spin forever because the debounced
+// effect never aborted a hung zero-hit AI fallback (apiClient imposes no
+// client-side timeout). The fix threads an AbortSignal so the screen can wrap
+// the call in an AbortController + short timeout; on abort the promise SETTLES
+// (rejects) so the effect's .finally clears candidatesLoading. These pin (1)
+// the signal reaches fetch and (2) an abort surfaces as a settled rejection.
+
+test("lookupGroceryItemCandidates forwards an AbortSignal to fetch (BUG-027)", async () => {
+  nextResponse = () => mockJson({ source: "lookup", candidates: [] });
+  const controller = new AbortController();
+  await lookupGroceryItemCandidates("tomato", { signal: controller.signal });
+  assert.equal(lastMethod, "GET");
+  assert.ok(
+    lastUrl?.includes("/grocery-items/lookup?q=tomato"),
+    `unexpected url: ${lastUrl}`,
+  );
+  assert.equal(lastSignal, controller.signal);
+});
+
+test("lookupGroceryItemCandidates surfaces a timeout-abort as a settled rejection (BUG-027)", async () => {
+  // A fetch that rejects with a real AbortError when the signal is already
+  // aborted — same shape RN/Node fetch produces when the client timeout fires.
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    _url: string,
+    init?: { signal?: AbortSignal },
+  ) => {
+    if (init?.signal?.aborted) {
+      const e = new Error("The operation was aborted.");
+      e.name = "AbortError";
+      throw e;
+    }
+    return mockJson({ source: "lookup", candidates: [] });
+  }) as unknown as typeof fetch;
+
+  const controller = new AbortController();
+  controller.abort();
+  // The promise must SETTLE (reject) rather than hang — that is what lets the
+  // effect's .catch/.finally clear the spinner. apiClient wraps the AbortError
+  // in ApiNetworkError with the AbortError as its cause.
+  await assert.rejects(
+    () => lookupGroceryItemCandidates("tomato", { signal: controller.signal }),
+    (err: unknown) => {
+      if (!(err instanceof ApiNetworkError)) return false;
+      const cause = (err as { cause?: unknown }).cause;
+      return cause instanceof Error && cause.name === "AbortError";
+    },
   );
 });

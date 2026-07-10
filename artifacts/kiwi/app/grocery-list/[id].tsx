@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { ClarifySheetView } from "@/components/ClarifySheetView";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { TypeaheadList } from "@/components/TypeaheadList";
@@ -44,6 +44,14 @@ const SECTION_LABELS: Record<GroceryListItem["sectionKey"], string> =
   );
 
 const UNDO_TIMEOUT_MS = 5000;
+
+// BUG-027 — client-side ceiling for the add-item predictive-search lookup.
+// The apiClient layer imposes no timeout of its own, and the zero-hit AI
+// fallback can hang; 4s is short enough to feel responsive for a typeahead
+// (vs. the 90s used for a plan-activate) yet long enough not to false-abort a
+// healthy fallback. On timeout the AbortController fires and the search
+// settles, clearing the spinner.
+const LOOKUP_CLIENT_TIMEOUT_MS = 4000;
 
 type RemovedItem = {
   item: GroceryListItem;
@@ -138,6 +146,16 @@ export default function GroceryListDetail() {
   // 6c-6-C — fire the lookup when the debounced value changes. The
   // cancelled flag short-circuits stale responses if the user keeps
   // typing past a slow request.
+  //
+  // BUG-027: the `cancelled` boolean only ignored stale responses — it never
+  // aborted the in-flight fetch, so a hung zero-hit AI fallback (Haiku, no
+  // client-side timeout in the apiClient layer) never settled and the spinner
+  // spun forever. We now wrap the call in an AbortController + short timeout
+  // (predictive-search interaction, so seconds not the 90s of a plan-activate)
+  // and thread the signal through. A timeout-abort surfaces as an
+  // ApiNetworkError in .catch → .finally clears candidatesLoading, converting
+  // the infinite spin into a bounded failure. The raw-text Extras fallback
+  // (press Enter/Add) still covers the timed-out case.
   useEffect(() => {
     if (!debouncedQuery) {
       setCandidates([]);
@@ -145,14 +163,20 @@ export default function GroceryListDetail() {
       return;
     }
     let cancelled = false;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      LOOKUP_CLIENT_TIMEOUT_MS,
+    );
     setCandidatesLoading(true);
-    lookupGroceryItemCandidates(debouncedQuery)
+    lookupGroceryItemCandidates(debouncedQuery, { signal: controller.signal })
       .then((res) => {
         if (!cancelled) setCandidates(res.candidates);
       })
       .catch((err) => {
-        // Network/AI failures degrade silently — the user can still
-        // press Enter to submit the raw text via the Extras fallback.
+        // Network/AI failures (incl. our timeout-abort) degrade silently —
+        // the user can still press Enter to submit the raw text via the
+        // Extras fallback.
         console.warn("[grocery-list] lookup failed", err);
         if (!cancelled) setCandidates([]);
       })
@@ -161,6 +185,11 @@ export default function GroceryListDetail() {
       });
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
+      // Abort the in-flight request on unmount / re-query so a slow fallback
+      // can't leak past this effect (the settled promise's guards already
+      // no-op via `cancelled`).
+      controller.abort();
     };
   }, [debouncedQuery]);
 
@@ -613,6 +642,9 @@ export default function GroceryListDetail() {
   const closeClarify = () => {
     // Exit affordance — leave the flow; all partial progress is already
     // persisted (resolved + leave-as-is permanent; skipped stays pending).
+    // BUG-026: drop the keyboard on the way out (mirrors DishChooserSheet's
+    // handleClose) so the soft keyboard doesn't linger over the list.
+    Keyboard.dismiss();
     setClarifyQueue([]);
     setClarifyIndex(0);
     setClarifyOtherText("");
@@ -1002,105 +1034,24 @@ export default function GroceryListDetail() {
       )}
 
       {/* WS7-7-A B5 — clarify-any-time sheet. Auto-advances through unresolved
-          items; per item: resolve (chip / Other), skip, leave-as-is, exit. */}
-      <Modal
+          items; per item: resolve (chip / Other), skip, leave-as-is, exit.
+          WS7-8b Block C (BUG-026): extracted to ClarifySheetView so the
+          keyboard-avoiding + scrollable container is unit-testable; all state
+          + writes stay here. */}
+      <ClarifySheetView
         visible={clarifyOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={closeClarify}
-      >
-        <View style={s.clarifyBackdrop}>
-          <View style={s.clarifySheet}>
-            {currentClarifyItem && (
-              <>
-                <View style={s.clarifyHeaderRow}>
-                  {/* Exit affordance — back chevron leaves the flow; progress
-                      is already persisted. */}
-                  <Pressable onPress={closeClarify} hitSlop={8}>
-                    <Feather
-                      name="chevron-left"
-                      size={24}
-                      color={Colors.neutral[700]}
-                    />
-                  </Pressable>
-                  <Text style={s.clarifyProgress}>
-                    {clarifyIndex + 1} of {clarifyQueue.length}
-                  </Text>
-                  <Pressable onPress={closeClarify} hitSlop={8}>
-                    <Text style={s.clarifyDone}>Done</Text>
-                  </Pressable>
-                </View>
-
-                <Text style={s.clarifyTitle}>Which one did you mean?</Text>
-                <Text style={s.clarifyItemName}>{currentClarifyItem.name}</Text>
-
-                <View style={s.clarifyChips}>
-                  {(currentClarifyItem.ambiguityOptions ?? []).map((opt) => (
-                    <Pressable
-                      key={opt}
-                      onPress={() => resolveCurrent(opt)}
-                      style={({ pressed }) => [
-                        s.clarifyChip,
-                        pressed && { opacity: 0.7 },
-                      ]}
-                    >
-                      <Text style={s.clarifyChipText}>{opt}</Text>
-                    </Pressable>
-                  ))}
-                  <Pressable
-                    onPress={() => setClarifyOtherOpen((v) => !v)}
-                    style={({ pressed }) => [
-                      s.clarifyChip,
-                      clarifyOtherOpen && s.clarifyChipActive,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <Text style={s.clarifyChipText}>Other…</Text>
-                  </Pressable>
-                </View>
-
-                {clarifyOtherOpen && (
-                  <View style={s.clarifyOtherRow}>
-                    <TextInput
-                      value={clarifyOtherText}
-                      onChangeText={setClarifyOtherText}
-                      placeholder="Type what you want"
-                      placeholderTextColor={Colors.neutral[600]}
-                      style={s.clarifyOtherInput}
-                      autoFocus
-                      returnKeyType="done"
-                      onSubmitEditing={() => resolveCurrent(clarifyOtherText)}
-                    />
-                    <Button
-                      label="Confirm"
-                      variant="primary"
-                      onPress={() => resolveCurrent(clarifyOtherText)}
-                      disabled={clarifyOtherText.trim().length === 0}
-                    />
-                  </View>
-                )}
-
-                <View style={s.clarifyActions}>
-                  <Pressable
-                    onPress={skipCurrent}
-                    hitSlop={6}
-                    style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-                  >
-                    <Text style={s.clarifySecondaryAction}>Skip</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={leaveAsIsCurrent}
-                    hitSlop={6}
-                    style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-                  >
-                    <Text style={s.clarifySecondaryAction}>Leave as is</Text>
-                  </Pressable>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
+        item={currentClarifyItem}
+        index={clarifyIndex}
+        total={clarifyQueue.length}
+        otherOpen={clarifyOtherOpen}
+        onToggleOther={() => setClarifyOtherOpen((v) => !v)}
+        otherText={clarifyOtherText}
+        onChangeOtherText={setClarifyOtherText}
+        onResolve={resolveCurrent}
+        onSkip={skipCurrent}
+        onLeaveAsIs={leaveAsIsCurrent}
+        onClose={closeClarify}
+      />
     </View>
   );
 }
@@ -1391,95 +1342,8 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[600],
     marginTop: 4,
   },
-  // WS7-7-A B5 — clarify-any-time sheet.
-  clarifyBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "flex-end",
-  },
-  clarifySheet: {
-    backgroundColor: Colors.neutral[0],
-    borderTopLeftRadius: Radius.lg,
-    borderTopRightRadius: Radius.lg,
-    padding: Spacing[4],
-    paddingBottom: Spacing[4] + 16,
-    gap: Spacing[3],
-  },
-  clarifyHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  clarifyProgress: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
-    fontFamily: Typography.face.sans[500],
-    fontWeight: Typography.fontWeight.medium,
-  },
-  clarifyDone: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.sage[700],
-    fontFamily: Typography.face.sans[600],
-    fontWeight: Typography.fontWeight.semibold,
-  },
-  clarifyTitle: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.neutral[900],
-    fontFamily: Typography.face.serif[600],
-    fontWeight: Typography.fontWeight.semibold,
-  },
-  clarifyItemName: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.serif[400],
-  },
-  clarifyChips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing[2],
-  },
-  clarifyChip: {
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Palette.border.default,
-    backgroundColor: Palette.background.card,
-  },
-  clarifyChipActive: {
-    borderColor: Colors.sage[700],
-    backgroundColor: Colors.sage[100],
-  },
-  clarifyChipText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[800],
-    fontFamily: Typography.face.sans[500],
-    fontWeight: Typography.fontWeight.medium,
-  },
-  clarifyOtherRow: {
-    gap: Spacing[2],
-  },
-  clarifyOtherInput: {
-    borderWidth: 1,
-    borderColor: Palette.border.default,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    fontSize: Typography.fontSize.md,
-    color: Colors.neutral[900],
-    fontFamily: Typography.face.sans[400],
-  },
-  clarifyActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: Spacing[1],
-  },
-  clarifySecondaryAction: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.neutral[600],
-    fontFamily: Typography.face.sans[500],
-    fontWeight: Typography.fontWeight.medium,
-  },
+  // WS7-8b Block C (BUG-026): the clarify-sheet styles moved with the JSX into
+  // components/ClarifySheetView.tsx.
   viewPlanLink: {
     flexDirection: "row",
     alignItems: "center",
