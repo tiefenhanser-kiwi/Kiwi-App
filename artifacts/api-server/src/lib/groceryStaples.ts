@@ -31,3 +31,58 @@ export const UNIVERSAL_STAPLES = [
 ] as const;
 
 export type UniversalStaple = (typeof UNIVERSAL_STAPLES)[number];
+
+// WS7-8b B1 (BUG-025-5) — variant→base staple normalization.
+// The staple flag is an exact-string membership test against
+// UNIVERSAL_STAPLE_KEYS (groceryList.ts), so common named variants
+// ("kosher salt", "cracked black pepper", "extra-virgin olive oil") miss the
+// base staple and leak onto the buy-list instead of rendering greyed
+// (PRD §2.2 + §12.7 [LOCKED] — a universal staple must render greyed).
+// Map the known variants of the three families the staples list supports
+// (salt / black pepper / olive oil) to their base BEFORE the membership check.
+//
+// EXACT-STRING keys (not substring): a seasoning that merely CONTAINS a staple
+// word — "garlic salt", "celery salt", "onion salt", "seasoned salt",
+// "salted butter", "bell pepper", "white pepper", "red pepper flakes" — is
+// absent from this map and therefore never swept in. This deliberately does
+// NOT map bare "flour"→"all-purpose flour" (bread/almond flour) or bare
+// "pepper" (bell/white/chili), to avoid false positives.
+const STAPLE_VARIANT_TO_BASE: Record<string, string> = {
+  // salt
+  "kosher salt": "salt",
+  "sea salt": "salt",
+  "table salt": "salt",
+  "coarse salt": "salt",
+  "coarse sea salt": "salt",
+  "flaky salt": "salt",
+  "flaky sea salt": "salt",
+  "fine salt": "salt",
+  "fine sea salt": "salt",
+  "kosher sea salt": "salt",
+  // black pepper
+  "cracked black pepper": "black pepper",
+  "ground black pepper": "black pepper",
+  "freshly ground black pepper": "black pepper",
+  "fresh ground black pepper": "black pepper",
+  "cracked pepper": "black pepper",
+  "ground pepper": "black pepper",
+  "black peppercorns": "black pepper",
+  // olive oil
+  "extra-virgin olive oil": "olive oil",
+  "extra virgin olive oil": "olive oil",
+  "virgin olive oil": "olive oil",
+  "light olive oil": "olive oil",
+  evoo: "olive oil",
+};
+
+/**
+ * Map a normalized ingredient name to its base staple when it is a known
+ * variant; otherwise return it unchanged. Input MUST already be
+ * normalizeIngredientName()-normalized (lowercase, collapsed whitespace,
+ * leading-article stripped) — the same shape UNIVERSAL_STAPLE_KEYS holds.
+ * Pure lookup: does NOT mutate or imply any change to the ingredient's stored
+ * canonicalName / displayName (the user still sees "Kosher salt").
+ */
+export function baseStapleName(normalized: string): string {
+  return STAPLE_VARIANT_TO_BASE[normalized] ?? normalized;
+}

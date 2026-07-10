@@ -1298,3 +1298,297 @@ describe("consolidatePlanIngredients — prep-note merging + dish title", () => 
     assert.equal(onions[0].preparationNote, "diced");
   });
 });
+
+// ── WS7-8b B1 (BUG-025-2) — fractional round-up per PRD §2.8 [LOCKED] ────────
+//
+// Consolidation multiplies scaled quantities into decimals; the shopper must
+// never see a fractional buy-count. Discrete/unknown units ceil to a whole
+// unit; measured (volume/weight) units round the fractional remainder UP to
+// the nearest sensible kitchen fraction on the ¼/⅓/½/⅔/¾ ladder.
+
+describe("consolidatePlanIngredients — BUG-025-2 quantity round-up", () => {
+  const oneIng = (
+    quantity: number,
+    unit: string,
+    servingsDefault = 4,
+    servingsOverride: number | null = null,
+  ) => ({
+    items: [
+      {
+        id: "i1",
+        servingsOverride,
+        dishes: [
+          {
+            id: "d1",
+            title: "Dish",
+            servingsDefault,
+            ingredients: [
+              { name: "Thing", quantity, unit, category: "Pantry" },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  const qtyOf = async (
+    quantity: number,
+    unit: string,
+    servingsDefault = 4,
+    servingsOverride: number | null = null,
+  ) => {
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma(oneIng(quantity, unit, servingsDefault, servingsOverride)),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    return out[0].quantity;
+  };
+
+  it("discrete count ceils to a whole unit (0.75 → 1, 5.5 → 6, 3.75 → 4)", async () => {
+    assert.equal(await qtyOf(0.75, "each"), 1);
+    assert.equal(await qtyOf(5.5, "each"), 6);
+    assert.equal(await qtyOf(3.75, "clove"), 4);
+  });
+
+  it("discrete ceil applies to the multiply→decimal path (3 cloves × 1.25 = 3.75 → 4)", async () => {
+    // servingsOverride 5 over a default of 4 → multiplier 1.25 → 3 × 1.25 = 3.75.
+    assert.equal(await qtyOf(3, "clove", 4, 5), 4);
+  });
+
+  it("unknown / empty units are treated as discrete and ceil to whole", async () => {
+    assert.equal(await qtyOf(2.1, "sprig"), 3); // sprig not measured
+    assert.equal(await qtyOf(1.2, ""), 2); // empty unit
+  });
+
+  it("measured units round UP the fraction on the ¼/⅓/½/⅔/¾ ladder (not just to ½)", async () => {
+    assert.equal(await qtyOf(1.1, "cup"), 1.25); // 0.1 → ¼, NOT ½
+    assert.equal(await qtyOf(1.43, "cup"), 1.5); // 0.43 → ½
+    assert.equal(await qtyOf(0.2, "cup"), 0.25); // sub-whole → ¼
+    // 1.3 → ⅓ (0.3333…), the ladder step above 0.3 and below ½.
+    assert.ok(Math.abs((await qtyOf(1.3, "cup")) - (1 + 1 / 3)) < 1e-9);
+    // 1.7 → ¾ (0.75), the ladder step above ⅔ (0.6667).
+    assert.equal(await qtyOf(1.7, "cup"), 1.75);
+  });
+
+  it("whole-number inputs pass through unchanged (measured and discrete)", async () => {
+    assert.equal(await qtyOf(2, "cup"), 2);
+    assert.equal(await qtyOf(3, "each"), 3);
+    assert.equal(await qtyOf(1, "lb"), 1);
+  });
+
+  it("a value already on the ladder is not inflated", async () => {
+    assert.equal(await qtyOf(2.5, "cup"), 2.5); // exactly ½
+    assert.equal(await qtyOf(1.25, "cup"), 1.25); // exactly ¼
+  });
+});
+
+// ── WS7-8b B1 (BUG-025-3) — recurring-item purchase representation (§12.8) ────
+
+describe("consolidatePlanIngredients — BUG-025-3 recurring purchase default", () => {
+  it("an unmatched recurring item WITH a purchase default renders the default unit (bananas → 1 bunch)", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma({ items: [], recurringItems: ["bananas"] }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const bananas = findItem(out, "bananas")!;
+    assert.ok(bananas, "recurring bananas appended");
+    assert.equal(bananas.isRecurringItem, true);
+    assert.equal(bananas.unit, "bunch");
+    assert.equal(bananas.quantity, 1);
+    assert.equal(bananas.purchaseUnit, "bunch");
+    assert.equal(bananas.purchaseQuantity, 1);
+    assert.equal(bananas.purchaseDisplay, "1 bunch");
+  });
+
+  it("a recurring produce item pulls its own default (garlic → 1 head)", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma({ items: [], recurringItems: ["garlic"] }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const garlic = findItem(out, "garlic")!;
+    assert.equal(garlic.unit, "head");
+    assert.equal(garlic.purchaseDisplay, "1 head");
+  });
+
+  it("an unmatched recurring item WITHOUT a purchase default falls back to each/1/null", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma({ items: [], recurringItems: ["paper towels"] }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const towels = findItem(out, "paper towels")!;
+    assert.equal(towels.unit, "each");
+    assert.equal(towels.quantity, 1);
+    assert.equal(towels.purchaseUnit, null);
+    assert.equal(towels.purchaseQuantity, null);
+    assert.equal(towels.purchaseDisplay, null);
+  });
+
+  it("a recurring name matching a real plan line does NOT get a synthetic entry (match-flag path unchanged)", async () => {
+    // "garlic" is a purchase-default item, but here it already appears from a
+    // dish — the match path must flag the existing line, NOT append a synthetic
+    // bunch/head entry. Guards the no-add invariant for 025-3.
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma({
+        items: [
+          {
+            id: "i1",
+            dishes: [
+              {
+                id: "d1",
+                title: "Aglio e Olio",
+                servingsDefault: 4,
+                ingredients: [{ name: "Garlic", quantity: 4, unit: "clove", category: "Produce" }],
+              },
+            ],
+          },
+        ],
+        recurringItems: ["garlic"],
+      }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const garlicLines = out.filter((i) => i.canonicalName === "garlic");
+    assert.equal(garlicLines.length, 1, "no synthetic duplicate appended");
+    assert.equal(garlicLines[0].isRecurringItem, true);
+    assert.equal(garlicLines[0].unit, "clove"); // real line's unit, not overwritten
+    assert.equal(garlicLines[0].quantity, 4);
+  });
+});
+
+// ── WS7-8b B1 (BUG-025-5) — staple variant → base normalization (§2.2/§12.7) ──
+
+describe("consolidatePlanIngredients — BUG-025-5 staple variants", () => {
+  const stapleFlag = async (canonical: string) => {
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma({
+        items: [
+          {
+            id: "i1",
+            dishes: [
+              {
+                id: "d1",
+                title: "Dish",
+                servingsDefault: 4,
+                ingredients: [
+                  {
+                    name: canonical,
+                    canonicalNameOverride: canonical,
+                    quantity: 1,
+                    unit: "tsp",
+                    category: "Pantry",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    return out[0].isUniversalStaple;
+  };
+
+  it("salt / pepper / oil variants match the base staple (render greyed)", async () => {
+    for (const v of [
+      "kosher salt",
+      "sea salt",
+      "table salt",
+      "coarse sea salt",
+      "flaky salt",
+      "cracked black pepper",
+      "ground black pepper",
+      "freshly ground black pepper",
+      "extra-virgin olive oil",
+      "extra virgin olive oil",
+      "light olive oil",
+    ]) {
+      assert.equal(await stapleFlag(v), true, `${v} should be flagged a universal staple`);
+    }
+  });
+
+  it("must NOT sweep in seasonings/near-misses that merely contain a staple word", async () => {
+    for (const v of [
+      "salted butter", // contains "salt" — is not table salt
+      "garlic salt", // seasoning
+      "celery salt", // seasoning
+      "onion salt", // seasoning
+      "seasoned salt", // seasoning
+      "bell pepper", // produce
+      "white pepper", // distinct spice
+      "red pepper flakes", // distinct spice
+    ]) {
+      assert.equal(await stapleFlag(v), false, `${v} must NOT be treated as a universal staple`);
+    }
+  });
+
+  it("the plain base staples still match (no regression from the variant map)", async () => {
+    assert.equal(await stapleFlag("salt"), true);
+    assert.equal(await stapleFlag("black pepper"), true);
+    assert.equal(await stapleFlag("olive oil"), true);
+  });
+});
+
+// ── WS7-8b B1 — no-add / no-drop invariant across all three fixes ────────────
+
+describe("consolidatePlanIngredients — B1 no-add/no-drop invariant", () => {
+  it("item set + consolidation grouping unchanged; only quantity/unit/staple-flag differ", async () => {
+    // A representative plan that exercises all three fixes at once:
+    //   - fractional decimals (5.5 lemons discrete; 1.43 cup flour measured)
+    //   - a staple variant (kosher salt) that must grey, not buy
+    //   - a recurring item with a purchase default (bananas → bunch)
+    // The consolidator must emit exactly one line per (canonical, unit) bucket
+    // plus the one appended recurring line — no item added or dropped.
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma({
+        items: [
+          {
+            id: "i1",
+            dishes: [
+              {
+                id: "d1",
+                title: "Lemon Bars",
+                servingsDefault: 4,
+                ingredients: [
+                  { name: "Lemon", quantity: 5.5, unit: "each", category: "Produce" },
+                  { name: "Flour", quantity: 1.43, unit: "cup", category: "Pantry" },
+                  {
+                    name: "Kosher salt",
+                    canonicalNameOverride: "kosher salt",
+                    quantity: 0.5,
+                    unit: "tsp",
+                    category: "Pantry",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        recurringItems: ["bananas"],
+      }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+
+    // Exactly the four expected buckets — nothing added, nothing dropped.
+    const bucketKeys = out.map((i) => `${i.canonicalName}|${i.unit}`).sort();
+    assert.deepEqual(bucketKeys, [
+      "bananas|bunch", // recurring, purchase-default unit applied
+      "flour|cup",
+      "kosher salt|tsp", // canonical NAME preserved (rendered greyed, not renamed)
+      "lemon|each",
+    ]);
+
+    // Quantities rounded up; staple flagged; canonical/display names untouched.
+    assert.equal(findItem(out, "lemon")!.quantity, 6); // 5.5 → 6 discrete
+    assert.ok(Math.abs(findItem(out, "flour")!.quantity - 1.5) < 1e-9); // 1.43 → 1½
+    const salt = findItem(out, "kosher salt")!;
+    assert.equal(salt.isUniversalStaple, true); // greyed, not buyable
+    assert.equal(salt.canonicalName, "kosher salt"); // NOT mutated to "salt"
+    assert.equal(salt.displayName, "Kosher salt"); // user still sees the variant
+  });
+});

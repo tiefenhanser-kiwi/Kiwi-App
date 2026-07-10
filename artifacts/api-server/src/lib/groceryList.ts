@@ -10,7 +10,8 @@ import { createHash } from "node:crypto";
 import type { PrismaClient, StoreSection } from "@prisma/client";
 
 import { normalizeIngredientName } from "./groceryNormalization";
-import { UNIVERSAL_STAPLES } from "./groceryStaples";
+import { baseStapleName, UNIVERSAL_STAPLES } from "./groceryStaples";
+import { lookupPurchaseDefault } from "./ingredientPurchaseDefaults";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
 // Tracked as (mealId, dishId) PAIRS (not two independent arrays) so per-row
@@ -116,6 +117,59 @@ const UNIVERSAL_STAPLE_KEYS = new Set(
 // the bucket survive any future drift.
 function bucketKeyOf(canonical: string, unit: string): string {
   return `${normalizeIngredientName(canonical)}|${unit}`;
+}
+
+// WS7-8b B1 (BUG-025-2) — purchase-quantity round-up per PRD §2.8 [LOCKED].
+// Consolidation multiplies scaled quantities into decimals (e.g. 3 cloves ×
+// 1.25 = 3.75); the shopper must never see a fractional buy-count.
+//   - Discrete / unknown / empty units → round UP to a whole unit
+//     (3.75 cloves → 4). You can't buy 0.75 of a lemon.
+//   - Measured units (volume/weight) → round the fractional remainder UP to
+//     the nearest sensible kitchen fraction on the ¼/⅓/½/⅔/¾ ladder
+//     (1.1 cups → 1¼, 1.43 cups → 1½). Preserves the measured type; never
+//     inflates a clean value.
+// Whole-number inputs pass through unchanged (epsilon-guarded against the
+// float drift that consolidation multiplication introduces).
+const QTY_EPSILON = 1e-9;
+
+// Volume/weight units that follow the sensible-fraction rule. Everything not
+// listed (each, clove, slice, can, head, bunch, …, empty, unknown) is treated
+// as a discrete whole-unit count. Kept lowercase; matched case-insensitively.
+const MEASURED_UNITS = new Set<string>([
+  "cup", "cups",
+  "tbsp", "tablespoon", "tablespoons",
+  "tsp", "teaspoon", "teaspoons",
+  "oz", "ounce", "ounces", "fl oz", "fluid ounce", "fluid ounces",
+  "lb", "lbs", "pound", "pounds",
+  "g", "gram", "grams",
+  "kg", "kilogram", "kilograms",
+  "ml", "milliliter", "milliliters",
+  "l", "liter", "liters",
+  "pinch", "pinches",
+  "quart", "quarts",
+  "gallon", "gallons",
+]);
+
+// Sensible kitchen fractions, ascending, with the 0 and 1 ladder ends.
+const FRACTION_LADDER = [0, 1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4, 1];
+
+function roundPurchaseQuantity(quantity: number, unit: string): number {
+  // Leave non-positive / NaN untouched — nothing sane to round.
+  if (!(quantity > 0)) return quantity;
+
+  if (!MEASURED_UNITS.has(unit.trim().toLowerCase())) {
+    // Discrete / unknown / empty → whole units.
+    return Math.ceil(quantity - QTY_EPSILON);
+  }
+
+  // Measured → round the fractional remainder UP to the nearest ladder step.
+  const whole = Math.floor(quantity + QTY_EPSILON);
+  const frac = quantity - whole;
+  if (frac <= QTY_EPSILON) return whole;
+  for (const step of FRACTION_LADDER) {
+    if (frac <= step + QTY_EPSILON) return whole + step;
+  }
+  return whole + 1; // unreachable (ladder ends at 1) — defensive.
 }
 
 const MAX_SOURCE_DISH_TITLE_LEN = 60;
@@ -364,7 +418,9 @@ export async function consolidatePlanIngredients(
             quantity: 0,
             unit,
             sectionKey: sectionForCategory(ing?.category),
-            isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(normalizeIngredientName(canonical)),
+            isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(
+              baseStapleName(normalizeIngredientName(canonical)),
+            ),
             isUserPantryStaple: false, // filled below from user.pantryStaples
             isRecurringItem: false, // filled below from preferences.recurringGroceryItems
             sources: [],
@@ -460,25 +516,42 @@ export async function consolidatePlanIngredients(
       existing.isRecurringItem = true;
       continue;
     }
+    // WS7-8b B1 (BUG-025-3) — give the synthetic recurring entry a proper
+    // purchasable representation per PRD §12.8 [LOCKED]. Consult the shared
+    // purchase-pack defaults (bananas → "1 bunch", garlic → "1 head"); when
+    // the item isn't in the table, fall back to the prior each/1/null shape
+    // so genuinely unknown recurring items still render sanely. The bucket
+    // key stays ("each") above — this only changes the entry's unit/purchase
+    // representation, not grouping.
+    const def = lookupPurchaseDefault(norm);
     const synthetic: ConsolidatedItem = {
       ingredientId: null,
       canonicalName: norm,
       displayName: raw,
-      quantity: 1,
-      unit: "each",
+      quantity: def ? def.purchaseQuantity : 1,
+      unit: def ? def.purchaseUnit : "each",
       sectionKey: "extras",
-      isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(norm),
+      isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(baseStapleName(norm)),
       isUserPantryStaple: userPantryKeys.has(norm),
       isRecurringItem: true,
       sources: [],
-      purchaseUnit: null,
-      purchaseQuantity: null,
-      purchaseDisplay: null,
+      purchaseUnit: def ? def.purchaseUnit : null,
+      purchaseQuantity: def ? def.purchaseQuantity : null,
+      purchaseDisplay: def ? def.purchaseDisplay : null,
       preparationNote: null,
       sourceDishTitle: null,
     };
     buckets.set(key, synthetic);
     order.push(key);
+  }
+
+  // WS7-8b B1 (BUG-025-2) — final quantity round-up sweep. Runs AFTER all
+  // buckets (incl. synthetic recurring entries) are built, so every consolidated
+  // total is rounded once at the source. This changes only displayed quantity,
+  // never the item set or grouping (invariant). Recurring entries (whole
+  // quantities) are unaffected.
+  for (const entry of buckets.values()) {
+    entry.quantity = roundPurchaseQuantity(entry.quantity, entry.unit);
   }
 
   return order.map((k) => buckets.get(k)!).filter((x): x is ConsolidatedItem => !!x);
