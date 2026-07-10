@@ -26,6 +26,7 @@ import {
   type GroceryItemCandidate,
 } from "@/lib/api/grocery";
 import { GROCERY_SECTIONS } from "@/lib/domain";
+import { formatNeedGlyph } from "@/lib/format/quantity";
 import { parseQuantity } from "@/lib/quantity";
 import { getGroceryListById } from "@/lib/stubs";
 import {
@@ -1098,9 +1099,21 @@ function GroceryRow({
 
   // Display fallback chain: structured → legacy quantity string. Both
   // can be empty (e.g., user clears the qty during edit) — show empty.
+  //
+  // WS7-8b fraction-glyph block — render the amount with a vulgar-fraction
+  // glyph (1.333… → "1⅓", 1.125 → "1⅛") for the DISPLAY only. quantityAmount
+  // stays raw: it seeds the inline editor and is parsed on persist. A
+  // non-numeric or off-glyph amount passes through unchanged (raw string).
+  const displayAmt =
+    item.quantityAmount !== undefined
+      ? (() => {
+          const n = parseQuantity(item.quantityAmount);
+          return n !== null ? formatNeedGlyph(n) : item.quantityAmount;
+        })()
+      : undefined;
   const displayQty =
-    item.quantityAmount !== undefined || item.quantityUnit !== undefined
-      ? [item.quantityAmount, item.quantityUnit].filter(Boolean).join(" ")
+    displayAmt !== undefined || item.quantityUnit !== undefined
+      ? [displayAmt, item.quantityUnit].filter(Boolean).join(" ")
       : item.quantity;
 
   // parseQuantity returns null for invalid; empty input is "valid" (
