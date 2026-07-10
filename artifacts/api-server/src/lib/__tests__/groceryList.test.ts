@@ -1361,14 +1361,22 @@ describe("consolidatePlanIngredients — BUG-025-2 quantity round-up", () => {
     assert.equal(await qtyOf(1.2, ""), 2); // empty unit
   });
 
-  it("measured units round UP the fraction on the ¼/⅓/½/⅔/¾ ladder (not just to ½)", async () => {
-    assert.equal(await qtyOf(1.1, "cup"), 1.25); // 0.1 → ¼, NOT ½
-    assert.equal(await qtyOf(1.43, "cup"), 1.5); // 0.43 → ½
-    assert.equal(await qtyOf(0.2, "cup"), 0.25); // sub-whole → ¼
-    // 1.3 → ⅓ (0.3333…), the ladder step above 0.3 and below ½.
+  it("measured need quantities round UP on the ⅛ ladder — fine-grained, NOT toward a purchase size", async () => {
+    assert.equal(await qtyOf(1.1, "cup"), 1.125); // 0.1 → ⅛, NOT ¼ and NOT ½
+    assert.equal(await qtyOf(1.43, "cup"), 1.5); // 0.43 → ½ (⅜=0.375 < 0.43)
+    assert.equal(await qtyOf(0.2, "cup"), 0.25); // 0.2 → ¼ (⅛=0.125 < 0.2)
+    // 1.3 → ⅓ (0.3333…): the ladder keeps clean thirds where a value rounds up
+    // to land essentially on them (0.3 is below ⅓, above ¼).
     assert.ok(Math.abs((await qtyOf(1.3, "cup")) - (1 + 1 / 3)) < 1e-9);
     // 1.7 → ¾ (0.75), the ladder step above ⅔ (0.6667).
     assert.equal(await qtyOf(1.7, "cup"), 1.75);
+  });
+
+  it("round-UP holds where clean thirds sit between eighths — a value just above ⅓/⅔ never rounds DOWN to them", async () => {
+    // 0.34 is just above ⅓ (0.3333) → must round UP to ⅜ (0.375), not down to ⅓.
+    assert.equal(await qtyOf(1.34, "cup"), 1 + 3 / 8);
+    // 0.68 is just above ⅔ (0.6667) → must round UP to ¾ (0.75), not down to ⅔.
+    assert.equal(await qtyOf(1.68, "cup"), 1.75);
   });
 
   it("whole-number inputs pass through unchanged (measured and discrete)", async () => {
@@ -1377,9 +1385,11 @@ describe("consolidatePlanIngredients — BUG-025-2 quantity round-up", () => {
     assert.equal(await qtyOf(1, "lb"), 1);
   });
 
-  it("a value already on the ladder is not inflated", async () => {
+  it("a value already on the ⅛ ladder is not inflated", async () => {
     assert.equal(await qtyOf(2.5, "cup"), 2.5); // exactly ½
     assert.equal(await qtyOf(1.25, "cup"), 1.25); // exactly ¼
+    assert.equal(await qtyOf(1.125, "cup"), 1.125); // exactly ⅛
+    assert.ok(Math.abs((await qtyOf(1 + 1 / 3, "cup")) - (1 + 1 / 3)) < 1e-9); // exactly ⅓
   });
 });
 

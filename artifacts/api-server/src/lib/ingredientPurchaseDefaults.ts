@@ -38,9 +38,13 @@ export const INGREDIENT_PURCHASE_DEFAULTS: Record<string, IngredientPurchase> = 
   cucumber: { purchaseUnit: "each", purchaseQuantity: 1, purchaseDisplay: "1 cucumber" },
   lemon: { purchaseUnit: "each", purchaseQuantity: 2, purchaseDisplay: "2 lemons" },
   // WS7-8b B1 (BUG-025-3) — common recurring produce sold by the bunch, so a
-  // recurring "bananas" reminder renders "1 bunch" instead of "each".
+  // recurring "bananas" reminder renders "1 bunch" instead of "each". Spinach
+  // is intentionally omitted — bagged-vs-bunched is genuinely ambiguous.
   banana: { purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch" },
   bananas: { purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch" },
+  scallions: { purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch" },
+  "green onions": { purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch" },
+  kale: { purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch" },
   lime: { purchaseUnit: "each", purchaseQuantity: 2, purchaseDisplay: "2 limes" },
   "bean sprouts": { purchaseUnit: "bag", purchaseQuantity: 1, purchaseDisplay: "1 bag (8 oz)" },
   "bell peppers": { purchaseUnit: "each", purchaseQuantity: 3, purchaseDisplay: "3 peppers" },

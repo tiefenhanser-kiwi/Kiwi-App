@@ -119,15 +119,24 @@ function bucketKeyOf(canonical: string, unit: string): string {
   return `${normalizeIngredientName(canonical)}|${unit}`;
 }
 
-// WS7-8b B1 (BUG-025-2) — purchase-quantity round-up per PRD §2.8 [LOCKED].
-// Consolidation multiplies scaled quantities into decimals (e.g. 3 cloves ×
-// 1.25 = 3.75); the shopper must never see a fractional buy-count.
+// WS7-8b B1 (BUG-025-2, amended) — NEED-quantity round-up per PRD §2.8 [LOCKED].
+//
+// A grocery line is two parts: a PURCHASE size (the buyable pack — "5 lb bag
+// flour") and a NEED quantity (what this week's plan actually requires —
+// "1.5 cups"). This helper rounds the NEED quantity only. The purchase size
+// is Block B2's job (the conversion table) — do NOT round the need toward a
+// purchasable amount here.
+//
+// The need quantity is decision-support: it tells the cook "do I have enough
+// in the cupboard, or buy more?" (½ tsp cardamom → probably skip; 2 tbsp →
+// buy). So granularity matters — round only enough to kill ugly floats:
 //   - Discrete / unknown / empty units → round UP to a whole unit
-//     (3.75 cloves → 4). You can't buy 0.75 of a lemon.
+//     (3.75 cloves → 4). Discrete units ARE purchase units — you can't buy
+//     0.75 of a lemon — so ceil-to-whole is correct for both need and buy.
 //   - Measured units (volume/weight) → round the fractional remainder UP to
-//     the nearest sensible kitchen fraction on the ¼/⅓/½/⅔/¾ ladder
-//     (1.1 cups → 1¼, 1.43 cups → 1½). Preserves the measured type; never
-//     inflates a clean value.
+//     ⅛ granularity (1.1 cups → 1⅛, NOT 1¼), keeping clean ⅓/⅔ where a value
+//     rounds up to land essentially on them (1.3 cups → 1⅓). Preserves the
+//     measured type; never inflates a value already on the ladder.
 // Whole-number inputs pass through unchanged (epsilon-guarded against the
 // float drift that consolidation multiplication introduces).
 const QTY_EPSILON = 1e-9;
@@ -150,10 +159,26 @@ const MEASURED_UNITS = new Set<string>([
   "gallon", "gallons",
 ]);
 
-// Sensible kitchen fractions, ascending, with the 0 and 1 ladder ends.
-const FRACTION_LADDER = [0, 1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4, 1];
+// Sensible kitchen fractions, ascending, with the 0 and 1 ladder ends. Eighths
+// give the fine-grained "need" granularity; ⅓ and ⅔ stay in so a value just
+// below them rounds up to the clean thirds cooks recognize (1.3 → ⅓) rather
+// than an eighth. A value ABOVE ⅓/⅔ correctly rounds up to the next eighth
+// (0.34 → ⅜, 0.68 → ¾) — the ladder is round-UP only, never down.
+const FRACTION_LADDER = [
+  0,
+  1 / 8,
+  1 / 4,
+  1 / 3,
+  3 / 8,
+  1 / 2,
+  5 / 8,
+  2 / 3,
+  3 / 4,
+  7 / 8,
+  1,
+];
 
-function roundPurchaseQuantity(quantity: number, unit: string): number {
+function roundNeedQuantity(quantity: number, unit: string): number {
   // Leave non-positive / NaN untouched — nothing sane to round.
   if (!(quantity > 0)) return quantity;
 
@@ -545,13 +570,13 @@ export async function consolidatePlanIngredients(
     order.push(key);
   }
 
-  // WS7-8b B1 (BUG-025-2) — final quantity round-up sweep. Runs AFTER all
+  // WS7-8b B1 (BUG-025-2) — final need-quantity round-up sweep. Runs AFTER all
   // buckets (incl. synthetic recurring entries) are built, so every consolidated
   // total is rounded once at the source. This changes only displayed quantity,
   // never the item set or grouping (invariant). Recurring entries (whole
   // quantities) are unaffected.
   for (const entry of buckets.values()) {
-    entry.quantity = roundPurchaseQuantity(entry.quantity, entry.unit);
+    entry.quantity = roundNeedQuantity(entry.quantity, entry.unit);
   }
 
   return order.map((k) => buckets.get(k)!).filter((x): x is ConsolidatedItem => !!x);
