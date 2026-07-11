@@ -39,8 +39,9 @@ import {
   PLAN_DURATION_PRESETS,
   SAUCE_PREFERENCE_OPTIONS,
 } from "@/lib/domain";
-import { getPreferences, type UserPreferences } from "@/lib/api/me";
+import { getPreferences } from "@/lib/api/me";
 import type { UserPreferencesData } from "@/lib/types";
+import { toFormState } from "@/lib/preferencesForm";
 
 const HOUSEHOLD_MIN = 1;
 const HOUSEHOLD_MAX = 30;
@@ -49,19 +50,6 @@ const KIDS_MAX = 8;
 
 /** Inline result banner shown after a save / toggle attempt. */
 type Status = { kind: "success" | "error"; text: string } | null;
-
-// GET /me/preferences sends `null` for the four optional String? columns;
-// the form's UserPreferencesData uses `undefined`. Normalize on seed so the
-// form is a clean UserPreferencesData.
-function toFormState(p: UserPreferences): UserPreferencesData {
-  return {
-    ...p,
-    cookingSkill: p.cookingSkill ?? undefined,
-    stovetopType: p.stovetopType ?? undefined,
-    defaultRetailer: p.defaultRetailer ?? undefined,
-    dietaryNotes: p.dietaryNotes ?? undefined,
-  };
-}
 
 export default function Preferences() {
   const router = useRouter();
@@ -352,7 +340,7 @@ export default function Preferences() {
           />
 
           <SubLabel style={{ marginTop: Spacing[4] }}>
-            Sauce preference
+            Sauces and Spice Mixes Preference
           </SubLabel>
           <View style={s.chipRow}>
             {SAUCE_PREFERENCE_OPTIONS.map((opt) => (

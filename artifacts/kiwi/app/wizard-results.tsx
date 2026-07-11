@@ -88,23 +88,35 @@ function buildCandidateContext(
     return {
       planDurationDays: wizardInput.planDurationDays,
       householdSize: wizardInput.householdSize,
-      wantsLeftovers: wizardInput.wantsLeftovers,
+      // wantsLeftovers removed from the wizard payload (Block 4 / D-WS7-190);
+      // the field is inert server-side (@default(false)) but the expand schema
+      // still expects a boolean, so send the inert value.
+      wantsLeftovers: false,
       allergiesAndAvoidances: wizardInput.allergiesAndAvoidances,
       eatingStyles: wizardInput.eatingStyles,
       difficulty: wizardInput.difficulty,
+      // Block 4 — carry the per-run sauce + cook-time overrides to expand so a
+      // per-plan cook cap survives into ingredient authoring (D-WS7-035).
+      saucePreference: wizardInput.saucePreference,
+      maxCookTimeMinutes: wizardInput.maxCookTimeMinutes,
+      maxCookTimeCoverage: wizardInput.maxCookTimeCoverage,
     };
   }
   if (tellKiwiInput) {
     return {
-      planDurationDays: Math.max(
-        1,
-        Math.min(7, candidate.mealTitles.length || 5),
-      ),
+      // Block 5 — honor the user's per-run plan length when set; fall back to
+      // the candidate's meal count for legacy payloads that omit it.
+      planDurationDays:
+        tellKiwiInput.planDurationDays ??
+        Math.max(1, Math.min(7, candidate.mealTitles.length || 5)),
       householdSize: tellKiwiInput.householdSize,
-      wantsLeftovers: tellKiwiInput.wantsLeftovers,
+      wantsLeftovers: false,
       allergiesAndAvoidances: tellKiwiInput.allergiesAndAvoidances,
       eatingStyles: tellKiwiInput.eatingStyles,
       difficulty: "medium",
+      saucePreference: tellKiwiInput.saucePreference,
+      maxCookTimeMinutes: tellKiwiInput.maxCookTimeMinutes,
+      maxCookTimeCoverage: tellKiwiInput.maxCookTimeCoverage,
     };
   }
   // No input at all — should not happen given the entry-point guard above,

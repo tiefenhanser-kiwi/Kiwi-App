@@ -314,6 +314,89 @@ describe("expandCandidate — per-meal sharding", () => {
   });
 });
 
+// Cookbook Phase B Block 4 (D-WS7-035, amends D-WS7-197) — the per-run
+// cook-cap/sauce override must survive into the expand call's effective
+// candidateContext instead of being blindly reverted to stored prefs. The
+// server stays authoritative: it RESOLVES override-else-stored via the shared
+// resolver rather than trusting a raw echo.
+describe("expandCandidate — per-run preference resolution at expand", () => {
+  // Stored cap = 60; the wizard set a 30-min cap for THIS plan (carried on
+  // candidateContext). The override must win at expand.
+  const storedPrisma = {
+    userPreferences: {
+      findUnique: async () => ({
+        saucePreference: "homemade",
+        maxCookTimeMinutes: 60,
+        maxCookTimeCoverage: "all",
+      }),
+    },
+  } as unknown as PrismaClient;
+
+  function captureContexts() {
+    const seen: WizardExpandRequest["candidateContext"][] = [];
+    const fn = (async (
+      _promptKey: string,
+      vars: Record<string, unknown>,
+    ): Promise<AICallResult<WizardExpandResult>> => {
+      const expandInput = vars.expandInput as WizardExpandRequest;
+      seen.push(expandInput.candidateContext);
+      return successResult([makeMeal(expandInput.candidate.mealTitles[0])]);
+    }) as unknown as Parameters<typeof expandCandidate>[0]["runAICall"];
+    return { fn, seen };
+  }
+
+  it("uses the per-run cook-cap override, not the stored cap", async () => {
+    const { fn, seen } = captureContexts();
+    const base = makeRequest(["A"]);
+    const request: WizardExpandRequest = {
+      ...base,
+      candidateContext: {
+        ...base.candidateContext,
+        // Per-run override for THIS plan — differs from stored (60).
+        maxCookTimeMinutes: 30,
+      },
+    };
+
+    const result = await expandCandidate({
+      prisma: storedPrisma,
+      userId: "u1",
+      request,
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+
+    assert.equal(result.status, "success");
+    assert.ok(seen.length >= 1, "expand call captured");
+    assert.equal(
+      seen[0].maxCookTimeMinutes,
+      30,
+      "per-run cook cap was reverted to stored — override lost at expand",
+    );
+  });
+
+  it("falls back to stored sauce/coverage when the client omits them", async () => {
+    const { fn, seen } = captureContexts();
+    // makeRequest's candidateContext omits saucePreference + coverage entirely.
+    const result = await expandCandidate({
+      prisma: storedPrisma,
+      userId: "u1",
+      request: makeRequest(["A"]),
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+
+    assert.equal(result.status, "success");
+    assert.equal(seen[0].saucePreference, "homemade", "stored sauce not used");
+    assert.equal(
+      seen[0].maxCookTimeCoverage,
+      "all",
+      "stored coverage not used",
+    );
+    // No per-run cap sent → falls back to stored 60.
+    assert.equal(seen[0].maxCookTimeMinutes, 60, "stored cap not used");
+  });
+});
+
 // WS7-5b-server-fix2 — the dish-ingredient floor relaxed from .min(3) to
 // .min(1). Meal-substance is still guarded by WizardExpandMealSchema.dishes
 // .min(1) and WizardExpandResultSchema.meals.min(1). These tests prove that

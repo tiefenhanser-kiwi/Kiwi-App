@@ -6,10 +6,31 @@ import { WizardPlanCandidatesResultSchema } from "./wizard";
 export const DirectedInputSchema = z.object({
   description: z.string().min(5).max(500),
   householdSize: z.number().int().min(1).max(30),
-  wantsLeftovers: z.boolean(),
+  // Cookbook Phase B Block 4 (D-WS7-190) — wantsLeftovers Switch removed from
+  // Tell Kiwi; optional-with-default so an omitting body still validates.
+  wantsLeftovers: z.boolean().optional().default(false),
+  // Cookbook Phase B Block 4 (Ruling 3) — Tell Kiwi's "Adjust saved prefs for
+  // this plan" disclosure now carries cuisines + weeklyPacing per-run. The
+  // wizard.directed.generate body already has a "# Cuisine guidance" section
+  // that leans on the user's preferred cuisines "if given" and a discovery
+  // clause gated on "the user gave a cuisine steer" — supplying `cuisines`
+  // here ACTIVATES that guidance for the directed path (previously it always
+  // fell to the no-steer varied-palette default). weeklyPacing is referenced
+  // only loosely in the directed body, so it is available but weakly weighted.
+  cuisines: z.array(z.string()).default([]),
+  weeklyPacing: z
+    .enum(["mostly_easy", "mixed", "one_fancy_night", "minimal_effort"])
+    .optional(),
   eatingStyles: z.array(z.string()).default([]),
   allergiesAndAvoidances: z.array(z.string()).default([]),
   dietaryNotes: z.string().max(500).optional(),
+  // Cookbook Phase B Block 4 (D-WS7-035) — per-run overrides. Optional, NO
+  // default (see WizardInputSchema note): omitted means "use stored". The
+  // route resolves these into `preferencesContext`.
+  discoveryMealsPerWeek: z.number().int().min(0).max(2).optional(),
+  saucePreference: z.enum(["store_bought", "balanced", "homemade"]).optional(),
+  maxCookTimeMinutes: z.number().int().positive().max(600).nullable().optional(),
+  maxCookTimeCoverage: z.enum(["all", "most"]).optional(),
 });
 export type DirectedInput = z.infer<typeof DirectedInputSchema>;
 

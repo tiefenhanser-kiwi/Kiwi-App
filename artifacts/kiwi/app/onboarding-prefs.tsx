@@ -17,7 +17,9 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import {
   COOK_TIME_CAP_OPTIONS,
   COOK_TIME_COVERAGE_OPTIONS,
+  DISCOVERY_MEALS_OPTIONS,
   PLAN_DURATION_PRESETS,
+  SAUCE_PREFERENCE_OPTIONS,
 } from "@/lib/domain";
 
 const HOUSEHOLD_MIN = 1;
@@ -28,6 +30,9 @@ type Step2FormState = {
   planLengthDefault: number;
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: "all" | "most";
+  // Cookbook Phase B Block 5 — step 2 now carries all four Phase-B fields.
+  discoveryMealsPerWeek: number;
+  saucePreference: "store_bought" | "balanced" | "homemade";
   cuisines: string[];
   eatingStyles: string[];
   allergiesAndAvoidances: string[];
@@ -47,6 +52,8 @@ export default function OnboardingPrefs() {
         planLengthDefault: onboardingStep2Draft.planLengthDefault,
         maxCookTimeMinutes: onboardingStep2Draft.maxCookTimeMinutes,
         maxCookTimeCoverage: onboardingStep2Draft.maxCookTimeCoverage,
+        discoveryMealsPerWeek: onboardingStep2Draft.discoveryMealsPerWeek,
+        saucePreference: onboardingStep2Draft.saucePreference,
         cuisines: onboardingStep2Draft.cuisines,
         eatingStyles: onboardingStep2Draft.eatingStyles,
         allergiesAndAvoidances: onboardingStep2Draft.allergiesAndAvoidances,
@@ -60,6 +67,8 @@ export default function OnboardingPrefs() {
       planLengthDefault: 5,
       maxCookTimeMinutes: null,
       maxCookTimeCoverage: "most",
+      discoveryMealsPerWeek: 0,
+      saucePreference: "balanced",
       cuisines: [],
       eatingStyles: [],
       allergiesAndAvoidances: [],
@@ -83,6 +92,8 @@ export default function OnboardingPrefs() {
       planLengthDefault: form.planLengthDefault,
       maxCookTimeMinutes: form.maxCookTimeMinutes,
       maxCookTimeCoverage: form.maxCookTimeCoverage,
+      discoveryMealsPerWeek: form.discoveryMealsPerWeek,
+      saucePreference: form.saucePreference,
       cuisines: form.cuisines,
       eatingStyles: form.eatingStyles,
       allergiesAndAvoidances: form.allergiesAndAvoidances,
@@ -158,6 +169,21 @@ export default function OnboardingPrefs() {
               </View>
             </>
           )}
+
+          <Text style={[s.subLabel, { marginTop: Spacing[4] }]}>
+            Discovery meals
+          </Text>
+          <View style={s.chipRow}>
+            {DISCOVERY_MEALS_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.value}
+                label={opt.label}
+                selected={form.discoveryMealsPerWeek === opt.value}
+                onPress={() => update("discoveryMealsPerWeek", opt.value)}
+              />
+            ))}
+          </View>
+          <Text style={s.helpText}>Add 1-2 novel meals to each plan</Text>
         </Section>
 
         <Section
@@ -208,6 +234,20 @@ export default function OnboardingPrefs() {
             value={form.cookingSkill}
             onChange={(next) => update("cookingSkill", next)}
           />
+
+          <Text style={[s.subLabel, { marginTop: Spacing[4] }]}>
+            Sauces and Spice Mixes Preference
+          </Text>
+          <View style={s.chipRow}>
+            {SAUCE_PREFERENCE_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.value}
+                label={opt.label}
+                selected={form.saucePreference === opt.value}
+                onPress={() => update("saucePreference", opt.value)}
+              />
+            ))}
+          </View>
         </Section>
 
         <Section

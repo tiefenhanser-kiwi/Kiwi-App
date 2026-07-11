@@ -143,6 +143,10 @@ export default function OnboardingStep3() {
       if (onboardingStep2Draft.maxCookTimeMinutes !== null) {
         prefs.maxCookTimeCoverage = onboardingStep2Draft.maxCookTimeCoverage;
       }
+      // Cookbook Phase B Block 5 — the remaining two Phase-B fields, so all
+      // four generation-shaping prefs set at onboarding reach the PATCH.
+      prefs.discoveryMealsPerWeek = onboardingStep2Draft.discoveryMealsPerWeek;
+      prefs.saucePreference = onboardingStep2Draft.saucePreference;
       // dietaryNotes: include only when non-empty. Step 2 saves "" when the
       // user leaves the field blank; an empty string is not a meaningful
       // preference, so omit the key rather than PATCH a blank value.

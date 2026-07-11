@@ -54,6 +54,14 @@ export const UserPreferencesSchema = z.object({
   planLengthDefault: z.number().int().positive(),
   // Boolean.
   wantsLeftovers: z.boolean(),
+  // Cookbook Phase B Block 4 — surfaced READ-ONLY so the wizard's per-run
+  // pacing control can hydrate from the stored default. GET /me/preferences
+  // returns the full row (no server `select`), so this rides the wire today;
+  // it is NOT in the PATCH accept list (server-only column) and the wizard
+  // never writes it back (no-writeback per D-WS7-035).
+  weeklyPacingDefault: z
+    .enum(["mostly_easy", "mixed", "one_fancy_night", "minimal_effort"])
+    .optional(),
   // Free-text notes — nullable.
   dietaryNotes: z.string().nullable(),
   // Cookbook Phase B Block 1 — new stored prefs. Enums have server defaults so

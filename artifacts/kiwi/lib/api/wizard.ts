@@ -167,6 +167,14 @@ export interface WizardExpandCandidateContext {
   allergiesAndAvoidances: string[];
   eatingStyles: string[];
   difficulty: "easy" | "medium" | "fancy";
+  // Cookbook Phase B Block 4 (D-WS7-035) — per-run sauce + cook-time overrides
+  // re-sent at expand so the server resolver (wizardExpansion.ts) can honor a
+  // per-run cook-cap/sauce set in the wizard instead of reverting to stored.
+  // Optional: omitted when the flow carries no per-run override (server falls
+  // back to stored). Discovery is generate-only, so it is not carried here.
+  saucePreference?: "store_bought" | "balanced" | "homemade";
+  maxCookTimeMinutes?: number | null;
+  maxCookTimeCoverage?: "all" | "most";
 }
 
 export interface WizardExpandRequest {

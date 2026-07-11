@@ -15,6 +15,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { estimateDishMacros } from "./dishMacros";
 import { logger } from "./logger";
+import { resolveEffectivePreferences } from "./wizardPreferences";
 import { runAICall as productionRunAICall } from "./ai/runAICall";
 import {
   WizardExpandResultDetailsSchema,
@@ -81,28 +82,37 @@ export async function expandCandidate(
   //    pre-shard shape (mealTitles-order; same per-meal schema).
   const mealTitles = opts.request.candidate.mealTitles;
 
-  // Cookbook Phase B Block 2 (D-WS7-197) — server-authoritative re-inject of
-  // the generation prefs at expand. Expand is where ingredients and
-  // estimatedTimeMinutes are AUTHORED, so sauce sourcing and the cook-time cap
-  // must reach the prompt here. WizardExpandCandidateContextSchema is otherwise
-  // 100% client-supplied (the route safeParses req.body and passes it through),
-  // so we do NOT trust a client echo of these fields: we OVERWRITE them from
-  // the user's stored UserPreferences. Discovery is not re-injected — it is a
-  // generate-only concern (R6). Falls back to the schema.prisma column defaults
-  // when the user has no UserPreferences row.
-  const prefs = await opts.prisma.userPreferences.findUnique({
-    where: { userId: opts.userId },
-    select: {
-      saucePreference: true,
-      maxCookTimeMinutes: true,
-      maxCookTimeCoverage: true,
+  // Cookbook Phase B Block 2/4 (D-WS7-197, AMENDED by Block 4 / D-WS7-035) —
+  // server-authoritative resolution of the generation prefs at expand. Expand
+  // is where ingredients and estimatedTimeMinutes are AUTHORED, so sauce
+  // sourcing and the cook-time cap must reach the prompt here.
+  //
+  // Block 2 blindly OVERWROTE these three fields from stored UserPreferences,
+  // which silently reverted a legitimate per-run override (e.g. a 30-min cap
+  // the user set for THIS plan in the wizard). Block 4 replaces that overwrite
+  // with the shared resolver: the per-run override wins when present, else
+  // stored. This is NOT "trust the client echo" — the server still resolves
+  // and authors the value; it just now accounts for a real per-run override
+  // the user set. The override reaches here because the wizard screens re-send
+  // it on candidateContext (the user's own input for this run), and the
+  // resolver bounds it against stored. Discovery is not re-resolved — it is a
+  // generate-only concern (R6). Presence semantics (null cap wins) live in the
+  // resolver. Falls back to column defaults when the user has no prefs row.
+  const ctx = opts.request.candidateContext;
+  const resolved = await resolveEffectivePreferences(
+    opts.prisma,
+    opts.userId,
+    {
+      saucePreference: ctx.saucePreference,
+      maxCookTimeMinutes: ctx.maxCookTimeMinutes,
+      maxCookTimeCoverage: ctx.maxCookTimeCoverage,
     },
-  });
+  );
   const serverCandidateContext: WizardExpandRequest["candidateContext"] = {
-    ...opts.request.candidateContext,
-    saucePreference: prefs?.saucePreference ?? "balanced",
-    maxCookTimeMinutes: prefs?.maxCookTimeMinutes ?? null,
-    maxCookTimeCoverage: prefs?.maxCookTimeCoverage ?? "most",
+    ...ctx,
+    saucePreference: resolved.saucePreference,
+    maxCookTimeMinutes: resolved.maxCookTimeMinutes,
+    maxCookTimeCoverage: resolved.maxCookTimeCoverage,
   };
 
   const perMealResults = await Promise.all(

@@ -335,6 +335,41 @@ describe("PATCH /me/preferences", () => {
     }
   });
 
+  it("Block 5 regression: rejects a server-only column (weeklyPacingDefault) via .strict()", async () => {
+    // weeklyPacingDefault is surfaced read-only on GET (wizard pacing hydration)
+    // but is NOT in the PATCH allow-list. The mobile edit buffer must never send
+    // it back; the server's `.strict()` schema is the backstop. If this ever
+    // stops returning 400, the strict guard has regressed and the silent-400
+    // preferences-save bug can reappear.
+    const harness = await spinUp(makeStubPrisma(defaultsFor(USER_ID)));
+    try {
+      const token = signToken(USER_ID);
+      const bad = async (payload: Record<string, unknown>) => {
+        const res = await fetch(`${harness.baseUrl}/me/preferences`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        return res.status;
+      };
+      // A pure server-only key is rejected outright.
+      assert.equal(await bad({ weeklyPacingDefault: "mixed" }), 400);
+      // And a valid field bundled WITH a server-only key is still rejected —
+      // the exact shape of the leaking save (household edit + leaked pacing).
+      assert.equal(
+        await bad({ householdSize: 3, weeklyPacingDefault: "mixed" }),
+        400,
+      );
+      // difficultyDefault is likewise server-only.
+      assert.equal(await bad({ difficultyDefault: "medium" }), 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("returns 400 on invalid enum value", async () => {
     const prisma = makeStubPrisma(defaultsFor(USER_ID));
     const harness = await spinUp(prisma);

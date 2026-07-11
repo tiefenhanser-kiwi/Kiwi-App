@@ -155,9 +155,9 @@ export const SAUCE_PREFERENCE_OPTIONS: ReadonlyArray<{
   label: string;
   value: "homemade" | "balanced" | "store_bought";
 }> = [
-  { label: "From scratch", value: "homemade" },
+  { label: "From scratch preferred", value: "homemade" },
   { label: "Balanced", value: "balanced" },
-  { label: "Store-bought OK", value: "store_bought" },
+  { label: "Store-bought preferred", value: "store_bought" },
 ];
 
 /**

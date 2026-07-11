@@ -53,18 +53,21 @@ import {
   buildPlanningContext,
   type PlanningContext,
 } from "../lib/planningContext";
+import {
+  resolveEffectivePreferences,
+  type ResolvedPreferences,
+} from "../lib/wizardPreferences";
 import { requireAuth } from "../middleware/auth";
 
 // Cookbook Phase B Block 2 — the generation-shaping slice of the user's stored
 // UserPreferences, attached to the generate input as `preferencesContext`
 // (never to parseInput). Values mirror the schema.prisma column types;
 // maxCookTimeMinutes is null when the user has set no cap.
-interface PreferencesContext {
-  discoveryMealsPerWeek: number;
-  saucePreference: string;
-  maxCookTimeMinutes: number | null;
-  maxCookTimeCoverage: string;
-}
+//
+// Block 4 (D-WS7-035) — the bag is now the RESOLVED (client-override ?? stored)
+// value, computed by the shared resolveEffectivePreferences() so generate and
+// expand agree. Type aliased to ResolvedPreferences (same shape).
+type PreferencesContext = ResolvedPreferences;
 
 export interface WizardRouterDeps {
   runAICall: typeof productionRunAICall;
@@ -243,32 +246,16 @@ export function createWizardRouter(
   }
 
   // ── server-injected generation-preferences context (Cookbook Phase B) ─
-  // The three stored UserPreferences that shape GENERATION — discovery
-  // novelty, sauce sourcing, and the cook-time cap — ride alongside
-  // planningContext on the generate input. Like planningContext, this is
-  // attached to the GENERATE input ONLY and deliberately withheld from the
-  // Haiku parse_intent classifier (keeps its token count flat). Defaults
-  // mirror the schema.prisma column defaults so all four keys are always
-  // present even when the user has no UserPreferences row yet.
-  async function buildPreferencesContext(
-    userId: string,
-  ): Promise<PreferencesContext> {
-    const prefs = await prisma.userPreferences.findUnique({
-      where: { userId },
-      select: {
-        discoveryMealsPerWeek: true,
-        saucePreference: true,
-        maxCookTimeMinutes: true,
-        maxCookTimeCoverage: true,
-      },
-    });
-    return {
-      discoveryMealsPerWeek: prefs?.discoveryMealsPerWeek ?? 0,
-      saucePreference: prefs?.saucePreference ?? "balanced",
-      maxCookTimeMinutes: prefs?.maxCookTimeMinutes ?? null,
-      maxCookTimeCoverage: prefs?.maxCookTimeCoverage ?? "most",
-    };
-  }
+  // The four stored UserPreferences that shape GENERATION — discovery novelty,
+  // sauce sourcing, and the cook-time cap — ride alongside planningContext on
+  // the generate input as `preferencesContext`. Attached to the GENERATE input
+  // ONLY and deliberately withheld from the Haiku parse_intent classifier.
+  //
+  // Block 4 (D-WS7-035): the values are RESOLVED (per-run client override ??
+  // stored) via the shared resolveEffectivePreferences() helper — see
+  // lib/wizardPreferences.ts. The per-run overrides arrive on the request body
+  // (validated as optional-no-default fields on the input schema) and are
+  // resolved against stored UserPreferences here.
 
   // ── route ────────────────────────────────────────────────────────────
 
@@ -323,15 +310,33 @@ export function createWizardRouter(
       // extra JSON is inert until then. NOT added to buildHiddenContext because
       // that feed also powers the cheap Haiku parse_intent call.
       const planningContext = await buildPlanningContext(prisma, userId);
-      // Cookbook Phase B Block 2 — generation-shaping prefs (discovery / sauce /
-      // cook-time cap) ride alongside planningContext on the generate input.
-      // Same discipline: attached to the GENERATE input ONLY, never parseInput.
-      const preferencesContext = await buildPreferencesContext(userId);
+      // Cookbook Phase B Block 2/4 — generation-shaping prefs (discovery /
+      // sauce / cook-time cap) ride alongside planningContext on the generate
+      // input. The four per-run override fields are peeled OFF parsed.data (so
+      // they don't leak into the AI input at top level — the prompt reads them
+      // only via preferencesContext) and resolved against stored prefs.
+      const {
+        discoveryMealsPerWeek,
+        saucePreference,
+        maxCookTimeMinutes,
+        maxCookTimeCoverage,
+        ...aiInput
+      } = parsed.data;
+      const preferencesContext = await resolveEffectivePreferences(
+        prisma,
+        userId,
+        {
+          discoveryMealsPerWeek,
+          saucePreference,
+          maxCookTimeMinutes,
+          maxCookTimeCoverage,
+        },
+      );
       const wizardInput: WizardInput & {
         planningContext: PlanningContext;
         preferencesContext: PreferencesContext;
       } = {
-        ...parsed.data,
+        ...aiInput,
         hiddenContext,
         planningContext,
         preferencesContext,
@@ -526,15 +531,29 @@ export function createWizardRouter(
       // classifier's token count flat. Computed here (after the `unclear`
       // short-circuit) so the DB reads are skipped when no plan is generated.
       const planningContext = await buildPlanningContext(prisma, userId);
-      // Cookbook Phase B Block 2 — generation-shaping prefs attached to the
+      // Cookbook Phase B Block 2/4 — generation-shaping prefs attached to the
       // GENERATE input only (parseInput above deliberately does not get it).
-      const preferencesContext = await buildPreferencesContext(userId);
+      // Per-run overrides on the directed body are resolved against stored.
+      const preferencesContext = await resolveEffectivePreferences(
+        prisma,
+        userId,
+        {
+          discoveryMealsPerWeek: directed.discoveryMealsPerWeek,
+          saucePreference: directed.saucePreference,
+          maxCookTimeMinutes: directed.maxCookTimeMinutes,
+          maxCookTimeCoverage: directed.maxCookTimeCoverage,
+        },
+      );
       const generateInput = {
         parsedIntent,
         userInput: directed.description,
         planDurationDays,
         householdSize: directed.householdSize,
         wantsLeftovers: directed.wantsLeftovers,
+        // Block 4 (Ruling 3) — cuisines + weeklyPacing now flow to the directed
+        // generate prompt (activates its "# Cuisine guidance" section).
+        cuisines: directed.cuisines,
+        weeklyPacing: directed.weeklyPacing,
         eatingStyles: directed.eatingStyles,
         allergiesAndAvoidances: directed.allergiesAndAvoidances,
         dietaryNotes: directed.dietaryNotes ?? "",

@@ -746,9 +746,27 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   router.patch("/me/preferences", requireAuth, async (req, res) => {
     const parsed = preferencesPatchSchema.safeParse(req.body);
     if (!parsed.success) {
+      // Log the Zod rejection so a `.strict()` allow-list mismatch (e.g. a
+      // client PATCHing a server-only column like weeklyPacingDefault) is a
+      // one-line read instead of a silent device-side 400. `fieldErrors` keys
+      // are the offending paths; `errors` carries top-level issues like
+      // unrecognized_keys from `.strict()`.
+      const flat = parsed.error.flatten();
+      logger.warn(
+        {
+          event: "me_preferences_patch_invalid",
+          userId: req.userId,
+          fieldErrors: Object.keys(flat.fieldErrors),
+          formErrors: flat.formErrors,
+          issues: parsed.error.issues
+            .slice(0, 5)
+            .map((i) => ({ code: i.code, path: i.path, message: i.message })),
+        },
+        "PATCH /me/preferences rejected at validation",
+      );
       return res.status(400).json({
         error: "invalid body",
-        details: parsed.error.flatten(),
+        details: flat,
       });
     }
     const updates = parsed.data;

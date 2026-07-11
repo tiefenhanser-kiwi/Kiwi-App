@@ -38,6 +38,13 @@ interface StubPrismaOpts {
     budgetLevel?: "economy" | "mid_range" | "premium";
     pickyAvoidances?: string[];
     recurringGroceryItems?: string[];
+    // Cookbook Phase B Block 4 — stored generation-shaping prefs the resolver
+    // reads. The stub returns the whole object regardless of `select`, so these
+    // feed resolveEffectivePreferences() in the same call.
+    discoveryMealsPerWeek?: number;
+    saucePreference?: "store_bought" | "balanced" | "homemade";
+    maxCookTimeMinutes?: number | null;
+    maxCookTimeCoverage?: "all" | "most";
   } | null;
   pantryStaples?: string[];
 }
@@ -419,6 +426,148 @@ describe("POST /api/wizard/build-plans — planning-context wiring", () => {
     assert.ok(Array.isArray(pc.upcomingEvents));
     assert.ok(Array.isArray(pc.recentMeals));
     assert.ok(Array.isArray(pc.recentPlanNames));
+  });
+});
+
+describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-035)", () => {
+  // The wizard hydrates its controls from stored prefs, the user may edit for
+  // THIS plan only, and the edit must WIN over stored at generate time (else
+  // the override feature is inert). The complementary case: when the client
+  // omits a field, the stored value must be used (fallback).
+  let harness: Harness;
+  const ai = makeRunAICall(async () => happyResult());
+  // Distinct user + permissive limiter: the rate limiter's STORE is a module-
+  // global keyed by (method, path, userId), so reusing TEST_USER_ID here would
+  // drain the shared build-plans bucket and 429 later describes.
+  const PREF_USER_ID = "test-user-wizard-precedence";
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: ai.fn,
+      // Stored prefs deliberately DIFFER from the per-run body below.
+      prisma: makeStubPrisma({
+        preferences: {
+          discoveryMealsPerWeek: 0,
+          saucePreference: "balanced",
+          maxCookTimeMinutes: 60,
+          maxCookTimeCoverage: "most",
+        },
+      }),
+      subscriptionService: makeSubscriptionService(true),
+      rateLimiterOpts: { capacity: 100, refillPerSec: 100 },
+    });
+  });
+  after(async () => harness.close());
+
+  it("uses the per-run override where sent, and stored where omitted", async () => {
+    const token = signToken(PREF_USER_ID);
+    await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      // Override two of the four (a 30-min cap for THIS plan + discovery=2);
+      // omit saucePreference + maxCookTimeCoverage so they fall back to stored.
+      body: JSON.stringify({
+        ...VALID_BODY,
+        maxCookTimeMinutes: 30,
+        discoveryMealsPerWeek: 2,
+      }),
+    });
+
+    const lastVars = ai.getVars().at(-1) as
+      | {
+          wizardInput?: {
+            preferencesContext?: {
+              discoveryMealsPerWeek?: number;
+              saucePreference?: string;
+              maxCookTimeMinutes?: number | null;
+              maxCookTimeCoverage?: string;
+            };
+            // The raw override fields must NOT leak to the AI input top level.
+            maxCookTimeMinutes?: unknown;
+            discoveryMealsPerWeek?: unknown;
+          };
+        }
+      | undefined;
+    const pc = lastVars?.wizardInput?.preferencesContext;
+    assert.ok(pc, "preferencesContext missing from wizardInput");
+    // Per-run overrides win.
+    assert.equal(pc.maxCookTimeMinutes, 30, "per-run cook cap did not win");
+    assert.equal(pc.discoveryMealsPerWeek, 2, "per-run discovery did not win");
+    // Omitted fields fall back to stored.
+    assert.equal(pc.saucePreference, "balanced", "stored sauce not used");
+    assert.equal(
+      pc.maxCookTimeCoverage,
+      "most",
+      "stored coverage not used",
+    );
+    // Override fields are peeled off — they must not appear at wizardInput top
+    // level (the prompt reads them only via preferencesContext).
+    assert.equal(
+      "maxCookTimeMinutes" in (lastVars?.wizardInput ?? {}),
+      false,
+      "override leaked to wizardInput top level",
+    );
+  });
+
+  it("uses stored values when the client sends no overrides at all", async () => {
+    const token = signToken(PREF_USER_ID);
+    await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(VALID_BODY), // no override fields
+    });
+
+    const pc = (
+      ai.getVars().at(-1) as {
+        wizardInput?: {
+          preferencesContext?: {
+            maxCookTimeMinutes?: number | null;
+            discoveryMealsPerWeek?: number;
+          };
+        };
+      }
+    )?.wizardInput?.preferencesContext;
+    assert.ok(pc, "preferencesContext missing");
+    assert.equal(pc.maxCookTimeMinutes, 60, "should fall back to stored cap");
+    assert.equal(
+      pc.discoveryMealsPerWeek,
+      0,
+      "should fall back to stored discovery",
+    );
+  });
+
+  it("honors an explicit null cap override over a stored cap", async () => {
+    // Presence semantics: null is a real per-run value ("No limit this plan")
+    // and must win over stored 60 — `null ?? stored` would wrongly discard it.
+    const token = signToken(PREF_USER_ID);
+    await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...VALID_BODY, maxCookTimeMinutes: null }),
+    });
+
+    const pc = (
+      ai.getVars().at(-1) as {
+        wizardInput?: {
+          preferencesContext?: { maxCookTimeMinutes?: number | null };
+        };
+      }
+    )?.wizardInput?.preferencesContext;
+    assert.ok(pc, "preferencesContext missing");
+    assert.equal(
+      pc.maxCookTimeMinutes,
+      null,
+      "explicit null cap override did not win over stored",
+    );
   });
 });
 

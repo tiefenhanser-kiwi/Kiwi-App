@@ -22,7 +22,11 @@ export type WizardStep = z.infer<typeof WizardStepSchema>;
 export const WizardInputSchema = z.object({
   planDurationDays: z.number().int().min(1).max(7),
   householdSize: z.number().int().min(1).max(30),
-  wantsLeftovers: z.boolean(),
+  // Cookbook Phase B Block 4 (D-WS7-190) — the wantsLeftovers Switch was
+  // removed from both wizard screens; the stored field is @default(false) and
+  // inert. Optional-with-default so a body that omits it still validates and
+  // the prompt still sees a concrete boolean.
+  wantsLeftovers: z.boolean().optional().default(false),
   cuisines: z.array(z.string()).default([]),
   eatingStyles: z.array(z.string()).default([]),
   allergiesAndAvoidances: z.array(z.string()).default([]),
@@ -35,6 +39,17 @@ export const WizardInputSchema = z.object({
   ]),
   dietaryNotes: z.string().max(500).optional(),
   additionalNotes: z.string().max(500).optional(),
+  // Cookbook Phase B Block 4 (D-WS7-035) — per-run overrides of the four
+  // generation-shaping prefs. OPTIONAL WITH NO DEFAULT on purpose: an omitted
+  // field means "no per-run override, use stored" and MUST stay `undefined` so
+  // resolvePreferences() falls back to the stored value. A default here would
+  // make every request look like an override and silently clobber stored prefs.
+  // The route resolves these against stored UserPreferences into
+  // `preferencesContext`; they are NOT passed to the prompt at top level.
+  discoveryMealsPerWeek: z.number().int().min(0).max(2).optional(),
+  saucePreference: z.enum(["store_bought", "balanced", "homemade"]).optional(),
+  maxCookTimeMinutes: z.number().int().positive().max(600).nullable().optional(),
+  maxCookTimeCoverage: z.enum(["all", "most"]).optional(),
   // Server-injected hidden context (PRD §5.7). Sourced from UserPreferences
   // by the wizard route — never accepted from the client.
   hiddenContext: z

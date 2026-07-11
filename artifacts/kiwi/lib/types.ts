@@ -125,6 +125,11 @@ export interface Step2Draft {
   // Cookbook Phase B Block 3 — cook-time cap collected in step 2.
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: "all" | "most";
+  // Cookbook Phase B Block 5 — the remaining two generation-shaping prefs, so
+  // step 2 carries ALL FOUR Phase-B fields (a user may set prefs once at
+  // onboarding and never revisit).
+  discoveryMealsPerWeek: number;
+  saucePreference: "store_bought" | "balanced" | "homemade";
 }
 
 /**
@@ -537,14 +542,38 @@ export interface TellKiwiInput {
   /** Multi-line description; 5-500 chars. */
   description: string;
 
-  // Optional pref overrides (default to user's saved preferences)
+  // Per-run pref values — hydrated from stored UserPreferences, editable for
+  // THIS generation only (Cookbook Phase B Block 4 / D-WS7-035). NEVER written
+  // back to UserPreferences.
   householdSize: number;          // 1-30
-  wantsLeftovers: boolean;
+
+  // Cookbook Phase B Block 5 — plan length is now a first-class Tell Kiwi
+  // control (always-visible chip row), matching the Set-Prefs wizard. Optional
+  // on the wire: the server reads req.body.planDurationDays when present and
+  // defaults to 5 otherwise, so an omitting caller (or a legacy payload) is
+  // still valid. Hydrated from planLengthDefault.
+  planDurationDays?: number;      // 1-7
+
+  // Block 4 — the "Adjust saved prefs for this plan" disclosure now carries
+  // cuisines + weeklyPacing on Tell Kiwi too (Ruling 3).
+  cuisines: string[];             // From CUISINES_TIER_1/2
+  weeklyPacing?:
+    | "mostly_easy"
+    | "mixed"
+    | "one_fancy_night"
+    | "minimal_effort";
 
   // Dietary expansion (collapsed by default)
   eatingStyles: string[];         // From EATING_STYLES catalog
   allergiesAndAvoidances: string[]; // From ALLERGIES_AND_AVOIDANCES
   dietaryNotes?: string;          // "no shellfish, low sodium"
+
+  // Block 4 — the four generation-shaping per-run overrides. Sent only when
+  // the user edits them; the server resolves override-else-stored.
+  discoveryMealsPerWeek?: number;   // 0 | 1 | 2
+  saucePreference?: "store_bought" | "balanced" | "homemade";
+  maxCookTimeMinutes?: number | null;
+  maxCookTimeCoverage?: "all" | "most";
 }
 
 /**
@@ -555,7 +584,6 @@ export interface WizardPreferencesInput {
   // Required
   planDurationDays: number;
   householdSize: number;
-  wantsLeftovers: boolean;
 
   // Multi-select preferences (all optional, may be empty arrays)
   cuisines: string[];
@@ -573,6 +601,15 @@ export interface WizardPreferencesInput {
   // Optional free text
   dietaryNotes?: string;
   additionalNotes?: string;
+
+  // Cookbook Phase B Block 4 (D-WS7-035) — per-run overrides of the four
+  // generation-shaping prefs. Hydrated from stored UserPreferences on wizard
+  // open, editable for THIS plan only, NEVER written back. Sent only when the
+  // user edits them; the server resolves override-else-stored.
+  discoveryMealsPerWeek?: number;   // 0 | 1 | 2
+  saucePreference?: "store_bought" | "balanced" | "homemade";
+  maxCookTimeMinutes?: number | null;
+  maxCookTimeCoverage?: "all" | "most";
 }
 
 /**

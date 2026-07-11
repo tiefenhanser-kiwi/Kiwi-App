@@ -1,16 +1,17 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   Pressable,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
@@ -18,48 +19,119 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { LoadingShim } from "@/components/LoadingShim";
 import { Stepper } from "@/components/Stepper";
+import { AllergiesPicker } from "@/components/preference-pickers/AllergiesPicker";
+import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
+import { EatingStylesPicker } from "@/components/preference-pickers/EatingStylesPicker";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
-  ALLERGIES_AND_AVOIDANCES,
-  EATING_STYLES,
+  COOK_TIME_CAP_OPTIONS,
+  COOK_TIME_COVERAGE_OPTIONS,
+  DISCOVERY_MEALS_OPTIONS,
+  PLAN_DURATION_PRESETS,
+  SAUCE_PREFERENCE_OPTIONS,
 } from "@/lib/domain";
 import type { TellKiwiInput } from "@/lib/types";
+import { getPreferences, type UserPreferences } from "@/lib/api/me";
 import { useBuildFromText } from "@/hooks/useBuildFromText";
+
+type WeeklyPacing = NonNullable<TellKiwiInput["weeklyPacing"]>;
+type SaucePreference = NonNullable<TellKiwiInput["saucePreference"]>;
+type CookTimeCoverage = NonNullable<TellKiwiInput["maxCookTimeCoverage"]>;
 
 const HOUSEHOLD_MIN = 1;
 const HOUSEHOLD_MAX = 30;
 const DESCRIPTION_MAX = 500;
 const DESCRIPTION_MIN = 5;
 
+const PACING_OPTIONS: { key: WeeklyPacing; label: string }[] = [
+  { key: "mostly_easy", label: "Mostly easy" },
+  { key: "mixed", label: "Mixed (quick + nicer)" },
+  { key: "one_fancy_night", label: "One fancy night" },
+  { key: "minimal_effort", label: "Minimal effort" },
+];
+
 const PLACEHOLDER =
   "Describe what you'd like for the week. Examples: 'Comforting weeknight meals for a family of 4', 'Italian and Mediterranean only', 'burgers, mac and cheese, grilled chicken, soup, and pasta', or 'Easy meals my picky kids will eat plus one fancy night'";
 
 interface TellKiwiFormState {
   description: string;
+  planDurationDays: number;
   householdSize: number;
-  wantsLeftovers: boolean;
-  dietExpanded: boolean;
-  eatingStyles: Set<string>;
-  allergiesExpanded: boolean;
-  allergies: Set<string>;
+  cuisines: string[];
+  weeklyPacing: WeeklyPacing;
+  eatingStyles: string[];
+  allergies: string[];
   dietaryNotes: string;
+  // Cookbook Phase B Block 4 (D-WS7-035) — per-run generation-shaping prefs,
+  // hydrated from stored UserPreferences, editable for THIS plan only.
+  discoveryMealsPerWeek: number;
+  saucePreference: SaucePreference;
+  maxCookTimeMinutes: number | null;
+  maxCookTimeCoverage: CookTimeCoverage;
+  /** "Adjust saved prefs for this plan" disclosure open state. */
+  adjustExpanded: boolean;
 }
 
+// Fallback state before stored prefs hydrate (or if the read fails — hydration
+// is an assist, not a blocker). Re-seeded from stored prefs by hydrateForm().
 const INITIAL_FORM: TellKiwiFormState = {
   description: "",
+  planDurationDays: 5,
   householdSize: 4,
-  wantsLeftovers: false,
-  dietExpanded: false,
-  eatingStyles: new Set(),
-  allergiesExpanded: false,
-  allergies: new Set(),
+  cuisines: [],
+  weeklyPacing: "mostly_easy",
+  eatingStyles: [],
+  allergies: [],
   dietaryNotes: "",
+  discoveryMealsPerWeek: 0,
+  saucePreference: "balanced",
+  maxCookTimeMinutes: null,
+  maxCookTimeCoverage: "most",
+  adjustExpanded: false,
 };
+
+// Preserve the user's free-text as they hydrate — the description box is the
+// primary input and stored prefs never touch it. Only the disclosure controls
+// are seeded from stored prefs.
+function hydrateForm(
+  prefs: UserPreferences,
+  description: string,
+): TellKiwiFormState {
+  return {
+    description,
+    planDurationDays: prefs.planLengthDefault,
+    householdSize: prefs.householdSize,
+    cuisines: prefs.cuisines,
+    weeklyPacing: prefs.weeklyPacingDefault ?? "mostly_easy",
+    eatingStyles: prefs.eatingStyles,
+    allergies: prefs.allergiesAndAvoidances,
+    dietaryNotes: prefs.dietaryNotes ?? "",
+    discoveryMealsPerWeek: prefs.discoveryMealsPerWeek,
+    saucePreference: prefs.saucePreference,
+    maxCookTimeMinutes: prefs.maxCookTimeMinutes,
+    maxCookTimeCoverage: prefs.maxCookTimeCoverage,
+    adjustExpanded: false,
+  };
+}
 
 export default function TellKiwi() {
   const router = useRouter();
   const [form, setForm] = useState<TellKiwiFormState>(INITIAL_FORM);
   const mutation = useBuildFromText();
+
+  // Cookbook Phase B Block 4 — hydrate the disclosure controls from stored
+  // prefs (D-WS7-035). Read-only: Tell Kiwi never PATCHes /me/preferences.
+  const prefsQuery = useQuery<UserPreferences>({
+    queryKey: ["me", "preferences"],
+    queryFn: getPreferences,
+  });
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    if (prefsQuery.data && !hydrated) {
+      setForm((prev) => hydrateForm(prefsQuery.data!, prev.description));
+      setHydrated(true);
+    }
+  }, [prefsQuery.data, hydrated]);
 
   const update = <K extends keyof TellKiwiFormState>(
     key: K,
@@ -68,25 +140,26 @@ export default function TellKiwi() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const toggleSetItem = (
-    key: "eatingStyles" | "allergies",
-    item: string,
-  ) => {
-    setForm((prev) => {
-      const next = new Set(prev[key]);
-      if (next.has(item)) next.delete(item);
-      else next.add(item);
-      return { ...prev, [key]: next };
-    });
-  };
-
   const buildPayload = (): TellKiwiInput => ({
     description: form.description.trim(),
+    planDurationDays: form.planDurationDays,
     householdSize: form.householdSize,
-    wantsLeftovers: form.wantsLeftovers,
-    eatingStyles: Array.from(form.eatingStyles),
-    allergiesAndAvoidances: Array.from(form.allergies),
+    cuisines: form.cuisines,
+    weeklyPacing: form.weeklyPacing,
+    eatingStyles: form.eatingStyles,
+    allergiesAndAvoidances: form.allergies,
     dietaryNotes: form.dietaryNotes.trim() || undefined,
+    // Only send the four per-run overrides once stored prefs have hydrated the
+    // controls — otherwise wizard defaults would clobber stored prefs via the
+    // server resolver (D-WS7-035 precedence).
+    ...(hydrated
+      ? {
+          discoveryMealsPerWeek: form.discoveryMealsPerWeek,
+          saucePreference: form.saucePreference,
+          maxCookTimeMinutes: form.maxCookTimeMinutes,
+          maxCookTimeCoverage: form.maxCookTimeCoverage,
+        }
+      : {}),
   });
 
   const handleSubmit = () => {
@@ -137,6 +210,24 @@ export default function TellKiwi() {
   };
 
   const charCount = form.description.length;
+  const cuisineSelectedCount = form.cuisines.length;
+
+  // Hydration gate — hold the form until stored prefs settle so the disclosure
+  // doesn't flash unhydrated. On error we fall through (assist, not blocker).
+  if (prefsQuery.isLoading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: Colors.neutral[100],
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ActivityIndicator color={Colors.sage[700]} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
@@ -149,7 +240,7 @@ export default function TellKiwi() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Section 1: Free-text description */}
+        {/* Section 1: Free-text description (always visible). */}
         <View style={s.card}>
           <Text style={s.sectionLabel}>Tell Kiwi</Text>
           <Text style={s.cardTitle}>What do you want to eat?</Text>
@@ -177,7 +268,22 @@ export default function TellKiwi() {
           </View>
         </View>
 
-        {/* Section 2: Household size */}
+        {/* Section 2: Plan length (always visible) — matches the Set-Prefs
+            wizard. Drives planDurationDays; the server reads it off the body. */}
+        <Section label="Plan length" title="How long is this plan?">
+          <View style={s.chipRow}>
+            {PLAN_DURATION_PRESETS.map((n) => (
+              <Chip
+                key={n}
+                label={n === 1 ? "1 day" : `${n} days`}
+                selected={form.planDurationDays === n}
+                onPress={() => update("planDurationDays", n)}
+              />
+            ))}
+          </View>
+        </Section>
+
+        {/* Section 3: Household size (always visible). */}
         <Section label="Household" title="Cooking for">
           <Stepper
             value={form.householdSize}
@@ -188,28 +294,11 @@ export default function TellKiwi() {
           />
         </Section>
 
-        {/* Section 3: Leftovers */}
-        <Section label="Leftovers" title="Include leftovers">
-          <View style={s.toggleRow}>
-            <Text style={s.toggleSubtitle}>
-              Kiwi sizes portions to leave planned extras
-            </Text>
-            <Switch
-              value={form.wantsLeftovers}
-              onValueChange={(v) => update("wantsLeftovers", v)}
-              trackColor={{
-                false: Colors.neutral[400],
-                true: Colors.sage[700],
-              }}
-              thumbColor={Colors.neutral[0]}
-            />
-          </View>
-        </Section>
-
-        {/* Section 4: Diet (collapsible) */}
+        {/* Collapsed disclosure: per-run overrides of saved prefs (D-WS7-035).
+            Same idiom + 7 controls as the Set-Prefs wizard. */}
         <View style={s.card}>
           <Pressable
-            onPress={() => update("dietExpanded", !form.dietExpanded)}
+            onPress={() => update("adjustExpanded", !form.adjustExpanded)}
             style={({ pressed }) => [
               s.dietHeader,
               pressed && { opacity: 0.7 },
@@ -217,54 +306,63 @@ export default function TellKiwi() {
             hitSlop={6}
           >
             <View style={{ flex: 1 }}>
-              <Text style={s.cardTitle}>
-                Dietary preferences & restrictions
+              <Text style={s.cardTitle}>Adjust saved prefs for this plan</Text>
+              <Text style={s.cardSubtitle}>
+                Optional — changes apply to this plan only
               </Text>
-              <Text style={s.cardSubtitle}>Optional</Text>
             </View>
             <Feather
-              name={form.dietExpanded ? "chevron-up" : "chevron-down"}
+              name={form.adjustExpanded ? "chevron-up" : "chevron-down"}
               size={20}
               color={Colors.neutral[700]}
             />
           </Pressable>
 
-          {form.dietExpanded && (
+          {form.adjustExpanded && (
             <View style={s.dietBody}>
-              <Text style={s.subSectionLabel}>Eating styles</Text>
+              {/* Cuisines */}
+              <Text style={s.subSectionLabel}>
+                Cuisines
+                {cuisineSelectedCount > 0
+                  ? ` · ${cuisineSelectedCount} selected`
+                  : ""}
+              </Text>
+              <CuisinePicker
+                value={form.cuisines}
+                onChange={(next) => update("cuisines", next)}
+              />
+
+              {/* Weekly pacing */}
+              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
+                Weekly pacing
+              </Text>
               <View style={s.chipRow}>
-                {EATING_STYLES.map((e) => (
+                {PACING_OPTIONS.map((opt) => (
                   <Chip
-                    key={e}
-                    label={e}
-                    selected={form.eatingStyles.has(e)}
-                    onPress={() => toggleSetItem("eatingStyles", e)}
+                    key={opt.key}
+                    label={opt.label}
+                    selected={form.weeklyPacing === opt.key}
+                    onPress={() => update("weeklyPacing", opt.key)}
                   />
                 ))}
               </View>
 
+              {/* Dietary restrictions */}
+              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
+                Eating styles
+              </Text>
+              <EatingStylesPicker
+                value={form.eatingStyles}
+                onChange={(next) => update("eatingStyles", next)}
+              />
+
               <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
                 Allergies & avoidances
               </Text>
-              <ExpandLink
-                expanded={form.allergiesExpanded}
-                label="More"
-                onPress={() =>
-                  update("allergiesExpanded", !form.allergiesExpanded)
-                }
+              <AllergiesPicker
+                value={form.allergies}
+                onChange={(next) => update("allergies", next)}
               />
-              {form.allergiesExpanded && (
-                <View style={[s.chipRow, { marginTop: Spacing[2] }]}>
-                  {ALLERGIES_AND_AVOIDANCES.map((a) => (
-                    <Chip
-                      key={a}
-                      label={a}
-                      selected={form.allergies.has(a)}
-                      onPress={() => toggleSetItem("allergies", a)}
-                    />
-                  ))}
-                </View>
-              )}
 
               <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
                 Anything else?
@@ -279,6 +377,76 @@ export default function TellKiwi() {
                 onSubmitEditing={Keyboard.dismiss}
                 style={s.input}
               />
+
+              {/* Discovery meals */}
+              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
+                Discovery meals
+              </Text>
+              <View style={s.chipRow}>
+                {DISCOVERY_MEALS_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt.value}
+                    label={opt.label}
+                    selected={form.discoveryMealsPerWeek === opt.value}
+                    onPress={() =>
+                      update("discoveryMealsPerWeek", opt.value)
+                    }
+                  />
+                ))}
+              </View>
+
+              {/* Sauce preference */}
+              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
+                Sauces and Spice Mixes Preference
+              </Text>
+              <View style={s.chipRow}>
+                {SAUCE_PREFERENCE_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt.value}
+                    label={opt.label}
+                    selected={form.saucePreference === opt.value}
+                    onPress={() => update("saucePreference", opt.value)}
+                  />
+                ))}
+              </View>
+
+              {/* Cook time cap */}
+              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
+                Max cook time
+              </Text>
+              <View style={s.chipRow}>
+                {COOK_TIME_CAP_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt.label}
+                    label={opt.label}
+                    selected={form.maxCookTimeMinutes === opt.value}
+                    onPress={() => update("maxCookTimeMinutes", opt.value)}
+                  />
+                ))}
+              </View>
+
+              {/* Cook time coverage — gated: only when a cap is set. */}
+              {form.maxCookTimeMinutes !== null && (
+                <>
+                  <Text
+                    style={[s.subSectionLabel, { marginTop: Spacing[4] }]}
+                  >
+                    Apply the cap to
+                  </Text>
+                  <View style={s.chipRow}>
+                    {COOK_TIME_COVERAGE_OPTIONS.map((opt) => (
+                      <Chip
+                        key={opt.value}
+                        label={opt.label}
+                        selected={form.maxCookTimeCoverage === opt.value}
+                        onPress={() =>
+                          update("maxCookTimeCoverage", opt.value)
+                        }
+                      />
+                    ))}
+                  </View>
+                </>
+              )}
             </View>
           )}
         </View>
@@ -364,34 +532,6 @@ function Section({
   );
 }
 
-function ExpandLink({
-  expanded,
-  label,
-  onPress,
-}: {
-  expanded: boolean;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={6}
-      style={({ pressed }) => [
-        s.expandLink,
-        pressed && { opacity: 0.6 },
-      ]}
-    >
-      <Text style={s.expandLinkText}>{label}</Text>
-      <Feather
-        name={expanded ? "chevron-up" : "chevron-down"}
-        size={14}
-        color={Colors.sage[700]}
-      />
-    </Pressable>
-  );
-}
-
 const s = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing[4],
@@ -433,17 +573,6 @@ const s = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing[3],
-  },
-  toggleSubtitle: {
-    flex: 1,
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
-  },
   dietHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -458,19 +587,6 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
     marginBottom: Spacing[2],
-  },
-  expandLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: Spacing[2],
-    alignSelf: "flex-start",
-  },
-  expandLinkText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.sage[700],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
   },
   input: {
     borderWidth: 1,
@@ -560,10 +676,5 @@ const s = StyleSheet.create({
     color: Colors.sage[700],
     fontFamily: Typography.face.sans[400],
     lineHeight: 20,
-  },
-  thinkingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing[2],
   },
 });
