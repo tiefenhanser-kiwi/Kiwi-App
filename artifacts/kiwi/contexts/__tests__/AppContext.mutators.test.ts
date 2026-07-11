@@ -92,6 +92,10 @@ const VALID_PREFS = {
   planLengthDefault: 7,
   wantsLeftovers: true,
   dietaryNotes: null,
+  discoveryMealsPerWeek: 0,
+  saucePreference: "balanced",
+  maxCookTimeMinutes: null,
+  maxCookTimeCoverage: "most",
 };
 
 function mockJson(body: unknown, status = 200): Response {

@@ -29,6 +29,10 @@ const VALID_PREFS = {
   planLengthDefault: 7,
   wantsLeftovers: true,
   dietaryNotes: null,
+  discoveryMealsPerWeek: 0,
+  saucePreference: "balanced",
+  maxCookTimeMinutes: null,
+  maxCookTimeCoverage: "most",
 };
 
 test("UserPreferencesSchema accepts a valid full payload", () => {

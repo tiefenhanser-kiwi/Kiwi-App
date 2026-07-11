@@ -159,6 +159,7 @@ Apply these as biases — they shape the menu but do not override hard constrain
 - \`hiddenContext.spiceTolerance\` → bias dishes within the user's heat tolerance. Never push hot dishes onto a \`mild\` user.
 - \`hiddenContext.budgetLevel\` → favor pantry-friendly proteins on \`budget\`; allow finer cuts on \`premium\`.
 - \`hiddenContext.recurringItems\` → staples the user always has on hand; prefer reusing them where natural.
+- \`preferencesContext.maxCookTimeMinutes\` (when set) → lean the meals YOU choose toward titles that plausibly cook within that many minutes. Soft bias only: you cannot verify exact cook time here, so prefer quicker-sounding dinners — it is not a hard ceiling, and an explicitly named meal is honored regardless. Cook time is independent of difficulty: a dish can be simple-but-slow or involved-but-fast, so don't treat the minute cap as a proxy for "not fancy."
 - \`wantsLeftovers: true\` → target servings = householdSize + 1-2; \`false\` → exactly householdSize. Reflect this in ingredient quantities you'd reason about.
 
 # Distinctness (vague + partial only)
@@ -200,6 +201,8 @@ Use \`upcomingEvents\` as a gentle bias, never an override: a summer-holiday hin
 # Cuisine guidance
 
 For the meals YOU choose to fill gaps, lean on the user's preferred cuisines if given, and aim for some spread rather than making every fill meal the same cuisine. Do NOT override the cuisine mix the user set by naming meals — if they deliberately named four Mexican dinners, that's their plan; don't "spread" it. If the user gave no cuisine steer and named nothing, default to a varied palette across American, Italian, Mexican, Asian, and Mediterranean dinners.
+
+Discovery (novelty) exception — \`preferencesContext.discoveryMealsPerWeek\` (0, 1, or 2): when set to 1 or 2 AND the user gave a cuisine steer, reserve that many of the meals YOU choose to fill gaps as DISCOVERY meals — additive novelty on top of the preferred cuisines. This is a hard count and a priority claim on the gap-fill slots, not slack-dependent. It applies ONLY to AI-chosen gap-fill meals and NEVER overrides an explicitly-named meal (a named meal is locked regardless). When gap-fill slots are scarce, fill them in this order: (1) the discovery count first, (2) one meal per preferred cuisine, (3) then double up on preferred cuisines. Each discovery meal is EITHER outside the preferred cuisines OR a preferred-cuisine dish deliberately unfamiliar versus \`planningContext.recentMeals\`, so it reinforces freshness. If the user gave no cuisine steer (the varied-palette default), discovery is a no-op — there is no preferred set to add novelty against, and named meals are never displaced.
 
 # Tone of titles + bullets
 
@@ -693,6 +696,7 @@ Apply these as biases — they shape the menu but do not override hard constrain
 - \`weeklyPacing = one_fancy\` → 4 easy/medium meals + 1 fancier night.
 - \`weeklyPacing = mixed\` → balanced mix.
 - \`difficulty\` field is the user's overall ceiling — never exceed it across the plan.
+- \`preferencesContext.maxCookTimeMinutes\` (when set) → lean toward meal titles that plausibly cook within that many minutes. This is a soft title-selection bias only: you cannot verify exact cook time at this stage, so prefer quicker-sounding dinners over elaborate ones — do not treat it as a hard ceiling. Cook time is independent of \`difficulty\`/\`weeklyPacing\`: a dish can be simple-but-slow (a hands-off braise) or involved-but-fast, so weigh the minute cap on its own, not as a proxy for fanciness.
 
 # Servings and household
 
@@ -735,6 +739,8 @@ Use \`upcomingEvents\` as a gentle bias, never an override. If a hint suggests a
 # Cuisine guidance
 
 If the user supplied \`cuisines\`, weight meals toward those cuisines. Aim for spread WITHIN each plan too: roughly one meal per preferred cuisine, so a single five-dinner plan isn't all-Mexican or all-Italian. Two or more meals of the same cuisine in one plan is fine when it helps use ingredients up (see waste minimization above) or when the user listed fewer cuisines than the plan has days — otherwise vary it.
+
+Discovery (novelty) exception — \`preferencesContext.discoveryMealsPerWeek\` (0, 1, or 2): when this is set to 1 or 2 AND \`cuisines\` is non-empty, reserve exactly that many dinners in each plan as DISCOVERY meals — additive novelty on top of the preferred cuisines. This is a hard count and a priority claim on slots, not slack-dependent: honor it even when slots are scarce. When there aren't enough dinners to do everything, fill slots in this priority order — (1) the discovery count first, (2) then one meal per preferred cuisine, (3) then use any remaining slots to double up on the preferred cuisines. Each discovery meal is EITHER outside the user's preferred cuisines OR within a preferred cuisine but a dish deliberately unfamiliar versus \`planningContext.recentMeals\` — so discovery still reinforces freshness rather than fighting it. Examples: 2 cuisines + 4 dinners + discovery 1 → cuisine A, cuisine B, cuisine B, 1 discovery; 3 cuisines + 3 dinners + discovery 1 → 2 of the cuisines + 1 discovery (discovery wins over covering every preferred cuisine). If \`cuisines\` is empty, discovery is a no-op — the empty-palette default already spans a broad variety, so there is no preferred set to add novelty against.
 
 Across the 1-3 candidates, keep them distinct: if the user listed three cuisines, ideally each candidate emphasizes a different one (when distinct candidates is the higher priority).
 
@@ -790,6 +796,16 @@ For the candidate the user picked (input below), expand each meal in \`mealTitle
   - \`positionIndex\` — 0-based ordering across the meal's dishes.
   - \`ingredients\` — array of \`{ name, quantity, unit, preparationNote?, isOptional? }\`. See ingredient rules below.
 
+# Cook-time cap
+
+When \`candidateContext.maxCookTimeMinutes\` is set (non-null), treat it as a REAL ceiling on the \`estimatedTimeMinutes\` you author — here (unlike the earlier title-selection stage) the minute value is yours to set, so honor it:
+
+- \`candidateContext.maxCookTimeCoverage = "all"\` → the cap applies to EVERY meal, including the fanciest night. No exceptions.
+- \`candidateContext.maxCookTimeCoverage = "most"\` → at most ONE meal — the fanciest / most involved night — MAY exceed the cap as the allowed exception; every other meal must land within it. If no meal genuinely needs to run long, keep them all under the cap.
+- When \`maxCookTimeMinutes\` is null there is no cap — author realistic times as usual.
+
+The minute cap and a meal's \`difficulty\` are INDEPENDENT axes: a dish can be easy-but-slow (a hands-off braise that simmers an hour) or fancy-but-fast (a quick-seared, well-plated main). Do NOT treat "fancy" as "long," and do NOT assume staying under the cap forces a meal to be simple. Author \`estimatedTimeMinutes\` from the actual recipe, then keep it under the cap per the coverage rule above.
+
 # Ingredient rules
 
 - \`name\` — singular lowercase canonical ingredient name. "yellow onion" not "Onions"; "garlic" not "garlic cloves"; "boneless skinless chicken thighs" not "Chicken Thighs (Boneless, Skinless)". Avoid brand names.
@@ -799,6 +815,14 @@ For the candidate the user picked (input below), expand each meal in \`mealTitle
 - \`isOptional\` — true ONLY if the dish is fully cookable without it (garnishes, optional sides).
 - Most dishes have 3+ ingredients. Genuinely simple sides (warmed bread, a baked potato, a steamed vegetable) may have 1–2; do not pad with filler to hit an arbitrary count.
 - Quantities must be sensible for the dish's \`servings\` — assume the AI's per-serving macro pass will divide the totals by \`servings\`. For 4 servings of chicken, that's typically 1.0–1.5 lb of chicken; not 4 oz.
+
+# Sauce sourcing
+
+Branch how you compose sauces and similar components on \`candidateContext.saucePreference\`:
+
+- \`store_bought\` → for OBVIOUS packaged items — pasta sauce, salsa, curry paste, broth/stock, enchilada sauce, and the like — list the jarred/canned/bottled version as a single ingredient line (e.g. \`1 jar pasta sauce\`, \`2 cups chicken broth\`) instead of decomposing it into a from-scratch recipe. Still scratch-make the simple things that are quick and better fresh (a vinaigrette, a quick pan sauce, garlic butter). The store-bought sauce component is EXEMPT from the "most dishes have 3+ ingredients" expectation above — a dish whose sauce is one jarred line is correct, not under-padded; do not pad it with filler to hit a count. Keep using generic names ("pasta sauce," "green curry paste"), NEVER brand names ("Rao's," "Thai Kitchen") — the "avoid brand names" rule above still holds.
+- \`homemade\` → decompose sauces into their component ingredients using the ingredient rules above as-is; no packaged shortcuts.
+- \`balanced\` (the default) → no change; compose sauces however best fits the dish, as you normally would.
 
 # Do NOT produce cooking steps
 
@@ -895,6 +919,12 @@ Default to make-ahead prep. Chopping, dicing, slicing, measuring, and mixing mar
 # Use the dish context
 
 Each input dish carries \`title\`, \`role\`, \`positionIndex\`, \`ingredients[]\`, \`macros\` (per-serving), and \`servings\` is on the parent meal. The step text must reference the ingredients listed for THAT dish — don't pull from another dish's ingredient list. If an ingredient is marked \`isOptional: true\`, you may add an "optional" cue in the step that uses it.
+
+# Sauce wording
+
+Match each dish's sauce steps to how its sauce actually appears in that dish's \`ingredients\` (the plan already reflects the user's sauce preference — there is no separate sauce field in this input, so read it off the ingredients):
+- If the sauce is a pre-made packaged line (e.g. \`1 jar pasta sauce\`, \`1 can enchilada sauce\`, \`green curry paste\`, \`chicken broth/stock\`), word the step to USE it as-is — "stir in the jarred pasta sauce and simmer," not a from-scratch build. Do not invent from-scratch sauce steps for a component the cook bought ready-made.
+- If the sauce is present only as component ingredients (tomatoes, garlic, herbs, stock, spices, with no packaged sauce line), write the steps to MAKE the sauce from scratch — "simmer the tomatoes, garlic, and basil into a sauce."
 
 # Constraints carried from the candidate / candidateContext
 
@@ -1456,7 +1486,7 @@ Note: input items never carry an \`ingredientId\` hint. Treat every input as a c
    - "all-purpose flour" → "all-purpose flour" (already good)
    Keep names lowercase unless they contain a proper noun (e.g. "Dijon mustard", "Greek yogurt").
 
-2. **Reconcile unit-mismatch survivors.** If two input items share the same \`canonicalName\` but have different \`unit\`s (e.g. "olive oil" at 2 tbsp + "olive oil" at 0.5 cup), merge them into ONE output item in the more shopper-friendly unit. Pick the larger unit when both are reasonable. Combine quantities accurately (2 tbsp + 0.5 cup ≈ 0.625 cup → round to a shopper-sensible 0.75 cup or up to 1 cup if needed to reach a purchase size). When you merge, OR the three boolean flags (any input \`true\` → output \`true\`) and use \`notes\` to explain the merge ("combined 2 tbsp + 0.5 cup"). Merging counts as a change — set \`wasAiInferred\` to true on the merged output.
+2. **Reconcile unit-mismatch survivors.** If two input items share the same \`canonicalName\` but have different \`unit\`s (e.g. "olive oil" at 2 tbsp + "olive oil" at 0.5 cup), merge them into ONE output item in the more shopper-friendly unit. Pick the larger unit when both are reasonable. Combine quantities accurately into the fine-grained total need quantity (2 tbsp + 0.5 cup ≈ 0.625 cup). Preserve that fine-grained total — do NOT round it toward a purchasable amount (purchase sizing is handled separately). When you merge, OR the three boolean flags (any input \`true\` → output \`true\`) and use \`notes\` to explain the merge ("combined 2 tbsp + 0.5 cup"). Merging counts as a change — set \`wasAiInferred\` to true on the merged output.
 
 3. **Reassign 'extras' bucket items.** If an input item has \`sectionKey: "extras"\` but you can confidently determine its real section, reassign it. Examples: a brand-name snack obviously goes to "snacks"; an unfamiliar produce item goes to "produce". When uncertain, leave as "extras". Reassignment counts as a change — set \`wasAiInferred\` to true.
 

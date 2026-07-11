@@ -976,10 +976,20 @@ describe("POST /api/wizard/build-from-text — planning-context wiring", () => {
       false,
       "planningContext leaked into parseInput",
     );
+    // Cookbook Phase B Block 2 — same discipline for preferencesContext: the
+    // generation-shaping prefs bag must be withheld from the Haiku classifier.
+    assert.equal(
+      "preferencesContext" in (parseInput as Record<string, unknown>),
+      false,
+      "preferencesContext leaked into parseInput",
+    );
 
     // Generate input must carry a well-formed planningContext.
     const generateInput = (genCall?.vars as {
-      generateInput?: { planningContext?: { season?: string } };
+      generateInput?: {
+        planningContext?: { season?: string };
+        preferencesContext?: Record<string, unknown>;
+      };
     })?.generateInput;
     assert.ok(generateInput?.planningContext, "planningContext missing from generateInput");
     assert.ok(
@@ -987,6 +997,23 @@ describe("POST /api/wizard/build-from-text — planning-context wiring", () => {
         generateInput.planningContext.season ?? "",
       ),
     );
+    // Generate input must also carry preferencesContext with all four keys.
+    const preferencesContext = generateInput?.preferencesContext;
+    assert.ok(
+      preferencesContext,
+      "preferencesContext missing from generateInput",
+    );
+    for (const key of [
+      "discoveryMealsPerWeek",
+      "saucePreference",
+      "maxCookTimeMinutes",
+      "maxCookTimeCoverage",
+    ]) {
+      assert.ok(
+        key in (preferencesContext as Record<string, unknown>),
+        `preferencesContext missing key: ${key}`,
+      );
+    }
   });
 });
 

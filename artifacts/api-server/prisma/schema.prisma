@@ -269,7 +269,7 @@ model UserPreferences {
   id                      String          @id @default(uuid())
   userId                  String          @unique
   householdSize           Int             @default(2)
-  wantsLeftovers          Boolean         @default(true)
+  wantsLeftovers          Boolean         @default(false)
   difficultyDefault       DifficultyLevel @default(easy)
   weeklyPacingDefault     WeeklyPacing    @default(mostly_easy)
   // Renamed from dietaryRestrictions in WS7-2 Block A (mobile contract).

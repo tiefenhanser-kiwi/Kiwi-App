@@ -113,7 +113,8 @@ export interface SubscriptionInfo {
 export interface Step2Draft {
   // WS7-2-F (D-WS7-029) — household fields collected in the step-2 UI.
   householdSize: number;
-  wantsLeftovers: boolean;
+  // wantsLeftovers removed from the step-2 UI in Cookbook Phase B Block 3
+  // (D-WS7-190) — no longer user-set; the schema default drives it.
   planLengthDefault: number;
   cuisines: string[];
   eatingStyles: string[];
@@ -121,6 +122,9 @@ export interface Step2Draft {
   cookingSkill: "beginner" | "intermediate" | "advanced";
   recurringGroceryItems: string[];
   dietaryNotes: string;
+  // Cookbook Phase B Block 3 — cook-time cap collected in step 2.
+  maxCookTimeMinutes: number | null;
+  maxCookTimeCoverage: "all" | "most";
 }
 
 /**

@@ -1,12 +1,5 @@
 import React, { useState } from "react";
-import {
-  Keyboard,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
@@ -21,15 +14,20 @@ import { RecurringItemsPicker } from "@/components/preference-pickers/RecurringI
 import { SkillLevelPicker } from "@/components/preference-pickers/SkillLevelPicker";
 import { useApp } from "@/contexts/AppContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
-import { PLAN_DURATION_PRESETS } from "@/lib/domain";
+import {
+  COOK_TIME_CAP_OPTIONS,
+  COOK_TIME_COVERAGE_OPTIONS,
+  PLAN_DURATION_PRESETS,
+} from "@/lib/domain";
 
 const HOUSEHOLD_MIN = 1;
 const HOUSEHOLD_MAX = 30;
 
 type Step2FormState = {
   householdSize: number;
-  wantsLeftovers: boolean;
   planLengthDefault: number;
+  maxCookTimeMinutes: number | null;
+  maxCookTimeCoverage: "all" | "most";
   cuisines: string[];
   eatingStyles: string[];
   allergiesAndAvoidances: string[];
@@ -46,8 +44,9 @@ export default function OnboardingPrefs() {
     if (onboardingStep2Draft) {
       return {
         householdSize: onboardingStep2Draft.householdSize,
-        wantsLeftovers: onboardingStep2Draft.wantsLeftovers,
         planLengthDefault: onboardingStep2Draft.planLengthDefault,
+        maxCookTimeMinutes: onboardingStep2Draft.maxCookTimeMinutes,
+        maxCookTimeCoverage: onboardingStep2Draft.maxCookTimeCoverage,
         cuisines: onboardingStep2Draft.cuisines,
         eatingStyles: onboardingStep2Draft.eatingStyles,
         allergiesAndAvoidances: onboardingStep2Draft.allergiesAndAvoidances,
@@ -58,8 +57,9 @@ export default function OnboardingPrefs() {
     }
     return {
       householdSize: 4,
-      wantsLeftovers: false,
       planLengthDefault: 5,
+      maxCookTimeMinutes: null,
+      maxCookTimeCoverage: "most",
       cuisines: [],
       eatingStyles: [],
       allergiesAndAvoidances: [],
@@ -80,8 +80,9 @@ export default function OnboardingPrefs() {
     Keyboard.dismiss();
     setOnboardingStep2Draft({
       householdSize: form.householdSize,
-      wantsLeftovers: form.wantsLeftovers,
       planLengthDefault: form.planLengthDefault,
+      maxCookTimeMinutes: form.maxCookTimeMinutes,
+      maxCookTimeCoverage: form.maxCookTimeCoverage,
       cuisines: form.cuisines,
       eatingStyles: form.eatingStyles,
       allergiesAndAvoidances: form.allergiesAndAvoidances,
@@ -126,22 +127,37 @@ export default function OnboardingPrefs() {
           <Text style={s.helpText}>days per plan</Text>
 
           <Text style={[s.subLabel, { marginTop: Spacing[4] }]}>
-            Wants leftovers
+            Max cook time
           </Text>
-          <View style={s.toggleRow}>
-            <Text style={s.toggleSubtitle}>
-              Kiwi sizes portions to leave planned extras
-            </Text>
-            <Switch
-              value={form.wantsLeftovers}
-              onValueChange={(v) => update("wantsLeftovers", v)}
-              trackColor={{
-                false: Colors.neutral[400],
-                true: Colors.sage[700],
-              }}
-              thumbColor={Colors.neutral[0]}
-            />
+          <View style={s.chipRow}>
+            {COOK_TIME_CAP_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.label}
+                label={opt.label}
+                selected={form.maxCookTimeMinutes === opt.value}
+                onPress={() => update("maxCookTimeMinutes", opt.value)}
+              />
+            ))}
           </View>
+          <Text style={s.helpText}>Cap on how long a dinner should take</Text>
+
+          {form.maxCookTimeMinutes !== null && (
+            <>
+              <Text style={[s.subLabel, { marginTop: Spacing[4] }]}>
+                Apply the cap to
+              </Text>
+              <View style={s.chipRow}>
+                {COOK_TIME_COVERAGE_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt.value}
+                    label={opt.label}
+                    selected={form.maxCookTimeCoverage === opt.value}
+                    onPress={() => update("maxCookTimeCoverage", opt.value)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
         </Section>
 
         <Section
@@ -282,17 +298,6 @@ const s = StyleSheet.create({
     color: Colors.neutral[600],
     fontFamily: Typography.face.sans[400],
     marginTop: Spacing[1],
-  },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing[3],
-  },
-  toggleSubtitle: {
-    flex: 1,
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
   },
   input: {
     borderWidth: 1,

@@ -105,6 +105,16 @@ export const WizardExpandCandidateContextSchema = z.object({
   allergiesAndAvoidances: z.array(z.string()).default([]),
   eatingStyles: z.array(z.string()).default([]),
   difficulty: z.enum(["easy", "medium", "fancy"]),
+  // Cookbook Phase B Block 2 (D-WS7-197) — server-authoritative generation
+  // prefs re-injected at expand (where ingredients + estimatedTimeMinutes are
+  // authored). These are NOT trusted from the client echo: the route validates
+  // this schema off req.body, but wizardExpansion.ts OVERWRITES these three
+  // fields from the user's stored UserPreferences before the AI call. Optional
+  // here so a client body that omits them still parses; the server fills them.
+  // Discovery is intentionally absent — it is a generate-only concern (R6).
+  saucePreference: z.string().optional(),
+  maxCookTimeMinutes: z.number().int().nullable().optional(),
+  maxCookTimeCoverage: z.string().optional(),
 });
 export type WizardExpandCandidateContext = z.infer<
   typeof WizardExpandCandidateContextSchema

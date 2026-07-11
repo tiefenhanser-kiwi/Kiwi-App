@@ -116,6 +116,50 @@ export const ALLERGIES_AND_AVOIDANCES = [
 /** Plan duration presets per Hans — single-select 1-7 days. */
 export const PLAN_DURATION_PRESETS = [1, 2, 3, 4, 5, 6, 7] as const;
 
+// ── Cookbook Phase B, Block 3 — preference-control option sets ──────────────
+// Rendered as Chip rows (shared skill/spice vocabulary — no segmented widget).
+// { label, value } tuples so a chip can carry a null / non-string value.
+
+/** Cook-time cap chips. `null` = no limit (the field is nullable). */
+export const COOK_TIME_CAP_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: number | null;
+}> = [
+  { label: "No limit", value: null },
+  { label: "30 min", value: 30 },
+  { label: "45 min", value: 45 },
+  { label: "60 min", value: 60 },
+];
+
+/** Cook-time coverage — only meaningful when a cap is set. Default "most". */
+export const COOK_TIME_COVERAGE_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: "most" | "all";
+}> = [
+  { label: "Most nights", value: "most" },
+  { label: "Every night", value: "all" },
+];
+
+/** Discovery meals per week — 0 (Off) | 1 | 2. Default 0. */
+export const DISCOVERY_MEALS_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: number;
+}> = [
+  { label: "Off", value: 0 },
+  { label: "1", value: 1 },
+  { label: "2", value: 2 },
+];
+
+/** Sauce preference — three-way single-select. Default "balanced". */
+export const SAUCE_PREFERENCE_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: "homemade" | "balanced" | "store_bought";
+}> = [
+  { label: "From scratch", value: "homemade" },
+  { label: "Balanced", value: "balanced" },
+  { label: "Store-bought OK", value: "store_bought" },
+];
+
 /**
  * PRD §14.7 — display-friendly subscription state line.
  * Shared by Profile (card body) and /manage-account (header).

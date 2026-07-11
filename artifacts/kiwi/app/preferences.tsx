@@ -31,7 +31,14 @@ import { StovetopPicker } from "@/components/preference-pickers/StovetopPicker";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
-import { DEFAULT_RETAILERS, PLAN_DURATION_PRESETS } from "@/lib/domain";
+import {
+  COOK_TIME_CAP_OPTIONS,
+  COOK_TIME_COVERAGE_OPTIONS,
+  DEFAULT_RETAILERS,
+  DISCOVERY_MEALS_OPTIONS,
+  PLAN_DURATION_PRESETS,
+  SAUCE_PREFERENCE_OPTIONS,
+} from "@/lib/domain";
 import { getPreferences, type UserPreferences } from "@/lib/api/me";
 import type { UserPreferencesData } from "@/lib/types";
 
@@ -110,7 +117,11 @@ export default function Preferences() {
     setSaveStatus(null);
     setSaving(true);
     try {
-      await updateUserPreferences(form);
+      // wantsLeftovers is no longer user-set (D-WS7-190) — its control was
+      // removed from this screen, so omit it from the PATCH rather than echo
+      // back the stored value.
+      const { wantsLeftovers: _omitLeftovers, ...prefsToSave } = form;
+      await updateUserPreferences(prefsToSave);
       setSaveStatus({ kind: "success", text: "Preferences saved." });
     } catch {
       setSaveStatus({
@@ -194,23 +205,49 @@ export default function Preferences() {
           </View>
           <Text style={s.helpText}>days per plan</Text>
 
-          <SubLabel style={{ marginTop: Spacing[4] }}>
-            Wants leftovers
-          </SubLabel>
-          <View style={s.toggleRow}>
-            <Text style={s.toggleSubtitle}>
-              Kiwi sizes portions to leave planned extras
-            </Text>
-            <Switch
-              value={form.wantsLeftovers}
-              onValueChange={(v) => update("wantsLeftovers", v)}
-              trackColor={{
-                false: Colors.neutral[400],
-                true: Colors.sage[700],
-              }}
-              thumbColor={Colors.neutral[0]}
-            />
+          <SubLabel style={{ marginTop: Spacing[4] }}>Max cook time</SubLabel>
+          <View style={s.chipRow}>
+            {COOK_TIME_CAP_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.label}
+                label={opt.label}
+                selected={form.maxCookTimeMinutes === opt.value}
+                onPress={() => update("maxCookTimeMinutes", opt.value)}
+              />
+            ))}
           </View>
+          <Text style={s.helpText}>Cap on how long a dinner should take</Text>
+
+          {form.maxCookTimeMinutes !== null && (
+            <>
+              <SubLabel style={{ marginTop: Spacing[4] }}>
+                Apply the cap to
+              </SubLabel>
+              <View style={s.chipRow}>
+                {COOK_TIME_COVERAGE_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt.value}
+                    label={opt.label}
+                    selected={form.maxCookTimeCoverage === opt.value}
+                    onPress={() => update("maxCookTimeCoverage", opt.value)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+
+          <SubLabel style={{ marginTop: Spacing[4] }}>Discovery meals</SubLabel>
+          <View style={s.chipRow}>
+            {DISCOVERY_MEALS_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.value}
+                label={opt.label}
+                selected={form.discoveryMealsPerWeek === opt.value}
+                onPress={() => update("discoveryMealsPerWeek", opt.value)}
+              />
+            ))}
+          </View>
+          <Text style={s.helpText}>Add 1-2 novel meals to each plan</Text>
 
           <SubLabel style={{ marginTop: Spacing[4] }}>
             Kids in household
@@ -313,6 +350,20 @@ export default function Preferences() {
             value={form.stovetopType}
             onChange={(next) => update("stovetopType", next)}
           />
+
+          <SubLabel style={{ marginTop: Spacing[4] }}>
+            Sauce preference
+          </SubLabel>
+          <View style={s.chipRow}>
+            {SAUCE_PREFERENCE_OPTIONS.map((opt) => (
+              <Chip
+                key={opt.value}
+                label={opt.label}
+                selected={form.saucePreference === opt.value}
+                onPress={() => update("saucePreference", opt.value)}
+              />
+            ))}
+          </View>
         </Section>
 
         {/* Section 5: Health & Budget */}

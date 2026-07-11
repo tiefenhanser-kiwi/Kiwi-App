@@ -106,11 +106,12 @@ export default function OnboardingStep3() {
   // pollution); on re-login the preferences screen surfaced those stub
   // values as if the user had set them.
   //
-  // WS7-2-F (D-WS7-029): householdSize, wantsLeftovers and planLengthDefault
-  // are now collected in step 2 and propagated below. Of the four §14.9.2
-  // fields, only defaultRetailer stays omitted — it is set on the first
-  // grocery order, not during onboarding, so the server's DB default /
-  // nullability applies until then.
+  // WS7-2-F (D-WS7-029): householdSize and planLengthDefault are collected in
+  // step 2 and propagated below (wantsLeftovers was dropped from step 2 in
+  // Cookbook Phase B Block 3 / D-WS7-190). Cookbook Phase B Block 3 also adds
+  // the step-2 cook-time cap. Of the §14.9.2 fields, only defaultRetailer stays
+  // omitted — it is set on the first grocery order, not during onboarding, so
+  // the server's DB default / nullability applies until then.
   const buildFullPrefs = (): Partial<UserPreferencesData> => {
     const prefs: Partial<UserPreferencesData> = {
       // §3.5 — step-3 form values (this screen).
@@ -134,8 +135,14 @@ export default function OnboardingStep3() {
       prefs.cookingSkill = onboardingStep2Draft.cookingSkill;
       prefs.recurringGroceryItems = onboardingStep2Draft.recurringGroceryItems;
       prefs.householdSize = onboardingStep2Draft.householdSize;
-      prefs.wantsLeftovers = onboardingStep2Draft.wantsLeftovers;
       prefs.planLengthDefault = onboardingStep2Draft.planLengthDefault;
+      // Cookbook Phase B Block 3 — cook-time cap collected in step 2.
+      // wantsLeftovers is no longer collected here (D-WS7-190); the schema
+      // default applies. maxCookTimeCoverage only matters when a cap is set.
+      prefs.maxCookTimeMinutes = onboardingStep2Draft.maxCookTimeMinutes;
+      if (onboardingStep2Draft.maxCookTimeMinutes !== null) {
+        prefs.maxCookTimeCoverage = onboardingStep2Draft.maxCookTimeCoverage;
+      }
       // dietaryNotes: include only when non-empty. Step 2 saves "" when the
       // user leaves the field blank; an empty string is not a meaningful
       // preference, so omit the key rather than PATCH a blank value.

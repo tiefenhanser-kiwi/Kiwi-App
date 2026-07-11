@@ -171,7 +171,15 @@ function makeEstimateStub(): Parameters<
   >[0]["estimateDishMacrosImpl"];
 }
 
-const stubPrisma = {} as unknown as PrismaClient;
+// Cookbook Phase B Block 2 (D-WS7-197) — expandCandidate now reads the user's
+// stored UserPreferences to server-authoritatively re-inject sauce + cook-time
+// into the expand candidateContext. These tests don't exercise pref values, so
+// null (→ schema-default fallbacks) is fine; the stub just has to exist.
+const stubPrisma = {
+  userPreferences: {
+    findUnique: async () => null,
+  },
+} as unknown as PrismaClient;
 
 // ── tests ─────────────────────────────────────────────────────────────────
 

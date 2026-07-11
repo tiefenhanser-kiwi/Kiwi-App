@@ -80,6 +80,31 @@ export async function expandCandidate(
   //    Contract is preserved: the assembled meals[] is byte-equivalent to the
   //    pre-shard shape (mealTitles-order; same per-meal schema).
   const mealTitles = opts.request.candidate.mealTitles;
+
+  // Cookbook Phase B Block 2 (D-WS7-197) — server-authoritative re-inject of
+  // the generation prefs at expand. Expand is where ingredients and
+  // estimatedTimeMinutes are AUTHORED, so sauce sourcing and the cook-time cap
+  // must reach the prompt here. WizardExpandCandidateContextSchema is otherwise
+  // 100% client-supplied (the route safeParses req.body and passes it through),
+  // so we do NOT trust a client echo of these fields: we OVERWRITE them from
+  // the user's stored UserPreferences. Discovery is not re-injected — it is a
+  // generate-only concern (R6). Falls back to the schema.prisma column defaults
+  // when the user has no UserPreferences row.
+  const prefs = await opts.prisma.userPreferences.findUnique({
+    where: { userId: opts.userId },
+    select: {
+      saucePreference: true,
+      maxCookTimeMinutes: true,
+      maxCookTimeCoverage: true,
+    },
+  });
+  const serverCandidateContext: WizardExpandRequest["candidateContext"] = {
+    ...opts.request.candidateContext,
+    saucePreference: prefs?.saucePreference ?? "balanced",
+    maxCookTimeMinutes: prefs?.maxCookTimeMinutes ?? null,
+    maxCookTimeCoverage: prefs?.maxCookTimeCoverage ?? "most",
+  };
+
   const perMealResults = await Promise.all(
     mealTitles.map((title) =>
       expandOneMeal({
@@ -87,7 +112,7 @@ export async function expandCandidate(
         prisma: opts.prisma,
         userId: opts.userId,
         candidate: opts.request.candidate,
-        candidateContext: opts.request.candidateContext,
+        candidateContext: serverCandidateContext,
         mealTitle: title,
       }),
     ),
