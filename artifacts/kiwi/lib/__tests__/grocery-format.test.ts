@@ -9,6 +9,7 @@ import {
   composePackName,
   composeGroceryLine,
   formatNeedText,
+  pluralizeNeedUnit,
 } from "../format/grocery";
 
 describe("composePackName (pack + name, with count-produce elide)", () => {
@@ -39,7 +40,7 @@ describe("formatNeedText (glyph at render only)", () => {
   it("glyphs on-ladder amounts", () => {
     assert.equal(formatNeedText("4.875", "oz", "x"), "4⅞ oz");
     assert.equal(formatNeedText("0.5", "cup", "x"), "½ cup");
-    assert.equal(formatNeedText("30", "clove", "x"), "30 clove");
+    assert.equal(formatNeedText("30", "clove", "x"), "30 cloves"); // count noun pluralized
   });
   it("passes an off-glyph / non-numeric amount through raw", () => {
     assert.equal(formatNeedText("3.97", "oz", "x"), "3.97 oz");
@@ -50,6 +51,36 @@ describe("formatNeedText (glyph at render only)", () => {
   });
 });
 
+describe("pluralizeNeedUnit — count nouns only (Hans override)", () => {
+  it("pluralizes count nouns when quantity != 1", () => {
+    assert.equal(pluralizeNeedUnit("clove", 30), "cloves");
+    assert.equal(pluralizeNeedUnit("head", 3), "heads");
+    assert.equal(pluralizeNeedUnit("leaf", 4), "leaves");
+    assert.equal(pluralizeNeedUnit("box", 2), "boxes");
+  });
+  it("keeps count nouns singular at quantity 1", () => {
+    assert.equal(pluralizeNeedUnit("clove", 1), "clove");
+    assert.equal(pluralizeNeedUnit("head", 1), "head");
+  });
+  it("NEVER touches measure units (4⅞ ozs would be worse than the bug)", () => {
+    assert.equal(pluralizeNeedUnit("oz", 4.875), "oz");
+    assert.equal(pluralizeNeedUnit("cup", 2), "cup");
+    assert.equal(pluralizeNeedUnit("tbsp", 3), "tbsp");
+    assert.equal(pluralizeNeedUnit("lb", 2), "lb");
+    assert.equal(pluralizeNeedUnit("g", 200), "g");
+  });
+  it("passes unknown units + non-numeric quantities through unchanged", () => {
+    assert.equal(pluralizeNeedUnit("blorp", 5), "blorp");
+    assert.equal(pluralizeNeedUnit("each", 3), "each"); // not in the allow-list
+    assert.equal(pluralizeNeedUnit("clove", null), "clove");
+  });
+  it("through formatNeedText: measure stays, count pluralizes", () => {
+    assert.equal(formatNeedText("4.875", "oz", "x"), "4⅞ oz");
+    assert.equal(formatNeedText("30", "clove", "x"), "30 cloves");
+    assert.equal(formatNeedText("1", "clove", "x"), "1 clove");
+  });
+});
+
 describe("composeGroceryLine — the two-part line the user reads", () => {
   it("parmesan: 1 wedge (6 oz) parmesan (4⅞ oz)", () => {
     assert.equal(
@@ -57,10 +88,10 @@ describe("composeGroceryLine — the two-part line the user reads", () => {
       "1 wedge (6 oz) parmesan (4⅞ oz)",
     );
   });
-  it("garlic: 3 heads garlic (30 cloves) — pack pre-scaled server-side", () => {
+  it("garlic: 3 heads garlic (30 cloves) — pack pre-scaled server-side, need pluralized", () => {
     assert.equal(
       composeGroceryLine("garlic", "head", "3 heads", formatNeedText("30", "clove", "")),
-      "3 heads garlic (30 clove)",
+      "3 heads garlic (30 cloves)",
     );
   });
   it("omits the parenthetical when there is no need", () => {

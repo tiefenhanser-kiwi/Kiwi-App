@@ -15,6 +15,61 @@
 import { formatNeedGlyph } from "./quantity";
 import { parseQuantity } from "../quantity";
 
+// WS7-8b B2 commit 3 (Hans override) — render-time pluralization of the NEED
+// unit for COUNT NOUNS only ("30 clove" → "30 cloves"; the garlic headline).
+// This is render-only formatting of an authored value — exactly what the ⅛
+// glyphs already do (4⅞ is not the stored 4.875); the discipline is *don't
+// persist formatted values*, not *never format*. Hard guardrails:
+//   - Allow-list count nouns ONLY. Measure units (oz, cup, tbsp, lb, g, ml…)
+//     are NEVER touched — "4⅞ ozs" would be worse than the bug.
+//   - Unknown units pass through unchanged.
+//   - quantity === 1 (or non-numeric) → singular / unchanged.
+// Count nouns are discrete, so roundNeedQuantity ceils them to whole — a
+// fractional count never reaches here.
+const COUNT_NOUN_PLURALS: Record<string, string> = {
+  clove: "cloves",
+  head: "heads",
+  slice: "slices",
+  piece: "pieces",
+  can: "cans",
+  jar: "jars",
+  bottle: "bottles",
+  bunch: "bunches",
+  bag: "bags",
+  box: "boxes",
+  package: "packages",
+  packet: "packets",
+  carton: "cartons",
+  container: "containers",
+  ear: "ears",
+  stalk: "stalks",
+  sprig: "sprigs",
+  fillet: "fillets",
+  breast: "breasts",
+  thigh: "thighs",
+  wedge: "wedges",
+  block: "blocks",
+  stick: "sticks",
+  loaf: "loaves",
+  bulb: "bulbs",
+  sheet: "sheets",
+  strip: "strips",
+  cube: "cubes",
+  leaf: "leaves",
+  wrap: "wraps",
+  roll: "rolls",
+  pint: "pints",
+};
+
+export function pluralizeNeedUnit(
+  unit: string,
+  quantity: number | null,
+): string {
+  if (quantity === null || quantity === 1) return unit; // singular / unknown count
+  const plural = COUNT_NOUN_PLURALS[unit.trim().toLowerCase()];
+  return plural ?? unit; // measure/unknown units untouched
+}
+
 /**
  * The NEED text rendered inside the two-part line's parenthetical, e.g.
  * "4⅞ oz". The amount is glyph-formatted at RENDER only (formatNeedGlyph) — the
@@ -28,15 +83,18 @@ export function formatNeedText(
   quantityUnit: string | undefined,
   fallback: string,
 ): string {
+  const n = quantityAmount !== undefined ? parseQuantity(quantityAmount) : null;
   const displayAmt =
     quantityAmount !== undefined
-      ? (() => {
-          const n = parseQuantity(quantityAmount);
-          return n !== null ? formatNeedGlyph(n) : quantityAmount;
-        })()
+      ? n !== null
+        ? formatNeedGlyph(n)
+        : quantityAmount
       : undefined;
-  return displayAmt !== undefined || quantityUnit !== undefined
-    ? [displayAmt, quantityUnit].filter(Boolean).join(" ")
+  // Count-noun plural at render only; measure units + unknowns pass through.
+  const unit =
+    quantityUnit !== undefined ? pluralizeNeedUnit(quantityUnit, n) : undefined;
+  return displayAmt !== undefined || unit !== undefined
+    ? [displayAmt, unit].filter(Boolean).join(" ")
     : fallback;
 }
 
