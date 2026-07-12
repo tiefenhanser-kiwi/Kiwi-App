@@ -11,11 +11,19 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { runAICall as productionRunAICall } from "./ai/runAICall";
-import type { PrismaLike } from "./ai/promptRegistry";
 import {
   MacroEstimateResultSchema,
   type MacroEstimateResult,
 } from "./ai/schemas/macros";
+import {
+  resolveConversionWithFallback,
+  type ConversionFallbackPrisma,
+} from "./conversionFallback";
+import {
+  convertToGrams,
+  needsConversionFactor,
+  resolveConversion,
+} from "./ingredientConversions";
 
 export interface DishMacroSnapshot {
   caloriesPerServing: number;
@@ -64,10 +72,20 @@ export interface DishMacroIngredientInput {
     carbs: number;
     fat: number;
   };
+  // WS7-8b B2 — authoritative gram weight from the shared conversion table.
+  // When present the prompt uses it directly instead of guessing densities.
+  resolvedGrams?: number;
+  // WS7-8b B2 — identity for the quantity→grams table lookup + AI-fallback
+  // write-back (closes D-WS6-024 Step 2). Present on the plan-macro path
+  // (persisted Ingredient rows); absent on the wizard path (unpersisted
+  // ingredients), which falls back to the AI density guess as before.
+  ingredientId?: string | null;
+  canonicalName?: string;
+  conversionRef?: unknown;
 }
 
 export interface EstimateDishMacrosOptions {
-  prisma: PrismaLike;
+  prisma: ConversionFallbackPrisma;
   userId: string;
   // DI seam for tests. Production callers omit and runAICall builds its own
   // module-level Anthropic client from process.env.ANTHROPIC_API_KEY.
@@ -104,13 +122,49 @@ export type EstimateDishMacrosResult =
 export async function estimateDishMacros(
   opts: EstimateDishMacrosOptions,
 ): Promise<EstimateDishMacrosResult> {
+  // WS7-8b B2 — ground each ingredient's gram weight from the shared conversion
+  // table (curated/usda_derived), filling volume/count misses via the stamped
+  // AI-fallback, so the prompt uses an authoritative number instead of its own
+  // kitchen-density guess (closes D-WS6-024 Step 2). Weight units resolve with
+  // no factor; unmappable units and the wizard path (no canonicalName) fall back
+  // to the prompt's guess exactly as before.
+  const groundedIngredients = await Promise.all(
+    opts.ingredients.map(async (ing) => {
+      if (ing.resolvedGrams != null || !ing.canonicalName) return ing;
+
+      let conv = resolveConversion(ing.canonicalName, ing.conversionRef);
+      let grams = convertToGrams(ing.quantity, ing.unit, conv);
+
+      if (grams == null && needsConversionFactor(ing.unit) && ing.ingredientId != null) {
+        conv = await resolveConversionWithFallback(
+          {
+            ingredientId: ing.ingredientId,
+            canonicalName: ing.canonicalName,
+            conversionRef: ing.conversionRef,
+          },
+          { prisma: opts.prisma, userId: opts.userId, client: opts.client },
+        );
+        grams = convertToGrams(ing.quantity, ing.unit, conv);
+      }
+
+      return grams != null ? { ...ing, resolvedGrams: grams } : ing;
+    }),
+  );
+
   const result = await productionRunAICall(
     "nutrition.ingredient_estimate",
     {
       estimateInput: {
         dishTitle: opts.dishTitle,
         servings: opts.servings,
-        ingredients: opts.ingredients,
+        ingredients: groundedIngredients.map((ing) => ({
+          name: ing.name,
+          quantity: ing.quantity,
+          unit: ing.unit,
+          ...(ing.isOptional !== undefined ? { isOptional: ing.isOptional } : {}),
+          ...(ing.nutritionRefPer100g ? { nutritionRefPer100g: ing.nutritionRefPer100g } : {}),
+          ...(ing.resolvedGrams != null ? { resolvedGrams: ing.resolvedGrams } : {}),
+        })),
       },
     },
     MacroEstimateResultSchema,

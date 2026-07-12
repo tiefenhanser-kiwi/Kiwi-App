@@ -128,6 +128,21 @@ export function isWeightUnit(unit: string): boolean {
   return normalizeUnit(unit) in WEIGHT_UNIT_TO_GRAMS;
 }
 
+export function isCountUnit(unit: string): boolean {
+  return COUNT_UNITS.has(normalizeUnit(unit));
+}
+
+/**
+ * True when converting this unit to grams REQUIRES a per-ingredient factor
+ * (density for volume, grams-per-each for count) — i.e. a table/AI lookup can
+ * help. Weight units need no factor; unmappable units ("to taste") can't be
+ * helped. Used by the macro path to decide whether an AI conversion fallback
+ * is worth attempting.
+ */
+export function needsConversionFactor(unit: string): boolean {
+  return isVolumeUnit(unit) || isCountUnit(unit);
+}
+
 /**
  * Convert (qty, unit) → grams for one ingredient, using its conversion row.
  * Returns null when the conversion is not determinable (e.g. a volume unit with

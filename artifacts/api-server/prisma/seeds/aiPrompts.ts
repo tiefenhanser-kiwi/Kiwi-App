@@ -255,7 +255,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 
 # How to compute
 
-1. Read each ingredient: \`{ quantity, unit, name, isOptional?, nutritionRefPer100g? }\`. The unit may be any common kitchen unit — cups, tbsp, tsp, oz, lb, each, g, ml, kg, slice, clove, pinch, bunch, head, can, jar, pint, package, fillet, breast, thigh, etc. Convert to grams using standard kitchen densities (e.g. 1 cup flour ≈ 120 g, 1 cup cooked rice ≈ 195 g, 1 tbsp olive oil ≈ 14 g, 1 cup chopped onion ≈ 160 g, 1 lb ≈ 454 g, 1 oz ≈ 28 g, 1 large egg ≈ 50 g). Use reasonable density assumptions; do not refuse a unit. When an ingredient carries \`nutritionRefPer100g\` (authoritative per-100g USDA reference macros: \`{ calories, protein, carbs, fat }\`), you still convert its quantity to grams here — the grams drive how the reference values scale in step 3.
+1. Read each ingredient: \`{ quantity, unit, name, isOptional?, nutritionRefPer100g?, resolvedGrams? }\`. The unit may be any common kitchen unit — cups, tbsp, tsp, oz, lb, each, g, ml, kg, slice, clove, pinch, bunch, head, can, jar, pint, package, fillet, breast, thigh, etc. **When an ingredient carries \`resolvedGrams\`, USE THAT NUMBER as the ingredient's gram weight directly — it is an authoritative table conversion; do NOT re-derive grams from the quantity/unit.** Only when \`resolvedGrams\` is ABSENT, convert to grams using standard kitchen densities (e.g. 1 cup flour ≈ 120 g, 1 cup cooked rice ≈ 195 g, 1 tbsp olive oil ≈ 14 g, 1 cup chopped onion ≈ 160 g, 1 lb ≈ 454 g, 1 oz ≈ 28 g, 1 large egg ≈ 50 g). Use reasonable density assumptions; do not refuse a unit. When an ingredient carries \`nutritionRefPer100g\` (authoritative per-100g USDA reference macros: \`{ calories, protein, carbs, fat }\`), the grams (resolved or derived) drive how the reference values scale in step 3.
 2. **Skip any ingredient where \`isOptional === true\`** in the calorie/macro math. Optional ingredients (parsley garnish, optional sour cream, garnish cilantro) often go un-used and would inflate the estimate. They MAY still be referenced in \`caveats\` if relevant.
 3. Sum the macro contribution across all non-optional ingredients. When an ingredient carries \`nutritionRefPer100g\`, those are authoritative USDA per-100g values — use them as the grounding for that ingredient, scaled by its gram weight (contribution = grams ÷ 100 × the per-100g value, for each of calories/protein/carbs/fat). Do NOT override a provided \`nutritionRefPer100g\` with your own guess. For ingredients WITHOUT \`nutritionRefPer100g\`, estimate using typical per-gram values as before.
 4. Divide the dish total by \`servings\` to produce the per-serving values.
@@ -279,6 +279,56 @@ The dish title, servings, and ingredient list arrive below.
 
 \`\`\`json
 {{estimateInput}}
+\`\`\`
+
+Return ONLY the JSON object.`;
+
+// WS7-8b B2 — nutrition.gap_fill_conversion. Haiku, text+Zod. Runtime fallback
+// when quantity→grams misses the shared conversion table for a volume/count
+// unit. Returns the reusable density/count FACTORS (not a one-off gram value)
+// so the result is written back to Ingredient.conversionRef (stamped
+// source:'ai_estimated') and reused.
+const NUTRITION_GAP_FILL_CONVERSION_BODY = `You provide kitchen unit-conversion factors for a single food ingredient.
+
+Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
+
+# Output schema
+
+\`\`\`json
+{
+  "gramsPerCup": 120,
+  "gramsPerEach": null,
+  "confidence": "high"
+}
+\`\`\`
+
+# Field rules
+
+- **gramsPerCup** — the weight in grams of ONE US cup of this ingredient in its typical recipe form (all-purpose flour ≈ 120, granulated sugar ≈ 200, chopped onion ≈ 160, grated parmesan ≈ 100). Use \`null\` when the ingredient is not sensibly measured by volume (a whole chicken breast, a single apple).
+- **gramsPerEach** — the weight in grams of ONE whole item, when the ingredient is naturally counted (1 medium onion ≈ 110, 1 large egg ≈ 50, 1 medium apple ≈ 182, 1 lemon ≈ 100). Use \`null\` when the ingredient is not used as discrete whole items (flour, oil, broth).
+- At least ONE of gramsPerCup / gramsPerEach should be non-null. If genuinely neither applies, return both null and confidence "low".
+- **confidence** — \`high\` for everyday foods with a well-known density/weight; \`medium\` when the form is ambiguous (grated vs shredded); \`low\` for specialty/uncertain items.
+
+# Rules
+
+- Give factors for the ingredient's DEFAULT culinary form. Do not assume cooked unless the name says so.
+- Numbers are typical US grocery/kitchen references. Do not invent implausible values.
+
+# Examples
+
+Input: \`{"canonicalName":"all-purpose flour"}\`
+Output: \`{"gramsPerCup":120,"gramsPerEach":null,"confidence":"high"}\`
+
+Input: \`{"canonicalName":"yellow onion"}\`
+Output: \`{"gramsPerCup":160,"gramsPerEach":110,"confidence":"high"}\`
+
+Input: \`{"canonicalName":"boneless skinless chicken breast"}\`
+Output: \`{"gramsPerCup":null,"gramsPerEach":174,"confidence":"medium"}\`
+
+# Input
+
+\`\`\`json
+{{conversionFillInput}}
 \`\`\`
 
 Return ONLY the JSON object.`;
@@ -1810,6 +1860,15 @@ const PROMPTS: PromptSeed[] = [
     defaultModel: MODEL_HAIKU,
     defaultMode: "text",
     body: NUTRITION_INGREDIENT_ESTIMATE_BODY,
+  },
+  {
+    key: "nutrition.gap_fill_conversion",
+    description:
+      "Provide reusable grams-per-cup / grams-per-each conversion factors for an ingredient (table-miss fallback).",
+    variables: ["conversionFillInput"],
+    defaultModel: MODEL_HAIKU,
+    defaultMode: "text",
+    body: NUTRITION_GAP_FILL_CONVERSION_BODY,
   },
   {
     key: "grocery.recurring_item_categorize",

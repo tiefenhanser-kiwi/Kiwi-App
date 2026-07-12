@@ -387,3 +387,98 @@ describe("estimateDishMacros — failure paths", () => {
     assert.equal(logs[0].failureReason, "no_api_key");
   });
 });
+
+// ── WS7-8b B2 — quantity→grams table grounding ─────────────────────────────
+
+describe("estimateDishMacros — conversion-table grounding (D-WS6-024 Step 2)", () => {
+  // A prisma stub whose active prompt body interpolates {{estimateInput}}, so
+  // the captured payload actually contains the grounded ingredient JSON (the
+  // in-memory fallback is a bare placeholder that drops the input).
+  function makeBodyPrisma(): PrismaLike {
+    return {
+      aIPrompt: {
+        findUnique: async (): Promise<AIPromptRow> => ({
+          id: "p",
+          key: "nutrition.ingredient_estimate",
+          defaultModel: "claude-haiku-4-5-20251001",
+          defaultMode: "text",
+          versions: [{ body: "INPUT: {{estimateInput}}", version: 1, isActive: true }],
+        }),
+      },
+      systemSetting: { findUnique: async (): Promise<SystemSettingRow | null> => null },
+      lLMCallLog: { create: async ({ data }: { data: LLMCallLogCreateData }) => data },
+    };
+  }
+
+  // Capturing client: records the user message so we can assert resolvedGrams
+  // was threaded into the estimate payload.
+  function makeCapturingClient() {
+    const sent: string[] = [];
+    const client = {
+      messages: {
+        create: async (params: Anthropic.MessageCreateParams): Promise<Anthropic.Message> => {
+          sent.push(JSON.stringify(params.messages));
+          return {
+            id: "msg_cap",
+            container: null,
+            content: [{ type: "text", text: JSON.stringify({ perServing: { calories: 100, proteinG: 5, carbsG: 5, fatG: 5 } }), citations: null } as Anthropic.ContentBlock],
+            model: params.model,
+            role: "assistant",
+            stop_details: null,
+            stop_reason: "end_turn",
+            stop_sequence: null,
+            type: "message",
+            usage: { input_tokens: 10, output_tokens: 5, cache_creation_input_tokens: null, cache_read_input_tokens: null, server_tool_use: null, service_tier: null },
+          } as unknown as Anthropic.Message;
+        },
+      },
+    } as unknown as Pick<Anthropic, "messages">;
+    return { client, sent };
+  }
+
+  it("threads authoritative resolvedGrams for table-covered ingredients (weight + density)", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const prisma = makeBodyPrisma();
+    const { client, sent } = makeCapturingClient();
+
+    const result = await estimateDishMacros({
+      prisma,
+      userId: TEST_USER_ID,
+      client,
+      dishTitle: "Cheesy Beef",
+      servings: 4,
+      ingredients: [
+        // weight unit → grams with no factor: 1 lb = 453.59 g
+        { name: "Ground beef", quantity: 1, unit: "lb", ingredientId: "i-beef", canonicalName: "ground beef", conversionRef: null },
+        // curated density: cheddar 113 g/cup → 1 cup = 113 g
+        { name: "Cheddar", quantity: 1, unit: "cup", ingredientId: "i-ched", canonicalName: "cheddar", conversionRef: null },
+      ],
+    });
+
+    assert.equal(result.status, "success");
+    const payload = sent.join("");
+    assert.ok(payload.includes("resolvedGrams"), "resolvedGrams must be in the estimate payload");
+    assert.ok(payload.includes("453.59237"), "ground beef 1 lb → 453.59 g");
+    assert.ok(payload.includes("113"), "cheddar 1 cup → 113 g (curated density)");
+  });
+
+  it("omits resolvedGrams on the wizard path (no canonicalName) — falls back to the guess", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const prisma = makeBodyPrisma();
+    const { client, sent } = makeCapturingClient();
+
+    await estimateDishMacros({
+      prisma,
+      userId: TEST_USER_ID,
+      client,
+      dishTitle: "Wizard Dish",
+      servings: 2,
+      // No canonicalName/ingredientId (unpersisted wizard ingredients).
+      ingredients: [{ name: "mystery powder", quantity: 1, unit: "cup" }],
+    });
+
+    assert.ok(!sent.join("").includes("resolvedGrams"), "wizard path must not fabricate resolvedGrams");
+  });
+});

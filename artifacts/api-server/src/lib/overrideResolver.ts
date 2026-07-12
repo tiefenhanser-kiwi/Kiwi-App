@@ -32,6 +32,11 @@ export interface EffectiveIngredient {
   // omit this). Threads through to estimateDishMacros as grounding. Absent =
   // ungrounded, exactly as before.
   nutritionRefPer100g?: Per100gMacros;
+  // WS7-8b B2 — Ingredient identity for the quantity→grams table lookup +
+  // stamped AI-fallback write-back inside estimateDishMacros.
+  ingredientId?: string | null;
+  canonicalName?: string;
+  conversionRef?: unknown;
 }
 
 export type DishWithIngredients = {
@@ -73,6 +78,10 @@ export function resolveEffectiveIngredients(
       // Only a MATCHED usda record grounds the estimate; miss-markers / null
       // leave the field absent so the ingredient reads as ungrounded.
       ...(isMatchedRef(ref) ? { nutritionRefPer100g: ref.per100g } : {}),
+      // WS7-8b B2 — identity for the quantity→grams table lookup + fallback.
+      ingredientId: di.ingredient.id,
+      canonicalName: di.ingredient.canonicalName,
+      conversionRef: di.ingredient.conversionRef,
     };
   });
 }

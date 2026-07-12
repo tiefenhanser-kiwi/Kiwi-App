@@ -83,12 +83,19 @@ describe("resolveEffectiveIngredients", () => {
       quantity: 1,
       unit: "lb",
       isOptional: false,
+      // WS7-8b B2 — identity threaded for the quantity→grams table lookup.
+      ingredientId: "ing-1",
+      canonicalName: "ground beef",
+      conversionRef: null,
     });
     assert.deepEqual(result[1], {
       name: "Olive oil",
       quantity: 2,
       unit: "tbsp",
       isOptional: true,
+      ingredientId: "ing-2",
+      canonicalName: "olive oil",
+      conversionRef: null,
     });
   });
 

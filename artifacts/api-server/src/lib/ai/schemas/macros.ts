@@ -36,10 +36,36 @@ export const MacroEstimateInputSchema = z.object({
           fat: z.number().nonnegative(),
         })
         .optional(),
+      // WS7-8b B2 (closes D-WS6-024 Step 2) — authoritative gram weight for
+      // this quantity+unit, resolved from the shared conversion table (curated
+      // /usda_derived/ai_estimated). When present the prompt uses it DIRECTLY
+      // instead of guessing kitchen densities — the guess was the accuracy seam
+      // the USDA per-100g grounding scaled against. Absent = guess as before.
+      resolvedGrams: z.number().nonnegative().optional(),
     }),
   ),
 });
 export type MacroEstimateInput = z.infer<typeof MacroEstimateInputSchema>;
+
+// WS7-8b B2 — runtime conversion gap-fill (nutrition.gap_fill_conversion).
+// Cheap Haiku call when an ingredient's quantity→grams conversion misses the
+// table (no curated/usda_derived row) AND the unit needs a density/count factor
+// (volume or count; weight units never miss). The result is written back to
+// Ingredient.conversionRef stamped source:'ai_estimated' so the catalog
+// self-populates and a guess is never laundered as curated data.
+export const ConversionFillInputSchema = z.object({
+  canonicalName: z.string().min(1).max(100),
+});
+export type ConversionFillInput = z.infer<typeof ConversionFillInputSchema>;
+
+export const ConversionFillResultSchema = z.object({
+  // Grams per 1 US cup (volume-measured ingredients); null when N/A.
+  gramsPerCup: z.number().positive().nullable(),
+  // Grams per one whole "each" (count ingredients); null when N/A.
+  gramsPerEach: z.number().positive().nullable(),
+  confidence: z.enum(["high", "medium", "low"]),
+});
+export type ConversionFillResult = z.infer<typeof ConversionFillResultSchema>;
 
 export const MacroEstimateResultSchema = z.object({
   perServing: MacroValuesSchema,
