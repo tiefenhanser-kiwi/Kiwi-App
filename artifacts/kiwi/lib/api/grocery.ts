@@ -110,6 +110,11 @@ const GroceryListItemWireSchema = z
     ambiguityOptions: z.array(z.string()),
     userResolvedTo: z.string().nullable(),
     notes: z.string().nullable(),
+    // WS7-8b B2 commit 3 — the pack, persisted as data. Nullable/optional for
+    // forward-compat with pre-B2 rows + user-added items.
+    purchaseUnit: z.string().nullable().optional(),
+    purchaseQuantity: z.number().nullable().optional(),
+    purchaseDisplay: z.string().nullable().optional(),
   })
   .passthrough();
 
@@ -174,6 +179,10 @@ function normalizeListItem(wire: GroceryListItemWire): GroceryListItem {
     userResolvedTo: wire.userResolvedTo ?? undefined,
     isOptional: wire.isOptional,
     isCompleted: wire.isChecked,
+    // WS7-8b B2 commit 3 — pack fields for the render-time two-part compose.
+    purchaseUnit: wire.purchaseUnit ?? undefined,
+    purchaseQuantity: wire.purchaseQuantity ?? undefined,
+    purchaseDisplay: wire.purchaseDisplay ?? undefined,
   };
 }
 

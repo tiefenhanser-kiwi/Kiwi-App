@@ -704,6 +704,13 @@ export interface GroceryListItem {
   isOptional: boolean;
   /** Checked-off state during shopping */
   isCompleted: boolean;
+  /** WS7-8b B2 — the buyable pack, as DATA. Composed with {@link name} and the
+   *  need (quantityAmount/quantityUnit) into the two-part line at render:
+   *  "{purchaseDisplay} {name} ({need})". The pack is derived (regenerated on
+   *  reconcile); the need is authored. Absent for user-added / unknown items. */
+  purchaseUnit?: string;
+  purchaseQuantity?: number;
+  purchaseDisplay?: string;
 }
 
 // GroceryListSummary retired in WS7-3 C3 c5 — the Groceries tab consumes

@@ -208,6 +208,13 @@ export const GenerateListOutputItemSchema = z
     isAmbiguous: z.boolean(),
     ambiguityOptions: z.array(z.string()).min(2).max(4).optional(),
     wasAiInferred: z.boolean(),
+    // WS7-8b B2 commit 3 — the buyable pack as DATA (the AI does not emit these;
+    // the helper attaches them from the consolidated item + head↔clove scaling
+    // AFTER the AI pass). Optional so AI output still validates. The client
+    // composes "{purchaseDisplay} {name} ({need})" at render.
+    purchaseUnit: z.string().nullable().optional(),
+    purchaseQuantity: z.number().nullable().optional(),
+    purchaseDisplay: z.string().nullable().optional(),
   })
   .refine(
     (it) =>

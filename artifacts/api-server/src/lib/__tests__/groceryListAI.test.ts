@@ -11,7 +11,6 @@ import {
   GroceryListAIError,
   categorizeGroceryItem,
   fillPurchaseSizesWithWriteBack,
-  formatPackDisplay,
   gapFillPurchaseSize,
   generateFinalGroceryList,
   partitionForAI,
@@ -591,54 +590,8 @@ describe("fillPurchaseSizesWithWriteBack", () => {
   });
 });
 
-// ── formatPackDisplay (WS7-5d Block 3 Fix B) ───────────────────────────
-
-describe("formatPackDisplay", () => {
-  it("returns displayName unchanged when purchaseDisplay is null", () => {
-    assert.equal(formatPackDisplay("yellow onion", null, null), "yellow onion");
-    assert.equal(formatPackDisplay("xyzzy", null, null), "xyzzy");
-  });
-
-  it("prepends purchaseDisplay for non-'each' units (Format A)", () => {
-    assert.equal(
-      formatPackDisplay("crushed tomatoes", "can", "1 can (28 oz)"),
-      "1 can (28 oz) crushed tomatoes",
-    );
-    assert.equal(
-      formatPackDisplay("chicken breast", "lb", "1 lb"),
-      "1 lb chicken breast",
-    );
-    assert.equal(
-      formatPackDisplay("olive oil", "bottle", "1 bottle (17 oz)"),
-      "1 bottle (17 oz) olive oil",
-    );
-    assert.equal(
-      formatPackDisplay("eggs", "dozen", "1 dozen"),
-      "1 dozen eggs",
-    );
-  });
-
-  it("elides for 'each' items where purchaseDisplay already names the item", () => {
-    assert.equal(formatPackDisplay("lemon", "each", "2 lemons"), "2 lemons");
-    assert.equal(formatPackDisplay("tomato", "each", "3 tomatoes"), "3 tomatoes");
-    assert.equal(formatPackDisplay("cucumber", "each", "1 cucumber"), "1 cucumber");
-    assert.equal(formatPackDisplay("lime", "each", "2 limes"), "2 limes");
-  });
-
-  it("falls back to bare displayName for 'each' qualifier mismatches (no awkward dup)", () => {
-    // "yellow onion" + "2 onions" — the purchase pack is generic. Prepending
-    // would read "2 onions yellow onion"; eliding would drop the meaningful
-    // "yellow" qualifier. Safest fallback is the bare displayName.
-    assert.equal(
-      formatPackDisplay("yellow onion", "each", "2 onions"),
-      "yellow onion",
-    );
-    assert.equal(
-      formatPackDisplay("bell peppers", "each", "3 peppers"),
-      "bell peppers",
-    );
-  });
-});
+// (formatPackDisplay moved to the client — kiwi/lib/format/grocery.ts — in
+// commit 3; the pack is now persisted as data and composed at render.)
 
 // ── partitionForAI (WS7-5d Block 3 Fix A) ──────────────────────────────
 
@@ -779,13 +732,50 @@ describe("generateFinalGroceryList", () => {
 
       assert.equal(fake.callCount(), 0, "Sonnet must not be called");
       assert.equal(result.items.length, 2);
-      // Fix B formatting: prepend for non-'each' units.
-      assert.equal(result.items[1].displayName, "1 lb chicken breast");
-      // Fix B formatting: 'each' qualifier mismatch falls back to bare name.
+      // WS7-8b B2 commit 3 — displayName is the RAW name; the pack is data.
+      assert.equal(result.items[1].displayName, "chicken breast");
+      assert.equal(result.items[1].purchaseDisplay, "1 lb");
       assert.equal(result.items[0].displayName, "yellow onion");
+      assert.equal(result.items[0].purchaseDisplay, "2 onions");
       // wasAiInferred is false for the deterministic path.
       assert.ok(result.items.every((i) => i.wasAiInferred === false));
       assert.ok(result.items.every((i) => i.isAmbiguous === false));
+    });
+
+    it("head↔clove pack scaling lands in purchaseDisplay as DATA (BUG-025-1)", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      const fake = makeFakeClient([]); // deterministic → no AI
+      const { prisma } = makeStubPrisma();
+
+      // 30 cloves of garlic → buy 3 heads. Pack rides as a field; name is raw.
+      const items: ConsolidatedItem[] = [
+        baseInputItem({
+          canonicalName: "garlic",
+          displayName: "garlic",
+          quantity: 30,
+          unit: "clove",
+          sectionKey: "produce",
+          purchaseUnit: "head",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 head",
+          conversionRef: { subUnit: { parent: "head", perParent: 10 }, purchaseUnit: "head", purchaseDisplay: "1 head", source: "curated" },
+        }),
+      ];
+
+      const result = await generateFinalGroceryList(
+        "Plan",
+        items,
+        ["produce", "extras"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
+      );
+
+      assert.equal(fake.callCount(), 0);
+      assert.equal(result.items[0].displayName, "garlic"); // raw name
+      assert.equal(result.items[0].purchaseDisplay, "3 heads"); // scaled pack, as data
+      assert.equal(result.items[0].purchaseQuantity, 3);
+      assert.equal(result.items[0].quantity, 30); // need unchanged, fine-grained
+      assert.equal(result.items[0].unit, "clove");
     });
 
     it("preserves flags 1:1 on the deterministic path (no AI re-emission risk)", async () => {
@@ -980,8 +970,10 @@ describe("generateFinalGroceryList", () => {
       assert.equal(result.items.length, 1);
       // Re-swept: 3.97 oz → 4 oz (measured ladder rounds up to a whole here).
       assert.equal(result.items[0].quantity, 4);
-      // Two-part compose applied on the AI path too: pack prepended.
-      assert.equal(result.items[0].displayName, "1 wedge (6 oz) parmesan cheese");
+      // WS7-8b B2 commit 3 — the pack rides as DATA (not baked into the name);
+      // the client composes "1 wedge (6 oz) parmesan cheese (4 oz)" at render.
+      assert.equal(result.items[0].displayName, "parmesan cheese");
+      assert.equal(result.items[0].purchaseDisplay, "1 wedge (6 oz)");
     });
 
     it("threads preparationNote + sourceDishTitle into the AI input payload", async () => {

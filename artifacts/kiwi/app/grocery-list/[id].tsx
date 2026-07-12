@@ -26,7 +26,7 @@ import {
   type GroceryItemCandidate,
 } from "@/lib/api/grocery";
 import { GROCERY_SECTIONS } from "@/lib/domain";
-import { formatNeedGlyph } from "@/lib/format/quantity";
+import { composePackName, formatNeedText } from "@/lib/format/grocery";
 import { parseQuantity } from "@/lib/quantity";
 import { getGroceryListById } from "@/lib/stubs";
 import {
@@ -1097,24 +1097,15 @@ function GroceryRow({
   const showCheck = !isDefaultStaple && item.isCompleted;
   const showPlusAffordance = isDefaultStaple;
 
-  // Display fallback chain: structured → legacy quantity string. Both
-  // can be empty (e.g., user clears the qty during edit) — show empty.
-  //
-  // WS7-8b fraction-glyph block — render the amount with a vulgar-fraction
-  // glyph (1.333… → "1⅓", 1.125 → "1⅛") for the DISPLAY only. quantityAmount
-  // stays raw: it seeds the inline editor and is parsed on persist. A
-  // non-numeric or off-glyph amount passes through unchanged (raw string).
-  const displayAmt =
-    item.quantityAmount !== undefined
-      ? (() => {
-          const n = parseQuantity(item.quantityAmount);
-          return n !== null ? formatNeedGlyph(n) : item.quantityAmount;
-        })()
-      : undefined;
-  const displayQty =
-    displayAmt !== undefined || item.quantityUnit !== undefined
-      ? [displayAmt, item.quantityUnit].filter(Boolean).join(" ")
-      : item.quantity;
+  // WS7-8b fraction-glyph block (extracted to lib/format/grocery.formatNeedText
+  // in B2 commit 3 so the two-part line composes from tested pure helpers). The
+  // amount is glyph-formatted for DISPLAY only; quantityAmount stays raw for the
+  // editor + persist.
+  const displayQty = formatNeedText(
+    item.quantityAmount,
+    item.quantityUnit,
+    item.quantity,
+  );
 
   // parseQuantity returns null for invalid; empty input is "valid" (
   // intentional clear), so guard on length first — same convention as
@@ -1129,11 +1120,25 @@ function GroceryRow({
   // Pressable would occasionally win the responder race and fire onTap
   // with a stale-closure editingItemId, falling through to checkbox
   // toggle instead of edit. Sibling Pressables eliminate the conflict.
+  // WS7-8b B2 commit 3 — the two-part line. The pack composes with the name
+  // (composePackName elides count-produce dups, e.g. "2 lemons" not
+  // "2 lemons lemon"); the need renders as an inline "(…)" glyph parenthetical.
+  // The need is read TOGETHER with the pack as one line, but stays its own
+  // sibling Pressable (edit affordance) — never nested inside the name toggle,
+  // so the WS5-5Q responder-race bug can't return. quantityAmount is untouched.
+  const packName = composePackName(
+    item.userResolvedTo ?? item.name,
+    item.purchaseUnit,
+    item.purchaseDisplay,
+  );
+  const needText = displayQty ? String(displayQty) : "";
+
   return (
     <View style={s.row}>
       <Pressable
         onPress={onTap}
-        style={({ pressed }) => [s.toggleArea, pressed && { opacity: 0.7 }]}
+        hitSlop={8}
+        style={({ pressed }) => [pressed && { opacity: 0.7 }]}
       >
         <View
           style={[
@@ -1156,101 +1161,82 @@ function GroceryRow({
             <Feather name="plus" size={12} color={Colors.neutral[500]} />
           )}
         </View>
-        <View style={{ flex: 1 }}>
-          <View style={s.itemTopRow}>
-            <Text
-              style={[
-                s.itemName,
-                showStrikethrough && {
-                  textDecorationLine: "line-through",
-                  color: Colors.neutral[600],
-                },
-                isDefaultStaple && {
-                  color: Colors.neutral[700],
-                },
-              ]}
-              numberOfLines={2}
-            >
-              {/* WS7-7-A B5 projection — a resolved item renders its
-                  userResolvedTo value over displayName; underlying fields stay
-                  intact. */}
-              {item.userResolvedTo ?? item.name}
-            </Text>
-            {item.isUniversalStaple && (
-              <Tag
-                label="Pantry Staple"
-                tone={isActiveStaple ? "sage" : "muted"}
-              />
-            )}
-            {item.isRecurringItem && <Tag label="Recurring" tone="sage" />}
-            {item.isOptional && <Tag label="Optional" tone="muted" />}
-          </View>
-        </View>
       </Pressable>
-      {isEditing ? (
-        // Inline edit pair — mirrors meal-builder's ingredient row
-        // (s.ingQty + s.ingUnit). Parent owns state so swapping focus
-        // between the two doesn't unmount the row mid-edit.
-        <View style={s.qtyEditWrap}>
-          <TextInput
-            value={editAmount}
-            onChangeText={onEditAmount}
-            placeholder="Qty"
-            placeholderTextColor={Colors.neutral[600]}
-            style={[
-              s.qtyInput,
-              editAmountInvalid && s.qtyInputInvalid,
-            ]}
-            // Default keyboard so users can type "/" for fractions —
-            // same as meal-builder ("1/2", "1 1/2" supported).
-            autoCapitalize="none"
-            returnKeyType="done"
-            blurOnSubmit
-            autoFocus
-            onSubmitEditing={onCommitEdit}
-          />
-          <TextInput
-            value={editUnit}
-            onChangeText={onEditUnit}
-            placeholder="Unit"
-            placeholderTextColor={Colors.neutral[600]}
-            style={s.unitInput}
-            autoCapitalize="none"
-            returnKeyType="done"
-            blurOnSubmit
-            onSubmitEditing={onCommitEdit}
-          />
-        </View>
-      ) : (
-        // Qty Pressable — for default staples, tapping fires onTap
-        // (opt-in, same as the toggle area); for non-staples, fires
-        // onEnterEdit. Always a sibling Pressable, never nested.
-        <Pressable
-          onPress={isDefaultStaple ? onTap : onEnterEdit}
-          // Generous hitSlop (WS5-5Q-fix-4) to absorb the few-px layout
-          // shift that fires when the keyboard dismisses on commit — a
-          // narrower target was the likely cause of the intermittent
-          // "tap fails until I scroll" repro: scroll resets the layout
-          // and the next tap lands cleanly. Also matches the X button's
-          // hitSlop scale (8) so adjacent targets feel symmetric.
-          hitSlop={12}
-          style={({ pressed }) => [
-            s.qtyTapTarget,
-            pressed && { opacity: 0.6 },
-          ]}
-        >
+      {/* Body: name + tags + need flow together in ONE wrapping line so the
+          two-part line reads as a single thought; a long name wraps the need
+          under it rather than pushing it off to a far column. */}
+      <View style={s.body}>
+        <Pressable onPress={onTap} hitSlop={6} style={({ pressed }) => pressed && { opacity: 0.7 }}>
           <Text
             style={[
-              s.qty,
-              (isDefaultStaple || item.isCompleted) && {
+              s.itemName,
+              showStrikethrough && {
+                textDecorationLine: "line-through",
                 color: Colors.neutral[600],
               },
+              isDefaultStaple && { color: Colors.neutral[700] },
             ]}
+            numberOfLines={2}
           >
-            {displayQty || "—"}
+            {/* WS7-7-A B5 projection — a resolved item renders its
+                userResolvedTo over displayName; underlying fields stay intact.
+                The pack rides in front as data-composed text (B2 commit 3). */}
+            {packName}
           </Text>
         </Pressable>
-      )}
+        {item.isUniversalStaple && (
+          <Tag label="Pantry Staple" tone={isActiveStaple ? "sage" : "muted"} />
+        )}
+        {item.isRecurringItem && <Tag label="Recurring" tone="sage" />}
+        {item.isOptional && <Tag label="Optional" tone="muted" />}
+        {isEditing ? (
+          // Inline edit pair — mirrors meal-builder's ingredient row. Parent
+          // owns state so swapping focus doesn't unmount the row mid-edit.
+          <View style={s.qtyEditWrap}>
+            <TextInput
+              value={editAmount}
+              onChangeText={onEditAmount}
+              placeholder="Qty"
+              placeholderTextColor={Colors.neutral[600]}
+              style={[s.qtyInput, editAmountInvalid && s.qtyInputInvalid]}
+              autoCapitalize="none"
+              returnKeyType="done"
+              blurOnSubmit
+              autoFocus
+              onSubmitEditing={onCommitEdit}
+            />
+            <TextInput
+              value={editUnit}
+              onChangeText={onEditUnit}
+              placeholder="Unit"
+              placeholderTextColor={Colors.neutral[600]}
+              style={s.unitInput}
+              autoCapitalize="none"
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={onCommitEdit}
+            />
+          </View>
+        ) : needText ? (
+          // The need parenthetical — the edit affordance. Default staples tap
+          // to opt-in (onTap); non-staples tap to edit the need (onEnterEdit).
+          // Sibling Pressable, never nested in the name toggle.
+          <Pressable
+            onPress={isDefaultStaple ? onTap : onEnterEdit}
+            hitSlop={12}
+            style={({ pressed }) => [s.qtyTapTarget, pressed && { opacity: 0.6 }]}
+          >
+            <Text
+              style={[
+                s.qty,
+                (isDefaultStaple || item.isCompleted) && { color: Colors.neutral[600] },
+              ]}
+            >
+              ({needText})
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
       {/* Default staples can't be removed — they just sit dimmed in the
           list. Opted-in staples + regular items expose the X. */}
       {!isDefaultStaple && !isEditing && (
@@ -1506,6 +1492,16 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing[3],
+  },
+  // WS7-8b B2 commit 3 — name + tags + need flow in ONE wrapping line so the
+  // two-part line reads as a single thought (long names wrap the need under
+  // them instead of pushing it to a far column).
+  body: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: Spacing[1],
   },
   check: {
     width: 22,

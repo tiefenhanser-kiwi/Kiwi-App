@@ -383,6 +383,11 @@ export async function reconcileGroceryListIfStale(
       // (D-WS7-124: prior check-state is NOT carried through re-resolution).
       isUserAdded: false,
       notes: item.notes,
+      // WS7-8b B2 commit 3 — the pack is DERIVED: reconcile regenerates it from
+      // fresh conversion data on every re-resolution (matches the generate path).
+      purchaseUnit: item.purchaseUnit ?? null,
+      purchaseQuantity: item.purchaseQuantity ?? null,
+      purchaseDisplay: item.purchaseDisplay ?? null,
     }));
     newSources = final.items.flatMap((item, idx) => {
       const sources =

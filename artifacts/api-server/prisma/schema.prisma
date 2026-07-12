@@ -684,6 +684,15 @@ model GroceryListItem {
   // (cascade fires on hard delete only) so restore re-finds provenance.
   deletedAt          DateTime?
   notes              String?
+  // WS7-8b B2 commit 3 — the buyable pack, persisted as DATA (not baked into
+  // displayName) so the client composes the two-part line
+  // "{purchaseDisplay} {name} ({needGlyph} {unit})" at render. The pack is
+  // DERIVED (reconcile regenerates it from fresh conversion data); the need
+  // (quantity/unit) is AUTHORED and edited via quantity. Nothing formatted is
+  // ever persisted — quantityAmount stays the raw editable value.
+  purchaseUnit       String?
+  purchaseQuantity   Float?
+  purchaseDisplay    String?
 
   groceryList GroceryList             @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
   ingredient  Ingredient?             @relation(fields: [ingredientId], references: [id])

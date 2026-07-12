@@ -219,44 +219,10 @@ function isVague(item: ConsolidatedItem): boolean {
   return VAGUE_CANONICALS.has(item.canonicalName.toLowerCase().trim());
 }
 
-/**
- * WS7-5d Block 3 Fix B — pack-display formatter for deterministic-path
- * items. Returns a shopper-facing displayName that surfaces the purchase
- * pack ("1 can (28 oz) crushed tomatoes", "1 lb chicken breast",
- * "2 lemons", "1 dozen eggs").
- *
- * Format A with an "each"-dup elide rule:
- *   - purchaseDisplay null → displayName unchanged (genuine unknown).
- *   - purchaseUnit === "each" AND purchaseDisplay's word-residue equals
- *     displayName, displayName+"s", or displayName+"es" → return
- *     purchaseDisplay alone ("2 lemons", "3 tomatoes", "1 cucumber").
- *   - purchaseUnit === "each" + qualifier mismatch ("yellow onion" vs.
- *     "2 onions") → return displayName alone (avoid "2 onions yellow onion").
- *   - otherwise → prepend purchaseDisplay
- *     ("1 can (28 oz) crushed tomatoes", "1 lb chicken breast",
- *     "1 dozen eggs").
- */
-export function formatPackDisplay(
-  displayName: string,
-  purchaseUnit: string | null,
-  purchaseDisplay: string | null,
-): string {
-  if (!purchaseDisplay) return displayName;
-
-  if (purchaseUnit === "each") {
-    const residue = purchaseDisplay
-      .toLowerCase()
-      .replace(/^\d+(?:\.\d+)?\s+/, "")
-      .trim();
-    const name = displayName.toLowerCase().trim();
-    if (residue === name || residue === `${name}s` || residue === `${name}es`) {
-      return purchaseDisplay;
-    }
-    return displayName;
-  }
-
-  return `${purchaseDisplay} ${displayName}`;
-}
+// WS7-8b B2 commit 3 — the pack-display formatter (formatPackDisplay) moved to
+// the CLIENT (kiwi/lib/format/grocery.ts). The pack is now persisted as data
+// (purchaseUnit/purchaseQuantity/purchaseDisplay) and composed with the name +
+// the need parenthetical at render, so nothing formatted is persisted.
 
 interface PartitionedItem {
   item: ConsolidatedItem;
@@ -315,23 +281,39 @@ export function partitionForAI(items: ConsolidatedItem[]): PartitionResult {
   return { deterministic, aiSubset };
 }
 
+// WS7-8b B2 commit 3 — resolve the persisted pack for an item, applying
+// head↔clove scaling (BUG-025-1: need 30 cloves → "3 heads", not "1 head").
+// Returns the pack as DATA; the client composes the two-part line at render.
+function resolvePurchaseFields(item: ConsolidatedItem): {
+  purchaseUnit: string | null;
+  purchaseQuantity: number | null;
+  purchaseDisplay: string | null;
+} {
+  const conv = resolveConversion(item.canonicalName, item.conversionRef);
+  const scaled = scalePurchaseForSubUnit(conv, item.quantity, item.unit);
+  if (scaled && conv?.subUnit) {
+    return {
+      purchaseUnit: conv.subUnit.parent,
+      purchaseQuantity: scaled.purchaseQuantity,
+      purchaseDisplay: scaled.purchaseDisplay,
+    };
+  }
+  return {
+    purchaseUnit: item.purchaseUnit,
+    purchaseQuantity: item.purchaseQuantity,
+    purchaseDisplay: item.purchaseDisplay,
+  };
+}
+
 function buildDeterministicOutputItem(
   item: ConsolidatedItem,
 ): GenerateListOutputItem {
-  // WS7-8b B2 — head↔clove purchase scaling (BUG-025-1). When the need is in a
-  // sub-unit (30 cloves) and the pack is sold by the parent (head), scale the
-  // pack to the number a shopper actually buys ("3 heads"), not "1 head".
-  const conv = resolveConversion(item.canonicalName, item.conversionRef);
-  const scaled = scalePurchaseForSubUnit(conv, item.quantity, item.unit);
-  const purchaseUnit = scaled ? conv!.subUnit!.parent : item.purchaseUnit;
-  const purchaseDisplay = scaled ? scaled.purchaseDisplay : item.purchaseDisplay;
+  const pack = resolvePurchaseFields(item);
   return {
     canonicalName: item.canonicalName,
-    displayName: formatPackDisplay(
-      item.displayName,
-      purchaseUnit,
-      purchaseDisplay,
-    ),
+    // Raw ingredient name — the pack is NO LONGER baked in (commit 3). The
+    // client renders "{purchaseDisplay} {name} ({need})" as one line.
+    displayName: item.displayName,
     quantity: item.quantity,
     unit: item.unit,
     sectionKey: item.sectionKey as SectionKey,
@@ -341,6 +323,7 @@ function buildDeterministicOutputItem(
     notes: null,
     isAmbiguous: false,
     wasAiInferred: false,
+    ...pack,
   };
 }
 
@@ -436,21 +419,20 @@ export async function generateFinalGroceryList(
     //       2) bypassed B1's sweep, letting off-ladder floats reach the user
     //       (the 3.97-oz root cause). The AI's merged total is final; this only
     //       snaps it to the ladder — it does NOT re-round pre-merge parts.
-    //   (2) Compose the purchase pack onto the AI-path displayName, mirroring
-    //       the deterministic path (buildDeterministicOutputItem → formatPackDisplay).
-    //       Without this, AI-path items showed a bare name with no pack. Use the
-    //       i-th subset item's purchase data (same canonical → representative).
+    //   (2) Attach the purchase pack as DATA (commit 3), from the i-th subset
+    //       item + head↔clove scaling against the AI's merged quantity. The
+    //       client composes the two-part line; the pack is not baked into the
+    //       name. displayName stays the AI's shopper-friendly name.
     const src = aiSubset[i]?.item;
+    const pack = src
+      ? resolvePurchaseFields({ ...src, quantity: out.quantity, unit: out.unit })
+      : { purchaseUnit: null, purchaseQuantity: null, purchaseDisplay: null };
     placed.push({
       index: aiSubset[i].index,
       out: {
         ...out,
         quantity: roundNeedQuantity(out.quantity, out.unit),
-        displayName: formatPackDisplay(
-          out.displayName,
-          src?.purchaseUnit ?? null,
-          src?.purchaseDisplay ?? null,
-        ),
+        ...pack,
       },
     });
   }

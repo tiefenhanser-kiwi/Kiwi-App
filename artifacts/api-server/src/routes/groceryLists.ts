@@ -292,6 +292,12 @@ export function createGroceryListsRouter(
             // WS7-7-A Block 1: all generation rows are plan-derived.
             isUserAdded: false,
             notes: item.notes,
+            // WS7-8b B2 commit 3 — persist the pack as DATA (was baked into
+            // displayName). The client composes the two-part line at render;
+            // reconcile regenerates these from fresh conversion data.
+            purchaseUnit: item.purchaseUnit ?? null,
+            purchaseQuantity: item.purchaseQuantity ?? null,
+            purchaseDisplay: item.purchaseDisplay ?? null,
           }));
 
           // Build source rows by joining each final item back to its
