@@ -292,7 +292,11 @@ describe("consolidatePlanIngredients — consolidation", () => {
     assert.equal(out[0].sources.length, 2);
   });
 
-  it("keeps separate lines when units differ for the same ingredient", async () => {
+  // WS7-8b B2 (BUG-031) — same-canonical/different-unit rows the conversion
+  // table CAN reconcile now merge deterministically (was: kept separate for the
+  // AI to reconcile with no density data — the 3.97 bug). Olive oil is curated
+  // (gramsPerCup 216), so 2 tbsp + 0.25 cup merges via grams into one cup line.
+  it("merges same-canonical measured units via the conversion table", async () => {
     const prisma = makePrisma({
       items: [
         {
@@ -321,9 +325,48 @@ describe("consolidatePlanIngredients — consolidation", () => {
     });
     const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
     const oliveLines = out.filter((i) => i.canonicalName === "olive oil");
-    assert.equal(oliveLines.length, 2);
-    const units = oliveLines.map((l) => l.unit).sort();
-    assert.deepEqual(units, ["cup", "tbsp"]);
+    // 2 tbsp (0.125 cup → 27 g) + 0.25 cup (54 g) = 81 g ÷ 216 g/cup = 0.375 cup (⅜).
+    assert.equal(oliveLines.length, 1);
+    assert.equal(oliveLines[0].unit, "cup");
+    assert.ok(Math.abs(oliveLines[0].quantity - 0.375) < 1e-9);
+    // Provenance from BOTH source dishes survives the merge.
+    assert.equal(oliveLines[0].sources.length, 2);
+  });
+
+  it("keeps separate lines when the table can't convert the units", async () => {
+    // A canonical NOT in the conversion table with volume + count units — no
+    // gramsPerCup and no subUnit, so the merge aborts and both lines survive
+    // for the AI reconciliation path.
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            {
+              id: "d1",
+              title: "A",
+              servingsDefault: 4,
+              ingredients: [{ name: "Mystery Sauce", quantity: 1, unit: "cup", category: "Pantry" }],
+            },
+          ],
+        },
+        {
+          id: "i2",
+          dishes: [
+            {
+              id: "d2",
+              title: "B",
+              servingsDefault: 4,
+              ingredients: [{ name: "Mystery Sauce", quantity: 2, unit: "each", category: "Pantry" }],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    const lines = out.filter((i) => i.canonicalName === "mystery sauce");
+    assert.equal(lines.length, 2);
+    assert.deepEqual(lines.map((l) => l.unit).sort(), ["cup", "each"]);
   });
 
   it("applies servingsOverride as a multiplier on dishIngredient quantity", async () => {

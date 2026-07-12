@@ -18,7 +18,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { logger } from "./logger";
-import { lookupPurchaseDefault } from "./ingredientPurchaseDefaults";
+import { lookupPurchaseDefault } from "./ingredientConversions";
 import {
   enrichIngredients,
   type EnrichIngredientTarget,

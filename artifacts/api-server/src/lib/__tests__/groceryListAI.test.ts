@@ -241,6 +241,7 @@ function makeItem(overrides: Partial<ConsolidatedItem> = {}): ConsolidatedItem {
     purchaseUnit: null,
     purchaseQuantity: null,
     purchaseDisplay: null,
+    conversionRef: null,
     preparationNote: null,
     sourceDishTitle: null,
     ...overrides,
@@ -921,6 +922,66 @@ describe("generateFinalGroceryList", () => {
       assert.equal(result.items[1].wasAiInferred, true);
       assert.equal(result.items[0].wasAiInferred, false);
       assert.equal(result.items[2].wasAiInferred, false);
+    });
+
+    it("re-sweeps an off-ladder AI-merged quantity onto the ⅛ ladder (BUG-031, the 3.97 fix)", async () => {
+      _resetClientCache();
+      _resetRegistryCaches();
+      // The AI merge path (rule 2) returns an off-ladder float — the exact
+      // 3.97-oz symptom. Before B2 this reached the user verbatim; now the
+      // re-sweep snaps it to 4 oz, and the purchase pack is composed on.
+      const fake = makeFakeClient([
+        {
+          content: [
+            textBlock({
+              items: [
+                {
+                  canonicalName: "cheese",
+                  displayName: "parmesan cheese",
+                  quantity: 3.97,
+                  unit: "oz",
+                  sectionKey: "dairy_eggs",
+                  isUniversalStaple: false,
+                  isUserPantryStaple: false,
+                  isRecurringItem: false,
+                  notes: "combined 3 oz + 0.5 cup",
+                  isAmbiguous: false,
+                  wasAiInferred: true,
+                },
+              ],
+            }),
+          ],
+        },
+      ]);
+      const { prisma } = makeStubPrisma();
+
+      // "cheese" is a vague canonical → routes to the AI subset.
+      const items: ConsolidatedItem[] = [
+        baseInputItem({
+          canonicalName: "cheese",
+          displayName: "cheese",
+          quantity: 3.97,
+          unit: "oz",
+          sectionKey: "dairy_eggs",
+          purchaseUnit: "wedge",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 wedge (6 oz)",
+        }),
+      ];
+
+      const result = await generateFinalGroceryList(
+        "Plan",
+        items,
+        ["dairy_eggs", "extras"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
+      );
+
+      assert.equal(fake.callCount(), 1);
+      assert.equal(result.items.length, 1);
+      // Re-swept: 3.97 oz → 4 oz (measured ladder rounds up to a whole here).
+      assert.equal(result.items[0].quantity, 4);
+      // Two-part compose applied on the AI path too: pack prepended.
+      assert.equal(result.items[0].displayName, "1 wedge (6 oz) parmesan cheese");
     });
 
     it("threads preparationNote + sourceDishTitle into the AI input payload", async () => {

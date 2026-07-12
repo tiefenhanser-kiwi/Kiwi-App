@@ -465,6 +465,7 @@ function consolidatedItem(
     purchaseUnit: null,
     purchaseQuantity: null,
     purchaseDisplay: null,
+    conversionRef: null,
     preparationNote: null,
     sourceDishTitle: null,
     ...rest,

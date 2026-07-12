@@ -37,6 +37,7 @@ function makeDish(): DishWithIngredients {
           purchaseUnit: null,
           purchaseQuantity: null,
           purchaseDisplay: null,
+          conversionRef: null,
         },
       },
       {
@@ -61,6 +62,7 @@ function makeDish(): DishWithIngredients {
           purchaseUnit: null,
           purchaseQuantity: null,
           purchaseDisplay: null,
+          conversionRef: null,
         },
       },
     ],

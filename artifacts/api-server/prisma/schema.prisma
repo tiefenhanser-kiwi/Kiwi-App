@@ -346,6 +346,13 @@ model Ingredient {
   purchaseUnit        String?
   purchaseQuantity    Float?
   purchaseDisplay     String?
+  // WS7-8b B2 (D-WS7-197): shared unit-conversion + purchase-size payload.
+  // Shape mirrors IngredientConversion (ingredientConversions.ts): optional
+  // gramsPerCup / gramsPerEach / subUnit / purchase* + a `source` provenance
+  // stamp ('curated' | 'usda_derived' | 'ai_estimated'). Seeded + backfilled
+  // from the code table + USDA foodPortions; runtime AI-fallback fills gaps
+  // stamped 'ai_estimated'. Null until seeded/backfilled.
+  conversionRef       Json?
 
   dishIngredients DishIngredient[]
   groceryItems    GroceryListItem[]

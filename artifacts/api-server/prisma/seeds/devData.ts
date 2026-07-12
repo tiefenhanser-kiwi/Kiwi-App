@@ -17,9 +17,13 @@
 // is never modified once it exists (we only attach UserPreferences + a
 // Subscription if missing).
 
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
-import { INGREDIENT_PURCHASE_DEFAULTS } from "../../src/lib/ingredientPurchaseDefaults";
+import {
+  INGREDIENT_CONVERSIONS,
+  lookupConversion,
+  lookupPurchaseDefault,
+} from "../../src/lib/ingredientConversions";
 
 if (process.env.NODE_ENV === "production") {
   throw new Error(
@@ -101,10 +105,10 @@ interface DevIngredient {
 }
 
 // WS7-5d Block 2: the table of canonical-name → purchase-pack defaults
-// lives in src/lib/ingredientPurchaseDefaults.ts so wizardActivation's
-// runtime upsert path can read the same data. Re-exported here so existing
-// callers (smoke scripts, the Block-1 test) keep working.
-export const SEED_INGREDIENT_PURCHASE_DEFAULTS = INGREDIENT_PURCHASE_DEFAULTS;
+// lives in src/lib/ingredientConversions.ts (WS7-8b B2 absorbed the former
+// ingredientPurchaseDefaults) so wizardActivation's runtime upsert path reads
+// the same data. Re-exported here so existing callers keep working.
+export const SEED_INGREDIENT_CONVERSIONS = INGREDIENT_CONVERSIONS;
 
 /**
  * A RecipeInstructionStep seed row. `estimatedMinutes` and `isTimingSensitive`
@@ -602,7 +606,10 @@ async function ensureIngredient(
   ing: DevIngredient,
 ): Promise<string> {
   const canonical = canonicalize(ing.name);
-  const purchase = INGREDIENT_PURCHASE_DEFAULTS[canonical] ?? null;
+  const purchase = lookupPurchaseDefault(canonical);
+  // WS7-8b B2 — seed the shared conversion payload for curated rows so a fresh
+  // dev DB carries conversionRef without waiting on the backfill.
+  const conv = lookupConversion(canonical);
   const payload = {
     displayName: ing.name,
     category: ing.category,
@@ -610,6 +617,9 @@ async function ensureIngredient(
     purchaseUnit: purchase?.purchaseUnit ?? null,
     purchaseQuantity: purchase?.purchaseQuantity ?? null,
     purchaseDisplay: purchase?.purchaseDisplay ?? null,
+    conversionRef: conv
+      ? (conv as unknown as Prisma.InputJsonValue)
+      : undefined,
   };
   // Update on re-seed so purchase defaults + category renames propagate to
   // rows already created by earlier seed runs.

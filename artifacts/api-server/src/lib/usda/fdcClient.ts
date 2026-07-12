@@ -45,12 +45,26 @@ export interface FdcNutrientAbridged {
 }
 export type FdcNutrient = FdcNutrientFull & FdcNutrientAbridged;
 
+// FDC portion record (full food format). SR Legacy carries the descriptive
+// text in `modifier` / `portionDescription` with an "undetermined" measureUnit;
+// Foundation foods sometimes populate measureUnit.name. gramWeight is the mass
+// of `amount` of the described portion. Used by the B2 conversion backfill to
+// derive gramsPerCup (a "cup" portion) and gramsPerEach (a whole-item portion).
+export interface FdcFoodPortion {
+  amount?: number;
+  gramWeight?: number;
+  modifier?: string;
+  portionDescription?: string;
+  measureUnit?: { id?: number; name?: string; abbreviation?: string } | null;
+}
+
 export interface FdcFood {
   fdcId: number;
   description: string;
   dataType?: string;
   foodCategory?: string | { description?: string } | null;
   foodNutrients?: FdcNutrient[];
+  foodPortions?: FdcFoodPortion[];
 }
 
 export interface Per100gMacros {
@@ -247,7 +261,9 @@ export async function getFoodsBatch(
       url: `${FDC_BASE_URL}/foods?${params.toString()}`,
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ fdcIds: chunk }),
+      // format:"full" so the response carries foodPortions (abridged omits
+      // them). The B2 conversion backfill derives gramsPerCup/Each from those.
+      body: JSON.stringify({ fdcIds: chunk, format: "full" }),
     });
     if (!result.ok) return result;
     all.push(...result.data);

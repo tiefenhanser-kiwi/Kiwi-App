@@ -42,6 +42,11 @@ import {
   type SectionKey,
 } from "./ai/schemas/grocery";
 import type { ConsolidatedItem } from "./groceryList";
+import {
+  resolveConversion,
+  scalePurchaseForSubUnit,
+} from "./ingredientConversions";
+import { roundNeedQuantity } from "./needQuantity";
 
 export class GroceryListAIError extends Error {
   constructor(message: string) {
@@ -313,12 +318,19 @@ export function partitionForAI(items: ConsolidatedItem[]): PartitionResult {
 function buildDeterministicOutputItem(
   item: ConsolidatedItem,
 ): GenerateListOutputItem {
+  // WS7-8b B2 — head↔clove purchase scaling (BUG-025-1). When the need is in a
+  // sub-unit (30 cloves) and the pack is sold by the parent (head), scale the
+  // pack to the number a shopper actually buys ("3 heads"), not "1 head".
+  const conv = resolveConversion(item.canonicalName, item.conversionRef);
+  const scaled = scalePurchaseForSubUnit(conv, item.quantity, item.unit);
+  const purchaseUnit = scaled ? conv!.subUnit!.parent : item.purchaseUnit;
+  const purchaseDisplay = scaled ? scaled.purchaseDisplay : item.purchaseDisplay;
   return {
     canonicalName: item.canonicalName,
     displayName: formatPackDisplay(
       item.displayName,
-      item.purchaseUnit,
-      item.purchaseDisplay,
+      purchaseUnit,
+      purchaseDisplay,
     ),
     quantity: item.quantity,
     unit: item.unit,
@@ -417,7 +429,30 @@ export async function generateFinalGroceryList(
   }
 
   for (let i = 0; i < result.data.items.length; i++) {
-    placed.push({ index: aiSubset[i].index, out: result.data.items[i] });
+    const out = result.data.items[i];
+    // WS7-8b B2 — the AI subset carries the same-canonical/different-unit rows
+    // the deterministic table couldn't merge (BUG-031 tail). Two fixes here:
+    //   (1) Re-apply the ⅛ ladder to the AI-merged quantity. The AI merge (rule
+    //       2) bypassed B1's sweep, letting off-ladder floats reach the user
+    //       (the 3.97-oz root cause). The AI's merged total is final; this only
+    //       snaps it to the ladder — it does NOT re-round pre-merge parts.
+    //   (2) Compose the purchase pack onto the AI-path displayName, mirroring
+    //       the deterministic path (buildDeterministicOutputItem → formatPackDisplay).
+    //       Without this, AI-path items showed a bare name with no pack. Use the
+    //       i-th subset item's purchase data (same canonical → representative).
+    const src = aiSubset[i]?.item;
+    placed.push({
+      index: aiSubset[i].index,
+      out: {
+        ...out,
+        quantity: roundNeedQuantity(out.quantity, out.unit),
+        displayName: formatPackDisplay(
+          out.displayName,
+          src?.purchaseUnit ?? null,
+          src?.purchaseDisplay ?? null,
+        ),
+      },
+    });
   }
 
   // Global no-add guard — defense-in-depth. Deterministic outputs are 1:1

@@ -11,7 +11,9 @@ import type { PrismaClient, StoreSection } from "@prisma/client";
 
 import { normalizeIngredientName } from "./groceryNormalization";
 import { baseStapleName, UNIVERSAL_STAPLES } from "./groceryStaples";
-import { lookupPurchaseDefault } from "./ingredientPurchaseDefaults";
+import { lookupConversion, lookupPurchaseDefault } from "./ingredientConversions";
+import { mergeConvertibleGroups } from "./groceryMerge";
+import { roundNeedQuantity } from "./needQuantity";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
 // Tracked as (mealId, dishId) PAIRS (not two independent arrays) so per-row
@@ -48,6 +50,10 @@ export interface ConsolidatedItem {
   purchaseUnit: string | null;
   purchaseQuantity: number | null;
   purchaseDisplay: string | null;
+  // WS7-8b B2 — persisted shared conversion payload (Ingredient.conversionRef),
+  // threaded through for the density-aware merge + macro grams path. Null for
+  // synthetic recurring entries and rows the backfill left un-populated.
+  conversionRef: unknown;
   // 6c-5: prep-note + dish-title signals threaded to the AI for form
   // inference and ambiguity flagging. Null when no recipe context is
   // available (e.g. synthetic recurring entries).
@@ -119,83 +125,9 @@ function bucketKeyOf(canonical: string, unit: string): string {
   return `${normalizeIngredientName(canonical)}|${unit}`;
 }
 
-// WS7-8b B1 (BUG-025-2, amended) — NEED-quantity round-up per PRD §2.8 [LOCKED].
-//
-// A grocery line is two parts: a PURCHASE size (the buyable pack — "5 lb bag
-// flour") and a NEED quantity (what this week's plan actually requires —
-// "1.5 cups"). This helper rounds the NEED quantity only. The purchase size
-// is Block B2's job (the conversion table) — do NOT round the need toward a
-// purchasable amount here.
-//
-// The need quantity is decision-support: it tells the cook "do I have enough
-// in the cupboard, or buy more?" (½ tsp cardamom → probably skip; 2 tbsp →
-// buy). So granularity matters — round only enough to kill ugly floats:
-//   - Discrete / unknown / empty units → round UP to a whole unit
-//     (3.75 cloves → 4). Discrete units ARE purchase units — you can't buy
-//     0.75 of a lemon — so ceil-to-whole is correct for both need and buy.
-//   - Measured units (volume/weight) → round the fractional remainder UP to
-//     ⅛ granularity (1.1 cups → 1⅛, NOT 1¼), keeping clean ⅓/⅔ where a value
-//     rounds up to land essentially on them (1.3 cups → 1⅓). Preserves the
-//     measured type; never inflates a value already on the ladder.
-// Whole-number inputs pass through unchanged (epsilon-guarded against the
-// float drift that consolidation multiplication introduces).
-const QTY_EPSILON = 1e-9;
-
-// Volume/weight units that follow the sensible-fraction rule. Everything not
-// listed (each, clove, slice, can, head, bunch, …, empty, unknown) is treated
-// as a discrete whole-unit count. Kept lowercase; matched case-insensitively.
-const MEASURED_UNITS = new Set<string>([
-  "cup", "cups",
-  "tbsp", "tablespoon", "tablespoons",
-  "tsp", "teaspoon", "teaspoons",
-  "oz", "ounce", "ounces", "fl oz", "fluid ounce", "fluid ounces",
-  "lb", "lbs", "pound", "pounds",
-  "g", "gram", "grams",
-  "kg", "kilogram", "kilograms",
-  "ml", "milliliter", "milliliters",
-  "l", "liter", "liters",
-  "pinch", "pinches",
-  "quart", "quarts",
-  "gallon", "gallons",
-]);
-
-// Sensible kitchen fractions, ascending, with the 0 and 1 ladder ends. Eighths
-// give the fine-grained "need" granularity; ⅓ and ⅔ stay in so a value just
-// below them rounds up to the clean thirds cooks recognize (1.3 → ⅓) rather
-// than an eighth. A value ABOVE ⅓/⅔ correctly rounds up to the next eighth
-// (0.34 → ⅜, 0.68 → ¾) — the ladder is round-UP only, never down.
-const FRACTION_LADDER = [
-  0,
-  1 / 8,
-  1 / 4,
-  1 / 3,
-  3 / 8,
-  1 / 2,
-  5 / 8,
-  2 / 3,
-  3 / 4,
-  7 / 8,
-  1,
-];
-
-function roundNeedQuantity(quantity: number, unit: string): number {
-  // Leave non-positive / NaN untouched — nothing sane to round.
-  if (!(quantity > 0)) return quantity;
-
-  if (!MEASURED_UNITS.has(unit.trim().toLowerCase())) {
-    // Discrete / unknown / empty → whole units.
-    return Math.ceil(quantity - QTY_EPSILON);
-  }
-
-  // Measured → round the fractional remainder UP to the nearest ladder step.
-  const whole = Math.floor(quantity + QTY_EPSILON);
-  const frac = quantity - whole;
-  if (frac <= QTY_EPSILON) return whole;
-  for (const step of FRACTION_LADDER) {
-    if (frac <= step + QTY_EPSILON) return whole + step;
-  }
-  return whole + 1; // unreachable (ladder ends at 1) — defensive.
-}
+// WS7-8b B1 (BUG-025-2) NEED-quantity round-up (PRD §2.8 [LOCKED]) moved to
+// needQuantity.ts in B2 so the AI-merge re-sweep rounds identically. See the
+// final sweep at the end of consolidatePlanIngredients.
 
 const MAX_SOURCE_DISH_TITLE_LEN = 60;
 
@@ -233,6 +165,7 @@ interface EffectiveDishIngredient {
     purchaseUnit: string | null;
     purchaseQuantity: number | null;
     purchaseDisplay: string | null;
+    conversionRef: unknown;
   } | null;
   canonicalFallback: string;
   unit: string;
@@ -308,6 +241,7 @@ async function resolveOverrideIngredients(
           purchaseUnit: true,
           purchaseQuantity: true,
           purchaseDisplay: true,
+          conversionRef: true,
         },
       });
       cache.set(norm, ingredient);
@@ -452,6 +386,7 @@ export async function consolidatePlanIngredients(
             purchaseUnit: ing?.purchaseUnit ?? null,
             purchaseQuantity: ing?.purchaseQuantity ?? null,
             purchaseDisplay: ing?.purchaseDisplay ?? null,
+            conversionRef: ing?.conversionRef ?? null,
             preparationNote: prepRaw,
             sourceDishTitle: dish.title
               ? dish.title.length > MAX_SOURCE_DISH_TITLE_LEN
@@ -563,6 +498,7 @@ export async function consolidatePlanIngredients(
       purchaseUnit: def ? def.purchaseUnit : null,
       purchaseQuantity: def ? def.purchaseQuantity : null,
       purchaseDisplay: def ? def.purchaseDisplay : null,
+      conversionRef: lookupConversion(norm) ?? null,
       preparationNote: null,
       sourceDishTitle: null,
     };
@@ -570,14 +506,22 @@ export async function consolidatePlanIngredients(
     order.push(key);
   }
 
-  // WS7-8b B1 (BUG-025-2) — final need-quantity round-up sweep. Runs AFTER all
-  // buckets (incl. synthetic recurring entries) are built, so every consolidated
-  // total is rounded once at the source. This changes only displayed quantity,
-  // never the item set or grouping (invariant). Recurring entries (whole
-  // quantities) are unaffected.
-  for (const entry of buckets.values()) {
-    entry.quantity = roundNeedQuantity(entry.quantity, entry.unit);
-  }
+  const ordered = order
+    .map((k) => buckets.get(k)!)
+    .filter((x): x is ConsolidatedItem => !!x);
 
-  return order.map((k) => buckets.get(k)!).filter((x): x is ConsolidatedItem => !!x);
+  // WS7-8b B2 (BUG-031) — density-aware merge of same-canonical/different-unit
+  // rows (parmesan oz+½cup, garlic head+clove) using the conversion table.
+  // Runs on RAW (un-rounded) quantities so the merged total is rounded exactly
+  // once by the sweep below (merge-then-round-once — never round the parts then
+  // merge). Groups the table can't convert pass through and still reach the AI.
+  const merged = mergeConvertibleGroups(ordered);
+
+  // WS7-8b B1 (BUG-025-2) — final need-quantity round-up sweep. Once, AFTER the
+  // merge, so merged totals and single-unit rows round identically. Changes only
+  // displayed quantity, never the item set. Recurring entries are unaffected.
+  for (const item of merged) {
+    item.quantity = roundNeedQuantity(item.quantity, item.unit);
+  }
+  return merged;
 }
