@@ -64,7 +64,10 @@ export interface MaterializeMealStep {
   text: string;
   estimatedMinutes?: number;
   phaseType?: "prep" | "preheat" | "cook" | "rest" | "assemble" | "hold";
-  parallelGroup?: string | null;
+  // BUG-018 (WS7-8b B1) — parallelGroup retired. Deliberately NOT a field here:
+  // a settable-but-silently-discarded input is a BUG-029-class trap (a future
+  // caller sets it, TS stays quiet, the value vanishes at write). No caller
+  // sets it; the DB column stays (no migration), unwritten.
   isTimingSensitive?: boolean;
 }
 
@@ -304,9 +307,6 @@ export async function materializeMeal(
               ? { estimatedMinutes: s.estimatedMinutes }
               : {}),
             ...(s.phaseType !== undefined ? { phaseType: s.phaseType } : {}),
-            ...(s.parallelGroup !== undefined
-              ? { parallelGroup: s.parallelGroup }
-              : {}),
             ...(s.isTimingSensitive !== undefined
               ? { isTimingSensitive: s.isTimingSensitive }
               : {}),
@@ -452,9 +452,6 @@ export async function materializeDish(
           ? { estimatedMinutes: s.estimatedMinutes }
           : {}),
         ...(s.phaseType !== undefined ? { phaseType: s.phaseType } : {}),
-        ...(s.parallelGroup !== undefined
-          ? { parallelGroup: s.parallelGroup }
-          : {}),
         ...(s.isTimingSensitive !== undefined
           ? { isTimingSensitive: s.isTimingSensitive }
           : {}),
@@ -682,9 +679,6 @@ export async function rematerializeMeal(
               ? { estimatedMinutes: s.estimatedMinutes }
               : {}),
             ...(s.phaseType !== undefined ? { phaseType: s.phaseType } : {}),
-            ...(s.parallelGroup !== undefined
-              ? { parallelGroup: s.parallelGroup }
-              : {}),
             ...(s.isTimingSensitive !== undefined
               ? { isTimingSensitive: s.isTimingSensitive }
               : {}),
@@ -832,9 +826,6 @@ export async function rematerializeDish(
             ? { estimatedMinutes: s.estimatedMinutes }
             : {}),
           ...(s.phaseType !== undefined ? { phaseType: s.phaseType } : {}),
-          ...(s.parallelGroup !== undefined
-            ? { parallelGroup: s.parallelGroup }
-            : {}),
           ...(s.isTimingSensitive !== undefined
             ? { isTimingSensitive: s.isTimingSensitive }
             : {}),

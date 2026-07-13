@@ -20,6 +20,13 @@ interface Options {
 
 const STORE = new Map<string, Bucket>();
 
+// Test-only: clear the module-global bucket store so a test file whose cases
+// share an IP+path bucket (the default key) can isolate each case. Never called
+// in production — the store is meant to persist across requests there.
+export function __clearRateLimitStoreForTests(): void {
+  STORE.clear();
+}
+
 function clientIp(req: Request): string {
   // Only trust the TCP peer address — never `x-forwarded-for`, which any
   // attacker can spoof to rotate identities and bypass the bucket. On a

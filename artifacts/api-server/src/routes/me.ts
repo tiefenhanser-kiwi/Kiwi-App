@@ -318,7 +318,10 @@ const stepItemSchema = z
     phaseType: z
       .enum(["prep", "preheat", "cook", "rest", "assemble", "hold"])
       .optional(),
-    parallelGroup: z.string().max(60).nullable().optional(),
+    // BUG-018 (WS7-8b B1) — parallelGroup retired from the write side. Dropped
+    // from this .strict() save-canonical contract so it can't be set-then-
+    // silently-discarded at the materialize boundary (BUG-029 class). The
+    // mobile save payload never sent it; the DB column stays, unwritten.
     isTimingSensitive: z.boolean().optional(),
   })
   .strict();

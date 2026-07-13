@@ -10,10 +10,19 @@ import { StepPhaseTypeSchema } from "./mealBuilder";
 // already-ratified builder/import step shape (mealBuilder.ts AssistedStep /
 // ParsedSubDishStep). phaseType reuses StepPhaseTypeSchema (its 6 values match
 // the Prisma StepPhase enum); estimatedMinutes mirrors the builder's bounds.
+// BUG-018 (WS7-8b B1) — widened again to carry isTimingSensitive. Same class
+// of fix as D-WS7-165: the wizard step contract was too narrow to express the
+// field, so wizard-authored steps fell to the DB default (false) and the
+// Cooking Sequencer had no signal to stop stacking prep onto a sear. Required
+// (not optional) so the finalize AI must emit it and wizardActivation persists
+// it unconditionally — mirrors phaseType / estimatedMinutes. parallelGroup is
+// deliberately NOT added: it is retired (a deterministic scheduler derives
+// overlap from phaseType + estimatedMinutes + isTimingSensitive).
 export const WizardStepSchema = z.object({
   text: z.string().min(1).max(400),
   phaseType: StepPhaseTypeSchema,
   estimatedMinutes: z.number().int().positive().max(600),
+  isTimingSensitive: z.boolean(),
 });
 export type WizardStep = z.infer<typeof WizardStepSchema>;
 

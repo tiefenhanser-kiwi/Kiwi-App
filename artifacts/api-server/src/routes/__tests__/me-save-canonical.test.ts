@@ -12,15 +12,25 @@
 // Same lightweight harness as me-meals-dishes.test.ts: real signed JWT,
 // prisma stubbed at the factory deps boundary, no DB.
 
-import { describe, it } from "node:test";
+import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import express, { type Express } from "express";
 import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
+import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 import { createMeRouter } from "../me";
 
 const USER_ID = "test-user-save-canonical";
+
+// saveMutationLimiter (me.ts) is a module-global token bucket keyed by
+// IP+method+path (no keyFn) with capacity 12 — so EVERY POST /me/meals in this
+// file drains one shared bucket. Clear it before each case so the file is
+// robust to added POST tests instead of silently 429-ing a later case once the
+// cumulative count crosses 12.
+beforeEach(() => {
+  __clearRateLimitStoreForTests();
+});
 
 // ── stub builder ────────────────────────────────────────────────────────
 // Captures every write so each test can assert on the exact shape that
@@ -290,6 +300,97 @@ describe("POST /me/meals (manual-built)", () => {
       for (const step of captured.stepCreates) {
         assert.equal(step.ownerType, "dish");
       }
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // BUG-018 (WS7-8b B1) — isTimingSensitive must still round-trip through the
+  // builder / save-canonical materialize path (don't regress the working path),
+  // and the retired parallelGroup must never be written.
+  it("round-trips isTimingSensitive (true and false) and never writes parallelGroup", async () => {
+    const { prisma, captured } = makeStub();
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPost(harness, "/me/meals", {
+        title: "Steak dinner",
+        cuisineType: "American",
+        dishes: [
+          {
+            kind: "new",
+            title: "Pan-seared steak",
+            role: "main",
+            positionIndex: 0,
+            ingredients: [{ name: "Ribeye", quantity: 1, unit: "lb" }],
+            steps: [
+              {
+                text: "Sear the steak 3 minutes per side.",
+                phaseType: "cook",
+                estimatedMinutes: 6,
+                isTimingSensitive: true,
+              },
+              {
+                text: "Rest 5 minutes before slicing.",
+                phaseType: "rest",
+                estimatedMinutes: 5,
+                isTimingSensitive: false,
+              },
+            ],
+          },
+        ],
+      });
+      assert.equal(res.status, 201);
+      assert.equal(captured.stepCreates.length, 2);
+
+      const sear = captured.stepCreates.find(
+        (s) => s.stepTextRaw === "Sear the steak 3 minutes per side.",
+      );
+      const rest = captured.stepCreates.find(
+        (s) => s.stepTextRaw === "Rest 5 minutes before slicing.",
+      );
+      assert.equal(sear?.isTimingSensitive, true);
+      assert.equal(rest?.isTimingSensitive, false);
+      for (const step of captured.stepCreates) {
+        assert.ok(
+          !("parallelGroup" in step),
+          `step "${String(step.stepTextRaw)}" must NOT carry a parallelGroup`,
+        );
+      }
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // BUG-018 (WS7-8b B1) — the retired parallelGroup is dropped from the
+  // .strict() save-canonical step contract, so a client that still sends it is
+  // rejected (400) rather than having the value silently discarded at the
+  // materialize boundary (BUG-029-class avoidance).
+  it("rejects a save-canonical step carrying the retired parallelGroup", async () => {
+    const { prisma } = makeStub();
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPost(harness, "/me/meals", {
+        title: "Bad payload",
+        cuisineType: "American",
+        dishes: [
+          {
+            kind: "new",
+            title: "Rice",
+            role: "base",
+            positionIndex: 0,
+            ingredients: [{ name: "Rice", quantity: 1, unit: "cup" }],
+            steps: [
+              {
+                text: "Boil the rice.",
+                phaseType: "cook",
+                estimatedMinutes: 12,
+                parallelGroup: "boil",
+              },
+            ],
+          },
+        ],
+      });
+      assert.equal(res.status, 400);
     } finally {
       await harness.close();
     }

@@ -194,12 +194,10 @@ describe("CanonicalRecipeSchema — discriminated union shape", () => {
     assert.equal(result.success, false);
   });
 
-  it("rejects parallelGroup as number (must be string|null|undefined)", () => {
-    const malformed = JSON.parse(JSON.stringify(SUCCESS_PAYLOAD));
-    malformed.recipe.dishes[0].steps[0].parallelGroup = 1;
-    const result = CanonicalRecipeSchema.safeParse(malformed);
-    assert.equal(result.success, false);
-  });
+  // BUG-018 (WS7-8b B1) — the parallelGroup-type-guard test was removed with
+  // the field: parallelGroup is retired from the reformat StepSchema, so there
+  // is no longer a string|null constraint to violate (the schema isn't strict,
+  // so an extra key is simply ignored — nothing to assert).
 
   it("rejects cuisineType outside the closed catalog", () => {
     const malformed = JSON.parse(JSON.stringify(SUCCESS_PAYLOAD));

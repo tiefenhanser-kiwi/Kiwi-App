@@ -559,10 +559,15 @@ describe("parseMealFromText — userHints pass-through", () => {
   });
 });
 
-// ── parallelGroup schema shape (D-WS6-034 reconciliation) ─────────────
+// ── parallelGroup retired (BUG-018 WS7-8b B1) ─────────────────────────
+// Was: "parallelGroup schema shape (D-WS6-034 reconciliation)". The field is
+// retired from AssistedStepSchema + ParsedSubDishStepSchema. The schemas are
+// non-strict, so a stray parallelGroup from an AI parses without error — but
+// Zod strips it, so it can NEVER surface on the parsed step and reach the
+// materializer. This guards against the field silently creeping back.
 
-describe("AssistedStepSchema / ParsedSubDishStepSchema — parallelGroup type", () => {
-  it("accepts string identifiers per sequencer convention", async () => {
+describe("AssistedStepSchema / ParsedSubDishStepSchema — parallelGroup retired", () => {
+  it("drops a supplied parallelGroup so it never surfaces on the parsed step", async () => {
     const { AssistedStepSchema, ParsedSubDishStepSchema } = await import(
       "../schemas/mealBuilder"
     );
@@ -572,33 +577,33 @@ describe("AssistedStepSchema / ParsedSubDishStepSchema — parallelGroup type", 
       estimatedMinutes: 8,
       phaseType: "preheat" as const,
     };
-    // Sequencer convention: short string IDs like "group-1", "oven",
-    // "boil_water", "passive-1". Null is allowed for sequential steps.
-    for (const pg of ["group-1", "oven", "boil_water", "passive-1"]) {
-      const ok = AssistedStepSchema.safeParse({ ...baseStep, parallelGroup: pg });
-      assert.equal(ok.success, true, `AssistedStep should accept parallelGroup=${pg}`);
-      const ok2 = ParsedSubDishStepSchema.safeParse({ ...baseStep, parallelGroup: pg });
-      assert.equal(ok2.success, true, `ParsedSubDishStep should accept parallelGroup=${pg}`);
+
+    // A string, a null, or even the old-shape integer: all are simply dropped.
+    // Parsing still succeeds and the key is absent on the output.
+    for (const pg of ["group-1", null, 1] as const) {
+      const a = AssistedStepSchema.safeParse({ ...baseStep, parallelGroup: pg });
+      assert.equal(
+        a.success,
+        true,
+        `AssistedStep should parse with parallelGroup=${String(pg)}`,
+      );
+      assert.ok(
+        a.success && !("parallelGroup" in a.data),
+        "parsed AssistedStep must NOT carry parallelGroup",
+      );
+      const p = ParsedSubDishStepSchema.safeParse({
+        ...baseStep,
+        parallelGroup: pg,
+      });
+      assert.equal(
+        p.success,
+        true,
+        `ParsedSubDishStep should parse with parallelGroup=${String(pg)}`,
+      );
+      assert.ok(
+        p.success && !("parallelGroup" in p.data),
+        "parsed ParsedSubDishStep must NOT carry parallelGroup",
+      );
     }
-    const okNull = ParsedSubDishStepSchema.safeParse({ ...baseStep, parallelGroup: null });
-    assert.equal(okNull.success, true, "ParsedSubDishStep should accept parallelGroup=null");
-    const okOmit = AssistedStepSchema.safeParse(baseStep);
-    assert.equal(okOmit.success, true, "AssistedStep should accept omitted parallelGroup");
-  });
-
-  it("rejects integer parallelGroup (regression guard against the old shape)", async () => {
-    const { AssistedStepSchema, ParsedSubDishStepSchema } = await import(
-      "../schemas/mealBuilder"
-    );
-
-    const baseStep = {
-      content: "Bring a large pot of salted water to a boil.",
-      estimatedMinutes: 8,
-      phaseType: "preheat" as const,
-    };
-    const bad1 = AssistedStepSchema.safeParse({ ...baseStep, parallelGroup: 1 });
-    assert.equal(bad1.success, false, "AssistedStep should reject integer parallelGroup");
-    const bad2 = ParsedSubDishStepSchema.safeParse({ ...baseStep, parallelGroup: 2 });
-    assert.equal(bad2.success, false, "ParsedSubDishStep should reject integer parallelGroup");
   });
 });

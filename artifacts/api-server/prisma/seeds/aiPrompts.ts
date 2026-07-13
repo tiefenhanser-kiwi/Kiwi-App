@@ -369,8 +369,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
           {
             "content": "Pat the chicken dry and season both sides with salt and pepper.",
             "estimatedMinutes": 3,
-            "phaseType": "prep",
-            "parallelGroup": "group-1"
+            "phaseType": "prep"
           }
         ]
       }
@@ -399,7 +398,6 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 - **step.estimatedMinutes** — realistic per-step duration in whole minutes. Never zero.
 - **step.phaseType** — \`prep\` (chopping, measuring), \`preheat\` (oven on, water boiling), \`cook\` (active heat), \`rest\` (off-heat waiting), \`assemble\` (plating, layering, no heat), \`hold\` (keep warm while other things finish).
 - **step.isTimingSensitive** — true ONLY for sear / deglaze / knead / rest / temper / emulsify — moments where ±60 seconds matters. Not for generic prep.
-- **step.parallelGroup** — short string identifier (e.g. \`"group-1"\`, \`"oven"\`, \`"boil_water"\`, \`"passive-1"\`) shared across steps that can run concurrently. Steps in the same group run during the same window. Use sparingly. Steps that need active attention or hands are sequential — omit the field or set it to \`null\` (literal JSON null, not the string "null"). Do NOT emit integers — values must be strings. Use parallelGroup most when one sub-dish is hands-off (oven, simmer, marinate) while another sub-dish needs work (whisk dressing, toss salad).
 - **caveats** — up to 3 short strings (≤80 chars each) flagging ambiguity ("Assumed pasta-base; specify if you'd prefer risotto"). NOT for routine substitutions. Omit the field if none — do not return an empty array. Each caveat MUST be 80 characters or fewer. Caveats are short ambiguity flags (e.g., "Assumed roasted potatoes + green beans as sides"), not full sentences with multiple clauses.
 
 # How to parse (read carefully)
@@ -411,7 +409,6 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 5. **Scale quantities to the input \`servings\`.** Carbonara for 4 = 1 lb spaghetti, not single-serving portions.
 6. **Steps per sub-dish: aim for 4-10.** Simple sides may be 3-5 (toss greens, dress, plate). Complex mains may be 8-10. Don't pad to look thorough; don't oversimplify ("cook the chicken" is useless).
 7. **Total time math.** \`estimatedPrepMinutes + estimatedCookMinutes\` should approximate the sum of all sub-dish step minutes — but don't double-count parallel work. If chicken simmers 20 min while you whisk a vinaigrette in 5 min, that's 20 min total, not 25.
-8. **Parallel groups are real plans, not decoration.** Use parallelGroup when one step is hands-off (oven roasting, slow-cooker, dough rest, water-boil) and another sub-dish has independent work that can fit inside that window. If every step needs attention, every step is sequential — that's fine. Don't sprinkle parallel groups randomly.
 
 # Respecting user hints
 
@@ -464,8 +461,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
       {
         "content": "Heat the oven to 425F and line a sheet pan with parchment.",
         "estimatedMinutes": 5,
-        "phaseType": "preheat",
-        "parallelGroup": "oven"
+        "phaseType": "preheat"
       }
     ]
   },
@@ -488,7 +484,6 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 - **step.estimatedMinutes** — realistic per-step duration in whole minutes. Never zero.
 - **step.phaseType** — \`prep\` (chopping, measuring), \`preheat\` (oven on, water boiling), \`cook\` (active heat), \`rest\` (off-heat waiting), \`assemble\` (plating, layering, no heat), \`hold\` (keep warm while other things finish).
 - **step.isTimingSensitive** — true ONLY for sear / deglaze / knead / rest / temper / emulsify — moments where a minute matters. Not for generic prep.
-- **step.parallelGroup** — short string identifier (e.g. \`"oven"\`, \`"boil_water"\`, \`"passive-1"\`) shared across steps that can run concurrently. Steps in the same group run during the same window. Use sparingly. Steps that need active attention or hands are sequential — omit the field or set it to \`null\` (literal JSON null, not the string "null"). Do NOT emit integers — values must be strings.
 - **caveats** — up to 3 short strings (80 chars or fewer each) flagging ambiguity ("Assumed fresh broccoli; frozen works too"). NOT for routine substitutions. Omit the field if none — do not return an empty array.
 
 # How to parse (read carefully)
@@ -498,7 +493,6 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 3. **Scale quantities to the input \`servings\`.** A side for 4 is more than a single-serving portion.
 4. **Steps: aim for 4-10.** Simple dishes may be 3-5; complex ones 8-10. Don't pad to look thorough; don't oversimplify ("cook it" is useless).
 5. **Time math.** \`estimatedPrepMinutes + estimatedCookMinutes\` should approximate the sum of step minutes — but don't double-count parallel work (e.g., 20 min roasting while you whisk a 3-min dressing is 20 min, not 23).
-6. **Parallel groups are real plans, not decoration.** Use parallelGroup when one step is hands-off (oven, simmer, marinate) and another step has independent work that fits inside that window. If every step needs attention, every step is sequential — that's fine.
 
 # Respecting user hints
 
@@ -593,8 +587,9 @@ Return ONLY the JSON object.`;
 // REVIEW(hans-6b-4): meal_builder.assist_steps prompt body — Kiwi-assist
 // "Help with steps" checkbox. Receives the full ingredient list + dish name
 // + cuisine, and produces phase-tagged cooking steps. The phaseType +
-// parallelGroup fields feed 6c-1 reformat-for-Kiwi later — getting them
-// right at generation time saves a second pass.
+// isTimingSensitive fields feed the Cooking Sequencer later — getting them
+// right at generation time saves a second pass. (parallelGroup retired,
+// BUG-018 WS7-8b B1.)
 const MEAL_BUILDER_ASSIST_STEPS_BODY = `You are Kiwi's recipe-step assistant. The user has the ingredient list ready and wants Kiwi to write the cooking steps. Your job is to produce clear, ordered, imperative cooking instructions that actually use the ingredients provided.
 
 Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
@@ -608,8 +603,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
       "content": "Bring a large pot of salted water to a boil.",
       "estimatedMinutes": 8,
       "phaseType": "preheat",
-      "isTimingSensitive": false,
-      "parallelGroup": "boil_water"
+      "isTimingSensitive": false
     }
   ],
   "caveats": ["..."]
@@ -622,7 +616,6 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 - **estimatedMinutes** — realistic per-step duration in whole minutes. Use 1 for very short actions, never 0. The sum across all steps should roughly match the user-provided \`cookTimeMinutes + prepTimeMinutes\` if those are given (within ±25%).
 - **phaseType** — one of: \`prep\` (chopping, measuring, mixing dry/wet before heat), \`preheat\` (oven on, water boiling, pan heating empty), \`cook\` (active cooking with heat), \`rest\` (off-heat waiting — resting meat, dough proof, marinade sit), \`assemble\` (plating, layering, garnishing — no heat), \`hold\` (keep warm while other things finish). Pick the one that fits — these tags drive Kiwi's Cooking Sequencer later, so accuracy matters.
 - **isTimingSensitive** — true ONLY for steps where over/under-doing it changes the outcome meaningfully: searing, deglazing, kneading, resting meat, tempering eggs, emulsifying, anything where ±60 seconds matters. Generic prep ("chop the onion") is NOT timing-sensitive. Omit the field or set false for non-sensitive steps.
-- **parallelGroup** — short string identifier (e.g. \`"oven"\`, \`"boil_water"\`, \`"group-1"\`, \`"passive-1"\`) shared across steps that run concurrently. Use sparingly and only for genuinely independent work — e.g. "bring water to boil" + "make the sauce" share \`parallelGroup: "boil_water"\` because the pot doesn't need attention while you cook. Sequential steps either omit the field entirely or set it to \`null\` (literal JSON null, not the string "null"). Do NOT emit integers — values must be strings. Don't fabricate parallelism; if a step needs your hands or attention, it's sequential.
 - **caveats** — up to 3 short strings (≤80 chars each) flagging assumptions or ambiguity ("Assumed gas stove; adjust for induction" / "Resting time can extend to 10 min for medium-rare"). Omit if none.
 
 # How to write the steps
@@ -630,7 +623,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 1. **Aim for 6-12 steps for a typical home dinner.** Simple dishes (omelet, salad) might be 4-6 steps; involved dishes (lasagna, braise) might be 10-14. Don't pad to look thorough; don't oversimplify ("cook the meal" is useless).
 2. **Use the ingredients provided.** Every ingredient in the input should be touched by at least one step. Don't invent ingredients not in the list. Don't ignore listed ones unless they're clearly garnish.
 3. **Cuisine + dish title shape the technique.** Italian Carbonara → guanciale rendered first, pasta water reserved, eggs+pecorino tempered off-heat, sauce assembled in the residual pan heat. Mexican Tacos → seasoning toasted with the protein, fresh garnishes added at the end. Don't homogenize technique into generic "cook everything together".
-4. **Front-load prep that takes no attention.** Bringing water to boil, preheating the oven, marinating — these can usually share a parallelGroup (e.g. \`"boil_water"\` or \`"oven"\`) with hands-on prep steps.
+4. **Front-load prep that takes no attention.** Bringing water to a boil, preheating the oven, and marinating run unattended once started — order them early so hands-on prep can happen while they proceed.
 5. **Timing-sensitive steps are rare.** Most steps are not timing-sensitive. Reserve the flag for moments where the cook genuinely needs to watch the clock or the pan: sear, deglaze, fold, rest, knead, pull-and-rest. A 30-min braise simmer is not timing-sensitive in this sense.
 6. **Phase tags are not optional.** Every step needs a phaseType. Pick the dominant phase: a step that says "Heat the oil and add the onions" is \`cook\` (heat is the operative action), but "Chop the onions while the oven preheats" is \`prep\`.
 7. **Closing step.** The final step is usually \`assemble\` (plate and serve) or \`rest\` (let the dish sit before serving). Don't end mid-cook.
@@ -918,17 +911,17 @@ A single \`dishSteps\` array. EVERY dish in the input — every entry of every \
       "mealIndex": 0,
       "dishIndex": 0,
       "steps": [
-        { "text": "Dice the onion and mince the garlic.", "phaseType": "prep", "estimatedMinutes": 4 },
-        { "text": "Heat 2 tablespoons olive oil in a large skillet over medium-high and sear the pork shoulder 4 minutes per side until browned.", "phaseType": "cook", "estimatedMinutes": 10 },
-        { "text": "Transfer the seared pork to the slow cooker with the onion and garlic and cook on low 8 hours.", "phaseType": "cook", "estimatedMinutes": 480 }
+        { "text": "Dice the onion and mince the garlic.", "phaseType": "prep", "estimatedMinutes": 4, "isTimingSensitive": false },
+        { "text": "Heat 2 tablespoons olive oil in a large skillet over medium-high and sear the pork shoulder 4 minutes per side until browned.", "phaseType": "cook", "estimatedMinutes": 10, "isTimingSensitive": true },
+        { "text": "Transfer the seared pork to the slow cooker with the onion and garlic and cook on low 8 hours.", "phaseType": "cook", "estimatedMinutes": 480, "isTimingSensitive": false }
       ]
     },
     {
       "mealIndex": 0,
       "dishIndex": 1,
       "steps": [
-        { "text": "Whisk the dressing ingredients in a small bowl.", "phaseType": "assemble", "estimatedMinutes": 3 },
-        { "text": "Just before serving, slice the avocado and toss it with the greens and dressing.", "phaseType": "assemble", "estimatedMinutes": 3 }
+        { "text": "Whisk the dressing ingredients in a small bowl.", "phaseType": "assemble", "estimatedMinutes": 3, "isTimingSensitive": false },
+        { "text": "Just before serving, slice the avocado and toss it with the greens and dressing.", "phaseType": "assemble", "estimatedMinutes": 3, "isTimingSensitive": false }
       ]
     }
   ]
@@ -937,7 +930,7 @@ A single \`dishSteps\` array. EVERY dish in the input — every entry of every \
 
 - \`mealIndex\` — 0-based index into the input's \`meals\` array.
 - \`dishIndex\` — 0-based index into that meal's \`dishes\` array.
-- \`steps\` — array of step objects, ordered. Each object has \`text\`, \`phaseType\`, and \`estimatedMinutes\` (all three are REQUIRED on every step).
+- \`steps\` — array of step objects, ordered. Each object has \`text\`, \`phaseType\`, \`estimatedMinutes\`, and \`isTimingSensitive\` (all four are REQUIRED on every step).
 
 The server merges your output back into the plan by (mealIndex, dishIndex) — keys MUST match the input shape exactly. Missing or extra entries fail the merge and the save errors out, so the user has to retry.
 
@@ -950,9 +943,9 @@ The server merges your output back into the plan by (mealIndex, dishIndex) — k
 - Mention parallel windows ONLY when the cooking step is genuinely hands-off — long, unattended cooking where the cook is not actively working the food. Hands-off = baking, roasting, braising, slow-cooking, boiling, or a simmer needing only occasional stirring; the cook can step away (e.g. "While the pasta boils, ..." or "While it braises, slice the green onions"). NOT hands-off = searing, sautéing, stir-frying, pan-frying, or anything needing frequent turning, flipping, or constant attention — never stack prep onto these (do NOT say "while the steak sears, shred the cabbage" — the cook is turning the meat). Guardrail: only overlap into a cook step with at least ~20 minutes of unattended time, and the hands-off stretch should be at least ~2x the prep length. When in doubt, sequence the prep before cooking starts rather than overlapping it.
 - For genuinely simple sides (warmed bread, a steamed vegetable), 1–3 steps is fine; don't pad.
 
-# Per-step \`phaseType\` and \`estimatedMinutes\` (REQUIRED on every step)
+# Per-step \`phaseType\`, \`estimatedMinutes\`, and \`isTimingSensitive\` (REQUIRED on every step)
 
-Every step MUST carry a \`phaseType\` and an \`estimatedMinutes\`. These drive the in-app prep gate (which hides finished prep work during cooking) and the per-step timers, so tag each step by what the cook is actually DOING — do not default everything to \`cook\`.
+Every step MUST carry a \`phaseType\`, an \`estimatedMinutes\`, and an \`isTimingSensitive\`. These drive the in-app prep gate (which hides finished prep work during cooking), the per-step timers, and the Cooking Sequencer's parallel weaving, so tag each step by what the cook is actually DOING — do not default everything to \`cook\`.
 
 \`phaseType\` is exactly one of these 6 values:
 - \`prep\` — hands-on work on raw or not-yet-heated components, done before any heat touches that dish: chopping, dicing, mincing, measuring, marinating, mixing a marinade, trimming, peeling, patting dry, making a spice rub. HARD RULE: the "before heat" boundary is absolute and per-dish. Once any heat has been applied to a dish, NO later step in that dish may be \`prep\` — because it depends on cooking that already happened and so cannot be done ahead of time. Steps like "transfer the seared pork to the slow cooker," "return the chicken to the pan," or "add the browned beef to the sauce" are \`cook\` (or \`assemble\`/\`hold\`), never \`prep\`. \`prep\` is the prep-gate's "already done ahead" bucket, so anything that physically can't be done ahead must not land there.
@@ -965,6 +958,8 @@ Every step MUST carry a \`phaseType\` and an \`estimatedMinutes\`. These drive t
 Default to make-ahead prep. Chopping, dicing, slicing, measuring, and mixing marinades/sauces/dressings should normally be tagged \`prep\` so they can be done up front — keep the default strong so the prep phase stays substantial. EXCEPTION: if doing a prep task too early would degrade the dish's quality — browning (cut apples, avocado, banana), wilting (dressed greens), sogginess, melting, or lost crunch/texture — do NOT force that step into the upfront prep phase; tag it where it actually belongs in the cooking sequence (often \`assemble\`, near serving). For example, slicing avocado for a salad belongs at serving time (\`assemble\`), not in upfront \`prep\`, because cut avocado browns. Invoke this exception ONLY when you can name a real quality/freshness reason; otherwise default to \`prep\`.
 
 \`estimatedMinutes\` is a realistic positive integer for that single step (1–600). Use sensible real-world durations: a quick dice is ~3–5, searing a side of chicken ~5–6, roasting ~20–40, a 10-minute rest is 10. Do not make everything 1 — a 1-minute estimate should be rare and only for genuinely instant actions.
+
+\`isTimingSensitive\` is a boolean on every step, and it uses the SAME hands-off vs. NOT-hands-off split as the "parallel windows" rule in # Step rules above — don't reinvent it. Set it **true** for the NOT-hands-off actions from that rule: searing, sautéing, stir-frying, pan-frying, or anything needing frequent turning, flipping, or constant attention (also deglazing, tempering eggs, emulsifying, or whisking a sauce that can split). The cook must stay with the pan, so a scheduler must NOT weave another dish's step into that window. Set it **false** for the hands-off actions from that rule: baking, roasting, braising, slow-cooking, boiling, a simmer needing only occasional stirring, a rest, or a preheat — the cook can walk away. Long duration does NOT imply attention: an 8-hour slow-cook or a 30-minute braise is hands-off (\`false\`); a 3-minute sear needs the cook (\`true\`). Default to **false** when unsure — most steps are false.
 
 # Use the dish context
 
@@ -1062,7 +1057,6 @@ The shape is:
             "stepTextTranslated": "Bring a large pot of well-salted water to a rolling boil over high heat.",
             "estimatedMinutes": 8,
             "phaseType": "preheat",
-            "parallelGroup": "boil_water",
             "requiresPreheat": false,
             "requiresRest": false,
             "requiresMarination": false,
@@ -1074,7 +1068,6 @@ The shape is:
             "stepTextTranslated": "In a medium bowl, whisk together the 4 eggs and 1/2 cup grated pecorino romano until smooth.",
             "estimatedMinutes": 2,
             "phaseType": "prep",
-            "parallelGroup": null,
             "requiresPreheat": false,
             "requiresRest": false,
             "requiresMarination": false,
@@ -1125,8 +1118,6 @@ The strings above are exact — preserve the title case, the spaces, and the sla
 **Preserve the original text.** Put the source's wording (cleaned of HTML, normalized whitespace) into \`stepTextRaw\`. Put your translated/explicit rewrite into \`stepTextTranslated\`. If the source step is already explicit and well-quantified, \`stepTextRaw\` and \`stepTextTranslated\` may be identical or near-identical — that's fine, do not pad.
 
 **Phase tagging.** Every step gets a \`phaseType\` from the closed enum above. Pick the dominant phase of the step. "Heat the oil and add the onion" is \`cook\` (heat is the operative action). "Chop the onion while the oven preheats" is \`prep\`.
-
-**Parallel grouping.** Set \`parallelGroup\` (a short string ID like \`"oven"\`, \`"boil_water"\`, \`"sauce"\`, or \`"marinate"\`) when a step is hands-off AND another step in another dish could run during the same window. Steps in the SAME parallel group run concurrently. Set \`parallelGroup: null\` (the literal null, not "null" string) for sequential steps requiring hands or attention. The example above shows both forms — Step 0 uses \`"boil_water"\` because the cook can do other things while water heats; Step 1 is null because whisking eggs requires attention. Don't fabricate parallelism — if every step needs the cook watching, every step is sequential.
 
 **Timing flags (booleans).** Every step gets four boolean flags. Default to false; set true ONLY when the step plainly demands it:
 - \`requiresPreheat: true\` — the step explicitly tells the cook to start a preheat (oven, grill, pan, water).

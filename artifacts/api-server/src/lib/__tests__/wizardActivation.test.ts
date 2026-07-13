@@ -52,11 +52,13 @@ function sampleExpanded(): WizardExpandedPlan {
                 text: "Pat chicken dry and rub with harissa.",
                 phaseType: "prep",
                 estimatedMinutes: 8,
+                isTimingSensitive: false,
               },
               {
                 text: "Roast at 425F until 165F internal.",
                 phaseType: "cook",
                 estimatedMinutes: 30,
+                isTimingSensitive: false,
               },
             ],
             macros: null,
@@ -82,6 +84,7 @@ function sampleExpanded(): WizardExpandedPlan {
                 text: "Simmer until thickened.",
                 phaseType: "cook",
                 estimatedMinutes: 20,
+                isTimingSensitive: false,
               },
             ],
             macros: null,
@@ -103,8 +106,11 @@ interface CapturedStep {
   stepTextRaw: string;
   // BUG #3 (D-WS7-165) — the materializer now persists these from the widened
   // step object instead of letting them fall to the DB column defaults.
+  // BUG-018 (WS7-8b B1) — isTimingSensitive joins them (was stuck at the DB
+  // false default before; now written unconditionally).
   phaseType?: string;
   estimatedMinutes?: number;
+  isTimingSensitive?: boolean;
 }
 
 interface CapturedUpsert {
@@ -388,6 +394,71 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
         s.estimatedMinutes,
         1,
         "no fixture step uses the 1-min default value",
+      );
+    }
+  });
+
+  // BUG-018 (WS7-8b B1) — the materializer must persist isTimingSensitive from
+  // the widened step object rather than letting it fall to the DB false
+  // default. Before this fix the wizard step contract couldn't express the
+  // field at all, so EVERY wizard-authored step reached the DB as false and
+  // the Cooking Sequencer had no signal to protect a sear. This is the core
+  // regression guard: a wizard-authored TRUE must survive to the create call.
+  it("persists isTimingSensitive from the step object (true and false round-trip; no parallelGroup)", async () => {
+    const payload = sampleExpanded();
+    // Overwrite the first dish's steps with a sear (attention → true) and a
+    // chop (hands-off prep → false) so BOTH values are exercised end-to-end.
+    payload.meals[0].dishes[0].steps = [
+      {
+        text: "Sear the steak 3 minutes per side without moving it.",
+        phaseType: "cook",
+        estimatedMinutes: 6,
+        isTimingSensitive: true,
+      },
+      {
+        text: "Chop the parsley for garnish.",
+        phaseType: "prep",
+        estimatedMinutes: 2,
+        isTimingSensitive: false,
+      },
+    ];
+    const { prismaStub, txStub, captured } = makeStubs({
+      expanded: payload,
+      withoutOptimizationNotes: true,
+    });
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      payload,
+    });
+
+    const searStep = captured.steps.find(
+      (s) =>
+        s.stepTextRaw === "Sear the steak 3 minutes per side without moving it.",
+    );
+    const chopStep = captured.steps.find(
+      (s) => s.stepTextRaw === "Chop the parsley for garnish.",
+    );
+    assert.ok(searStep, "sear step row must be created");
+    assert.ok(chopStep, "chop step row must be created");
+    // The TRUE surviving is the whole point — it was structurally impossible
+    // before (the contract couldn't carry the field; it always defaulted false).
+    assert.equal(searStep!.isTimingSensitive, true);
+    assert.equal(chopStep!.isTimingSensitive, false);
+
+    for (const s of captured.steps) {
+      // Explicit on every step → never falls to the DB false default.
+      assert.ok(
+        s.isTimingSensitive !== undefined,
+        `step "${s.stepTextRaw}" must carry isTimingSensitive explicitly`,
+      );
+      // parallelGroup is retired: no wizard step create may carry it.
+      assert.ok(
+        !("parallelGroup" in (s as unknown as Record<string, unknown>)),
+        `step "${s.stepTextRaw}" must NOT carry a parallelGroup`,
       );
     }
   });

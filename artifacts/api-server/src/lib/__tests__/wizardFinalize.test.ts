@@ -126,16 +126,19 @@ function fullStepsResult(): WizardFinalizeStepsResult {
             text: "Preheat the oven to 425F.",
             phaseType: "preheat",
             estimatedMinutes: 10,
+            isTimingSensitive: false,
           },
           {
             text: "Toss 1.5 lb chicken thighs with 3 tablespoons harissa and 2 tablespoons olive oil.",
             phaseType: "prep",
             estimatedMinutes: 5,
+            isTimingSensitive: false,
           },
           {
             text: "Roast for 25 minutes until 165F internal.",
             phaseType: "cook",
             estimatedMinutes: 25,
+            isTimingSensitive: false,
           },
         ],
       },
@@ -147,6 +150,7 @@ function fullStepsResult(): WizardFinalizeStepsResult {
             text: "Steam 1 lb broccoli for 5 minutes.",
             phaseType: "cook",
             estimatedMinutes: 5,
+            isTimingSensitive: false,
           },
         ],
       },
@@ -158,16 +162,19 @@ function fullStepsResult(): WizardFinalizeStepsResult {
             text: "Sweat 1 diced yellow onion in olive oil over medium heat for 5 minutes.",
             phaseType: "cook",
             estimatedMinutes: 5,
+            isTimingSensitive: true,
           },
           {
             text: "Add 28 oz canned tomatoes; simmer 15 minutes.",
             phaseType: "cook",
             estimatedMinutes: 15,
+            isTimingSensitive: false,
           },
           {
             text: "Blend until smooth and serve.",
             phaseType: "assemble",
             estimatedMinutes: 3,
+            isTimingSensitive: false,
           },
         ],
       },
@@ -322,6 +329,7 @@ describe("mergeFinalizeStepsIntoDetails — positional merge invariants", () => 
           text: "this dish doesn't exist",
           phaseType: "cook",
           estimatedMinutes: 5,
+          isTimingSensitive: false,
         },
       ],
     });
@@ -340,7 +348,7 @@ describe("mergeFinalizeStepsIntoDetails — positional merge invariants", () => 
       mealIndex: 0,
       dishIndex: 0,
       steps: [
-        { text: "duplicate entry", phaseType: "cook", estimatedMinutes: 5 },
+        { text: "duplicate entry", phaseType: "cook", estimatedMinutes: 5, isTimingSensitive: false },
       ],
     });
     const merged = mergeFinalizeStepsIntoDetails(detailsPlan(), dup);
@@ -520,11 +528,13 @@ function shardLocalDishSteps(
           text: `${stepPrefix} dish ${di} step 1`,
           phaseType: "prep" as const,
           estimatedMinutes: 5,
+          isTimingSensitive: false,
         },
         {
           text: `${stepPrefix} dish ${di} step 2`,
           phaseType: "cook" as const,
           estimatedMinutes: 10,
+          isTimingSensitive: false,
         },
       ],
     })),
@@ -682,7 +692,7 @@ describe("readAndFinalizeWizardDraft — per-meal fan-out", () => {
           mealIndex: 0,
           dishIndex: 0,
           steps: [
-            { text: "dup entry step", phaseType: "cook", estimatedMinutes: 5 },
+            { text: "dup entry step", phaseType: "cook", estimatedMinutes: 5, isTimingSensitive: false },
           ],
         });
         return finalizeAISuccess(base);

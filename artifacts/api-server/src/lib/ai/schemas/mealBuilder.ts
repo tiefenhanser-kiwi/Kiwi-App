@@ -103,11 +103,10 @@ export const AssistedStepSchema = z.object({
   estimatedMinutes: z.number().int().positive().max(600),
   phaseType: StepPhaseTypeSchema,
   isTimingSensitive: z.boolean().optional(),
-  // String identifier per sequencer convention ("group-1", "oven",
-  // "boil_water", "passive-1"). Matches Prisma RecipeInstructionStep.
-  // parallelGroup (String?) so save-canonical persistence works without
-  // a type-bridge.
-  parallelGroup: z.string().nullable().optional(),
+  // BUG-018 (WS7-8b B1) — parallelGroup retired from the write side. A
+  // deterministic scheduler derives overlap from phaseType + estimatedMinutes
+  // + isTimingSensitive, so an AI-declared grouping is a redundant second
+  // source of truth. The DB column stays (no migration); nothing writes it.
 });
 export type AssistedStep = z.infer<typeof AssistedStepSchema>;
 
@@ -170,10 +169,10 @@ export const ParsedSubDishStepSchema = z.object({
   estimatedMinutes: z.number().int().positive().max(600),
   phaseType: StepPhaseTypeSchema,
   isTimingSensitive: z.boolean().optional(),
-  // String identifier per sequencer convention ("group-1", "oven",
-  // "boil_water", "passive-1"). Nullable so Mode A can emit explicit null
-  // on truly-sequential steps after considering parallelism.
-  parallelGroup: z.string().nullable().optional(),
+  // BUG-018 (WS7-8b B1) — parallelGroup retired from the write side (shared by
+  // meal_builder.mode_a_parse + dish_builder.mode_a_parse via ParsedDish). A
+  // deterministic scheduler derives overlap from phaseType + estimatedMinutes
+  // + isTimingSensitive; the DB column stays (no migration), unwritten.
 });
 export type ParsedSubDishStep = z.infer<typeof ParsedSubDishStepSchema>;
 

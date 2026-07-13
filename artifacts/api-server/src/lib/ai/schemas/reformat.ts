@@ -124,16 +124,16 @@ export const IngredientSchema = z.object({
 });
 export type CanonicalIngredient = z.infer<typeof IngredientSchema>;
 
-// parallelGroup matches Prisma RecipeInstructionStep.parallelGroup (String?)
-// and is now consistent across all five Zod step schemas (this one,
-// sequencer, cookNow, mealBuilder AssistedStep + ParsedSubDishStep).
+// BUG-018 (WS7-8b B1) — parallelGroup retired from the write side. The import
+// reformat no longer emits it; a deterministic scheduler derives overlap from
+// phaseType + estimatedMinutes + isTimingSensitive. The DB column stays (no
+// migration), unwritten.
 export const StepSchema = z.object({
   stepIndex: z.number().int().nonnegative(),
   stepTextRaw: z.string(),
   stepTextTranslated: z.string(),
   estimatedMinutes: z.number().int().nonnegative(),
   phaseType: StepPhaseEnum,
-  parallelGroup: z.string().nullable().optional(),
   requiresPreheat: z.boolean(),
   requiresRest: z.boolean(),
   requiresMarination: z.boolean(),

@@ -295,9 +295,12 @@ export async function materializeWizardDraft(
         const { amountRefs } = deriveAmountRefs(step.text, matcherIngredients);
         // BUG #3 (D-WS7-165) — persist phaseType + estimatedMinutes from the
         // widened step object instead of letting them fall to the DB column
-        // defaults (cook / 1 min). Set unconditionally: the widened
-        // WizardStepSchema makes both fields required, so no optional-spread
-        // guard is needed (intentional divergence from mealMaterialize.ts,
+        // defaults (cook / 1 min). BUG-018 (WS7-8b B1) — isTimingSensitive
+        // joins them for the same reason: wizard steps were stuck at the DB
+        // false default, starving the Cooking Sequencer of the signal that
+        // stops it stacking prep onto a sear. Set unconditionally: the widened
+        // WizardStepSchema makes all three fields required, so no optional-
+        // spread guard is needed (intentional divergence from mealMaterialize.ts,
         // whose builder step fields are optional).
         await tx.recipeInstructionStep.create({
           data: {
@@ -308,6 +311,7 @@ export async function materializeWizardDraft(
             stepTextTranslated: step.text,
             phaseType: step.phaseType,
             estimatedMinutes: step.estimatedMinutes,
+            isTimingSensitive: step.isTimingSensitive,
             amountRefs: amountRefs as unknown as Prisma.InputJsonValue,
           },
         });
