@@ -109,7 +109,7 @@ export function AddDishChooserSheet({
 const s = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(20,35,18,0.5)",
+    backgroundColor: Palette.background.overlay,
   },
   sheet: {
     position: "absolute",

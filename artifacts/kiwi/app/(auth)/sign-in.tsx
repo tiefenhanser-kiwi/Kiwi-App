@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   body: { gap: Spacing[3] },
   title: { fontSize: Typography.fontSize.xl * 1.4, fontWeight: "700", color: Colors.neutral[900], fontFamily: Typography.face.serif[600] },
   input: { borderWidth: 1, borderColor: Colors.neutral[400], borderRadius: Radius.md, padding: Spacing[3], fontSize: Typography.fontSize.md, backgroundColor: Palette.background.card, fontFamily: Typography.face.sans[400] },
-  errorText: { color: Colors.terracotta?.[700] ?? "#c04a2e", fontSize: Typography.fontSize.sm, fontFamily: Typography.face.sans[500] },
+  errorText: { color: Colors.terracotta[700], fontSize: Typography.fontSize.sm, fontFamily: Typography.face.sans[500] },
   buttonLoading: { alignItems: "center", padding: Spacing[3] },
   link: { color: Colors.sage[700], fontSize: Typography.fontSize.md, textAlign: "center", marginTop: Spacing[2], fontFamily: Typography.face.sans[500] },
 });

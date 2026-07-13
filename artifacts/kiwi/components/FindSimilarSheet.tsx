@@ -331,7 +331,7 @@ const s = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(20,35,18,0.5)",
+    backgroundColor: Palette.background.overlay,
   },
   sheet: {
     maxHeight: "90%",

@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   thumb: {
     width: 48,
     height: 48,
-    borderRadius: 8,
+    borderRadius: Radius.sm,
     overflow: "hidden",
     backgroundColor: Colors.sage[100],
   },
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   tagText: {
-    fontSize: 10,
+    fontSize: Typography.fontSize.xxs,
     color: Colors.sage[700],
     fontFamily: Typography.face.sans[500],
   },

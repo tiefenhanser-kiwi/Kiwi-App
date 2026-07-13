@@ -234,7 +234,7 @@ const s = StyleSheet.create({
     paddingVertical: 4,
   },
   thisWeekBadgeText: {
-    fontSize: 10,
+    fontSize: Typography.fontSize.xxs,
     color: Colors.neutral[0],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],

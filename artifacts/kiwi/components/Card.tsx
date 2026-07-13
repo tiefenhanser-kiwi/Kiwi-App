@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, View, ViewStyle } from "react-native";
 
-import { Colors, Palette, Radius, Shadow, Spacing } from "@/constants/tokens";
+import { Palette, Radius, Shadow, Spacing } from "@/constants/tokens";
 
 interface Props {
   children: React.ReactNode;
@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.background.card,
     borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Colors.neutral[400],
+    borderColor: Palette.border.strong,
     ...Shadow.card,
   },
 });

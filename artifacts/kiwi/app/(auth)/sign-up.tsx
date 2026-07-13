@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
   },
   errorText: {
-    color: Colors.terracotta?.[700] ?? "#c04a2e",
+    color: Colors.terracotta[700],
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.face.sans[500],
   },

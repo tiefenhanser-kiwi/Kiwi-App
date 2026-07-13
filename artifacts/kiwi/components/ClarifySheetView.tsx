@@ -186,7 +186,7 @@ const s = StyleSheet.create({
   // WS7-7-A B5 — clarify-any-time sheet.
   clarifyBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: Palette.background.overlay,
     justifyContent: "flex-end",
   },
   clarifySheet: {

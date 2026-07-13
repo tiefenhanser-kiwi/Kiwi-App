@@ -7,6 +7,8 @@
 import React from "react";
 import { Modal, StyleSheet, View } from "react-native";
 
+import { Palette } from "@/constants/tokens";
+
 import { LoadingShim } from "./LoadingShim";
 
 export function GroceryGeneratingOverlay({ visible }: { visible: boolean }) {
@@ -22,7 +24,7 @@ export function GroceryGeneratingOverlay({ visible }: { visible: boolean }) {
 const s = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: Palette.background.overlay,
     alignItems: "center",
     justifyContent: "center",
     padding: 32,

@@ -20,6 +20,13 @@
 //     Fraunces_500Medium_Italic, …) because RN/Expo resolves weights by
 //     family name, not fontWeight, on Android. Use Typography.face.* in
 //     StyleSheet fontFamily; fontWeight remains for iOS/semantic intent.
+//   - FLAG 5: Typography.fontSize.xxs (10) ratifies the app's live 10px
+//     micro-metadata label (used 9× across list/badge rows). Adding the token
+//     moves zero pixels; snapping those literals to xs (11) would enlarge every
+//     micro-label ~10% on screens not yet redesigned — a design change smuggled
+//     in via a lint sweep. (Numbered 5, not 4: FLAG 4 is already the
+//     border-solid A1-crispness deviation on Palette.border.default below.
+//     WS9 L2/B2, D-WS9-021 RULED.)
 //
 // Production note: Fraunces + DM Sans load via @expo-google-fonts in
 // app/_layout.tsx. Until loaded, RN falls back to system faces.
@@ -223,6 +230,7 @@ export const Typography = {
   // FLAG 1 — PRESERVED current visual sizes (live values/keys), NOT v4's
   // smaller named scale. cookStep carried over from v4.
   fontSize: {
+    xxs:     10,   // FLAG 5 — micro-metadata label (D-WS9-021); see header.
     xs:      11,
     sm:      12,
     base:    14,

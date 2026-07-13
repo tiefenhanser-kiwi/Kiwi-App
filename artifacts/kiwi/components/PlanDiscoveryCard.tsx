@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.face.serif[600],
   },
   sub: {
-    fontSize: 10,
+    fontSize: Typography.fontSize.xxs,
     color: Colors.sage[700],
     marginTop: 1,
     fontFamily: Typography.face.sans[400],
@@ -174,14 +174,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   toggleLabel: {
-    fontSize: 10,
+    fontSize: Typography.fontSize.xxs,
     color: Colors.sage[700],
     fontFamily: Typography.face.sans[500],
   },
   chev: {
-    fontSize: 14,
+    fontSize: Typography.fontSize.base,
     color: Colors.sage[700],
-    fontWeight: "700",
+    fontWeight: Typography.fontWeight.bold,
   },
   body: {
     marginTop: Spacing[3],

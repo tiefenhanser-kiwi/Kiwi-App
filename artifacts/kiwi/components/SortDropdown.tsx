@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { Colors, Palette, Radius, Shadow, Spacing, Typography } from "@/constants/tokens";
 
 export type SortKey =
   | "last_cooked"
@@ -188,9 +188,9 @@ const styles = StyleSheet.create({
     fontFamily: Typography.face.sans[600],
   },
   chev: {
-    fontSize: 12,
+    fontSize: Typography.fontSize.sm,
     color: Colors.sage[700],
-    fontWeight: "700",
+    fontWeight: Typography.fontWeight.bold,
     marginLeft: 2,
   },
   // Full-screen transparent layer behind the floating menu; tap to dismiss.
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.neutral[300],
     paddingVertical: 4,
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: Shadow.card.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,

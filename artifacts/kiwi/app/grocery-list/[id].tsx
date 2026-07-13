@@ -1582,7 +1582,7 @@ const s = StyleSheet.create({
     borderRadius: Radius.full,
   },
   tagText: {
-    fontSize: 10,
+    fontSize: Typography.fontSize.xxs,
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
     letterSpacing: 0.3,

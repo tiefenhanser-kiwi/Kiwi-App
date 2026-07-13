@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   featureIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Radius["2xl"],
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",

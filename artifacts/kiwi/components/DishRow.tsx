@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   thumb: {
     width: 48,
     height: 48,
-    borderRadius: 8,
+    borderRadius: Radius.sm,
     overflow: "hidden",
     backgroundColor: Colors.sage[100],
   },

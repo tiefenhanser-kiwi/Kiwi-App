@@ -23,8 +23,8 @@ export default function TabLayout() {
             Platform.OS === "web" ? 84 : baseHeight + insets.bottom,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "500",
+          fontSize: Typography.fontSize.xs,
+          fontWeight: Typography.fontWeight.medium,
           fontFamily: Typography.face.sans[500],
         },
         headerShown: false,

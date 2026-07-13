@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   statusBadgeText: {
-    fontSize: 10,
+    fontSize: Typography.fontSize.xxs,
     color: Colors.sage[700],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
