@@ -23,13 +23,14 @@ type Tx = Prisma.TransactionClient;
 
 // Step fields copied verbatim (everything except id/ownerType/ownerId, which
 // are re-derived for the clone).
+// BUG-018 B2 — parallelGroup retired; not copied on fork (the column stays NULL,
+// which is what a clone would produce anyway).
 const STEP_COPY_FIELDS = {
   stepIndex: true,
   stepTextRaw: true,
   stepTextTranslated: true,
   estimatedMinutes: true,
   phaseType: true,
-  parallelGroup: true,
   requiresPreheat: true,
   requiresRest: true,
   requiresMarination: true,

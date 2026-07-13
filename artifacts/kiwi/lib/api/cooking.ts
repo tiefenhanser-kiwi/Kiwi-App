@@ -143,43 +143,37 @@ export async function getPrepWeekCompletions(
 export { StepKeySchema };
 
 // ── Cooking Sequencer (POST /meals/:mealId/cooking-sequence) ────────────────
-// WS7-8b Block 3 (Build Block 2B). Verbatim Zod mirror of the server wire —
-// the route returns `{ sequence, totalEstimatedMinutes, dishCount, usedAI }`
-// (cooking.ts:128-133), NOT the bare SequencedStepsResultSchema. Each entry is
-// an ORDERING + ANNOTATION over steps the client already holds: it references
-// the source step by (dishId, originalStepIndex) and carries NO step text /
-// phase / minutes — those are joined back on the held meal detail. `reason` is
-// the optional, server-composed parallel cue ("While the chicken rests, start
-// the sauce"). Constraints (int / nonnegative / max 140) match sequencer.ts so
-// a malformed payload is rejected in both directions (§27).
+// WS7-8b Block 3 (Build Block 2B); BUG-018 B2 — the server ordering is now
+// computed DETERMINISTICALLY (no AI). Verbatim Zod mirror of the server wire —
+// the route returns `{ sequence, totalEstimatedMinutes, dishCount, usedAI }`.
+// Each entry is an ORDERING + ANNOTATION over steps the client already holds:
+// it references the source step by (dishId, originalStepIndex) and carries NO
+// step text / phase / minutes — those are joined back on the held meal detail.
+// `reason` is the optional, computed parallel cue ("While the chicken rests,
+// start the sauce"). Constraints mirror sequencer.ts so a malformed payload is
+// rejected in both directions (§27).
 
 const SequencedStepSchema = z.object({
   dishId: z.string().min(1),
   originalStepIndex: z.number().int().min(0),
   sequenceIndex: z.number().int().min(0),
-  startsAtMinutes: z.number().int().nonnegative(),
+  // Serve-anchored (BUG-018 B2, re-anchored from the old cook-start
+  // `startsAtMinutes`): 0 = serve, negative = minutes before serve. The mobile
+  // flow consumes the linear order + cue, not this offset (it's the wire field
+  // for a future serve-by-T notification feature).
+  startOffsetMinutes: z.number().int().nonpositive(),
   // Optional inline cue shown in Cook Mode; server-composed, never client-side.
   reason: z.string().max(140).optional(),
-  // Optional hard dependencies the ordering already enforces — mirrored for
-  // completeness; the mobile flow consumes the linear order, not these edges.
-  dependsOn: z
-    .array(
-      z.object({
-        dishId: z.string().min(1),
-        originalStepIndex: z.number().int().min(0),
-      }),
-    )
-    .optional(),
 });
 export type SequencedStep = z.infer<typeof SequencedStepSchema>;
 
 const CookingSequenceResponseSchema = z.object({
   sequence: z.array(SequencedStepSchema),
   totalEstimatedMinutes: z.number().int().positive(),
-  // = meal.dishLinks.length server-side; always >= 2 on the AI path we call.
+  // = meal.dishLinks.length server-side.
   dishCount: z.number().int().nonnegative(),
-  // true on the multi-dish AI path, false on the single-dish branch (which the
-  // client never reaches — it degrades to naive ordering without calling).
+  // Retained on the wire for back-compat; permanently false now that ordering
+  // is computed (no AI call on any path).
   usedAI: z.boolean(),
 });
 export type CookingSequence = z.infer<typeof CookingSequenceResponseSchema>;
@@ -194,8 +188,8 @@ export type CookingSequence = z.infer<typeof CookingSequenceResponseSchema>;
  * ordering otherwise, §7.13) and SHOULD treat any failure as non-fatal —
  * falling back to naive ordering (§13.5.5: the Sequencer only improves order,
  * the meal always cooks). Propagates apiClient typed errors: `ApiError` (404
- * missing/non-owned, 400 empty meal, 502 AI failure, 429 rate limit),
- * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
+ * missing/non-owned, 400 empty meal, 429 rate limit), `UnauthenticatedError`
+ * (401), `ApiSchemaError` on a response-shape mismatch.
  */
 export async function getCookingSequence(
   mealId: string,

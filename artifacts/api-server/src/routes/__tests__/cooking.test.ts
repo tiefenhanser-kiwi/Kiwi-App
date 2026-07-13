@@ -10,7 +10,6 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import {
-  CookingSequenceAIError,
   CookingSequenceEmptyMealError,
   CookingSequenceNotFoundError,
   EMPTY_MEAL_COPY,
@@ -62,19 +61,20 @@ const HAPPY_MULTI_DISH_RESULT: CookingSequenceResult = {
       dishId: "dish-a",
       originalStepIndex: 0,
       sequenceIndex: 0,
-      startsAtMinutes: 0,
+      startOffsetMinutes: -12,
       reason: "Lead with the protein sear.",
     },
     {
       dishId: "dish-b",
       originalStepIndex: 0,
       sequenceIndex: 1,
-      startsAtMinutes: 1,
+      startOffsetMinutes: -6,
     },
   ],
   totalEstimatedMinutes: 12,
   dishCount: 2,
-  usedAI: true,
+  // Deterministic path — permanently false; the wire still carries the field.
+  usedAI: false,
 };
 
 describe("POST /api/meals/:mealId/cooking-sequence — auth", () => {
@@ -127,7 +127,7 @@ describe("POST /api/meals/:mealId/cooking-sequence — happy multi-dish", () => 
     assert.equal(res.status, 200);
     const body = (await res.json()) as CookingSequenceResult;
     assert.equal(body.dishCount, 2);
-    assert.equal(body.usedAI, true);
+    assert.equal(body.usedAI, false);
     assert.equal(body.totalEstimatedMinutes, 12);
     assert.equal(body.sequence.length, 2);
     assert.equal(body.sequence[0].reason, "Lead with the protein sear.");
@@ -144,12 +144,6 @@ describe("POST /api/meals/:mealId/cooking-sequence — error mapping", () => {
         if (mealId === "missing") throw new CookingSequenceNotFoundError(mealId);
         if (mealId === "stranger") throw new CookingSequenceNotFoundError(mealId);
         if (mealId === "empty") throw new CookingSequenceEmptyMealError(mealId);
-        if (mealId === "ai-fail") {
-          throw new CookingSequenceAIError(
-            "Kiwi got distracted. Try again?",
-            "validation_failed",
-          );
-        }
         return HAPPY_MULTI_DISH_RESULT;
       }) as never,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -183,14 +177,6 @@ describe("POST /api/meals/:mealId/cooking-sequence — error mapping", () => {
     // Make sure the copy actually mentions the "didn't find anything to cook"
     // hook — guard against silent message edits.
     assert.match(body.error, /didn't find anything to cook/);
-  });
-
-  it("returns 502 with the AI failure user-facing message", async () => {
-    const res = await post("ai-fail");
-    assert.equal(res.status, 502);
-    const body = (await res.json()) as { error: string; reason: string };
-    assert.match(body.error, /Kiwi got distracted/);
-    assert.equal(body.reason, "validation_failed");
   });
 });
 

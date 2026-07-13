@@ -14,7 +14,6 @@ import { z } from "zod";
 
 import {
   runCookingSequence as productionRunCookingSequence,
-  CookingSequenceAIError,
   CookingSequenceEmptyMealError,
   CookingSequenceNotFoundError,
   EMPTY_MEAL_COPY,
@@ -94,10 +93,10 @@ export function createCookingRouter(
   const runAICall = deps.runAICall ?? productionRunAICall;
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
-  // Per-user token-bucket. Cook Mode launches are not high-frequency;
-  // 12/min matches the editing-cadence tier used elsewhere and provides
-  // a tight cost-of-bug ceiling for the Sonnet call. Shared between
-  // sequencer and prep-week — both are launch-pad endpoints.
+  // Per-user token-bucket, 12/min (editing-cadence tier). Shared between the
+  // sequencer and prep-week. BUG-018 B2 removed the sequencer's Sonnet call, so
+  // for it this is now just a DB-load guardrail (the compute is free +
+  // deterministic); for prep-week it remains the premium-AI cost ceiling.
   const limiterOpts = deps.rateLimiterOpts ?? {
     capacity: 12,
     refillPerSec: 12 / 60,
@@ -135,7 +134,7 @@ export function createCookingRouter(
         const result = await runCookingSequence({
           mealId,
           userId,
-          deps: { prisma, runAICall },
+          deps: { prisma },
         });
         return res.json({
           sequence: result.sequence,
@@ -149,12 +148,6 @@ export function createCookingRouter(
         }
         if (err instanceof CookingSequenceEmptyMealError) {
           return res.status(400).json({ error: EMPTY_MEAL_COPY });
-        }
-        if (err instanceof CookingSequenceAIError) {
-          return res.status(502).json({
-            error: err.userFacingMessage,
-            reason: err.reason,
-          });
         }
         logger.error(
           { event: "cooking_sequence_failed", userId, mealId, err },

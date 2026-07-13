@@ -1766,7 +1766,7 @@ const PROMPTS: PromptSeed[] = [
   {
     key: "import.reformat_for_kiwi",
     description:
-      "Normalize a raw recipe into Kiwi's canonical Meal/Dish/Step shape with phaseType / parallelGroup.",
+      "Normalize a raw recipe into Kiwi's canonical Meal/Dish/Step shape with phaseType + timing flags.",
     variables: ["rawRecipe"],
     defaultModel: MODEL_SONNET,
     defaultMode: "text",

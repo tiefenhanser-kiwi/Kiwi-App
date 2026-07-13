@@ -161,7 +161,7 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
       defaultModel: MODEL_SONNET,
       defaultMode: "text",
       toolDescription:
-        "Normalize a raw recipe into Kiwi's canonical Meal/Dish/Step shape with phaseType / parallelGroup.",
+        "Normalize a raw recipe into Kiwi's canonical Meal/Dish/Step shape with phaseType + timing flags.",
     },
   ],
   // 6c-1 — URL-imported recipe scaling helper.

@@ -1,25 +1,26 @@
-// WS6 6d-1 — Cooking Sequencer loader.
+// WS7-8b BUG-018 B2 — Cooking Sequencer loader (now fully deterministic).
 // Per kiwi_ws6_plan.md §3 6d-1 + PRD §13.5.4 / §13.5.5.
 //
-// Server-side endpoint at Cook Mode launch. Takes all step data from a
-// meal's dishes (with phase types, parallel groups, estimated times),
-// calls Sonnet via tool_use, returns one ordered sequence intermixing
-// steps from all dishes for parallel execution.
+// Server-side endpoint at Cook Mode launch. Loads all step data from a meal's
+// dishes and hands it to the pure scheduler (cookingScheduler.ts), which returns
+// one ordered sequence intermixing steps from all dishes with serve-anchored
+// offsets + parallel cues.
 //
-// Single-dish meals skip the AI and return stored step order directly —
-// no `runAICall` invocation, no `LLMCallLog` row. Free per PRD §13.5.5
-// (infrastructure AI; reorders + annotates existing steps, does NOT
-// rewrite or generate new content).
+// BUG-018 B2: the Sonnet `sequencer.step_ordering` call is GONE. PRD §13.5.5
+// [LOCKED] says the Sequencer "runs deterministically on existing step data" and
+// prices it FREE on that basis; the AI was doing single-resource scheduling
+// arithmetic it is bad at (corn cold; shorter roast started first). No AI call,
+// no LLMCallLog row, no rate limit — the same free path for single- AND
+// multi-dish meals. `usedAI` remains on the wire, permanently false.
 
 import type { PrismaClient } from "@prisma/client";
 
-import { runAICall as productionRunAICall } from "./ai/runAICall";
 import {
-  SequencedStepsResultSchema,
-  type SequencedStep,
-  type SequencerInput,
-} from "./ai/schemas/sequencer";
-import { logger } from "./logger";
+  scheduleCookingSequence,
+  type SchedulerDish,
+  type SchedulerPhase,
+} from "./cookingScheduler";
+import type { SequencedStep } from "./ai/schemas/sequencer";
 
 // Route handler maps NotFoundError → 404; meal-exists-but-empty maps to
 // 400 with the locked copy.
@@ -40,19 +41,8 @@ export class CookingSequenceEmptyMealError extends Error {
   }
 }
 
-export class CookingSequenceAIError extends Error {
-  constructor(
-    public readonly userFacingMessage: string,
-    public readonly reason: string,
-  ) {
-    super(`sequencer AI call failed: ${reason}`);
-    this.name = "CookingSequenceAIError";
-  }
-}
-
 export interface RunCookingSequenceDeps {
   prisma: PrismaClient;
-  runAICall: typeof productionRunAICall;
 }
 
 export interface RunCookingSequenceParams {
@@ -65,7 +55,8 @@ export interface CookingSequenceResult {
   sequence: SequencedStep[];
   totalEstimatedMinutes: number;
   dishCount: number;
-  // true for multi-dish path, false for single-dish branch.
+  // Retained on the wire for backward compatibility; permanently false now that
+  // ordering is computed (no Sonnet call on any path).
   usedAI: boolean;
 }
 
@@ -73,7 +64,7 @@ export async function runCookingSequence(
   params: RunCookingSequenceParams,
 ): Promise<CookingSequenceResult> {
   const { mealId, userId, deps } = params;
-  const { prisma, runAICall } = deps;
+  const { prisma } = deps;
 
   // 1. Load meal + dishLinks (with dish metadata) in one round-trip.
   const meal = await prisma.meal.findUnique({
@@ -133,74 +124,29 @@ export async function runCookingSequence(
 
   const dishCount = meal.dishLinks.length;
 
-  // 8. Single-dish branch — no AI, no LLMCallLog row. Walk the single
-  //    dish's steps and build the sequence directly with cumulative
-  //    startsAtMinutes (each step starts when the previous one finishes).
-  if (dishCount === 1) {
-    const onlyDishId = meal.dishLinks[0].dishId;
-    const onlySteps = stepsByDish.get(onlyDishId) ?? [];
-    let cursor = 0;
-    const sequence: SequencedStep[] = onlySteps.map((s, idx) => {
-      const entry: SequencedStep = {
-        dishId: s.ownerId,
-        originalStepIndex: s.stepIndex,
-        sequenceIndex: idx,
-        startsAtMinutes: cursor,
-      };
-      cursor += s.estimatedMinutes;
-      return entry;
-    });
-    return {
-      sequence,
-      totalEstimatedMinutes: cursor,
-      dishCount,
-      usedAI: false,
-    };
-  }
-
-  // 9. Multi-dish branch — build sequencer input + call Sonnet tool_use.
-  const sequencerInput: SequencerInput = {
-    mealDishes: meal.dishLinks.map((dl) => ({
+  // 8. Build the scheduler input (dishes in positionIndex order, steps in
+  //    stepIndex order) and compute the sequence. Pure, deterministic, free —
+  //    single- and multi-dish meals take the same path.
+  const schedulerDishes: SchedulerDish[] = meal.dishLinks
+    .filter((dl) => stepsByDish.has(dl.dishId))
+    .map((dl) => ({
       dishId: dl.dishId,
       title: dl.dish.title,
       positionIndex: dl.positionIndex,
-    })),
-    dishSteps: normalized.map((s) => ({
-      dishId: s.ownerId,
-      stepIndex: s.stepIndex,
-      stepText: s.stepTextTranslated,
-      phaseType: s.phaseType,
-      parallelGroup: s.parallelGroup,
-      estimatedMinutes: s.estimatedMinutes,
-      isTimingSensitive: s.isTimingSensitive,
-    })),
-  };
+      steps: (stepsByDish.get(dl.dishId) ?? []).map((s) => ({
+        stepIndex: s.stepIndex,
+        estimatedMinutes: s.estimatedMinutes,
+        phaseType: s.phaseType as SchedulerPhase,
+        isTimingSensitive: s.isTimingSensitive,
+      })),
+    }));
 
-  const result = await runAICall(
-    "sequencer.step_ordering",
-    { sequencerInput },
-    SequencedStepsResultSchema,
-    { prisma, userId },
-  );
-
-  if (!result.success) {
-    logger.warn(
-      {
-        event: "cooking_sequence_ai_failed",
-        userId,
-        mealId,
-        reason: result.reason,
-        promptKey: "sequencer.step_ordering",
-      },
-      "Cooking sequencer AI call failed",
-    );
-    throw new CookingSequenceAIError(result.userFacingMessage, result.reason);
-  }
+  const result = scheduleCookingSequence(schedulerDishes);
 
   return {
-    sequence: result.data.steps,
-    totalEstimatedMinutes: result.data.totalEstimatedMinutes,
+    sequence: result.steps,
+    totalEstimatedMinutes: result.totalEstimatedMinutes,
     dishCount,
-    usedAI: true,
+    usedAI: false,
   };
 }

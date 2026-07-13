@@ -155,7 +155,8 @@ export interface SaveDishStep {
   text: string;
   estimatedMinutes?: number;
   phaseType?: "prep" | "preheat" | "cook" | "rest" | "assemble" | "hold";
-  parallelGroup?: string | null;
+  // BUG-018 B1/B2 — parallelGroup retired; the server save contract now rejects
+  // it (me.ts .strict()), so it must not be settable here either.
   isTimingSensitive?: boolean;
 }
 

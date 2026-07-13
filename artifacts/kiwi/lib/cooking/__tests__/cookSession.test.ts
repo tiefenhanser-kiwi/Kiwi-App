@@ -397,7 +397,7 @@ function seq(overrides: Partial<SequencedStep> = {}): SequencedStep {
     dishId: "dA",
     originalStepIndex: 0,
     sequenceIndex: 0,
-    startsAtMinutes: 0,
+    startOffsetMinutes: 0,
     ...overrides,
   };
 }

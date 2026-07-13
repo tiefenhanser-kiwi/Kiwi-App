@@ -163,7 +163,6 @@ export function toStepShape(s: {
   stepTextTranslated: string;
   estimatedMinutes: number;
   phaseType: string;
-  parallelGroup: string | null;
   requiresPreheat: boolean;
   requiresRest: boolean;
   requiresMarination: boolean;
@@ -178,7 +177,6 @@ export function toStepShape(s: {
     text: s.stepTextTranslated,
     estimatedMinutes: s.estimatedMinutes,
     phaseType: s.phaseType,
-    parallelGroup: s.parallelGroup,
     requiresPreheat: s.requiresPreheat,
     requiresRest: s.requiresRest,
     requiresMarination: s.requiresMarination,

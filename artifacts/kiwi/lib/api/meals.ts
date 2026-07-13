@@ -119,7 +119,9 @@ export const MealStepSchema = z.object({
   text: z.string(),
   estimatedMinutes: z.number(),
   phaseType: z.string(),
-  parallelGroup: z.string().nullable(),
+  // BUG-018 B2 — parallelGroup retired; the server no longer emits it on the
+  // meal/dish detail wire (routes/meals.ts toStepShape). Removed here in the
+  // same change so both directions of the wire stay in sync (§27).
   requiresPreheat: z.boolean(),
   requiresRest: z.boolean(),
   requiresMarination: z.boolean(),
@@ -341,7 +343,8 @@ export interface SaveMealStep {
   text: string;
   estimatedMinutes?: number;
   phaseType?: "prep" | "preheat" | "cook" | "rest" | "assemble" | "hold";
-  parallelGroup?: string | null;
+  // BUG-018 B1/B2 — parallelGroup retired; the server save contract now rejects
+  // it (me.ts .strict()), so it must not be settable here either.
   isTimingSensitive?: boolean;
 }
 

@@ -1,97 +1,30 @@
 import { z } from "zod";
-import { StepPhaseSchema } from "./cookNow";
 
-// PRD §13.5.4 / 6d-1 — Cooking Sequencer.
-// Free per PRD §13.5.5 (infrastructure AI; reorders + annotates existing
-// steps — does NOT rewrite step text or generate new content). Single-dish
-// meals skip the AI and return stored step order directly at the loader.
-
-// Per-dish step as fed to the sequencer. Mirrors the persisted
-// RecipeInstructionStep row minus columns the sequencer doesn't need.
+// PRD §13.5.4 / §13.5.5 — Cooking Sequencer OUTPUT contract.
 //
-// Invariant (D-WS6-093): isTimingSensitive=true is mutually exclusive with
-// parallelGroup starting with "passive-". Timing-sensitive means the cook is
-// actively engaged at the stove; passive-* groups mean hands-free background
-// time (simmer, roast, rest). The combination contradicts itself — see the
-// isTimingSensitive field comment for why.
-export const SequencerDishStepSchema = z
-  .object({
-    dishId: z.string().min(1),
-    stepIndex: z.number().int().min(0),
-    stepText: z.string().min(1),
-    phaseType: StepPhaseSchema,
-    // Coarse grouping used by the sequencer to decide what may run in
-    // parallel. Values prefixed with "passive-" (e.g. "passive-simmer",
-    // "passive-roast") denote hands-free background work — by definition
-    // the cook is NOT actively engaged, so isTimingSensitive must be false.
-    parallelGroup: z.string().nullable(),
-    // Coerced to >= 1 at the loader boundary (15-second floor).
-    estimatedMinutes: z.number().int().positive(),
-    // Signals two things at once to the sequencer: (1) the user is actively
-    // engaged in this step — do not weave another dish's step between it and
-    // the next step of the same dish; (2) if the step also needs lead time
-    // (e.g. preheat), schedule it early enough that the next step in the
-    // same dish flows immediately when the user gets there.
-    //
-    // MUST be false whenever `parallelGroup` starts with "passive-": passive
-    // groups are hands-free by definition, so "actively engaged" cannot hold.
-    // Enforced by the schema-level superRefine below (D-WS6-093).
-    isTimingSensitive: z.boolean(),
-  })
-  .superRefine((step, ctx) => {
-    if (
-      step.isTimingSensitive &&
-      step.parallelGroup !== null &&
-      step.parallelGroup.startsWith("passive-")
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["isTimingSensitive"],
-        message:
-          "isTimingSensitive cannot be true when parallelGroup starts with 'passive-' (contradicts hands-free semantics)",
-      });
-    }
-  });
-export type SequencerDishStep = z.infer<typeof SequencerDishStepSchema>;
+// BUG-018 B2: ordering is now computed DETERMINISTICALLY (cookingScheduler.ts),
+// not by Sonnet. This file is only the response shape. The former AI-INPUT
+// schemas — SequencerDishStepSchema (with its D-WS6-093 isTimingSensitive-vs-
+// parallelGroup superRefine), SequencerInputSchema, and SequencedStepsResult —
+// were deleted with the AI call: the scheduler takes typed DB rows, not a
+// validated tool payload, and the loader returns the scheduler's result
+// directly (no self-validation of computed output).
 
-export const SequencerInputSchema = z.object({
-  mealDishes: z.array(
-    z.object({
-      dishId: z.string().min(1),
-      title: z.string().min(1),
-      positionIndex: z.number().int().nonnegative(),
-    }),
-  ),
-  dishSteps: z.array(SequencerDishStepSchema),
-});
-export type SequencerInput = z.infer<typeof SequencerInputSchema>;
-
-// Single step in the AI's intermixed sequence. Output references the
-// original step by (dishId, originalStepIndex); step text is preserved
-// verbatim downstream — the sequencer does NOT rewrite content.
+// One step in the computed sequence. References the source step by
+// (dishId, originalStepIndex); step text is preserved verbatim downstream —
+// the Sequencer reorders + annotates, never rewrites.
 export const SequencedStepSchema = z.object({
   dishId: z.string().min(1),
   originalStepIndex: z.number().int().min(0),
   sequenceIndex: z.number().int().min(0),
-  startsAtMinutes: z.number().int().nonnegative(),
-  // Short inline rationale shown in Cook Mode; e.g.
-  // "While the chicken rests, start the sauce." Optional per step.
+  // Serve-anchored offset (ruling #2): 0 = serve (the latest finish), negative
+  // = minutes before serve. NEVER wall-clock, never a timezone — a future
+  // consumer supplies the real serve time T, so DST/TZ bugs cannot reach here.
+  // Re-anchored from the old cook-start `startsAtMinutes` in BUG-018 B2 (nothing
+  // consumed the old field; keeping both would be a second source of truth).
+  startOffsetMinutes: z.number().int().nonpositive(),
+  // Short inline rationale shown in Cook Mode; e.g. "While the chicken rests,
+  // start the sauce." Optional per step — most steps have none.
   reason: z.string().max(140).optional(),
-  // Hard dependencies the sequence ordering enforces. Most steps don't
-  // have one — populate only when there's a true must-finish-first link.
-  dependsOn: z
-    .array(
-      z.object({
-        dishId: z.string().min(1),
-        originalStepIndex: z.number().int().min(0),
-      }),
-    )
-    .optional(),
 });
 export type SequencedStep = z.infer<typeof SequencedStepSchema>;
-
-export const SequencedStepsResultSchema = z.object({
-  steps: z.array(SequencedStepSchema),
-  totalEstimatedMinutes: z.number().int().positive(),
-});
-export type SequencedStepsResult = z.infer<typeof SequencedStepsResultSchema>;

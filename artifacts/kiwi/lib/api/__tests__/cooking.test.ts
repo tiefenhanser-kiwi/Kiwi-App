@@ -224,20 +224,20 @@ const SEQUENCE_RESPONSE = {
       dishId: "dish-a",
       originalStepIndex: 0,
       sequenceIndex: 0,
-      startsAtMinutes: 0,
+      startOffsetMinutes: -12,
       reason: "Lead with the protein sear.",
     },
     {
       dishId: "dish-b",
       originalStepIndex: 0,
       sequenceIndex: 1,
-      startsAtMinutes: 1,
+      startOffsetMinutes: -6,
       // no reason — the optional cue must round-trip as absent
     },
   ],
   totalEstimatedMinutes: 12,
   dishCount: 2,
-  usedAI: true,
+  usedAI: false,
 };
 
 test("getCookingSequence POSTs to the path with NO body and round-trips the envelope", async () => {
@@ -253,7 +253,7 @@ test("getCookingSequence POSTs to the path with NO body and round-trips the enve
   assert.equal(lastBody, null);
 
   assert.equal(res.dishCount, 2);
-  assert.equal(res.usedAI, true);
+  assert.equal(res.usedAI, false);
   assert.equal(res.totalEstimatedMinutes, 12);
   assert.equal(res.sequence.length, 2);
   assert.equal(res.sequence[0].reason, "Lead with the protein sear.");
@@ -291,7 +291,7 @@ test("getCookingSequence rejects a malformed step (non-integer originalStepIndex
   nextResponse = () =>
     mockJson({
       sequence: [
-        { dishId: "d", originalStepIndex: 0.5, sequenceIndex: 0, startsAtMinutes: 0 },
+        { dishId: "d", originalStepIndex: 0.5, sequenceIndex: 0, startOffsetMinutes: 0 },
       ],
       totalEstimatedMinutes: 5,
       dishCount: 2,
