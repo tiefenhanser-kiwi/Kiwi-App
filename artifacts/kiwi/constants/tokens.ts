@@ -313,6 +313,17 @@ export const ImageTreatment = {
   },
   radiusRule: 'match-container' as const,
   thumbSize: 42,
+  // Placeholder treatment — shown through when a photo is absent/failed. The
+  // warm ramp is reused across the rail card / tonight strip / hero image slots
+  // (added WS9 L2b; canonical v4 never captured it — a gap-fill, not a FLAG
+  // deviation).
+  placeholder: {
+    base:     '#e9ddc7',               // fill behind the gradient
+    gradient: ['#e6cba6', '#d99e6b'],  // warm 120° ramp
+  },
+  // Near-opaque paper pill for a legible tag floated over a treated image (e.g.
+  // the Tried & True occasion tag) — opaque enough to need no scrim.
+  overlayPill: 'rgba(251, 247, 239, 0.92)',
 } as const;
 
 export const Components = {

@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 
 import {
   Colors,
-  Copy,
   Palette,
   Radius,
   Shadow,
@@ -174,72 +173,64 @@ export function PlanReviewMealRow({
         ))}
       </View>
 
-      {/* Action buttons — 5 inline actions per PRD §8.4.1 (5-action amendment). */}
+      {/* Action buttons — R2 shape: 4 actions + card-body View (D-WS9-018).
+          Change Recipe removed (R-3d-2); Compost relabeled "Remove from plan"
+          (R-3d-3, still a soft-delete via onCompost). The prop interface is
+          unchanged — swap targets are repointed by 3d, the Edit target by 3f
+          (see handoff TODOs). No 5-action rows survive Layer 2 (§3). */}
       <View style={styles.actionRow}>
         <Pressable
           onPress={() => {
-            console.log("[meal-row] view tapped", {
+            console.log("[meal-row] edit tapped", {
               planItemId: row.planItemId,
               mealId: row.mealId,
             });
+            // TODO(3f): repoint to the D-WS9-004 plan-scoped ingredient editor
+            // ("just this time", MealPlanItem-level). Until 3f lands it, Edit
+            // opens Meal Detail — the existing edit path (same as card-body tap).
             navigateToDetail();
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >
-          <Text style={styles.actionText}>View</Text>
+          <Text style={styles.actionText}>Edit</Text>
         </Pressable>
         <Pressable
           onPress={() => {
-            console.log("[meal-row] change-meal tapped", {
+            console.log("[meal-row] swap-different tapped", {
               planItemId: row.planItemId,
             });
+            // TODO(3d): repoint to the merged swap sheet (Different mode) per
+            // D-WS9-018. Wired now to the existing ChangeMealSheet via onChangeMeal.
             onChangeMeal?.(row.planItemId, row.mealId);
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >
-          <Text style={styles.actionText}>Change Meal</Text>
+          <Text style={styles.actionText}>Swap for Different Meal</Text>
         </Pressable>
         <Pressable
           onPress={() => {
-            console.log("[meal-row] change-recipe tapped", {
-              planItemId: row.planItemId,
-            });
-            router.push({
-              pathname: "/meal-builder",
-              params: {
-                mealId: row.mealId,
-                planId,
-                planItemId: row.planItemId,
-                source: "change-recipe",
-              },
-            });
-          }}
-          style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
-        >
-          <Text style={styles.actionText}>Change Recipe</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => {
-            console.log("[meal-row] find-similar tapped", {
+            console.log("[meal-row] swap-similar tapped", {
               planItemId: row.planItemId,
               mealId: row.mealId,
             });
+            // TODO(3d): repoint to the merged swap sheet (Similar mode) per
+            // D-WS9-018. Wired now to the existing FindSimilarSheet via onFindSimilar.
             onFindSimilar?.(row.planItemId, row.mealId, row.title);
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >
-          <Text style={styles.actionText}>Find Similar</Text>
+          <Text style={styles.actionText}>Swap for Similar Meal</Text>
         </Pressable>
         <Pressable
           onPress={() => {
-            console.log("[meal-row] compost tapped", {
+            console.log("[meal-row] remove tapped", {
               planItemId: row.planItemId,
             });
             onCompost?.(row.planItemId, row.title);
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >
-          <Text style={styles.actionText}>{Copy.delete}</Text>
+          <Text style={styles.actionText}>Remove from plan</Text>
         </Pressable>
       </View>
     </View>
