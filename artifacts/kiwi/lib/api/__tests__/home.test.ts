@@ -70,8 +70,10 @@ const HOME_FULL = {
     startDate: "2026-05-18T00:00:00.000Z",
     endDate: "2026-05-24T00:00:00.000Z",
     revisionId: 3,
+    groceryListId: "gl-1",
   },
   planDiscoveryCards: [{ badge: "my_plans", plans: [PLAN_LIST_ITEM] }],
+  firstPlanCreatedAt: "2026-05-10T00:00:00.000Z",
 };
 
 // The empty-state Home payload — no active plan, nothing assigned to today.
@@ -79,6 +81,7 @@ const HOME_EMPTY = {
   todaysMeal: null,
   activePlan: null,
   planDiscoveryCards: [{ badge: "featured", plans: [] }],
+  firstPlanCreatedAt: null,
 };
 
 // ── Harness ─────────────────────────────────────────────────────────────────

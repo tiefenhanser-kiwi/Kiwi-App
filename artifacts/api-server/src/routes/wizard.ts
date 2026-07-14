@@ -36,6 +36,7 @@ import {
   type SubscriptionService,
 } from "../lib/subscriptionService";
 import { emitActivity as productionEmitActivity } from "../lib/userActivity";
+import { markFirstPlanCreated } from "../lib/firstPlan";
 import {
   materializeWizardDraft as productionMaterializeWizardDraft,
   WizardDraftMalformedError,
@@ -986,6 +987,9 @@ export function createWizardRouter(
           select: { id: true, revisionId: true },
         });
 
+        // D-WS9-026 — stamp first-plan-created (write-if-null; first wins).
+        await markFirstPlanCreated(tx, userId);
+
         await emitSharedActivity({
           tx,
           userId,
@@ -1179,6 +1183,9 @@ export function createWizardRouter(
           },
           select: { id: true, revisionId: true },
         });
+
+        // D-WS9-026 — stamp first-plan-created (write-if-null; first wins).
+        await markFirstPlanCreated(tx, userId);
 
         await emitSharedActivity({
           tx,

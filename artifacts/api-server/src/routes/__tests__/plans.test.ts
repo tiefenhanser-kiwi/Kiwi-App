@@ -1956,6 +1956,10 @@ function makeC4Stub(opts: {
         return { id: "act-1" };
       },
     },
+    // D-WS9-026 — first-plan stamp (write-if-null).
+    user: {
+      updateMany: async () => ({ count: 0 }),
+    },
   };
 
   return {
@@ -2345,6 +2349,11 @@ function makeC2Stub(opts: {
         recorder.activityWrites.push(args.data);
         return { id: "act-1" };
       },
+    },
+    // D-WS9-026 — first-plan stamp (write-if-null). Separate from the
+    // mealPlanInstance.updateMany the demote-prior assertions watch.
+    user: {
+      updateMany: async () => ({ count: 0 }),
     },
   };
 
@@ -2795,6 +2804,11 @@ function makeC3DeleteStub(opts: {
         return { id: "act-1" };
       },
     },
+    // D-WS9-026 — first-plan stamp (write-if-null). Separate from the
+    // mealPlanInstance.updateMany the demote-prior assertions watch.
+    user: {
+      updateMany: async () => ({ count: 0 }),
+    },
   };
 
   return {
@@ -3073,6 +3087,11 @@ function makeC4PatchStub(opts: {
         recorder.activityWrites.push(args.data);
         return { id: "act-1" };
       },
+    },
+    // D-WS9-026 — first-plan stamp (write-if-null). Separate from the
+    // mealPlanInstance.updateMany the demote-prior assertions watch.
+    user: {
+      updateMany: async () => ({ count: 0 }),
     },
   };
 

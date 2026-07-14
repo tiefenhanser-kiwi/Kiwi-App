@@ -29,12 +29,27 @@ const PlanDiscoveryCardSchema = z.object({
 });
 export type PlanDiscoveryCard = z.infer<typeof PlanDiscoveryCardSchema>;
 
+// The active-plan summary as /home returns it: PlanSummary plus the R4
+// grocery-list pointer (WS9 3a). `groceryListId` is the plan's non-archived
+// list id, or null when none exists — drives the Home "Grocery List" smart
+// route (has-list → open · no-list → generate). Home-only: the shared
+// PlanSummarySchema is untouched (other /plans callers don't carry it).
+const HomeActivePlanSchema = PlanSummarySchema.extend({
+  groceryListId: z.string().nullable(),
+});
+export type HomeActivePlan = z.infer<typeof HomeActivePlanSchema>;
+
 // GET /home — the full Home-tab payload. `todaysMeal` / `activePlan` are null
 // when the user has no active plan or nothing assigned to today.
 export const HomePayloadSchema = z.object({
   todaysMeal: TodaysMealSchema.nullable(),
-  activePlan: PlanSummarySchema.nullable(),
+  activePlan: HomeActivePlanSchema.nullable(),
   planDiscoveryCards: z.array(PlanDiscoveryCardSchema),
+  // D-WS9-026 — ISO timestamp of the user's first committed plan, or null
+  // (first-run). null → show the Home teaching arc; non-null → collapsed
+  // forever. A timestamp, not a boolean, so the value doubles as the
+  // time-to-first-plan activation metric server-side.
+  firstPlanCreatedAt: z.string().nullable(),
 });
 export type HomePayload = z.infer<typeof HomePayloadSchema>;
 

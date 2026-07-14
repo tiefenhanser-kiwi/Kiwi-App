@@ -225,6 +225,13 @@ model User {
   // accounts already in use; should not be re-onboarded).
   onboardingComplete       Boolean            @default(false)
   firstRunChoiceMade       Boolean            @default(false)
+  // WS9 3a / D-WS9-026 — set ONCE on the user's first committed plan
+  // (write-if-null guard; NEVER overwritten — it is a *first*, not a
+  // *latest*). A timestamp, not a boolean: `IS NULL` gives the home
+  // teaching-arc collapse gate, and the value doubles as the time-to-first-
+  // plan activation metric (un-reconstructable after the fact). Nullable,
+  // no backfill — the DB is wiped before launch; the first create flips it.
+  firstPlanCreatedAt       DateTime?
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
 

@@ -36,6 +36,7 @@ import {
 import { forkMealForUser } from "../lib/mealFork";
 import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
+import { markFirstPlanCreated } from "../lib/firstPlan";
 import {
   clampLimit,
   mergeById,
@@ -645,6 +646,9 @@ export function createPlansRouter(
             lunchOverrides: null,
           },
         });
+
+        // D-WS9-026 — stamp first-plan-created (write-if-null; first wins).
+        await markFirstPlanCreated(tx, userId);
 
         // Metadata reflects the new row's post-create active-ness — under
         // the stamp invariant this equals the row's resolver-winner state.
@@ -1262,6 +1266,9 @@ export function createPlansRouter(
               lunchOverrides: null,
             },
           });
+
+          // D-WS9-026 — stamp first-plan-created (write-if-null; first wins).
+          await markFirstPlanCreated(tx, userId);
 
           if (template.items.length > 0) {
             // WS7-7-A B5 fix2 (D-WS7-139) — fork-on-acquire. Template items

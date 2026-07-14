@@ -30,18 +30,14 @@ export default function TabLayout() {
         headerShown: false,
       }}
     >
+      {/* WS9 3a / G7 — 4-tab bar: Home / Plans / Recipes / Groceries. Order per
+          spec §5.2 + mockup (Plans before Recipes). "Recipes" label, meals.tsx
+          file kept (OPEN-2). */}
       <Tabs.Screen
         name="index"
         options={{
           title: "Home",
           tabBarIcon: ({ color }) => <Feather name="calendar" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="meals"
-        options={{
-          title: "Recipes",
-          tabBarIcon: ({ color }) => <Feather name="bookmark" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -52,15 +48,25 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="meals"
+        options={{
+          title: "Recipes",
+          tabBarIcon: ({ color }) => <Feather name="bookmark" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="groceries"
         options={{
           title: "Groceries",
           tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} />,
         }}
       />
+      {/* Profile EXITS the bar (G7); reached via the Home avatar chip. Kept as a
+          route (href: null hides the tab) — no file move (3g owns any restructure). */}
       <Tabs.Screen
         name="profile"
         options={{
+          href: null,
           title: "Profile",
           tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
         }}

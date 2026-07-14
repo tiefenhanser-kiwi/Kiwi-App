@@ -132,6 +132,9 @@ interface StubOpts {
   featured?: ReturnType<typeof discoveryTemplate>[];
   hosting?: ReturnType<typeof discoveryTemplate>[];
   topRated?: ReturnType<typeof discoveryTemplate>[];
+  // WS9 3a — R4 active-plan grocery-list pointer + D-WS9-026 first-plan stamp.
+  existingGroceryListId?: string | null;
+  firstPlanCreatedAt?: Date | null;
 }
 
 function makeStubPrisma(opts: StubOpts) {
@@ -199,9 +202,17 @@ function makeStubPrisma(opts: StubOpts) {
         return opts.topRated ?? [];
       },
     },
+    groceryList: {
+      // WS9 3a / R4 — the active plan's non-archived list (null when none).
+      findFirst: async () =>
+        opts.existingGroceryListId
+          ? { id: opts.existingGroceryListId }
+          : null,
+    },
     user: {
       findUnique: async () => ({
         lastPlanDiscoveryFilters: opts.lastPlanDiscoveryFilters ?? [],
+        firstPlanCreatedAt: opts.firstPlanCreatedAt ?? null,
       }),
     },
     systemSetting: {
@@ -270,6 +281,55 @@ describe("GET /home", () => {
       assert.equal(body.activePlan.name, "My Active Week");
       assert.equal(body.activePlan.status, "this_week");
       assert.equal(body.activePlan.revisionId, 3);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("WS9 3a — exposes the active plan's grocery list id (R4) and firstPlanCreatedAt (D-WS9-026)", async () => {
+    const startDate = startOfDay(new Date(Date.now() - 2 * MS_PER_DAY));
+    const stamp = new Date("2026-07-01T12:00:00.000Z");
+    const harness = await spinUp(
+      makeStubPrisma({
+        activeInstance: activeInstanceRow({ startDate, items: [] }),
+        savedPlanCount: 1,
+        existingGroceryListId: "gl-42",
+        firstPlanCreatedAt: stamp,
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/home");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        activePlan: { groceryListId: string | null } | null;
+        firstPlanCreatedAt: string | null;
+      };
+      assert.ok(body.activePlan);
+      assert.equal(body.activePlan.groceryListId, "gl-42");
+      assert.equal(body.firstPlanCreatedAt, stamp.toISOString());
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("WS9 3a — null grocery list + null firstPlanCreatedAt (first-run) pass through", async () => {
+    const startDate = startOfDay(new Date(Date.now() - 2 * MS_PER_DAY));
+    const harness = await spinUp(
+      makeStubPrisma({
+        activeInstance: activeInstanceRow({ startDate, items: [] }),
+        savedPlanCount: 1,
+        // existingGroceryListId + firstPlanCreatedAt default to null.
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/home");
+      const body = (await res.json()) as {
+        activePlan: { groceryListId: string | null } | null;
+        firstPlanCreatedAt: string | null;
+      };
+      assert.ok(body.activePlan);
+      assert.equal(body.activePlan.groceryListId, null);
+      assert.equal(body.firstPlanCreatedAt, null);
     } finally {
       await harness.close();
     }

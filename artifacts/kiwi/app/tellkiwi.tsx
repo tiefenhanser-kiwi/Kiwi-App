@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
@@ -116,7 +116,16 @@ function hydrateForm(
 
 export default function TellKiwi() {
   const router = useRouter();
-  const [form, setForm] = useState<TellKiwiFormState>(INITIAL_FORM);
+  // WS9 3a — free-text handoff from the Home Tell Kiwi card. `text` seeds the
+  // description box so the user's typed prompt survives the navigation (no
+  // retype). This is the handoff CONTRACT only; TODO(3c): 3c owns tellkiwi's
+  // restyle + the explicit-list spectrum (§7.1) — this touches neither.
+  const params = useLocalSearchParams<{ text?: string }>();
+  const initialText = typeof params.text === "string" ? params.text : "";
+  const [form, setForm] = useState<TellKiwiFormState>(() => ({
+    ...INITIAL_FORM,
+    description: initialText,
+  }));
   const mutation = useBuildFromText();
 
   // Cookbook Phase B Block 4 — hydrate the disclosure controls from stored

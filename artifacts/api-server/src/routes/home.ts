@@ -163,6 +163,17 @@ export function createHomeRouter(
       if (activeInstance) {
         const planName =
           activeInstance.titleOverride ?? activeInstance.template?.title ?? "";
+        // WS9 3a / R4 — the active plan's non-archived grocery list (null when
+        // none). Powers the Home "Grocery List" smart route: has-list → open ·
+        // no-list → generate. Same predicate the generate route's 409 guard
+        // uses (status != "archived", groceryLists.ts).
+        const existingList = await prisma.groceryList.findFirst({
+          where: {
+            mealPlanInstanceId: activeInstance.id,
+            status: { not: "archived" },
+          },
+          select: { id: true },
+        });
         activePlan = {
           id: activeInstance.id,
           name: planName,
@@ -172,6 +183,7 @@ export function createHomeRouter(
           startDate: toYmd(activeInstance.startDate),
           endDate: toYmd(activeInstance.endDate),
           revisionId: activeInstance.revisionId,
+          groceryListId: existingList?.id ?? null,
         };
 
         const today = resolveTodaysItem(
@@ -193,7 +205,9 @@ export function createHomeRouter(
       // ── plan discovery cards ────────────────────────────────────────
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { lastPlanDiscoveryFilters: true },
+        // D-WS9-026 — firstPlanCreatedAt drives the Home teaching-arc collapse
+        // (null → first-run, show the arc; non-null → collapsed forever).
+        select: { lastPlanDiscoveryFilters: true, firstPlanCreatedAt: true },
       });
       const savedFilters = (user?.lastPlanDiscoveryFilters ?? []).filter(
         (k): k is PlanFilterKey =>
@@ -224,7 +238,14 @@ export function createHomeRouter(
         planDiscoveryCards.push({ badge: key, plans });
       }
 
-      return res.json({ todaysMeal, activePlan, planDiscoveryCards });
+      return res.json({
+        todaysMeal,
+        activePlan,
+        planDiscoveryCards,
+        // D-WS9-026 — ISO timestamp (full precision preserves the
+        // time-to-first-plan metric); client only needs null-vs-not.
+        firstPlanCreatedAt: user?.firstPlanCreatedAt?.toISOString() ?? null,
+      });
     } catch (err) {
       logger.error({ err, userId }, "GET /home failed");
       return res.status(500).json({ error: "failed to load home" });

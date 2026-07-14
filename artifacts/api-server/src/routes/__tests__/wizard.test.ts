@@ -2166,6 +2166,11 @@ function makeActivateDeps(opts: {
       userActivity: {
         create: async () => ({}),
       },
+      // D-WS9-026 — first-plan stamp (write-if-null). Distinct from the
+      // mealPlanInstance.updateMany the demote-prior assertions watch.
+      user: {
+        updateMany: async () => ({ count: 0 }),
+      },
     };
   };
 

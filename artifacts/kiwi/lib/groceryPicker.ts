@@ -27,6 +27,46 @@ export function decideGroceryEntry(
   return { kind: "picker" };
 }
 
+// ── WS9 3a / R4 — Home "Grocery List" smart route ────────────────────────────
+// R4 (spec §5.1): active plan has list → open · plan-no-list → generate · no
+// plan → prompt toward wizard. R4-as-written assumes ONE active plan; the live
+// decideGroceryEntry handles the multi-plan case the spec forgot. They COMPOSE:
+// the resolved this-week plan is the shopping target (has-list is a real,
+// list-existence question — answered by the /home payload's activePlan.
+// groceryListId, added WS9 3a); when there is NO active-this-week plan we fall
+// back to count-based disambiguation.
+
+export type GroceryRoute =
+  // Active plan already has a non-archived list → open it directly (no
+  // generate round-trip / "Kiwi is thinking" flash).
+  | { kind: "open"; listId: string }
+  // A resolved plan but no list yet → generate. The generate route itself
+  // handles the has-list case (409 → navigate to the existing list), so a
+  // fallback single-plan generate is safe even if that plan already has one.
+  | { kind: "generate"; planId: string }
+  // No plan at all → R4 "prompt toward wizard".
+  | { kind: "wizard" }
+  // 2+ plans and none active this week → disambiguate first.
+  | { kind: "picker" };
+
+export function resolveGroceryRoute(
+  activePlan: { id: string; groceryListId: string | null } | null,
+  plans: readonly Pick<PlanListItem, "id">[],
+): GroceryRoute {
+  // R4 primary: the active this-week plan is the resolved shopping target.
+  if (activePlan) {
+    return activePlan.groceryListId
+      ? { kind: "open", listId: activePlan.groceryListId }
+      : { kind: "generate", planId: activePlan.id };
+  }
+  // No active-this-week plan → count-based disambiguation (WS7-7-A B6).
+  const decision = decideGroceryEntry(plans);
+  if (decision.kind === "single")
+    return { kind: "generate", planId: decision.planId };
+  if (decision.kind === "picker") return { kind: "picker" };
+  return { kind: "wizard" }; // empty → toward wizard (R4 no-plan branch)
+}
+
 // ── Fetch-all-pages (the picker needs the full plan set in memory) ───────────
 
 interface PlansPage {

@@ -11,6 +11,7 @@ import {
   decideGroceryEntry,
   fetchAllPlans,
   resolveGenerateResult,
+  resolveGroceryRoute,
 } from "../groceryPicker";
 import type { PlanListItem, PlanSummary } from "../api/plans";
 
@@ -41,6 +42,51 @@ function summary(id: string): PlanSummary {
     revisionId: 1,
   };
 }
+
+// ── resolveGroceryRoute (WS9 3a / R4) ────────────────────────────────────────
+
+test("R4: active plan WITH a list → open it", () => {
+  assert.deepEqual(
+    resolveGroceryRoute({ id: "p-1", groceryListId: "gl-9" }, [{ id: "p-1" }]),
+    { kind: "open", listId: "gl-9" },
+  );
+});
+
+test("R4: active plan with NO list → generate for that plan", () => {
+  assert.deepEqual(
+    resolveGroceryRoute({ id: "p-1", groceryListId: null }, [{ id: "p-1" }]),
+    { kind: "generate", planId: "p-1" },
+  );
+});
+
+test("R4: no active plan + 0 plans → wizard (no-plan branch)", () => {
+  assert.deepEqual(resolveGroceryRoute(null, []), { kind: "wizard" });
+});
+
+test("R4: no active plan + exactly 1 plan → generate (409 handles has-list)", () => {
+  assert.deepEqual(resolveGroceryRoute(null, [{ id: "p-7" }]), {
+    kind: "generate",
+    planId: "p-7",
+  });
+});
+
+test("R4: no active plan + 2+ plans → picker (disambiguate first)", () => {
+  assert.deepEqual(
+    resolveGroceryRoute(null, [{ id: "p-1" }, { id: "p-2" }]),
+    { kind: "picker" },
+  );
+});
+
+test("R4: active plan wins over the count fallback (has-list, many plans)", () => {
+  assert.deepEqual(
+    resolveGroceryRoute({ id: "p-1", groceryListId: "gl-1" }, [
+      { id: "p-1" },
+      { id: "p-2" },
+      { id: "p-3" },
+    ]),
+    { kind: "open", listId: "gl-1" },
+  );
+});
 
 // ── decideGroceryEntry (0 / 1 / 2+) ──────────────────────────────────────────
 
