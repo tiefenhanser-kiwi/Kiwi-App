@@ -16,6 +16,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { ActivePlanStrip } from "@/components/ActivePlanStrip";
@@ -36,6 +37,7 @@ import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { resolveGroceryRoute } from "@/lib/groceryPicker";
 import { deriveHeroModel } from "@/lib/home/heroState";
+import { homeSectionOrder } from "@/lib/home/homeSections";
 import { buildTriedTrueRail, TRIED_TRUE_BADGES } from "@/lib/home/triedTrue";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
@@ -158,80 +160,123 @@ export default function HomeTab() {
   };
   const handlePrepAndCookPress = () => router.push("/prep-cook");
 
+  const hasActivePlan = heroModel.kind !== "empty";
+
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <HomeHeader />
       <Screen>
-        {isFirstRun && (
-          <View style={styles.arcWrap}>
-            <TeachingArc />
-          </View>
-        )}
-
-        {/* Make lane */}
-        <SectionLabel
-          label={isFirstRun ? "what do you want to eat?" : "plan something new"}
-          first
-        />
-        <TellKiwiCard
-          value={tellText}
-          onChangeText={setTellText}
-          onSubmit={handleTellSubmit}
-          onSurprise={handleSurprise}
-          onUsePreferences={handleUsePreferences}
-        />
-
-        {/* Tonight strip — below the make lane (spec §5.1). Hidden on the empty
-            state: the make lane + arc already own the "no plan yet" prompt. */}
-        {heroModel.kind !== "empty" && (
-          <View style={styles.stripWrap}>
-            <ActivePlanStrip
-              model={heroModel}
-              onPress={handleStripPress}
-              onCook={handleCook}
-            />
-          </View>
-        )}
-
-        {/* Take lane — Tried & True rail */}
-        {railItems.length > 0 && (
-          <>
-            <SectionLabel label="tried & true" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.rail}
-            >
-              {railItems.map((item) => (
-                <TriedTrueCard
-                  key={item.id}
-                  image={item.image ? { uri: item.image } : null}
-                  occasion={item.occasion}
-                  title={item.title}
-                  meta={item.meta ?? undefined}
-                  onPress={() => preview.open(item.id)}
-                />
-              ))}
-            </ScrollView>
-          </>
-        )}
-
-        {/* Utility row (secondary — must never compete with the lanes). R4
-            demotes grocery to a post-plan shopping tool, not a planning entry. */}
-        <View style={styles.utilityRow}>
-          <Pressable
-            onPress={handleGroceryPress}
-            style={({ pressed }) => [styles.secBtn, pressed && styles.secBtnPressed]}
-          >
-            <Text style={styles.secBtnText}>Grocery List</Text>
-          </Pressable>
-          <Pressable
-            onPress={handlePrepAndCookPress}
-            style={({ pressed }) => [styles.secBtn, pressed && styles.secBtnPressed]}
-          >
-            <Text style={styles.secBtnText}>Prep &amp; Cook</Text>
-          </Pressable>
-        </View>
+        {/* Section order is the ruled contract (D-WS9-025) — mockup composition:
+            the LEAD (arc first-run / tonight strip returning) sits ABOVE the
+            make-lane eyebrow. Driven by homeSectionOrder so the order lives in
+            one tested place, not reshuffleable JSX. */}
+        {homeSectionOrder({
+          isFirstRun,
+          hasActivePlan,
+          hasRail: railItems.length > 0,
+        }).map((section) => {
+          switch (section) {
+            case "arc":
+              return (
+                <View key="arc" style={styles.arcWrap}>
+                  <TeachingArc />
+                </View>
+              );
+            case "thisWeek":
+              // The this-week MODULE: eyebrow + tonight strip + utility row. The
+              // utility row lives here (not a standalone section) so it is
+              // structurally impossible to render without a plan (G5), and its
+              // actions sit in the context of the plan they act on.
+              return (
+                <View key="thisWeek" style={styles.thisWeekBlock}>
+                  <SectionLabel label="this week" first />
+                  <ActivePlanStrip
+                    model={heroModel}
+                    onPress={handleStripPress}
+                    onCook={handleCook}
+                  />
+                  {/* Secondary — must never compete with the lanes (G2);
+                      terracotta stays unspent. R4: grocery is a post-plan
+                      shopping tool, not a planning entry. */}
+                  <View style={styles.utilityRow}>
+                    <Pressable
+                      onPress={handleGroceryPress}
+                      style={({ pressed }) => [
+                        styles.secBtn,
+                        pressed && styles.secBtnPressed,
+                      ]}
+                    >
+                      <Feather
+                        name="shopping-bag"
+                        size={20}
+                        color={Colors.sage[700]}
+                      />
+                      <Text style={styles.secBtnText}>Grocery List</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handlePrepAndCookPress}
+                      style={({ pressed }) => [
+                        styles.secBtn,
+                        pressed && styles.secBtnPressed,
+                      ]}
+                    >
+                      <Feather
+                        name="clipboard"
+                        size={20}
+                        color={Colors.sage[700]}
+                      />
+                      <Text style={styles.secBtnText}>Prep &amp; Cook</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            case "makeLane":
+              // The eyebrow labels the Tell Kiwi card and switches by state.
+              // `first` (tight top) only when it leads — i.e. no this-week
+              // module above it (first-run, arc-led).
+              return (
+                <React.Fragment key="makeLane">
+                  <SectionLabel
+                    label={
+                      isFirstRun
+                        ? "what do you want to eat?"
+                        : "plan something new"
+                    }
+                    first={!hasActivePlan}
+                  />
+                  <TellKiwiCard
+                    value={tellText}
+                    onChangeText={setTellText}
+                    onSubmit={handleTellSubmit}
+                    onSurprise={handleSurprise}
+                    onUsePreferences={handleUsePreferences}
+                  />
+                </React.Fragment>
+              );
+            case "rail":
+              return (
+                <React.Fragment key="rail">
+                  <SectionLabel label="tried & true" />
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.rail}
+                  >
+                    {railItems.map((item) => (
+                      <TriedTrueCard
+                        key={item.id}
+                        image={item.image ? { uri: item.image } : null}
+                        occasion={item.occasion}
+                        title={item.title}
+                        meta={item.meta ?? undefined}
+                        onPress={() => preview.open(item.id)}
+                      />
+                    ))}
+                  </ScrollView>
+                </React.Fragment>
+              );
+          }
+        })}
       </Screen>
 
       <PlanPreviewModal
@@ -247,23 +292,31 @@ export default function HomeTab() {
 }
 
 const styles = StyleSheet.create({
+  // Lead slot sits at the top of the body (Screen supplies the top padding);
+  // 12px below to the make-lane eyebrow (mockup .arc margin-bottom).
   arcWrap: {
-    marginTop: Spacing[3],
+    marginBottom: Spacing[3],
   },
-  stripWrap: {
-    marginTop: Spacing[3],
+  // The this-week module (eyebrow + strip + utility row) as one grouped block;
+  // 12px below it to the make-lane eyebrow.
+  thisWeekBlock: {
+    marginBottom: Spacing[3],
   },
   rail: {
     gap: Spacing[3],
     paddingBottom: Spacing[1],
   },
+  // Grouped directly under the strip inside the this-week module (small gap,
+  // NOT the old bottom-of-screen spacing).
   utilityRow: {
     flexDirection: "row",
     gap: Spacing[3],
-    marginTop: Spacing[5],
+    marginTop: Spacing[2],
   },
   secBtn: {
     flex: 1,
+    flexDirection: "row",
+    gap: Spacing[2],
     backgroundColor: Palette.background.card,
     borderWidth: 1.2,
     borderColor: Palette.border.strong,
@@ -278,8 +331,10 @@ const styles = StyleSheet.create({
   },
   secBtnText: {
     fontSize: Typography.fontSize.base,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.medium,
-    fontFamily: Typography.face.sans[500],
+    // All-sage (label + icon) — reads finished, still secondary to the filled
+    // sage card (this is a white outlined button). Terracotta stays unspent (G2).
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
 });

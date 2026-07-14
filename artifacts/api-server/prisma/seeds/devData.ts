@@ -81,6 +81,10 @@ const DEV_DISCOVERY_TEMPLATE_IDS = {
   quickWeeknights: "dev-plan-template-quick-weeknights",
   holidayHosting: "dev-plan-template-holiday-hosting",
   budgetBowls: "dev-plan-template-budget-bowls",
+  // WS9 3a device-test — extra hosting_events rows so the Tried & True rail
+  // leads with a realistic Hosting set (occasion-flavored, mockup register).
+  fourthOfJuly: "dev-plan-template-fourth-of-july-bbq",
+  gameDay: "dev-plan-template-game-day-spread",
 } as const;
 
 const DEV_TAG = "dev";
@@ -573,6 +577,47 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
       { mealId: DEV_MEAL_IDS.beefTacos, positionIndex: 2, assignedDayOfWeek: "Wednesday", slot: "dinner" },
       { mealId: DEV_MEAL_IDS.grainBowl, positionIndex: 3, assignedDayOfWeek: "Thursday", slot: "dinner" },
       { mealId: DEV_MEAL_IDS.carbonara, positionIndex: 4, assignedDayOfWeek: "Friday", slot: "dinner" },
+    ],
+  },
+  // WS9 3a device-test — occasion-flavored Hosting rows. imageUrl reuses the
+  // mockup's own verified rail photos (kiwi_screens_mockup.html .rcard .img a/d)
+  // so the multiply-blend approximation renders against real images on device.
+  {
+    id: DEV_DISCOVERY_TEMPLATE_IDS.fourthOfJuly,
+    title: "4th of July BBQ",
+    description: "A crowd-sized cookout spread for the summer holiday.",
+    tags: ["hosting", "bbq", "summer", DEV_TAG],
+    defaultDaysCount: 3,
+    saveCount: 14,
+    useCount: 6,
+    isFeatured: false,
+    isHostingFeatured: true,
+    occasionType: "summer_holiday",
+    imageUrl:
+      "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=800&q=80",
+    items: [
+      { mealId: DEV_MEAL_IDS.fajitas, positionIndex: 0, assignedDayOfWeek: null, slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.beefTacos, positionIndex: 1, assignedDayOfWeek: null, slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.grainBowl, positionIndex: 2, assignedDayOfWeek: null, slot: "dinner" },
+    ],
+  },
+  {
+    id: DEV_DISCOVERY_TEMPLATE_IDS.gameDay,
+    title: "Game Day Spread",
+    description: "Shareable plates for a full house on game day.",
+    tags: ["hosting", "game-day", "shareable", DEV_TAG],
+    defaultDaysCount: 3,
+    saveCount: 9,
+    useCount: 4,
+    isFeatured: false,
+    isHostingFeatured: true,
+    occasionType: "game_day",
+    imageUrl:
+      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80",
+    items: [
+      { mealId: DEV_MEAL_IDS.beefTacos, positionIndex: 0, assignedDayOfWeek: null, slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.fajitas, positionIndex: 1, assignedDayOfWeek: null, slot: "dinner" },
+      { mealId: DEV_MEAL_IDS.padThai, positionIndex: 2, assignedDayOfWeek: null, slot: "dinner" },
     ],
   },
 ];
@@ -1300,6 +1345,18 @@ async function main(): Promise<void> {
   await seedPlan(user.id, weeknightPlan);
   await seedPlan(user.id, spicePlan);
   await seedPlan(user.id, demoPlan);
+
+  // WS9 3a / D-WS9-026 — the dev user has committed plans, so stamp
+  // firstPlanCreatedAt (write-if-null, mirroring markFirstPlanCreated) to the
+  // active plan's week start. Without it a seeded user reads as first-run
+  // (null stamp) despite having plans, so Home would render BOTH the teaching
+  // arc AND the tonight strip. Stamping puts the dev user in the returning
+  // state (arc collapsed, strip + rail) — which is what device-testing wants.
+  await prisma.user.updateMany({
+    where: { id: user.id, firstPlanCreatedAt: null },
+    data: { firstPlanCreatedAt: weekStart },
+  });
+  console.log(`[devData] stamped firstPlanCreatedAt (if null) for dev user`);
 
   console.log(
     `[devData] done. dev user has ${MEALS.length + 1} meals ` +
