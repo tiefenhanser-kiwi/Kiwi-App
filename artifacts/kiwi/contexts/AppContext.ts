@@ -894,8 +894,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (templateId: string) => {
       const { instanceId } = await useTemplateAPI(templateId);
       queryClient.invalidateQueries({ queryKey: ["plans"] });
-      // WS7-6 (E) Block 2 §5 — use-template creates a new Instance + demotes
-      // prior actives server-side; Home's hero needs the refreshed payload.
+      // WS9 3b follow-up (BUG-036) — use-template creates an UNDATED, INACTIVE
+      // draft; it does NOT activate or demote priors (server: plans.ts §1209
+      // "no longer auto-activates"). Callers that want it active this week call
+      // setPlanActiveThisWeek(instanceId) after. Home's hero still needs the
+      // refreshed payload either way.
       queryClient.invalidateQueries({ queryKey: ["home"] });
       return { instanceId };
     },

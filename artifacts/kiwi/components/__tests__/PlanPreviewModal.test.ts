@@ -137,7 +137,7 @@ function renderModal(props: {
   visible: boolean;
   templateId: string | null;
   onClose: () => void;
-  onUsePlan: (id: string) => void | Promise<void>;
+  onUsePlan: (id: string, opts: { activate: boolean }) => void | Promise<void>;
 }): { renderer: TestRenderer.ReactTestRenderer; qc: QueryClient } {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const renderer = TestRenderer.create(
@@ -206,9 +206,9 @@ test("close button fires onClose", async () => {
   renderer.unmount();
 });
 
-test("Use Plan button calls onUsePlan(templateId) then onClose", async () => {
+test("Use This Week calls onUsePlan(templateId, {activate:true}) then onClose", async () => {
   let closeCalls = 0;
-  const usedIds: string[] = [];
+  const calls: Array<{ id: string; activate: boolean }> = [];
   let renderer!: TestRenderer.ReactTestRenderer;
   let qc!: QueryClient;
   await act(async () => {
@@ -218,8 +218,8 @@ test("Use Plan button calls onUsePlan(templateId) then onClose", async () => {
       onClose: () => {
         closeCalls += 1;
       },
-      onUsePlan: async (id: string) => {
-        usedIds.push(id);
+      onUsePlan: async (id, opts) => {
+        calls.push({ id, activate: opts.activate });
       },
     }));
   });
@@ -227,14 +227,103 @@ test("Use Plan button calls onUsePlan(templateId) then onClose", async () => {
 
   const tree = renderer.toJSON() as RenderedNode | null;
   const useNode = findByTestID(tree, "plan-preview-use");
-  assert.ok(useNode, "use-plan node not rendered");
+  assert.ok(useNode, "use-this-week node not rendered");
   const onPress = (useNode!.props as { onPress?: () => Promise<void> }).onPress;
   assert.equal(typeof onPress, "function");
   await act(async () => {
     await onPress!();
   });
 
-  assert.deepEqual(usedIds, ["tmpl-1"]);
+  assert.deepEqual(calls, [{ id: "tmpl-1", activate: true }]);
   assert.equal(closeCalls, 1);
+  renderer.unmount();
+});
+
+test("Save for Later calls onUsePlan(templateId, {activate:false}) then onClose", async () => {
+  let closeCalls = 0;
+  const calls: Array<{ id: string; activate: boolean }> = [];
+  let renderer!: TestRenderer.ReactTestRenderer;
+  let qc!: QueryClient;
+  await act(async () => {
+    ({ renderer, qc } = renderModal({
+      visible: true,
+      templateId: "tmpl-1",
+      onClose: () => {
+        closeCalls += 1;
+      },
+      onUsePlan: async (id, opts) => {
+        calls.push({ id, activate: opts.activate });
+      },
+    }));
+  });
+  await settle(qc);
+
+  const tree = renderer.toJSON() as RenderedNode | null;
+  const saveNode = findByTestID(tree, "plan-preview-save");
+  assert.ok(saveNode, "save-for-later node not rendered");
+  const onPress = (saveNode!.props as { onPress?: () => Promise<void> }).onPress;
+  assert.equal(typeof onPress, "function");
+  await act(async () => {
+    await onPress!();
+  });
+
+  assert.deepEqual(calls, [{ id: "tmpl-1", activate: false }]);
+  assert.equal(closeCalls, 1);
+  renderer.unmount();
+});
+
+// BUG-036 (rail-dupe half): a double-tap must not fire onUsePlan twice. The
+// first tap flips `pending`; the re-rendered button both disables and, via the
+// handler guard, no-ops a second tap until the first settles.
+test("in-flight guard: a second tap while the first is pending does not double-fire", async () => {
+  let calls = 0;
+  let releaseFirst!: () => void;
+  const gate = new Promise<void>((r) => {
+    releaseFirst = r;
+  });
+  let renderer!: TestRenderer.ReactTestRenderer;
+  let qc!: QueryClient;
+  await act(async () => {
+    ({ renderer, qc } = renderModal({
+      visible: true,
+      templateId: "tmpl-1",
+      onClose: () => {},
+      onUsePlan: async () => {
+        calls += 1;
+        await gate;
+      },
+    }));
+  });
+  await settle(qc);
+
+  // First tap — starts the pending action (does not resolve; gated).
+  const firstTree = renderer.toJSON() as RenderedNode | null;
+  const firstNode = findByTestID(firstTree, "plan-preview-use");
+  const firstPress = (firstNode!.props as { onPress?: () => void }).onPress;
+  await act(async () => {
+    firstPress!();
+  });
+  assert.equal(calls, 1, "first tap should fire once");
+
+  // Re-read after the pending re-render: the button is now disabled, and the
+  // handler guard rejects a second tap.
+  const pendingTree = renderer.toJSON() as RenderedNode | null;
+  const secondNode = findByTestID(pendingTree, "plan-preview-use");
+  assert.equal(
+    (secondNode!.props as { disabled?: boolean }).disabled,
+    true,
+    "primary CTA should be disabled while pending",
+  );
+  const secondPress = (secondNode!.props as { onPress?: () => void }).onPress;
+  await act(async () => {
+    secondPress!();
+  });
+  assert.equal(calls, 1, "guarded second tap must not double-fire");
+
+  // Release so the pending promise settles cleanly.
+  await act(async () => {
+    releaseFirst();
+    await Promise.resolve();
+  });
   renderer.unmount();
 });

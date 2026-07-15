@@ -3,8 +3,12 @@
 // React Native built-in <Modal> + Pressable backdrop + safe-area-insets sheet.
 //
 // Renders a Template's title/description/tags/items so the user can see what
-// they would be using before committing. The single CTA at the bottom of the
-// ScrollView fires onUsePlan(templateId), then onClose().
+// they would be using before committing. WS9 3b-follow-up: two CTAs at the
+// bottom mirror the wizard's Plan Details choice — "Use This Week" (primary →
+// create + activate this week) and "Save for Later" (secondary → create as an
+// undated draft). Both fire onUsePlan(templateId, { activate }), then
+// onClose(). The in-flight guard blocks a double-tap that would create two
+// instances (the rail-dupe half of BUG-036).
 
 import React from "react";
 import {
@@ -28,8 +32,12 @@ export interface PlanPreviewModalProps {
   /** null when closed; non-null while open. */
   templateId: string | null;
   onClose: () => void;
-  /** Use Plan tap — caller mutates and navigates. Receives templateId. */
-  onUsePlan: (templateId: string) => void | Promise<void>;
+  /** Use-plan tap — caller creates the instance, activates this week iff
+   *  opts.activate, and navigates. Receives templateId + the chosen intent. */
+  onUsePlan: (
+    templateId: string,
+    opts: { activate: boolean },
+  ) => void | Promise<void>;
 }
 
 export function PlanPreviewModal({
@@ -46,11 +54,18 @@ export function PlanPreviewModal({
     enabled: visible && !!templateId,
   });
 
-  const handleUsePlan = async () => {
-    if (!templateId) return;
+  // Which CTA is mid-flight (null = idle). Guards a double-tap that would
+  // otherwise fire onUsePlan twice → two instances (the rail-dupe half of
+  // BUG-036). Both buttons disable while either is pending.
+  const [pending, setPending] = React.useState<null | "use" | "save">(null);
+
+  const handleAction = async (activate: boolean) => {
+    if (!templateId || pending !== null) return;
+    setPending(activate ? "use" : "save");
     try {
-      await onUsePlan(templateId);
+      await onUsePlan(templateId, { activate });
     } finally {
+      setPending(null);
       onClose();
     }
   };
@@ -149,16 +164,42 @@ export function PlanPreviewModal({
                 )}
               </View>
 
-              <Pressable
-                onPress={handleUsePlan}
-                style={({ pressed }) => [
-                  s.cta,
-                  pressed && { opacity: 0.85 },
-                ]}
-                testID="plan-preview-use"
-              >
-                <Text style={s.ctaText}>Use Plan</Text>
-              </Pressable>
+              {/* G2 — one primary. "Use This Week" (terracotta) is the
+                  committing action; "Save for Later" is the quiet secondary. */}
+              <View style={s.ctaWrap}>
+                <Pressable
+                  onPress={() => handleAction(true)}
+                  disabled={pending !== null}
+                  style={({ pressed }) => [
+                    s.ctaPrimary,
+                    pressed && { opacity: 0.85 },
+                    pending !== null && { opacity: 0.6 },
+                  ]}
+                  testID="plan-preview-use"
+                >
+                  {pending === "use" ? (
+                    <ActivityIndicator color={Palette.button.primary.text} />
+                  ) : (
+                    <Text style={s.ctaPrimaryText}>Use This Week</Text>
+                  )}
+                </Pressable>
+                <Pressable
+                  onPress={() => handleAction(false)}
+                  disabled={pending !== null}
+                  style={({ pressed }) => [
+                    s.ctaSecondary,
+                    pressed && { opacity: 0.85 },
+                    pending !== null && { opacity: 0.6 },
+                  ]}
+                  testID="plan-preview-save"
+                >
+                  {pending === "save" ? (
+                    <ActivityIndicator color={Palette.button.secondary.text} />
+                  ) : (
+                    <Text style={s.ctaSecondaryText}>Save for Later</Text>
+                  )}
+                </Pressable>
+              </View>
             </>
           )}
         </ScrollView>
@@ -307,17 +348,36 @@ const s = StyleSheet.create({
     textAlign: "center",
     paddingVertical: Spacing[3],
   },
-  cta: {
+  ctaWrap: {
     marginTop: Spacing[4],
-    backgroundColor: Colors.sage[700],
-    paddingVertical: Spacing[3],
-    borderRadius: Radius.md,
-    alignItems: "center",
+    gap: Spacing[2],
   },
-  ctaText: {
-    color: Colors.neutral[100],
-    fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.bold,
+  ctaPrimary: {
+    backgroundColor: Palette.button.primary.background,
+    paddingVertical: 14,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ctaPrimaryText: {
+    color: Palette.button.primary.text,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+  },
+  ctaSecondary: {
+    backgroundColor: Palette.button.secondary.background,
+    borderWidth: 1,
+    borderColor: Palette.button.secondary.border,
+    paddingVertical: 14,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ctaSecondaryText: {
+    color: Palette.button.secondary.text,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
   },
 });

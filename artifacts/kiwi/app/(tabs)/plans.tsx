@@ -26,15 +26,24 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 export default function PlansTab() {
   const router = useRouter();
   const { user, setUiState } = useAuth();
-  const { useTemplateAsPlan } = useApp();
+  const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
 
   // WS7-4-B c11 — Use Plan preview overlay state. The PlanRow source
   // dispatcher (c9) routes template-source rows here; the modal fetches
   // the template detail and surfaces a Use Plan CTA whose tap mutates
   // and navigates to the freshly-created Instance.
   const preview = useTemplatePreview();
-  const handleUseFromPreview = async (templateId: string) => {
+  // BUG-036 fix: "Use This Week" creates + activates (shared
+  // setPlanActiveThisWeek — dates + activatedAt + server demotes prior);
+  // "Save for Later" creates the undated draft only. Both navigate.
+  const handleUseFromPreview = async (
+    templateId: string,
+    opts: { activate: boolean },
+  ) => {
     const { instanceId } = await useTemplateAsPlan(templateId);
+    if (opts.activate) {
+      await setPlanActiveThisWeek(instanceId);
+    }
     router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
   };
 

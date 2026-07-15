@@ -12,6 +12,8 @@ import {
   Fraunces_500Medium_Italic,
   Fraunces_600SemiBold,
   Fraunces_600SemiBold_Italic,
+  Fraunces_700Bold,
+  Fraunces_700Bold_Italic,
 } from "@expo-google-fonts/fraunces";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
@@ -49,7 +51,6 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="onboarding-prefs" options={{ presentation: "modal" }} />
       <Stack.Screen name="onboarding-step-3" />
-      <Stack.Screen name="first-run-destination" />
       <Stack.Screen name="wizard" options={{ presentation: "modal" }} />
       <Stack.Screen name="tellkiwi" options={{ presentation: "modal" }} />
       <Stack.Screen name="cook-now" options={{ presentation: "modal" }} />
@@ -87,6 +88,8 @@ export default function RootLayout() {
     Fraunces_500Medium_Italic,
     Fraunces_600SemiBold,
     Fraunces_600SemiBold_Italic,
+    Fraunces_700Bold,
+    Fraunces_700Bold_Italic,
   });
 
   useEffect(() => {

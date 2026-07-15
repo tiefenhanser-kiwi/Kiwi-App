@@ -176,13 +176,16 @@ export default function OnboardingStep3() {
   // deferred — wiring it requires plan-level prefs (planDurationDays,
   // householdSize, wantsLeftovers) that this screen doesn't collect, so it
   // would have to either route through /wizard for those (a UX detour) or
-  // inject defaults server-side. Until that's plumbed, "Finish setup" lands
-  // on /first-run-destination, where the user picks their next step.
+  // inject defaults server-side.
   //
-  // WS7-2 Block C (D-WS7-011 + D-WS5-024): finish now persists preferences
-  // AND flips the server-side onboardingComplete flag before navigating, so
-  // an app-kill mid-onboarding no longer loses the flow. On error we surface
-  // a message and do NOT navigate — the user can retry.
+  // WS9 3b follow-up (D-WS9-031): the first-run-destination "arrival" screen
+  // was removed as redundant friction — onboarding now lands DIRECTLY on home
+  // (/(tabs)), whose Tell Kiwi card + rail already answer "what first?".
+  //
+  // WS7-2 Block C (D-WS7-011 + D-WS5-024): finish persists preferences AND
+  // flips the server-side onboardingComplete flag before navigating, so an
+  // app-kill mid-onboarding no longer loses the flow. On error we surface a
+  // message and do NOT navigate — the user can retry.
   const handleFinish = async () => {
     if (finishing) return;
     setFinishError(null);
@@ -192,7 +195,7 @@ export default function OnboardingStep3() {
       await updateUserPreferences(buildFullPrefs());
       await completeOnboarding();
       router.dismissAll();
-      router.replace("/first-run-destination");
+      router.replace("/(tabs)");
     } catch {
       setFinishError("Couldn't finish setup. Please try again.");
       setFinishing(false);
@@ -320,6 +323,21 @@ export default function OnboardingStep3() {
               Save preferences and start using Kiwi
             </Text>
           )}
+          {/* R6 Skip (D-WS9-030): step 3 is entirely optional, so Skip routes
+              through the SAME finish path — buildFullPrefs() (which preserves
+              the step-2 draft if the user filled step 2) + completeOnboarding()
+              + navigate. It MUST NOT bypass completeOnboarding(): the routing
+              state machine (index.tsx) redirects !onboardingComplete back to
+              onboarding, so a naive navigate-only Skip strands the user in a
+              redirect loop (Phase 0 trap). */}
+          <Pressable
+            onPress={handleFinish}
+            disabled={finishing}
+            hitSlop={8}
+            style={s.skipLink}
+          >
+            <Text style={s.skipLabel}>Skip for now</Text>
+          </Pressable>
         </View>
       </KeyboardAwareScrollViewCompat>
     </View>
@@ -434,6 +452,20 @@ const s = StyleSheet.create({
   footerError: {
     fontSize: Typography.fontSize.sm,
     color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
+    textAlign: "center",
+  },
+  // R6 Skip — tertiary text link (D-WS9-030 / Q2), never a Button. Sits under
+  // the primary so it never competes with "Finish setup".
+  skipLink: {
+    marginTop: Spacing[1],
+    paddingVertical: Spacing[2],
+    alignSelf: "center",
+  },
+  skipLabel: {
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[600],
     fontFamily: Typography.face.sans[500],
     fontWeight: Typography.fontWeight.medium,
     textAlign: "center",

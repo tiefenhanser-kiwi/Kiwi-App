@@ -44,7 +44,7 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 export default function HomeTab() {
   const router = useRouter();
   const { user } = useAuth();
-  const { useTemplateAsPlan } = useApp();
+  const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
   const { generate: generateGroceries, isGenerating } = useGroceryGeneration();
 
   // Paywall: an expired/lapsed subscription routes the MAKE-lane actions to
@@ -90,8 +90,19 @@ export default function HomeTab() {
   // Tried & True cards are catalog templates → the vetted preview-then-use flow
   // (identical to the retired PlanDiscoveryCard).
   const preview = useTemplatePreview();
-  const handleUseFromPreview = async (templateId: string) => {
+  // BUG-036 fix: "Use This Week" creates the instance AND activates it for the
+  // current week via the shared setPlanActiveThisWeek (dates + activatedAt +
+  // server demotes the prior winner) — so the plan resolves as this-week and
+  // Home's tonight strip renders instead of a dead screen. "Save for Later"
+  // creates the undated draft only (prior behavior). Both then navigate.
+  const handleUseFromPreview = async (
+    templateId: string,
+    opts: { activate: boolean },
+  ) => {
     const { instanceId } = await useTemplateAsPlan(templateId);
+    if (opts.activate) {
+      await setPlanActiveThisWeek(instanceId);
+    }
     router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
   };
 
