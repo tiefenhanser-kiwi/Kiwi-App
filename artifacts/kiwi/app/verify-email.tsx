@@ -138,7 +138,7 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.lg,
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.bold,
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
     textAlign: "center",
   },
   message: {

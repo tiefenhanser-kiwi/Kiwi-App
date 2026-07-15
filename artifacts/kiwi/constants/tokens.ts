@@ -212,11 +212,13 @@ export const Typography = {
       400: 'Fraunces_400Regular',
       500: 'Fraunces_500Medium',
       600: 'Fraunces_600SemiBold',
+      700: 'Fraunces_700Bold',
     },
     serifItalic: {
       400: 'Fraunces_400Regular_Italic',
       500: 'Fraunces_500Medium_Italic',
       600: 'Fraunces_600SemiBold_Italic',
+      700: 'Fraunces_700Bold_Italic',
     },
   },
 

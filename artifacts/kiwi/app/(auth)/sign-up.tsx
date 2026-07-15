@@ -11,19 +11,12 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather, FontAwesome } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/contexts/AuthContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
-
-function showOauthStub() {
-  Alert.alert(
-    "Coming in WS6 — OAuth integration",
-    "Apple/Google sign-in requires the OAuth infrastructure. This will be wired in WS6. For now, please use the email/password form below.",
-  );
-}
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -122,27 +115,6 @@ export default function SignUpPage() {
       >
         <Text style={styles.stepIndicator}>Step 1 of 3</Text>
         <Text style={styles.title}>Create account</Text>
-
-        <Pressable
-          onPress={showOauthStub}
-          style={({ pressed }) => [styles.oauthButton, pressed && { opacity: 0.85 }]}
-        >
-          <FontAwesome name="apple" size={20} color={Colors.neutral[900]} />
-          <Text style={styles.oauthLabel}>Continue with Apple</Text>
-        </Pressable>
-        <Pressable
-          onPress={showOauthStub}
-          style={({ pressed }) => [styles.oauthButton, pressed && { opacity: 0.85 }]}
-        >
-          <FontAwesome name="google" size={18} color={Colors.neutral[900]} />
-          <Text style={styles.oauthLabel}>Continue with Google</Text>
-        </Pressable>
-
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR</Text>
-          <View style={styles.dividerLine} />
-        </View>
 
         <TextInput
           ref={firstNameRef}
@@ -283,46 +255,10 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: Typography.fontSize.xl * 1.4,
-    fontWeight: "700",
+    fontWeight: Typography.fontWeight.bold,
     color: Colors.neutral[900],
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
     marginTop: -Spacing[1],
-  },
-  oauthButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing[2],
-    backgroundColor: Palette.background.card,
-    borderWidth: 1,
-    borderColor: Colors.neutral[400],
-    borderRadius: Radius.lg,
-    paddingVertical: 14,
-    paddingHorizontal: Spacing[4],
-  },
-  oauthLabel: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
-  },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing[3],
-    marginVertical: Spacing[1],
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.neutral[400],
-  },
-  dividerText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
-    fontFamily: Typography.face.sans[500],
-    fontWeight: Typography.fontWeight.medium,
-    letterSpacing: 1,
   },
   input: {
     borderWidth: 1,

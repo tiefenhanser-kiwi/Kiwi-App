@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: Colors.neutral[100], padding: Spacing[4] },
   back: { marginBottom: Spacing[3] },
   body: { gap: Spacing[3] },
-  title: { fontSize: Typography.fontSize.xl * 1.4, fontWeight: "700", color: Colors.neutral[900], fontFamily: Typography.face.serif[600] },
+  title: { fontSize: Typography.fontSize.xl * 1.4, fontWeight: "700", color: Colors.neutral[900], fontFamily: Typography.face.serif[700] },
   input: { borderWidth: 1, borderColor: Colors.neutral[400], borderRadius: Radius.md, padding: Spacing[3], fontSize: Typography.fontSize.md, backgroundColor: Palette.background.card, fontFamily: Typography.face.sans[400] },
   errorText: { color: Colors.terracotta[700], fontSize: Typography.fontSize.sm, fontFamily: Typography.face.sans[500] },
   buttonLoading: { alignItems: "center", padding: Spacing[3] },
