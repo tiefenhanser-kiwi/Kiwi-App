@@ -36,6 +36,12 @@ import {
   listWizardDrafts,
   type ListWizardDraftsResponse,
 } from "@/lib/api/wizard";
+import { loadJSON, saveJSON } from "@/lib/storage";
+import {
+  addDismissed,
+  pruneDismissed,
+  visibleDrafts as computeVisibleDrafts,
+} from "@/lib/wizard/dismissedDrafts";
 
 type Difficulty = WizardPreferencesInput["difficulty"];
 type WeeklyPacing = WizardPreferencesInput["weeklyPacing"];
@@ -51,6 +57,15 @@ const PACING_OPTIONS: { key: WeeklyPacing; label: string }[] = [
 
 const HOUSEHOLD_MIN = 1;
 const HOUSEHOLD_MAX = 30;
+
+// BUG-023 (WS9 3c) — per-device persisted set of resume-draft ids the user has
+// dismissed ("Get new results"). Persisting it means a dismissed draft stays
+// dismissed across wizard remounts, so the "pick up where you left off?"
+// interstitial can't resurface a plan the user already moved past. Transient,
+// per-device, self-cleaning (the draft's server TTL is the real cleanup; we
+// also prune ids the server has already swept). Ruling 4 chose this over a
+// server sweep — that literal supersede rides with BUG-030.
+const DISMISSED_DRAFTS_KEY = "wizardDismissedDrafts";
 
 interface WizardFormState {
   planDurationDays: number;
@@ -77,6 +92,14 @@ interface WizardFormState {
 // TODO(WS5-5P + WS7): Wire from user's stored skill level per PRD §5.3
 // — Beginner→Easy, Intermediate→Medium, Advanced→Fancy. Until Profile
 // (5P) ships, hardcoded to "medium" and not surfaced in the wizard UI.
+//
+// WS9 3c Ruling 3 (D-WS9-031): `difficulty` was NOT dropped here even though it
+// is unsurfaced — it is a REQUIRED enum on the server's WizardInputSchema and
+// is consumed in expand + materialize, so omitting it 400s build-plans. It IS
+// vestigial and should be removed properly.
+// TODO(server): difficulty is vestigial — remove from WizardInputSchema +
+// expand/materialize consumers when the wizard server schema is next revised
+// (D-WS9-031).
 const HIDDEN_DEFAULT_DIFFICULTY: Difficulty = "medium";
 
 // Fallback state before stored preferences hydrate (or if the prefs read
@@ -161,6 +184,24 @@ export default function Wizard() {
     null,
   );
 
+  // BUG-023 — load the persisted dismissed-draft set once on mount. `loaded`
+  // gates the interstitial so it can't flash before we know which drafts the
+  // user already dismissed.
+  const [dismissedDraftIds, setDismissedDraftIds] = useState<string[]>([]);
+  const [dismissedLoaded, setDismissedLoaded] = useState(false);
+  useEffect(() => {
+    let active = true;
+    loadJSON<string[]>(DISMISSED_DRAFTS_KEY, []).then((ids) => {
+      if (active) {
+        setDismissedDraftIds(ids);
+        setDismissedLoaded(true);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleResume = async (draftId: string) => {
     if (resumePendingDraftId) return;
     setResumePendingDraftId(draftId);
@@ -200,6 +241,21 @@ export default function Wizard() {
       setHydrated(true);
     }
   }, [prefsQuery.data, hydrated]);
+
+  // BUG-023 — keep the persisted dismissed set bounded: once the drafts list
+  // loads, drop any dismissed id the server has already swept (past TTL /
+  // activated). Guarded by the length check so it converges (no set → no
+  // re-run) and only runs when there's a list to compare against.
+  useEffect(() => {
+    if (!dismissedLoaded) return;
+    const draftIds = draftsQuery.data?.drafts.map((d) => d.id);
+    if (!draftIds || draftIds.length === 0) return;
+    const pruned = pruneDismissed(dismissedDraftIds, draftIds);
+    if (pruned !== dismissedDraftIds) {
+      setDismissedDraftIds(pruned);
+      void saveJSON(DISMISSED_DRAFTS_KEY, pruned);
+    }
+  }, [dismissedLoaded, draftsQuery.data, dismissedDraftIds]);
 
   const update = <K extends keyof WizardFormState>(
     key: K,
@@ -252,7 +308,7 @@ export default function Wizard() {
   // so the inputs don't flash unhydrated before the interstitial can take
   // over. On either query's error we fall through — both are assists, not
   // blockers (the form renders with defaults if prefs fail to load).
-  if (draftsQuery.isLoading || prefsQuery.isLoading) {
+  if (draftsQuery.isLoading || prefsQuery.isLoading || !dismissedLoaded) {
     return (
       <View
         style={{
@@ -267,14 +323,27 @@ export default function Wizard() {
     );
   }
   const drafts = draftsQuery.data?.drafts ?? [];
-  if (!interstitialDismissed && drafts.length > 0) {
+  // BUG-023 — hide drafts the user already dismissed on a prior entry. Only the
+  // never-dismissed drafts can surface the interstitial; a superseded plan
+  // stays gone.
+  const visibleDrafts = computeVisibleDrafts(drafts, dismissedDraftIds);
+  if (!interstitialDismissed && visibleDrafts.length > 0) {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header showBack title="Kitchen Wizard" />
         <WizardResumeInterstitial
-          drafts={drafts}
+          drafts={visibleDrafts}
           onResume={handleResume}
           onDismiss={() => {
+            // "Get new results" supersedes these specific drafts — persist
+            // their ids so they never re-surface (BUG-023). New drafts made
+            // later aren't in the set, so they can still resume.
+            const next = addDismissed(
+              dismissedDraftIds,
+              visibleDrafts.map((d) => d.id),
+            );
+            setDismissedDraftIds(next);
+            void saveJSON(DISMISSED_DRAFTS_KEY, next);
             setInterstitialDismissed(true);
             setResumeErrorMessage(null);
           }}

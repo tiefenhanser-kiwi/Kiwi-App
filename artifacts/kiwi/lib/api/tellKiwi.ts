@@ -110,3 +110,21 @@ export async function buildFromText(
   });
   return body as BuildFromTextResult;
 }
+
+/**
+ * POST /api/wizard/surprise-me — WS9 3c §7.6 Surprise-me path.
+ *
+ * Zero-input generation: the server reads the user's stored preferences and
+ * generates popular crowd-pleaser candidates from model knowledge, ALWAYS
+ * within hard constraints (allergies/dietary). Returns the same
+ * BuildFromTextResult shape (candidates + a synthetic `vague` parsedIntent) so
+ * the wizard-results screen renders it through the existing Tell Kiwi branch
+ * and R5's "Use this plan" applies unchanged.
+ */
+export async function buildSurprise(): Promise<BuildFromTextResult> {
+  const body = await apiClient("/wizard/surprise-me", {
+    method: "POST",
+    schema: BuildFromTextResponseSchema,
+  });
+  return body as BuildFromTextResult;
+}

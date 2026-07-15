@@ -621,6 +621,134 @@ export function createWizardRouter(
     },
   );
 
+  // ── POST /wizard/surprise-me — WS9 3c §7.6 Surprise-me path ───────────
+  // Zero-input generation: the user tapped "Surprise me" and typed nothing.
+  // We read their stored preferences server-side and run a SINGLE generate
+  // call (wizard.surprise.generate) that produces crowd-pleaser candidates
+  // strictly inside their hard constraints. No parse step (nothing to parse),
+  // so this is CHEAPER than Tell Kiwi. The response mirrors build-from-text's
+  // shape (candidates + a synthetic `vague` parsedIntent) so wizard-results
+  // renders it through the Tell Kiwi branch and R5's "Use this plan" applies.
+  router.post(
+    "/wizard/surprise-me",
+    requireAuth,
+    tellKiwiLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+
+      // 1. Entitlement — Surprise-me rides the Tell Kiwi ("just say") lane.
+      const ent = await subscriptionService.can(
+        userId,
+        "kitchen_wizard_just_say",
+      );
+      if (!ent.allowed) {
+        return res.status(402).json({
+          error: "upgrade required",
+          reason: ent.reason ?? "Surprise me is a premium feature.",
+        });
+      }
+
+      // 2. Load the stored preferences that shape the plan. Unlike Tell Kiwi /
+      //    build-plans, there is no request body — stored prefs ARE the input.
+      //    Allergies/eatingStyles/pickyAvoidances become the hard constraints
+      //    the prompt must never violate.
+      const storedPrefs = await prisma.userPreferences.findUnique({
+        where: { userId },
+        select: {
+          planLengthDefault: true,
+          householdSize: true,
+          cuisines: true,
+          eatingStyles: true,
+          allergiesAndAvoidances: true,
+          dietaryNotes: true,
+          weeklyPacingDefault: true,
+          wantsLeftovers: true,
+        },
+      });
+
+      const planDurationDays = (() => {
+        const n = storedPrefs?.planLengthDefault ?? 5;
+        return n >= 1 && n <= 7 ? n : 5;
+      })();
+
+      // 3. Same server-injected context bags as the directed generate path.
+      const candidateCount = await getCandidateCount();
+      const hiddenContext = await buildHiddenContext(userId);
+      const planningContext = await buildPlanningContext(prisma, userId);
+      const preferencesContext = await resolveEffectivePreferences(
+        prisma,
+        userId,
+      );
+
+      const generateInput = {
+        planDurationDays,
+        householdSize: storedPrefs?.householdSize ?? 4,
+        wantsLeftovers: storedPrefs?.wantsLeftovers ?? false,
+        cuisines: storedPrefs?.cuisines ?? [],
+        weeklyPacing: storedPrefs?.weeklyPacingDefault ?? "mostly_easy",
+        eatingStyles: storedPrefs?.eatingStyles ?? [],
+        allergiesAndAvoidances: storedPrefs?.allergiesAndAvoidances ?? [],
+        dietaryNotes: storedPrefs?.dietaryNotes ?? "",
+        hiddenContext,
+        planningContext,
+        preferencesContext,
+      };
+
+      const genResult = await runAICall(
+        "wizard.surprise.generate",
+        { generateInput },
+        WizardPlanCandidatesResultSchema,
+        { prisma, userId },
+      );
+
+      if (!genResult.success) {
+        logger.warn(
+          {
+            event: "surprise_generate_failed",
+            userId,
+            reason: genResult.reason,
+            promptKey: "wizard.surprise.generate",
+          },
+          "Surprise-me generate step failed",
+        );
+        await emitActivity(userId, "wizard_failure");
+        return res.status(502).json({
+          error: genResult.userFacingMessage,
+          reason: genResult.reason,
+        });
+      }
+
+      const candidates = genResult.data.candidates.slice(0, candidateCount);
+
+      // Synthesize a `vague` parsedIntent so the mobile wizard-results screen
+      // renders this through its existing Tell Kiwi branch without a new
+      // render path. No explicit meals, no clarification.
+      const parsedIntent: ParsedIntent = {
+        scenario: "vague",
+        explicitMeals: [],
+        intentDescriptors: ["popular", "crowd-pleaser", "family-friendly"],
+        mealCount: planDurationDays,
+      };
+
+      await emitActivity(userId, "wizard_complete");
+
+      return res.json({
+        candidates,
+        parsedIntent,
+        cannotGenerateMore: genResult.data.cannotGenerateMore,
+        reason: genResult.data.reason,
+        metadata: {
+          promptVersion: genResult.metadata.promptVersion,
+          latencyMs: genResult.metadata.latencyMs,
+          flow: "surprise",
+        },
+      });
+    },
+  );
+
   // ── POST /wizard/expand — Branch B "View plan" (PRD §5.6 redline) ─────
   // Step 2 of the two-step wizard commit model. Takes ONE candidate from a
   // prior build-plans response and expands it into full per-meal recipe

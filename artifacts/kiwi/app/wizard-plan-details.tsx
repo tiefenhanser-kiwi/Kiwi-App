@@ -113,10 +113,15 @@ type UseState =
 export default function WizardPlanDetailsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { draftId, expanded } = useLocalSearchParams<{
+  const { draftId, expanded, peek } = useLocalSearchParams<{
     draftId?: string;
     expanded?: string;
+    // WS9 3c 7.4 — demote. `peek:"1"` = the R5 "View details" read-only preview
+    // (the results card owns activation via "Use this plan"). Absent = the
+    // resume-draft path, which still needs the activate CTA to use its draft.
+    peek?: string;
   }>();
+  const isPeek = peek === "1";
 
   const plan = useMemo(() => parseExpanded(expanded), [expanded]);
   const dailyAverages = useMemo(
@@ -347,52 +352,62 @@ export default function WizardPlanDetailsScreen() {
           />
         ))}
 
-        {/* CTAs at the bottom. Decider drives the labels + use-button target.
-            The save button switches to a saved-state badge after save so the
-            user can't re-tap into a 404. */}
-        <View style={s.ctaWrap}>
-          {saveState.kind === "error" && (
-            <Text style={s.ctaError}>{saveState.message}</Text>
-          )}
-          {useState_.kind === "error" && (
-            <Text style={s.ctaError}>{useState_.message}</Text>
-          )}
-          {cta.saveButton.saved ? (
-            <View style={s.savedBadge}>
-              <Feather name="check" size={16} color={Colors.sage[700]} />
-              <Text style={s.savedBadgeText}>{cta.saveButton.label}</Text>
-            </View>
-          ) : (
+        {/* WS9 3c 7.4 — demote. In peek mode (reached from R5 "View details")
+            this screen is a read-only preview; the results card's "Use this
+            plan" owns activation, so no CTAs here. The resume-draft path
+            (no peek) keeps the full save/activate CTAs so a resumed draft can
+            still be used. Decider drives labels + use-button target; the save
+            button switches to a saved badge after save so it can't re-tap a 404. */}
+        {isPeek ? (
+          <Text style={s.peekHint}>
+            Preview only — tap “Use this plan” on the results card to cook this
+            week.
+          </Text>
+        ) : (
+          <View style={s.ctaWrap}>
+            {saveState.kind === "error" && (
+              <Text style={s.ctaError}>{saveState.message}</Text>
+            )}
+            {useState_.kind === "error" && (
+              <Text style={s.ctaError}>{useState_.message}</Text>
+            )}
+            {cta.saveButton.saved ? (
+              <View style={s.savedBadge}>
+                <Feather name="check" size={16} color={Colors.sage[700]} />
+                <Text style={s.savedBadgeText}>{cta.saveButton.label}</Text>
+              </View>
+            ) : (
+              <Button
+                label={
+                  saveState.kind === "pending"
+                    ? "Saving…"
+                    : cta.saveButton.label
+                }
+                variant="ghost"
+                onPress={handleSaveForLater}
+                loading={saveState.kind === "pending"}
+                disabled={
+                  saveState.kind === "pending" || useState_.kind === "pending"
+                }
+              />
+            )}
             <Button
               label={
-                saveState.kind === "pending"
-                  ? "Saving…"
-                  : cta.saveButton.label
+                useState_.kind === "pending"
+                  ? cta.useTarget.kind === "draft-activate"
+                    ? "Activating…"
+                    : "Updating…"
+                  : cta.useButton.label
               }
-              variant="ghost"
-              onPress={handleSaveForLater}
-              loading={saveState.kind === "pending"}
+              variant="primary"
+              onPress={handleSaveAndUse}
+              loading={useState_.kind === "pending"}
               disabled={
                 saveState.kind === "pending" || useState_.kind === "pending"
               }
             />
-          )}
-          <Button
-            label={
-              useState_.kind === "pending"
-                ? cta.useTarget.kind === "draft-activate"
-                  ? "Activating…"
-                  : "Updating…"
-                : cta.useButton.label
-            }
-            variant="primary"
-            onPress={handleSaveAndUse}
-            loading={useState_.kind === "pending"}
-            disabled={
-              saveState.kind === "pending" || useState_.kind === "pending"
-            }
-          />
-        </View>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -440,8 +455,9 @@ const s = StyleSheet.create({
   planTitle: {
     fontSize: Typography.fontSize.xxl,
     color: Colors.neutral[900],
+    // BUG-035 — serif 700 must use the Fraunces_700Bold face (loaded 3b).
     fontWeight: Typography.fontWeight.bold,
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
   },
   tagRow: {
     flexDirection: "row",
@@ -537,6 +553,14 @@ const s = StyleSheet.create({
   ctaWrap: {
     marginTop: Spacing[4],
     gap: Spacing[2],
+  },
+  peekHint: {
+    marginTop: Spacing[4],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    textAlign: "center",
+    lineHeight: 20,
   },
   ctaError: {
     fontSize: Typography.fontSize.sm,

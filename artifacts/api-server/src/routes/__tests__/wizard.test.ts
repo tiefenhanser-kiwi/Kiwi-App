@@ -45,6 +45,20 @@ interface StubPrismaOpts {
     saucePreference?: "store_bought" | "balanced" | "homemade";
     maxCookTimeMinutes?: number | null;
     maxCookTimeCoverage?: "all" | "most";
+    // WS9 3c — the Surprise-me route reads these stored prefs directly (no
+    // request body). The stub returns the whole object regardless of `select`.
+    householdSize?: number;
+    planLengthDefault?: number;
+    cuisines?: string[];
+    eatingStyles?: string[];
+    allergiesAndAvoidances?: string[];
+    dietaryNotes?: string | null;
+    weeklyPacingDefault?:
+      | "mostly_easy"
+      | "mixed"
+      | "one_fancy_night"
+      | "minimal_effort";
+    wantsLeftovers?: boolean;
   } | null;
   pantryStaples?: string[];
 }
@@ -3103,5 +3117,114 @@ describe("inferCategory (wizardActivation)", () => {
     const { inferCategory } = await import("../../lib/wizardActivation");
     assert.equal(inferCategory("Flour tortillas"), "Bakery");
     assert.equal(inferCategory("Sourdough bread"), "Bakery");
+  });
+});
+
+// ── Surprise-me (surprise-me) tests — WS9 3c §7.6 ─────────────────────
+
+describe("POST /api/wizard/surprise-me — WS9 3c §7.6", () => {
+  it("generates within stored hard constraints; one AI call, vague parsedIntent", async () => {
+    const captured: { promptKey: string; vars: Record<string, unknown> }[] = [];
+    const runAICall = (async (
+      promptKey: string,
+      vars: Record<string, unknown>,
+    ) => {
+      captured.push({ promptKey, vars });
+      if (promptKey !== "wizard.surprise.generate") {
+        throw new Error(`unexpected promptKey ${promptKey}`);
+      }
+      return genSuccess(threeCandidates("surprise"));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any;
+    const prisma = makeStubPrisma({
+      preferences: {
+        householdSize: 3,
+        planLengthDefault: 4,
+        cuisines: ["Italian"],
+        eatingStyles: ["vegetarian"],
+        allergiesAndAvoidances: ["peanuts", "shellfish"],
+        dietaryNotes: "no cilantro",
+        weeklyPacingDefault: "mostly_easy",
+        wantsLeftovers: false,
+      },
+    });
+    const harness = await spinUp({
+      runAICall,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const token = signToken("test-user-surprise");
+      const res = await fetch(`${harness.baseUrl}/wizard/surprise-me`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        candidates: { id: string }[];
+        parsedIntent: ParsedIntent;
+        metadata: { flow: string };
+      };
+      assert.equal(body.candidates.length, 3);
+      assert.equal(body.parsedIntent.scenario, "vague");
+      assert.deepEqual(body.parsedIntent.explicitMeals, []);
+      assert.equal(body.metadata.flow, "surprise");
+
+      // Exactly ONE AI call — Surprise-me skips the parse step (no user text).
+      assert.equal(captured.length, 1);
+      assert.equal(captured[0].promptKey, "wizard.surprise.generate");
+
+      // The stored hard constraints MUST reach the generate prompt — the
+      // "surprise" is meal choice, never a constraint violation.
+      const generateInput = captured[0].vars.generateInput as Record<
+        string,
+        unknown
+      >;
+      assert.deepEqual(generateInput.allergiesAndAvoidances, [
+        "peanuts",
+        "shellfish",
+      ]);
+      assert.deepEqual(generateInput.eatingStyles, ["vegetarian"]);
+      assert.equal(generateInput.householdSize, 3);
+      // planDurationDays comes from the stored planLengthDefault (no body).
+      assert.equal(generateInput.planDurationDays, 4);
+
+      const events = prisma._activities().map((a) => a.eventType);
+      assert.ok(events.includes("wizard_complete"));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns 402 when the just-say entitlement is denied; no AI call fires", async () => {
+    const captured: unknown[] = [];
+    const runAICall = (async (...args: unknown[]) => {
+      captured.push(args);
+      return genSuccess(threeCandidates("surprise"));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any;
+    const prisma = makeStubPrisma();
+    const harness = await spinUp({
+      runAICall,
+      prisma,
+      subscriptionService: makeSubscriptionService(false),
+    });
+    try {
+      const token = signToken("test-user-surprise-locked");
+      const res = await fetch(`${harness.baseUrl}/wizard/surprise-me`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      assert.equal(res.status, 402);
+      assert.equal(captured.length, 0);
+    } finally {
+      await harness.close();
+    }
   });
 });

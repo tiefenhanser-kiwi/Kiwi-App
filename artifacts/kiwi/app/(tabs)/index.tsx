@@ -114,12 +114,19 @@ export default function HomeTab() {
     // survives the navigation (tellkiwi seeds its input from it, WS9 3a seam).
     router.push({ pathname: "/tellkiwi", params: { text: tellText.trim() } });
   };
-  // Chip interims (both real, working destinations). /wizard already hydrates
-  // from stored preferences on mount (review-then-generate).
-  // TODO(3c): ✦ Surprise me → the Surprise-me generation path (§7.6).
+  // ✦ Surprise me (WS9 3c §7.6) → zero-typing instant plan. Lands on
+  // wizard-results in "surprise" mode, which fires the generation on mount and
+  // renders the standard 3-candidate cards (Ruling 1). R5's "Use this plan"
+  // then applies unchanged.
   const handleSurprise = () =>
-    router.push(isLocked ? "/upgrade" : "/wizard");
-  // TODO(3c): Use my preferences → wizard PREFILLED via explicit param (§7.2).
+    router.push(
+      isLocked
+        ? "/upgrade"
+        : { pathname: "/wizard-results", params: { source: "surprise" } },
+    );
+  // Use my preferences → the Set-Prefs wizard, which already hydrates from
+  // stored preferences on mount (D-WS9-014 pt 1, verified shipped via
+  // hydrateForm — review-then-generate, no explicit param needed).
   const handleUsePreferences = () =>
     router.push(isLocked ? "/upgrade" : "/wizard");
 

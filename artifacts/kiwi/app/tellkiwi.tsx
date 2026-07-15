@@ -253,9 +253,13 @@ export default function TellKiwi() {
         <View style={s.card}>
           <Text style={s.sectionLabel}>Tell Kiwi</Text>
           <Text style={s.cardTitle}>What do you want to eat?</Text>
+          {/* WS9 3c 7.1 — copy realigned to §6's specificity spectrum. Phase 0
+              confirmed the server honors explicit named meals (scenario parse
+              locks them in), so the copy can promise it: name exact meals,
+              describe a vibe, or both. */}
           <Text style={s.cardSubtitle}>
-            List your meals or what you're into. Kiwi builds the plan,
-            reviews ingredients, and optimizes across the week.
+            Name the exact meals you want, describe the kind of week, or both —
+            Kiwi keeps what you name and fills the rest to your preferences.
           </Text>
           <View style={{ marginTop: Spacing[3] }}>
             <TextInput
