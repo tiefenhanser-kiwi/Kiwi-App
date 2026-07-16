@@ -46,9 +46,11 @@ import {
   expandCandidate as productionExpandCandidate,
   persistWizardDraft as productionPersistWizardDraft,
   sweepStaleWizardDrafts as productionSweepStaleWizardDrafts,
+  supersedeUnconsumedWizardDrafts as productionSupersedeUnconsumedWizardDrafts,
   WIZARD_DRAFT_TTL_DAYS,
 } from "../lib/wizardExpansion";
 import { readAndFinalizeWizardDraft as productionReadAndFinalizeWizardDraft } from "../lib/wizardFinalize";
+import { computeWizardContentHash } from "../lib/wizardContentHash";
 import { currentWeekRange } from "../lib/planDates";
 import {
   buildPlanningContext,
@@ -84,6 +86,10 @@ export interface WizardRouterDeps {
   expandCandidate?: typeof productionExpandCandidate;
   persistWizardDraft?: typeof productionPersistWizardDraft;
   sweepStaleWizardDrafts?: typeof productionSweepStaleWizardDrafts;
+  // Block 1 (BUG-030 Part B) — supersede seam. Archives sibling unconsumed
+  // drafts after a save/activate. Swappable so route tests can assert it fires
+  // with the right userId without exercising a real updateMany.
+  supersedeUnconsumedWizardDrafts?: typeof productionSupersedeUnconsumedWizardDrafts;
   // WS7-5b-server seams. materializeWizardDraft lets tests assert the route
   // wiring (auth, ownership 404, transaction shape, activity emission)
   // without standing up the full meal-graph write path. emitActivity is
@@ -110,6 +116,9 @@ export function createWizardRouter(
     deps.persistWizardDraft ?? productionPersistWizardDraft;
   const sweepStaleWizardDrafts =
     deps.sweepStaleWizardDrafts ?? productionSweepStaleWizardDrafts;
+  const supersedeUnconsumedWizardDrafts =
+    deps.supersedeUnconsumedWizardDrafts ??
+    productionSupersedeUnconsumedWizardDrafts;
   const materializeWizardDraftImpl =
     deps.materializeWizardDraft ?? productionMaterializeWizardDraft;
   const emitSharedActivity = deps.emitActivity ?? productionEmitActivity;
@@ -257,6 +266,41 @@ export function createWizardRouter(
   // lib/wizardPreferences.ts. The per-run overrides arrive on the request body
   // (validated as optional-no-default fields on the input schema) and are
   // resolved against stored UserPreferences here.
+
+  // ── BUG-030 idempotency helper ───────────────────────────────────────
+  // Given the draft being activated/saved, return the {id, revisionId} of a
+  // pre-existing materialized (non-draft) plan carrying the SAME content hash
+  // for this user — i.e. a prior activation/save of the same candidate.
+  // Returns null on the first activation, or when the draft has no hash
+  // (legacy row) or isn't owned. Scoped to isArchived:false so a user who
+  // deleted their plan can re-create it.
+  async function findExistingPlanForDraft(
+    draftId: string,
+    userId: string,
+  ): Promise<{ id: string; revisionId: number } | null> {
+    const draftMeta = await prisma.mealPlanInstance.findUnique({
+      where: { id: draftId },
+      select: { userId: true, wizardContentHash: true },
+    });
+    if (
+      !draftMeta ||
+      draftMeta.userId !== userId ||
+      !draftMeta.wizardContentHash
+    ) {
+      return null;
+    }
+    return prisma.mealPlanInstance.findFirst({
+      where: {
+        userId,
+        isWizardDraft: false,
+        isArchived: false,
+        wizardContentHash: draftMeta.wizardContentHash,
+        id: { not: draftId },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, revisionId: true },
+    });
+  }
 
   // ── route ────────────────────────────────────────────────────────────
 
@@ -797,7 +841,45 @@ export function createWizardRouter(
         });
       }
 
-      // 3. Run the AI expand + per-dish macro pass via the helper.
+      // 3. BUG-030 idempotency (expand side). Compute the content-derived key
+      //    from the candidate BEFORE the AI expand. If an unconsumed draft for
+      //    this user already carries that key, reuse it — skip the Sonnet
+      //    expand + per-dish macro pass AND the duplicate draft write, and
+      //    return the cached expanded blob. candidate.id is NOT usable here
+      //    (AI-minted, non-durable — Phase 0 finding); the hash is.
+      const contentHash = computeWizardContentHash(
+        parsed.data.candidate.title,
+        parsed.data.candidate.mealTitles,
+      );
+      const existingDraft = await prisma.mealPlanInstance.findFirst({
+        where: {
+          userId,
+          isWizardDraft: true,
+          isArchived: false,
+          wizardContentHash: contentHash,
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, createdAt: true, optimizationNotes: true },
+      });
+      if (existingDraft) {
+        const cached = WizardExpandedPlanDetailsSchema.safeParse(
+          existingDraft.optimizationNotes,
+        );
+        if (cached.success) {
+          return res.json({
+            draft: {
+              id: existingDraft.id,
+              createdAt: existingDraft.createdAt.toISOString(),
+            },
+            expanded: cached.data,
+          });
+        }
+        // Malformed cached blob on a matching draft — fall through and
+        // regenerate (self-heal). The new draft carries the same hash; the
+        // stale one is cleaned up by the Part B sibling sweep / TTL.
+      }
+
+      // 4. Run the AI expand + per-dish macro pass via the helper.
       const expanded = await expandCandidate({
         prisma,
         userId,
@@ -822,13 +904,14 @@ export function createWizardRouter(
         });
       }
 
-      // 4. Persist the hidden draft.
+      // 5. Persist the hidden draft.
       let draftRef: { planId: string; createdAt: Date };
       try {
         draftRef = await persistWizardDraft({
           prisma,
           userId,
           expanded: expanded.expanded,
+          contentHash,
         });
       } catch (err) {
         logger.error(
@@ -838,7 +921,7 @@ export function createWizardRouter(
         return res.status(500).json({ error: "failed to persist draft" });
       }
 
-      // 5. Activity event — new enum value wizard_candidate_expanded so
+      // 6. Activity event — new enum value wizard_candidate_expanded so
       //    funnel analytics can separate "candidates generated" from
       //    "candidate expanded into detail" (distinct user intents).
       await emitActivity(userId, "wizard_candidate_expanded", draftRef.planId);
@@ -986,6 +1069,47 @@ export function createWizardRouter(
     }
   });
 
+  // ── POST /wizard/drafts/:id/dismiss — decline a resume draft (BUG-023) ─
+  // The "Get new results" action on the resume interstitial. Pre-fix this was
+  // client-only (AsyncStorage), so the server row survived and the draft
+  // resurfaced on another device / after a cache clear. Now it ARCHIVES the
+  // owned wizard draft server-side (isArchived:true + clears the blob), so the
+  // GET /wizard/drafts list — which filters isArchived:false — never offers it
+  // again. Undismissed unconsumed drafts are untouched and still resume.
+  // Idempotent: dismissing an already-archived/consumed/missing draft is a
+  // no-op 200 (updateMany count 0), so a double-tap or a stale id never 404s.
+  router.post("/wizard/drafts/:id/dismiss", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const draftId = req.params.id;
+    if (
+      typeof draftId !== "string" ||
+      draftId.length === 0 ||
+      draftId.length > 100
+    ) {
+      return res.status(400).json({ error: "invalid draft id" });
+    }
+
+    try {
+      // Scoped by id + userId + isWizardDraft so this can only ever archive
+      // the caller's own unconsumed draft — never a real plan (isWizardDraft:
+      // false) and never another user's row. Never flips isWizardDraft.
+      const result = await prisma.mealPlanInstance.updateMany({
+        where: { id: draftId, userId, isWizardDraft: true, isArchived: false },
+        data: { isArchived: true, optimizationNotes: Prisma.DbNull },
+      });
+      return res.json({ dismissed: result.count > 0 });
+    } catch (err) {
+      logger.error(
+        { event: "wizard_draft_dismiss_failed", userId, draftId, err },
+        "Failed to dismiss wizard draft",
+      );
+      return res.status(500).json({ error: "failed to dismiss draft" });
+    }
+  });
+
   // ── POST /wizard/drafts/:id/activate — "Save and use" (WS7-5b-server) ─
   // Materializes the hidden draft into real Meal / Dish / DishIngredient /
   // RecipeInstructionStep / MealPlanItem rows, demotes any other active
@@ -1008,6 +1132,21 @@ export function createWizardRouter(
       draftId.length > 100
     ) {
       return res.status(400).json({ error: "invalid draft id" });
+    }
+
+    // BUG-030 idempotency (activate side). If this candidate's content-hash
+    // has ALREADY materialized into a real (non-draft) plan for this user,
+    // return that plan instead of running finalize-steps + materializing a
+    // second plan/template. The hash rides on the draft row being activated;
+    // a prior activation kept the same hash on the row it flipped to a plan.
+    // (The just-created orphan draft this activate targets is left for the
+    // Part B sibling sweep — it is hidden from every isWizardDraft reader.)
+    const activateIdempotent = await findExistingPlanForDraft(draftId, userId);
+    if (activateIdempotent) {
+      // Clear this orphan draft + any siblings so the resume list can't offer
+      // a plan the user already has (the A/B seam).
+      await supersedeUnconsumedWizardDrafts({ prisma, userId });
+      return res.status(201).json({ instance: activateIdempotent });
     }
 
     // WS7-5c Block A — finalize-steps BEFORE the tx. Stepless details-stage
@@ -1151,6 +1290,11 @@ export function createWizardRouter(
         `[WS7-5b-smoke] activate $transaction elapsed: ${Date.now() - __txStart}ms (ok)`,
       );
 
+      // BUG-030 Part B — supersede sibling unconsumed drafts (post-tx, best-
+      // effort). The just-activated row is now isWizardDraft:false, so it is
+      // excluded from the archive; only the moot peeked siblings are cleared.
+      await supersedeUnconsumedWizardDrafts({ prisma, userId });
+
       return res
         .status(201)
         .json({ instance: { id: result.id, revisionId: result.revisionId } });
@@ -1215,6 +1359,17 @@ export function createWizardRouter(
       draftId.length > 100
     ) {
       return res.status(400).json({ error: "invalid draft id" });
+    }
+
+    // BUG-030 idempotency (save side). Mirrors /activate: if this candidate's
+    // content-hash already materialized into a real (non-draft) plan, return
+    // it rather than materializing a second. Note the save→use flow does NOT
+    // reach here twice (the mobile CTA decider switches to PATCH /plans after
+    // a save), so this guards genuine re-save of the same candidate.
+    const saveIdempotent = await findExistingPlanForDraft(draftId, userId);
+    if (saveIdempotent) {
+      await supersedeUnconsumedWizardDrafts({ prisma, userId });
+      return res.status(201).json({ instance: saveIdempotent });
     }
 
     // WS7-5c Block A — finalize-steps BEFORE the tx. Mirrors /activate; see
@@ -1338,6 +1493,10 @@ export function createWizardRouter(
       console.log(
         `[WS7-5b2-smoke] save $transaction elapsed: ${Date.now() - __txStart}ms (ok)`,
       );
+
+      // BUG-030 Part B — supersede sibling unconsumed drafts (post-tx, best-
+      // effort). Mirrors /activate; the just-saved row is isWizardDraft:false.
+      await supersedeUnconsumedWizardDrafts({ prisma, userId });
 
       return res
         .status(201)

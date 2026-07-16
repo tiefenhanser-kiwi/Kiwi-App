@@ -576,6 +576,13 @@ model MealPlanInstance {
   // Distinct from status=draft (the schema default + use-template writes
   // would otherwise leak the existing active-plan flow into the hidden set).
   isWizardDraft      Boolean    @default(false)
+  // Block 1 (BUG-030) — content-derived idempotency key (SHA-256 hex of the
+  // plan title + sorted meal titles; see lib/wizardContentHash.ts). Written on
+  // wizard-draft create and preserved when the row flips to a real plan on
+  // activate/save, so re-expanding OR re-activating the same candidate reuses
+  // the existing draft/plan instead of minting a duplicate. Nullable: legacy
+  // rows and non-wizard plans carry null and never match a lookup.
+  wizardContentHash  String?
   breakfastOverrides String?    // null = inherit from UserPreferences.breakfastDefaults; non-null = per-plan override
   lunchOverrides     String?    // null = inherit from UserPreferences.lunchDefaults; non-null = per-plan override
   // WS6 6c-4 / WS7 sync: monotonically increases on plan-content mutations.
@@ -592,6 +599,9 @@ model MealPlanInstance {
   prepStepCompletions PrepStepCompletion[]
 
   @@index([userId, startDate, endDate])
+  // Block 1 (BUG-030) — idempotency lookup: unconsumed drafts and materialized
+  // plans are matched by (userId, wizardContentHash).
+  @@index([userId, wizardContentHash])
   @@map("meal_plan_instances")
 }
 

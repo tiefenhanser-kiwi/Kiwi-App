@@ -221,6 +221,9 @@ function makeStubs(opts: {
     },
     mealPlanItem: { create: async () => ({}) },
     mealPlanTemplate: {
+      // Block 1 (D-WS7-071 minimal) — dedup-on-write guard queries first;
+      // default no existing template so the create path still runs.
+      findFirst: async () => null,
       create: async (args: { data: Record<string, unknown> }) => {
         captured.template = { data: args.data };
         return { id: "tpl-materializer-test" };

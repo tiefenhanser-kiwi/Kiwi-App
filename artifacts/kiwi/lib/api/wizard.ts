@@ -323,6 +323,32 @@ export async function listWizardDrafts(): Promise<ListWizardDraftsResponse> {
   });
 }
 
+// BUG-023 — server-side dismissal. Declining a resume draft ("Get new
+// results") must archive the SERVER row, not just hide it client-side via
+// AsyncStorage — otherwise the draft resurfaces on another device or after a
+// cache clear. Archives the owned wizard draft (isArchived:true); the resume
+// list filters isArchived:false so it never offers it again. Idempotent: a
+// stale/already-consumed id returns { dismissed: false } at 200, never a 404.
+const DismissWizardDraftResponseSchema = z.object({ dismissed: z.boolean() });
+export type DismissWizardDraftResponse = z.infer<
+  typeof DismissWizardDraftResponseSchema
+>;
+
+/**
+ * POST /api/wizard/drafts/:id/dismiss — decline a resume draft (BUG-023).
+ *
+ * Propagates apiClient typed errors: `UnauthenticatedError` (401),
+ * `ApiError` (500), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function dismissWizardDraft(
+  draftId: string,
+): Promise<DismissWizardDraftResponse> {
+  return apiClient(`/wizard/drafts/${encodeURIComponent(draftId)}/dismiss`, {
+    method: "POST",
+    schema: DismissWizardDraftResponseSchema,
+  });
+}
+
 /**
  * GET /api/wizard/drafts/:id — resume detail fetch. Returns the same
  * envelope as POST /wizard/expand so resume navigates to the Block A

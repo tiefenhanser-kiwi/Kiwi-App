@@ -347,20 +347,42 @@ export async function materializeWizardDraft(
   // meal-set (PRD §2.4 line 258) is deferred to D-WS7-071; this path
   // creates a fresh Template per wizard plan and accepts dupes for now.
   const description = expanded.whyBullets.map((b) => `• ${b}`).join("\n");
-  const template = await tx.mealPlanTemplate.create({
-    data: {
+  // Block 1 (D-WS7-071 MINIMAL reconcile) — dedup-on-write guard. Re-
+  // activating the same candidate must not mint a second private wizard
+  // Template. The route's content-hash idempotency already short-circuits a
+  // same-candidate re-activate before it reaches the materializer; this guard
+  // is the belt-and-suspenders inside the tx. Match on the fields available on
+  // the Template row (no meal-set is persisted on MealPlanTemplate, so we key
+  // on userId + wizard source + title + day-count). Full "one template per
+  // meal-set" canonicalization (a stable key column + backfill of historical
+  // dupes) stays deferred to Phase C — historical dupes are harmless (private,
+  // isPublic:false, read by id).
+  const existingTemplate = await tx.mealPlanTemplate.findFirst({
+    where: {
       userId,
-      title: expanded.title,
-      description,
-      tags: expanded.tags,
       sourceType: "wizard",
-      defaultDaysCount: expanded.meals.length,
-      imageUrl: null,
-      isPublic: false,
       isArchived: false,
+      title: expanded.title,
+      defaultDaysCount: expanded.meals.length,
     },
     select: { id: true },
   });
+  const template =
+    existingTemplate ??
+    (await tx.mealPlanTemplate.create({
+      data: {
+        userId,
+        title: expanded.title,
+        description,
+        tags: expanded.tags,
+        sourceType: "wizard",
+        defaultDaysCount: expanded.meals.length,
+        imageUrl: null,
+        isPublic: false,
+        isArchived: false,
+      },
+      select: { id: true },
+    }));
 
   return {
     expanded,

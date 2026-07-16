@@ -104,6 +104,8 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
     // assert planningContext PRESENCE, not history contents).
     mealPlanInstance: {
       findMany: async () => [],
+      // Block 1 (BUG-030) — expand-side idempotency lookup; default no reuse.
+      findFirst: async () => null,
     },
     meal: {
       findMany: async () => [],
@@ -1695,6 +1697,14 @@ function makeExpandDeps(opts: {
     createdAt: Date;
     optimizationNotes: unknown;
   }>;
+  // Block 1 (BUG-030) — when set, the expand route's idempotency lookup
+  // (findFirst on isWizardDraft:true + content-hash) returns this row, so the
+  // route should reuse it and skip both the AI expand and the persist write.
+  reuseDraft?: {
+    id: string;
+    createdAt: Date;
+    optimizationNotes: unknown;
+  } | null;
   recorder?: ExpandRecorder;
   persistFail?: boolean;
 }) {
@@ -1704,9 +1714,11 @@ function makeExpandDeps(opts: {
     sweepCalls: [],
   };
   const findManyArgs: Array<{ where?: Record<string, unknown> }> = [];
+  const findFirstArgs: Array<{ where?: Record<string, unknown> }> = [];
   return {
     rec,
     findManyArgs,
+    findFirstArgs,
     // expandCandidate stub — no real AI / dishMacros work.
     expandCandidate: (async (args: {
       userId: string;
@@ -1751,6 +1763,11 @@ function makeExpandDeps(opts: {
         findMany: async (args: { where?: Record<string, unknown> }) => {
           findManyArgs.push(args);
           return opts.drafts ?? [];
+        },
+        // Block 1 (BUG-030) — expand-side idempotency lookup.
+        findFirst: async (args: { where?: Record<string, unknown> }) => {
+          findFirstArgs.push(args);
+          return opts.reuseDraft ?? null;
         },
       },
     },
@@ -1849,6 +1866,105 @@ describe("POST /api/wizard/expand — happy path", () => {
     // extending it. The route-level happy-path assertion lives here in spirit
     // — the more rigorous activity assertion is in the AI-failure case below.
     void events;
+  });
+});
+
+// Block 1 (BUG-030) — a valid details-stage blob for the reuse path. Must
+// parse against WizardExpandedPlanDetailsSchema (no steps required).
+const IDEMPOTENT_DETAILS = {
+  candidateId: "c1",
+  title: "Cozy Comfort Week",
+  tags: ["Comfort"],
+  whyBullets: ["Sheet-pan meals minimize cleanup"],
+  meals: [
+    {
+      title: "Sheet-pan harissa chicken",
+      cuisineType: "Mediterranean",
+      estimatedTimeMinutes: 35,
+      difficulty: "easy",
+      servings: 5,
+      dishes: [
+        {
+          title: "Sheet-pan harissa chicken",
+          role: "main",
+          positionIndex: 0,
+          ingredients: [
+            { name: "chicken thighs", quantity: 1.5, unit: "pound" },
+          ],
+          macros: {
+            caloriesPerServing: 540,
+            proteinGPerServing: 38,
+            carbsGPerServing: 12,
+            fatGPerServing: 28,
+          },
+        },
+      ],
+    },
+  ],
+};
+
+describe("POST /api/wizard/expand — idempotency (BUG-030)", () => {
+  let harness: Harness;
+  const recorder: ExpandRecorder = {
+    expandCalls: [],
+    persistCalls: [],
+    sweepCalls: [],
+  };
+  const deps = makeExpandDeps({
+    recorder,
+    // An unconsumed draft already exists for this content-hash → reuse it.
+    reuseDraft: {
+      id: "draft-existing",
+      createdAt: new Date("2026-05-28T12:00:00Z"),
+      optimizationNotes: IDEMPOTENT_DETAILS,
+    },
+    expandReturn: async () => ({
+      status: "success",
+      expanded: IDEMPOTENT_DETAILS,
+    }),
+  });
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      expandCandidate: deps.expandCandidate,
+      persistWizardDraft: deps.persistWizardDraft,
+      sweepStaleWizardDrafts: deps.sweepStaleWizardDrafts,
+    });
+  });
+  after(async () => harness.close());
+
+  it("reuses the existing draft — no AI expand, no duplicate persist", async () => {
+    const token = signToken(EXPAND_USER_ID);
+    const res = await fetch(`${harness.baseUrl}/wizard/expand`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(EXPAND_VALID_BODY),
+    });
+
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      draft: { id: string; createdAt: string };
+      expanded: { title: string };
+    };
+    // Returns the EXISTING draft, not a freshly-persisted one.
+    assert.equal(body.draft.id, "draft-existing");
+    assert.equal(body.expanded.title, "Cozy Comfort Week");
+    // The expensive AI expand + the duplicate persist are both skipped.
+    assert.equal(recorder.expandCalls.length, 0);
+    assert.equal(recorder.persistCalls.length, 0);
+    // The idempotency lookup filtered on the wizard-draft discriminator.
+    assert.ok(deps.findFirstArgs.length >= 1);
+    const where = deps.findFirstArgs[0].where as Record<string, unknown>;
+    assert.equal(where.userId, EXPAND_USER_ID);
+    assert.equal(where.isWizardDraft, true);
+    assert.equal(where.isArchived, false);
+    assert.ok(typeof where.wizardContentHash === "string");
   });
 });
 
@@ -2125,6 +2241,12 @@ interface ActivateRecorder {
     entityId?: string;
     metadata?: Record<string, unknown>;
   }>;
+  // Block 1 (BUG-030 Part B) — the post-consume supersede updateMany on the
+  // top-level prisma client (distinct from the tx demote-prior updateMany).
+  supersedeCalls: Array<{
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }>;
 }
 
 interface ActivateDraftRow {
@@ -2133,10 +2255,21 @@ interface ActivateDraftRow {
   isWizardDraft: boolean;
   createdAt: Date;
   optimizationNotes: unknown;
+  // Block 1 (BUG-030) — idempotency key. Optional so existing tests (which
+  // omit it) leave the plan-side idempotency guard inert (undefined hash →
+  // findExistingPlanForDraft returns null → normal materialize path).
+  wizardContentHash?: string | null;
+  // Block 1 (BUG-030 Part B) — archive state so the stateful supersede
+  // updateMany below can flip it and composition tests can read it back.
+  isArchived?: boolean;
 }
 
 function makeActivateDeps(opts: {
   drafts: Map<string, ActivateDraftRow>;
+  // Block 1 (BUG-030) — when set, the plan-side idempotency lookup (findFirst
+  // for an existing non-draft plan with the same content-hash) returns this,
+  // so activate/save should return it and skip finalize + materialize.
+  existingPlanForHash?: { id: string; revisionId: number } | null;
   // WS7-5c Block A — the route now runs readAndFinalizeWizardDraft BEFORE
   // the materializer. not_found / malformed surface from THAT stub now
   // (the materializer no longer parses optimizationNotes when a payload
@@ -2150,6 +2283,7 @@ function makeActivateDeps(opts: {
     updateManyCalls: [],
     updateCalls: [],
     activityCalls: [],
+    supersedeCalls: [],
   };
 
   const buildTx = () => {
@@ -2205,6 +2339,34 @@ function makeActivateDeps(opts: {
         return opts.drafts.get(args.where.id) ?? null;
       },
       findMany: async () => [],
+      // Block 1 (BUG-030) — plan-side idempotency lookup; default no reuse.
+      findFirst: async () => opts.existingPlanForHash ?? null,
+      // Block 1 (BUG-030 Part B) — the post-consume supersede archive. Records
+      // the call AND statefully archives matching rows in the draft map so
+      // composition tests (peek-A/peek-B/save-A) can read the result back.
+      updateMany: async (args: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => {
+        rec.supersedeCalls.push({ where: args.where, data: args.data });
+        const w = args.where;
+        let count = 0;
+        for (const row of opts.drafts.values()) {
+          const matchUser = w.userId === undefined || row.userId === w.userId;
+          const matchDraft =
+            w.isWizardDraft === undefined ||
+            row.isWizardDraft === w.isWizardDraft;
+          const matchArchived =
+            w.isArchived === undefined ||
+            (row.isArchived ?? false) === w.isArchived;
+          const matchId = w.id === undefined || row.id === w.id;
+          if (matchUser && matchDraft && matchArchived && matchId) {
+            row.isArchived = true;
+            count++;
+          }
+        }
+        return { count };
+      },
     },
     $transaction: async (
       fn: (tx: ReturnType<typeof buildTx>) => Promise<unknown>,
@@ -2296,6 +2458,103 @@ function makeActivateDeps(opts: {
     rec,
   };
 }
+
+describe("POST /api/wizard/drafts/:id/dismiss — BUG-023 server-side dismissal", () => {
+  let harness: Harness;
+  const updateManyCalls: Array<{
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }> = [];
+  const prisma = {
+    aIPrompt: { findUnique: async () => null },
+    systemSetting: { findUnique: async () => null },
+    userPreferences: { findUnique: async () => null },
+    pantryStaple: { findMany: async () => [] },
+    userActivity: { findMany: async () => [], create: async () => ({}) },
+    lLMCallLog: { create: async () => ({}) },
+    mealPlanInstance: {
+      findMany: async () => [],
+      updateMany: async (args: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => {
+        updateManyCalls.push(args);
+        // Simulate: only an owned, unconsumed, unarchived draft matches.
+        const w = args.where;
+        const hit =
+          w.id === "draft-live" &&
+          w.isWizardDraft === true &&
+          w.isArchived === false;
+        return { count: hit ? 1 : 0 };
+      },
+    },
+  };
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+    });
+  });
+  after(async () => harness.close());
+
+  it("archives the owned unconsumed draft and returns dismissed:true", async () => {
+    const token = signToken(ACTIVATE_USER_ID);
+    const res = await fetch(
+      `${harness.baseUrl}/wizard/drafts/draft-live/dismiss`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { dismissed: boolean };
+    assert.equal(body.dismissed, true);
+
+    const call = updateManyCalls.find((c) => c.where.id === "draft-live");
+    assert.ok(call, "dismiss did not issue an updateMany for the draft");
+    // Scoped so it can only touch the caller's own unconsumed draft.
+    assert.equal(call!.where.userId, ACTIVATE_USER_ID);
+    assert.equal(call!.where.isWizardDraft, true);
+    assert.equal(call!.where.isArchived, false);
+    // Archives + clears blob; never flips isWizardDraft.
+    assert.equal(call!.data.isArchived, true);
+    assert.equal(call!.data.optimizationNotes, Prisma.DbNull);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(call!.data, "isWizardDraft"),
+      false,
+    );
+  });
+
+  it("returns dismissed:false (200, not 404) for a missing/already-consumed id", async () => {
+    const token = signToken(ACTIVATE_USER_ID);
+    const res = await fetch(
+      `${harness.baseUrl}/wizard/drafts/already-gone/dismiss`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { dismissed: boolean };
+    assert.equal(body.dismissed, false);
+  });
+
+  it("returns 401 with no auth header", async () => {
+    const res = await fetch(
+      `${harness.baseUrl}/wizard/drafts/draft-live/dismiss`,
+      { method: "POST" },
+    );
+    assert.equal(res.status, 401);
+  });
+});
 
 describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
   let harness: Harness;
@@ -2432,6 +2691,66 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
     assert.equal(meta.source, "wizard_draft_activate");
     assert.equal(typeof meta.mealsCreated, "number");
     assert.equal(typeof meta.itemsCreated, "number");
+  });
+});
+
+describe("POST /api/wizard/drafts/:id/activate — idempotency (BUG-030)", () => {
+  let harness: Harness;
+  // The draft being activated carries a content-hash, and a prior activation
+  // already materialized a real plan with the same hash.
+  const drafts = new Map<string, ActivateDraftRow>([
+    [
+      "draft-dupe",
+      {
+        id: "draft-dupe",
+        userId: ACTIVATE_USER_ID,
+        isWizardDraft: true,
+        createdAt: new Date("2026-05-28T10:00:00Z"),
+        optimizationNotes: SAMPLE_EXPANDED,
+        wizardContentHash: "hash-abc",
+      },
+    ],
+  ]);
+  const deps = makeActivateDeps({
+    drafts,
+    existingPlanForHash: { id: "plan-original", revisionId: 7 },
+  });
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+  });
+  after(async () => harness.close());
+
+  it("returns the existing plan — no second materialize, no duplicate", async () => {
+    const token = signToken(ACTIVATE_USER_ID);
+    const res = await fetch(
+      `${harness.baseUrl}/wizard/drafts/draft-dupe/activate`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    assert.equal(res.status, 201);
+    const body = (await res.json()) as {
+      instance: { id: string; revisionId: number };
+    };
+    // Returns the PRE-EXISTING plan, not a freshly materialized one.
+    assert.equal(body.instance.id, "plan-original");
+    assert.equal(body.instance.revisionId, 7);
+    // The materializer + activity emit never ran — no duplicate plan/template.
+    assert.equal(deps.rec.materializeCalls.length, 0);
+    assert.equal(deps.rec.updateCalls.length, 0);
+    assert.equal(deps.rec.activityCalls.length, 0);
   });
 });
 
@@ -2858,6 +3177,64 @@ describe("GET /api/wizard/drafts/:id — WS7-5c Block A: stepless draft (details
 // differs (no demote, no active flip, no date set, no revisionId bump,
 // emits plan_created instead of plan_activated_this_week).
 
+describe("POST /api/wizard/drafts/:id/activate — supersede siblings (BUG-030 Part B)", () => {
+  let harness: Harness;
+  const drafts = new Map<string, ActivateDraftRow>([
+    [
+      "draft-consume",
+      {
+        id: "draft-consume",
+        userId: ACTIVATE_USER_ID,
+        isWizardDraft: true,
+        createdAt: new Date("2026-05-28T10:00:00Z"),
+        optimizationNotes: SAMPLE_EXPANDED,
+      },
+    ],
+  ]);
+  const deps = makeActivateDeps({ drafts });
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+  });
+  after(async () => harness.close());
+
+  it("archives sibling unconsumed drafts after activate — archive, never flip", async () => {
+    const token = signToken(ACTIVATE_USER_ID);
+    const res = await fetch(
+      `${harness.baseUrl}/wizard/drafts/draft-consume/activate`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    assert.equal(res.status, 201);
+    // Supersede ran exactly once, scoped to this user's UNCONSUMED drafts.
+    assert.equal(deps.rec.supersedeCalls.length, 1);
+    const { where, data } = deps.rec.supersedeCalls[0];
+    assert.equal(where.userId, ACTIVATE_USER_ID);
+    assert.equal(where.isWizardDraft, true);
+    assert.equal(where.isArchived, false);
+    // Archives + clears blob; MUST NOT flip isWizardDraft (that would surface
+    // the orphan as a real plan in My Plans/home — the Phase 0 constraint).
+    assert.equal(data.isArchived, true);
+    assert.equal(data.optimizationNotes, Prisma.DbNull);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(data, "isWizardDraft"),
+      false,
+    );
+  });
+});
+
 describe("POST /api/wizard/drafts/:id/save — happy path", () => {
   let harness: Harness;
   const drafts = new Map<string, ActivateDraftRow>([
@@ -2935,6 +3312,77 @@ describe("POST /api/wizard/drafts/:id/save — happy path", () => {
     assert.equal(deps.rec.activityCalls.length, 1);
     assert.equal(deps.rec.activityCalls[0].eventType, "plan_created");
     assert.equal(deps.rec.activityCalls[0].entityId, "draft-save-ok");
+  });
+});
+
+describe("wizard draft lifecycle — peek A / peek B / save A (BUG-030 Part B)", () => {
+  let harness: Harness;
+  // Two peeked drafts already exist (two expand calls, distinct content
+  // hashes). The user goes back to A and saves it.
+  const drafts = new Map<string, ActivateDraftRow>([
+    [
+      "draft-A",
+      {
+        id: "draft-A",
+        userId: ACTIVATE_USER_ID,
+        isWizardDraft: true,
+        isArchived: false,
+        createdAt: new Date("2026-05-28T10:00:00Z"),
+        optimizationNotes: SAMPLE_EXPANDED,
+        wizardContentHash: "hash-a",
+      },
+    ],
+    [
+      "draft-B",
+      {
+        id: "draft-B",
+        userId: ACTIVATE_USER_ID,
+        isWizardDraft: true,
+        isArchived: false,
+        createdAt: new Date("2026-05-28T10:05:00Z"),
+        optimizationNotes: SAMPLE_EXPANDED,
+        wizardContentHash: "hash-b",
+      },
+    ],
+  ]);
+  const deps = makeActivateDeps({ drafts });
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+  });
+  after(async () => harness.close());
+
+  it("saves A once, archives sibling B, and never surfaces B (no dupe)", async () => {
+    const token = signToken(ACTIVATE_USER_ID);
+    const res = await fetch(`${harness.baseUrl}/wizard/drafts/draft-A/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    assert.equal(res.status, 201);
+
+    const a = drafts.get("draft-A")!;
+    const b = drafts.get("draft-B")!;
+    // A was consumed exactly once — flipped to a real plan, NOT archived.
+    assert.equal(a.isWizardDraft, false);
+    assert.notEqual(a.isArchived, true);
+    // B (the moot peeked sibling) is archived — archive, not flip. It stays
+    // isWizardDraft:true so My Plans/home never show it, and isArchived:true
+    // so the resume list (isArchived:false) never offers it again.
+    assert.equal(b.isWizardDraft, true);
+    assert.equal(b.isArchived, true);
+    // Materialize ran exactly once (A), never for B — no duplicate plan.
+    assert.equal(deps.rec.materializeCalls.length, 1);
+    assert.equal(deps.rec.materializeCalls[0].draftId, "draft-A");
   });
 });
 

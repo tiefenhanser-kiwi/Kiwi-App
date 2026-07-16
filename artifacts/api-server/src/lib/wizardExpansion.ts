@@ -11,7 +11,7 @@
 // so a future ephemeral swap (drop the row, lean on a Redis/MemcacheD blob)
 // is mechanical: replace the body, leave the call site alone.
 
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { estimateDishMacros } from "./dishMacros";
 import { logger } from "./logger";
@@ -326,6 +326,12 @@ export interface PersistWizardDraftOptions {
   prisma: PrismaClient;
   userId: string;
   expanded: WizardExpandedPlanDetails;
+  // Block 1 (BUG-030) — content-derived idempotency key (see
+  // lib/wizardContentHash.ts). Written on the draft row so a later re-expand
+  // (or re-activate) of the same candidate reuses this row instead of minting
+  // a duplicate. Computed by the route from the candidate's title + meal
+  // titles BEFORE the AI expand runs, so an idempotent hit skips the AI call.
+  contentHash: string;
 }
 
 export interface WizardDraftPersistedRef {
@@ -365,6 +371,9 @@ export async function persistWizardDraft(
       // null-dated and the date-range predicate already treats them as
       // not-current. Null-exempt from the EXCLUDE constraint.
       isWizardDraft: true,
+      // Block 1 (BUG-030) — idempotency key; preserved when this row flips to
+      // a real plan on activate/save.
+      wizardContentHash: opts.contentHash,
       startDate: null,
       endDate: null,
       optimizationNotes: opts.expanded as unknown as Prisma.InputJsonValue,
@@ -388,6 +397,73 @@ export async function persistWizardDraft(
  * are logged and swallowed; the caller's read path proceeds with whatever
  * survived (or the now-empty set).
  */
+// ── supersede-on-consume (Block 1, BUG-030 Part B) ────────────────────────
+
+/**
+ * Archive every remaining UNCONSUMED wizard draft for a user. Called right
+ * after a successful save/activate (and after an idempotent early-return that
+ * returned a pre-existing plan). Two jobs in one write:
+ *
+ *  1. Sibling supersede — the other candidates the user peeked/expanded in the
+ *     same run become moot once they commit to one plan; archiving them clears
+ *     the resume interstitial so it can't offer a plan the user already moved
+ *     past. In the idempotent-return case it also clears the just-created
+ *     orphan draft (the A/B seam flagged in Part A).
+ *  2. clear-on-consume — drops the wizard JSON blob from optimizationNotes so
+ *     no stale draft payload lingers on the row.
+ *
+ * ARCHIVE, never flip isWizardDraft→false: every isWizardDraft reader treats
+ * `true` as "hidden", so a superseded draft (isWizardDraft:true, isArchived:
+ * true) is excluded from My Plans / home / this-week / grocery (all filter
+ * isWizardDraft:false) AND from the resume list (filters isArchived:false).
+ * Flipping to false would surface it as a real plan — the one thing we must
+ * not do (Phase 0 constraint).
+ *
+ * Scope note: with no wizard-session id (Phase 0), "same result set" resolves
+ * to "all the user's unconsumed drafts" — committing to a plan clears every
+ * pending peek. A narrower same-session scope would need a session id (see the
+ * Part B report / deferred D-WS9). The consumed row is already isWizardDraft:
+ * false by the time this runs, so it is never touched.
+ *
+ * Best-effort: failures are logged and swallowed (the plan is already safely
+ * saved/activated; a stray sibling self-heals on the next consume or TTL sweep).
+ */
+export async function supersedeUnconsumedWizardDrafts(opts: {
+  prisma: PrismaClient;
+  userId: string;
+}): Promise<number> {
+  try {
+    const result = await opts.prisma.mealPlanInstance.updateMany({
+      where: {
+        userId: opts.userId,
+        isWizardDraft: true,
+        isArchived: false,
+      },
+      data: {
+        isArchived: true,
+        optimizationNotes: Prisma.DbNull,
+      },
+    });
+    if (result.count > 0) {
+      logger.info(
+        {
+          event: "wizard_draft_supersede",
+          userId: opts.userId,
+          superseded: result.count,
+        },
+        "Archived sibling wizard drafts on consume",
+      );
+    }
+    return result.count;
+  } catch (err) {
+    logger.warn(
+      { event: "wizard_draft_supersede_failed", userId: opts.userId, err },
+      "Failed to supersede sibling wizard drafts",
+    );
+    return 0;
+  }
+}
+
 export async function sweepStaleWizardDrafts(opts: {
   prisma: PrismaClient;
   userId: string;

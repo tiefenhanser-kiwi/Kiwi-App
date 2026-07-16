@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
@@ -32,6 +32,7 @@ import {
 import type { WizardPreferencesInput } from "@/lib/types";
 import { getPreferences, type UserPreferences } from "@/lib/api/me";
 import {
+  dismissWizardDraft,
   getWizardDraft,
   listWizardDrafts,
   type ListWizardDraftsResponse,
@@ -147,6 +148,7 @@ function hydrateForm(prefs: UserPreferences): WizardFormState {
 
 export default function Wizard() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   // PRD §9.4 — when launched from the AddMealToPlanSheet "Create new
   // plan" path, the meal id we should attach to the new plan arrives
   // as a route param. WS5: param plumbing only — actual attach +
@@ -335,17 +337,30 @@ export default function Wizard() {
           drafts={visibleDrafts}
           onResume={handleResume}
           onDismiss={() => {
-            // "Get new results" supersedes these specific drafts — persist
-            // their ids so they never re-surface (BUG-023). New drafts made
-            // later aren't in the set, so they can still resume.
-            const next = addDismissed(
-              dismissedDraftIds,
-              visibleDrafts.map((d) => d.id),
-            );
+            // "Get new results" declines these specific drafts. BUG-023 fix:
+            // archive them SERVER-SIDE so they can't resurface on another
+            // device or after a cache clear — the durable fix. The client set
+            // + AsyncStorage stay as an OPTIMISTIC hide (no flash before the
+            // server round-trip + refetch land). New drafts made later aren't
+            // in the set / stay unarchived, so they can still resume.
+            const dismissedIds = visibleDrafts.map((d) => d.id);
+            const next = addDismissed(dismissedDraftIds, dismissedIds);
             setDismissedDraftIds(next);
             void saveJSON(DISMISSED_DRAFTS_KEY, next);
             setInterstitialDismissed(true);
             setResumeErrorMessage(null);
+            // Fire-and-forget the server archive for each declined draft, then
+            // refresh the list. Failures are non-fatal — the optimistic client
+            // hide already covers this session; a surviving server row is
+            // caught on the next dismiss or by the TTL sweep.
+            void (async () => {
+              await Promise.allSettled(
+                dismissedIds.map((id) => dismissWizardDraft(id)),
+              );
+              void queryClient.invalidateQueries({
+                queryKey: ["wizard", "drafts"],
+              });
+            })();
           }}
           resumePendingDraftId={resumePendingDraftId}
           resumeErrorMessage={resumeErrorMessage}

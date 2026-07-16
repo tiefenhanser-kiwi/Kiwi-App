@@ -533,3 +533,65 @@ describe("WizardExpandDishSchema — dish ingredient floor (WS7-5b-server-fix2)"
     assert.equal(parsed.success, false);
   });
 });
+
+// ── supersedeUnconsumedWizardDrafts (Block 1, BUG-030 Part B) ──────────────
+
+describe("supersedeUnconsumedWizardDrafts", () => {
+  it("archives unconsumed drafts and clears the blob, never flips isWizardDraft", async () => {
+    const calls: Array<{ where: unknown; data: unknown }> = [];
+    const prisma = {
+      mealPlanInstance: {
+        updateMany: async (args: { where: unknown; data: unknown }) => {
+          calls.push(args);
+          return { count: 2 };
+        },
+      },
+    } as unknown as PrismaClient;
+
+    const { supersedeUnconsumedWizardDrafts } = await import(
+      "../wizardExpansion"
+    );
+    const { Prisma } = await import("@prisma/client");
+
+    const count = await supersedeUnconsumedWizardDrafts({
+      prisma,
+      userId: "user-1",
+    });
+
+    assert.equal(count, 2);
+    assert.equal(calls.length, 1);
+    const where = calls[0].where as Record<string, unknown>;
+    const data = calls[0].data as Record<string, unknown>;
+    // Targets ONLY this user's unconsumed drafts.
+    assert.equal(where.userId, "user-1");
+    assert.equal(where.isWizardDraft, true);
+    assert.equal(where.isArchived, false);
+    // Archives + clears the blob; never flips isWizardDraft to false (that
+    // would surface the orphan as a real plan — the Phase 0 constraint).
+    assert.equal(data.isArchived, true);
+    assert.equal(data.optimizationNotes, Prisma.DbNull);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(data, "isWizardDraft"),
+      false,
+    );
+  });
+
+  it("swallows errors and returns 0 (best-effort — never breaks the response)", async () => {
+    const prisma = {
+      mealPlanInstance: {
+        updateMany: async () => {
+          throw new Error("db boom");
+        },
+      },
+    } as unknown as PrismaClient;
+
+    const { supersedeUnconsumedWizardDrafts } = await import(
+      "../wizardExpansion"
+    );
+    const count = await supersedeUnconsumedWizardDrafts({
+      prisma,
+      userId: "user-1",
+    });
+    assert.equal(count, 0);
+  });
+});
