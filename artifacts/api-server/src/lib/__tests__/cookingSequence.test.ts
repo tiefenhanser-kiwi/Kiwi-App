@@ -144,6 +144,43 @@ describe("runCookingSequence — 404 paths", () => {
     assert.equal(result.usedAI, false);
     assert.equal(result.sequence.length, 1);
   });
+
+  it("allows access to an OWNED-public community meal (userId set, isPublic=true) — D-WS9-036", async () => {
+    // The pre-fix gate was `userId===null && isPublic`, which 404'd a meal
+    // published by another user (owned + public). The widened `isPublic===true`
+    // gate admits it — the launch community-kitchen case.
+    const prisma = makePrismaStub({
+      meals: [
+        {
+          id: "meal-community",
+          userId: OTHER_USER_ID,
+          isPublic: true,
+          dishLinks: [
+            { dishId: "dish-c", positionIndex: 0, dish: { id: "dish-c", title: "Community Dish" } },
+          ],
+        },
+      ],
+      steps: [
+        {
+          ownerType: "dish",
+          ownerId: "dish-c",
+          stepIndex: 0,
+          stepTextTranslated: "Cook it.",
+          estimatedMinutes: 5,
+          phaseType: "cook",
+          parallelGroup: null,
+          isTimingSensitive: false,
+        },
+      ],
+    });
+    const result = await runCookingSequence({
+      mealId: "meal-community",
+      userId: USER_ID,
+      deps: { prisma },
+    });
+    assert.equal(result.usedAI, false);
+    assert.equal(result.sequence.length, 1);
+  });
 });
 
 describe("runCookingSequence — EmptyMealError paths", () => {

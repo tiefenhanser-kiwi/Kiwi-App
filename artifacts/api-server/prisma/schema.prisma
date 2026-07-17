@@ -48,6 +48,20 @@ enum SourceType {
   uploaded_image
   manual
   curated
+  // D-WS9-036 (Plan-Gen Arc Block 2) — pre-generated meal store provenance.
+  // Provenance is orthogonal to isPublic (pool membership) and userId
+  // (ownership): a store Meal is a Meal row that is in the shared pool
+  // (isPublic:true) AND carries one of these stamps for HOW it was made.
+  //   batch_generated — minted by the offline store-fill batch job.
+  //   live_writeback  — a live gap-fill generation stamped + published back
+  //                     into the store so a future compose can reuse it.
+  //   community       — headroom for launch user-sharing (users publishing
+  //                     their own meals to the community kitchen). No code
+  //                     emits this yet; added now so a later ship needs no
+  //                     enum migration.
+  batch_generated
+  live_writeback
+  community
 }
 
 enum DifficultyLevel {
@@ -454,6 +468,13 @@ model Meal {
   templateItems MealPlanTemplateItem[]
   favorites     Favorite[]
 
+  // D-WS9-038 (Plan-Gen Arc Block 2) — store-shortlist retrieval index. The
+  // compose read path filters the shared pool by (isPublic, isArchived,
+  // mealType) and narrows/ranks by cuisineType; the leftmost prefix serves the
+  // hard filter and the trailing cuisineType serves cuisine-scoped variants.
+  // tags[] filtering (if ever added) needs a separate GIN index — not indexed
+  // here since retrieval ranks on tags in-app rather than filtering on them.
+  @@index([isPublic, isArchived, mealType, cuisineType])
   @@map("meals")
 }
 
@@ -567,7 +588,17 @@ model MealPlanInstance {
   // explicit boolean rather than overloading prepStatus so derived vs pinned is
   // unambiguous and the rollup can resume driving prepStatus when unpinned.
   prepStatusIsManual Boolean    @default(false)
+  // optimizationNotes now holds ONLY the PRD §8.3.4 prep-notes array
+  // [{type,text}] on real plans. It used to double-duty as the wizard draft
+  // JSON blob too; D-WS9-034 (Plan-Gen Arc Block 2 Phase 1A) untangled that
+  // onto the dedicated wizardDraftPayload column below. coerceOptimizationNotes
+  // (plans.ts) is retained to heal legacy rows that still carry a blob here.
   optimizationNotes  Json?
+  // D-WS9-034 — the wizard draft's expanded-plan JSON, written by
+  // persistWizardDraft (POST /wizard/expand) and read back by the finalize /
+  // activate / resume paths. Cleared to DbNull when the draft is consumed
+  // (activate/save) or superseded/dismissed. Null on every non-draft row.
+  wizardDraftPayload Json?
   compostedAt        DateTime?
   isArchived         Boolean    @default(false)
   // WS7-5a — Branch B wizard draft discriminator. true on rows written by

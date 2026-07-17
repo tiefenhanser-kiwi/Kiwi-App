@@ -282,6 +282,18 @@ describe("runAICall — env / failure modes", () => {
       (err: unknown) => err instanceof UnknownPromptKeyError,
     );
   });
+
+  it("resolves wizard.surprise.generate — BUG-039 registered runtime key", async () => {
+    // The key was seeded to the DB but missing from the in-memory REGISTRY, so
+    // resolution threw UnknownPromptKeyError → every Surprise-me tap 500'd.
+    // With it registered, resolution succeeds (null prisma → in-memory fallback).
+    const desc = await resolvePromptDescriptorFromDb(
+      "wizard.surprise.generate",
+      null,
+    );
+    assert.equal(desc.defaultMode, "tool");
+    assert.ok(desc.body.length > 0);
+  });
 });
 
 describe("runAICall — cost estimation", () => {

@@ -569,6 +569,9 @@ describe("supersedeUnconsumedWizardDrafts", () => {
     // Archives + clears the blob; never flips isWizardDraft to false (that
     // would surface the orphan as a real plan — the Phase 0 constraint).
     assert.equal(data.isArchived, true);
+    // D-WS9-034 — the draft blob lives on wizardDraftPayload now; clear it.
+    // optimizationNotes is ALSO DbNull'd as legacy-blob defense.
+    assert.equal(data.wizardDraftPayload, Prisma.DbNull);
     assert.equal(data.optimizationNotes, Prisma.DbNull);
     assert.equal(
       Object.prototype.hasOwnProperty.call(data, "isWizardDraft"),
@@ -593,5 +596,196 @@ describe("supersedeUnconsumedWizardDrafts", () => {
       userId: "user-1",
     });
     assert.equal(count, 0);
+  });
+});
+
+// ── persistWizardDraft — D-WS9-034 optimizationNotes untangle ──────────────
+// The untangle's whole point: the wizard draft blob and the PRD §8.3.4
+// prep-notes array [{type,text}] no longer collide on one column. persist
+// writes the blob to the dedicated wizardDraftPayload column and NEVER touches
+// optimizationNotes — so any prep-notes already on the row survive untouched.
+describe("persistWizardDraft — D-WS9-034 untangle", () => {
+  it("writes the blob to wizardDraftPayload and leaves optimizationNotes untouched", async () => {
+    const createCalls: Array<{ data: Record<string, unknown> }> = [];
+    const prisma = {
+      mealPlanInstance: {
+        create: async (args: { data: Record<string, unknown> }) => {
+          createCalls.push(args);
+          return { id: "draft-x", createdAt: new Date("2026-07-16T00:00:00Z") };
+        },
+      },
+    } as unknown as PrismaClient;
+
+    const { persistWizardDraft } = await import("../wizardExpansion");
+
+    const expanded = {
+      candidateId: "c1",
+      title: "Cozy Comfort Week",
+      tags: ["cozy"],
+      whyBullets: ["one"],
+      meals: [],
+    } as unknown as Parameters<typeof persistWizardDraft>[0]["expanded"];
+
+    const ref = await persistWizardDraft({
+      prisma,
+      userId: "user-1",
+      expanded,
+      contentHash: "hash-abc",
+    });
+
+    assert.equal(ref.planId, "draft-x");
+    assert.equal(createCalls.length, 1, "persist did not call create exactly once");
+    const data = createCalls[0].data;
+    // Blob lands on the dedicated column.
+    assert.deepEqual(data.wizardDraftPayload, expanded);
+    assert.equal(data.titleOverride, "Cozy Comfort Week");
+    // optimizationNotes is NOT written — the prep-notes lane is left alone, so
+    // the two payloads can never collide on one row.
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(data, "optimizationNotes"),
+      false,
+    );
+  });
+});
+
+// ── D-WS9-038 — store-slot compose (zero AI for store slots) ───────────────
+
+// A minimal shared-pool meal graph for composeStoreMealDetails to read.
+function storeMealGraph(id: string) {
+  return {
+    id,
+    title: `Store ${id}`,
+    cuisineType: "italian",
+    difficulty: "easy",
+    estimatedTimeMinutes: 30,
+    servingsDefault: 4,
+    dishLinks: [
+      {
+        positionIndex: 0,
+        roleLabel: "main",
+        dish: {
+          title: `Store ${id} dish`,
+          caloriesPerServing: 500,
+          proteinGPerServing: 30,
+          carbsGPerServing: 40,
+          fatGPerServing: 20,
+          dishIngredients: [
+            {
+              quantity: 1,
+              unit: "cup",
+              preparationNote: null,
+              isOptional: false,
+              ingredient: { displayName: "Tomato" },
+            },
+          ],
+        },
+      },
+    ],
+  };
+}
+
+const storePrisma = {
+  userPreferences: { findUnique: async () => null },
+  meal: {
+    findUnique: async (args: { where: { id: string } }) =>
+      storeMealGraph(args.where.id),
+  },
+} as unknown as PrismaClient;
+
+describe("expandCandidate — D-WS9-038 store compose", () => {
+  it("composes a store slot with NO AI call and marks it sourceStoreMealId", async () => {
+    const req = makeRequest(["A", "B"]); // slot 0 store, slot 1 live
+    req.candidate.storeSlots = [{ slotIndex: 0, storeMealId: "store-1" }];
+    const { fn, calls } = makeRunAICallStub((mealTitle) =>
+      successResult([makeMeal(mealTitle)]),
+    );
+
+    const result = await expandCandidate({
+      prisma: storePrisma,
+      userId: "u1",
+      request: req,
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    // Exactly ONE expand AI call — only the live slot (B). The store slot
+    // was read from the pool, no AI.
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].mealTitle, "B");
+    // Slot 0 carries the store marker; slot 1 does not.
+    assert.equal(result.expanded.meals[0].sourceStoreMealId, "store-1");
+    assert.equal(result.expanded.meals[1].sourceStoreMealId, undefined);
+    // Store slot preview detail came from the pool meal.
+    assert.equal(result.expanded.meals[0].title, "Store store-1");
+    assert.equal(result.expanded.meals[0].dishes[0].macros?.caloriesPerServing, 500);
+    // Clean catalog → no rejections.
+    assert.equal(result.storeMealsRejected, 0);
+  });
+
+  it("rejects a store meal with an empty-unit ingredient → slot falls back to live (BUG-040)", async () => {
+    // Mirrors the curated seed defect: a count-only ingredient with unit="".
+    const badPrisma = {
+      userPreferences: { findUnique: async () => null },
+      meal: {
+        findUnique: async (args: { where: { id: string } }) => {
+          const g = storeMealGraph(args.where.id);
+          g.dishLinks[0].dish.dishIngredients[0].unit = ""; // invalid — fails unit.min(1)
+          return g;
+        },
+      },
+    } as unknown as PrismaClient;
+
+    const req = makeRequest(["A", "B"]); // slot 0 marked store, slot 1 live
+    req.candidate.storeSlots = [{ slotIndex: 0, storeMealId: "bad-1" }];
+    const { fn, calls } = makeRunAICallStub((mealTitle) =>
+      successResult([makeMeal(mealTitle)]),
+    );
+
+    const result = await expandCandidate({
+      prisma: badPrisma,
+      userId: "u1",
+      request: req,
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    // The store slot was REJECTED (bad unit) → it went LIVE, so BOTH slots
+    // expanded via the AI. Counter reflects the one rejection.
+    assert.equal(calls.length, 2);
+    assert.equal(result.storeMealsRejected, 1);
+    // Neither meal carries a store marker — slot 0 was demoted to live.
+    assert.equal(result.expanded.meals[0].sourceStoreMealId, undefined);
+    assert.equal(result.expanded.meals[1].sourceStoreMealId, undefined);
+  });
+
+  it("an all-store candidate expands with ZERO AI calls", async () => {
+    const req = makeRequest(["A", "B"]);
+    req.candidate.storeSlots = [
+      { slotIndex: 0, storeMealId: "store-1" },
+      { slotIndex: 1, storeMealId: "store-2" },
+    ];
+    const { fn, calls } = makeRunAICallStub((mealTitle) =>
+      successResult([makeMeal(mealTitle)]),
+    );
+
+    const result = await expandCandidate({
+      prisma: storePrisma,
+      userId: "u1",
+      request: req,
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.equal(calls.length, 0, "all-store expand must make no AI calls");
+    assert.deepEqual(
+      result.expanded.meals.map((m) => m.sourceStoreMealId),
+      ["store-1", "store-2"],
+    );
   });
 });

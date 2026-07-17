@@ -48,6 +48,32 @@ const RETIRED_KEYS: readonly string[] = [
 const placeholder = (key: string): string =>
   `[PLACEHOLDER for ${key} — replace via 6a-3+ sub-phase]`;
 
+// D-WS9-038 / BUG-039 (Fix 3) — the shared catalog-compose instruction, used by
+// build-plans, Surprise-me, and Tell Kiwi so all three prefer the shelf the same
+// way. Strengthened from the timid B-1 wording: shelf-usage is the DEFAULT when
+// a shelf meal reasonably fits, not a rare option — the catalog only pays off
+// (latency + cost) if it's actually used. Hard constraints still bind shelf
+// meals exactly as fresh ones. The {{storeShortlist}} slot renders the shelf.
+const CATALOG_SHELF_SECTION = `# Composing from Kiwi's catalog
+
+Kiwi keeps a shared catalog of already-made dinners. The \`storeShortlist\` below is a shelf of those meals pre-matched to this user — each has a stable \`id\`, a \`title\`, \`cuisineType\`, \`difficulty\`, \`estimatedTimeMinutes\`, \`tags\`, and per-serving \`macros\`. A catalog meal is already fully built, so reusing one is much cheaper and faster than inventing a fresh recipe.
+
+**Default to composing from the shelf.** For each meal slot, if a shelf meal reasonably fits — it suits the request, the cuisine/variety intent, and passes every hard constraint below — then USE IT. Invent a fresh meal ONLY for a genuine gap: a slot that no shelf meal reasonably covers. Do not prefer inventing over reusing; a well-stocked shelf should yield a plan that is MOSTLY shelf meals, with fresh meals filling only what the shelf can't. (A thin or poorly-matched shelf is fine — then most slots are fresh. Never force a bad-fit shelf meal just to use the shelf.)
+
+How to mark shelf slots, per candidate:
+
+- When you fill a slot from the shelf, put the shelf meal's EXACT \`title\` as that slot's entry in \`mealTitles\`, and add \`{ "slotIndex": <0-based index of that slot in mealTitles>, "storeMealId": "<the shelf meal's id>" }\` to this candidate's \`storeSlots\`.
+- For a freshly-invented slot, write a normal title and add NO \`storeSlots\` entry for it. A plan can be any mix — all shelf, all fresh, or anything between.
+- \`storeSlots\` is per candidate and is the ONLY signal of which slots came from the shelf. Omit it (or use an empty array) when a candidate uses no shelf meals. Only ever cite an \`id\` that appears verbatim in \`storeShortlist\`; never invent or alter an id.
+
+Hard constraints bind shelf meals EXACTLY as they bind fresh ones. Never place a shelf meal that would violate a dietary exclusion, an allergy/avoidance, an equipment limit, or the user's difficulty ceiling — even if it is on the shelf. You only see the shelf meal's metadata, so if you cannot be confident a shelf meal is safe against a stated allergy or restriction, do NOT use it — invent a fresh meal for that slot instead. All variety, distinctness, and waste-minimization rules apply across shelf and fresh meals together (e.g. don't let the shelf make multiple candidates feel alike).
+
+If \`storeShortlist\` is empty, compose every slot fresh — the shelf is simply unstocked for this user, which is fine.
+
+\`\`\`json
+{{storeShortlist}}
+\`\`\``;
+
 // REVIEW(hans-6a-4): wizard.directed.parse_intent prompt body — step 1 of the
 // Tell Kiwi two-step pipeline. Cheap classifier (Haiku, text+Zod). The output
 // of this step branches the pipeline: `unclear` short-circuits without firing
@@ -212,6 +238,8 @@ Titles should sound like a friend recommending dinner, not an AI listing categor
 
 \`dailyMacros\` is the per-day average across the candidate's meals — round to whole numbers. Kiwi displays this as "Avg X cal/day · Yg P · Zg C · Wg F" so keep the math representative.
 
+${CATALOG_SHELF_SECTION}
+
 # Input
 
 The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`userInput\` is the user's original free-text. \`hiddenContext\` is server-injected from the user's profile. \`planningContext\` (also server-injected) carries the current date, season, upcoming events, and the user's recent meal/plan history — see the sections above for how to use it. \`planDurationDays\`, \`householdSize\`, etc. shape the plan.
@@ -233,7 +261,7 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 
 # What you produce
 
-3 distinct candidate plans, each with exactly \`planDurationDays\` dinners. These are CROWD-PLEASERS drawn from your own knowledge of popular home cooking — the meals that reliably win at a family table (tacos, roast chicken, spaghetti and meatballs, stir-fries, burgers, curries, sheet-pan salmon, and the like). No obscure or experimental dishes: the "surprise" is that the user didn't have to choose, NOT novelty for its own sake.
+1 candidate plan with exactly \`planDurationDays\` dinners. These are CROWD-PLEASERS drawn from your own knowledge of popular home cooking — the meals that reliably win at a family table (tacos, roast chicken, spaghetti and meatballs, stir-fries, burgers, curries, sheet-pan salmon, and the like). No obscure or experimental dishes: the "surprise" is that the user didn't have to choose, NOT novelty for its own sake.
 
 For each candidate provide: a title, 1-3 \`whyBullets\`, 1-5 short \`tags\`, the \`mealTitles\` array, optionally a richer \`meals\` array with \`{title, cuisineType, estimatedTimeMinutes}\` per meal, and per-day average \`dailyMacros\`.
 
@@ -267,6 +295,8 @@ If the constraints are too tight to produce 3 distinct candidates, return 1-2 an
 
 \`whyBullets\` highlight a CONCRETE reason the plan works (a crossover ingredient, a shared sheet pan, a fits-your-kitchen note) — never "saves time" or "healthy and delicious". \`dailyMacros\` is the per-day average, whole numbers. Titles sound like a friend recommending dinner. Plan-level titles are specific to the plan's real through-line and vary run to run; do not repeat a name in \`planningContext.recentPlanNames\`.
 
+${CATALOG_SHELF_SECTION}
+
 # Input
 
 Server-injected context arrives below. There is no user free-text.
@@ -275,7 +305,7 @@ Server-injected context arrives below. There is no user free-text.
 {{generateInput}}
 \`\`\`
 
-Generate the 3 crowd-pleaser candidates now. Return ONLY the tool_use call.`;
+Generate 1 crowd-pleaser candidate now. Return ONLY the tool_use call.`;
 
 // REVIEW(hans-6b-2): nutrition.ingredient_estimate prompt body — per-serving
 // macro estimation from an ingredient list (PRD §11). Cheap utility flow:
@@ -768,7 +798,7 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 
 # What you produce
 
-1 to 3 distinct candidate plans, each containing exactly 5 dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the 5 \`mealTitles\`, and per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}).
+1 to 3 distinct candidate plans, each containing exactly 5 dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the 5 \`mealTitles\`, per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}), and — when you build any slot from the store shelf (see "Composing from the store shelf" below) — a \`storeSlots\` array recording which slots you took from the shelf.
 
 Distinctness is mandatory: three candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing.
 
@@ -855,6 +885,8 @@ Do not repeat any name that appears in \`planningContext.recentPlanNames\` — t
 # Macros
 
 \`dailyMacros\` is the per-day average across the 5 dinners — round to whole numbers. Kiwi displays this as "Avg X cal/day · Yg P · Zg C · Wg F" so keep the math representative.
+
+${CATALOG_SHELF_SECTION}
 
 # Wizard input
 
@@ -1735,8 +1767,8 @@ const PROMPTS: PromptSeed[] = [
   {
     key: "wizard.set_preferences.generate",
     description:
-      "Generate up to 3 distinct meal-plan candidates from the user's wizard preferences.",
-    variables: ["wizardInput"],
+      "Generate up to 3 distinct meal-plan candidates from the user's wizard preferences, composing from the shared store shelf where it fits.",
+    variables: ["wizardInput", "storeShortlist"],
     defaultModel: MODEL_SONNET,
     defaultMode: "tool",
     body: WIZARD_SET_PREFERENCES_GENERATE_BODY,
@@ -1753,7 +1785,7 @@ const PROMPTS: PromptSeed[] = [
   {
     key: "wizard.directed.generate",
     description: "Generate plan candidates given a parsed Tell Kiwi intent.",
-    variables: ["generateInput"],
+    variables: ["generateInput", "storeShortlist"],
     defaultModel: MODEL_SONNET,
     defaultMode: "tool",
     body: WIZARD_DIRECTED_GENERATE_BODY,
@@ -1761,8 +1793,8 @@ const PROMPTS: PromptSeed[] = [
   {
     key: "wizard.surprise.generate",
     description:
-      "Generate popular crowd-pleaser plan candidates for the Surprise-me path (zero user input), within stored-preference hard constraints.",
-    variables: ["generateInput"],
+      "Generate ONE popular crowd-pleaser plan candidate for the Surprise-me path (zero user input), within stored-preference hard constraints; composes from the catalog.",
+    variables: ["generateInput", "storeShortlist"],
     defaultModel: MODEL_SONNET,
     defaultMode: "tool",
     body: WIZARD_SURPRISE_GENERATE_BODY,

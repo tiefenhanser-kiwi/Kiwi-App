@@ -95,6 +95,23 @@ export const WizardPlanCandidateSchema = z.object({
     carbsG: z.number().nonnegative(),
     fatG: z.number().nonnegative(),
   }),
+  // D-WS9-038 (Plan-Gen Arc Block 2) — sparse per-slot store-composition marks.
+  // Each entry says: this candidate's meal slot at `slotIndex` (an index into
+  // mealTitles[]) is filled by shared-pool Meal `storeMealId`, not a fresh live
+  // meal. Absent or [] = a fully-live candidate; unmarked slots are always live.
+  // Additive + optional so the { candidates } contract and mobile's
+  // .passthrough() are unchanged — the field round-trips through the client echo
+  // to /wizard/expand. storeMealId is NEVER trusted from the echo: it is
+  // re-validated isPublic:true at fork time (plans.ts owner-OR-pool predicate),
+  // which also gives drift-safety + graceful demote-to-live.
+  storeSlots: z
+    .array(
+      z.object({
+        slotIndex: z.number().int().nonnegative(),
+        storeMealId: z.string().min(1),
+      }),
+    )
+    .optional(),
 });
 export type WizardPlanCandidate = z.infer<typeof WizardPlanCandidateSchema>;
 
@@ -152,7 +169,7 @@ export type WizardExpandRequest = z.infer<typeof WizardExpandRequestSchema>;
 
 // PRD §5.6 (redline) — per-dish detail shape returned by the expand AI.
 // Mirrors the Dish/DishIngredient/RecipeInstructionStep conventions, but
-// stays as a JSON snapshot inside MealPlanInstance.optimizationNotes until
+// stays as a JSON snapshot inside MealPlanInstance.wizardDraftPayload until
 // "Save and use" (WS7-5b) materializes real rows.
 export const WizardExpandDishIngredientSchema = z.object({
   name: z.string().min(1).max(120),
@@ -218,7 +235,7 @@ export type WizardExpandDishMacros = z.infer<
 >;
 
 // Enriched per-dish shape carrying the AI ingredients/steps + the macro pass
-// result, persisted into MealPlanInstance.optimizationNotes for the draft.
+// result, persisted into MealPlanInstance.wizardDraftPayload for the draft.
 export const WizardExpandEnrichedDishSchema = WizardExpandDishSchema.extend({
   macros: WizardExpandDishMacrosSchema.nullable(),
 });
@@ -228,6 +245,12 @@ export type WizardExpandEnrichedDish = z.infer<
 
 export const WizardExpandEnrichedMealSchema = WizardExpandMealSchema.extend({
   dishes: z.array(WizardExpandEnrichedDishSchema).min(1),
+  // D-WS9-038 — when present, this meal slot is store-composed: it was filled
+  // from shared-pool Meal `sourceStoreMealId` (details copied into the draft for
+  // preview). At save the slot is FORKED from that Meal (steps + dishes come
+  // from the source row), so it bypasses finalize-steps and is never built from
+  // this payload's dishes. Absent = a live slot (finalize + materialize).
+  sourceStoreMealId: z.string().min(1).optional(),
 });
 export type WizardExpandEnrichedMeal = z.infer<
   typeof WizardExpandEnrichedMealSchema
@@ -257,7 +280,7 @@ export type WizardExpandedPlan = z.infer<typeof WizardExpandedPlanSchema>;
 // Details-stage carries ingredients + per-dish macros. NO steps. Used by:
 //   - POST /wizard/expand AI-output validation (wizard.candidate.expand)
 //   - GET /wizard/drafts/:id read parse
-//   - Draft persisted shape in optimizationNotes (call #2 → save/activate)
+//   - Draft persisted shape in wizardDraftPayload (call #2 → save/activate)
 
 export const WizardExpandDishDetailsSchema = z.object({
   title: z.string().min(1).max(120),
@@ -301,6 +324,10 @@ export type WizardExpandEnrichedDishDetails = z.infer<
 export const WizardExpandEnrichedMealDetailsSchema =
   WizardExpandMealDetailsSchema.extend({
     dishes: z.array(WizardExpandEnrichedDishDetailsSchema).min(1),
+    // D-WS9-038 — store-composed slot marker (see WizardExpandEnrichedMealSchema).
+    // Persisted inside wizardDraftPayload (the Part A / D-WS9-034 column) so it
+    // rides expand → save; the save partition branches on it. Absent = live slot.
+    sourceStoreMealId: z.string().min(1).optional(),
   });
 export type WizardExpandEnrichedMealDetails = z.infer<
   typeof WizardExpandEnrichedMealDetailsSchema

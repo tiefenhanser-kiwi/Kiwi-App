@@ -18,6 +18,26 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { inferCategory, materializeWizardDraft } from "../wizardActivation";
 import type { WizardExpandedPlan } from "../ai/schemas/wizard";
+import type { WizardSavePlan } from "../wizardSavePlan";
+
+// D-WS9-038 — materialize now takes a partitioned savePlan, not a flat payload.
+// These materializer tests are all-live: wrap the sample plan as all build slots
+// with writeBack:false (no store forks, no pool write-back) so behavior matches
+// the pre-B2 payload path exactly. Store/fork/write-back paths are covered by
+// the dedicated B-2 tests.
+function asSavePlan(expanded: WizardExpandedPlan): WizardSavePlan {
+  return {
+    candidateId: expanded.candidateId,
+    title: expanded.title,
+    tags: expanded.tags,
+    whyBullets: expanded.whyBullets,
+    slots: expanded.meals.map((meal) => ({
+      kind: "build" as const,
+      meal,
+      writeBack: false,
+    })),
+  };
+}
 
 const USER_ID = "user-mat-test";
 const DRAFT_ID = "draft-mat-test";
@@ -158,7 +178,7 @@ function makeStubs(opts: {
         select?: Record<string, boolean>;
       }) => {
         if (args.where.id !== DRAFT_ID) return null;
-        if (args.select && args.select.optimizationNotes) {
+        if (args.select && args.select.wizardDraftPayload) {
           captured.selectedOptimizationNotes = true;
         }
         return {
@@ -167,7 +187,8 @@ function makeStubs(opts: {
           // When opts.withoutOptimizationNotes is set, return a sentinel
           // that would fail WizardExpandedPlanSchema if the materializer
           // tried to parse it — the payload path MUST skip the parse.
-          optimizationNotes: opts.withoutOptimizationNotes
+          // (D-WS9-034: the draft blob now lives on wizardDraftPayload.)
+          wizardDraftPayload: opts.withoutOptimizationNotes
             ? { wrong: "shape" }
             : opts.expanded,
         };
@@ -244,6 +265,7 @@ describe("materializeWizardDraft — WS7-5b-mobile FIX Template-pair (PRD §2.4)
       tx: txStub as unknown as Prisma.TransactionClient,
       userId: USER_ID,
       draftId: DRAFT_ID,
+      savePlan: asSavePlan(expanded),
     });
 
     // Materializer returns the new Template id so the route handler can
@@ -293,6 +315,7 @@ describe("materializeWizardDraft — WS7-8 BUG-003 authored-servings anchor", ()
       tx: txStub as unknown as Prisma.TransactionClient,
       userId: USER_ID,
       draftId: DRAFT_ID,
+      savePlan: asSavePlan(expanded),
     });
 
     assert.equal(captured.meals.length, 2, "two meals created");
@@ -334,7 +357,7 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
       tx: txStub as unknown as Prisma.TransactionClient,
       userId: USER_ID,
       draftId: DRAFT_ID,
-      payload,
+      savePlan: asSavePlan(payload),
     });
 
     // Materializer returns the same per-meal accounting whether the shape
@@ -374,7 +397,7 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
       tx: txStub as unknown as Prisma.TransactionClient,
       userId: USER_ID,
       draftId: DRAFT_ID,
-      payload,
+      savePlan: asSavePlan(payload),
     });
 
     // The "Pat chicken dry and rub with harissa." step is tagged prep / 8 min
@@ -435,7 +458,7 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
       tx: txStub as unknown as Prisma.TransactionClient,
       userId: USER_ID,
       draftId: DRAFT_ID,
-      payload,
+      savePlan: asSavePlan(payload),
     });
 
     const searStep = captured.steps.find(
@@ -485,7 +508,7 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
           tx: txStub as unknown as Prisma.TransactionClient,
           userId: USER_ID,
           draftId: DRAFT_ID,
-          payload,
+          savePlan: asSavePlan(payload),
         }),
       /Wizard draft malformed/,
       "payload missing steps must error before any tx write",
@@ -621,6 +644,7 @@ describe("materializeWizardDraft — WS7-5d Block 2 purchase-field write-back", 
       tx: txStub as unknown as Prisma.TransactionClient,
       userId: USER_ID,
       draftId: DRAFT_ID,
+      savePlan: asSavePlan(expanded),
     });
 
     const chickenThighsUpsert = captured.upserts.find(
@@ -651,6 +675,7 @@ describe("materializeWizardDraft — WS7-5d Block 2 purchase-field write-back", 
       tx: txStub as unknown as Prisma.TransactionClient,
       userId: USER_ID,
       draftId: DRAFT_ID,
+      savePlan: asSavePlan(expanded),
     });
 
     const harissaUpsert = captured.upserts.find(
@@ -675,6 +700,7 @@ describe("materializeWizardDraft — WS7-5d Block 2 purchase-field write-back", 
       tx: txStub as unknown as Prisma.TransactionClient,
       userId: USER_ID,
       draftId: DRAFT_ID,
+      savePlan: asSavePlan(expanded),
     });
 
     const cannedTomatoesUpsert = captured.upserts.find(
@@ -682,5 +708,214 @@ describe("materializeWizardDraft — WS7-5d Block 2 purchase-field write-back", 
     );
     assert.ok(cannedTomatoesUpsert, "canned tomatoes upsert was not captured");
     assert.equal(cannedTomatoesUpsert.create.category, "Canned");
+  });
+});
+
+// ── D-WS9-038 — store fork + write-back + slot order ───────────────────────
+
+// A source meal graph for forkMealForUser / publishMealToStore to deep-copy.
+function sourceMealGraph(id: string) {
+  return {
+    id,
+    userId: null,
+    title: `Pool ${id}`,
+    description: null,
+    mealType: "dinner",
+    sourceType: "curated",
+    cuisineType: "italian",
+    difficulty: "easy",
+    estimatedTimeMinutes: 30,
+    imageUrl: null,
+    servingsDefault: 4,
+    tags: ["pool"],
+    caloriesPerServing: 500,
+    proteinGPerServing: 30,
+    carbsGPerServing: 40,
+    fatGPerServing: 20,
+    dishLinks: [
+      {
+        positionIndex: 0,
+        roleLabel: "main",
+        dish: {
+          id: `${id}-dish`,
+          title: `${id} dish`,
+          description: null,
+          sourceType: "curated",
+          estimatedTimeMinutes: 30,
+          difficulty: "easy",
+          imageUrl: null,
+          servingsDefault: 4,
+          tags: [],
+          caloriesPerServing: 500,
+          proteinGPerServing: 30,
+          carbsGPerServing: 40,
+          fatGPerServing: 20,
+          dishIngredients: [
+            { ingredientId: "ing-1", quantity: 1, unit: "cup", preparationNote: null, isOptional: false, positionIndex: 0 },
+          ],
+        },
+      },
+    ],
+  };
+}
+
+interface StoreCapture {
+  mealCreates: Record<string, unknown>[];
+  items: { mealId: string; positionIndex: number }[];
+  stepCreateManys: Record<string, unknown>[][];
+}
+
+function makeStoreStubs() {
+  const captured: StoreCapture = { mealCreates: [], items: [], stepCreateManys: [] };
+  let mealCounter = 0;
+
+  const prismaStub = {
+    mealPlanInstance: {
+      findUnique: async () => ({ userId: USER_ID, isWizardDraft: true }),
+    },
+    ingredient: {
+      upsert: async (args: { where: { canonicalName: string } }) => ({
+        id: `ing-${args.where.canonicalName}`,
+      }),
+    },
+  };
+
+  const txStub = {
+    meal: {
+      findUnique: async (args: { where: { id: string } }) => sourceMealGraph(args.where.id),
+      create: async (args: { data: Record<string, unknown> }) => {
+        captured.mealCreates.push(args.data);
+        return { id: `meal-${mealCounter++}` };
+      },
+      update: async () => ({}),
+    },
+    dish: { create: async () => ({ id: `dish-${mealCounter}` }) },
+    mealDishLink: { create: async () => ({}), findMany: async () => [] },
+    dishIngredient: { create: async () => ({}), createMany: async () => ({ count: 1 }) },
+    recipeInstructionStep: {
+      create: async () => ({}),
+      findMany: async (args: { where: { ownerType: string } }) =>
+        args.where.ownerType === "dish"
+          ? [{ stepIndex: 0, stepTextRaw: "Cook.", stepTextTranslated: "Cook.", estimatedMinutes: 5, phaseType: "cook", requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false }]
+          : [],
+      createMany: async (args: { data: Record<string, unknown>[] }) => {
+        captured.stepCreateManys.push(args.data);
+        return { count: args.data.length };
+      },
+    },
+    mealPlanItem: {
+      create: async (args: { data: { mealId: string; positionIndex: number } }) => {
+        captured.items.push({ mealId: args.data.mealId, positionIndex: args.data.positionIndex });
+        return {};
+      },
+    },
+    mealPlanTemplate: {
+      findFirst: async () => null,
+      create: async () => ({ id: "tpl-store-test" }),
+    },
+  };
+
+  return { prismaStub, txStub, captured };
+}
+
+describe("materializeWizardDraft — D-WS9-038 store fork + write-back", () => {
+  it("materializes a 4-store/1-live plan: 5 items in slot order, forks stores, writes back the live meal", async () => {
+    const liveMeal = sampleExpanded().meals[0]; // with-steps live meal
+    const savePlan: WizardSavePlan = {
+      candidateId: "c1",
+      title: "Mixed Plan",
+      tags: ["mix"],
+      whyBullets: ["b"],
+      slots: [
+        { kind: "store", sourceStoreMealId: "s1" },
+        { kind: "build", meal: liveMeal, writeBack: true },
+        { kind: "store", sourceStoreMealId: "s2" },
+        { kind: "store", sourceStoreMealId: "s3" },
+        { kind: "store", sourceStoreMealId: "s4" },
+      ],
+    };
+    const { prismaStub, txStub, captured } = makeStoreStubs();
+
+    const result = await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan,
+    });
+
+    // 5 MealPlanItems, positionIndex 0..4 in slot order.
+    assert.equal(captured.items.length, 5);
+    assert.deepEqual(
+      captured.items.map((i) => i.positionIndex),
+      [0, 1, 2, 3, 4],
+    );
+    // Exactly one live_writeback pool meal was created (the write-back).
+    const writeBacks = captured.mealCreates.filter(
+      (d) => d.sourceType === "live_writeback" && d.isPublic === true,
+    );
+    assert.equal(writeBacks.length, 1, "one live meal → one live_writeback pool copy");
+    // The live-slot's user meal is private + wizard-sourced.
+    const wizardOwned = captured.mealCreates.filter(
+      (d) => d.sourceType === "wizard" && d.isPublic === false,
+    );
+    assert.equal(wizardOwned.length, 1);
+    // Forked steps survive: at least one dish-step createMany ran (fork copy).
+    assert.ok(captured.stepCreateManys.length > 0, "forked store steps must be copied");
+    assert.equal(result.itemsCreated, 5);
+  });
+
+  it("dedups a store meal used in two slots — forks it once (boundBySource)", async () => {
+    const savePlan: WizardSavePlan = {
+      candidateId: "c1",
+      title: "Dup Plan",
+      tags: [],
+      whyBullets: ["b"],
+      slots: [
+        { kind: "store", sourceStoreMealId: "same" },
+        { kind: "store", sourceStoreMealId: "same" },
+      ],
+    };
+    const { prismaStub, txStub, captured } = makeStoreStubs();
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan,
+    });
+
+    // Both items bind the SAME forked meal id (forked once).
+    assert.equal(captured.items.length, 2);
+    assert.equal(captured.items[0].mealId, captured.items[1].mealId);
+    // Only ONE fork meal.create (no write-back for store slots).
+    assert.equal(captured.mealCreates.length, 1);
+  });
+
+  it("a demoted build slot (writeBack:false) does NOT write back", async () => {
+    const liveMeal = sampleExpanded().meals[0];
+    const savePlan: WizardSavePlan = {
+      candidateId: "c1",
+      title: "Demote Plan",
+      tags: [],
+      whyBullets: ["b"],
+      slots: [{ kind: "build", meal: liveMeal, writeBack: false }],
+    };
+    const { prismaStub, txStub, captured } = makeStoreStubs();
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan,
+    });
+
+    // Built the meal, but no live_writeback pool copy.
+    assert.equal(
+      captured.mealCreates.filter((d) => d.sourceType === "live_writeback").length,
+      0,
+    );
   });
 });

@@ -32,6 +32,10 @@ import type {
 // ── stubs ──────────────────────────────────────────────────────────────
 
 interface StubPrismaOpts {
+  // D-WS9-038 — rows returned by meal.findMany for the store shortlist. The
+  // stub ignores the where/select and hands these back; buildStoreShortlist
+  // reads the fields it selects off them.
+  storeMeals?: Array<Record<string, unknown>>;
   preferences?: {
     cookingEquipment?: string[];
     spiceTolerance?: "mild" | "medium" | "hot" | "very_hot";
@@ -108,7 +112,7 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
       findFirst: async () => null,
     },
     meal: {
-      findMany: async () => [],
+      findMany: async () => opts.storeMeals ?? [],
     },
     lLMCallLog: {
       create: async ({ data }: { data: unknown }) => {
@@ -391,6 +395,142 @@ describe("POST /api/wizard/build-plans — happy path", () => {
     assert.deepEqual(ctx.pickyAvoidances, ["cilantro"]);
     assert.deepEqual(ctx.recurringItems, ["olive_oil", "salt"]);
     assert.deepEqual(ctx.pantryStaples, ["garlic", "rice"]);
+  });
+});
+
+// ── D-WS9-038 — build-plans store compose ────────────────────────────────
+function storeMealRow(id: string, over: Record<string, unknown> = {}) {
+  return {
+    id,
+    title: `Store meal ${id}`,
+    cuisineType: "italian",
+    difficulty: "easy",
+    estimatedTimeMinutes: 30,
+    tags: ["quick"],
+    caloriesPerServing: 500,
+    proteinGPerServing: 30,
+    carbsGPerServing: 40,
+    fatGPerServing: 20,
+    useCount: 5,
+    likeCount: 2,
+    createdAt: new Date("2026-01-01T00:00:00Z"),
+    ...over,
+  };
+}
+
+function resultWithStoreSlots(
+  slots: Array<{ slotIndex: number; storeMealId: string }>,
+): AICallSuccess<WizardPlanCandidatesResult> {
+  const data = happyCandidates();
+  data.candidates[0].storeSlots = slots;
+  return { success: true, data, metadata: happyResult().metadata };
+}
+
+const AUTH_HEADERS = (userId: string) => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${signToken(userId)}`,
+});
+
+// Distinct per-test user ids: the rate limiter's STORE is module-global keyed
+// by (method,path,userId), so reusing TEST_USER_ID would drain the shared
+// build-plans bucket and 429 the later describes. Fresh ids = fresh buckets.
+describe("POST /api/wizard/build-plans — store compose (D-WS9-038)", () => {
+  it("hands the AI short aliases and translates the mark back to the real id", async () => {
+    // The AI only ever sees/echoes the per-shortlist alias (m1); reconcile
+    // rewrites storeMealId to the real Meal.id. store-1 gets a higher useCount
+    // so it ranks first → alias m1 (deterministic).
+    const ai = makeRunAICall(async () =>
+      resultWithStoreSlots([{ slotIndex: 0, storeMealId: "m1" }]),
+    );
+    const prisma = makeStubPrisma({
+      storeMeals: [
+        storeMealRow("store-1", { useCount: 100 }),
+        storeMealRow("store-2"),
+      ],
+    });
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("store-user-1"),
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        candidates: {
+          storeSlots?: { slotIndex: number; storeMealId: string }[];
+        }[];
+      };
+      // The shelf reached the AI with ALIAS ids (m1, m2), not the real ids.
+      const vars = ai.getVars().at(-1) as {
+        storeShortlist?: { id: string }[];
+      };
+      assert.equal(vars.storeShortlist?.length, 2);
+      assert.equal(vars.storeShortlist?.[0].id, "m1");
+      // The mark cited the alias m1 → reconcile translated it to the real id.
+      assert.deepEqual(body.candidates[0].storeSlots, [
+        { slotIndex: 0, storeMealId: "store-1" },
+      ]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("drops a hallucinated storeSlots id that was never on the shelf", async () => {
+    const ai = makeRunAICall(async () =>
+      resultWithStoreSlots([{ slotIndex: 0, storeMealId: "ghost-id" }]),
+    );
+    const prisma = makeStubPrisma({ storeMeals: [storeMealRow("store-1")] });
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("store-user-2"),
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        candidates: { storeSlots?: unknown[] }[];
+      };
+      // ghost-id ∉ shelf → the whole (now-empty) storeSlots is dropped.
+      assert.equal(body.candidates[0].storeSlots, undefined);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("thin store → empty shelf, fully-live candidates (no storeSlots)", async () => {
+    const ai = makeRunAICall(async () => happyResult());
+    const prisma = makeStubPrisma({ storeMeals: [] });
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("store-user-3"),
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        candidates: { storeSlots?: unknown[] }[];
+      };
+      const vars = ai.getVars().at(-1) as { storeShortlist?: unknown[] };
+      assert.deepEqual(vars.storeShortlist, []);
+      assert.equal(body.candidates[0].storeSlots, undefined);
+    } finally {
+      await harness.close();
+    }
   });
 });
 
@@ -1695,7 +1835,7 @@ function makeExpandDeps(opts: {
     id: string;
     titleOverride: string;
     createdAt: Date;
-    optimizationNotes: unknown;
+    wizardDraftPayload: unknown;
   }>;
   // Block 1 (BUG-030) — when set, the expand route's idempotency lookup
   // (findFirst on isWizardDraft:true + content-hash) returns this row, so the
@@ -1703,7 +1843,7 @@ function makeExpandDeps(opts: {
   reuseDraft?: {
     id: string;
     createdAt: Date;
-    optimizationNotes: unknown;
+    wizardDraftPayload: unknown;
   } | null;
   recorder?: ExpandRecorder;
   persistFail?: boolean;
@@ -1916,7 +2056,7 @@ describe("POST /api/wizard/expand — idempotency (BUG-030)", () => {
     reuseDraft: {
       id: "draft-existing",
       createdAt: new Date("2026-05-28T12:00:00Z"),
-      optimizationNotes: IDEMPOTENT_DETAILS,
+      wizardDraftPayload: IDEMPOTENT_DETAILS,
     },
     expandReturn: async () => ({
       status: "success",
@@ -2122,7 +2262,7 @@ describe("GET /api/wizard/drafts", () => {
         id: "draft-aaa",
         titleOverride: "Cozy Comfort Week",
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: {
+        wizardDraftPayload: {
           meals: [
             { title: "Sheet-pan harissa chicken" },
             { title: "Tomato soup + grilled cheese" },
@@ -2133,7 +2273,7 @@ describe("GET /api/wizard/drafts", () => {
         id: "draft-bbb",
         titleOverride: "High-Protein Reset",
         createdAt: new Date("2026-05-27T10:00:00Z"),
-        optimizationNotes: { meals: [{ title: "Steak + green beans" }] },
+        wizardDraftPayload: { meals: [{ title: "Steak + green beans" }] },
       },
     ],
   });
@@ -2254,7 +2394,7 @@ interface ActivateDraftRow {
   userId: string;
   isWizardDraft: boolean;
   createdAt: Date;
-  optimizationNotes: unknown;
+  wizardDraftPayload: unknown;
   // Block 1 (BUG-030) — idempotency key. Optional so existing tests (which
   // omit it) leave the plan-side idempotency guard inert (undefined hash →
   // findExistingPlanForDraft returns null → normal materialize path).
@@ -2523,6 +2663,9 @@ describe("POST /api/wizard/drafts/:id/dismiss — BUG-023 server-side dismissal"
     assert.equal(call!.where.isArchived, false);
     // Archives + clears blob; never flips isWizardDraft.
     assert.equal(call!.data.isArchived, true);
+    // D-WS9-034 — the draft blob now lives on wizardDraftPayload; clear it.
+    // optimizationNotes is ALSO DbNull'd as legacy-blob defense.
+    assert.equal(call!.data.wizardDraftPayload, Prisma.DbNull);
     assert.equal(call!.data.optimizationNotes, Prisma.DbNull);
     assert.equal(
       Object.prototype.hasOwnProperty.call(call!.data, "isWizardDraft"),
@@ -2566,7 +2709,7 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
         userId: ACTIVATE_USER_ID,
         isWizardDraft: true,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: SAMPLE_EXPANDED,
+        wizardDraftPayload: SAMPLE_EXPANDED,
       },
     ],
   ]);
@@ -2631,6 +2774,9 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
     // pre-fix expand/persist code wrote there and which broke Plan Review's
     // mobile PlanSchema parse).
     assert.equal(flip.mealPlanTemplateId, "tpl-test-id");
+    // D-WS9-034 — clears the draft blob from wizardDraftPayload; also DbNulls
+    // optimizationNotes as legacy-blob defense.
+    assert.equal(flip.wizardDraftPayload, Prisma.DbNull);
     assert.equal(flip.optimizationNotes, Prisma.DbNull);
 
     // WS7-5b-mobile-PRE — activate dates the freshly-activated plan to the
@@ -2706,7 +2852,7 @@ describe("POST /api/wizard/drafts/:id/activate — idempotency (BUG-030)", () =>
         userId: ACTIVATE_USER_ID,
         isWizardDraft: true,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: SAMPLE_EXPANDED,
+        wizardDraftPayload: SAMPLE_EXPANDED,
         wizardContentHash: "hash-abc",
       },
     ],
@@ -2850,7 +2996,7 @@ describe("GET /api/wizard/drafts/:id", () => {
         userId: ACTIVATE_USER_ID,
         isWizardDraft: true,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: SAMPLE_EXPANDED,
+        wizardDraftPayload: SAMPLE_EXPANDED,
       },
     ],
     [
@@ -2860,7 +3006,7 @@ describe("GET /api/wizard/drafts/:id", () => {
         userId: "someone-else",
         isWizardDraft: true,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: SAMPLE_EXPANDED,
+        wizardDraftPayload: SAMPLE_EXPANDED,
       },
     ],
     [
@@ -2870,7 +3016,7 @@ describe("GET /api/wizard/drafts/:id", () => {
         userId: ACTIVATE_USER_ID,
         isWizardDraft: true,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: { not: "a wizard plan" },
+        wizardDraftPayload: { not: "a wizard plan" },
       },
     ],
     [
@@ -2880,7 +3026,7 @@ describe("GET /api/wizard/drafts/:id", () => {
         userId: ACTIVATE_USER_ID,
         isWizardDraft: false,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: SAMPLE_EXPANDED,
+        wizardDraftPayload: SAMPLE_EXPANDED,
       },
     ],
   ]);
@@ -3005,7 +3151,7 @@ describe("GET /api/wizard/drafts/:id — WS7-5c Block A addendum: backward-compa
         userId: ACTIVATE_USER_ID,
         isWizardDraft: true,
         createdAt: new Date("2026-04-15T10:00:00Z"),
-        optimizationNotes: OLD_DRAFT_WITH_STEPS,
+        wizardDraftPayload: OLD_DRAFT_WITH_STEPS,
       },
     ],
   ]);
@@ -3123,7 +3269,7 @@ describe("GET /api/wizard/drafts/:id — WS7-5c Block A: stepless draft (details
         userId: ACTIVATE_USER_ID,
         isWizardDraft: true,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: STEPLESS_DRAFT,
+        wizardDraftPayload: STEPLESS_DRAFT,
       },
     ],
   ]);
@@ -3187,7 +3333,7 @@ describe("POST /api/wizard/drafts/:id/activate — supersede siblings (BUG-030 P
         userId: ACTIVATE_USER_ID,
         isWizardDraft: true,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: SAMPLE_EXPANDED,
+        wizardDraftPayload: SAMPLE_EXPANDED,
       },
     ],
   ]);
@@ -3245,7 +3391,7 @@ describe("POST /api/wizard/drafts/:id/save — happy path", () => {
         userId: ACTIVATE_USER_ID,
         isWizardDraft: true,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: SAMPLE_EXPANDED,
+        wizardDraftPayload: SAMPLE_EXPANDED,
       },
     ],
   ]);
@@ -3306,6 +3452,8 @@ describe("POST /api/wizard/drafts/:id/save — happy path", () => {
     // as /activate. Save tail isn't activating, but the persistence shape
     // is identical: undated, non-active, Template-backed.
     assert.equal(flip.mealPlanTemplateId, "tpl-test-id");
+    // D-WS9-034 — same draft-blob clear as /activate.
+    assert.equal(flip.wizardDraftPayload, Prisma.DbNull);
     assert.equal(flip.optimizationNotes, Prisma.DbNull);
 
     // Activity emitted is plan_created (NOT plan_activated_this_week).
@@ -3328,7 +3476,7 @@ describe("wizard draft lifecycle — peek A / peek B / save A (BUG-030 Part B)",
         isWizardDraft: true,
         isArchived: false,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: SAMPLE_EXPANDED,
+        wizardDraftPayload: SAMPLE_EXPANDED,
         wizardContentHash: "hash-a",
       },
     ],
@@ -3340,7 +3488,7 @@ describe("wizard draft lifecycle — peek A / peek B / save A (BUG-030 Part B)",
         isWizardDraft: true,
         isArchived: false,
         createdAt: new Date("2026-05-28T10:05:00Z"),
-        optimizationNotes: SAMPLE_EXPANDED,
+        wizardDraftPayload: SAMPLE_EXPANDED,
         wizardContentHash: "hash-b",
       },
     ],
@@ -3399,7 +3547,7 @@ describe("POST /api/wizard/drafts/:id/save — prior active is NOT demoted", () 
         userId: ACTIVATE_USER_ID,
         isWizardDraft: true,
         createdAt: new Date("2026-05-28T10:00:00Z"),
-        optimizationNotes: SAMPLE_EXPANDED,
+        wizardDraftPayload: SAMPLE_EXPANDED,
       },
     ],
   ]);
@@ -3616,7 +3764,8 @@ describe("POST /api/wizard/surprise-me — WS9 3c §7.6", () => {
         parsedIntent: ParsedIntent;
         metadata: { flow: string };
       };
-      assert.equal(body.candidates.length, 3);
+      // BUG-037 — Surprise-me returns exactly ONE plan (→ draft screen), not 3.
+      assert.equal(body.candidates.length, 1);
       assert.equal(body.parsedIntent.scenario, "vague");
       assert.deepEqual(body.parsedIntent.explicitMeals, []);
       assert.equal(body.metadata.flow, "surprise");
@@ -3639,6 +3788,10 @@ describe("POST /api/wizard/surprise-me — WS9 3c §7.6", () => {
       assert.equal(generateInput.householdSize, 3);
       // planDurationDays comes from the stored planLengthDefault (no body).
       assert.equal(generateInput.planDurationDays, 4);
+
+      // Fix 4 — Surprise-me composes from the catalog: the shelf var reaches the
+      // AI (empty here — no storeMeals stubbed — which is a valid empty shelf).
+      assert.ok(Array.isArray(captured[0].vars.storeShortlist));
 
       const events = prisma._activities().map((a) => a.eventType);
       assert.ok(events.includes("wizard_complete"));

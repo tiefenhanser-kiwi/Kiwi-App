@@ -83,7 +83,12 @@ export async function runCookingSequence(
     throw new CookingSequenceNotFoundError(mealId);
   }
   const isOwner = meal.userId === userId;
-  const isPublic = meal.userId === null && meal.isPublic === true;
+  // D-WS9-036 (Plan-Gen Arc Block 2) — the shared pool is keyed on isPublic,
+  // NOT on userId===null. Owned-but-public community meals (userId set,
+  // isPublic:true) are pool members too; the old `userId===null && isPublic`
+  // gate 404'd them in Cook Mode. Widen to the isPublic predicate so the
+  // pool is coherent with the plans.ts owner-OR-pool gates.
+  const isPublic = meal.isPublic === true;
   if (!isOwner && !isPublic) {
     throw new CookingSequenceNotFoundError(mealId);
   }

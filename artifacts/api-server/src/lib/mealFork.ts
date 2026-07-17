@@ -17,9 +17,18 @@
 // Other plans that reference the source meal keep their binding untouched —
 // each acquisition is its own independent copy.
 
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SourceType } from "@prisma/client";
 
 type Tx = Prisma.TransactionClient;
+
+// Target attributes for a clone: who owns it, whether it's pool-visible, and an
+// optional provenance override. forkMealForUser and publishMealToStore differ
+// ONLY in these — the graph copy below is identical.
+interface CloneTarget {
+  userId: string | null;
+  isPublic: boolean;
+  sourceTypeOverride?: SourceType;
+}
 
 // Step fields copied verbatim (everything except id/ownerType/ownerId, which
 // are re-derived for the clone).
@@ -38,7 +47,7 @@ const STEP_COPY_FIELDS = {
 } as const;
 
 /**
- * Deep-clone `sourceMealId` into a new Meal owned by `userId` (isPublic:false)
+ * Deep-clone `sourceMealId` into a new user-owned, private Meal (isPublic:false)
  * and return the new meal id. Caller rebinds the MealPlanItem to it.
  *
  * Runs inside the caller's transaction so the clone + rebind commit atomically.
@@ -50,6 +59,40 @@ export async function forkMealForUser(
   sourceMealId: string,
   userId: string,
 ): Promise<{ mealId: string }> {
+  return cloneMealInto(tx, sourceMealId, { userId, isPublic: false });
+}
+
+/**
+ * Plan-Gen Arc · Block 2 (D-WS9-038 / D-WS7-201) — write-back. Deep-clone a
+ * just-materialized live meal into a SHARED-POOL Meal (userId:null, isPublic:
+ * true) stamped `sourceType: live_writeback`, so a future compose can reuse it.
+ * Provenance stamping is mandatory: a live gen must never enter the pool
+ * unstamped / indistinguishable from a curated or batch_generated meal.
+ * Returns the new pool meal id.
+ */
+export async function publishMealToStore(
+  tx: Tx,
+  sourceMealId: string,
+): Promise<{ mealId: string }> {
+  return cloneMealInto(tx, sourceMealId, {
+    userId: null,
+    isPublic: true,
+    sourceTypeOverride: "live_writeback",
+  });
+}
+
+/**
+ * The shared deep-copy: Meal + Dish + MealDishLink + DishIngredient (ingredientId
+ * refs preserved) + RecipeInstructionStep (meal- and dish-owned). Ownership,
+ * pool-visibility, and provenance come from `target`; everything else is copied
+ * verbatim. Social/usage counters reset (a fresh copy has no history).
+ */
+async function cloneMealInto(
+  tx: Tx,
+  sourceMealId: string,
+  target: CloneTarget,
+): Promise<{ mealId: string }> {
+  const userId = target.userId;
   const source = await tx.meal.findUnique({
     where: { id: sourceMealId },
     include: {
@@ -70,15 +113,15 @@ export async function forkMealForUser(
   }
 
   // 1. The meal row. Copy recipe-defining scalars + cached macros verbatim;
-  //    take ownership (userId) and privacy (isPublic:false); reset the social /
-  //    usage counters (a fresh personal copy has no like/save/use/cook history).
+  //    take ownership + pool-visibility + provenance from `target`; reset the
+  //    social / usage counters (a fresh copy has no like/save/use/cook history).
   const newMeal = await tx.meal.create({
     data: {
       userId,
       title: source.title,
       description: source.description,
       mealType: source.mealType,
-      sourceType: source.sourceType,
+      sourceType: target.sourceTypeOverride ?? source.sourceType,
       cuisineType: source.cuisineType,
       difficulty: source.difficulty,
       estimatedTimeMinutes: source.estimatedTimeMinutes,
@@ -89,7 +132,7 @@ export async function forkMealForUser(
       proteinGPerServing: source.proteinGPerServing,
       carbsGPerServing: source.carbsGPerServing,
       fatGPerServing: source.fatGPerServing,
-      isPublic: false,
+      isPublic: target.isPublic,
       isArchived: false,
     },
     select: { id: true },

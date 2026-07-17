@@ -180,7 +180,10 @@ const EXPAND_THOROUGH_THRESHOLD_SEC = 30;
 //                 Review. This is the card's single primary.
 //   - "details" → expand-only, lands on the demoted read-only wizard-plan-
 //                 details peek (the optional "View details" tertiary).
-type ChainMode = "use" | "details";
+// BUG-037 — "surprise" auto-expands the single Surprise-me candidate straight
+// to the draft screen (with a "Surprise Me again" re-roll), skipping the card
+// picker. Same expand as "details" but lands non-peek (keeps the save CTAs).
+type ChainMode = "use" | "details" | "surprise";
 type ChainState =
   | { kind: "idle" }
   | {
@@ -427,18 +430,18 @@ export default function WizardResultsScreen() {
         { signal: controller.signal },
       );
 
-      if (mode === "details") {
-        // Optional read-only peek — land on the demoted wizard-plan-details.
-        // `peek:"1"` puts that screen in read-only mode (no CTAs); the card's
-        // "Use this plan" owns activation now. The resume-draft path reaches
-        // the same screen WITHOUT peek, so it keeps its activate CTA.
+      if (mode === "details" || mode === "surprise") {
+        // "details" — read-only peek (`peek:"1"`, no CTAs); the card's "Use this
+        // plan" owns activation. "surprise" (BUG-037) — auto-expanded single
+        // plan; land NON-peek (keeps the save/use CTAs) and pass `surprise:"1"`
+        // so the draft screen shows the "Surprise Me again" re-roll.
         setChainState({ kind: "idle" });
-        router.push({
+        router.replace({
           pathname: "/wizard-plan-details",
           params: {
             draftId: expandResult.draft.id,
             expanded: JSON.stringify(expandResult.expanded),
-            peek: "1",
+            ...(mode === "details" ? { peek: "1" } : { surprise: "1" }),
           },
         });
         return;
@@ -517,6 +520,24 @@ export default function WizardResultsScreen() {
   const handleChainBackToResults = () => {
     setChainState({ kind: "idle" });
   };
+
+  // BUG-037 — Surprise-me is ONE plan straight to the draft screen, not a card
+  // picker. Auto-expand the single candidate once per `attempt`, only once prefs
+  // have loaded (so the expand candidateContext carries the hard constraints)
+  // and while idle. The re-roll ("Surprise Me again" on the draft screen) mounts
+  // this screen fresh (attempt resets), so the guard re-arms.
+  const autoExpandedAttemptRef = useRef(-1);
+  useEffect(() => {
+    if (!isSurprise) return;
+    if (chainState.kind !== "idle") return;
+    if (!prefsQuery.data) return;
+    const first = candidates[0];
+    if (!first) return;
+    if (autoExpandedAttemptRef.current === attempt) return;
+    autoExpandedAttemptRef.current = attempt;
+    void runChain(first, "surprise");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSurprise, candidates, chainState.kind, prefsQuery.data, attempt]);
 
   // ── render branches ──────────────────────────────────────────────────
 

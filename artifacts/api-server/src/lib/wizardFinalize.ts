@@ -22,12 +22,18 @@ import {
   WizardFinalizeStepsResultSchema,
   type WizardExpandedPlan,
   type WizardExpandedPlanDetails,
+  type WizardExpandEnrichedMeal,
   type WizardExpandEnrichedMealDetails,
   type WizardFinalizeStepsDish,
   type WizardFinalizeStepsResult,
   type WizardStep,
 } from "./ai/schemas/wizard";
-import { WizardDraftMalformedError, WizardDraftNotFoundError } from "./wizardActivation";
+import {
+  WizardDraftMalformedError,
+  WizardDraftNotFoundError,
+} from "./wizardActivation";
+import { filterPublicStoreMealIds } from "./store/storeMealDetails";
+import type { WizardSavePlan, WizardSaveSlot } from "./wizardSavePlan";
 
 // WS7-5c tail — sized for ONE meal's step output, not the whole plan. A
 // typical meal is ~3 dishes × ~6-10 steps × ~50-80 tokens per step ≈
@@ -48,7 +54,7 @@ export interface ReadAndFinalizeWizardDraftOptions {
 }
 
 export type ReadAndFinalizeWizardDraftResult =
-  | { status: "success"; payload: WizardExpandedPlan; details: WizardExpandedPlanDetails }
+  | { status: "success"; savePlan: WizardSavePlan }
   | { status: "not_found" }
   | { status: "malformed"; reason: string }
   | { status: "ai_failed"; reason: string; userFacingMessage: string }
@@ -78,7 +84,7 @@ export async function readAndFinalizeWizardDraft(
     select: {
       userId: true,
       isWizardDraft: true,
-      optimizationNotes: true,
+      wizardDraftPayload: true,
     },
   });
   if (!row || row.userId !== userId || !row.isWizardDraft) {
@@ -87,7 +93,7 @@ export async function readAndFinalizeWizardDraft(
 
   // 2. Parse the stored details-stage shape.
   const detailsParse = WizardExpandedPlanDetailsSchema.safeParse(
-    row.optimizationNotes,
+    row.wizardDraftPayload,
   );
   if (!detailsParse.success) {
     const reason =
@@ -99,100 +105,159 @@ export async function readAndFinalizeWizardDraft(
   }
   const details = detailsParse.data;
 
-  // 3. Run the finalize-steps AI call SHARDED — one Sonnet call per meal,
-  //    Promise.all fan-out. Mirrors the proven per-meal expand pattern
-  //    (wizardExpansion.ts:83). The pre-shard path issued one whole-plan
-  //    call that measured ~51s on device (May 31 telemetry); fanning out
-  //    cuts wall-clock to ~the slowest single-meal call.
-  //
-  //    Slicing: each shard receives a single-meal details slice (the AI
-  //    prompt is unchanged — it just sees a 1-meal `meals[]` and returns
-  //    mealIndex=0 for each dish). The server re-indexes mealIndex from
-  //    0 → the real meal index during concatenation, so the seeded prompt
-  //    body needs no edit.
-  const perMealResults = await Promise.all(
-    details.meals.map((meal, mi) =>
-      finalizeOneMeal({
-        runAICall,
-        prisma,
-        userId,
-        details,
-        mealIndex: mi,
-        meal,
-      }),
-    ),
-  );
+  // 3. D-WS9-038 — partition slots into store (fork) vs build (finalize). A
+  //    store slot's id is revalidated isPublic:true HERE (before finalize) so a
+  //    since-unpublished / tampered id demotes to a BUILD slot and gets
+  //    finalized like any live meal — drift-safe + tamper-safe + graceful.
+  const storeIds = details.meals
+    .map((m) => m.sourceStoreMealId)
+    .filter((id): id is string => typeof id === "string");
+  const validStore =
+    storeIds.length > 0
+      ? await filterPublicStoreMealIds(prisma, storeIds)
+      : new Set<string>();
 
-  const firstFailure = perMealResults.find((r) => !r.ok);
-  if (firstFailure && !firstFailure.ok) {
-    logger.warn(
-      {
-        event: "wizard_finalize_steps_failed",
-        userId,
-        draftId,
-        mealIndex: firstFailure.mealIndex,
-        reason: firstFailure.reason,
-        promptKey: "wizard.candidate.finalize_steps",
-      },
-      "Wizard finalize-steps AI call failed",
-    );
-    return {
-      status: "ai_failed",
-      reason: `meal_failed:${firstFailure.mealIndex}:${firstFailure.reason}`,
-      userFacingMessage: firstFailure.userFacingMessage,
-    };
-  }
-
-  // Concatenate the N per-meal dishSteps[] arrays into a single result,
-  // re-indexing mealIndex from the shard-local 0 to the real meal index.
-  const assembledDishSteps: WizardFinalizeStepsDish[] = [];
-  for (const r of perMealResults) {
-    if (!r.ok) continue; // already returned above; type-narrowing only.
-    for (const entry of r.dishSteps) {
-      assembledDishSteps.push({
-        mealIndex: r.mealIndex,
-        dishIndex: entry.dishIndex,
-        steps: entry.steps,
-      });
+  // Build entries keep their ORIGINAL slot index so we can re-interleave after
+  // finalize. writeBack = the slot was live from the start (no store id); a
+  // demoted store slot builds but never re-publishes (writeBack:false).
+  const buildEntries: {
+    slotIndex: number;
+    meal: WizardExpandEnrichedMealDetails;
+    writeBack: boolean;
+  }[] = [];
+  const storeBySlot = new Map<number, string>();
+  details.meals.forEach((meal, i) => {
+    const sid = meal.sourceStoreMealId;
+    if (sid && validStore.has(sid)) {
+      storeBySlot.set(i, sid);
+    } else {
+      buildEntries.push({ slotIndex: i, meal, writeBack: !sid });
     }
-  }
-  const assembled: WizardFinalizeStepsResult = {
-    dishSteps: assembledDishSteps,
-  };
+  });
 
-  // 4. Merge: positionally insert steps into the details payload. The
-  //    mergeFinalizeStepsIntoDetails invariants (no dup / no missing /
-  //    no extra) still apply to the assembled array — that's exactly
-  //    the safety property the per-meal fan-out preserves.
-  const merged = mergeFinalizeStepsIntoDetails(details, assembled);
-  if (merged.status !== "ok") {
-    logger.warn(
-      {
-        event: "wizard_finalize_steps_merge_failed",
-        userId,
-        draftId,
-        reason: merged.reason,
-      },
-      "Wizard finalize-steps merge failed",
+  // 4. finalize-steps on the BUILD subset ONLY (store slots already carry steps
+  //    via the fork). All-store plans skip finalize entirely — zero AI calls.
+  const buildWithSteps: WizardExpandEnrichedMeal[] = [];
+  if (buildEntries.length > 0) {
+    const buildDetails: WizardExpandedPlanDetails = {
+      candidateId: details.candidateId,
+      title: details.title,
+      tags: details.tags,
+      whyBullets: details.whyBullets,
+      meals: buildEntries.map((b) => b.meal),
+    };
+
+    // Sharded fan-out — one Sonnet call per build meal (mirrors the expand
+    // pattern). Shard-local mealIndex is re-indexed into buildDetails order
+    // during concat, then merged; the (mealIndex,dishIndex) invariants hold.
+    const perMealResults = await Promise.all(
+      buildDetails.meals.map((meal, mi) =>
+        finalizeOneMeal({
+          runAICall,
+          prisma,
+          userId,
+          details: buildDetails,
+          mealIndex: mi,
+          meal,
+        }),
+      ),
     );
-    return { status: "merge_failed", reason: merged.reason };
+
+    const firstFailure = perMealResults.find((r) => !r.ok);
+    if (firstFailure && !firstFailure.ok) {
+      logger.warn(
+        {
+          event: "wizard_finalize_steps_failed",
+          userId,
+          draftId,
+          mealIndex: firstFailure.mealIndex,
+          reason: firstFailure.reason,
+          promptKey: "wizard.candidate.finalize_steps",
+        },
+        "Wizard finalize-steps AI call failed",
+      );
+      return {
+        status: "ai_failed",
+        reason: `meal_failed:${firstFailure.mealIndex}:${firstFailure.reason}`,
+        userFacingMessage: firstFailure.userFacingMessage,
+      };
+    }
+
+    const assembledDishSteps: WizardFinalizeStepsDish[] = [];
+    for (const r of perMealResults) {
+      if (!r.ok) continue; // narrowing only; returned above.
+      for (const entry of r.dishSteps) {
+        assembledDishSteps.push({
+          mealIndex: r.mealIndex,
+          dishIndex: entry.dishIndex,
+          steps: entry.steps,
+        });
+      }
+    }
+    const assembled: WizardFinalizeStepsResult = {
+      dishSteps: assembledDishSteps,
+    };
+
+    const merged = mergeFinalizeStepsIntoDetails(buildDetails, assembled);
+    if (merged.status !== "ok") {
+      logger.warn(
+        {
+          event: "wizard_finalize_steps_merge_failed",
+          userId,
+          draftId,
+          reason: merged.reason,
+        },
+        "Wizard finalize-steps merge failed",
+      );
+      return { status: "merge_failed", reason: merged.reason };
+    }
+
+    // Defensive: the BUILD subset must satisfy the with-steps schema (the
+    // partition-then-validate contract — store slots are forked, never built
+    // from payload, so they are deliberately excluded from this check).
+    const finalParse = WizardExpandedPlanSchema.safeParse(merged.payload);
+    if (!finalParse.success) {
+      const reason =
+        finalParse.error.issues
+          .slice(0, 3)
+          .map((i) => i.path.join(".") || "root")
+          .join(",") || "merged_shape_mismatch";
+      return { status: "merge_failed", reason };
+    }
+    buildWithSteps.push(...finalParse.data.meals);
   }
 
-  // 5. Defensive: the merged shape must satisfy the materializer's read-side
-  //    schema (the §27 round-trip contract). The mergeFinalizeStepsIntoDetails
-  //    helper enforces the same invariants, but parsing here pins it as the
-  //    durable check.
-  const finalParse = WizardExpandedPlanSchema.safeParse(merged.payload);
-  if (!finalParse.success) {
-    const reason =
-      finalParse.error.issues
-        .slice(0, 3)
-        .map((i) => i.path.join(".") || "root")
-        .join(",") || "merged_shape_mismatch";
-    return { status: "merge_failed", reason };
-  }
+  // 5. Re-interleave into slot order: build entry k → buildWithSteps[k] at its
+  //    original slotIndex; every other slot is a store fork.
+  const buildBySlot = new Map<
+    number,
+    { meal: WizardExpandEnrichedMeal; writeBack: boolean }
+  >();
+  buildEntries.forEach((b, k) => {
+    buildBySlot.set(b.slotIndex, {
+      meal: buildWithSteps[k],
+      writeBack: b.writeBack,
+    });
+  });
 
-  return { status: "success", payload: finalParse.data, details };
+  const slots: WizardSaveSlot[] = details.meals.map((_, i) => {
+    const built = buildBySlot.get(i);
+    if (built) {
+      return { kind: "build", meal: built.meal, writeBack: built.writeBack };
+    }
+    return { kind: "store", sourceStoreMealId: storeBySlot.get(i) as string };
+  });
+
+  return {
+    status: "success",
+    savePlan: {
+      candidateId: details.candidateId,
+      title: details.title,
+      tags: details.tags,
+      whyBullets: details.whyBullets,
+      slots,
+    },
+  };
 }
 
 // ── merge helper (exported for tests) ────────────────────────────────────
@@ -289,8 +354,8 @@ export function mergeFinalizeStepsIntoDetails(
 export function unwrapFinalizeResultOrThrow(
   result: ReadAndFinalizeWizardDraftResult,
   draftId: string,
-): WizardExpandedPlan {
-  if (result.status === "success") return result.payload;
+): WizardSavePlan {
+  if (result.status === "success") return result.savePlan;
   if (result.status === "not_found") {
     throw new WizardDraftNotFoundError(draftId);
   }
@@ -298,9 +363,7 @@ export function unwrapFinalizeResultOrThrow(
     throw new WizardDraftMalformedError(draftId, result.reason);
   }
   // ai_failed — caller must handle this branch before calling the helper.
-  throw new Error(
-    `wizard_finalize_unhandled_status:${result.status}`,
-  );
+  throw new Error(`wizard_finalize_unhandled_status:${result.status}`);
 }
 
 // ── per-meal shard helper ────────────────────────────────────────────────

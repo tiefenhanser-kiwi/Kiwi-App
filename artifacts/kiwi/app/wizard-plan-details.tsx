@@ -36,6 +36,7 @@ import { WizardPlanMealCard } from "@/components/WizardPlanMealCard";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   activateWizardDraft,
+  dismissWizardDraft,
   saveWizardDraft,
   WizardExpandedPlanSchema,
   type WizardExpandedPlan,
@@ -113,15 +114,19 @@ type UseState =
 export default function WizardPlanDetailsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { draftId, expanded, peek } = useLocalSearchParams<{
+  const { draftId, expanded, peek, surprise } = useLocalSearchParams<{
     draftId?: string;
     expanded?: string;
     // WS9 3c 7.4 — demote. `peek:"1"` = the R5 "View details" read-only preview
     // (the results card owns activation via "Use this plan"). Absent = the
     // resume-draft path, which still needs the activate CTA to use its draft.
     peek?: string;
+    // BUG-037 — `surprise:"1"` = this draft came from Surprise-me's auto-expand.
+    // Keeps the save/use CTAs AND adds a "Surprise Me again" re-roll.
+    surprise?: string;
   }>();
   const isPeek = peek === "1";
+  const isSurprise = surprise === "1";
 
   const plan = useMemo(() => parseExpanded(expanded), [expanded]);
   const dailyAverages = useMemo(
@@ -140,6 +145,19 @@ export default function WizardPlanDetailsScreen() {
 
   const handleHeaderBack = () => {
     router.back();
+  };
+
+  // BUG-037 re-roll: supersede the CURRENT surprise draft (reuse Block 1's
+  // dismiss/archive primitive — no parallel supersede infra, no orphan trail),
+  // then bounce back to Surprise-me, which generates + auto-expands a fresh
+  // plan. Best-effort dismiss: if it fails, the orphan self-heals on the next
+  // consume-supersede or the TTL sweep.
+  const handleSurpriseAgain = () => {
+    if (draftId) void dismissWizardDraft(draftId).catch(() => {});
+    router.replace({
+      pathname: "/wizard-results",
+      params: { source: "surprise" },
+    });
   };
 
   const handleSaveForLater = async () => {
@@ -406,6 +424,16 @@ export default function WizardPlanDetailsScreen() {
                 saveState.kind === "pending" || useState_.kind === "pending"
               }
             />
+            {isSurprise && (
+              <Button
+                label="Surprise Me again ↺"
+                variant="ghost"
+                onPress={handleSurpriseAgain}
+                disabled={
+                  saveState.kind === "pending" || useState_.kind === "pending"
+                }
+              />
+            )}
           </View>
         )}
       </ScrollView>

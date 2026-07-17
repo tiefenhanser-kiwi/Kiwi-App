@@ -24,6 +24,11 @@ import {
   type WizardInput,
 } from "../lib/ai/schemas/wizard";
 import {
+  buildStoreShortlist,
+  reconcileStoreSlots,
+} from "../lib/store/storeShortlist";
+import { resolveStoreComposeConfig } from "../lib/store/storeComposeConfig";
+import {
   DirectedInputSchema,
   ParsedIntentSchema,
   type ParsedIntent,
@@ -102,6 +107,36 @@ export interface WizardRouterDeps {
   // its Sonnet call would blow the 60s tx budget). Tests stub this to
   // return a synthetic merged payload without needing a real AI call.
   readAndFinalizeWizardDraft?: typeof productionReadAndFinalizeWizardDraft;
+}
+
+// BUG-037 — Surprise-me returns ONE plan (→ draft screen + "Surprise Me
+// again"), not the shared 3-candidate picker count. Distinct from
+// getCandidateCount() (the SystemSetting that governs build-plans / Tell Kiwi).
+const SURPRISE_CANDIDATE_COUNT = 1;
+
+// D-WS9-038 / BUG-039 — shared catalog-compose retrieval. All three generate
+// endpoints (build-plans, surprise-me, build-from-text) hand the AI the same
+// shelf and reconcile the same way; this centralizes the retrieval + its
+// best-effort fallback (a retrieval failure or thin catalog → empty shelf →
+// the AI composes fully live, never a 500).
+async function retrieveShelf(
+  prisma: PrismaClient,
+  opts: { cuisines: string[]; difficulty: string; excludeMealIds?: string[] },
+): Promise<Awaited<ReturnType<typeof buildStoreShortlist>>> {
+  try {
+    return await buildStoreShortlist(prisma, {
+      cuisines: opts.cuisines,
+      difficulty: opts.difficulty,
+      excludeMealIds: opts.excludeMealIds,
+      config: resolveStoreComposeConfig(),
+    });
+  } catch (err) {
+    logger.warn(
+      { event: "wizard_store_shortlist_failed", err },
+      "Store shortlist retrieval failed — composing fully live",
+    );
+    return { forPrompt: [], aliasToId: new Map() };
+  }
 }
 
 export function createWizardRouter(
@@ -387,10 +422,23 @@ export function createWizardRouter(
         preferencesContext,
       };
 
-      // 5. Run the AI call.
+      // 4b. Plan-Gen Arc Block 2 (D-WS9-038) — retrieve the shared-pool
+      //     shortlist (the "ingredient shelf") the AI composes against. The AI
+      //     makes the per-slot store-vs-live call and echoes back storeSlots.
+      //     A thin store yields a short/empty shelf → the AI composes live for
+      //     the gap (structural graceful-degrade, D-WS9-037). Best-effort: a
+      //     retrieval failure must not sink plan generation — fall back to an
+      //     empty shelf (fully-live) rather than 500.
+      const storeShortlist = await retrieveShelf(prisma, {
+        cuisines: aiInput.cuisines ?? [],
+        difficulty: aiInput.difficulty,
+        excludeMealIds: hiddenContext?.recentMealIds,
+      });
+
+      // 5. Run the AI call — compose against the shelf.
       const result = await runAICall(
         "wizard.set_preferences.generate",
-        { wizardInput },
+        { wizardInput, storeShortlist: storeShortlist.forPrompt },
         WizardPlanCandidatesResultSchema,
         { prisma, userId },
       );
@@ -415,8 +463,16 @@ export function createWizardRouter(
         });
       }
 
-      // 6. Trim candidates defensively to the configured count.
-      const candidates = result.data.candidates.slice(0, candidateCount);
+      // 6. Trim candidates defensively to the configured count, then reconcile
+      //    the AI's storeSlots marks (D-WS9-038): drop any hallucinated /
+      //    out-of-range mark and translate the shortlist alias → real Meal.id
+      //    so a slot only stays store-filled when its alias was genuinely
+      //    offered. The fork-time isPublic recheck (save path) is the second,
+      //    authoritative guard; this one keeps the wire honest.
+      const candidates = reconcileStoreSlots(
+        result.data.candidates.slice(0, candidateCount),
+        storeShortlist.aliasToId,
+      );
       const response = {
         candidates,
         cannotGenerateMore: result.data.cannotGenerateMore,
@@ -607,9 +663,16 @@ export function createWizardRouter(
         preferencesContext,
       };
 
+      // Fix 4 — Tell Kiwi composes from the catalog too.
+      const storeShortlist = await retrieveShelf(prisma, {
+        cuisines: directed.cuisines ?? [],
+        difficulty: "medium",
+        excludeMealIds: hiddenContext?.recentMealIds,
+      });
+
       const genResult = await runAICall(
         "wizard.directed.generate",
-        { generateInput },
+        { generateInput, storeShortlist: storeShortlist.forPrompt },
         WizardPlanCandidatesResultSchema,
         { prisma, userId },
       );
@@ -640,7 +703,11 @@ export function createWizardRouter(
         parsedIntent.scenario === "overflow"
           ? 1
           : candidateCount;
-      const candidates = genResult.data.candidates.slice(0, expected);
+      // Reconcile alias → real Meal.id (D-WS9-038) after the slice.
+      const candidates = reconcileStoreSlots(
+        genResult.data.candidates.slice(0, expected),
+        storeShortlist.aliasToId,
+      );
 
       // 9. Carry needsClarification through. For overflow the parser populates
       //    options with the dropped meals; mobile renders them as swap chips.
@@ -683,113 +750,144 @@ export function createWizardRouter(
         return res.status(401).json({ error: "unauthenticated" });
       }
 
-      // 1. Entitlement — Surprise-me rides the Tell Kiwi ("just say") lane.
-      const ent = await subscriptionService.can(
-        userId,
-        "kitchen_wizard_just_say",
-      );
-      if (!ent.allowed) {
-        return res.status(402).json({
-          error: "upgrade required",
-          reason: ent.reason ?? "Surprise me is a premium feature.",
-        });
-      }
-
-      // 2. Load the stored preferences that shape the plan. Unlike Tell Kiwi /
-      //    build-plans, there is no request body — stored prefs ARE the input.
-      //    Allergies/eatingStyles/pickyAvoidances become the hard constraints
-      //    the prompt must never violate.
-      const storedPrefs = await prisma.userPreferences.findUnique({
-        where: { userId },
-        select: {
-          planLengthDefault: true,
-          householdSize: true,
-          cuisines: true,
-          eatingStyles: true,
-          allergiesAndAvoidances: true,
-          dietaryNotes: true,
-          weeklyPacingDefault: true,
-          wantsLeftovers: true,
-        },
-      });
-
-      const planDurationDays = (() => {
-        const n = storedPrefs?.planLengthDefault ?? 5;
-        return n >= 1 && n <= 7 ? n : 5;
-      })();
-
-      // 3. Same server-injected context bags as the directed generate path.
-      const candidateCount = await getCandidateCount();
-      const hiddenContext = await buildHiddenContext(userId);
-      const planningContext = await buildPlanningContext(prisma, userId);
-      const preferencesContext = await resolveEffectivePreferences(
-        prisma,
-        userId,
-      );
-
-      const generateInput = {
-        planDurationDays,
-        householdSize: storedPrefs?.householdSize ?? 4,
-        wantsLeftovers: storedPrefs?.wantsLeftovers ?? false,
-        cuisines: storedPrefs?.cuisines ?? [],
-        weeklyPacing: storedPrefs?.weeklyPacingDefault ?? "mostly_easy",
-        eatingStyles: storedPrefs?.eatingStyles ?? [],
-        allergiesAndAvoidances: storedPrefs?.allergiesAndAvoidances ?? [],
-        dietaryNotes: storedPrefs?.dietaryNotes ?? "",
-        hiddenContext,
-        planningContext,
-        preferencesContext,
-      };
-
-      const genResult = await runAICall(
-        "wizard.surprise.generate",
-        { generateInput },
-        WizardPlanCandidatesResultSchema,
-        { prisma, userId },
-      );
-
-      if (!genResult.success) {
-        logger.warn(
-          {
-            event: "surprise_generate_failed",
-            userId,
-            reason: genResult.reason,
-            promptKey: "wizard.surprise.generate",
-          },
-          "Surprise-me generate step failed",
+      // BUG-039 — a genuine try/catch so a throw (e.g. a prompt-resolution
+      // failure like the one that made this a bare 500) is LOGGED with its
+      // cause and returned as a friendly handled error, not an opaque 500.
+      try {
+        // 1. Entitlement — Surprise-me rides the Tell Kiwi ("just say") lane.
+        const ent = await subscriptionService.can(
+          userId,
+          "kitchen_wizard_just_say",
         );
-        await emitActivity(userId, "wizard_failure");
-        return res.status(502).json({
-          error: genResult.userFacingMessage,
-          reason: genResult.reason,
+        if (!ent.allowed) {
+          return res.status(402).json({
+            error: "upgrade required",
+            reason: ent.reason ?? "Surprise me is a premium feature.",
+          });
+        }
+
+        // 2. Load the stored preferences that shape the plan. Unlike Tell Kiwi /
+        //    build-plans, there is no request body — stored prefs ARE the input.
+        //    Allergies/eatingStyles/pickyAvoidances become the hard constraints
+        //    the prompt must never violate.
+        const storedPrefs = await prisma.userPreferences.findUnique({
+          where: { userId },
+          select: {
+            planLengthDefault: true,
+            householdSize: true,
+            cuisines: true,
+            eatingStyles: true,
+            allergiesAndAvoidances: true,
+            dietaryNotes: true,
+            weeklyPacingDefault: true,
+            wantsLeftovers: true,
+          },
+        });
+
+        const planDurationDays = (() => {
+          const n = storedPrefs?.planLengthDefault ?? 5;
+          return n >= 1 && n <= 7 ? n : 5;
+        })();
+
+        // 3. Same server-injected context bags as the directed generate path.
+        const hiddenContext = await buildHiddenContext(userId);
+        const planningContext = await buildPlanningContext(prisma, userId);
+        const preferencesContext = await resolveEffectivePreferences(
+          prisma,
+          userId,
+        );
+
+        const generateInput = {
+          planDurationDays,
+          householdSize: storedPrefs?.householdSize ?? 4,
+          wantsLeftovers: storedPrefs?.wantsLeftovers ?? false,
+          cuisines: storedPrefs?.cuisines ?? [],
+          weeklyPacing: storedPrefs?.weeklyPacingDefault ?? "mostly_easy",
+          eatingStyles: storedPrefs?.eatingStyles ?? [],
+          allergiesAndAvoidances: storedPrefs?.allergiesAndAvoidances ?? [],
+          dietaryNotes: storedPrefs?.dietaryNotes ?? "",
+          hiddenContext,
+          planningContext,
+          preferencesContext,
+        };
+
+        // Fix 4 — Surprise-me composes from the catalog too.
+        const storeShortlist = await retrieveShelf(prisma, {
+          cuisines: storedPrefs?.cuisines ?? [],
+          difficulty: "medium",
+          excludeMealIds: hiddenContext?.recentMealIds,
+        });
+
+        const genResult = await runAICall(
+          "wizard.surprise.generate",
+          { generateInput, storeShortlist: storeShortlist.forPrompt },
+          WizardPlanCandidatesResultSchema,
+          { prisma, userId },
+        );
+
+        if (!genResult.success) {
+          logger.warn(
+            {
+              event: "surprise_generate_failed",
+              userId,
+              reason: genResult.reason,
+              promptKey: "wizard.surprise.generate",
+            },
+            "Surprise-me generate step failed",
+          );
+          await emitActivity(userId, "wizard_failure");
+          return res.status(502).json({
+            error: genResult.userFacingMessage,
+            reason: genResult.reason,
+          });
+        }
+
+        // BUG-037 — Surprise-me is ONE plan (straight to the draft screen, with
+        // "Surprise Me again" to re-roll), not the 3-candidate picker. Reconcile
+        // alias → real Meal.id (D-WS9-038) on the single candidate we keep.
+        const candidates = reconcileStoreSlots(
+          genResult.data.candidates.slice(0, SURPRISE_CANDIDATE_COUNT),
+          storeShortlist.aliasToId,
+        );
+
+        // Synthesize a `vague` parsedIntent so the mobile wizard-results screen
+        // renders this through its existing Tell Kiwi branch without a new
+        // render path. No explicit meals, no clarification.
+        const parsedIntent: ParsedIntent = {
+          scenario: "vague",
+          explicitMeals: [],
+          intentDescriptors: ["popular", "crowd-pleaser", "family-friendly"],
+          mealCount: planDurationDays,
+        };
+
+        await emitActivity(userId, "wizard_complete");
+
+        return res.json({
+          candidates,
+          parsedIntent,
+          cannotGenerateMore: genResult.data.cannotGenerateMore,
+          reason: genResult.data.reason,
+          metadata: {
+            promptVersion: genResult.metadata.promptVersion,
+            latencyMs: genResult.metadata.latencyMs,
+            flow: "surprise",
+          },
+        });
+      } catch (err) {
+        logger.error(
+          {
+            event: "surprise_me_failed",
+            userId,
+            err,
+            message: err instanceof Error ? err.message : String(err),
+          },
+          "Surprise-me handler threw",
+        );
+        return res.status(500).json({
+          error: "Kiwi got distracted. Try again?",
+          reason: "internal_error",
         });
       }
-
-      const candidates = genResult.data.candidates.slice(0, candidateCount);
-
-      // Synthesize a `vague` parsedIntent so the mobile wizard-results screen
-      // renders this through its existing Tell Kiwi branch without a new
-      // render path. No explicit meals, no clarification.
-      const parsedIntent: ParsedIntent = {
-        scenario: "vague",
-        explicitMeals: [],
-        intentDescriptors: ["popular", "crowd-pleaser", "family-friendly"],
-        mealCount: planDurationDays,
-      };
-
-      await emitActivity(userId, "wizard_complete");
-
-      return res.json({
-        candidates,
-        parsedIntent,
-        cannotGenerateMore: genResult.data.cannotGenerateMore,
-        reason: genResult.data.reason,
-        metadata: {
-          promptVersion: genResult.metadata.promptVersion,
-          latencyMs: genResult.metadata.latencyMs,
-          flow: "surprise",
-        },
-      });
     },
   );
 
@@ -859,11 +957,11 @@ export function createWizardRouter(
           wizardContentHash: contentHash,
         },
         orderBy: { createdAt: "desc" },
-        select: { id: true, createdAt: true, optimizationNotes: true },
+        select: { id: true, createdAt: true, wizardDraftPayload: true },
       });
       if (existingDraft) {
         const cached = WizardExpandedPlanDetailsSchema.safeParse(
-          existingDraft.optimizationNotes,
+          existingDraft.wizardDraftPayload,
         );
         if (cached.success) {
           return res.json({
@@ -943,8 +1041,7 @@ export function createWizardRouter(
   // server has no scheduler today (D-WS7-062). Response is intentionally
   // light: just enough for the prompt card (plan title + meal titles +
   // created-at timestamp). The full expanded detail lives on the draft's
-  // optimizationNotes field and is loaded by the regular GET /plans/:id
-  // path (which already returns optimizationNotes).
+  // wizardDraftPayload field (D-WS9-034) and is loaded by GET /wizard/drafts/:id.
   router.get("/wizard/drafts", requireAuth, async (req, res) => {
     const userId = req.userId;
     if (!userId) {
@@ -961,12 +1058,12 @@ export function createWizardRouter(
           id: true,
           titleOverride: true,
           createdAt: true,
-          optimizationNotes: true,
+          wizardDraftPayload: true,
         },
       });
 
       const drafts = rows.map((r) => {
-        const notes = (r.optimizationNotes ?? null) as
+        const notes = (r.wizardDraftPayload ?? null) as
           | { meals?: Array<{ title?: string }> }
           | null;
         const mealTitles = Array.isArray(notes?.meals)
@@ -1022,7 +1119,7 @@ export function createWizardRouter(
           userId: true,
           isWizardDraft: true,
           createdAt: true,
-          optimizationNotes: true,
+          wizardDraftPayload: true,
         },
       });
       if (!row || row.userId !== userId || !row.isWizardDraft) {
@@ -1035,7 +1132,7 @@ export function createWizardRouter(
       // /activate or /save. Existing pre-WS7-5c drafts that DO carry steps
       // still parse cleanly (zod strips unknown fields on object schemas).
       const parsed = WizardExpandedPlanDetailsSchema.safeParse(
-        row.optimizationNotes,
+        row.wizardDraftPayload,
       );
       if (!parsed.success) {
         // Malformed JSON on a draft we own — surface as 422 (the activation
@@ -1049,7 +1146,7 @@ export function createWizardRouter(
             draftId,
             issues: parsed.error.issues.slice(0, 3),
           },
-          "Wizard draft optimizationNotes failed schema parse",
+          "Wizard draft wizardDraftPayload failed schema parse",
         );
         return res
           .status(422)
@@ -1098,7 +1195,11 @@ export function createWizardRouter(
       // false) and never another user's row. Never flips isWizardDraft.
       const result = await prisma.mealPlanInstance.updateMany({
         where: { id: draftId, userId, isWizardDraft: true, isArchived: false },
-        data: { isArchived: true, optimizationNotes: Prisma.DbNull },
+        data: {
+          isArchived: true,
+          wizardDraftPayload: Prisma.DbNull,
+          optimizationNotes: Prisma.DbNull,
+        },
       });
       return res.json({ dismissed: result.count > 0 });
     } catch (err) {
@@ -1211,7 +1312,7 @@ export function createWizardRouter(
           reason: `merge_failed:${finalizeResult.reason}`,
         });
     }
-    const payload = finalizeResult.payload;
+    const savePlan = finalizeResult.savePlan;
 
     const __txStart = Date.now();
     let __txElapsedAtThrow = -1;
@@ -1222,7 +1323,7 @@ export function createWizardRouter(
           tx,
           userId,
           draftId,
-          payload,
+          savePlan,
         });
 
         // WS7-6 (E) Block 1 REWORK seam C — stamp activatedAt in the
@@ -1244,11 +1345,13 @@ export function createWizardRouter(
             startDate: new Date(week.startDate),
             endDate: new Date(week.endDate),
             activatedAt: new Date(),
-            // WS7-5b-mobile FIX (PRD §2.4): link the freshly-created
-            // hidden Template, and clear the wizard-JSON blob that pre-fix
-            // code wrote into optimizationNotes (Plan Review's mobile
-            // PlanSchema requires [{type,text}]; the blob failed parse).
+            // WS7-5b-mobile FIX (PRD §2.4): link the freshly-created hidden
+            // Template. Clear the draft blob from wizardDraftPayload (D-WS9-034),
+            // and also DbNull optimizationNotes as legacy-blob defense — a pre-
+            // D-WS9-034 draft carried the blob there and Plan Review's mobile
+            // PlanSchema requires the [{type,text}] prep-notes shape.
             mealPlanTemplateId: materialized.mealPlanTemplateId,
+            wizardDraftPayload: Prisma.DbNull,
             optimizationNotes: Prisma.DbNull,
           },
           select: { id: true, revisionId: true },
@@ -1433,7 +1536,7 @@ export function createWizardRouter(
           reason: `merge_failed:${finalizeResult.reason}`,
         });
     }
-    const payload = finalizeResult.payload;
+    const savePlan = finalizeResult.savePlan;
 
     const __txStart = Date.now();
     let __txElapsedAtThrow = -1;
@@ -1444,7 +1547,7 @@ export function createWizardRouter(
           tx,
           userId,
           draftId,
-          payload,
+          savePlan,
         });
 
         // Save tail — flip ONLY isWizardDraft. The materializer is identical
@@ -1458,10 +1561,12 @@ export function createWizardRouter(
           where: { id: draftId },
           data: {
             isWizardDraft: false,
-            // WS7-5b-mobile FIX (PRD §2.4): same Template-pair link + JSON
-            // clear as /activate. Save path doesn't flip active / set dates
-            // / bump revisionId — only the template link + notes change.
+            // WS7-5b-mobile FIX (PRD §2.4): same Template-pair link + draft-blob
+            // clear as /activate (D-WS9-034: wizardDraftPayload; optimizationNotes
+            // DbNull'd as legacy defense). Save path doesn't flip active / set
+            // dates / bump revisionId — only the template link + notes change.
             mealPlanTemplateId: materialized.mealPlanTemplateId,
+            wizardDraftPayload: Prisma.DbNull,
             optimizationNotes: Prisma.DbNull,
           },
           select: { id: true, revisionId: true },

@@ -22,18 +22,28 @@ function parseAmount(amount: string): { quantity: number; unit: string } {
   // "1/4 cup", "1/2" (bare fraction with no unit)
   const fraction = s.match(/^(\d+)\/(\d+)(?:\s+(.*))?$/);
   if (fraction) {
+    const u = (fraction[3] ?? "").trim();
     return {
       quantity: parseInt(fraction[1]) / parseInt(fraction[2]),
-      unit: (fraction[3] ?? "").trim(),
+      // BUG-040 — a bare fraction with no unit (e.g. "1/2" red onion) is
+      // count-only; emit the DB-wide count convention "each", never "".
+      unit: u === "" ? "each" : u,
     };
   }
 
   // "1.5 cups", "1 cup", "12", "3"
   const simple = s.match(/^(\d+(?:\.\d+)?)\s*(.*)?$/);
   if (simple) {
-    return { quantity: parseFloat(simple[1]), unit: (simple[2] ?? "").trim() };
+    const u = (simple[2] ?? "").trim();
+    // BUG-040 — a bare count with no unit (e.g. "12" tortillas, "3" limes) is
+    // count-only; emit "each" (the DB-wide convention), never "".
+    return { quantity: parseFloat(simple[1]), unit: u === "" ? "each" : u };
   }
 
+  // Unparseable amount (no leading number) — genuinely "unit unknown", NOT
+  // count-only, so it deliberately stays "". Unreachable by the current seed
+  // (every amount is numeric-leading); left un-"each"'d per the BUG-040 ruling
+  // so a future qualitative amount ("to taste") isn't mislabeled a count.
   return { quantity: 1, unit: "" };
 }
 

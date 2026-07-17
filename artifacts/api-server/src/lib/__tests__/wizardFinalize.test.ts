@@ -31,12 +31,24 @@ import {
   WizardExpandedPlanSchema,
   WizardFinalizeStepsResultSchema,
   type WizardExpandedPlanDetails,
+  type WizardExpandEnrichedMeal,
   type WizardFinalizeStepsResult,
 } from "../ai/schemas/wizard";
 import {
   mergeFinalizeStepsIntoDetails,
   readAndFinalizeWizardDraft,
 } from "../wizardFinalize";
+import type { WizardSavePlan } from "../wizardSavePlan";
+
+// D-WS9-038 — these finalize tests are all-live, so every savePlan slot is a
+// build slot. Extract the with-steps meals in slot order for the assertions
+// (and reassemble a flat plan where the old tests checked the whole payload).
+function buildMealsOf(savePlan: WizardSavePlan): WizardExpandEnrichedMeal[] {
+  return savePlan.slots.map((s) => {
+    if (s.kind !== "build") throw new Error("expected an all-build savePlan");
+    return s.meal;
+  });
+}
 
 // ── builders ──────────────────────────────────────────────────────────────
 
@@ -496,7 +508,7 @@ function makeFinalizeRunAICallStub(
 }
 
 // Build a stub prisma that returns the supplied details plan as the
-// draft row's optimizationNotes. Mirrors the shape the route handler reads.
+// draft row's wizardDraftPayload. Mirrors the shape the route handler reads.
 function makeStubPrisma(
   details: WizardExpandedPlanDetails,
   userId: string,
@@ -506,7 +518,7 @@ function makeStubPrisma(
       findUnique: async (_args: unknown) => ({
         userId,
         isWizardDraft: true,
-        optimizationNotes: details as unknown,
+        wizardDraftPayload: details as unknown,
       }),
     },
   } as unknown as PrismaClient;
@@ -606,8 +618,9 @@ describe("readAndFinalizeWizardDraft — per-meal fan-out", () => {
 
     // The merged payload carries the correct per-meal steps under the right
     // meal index (i.e. meal 1's "Tomato soup" steps are NOT under meal 0).
-    const meal0Steps = result.payload.meals[0].dishes[0].steps;
-    const meal1Steps = result.payload.meals[1].dishes[0].steps;
+    const meals = buildMealsOf(result.savePlan);
+    const meal0Steps = meals[0].dishes[0].steps;
+    const meal1Steps = meals[1].dishes[0].steps;
     assert.ok(
       meal0Steps[0].text.startsWith(details.meals[0].title),
       `meal 0 first step should reference meal 0 title; got: ${meal0Steps[0].text}`,
@@ -639,7 +652,14 @@ describe("readAndFinalizeWizardDraft — per-meal fan-out", () => {
     assert.equal(result.status, "success");
     if (result.status !== "success") return;
 
-    const parsed = WizardExpandedPlanSchema.safeParse(result.payload);
+    const reassembled = {
+      candidateId: result.savePlan.candidateId,
+      title: result.savePlan.title,
+      tags: result.savePlan.tags,
+      whyBullets: result.savePlan.whyBullets,
+      meals: buildMealsOf(result.savePlan),
+    };
+    const parsed = WizardExpandedPlanSchema.safeParse(reassembled);
     assert.equal(
       parsed.success,
       true,
@@ -744,5 +764,122 @@ describe("readAndFinalizeWizardDraft — per-meal fan-out", () => {
       result.reason.startsWith("missing_dish_steps:0:1"),
       `expected missing_dish_steps:0:1 reason; got "${result.reason}"`,
     );
+  });
+});
+
+// ── D-WS9-038 — store/live partition at save ──────────────────────────────
+
+// Adds a meal.findMany stub for filterPublicStoreMealIds: returns {id} for the
+// ids in `stillPublic`, modelling the isPublic revalidation.
+function makeStubPrismaWithStore(
+  details: WizardExpandedPlanDetails,
+  userId: string,
+  stillPublic: string[],
+): PrismaClient {
+  const publicSet = new Set(stillPublic);
+  return {
+    mealPlanInstance: {
+      findUnique: async () => ({
+        userId,
+        isWizardDraft: true,
+        wizardDraftPayload: details as unknown,
+      }),
+    },
+    meal: {
+      findMany: async (args: { where: { id: { in: string[] } } }) => {
+        const ids = args.where.id.in.filter((id) => publicSet.has(id));
+        return ids.map((id) => ({ id }));
+      },
+    },
+  } as unknown as PrismaClient;
+}
+
+// detailsPlan() has 2 meals; mark chosen slots as store-filled.
+function detailsWithStore(storeBySlot: Record<number, string>): WizardExpandedPlanDetails {
+  const d = detailsPlan();
+  for (const [idx, id] of Object.entries(storeBySlot)) {
+    d.meals[Number(idx)].sourceStoreMealId = id;
+  }
+  return d;
+}
+
+describe("readAndFinalizeWizardDraft — D-WS9-038 store/live partition", () => {
+  const userId = "u-finalize";
+  const draftId = "d-finalize";
+
+  it("finalizes ONLY the live subset; store slots become fork slots (fewer AI calls)", async () => {
+    const details = detailsWithStore({ 0: "store-1" }); // slot 0 store, slot 1 live
+    const { fn, calls } = makeFinalizeRunAICallStub((mealTitle, dishCount) =>
+      finalizeAISuccess(shardLocalDishSteps(dishCount, mealTitle)),
+    );
+
+    const result = await readAndFinalizeWizardDraft({
+      prisma: makeStubPrismaWithStore(details, userId, ["store-1"]),
+      userId,
+      draftId,
+      runAICall: fn,
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    // One finalize AI call — only the live slot (store slots carry steps).
+    assert.equal(calls.length, 1);
+    const slots = result.savePlan.slots;
+    assert.equal(slots.length, 2);
+    assert.deepEqual(slots[0], { kind: "store", sourceStoreMealId: "store-1" });
+    assert.equal(slots[1].kind, "build");
+    if (slots[1].kind === "build") {
+      assert.equal(slots[1].writeBack, true); // live-origin → writes back
+      assert.ok(slots[1].meal.dishes[0].steps.length > 0);
+    }
+  });
+
+  it("all-store plan → ZERO finalize AI calls, every slot is a fork", async () => {
+    const details = detailsWithStore({ 0: "store-1", 1: "store-2" });
+    const { fn, calls } = makeFinalizeRunAICallStub((mealTitle, dishCount) =>
+      finalizeAISuccess(shardLocalDishSteps(dishCount, mealTitle)),
+    );
+
+    const result = await readAndFinalizeWizardDraft({
+      prisma: makeStubPrismaWithStore(details, userId, ["store-1", "store-2"]),
+      userId,
+      draftId,
+      runAICall: fn,
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.equal(calls.length, 0, "all-store must make no finalize AI calls");
+    assert.deepEqual(
+      result.savePlan.slots.map((s) => s.kind),
+      ["store", "store"],
+    );
+  });
+
+  it("a since-unpublished store slot demotes to a live build slot (writeBack:false), no error", async () => {
+    const details = detailsWithStore({ 0: "store-gone" });
+    const { fn, calls } = makeFinalizeRunAICallStub((mealTitle, dishCount) =>
+      finalizeAISuccess(shardLocalDishSteps(dishCount, mealTitle)),
+    );
+
+    // store-gone is NOT in the still-public set → revalidation fails → demote.
+    const result = await readAndFinalizeWizardDraft({
+      prisma: makeStubPrismaWithStore(details, userId, []),
+      userId,
+      draftId,
+      runAICall: fn,
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    // Both slots finalized (the demoted store slot joined the live subset).
+    assert.equal(calls.length, 2);
+    const slot0 = result.savePlan.slots[0];
+    assert.equal(slot0.kind, "build");
+    if (slot0.kind === "build") {
+      // Demoted → build but NOT written back (never re-publish an unpublished meal).
+      assert.equal(slot0.writeBack, false);
+      assert.ok(slot0.meal.dishes[0].steps.length > 0);
+    }
   });
 });

@@ -17,6 +17,7 @@ import { estimateDishMacros } from "./dishMacros";
 import { logger } from "./logger";
 import { resolveEffectivePreferences } from "./wizardPreferences";
 import { runAICall as productionRunAICall } from "./ai/runAICall";
+import { composeStoreMealDetails } from "./store/storeMealDetails";
 import {
   WizardExpandResultDetailsSchema,
   type WizardExpandMealDetails,
@@ -50,7 +51,13 @@ export interface ExpandCandidateOptions {
 }
 
 export type ExpandCandidateResult =
-  | { status: "success"; expanded: WizardExpandedPlanDetails }
+  | {
+      status: "success";
+      expanded: WizardExpandedPlanDetails;
+      // BUG-040 — how many store slots were rejected for invalid ingredients
+      // (bad catalog data) and fell back to live. 0 on a healthy catalog.
+      storeMealsRejected: number;
+    }
   | {
       status: "ai_failed";
       reason: string;
@@ -99,15 +106,11 @@ export async function expandCandidate(
   // generate-only concern (R6). Presence semantics (null cap wins) live in the
   // resolver. Falls back to column defaults when the user has no prefs row.
   const ctx = opts.request.candidateContext;
-  const resolved = await resolveEffectivePreferences(
-    opts.prisma,
-    opts.userId,
-    {
-      saucePreference: ctx.saucePreference,
-      maxCookTimeMinutes: ctx.maxCookTimeMinutes,
-      maxCookTimeCoverage: ctx.maxCookTimeCoverage,
-    },
-  );
+  const resolved = await resolveEffectivePreferences(opts.prisma, opts.userId, {
+    saucePreference: ctx.saucePreference,
+    maxCookTimeMinutes: ctx.maxCookTimeMinutes,
+    maxCookTimeCoverage: ctx.maxCookTimeCoverage,
+  });
   const serverCandidateContext: WizardExpandRequest["candidateContext"] = {
     ...ctx,
     saucePreference: resolved.saucePreference,
@@ -115,15 +118,51 @@ export async function expandCandidate(
     maxCookTimeCoverage: resolved.maxCookTimeCoverage,
   };
 
+  // Plan-Gen Arc Block 2 (D-WS9-038) — store-slot compose. For a slot the AI
+  // marked store-filled, read the pool meal's detail (NO AI call) and slot it in
+  // with a sourceStoreMealId marker; every unmarked slot is expanded live. A
+  // pool meal that can't be read (missing / structurally unusable) falls back to
+  // a live expand for that slot (graceful-degrade).
+  const storeBySlot = new Map<number, string>();
+  for (const s of opts.request.candidate.storeSlots ?? []) {
+    storeBySlot.set(s.slotIndex, s.storeMealId);
+  }
+
+  const storeComposedBySlot = new Map<
+    number,
+    WizardExpandEnrichedMealDetails
+  >();
+  // BUG-040 — count store slots REJECTED for invalid ingredients (bad catalog
+  // data) that fell back to live. Distinct from a plain coverage miss; surfaced
+  // on the result so a batch of bad seed data is visible, not silent.
+  let storeMealsRejected = 0;
+  const liveSlots: { slotIndex: number; title: string }[] = [];
+  for (let i = 0; i < mealTitles.length; i++) {
+    const sid = storeBySlot.get(i);
+    if (sid) {
+      const composed = await composeStoreMealDetails(opts.prisma, sid);
+      if (composed.status === "ok") {
+        storeComposedBySlot.set(i, composed.meal);
+        continue;
+      }
+      // Rejected (bad data) or unusable (missing) — both demote this slot to a
+      // live expand (D-WS9-037 graceful-degrade). Rejection is counted; the
+      // per-meal structured warn was already logged in composeStoreMealDetails.
+      if (composed.status === "rejected") storeMealsRejected++;
+    }
+    liveSlots.push({ slotIndex: i, title: mealTitles[i] });
+  }
+
+  // 1. AI-expand the LIVE slots only (store slots already carry full detail).
   const perMealResults = await Promise.all(
-    mealTitles.map((title) =>
+    liveSlots.map((s) =>
       expandOneMeal({
         runAICall,
         prisma: opts.prisma,
         userId: opts.userId,
         candidate: opts.request.candidate,
         candidateContext: serverCandidateContext,
-        mealTitle: title,
+        mealTitle: s.title,
       }),
     ),
   );
@@ -146,33 +185,31 @@ export async function expandCandidate(
     };
   }
 
-  const assembledMeals: WizardExpandMealDetails[] = perMealResults.map((r) => {
+  // Live meals keyed by their REAL slot index (stepless; macros added next).
+  const liveMealBySlot = new Map<number, WizardExpandMealDetails>();
+  perMealResults.forEach((r, k) => {
     if (!r.ok) {
-      // Already filtered above; this branch is unreachable but keeps the
-      // map() typed without a cast.
-      throw new Error(
-        `wizard_expand_assemble_invariant: ${r.mealTitle}`,
-      );
+      throw new Error(`wizard_expand_assemble_invariant: ${r.mealTitle}`);
     }
-    return r.meal;
+    liveMealBySlot.set(liveSlots[k].slotIndex, r.meal);
   });
 
-  // 2. Per-dish macros pass. Run in parallel across (meal, dish) pairs —
-  //    mirrors planMacros.ts:280-318 (same Promise.all shape, same per-dish
-  //    failure semantics: a null macros field is non-blocking, the draft
-  //    persists and the user sees a soft caveat downstream).
+  // 2. Per-dish macros pass over the LIVE dishes only (store dishes carry their
+  //    stored per-serving macros already). Flat (slotIndex, dishIdx) work list;
+  //    same non-blocking failure semantics as before.
   type DishWork = {
-    mealIdx: number;
+    slotIndex: number;
     dishIdx: number;
     dish: WizardExpandEnrichedMealDetails["dishes"][number];
     servings: number;
   };
   const work: DishWork[] = [];
-  for (let mi = 0; mi < assembledMeals.length; mi++) {
-    const meal = assembledMeals[mi];
+  for (const { slotIndex } of liveSlots) {
+    const meal = liveMealBySlot.get(slotIndex);
+    if (!meal) continue;
     for (let di = 0; di < meal.dishes.length; di++) {
       work.push({
-        mealIdx: mi,
+        slotIndex,
         dishIdx: di,
         dish: { ...meal.dishes[di], macros: null },
         servings: meal.servings,
@@ -205,7 +242,16 @@ export async function expandCandidate(
           },
           "Per-dish macro estimate failed during wizard expand",
         );
-        return { ...w.dish, macros: { caloriesPerServing: 0, proteinGPerServing: 0, carbsGPerServing: 0, fatGPerServing: 0, failed: true } };
+        return {
+          ...w.dish,
+          macros: {
+            caloriesPerServing: 0,
+            proteinGPerServing: 0,
+            carbsGPerServing: 0,
+            fatGPerServing: 0,
+            failed: true,
+          },
+        };
       }
 
       return {
@@ -220,21 +266,36 @@ export async function expandCandidate(
     }),
   );
 
-  // 3. Re-assemble macros back into the meal/dish tree.
-  const enrichedMeals: WizardExpandEnrichedMealDetails[] = assembledMeals.map(
-    (meal, mi) => ({
-      ...meal,
-      dishes: meal.dishes.map((_, di) => {
-        // The work[] index for (mi, di) is the count of preceding dishes.
-        let k = 0;
-        for (let p = 0; p < mi; p++) k += assembledMeals[p].dishes.length;
-        return macroResults[k + di];
-      }),
-    }),
+  const macroBySlotDish = new Map<string, WizardExpandEnrichedDishDetails>();
+  work.forEach((w, k) =>
+    macroBySlotDish.set(`${w.slotIndex}:${w.dishIdx}`, macroResults[k]),
   );
+
+  // 3. Assemble ALL slots in order — store-composed or live-enriched.
+  const enrichedMeals: WizardExpandEnrichedMealDetails[] = [];
+  for (let i = 0; i < mealTitles.length; i++) {
+    const store = storeComposedBySlot.get(i);
+    if (store) {
+      enrichedMeals.push(store);
+      continue;
+    }
+    const liveMeal = liveMealBySlot.get(i);
+    if (!liveMeal) {
+      // Unreachable: every non-store slot was expanded live above.
+      throw new Error(`wizard_expand_slot_invariant:${i}`);
+    }
+    enrichedMeals.push({
+      ...liveMeal,
+      dishes: liveMeal.dishes.map(
+        (_, di) =>
+          macroBySlotDish.get(`${i}:${di}`) as WizardExpandEnrichedDishDetails,
+      ),
+    });
+  }
 
   return {
     status: "success",
+    storeMealsRejected,
     expanded: {
       candidateId: opts.request.candidate.id,
       title: opts.request.candidate.title,
@@ -353,10 +414,12 @@ export interface WizardDraftPersistedRef {
  *   - isActiveThisWeek: false (drafts are never "this week" until activated).
  *   - mealPlanTemplateId: null (no template; this is a fresh wizard candidate).
  *   - titleOverride: the candidate's display title.
- *   - optimizationNotes: the entire WizardExpandedPlan JSON. Drafts read
+ *   - wizardDraftPayload: the entire WizardExpandedPlan JSON. Drafts read
  *     back from here in GET /wizard/drafts and the WS7-5b activation path.
- *     No MealPlanItem rows are written at draft time — materialization is
- *     deferred to "Save and use" so the meal-graph stays clean on sweep.
+ *     (D-WS9-034 moved this off optimizationNotes, which now only ever holds
+ *     the prep-notes array on real plans.) No MealPlanItem rows are written at
+ *     draft time — materialization is deferred to "Save and use" so the
+ *     meal-graph stays clean on sweep.
  */
 export async function persistWizardDraft(
   opts: PersistWizardDraftOptions,
@@ -376,7 +439,7 @@ export async function persistWizardDraft(
       wizardContentHash: opts.contentHash,
       startDate: null,
       endDate: null,
-      optimizationNotes: opts.expanded as unknown as Prisma.InputJsonValue,
+      wizardDraftPayload: opts.expanded as unknown as Prisma.InputJsonValue,
       breakfastOverrides: null,
       lunchOverrides: null,
     },
@@ -409,8 +472,9 @@ export async function persistWizardDraft(
  *     the resume interstitial so it can't offer a plan the user already moved
  *     past. In the idempotent-return case it also clears the just-created
  *     orphan draft (the A/B seam flagged in Part A).
- *  2. clear-on-consume — drops the wizard JSON blob from optimizationNotes so
- *     no stale draft payload lingers on the row.
+ *  2. clear-on-consume — drops the wizard JSON blob from wizardDraftPayload so
+ *     no stale draft payload lingers on the row. (Also clears optimizationNotes
+ *     for defense against legacy rows that persisted the blob there pre-D-WS9-034.)
  *
  * ARCHIVE, never flip isWizardDraft→false: every isWizardDraft reader treats
  * `true` as "hidden", so a superseded draft (isWizardDraft:true, isArchived:
@@ -441,6 +505,7 @@ export async function supersedeUnconsumedWizardDrafts(opts: {
       },
       data: {
         isArchived: true,
+        wizardDraftPayload: Prisma.DbNull,
         optimizationNotes: Prisma.DbNull,
       },
     });
