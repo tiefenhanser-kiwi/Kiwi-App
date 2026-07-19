@@ -448,6 +448,19 @@ model Meal {
   // legacy/seed rows are null and fall back to servingsDefault at render.
   authoredServingsDefault Int?
   tags                 String[]        @default([])
+  // Plan-Gen Arc · Block 3 (D-WS9-042) — structured allergen data, distinct
+  // from freeform `tags`. The store-fill harness derives these from a meal's
+  // generated ingredients and STAMPS the array. A hard retrieval filter on
+  // this column is deliberately DEFERRED — this is stamp-only for now.
+  allergens            String[]        @default([])
+  // Plan-Gen Arc · Block 3 (D-WS9-045) — the catalog "dish family" key: a slug
+  // of the TARGET DISH a batch_generated meal was generated against (e.g.
+  // "classic-cheeseburger"). Dedup keys on THIS, not the generated title
+  // (accompaniments vary the title between runs → the 1C dedup defect). In
+  // single-version mode there is one meal per key; multi-version (D-WS9-045)
+  // will add N per key grouped as a dishFamily for plan mutual-exclusion.
+  // Nullable — only batch_generated meals carry it.
+  dishFamilyKey        String?
   caloriesPerServing   Float           @default(0)
   proteinGPerServing   Float           @default(0)
   carbsGPerServing     Float           @default(0)
@@ -475,6 +488,8 @@ model Meal {
   // tags[] filtering (if ever added) needs a separate GIN index — not indexed
   // here since retrieval ranks on tags in-app rather than filtering on them.
   @@index([isPublic, isArchived, mealType, cuisineType])
+  // D-WS9-045 — dedup + dishFamily lookup for the store-fill harness.
+  @@index([sourceType, dishFamilyKey])
   @@map("meals")
 }
 
@@ -1004,6 +1019,11 @@ model LLMCallLog {
   latencyMs       Int
   inputTokens     Int
   outputTokens    Int
+  // Plan-Gen Arc · Block 3 (D-WS9-042) — prompt-cache telemetry. Nullable so
+  // existing rows stay valid and non-cached calls record nothing. `inputTokens`
+  // is the UNCACHED remainder; total prompt = inputTokens + these two.
+  cacheReadInputTokens     Int?
+  cacheCreationInputTokens Int?
   costEstimateUsd Decimal      @db.Decimal(10, 6)
   retryCount      Int          @default(0)
   success         Boolean

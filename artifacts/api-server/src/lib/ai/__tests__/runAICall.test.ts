@@ -38,6 +38,10 @@ interface QueuedResponse {
   content: Anthropic.ContentBlock[];
   inputTokens?: number;
   outputTokens?: number;
+  // Block 3 (R2) — optional prompt-cache usage; default null (legacy tests
+  // don't set these, so the emitted usage is unchanged).
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
 }
 
 function makeFakeClient(responses: QueuedResponse[]): {
@@ -70,8 +74,8 @@ function makeFakeClient(responses: QueuedResponse[]): {
           usage: {
             input_tokens: next.inputTokens ?? 100,
             output_tokens: next.outputTokens ?? 50,
-            cache_creation_input_tokens: null,
-            cache_read_input_tokens: null,
+            cache_creation_input_tokens: next.cacheCreationInputTokens ?? null,
+            cache_read_input_tokens: next.cacheReadInputTokens ?? null,
             server_tool_use: null,
             service_tier: null,
           },
@@ -865,5 +869,112 @@ describe("runAICall — promptVersion in metadata", () => {
     if (!result.success) return;
     assert.equal(result.metadata.promptVersion, 7);
     assert.equal(prisma._llmLogCalls()[0].promptVersion, 7);
+  });
+});
+
+// ── Plan-Gen Arc · Block 3 (R2) — cached-prefix + cache-usage capture ──────
+
+function pongToolResponse(): QueuedResponse {
+  return {
+    content: [
+      {
+        type: "tool_use",
+        id: "toolu_r2",
+        name: "kiwi_response",
+        input: { pong: "yes" },
+      } as Anthropic.ContentBlock,
+    ],
+  };
+}
+
+describe("runAICall — R2 cached system prefix (additive)", () => {
+  it("WITHOUT cachedSystemPrefix: request has NO `system` key (byte-identical legacy shape)", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const { client, lastCall } = makeFakeClient([pongToolResponse()]);
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+    });
+
+    assert.equal(result.success, true);
+    const params = lastCall();
+    assert.ok(params, "expected a captured call");
+    // The load-bearing legacy-shape assertion: no system block at all.
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(params, "system"),
+      false,
+      "legacy call must emit no `system` key",
+    );
+    // And the user message is still a single plain-string content.
+    assert.equal(params!.messages.length, 1);
+    assert.equal(params!.messages[0].role, "user");
+    assert.equal(typeof params!.messages[0].content, "string");
+  });
+
+  it("WITH cachedSystemPrefix: emits one ephemeral-cached system text block; user body unchanged", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const { client, lastCall } = makeFakeClient([pongToolResponse()]);
+
+    const PREFIX = "STABLE CONTRACT PREFIX — byte-identical across calls";
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+      cachedSystemPrefix: PREFIX,
+    });
+
+    assert.equal(result.success, true);
+    const params = lastCall();
+    assert.ok(params, "expected a captured call");
+    assert.deepEqual(params!.system, [
+      { type: "text", text: PREFIX, cache_control: { type: "ephemeral" } },
+    ]);
+    // Volatile body stays in the user message (stable-first, volatile-last).
+    assert.equal(params!.messages[0].role, "user");
+    assert.equal(typeof params!.messages[0].content, "string");
+  });
+
+  it("captures cache_read / cache_creation tokens into metadata (unconditionally)", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const { client } = makeFakeClient([
+      {
+        ...pongToolResponse(),
+        inputTokens: 12,
+        outputTokens: 8,
+        cacheReadInputTokens: 2048,
+        cacheCreationInputTokens: 0,
+      },
+    ]);
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+      cachedSystemPrefix: "warm prefix",
+    });
+
+    assert.equal(result.success, true);
+    if (!result.success) return;
+    assert.equal(result.metadata.cacheReadInputTokens, 2048);
+    assert.equal(result.metadata.cacheCreationInputTokens, 0);
+    assert.equal(result.metadata.inputTokens, 12);
+  });
+
+  it("cache fields default to 0 when the API returns null (legacy calls)", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const { client } = makeFakeClient([pongToolResponse()]);
+
+    const result = await runAICall(TOOL_KEY, {}, PongSchema, {
+      client,
+      mode: "tool",
+    });
+
+    assert.equal(result.success, true);
+    if (!result.success) return;
+    assert.equal(result.metadata.cacheReadInputTokens, 0);
+    assert.equal(result.metadata.cacheCreationInputTokens, 0);
   });
 });

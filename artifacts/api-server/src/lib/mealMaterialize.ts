@@ -38,7 +38,7 @@
 // collect* mention helper + resolveIngredients BEFORE opening the tx. This
 // matches the proven wizardActivation / D-WS7-067 / 5d Block 4 pattern.
 
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SourceType } from "@prisma/client";
 
 import { type IngredientMention } from "./ingredientResolve";
 import { recomputeAndPersistMealMacros } from "./mealMacros";
@@ -119,7 +119,19 @@ export interface MaterializeMealPayload {
   estimatedTimeMinutes?: number;
   difficulty?: "easy" | "medium" | "fancy";
   tags?: string[];
-  sourceType?: "manual" | "wizard" | "directed" | "curated";
+  // Plan-Gen Arc · Block 3 (D-WS9-042) — structured allergen array. Stamped by
+  // the store-fill harness (derived from ingredients); defaults to [] so every
+  // existing caller is unchanged.
+  allergens?: string[];
+  // Plan-Gen Arc · Block 3 (D-WS9-045) — dish-family key (target-dish slug).
+  // Stamped by the store-fill harness for dedup + dishFamily grouping; omitted
+  // (null) for every other caller.
+  dishFamilyKey?: string;
+  // Plan-Gen Arc · Block 3 (R1) — union widened to include "batch_generated"
+  // so the store-fill harness can stamp its provenance through the same
+  // materializer. The Prisma SourceType enum already carries the value
+  // (schema.prisma) — this only widens the narrow payload type.
+  sourceType?: "manual" | "wizard" | "directed" | "curated" | "batch_generated";
   macros?: MaterializeMealMacrosPerServing;
   dishes: MaterializeMealDish[];
 }
@@ -133,6 +145,47 @@ export interface MaterializeMealResult {
   // Count of MealDishLink rows written (always === dishes.length on
   // success; surfaced for assertions in tests).
   linksCreated: number;
+}
+
+// ── ownership / visibility / provenance target (Plan-Gen Arc · Block 3, R1) ──
+//
+// Optional. Mirrors mealFork.ts's CloneTarget. When OMITTED, materializeMeal
+// writes a PRIVATE, caller-owned meal exactly as before (userId from the
+// `userId` param, isPublic:false, sourceType from the payload). When PROVIDED,
+// the store-fill harness mints a SHARED-POOL meal (userId:null, isPublic:true,
+// sourceType:"batch_generated"). Nothing else in the graph write changes.
+export interface MaterializeTarget {
+  userId: string | null;
+  isPublic: boolean;
+  sourceType: SourceType;
+}
+
+/**
+ * Resolve owner / pool-visibility / provenance for a materialize call.
+ *
+ * No target  → legacy behavior: caller-owned (`userId`), private
+ *              (`isPublic:false`), payload sourceType (default "manual").
+ * With target → the target's userId / isPublic / sourceType verbatim.
+ *
+ * Exported so the additive-default contract is unit-testable without a DB tx.
+ */
+export function resolveMaterializeOwnership(
+  userId: string,
+  payloadSourceType: MaterializeMealPayload["sourceType"],
+  target?: MaterializeTarget,
+): { ownerUserId: string | null; isPublic: boolean; sourceType: SourceType } {
+  if (target) {
+    return {
+      ownerUserId: target.userId,
+      isPublic: target.isPublic,
+      sourceType: target.sourceType,
+    };
+  }
+  return {
+    ownerUserId: userId,
+    isPublic: false,
+    sourceType: payloadSourceType ?? "manual",
+  };
 }
 
 // ── materializeMeal ─────────────────────────────────────────────────────
@@ -178,24 +231,32 @@ export async function materializeMeal(
   userId: string,
   payload: MaterializeMealPayload,
   ingredientIdByCanonical: Map<string, string>,
+  target?: MaterializeTarget,
 ): Promise<MaterializeMealResult> {
+  // Plan-Gen Arc · Block 3 (R1) — resolve owner/visibility/provenance once.
+  // With no target this is byte-identical to the pre-Block-3 write.
+  const { ownerUserId, isPublic: resolvedIsPublic, sourceType: resolvedSourceType } =
+    resolveMaterializeOwnership(userId, payload.sourceType, target);
+
   // ── Pass 2 (transactional): meal graph.
   const meal = await tx.meal.create({
     data: {
-      userId,
+      userId: ownerUserId,
       title: payload.title,
       description: payload.description ?? null,
       cuisineType: payload.cuisineType ?? null,
       // Deliberate: Mode A has no mealType; picker is a Block-6 concern, not a TODO.
       mealType: payload.mealType ?? "dinner",
-      sourceType: payload.sourceType ?? "manual",
+      sourceType: resolvedSourceType,
+      allergens: payload.allergens ?? [],
+      dishFamilyKey: payload.dishFamilyKey ?? null,
       servingsDefault: payload.servingsDefault ?? 4,
       // WS7-8 BUG-003 — anchor frozen == servingsDefault at create.
       authoredServingsDefault: payload.servingsDefault ?? 4,
       estimatedTimeMinutes: payload.estimatedTimeMinutes ?? 30,
       difficulty: payload.difficulty ?? "easy",
       tags: payload.tags ?? [],
-      isPublic: false,
+      isPublic: resolvedIsPublic,
       isArchived: false,
       ...(payload.macros
         ? {
@@ -238,9 +299,9 @@ export async function materializeMeal(
 
       const dish = await tx.dish.create({
         data: {
-          userId,
+          userId: ownerUserId,
           title: d.title,
-          sourceType: payload.sourceType ?? "manual",
+          sourceType: resolvedSourceType,
           estimatedTimeMinutes:
             d.estimatedTimeMinutes ?? payload.estimatedTimeMinutes ?? 30,
           difficulty: d.difficulty ?? payload.difficulty ?? "easy",

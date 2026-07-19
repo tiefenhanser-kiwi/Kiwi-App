@@ -116,6 +116,33 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
         "Generate per-dish cooking step arrays for a details-stage wizard plan, keyed by mealIndex+dishIndex for positional merge.",
     },
   ],
+  // Plan-Gen Arc · Block 3 (D-WS9-041) — store-fill harness prompts. The stable
+  // INSTRUCTIONS live in the harness's cachedSystemPrefix (storeFillPrompts.ts);
+  // these registry bodies render ONLY the volatile per-meal input so the cached
+  // prefix stays byte-identical across the batch. Sonnet + tool, matching the
+  // wizard's generation/finalize models. Registered here (not just seeded) —
+  // resolvePromptDescriptorFromDb validates against this allowlist first
+  // (BUG-039), and the in-memory body is the fallback the harness runs on.
+  [
+    "store.generate_meal",
+    {
+      body: "{{generateInput}}",
+      defaultModel: MODEL_SONNET,
+      defaultMode: "tool",
+      toolDescription:
+        "Generate one complete, protein-complete dinner (dishes + ingredients + roles + per-dish macros, no steps) for the pre-generated meal store from a preference profile.",
+    },
+  ],
+  [
+    "store.finalize_steps",
+    {
+      body: "{{finalizeInput}}",
+      defaultModel: MODEL_SONNET,
+      defaultMode: "tool",
+      toolDescription:
+        "Generate per-dish cooking step arrays (text + phaseType + estimatedMinutes + isTimingSensitive) for one store dinner, keyed by mealIndex+dishIndex for positional merge.",
+    },
+  ],
   // PRD §15.4.2 — Cook Now
   [
     "wizard.cook_now.match",
@@ -421,6 +448,10 @@ export interface LLMCallLogCreateData {
   latencyMs: number;
   inputTokens: number;
   outputTokens: number;
+  // Plan-Gen Arc · Block 3 (D-WS9-042) — prompt-cache telemetry. Nullable to
+  // match the schema columns; omitted/null on non-cached calls.
+  cacheReadInputTokens?: number | null;
+  cacheCreationInputTokens?: number | null;
   costEstimateUsd: number;
   retryCount: number;
   success: boolean;

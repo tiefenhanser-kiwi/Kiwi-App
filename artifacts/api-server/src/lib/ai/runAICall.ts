@@ -57,6 +57,15 @@ export interface AICallOptions {
   // content swaps from string to [...attachments, { type: 'text', text }].
   // Image tokens are billed per-attempt; the retry path re-sends them.
   attachments?: Anthropic.ImageBlockParam[];
+  // Plan-Gen Arc · Block 3 (R2) — optional cached stable system prefix. When
+  // set, the string is emitted as its OWN system content block carrying
+  // cache_control {type:"ephemeral"} (5-min TTL) so a byte-identical prefix
+  // across calls hits the Anthropic prompt cache. The volatile per-call body
+  // stays in the user message (stable-first, volatile-last — the prefix-match
+  // caching contract). When ABSENT, the request is byte-identical to legacy
+  // behavior: a single plain-string user message, no system block, no
+  // cache_control. Existing callers pass nothing and are unchanged.
+  cachedSystemPrefix?: string;
 }
 
 export interface AICallMetadata {
@@ -68,6 +77,16 @@ export interface AICallMetadata {
   latencyMs: number;
   inputTokens: number;
   outputTokens: number;
+  // Plan-Gen Arc · Block 3 (R2) — prompt-cache usage. Production runAICall
+  // ALWAYS populates these (0 when caching is inactive, which is every legacy
+  // call). Typed OPTIONAL only so pre-existing test doubles that hand-build an
+  // AICallMetadata literal keep compiling unchanged — consumers coalesce with
+  // `?? 0`. `input_tokens` from the API is the UNCACHED remainder only; total
+  // prompt size = inputTokens + cacheReadInputTokens + cacheCreationInputTokens.
+  // Cost is still computed from input/output alone (see the cost call site) —
+  // the harness reads these raw fields for its own cache-aware cost summary.
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
   costEstimateUsd: number;
   retryCount: number;
 }
@@ -120,6 +139,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
   const temperature = opts.temperature ?? 0.7;
   const retryOnValidationFailure = opts.retryOnValidationFailure ?? true;
   const userId = opts.userId ?? null;
+  const cachedSystemPrefix = opts.cachedSystemPrefix;
 
   const client = opts.client ?? getClient();
   if (!client) {
@@ -165,6 +185,9 @@ export async function runAICall<T extends z.ZodTypeAny>(
   let lastExtractedValue: unknown = null;
   let inputTokens = 0;
   let outputTokens = 0;
+  // Plan-Gen Arc · Block 3 (R2) — accumulate cache usage across retry attempts.
+  let cacheReadInputTokens = 0;
+  let cacheCreationInputTokens = 0;
 
   const hasAttachments = (opts.attachments?.length ?? 0) > 0;
 
@@ -189,6 +212,20 @@ export async function runAICall<T extends z.ZodTypeAny>(
         model,
         max_tokens: maxTokens,
         temperature,
+        // Plan-Gen Arc · Block 3 (R2) — cached stable prefix as its own system
+        // block. Spread ONLY when set, so a legacy call (no cachedSystemPrefix)
+        // emits no `system` key at all — byte-identical to before.
+        ...(cachedSystemPrefix != null
+          ? {
+              system: [
+                {
+                  type: "text" as const,
+                  text: cachedSystemPrefix,
+                  cache_control: { type: "ephemeral" as const },
+                },
+              ],
+            }
+          : {}),
         messages: [{ role: "user", content: messageContent }],
         ...(mode === "tool"
           ? {
@@ -213,6 +250,8 @@ export async function runAICall<T extends z.ZodTypeAny>(
         latencyMs,
         inputTokens,
         outputTokens,
+        cacheReadInputTokens,
+        cacheCreationInputTokens,
         costEstimateUsd: estimateCostUsdFromRate(rate, inputTokens, outputTokens),
         retryCount: attempt,
         success: false,
@@ -234,6 +273,9 @@ export async function runAICall<T extends z.ZodTypeAny>(
 
     inputTokens += message.usage.input_tokens;
     outputTokens += message.usage.output_tokens;
+    // R2 — cache usage is nullable on the SDK type; coalesce to 0.
+    cacheReadInputTokens += message.usage.cache_read_input_tokens ?? 0;
+    cacheCreationInputTokens += message.usage.cache_creation_input_tokens ?? 0;
 
     const extracted = extractPayload(message, mode);
     if (!extracted.ok) {
@@ -254,6 +296,8 @@ export async function runAICall<T extends z.ZodTypeAny>(
         latencyMs,
         inputTokens,
         outputTokens,
+        cacheReadInputTokens,
+        cacheCreationInputTokens,
         costEstimateUsd,
         retryCount: attempt,
       };
@@ -270,6 +314,8 @@ export async function runAICall<T extends z.ZodTypeAny>(
         latencyMs,
         inputTokens,
         outputTokens,
+        cacheReadInputTokens,
+        cacheCreationInputTokens,
         costEstimateUsd,
         retryCount: attempt,
         success: true,
@@ -312,6 +358,8 @@ export async function runAICall<T extends z.ZodTypeAny>(
     latencyMs,
     inputTokens,
     outputTokens,
+    cacheReadInputTokens,
+    cacheCreationInputTokens,
     costEstimateUsd: estimateCostUsdFromRate(rate, inputTokens, outputTokens),
     retryCount,
     success: false,
