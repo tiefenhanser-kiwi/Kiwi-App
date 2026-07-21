@@ -118,7 +118,9 @@ export function createRecipesRouter(
         },
       },
       ScaleResponseSchema,
-      { prisma, userId: req.userId ?? undefined },
+      // D-WS9-053 §2.2 — temp 0: scaling a recipe is arithmetic, not creative;
+      // the same fromServings→toServings must produce the same quantities.
+      { prisma, userId: req.userId ?? undefined, temperature: 0 },
     );
 
     if (!aiResult.success) {

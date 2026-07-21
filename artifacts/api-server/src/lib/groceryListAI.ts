@@ -80,6 +80,12 @@ export async function gapFillPurchaseSize(
       prisma: opts.prisma,
       userId: opts.userId,
       client: opts.client,
+      // D-WS9-053 §2.0 — temp 0: the purchaseUnit/Quantity/Display this returns
+      // is WRITTEN BACK into the shared Ingredient row (groceryListAI.ts write-
+      // back) and reused by every future grocery calc, so a sampled draw would
+      // persist noise into shared catalog data. A purchase size is a lookup, not
+      // a creative output. (The global runAICall default stays 0.7 for prose.)
+      temperature: 0,
     },
   );
   if (!result.success) {

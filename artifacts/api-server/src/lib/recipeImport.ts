@@ -504,6 +504,9 @@ export async function reformatRecipeForKiwi(
       prisma: opts.prisma,
       userId: opts.userId,
       client: opts.client,
+      // D-WS9-053 §2.2 — temp 0: importing/reformatting is faithful extraction
+      // of the source recipe (quantities included), not creative generation.
+      temperature: 0,
       ...(attachments ? { attachments } : {}),
     },
   );

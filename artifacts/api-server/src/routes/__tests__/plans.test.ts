@@ -401,6 +401,10 @@ function makeA2Stub(opts: {
     meal: {
       findUnique: async (args: { where: { id: string } }) =>
         meals.find((m) => m.id === args.where.id) ?? null,
+      // D-WS9-049 A2.2 — GET /plans/:id now batches the per-item Meal expansion
+      // via composeMealDetailsBatch (one meal.findMany instead of N findUnique).
+      findMany: async (args: { where: { id: { in: string[] } } }) =>
+        meals.filter((m) => args.where.id.in.includes(m.id)),
     },
     recipeInstructionStep: {
       findMany: async () => [] as unknown[],

@@ -401,6 +401,15 @@ model Dish {
   proteinGPerServing   Float           @default(0)
   carbsGPerServing     Float           @default(0)
   fatGPerServing       Float           @default(0)
+  // D-WS9-050 Phase 2 — WRITE-TIME grounding stamp: the % of this dish's
+  // counted (non-optional) ingredients that carried a USDA ref WHEN THE MACRO
+  // ABOVE WAS WRITTEN (0..100). A write-time fact, NOT re-derived — if refs
+  // improve later (P2 harvest / P3 curation) this stays as-written so we can
+  // audit which catalog rows were computed blind. NULLABLE by design: null =
+  // legacy/unknown provenance (pre-stamp rows, user-typed macros, or an
+  // ungrounded generate_meal write awaiting recompute). Never backfilled with a
+  // guess. Meal-level grounding is aggregated from these per-dish stamps.
+  macroGroundedPct     Float?
   timesCooked          Int             @default(0)
   lastUsedAt           DateTime?
   isArchived           Boolean         @default(false)

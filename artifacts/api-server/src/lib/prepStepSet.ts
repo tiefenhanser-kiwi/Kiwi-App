@@ -96,6 +96,10 @@ export async function loadPrepStepSet(
       planId: params.planId,
       userId: params.userId,
       prisma: params.prisma,
+      // D-WS9-049 A2.1 — this path builds the step set from ingredients only
+      // (buildStepPlan below is called WITHOUT step text), so skip the two
+      // RecipeInstructionStep queries loadPrepWeekInput would otherwise run.
+      includeStepTexts: false,
     });
     const stepPlan = buildStepPlan(
       combinePrep(buildPrepCombineInput(input)),

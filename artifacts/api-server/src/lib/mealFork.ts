@@ -157,6 +157,10 @@ async function cloneMealInto(
         proteinGPerServing: d.proteinGPerServing,
         carbsGPerServing: d.carbsGPerServing,
         fatGPerServing: d.fatGPerServing,
+        // D-WS9-050 Phase 2 — the fork copies the macro, so it inherits the
+        // macro's write-time grounding stamp (the number's provenance travels
+        // with the number).
+        macroGroundedPct: d.macroGroundedPct,
         isArchived: false,
       },
       select: { id: true },

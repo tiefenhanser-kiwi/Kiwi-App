@@ -163,9 +163,13 @@ function makeRunAICallStub(
 function makeEstimateStub(): Parameters<
   typeof expandCandidate
 >[0]["estimateDishMacrosImpl"] {
+  // D-WS9-050 G1/G2 — the success result gained required sanityFlags + grounding
+  // fields; the stub supplies clean/empty values (this test doesn't assert them).
   return (async (): Promise<EstimateDishMacrosResult> => ({
     status: "success",
     perServing: { calories: 500, proteinG: 30, carbsG: 50, fatG: 20 },
+    sanityFlags: [],
+    grounding: { grounded: 0, counted: 0, ratio: 1, stamp: "grounded" },
   })) as unknown as Parameters<
     typeof expandCandidate
   >[0]["estimateDishMacrosImpl"];
@@ -178,6 +182,12 @@ function makeEstimateStub(): Parameters<
 const stubPrisma = {
   userPreferences: {
     findUnique: async () => null,
+  },
+  // D-WS9-050 P1.2 — expandCandidate now batch-looks-up Ingredient rows to
+  // ground the per-dish estimator. These tests stub the estimator itself, so
+  // no rows are needed; return none (every ingredient reads as ungrounded).
+  ingredient: {
+    findMany: async () => [],
   },
 } as unknown as PrismaClient;
 
@@ -330,6 +340,8 @@ describe("expandCandidate — per-run preference resolution at expand", () => {
         maxCookTimeCoverage: "all",
       }),
     },
+    // D-WS9-050 P1.2 — estimator-grounding lookup (stubbed estimator → unused).
+    ingredient: { findMany: async () => [] },
   } as unknown as PrismaClient;
 
   function captureContexts() {
@@ -690,6 +702,8 @@ const storePrisma = {
     findUnique: async (args: { where: { id: string } }) =>
       storeMealGraph(args.where.id),
   },
+  // D-WS9-050 P1.2 — estimator-grounding lookup (stubbed estimator → unused).
+  ingredient: { findMany: async () => [] },
 } as unknown as PrismaClient;
 
 describe("expandCandidate — D-WS9-038 store compose", () => {
@@ -735,6 +749,8 @@ describe("expandCandidate — D-WS9-038 store compose", () => {
           return g;
         },
       },
+      // D-WS9-050 P1.2 — estimator-grounding lookup (stubbed estimator → unused).
+      ingredient: { findMany: async () => [] },
     } as unknown as PrismaClient;
 
     const req = makeRequest(["A", "B"]); // slot 0 marked store, slot 1 live

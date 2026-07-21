@@ -14,6 +14,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { estimateDishMacros } from "./dishMacros";
+import { ingredientCanonicalKey, toEffectiveIngredient } from "./overrideResolver";
 import { logger } from "./logger";
 import { resolveEffectivePreferences } from "./wizardPreferences";
 import { runAICall as productionRunAICall } from "./ai/runAICall";
@@ -217,6 +218,26 @@ export async function expandCandidate(
     }
   }
 
+  // D-WS9-050 P1.2 — ground the estimator: batch-look-up the persisted
+  // Ingredient rows for every ingredient the live dishes mention (read-only,
+  // ONE query for the whole expand) so the per-dish estimate can pass
+  // nutritionRefPer100g + the conversion identity. Wizard ingredients are
+  // AI-generated (unpersisted), so we key on the same canonical form
+  // resolveIngredients uses; a brand-new ingredient with no row yet simply
+  // isn't in the map and is sent ungrounded (still sent — never dropped).
+  const wantedCanon = new Set<string>();
+  for (const w of work) {
+    for (const ing of w.dish.ingredients) wantedCanon.add(ingredientCanonicalKey(ing.name));
+  }
+  const ingredientRows =
+    wantedCanon.size > 0
+      ? await opts.prisma.ingredient.findMany({
+          where: { canonicalName: { in: [...wantedCanon] } },
+          select: { id: true, canonicalName: true, nutritionRefPerUnit: true, conversionRef: true },
+        })
+      : [];
+  const rowByCanon = new Map(ingredientRows.map((r) => [r.canonicalName, r]));
+
   const macroResults = await Promise.all(
     work.map(async (w): Promise<WizardExpandEnrichedDishDetails> => {
       const result = await estimateImpl({
@@ -224,12 +245,9 @@ export async function expandCandidate(
         userId: opts.userId,
         dishTitle: w.dish.title,
         servings: w.servings,
-        ingredients: w.dish.ingredients.map((ing) => ({
-          name: ing.name,
-          quantity: ing.quantity,
-          unit: ing.unit,
-          isOptional: ing.isOptional,
-        })),
+        ingredients: w.dish.ingredients.map((ing) =>
+          toEffectiveIngredient(ing, rowByCanon.get(ingredientCanonicalKey(ing.name))),
+        ),
       });
 
       if (result.status === "failed") {
@@ -261,6 +279,8 @@ export async function expandCandidate(
           proteinGPerServing: result.perServing.proteinG,
           carbsGPerServing: result.perServing.carbsG,
           fatGPerServing: result.perServing.fatG,
+          // D-WS9-050 Phase 2 — carry the write-time grounding to activation.
+          groundedPct: Math.round(result.grounding.ratio * 100),
         },
       };
     }),

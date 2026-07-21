@@ -93,6 +93,13 @@ export interface LoadPrepWeekInputParams {
   planId: string;
   userId: string;
   prisma: PrismaClient;
+  // D-WS9-049 A2.1 — the isPrepped/prepStatus derivation (loadPrepStepSet →
+  // GET /plans/:id) only needs stepKey + contributesToMealIds, which come from
+  // ingredients alone; it calls buildStepPlan WITHOUT step text. On that path
+  // the two per-owner RecipeInstructionStep queries below are pure waste. Pass
+  // false to skip them (each dish keeps stepTexts=[]). Defaults true so the
+  // narration generate path (which DOES judge combine-vs-season) is unchanged.
+  includeStepTexts?: boolean;
 }
 
 export interface LoadPrepWeekInputResult {
@@ -103,7 +110,7 @@ export interface LoadPrepWeekInputResult {
 export async function loadPrepWeekInput(
   params: LoadPrepWeekInputParams,
 ): Promise<LoadPrepWeekInputResult> {
-  const { planId, userId, prisma } = params;
+  const { planId, userId, prisma, includeStepTexts = true } = params;
 
   // Minimal include shape mirroring planMacros.ts — items → meal → dishes
   // → dishIngredients → ingredient. No user-prefs branch (pantry / picky
@@ -198,42 +205,46 @@ export async function loadPrepWeekInput(
   // types (mirrors cookingSequence.ts:107-111). Dish-owned steps cover
   // multi-dish meals; meal-owned steps cover single-dish meals. We can't
   // JOIN (the FK is app-enforced), so it's two keyed findMany calls.
-  const dishIds = meals.flatMap((m) => m.dishes.map((d) => d.dishId));
-  const mealIds = meals.map((m) => m.mealId);
-  const [dishSteps, mealSteps] = await Promise.all([
-    prisma.recipeInstructionStep.findMany({
-      where: { ownerType: "dish", ownerId: { in: dishIds } },
-      orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
-      select: { ownerId: true, stepTextRaw: true },
-    }),
-    prisma.recipeInstructionStep.findMany({
-      where: { ownerType: "meal", ownerId: { in: mealIds } },
-      orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
-      select: { ownerId: true, stepTextRaw: true },
-    }),
-  ]);
+  // D-WS9-049 A2.1 — skipped entirely when the caller doesn't judge step text
+  // (the isPrepped/prepStatus path), leaving every dish's stepTexts = [].
+  if (includeStepTexts) {
+    const dishIds = meals.flatMap((m) => m.dishes.map((d) => d.dishId));
+    const mealIds = meals.map((m) => m.mealId);
+    const [dishSteps, mealSteps] = await Promise.all([
+      prisma.recipeInstructionStep.findMany({
+        where: { ownerType: "dish", ownerId: { in: dishIds } },
+        orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
+        select: { ownerId: true, stepTextRaw: true },
+      }),
+      prisma.recipeInstructionStep.findMany({
+        where: { ownerType: "meal", ownerId: { in: mealIds } },
+        orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
+        select: { ownerId: true, stepTextRaw: true },
+      }),
+    ]);
 
-  const dishStepsByOwner = new Map<string, string[]>();
-  for (const s of dishSteps) {
-    const list = dishStepsByOwner.get(s.ownerId);
-    if (list) list.push(s.stepTextRaw);
-    else dishStepsByOwner.set(s.ownerId, [s.stepTextRaw]);
-  }
-  const mealStepsByOwner = new Map<string, string[]>();
-  for (const s of mealSteps) {
-    const list = mealStepsByOwner.get(s.ownerId);
-    if (list) list.push(s.stepTextRaw);
-    else mealStepsByOwner.set(s.ownerId, [s.stepTextRaw]);
-  }
+    const dishStepsByOwner = new Map<string, string[]>();
+    for (const s of dishSteps) {
+      const list = dishStepsByOwner.get(s.ownerId);
+      if (list) list.push(s.stepTextRaw);
+      else dishStepsByOwner.set(s.ownerId, [s.stepTextRaw]);
+    }
+    const mealStepsByOwner = new Map<string, string[]>();
+    for (const s of mealSteps) {
+      const list = mealStepsByOwner.get(s.ownerId);
+      if (list) list.push(s.stepTextRaw);
+      else mealStepsByOwner.set(s.ownerId, [s.stepTextRaw]);
+    }
 
-  // Fold a dish's own steps + its meal's steps into one list. For multi-dish
-  // meals the meal list is empty; for single-dish meals the dish list is
-  // empty — so each dish ends up with the steps that actually cook it.
-  for (const meal of meals) {
-    const mealOwned = mealStepsByOwner.get(meal.mealId) ?? [];
-    for (const dish of meal.dishes) {
-      const dishOwned = dishStepsByOwner.get(dish.dishId) ?? [];
-      dish.stepTexts = [...dishOwned, ...mealOwned];
+    // Fold a dish's own steps + its meal's steps into one list. For multi-dish
+    // meals the meal list is empty; for single-dish meals the dish list is
+    // empty — so each dish ends up with the steps that actually cook it.
+    for (const meal of meals) {
+      const mealOwned = mealStepsByOwner.get(meal.mealId) ?? [];
+      for (const dish of meal.dishes) {
+        const dishOwned = dishStepsByOwner.get(dish.dishId) ?? [];
+        dish.stepTexts = [...dishOwned, ...mealOwned];
+      }
     }
   }
 

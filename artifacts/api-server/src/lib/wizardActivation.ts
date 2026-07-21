@@ -212,6 +212,9 @@ export async function materializeWizardDraft(
                 proteinGPerServing: d.macros.proteinGPerServing,
                 carbsGPerServing: d.macros.carbsGPerServing,
                 fatGPerServing: d.macros.fatGPerServing,
+                // D-WS9-050 Phase 2 — stamp the write-time grounding carried
+                // from expand (null-safe for drafts predating the field).
+                macroGroundedPct: d.macros.groundedPct ?? null,
               }
             : {};
 

@@ -33,25 +33,24 @@ export interface PrepMeasure {
   // no matching output field, so prose still can't move the math). The role of
   // forDish's dish: sauce/topping/base = a mix/component dish (a lone measure
   // combining INTO it → KEEP); main/side = a cooked dish (a lone cooking fat
-  // poured into a pan → DEMOTE). Judged alongside relevantSteps.
+  // poured into a pan → DEMOTE). Judged alongside the dish steps
+  // (relevantDishes → dishSteps).
   dishRole: DishRoleT;
   preparationNote?: string;
 }
 
 export interface PrepNarrationComponent {
   ingredientName: string;
-  // Code-owned, already summed + servings-scaled. RETAINED for reference/
-  // back-compat only — the narrator measures from `measures[]` per-dish, NOT
-  // from this rolled-up total (WS7-8b FIX 1). Never recomputed by the AI.
-  totalQuantity: number;
-  unit: string;
   preparationNote?: string;
-  // Meal NAMES this component contributes to (retained for reference). The
-  // authoritative id-level attribution is kept in code, out of the AI's reach.
-  forMeals: string[];
   // WS7-8b FIX 1/2 — the per-dish measures the narrator actually writes. One
-  // entry per contributing dish, each already fraction-formatted. This is what
-  // replaces "echo the summed totalQuantity" in the narration prompt.
+  // entry per contributing dish, each already fraction-formatted. This is the
+  // ONLY amount source the narrator sees.
+  //
+  // D-WS9-049 A1.1 — the old rolled-up `totalQuantity`/`unit` and the meal-name
+  // `forMeals` array were dropped from this shape: the prompt marked all three
+  // "reference only; IGNORE" (they only fed narration input tokens, never prose)
+  // and the authoritative id-level attribution stays in code (contributesToMealIds
+  // on the planned step), out of the AI's reach.
   measures: PrepMeasure[];
 }
 
@@ -61,11 +60,16 @@ export interface PrepNarrationStepInput {
   phase: PrepPhaseKey;
   isBlend: boolean;
   components: PrepNarrationComponent[];
-  // WS7-8a B2b (D-WS7-150) — raw instruction-step text from the dish(es) this
-  // step's ingredients are cooked in. The AI reads this to judge combine-vs-
-  // season: if the ingredients appear only in a season-and-cook step, it sets
-  // skipSuggested. Empty when no step text was available (then never demote).
-  relevantSteps: string[];
+  // WS7-8a B2b (D-WS7-150) / D-WS9-049 A1.2 — the NAMES of the dish(es) this
+  // step's ingredients are cooked in (a subset of the step's `forDish` values).
+  // The raw instruction-step text itself is NOT inlined per step anymore — the
+  // AI looks each name up in the input-level `dishSteps` map (each dish's prose
+  // is sent ONCE and shared across every step that touches it). The union of
+  // those looked-up steps is this step's "relevant steps": the AI reads it to
+  // judge combine-vs-season and set skipSuggested. Only dishes that actually
+  // have step text are listed, so an empty array still means "no step text →
+  // never demote", exactly as before.
+  relevantDishes: string[];
   // WS7-8b #5 — INPUT ONLY (code-owned; no matching output field, so prose
   // still can't move the math). Present ONLY on a grouped sauces_marinades
   // dish-step whose dish also has dry spices that survived into the
@@ -77,6 +81,12 @@ export interface PrepNarrationStepInput {
 
 export interface PrepNarrationInput {
   planName: string;
+  // D-WS9-049 A1.2 — dish name → that dish's raw instruction-step text, in
+  // stepIndex order. Sent ONCE per dish and referenced by each step's
+  // `relevantDishes`, instead of re-inlining a dish's full step prose on every
+  // prep step that touches it. Only dishes with step text (and referenced by
+  // some step) appear. Empty map when no step text was supplied.
+  dishSteps: Record<string, string[]>;
   steps: PrepNarrationStepInput[];
 }
 

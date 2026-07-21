@@ -349,27 +349,43 @@ describe("assemblePrepWeekResult", () => {
 
 // ── B2b: step text + skipSuggested ───────────────────────────────────────────
 
-describe("buildStepPlan — relevantSteps (B2b)", () => {
-  it("attaches deduped step text from the dishes a group's ingredients come from", () => {
+describe("buildStepPlan — relevantDishes + dishSteps (B2b / D-WS9-049 A1.2)", () => {
+  it("references the dishes a group's ingredients come from; step prose is sent once in dishSteps", () => {
     const map = new Map<string, string[]>([
       ["d-a", ["Season the beef.", "Brown it."]],
       ["d-b", ["Char the peppers."]],
     ]);
     const sp = buildStepPlan(combinePrep(plan()), "P", map);
-    // onion appears in d-a AND d-b → union of both dishes' steps.
+    // onion appears in d-a (Seasoned Beef) AND d-b (Fajitas) → both dishes named.
     const produce = sp.steps.find((s) => s.phase === "produce")!;
     assert.deepEqual(
-      [...produce.relevantSteps].sort(),
-      ["Brown it.", "Char the peppers.", "Season the beef."].sort(),
+      [...produce.relevantDishes].sort(),
+      ["Fajitas", "Seasoned Beef"],
     );
-    // narrationInput mirrors it for the AI.
+    // narrationInput mirrors the reference for the AI.
     const ni = sp.narrationInput.steps.find((s) => s.stepId === produce.stepId)!;
-    assert.deepEqual(ni.relevantSteps, produce.relevantSteps);
+    assert.deepEqual(ni.relevantDishes, produce.relevantDishes);
+    // Each dish's prose lives ONCE in the shared dishSteps map, keyed by name.
+    assert.deepEqual(sp.narrationInput.dishSteps["Seasoned Beef"], [
+      "Season the beef.",
+      "Brown it.",
+    ]);
+    assert.deepEqual(sp.narrationInput.dishSteps["Fajitas"], ["Char the peppers."]);
+    // The union of a step's referenced dishSteps reconstructs the old inlined set.
+    const reconstructed = produce.relevantDishes
+      .flatMap((n) => sp.narrationInput.dishSteps[n] ?? [])
+      .sort();
+    assert.deepEqual(reconstructed, [
+      "Brown it.",
+      "Char the peppers.",
+      "Season the beef.",
+    ]);
   });
 
-  it("defaults relevantSteps to empty when no step-text map is supplied", () => {
+  it("defaults relevantDishes to empty and dishSteps to {} when no step-text map is supplied", () => {
     const sp = buildStepPlan(combinePrep(plan()), "P");
-    for (const s of sp.steps) assert.deepEqual(s.relevantSteps, []);
+    for (const s of sp.steps) assert.deepEqual(s.relevantDishes, []);
+    assert.deepEqual(sp.narrationInput.dishSteps, {});
   });
 });
 

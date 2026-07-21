@@ -17,7 +17,7 @@
 // helper so the sheet can render either response without branching.
 
 import { Router, type IRouter, type Request } from "express";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient, type RecipeInstructionStep } from "@prisma/client";
 
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
 import {
@@ -329,6 +329,28 @@ export function applyRecipeOverrideToDishes(
 // caller passes a plan item's per-instance override), the override is applied
 // to the dishes + title so a "just this time" edit is visible here, not only on
 // the grocery list. Omitted/null → the canonical meal (unchanged behavior).
+// D-WS9-049 A2.2 — the meal-graph include, extracted so the single-meal path
+// and the batched plan path load the SAME shape.
+const MEAL_DETAIL_INCLUDE = {
+  dishLinks: {
+    orderBy: { positionIndex: "asc" },
+    include: {
+      dish: {
+        include: {
+          dishIngredients: {
+            orderBy: { positionIndex: "asc" },
+            include: { ingredient: true },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.MealInclude;
+
+type LoadedMealForDetail = Prisma.MealGetPayload<{
+  include: typeof MEAL_DETAIL_INCLUDE;
+}>;
+
 export async function composeMealDetail(
   prisma: PrismaClient,
   id: string,
@@ -337,21 +359,7 @@ export async function composeMealDetail(
 ): Promise<MealDetail | null> {
   const meal = await prisma.meal.findUnique({
     where: { id },
-    include: {
-      dishLinks: {
-        orderBy: { positionIndex: "asc" },
-        include: {
-          dish: {
-            include: {
-              dishIngredients: {
-                orderBy: { positionIndex: "asc" },
-                include: { ingredient: true },
-              },
-            },
-          },
-        },
-      },
-    },
+    include: MEAL_DETAIL_INCLUDE,
   });
 
   if (!meal || meal.isArchived) return null;
@@ -372,10 +380,33 @@ export async function composeMealDetail(
           where: { ownerType: "dish", ownerId: { in: dishIds } },
           orderBy: { stepIndex: "asc" },
         })
-      : Promise.resolve([]),
+      : Promise.resolve([] as RecipeInstructionStep[]),
   ]);
 
-  const dishStepsByOwner = new Map<string, typeof dishSteps>();
+  return composeLoadedMealDetail(
+    meal,
+    mealSteps,
+    dishSteps,
+    recipeOverrideJson,
+    servingsOverride,
+  );
+}
+
+// D-WS9-049 A2.2 — the pure, no-I/O compose step shared by composeMealDetail
+// (single) and composeMealDetailsBatch (plan review). Assumes `meal` is present
+// and non-archived (callers check). `mealSteps` = this meal's meal-owned steps;
+// `dishSteps` = the dish-owned steps for this meal's dishes (any order — grouped
+// by ownerId below, each owner's rows already in stepIndex order). Keeping ONE
+// compose implementation is what makes the batched plan path byte-identical to
+// the old per-item loop.
+function composeLoadedMealDetail(
+  meal: LoadedMealForDetail,
+  mealSteps: RecipeInstructionStep[],
+  dishSteps: RecipeInstructionStep[],
+  recipeOverrideJson?: unknown,
+  servingsOverride?: number | null,
+): MealDetail {
+  const dishStepsByOwner = new Map<string, RecipeInstructionStep[]>();
   for (const s of dishSteps) {
     const arr = dishStepsByOwner.get(s.ownerId) ?? [];
     arr.push(s);
@@ -454,6 +485,84 @@ export async function composeMealDetail(
     notes: null,
     effectiveServings,
   };
+}
+
+// D-WS9-049 A2.2 — batched sibling of composeMealDetail. GET /plans/:id used to
+// call composeMealDetail once PER plan item inside an awaited for-loop → 3 DB
+// round-trips × N items, all sequential. This collapses the whole plan to THREE
+// queries total (meals, meal-owned steps, dish-owned steps), then composes each
+// request in memory via the SAME composeLoadedMealDetail helper, so per-item
+// output is byte-identical to the old loop.
+//
+// Each request carries its own recipeOverrideJson + servingsOverride (they are
+// per plan item, not per meal), so two items on the same meal still get their
+// own composed detail. Results are returned aligned 1:1 with `requests`; a
+// missing/archived meal yields null for that request, exactly as before.
+export interface MealDetailRequest {
+  mealId: string;
+  recipeOverrideJson?: unknown;
+  servingsOverride?: number | null;
+}
+
+export async function composeMealDetailsBatch(
+  prisma: PrismaClient,
+  requests: MealDetailRequest[],
+): Promise<(MealDetail | null)[]> {
+  if (requests.length === 0) return [];
+
+  const mealIds = [...new Set(requests.map((r) => r.mealId))];
+  const meals = await prisma.meal.findMany({
+    where: { id: { in: mealIds } },
+    include: MEAL_DETAIL_INCLUDE,
+  });
+  const mealById = new Map(meals.map((m) => [m.id, m]));
+
+  const allDishIds = meals.flatMap((m) => m.dishLinks.map((l) => l.dish.id));
+  // Order by [ownerId, stepIndex] so grouping below preserves each owner's
+  // stepIndex order — matching the per-meal query's post-group order.
+  const [mealSteps, dishSteps] = await Promise.all([
+    prisma.recipeInstructionStep.findMany({
+      where: { ownerType: "meal", ownerId: { in: mealIds } },
+      orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
+    }),
+    allDishIds.length > 0
+      ? prisma.recipeInstructionStep.findMany({
+          where: { ownerType: "dish", ownerId: { in: allDishIds } },
+          orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
+        })
+      : Promise.resolve([] as RecipeInstructionStep[]),
+  ]);
+
+  const groupByOwner = (
+    rows: RecipeInstructionStep[],
+  ): Map<string, RecipeInstructionStep[]> => {
+    const m = new Map<string, RecipeInstructionStep[]>();
+    for (const s of rows) {
+      const arr = m.get(s.ownerId) ?? [];
+      arr.push(s);
+      m.set(s.ownerId, arr);
+    }
+    return m;
+  };
+  const mealStepsByOwner = groupByOwner(mealSteps);
+  const dishStepsByOwner = groupByOwner(dishSteps);
+
+  return requests.map((r) => {
+    const meal = mealById.get(r.mealId);
+    if (!meal || meal.isArchived) return null;
+    // The dish-owned steps for just this meal's dishes (each dish's block is
+    // already stepIndex-ordered; composeLoadedMealDetail re-groups by ownerId).
+    const ownDishSteps = meal.dishLinks.flatMap(
+      (l) => dishStepsByOwner.get(l.dish.id) ?? [],
+    );
+    return composeLoadedMealDetail(
+      meal,
+      mealStepsByOwner.get(meal.id) ?? [],
+      ownDishSteps,
+      r.recipeOverrideJson,
+      r.servingsOverride,
+    );
+  });
 }
 
 export function createMealsRouter(

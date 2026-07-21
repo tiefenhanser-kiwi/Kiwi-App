@@ -1400,6 +1400,9 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             scalarUpdate.carbsGPerServing = body.macros.carbsGPerServing;
           if (body.macros.fatGPerServing !== undefined)
             scalarUpdate.fatGPerServing = body.macros.fatGPerServing;
+          // D-WS9-050 Phase 2 — a user-typed macro is not a grounded estimate;
+          // clear any stale grounding stamp so it isn't mistaken for grounded.
+          scalarUpdate.macroGroundedPct = null;
         }
         await prisma.dish.update({
           where: { id: dishId },

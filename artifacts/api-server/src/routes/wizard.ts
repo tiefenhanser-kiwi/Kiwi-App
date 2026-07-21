@@ -581,7 +581,9 @@ export function createWizardRouter(
         "wizard.directed.parse_intent",
         { parseInput },
         ParsedIntentSchema,
-        { prisma, userId },
+        // D-WS9-053 §2.2 — temp 0: parsing the user's free-text request into
+        // structured constraints is faithful extraction, not creative.
+        { prisma, userId, temperature: 0 },
       );
 
       if (!parseResult.success) {

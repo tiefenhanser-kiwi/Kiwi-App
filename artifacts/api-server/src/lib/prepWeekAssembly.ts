@@ -75,9 +75,11 @@ export interface PlannedStep {
   contributesToMealIds: string[];
   isBlend: boolean;
   components: PrepNarrationComponent[];
-  // WS7-8a B2b — raw step text of the dish(es) this step's ingredients are
-  // cooked in, for the AI's combine-vs-season judgment.
-  relevantSteps: string[];
+  // WS7-8a B2b / D-WS9-049 A1.2 — NAMES of the dish(es) this step's ingredients
+  // are cooked in and that have step text. The prose itself lives once in the
+  // narration input's `dishSteps` map; each step just references the dishes.
+  // Empty when no step text was available for any of this step's dishes.
+  relevantDishes: string[];
   // WS7-8b #5 — set ONLY on a grouped sauces_marinades dish-step whose dish
   // ALSO has dry spices that survived into the seasonings_dry blend step. The
   // value is that dish's name; the narrator emits the mandatory linkage wording
@@ -147,16 +149,17 @@ export function formatMeasure(quantity: number, rawUnit: string): string {
   return `${toCount(quantity)} ${token}`;
 }
 
-// One narration component per summed line of a group. Retains the code-owned
-// summed total + meal names for reference, but the narrator writes from
+// One narration component per summed line of a group. The narrator writes from
 // `measures[]` — the PER-DISH breakdown (WS7-8b FIX 1), each amount already
 // fraction-formatted (FIX 2). Per-dish so nothing has to be re-portioned.
+// D-WS9-049 A1.1 — the old reference-only `totalQuantity`/`unit`/`forMeals`
+// (which the prompt already said to IGNORE) are no longer emitted; they only
+// cost narration-input tokens. id-level attribution stays on the planned step.
 function componentsOf(entry: PrepIngredientGroup): PrepNarrationComponent[] {
   return entry.lines.map((line) => {
     const prep = line.contributions.find(
       (c) => (c.preparationNote ?? "").trim() !== "",
     )?.preparationNote;
-    const forMeals = dedupe(line.contributions.map((c) => c.mealName));
     const measures: PrepMeasure[] = line.contributions.map((c) => ({
       amount: formatMeasure(c.quantity, c.unit),
       forDish: c.dishName,
@@ -167,10 +170,7 @@ function componentsOf(entry: PrepIngredientGroup): PrepNarrationComponent[] {
     }));
     return {
       ingredientName: entry.ingredientName,
-      totalQuantity: line.totalQuantity,
-      unit: line.unit,
       ...(prep ? { preparationNote: prep } : {}),
-      forMeals,
       measures,
     };
   });
@@ -181,8 +181,8 @@ function componentsOf(entry: PrepIngredientGroup): PrepNarrationComponent[] {
 // path: given one ingredient group and a target dishId, emit components built
 // from just that dish's contributions, so a sauce dish-step shows only its own
 // wet parts. Sits BESIDE componentsOf (does not replace the committed path).
-// totalQuantity/unit stay reference-only (narrator writes from measures[]);
-// here they are per-dish scoped — the sum of just this dish's contributions.
+// D-WS9-049 A1.1 — like componentsOf, no longer emits the IGNORE-only
+// totalQuantity/unit/forMeals; the narrator writes from measures[].
 function componentsForDish(
   entry: PrepIngredientGroup,
   dishId: string,
@@ -194,7 +194,6 @@ function componentsForDish(
     const prep = contribs.find(
       (c) => (c.preparationNote ?? "").trim() !== "",
     )?.preparationNote;
-    const forMeals = dedupe(contribs.map((c) => c.mealName));
     const measures: PrepMeasure[] = contribs.map((c) => ({
       amount: formatMeasure(c.quantity, c.unit),
       forDish: c.dishName,
@@ -205,10 +204,7 @@ function componentsForDish(
     }));
     out.push({
       ingredientName: entry.ingredientName,
-      totalQuantity: contribs.reduce((s, c) => s + c.quantity, 0),
-      unit: line.unit,
       ...(prep ? { preparationNote: prep } : {}),
-      forMeals,
       measures,
     });
   }
@@ -227,18 +223,49 @@ export function buildStepPlan(
   result: PrepCombineResult,
   planName: string,
   // WS7-8a B2b — raw step text per dishId (dish-owned + meal-owned folded in,
-  // built by the route from the loader output). A step's relevantSteps is the
-  // deduped union over the dishes its ingredients are cooked in. Defaults to
-  // an empty map so callers/tests that don't need the skip rule still work.
+  // built by the route from the loader output). Re-keyed by dish name into the
+  // narration input's shared `dishSteps` map (D-WS9-049 A1.2); each step then
+  // references the dishes its ingredients are cooked in via `relevantDishes`.
+  // Defaults to an empty map so callers/tests that don't need the skip rule
+  // still work (→ empty relevantDishes, empty dishSteps).
   stepTextByDishId: Map<string, string[]> = new Map(),
 ): StepPlan {
   const steps: PlannedStep[] = [];
 
-  const relevantStepsFor = (group: PrepIngredientGroup[]): string[] =>
+  // D-WS9-049 A1.2 — dish name ⇄ step text, so a dish's prose is sent ONCE
+  // (input-level `dishSteps` map) and each step just references dish names.
+  //   dishNameById   — dishId → dishName (first-seen across all contributions).
+  //   dishStepsByName — dishName → its deduped step text (union across any
+  //                     same-named dishIds). Only dishes WITH text appear.
+  const dishNameById = new Map<string, string>();
+  for (const phase of result.phases) {
+    for (const entry of phase.entries) {
+      for (const line of entry.lines) {
+        for (const c of line.contributions) {
+          if (!dishNameById.has(c.dishId)) dishNameById.set(c.dishId, c.dishName);
+        }
+      }
+    }
+  }
+  const dishStepsByName = new Map<string, string[]>();
+  for (const [dishId, texts] of stepTextByDishId) {
+    const name = dishNameById.get(dishId);
+    if (!name) continue; // dishId not present in this plan's contributions
+    const clean = dedupe(texts);
+    if (clean.length === 0) continue;
+    const existing = dishStepsByName.get(name);
+    dishStepsByName.set(name, existing ? dedupe([...existing, ...clean]) : clean);
+  }
+
+  // The dishes whose step text applies to a step === the dishes its ingredients
+  // are cooked in, restricted to those that actually have text (so an empty
+  // result still means "no step text → never demote", as before). Names, not
+  // prose — the prose is looked up in dishSteps by the narrator.
+  const relevantDishesFor = (dishIds: string[]): string[] =>
     dedupe(
-      [...new Set(group.flatMap(dishIdsOf))].flatMap(
-        (dishId) => stepTextByDishId.get(dishId) ?? [],
-      ),
+      [...new Set(dishIds)]
+        .map((dishId) => dishNameById.get(dishId))
+        .filter((name): name is string => !!name && dishStepsByName.has(name)),
     );
 
   // WS7-8b #5 — dishIds (→ dish name) whose dry spices actually SURVIVE into the
@@ -322,7 +349,7 @@ export function buildStepPlan(
           contributesToMealIds: mealIds,
           isBlend: true,
           components: dishEntries.flatMap((e) => componentsForDish(e, dishId)),
-          relevantSteps: dedupe(stepTextByDishId.get(dishId) ?? []),
+          relevantDishes: relevantDishesFor([dishId]),
         });
       }
     } else if (key === "sauces_marinades") {
@@ -364,7 +391,7 @@ export function buildStepPlan(
           contributesToMealIds: mealIds,
           isBlend: false,
           components: dishEntries.flatMap((e) => componentsForDish(e, dishId)),
-          relevantSteps: dedupe(stepTextByDishId.get(dishId) ?? []),
+          relevantDishes: relevantDishesFor([dishId]),
           ...(blendSpiceDish ? { blendSpiceDish } : {}),
         });
       }
@@ -378,20 +405,33 @@ export function buildStepPlan(
           contributesToMealIds: dedupe(mealIdsOf(entry)),
           isBlend: false,
           components: componentsOf(entry),
-          relevantSteps: relevantStepsFor([entry]),
+          relevantDishes: relevantDishesFor(dishIdsOf(entry)),
         });
+      }
+    }
+  }
+
+  // Emit dishSteps ONLY for dishes actually referenced by some step, in
+  // first-referenced order, so the map carries no unused prose.
+  const dishSteps: Record<string, string[]> = {};
+  for (const s of steps) {
+    for (const name of s.relevantDishes) {
+      if (!(name in dishSteps)) {
+        const texts = dishStepsByName.get(name);
+        if (texts) dishSteps[name] = texts;
       }
     }
   }
 
   const narrationInput: PrepNarrationInput = {
     planName,
+    dishSteps,
     steps: steps.map((s) => ({
       stepId: s.stepId,
       phase: s.phase,
       isBlend: s.isBlend,
       components: s.components,
-      relevantSteps: s.relevantSteps,
+      relevantDishes: s.relevantDishes,
       ...(s.blendSpiceDish ? { blendSpiceDish: s.blendSpiceDish } : {}),
     })),
   };

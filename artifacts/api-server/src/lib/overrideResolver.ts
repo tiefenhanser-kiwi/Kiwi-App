@@ -68,20 +68,62 @@ export function resolveEffectiveIngredients(
   _item: Pick<MealPlanItem, "ingredientOverrides" | "recipeOverrideJson">,
   dish: DishWithIngredients,
 ): EffectiveIngredient[] {
-  return dish.dishIngredients.map((di) => {
-    const ref = di.ingredient.nutritionRefPerUnit;
-    return {
-      name: di.ingredient.displayName,
-      quantity: di.quantity,
-      unit: di.unit,
-      isOptional: di.isOptional,
-      // Only a MATCHED usda record grounds the estimate; miss-markers / null
-      // leave the field absent so the ingredient reads as ungrounded.
-      ...(isMatchedRef(ref) ? { nutritionRefPer100g: ref.per100g } : {}),
-      // WS7-8b B2 — identity for the quantity→grams table lookup + fallback.
-      ingredientId: di.ingredient.id,
-      canonicalName: di.ingredient.canonicalName,
-      conversionRef: di.ingredient.conversionRef,
-    };
-  });
+  return dish.dishIngredients.map((di) =>
+    toEffectiveIngredient(
+      {
+        name: di.ingredient.displayName,
+        quantity: di.quantity,
+        unit: di.unit,
+        isOptional: di.isOptional,
+      },
+      {
+        id: di.ingredient.id,
+        canonicalName: di.ingredient.canonicalName,
+        nutritionRefPerUnit: di.ingredient.nutritionRefPerUnit,
+        conversionRef: di.ingredient.conversionRef,
+      },
+    ),
+  );
+}
+
+// D-WS9-050 P1.2 — the ONE definition of "how a base ingredient + its persisted
+// Ingredient row become a grounded estimator input". Used by the persisted-dish
+// resolver above AND by the wizard-expand path, where the ingredient list is
+// AI-generated (unpersisted) so the caller must batch-look-up the matching
+// Ingredient row itself, then pass it here. `row` absent (a brand-new ingredient
+// with no catalog row yet) → the ingredient is still returned, ungrounded, so
+// the model sees it exists (never dropped — bake-off failure mode B). Only a
+// MATCHED usda record grounds; miss-markers / null leave the ref absent.
+export type IngredientRowForGrounding = {
+  id: string;
+  canonicalName: string;
+  nutritionRefPerUnit: unknown;
+  conversionRef: unknown;
+};
+
+export function toEffectiveIngredient(
+  base: { name: string; quantity: number; unit: string; isOptional?: boolean },
+  row: IngredientRowForGrounding | undefined,
+): EffectiveIngredient {
+  const eff: EffectiveIngredient = {
+    name: base.name,
+    quantity: base.quantity,
+    unit: base.unit,
+    isOptional: base.isOptional ?? false,
+  };
+  if (!row) return eff;
+  if (isMatchedRef(row.nutritionRefPerUnit)) {
+    eff.nutritionRefPer100g = row.nutritionRefPerUnit.per100g;
+  }
+  eff.ingredientId = row.id;
+  eff.canonicalName = row.canonicalName;
+  eff.conversionRef = row.conversionRef;
+  return eff;
+}
+
+// D-WS9-050 P1.2 — the canonical-name key an Ingredient row is stored under,
+// mirroring resolveIngredients (ingredientResolve.ts:292) so a wizard-expand
+// lookup keys identically to how the row was created.
+export function ingredientCanonicalKey(name: string): string {
+  return name.toLowerCase().trim();
 }

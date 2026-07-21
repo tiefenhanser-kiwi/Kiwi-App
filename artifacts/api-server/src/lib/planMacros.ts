@@ -295,6 +295,9 @@ export async function computePlanMacros(
   type DishOutcome = DishMacroEntry & {
     pending: Pending;
     persistMacros?: MacroTotals;
+    // D-WS9-050 Phase 2 — write-time grounding stamp, set only when persistMacros
+    // is (an ungrounded/cached outcome persists nothing, so it stamps nothing).
+    persistGroundedPct?: number;
   };
 
   const outcomes: DishOutcome[] = await Promise.all(
@@ -349,6 +352,9 @@ export async function computePlanMacros(
         caveats: result.caveats,
         pending: p,
         persistMacros: shouldPersist ? macros : undefined,
+        persistGroundedPct: shouldPersist
+          ? Math.round(result.grounding.ratio * 100)
+          : undefined,
       };
     }),
   );
@@ -367,6 +373,8 @@ export async function computePlanMacros(
           proteinGPerServing: o.persistMacros.proteinG,
           carbsGPerServing: o.persistMacros.carbsG,
           fatGPerServing: o.persistMacros.fatG,
+          // D-WS9-050 Phase 2 — stamp grounding alongside the macro it describes.
+          macroGroundedPct: o.persistGroundedPct ?? null,
         },
       });
       await prisma.userActivity.create({

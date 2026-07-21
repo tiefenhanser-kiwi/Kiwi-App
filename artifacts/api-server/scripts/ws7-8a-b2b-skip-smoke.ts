@@ -245,13 +245,18 @@ async function main(): Promise<void> {
 
     const result = assemblePrepWeekResult(stepPlan, ai.data);
 
-    // (c) Step text the AI judged against, per planned step.
-    console.log("(c) STEP TEXT judged per step (relevantSteps):");
+    // (c) Step text the AI judged against, per planned step. D-WS9-049 A1.2 —
+    // prose now lives once in narrationInput.dishSteps; each step references the
+    // dish names, so resolve the union here for display.
+    console.log("(c) STEP TEXT judged per step (relevantDishes → dishSteps):");
     for (const s of stepPlan.steps) {
       const names = s.components.map((c) => c.ingredientName).join(", ");
       console.log(`    ${s.stepId} [${s.phase}] {${names}}`);
-      if (s.relevantSteps.length === 0) console.log("        (no step text)");
-      for (const t of s.relevantSteps) console.log(`        • ${t}`);
+      const stepText = s.relevantDishes.flatMap(
+        (d) => stepPlan.narrationInput.dishSteps[d] ?? [],
+      );
+      if (stepText.length === 0) console.log("        (no step text)");
+      for (const t of stepText) console.log(`        • ${t}`);
     }
     console.log();
 

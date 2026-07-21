@@ -69,7 +69,12 @@ export async function resolveConversionWithFallback(
       "nutrition.gap_fill_conversion",
       { conversionFillInput: { canonicalName: target.canonicalName } },
       ConversionFillResultSchema,
-      { prisma: opts.prisma, userId: opts.userId, client: opts.client },
+      // D-WS9-053 §1 — temp 0: this factor is WRITTEN BACK into the shared
+      // Ingredient.conversionRef (stamped ai_estimated) and reused by every
+      // future meal + grocery calc, so a sampled draw would persist noise into
+      // shared catalog data. A conversion factor is a deterministic lookup, not
+      // a creative output. (The global runAICall default stays 0.7 for prose.)
+      { prisma: opts.prisma, userId: opts.userId, client: opts.client, temperature: 0 },
     );
   } catch {
     return null;

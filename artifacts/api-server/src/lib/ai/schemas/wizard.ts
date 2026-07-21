@@ -229,6 +229,10 @@ export const WizardExpandDishMacrosSchema = z.object({
   // the draft regardless; user sees a soft caveat and the macro tile renders
   // from whatever did succeed). Failures are non-blocking by design.
   failed: z.boolean().optional(),
+  // D-WS9-050 Phase 2 — write-time grounding stamp (0..100) carried from the
+  // expand-time estimator so wizard activation can persist Dish.macroGroundedPct
+  // as the grounding that produced THESE macros (not re-derived at activation).
+  groundedPct: z.number().min(0).max(100).optional(),
 });
 export type WizardExpandDishMacros = z.infer<
   typeof WizardExpandDishMacrosSchema

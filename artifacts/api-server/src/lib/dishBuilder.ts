@@ -66,6 +66,9 @@ export async function parseDishFromText(
       prisma: opts.prisma,
       userId: opts.userId,
       client: opts.client,
+      // D-WS9-053 §2.2 — temp 0: parsing free-text into structured ingredients/
+      // quantities is faithful extraction, not creative generation.
+      temperature: 0,
     },
   );
 

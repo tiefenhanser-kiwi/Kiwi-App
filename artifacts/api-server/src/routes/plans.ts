@@ -64,7 +64,11 @@ import {
   effectivePrepStatus,
 } from "../lib/prepCompletion";
 import { loadPrepStepSet as productionLoadPrepStepSet } from "../lib/prepStepSet";
-import { composeMealDetail, type MealDetail } from "./meals";
+import {
+  composeMealDetail,
+  composeMealDetailsBatch,
+  type MealDetail,
+} from "./meals";
 
 export interface PlansRouterDeps {
   computePlanMacros: typeof productionComputePlanMacros;
@@ -404,19 +408,28 @@ export function createPlansRouter(
         // this to default its "did you prep this?" prompt.
         isPrepped: boolean;
       })[] = [];
-      for (const item of instance.items) {
-        // WS7-7-A B5 (D-WS7-090 read-side) — apply the item's per-instance
-        // recipeOverrideJson so the Plan Review expansion reflects a "just this
-        // time" edit (incl. a removed ingredient), consistent with GET
-        // /meals/:id?planItemId and the grocery consolidator.
-        const meal = await composeMealDetail(
-          prisma,
-          item.mealId,
-          item.recipeOverrideJson,
-          // WS7-8b (D-WS7-169 keystone) — resolve effectiveServings on the plan
-          // card path too, so it agrees with GET /meals/:id?planItemId.
-          item.servingsOverride,
-        );
+      // D-WS9-049 A2.2 — batch the per-item Meal expansion. This previously
+      // called composeMealDetail once per item inside this loop (3 sequential
+      // DB round-trips × N items); composeMealDetailsBatch collapses the whole
+      // plan to three queries and composes each item in memory. Output per item
+      // is byte-identical (same composeLoadedMealDetail helper).
+      //
+      // WS7-7-A B5 (D-WS7-090 read-side) — each request carries the item's
+      // per-instance recipeOverrideJson so the expansion reflects a "just this
+      // time" edit (incl. a removed ingredient), consistent with GET
+      // /meals/:id?planItemId and the grocery consolidator.
+      // WS7-8b (D-WS7-169 keystone) — servingsOverride resolves effectiveServings
+      // on the plan card path too, so it agrees with GET /meals/:id?planItemId.
+      const mealDetails = await composeMealDetailsBatch(
+        prisma,
+        instance.items.map((item) => ({
+          mealId: item.mealId,
+          recipeOverrideJson: item.recipeOverrideJson,
+          servingsOverride: item.servingsOverride,
+        })),
+      );
+      instance.items.forEach((item, itemIndex) => {
+        const meal = mealDetails[itemIndex];
         items.push({
           id: item.id,
           mealId: item.mealId,
@@ -435,7 +448,7 @@ export function createPlansRouter(
           isPrepped: perMeal[item.mealId] ?? true,
           meal,
         });
-      }
+      });
       // WS7-4-D c15 — apply the server-canonical Sun→Sat sort. The Prisma
       // include above still uses positionIndex ASC so the stable sort below
       // has a predictable starting order; this comparator then reorders by

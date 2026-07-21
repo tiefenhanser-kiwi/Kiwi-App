@@ -24,6 +24,12 @@ import {
   needsConversionFactor,
   resolveConversion,
 } from "./ingredientConversions";
+import { logger } from "./logger";
+import {
+  dishGroundingStatus,
+  sanityMacroFlags,
+  type GroundingStatus,
+} from "./macroQuality";
 
 export interface DishMacroSnapshot {
   caloriesPerServing: number;
@@ -93,6 +99,19 @@ export interface EstimateDishMacrosOptions {
   dishTitle: string;
   servings: number;
   ingredients: DishMacroIngredientInput[];
+  // D-WS9-050 Phase 2 — when true, the grams-grounding step does NOT invoke the
+  // AI conversion fallback (which write-backs Ingredient.conversionRef). Used by
+  // the read-only recompute dry-run so it never mutates ingredient rows; a
+  // volume/count miss simply goes to the model without resolvedGrams (the model
+  // derives it), which does not affect the grounding stamp (ref-based).
+  skipConversionWriteback?: boolean;
+  // D-WS9-053 §2.1 — sampling temperature for the estimator call. DEFAULTS TO 0
+  // (Hans D1): a macro estimate is a MEASUREMENT, not a creative output, and a
+  // calorie count must not vary between two users generating the same meal, nor
+  // between recompute runs. Both the recompute path and the live wizard/dish
+  // save path go through here, so the default makes both deterministic. An
+  // explicit value can still override (e.g. a future A/B).
+  temperature?: number;
 }
 
 export type EstimateDishMacrosResult =
@@ -101,6 +120,11 @@ export type EstimateDishMacrosResult =
       perServing: MacroEstimateResult["perServing"];
       confidence?: MacroEstimateResult["confidence"];
       caveats?: MacroEstimateResult["caveats"];
+      // D-WS9-050 G1 — plausibility flags on the returned macros (empty when
+      // clean). Flag-and-log only; the numbers are NOT clamped.
+      sanityFlags: string[];
+      // D-WS9-050 G2 — how much of this estimate was grounded in USDA refs.
+      grounding: GroundingStatus;
     }
   | {
       status: "failed";
@@ -135,7 +159,12 @@ export async function estimateDishMacros(
       let conv = resolveConversion(ing.canonicalName, ing.conversionRef);
       let grams = convertToGrams(ing.quantity, ing.unit, conv);
 
-      if (grams == null && needsConversionFactor(ing.unit) && ing.ingredientId != null) {
+      if (
+        grams == null &&
+        !opts.skipConversionWriteback &&
+        needsConversionFactor(ing.unit) &&
+        ing.ingredientId != null
+      ) {
         conv = await resolveConversionWithFallback(
           {
             ingredientId: ing.ingredientId,
@@ -172,6 +201,8 @@ export async function estimateDishMacros(
       prisma: opts.prisma,
       userId: opts.userId,
       client: opts.client,
+      // Default 0 — deterministic macros on both the recompute and live paths.
+      temperature: opts.temperature ?? 0,
     },
   );
 
@@ -182,10 +213,31 @@ export async function estimateDishMacros(
     };
   }
 
+  // G2 — grounding measured from the ingredients actually sent to the model.
+  const grounding = dishGroundingStatus(groundedIngredients);
+  // G1 — plausibility flags. Log (do NOT clamp) so an implausible catalog macro
+  // is visible in the dry-run/recompute review, never silently shipped.
+  const sanityFlags = sanityMacroFlags(result.data.perServing);
+  if (sanityFlags.length > 0) {
+    logger.warn(
+      {
+        event: "macro_estimate_implausible",
+        userId: opts.userId,
+        dishTitle: opts.dishTitle,
+        perServing: result.data.perServing,
+        sanityFlags,
+        grounding,
+      },
+      "Estimator returned implausible macros (flagged, not clamped)",
+    );
+  }
+
   return {
     status: "success",
     perServing: result.data.perServing,
     confidence: result.data.confidence,
     caveats: result.data.caveats,
+    sanityFlags,
+    grounding,
   };
 }
