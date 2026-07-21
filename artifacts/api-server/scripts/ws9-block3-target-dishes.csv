@@ -74,486 +74,486 @@ rank,dish,category,note
 73,Chicken Piccata,Italian-American,"lemon-caper pan sauce; distinct from marsala"
 74,Shepherd's Pie,Casseroles/Bakes,"ground lamb, mashed-potato top (cottage pie if beef)"
 75,BBQ Chicken (Grilled),Grilling/BBQ,"bone-in chicken grilled with BBQ sauce"
-76,Sesame Chicken,Asian-American,"distinct from orange/General Tso's"
-77,Sweet and Sour Chicken,Asian-American,
-78,Chicken Lo Mein,Asian-American,"soft noodles; distinct from chow mein"
-79,Beef and Cheese Nachos,Mexican/Tex-Mex,"loaded nacho platter as a meal"
-80,Turkey Meatballs,Italian-American,"often over pasta or in subs"
-81,Baked Tilapia,Seafood,
-82,Pork Tenderloin (Roasted),Pork,"whole roasted loin; distinct from chops"
-83,Chicken Cordon Bleu,Chicken,"ham and swiss stuffed, breaded"
-84,Meatball Subs,Sandwiches/Burgers,
-85,Philly Cheesesteak,Sandwiches/Burgers,
-86,Beef Stir-Fry (Pepper Steak),Asian-American,"beef with bell peppers in savory sauce; distinct from beef and broccoli"
-87,Chicken Tortilla Soup,Soups/Stews/Chili,
-88,Loaded Baked Potatoes,Sides/Bowls,"as a main with cheese, bacon, broccoli"
-89,Homemade Cheese Pizza,Pizza,"plain cheese / margherita; distinct from pepperoni"
-90,Homemade Sausage Pizza,Pizza,
-91,BBQ Chicken Pizza,Pizza,"BBQ sauce base, chicken, red onion"
-92,Supreme Pizza,Pizza,"sausage, pepperoni, peppers, onion, mushroom"
-93,Chicken and Broccoli Alfredo,Pasta,"distinct from plain chicken alfredo by the vegetable"
-94,Baked Spaghetti,Casseroles/Bakes,"casserole-style; distinct from stovetop spaghetti"
-95,Penne alla Vodka,Pasta,"creamy tomato-vodka sauce"
-96,Chicken Gyros,Greek/Mediterranean,"marinated chicken in pita with tzatziki"
-97,Chicken Shawarma,Middle Eastern,"spiced chicken, garlic sauce; distinct from gyros"
-98,Beef Kebabs (Shish Kebab),Grilling/BBQ,"skewered marinated beef and vegetables"
-99,Chicken Skewers (Kebabs),Grilling/BBQ,
-100,Pad Thai (Chicken),Asian-American,
-101,Pad Thai (Shrimp),Asian-American,"distinct protein, materially different from chicken"
-102,Kung Pao Chicken,Asian-American,
-103,Cashew Chicken,Asian-American,
-104,Mongolian Beef,Asian-American,
-105,Chicken Chow Mein,Asian-American,"crispier/pan-fried noodles vs lo mein"
-106,Beef Lo Mein,Asian-American,
-107,Egg Roll in a Bowl,Asian-American,"deconstructed ground-pork/cabbage skillet"
-108,Grilled Cheese and Tomato Soup,Soups/Stews/Chili,"the pairing as a light dinner"
-109,Broccoli Cheddar Soup,Soups/Stews/Chili,
-110,Loaded Baked Potato Soup,Soups/Stews/Chili,
-111,Minestrone Soup,Soups/Stews/Chili,
-112,Split Pea Soup with Ham,Soups/Stews/Chili,
-113,White Chicken Chili,Soups/Stews/Chili,"chicken, white beans, green chiles; distinct from beef chili"
-114,Turkey Chili,Soups/Stews/Chili,"distinct protein from beef chili"
-115,Vegetarian Chili,Soups/Stews/Chili,"bean-and-vegetable, no meat"
-116,Clam Chowder (New England),Soups/Stews/Chili,
-117,Chicken and Sausage Gumbo,Soups/Stews/Chili,
-118,Jambalaya,Soups/Stews/Chili,"sausage, chicken, shrimp, rice"
-119,Red Beans and Rice,Soups/Stews/Chili,"with andouille sausage"
-120,Beef and Barley Soup,Soups/Stews/Chili,
-121,Italian Wedding Soup,Soups/Stews/Chili,
-122,Butternut Squash Soup,Soups/Stews/Chili,"note: search-popular but often a starter — kept as a light vegetarian main"
-123,Baked Salmon Teriyaki,Seafood,"distinct glaze from lemon-herb salmon"
-124,Blackened Salmon,Seafood,"Cajun-spiced, seared; distinct from baked and grilled"
-125,Crab Cakes,Seafood,
-126,Fried Shrimp,Seafood,"breaded and fried; distinct from scampi and grilled"
-127,Grilled Shrimp Skewers,Seafood,
-128,Shrimp and Grits,Seafood,
-129,Shrimp Fried Rice,Asian-American,"distinct protein from chicken fried rice"
-130,Shrimp Stir-Fry,Asian-American,
-131,Fish and Chips,Seafood,"beer-battered cod with fries"
-132,Tuna Steak (Seared),Seafood,"distinct from canned-tuna casserole"
-133,Lobster Mac and Cheese,Casseroles/Bakes,"distinct from baked/stovetop mac"
-134,Buffalo Chicken Mac and Cheese,Casseroles/Bakes,
-135,Stovetop Mac and Cheese,Casseroles/Bakes,"creamy, no bake; distinct from baked"
-136,Chicken Tetrazzini,Casseroles/Bakes,"creamy chicken-mushroom pasta bake"
-137,King Ranch Chicken Casserole,Casseroles/Bakes,
-138,Hamburger Helper-Style Beef and Noodles,Casseroles/Bakes,"one-pot cheesy beef and pasta"
-139,Tater Tot Casserole (Hotdish),Casseroles/Bakes,"ground beef, tots, cheese"
-140,Enchilada Casserole,Casseroles/Bakes,"layered stacked enchiladas"
-141,Chicken Broccoli Rice Casserole,Casseroles/Bakes,"distinct from cheesy chicken and rice by broccoli"
-142,Poppy Seed Chicken Casserole,Casseroles/Bakes,
-143,Beef Taco Casserole,Casseroles/Bakes,
-144,Chicken Enchilada Casserole,Casseroles/Bakes,
-145,Sausage and Rice Casserole,Casseroles/Bakes,
-146,Pork Carnitas (Bowls/Plates),Mexican/Tex-Mex,"crispy braised pork as a plate, not tacos"
-147,Chicken Tinga,Mexican/Tex-Mex,"chipotle-tomato shredded chicken"
-148,Beef Barbacoa,Mexican/Tex-Mex,"slow-cooked shredded beef"
-149,Chile Verde (Pork),Mexican/Tex-Mex,"pork in green tomatillo sauce"
-150,Chicken Chimichangas,Mexican/Tex-Mex,"fried burritos"
-151,Beef Chimichangas,Mexican/Tex-Mex,
-152,Chicken Tostadas,Mexican/Tex-Mex,
-153,Tamales (Pork),Mexican/Tex-Mex,
-154,Beef Taquitos,Mexican/Tex-Mex,"rolled and fried"
-155,Chicken Flautas,Mexican/Tex-Mex,
-156,Carne Asada Plate,Mexican/Tex-Mex,"grilled steak with rice and beans"
-157,Fajita Bowls,Mexican/Tex-Mex,
-158,Elote-Style Chicken Bowls,Mexican/Tex-Mex,"street-corn-inspired bowl"
-159,Birria Tacos,Mexican/Tex-Mex,"braised-beef consomme-dipped; crossed over to home cooking"
-160,Baked Chicken Drumsticks,Chicken,"crispy oven drumsticks; distinct from wings and thighs"
-161,BBQ Chicken Drumsticks,Chicken,
-162,Chicken and Waffles (dinner),Chicken,"savory fried chicken with waffles; kept as a dinner variant"
-163,Nashville Hot Chicken,Chicken,"cayenne-fat fried chicken; distinct from plain fried"
-164,Chicken Nuggets (Homemade),Chicken,"kid-friendly breaded bites; distinct from tenders"
-165,Popcorn Chicken,Chicken,
-166,Chicken Schnitzel,Chicken,"thin breaded cutlet, German/Austrian style"
-167,Smothered Chicken,Chicken,"bone-in in onion gravy, Southern"
-168,Chicken and Gravy over Biscuits,Chicken,
-169,Lemon Pepper Chicken,Chicken,
-170,Garlic Butter Chicken Bites,Chicken,"skillet diced chicken in garlic butter"
-171,Chicken Cacciatore,Italian-American,"braised with tomatoes, peppers, olives"
-172,Chicken Saltimbocca,Italian-American,"prosciutto and sage"
-173,Chicken Francese,Italian-American,"egg-battered in lemon-butter sauce; distinct from piccata"
-174,Chicken Scampi,Italian-American,
-175,Rotisserie-Style Chicken,Chicken,"spit-style seasoned whole chicken"
-176,Beer Can Chicken,Grilling/BBQ,
-177,Spatchcock Grilled Chicken,Grilling/BBQ,
-178,Grilled Whole Chicken,Grilling/BBQ,
-179,Chicken Souvlaki,Greek/Mediterranean,"skewered marinated chicken; distinct from gyros"
-180,Greek Chicken (Sheet Pan),Greek/Mediterranean,"lemon-oregano chicken with potatoes"
-181,Chicken Shawarma Bowls,Middle Eastern,
-182,Falafel (Plate/Wrap),Middle Eastern,"fried chickpea, vegetarian"
-183,Beef Kofta (Kebabs),Middle Eastern,"spiced ground-beef/lamb skewers"
-184,Butter Chicken,Indian/South Asian,"creamy tomato; distinct from tikka masala by flavor"
-185,Chicken Biryani,Indian/South Asian,"layered spiced rice and chicken"
-186,Chana Masala,Indian/South Asian,"chickpea curry, vegetarian"
-187,Dal (Lentil Curry),Indian/South Asian,"vegetarian lentil stew"
-188,Palak Paneer,Indian/South Asian,"spinach and paneer, vegetarian"
-189,Chicken Korma,Indian/South Asian,"mild, nutty, creamy; distinct from tikka masala"
-190,Lamb/Beef Curry,Indian/South Asian,
-191,Vegetable Curry,Indian/South Asian,"mixed vegetable coconut curry"
-192,Chicken Vindaloo,Indian/South Asian,"spicy, tangy"
-193,Saag Chicken,Indian/South Asian,"chicken in spinach gravy"
-194,Thai Green Curry (Chicken),Asian-American,
-195,Thai Red Curry (Chicken),Asian-American,"distinct paste/flavor from green"
-196,Thai Red Curry (Shrimp),Asian-American,
-197,Panang Curry,Asian-American,
-198,Thai Basil Chicken (Pad Krapow),Asian-American,
-199,Drunken Noodles (Pad See Ew?),Asian-American,"spicy wide-noodle stir-fry"
-200,Pad See Ew,Asian-American,"sweet-soy wide-noodle; distinct from drunken noodles"
-201,Beef and Snow Pea Stir-Fry,Asian-American,
-202,Cashew Shrimp,Asian-American,
-203,Honey Walnut Shrimp,Asian-American,
-204,Kung Pao Shrimp,Asian-American,
-205,Szechuan Beef,Asian-American,
-206,Sweet and Sour Pork,Asian-American,
-207,Char Siu (BBQ Pork),Asian-American,"Chinese roast pork"
-208,Chicken Katsu,Asian-American,"panko-breaded cutlet with tonkatsu sauce"
-209,Katsu Curry (Chicken),Asian-American,"Japanese curry over katsu"
-210,Teriyaki Salmon Bowl,Asian-American,
-211,Poke Bowl (Tuna),Asian-American,"raw marinated tuna over rice"
-212,Bibimbap,Asian-American,"Korean rice bowl with vegetables and beef"
-213,Korean Beef Bowl (Ground),Asian-American,"quick sweet-soy ground beef over rice"
-214,Bulgogi (Korean BBQ Beef),Asian-American,
-215,Korean Fried Chicken,Asian-American,"double-fried, gochujang glaze; distinct from Southern fried"
-216,Chicken Adobo,Asian-American,"Filipino soy-vinegar braise"
-217,Beef and Vegetable Ramen (Homemade),Asian-American,"quick weeknight ramen bowl"
-218,Miso-Glazed Salmon,Asian-American,
-219,Vegetable Fried Rice,Asian-American,"vegetarian; distinct from chicken/shrimp"
-220,Vegetable Lo Mein,Asian-American,"vegetarian"
-221,Tofu Stir-Fry,Asian-American,"vegetarian/vegan"
-222,General Tso's Tofu,Asian-American,"vegetarian version, distinct dish"
-223,Dumplings/Potstickers (Pan-Fried),Asian-American,"as a meal"
-224,Fried Rice with Egg (Yang Chow),Asian-American,
-225,Baked Ham,Pork,"glazed bone-in ham (holiday/Sunday)"
-226,Ham and Scalloped Potatoes,Casseroles/Bakes,
-227,Pork Schnitzel,Pork,"breaded pork cutlet"
-228,Breaded Pork Chops,Pork,"distinct from grilled and baked"
-229,Smothered Pork Chops,Pork,"in onion gravy"
-230,Stuffed Pork Chops,Pork,
-231,Pork Milanese,Pork,
-232,Pork Carnitas Bowls,Mexican/Tex-Mex,"(distinct from carnitas tacos by format)"
-233,Cuban Mojo Pork,Pork,"citrus-garlic roast pork"
-234,Kalua Pork,Pork,"Hawaiian slow-roasted pork"
-235,Bratwurst and Sauerkraut,Pork,
-236,Italian Sausage and Peppers,Pork,"distinct from smoked-sausage sheet pan"
-237,Kielbasa and Cabbage,Pork,
-238,Bacon-Wrapped Pork Tenderloin,Pork,
-239,Pork Fried Rice,Asian-American,
-240,Pork Ramen (Homemade),Asian-American,
-241,St. Louis Ribs (Grilled),Grilling/BBQ,
-242,Beef Brisket (Smoked/Braised),Grilling/BBQ,
-243,Grilled Ribeye,Grilling/BBQ,"(over live fire; distinct from pan-seared)"
-244,Grilled T-Bone/Porterhouse,Grilling/BBQ,
-245,Grilled Flank Steak,Grilling/BBQ,
-246,Grilled Skirt Steak,Grilling/BBQ,
-247,Steak Fajita Bowls,Mexican/Tex-Mex,
-248,Steak and Potatoes,Beef,"pan-seared steak with roasted potatoes"
-249,Steak au Poivre,Beef,"peppercorn cream sauce"
-250,Steak Diane,Beef,
-251,Beef Tips and Gravy over Rice,Beef,
-252,Beef and Noodles,Beef,"shredded/cubed beef in gravy over egg noodles"
-253,Swedish Meatballs,Beef,"cream gravy; distinct from Italian meatballs"
-254,Porcupine Meatballs,Beef,"rice-studded in tomato sauce"
-255,BBQ Meatballs,Beef,"grape-jelly/BBQ cocktail-style as a main"
-256,Beef and Bean Chili Dogs,Sandwiches/Burgers,
-257,Corn Dogs (Homemade),Sandwiches/Burgers,
-258,Hamburger Steak with Onions,Beef,
-259,French Dip Sandwich,Sandwiches/Burgers,"roast beef, au jus"
-260,Italian Beef Sandwich,Sandwiches/Burgers,"Chicago-style, giardiniera"
-261,Roast Beef Sandwich (Hot),Sandwiches/Burgers,
-262,Beef Barbacoa Tacos,Mexican/Tex-Mex,
-263,Corned Beef and Cabbage,Beef,
-264,Beef Short Ribs (Braised),Beef,
-265,Braised Beef Ragu,Italian-American,"slow ragu over pappardelle; distinct from quick weeknight meat sauce"
-266,Baked Meatballs (Italian),Italian-American,
-267,Chicken Parm Sub,Sandwiches/Burgers,
-268,Eggplant Parmesan,Italian-American,"vegetarian; distinct from chicken parm"
-269,Chicken Florentine,Italian-American,"creamy spinach sauce"
-270,Fettuccine Alfredo (Plain),Pasta,"no protein; distinct from chicken alfredo"
-271,Shrimp Alfredo,Pasta,
-272,Cajun Chicken Pasta,Pasta,"creamy blackened; distinct from alfredo"
-273,Buffalo Chicken Pasta,Pasta,
-274,Pesto Pasta (with Chicken),Pasta,
-275,Pesto Pasta (Plain),Pasta,"vegetarian"
-276,Pasta Primavera,Pasta,"vegetable pasta, vegetarian"
-277,Cacio e Pepe,Pasta,"pecorino and pepper"
-278,Aglio e Olio,Pasta,"garlic and oil, vegetarian"
-279,Sausage and Peppers Pasta,Pasta,
-280,One-Pot Taco Pasta,Pasta,"beef, cheese, taco spice"
-281,Stuffed Shells,Italian-American,"ricotta-filled, baked"
-282,Manicotti,Italian-American,
-283,Ravioli (Cheese) with Marinara,Italian-American,
-284,Tortellini Alfredo,Pasta,
-285,Tortellini in Tomato Cream,Pasta,
-286,Gnocchi with Marinara,Italian-American,
-287,Gnocchi with Brown Butter and Sage,Italian-American,
-288,Baked Gnocchi (Cheesy),Italian-American,
-289,Lasagna Roll-Ups,Italian-American,
-290,White Chicken Lasagna,Italian-American,"bechamel/alfredo, distinct from meat lasagna"
-291,Vegetable Lasagna,Italian-American,"vegetarian"
-292,Chicken Tortellini Soup,Soups/Stews/Chili,
-293,Pasta e Fagioli,Soups/Stews/Chili,"pasta and bean soup"
-294,Zuppa Toscana,Soups/Stews/Chili,"sausage, kale, potato, cream"
-295,Lasagna Soup,Soups/Stews/Chili,
-296,Honey Garlic Salmon,Seafood,
-297,Cajun Shrimp Pasta,Pasta,
-298,Shrimp Boil,Seafood,"shrimp, corn, potato, sausage"
-299,Cioppino,Soups/Stews/Chili,"seafood tomato stew"
-300,Fish Fry (Fried Cod/Perch),Seafood,
-301,Baked Stuffed Flounder,Seafood,
-302,Salmon Patties/Croquettes,Seafood,
-303,Tuna Melt,Sandwiches/Burgers,
-304,Lobster Rolls,Sandwiches/Burgers,
-305,Scallops (Seared),Seafood,
-306,"Mussels (Steamed, White Wine)",Seafood,
-307,Grilled Mahi-Mahi,Seafood,
-308,Fish en Papillote,Seafood,"baked in parchment"
-309,Blackened Catfish,Seafood,
-310,Fried Catfish,Seafood,
-311,Chicken Burrito,Mexican/Tex-Mex,
-312,Wet Burrito,Mexican/Tex-Mex,"smothered in sauce and cheese"
-313,Nachos Supreme (Chicken),Mexican/Tex-Mex,
-314,Taco Salad,Salads/Bowls,"beef, beans, cheese in a tortilla bowl"
-315,Southwest Chicken Salad,Salads/Bowls,
-316,Cobb Salad,Salads/Bowls,"chicken, bacon, egg, blue cheese"
-317,Chicken Bacon Ranch Salad,Salads/Bowls,
-318,Buffalo Chicken Salad,Salads/Bowls,
-319,Greek Salad with Chicken,Salads/Bowls,
-320,Steak Salad,Salads/Bowls,
-321,Shrimp Caesar Salad,Salads/Bowls,
-322,Chef Salad,Salads/Bowls,
-323,Grain Bowl (Chicken and Veg),Salads/Bowls,
-324,Burrito Bowl (Vegetarian),Salads/Bowls,
-325,Buddha Bowl (Roasted Veg),Salads/Bowls,"vegan"
-326,Falafel Bowl,Salads/Bowls,"vegetarian"
-327,Teriyaki Tofu Bowl,Salads/Bowls,"vegan"
-328,Sushi Bowl (Salmon/Tuna),Salads/Bowls,
-329,Chicken Shawarma Plate,Middle Eastern,
-330,Beef Gyros,Greek/Mediterranean,"lamb-beef gyro meat in pita"
-331,Chicken Souvlaki Bowls,Greek/Mediterranean,
-332,Greek Chicken Bowls,Greek/Mediterranean,
-333,Spanakopita (as main),Greek/Mediterranean,"spinach-feta pie, vegetarian"
-334,Stuffed Grape Leaves (Dolmas),Greek/Mediterranean,"vegetarian"
-335,Moussaka,Greek/Mediterranean,"eggplant and meat bake"
-336,Shakshuka (dinner),Middle Eastern,"eggs in tomato-pepper sauce, vegetarian dinner"
-337,Hummus Bowl with Chicken,Middle Eastern,
-338,Kofta over Rice,Middle Eastern,
-339,Tabbouleh with Grilled Chicken,Middle Eastern,
-340,Vegetable Stir-Fry over Rice,Asian-American,"vegan"
-341,Sesame Tofu,Asian-American,"vegetarian/vegan"
-342,Kung Pao Tofu,Asian-American,
-343,Mapo Tofu,Asian-American,"Sichuan, often with pork"
-344,Tofu Pad Thai,Asian-American,"vegetarian"
-345,Vegetable Pad Thai,Asian-American,
-346,Vegetable Curry over Rice,Asian-American,
-347,Chickpea Coconut Curry,Indian/South Asian,"vegan"
-348,Aloo Gobi,Indian/South Asian,"potato-cauliflower, vegan"
-349,Vegetable Biryani,Indian/South Asian,
-350,Paneer Tikka Masala,Indian/South Asian,"vegetarian"
-351,Lentil Dal with Rice,Indian/South Asian,"vegan"
-352,Black Bean Burgers,Sandwiches/Burgers,"vegetarian; distinct from beef and turkey"
-353,Portobello Mushroom Burgers,Sandwiches/Burgers,"vegetarian"
-354,Veggie Burgers (Bean/Grain),Sandwiches/Burgers,
-355,Lentil Loaf,Vegetarian/Vegan,"vegan meatloaf analog"
-356,Stuffed Portobello Mushrooms,Vegetarian/Vegan,
-357,Eggplant Rollatini,Italian-American,"vegetarian"
-358,Ratatouille,Vegetarian/Vegan,"vegetable stew, vegan"
-359,Vegetable Enchiladas,Mexican/Tex-Mex,"vegetarian"
-360,Black Bean Tacos,Mexican/Tex-Mex,"vegetarian"
-361,Sweet Potato and Black Bean Tacos,Mexican/Tex-Mex,"vegan"
-362,Cauliflower Tacos,Mexican/Tex-Mex,"vegetarian"
-363,Bean and Cheese Burritos,Mexican/Tex-Mex,"vegetarian"
-364,Vegetarian Fajitas,Mexican/Tex-Mex,
-365,Stuffed Sweet Potatoes,Vegetarian/Vegan,"loaded, as a main"
-366,Stuffed Zucchini Boats,Vegetarian/Vegan,"can be ground-meat or vegetarian"
-367,Stuffed Cabbage Rolls,Casseroles/Bakes,"ground beef and rice in cabbage"
-368,Stuffed Acorn Squash,Vegetarian/Vegan,
-369,Vegetable Pot Pie,Casseroles/Bakes,"vegetarian"
-370,Broccoli Cheese Rice Bake,Casseroles/Bakes,"vegetarian"
-371,Vegetable Stir-Fry Noodles,Asian-American,
-372,Cauliflower Fried Rice,Asian-American,"lower-carb, vegetarian"
-373,Zucchini Noodles with Marinara,Italian-American,"low-carb, vegetarian"
-374,Spaghetti Squash with Marinara,Italian-American,"vegetarian"
-375,Baked Ziti (Vegetarian),Italian-American,"(distinct from meat ziti)"
-376,Margherita Flatbread,Pizza,"thin flatbread, vegetarian"
-377,Buffalo Chicken Pizza,Pizza,
-378,Hawaiian Pizza,Pizza,"ham and pineapple"
-379,Meat Lovers Pizza,Pizza,
-380,White Pizza (Ricotta/Garlic),Pizza,"no red sauce"
-381,Veggie Pizza,Pizza,
-382,Detroit-Style Pizza,Pizza,"thick, crispy-cheese-edge; distinct crust"
-383,Deep-Dish Pizza,Pizza,"Chicago-style"
-384,Naan Pizza,Pizza,"quick personal pizza on naan"
-385,French Bread Pizza,Pizza,
-386,Calzone,Italian-American,"folded stuffed pizza"
-387,Stromboli,Italian-American,"rolled, distinct from calzone"
-388,Homemade Hot Dogs (Loaded),Sandwiches/Burgers,
-389,Chicago-Style Hot Dog,Sandwiches/Burgers,
-390,Chili Cheese Dog,Sandwiches/Burgers,
-391,Bratwurst on a Bun,Sandwiches/Burgers,
-392,Pulled Pork Sandwich,Sandwiches/Burgers,"(distinct from pulled pork plate)"
-393,BBQ Chicken Sandwich,Sandwiches/Burgers,
-394,Fried Chicken Sandwich (Classic),Sandwiches/Burgers,"distinct from spicy"
-395,Spicy Fried Chicken Sandwich,Sandwiches/Burgers,"Nashville/hot; distinct from classic"
-396,Grilled Chicken Sandwich,Sandwiches/Burgers,
-397,Chicken Bacon Ranch Wrap,Sandwiches/Burgers,
-398,Buffalo Chicken Wrap,Sandwiches/Burgers,
-399,BLT,Sandwiches/Burgers,"bacon, lettuce, tomato as a light dinner"
-400,Club Sandwich,Sandwiches/Burgers,
-401,Reuben,Sandwiches/Burgers,"corned beef, kraut, swiss"
-402,Patty Melt,Sandwiches/Burgers,"beef patty, rye, grilled onions; distinct from cheeseburger"
-403,Juicy Lucy (Stuffed Burger),Sandwiches/Burgers,"cheese-stuffed patty"
-404,Bacon Cheeseburger,Sandwiches/Burgers,
-405,Mushroom Swiss Burger,Sandwiches/Burgers,
-406,Pub/Gourmet Burger,Sandwiches/Burgers,"thick, seared, brioche; distinct from classic and smash"
-407,Salmon Burger,Sandwiches/Burgers,
-408,Sliders (Beef),Sandwiches/Burgers,
-409,Meatball Sliders,Sandwiches/Burgers,
-410,Pulled Pork Sliders,Sandwiches/Burgers,
-411,Sheet-Pan Chicken and Potatoes,Chicken,"one-pan roast; distinct from sheet-pan sausage"
-412,Sheet-Pan Chicken and Broccoli,Chicken,
-413,Sheet-Pan Salmon and Asparagus,Seafood,
-414,Sheet-Pan Shrimp Boil,Seafood,
-415,Sheet-Pan Steak and Veggies,Beef,
-416,Sheet-Pan Pork Chops and Apples,Pork,
-417,Sheet-Pan Meatballs and Veg,Beef,
-418,Sheet-Pan Gnocchi and Veg,Italian-American,"vegetarian"
-419,Chicken and Vegetable Skewers,Grilling/BBQ,
-420,Grilled Vegetable Kebabs,Grilling/BBQ,"vegetarian"
-421,Grilled Corn and Chicken Plate,Grilling/BBQ,
-422,Grilled Bratwurst and Peppers,Grilling/BBQ,
-423,Grilled Shrimp Tacos,Mexican/Tex-Mex,"(distinct from fried/battered fish tacos)"
-424,Grilled Portobello Steaks,Grilling/BBQ,"vegan"
-425,Grilled Salmon Salad,Salads/Bowls,
-426,Turkey Meatloaf,Beef,"distinct protein from beef meatloaf"
-427,Turkey Tacos,Mexican/Tex-Mex,"ground turkey; distinct from beef"
-428,Turkey Chili Mac,Soups/Stews/Chili,
-429,Turkey Tetrazzini,Casseroles/Bakes,
-430,Roast Turkey Breast,Chicken,"weeknight turkey breast (poultry)"
-431,Turkey and Stuffing (Weeknight),Casseroles/Bakes,
-432,Ground Turkey Skillet with Rice,Chicken,
-433,Turkey Sloppy Joes,Sandwiches/Burgers,
-434,Turkey Bolognese,Pasta,"(distinct protein; keep if not padding)"
-435,Chicken Sausage and Peppers,Chicken,
-436,Chicken Sausage Pasta,Pasta,
-437,Andouille and Shrimp Skillet,Seafood,
-438,Cajun Sausage and Rice,Soups/Stews/Chili,
-439,Dirty Rice,Soups/Stews/Chili,"Cajun rice with ground meat"
-440,Étouffée (Crawfish/Shrimp),Soups/Stews/Chili,
-441,Chicken and Rice Soup,Soups/Stews/Chili,"distinct from noodle soup"
-442,Beef Vegetable Soup,Soups/Stews/Chili,
-443,Hamburger Soup,Soups/Stews/Chili,
-444,Taco Soup,Soups/Stews/Chili,
-445,Potato Leek Soup,Soups/Stews/Chili,"vegetarian"
-446,Tomato Basil Soup,Soups/Stews/Chili,"vegetarian"
-447,French Onion Soup,Soups/Stews/Chili,
-448,Chicken Pho,Asian-American,"Vietnamese noodle soup"
-449,Beef Pho,Asian-American,
-450,Wonton Soup,Asian-American,
-451,Hot and Sour Soup,Asian-American,
-452,Egg Drop Soup,Asian-American,
-453,"Ramen (Miso, Homemade)",Asian-American,
-454,Tom Kha Gai,Asian-American,"Thai coconut chicken soup"
-455,Tortilla Soup (Vegetarian),Soups/Stews/Chili,
-456,Black Bean Soup,Soups/Stews/Chili,"vegetarian"
-457,Lentil Soup,Soups/Stews/Chili,"vegetarian"
-458,Chicken Enchilada Soup,Soups/Stews/Chili,
-459,Cheeseburger Soup,Soups/Stews/Chili,
-460,Ham and Bean Soup,Soups/Stews/Chili,
-461,Chicken Gnocchi Soup,Soups/Stews/Chili,
-462,Beef Bourguignon,Beef,"French red-wine beef stew"
-463,Coq au Vin,Chicken,"French braised chicken in wine"
-464,Chicken Fricassee,Chicken,"white braise"
-465,Beef Wellington,Beef,"special-occasion"
-466,Braised Lamb Shanks,Lamb,
-467,Rack of Lamb (Roasted),Lamb,
-468,Lamb Chops (Grilled),Lamb,
-469,Gyro Plate (Lamb),Greek/Mediterranean,
-470,Shepherd's Pie (Beef/Cottage),Casseroles/Bakes,"(distinct from lamb shepherd's pie)"
-471,Frito Pie,Casseroles/Bakes,"chili over corn chips"
-472,Chili Cheese Fries,Sides/Bowls,"as a main"
-473,Loaded Nachos (Vegetarian),Mexican/Tex-Mex,
-474,Quesadilla (Cheese),Mexican/Tex-Mex,"vegetarian; distinct from chicken"
-475,Steak Quesadilla,Mexican/Tex-Mex,
-476,Shrimp Quesadilla,Mexican/Tex-Mex,
-477,Chicken Divan,Casseroles/Bakes,"chicken-broccoli-cheese bake"
-478,Hot Brown (Kentucky),Sandwiches/Burgers,"open-faced turkey"
-479,Turkey Pot Pie,Casseroles/Bakes,
-480,Chicken à la King,Chicken,"creamy chicken over rice/toast"
-481,Chicken and Stuffing Casserole,Casseroles/Bakes,
-482,Johnny Marzetti,Casseroles/Bakes,"beef-noodle-cheese bake (regional)"
-483,Goulash (American),Beef,"one-pot beef, macaroni, tomato"
-484,Hungarian Goulash,Soups/Stews/Chili,"paprika beef stew; distinct from American"
-485,Pierogi with Onions,Vegetarian/Vegan,"potato dumplings"
-486,Kielbasa and Pierogi,Pork,
-487,Cabbage and Sausage Skillet,Pork,
-488,Fried Rice (Kimchi),Asian-American,
-489,Bibimbap (Tofu),Asian-American,"vegetarian"
-490,Japchae,Asian-American,"Korean glass noodles"
-491,Yakisoba (Chicken),Asian-American,
-492,Chow Fun (Beef),Asian-American,
-493,Singapore Noodles,Asian-American,
-494,Dan Dan Noodles,Asian-American,
-495,Beef and Bean Tostadas,Mexican/Tex-Mex,
-496,Enfrijoladas,Mexican/Tex-Mex,"tortillas in bean sauce, vegetarian"
-497,Sopes,Mexican/Tex-Mex,
-498,Chilaquiles (dinner),Mexican/Tex-Mex,"tortillas in salsa; often breakfast — kept as a dinner variant"
-499,Pozole (Pork/Chicken),Soups/Stews/Chili,"hominy stew"
-500,Menudo,Soups/Stews/Chili,"(regional; flag)"
-501,Caldo de Pollo,Soups/Stews/Chili,"Mexican chicken soup"
-502,Albondigas Soup,Soups/Stews/Chili,"Mexican meatball soup"
-503,Ropa Vieja,Beef,"Cuban shredded beef"
-504,Arroz con Pollo,Mexican/Tex-Mex,"chicken and rice, Latin"
-505,Cuban Picadillo,Beef,"ground beef with olives/raisins"
-506,Empanadas (Beef),Mexican/Tex-Mex,
-507,Pastelón,Casseroles/Bakes,"(regional; flag)"
-508,Feijoada,Soups/Stews/Chili,"Brazilian black bean and pork stew"
-509,Chicken Yakitori,Asian-American,
-510,Teriyaki Meatballs,Asian-American,
-511,Sweet Chili Chicken,Asian-American,
-512,Firecracker Chicken,Asian-American,
-513,Bang Bang Shrimp,Asian-American,
-514,Bang Bang Chicken,Asian-American,
-515,Honey Sriracha Chicken,Asian-American,
-516,Sheet-Pan Teriyaki Chicken and Veg,Asian-American,
-517,Baked Coconut Shrimp,Seafood,
-518,Garlic Butter Shrimp,Seafood,
-519,Shrimp Creole,Soups/Stews/Chili,"tomato-based; distinct from etouffee"
-520,Crawfish Boil,Seafood,"(regional; flag)"
-521,Fried Fish Sandwich,Sandwiches/Burgers,
-522,Po' Boy (Shrimp),Sandwiches/Burgers,
-523,Po' Boy (Roast Beef),Sandwiches/Burgers,
-524,Muffuletta,Sandwiches/Burgers,"(regional; flag)"
-525,Grilled Cheese (Loaded/Gourmet),Sandwiches/Burgers,"as a dinner"
-526,Panini (Chicken Pesto),Sandwiches/Burgers,
-527,Turkey Avocado Wrap,Sandwiches/Burgers,
-528,Chicken Caesar Wrap,Sandwiches/Burgers,
-529,Falafel Wrap,Middle Eastern,
-530,Meatball Marinara Bowl,Italian-American,
-531,Sausage and Kale White Bean Skillet,Pork,
-532,White Bean and Sausage Stew,Soups/Stews/Chili,
-533,Cassoulet (Simplified),Soups/Stews/Chili,"French bean-and-meat stew"
-534,Chicken Marbella,Chicken,"olives, capers, prunes"
-535,Balsamic Glazed Chicken,Chicken,
-536,Caprese Chicken,Italian-American,"tomato, mozzarella, basil"
-537,Bruschetta Chicken,Italian-American,
-538,Salsa Verde Chicken,Mexican/Tex-Mex,
-539,Salsa Chicken (Baked),Mexican/Tex-Mex,
-540,Ranch Chicken (Baked),Chicken,
-541,Bacon-Wrapped Chicken,Chicken,
-542,Stuffed Chicken Breast (Spinach-Feta),Chicken,
-543,Stuffed Chicken Breast (Broccoli-Cheddar),Chicken,
-544,Chicken Cheesesteak,Sandwiches/Burgers,
-545,BBQ Chicken Nachos,Mexican/Tex-Mex,
-546,Buffalo Chicken Sweet Potatoes,Chicken,"stuffed baked sweet potato"
-547,"Sausage, Peppers and Onion Hoagie",Sandwiches/Burgers,
-548,Chicken Parmesan Pasta (One-Pot),Pasta,"(overlaps chicken parm — keep as distinct one-pot pasta or REMOVE)"
-549,Slow-Cooker Pot Roast,Beef,"D-WS9-046: hands-off braise — distinct meal EXPERIENCE from stovetop pot roast (toss in at 8am, done at 6). Re-rank into the head band — high frequency."
-550,Slow-Cooker Chili,Soups/Stews/Chili,"D-WS9-046: distinct set-and-forget experience from stovetop chili. Re-rank up."
-551,Slow-Cooker Beef Stew,Soups/Stews/Chili,"D-WS9-046. Re-rank up."
-552,Slow-Cooker Pulled Chicken,Chicken,"D-WS9-046: set-and-forget shredded chicken (taco/sandwich/bowl base). Re-rank up."
-553,Slow-Cooker Chicken Tacos,Mexican/Tex-Mex,"D-WS9-046. Re-rank up."
-554,Slow-Cooker Beef Barbacoa,Mexican/Tex-Mex,"D-WS9-046. Re-rank up."
-555,Instant-Pot Chicken and Rice,Chicken,"D-WS9-046: pressure-cooker weeknight one-pot. Re-rank up."
-556,Instant-Pot Beef and Broccoli,Asian-American,"D-WS9-046. Re-rank up."
+76,Slow-Cooker Pot Roast,Beef,"D-WS9-046: hands-off braise — distinct meal EXPERIENCE from stovetop pot roast (toss in at 8am, done at 6). Re-rank into the head band — high frequency."
+77,Slow-Cooker Chili,Soups/Stews/Chili,"D-WS9-046: distinct set-and-forget experience from stovetop chili. Re-rank up."
+78,Slow-Cooker Beef Stew,Soups/Stews/Chili,"D-WS9-046. Re-rank up."
+79,Slow-Cooker Pulled Chicken,Chicken,"D-WS9-046: set-and-forget shredded chicken (taco/sandwich/bowl base). Re-rank up."
+80,Slow-Cooker Chicken Tacos,Mexican/Tex-Mex,"D-WS9-046. Re-rank up."
+81,Slow-Cooker Beef Barbacoa,Mexican/Tex-Mex,"D-WS9-046. Re-rank up."
+82,Instant-Pot Chicken and Rice,Chicken,"D-WS9-046: pressure-cooker weeknight one-pot. Re-rank up."
+83,Instant-Pot Beef and Broccoli,Asian-American,"D-WS9-046. Re-rank up."
+84,Sesame Chicken,Asian-American,"distinct from orange/General Tso's"
+85,Sweet and Sour Chicken,Asian-American,
+86,Chicken Lo Mein,Asian-American,"soft noodles; distinct from chow mein"
+87,Beef and Cheese Nachos,Mexican/Tex-Mex,"loaded nacho platter as a meal"
+88,Turkey Meatballs,Italian-American,"often over pasta or in subs"
+89,Baked Tilapia,Seafood,
+90,Pork Tenderloin (Roasted),Pork,"whole roasted loin; distinct from chops"
+91,Chicken Cordon Bleu,Chicken,"ham and swiss stuffed, breaded"
+92,Meatball Subs,Sandwiches/Burgers,
+93,Philly Cheesesteak,Sandwiches/Burgers,
+94,Beef Stir-Fry (Pepper Steak),Asian-American,"beef with bell peppers in savory sauce; distinct from beef and broccoli"
+95,Chicken Tortilla Soup,Soups/Stews/Chili,
+96,Loaded Baked Potatoes,Sides/Bowls,"as a main with cheese, bacon, broccoli"
+97,Homemade Cheese Pizza,Pizza,"plain cheese / margherita; distinct from pepperoni"
+98,Homemade Sausage Pizza,Pizza,
+99,BBQ Chicken Pizza,Pizza,"BBQ sauce base, chicken, red onion"
+100,Supreme Pizza,Pizza,"sausage, pepperoni, peppers, onion, mushroom"
+101,Chicken and Broccoli Alfredo,Pasta,"distinct from plain chicken alfredo by the vegetable"
+102,Baked Spaghetti,Casseroles/Bakes,"casserole-style; distinct from stovetop spaghetti"
+103,Penne alla Vodka,Pasta,"creamy tomato-vodka sauce"
+104,Chicken Gyros,Greek/Mediterranean,"marinated chicken in pita with tzatziki"
+105,Chicken Shawarma,Middle Eastern,"spiced chicken, garlic sauce; distinct from gyros"
+106,Beef Kebabs (Shish Kebab),Grilling/BBQ,"skewered marinated beef and vegetables"
+107,Chicken Skewers (Kebabs),Grilling/BBQ,
+108,Pad Thai (Chicken),Asian-American,
+109,Pad Thai (Shrimp),Asian-American,"distinct protein, materially different from chicken"
+110,Kung Pao Chicken,Asian-American,
+111,Cashew Chicken,Asian-American,
+112,Mongolian Beef,Asian-American,
+113,Chicken Chow Mein,Asian-American,"crispier/pan-fried noodles vs lo mein"
+114,Beef Lo Mein,Asian-American,
+115,Egg Roll in a Bowl,Asian-American,"deconstructed ground-pork/cabbage skillet"
+116,Grilled Cheese and Tomato Soup,Soups/Stews/Chili,"the pairing as a light dinner"
+117,Broccoli Cheddar Soup,Soups/Stews/Chili,
+118,Loaded Baked Potato Soup,Soups/Stews/Chili,
+119,Minestrone Soup,Soups/Stews/Chili,
+120,Split Pea Soup with Ham,Soups/Stews/Chili,
+121,White Chicken Chili,Soups/Stews/Chili,"chicken, white beans, green chiles; distinct from beef chili"
+122,Turkey Chili,Soups/Stews/Chili,"distinct protein from beef chili"
+123,Vegetarian Chili,Soups/Stews/Chili,"bean-and-vegetable, no meat"
+124,Clam Chowder (New England),Soups/Stews/Chili,
+125,Chicken and Sausage Gumbo,Soups/Stews/Chili,
+126,Jambalaya,Soups/Stews/Chili,"sausage, chicken, shrimp, rice"
+127,Red Beans and Rice,Soups/Stews/Chili,"with andouille sausage"
+128,Beef and Barley Soup,Soups/Stews/Chili,
+129,Italian Wedding Soup,Soups/Stews/Chili,
+130,Butternut Squash Soup,Soups/Stews/Chili,"note: search-popular but often a starter — kept as a light vegetarian main"
+131,Baked Salmon Teriyaki,Seafood,"distinct glaze from lemon-herb salmon"
+132,Blackened Salmon,Seafood,"Cajun-spiced, seared; distinct from baked and grilled"
+133,Crab Cakes,Seafood,
+134,Fried Shrimp,Seafood,"breaded and fried; distinct from scampi and grilled"
+135,Grilled Shrimp Skewers,Seafood,
+136,Shrimp and Grits,Seafood,
+137,Shrimp Fried Rice,Asian-American,"distinct protein from chicken fried rice"
+138,Shrimp Stir-Fry,Asian-American,
+139,Fish and Chips,Seafood,"beer-battered cod with fries"
+140,Tuna Steak (Seared),Seafood,"distinct from canned-tuna casserole"
+141,Lobster Mac and Cheese,Casseroles/Bakes,"distinct from baked/stovetop mac"
+142,Buffalo Chicken Mac and Cheese,Casseroles/Bakes,
+143,Stovetop Mac and Cheese,Casseroles/Bakes,"creamy, no bake; distinct from baked"
+144,Chicken Tetrazzini,Casseroles/Bakes,"creamy chicken-mushroom pasta bake"
+145,King Ranch Chicken Casserole,Casseroles/Bakes,
+146,Hamburger Helper-Style Beef and Noodles,Casseroles/Bakes,"one-pot cheesy beef and pasta"
+147,Tater Tot Casserole (Hotdish),Casseroles/Bakes,"ground beef, tots, cheese"
+148,Enchilada Casserole,Casseroles/Bakes,"layered stacked enchiladas"
+149,Chicken Broccoli Rice Casserole,Casseroles/Bakes,"distinct from cheesy chicken and rice by broccoli"
+150,Poppy Seed Chicken Casserole,Casseroles/Bakes,
+151,Beef Taco Casserole,Casseroles/Bakes,
+152,Chicken Enchilada Casserole,Casseroles/Bakes,
+153,Sausage and Rice Casserole,Casseroles/Bakes,
+154,Pork Carnitas (Bowls/Plates),Mexican/Tex-Mex,"crispy braised pork as a plate, not tacos"
+155,Chicken Tinga,Mexican/Tex-Mex,"chipotle-tomato shredded chicken"
+156,Beef Barbacoa,Mexican/Tex-Mex,"slow-cooked shredded beef"
+157,Chile Verde (Pork),Mexican/Tex-Mex,"pork in green tomatillo sauce"
+158,Chicken Chimichangas,Mexican/Tex-Mex,"fried burritos"
+159,Beef Chimichangas,Mexican/Tex-Mex,
+160,Chicken Tostadas,Mexican/Tex-Mex,
+161,Tamales (Pork),Mexican/Tex-Mex,
+162,Beef Taquitos,Mexican/Tex-Mex,"rolled and fried"
+163,Chicken Flautas,Mexican/Tex-Mex,
+164,Carne Asada Plate,Mexican/Tex-Mex,"grilled steak with rice and beans"
+165,Fajita Bowls,Mexican/Tex-Mex,
+166,Elote-Style Chicken Bowls,Mexican/Tex-Mex,"street-corn-inspired bowl"
+167,Birria Tacos,Mexican/Tex-Mex,"braised-beef consomme-dipped; crossed over to home cooking"
+168,Baked Chicken Drumsticks,Chicken,"crispy oven drumsticks; distinct from wings and thighs"
+169,BBQ Chicken Drumsticks,Chicken,
+170,Chicken and Waffles (dinner),Chicken,"savory fried chicken with waffles; kept as a dinner variant"
+171,Nashville Hot Chicken,Chicken,"cayenne-fat fried chicken; distinct from plain fried"
+172,Chicken Nuggets (Homemade),Chicken,"kid-friendly breaded bites; distinct from tenders"
+173,Popcorn Chicken,Chicken,
+174,Chicken Schnitzel,Chicken,"thin breaded cutlet, German/Austrian style"
+175,Smothered Chicken,Chicken,"bone-in in onion gravy, Southern"
+176,Chicken and Gravy over Biscuits,Chicken,
+177,Lemon Pepper Chicken,Chicken,
+178,Garlic Butter Chicken Bites,Chicken,"skillet diced chicken in garlic butter"
+179,Chicken Cacciatore,Italian-American,"braised with tomatoes, peppers, olives"
+180,Chicken Saltimbocca,Italian-American,"prosciutto and sage"
+181,Chicken Francese,Italian-American,"egg-battered in lemon-butter sauce; distinct from piccata"
+182,Chicken Scampi,Italian-American,
+183,Rotisserie-Style Chicken,Chicken,"spit-style seasoned whole chicken"
+184,Beer Can Chicken,Grilling/BBQ,
+185,Spatchcock Grilled Chicken,Grilling/BBQ,
+186,Grilled Whole Chicken,Grilling/BBQ,
+187,Chicken Souvlaki,Greek/Mediterranean,"skewered marinated chicken; distinct from gyros"
+188,Greek Chicken (Sheet Pan),Greek/Mediterranean,"lemon-oregano chicken with potatoes"
+189,Chicken Shawarma Bowls,Middle Eastern,
+190,Falafel (Plate/Wrap),Middle Eastern,"fried chickpea, vegetarian"
+191,Beef Kofta (Kebabs),Middle Eastern,"spiced ground-beef/lamb skewers"
+192,Butter Chicken,Indian/South Asian,"creamy tomato; distinct from tikka masala by flavor"
+193,Chicken Biryani,Indian/South Asian,"layered spiced rice and chicken"
+194,Chana Masala,Indian/South Asian,"chickpea curry, vegetarian"
+195,Dal (Lentil Curry),Indian/South Asian,"vegetarian lentil stew"
+196,Palak Paneer,Indian/South Asian,"spinach and paneer, vegetarian"
+197,Chicken Korma,Indian/South Asian,"mild, nutty, creamy; distinct from tikka masala"
+198,Lamb/Beef Curry,Indian/South Asian,
+199,Vegetable Curry,Indian/South Asian,"mixed vegetable coconut curry"
+200,Chicken Vindaloo,Indian/South Asian,"spicy, tangy"
+201,Saag Chicken,Indian/South Asian,"chicken in spinach gravy"
+202,Thai Green Curry (Chicken),Asian-American,
+203,Thai Red Curry (Chicken),Asian-American,"distinct paste/flavor from green"
+204,Thai Red Curry (Shrimp),Asian-American,
+205,Panang Curry,Asian-American,
+206,Thai Basil Chicken (Pad Krapow),Asian-American,
+207,Drunken Noodles (Pad See Ew?),Asian-American,"spicy wide-noodle stir-fry"
+208,Pad See Ew,Asian-American,"sweet-soy wide-noodle; distinct from drunken noodles"
+209,Beef and Snow Pea Stir-Fry,Asian-American,
+210,Cashew Shrimp,Asian-American,
+211,Honey Walnut Shrimp,Asian-American,
+212,Kung Pao Shrimp,Asian-American,
+213,Szechuan Beef,Asian-American,
+214,Sweet and Sour Pork,Asian-American,
+215,Char Siu (BBQ Pork),Asian-American,"Chinese roast pork"
+216,Chicken Katsu,Asian-American,"panko-breaded cutlet with tonkatsu sauce"
+217,Katsu Curry (Chicken),Asian-American,"Japanese curry over katsu"
+218,Teriyaki Salmon Bowl,Asian-American,
+219,Poke Bowl (Tuna),Asian-American,"raw marinated tuna over rice"
+220,Bibimbap,Asian-American,"Korean rice bowl with vegetables and beef"
+221,Korean Beef Bowl (Ground),Asian-American,"quick sweet-soy ground beef over rice"
+222,Bulgogi (Korean BBQ Beef),Asian-American,
+223,Korean Fried Chicken,Asian-American,"double-fried, gochujang glaze; distinct from Southern fried"
+224,Chicken Adobo,Asian-American,"Filipino soy-vinegar braise"
+225,Beef and Vegetable Ramen (Homemade),Asian-American,"quick weeknight ramen bowl"
+226,Miso-Glazed Salmon,Asian-American,
+227,Vegetable Fried Rice,Asian-American,"vegetarian; distinct from chicken/shrimp"
+228,Vegetable Lo Mein,Asian-American,"vegetarian"
+229,Tofu Stir-Fry,Asian-American,"vegetarian/vegan"
+230,General Tso's Tofu,Asian-American,"vegetarian version, distinct dish"
+231,Dumplings/Potstickers (Pan-Fried),Asian-American,"as a meal"
+232,Fried Rice with Egg (Yang Chow),Asian-American,
+233,Baked Ham,Pork,"glazed bone-in ham (holiday/Sunday)"
+234,Ham and Scalloped Potatoes,Casseroles/Bakes,
+235,Pork Schnitzel,Pork,"breaded pork cutlet"
+236,Breaded Pork Chops,Pork,"distinct from grilled and baked"
+237,Smothered Pork Chops,Pork,"in onion gravy"
+238,Stuffed Pork Chops,Pork,
+239,Pork Milanese,Pork,
+240,Pork Carnitas Bowls,Mexican/Tex-Mex,"(distinct from carnitas tacos by format)"
+241,Cuban Mojo Pork,Pork,"citrus-garlic roast pork"
+242,Kalua Pork,Pork,"Hawaiian slow-roasted pork"
+243,Bratwurst and Sauerkraut,Pork,
+244,Italian Sausage and Peppers,Pork,"distinct from smoked-sausage sheet pan"
+245,Kielbasa and Cabbage,Pork,
+246,Bacon-Wrapped Pork Tenderloin,Pork,
+247,Pork Fried Rice,Asian-American,
+248,Pork Ramen (Homemade),Asian-American,
+249,St. Louis Ribs (Grilled),Grilling/BBQ,
+250,Beef Brisket (Smoked/Braised),Grilling/BBQ,
+251,Grilled Ribeye,Grilling/BBQ,"(over live fire; distinct from pan-seared)"
+252,Grilled T-Bone/Porterhouse,Grilling/BBQ,
+253,Grilled Flank Steak,Grilling/BBQ,
+254,Grilled Skirt Steak,Grilling/BBQ,
+255,Steak Fajita Bowls,Mexican/Tex-Mex,
+256,Steak and Potatoes,Beef,"pan-seared steak with roasted potatoes"
+257,Steak au Poivre,Beef,"peppercorn cream sauce"
+258,Steak Diane,Beef,
+259,Beef Tips and Gravy over Rice,Beef,
+260,Beef and Noodles,Beef,"shredded/cubed beef in gravy over egg noodles"
+261,Swedish Meatballs,Beef,"cream gravy; distinct from Italian meatballs"
+262,Porcupine Meatballs,Beef,"rice-studded in tomato sauce"
+263,BBQ Meatballs,Beef,"grape-jelly/BBQ cocktail-style as a main"
+264,Beef and Bean Chili Dogs,Sandwiches/Burgers,
+265,Corn Dogs (Homemade),Sandwiches/Burgers,
+266,Hamburger Steak with Onions,Beef,
+267,French Dip Sandwich,Sandwiches/Burgers,"roast beef, au jus"
+268,Italian Beef Sandwich,Sandwiches/Burgers,"Chicago-style, giardiniera"
+269,Roast Beef Sandwich (Hot),Sandwiches/Burgers,
+270,Beef Barbacoa Tacos,Mexican/Tex-Mex,
+271,Corned Beef and Cabbage,Beef,
+272,Beef Short Ribs (Braised),Beef,
+273,Braised Beef Ragu,Italian-American,"slow ragu over pappardelle; distinct from quick weeknight meat sauce"
+274,Baked Meatballs (Italian),Italian-American,
+275,Chicken Parm Sub,Sandwiches/Burgers,
+276,Eggplant Parmesan,Italian-American,"vegetarian; distinct from chicken parm"
+277,Chicken Florentine,Italian-American,"creamy spinach sauce"
+278,Fettuccine Alfredo (Plain),Pasta,"no protein; distinct from chicken alfredo"
+279,Shrimp Alfredo,Pasta,
+280,Cajun Chicken Pasta,Pasta,"creamy blackened; distinct from alfredo"
+281,Buffalo Chicken Pasta,Pasta,
+282,Pesto Pasta (with Chicken),Pasta,
+283,Pesto Pasta (Plain),Pasta,"vegetarian"
+284,Pasta Primavera,Pasta,"vegetable pasta, vegetarian"
+285,Cacio e Pepe,Pasta,"pecorino and pepper"
+286,Aglio e Olio,Pasta,"garlic and oil, vegetarian"
+287,Sausage and Peppers Pasta,Pasta,
+288,One-Pot Taco Pasta,Pasta,"beef, cheese, taco spice"
+289,Stuffed Shells,Italian-American,"ricotta-filled, baked"
+290,Manicotti,Italian-American,
+291,Ravioli (Cheese) with Marinara,Italian-American,
+292,Tortellini Alfredo,Pasta,
+293,Tortellini in Tomato Cream,Pasta,
+294,Gnocchi with Marinara,Italian-American,
+295,Gnocchi with Brown Butter and Sage,Italian-American,
+296,Baked Gnocchi (Cheesy),Italian-American,
+297,Lasagna Roll-Ups,Italian-American,
+298,White Chicken Lasagna,Italian-American,"bechamel/alfredo, distinct from meat lasagna"
+299,Vegetable Lasagna,Italian-American,"vegetarian"
+300,Chicken Tortellini Soup,Soups/Stews/Chili,
+301,Pasta e Fagioli,Soups/Stews/Chili,"pasta and bean soup"
+302,Zuppa Toscana,Soups/Stews/Chili,"sausage, kale, potato, cream"
+303,Lasagna Soup,Soups/Stews/Chili,
+304,Honey Garlic Salmon,Seafood,
+305,Cajun Shrimp Pasta,Pasta,
+306,Shrimp Boil,Seafood,"shrimp, corn, potato, sausage"
+307,Cioppino,Soups/Stews/Chili,"seafood tomato stew"
+308,Fish Fry (Fried Cod/Perch),Seafood,
+309,Baked Stuffed Flounder,Seafood,
+310,Salmon Patties/Croquettes,Seafood,
+311,Tuna Melt,Sandwiches/Burgers,
+312,Lobster Rolls,Sandwiches/Burgers,
+313,Scallops (Seared),Seafood,
+314,"Mussels (Steamed, White Wine)",Seafood,
+315,Grilled Mahi-Mahi,Seafood,
+316,Fish en Papillote,Seafood,"baked in parchment"
+317,Blackened Catfish,Seafood,
+318,Fried Catfish,Seafood,
+319,Chicken Burrito,Mexican/Tex-Mex,
+320,Wet Burrito,Mexican/Tex-Mex,"smothered in sauce and cheese"
+321,Nachos Supreme (Chicken),Mexican/Tex-Mex,
+322,Taco Salad,Salads/Bowls,"beef, beans, cheese in a tortilla bowl"
+323,Southwest Chicken Salad,Salads/Bowls,
+324,Cobb Salad,Salads/Bowls,"chicken, bacon, egg, blue cheese"
+325,Chicken Bacon Ranch Salad,Salads/Bowls,
+326,Buffalo Chicken Salad,Salads/Bowls,
+327,Greek Salad with Chicken,Salads/Bowls,
+328,Steak Salad,Salads/Bowls,
+329,Shrimp Caesar Salad,Salads/Bowls,
+330,Chef Salad,Salads/Bowls,
+331,Grain Bowl (Chicken and Veg),Salads/Bowls,
+332,Burrito Bowl (Vegetarian),Salads/Bowls,
+333,Buddha Bowl (Roasted Veg),Salads/Bowls,"vegan"
+334,Falafel Bowl,Salads/Bowls,"vegetarian"
+335,Teriyaki Tofu Bowl,Salads/Bowls,"vegan"
+336,Sushi Bowl (Salmon/Tuna),Salads/Bowls,
+337,Chicken Shawarma Plate,Middle Eastern,
+338,Beef Gyros,Greek/Mediterranean,"lamb-beef gyro meat in pita"
+339,Chicken Souvlaki Bowls,Greek/Mediterranean,
+340,Greek Chicken Bowls,Greek/Mediterranean,
+341,Spanakopita (as main),Greek/Mediterranean,"spinach-feta pie, vegetarian"
+342,Stuffed Grape Leaves (Dolmas),Greek/Mediterranean,"vegetarian"
+343,Moussaka,Greek/Mediterranean,"eggplant and meat bake"
+344,Shakshuka (dinner),Middle Eastern,"eggs in tomato-pepper sauce, vegetarian dinner"
+345,Hummus Bowl with Chicken,Middle Eastern,
+346,Kofta over Rice,Middle Eastern,
+347,Tabbouleh with Grilled Chicken,Middle Eastern,
+348,Vegetable Stir-Fry over Rice,Asian-American,"vegan"
+349,Sesame Tofu,Asian-American,"vegetarian/vegan"
+350,Kung Pao Tofu,Asian-American,
+351,Mapo Tofu,Asian-American,"Sichuan, often with pork"
+352,Tofu Pad Thai,Asian-American,"vegetarian"
+353,Vegetable Pad Thai,Asian-American,
+354,Vegetable Curry over Rice,Asian-American,
+355,Chickpea Coconut Curry,Indian/South Asian,"vegan"
+356,Aloo Gobi,Indian/South Asian,"potato-cauliflower, vegan"
+357,Vegetable Biryani,Indian/South Asian,
+358,Paneer Tikka Masala,Indian/South Asian,"vegetarian"
+359,Lentil Dal with Rice,Indian/South Asian,"vegan"
+360,Black Bean Burgers,Sandwiches/Burgers,"vegetarian; distinct from beef and turkey"
+361,Portobello Mushroom Burgers,Sandwiches/Burgers,"vegetarian"
+362,Veggie Burgers (Bean/Grain),Sandwiches/Burgers,
+363,Lentil Loaf,Vegetarian/Vegan,"vegan meatloaf analog"
+364,Stuffed Portobello Mushrooms,Vegetarian/Vegan,
+365,Eggplant Rollatini,Italian-American,"vegetarian"
+366,Ratatouille,Vegetarian/Vegan,"vegetable stew, vegan"
+367,Vegetable Enchiladas,Mexican/Tex-Mex,"vegetarian"
+368,Black Bean Tacos,Mexican/Tex-Mex,"vegetarian"
+369,Sweet Potato and Black Bean Tacos,Mexican/Tex-Mex,"vegan"
+370,Cauliflower Tacos,Mexican/Tex-Mex,"vegetarian"
+371,Bean and Cheese Burritos,Mexican/Tex-Mex,"vegetarian"
+372,Vegetarian Fajitas,Mexican/Tex-Mex,
+373,Stuffed Sweet Potatoes,Vegetarian/Vegan,"loaded, as a main"
+374,Stuffed Zucchini Boats,Vegetarian/Vegan,"can be ground-meat or vegetarian"
+375,Stuffed Cabbage Rolls,Casseroles/Bakes,"ground beef and rice in cabbage"
+376,Stuffed Acorn Squash,Vegetarian/Vegan,
+377,Vegetable Pot Pie,Casseroles/Bakes,"vegetarian"
+378,Broccoli Cheese Rice Bake,Casseroles/Bakes,"vegetarian"
+379,Vegetable Stir-Fry Noodles,Asian-American,
+380,Cauliflower Fried Rice,Asian-American,"lower-carb, vegetarian"
+381,Zucchini Noodles with Marinara,Italian-American,"low-carb, vegetarian"
+382,Spaghetti Squash with Marinara,Italian-American,"vegetarian"
+383,Baked Ziti (Vegetarian),Italian-American,"(distinct from meat ziti)"
+384,Margherita Flatbread,Pizza,"thin flatbread, vegetarian"
+385,Buffalo Chicken Pizza,Pizza,
+386,Hawaiian Pizza,Pizza,"ham and pineapple"
+387,Meat Lovers Pizza,Pizza,
+388,White Pizza (Ricotta/Garlic),Pizza,"no red sauce"
+389,Veggie Pizza,Pizza,
+390,Detroit-Style Pizza,Pizza,"thick, crispy-cheese-edge; distinct crust"
+391,Deep-Dish Pizza,Pizza,"Chicago-style"
+392,Naan Pizza,Pizza,"quick personal pizza on naan"
+393,French Bread Pizza,Pizza,
+394,Calzone,Italian-American,"folded stuffed pizza"
+395,Stromboli,Italian-American,"rolled, distinct from calzone"
+396,Homemade Hot Dogs (Loaded),Sandwiches/Burgers,
+397,Chicago-Style Hot Dog,Sandwiches/Burgers,
+398,Chili Cheese Dog,Sandwiches/Burgers,
+399,Bratwurst on a Bun,Sandwiches/Burgers,
+400,Pulled Pork Sandwich,Sandwiches/Burgers,"(distinct from pulled pork plate)"
+401,BBQ Chicken Sandwich,Sandwiches/Burgers,
+402,Fried Chicken Sandwich (Classic),Sandwiches/Burgers,"distinct from spicy"
+403,Spicy Fried Chicken Sandwich,Sandwiches/Burgers,"Nashville/hot; distinct from classic"
+404,Grilled Chicken Sandwich,Sandwiches/Burgers,
+405,Chicken Bacon Ranch Wrap,Sandwiches/Burgers,
+406,Buffalo Chicken Wrap,Sandwiches/Burgers,
+407,BLT,Sandwiches/Burgers,"bacon, lettuce, tomato as a light dinner"
+408,Club Sandwich,Sandwiches/Burgers,
+409,Reuben,Sandwiches/Burgers,"corned beef, kraut, swiss"
+410,Patty Melt,Sandwiches/Burgers,"beef patty, rye, grilled onions; distinct from cheeseburger"
+411,Juicy Lucy (Stuffed Burger),Sandwiches/Burgers,"cheese-stuffed patty"
+412,Bacon Cheeseburger,Sandwiches/Burgers,
+413,Mushroom Swiss Burger,Sandwiches/Burgers,
+414,Pub/Gourmet Burger,Sandwiches/Burgers,"thick, seared, brioche; distinct from classic and smash"
+415,Salmon Burger,Sandwiches/Burgers,
+416,Sliders (Beef),Sandwiches/Burgers,
+417,Meatball Sliders,Sandwiches/Burgers,
+418,Pulled Pork Sliders,Sandwiches/Burgers,
+419,Sheet-Pan Chicken and Potatoes,Chicken,"one-pan roast; distinct from sheet-pan sausage"
+420,Sheet-Pan Chicken and Broccoli,Chicken,
+421,Sheet-Pan Salmon and Asparagus,Seafood,
+422,Sheet-Pan Shrimp Boil,Seafood,
+423,Sheet-Pan Steak and Veggies,Beef,
+424,Sheet-Pan Pork Chops and Apples,Pork,
+425,Sheet-Pan Meatballs and Veg,Beef,
+426,Sheet-Pan Gnocchi and Veg,Italian-American,"vegetarian"
+427,Chicken and Vegetable Skewers,Grilling/BBQ,
+428,Grilled Vegetable Kebabs,Grilling/BBQ,"vegetarian"
+429,Grilled Corn and Chicken Plate,Grilling/BBQ,
+430,Grilled Bratwurst and Peppers,Grilling/BBQ,
+431,Grilled Shrimp Tacos,Mexican/Tex-Mex,"(distinct from fried/battered fish tacos)"
+432,Grilled Portobello Steaks,Grilling/BBQ,"vegan"
+433,Grilled Salmon Salad,Salads/Bowls,
+434,Turkey Meatloaf,Beef,"distinct protein from beef meatloaf"
+435,Turkey Tacos,Mexican/Tex-Mex,"ground turkey; distinct from beef"
+436,Turkey Chili Mac,Soups/Stews/Chili,
+437,Turkey Tetrazzini,Casseroles/Bakes,
+438,Roast Turkey Breast,Chicken,"weeknight turkey breast (poultry)"
+439,Turkey and Stuffing (Weeknight),Casseroles/Bakes,
+440,Ground Turkey Skillet with Rice,Chicken,
+441,Turkey Sloppy Joes,Sandwiches/Burgers,
+442,Turkey Bolognese,Pasta,"(distinct protein; keep if not padding)"
+443,Chicken Sausage and Peppers,Chicken,
+444,Chicken Sausage Pasta,Pasta,
+445,Andouille and Shrimp Skillet,Seafood,
+446,Cajun Sausage and Rice,Soups/Stews/Chili,
+447,Dirty Rice,Soups/Stews/Chili,"Cajun rice with ground meat"
+448,Étouffée (Crawfish/Shrimp),Soups/Stews/Chili,
+449,Chicken and Rice Soup,Soups/Stews/Chili,"distinct from noodle soup"
+450,Beef Vegetable Soup,Soups/Stews/Chili,
+451,Hamburger Soup,Soups/Stews/Chili,
+452,Taco Soup,Soups/Stews/Chili,
+453,Potato Leek Soup,Soups/Stews/Chili,"vegetarian"
+454,Tomato Basil Soup,Soups/Stews/Chili,"vegetarian"
+455,French Onion Soup,Soups/Stews/Chili,
+456,Chicken Pho,Asian-American,"Vietnamese noodle soup"
+457,Beef Pho,Asian-American,
+458,Wonton Soup,Asian-American,
+459,Hot and Sour Soup,Asian-American,
+460,Egg Drop Soup,Asian-American,
+461,"Ramen (Miso, Homemade)",Asian-American,
+462,Tom Kha Gai,Asian-American,"Thai coconut chicken soup"
+463,Tortilla Soup (Vegetarian),Soups/Stews/Chili,
+464,Black Bean Soup,Soups/Stews/Chili,"vegetarian"
+465,Lentil Soup,Soups/Stews/Chili,"vegetarian"
+466,Chicken Enchilada Soup,Soups/Stews/Chili,
+467,Cheeseburger Soup,Soups/Stews/Chili,
+468,Ham and Bean Soup,Soups/Stews/Chili,
+469,Chicken Gnocchi Soup,Soups/Stews/Chili,
+470,Beef Bourguignon,Beef,"French red-wine beef stew"
+471,Coq au Vin,Chicken,"French braised chicken in wine"
+472,Chicken Fricassee,Chicken,"white braise"
+473,Beef Wellington,Beef,"special-occasion"
+474,Braised Lamb Shanks,Lamb,
+475,Rack of Lamb (Roasted),Lamb,
+476,Lamb Chops (Grilled),Lamb,
+477,Gyro Plate (Lamb),Greek/Mediterranean,
+478,Shepherd's Pie (Beef/Cottage),Casseroles/Bakes,"(distinct from lamb shepherd's pie)"
+479,Frito Pie,Casseroles/Bakes,"chili over corn chips"
+480,Chili Cheese Fries,Sides/Bowls,"as a main"
+481,Loaded Nachos (Vegetarian),Mexican/Tex-Mex,
+482,Quesadilla (Cheese),Mexican/Tex-Mex,"vegetarian; distinct from chicken"
+483,Steak Quesadilla,Mexican/Tex-Mex,
+484,Shrimp Quesadilla,Mexican/Tex-Mex,
+485,Chicken Divan,Casseroles/Bakes,"chicken-broccoli-cheese bake"
+486,Hot Brown (Kentucky),Sandwiches/Burgers,"open-faced turkey"
+487,Turkey Pot Pie,Casseroles/Bakes,
+488,Chicken à la King,Chicken,"creamy chicken over rice/toast"
+489,Chicken and Stuffing Casserole,Casseroles/Bakes,
+490,Johnny Marzetti,Casseroles/Bakes,"beef-noodle-cheese bake (regional)"
+491,Goulash (American),Beef,"one-pot beef, macaroni, tomato"
+492,Hungarian Goulash,Soups/Stews/Chili,"paprika beef stew; distinct from American"
+493,Pierogi with Onions,Vegetarian/Vegan,"potato dumplings"
+494,Kielbasa and Pierogi,Pork,
+495,Cabbage and Sausage Skillet,Pork,
+496,Fried Rice (Kimchi),Asian-American,
+497,Bibimbap (Tofu),Asian-American,"vegetarian"
+498,Japchae,Asian-American,"Korean glass noodles"
+499,Yakisoba (Chicken),Asian-American,
+500,Chow Fun (Beef),Asian-American,
+501,Singapore Noodles,Asian-American,
+502,Dan Dan Noodles,Asian-American,
+503,Beef and Bean Tostadas,Mexican/Tex-Mex,
+504,Enfrijoladas,Mexican/Tex-Mex,"tortillas in bean sauce, vegetarian"
+505,Sopes,Mexican/Tex-Mex,
+506,Chilaquiles (dinner),Mexican/Tex-Mex,"tortillas in salsa; often breakfast — kept as a dinner variant"
+507,Pozole (Pork/Chicken),Soups/Stews/Chili,"hominy stew"
+508,Menudo,Soups/Stews/Chili,"(regional; flag)"
+509,Caldo de Pollo,Soups/Stews/Chili,"Mexican chicken soup"
+510,Albondigas Soup,Soups/Stews/Chili,"Mexican meatball soup"
+511,Ropa Vieja,Beef,"Cuban shredded beef"
+512,Arroz con Pollo,Mexican/Tex-Mex,"chicken and rice, Latin"
+513,Cuban Picadillo,Beef,"ground beef with olives/raisins"
+514,Empanadas (Beef),Mexican/Tex-Mex,
+515,Pastelón,Casseroles/Bakes,"(regional; flag)"
+516,Feijoada,Soups/Stews/Chili,"Brazilian black bean and pork stew"
+517,Chicken Yakitori,Asian-American,
+518,Teriyaki Meatballs,Asian-American,
+519,Sweet Chili Chicken,Asian-American,
+520,Firecracker Chicken,Asian-American,
+521,Bang Bang Shrimp,Asian-American,
+522,Bang Bang Chicken,Asian-American,
+523,Honey Sriracha Chicken,Asian-American,
+524,Sheet-Pan Teriyaki Chicken and Veg,Asian-American,
+525,Baked Coconut Shrimp,Seafood,
+526,Garlic Butter Shrimp,Seafood,
+527,Shrimp Creole,Soups/Stews/Chili,"tomato-based; distinct from etouffee"
+528,Crawfish Boil,Seafood,"(regional; flag)"
+529,Fried Fish Sandwich,Sandwiches/Burgers,
+530,Po' Boy (Shrimp),Sandwiches/Burgers,
+531,Po' Boy (Roast Beef),Sandwiches/Burgers,
+532,Muffuletta,Sandwiches/Burgers,"(regional; flag)"
+533,Grilled Cheese (Loaded/Gourmet),Sandwiches/Burgers,"as a dinner"
+534,Panini (Chicken Pesto),Sandwiches/Burgers,
+535,Turkey Avocado Wrap,Sandwiches/Burgers,
+536,Chicken Caesar Wrap,Sandwiches/Burgers,
+537,Falafel Wrap,Middle Eastern,
+538,Meatball Marinara Bowl,Italian-American,
+539,Sausage and Kale White Bean Skillet,Pork,
+540,White Bean and Sausage Stew,Soups/Stews/Chili,
+541,Cassoulet (Simplified),Soups/Stews/Chili,"French bean-and-meat stew"
+542,Chicken Marbella,Chicken,"olives, capers, prunes"
+543,Balsamic Glazed Chicken,Chicken,
+544,Caprese Chicken,Italian-American,"tomato, mozzarella, basil"
+545,Bruschetta Chicken,Italian-American,
+546,Salsa Verde Chicken,Mexican/Tex-Mex,
+547,Salsa Chicken (Baked),Mexican/Tex-Mex,
+548,Ranch Chicken (Baked),Chicken,
+549,Bacon-Wrapped Chicken,Chicken,
+550,Stuffed Chicken Breast (Spinach-Feta),Chicken,
+551,Stuffed Chicken Breast (Broccoli-Cheddar),Chicken,
+552,Chicken Cheesesteak,Sandwiches/Burgers,
+553,BBQ Chicken Nachos,Mexican/Tex-Mex,
+554,Buffalo Chicken Sweet Potatoes,Chicken,"stuffed baked sweet potato"
+555,"Sausage, Peppers and Onion Hoagie",Sandwiches/Burgers,
+556,Chicken Parmesan Pasta (One-Pot),Pasta,"(overlaps chicken parm — keep as distinct one-pot pasta or REMOVE)"
 557,Baked Salmon in Foil,Seafood,"D-WS9-046 restore (all 10). NOTE: foil-bake is method-not-appliance — weaker on the experience axis than slow-cooker/Instant-Pot; flagged for Hans to reconsider vs Baked Lemon-Herb Salmon."
 558,BBQ Pork Ribs (Oven),Pork,"D-WS9-046 restore (all 10). NOTE: oven-not-appliance — weaker on the experience axis; flagged vs the grilled rib cuts."
