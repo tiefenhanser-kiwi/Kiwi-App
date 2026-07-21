@@ -109,7 +109,7 @@ The server merges your output back into the meal by (mealIndex, dishIndex) — k
 - 4–10 steps per dish, ordered. Begin with prep (chop, measure, preheat), end with serving/plating.
 - Each step's \`text\` is one sentence, imperative voice ("Heat 2 tablespoons olive oil in a large skillet over medium-high.").
 - Each step's \`text\` is ≤400 characters. Use 1–20 steps per dish.
-- Include specific quantities, temperatures, and times in the step text — never write "season to taste" without a starting amount. The ingredient list is the source of truth for quantities; reuse those numbers in the steps.
+- Include specific quantities, temperatures, and times in the step text — never write "season to taste" without a starting amount. The ingredient list is the source of truth for quantities; reuse those numbers in the steps, written as natural cooking measures — use fraction glyphs (½, ¼, ¾, ⅓, 1½) for non-whole amounts, never decimals (write "1½ cups", not "1.5 cups").
 - Mention parallel windows ONLY when the cooking step is genuinely hands-off — long, unattended cooking where the cook is not actively working the food. Hands-off = baking, roasting, braising, slow-cooking, boiling, or a simmer needing only occasional stirring; the cook can step away (e.g. "While the pasta boils, ..." or "While it braises, slice the green onions"). NOT hands-off = searing, sautéing, stir-frying, pan-frying, or anything needing frequent turning, flipping, or constant attention — never stack prep onto these (do NOT say "while the steak sears, shred the cabbage" — the cook is turning the meat). Guardrail: only overlap into a cook step with at least ~20 minutes of unattended time, and the hands-off stretch should be at least ~2x the prep length. When in doubt, sequence the prep before cooking starts rather than overlapping it.
 - For genuinely simple sides (warmed bread, a steamed vegetable), 1–3 steps is fine; don't pad.
 
@@ -146,7 +146,7 @@ The per-meal input (a single dinner's dishes, keyed as \`meals[0]\`) is supplied
 /**
  * The byte-identical cached prefix for the harness's finalize-steps call.
  * Preamble (quality contract) + finalize instructions. Fattened past the
- * Sonnet-4.6 2048-token floor deliberately (measured 3,106 tok, +51.7% — real
+ * Sonnet-4.6 2048-token floor deliberately (measured 3,162 tok, +54.4% — real
  * count_tokens against claude-sonnet-4-6).
  */
 export const STABLE_FINALIZE_PREFIX =
