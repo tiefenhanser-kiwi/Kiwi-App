@@ -49,9 +49,12 @@ export const STORE_FILL_TARGET: MaterializeTarget = {
 };
 
 // ── how-profiles (D-WS9-044) — parameterize HOW, not WHAT ────────────────────
-// The dish drives variety; these only vary servings + target difficulty and
-// rotate across the list. Diet/cuisine are NOT here — the target dish carries
-// its own nature.
+// The dish drives variety; these only vary target difficulty and rotate across
+// the list. Diet/cuisine are NOT here — the target dish carries its own nature.
+// Servings unified to 4 for the catalog (Gate 3): a 4-serving dinner is the
+// standard household portion the plan-composer clones off the shelf, and the
+// model sizes ingredients + macros to the requested servings. The "-b" keys are
+// the second easy/medium rotation slot (keys are log-only, never persisted).
 export interface GenProfile {
   key: string;
   servings: number;
@@ -61,8 +64,8 @@ export interface GenProfile {
 export const PILOT_GEN_PROFILES: GenProfile[] = [
   { key: "family-4-easy", servings: 4, difficulty: "easy" },
   { key: "family-4-medium", servings: 4, difficulty: "medium" },
-  { key: "couple-2-medium", servings: 2, difficulty: "medium" },
-  { key: "couple-2-easy", servings: 2, difficulty: "easy" },
+  { key: "family-4-medium-b", servings: 4, difficulty: "medium" },
+  { key: "family-4-easy-b", servings: 4, difficulty: "easy" },
 ];
 
 // ── ingredient classification (protein / carb / vegetable) ───────────────────

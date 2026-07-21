@@ -146,7 +146,8 @@ The per-meal input (a single dinner's dishes, keyed as \`meals[0]\`) is supplied
 /**
  * The byte-identical cached prefix for the harness's finalize-steps call.
  * Preamble (quality contract) + finalize instructions. Fattened past the
- * Sonnet-4.6 2048-token floor deliberately (measured 3,124 tok, +52.5%).
+ * Sonnet-4.6 2048-token floor deliberately (measured 3,106 tok, +51.7% — real
+ * count_tokens against claude-sonnet-4-6).
  */
 export const STABLE_FINALIZE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + FINALIZE_STEPS_INSTRUCTIONS;
@@ -223,8 +224,9 @@ Return ONLY the tool_use call with the single meal object.`;
 
 /**
  * The byte-identical cached prefix for the harness's generate-meal call.
- * Same shared preamble + the generate instructions. Measured against the
- * Sonnet-4.6 2048 floor in the measurement report.
+ * Same shared preamble + the generate instructions. Measured 2,888 tok,
+ * +41.0% past the Sonnet-4.6 2048 floor (real count_tokens against
+ * claude-sonnet-4-6).
  */
 export const STABLE_GENERATE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + GENERATE_MEAL_INSTRUCTIONS;

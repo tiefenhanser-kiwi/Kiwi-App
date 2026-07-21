@@ -1817,6 +1817,31 @@ const PROMPTS: PromptSeed[] = [
     defaultMode: "tool",
     body: WIZARD_CANDIDATE_FINALIZE_STEPS_BODY,
   },
+  // Plan-Gen Arc · Block 3 (D-WS9-041) — store-fill harness prompts. The stable
+  // INSTRUCTIONS live in the harness's cachedSystemPrefix (storeFillPrompts.ts,
+  // compiled TS constants passed via opts.cachedSystemPrefix); these seed bodies
+  // render ONLY the volatile per-meal input, byte-identical to the in-memory
+  // REGISTRY fallback (promptRegistry.ts). Seeding them so LLMCallLog.promptVersion
+  // populates instead of logging null. Moving them does NOT touch the cached
+  // prefix bytes — that is not sourced from here.
+  {
+    key: "store.generate_meal",
+    description:
+      "Generate one complete, protein-complete dinner (dishes + ingredients + roles + per-dish macros, no steps) for the pre-generated meal store from a preference profile.",
+    variables: ["generateInput"],
+    defaultModel: MODEL_SONNET,
+    defaultMode: "tool",
+    body: "{{generateInput}}",
+  },
+  {
+    key: "store.finalize_steps",
+    description:
+      "Generate per-dish cooking step arrays (text + phaseType + estimatedMinutes + isTimingSensitive) for one store dinner, keyed by mealIndex+dishIndex for positional merge.",
+    variables: ["finalizeInput"],
+    defaultModel: MODEL_SONNET,
+    defaultMode: "tool",
+    body: "{{finalizeInput}}",
+  },
   {
     key: "wizard.cook_now.match",
     description: "Match a Cook Now request against the existing meal catalog.",
