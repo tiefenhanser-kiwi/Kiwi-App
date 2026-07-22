@@ -299,6 +299,11 @@ export type WizardExpandDishDetails = z.infer<
 
 export const WizardExpandMealDetailsSchema = z.object({
   title: z.string().min(1).max(120),
+  // One-line headnote giving the meal its character (the harness generate prompt
+  // emits it → persisted to Meal.description via buildMaterializePayload). Optional
+  // so the wizard.candidate.expand path — which does not author a headnote — is
+  // unaffected.
+  description: z.string().max(160).optional(),
   cuisineType: z.string().min(1).max(60),
   estimatedTimeMinutes: z.number().int().positive(),
   difficulty: z.enum(["easy", "medium", "fancy"]),

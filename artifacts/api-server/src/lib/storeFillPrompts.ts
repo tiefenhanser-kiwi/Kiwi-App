@@ -153,6 +153,11 @@ export const STABLE_FINALIZE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + FINALIZE_STEPS_INSTRUCTIONS;
 
 // ── generate-meal instructions (stable) ─────────────────────────────────────
+// NOTE on the "Cook it like a trusted standard" section's version-variation
+// language: version diversity comes from the pre-named target list (one meal per
+// named row — "BBQ-Glazed Baked Chicken" is its own row). This instruction keeps
+// each row FAITHFUL to its named version; it does NOT generate versions. The
+// harness makes one blind call per row and cannot see sibling versions.
 
 const GENERATE_MEAL_INSTRUCTIONS = `You are Kiwi's dinner composer. The message below gives you a TARGET DISH and how-parameters (servings, target difficulty). Produce exactly ONE complete dinner for the pre-generated meal store, built around that target dish.
 
@@ -170,7 +175,8 @@ Your sole deliverable is the structured tool_use response. Do not narrate or add
 # What you produce
 
 One meal object:
-- \`title\` — appetizing and specific ("Sheet-Pan Harissa Chicken with Chickpeas", not "Chicken Dinner"). Title-cased. ≤120 chars.
+- \`title\` — name the dinner clearly and appetizingly, in words a shopper and a cook can scan at a glance ("Smash Burgers with Coleslaw and Hand-Cut Fries", not "Chicken Dinner"). Title-cased, ≤120 chars. NO playful or punning names, NO roman numerals, and NO possessive byline ("Kiwi's…").
+- \`description\` — a one-line headnote (≤160 chars) that gives the meal its character: the version this is and why it works ("The Sunday version: onion, carrot, and garlic cooked down until rich"). A plain sentence, not a tagline.
 - \`cuisineType\` — the meal's cuisine as a short string (e.g. "Italian", "Thai", "Mexican"), matching the profile's cuisine.
 - \`difficulty\` — one of \`easy\`, \`medium\`, \`fancy\`, at or below the profile's difficulty ceiling.
 - \`estimatedTimeMinutes\` — realistic total wall-clock minutes for the whole meal (positive integer).
@@ -206,6 +212,12 @@ Build the meal the way a good home cook plans dinner — around the protein, the
 
 - CUISINE TECHNIQUE, NOT HOMOGENIZED FUSION. Let the cuisine shape the flavor base and pairings — a Thai dinner leans on fish sauce, lime, chili, and herbs; an Italian one on good olive oil, garlic, and a proper starch; a Mexican one on toasted chiles and fresh garnishes. Keep the meal coherent rather than a mashup.
 
+# Cook it like a trusted standard
+
+Cook each dish as a reliable, standard version that always works — enough depth and character that it reads as tested and refined, coming together well, without stretching to seem fancier than the dish needs. Draw on the spirit of trusted standard sources — the everyday dependability of Joy of Cooking and the tested-technique credibility of The Food Lab (Kenji López-Alt). This is about CHARACTER, not reproducing any source's specific recipe.
+
+When the target dish names a particular version of a dish, vary along that dish's natural axis of variation — and judge what that axis is. Fixed-identity dishes (Quiche Lorraine, Chicken Piccata, Fettuccine Alfredo) are defined by a specific set of ingredients and ratios; a version differs mainly in accompaniment and presentation, not by altering the canonical recipe. Dishes defined BY their range vary in the preparation itself: a burger varies at the patty, seasoning, build, and sauce; a baked chicken breast can be a simple pan-sauce, BBQ-glazed, breaded, or herb-crusted version; a meat sauce ranges from a quick 20-minute simmer to a slow ragù with mirepoix. Do not force variation a dish doesn't have (five different piccata sauces is worse than one good one). Stay faithful to the version the target dish names — a target named "BBQ-Glazed Baked Chicken" must read as exactly that — and let the title and headnote name its real point of difference ("Slow-Simmered Sunday Ragù" vs "Quick Weeknight Meat Sauce"), never a number.
+
 # Avoid these failure modes
 
 - A "dinner" that is really a salad, a bowl of vegetables, a plain grain, or a lone side. There must be a substantial main.
@@ -224,8 +236,8 @@ Return ONLY the tool_use call with the single meal object.`;
 
 /**
  * The byte-identical cached prefix for the harness's generate-meal call.
- * Same shared preamble + the generate instructions. Measured 2,888 tok,
- * +41.0% past the Sonnet-4.6 2048 floor (real count_tokens against
+ * Same shared preamble + the generate instructions. Measured 3,371 tok,
+ * +64.6% past the Sonnet-4.6 2048 floor (real count_tokens against
  * claude-sonnet-4-6).
  */
 export const STABLE_GENERATE_PREFIX =

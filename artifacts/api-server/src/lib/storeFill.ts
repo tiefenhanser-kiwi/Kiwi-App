@@ -301,6 +301,9 @@ export function buildMaterializePayload(
 
   return {
     title: meal.title,
+    // One-line headnote from the generate prompt → Meal.description. Nullable:
+    // a meal generated before this field existed simply omits it.
+    description: meal.description ?? null,
     cuisineType: meal.cuisineType,
     mealType: "dinner",
     servingsDefault: meal.servings,
