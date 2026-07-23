@@ -69,6 +69,11 @@ export interface MaterializeMealStep {
   // caller sets it, TS stays quiet, the value vanishes at write). No caller
   // sets it; the DB column stays (no migration), unwritten.
   isTimingSensitive?: boolean;
+  // Block 3.7 (D-WS9-066) — swappable-component tags. Null/absent = BASE step
+  // (always in the recipe). A tagged step belongs to one component's scratch or
+  // bought path; the store-fill finalize call is the only caller that sets these.
+  componentKey?: string | null;
+  pathKey?: string | null;
 }
 
 // Per-serving macro cache (denormalized on Meal/Dish for fast plan-view
@@ -81,6 +86,24 @@ export interface MaterializeMealMacrosPerServing {
   proteinGPerServing?: number;
   carbsGPerServing?: number;
   fatGPerServing?: number;
+}
+
+// Block 3.6 v3 (D-WS9-064) — one store-bought substitution: a convenience
+// product replacing a GROUP of a dish's from-scratch ingredients (by name).
+// Persisted verbatim to Dish.substitutions (nullable Json).
+export interface MaterializeSubstitution {
+  product: string;
+  quantity: number;
+  unit: string;
+  replaces: string[];
+}
+
+// Block 3.7 (D-WS9-066) — one entry of a dish's swappable-component registry
+// (label/order metadata), persisted verbatim to Dish.componentRegistry.
+export interface MaterializeComponent {
+  key: string;
+  label: string;
+  order: number;
 }
 
 // One dish entry in the payload. Two flavors:
@@ -100,6 +123,13 @@ export type MaterializeMealDish =
       ingredients: MaterializeMealIngredient[];
       steps: MaterializeMealStep[];
       macros?: MaterializeMealMacrosPerServing;
+      // Block 3.6 v3 (D-WS9-064) — optional store-bought substitutions for this
+      // dish. Omitted when the dish has no sensible convenience product.
+      substitutions?: MaterializeSubstitution[];
+      // Block 3.7 (D-WS9-066) — optional swappable-component registry, present
+      // when the dish has at least one component with tagged steps. Persisted to
+      // Dish.componentRegistry.
+      componentRegistry?: MaterializeComponent[];
     }
   | {
       kind: "link";
@@ -312,6 +342,16 @@ export async function materializeMeal(
             d.servingsDefault ?? payload.servingsDefault ?? 4,
           isArchived: false,
           ...macros,
+          // Block 3.6 v3 (D-WS9-064) — persist substitutions when present; omit
+          // the key otherwise so the nullable Json column stays SQL NULL.
+          ...(d.substitutions && d.substitutions.length > 0
+            ? { substitutions: d.substitutions as unknown as Prisma.InputJsonValue }
+            : {}),
+          // Block 3.7 (D-WS9-066) — persist the swappable-component registry when
+          // present; omit otherwise so the nullable Json column stays SQL NULL.
+          ...(d.componentRegistry && d.componentRegistry.length > 0
+            ? { componentRegistry: d.componentRegistry as unknown as Prisma.InputJsonValue }
+            : {}),
         },
         select: { id: true },
       });
@@ -371,6 +411,9 @@ export async function materializeMeal(
             ...(s.isTimingSensitive !== undefined
               ? { isTimingSensitive: s.isTimingSensitive }
               : {}),
+            // Block 3.7 (D-WS9-066) — swappable-component tags (store-fill only).
+            ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
+            ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),
           },
         });
       }
@@ -516,6 +559,9 @@ export async function materializeDish(
         ...(s.isTimingSensitive !== undefined
           ? { isTimingSensitive: s.isTimingSensitive }
           : {}),
+        // Block 3.7 (D-WS9-066) — swappable-component tags (omitted unless set).
+        ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
+        ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),
       },
     });
   }
@@ -743,6 +789,9 @@ export async function rematerializeMeal(
             ...(s.isTimingSensitive !== undefined
               ? { isTimingSensitive: s.isTimingSensitive }
               : {}),
+            // Block 3.7 (D-WS9-066) — swappable-component tags (omitted unless set).
+            ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
+            ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),
           },
         });
       }
@@ -890,6 +939,9 @@ export async function rematerializeDish(
           ...(s.isTimingSensitive !== undefined
             ? { isTimingSensitive: s.isTimingSensitive }
             : {}),
+          // Block 3.7 (D-WS9-066) — swappable-component tags (omitted unless set).
+          ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
+          ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),
         },
       });
     }

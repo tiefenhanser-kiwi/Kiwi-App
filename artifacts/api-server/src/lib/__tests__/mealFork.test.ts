@@ -8,6 +8,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { Prisma } from "@prisma/client";
+
 import { forkMealForUser } from "../mealFork";
 
 // A minimal source-meal graph: 2 dishes, one with 2 ingredients + dish-owned
@@ -57,6 +59,9 @@ function makeSource() {
               preparationNote: null,
               isOptional: false,
               positionIndex: 0,
+              // D-WS9-066 — BASE ingredient (present regardless of any swap).
+              componentKey: null,
+              pathKey: null,
             },
             {
               ingredientId: "ing-cream",
@@ -65,8 +70,26 @@ function makeSource() {
               preparationNote: "warmed",
               isOptional: false,
               positionIndex: 1,
+              // D-WS9-066 — scratch ingredient the jarred-alfredo product replaces.
+              componentKey: "sauce",
+              pathKey: "scratch",
             },
           ],
+          // D-WS9-064 — a dish carrying a store-bought substitution (as a Prisma
+          // Json read: the parsed array). The fork MUST copy this intact.
+          substitutions: [
+            {
+              product: "jarred alfredo sauce",
+              quantity: 1,
+              unit: "jar",
+              replaces: ["heavy cream", "parmesan", "butter"],
+            },
+          ],
+          // D-WS9-066 — the swappable-component registry (label/order metadata).
+          componentRegistry: [{ key: "sauce", label: "Sauce", order: 0 }],
+          // D-WS7-215 — a saved per-user selection ("bought forever"). The fork
+          // must carry it verbatim so the user's choice survives acquire.
+          componentSelections: { sauce: "bought" },
         },
       },
       {
@@ -88,6 +111,14 @@ function makeSource() {
           carbsGPerServing: 0,
           fatGPerServing: 0,
           dishIngredients: [],
+          // D-WS9-064 — a dish with no substitutions reads back as null; the
+          // fork must pass that through as a DB NULL, not crash.
+          substitutions: null,
+          // D-WS9-066 / D-WS7-215 — a plain dish carries no component metadata;
+          // both read back null and must fork through as DB NULL (the Json?
+          // DbNull rule), not a stray literal null.
+          componentRegistry: null,
+          componentSelections: null,
         },
       },
     ],
@@ -107,9 +138,14 @@ function makeTxStub(source: ReturnType<typeof makeSource>) {
     stepFindManyWhere: [] as { ownerType: string; ownerId: string }[],
   };
   // Dish-owned steps for src-dish-0; meal-owned steps for src-meal.
+  // D-WS9-066 — the dish carries a BASE step (boil, untagged) plus a two-path
+  // "sauce" component: a scratch step (make the sauce) and a bought step (use
+  // the jar). All three must fork with their tags intact.
   const steps = [
-    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 0, stepTextRaw: "Boil", stepTextTranslated: "Boil", estimatedMinutes: 5, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false },
-    { ownerType: "meal", ownerId: "src-meal", stepIndex: 0, stepTextRaw: "Plate", stepTextTranslated: "Plate", estimatedMinutes: 1, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false },
+    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 0, stepTextRaw: "Boil", stepTextTranslated: "Boil", estimatedMinutes: 5, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, componentKey: null, pathKey: null },
+    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 1, stepTextRaw: "Simmer cream and parmesan into a sauce", stepTextTranslated: "Simmer cream and parmesan into a sauce", estimatedMinutes: 12, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, componentKey: "sauce", pathKey: "scratch" },
+    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 2, stepTextRaw: "Warm the jarred alfredo sauce", stepTextTranslated: "Warm the jarred alfredo sauce", estimatedMinutes: 3, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, componentKey: "sauce", pathKey: "bought" },
+    { ownerType: "meal", ownerId: "src-meal", stepIndex: 0, stepTextRaw: "Plate", stepTextTranslated: "Plate", estimatedMinutes: 1, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, componentKey: null, pathKey: null },
   ];
   let dishCounter = 0;
   const tx = {
@@ -211,6 +247,82 @@ describe("forkMealForUser", () => {
     assert.ok(mealStepBatch, "meal-owned steps copied");
     assert.equal(mealStepBatch![0].ownerId, "new-meal");
     assert.equal(mealStepBatch![0].stepTextRaw, "Plate");
+  });
+
+  it("D-WS9-064: substitutions survive the fork intact (present + null)", async () => {
+    const source = makeSource();
+    const { tx, rec } = makeTxStub(source);
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    // Dish 0 carried a substitution — the clone must copy it verbatim:
+    // product, quantity, unit, and the FULL replaces[] array.
+    const dish0 = rec.dishCreates[0];
+    assert.deepEqual(dish0.substitutions, [
+      {
+        product: "jarred alfredo sauce",
+        quantity: 1,
+        unit: "jar",
+        replaces: ["heavy cream", "parmesan", "butter"],
+      },
+    ]);
+
+    // Dish 1 had no substitutions (null) — the clone passes DB NULL, not a crash
+    // or a stray literal null (which Prisma rejects on a Json? column).
+    const dish1 = rec.dishCreates[1];
+    assert.equal(dish1.substitutions, Prisma.DbNull);
+  });
+
+  it("D-WS9-066/D-WS7-215: swappable-component tags, registry, and selection survive the fork (present + null)", async () => {
+    const source = makeSource();
+    const { tx, rec } = makeTxStub(source);
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    // --- Component registry + per-user selection (present on dish 0) ---
+    const dish0 = rec.dishCreates[0];
+    assert.deepEqual(dish0.componentRegistry, [
+      { key: "sauce", label: "Sauce", order: 0 },
+    ]);
+    assert.deepEqual(dish0.componentSelections, { sauce: "bought" });
+
+    // --- Both null on dish 1 → DB NULL, not a literal null or a crash ---
+    const dish1 = rec.dishCreates[1];
+    assert.equal(dish1.componentRegistry, Prisma.DbNull);
+    assert.equal(dish1.componentSelections, Prisma.DbNull);
+
+    // --- Ingredient tags: base ingredient stays null; scratch ingredient keeps
+    //     its (componentKey, pathKey) through the fork ---
+    const ings = rec.ingredientCreateMany[0];
+    assert.equal(ings[0].componentKey, null); // pappardelle = base
+    assert.equal(ings[0].pathKey, null);
+    assert.equal(ings[1].componentKey, "sauce"); // cream = scratch sauce
+    assert.equal(ings[1].pathKey, "scratch");
+
+    // --- Step tags: base, scratch, and bought all survive with tags intact ---
+    const dishStepBatch = rec.stepCreateMany.find(
+      (b) => b[0]?.ownerType === "dish",
+    );
+    assert.ok(dishStepBatch, "dish-owned steps copied");
+    assert.equal(dishStepBatch!.length, 3);
+    const byText = (t: string) =>
+      dishStepBatch!.find((s) => s.stepTextRaw === t)!;
+    // base
+    assert.equal(byText("Boil").componentKey, null);
+    assert.equal(byText("Boil").pathKey, null);
+    // scratch path
+    const scratch = byText("Simmer cream and parmesan into a sauce");
+    assert.equal(scratch.componentKey, "sauce");
+    assert.equal(scratch.pathKey, "scratch");
+    // bought path
+    const bought = byText("Warm the jarred alfredo sauce");
+    assert.equal(bought.componentKey, "sauce");
+    assert.equal(bought.pathKey, "bought");
+    // all re-owned to the new dish
+    for (const s of dishStepBatch!) {
+      assert.equal(s.ownerId, "new-dish-1");
+      assert.equal(s.ownerType, "dish");
+    }
   });
 
   it("never mutates the source meal (other plans keep their binding)", async () => {

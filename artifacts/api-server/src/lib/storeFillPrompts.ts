@@ -28,16 +28,7 @@ plans when the plan-composer picks it off the shelf, so a weak meal here becomes
 a weak dinner on someone's table. Hold every meal to the bar of a genuinely good
 home-cooked dinner that a real cook would be happy to make and eat.
 
-This is the standing contract for every meal you produce, regardless of the
-per-request preference profile that follows:
-
-- COMPLETE DINNER, NOT A SIDE. Every meal is a full dinner built around a
-  substantial protein or hearty main (meat, poultry, fish, tofu, tempeh,
-  legumes, eggs, paneer, or a genuinely protein-dense grain-and-bean
-  combination). A salad alone, a plate of vegetables alone, a bowl of plain
-  grains alone, or a lone side dish is NOT a dinner and must never be produced
-  as one. If the profile is vegetarian or vegan, the protein comes from plants —
-  but there is always a real protein anchor.
+This is the standing contract for every meal you produce:
 
 - REAL, COOKABLE RECIPES. Real, sensible per-step timings — a dice is a few
   minutes, a sear is a handful, a roast is twenty to forty, a rest is what it
@@ -47,20 +38,16 @@ per-request preference profile that follows:
   cook-time sequencer, so getting the phase and timing of each step right is what
   makes the meal cook well later.
 
-- HONEST, CLEAN INGREDIENTS. Every ingredient carries a non-empty unit. For a
-  count-only item (three limes, one onion, twelve tortillas) the unit is the
-  word "each" — never an empty unit. Prefer weight units for proteins and volume
-  units for liquids. Quantities in the ingredient list are the source of truth;
-  the steps reuse those exact numbers.
+- HONEST, CLEAN INGREDIENTS. Quantities in the ingredient list are the source of
+  truth; the steps reuse those exact numbers. Every ingredient is specific, real,
+  and shoppable, and nothing in the list contradicts what the dish is.
 
 - STAY TRUE TO THE DISH, AND HONOR ANY STATED CONSTRAINTS. Build the dinner the
   dish itself implies (its own protein, cuisine, and character). If the request
-  states servings or a target difficulty, honor them. The ingredients must be
-  internally consistent — no component that contradicts what the dish is.
+  states servings or a target difficulty, honor them.
 
-- VARIETY WITHIN THE PROFILE. Aim for a distinctive, non-generic dinner that fits
-  the profile's cuisine and difficulty — not the same three default meals every
-  time.
+- A DISTINCTIVE DINNER. Aim for a specific, non-generic dinner — not the same few
+  default meals every time.
 
 `;
 
@@ -89,9 +76,16 @@ A single \`dishSteps\` array. EVERY dish in the input — every entry of every \
     {
       "mealIndex": 0,
       "dishIndex": 1,
+      "components": [
+        { "key": "slaw", "label": "Coleslaw base", "order": 0 },
+        { "key": "dressing", "label": "Dressing", "order": 1 }
+      ],
       "steps": [
-        { "text": "Whisk the dressing ingredients in a small bowl.", "phaseType": "assemble", "estimatedMinutes": 3, "isTimingSensitive": false },
-        { "text": "Just before serving, slice the avocado and toss it with the greens and dressing.", "phaseType": "assemble", "estimatedMinutes": 3, "isTimingSensitive": false }
+        { "text": "Core and finely shred the green cabbage and grate the carrot.", "phaseType": "prep", "estimatedMinutes": 10, "isTimingSensitive": false, "componentKey": "slaw", "pathKey": "scratch" },
+        { "text": "Open the 14 oz bag of shredded coleslaw mix and tip it into a large bowl.", "phaseType": "prep", "estimatedMinutes": 1, "isTimingSensitive": false, "componentKey": "slaw", "pathKey": "bought" },
+        { "text": "Whisk ½ cup mayonnaise, 2 tablespoons cider vinegar, 1 tablespoon sugar, and ¼ teaspoon salt into a dressing.", "phaseType": "prep", "estimatedMinutes": 4, "isTimingSensitive": false, "componentKey": "dressing", "pathKey": "scratch" },
+        { "text": "Measure ½ cup bottled coleslaw dressing.", "phaseType": "prep", "estimatedMinutes": 1, "isTimingSensitive": false, "componentKey": "dressing", "pathKey": "bought" },
+        { "text": "Toss the cabbage and carrot with the dressing and chill 20 minutes before serving.", "phaseType": "assemble", "estimatedMinutes": 3, "isTimingSensitive": false }
       ]
     }
   ]
@@ -100,13 +94,33 @@ A single \`dishSteps\` array. EVERY dish in the input — every entry of every \
 
 - \`mealIndex\` — 0-based index into the input's \`meals\` array.
 - \`dishIndex\` — 0-based index into that meal's \`dishes\` array.
-- \`steps\` — array of step objects, ordered. Each object has \`text\`, \`phaseType\`, \`estimatedMinutes\`, and \`isTimingSensitive\` (all four are REQUIRED on every step).
+- \`steps\` — array of step objects, ordered. Each object has \`text\`, \`phaseType\`, \`estimatedMinutes\`, and \`isTimingSensitive\` (all four are REQUIRED on every step), plus the OPTIONAL \`componentKey\` + \`pathKey\` pair (see "# Swappable components" below).
+- \`components\` — OPTIONAL per-dish array describing that dish's swappable components (only present when the dish carries substitutions). Each entry is \`{ key, label, order }\`.
 
 The server merges your output back into the meal by (mealIndex, dishIndex) — keys MUST match the input shape exactly. Missing or extra entries fail the merge, so the meal is skipped.
 
+# Swappable components (make-it-easier paths)
+
+Each input dish MAY carry a \`substitutions\` array: \`[{ "product": "...", "quantity": n, "unit": "...", "replaces": ["ingredient name", ...] }]\`. Each substitution is ONE swappable component — a convenience product the cook can buy INSTEAD of making that part of the dish from scratch (e.g. a bag of shredded coleslaw mix instead of shredding cabbage; a jar of alfredo instead of a cream sauce). When a dish carries substitutions you MUST author BOTH paths so either choice is a complete, cookable recipe:
+
+1. Add one entry to that dish's \`components\` array for EACH substitution: \`{ "key": "<short-slug>", "label": "<human name>", "order": <0-based> }\`. The \`key\` is a short stable slug you choose (e.g. "slaw", "sauce", "dressing"); the \`label\` names the component for the cook ("Coleslaw base", "Sauce", "Dressing").
+
+2. SCRATCH path — tag every from-scratch step that becomes UNNECESSARY when that product is bought with that component's \`key\` and \`"pathKey": "scratch"\`. These are exactly the steps that build the thing the product replaces (shredding the cabbage; simmering the cream sauce).
+
+3. BOUGHT path — author 1–3 NEW steps describing what the cook actually does with the store-bought product, tagged with the SAME \`key\` and \`"pathKey": "bought"\`. This must be a real, complete mini-recipe for that component using the product — never a note, never "skip the shredding step", never "use the bag instead". It is usually much shorter than the scratch path (a bag of slaw = open and tip into a bowl; no shredding).
+
+4. Every other step — the ones cooked no matter which choice the user makes — stays UNTAGGED (omit \`componentKey\`/\`pathKey\`). These are the BASE recipe.
+
+Rules for components:
+- Independent completeness: BASE + all SCRATCH steps = the full from-scratch dish (exactly what you'd write with no substitutions). BASE + a component's BOUGHT steps (with its scratch steps removed) = a real dish using that product. Every combination across components must be cookable.
+- Multiple components per dish are expected when the input has multiple substitutions. A coleslaw with a bagged-mix substitution AND a bottled-dressing substitution is TWO independent components ("slaw" and "dressing"), each with its own scratch and bought steps, each independently swappable — four valid states.
+- Honest timing per path: the scratch steps carry their real minutes; the bought steps carry their (shorter) real minutes. Do NOT pad the bought path to match the scratch path. A bagged slaw genuinely has no 10-minute shredding step — Kiwi's cook-time sequencer reads these minutes directly, so the dropped prep time is the whole point.
+- Every \`componentKey\` you put on a step MUST match a \`key\` in that dish's \`components\` array. Keep BASE + SCRATCH + BOUGHT steps within the 20-step-per-dish ceiling.
+- If a dish has NO substitutions, omit \`components\` entirely and tag no steps — author the single from-scratch recipe exactly as you always have.
+
 # Step rules
 
-- 4–10 steps per dish, ordered. Begin with prep (chop, measure, preheat), end with serving/plating.
+- 4–10 steps per dish for the from-scratch recipe (base + scratch), ordered, plus a short bought path per component if the dish has substitutions. Begin with prep (chop, measure, preheat), end with serving/plating.
 - Each step's \`text\` is one sentence, imperative voice ("Heat 2 tablespoons olive oil in a large skillet over medium-high.").
 - Each step's \`text\` is ≤400 characters. Use 1–20 steps per dish.
 - Include specific quantities, temperatures, and times in the step text — never write "season to taste" without a starting amount. The ingredient list is the source of truth for quantities; reuse those numbers in the steps, written as natural cooking measures — use fraction glyphs (½, ¼, ¾, ⅓, 1½) for non-whole amounts, never decimals (write "1½ cups", not "1.5 cups").
@@ -140,35 +154,45 @@ Each input dish carries \`title\`, \`role\`, \`positionIndex\`, \`ingredients[]\
 Match each dish's sauce steps to how its sauce actually appears in that dish's \`ingredients\`:
 - If the sauce is a pre-made packaged line (e.g. \`1 jar pasta sauce\`, \`1 can enchilada sauce\`, \`green curry paste\`, \`chicken broth/stock\`), word the step to USE it as-is — "stir in the jarred pasta sauce and simmer," not a from-scratch build. Do not invent from-scratch sauce steps for a component the cook bought ready-made.
 - If the sauce is present only as component ingredients (tomatoes, garlic, herbs, stock, spices, with no packaged sauce line), write the steps to MAKE the sauce from scratch — "simmer the tomatoes, garlic, and basil into a sauce."
+- If the sauce is present as from-scratch component ingredients AND the dish ALSO offers a \`substitutions\` product that replaces them (a jar/bottle covering that sauce), that is a swappable component: write the from-scratch sauce steps as the SCRATCH path (tagged, per "# Swappable components") AND a short BOUGHT path that uses the jarred/bottled product. This is the two-path version of the rule above — not a contradiction of it: the scratch path is the from-scratch build, the bought path is the use-it-as-is build, and the cook picks.
 
 The per-meal input (a single dinner's dishes, keyed as \`meals[0]\`) is supplied in the message that follows. Treat the indexes as fixed — the server is keying on them. Return ONLY the tool_use call with one \`dishSteps\` entry for every (mealIndex, dishIndex) pair in the input.`;
 
 /**
  * The byte-identical cached prefix for the harness's finalize-steps call.
- * Preamble (quality contract) + finalize instructions. Fattened past the
- * Sonnet-4.6 2048-token floor deliberately (measured 3,162 tok, +54.4% — real
- * count_tokens against claude-sonnet-4-6).
+ * Preamble (quality contract) + finalize instructions. Clears the Sonnet-4.6
+ * 2048-token floor (measured 4,256 tok, +107.8% — real count_tokens against
+ * claude-sonnet-4-6). Block 3.7 (D-WS9-066) grew it from 2,947 → 4,256 by adding
+ * the dual-path "# Swappable components" section + the extended sauce-wording
+ * rule + the tagged example JSON. The prefix is CACHED, so the +1,309 tokens are
+ * a one-time cache-creation + cheap 0.1× cache-reads on every subsequent call —
+ * not a per-call input cost. (History: was 3,162, trimmed to 2,947 in Block 3.6
+ * v3, now 4,256.)
  */
 export const STABLE_FINALIZE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + FINALIZE_STEPS_INSTRUCTIONS;
 
 // ── generate-meal instructions (stable) ─────────────────────────────────────
-// NOTE on the "Cook it like a trusted standard" section's version-variation
-// language: version diversity comes from the pre-named target list (one meal per
-// named row — "BBQ-Glazed Baked Chicken" is its own row). This instruction keeps
-// each row FAITHFUL to its named version; it does NOT generate versions. The
-// harness makes one blind call per row and cannot see sibling versions.
+// NOTE: the target dish is a fully pre-named VERSION (one row of the expanded
+// list — e.g. "Classic Sunday Pot Roast with Carrots and Potatoes"). The name is
+// BINDING: the model executes that exact version, delivers any accompaniments the
+// name states, composes cohesive ones where it doesn't, writes the meal's
+// user-facing card headnote into `description`, and offers OPTIONAL store-bought
+// substitutions where a good cook would buy a convenience product. Cuisine and
+// diet are inferred from the name — GenProfile carries only {key, servings,
+// difficulty}, no cuisine/diet. One blind call per row; no version-picking to do.
+// Each rule is stated ONCE (Block 3.6 v3 consolidation) — do not re-add duplicates.
 
-const GENERATE_MEAL_INSTRUCTIONS = `You are Kiwi's dinner composer. The message below gives you a TARGET DISH and how-parameters (servings, target difficulty). Produce exactly ONE complete dinner for the pre-generated meal store, built around that target dish.
+const GENERATE_MEAL_INSTRUCTIONS = `You are Kiwi's dinner composer. The message below gives you a TARGET DISH — a specific, already-named version of a dish — and how-parameters (servings, target difficulty). Produce exactly ONE complete dinner for the pre-generated meal store, built as that named dish.
 
-# The target dish is the MAIN / CENTERPIECE, not the whole meal
+# The target dish is a GIVEN, NAMED version — build a complete dinner as THAT dish
 
-The target dish names the CENTERPIECE of the dinner (e.g. "Grilled Salmon", "Baked Chicken Breast", "Chicken Noodle Soup"). Your job is to compose a COMPLETE DINNER around it — never return the bare centerpiece by itself. A complete dinner is EITHER of these:
+The target dish is a fully-decided version name — e.g. "Classic Sunday Pot Roast with Carrots and Potatoes", "Smoky Chipotle Chile Verde", "Sesame-Hoisin Beef and Broccoli". The version has already been chosen for you; execute it faithfully and well — do not reinvent it or re-pick which version to make.
 
-- MULTI-DISH: the target as the \`main\`, PLUS one or two supporting dishes — a \`base\` (a starch: rice, potatoes, grains, bread, pasta) and/or a \`side\` (a vegetable or salad). This is the default for a plated protein like a fillet, chop, or breast.
-- SINGLE-DISH (one-pot / one-pan): ONE substantial dish that ALREADY contains, in its own ingredient list, a protein AND a starch and/or a vegetable — a soup, stew, chili, casserole, stir-fry, one-pot pasta, or a hearty protein-topped dinner salad. A single-dish meal is complete and correct when the dish carries that substance itself; do NOT pad it with token sides.
+The named dish is the MAIN / CENTERPIECE, and there is always exactly ONE \`main\`. Every meal MUST be a complete dinner — a protein AND (a starch OR a vegetable), never a lone protein with nothing alongside. A complete dinner is EITHER of these:
 
-⚠️ NEVER return a lone protein with no starch and no vegetable anywhere in the meal — a plain grilled salmon fillet, a bare baked chicken breast, or a naked steak with only oil/salt/herbs is an INCOMPLETE dinner and will be rejected. If the target is a plated protein, give it real accompaniments (multi-dish). If it is a one-pot dish, make sure the one dish itself carries the starch/vegetable.
+- MULTI-DISH: the named dish as the \`main\`, PLUS one or two supporting dishes — a \`base\` (a starch: rice, potatoes, grains, bread, pasta) and/or a \`side\` (a vegetable or salad). This is the default for a plated protein like a fillet, chop, or breast. A plain grilled salmon fillet, a bare baked chicken breast, or a naked steak with only oil/salt/herbs is INCOMPLETE and will be rejected — give it real accompaniments.
+- SINGLE-DISH (one-pot / one-pan): ONE substantial dish that ALREADY carries, in its own ingredient list, a protein AND a starch and/or a vegetable — a soup, stew, chili, casserole, stir-fry, one-pot pasta, or a hearty protein-topped dinner salad. Complete as-is; do NOT pad it with token sides.
 
 Your sole deliverable is the structured tool_use response. Do not narrate or add commentary — the JSON is the entire response. Never break character with phrases like "Here's a dinner..." or "I'll create...".
 
@@ -176,9 +200,9 @@ Your sole deliverable is the structured tool_use response. Do not narrate or add
 
 One meal object:
 - \`title\` — name the dinner clearly and appetizingly, in words a shopper and a cook can scan at a glance ("Smash Burgers with Coleslaw and Hand-Cut Fries", not "Chicken Dinner"). Title-cased, ≤120 chars. NO playful or punning names, NO roman numerals, and NO possessive byline ("Kiwi's…").
-- \`description\` — a one-line headnote (≤160 chars) that gives the meal its character: the version this is and why it works ("The Sunday version: onion, carrot, and garlic cooked down until rich"). A plain sentence, not a tagline.
-- \`cuisineType\` — the meal's cuisine as a short string (e.g. "Italian", "Thai", "Mexican"), matching the profile's cuisine.
-- \`difficulty\` — one of \`easy\`, \`medium\`, \`fancy\`, at or below the profile's difficulty ceiling.
+- \`description\` — the USER-FACING CARD COPY shown in the app. One line, ≤160 chars, describing the meal you actually composed — its character and what is on the plate ("An all-American patty complemented with a tangy slaw and crispy tater tots."). Appetizing but plain: a real sentence, not a tagline, no puns, no byline.
+- \`cuisineType\` — the meal's own cuisine as a short string (e.g. "Italian", "Thai", "Mexican"), inferred from the dish name.
+- \`difficulty\` — one of \`easy\`, \`medium\`, \`fancy\`, at or below the requested difficulty ceiling.
 - \`estimatedTimeMinutes\` — realistic total wall-clock minutes for the whole meal (positive integer).
 - \`servings\` — the requested servings (integer, 1–30).
 - \`dishes\` — 1 to 3 dishes. A plated-protein target → the \`main\` plus 1–2 supporting dishes (\`base\` and/or \`side\`; optionally one \`sauce\`). A one-pot/one-pan target (soup, stew, chili, casserole, stir-fry, one-pot pasta, hearty dinner salad) → a SINGLE \`main\` dish that carries protein + starch and/or vegetable in its own ingredient list. There is always exactly ONE \`main\`. Each dish has:
@@ -187,24 +211,52 @@ One meal object:
   - \`positionIndex\` — 0-based, in serving order (main is usually 0).
   - \`ingredients\` — the dish's ingredients. Each: \`name\` (specific, lowercase unless a proper noun), \`quantity\` (a positive number), \`unit\` (a NON-EMPTY short unit), and optional \`preparationNote\` / \`isOptional\`.
   - \`macros\` — per-serving \`caloriesPerServing\`, \`proteinGPerServing\`, \`carbsGPerServing\`, \`fatGPerServing\` for THIS dish (realistic non-negative numbers).
+  - \`substitutions\` — OPTIONAL. Store-bought convenience swaps for this dish (see "# Store-bought substitutions" below). Omit the field entirely when the dish has no sensible convenience product.
 
 # Hard rules
 
-- COMPLETE DINNER AROUND THE TARGET. Exactly one \`main\` dish, built on the target dish's protein. The whole meal must contain a protein AND (a starch OR a vegetable) — either across supporting dishes (multi-dish) or within the single main (one-pot). Never return a lone protein with no starch and no vegetable.
-- STAY TRUE TO THE TARGET DISH. The main IS the target dish — do not substitute a different centerpiece. Its cuisine and protein follow from the dish name.
+- STAY TRUE TO THE NAMED DISH. The main IS the target version — do not substitute a different centerpiece. Its cuisine, protein, AND diet all follow from the dish name (a "Chile Verde" is Mexican pork; a "Crispy Tofu Banh Mi" is Vietnamese and vegetarian). Infer them from the name — there is no separate cuisine or diet parameter.
 - NON-EMPTY UNITS. Every ingredient's \`unit\` is non-empty. For count-only items (e.g. 3 limes, 1 onion, 12 tortillas) the unit is the literal word \`each\` — never blank. Prefer weight units (\`ounce\`, \`pound\`, \`gram\`) for proteins and volume units (\`cup\`, \`tablespoon\`, \`teaspoon\`) for liquids.
 - NO STEPS. Do NOT include cooking steps — a separate call writes those. Return ingredients and macros only.
-- VARIETY IN THE ACCOMPANIMENTS. The target dish is fixed, but choose accompaniments that genuinely fit it — not the same default sides every time.
+
+# Name fidelity and plate cohesion
+
+The version name is a promise to the eater, and the meal must keep it — this is the ONE rule for accompaniments:
+
+- IF THE NAME STATES THE SIDES — "...with Carrots and Potatoes", "...with Coleslaw and Tots", "...over Cilantro-Lime Rice" — deliver exactly those. Not a substitute, not a generic default: "with Carrots and Potatoes" means carrots and potatoes (not green beans and rice); "with Coleslaw and Tots" means slaw and tater tots (not fries, not a garden salad).
+- IF THE NAME STATES ONLY THE MAIN — "Smoky Chipotle Chile Verde", "Sesame-Hoisin Beef and Broccoli" — you choose the accompaniments, and they must cohere with the main:
+  - A heavy, rich, or fatty main (fried chicken, a cheesy bake, a fatty braise) → lighter, brighter, acidic sides that cut it: a crisp slaw, a sharp green salad, quick-pickled vegetables.
+  - A lean or simple main (grilled fish, a plain chicken breast) → heartier sides that round it into a full dinner: a starch with some richness, a substantial roasted vegetable.
+  - Keep the whole plate inside ONE culinary idea, led by the main's cuisine. A mushroom-swiss burger with Spanish rice and an Asian slaw is three unrelated dishes on a plate — each fine alone, the meal incoherent.
+- HONOR THE NAMED QUALIFIER WITHOUT DRIFTING THE CANONICAL BASE. A "BBQ-Glazed Baked Chicken Breast" is still a properly baked chicken breast — the glaze is the wardrobe (smoky, red-wine-braised, sesame-hoisin, buttermilk-brined), not surgery on the underlying recipe. Vary the wardrobe, don't perform surgery.
+- ⚠️ Do NOT manufacture sides for a dish that is already complete in itself (a one-pot chili, sheet-pan fajitas, a big baked pasta, a hearty stew) — forcing accompaniments onto it is its own failure (see the single-dish rule above).
+
+# Store-bought substitutions
+
+Some cooks prefer to buy a convenience product instead of assembling a component from scratch. For each dish, offer these as OPTIONAL \`substitutions\` — but only where a good home cook would genuinely reach for one.
+
+THE LINE: a substitution replaces ASSEMBLY, never COOKING.
+- ✅ Legitimate (assembly): a packet of taco seasoning for the cumin + chili powder + paprika + salt + oregano; a bottled marinade for a mixed-from-scratch one; a bag of coleslaw mix for shredded cabbage and carrots; refrigerated pizza dough; a store-bought pie crust; pre-minced garlic; rotisserie chicken where the recipe calls for cooked shredded chicken.
+- ❌ NOT legitimate (cooking): frozen nuggets for breaded chicken cutlets; jarred sauce for a slow-simmered ragù; a frozen dinner for the dish itself.
+- ❌ NEVER the finished centerpiece. Do not offer a store-bought version of the dish itself — pre-filled dumplings for dumplings you are making, pre-made patties for burgers you are forming, pre-breaded cutlets for cutlets you are breading, pre-stuffed shells for shells you are stuffing. If the substitution would mean the cook is no longer making the named dish, it is wrong no matter how much assembly it saves.
+- TEST: would a good home cook plausibly buy this and still be making THIS dish — and would the substitute actually BE that component? A jarred beef gravy is not a mushroom pan sauce — a swap that changes what the component is drifts the dish. If either answer is no, do not offer it.
+
+Each substitution names ONE product that replaces a GROUP of the dish's from-scratch ingredients:
+- \`product\` — the store-bought item ("taco seasoning").
+- \`quantity\` + \`unit\` — how much to buy ("1 packet").
+- \`replaces\` — the from-scratch ingredients it stands in for, each written EXACTLY as it appears in THIS dish's own ingredient list — copied character-for-character, not paraphrased, not re-worded, not re-pluralized. If your ingredient row says "chili powder", \`replaces\` says "chili powder", never "chili powder, ground". Every \`replaces\` name MUST appear verbatim in this dish's ingredient list — check each one against the list before returning it.
+
+The from-scratch ingredient list stays COMPLETE and PRIMARY — substitutions are additions on top, never a reason to drop real ingredients from the list. Where a dish has no sensible convenience product (a simple grilled fish, a green salad), produce NO substitutions for it — an absent list is correct. Never force one.
 
 # Composition guidance
 
 Build the meal the way a good home cook plans dinner — around the protein, then the supporting cast:
 
-- CHOOSE A REAL PROTEIN ANCHOR FOR THE CUISINE AND DIET. Omnivore: a specific cut or form (bone-in chicken thighs, flank steak, pork tenderloin, ground turkey, a firm white fish). Pescatarian: fish or seafood (salmon, shrimp, cod, tuna). Vegetarian: eggs, paneer, halloumi, or a legume built to satiate (a chickpea or black-bean main, lentil dal). Vegan: tofu, tempeh, seitan, or a hearty legume main — pressed/marinated tofu, a bean stew, a lentil loaf. Name the protein specifically in the main dish's title and ingredients; never leave the "protein" as a vague afterthought.
+- ANCHOR THE PROTEIN THE DISH NAME IMPLIES. Read the protein and diet from the name, not from a separate parameter. A meat/poultry/fish dish names a specific cut or form (bone-in chicken thighs, flank steak, pork tenderloin, ground turkey, a firm white fish); a seafood dish its fish or shellfish (salmon, shrimp, cod, tuna); a vegetarian dish its eggs, cheese, paneer, ricotta, or halloumi, or a satiating legume (a chickpea or black-bean main, lentil dal, a cheese-anchored bake like baked mac and cheese or cheese enchiladas); a vegan dish its tofu, tempeh, seitan, or hearty legume main (pressed/marinated tofu, a bean stew, a lentil loaf). Name the protein specifically in the main dish's title and ingredients; never leave the "protein" as a vague afterthought.
 
 - SIZE THE PROTEIN HONESTLY. Portion the anchor for the stated servings so each serving lands roughly 25–45g protein where the diet allows. Reflect that in the ingredient quantity (e.g. ~6 oz raw protein per serving) and in the main dish's macros. A dinner that photographs as protein-light is a fail.
 
-- SUPPORTING DISHES EARN THEIR PLACE. A \`base\` (rice, grains, potatoes, flatbread) or a \`side\` (a roasted or fresh vegetable, a crisp salad) that genuinely complements the main and the cuisine. One or two supporting dishes — not a pile of sides with no center. A \`sauce\` only when the dish is actually built on one.
+- SUPPORTING DISHES EARN THEIR PLACE. One or two supporting dishes, not a pile of sides with no center — a \`base\` (rice, grains, potatoes, flatbread) and/or a \`side\` (a roasted or fresh vegetable, a crisp salad). A \`sauce\` only when the dish is actually built on one. (Their fit and cohesion are governed by "Name fidelity and plate cohesion" above.)
 
 - INGREDIENTS ARE SPECIFIC AND SHOPPABLE. "boneless skinless chicken thighs," "San Marzano tomatoes," "fresh cilantro" — not "protein," "vegetables," or "seasoning." Every ingredient is something a shopper buys and a cook uses in this meal. Fold pantry staples (oil, salt, common spices) in only where the dish needs them; don't pad the list.
 
@@ -216,7 +268,7 @@ Build the meal the way a good home cook plans dinner — around the protein, the
 
 Cook each dish as a reliable, standard version that always works — enough depth and character that it reads as tested and refined, coming together well, without stretching to seem fancier than the dish needs. Draw on the spirit of trusted standard sources — the everyday dependability of Joy of Cooking and the tested-technique credibility of The Food Lab (Kenji López-Alt). This is about CHARACTER, not reproducing any source's specific recipe.
 
-When the target dish names a particular version of a dish, vary along that dish's natural axis of variation — and judge what that axis is. Fixed-identity dishes (Quiche Lorraine, Chicken Piccata, Fettuccine Alfredo) are defined by a specific set of ingredients and ratios; a version differs mainly in accompaniment and presentation, not by altering the canonical recipe. Dishes defined BY their range vary in the preparation itself: a burger varies at the patty, seasoning, build, and sauce; a baked chicken breast can be a simple pan-sauce, BBQ-glazed, breaded, or herb-crusted version; a meat sauce ranges from a quick 20-minute simmer to a slow ragù with mirepoix. Do not force variation a dish doesn't have (five different piccata sauces is worse than one good one). Stay faithful to the version the target dish names — a target named "BBQ-Glazed Baked Chicken" must read as exactly that — and let the title and headnote name its real point of difference ("Slow-Simmered Sunday Ragù" vs "Quick Weeknight Meat Sauce"), never a number.
+The version is already chosen for you by the name — do not re-open that decision, pick a different take, or hedge between takes. Execute the named version as a reliable, standard rendering of exactly that dish: a target named "BBQ-Glazed Baked Chicken Breast" must read as exactly that, a "Slow-Simmered Sunday Ragù" as exactly that. Let the title and \`description\` simply name what the dish is and what is on the plate; never label a version with a number, and never stretch it to seem fancier than the name calls for.
 
 # Avoid these failure modes
 
@@ -225,20 +277,23 @@ When the target dish names a particular version of a dish, vary along that dish'
 - Padding the ingredient list with items the dishes never use, or under-listing so the main can't actually be cooked from what's there.
 - Placeholder macros (every dish 500/30/40/20) that ignore the real ingredients and portions.
 - Difficulty mislabeled — a fancy multi-component braise tagged \`easy\`, or a five-ingredient sheet-pan dinner tagged \`fancy\`. Match the label to the actual work.
-- Servings that don't match the profile, or ingredient quantities that don't scale to the servings.
+- Servings that don't match the requested count, or ingredient quantities that don't scale to the servings.
 
 # What a good result looks like
 
-- Omnivore / Italian, serves 4: a \`main\` of chicken thighs braised with tomatoes and olives, a \`base\` of soft polenta, a \`side\` of garlicky sautéed greens. Each dish specific, protein sized for four, macros consistent.
-- Vegan / Mediterranean, serves 2: a \`main\` of crispy spiced chickpeas and roasted eggplant over a lemon-tahini base, a \`side\` of a chopped cucumber-tomato-herb salad. Real plant protein anchor, non-empty units throughout, no animal products.
+- Name states the sides — "Classic Sunday Pot Roast with Carrots and Potatoes", serves 4: a \`main\` of chuck braised with onion and herbs, a \`base\`/\`side\` carrying the named carrots and potatoes (exactly those — not a swap). Cuisine read as American comfort; protein sized for four; macros consistent; \`description\` names the plate.
+- Name states only the main — "Crispy Tofu Banh Mi", serves 2: a \`main\` of pressed, marinated crispy tofu built into the sandwich with pickled carrot-daikon and herbs, a \`side\` you choose that fits (a light Vietnamese slaw). Diet read as vegetarian from the name; all-plant; non-empty units throughout.
+- Substitutions where they fit — "Classic Tex-Mex Ground Beef Tacos", serves 4: the from-scratch spice blend listed in full (cumin, chili powder, paprika, salt, oregano), PLUS one optional substitution — product "taco seasoning", quantity 1, unit "packet", \`replaces\` exactly those five spice names as written. The shells and cheese have no sensible swap, so none is offered for them.
 
 Return ONLY the tool_use call with the single meal object.`;
 
 /**
  * The byte-identical cached prefix for the harness's generate-meal call.
- * Same shared preamble + the generate instructions. Measured 3,371 tok,
- * +64.6% past the Sonnet-4.6 2048 floor (real count_tokens against
- * claude-sonnet-4-6).
+ * Same shared preamble + the generate instructions. After the Block 3.6 v3
+ * consolidation + store-bought substitutions + Fix 1/2: measured 4,400 tok
+ * system-only (+114.8% past the Sonnet-4.6 2048 floor), 5,880 tok with the forced
+ * tool schema (the schema now carries the optional `substitutions` field) — real
+ * count_tokens against claude-sonnet-4-6 (ws9-block3-generate-prefix-measure.ts).
  */
 export const STABLE_GENERATE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + GENERATE_MEAL_INSTRUCTIONS;

@@ -410,6 +410,32 @@ model Dish {
   // ungrounded generate_meal write awaiting recompute). Never backfilled with a
   // guess. Meal-level grounding is aggregated from these per-dish stamps.
   macroGroundedPct     Float?
+  // Block 3.6 v3 (D-WS9-064) — store-bought substitutions: an OPTIONAL array of
+  // convenience products, each replacing a GROUP of this dish's from-scratch
+  // ingredients by name (shape: {product, quantity, unit, replaces: string[]}).
+  // Authored by the store-fill generate call; the from-scratch ingredient list
+  // stays complete and primary. NULLABLE — legacy rows and non-generated dishes
+  // carry none. The grocery-list swap (later work) consumes this.
+  substitutions        Json?
+  // Block 3.7 (D-WS9-066) — swappable-component registry: the label/order
+  // metadata for this dish's swappable components, keyed by `componentKey` (the
+  // join key that ties tagged RecipeInstructionStep + DishIngredient rows and
+  // the matching `substitutions` product together). Shape: an array of
+  // { key: string, label: string, order: number }. Deliberately SEPARATE from
+  // `substitutions` (which has a strict validated shape + a mutating sanitize
+  // pass, and whose 1,125 existing rows we do not want to touch) — this is the
+  // display/join metadata, substitutions is the shopping swap. NULLABLE — a dish
+  // with no swappable components carries none. Authored by the store-fill
+  // finalize call (Block 3.7 Phase 2).
+  componentRegistry    Json?
+  // Block 3.7 (D-WS7-215) — PER-USER component selection: a NON-DESTRUCTIVE map
+  // { [componentKey]: 'scratch' | 'bought' } stored on the user's own (forked)
+  // Dish. "Forever" is a stored selection, NEVER a rewrite of the step rows — a
+  // user who buys coleslaw mix in December can still shred cabbage in July by
+  // flipping it back. Absent key = the component's default (scratch). NULLABLE +
+  // reversible. Per-plan selection (MealPlanItem.componentSelections) overrides
+  // this. Nothing reads it yet (migration only).
+  componentSelections  Json?
   timesCooked          Int             @default(0)
   lastUsedAt           DateTime?
   isArchived           Boolean         @default(false)
@@ -432,6 +458,14 @@ model DishIngredient {
   preparationNote String?
   isOptional      Boolean @default(false)
   positionIndex   Int     @default(0)
+  // Block 3.7 (D-WS9-066) — swappable-component tags, mirroring
+  // RecipeInstructionStep. Null `componentKey` = BASE ingredient (always in the
+  // list). A tagged ingredient belongs to one component/path: the from-scratch
+  // ingredients a product replaces are 'scratch'; the product itself is 'bought'.
+  // The grocery-swap (out of scope here) will read these; nothing does yet.
+  // NULLABLE — legacy rows are base, catalog stays valid untouched.
+  componentKey    String?
+  pathKey         String? // 'scratch' | 'bought' — enforced at application layer
 
   dish       Dish       @relation(fields: [dishId], references: [id], onDelete: Cascade)
   ingredient Ingredient @relation(fields: [ingredientId], references: [id])
@@ -530,6 +564,18 @@ model RecipeInstructionStep {
   requiresRest       Boolean   @default(false)
   requiresMarination Boolean   @default(false)
   isTimingSensitive  Boolean   @default(false)
+  // Block 3.7 (D-WS9-066) — swappable-component tags. A step with a null
+  // `componentKey` is BASE: it is always part of the recipe regardless of any
+  // convenience swap. A tagged step belongs to one swappable component
+  // (`componentKey` → an entry in the parent Dish's `componentRegistry`) on one
+  // path: `pathKey` is 'scratch' (the from-scratch steps that become
+  // unnecessary when the product is bought) or 'bought' (what the cook does with
+  // the store-bought product). The effective recipe for a user = base steps +
+  // the selected path's steps per component. NULLABLE — every existing/legacy
+  // step is base, so the 1,125-meal catalog stays valid untouched. Nothing reads
+  // these yet (migration only).
+  componentKey       String?
+  pathKey            String? // 'scratch' | 'bought' — enforced at application layer
   // WS7-8b BUG-003 Block 1 (D-WS7-171 scope: dish-owned steps only). Sidecar
   // step→ingredient reference links, DERIVED server-side at materialize time
   // from the dish's own DishIngredient rows. Each ref:
@@ -670,6 +716,12 @@ model MealPlanItem {
   servingsOverride    Int?
   ingredientOverrides Json? // IngredientOverride[]
   recipeOverrideJson  Json? // RecipeOverride per PRD §8.4.3 — plan-instance recipe override; null = use Meal's default recipe
+  // Block 3.7 (D-WS7-215) — PER-PLAN component selection ("this week only"): a
+  // NON-DESTRUCTIVE map { [dishId]: { [componentKey]: 'scratch' | 'bought' } }
+  // scoped to this plan instance. OVERRIDES the per-user Dish.componentSelections
+  // for this plan; absent = fall back to the user/dish default. NULLABLE +
+  // reversible. Nothing reads it yet (migration only).
+  componentSelections Json?
   isBreakfast         Boolean   @default(false)
   isLunch             Boolean   @default(false)
   isDinner            Boolean   @default(true)

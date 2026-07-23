@@ -101,6 +101,15 @@ describe("ingredient classification", () => {
     assert.equal(isProteinIngredient("carrot"), false);
   });
 
+  it("D-WS9-064: cheese and eggs count as a protein anchor; cheesecloth does not", () => {
+    assert.equal(isProteinIngredient("sharp cheddar cheese"), true);
+    assert.equal(isProteinIngredient("fresh mozzarella"), true);
+    assert.equal(isProteinIngredient("whole-milk ricotta"), true);
+    assert.equal(isProteinIngredient("large eggs"), true);
+    assert.equal(isProteinIngredient("cheesecloth"), false); // tool, not food
+    assert.equal(isProteinIngredient("elbow macaroni"), false); // carb, not protein
+  });
+
   it("isCarbIngredient matches starches; excludes cornstarch/corned beef", () => {
     assert.equal(isCarbIngredient("white rice"), true);
     assert.equal(isCarbIngredient("russet potatoes"), true);
@@ -246,6 +255,157 @@ describe("mergeSteps", () => {
   });
 });
 
+// ── swappable components (Block 3.7, D-WS9-066) ───────────────────────────────
+
+/** A single-dish coleslaw with a bagged-mix substitution. */
+function slawMeal(): WizardExpandEnrichedMealDetails {
+  return makeMeal({
+    dishes: [
+      {
+        title: "Coleslaw",
+        role: "side",
+        positionIndex: 0,
+        ingredients: [
+          { name: "green cabbage", quantity: 1, unit: "head" },
+          { name: "mayonnaise", quantity: 0.5, unit: "cup" },
+        ],
+        macros: macros(),
+        substitutions: [
+          { product: "bagged coleslaw mix", quantity: 14, unit: "oz", replaces: ["green cabbage"] },
+        ],
+      },
+    ],
+  });
+}
+
+describe("mergeSteps — swappable components (D-WS9-066)", () => {
+  it("carries valid step tags + registry through and prunes unreferenced components", () => {
+    const meal = slawMeal();
+    const finalize = {
+      dishSteps: [
+        {
+          mealIndex: 0,
+          dishIndex: 0,
+          components: [
+            { key: "slaw", label: "Coleslaw base", order: 0 },
+            { key: "ghost", label: "Unused", order: 1 },
+          ],
+          steps: [
+            { text: "Finely shred the cabbage.", phaseType: "prep" as const, estimatedMinutes: 10, isTimingSensitive: false, componentKey: "slaw", pathKey: "scratch" as const },
+            { text: "Tip the bag into a bowl.", phaseType: "prep" as const, estimatedMinutes: 1, isTimingSensitive: false, componentKey: "slaw", pathKey: "bought" as const },
+            { text: "Toss with the mayonnaise.", phaseType: "assemble" as const, estimatedMinutes: 3, isTimingSensitive: false },
+          ],
+        },
+      ],
+    };
+    const r = mergeSteps(meal, finalize, "coleslaw");
+    assert.equal(r.ok, true);
+    if (!r.ok) return;
+    // "ghost" pruned (no surviving step references it); "slaw" kept.
+    assert.deepEqual(r.registryPerDish[0].map((c) => c.key), ["slaw"]);
+    assert.equal(r.stepsPerDish[0][0].pathKey, "scratch");
+    assert.equal(r.stepsPerDish[0][1].pathKey, "bought");
+    assert.equal(r.stepsPerDish[0][2].componentKey, undefined); // base
+    assert.equal(r.tagFindings.length, 0);
+  });
+
+  it("strips an unknown-component tag (drop-and-keep) and reports it", () => {
+    const meal = makeMeal({ dishes: [{ title: "X", role: "main", positionIndex: 0, ingredients: [{ name: "chicken breast", quantity: 1, unit: "pound" }], macros: macros() }] });
+    const finalize = {
+      dishSteps: [
+        {
+          mealIndex: 0,
+          dishIndex: 0,
+          components: [{ key: "sauce", label: "Sauce", order: 0 }],
+          steps: [
+            { text: "Do a thing.", phaseType: "cook" as const, estimatedMinutes: 5, isTimingSensitive: false, componentKey: "wrongkey", pathKey: "scratch" as const },
+          ],
+        },
+      ],
+    };
+    const r = mergeSteps(meal, finalize, "x");
+    assert.equal(r.ok, true);
+    if (!r.ok) return;
+    assert.equal(r.stepsPerDish[0][0].componentKey, undefined); // stripped → base
+    assert.equal(r.stepsPerDish[0][0].pathKey, undefined);
+    assert.equal(r.tagFindings.length, 1);
+    assert.equal(r.tagFindings[0].reason, "unknown_component");
+    assert.equal(r.registryPerDish[0].length, 0); // no referenced key survives
+  });
+
+  it("strips an incomplete tag (componentKey without pathKey) and reports it", () => {
+    const meal = makeMeal({ dishes: [{ title: "X", role: "main", positionIndex: 0, ingredients: [{ name: "chicken breast", quantity: 1, unit: "pound" }], macros: macros() }] });
+    const finalize = {
+      dishSteps: [
+        {
+          mealIndex: 0,
+          dishIndex: 0,
+          components: [{ key: "sauce", label: "Sauce", order: 0 }],
+          steps: [{ text: "Do a thing.", phaseType: "cook" as const, estimatedMinutes: 5, isTimingSensitive: false, componentKey: "sauce" }],
+        },
+      ],
+    };
+    const r = mergeSteps(meal, finalize, "x");
+    assert.equal(r.ok, true);
+    if (!r.ok) return;
+    assert.equal(r.stepsPerDish[0][0].componentKey, undefined);
+    assert.equal(r.tagFindings.length, 1);
+    assert.equal(r.tagFindings[0].reason, "incomplete_tag");
+  });
+
+  it("flags a dish that carries substitutions but no bought path (quality signal, not a strip)", () => {
+    const meal = slawMeal();
+    const finalize = {
+      dishSteps: [
+        {
+          mealIndex: 0,
+          dishIndex: 0,
+          steps: [{ text: "Shred the cabbage and toss with mayo.", phaseType: "prep" as const, estimatedMinutes: 12, isTimingSensitive: false }],
+        },
+      ],
+    };
+    const r = mergeSteps(meal, finalize, "coleslaw");
+    assert.equal(r.ok, true);
+    if (!r.ok) return;
+    assert.equal(r.tagFindings.length, 1);
+    assert.equal(r.tagFindings[0].reason, "substitutions_without_paths");
+    // the meal is KEPT — steps untouched, no registry.
+    assert.equal(r.stepsPerDish[0].length, 1);
+    assert.equal(r.registryPerDish[0].length, 0);
+  });
+
+  it("buildMaterializePayload carries component tags + registry into the payload", () => {
+    const meal = slawMeal();
+    const finalize = {
+      dishSteps: [
+        {
+          mealIndex: 0,
+          dishIndex: 0,
+          components: [{ key: "slaw", label: "Coleslaw base", order: 0 }],
+          steps: [
+            { text: "Finely shred the cabbage.", phaseType: "prep" as const, estimatedMinutes: 10, isTimingSensitive: false, componentKey: "slaw", pathKey: "scratch" as const },
+            { text: "Tip the bag into a bowl.", phaseType: "prep" as const, estimatedMinutes: 1, isTimingSensitive: false, componentKey: "slaw", pathKey: "bought" as const },
+            { text: "Toss with the mayonnaise.", phaseType: "assemble" as const, estimatedMinutes: 3, isTimingSensitive: false },
+          ],
+        },
+      ],
+    };
+    const merged = mergeSteps(meal, finalize, "coleslaw");
+    assert.equal(merged.ok, true);
+    if (!merged.ok) return;
+    const payload = buildMaterializePayload(meal, merged.stepsPerDish, [], "coleslaw", merged.registryPerDish);
+    const d0 = payload.dishes[0];
+    assert.equal(d0.kind, "new");
+    if (d0.kind !== "new") return;
+    assert.deepEqual(d0.componentRegistry, [{ key: "slaw", label: "Coleslaw base", order: 0 }]);
+    const bought = d0.steps.find((s) => s.pathKey === "bought");
+    assert.ok(bought, "bought-path step present in payload");
+    assert.equal(bought!.componentKey, "slaw");
+    const base = d0.steps.find((s) => s.text.startsWith("Toss"));
+    assert.equal(base!.componentKey, undefined); // base step untagged
+  });
+});
+
 // ── dedup key ────────────────────────────────────────────────────────────────
 
 describe("dedupKey", () => {
@@ -330,6 +490,67 @@ describe("materializeMeal via STORE_FILL_TARGET", () => {
     assert.equal(m.dishFamilyKey, "seared-chicken");
     assert.equal(m.mealType, "dinner");
   });
+
+  it("D-WS9-066: persists dish.componentRegistry + per-step component tags", async () => {
+    const meal = slawMeal();
+    const finalize = {
+      dishSteps: [
+        {
+          mealIndex: 0,
+          dishIndex: 0,
+          components: [{ key: "slaw", label: "Coleslaw base", order: 0 }],
+          steps: [
+            { text: "Finely shred the cabbage.", phaseType: "prep" as const, estimatedMinutes: 10, isTimingSensitive: false, componentKey: "slaw", pathKey: "scratch" as const },
+            { text: "Tip the bag into a bowl.", phaseType: "prep" as const, estimatedMinutes: 1, isTimingSensitive: false, componentKey: "slaw", pathKey: "bought" as const },
+            { text: "Toss with the mayonnaise.", phaseType: "assemble" as const, estimatedMinutes: 3, isTimingSensitive: false },
+          ],
+        },
+      ],
+    };
+    const merged = mergeSteps(meal, finalize, "coleslaw");
+    assert.equal(merged.ok, true);
+    if (!merged.ok) return;
+    const payload = buildMaterializePayload(meal, merged.stepsPerDish, [], "coleslaw", merged.registryPerDish);
+
+    const map = new Map<string, string>();
+    for (const d of payload.dishes) {
+      if (d.kind !== "new") continue;
+      for (const ing of d.ingredients) map.set(ing.name.toLowerCase().trim(), `ing-${map.size}`);
+    }
+
+    const createdSteps: Array<Record<string, unknown>> = [];
+    const createdDishes: Array<Record<string, unknown>> = [];
+    let dishSeq = 0;
+    const fakeTx = {
+      meal: { create: async () => ({ id: "meal-1" }), update: async () => ({}) },
+      dish: { create: async ({ data }: { data: Record<string, unknown> }) => { createdDishes.push(data); return { id: `dish-${dishSeq++}` }; } },
+      mealDishLink: { create: async () => ({}), findMany: async () => [] },
+      dishIngredient: { create: async () => ({}) },
+      recipeInstructionStep: {
+        create: async ({ data }: { data: Record<string, unknown> }) => { createdSteps.push(data); return {}; },
+      },
+    };
+
+    await materializeMeal(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fakeTx as any,
+      "",
+      payload,
+      map,
+      STORE_FILL_TARGET,
+    );
+
+    // registry persisted on the dish row
+    assert.deepEqual(createdDishes[0].componentRegistry, [{ key: "slaw", label: "Coleslaw base", order: 0 }]);
+    // per-step tags persisted; base step leaves both columns unset
+    const scratch = createdSteps.find((s) => s.pathKey === "scratch");
+    const bought = createdSteps.find((s) => s.pathKey === "bought");
+    const base = createdSteps.find((s) => (s.stepTextRaw as string).startsWith("Toss"));
+    assert.equal(scratch!.componentKey, "slaw");
+    assert.equal(bought!.componentKey, "slaw");
+    assert.equal(base!.componentKey, undefined);
+    assert.equal(base!.pathKey, undefined);
+  });
 });
 
 // ── list-driven orchestration (dry-run, fake AI + fake prisma) ──────────────
@@ -373,7 +594,7 @@ function fakePrisma(existingKeys: string[] = []): PrismaClient {
 }
 
 const DISH = (rank: number, dish: string, key = dish.toLowerCase().replace(/[^a-z0-9]+/g, "-")) =>
-  ({ rank, dish, key, category: "Test" });
+  ({ rank, dish, key, category: "Test", parentDish: dish, band: "top25" as const, siblingCount: 1 });
 
 describe("runStoreFill — list-driven dry-run", () => {
   it("generates against the target dish, no DB writes, accumulates tokens", async () => {

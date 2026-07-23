@@ -22,6 +22,7 @@ import {
   WizardExpandDishIngredientSchema,
   WizardExpandEnrichedMealDetailsSchema,
   WizardFinalizeStepsResultSchema,
+  type WizardComponent,
   type WizardExpandEnrichedMealDetails,
   type WizardFinalizeStepsResult,
   type WizardStep,
@@ -69,6 +70,12 @@ export const PILOT_GEN_PROFILES: GenProfile[] = [
 ];
 
 // ── ingredient classification (protein / carb / vegetable) ───────────────────
+// D-WS9-064 Fix 2: substantial DAIRY and EGG anchors count as a protein — cheese
+// IS the protein in baked mac and cheese / cheese enchiladas / eggplant parm, and
+// eggs in a frittata/quiche. Added alongside the meat/poultry/fish/legume/tofu set
+// so the completeness gate stops rejecting these unambiguously-real dinners. Bare
+// cheese names are listed because recipes often write "mozzarella" without the word
+// "cheese"; PROTEIN_STOP guards the one non-food substring ("cheesecloth").
 export const PROTEIN_KEYWORDS: readonly string[] = [
   "chicken", "beef", "steak", "pork", "bacon", "ham", "sausage", "turkey", "lamb",
   "veal", "duck", "fish", "salmon", "tuna", "cod", "tilapia", "trout", "halibut",
@@ -76,7 +83,10 @@ export const PROTEIN_KEYWORDS: readonly string[] = [
   "tofu", "tempeh", "seitan", "edamame", "egg", "eggs", "paneer", "lentil",
   "lentils", "chickpea", "chickpeas", "black bean", "kidney bean", "pinto bean",
   "cannellini", "white bean", "navy bean", "bean", "beans", "greek yogurt",
+  "cheese", "mozzarella", "parmesan", "cheddar", "ricotta", "feta", "halloumi",
+  "provolone", "gouda", "gruyere", "cotija", "queso", "mascarpone",
 ];
+const PROTEIN_STOP: readonly string[] = ["cheesecloth"];
 
 // Substantial starches. Aromatics/spices that merely contain a keyword substring
 // are excluded via CARB_STOP (e.g. cornstarch, corned beef).
@@ -117,7 +127,7 @@ function matchesAny(
 }
 
 export function isProteinIngredient(name: string): boolean {
-  return PROTEIN_KEYWORDS.some((k) => name.toLowerCase().includes(k));
+  return matchesAny(name, PROTEIN_KEYWORDS, PROTEIN_STOP);
 }
 export function isCarbIngredient(name: string): boolean {
   return matchesAny(name, CARB_KEYWORDS, CARB_STOP);
@@ -134,7 +144,8 @@ const PROTEIN_FLOOR_G = 15; // per-serving protein floor for the macro fallback
 //   - Single-dish → the one dish must carry a PROTEIN and (a CARB or a VEGETABLE)
 //     in its own ingredients. This rejects a lone fillet / bare breast / plain
 //     steak while passing chicken soup, chili, casseroles, stir-fries, one-pot
-//     pasta, and hearty dinner salads.
+//     pasta, hearty dinner salads, and cheese-/egg-anchored bakes (baked mac and
+//     cheese, cheese enchiladas, quiche — cheese/egg counts as the protein; D-WS9-064).
 export interface CompletenessCheck {
   ok: boolean;
   reason?: string;
@@ -161,6 +172,59 @@ export function mealComplete(meal: WizardExpandEnrichedMealDetails): Completenes
     }
   }
   return { ok: true };
+}
+
+// ── store-bought substitution sanitize (D-WS9-064) ───────────────────────────
+// The generate model authors optional convenience-product substitutions, each
+// naming the from-scratch ingredients it replaces. The grocery-list swap (later)
+// matches those names against the dish's real DishIngredient rows by canonical
+// name, so a `replaces` entry that doesn't EXACTLY match a real ingredient name
+// is dead data that looks fine in the DB. DROP-AND-KEEP (ruled): drop the whole
+// substitution if ANY of its `replaces` names is unmatched (a partial group would
+// make the swap double-buy the unmatched item), keep the meal, and report the
+// drop. Normalization mirrors the materializer's canonical key (lower + trim).
+export interface DroppedSubstitution {
+  targetDish: string;
+  dishTitle: string;
+  product: string;
+  unmatched: string[];
+}
+
+function normalizeIngredientName(name: string): string {
+  return name.toLowerCase().trim();
+}
+
+/**
+ * Sanitize a meal's substitutions IN PLACE: for each dish, keep only
+ * substitutions whose every `replaces` name matches a real ingredient name in
+ * that same dish. Returns the dropped substitutions (with the unmatched names)
+ * for reporting. A dish left with no surviving substitutions has the field
+ * cleared to `undefined` so the materializer writes SQL NULL.
+ */
+export function sanitizeMealSubstitutions(
+  meal: WizardExpandEnrichedMealDetails,
+  targetDish: string,
+): DroppedSubstitution[] {
+  const dropped: DroppedSubstitution[] = [];
+  for (const dish of meal.dishes) {
+    if (!dish.substitutions || dish.substitutions.length === 0) continue;
+    const ingredientNames = new Set(
+      dish.ingredients.map((i) => normalizeIngredientName(i.name)),
+    );
+    const kept: typeof dish.substitutions = [];
+    for (const sub of dish.substitutions) {
+      const unmatched = sub.replaces.filter(
+        (r) => !ingredientNames.has(normalizeIngredientName(r)),
+      );
+      if (unmatched.length > 0) {
+        dropped.push({ targetDish, dishTitle: dish.title, product: sub.product, unmatched });
+      } else {
+        kept.push(sub);
+      }
+    }
+    dish.substitutions = kept.length > 0 ? kept : undefined;
+  }
+  return dropped;
 }
 
 // ── allergen derivation (stamp-only; no retrieval filter here) ────────────────
@@ -209,16 +273,44 @@ export function validateBug040Meal(meal: WizardExpandEnrichedMealDetails): Bug04
   return { ok: true };
 }
 
+// ── Block 3.7 (D-WS9-066) — swappable-component tag validation finding ────────
+// DROP-AND-KEEP posture (mirrors sanitizeMealSubstitutions): a step tag that
+// fails validation is STRIPPED (the step reverts to base), the meal is KEPT, and
+// the strip is reported here — never fatal. Reasons:
+//   unknown_component  — step.componentKey names no entry in the dish's registry
+//   incomplete_tag     — componentKey without pathKey, or pathKey without a key
+//   substitutions_without_paths — a dish carries substitutions but the model
+//                         authored no bought-path steps (dual-path missing; a
+//                         quality SIGNAL, not a strip — the meal is still valid
+//                         scratch-only).
+export interface ComponentTagFinding {
+  targetDish: string;
+  dishTitle: string;
+  dishIndex: number;
+  reason:
+    | "unknown_component"
+    | "incomplete_tag"
+    | "substitutions_without_paths";
+  detail: string;
+}
+
 // ── merge finalize steps into the meal's dishes (single meal → mealIndex 0) ──
 export type MergeResult =
-  | { ok: true; stepsPerDish: WizardStep[][] }
+  | {
+      ok: true;
+      stepsPerDish: WizardStep[][];
+      registryPerDish: WizardComponent[][];
+      tagFindings: ComponentTagFinding[];
+    }
   | { ok: false; reason: string };
 
 export function mergeSteps(
   meal: WizardExpandEnrichedMealDetails,
   finalize: WizardFinalizeStepsResult,
+  targetDish = "",
 ): MergeResult {
   const byDish = new Map<number, WizardStep[]>();
+  const registryByDish = new Map<number, WizardComponent[]>();
   for (const entry of finalize.dishSteps) {
     if (entry.mealIndex !== 0) {
       return { ok: false, reason: `unexpected_meal_index:${entry.mealIndex}` };
@@ -227,19 +319,58 @@ export function mergeSteps(
       return { ok: false, reason: `duplicate_dish_index:${entry.dishIndex}` };
     }
     byDish.set(entry.dishIndex, entry.steps);
+    registryByDish.set(entry.dishIndex, entry.components ?? []);
   }
   const stepsPerDish: WizardStep[][] = [];
+  const registryPerDish: WizardComponent[][] = [];
+  const tagFindings: ComponentTagFinding[] = [];
   for (let di = 0; di < meal.dishes.length; di++) {
     const steps = byDish.get(di);
     if (!steps) return { ok: false, reason: `missing_dish_steps:${di}` };
     byDish.delete(di);
+    const registry = registryByDish.get(di) ?? [];
+    const dishTitle = meal.dishes[di].title;
+    // Validate + drop-and-keep each step's component tags against this dish's
+    // registry. Mutates the step objects in place (strip → base).
+    const registryKeys = new Set(registry.map((c) => c.key));
+    const usedKeys = new Set<string>();
+    for (let si = 0; si < steps.length; si++) {
+      const s = steps[si];
+      const hasKey = s.componentKey !== undefined;
+      const hasPath = s.pathKey !== undefined;
+      if (!hasKey && !hasPath) continue; // base step — nothing to check
+      if (hasKey !== hasPath) {
+        tagFindings.push({ targetDish, dishTitle, dishIndex: di, reason: "incomplete_tag", detail: `step ${si}: componentKey=${s.componentKey ?? "∅"} pathKey=${s.pathKey ?? "∅"}` });
+        s.componentKey = undefined;
+        s.pathKey = undefined;
+        continue;
+      }
+      if (!registryKeys.has(s.componentKey as string)) {
+        tagFindings.push({ targetDish, dishTitle, dishIndex: di, reason: "unknown_component", detail: `step ${si}: componentKey="${s.componentKey}" not in registry [${[...registryKeys].join(", ")}]` });
+        s.componentKey = undefined;
+        s.pathKey = undefined;
+        continue;
+      }
+      usedKeys.add(s.componentKey as string);
+    }
+    // Prune registry entries no surviving step references (drop-and-keep: a
+    // component with no tagged steps is dead metadata). Keep only referenced keys.
+    const prunedRegistry = registry.filter((c) => usedKeys.has(c.key));
+    // Quality signal: this dish carries substitutions but produced no bought-path
+    // steps at all → the "make it easier" path is missing. Not a strip; reported.
+    const hasSubs = (meal.dishes[di].substitutions?.length ?? 0) > 0;
+    const hasBoughtPath = steps.some((s) => s.pathKey === "bought");
+    if (hasSubs && !hasBoughtPath) {
+      tagFindings.push({ targetDish, dishTitle, dishIndex: di, reason: "substitutions_without_paths", detail: `${meal.dishes[di].substitutions?.length ?? 0} substitution(s), 0 bought-path steps` });
+    }
     stepsPerDish.push(steps);
+    registryPerDish.push(prunedRegistry);
   }
   if (byDish.size > 0) {
     const [extra] = byDish.keys();
     return { ok: false, reason: `extra_dish_steps:${extra}` };
   }
-  return { ok: true, stepsPerDish };
+  return { ok: true, stepsPerDish, registryPerDish, tagFindings };
 }
 
 // ── dedup key (BACKSTOP only — the distinct target dishes are the primary
@@ -268,6 +399,10 @@ export function buildMaterializePayload(
   stepsPerDish: WizardStep[][],
   allergens: string[],
   dishFamilyKey: string,
+  // Block 3.7 (D-WS9-066) — per-dish swappable-component registry from mergeSteps
+  // (pruned to referenced keys). Optional so legacy 4-arg callers/tests still
+  // work: a missing registry means every dish is single-path (no components).
+  registryPerDish: WizardComponent[][] = [],
 ): MaterializeMealPayload {
   const dishes: MaterializeMealDish[] = meal.dishes.map((d, di) => ({
     kind: "new",
@@ -286,6 +421,9 @@ export function buildMaterializePayload(
       estimatedMinutes: s.estimatedMinutes,
       phaseType: s.phaseType,
       isTimingSensitive: s.isTimingSensitive,
+      // Block 3.7 (D-WS9-066) — carry the (validated) component tags to the write.
+      ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
+      ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),
     })),
     ...(d.macros
       ? {
@@ -296,6 +434,14 @@ export function buildMaterializePayload(
             fatGPerServing: d.macros.fatGPerServing,
           },
         }
+      : {}),
+    // D-WS9-064 — carry sanitized store-bought substitutions into the write path.
+    ...(d.substitutions && d.substitutions.length > 0
+      ? { substitutions: d.substitutions }
+      : {}),
+    // D-WS9-066 — carry the swappable-component registry when the dish has one.
+    ...(registryPerDish[di] && registryPerDish[di].length > 0
+      ? { componentRegistry: registryPerDish[di] }
       : {}),
   }));
 
@@ -396,6 +542,21 @@ export interface StoreFillOptions {
   log?: (msg: string) => void;
   /** wall-clock start (ms); injected for determinism in tests. */
   nowMs?: () => number;
+  /**
+   * Capture hook — receives the FULL generated meal + merged steps for every
+   * meal that passes the gates, whether or not `apply` writes it. Lets a caller
+   * dump complete meals for quality inspection without touching the DB. Default
+   * no-op; the harness's own result payload is unchanged.
+   */
+  onMeal?: (capture: StoreFillMealCapture) => void;
+}
+
+export interface StoreFillMealCapture {
+  targetDish: string;
+  key: string;
+  profileKey: string;
+  meal: WizardExpandEnrichedMealDetails;
+  stepsPerDish: WizardStep[][];
 }
 
 export interface MealDishRecord {
@@ -403,6 +564,14 @@ export interface MealDishRecord {
   role: string;
   ingredientCount: number;
   stepCount: number;
+  substitutionCount: number;
+  // Block 3.7 (D-WS9-066) — dual-path shape. componentCount = registry entries
+  // with ≥1 surviving tagged step; scratch/boughtStepCount = tagged steps per
+  // path (base steps are counted in neither). A dish "got dual paths" when
+  // boughtStepCount > 0.
+  componentCount: number;
+  scratchStepCount: number;
+  boughtStepCount: number;
 }
 
 export interface MealRecord {
@@ -440,6 +609,13 @@ export interface StoreFillResult {
   records: MealRecord[];
   skips: SkipRecord[];
   completenessRejections: CompletenessRejection[];
+  /** D-WS9-064 — substitutions dropped by the drop-and-keep sanitize (unmatched
+   *  `replaces` names). Logged, never fatal — the meal is kept. */
+  substitutionDrops: DroppedSubstitution[];
+  /** D-WS9-066 — swappable-component tag validation findings (drop-and-keep on
+   *  step tags + the "substitutions but no bought path" quality signal). Never
+   *  fatal — the meal is kept. */
+  componentTagFindings: ComponentTagFinding[];
   tokens: TokenTotals;
   costUsd: number;
   /** set when a runaway control halted the run early. */
@@ -472,6 +648,7 @@ export async function runStoreFill(
   const maxCalls = opts.maxCalls ?? opts.limit * 5;
   const maxConsecutiveFailures = opts.maxConsecutiveFailures ?? 3;
   const log = opts.log ?? (() => {});
+  const onMeal = opts.onMeal;
   const nowMs = opts.nowMs ?? (() => Date.now());
   const startMs = nowMs();
 
@@ -485,6 +662,8 @@ export async function runStoreFill(
   const records: MealRecord[] = [];
   const skips: SkipRecord[] = [];
   const completenessRejections: CompletenessRejection[] = [];
+  const substitutionDrops: DroppedSubstitution[] = [];
+  const componentTagFindings: ComponentTagFinding[] = [];
 
   // D-WS9-045 dedup on the TARGET-DISH KEY (not the generated title). Seed from
   // existing batch_generated meals → re-run safe: a re-run skips every dish
@@ -556,6 +735,12 @@ export async function runStoreFill(
     }
     if (failed || !meal) { consecutiveFailures++; progress(); continue; }
 
+    // 1b. D-WS9-064 — drop-and-keep sanitize of store-bought substitutions.
+    //     Runs on the generate output (finalize never touches substitutions), so
+    //     everything downstream — capture, BUG-040 gate, payload — sees only
+    //     referentially-valid swaps. Dropped ones are logged, never fatal.
+    substitutionDrops.push(...sanitizeMealSubstitutions(meal, target.dish));
+
     // 2. BUG-040 gate — log + SKIP on failure, never coerce.
     const bug040 = validateBug040Meal(meal);
     if (!bug040.ok) {
@@ -576,15 +761,18 @@ export async function runStoreFill(
       skips.push({ targetDish: target.dish, profileKey: profile.key, stage: "finalize", reason: fin.reason, title: meal.title });
       consecutiveFailures++; progress(); continue;
     }
-    const merged = mergeSteps(meal, fin.data);
+    const merged = mergeSteps(meal, fin.data, target.dish);
     if (!merged.ok) {
       skips.push({ targetDish: target.dish, profileKey: profile.key, stage: "merge", reason: merged.reason, title: meal.title });
       consecutiveFailures++; progress(); continue;
     }
+    // Block 3.7 (D-WS9-066) — component tag validation findings (drop-and-keep,
+    // never fatal). Accumulated for the run report.
+    componentTagFindings.push(...merged.tagFindings);
 
-    // 4. Allergens + payload (stamped with the target-dish key).
+    // 4. Allergens + payload (stamped with the target-dish key + component registry).
     const allergens = deriveAllergens(meal);
-    const payload = buildMaterializePayload(meal, merged.stepsPerDish, allergens, target.key);
+    const payload = buildMaterializePayload(meal, merged.stepsPerDish, allergens, target.key, merged.registryPerDish);
 
     // 5. Persist (two-pass, one $transaction PER MEAL so an interrupted run
     //    keeps completed work and resumes safely). Reserve the key first.
@@ -601,6 +789,17 @@ export async function runStoreFill(
       written = true;
     }
 
+    // Capture the FULL meal for out-of-band quality dumps (dry-run inspection).
+    if (onMeal) {
+      onMeal({
+        targetDish: target.dish,
+        key: target.key,
+        profileKey: profile.key,
+        meal,
+        stepsPerDish: merged.stepsPerDish,
+      });
+    }
+
     consecutiveFailures = 0;
     records.push({
       targetDish: target.dish,
@@ -614,6 +813,11 @@ export async function runStoreFill(
         role: d.role,
         ingredientCount: d.ingredients.length,
         stepCount: merged.stepsPerDish[di].length,
+        substitutionCount: d.substitutions?.length ?? 0,
+        // Block 3.7 (D-WS9-066) — dual-path shape for the run report.
+        componentCount: merged.registryPerDish[di].length,
+        scratchStepCount: merged.stepsPerDish[di].filter((s) => s.pathKey === "scratch").length,
+        boughtStepCount: merged.stepsPerDish[di].filter((s) => s.pathKey === "bought").length,
       })),
       allergens,
       written,
@@ -624,5 +828,5 @@ export async function runStoreFill(
 
   const costUsd = computeCacheAwareCostUsd(tokens, rate);
   if (stoppedBy) log(`STOPPED by ${stoppedBy} — ${records.length} written, $${costUsd.toFixed(4)} spent`);
-  return { apply: opts.apply, attempted, records, skips, completenessRejections, tokens, costUsd, stoppedBy };
+  return { apply: opts.apply, attempted, records, skips, completenessRejections, substitutionDrops, componentTagFindings, tokens, costUsd, stoppedBy };
 }

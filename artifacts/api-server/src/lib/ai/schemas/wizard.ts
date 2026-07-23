@@ -23,8 +23,28 @@ export const WizardStepSchema = z.object({
   phaseType: StepPhaseTypeSchema,
   estimatedMinutes: z.number().int().positive().max(600),
   isTimingSensitive: z.boolean(),
+  // Block 3.7 (D-WS9-066) — swappable-component tags. OPTIONAL and additive: the
+  // live wizard never emits them (its prompt is unchanged) and every legacy step
+  // is untagged = BASE. The store-fill finalize call sets them on the steps that
+  // belong to a swappable component's scratch or bought path. `pathKey` is a
+  // strict enum; `componentKey` is validated against the dish's registry in a
+  // DROP-AND-KEEP pass server-side (an unknown key strips the tag → base, never
+  // rejects the meal), so it stays a plain string here.
+  componentKey: z.string().min(1).max(60).optional(),
+  pathKey: z.enum(["scratch", "bought"]).optional(),
 });
 export type WizardStep = z.infer<typeof WizardStepSchema>;
+
+// Block 3.7 (D-WS9-066) — one entry of a dish's swappable-component registry: the
+// label/order metadata the finalize call authors alongside the tagged steps.
+// `key` is the join slug that ties tagged steps (and, later, tagged ingredients
+// + the matching substitution) together. Persisted to Dish.componentRegistry.
+export const WizardComponentSchema = z.object({
+  key: z.string().min(1).max(60),
+  label: z.string().min(1).max(80),
+  order: z.number().int().nonnegative(),
+});
+export type WizardComponent = z.infer<typeof WizardComponentSchema>;
 
 // PRD §5.7 — Set Preferences wizard input shape.
 // Mirrors WizardPreferencesInput in artifacts/kiwi/lib/types.ts:521.
@@ -182,6 +202,24 @@ export type WizardExpandDishIngredient = z.infer<
   typeof WizardExpandDishIngredientSchema
 >;
 
+// Block 3.6 v3 (D-WS9-064) — store-bought substitution. One convenience PRODUCT
+// that replaces a GROUP of this dish's from-scratch ingredients as an OPTIONAL
+// swap (e.g. "1 packet taco seasoning" for cumin+chili powder+paprika+salt+
+// oregano). SHAPE-ONLY here: `replaces` must name ingredients that exist in the
+// SAME dish's `ingredients[]`, but that referential check is NOT enforced in Zod
+// — it is a post-parse sanitize (drop-and-keep) in the store-fill harness so one
+// stray name never rejects an otherwise-good meal. Persisted to Dish.substitutions
+// (nullable Json); optional so wizard-live + legacy paths are unaffected.
+export const WizardExpandSubstitutionSchema = z.object({
+  product: z.string().min(1).max(120),
+  quantity: z.number().positive(),
+  unit: z.string().min(1).max(40),
+  replaces: z.array(z.string().min(1).max(120)).min(1),
+});
+export type WizardExpandSubstitution = z.infer<
+  typeof WizardExpandSubstitutionSchema
+>;
+
 export const WizardExpandDishSchema = z.object({
   title: z.string().min(1).max(120),
   role: z.enum(["main", "side", "sauce", "topping", "base", "optional"]),
@@ -291,6 +329,10 @@ export const WizardExpandDishDetailsSchema = z.object({
   role: z.enum(["main", "side", "sauce", "topping", "base", "optional"]),
   positionIndex: z.number().int().nonnegative(),
   ingredients: z.array(WizardExpandDishIngredientSchema).min(1),
+  // Block 3.6 v3 (D-WS9-064) — optional store-bought substitutions for THIS dish.
+  // Absent when the dish has no sensible convenience product (never forced).
+  // Referential integrity of `replaces` is sanitized post-parse in the harness.
+  substitutions: z.array(WizardExpandSubstitutionSchema).optional(),
   // steps intentionally absent — call #3 populates them at save/activate.
 });
 export type WizardExpandDishDetails = z.infer<
@@ -303,7 +345,17 @@ export const WizardExpandMealDetailsSchema = z.object({
   // emits it → persisted to Meal.description via buildMaterializePayload). Optional
   // so the wizard.candidate.expand path — which does not author a headnote — is
   // unaffected.
-  description: z.string().max(160).optional(),
+  // Block 3.7 (BUG-045) — hard cap raised 160 → 200. 160 was an editorial budget,
+  // not a UI constraint: the meal-detail hero wraps unclamped and the plan card
+  // clamps to 3 lines, so nothing breaks past 160. But a Sonnet generate that
+  // lands a good two-sentence headnote at 161 chars was failing schema validation
+  // and losing the WHOLE meal (observed: "Red Chile Beef Enchiladas", 161 chars,
+  // dropped 1-of-25 in the Block 3.7 sample — a 4% silent loss rate a 1,125-row
+  // scale run cannot afford). You can't make an LLM hit an exact char count, and
+  // the prompt already states ≤160, so raising the tolerated ceiling (not the
+  // prompt target) is the deterministic fix. The prompt still steers to one line
+  // ≤160, so the common case stays short; 200 is slack for the occasional keeper.
+  description: z.string().max(200).optional(),
   cuisineType: z.string().min(1).max(60),
   estimatedTimeMinutes: z.number().int().positive(),
   difficulty: z.enum(["easy", "medium", "fancy"]),
@@ -368,6 +420,12 @@ export const WizardFinalizeStepsDishSchema = z.object({
   // emits per-step phaseType + estimatedMinutes (prompt body inverted to
   // require them); these merge positionally into the details plan and persist.
   steps: z.array(WizardStepSchema).min(1).max(20),
+  // Block 3.7 (D-WS9-066) — the dish's swappable-component registry. OPTIONAL:
+  // the live wizard never sends it, and a store-fill dish with no substitutions
+  // omits it. When a dish carries substitutions, the store-fill finalize call
+  // authors one component per swap here, and tags the scratch/bought steps above
+  // with the matching `componentKey`. Persisted to Dish.componentRegistry.
+  components: z.array(WizardComponentSchema).max(10).optional(),
 });
 export type WizardFinalizeStepsDish = z.infer<
   typeof WizardFinalizeStepsDishSchema

@@ -17,7 +17,8 @@
 // Other plans that reference the source meal keep their binding untouched —
 // each acquisition is its own independent copy.
 
-import type { Prisma, SourceType } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { SourceType } from "@prisma/client";
 
 type Tx = Prisma.TransactionClient;
 
@@ -44,6 +45,12 @@ const STEP_COPY_FIELDS = {
   requiresRest: true,
   requiresMarination: true,
   isTimingSensitive: true,
+  // Block 3.7 (D-WS9-066) — swappable-component tags MUST survive the fork, or a
+  // catalog meal's bought path vanishes on acquire and the clone silently looks
+  // like a scratch-only meal (no error, no signal — the exact failure the
+  // substitutions fix guarded against). null on base steps copies as null.
+  componentKey: true,
+  pathKey: true,
 } as const;
 
 /**
@@ -161,6 +168,29 @@ async function cloneMealInto(
         // macro's write-time grounding stamp (the number's provenance travels
         // with the number).
         macroGroundedPct: d.macroGroundedPct,
+        // Block 3.6 v3 (D-WS9-064) — substitutions MUST survive the fork, or a
+        // catalog meal's convenience swaps vanish the moment it enters a user's
+        // plan. Copied verbatim (Prisma reads Json? as the value or null; a null
+        // is passed through as DbNull so the column stays SQL NULL on the copy).
+        substitutions:
+          d.substitutions === null
+            ? Prisma.DbNull
+            : (d.substitutions as Prisma.InputJsonValue),
+        // Block 3.7 (D-WS9-066 / D-WS7-215) — the component registry and the
+        // per-user selection must survive the fork alongside substitutions, or a
+        // dual-path meal loses the label/order metadata (registry) or the user's
+        // saved "make this easier" choice (selections) on acquire. Same DbNull
+        // discipline: a null Json? column is passed as Prisma.DbNull so it stays
+        // SQL NULL on the copy rather than a literal JSON null (which Prisma
+        // rejects on a Json? column).
+        componentRegistry:
+          d.componentRegistry === null
+            ? Prisma.DbNull
+            : (d.componentRegistry as Prisma.InputJsonValue),
+        componentSelections:
+          d.componentSelections === null
+            ? Prisma.DbNull
+            : (d.componentSelections as Prisma.InputJsonValue),
         isArchived: false,
       },
       select: { id: true },
@@ -185,6 +215,11 @@ async function cloneMealInto(
           preparationNote: di.preparationNote,
           isOptional: di.isOptional,
           positionIndex: di.positionIndex,
+          // Block 3.7 (D-WS9-066) — component tags travel with the ingredient
+          // (same reason as steps: the bought path's product / the scratch
+          // ingredients it replaces must not silently drop on fork).
+          componentKey: di.componentKey,
+          pathKey: di.pathKey,
         })),
       });
     }
