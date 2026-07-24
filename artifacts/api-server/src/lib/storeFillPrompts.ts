@@ -109,7 +109,7 @@ Each input dish MAY carry a \`substitutions\` array: \`[{ "product": "...", "qua
 
 3. BOUGHT path — author 1–3 NEW steps describing what the cook actually does with the store-bought product, tagged with the SAME \`key\` and \`"pathKey": "bought"\`. This must be a real, complete mini-recipe for that component using the product — never a note, never "skip the shredding step", never "use the bag instead". It is usually much shorter than the scratch path (a bag of slaw = open and tip into a bowl; no shredding).
 
-4. Every other step — the ones cooked no matter which choice the user makes — stays UNTAGGED (omit \`componentKey\`/\`pathKey\`). These are the BASE recipe.
+4. Every other step — the ones cooked no matter which choice the user makes — stays UNTAGGED (omit \`componentKey\`/\`pathKey\`). These are the BASE recipe, and they run in EVERY path combination, so a base step must read correctly whichever paths the cook picks. A base step therefore must NEVER reference a specific path's timing or intermediates. In particular, a base step's parallel-window cue must only reference a cook that happens on EVERY path — never one anchored to a component's scratch-path cook: "While the pork braises, boil the eggs" is WRONG when the bought path is a pre-cooked product that never braises, so the cue is false for that cook. The same holds for "while the X roasts/poaches/simmers/bakes" and for scratch-only intermediates ("the reserved braising liquid", "the strained broth") that a bought path never produces. Path-specific timing and intermediates belong INSIDE that component's tagged scratch or bought steps — put the "while the X cooks" cue in the scratch step that does the braise, not in the base.
 
 Rules for components:
 - Independent completeness: BASE + all SCRATCH steps = the full from-scratch dish (exactly what you'd write with no substitutions). BASE + a component's BOUGHT steps (with its scratch steps removed) = a real dish using that product. Every combination across components must be cookable.
@@ -161,13 +161,15 @@ The per-meal input (a single dinner's dishes, keyed as \`meals[0]\`) is supplied
 /**
  * The byte-identical cached prefix for the harness's finalize-steps call.
  * Preamble (quality contract) + finalize instructions. Clears the Sonnet-4.6
- * 2048-token floor (measured 4,256 tok, +107.8% — real count_tokens against
+ * 2048-token floor (measured 4,469 tok, +118.2% — real count_tokens against
  * claude-sonnet-4-6). Block 3.7 (D-WS9-066) grew it from 2,947 → 4,256 by adding
  * the dual-path "# Swappable components" section + the extended sauce-wording
- * rule + the tagged example JSON. The prefix is CACHED, so the +1,309 tokens are
- * a one-time cache-creation + cheap 0.1× cache-reads on every subsequent call —
- * not a per-call input cost. (History: was 3,162, trimmed to 2,947 in Block 3.6
- * v3, now 4,256.)
+ * rule + the tagged example JSON; Block 3.8 (D-WS9-069) grew it 4,256 → 4,469 by
+ * rewriting the BASE-recipe rule to forbid path-specific timing/intermediates in
+ * base steps (the "while the X braises" parallel-cue leak the catalog scan found).
+ * The prefix is CACHED, so the extra tokens are a one-time cache-creation + cheap
+ * 0.1× cache-reads on every subsequent call — not a per-call input cost.
+ * (History: was 3,162, trimmed to 2,947 in Block 3.6 v3, then 4,256, now 4,469.)
  */
 export const STABLE_FINALIZE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + FINALIZE_STEPS_INSTRUCTIONS;

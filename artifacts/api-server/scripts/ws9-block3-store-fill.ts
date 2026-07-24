@@ -136,20 +136,29 @@ function bandBreakdown(dishes: TargetDish[]): string {
 }
 
 // ── pre-flight cost estimate (HYPOTHESIS — the run reports the real number) ────
-// Steady-state, cache-warm per-meal token model. Prefix sizes are the measured
-// cacheable prefixes (generate 4,058 / finalize 3,162 tok — both read from cache
-// after the first meal). Body/output are representative averages, padded ~20%
-// for completeness-retry regenerations. --max-cost is the hard ceiling regardless.
+// Steady-state, cache-warm per-meal token model. RE-CALIBRATED (Block 3.8) to the
+// REAL runtime numbers observed in LLMCallLog across the prior sample runs
+// (store.generate_meal n=176, store.finalize_steps n=153) — the prior constants
+// were the stale pre-3.7 prefix sizes (generate 4,058 / finalize 3,162) and
+// under-counted the finalize user body. Current values, all runtime-observed:
+//   • input (uncached user bodies): generate ~470 + finalize ~1,294 = 1,764
+//   • output: generate ~1,375 + finalize ~1,584 = 2,959
+//   • cacheRead (WARM tools+system prefix, read every call): generate 5,880
+//     (measured) + finalize 5,154 (4,469 system after the D-WS9-069 base-step-purity
+//     rewrite + ~685 tool schema) = 11,034. This is what the API reports as
+//     cache_read on a warm hit.
+// Body/output padded ~20% for completeness-retry regenerations. --max-cost is the
+// hard ceiling regardless.
 const EST_PER_MEAL = {
   aiCalls: 2,
-  input: 40 + 900, // uncached user bodies: generate target + finalize meal JSON
-  output: 1200 + 1500, // generate meal JSON + finalize step arrays
-  cacheRead: 4058 + 3162, // both stable prefixes, read from cache (steady state)
+  input: 470 + 1294, // uncached user bodies: generate target + finalize meal JSON
+  output: 1375 + 1584, // generate meal JSON + finalize step arrays
+  cacheRead: 5880 + 5154, // both warm tools+system prefixes, read from cache
   cacheCreation: 0,
 };
 const EST_RETRY_PAD = 1.2;
 // One-time cache-creation on the first meal (writes each distinct prefix once).
-const EST_FIRST_MEAL_CACHE_CREATION = 4058 + 3162;
+const EST_FIRST_MEAL_CACHE_CREATION = 5880 + 5154;
 
 function printPreflight(dishes: TargetDish[], rate: ModelRateUsd, maxCostUsd: number): void {
   const meals = dishes.length;

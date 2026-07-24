@@ -85,6 +85,15 @@ export const PROTEIN_KEYWORDS: readonly string[] = [
   "cannellini", "white bean", "navy bean", "bean", "beans", "greek yogurt",
   "cheese", "mozzarella", "parmesan", "cheddar", "ricotta", "feta", "halloumi",
   "provolone", "gouda", "gruyere", "cotija", "queso", "mascarpone",
+  // D-WS9-069 Fix: substantial vegetarian mains that are neither legume nor dairy.
+  // A grilled portobello "steak" IS the protein anchor of its dinner, but its
+  // ingredient reads "portobello mushrooms" — caught by neither the meat set nor
+  // "mushroom" (a VEG keyword), so the gate wrongly rejected it (no_protein). Meaty
+  // mushroom preparations (portobello/portabella, king oyster used as a steak/scallop)
+  // and pulled jackfruit are the recognized non-legume/non-dairy veg anchors. Bare
+  // "mushroom" is deliberately NOT added — a few button mushrooms in a sauce is not a
+  // protein anchor; only the meaty-main forms count.
+  "portobello", "portabella", "king oyster", "jackfruit",
 ];
 const PROTEIN_STOP: readonly string[] = ["cheesecloth"];
 

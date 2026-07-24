@@ -110,6 +110,15 @@ describe("ingredient classification", () => {
     assert.equal(isProteinIngredient("elbow macaroni"), false); // carb, not protein
   });
 
+  it("D-WS9-069: meaty mushroom mains and jackfruit count as a protein anchor; plain mushroom does not", () => {
+    assert.equal(isProteinIngredient("portobello mushrooms"), true);
+    assert.equal(isProteinIngredient("portabella caps"), true);
+    assert.equal(isProteinIngredient("king oyster mushrooms"), true);
+    assert.equal(isProteinIngredient("young green jackfruit"), true);
+    assert.equal(isProteinIngredient("cremini mushrooms"), false); // sauce veg, not an anchor
+    assert.equal(isProteinIngredient("button mushrooms"), false); // sauce veg, not an anchor
+  });
+
   it("isCarbIngredient matches starches; excludes cornstarch/corned beef", () => {
     assert.equal(isCarbIngredient("white rice"), true);
     assert.equal(isCarbIngredient("russet potatoes"), true);
