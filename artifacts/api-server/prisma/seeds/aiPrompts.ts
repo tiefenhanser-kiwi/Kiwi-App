@@ -798,7 +798,7 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 
 # What you produce
 
-1 to 3 distinct candidate plans, each containing exactly 5 dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the 5 \`mealTitles\`, per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}), and — when you build any slot from the store shelf (see "Composing from the store shelf" below) — a \`storeSlots\` array recording which slots you took from the shelf.
+1 to 3 distinct candidate plans, each containing exactly \`planDurationDays\` dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the \`mealTitles\` array (one per dinner), per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}), and — when you build any slot from the store shelf (see "Composing from the store shelf" below) — a \`storeSlots\` array recording which slots you took from the shelf.
 
 Distinctness is mandatory: three candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing.
 
@@ -821,7 +821,7 @@ Apply these as biases — they shape the menu but do not override hard constrain
 - Low-carb → bias meals toward <30g carbs/serving on average.
 - Healthy / weight-loss → bias meals toward <600 calories/serving on average.
 - \`weeklyPacing = mostly_easy\` or \`minimal_effort\` → weight toward easy difficulty meals.
-- \`weeklyPacing = one_fancy\` → 4 easy/medium meals + 1 fancier night.
+- \`weeklyPacing = one_fancy\` → 1 fancier night, the rest (\`planDurationDays\` - 1) easy/medium.
 - \`weeklyPacing = mixed\` → balanced mix.
 - \`difficulty\` field is the user's overall ceiling — never exceed it across the plan.
 - \`preferencesContext.maxCookTimeMinutes\` (when set) → lean toward meal titles that plausibly cook within that many minutes. This is a soft title-selection bias only: you cannot verify exact cook time at this stage, so prefer quicker-sounding dinners over elaborate ones — do not treat it as a hard ceiling. Cook time is independent of \`difficulty\`/\`weeklyPacing\`: a dish can be simple-but-slow (a hands-off braise) or involved-but-fast, so weigh the minute cap on its own, not as a proxy for fanciness.
@@ -866,7 +866,7 @@ Use \`upcomingEvents\` as a gentle bias, never an override. If a hint suggests a
 
 # Cuisine guidance
 
-If the user supplied \`cuisines\`, weight meals toward those cuisines. Aim for spread WITHIN each plan too: roughly one meal per preferred cuisine, so a single five-dinner plan isn't all-Mexican or all-Italian. Two or more meals of the same cuisine in one plan is fine when it helps use ingredients up (see waste minimization above) or when the user listed fewer cuisines than the plan has days — otherwise vary it.
+If the user supplied \`cuisines\`, weight meals toward those cuisines. Aim for spread WITHIN each plan too: roughly one meal per preferred cuisine, so a single plan isn't all-Mexican or all-Italian. Two or more meals of the same cuisine in one plan is fine when it helps use ingredients up (see waste minimization above) or when the user listed fewer cuisines than the plan has days — otherwise vary it.
 
 Discovery (novelty) exception — \`preferencesContext.discoveryMealsPerWeek\` (0, 1, or 2): when this is set to 1 or 2 AND \`cuisines\` is non-empty, reserve exactly that many dinners in each plan as DISCOVERY meals — additive novelty on top of the preferred cuisines. This is a hard count and a priority claim on slots, not slack-dependent: honor it even when slots are scarce. When there aren't enough dinners to do everything, fill slots in this priority order — (1) the discovery count first, (2) then one meal per preferred cuisine, (3) then use any remaining slots to double up on the preferred cuisines. Each discovery meal is EITHER outside the user's preferred cuisines OR within a preferred cuisine but a dish deliberately unfamiliar versus \`planningContext.recentMeals\` — so discovery still reinforces freshness rather than fighting it. Examples: 2 cuisines + 4 dinners + discovery 1 → cuisine A, cuisine B, cuisine B, 1 discovery; 3 cuisines + 3 dinners + discovery 1 → 2 of the cuisines + 1 discovery (discovery wins over covering every preferred cuisine). If \`cuisines\` is empty, discovery is a no-op — the empty-palette default already spans a broad variety, so there is no preferred set to add novelty against.
 
@@ -878,13 +878,26 @@ If \`cuisines\` is empty, default to a varied palette across American, Italian, 
 
 Plans and meal titles should sound like a friend recommending dinner, not an AI listing categories. "Sheet-pan harissa chicken with chickpeas" beats "Chicken Sheet-Pan Meal." "Tomato soup + grilled cheese" beats "Comfort Soup Combination."
 
-Give each candidate a title that's specific to THAT plan's actual meals, season, and context — not a recycled theme label. Titles should vary from run to run; a user generating plans two weeks apart should not see the same names. Avoid generic reusable templates like "Cozy Comfort Week," "Mediterranean Variety," or "High-Protein Reset" — those say nothing about the specific dinners inside. A good title might name the through-line the plan actually has ("Grill Nights + Big Salads" for a hot-week plan, "Five Weeknight One-Pots" for a low-effort week).
+Give each candidate a THEMATIC title — a short, evocative name for the through-line the plan actually has (its season, cooking style, or mood), specific to THAT plan, never a recycled label. Titles should vary from run to run; a user generating plans two weeks apart should not see the same names.
+- DO name the through-line: "Grill Nights + Big Salads" for a hot-week plan, "Cozy One-Pot Comforts" for a low-effort week, "Bright Weeknight Mediterranean" for a fresh-and-fast week.
+- DON'T list the dishes. The candidate title is NOT a menu. Never string the meal names together ("Tacos, Stir-Fry, and Salmon") or enumerate them — the individual \`mealTitles\` already carry the dishes (per the tone rule above); the plan title names the theme over them.
+- DON'T use empty templates ("Cozy Comfort Week," "Mediterranean Variety," "High-Protein Reset") — they say nothing about the specific dinners inside.
+- Never bake the dinner count into the title (no "Five Weeknight One-Pots," no "3-Night Reset") — the count is \`planDurationDays\` and varies.
 
 Do not repeat any name that appears in \`planningContext.recentPlanNames\` — the user has seen those recently and wants something new.
 
+# What makes a good dinner to choose
+
+Each \`mealTitle\` is a promise the later detail stage must keep, so choose titles that describe a COMPLETE, COHERENT dinner — not a lone component:
+- COMPLETE — a title should imply a protein AND something alongside (a starch or a vegetable), or name a dish that is already a full meal in one pot (a hearty stew, chili, a substantial grain bowl, a one-pan pasta). Avoid a bare protein ("Grilled Chicken Breast") or a bare side ("Roasted Vegetables") — those don't read as dinner.
+- HONEST PROTEIN — favor titles anchored on a real, specific protein the diet allows (a named cut of meat or fish; for vegetarian/vegan plans a satiating anchor — beans, lentils, tofu, tempeh, paneer, eggs, or a cheese-forward bake). Not a vague or protein-light dish.
+- COHERENT — the title should read as ONE culinary idea, led by a clear cuisine or technique, not a mashup.
+
+This is title-level guidance only — you are not authoring ingredients or macros here (a later stage does). Just make sure every title is a dinner a household would be glad to see.
+
 # Macros
 
-\`dailyMacros\` is the per-day average across the 5 dinners — round to whole numbers. Kiwi displays this as "Avg X cal/day · Yg P · Zg C · Wg F" so keep the math representative.
+\`dailyMacros\` is the per-day average across the \`planDurationDays\` dinners — round to whole numbers. Kiwi displays this as "Avg X cal/day · Yg P · Zg C · Wg F" so keep the math representative.
 
 ${CATALOG_SHELF_SECTION}
 
@@ -920,7 +933,7 @@ For the candidate the user picked (input below), expand each meal in \`mealTitle
 - \`estimatedTimeMinutes\` — integer total time in minutes including prep + cook. Required.
 - \`difficulty\` — one of \`easy | medium | fancy\`. Required.
 - \`servings\` — integer servings the recipe makes (informed by the user's \`householdSize\` and \`wantsLeftovers\` from the original wizard input — those are echoed in \`candidateContext\` below).
-- \`dishes\` — array of one or more dishes that compose the meal. Most weeknight meals are a single dish (\`role: "main"\`); a fancier meal can include sides (\`role: "side"\`), sauces (\`role: "sauce"\`), or toppings (\`role: "topping"\`). Each dish has:
+- \`dishes\` — array of one or more dishes that compose the meal. Most weeknight meals are a single dish (\`role: "main"\`); a fancier meal can include sides (\`role: "side"\`), sauces (\`role: "sauce"\`), or toppings (\`role: "topping"\`). A single-dish meal must itself be complete — a one-pot/one-pan dish carrying a protein AND a starch and/or vegetable (a soup, stew, chili, stir-fry, one-pot pasta, or hearty dinner salad), never a bare protein. Each dish has:
   - \`title\` — specific dish title; do not reuse the meal title verbatim if the dish is a side/sauce/topping.
   - \`role\` — \`main | side | sauce | topping | base | optional\`. At least one dish must be \`main\`.
   - \`positionIndex\` — 0-based ordering across the meal's dishes.
@@ -944,7 +957,18 @@ The minute cap and a meal's \`difficulty\` are INDEPENDENT axes: a dish can be e
 - \`preparationNote\` — optional short prep verb ("diced", "minced", "grated", "thinly sliced", "drained and rinsed"). Lowercase.
 - \`isOptional\` — true ONLY if the dish is fully cookable without it (garnishes, optional sides).
 - Most dishes have 3+ ingredients. Genuinely simple sides (warmed bread, a baked potato, a steamed vegetable) may have 1–2; do not pad with filler to hit an arbitrary count.
-- Quantities must be sensible for the dish's \`servings\` — assume the AI's per-serving macro pass will divide the totals by \`servings\`. For 4 servings of chicken, that's typically 1.0–1.5 lb of chicken; not 4 oz.
+- Quantities must be sensible for the dish's \`servings\` — assume the AI's per-serving macro pass will divide the totals by \`servings\`.
+
+# Compose a complete, real dinner
+
+You are turning each chosen meal title into the actual plate. Build the dinner the title implies, the way a good home cook would, and hold it to the bar of a dinner you'd be glad to cook and eat.
+
+- COMPLETE DINNER. Every meal is a complete dinner — a protein AND a starch or a vegetable — never a lone protein with nothing alongside. EITHER (a) a plated \`main\` PLUS one or two supporting dishes (a \`base\` starch — rice, potatoes, grains, pasta, bread — and/or a \`side\` vegetable or salad); OR (b) a single substantial dish that already carries protein + starch and/or vegetable in its own ingredient list (a soup, stew, chili, casserole, stir-fry, one-pot pasta, or a hearty protein-topped dinner salad). Do NOT pad a dish that is already complete with token sides.
+- HONEST PROTEIN. Size the protein so each serving lands roughly 25–45g where the diet allows — reflect that in the ingredient quantity (about 6 oz raw protein per serving; e.g. 1.0–1.5 lb chicken for 4 servings, not 4 oz). For vegetarian/vegan meals, anchor on a satiating protein — beans, lentils, tofu, tempeh, paneer, eggs, or a cheese-forward bake — not a protein-light plate. (A later pass computes macros from these quantities, so the quantity is what makes the protein honest.)
+- SHOPPABLE SPECIFICS. Every ingredient is a specific thing a shopper buys — "boneless skinless chicken thighs," "San Marzano tomatoes," "fresh cilantro" — never a vague "protein," "vegetables," or "seasoning."
+- PLATE COHESION. Keep the whole meal inside ONE culinary idea, led by the main's cuisine. A rich or fatty main pairs with a brighter, acidic side that cuts it (a crisp slaw, a sharp salad); a lean or simple main pairs with a heartier side that rounds it into a full dinner. A main with two unrelated sides from three cuisines is three dishes on a plate, not a meal.
+- CUISINE TECHNIQUE, NOT FUSION. Let the \`cuisineType\` shape the flavor base and pairings — a Thai meal leans on fish sauce, lime, chili, and herbs; an Italian one on good olive oil, garlic, and a proper starch; a Mexican one on toasted chiles and fresh garnishes. Keep it coherent, not a mashup.
+- COOK IT LIKE A TRUSTED STANDARD. Compose each dish as a reliable, standard version that always works — enough depth and character that it reads as tested and refined, without stretching to seem fancier than the meal needs.
 
 # Sauce sourcing
 
