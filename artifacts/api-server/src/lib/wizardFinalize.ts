@@ -255,6 +255,10 @@ export async function readAndFinalizeWizardDraft(
       title: details.title,
       tags: details.tags,
       whyBullets: details.whyBullets,
+      // Servings unification (BUG-046) — carry the per-run household from the
+      // draft payload to the materializer (undefined on legacy drafts → stored
+      // fallback there).
+      householdSize: details.householdSize,
       slots,
     },
   };

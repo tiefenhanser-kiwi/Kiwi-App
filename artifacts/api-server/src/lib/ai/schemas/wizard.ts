@@ -402,6 +402,15 @@ export const WizardExpandedPlanDetailsSchema = z.object({
   title: z.string().min(1).max(120),
   tags: z.array(z.string()).max(5),
   whyBullets: z.array(z.string()).min(1).max(3),
+  // Plan-Gen Arc · Servings unification (BUG-046 / D-WS9-070 Option 1) — the
+  // PER-RUN household the user set for THIS generation, carried inside the
+  // transient draft payload so it survives expand → finalize → materialize.
+  // Stamped by expandCandidate from candidateContext.householdSize; read at
+  // materialize to resolve effectiveHousehold = perRun ?? stored, applied
+  // uniformly to every meal (forked + live). NOT persisted to UserPreferences
+  // (D-WS7-035: per-run overrides never write back). OPTIONAL so legacy drafts
+  // written before this field fall back to stored household at materialize.
+  householdSize: z.number().int().min(1).max(30).optional(),
   meals: z.array(WizardExpandEnrichedMealDetailsSchema).min(1).max(7),
 });
 export type WizardExpandedPlanDetails = z.infer<

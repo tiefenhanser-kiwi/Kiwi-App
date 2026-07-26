@@ -508,6 +508,15 @@ model Meal {
   proteinGPerServing   Float           @default(0)
   carbsGPerServing     Float           @default(0)
   fatGPerServing       Float           @default(0)
+  // Plan-Gen Arc · Block 4a (D-WS9-073, persist-only) — catalog lineage: the
+  // store/pool Meal.id this copy was cloned from, written ONLY on the user-fork
+  // branch of cloneMealInto (forkMealForUser). A publish-to-store / live_writeback
+  // copy leaves this null — a write-back must not carry a self/foreign lineage.
+  // Plain nullable id, NO FK: the lineage must survive even if the source store
+  // meal is later archived/removed. Repeat-avoidance (feeding excludeMealIds,
+  // D-WS9-073) CONSUMES this in Block 4b; nothing reads it yet (no index until the
+  // consuming query shape is known).
+  sourceStoreMealId    String?
   timesCooked          Int             @default(0)
   lastUsedAt           DateTime?
   isArchived           Boolean         @default(false)

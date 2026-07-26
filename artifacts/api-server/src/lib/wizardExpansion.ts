@@ -321,6 +321,13 @@ export async function expandCandidate(
       title: opts.request.candidate.title,
       tags: opts.request.candidate.tags,
       whyBullets: opts.request.candidate.whyBullets,
+      // Servings unification (BUG-046 / D-WS9-070 Option 1) — stamp the PER-RUN
+      // household onto the draft payload so it survives to materialize. This is
+      // the ONLY carrier of the per-run value past expand: candidateContext is
+      // discarded after this call, and neither WizardSavePlan nor the instance
+      // row otherwise holds it. persistWizardDraft writes `expanded` verbatim
+      // into wizardDraftPayload (Json), so this rides along with no migration.
+      householdSize: opts.request.candidateContext.householdSize,
       meals: enrichedMeals,
     },
   };

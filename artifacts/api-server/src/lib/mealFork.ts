@@ -29,6 +29,20 @@ interface CloneTarget {
   userId: string | null;
   isPublic: boolean;
   sourceTypeOverride?: SourceType;
+  // Block 4a piece 1 (D-WS9-047) — the acquiring household's serving count,
+  // resolved ONCE per acquire by forkMealForUser (P0.3 placement: inside the
+  // helper, gated by this target). When set, the clone's `servingsDefault` is
+  // written to it INSTEAD of copying the source's — that is the household scale.
+  // Left undefined on the publish-to-store branch so a catalog write-back keeps
+  // its authored servings. `authoredServingsDefault` is preserved from the source
+  // anchor regardless of this (see cloneMealInto) — the two together are why the
+  // fix is two fields, not one.
+  servingsDefaultOverride?: number;
+  // Block 4a piece 3 (D-WS9-073, persist-only) — catalog lineage stamped ONLY on
+  // the user-fork branch: the store/pool Meal.id this copy was cloned from.
+  // Deliberately absent on publish-to-store — a write-back must NOT carry a
+  // self/foreign lineage. Nothing consumes it yet (repeat-avoidance is Block 4b).
+  sourceStoreMealId?: string;
 }
 
 // Step fields copied verbatim (everything except id/ownerType/ownerId, which
@@ -45,6 +59,16 @@ const STEP_COPY_FIELDS = {
   requiresRest: true,
   requiresMarination: true,
   isTimingSensitive: true,
+  // Block 4a (piece 2 / retires D-WS7-214) — the step→ingredient amount overlay
+  // is what SCALES step-text quantities at render (the client multiplies
+  // ref.quantity by effectiveServings / authoredServingsDefault). Omitting it
+  // from the fork silently DROPPED the overlay, so every forked catalog meal
+  // rendered its step amounts unscaled-and-authored — the exact "step text keeps
+  // showing the authored amounts after scaling" gap. Copied verbatim: refs are
+  // the authored literal at base servings, and the preserved authored anchor
+  // (below) makes them scale correctly on the copy. A null (legacy/unwired step)
+  // is re-mapped to DbNull at the createMany site, not carried as a literal null.
+  amountRefs: true,
   // Block 3.7 (D-WS9-066) — swappable-component tags MUST survive the fork, or a
   // catalog meal's bought path vanishes on acquire and the clone silently looks
   // like a scratch-only meal (no error, no signal — the exact failure the
@@ -65,8 +89,37 @@ export async function forkMealForUser(
   tx: Tx,
   sourceMealId: string,
   userId: string,
+  householdOverride?: number,
 ): Promise<{ mealId: string }> {
-  return cloneMealInto(tx, sourceMealId, { userId, isPublic: false });
+  // Block 4a piece 1 (D-WS9-047) — resolve the acquiring household's serving
+  // count ONCE per acquire (P0.3: a single per-acquire lookup inside the helper,
+  // not threaded through every caller). A user with no preferences row yet has
+  // NO household signal, so we leave the override undefined and the clone keeps
+  // the source's authored servings — we never silently scale on an assumed
+  // household. A row always yields a real Int (the column is non-null @default 2).
+  //
+  // Servings unification (BUG-046 / D-WS9-070) — a wizard-plan materialize resolves
+  // ONE effectiveHousehold (per-run ?? stored) for the whole plan and passes it as
+  // `householdOverride` so a forked slot scales to the SAME value as the plan's
+  // live-built slots (not an independently-read stored value that could diverge
+  // from the run's per-run choice). When omitted (the non-wizard fork callers —
+  // use-template / add-to-plan / meal-swap in plans.ts — which are standalone
+  // acquisitions with no per-run context), we fall back to the stored-prefs read.
+  const householdSize =
+    householdOverride ??
+    (
+      await tx.userPreferences.findUnique({
+        where: { userId },
+        select: { householdSize: true },
+      })
+    )?.householdSize;
+  return cloneMealInto(tx, sourceMealId, {
+    userId,
+    isPublic: false,
+    servingsDefaultOverride: householdSize,
+    // Piece 3 — stamp catalog lineage on the user's fork (persist-only).
+    sourceStoreMealId: sourceMealId,
+  });
 }
 
 /**
@@ -133,12 +186,27 @@ async function cloneMealInto(
       difficulty: source.difficulty,
       estimatedTimeMinutes: source.estimatedTimeMinutes,
       imageUrl: source.imageUrl,
-      servingsDefault: source.servingsDefault,
+      // Block 4a piece 1 (D-WS9-047) — household scale on the user fork; on the
+      // publish-to-store branch servingsDefaultOverride is undefined → copy source.
+      servingsDefault: target.servingsDefaultOverride ?? source.servingsDefault,
+      // Block 4a piece 1 + BUG-045 — preserve the IMMUTABLE authored anchor from
+      // the source (fall back to its servingsDefault only if the source predates
+      // the anchor). This is the render denominator; leaving it null (the prior
+      // behavior) let a household-scaled fork fall back to its OWN scaled
+      // servingsDefault → multiplier 1 → authored 4-serving quantities under a
+      // "2 servings" label (double portions). Set on BOTH branches: it also closes
+      // the latent anchor-drop (BUG-045) for write-backs, which must keep the
+      // catalog meal's authored anchor.
+      authoredServingsDefault:
+        source.authoredServingsDefault ?? source.servingsDefault,
       tags: source.tags,
       caloriesPerServing: source.caloriesPerServing,
       proteinGPerServing: source.proteinGPerServing,
       carbsGPerServing: source.carbsGPerServing,
       fatGPerServing: source.fatGPerServing,
+      // Block 4a piece 3 (D-WS9-073, persist-only) — catalog lineage on the user
+      // fork; undefined → null on publish-to-store (no self/foreign lineage).
+      sourceStoreMealId: target.sourceStoreMealId ?? null,
       isPublic: target.isPublic,
       isArchived: false,
     },
@@ -158,7 +226,13 @@ async function cloneMealInto(
         estimatedTimeMinutes: d.estimatedTimeMinutes,
         difficulty: d.difficulty,
         imageUrl: d.imageUrl,
-        servingsDefault: d.servingsDefault,
+        // Block 4a piece 1 (D-WS9-047) — mirror the meal: household scale on the
+        // user fork, source copy on write-back; anchor preserved from the source
+        // dish (fall back to its servingsDefault). Meal and dish stay consistent
+        // (the dish-level render path divides by the dish anchor).
+        servingsDefault: target.servingsDefaultOverride ?? d.servingsDefault,
+        authoredServingsDefault:
+          d.authoredServingsDefault ?? d.servingsDefault,
         tags: d.tags,
         caloriesPerServing: d.caloriesPerServing,
         proteinGPerServing: d.proteinGPerServing,
@@ -234,6 +308,13 @@ async function cloneMealInto(
       await tx.recipeInstructionStep.createMany({
         data: dishSteps.map((s) => ({
           ...s,
+          // Block 4a piece 2 — carry the amount-ref overlay; a null (legacy/
+          // unwired step) becomes DbNull so the column stays SQL NULL rather than
+          // a literal JSON null (which Prisma rejects on a Json? column).
+          amountRefs:
+            s.amountRefs === null
+              ? Prisma.DbNull
+              : (s.amountRefs as Prisma.InputJsonValue),
           ownerType: "dish",
           ownerId: newDish.id,
         })),
@@ -252,6 +333,11 @@ async function cloneMealInto(
     await tx.recipeInstructionStep.createMany({
       data: mealSteps.map((s) => ({
         ...s,
+        // Block 4a piece 2 — carry the amount-ref overlay (DbNull for legacy null).
+        amountRefs:
+          s.amountRefs === null
+            ? Prisma.DbNull
+            : (s.amountRefs as Prisma.InputJsonValue),
         ownerType: "meal",
         ownerId: newMeal.id,
       })),

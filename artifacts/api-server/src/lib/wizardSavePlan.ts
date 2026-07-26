@@ -28,6 +28,12 @@ export interface WizardSavePlan {
   title: string;
   tags: string[];
   whyBullets: string[];
+  // Servings unification (BUG-046 / D-WS9-070 Option 1) — the PER-RUN household
+  // the user set for this generation, carried from the draft payload so the
+  // materializer can resolve effectiveHousehold = perRun ?? stored and apply it
+  // uniformly to forked AND live slots. Undefined for legacy drafts written
+  // before the field existed → materialize falls back to stored household.
+  householdSize?: number;
   // In original slot order; index === MealPlanItem.positionIndex.
   slots: WizardSaveSlot[];
 }

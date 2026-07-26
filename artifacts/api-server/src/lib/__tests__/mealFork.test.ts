@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 
 import { Prisma } from "@prisma/client";
 
-import { forkMealForUser } from "../mealFork";
+import { forkMealForUser, publishMealToStore } from "../mealFork";
 
 // A minimal source-meal graph: 2 dishes, one with 2 ingredients + dish-owned
 // steps, plus meal-owned steps (the curated/seed shape).
@@ -27,6 +27,9 @@ function makeSource() {
     estimatedTimeMinutes: 30,
     imageUrl: null,
     servingsDefault: 4,
+    // Block 4a — a catalog meal carries its immutable authored anchor (== the
+    // servings it was authored at). The fork must PRESERVE this, not drop it.
+    authoredServingsDefault: 4,
     tags: ["vegetarian"],
     caloriesPerServing: 620,
     proteinGPerServing: 18,
@@ -46,6 +49,7 @@ function makeSource() {
           difficulty: "easy",
           imageUrl: null,
           servingsDefault: 4,
+          authoredServingsDefault: 4,
           tags: [],
           caloriesPerServing: 0,
           proteinGPerServing: 0,
@@ -105,6 +109,7 @@ function makeSource() {
           difficulty: "easy",
           imageUrl: null,
           servingsDefault: 4,
+          authoredServingsDefault: 4,
           tags: [],
           caloriesPerServing: 0,
           proteinGPerServing: 0,
@@ -128,7 +133,13 @@ function makeSource() {
 // Records every write; serves source reads. Mutating writes on the source
 // (update/delete) are absent by construction — the test asserts none occur by
 // only exposing create/createMany/findMany/findUnique.
-function makeTxStub(source: ReturnType<typeof makeSource>) {
+// `householdSize` = the acquiring user's UserPreferences.householdSize the fork
+// resolves once per acquire (Block 4a piece 1). Pass null to simulate a user
+// with NO preferences row (→ no scaling: the clone keeps the source's servings).
+function makeTxStub(
+  source: ReturnType<typeof makeSource>,
+  householdSize: number | null = 2,
+) {
   const rec = {
     mealCreates: [] as Record<string, unknown>[],
     dishCreates: [] as Record<string, unknown>[],
@@ -142,13 +153,20 @@ function makeTxStub(source: ReturnType<typeof makeSource>) {
   // "sauce" component: a scratch step (make the sauce) and a bought step (use
   // the jar). All three must fork with their tags intact.
   const steps = [
-    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 0, stepTextRaw: "Boil", stepTextTranslated: "Boil", estimatedMinutes: 5, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, componentKey: null, pathKey: null },
-    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 1, stepTextRaw: "Simmer cream and parmesan into a sauce", stepTextTranslated: "Simmer cream and parmesan into a sauce", estimatedMinutes: 12, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, componentKey: "sauce", pathKey: "scratch" },
-    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 2, stepTextRaw: "Warm the jarred alfredo sauce", stepTextTranslated: "Warm the jarred alfredo sauce", estimatedMinutes: 3, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, componentKey: "sauce", pathKey: "bought" },
-    { ownerType: "meal", ownerId: "src-meal", stepIndex: 0, stepTextRaw: "Plate", stepTextTranslated: "Plate", estimatedMinutes: 1, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, componentKey: null, pathKey: null },
+    // Block 4a piece 2 — amountRefs must survive the fork. The scratch step
+    // carries a real ref (→ ing-cream); the others carry null (legacy/unwired) to
+    // exercise the DbNull re-map path.
+    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 0, stepTextRaw: "Boil", stepTextTranslated: "Boil", estimatedMinutes: 5, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, amountRefs: null, componentKey: null, pathKey: null },
+    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 1, stepTextRaw: "Simmer cream and parmesan into a sauce", stepTextTranslated: "Simmer cream and parmesan into a sauce", estimatedMinutes: 12, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, amountRefs: [{ ingredientId: "ing-cream", quantity: 1, unit: "cup", charStart: 7, charEnd: 12 }], componentKey: "sauce", pathKey: "scratch" },
+    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 2, stepTextRaw: "Warm the jarred alfredo sauce", stepTextTranslated: "Warm the jarred alfredo sauce", estimatedMinutes: 3, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, amountRefs: null, componentKey: "sauce", pathKey: "bought" },
+    { ownerType: "meal", ownerId: "src-meal", stepIndex: 0, stepTextRaw: "Plate", stepTextTranslated: "Plate", estimatedMinutes: 1, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, amountRefs: null, componentKey: null, pathKey: null },
   ];
   let dishCounter = 0;
   const tx = {
+    userPreferences: {
+      findUnique: async () =>
+        householdSize === null ? null : { householdSize },
+    },
     meal: {
       findUnique: async () => source,
       create: async (args: { data: Record<string, unknown> }) => {
@@ -325,6 +343,140 @@ describe("forkMealForUser", () => {
     }
   });
 
+  it("Block 4a (D-WS9-047/BUG-045): household-scales servingsDefault while PRESERVING the authored anchor, on meal + dishes", async () => {
+    const source = makeSource();
+    const { tx, rec } = makeTxStub(source, 2); // 2-person household
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    // Meal: servingsDefault → household (2); authoredServingsDefault → source's
+    // authored anchor (4), NOT the new scaled value. This is the two-field write:
+    // multiplier = effectiveServings(2) / anchor(4) = 0.5 (was 1-by-accident).
+    const meal = rec.mealCreates[0];
+    assert.equal(meal.servingsDefault, 2);
+    assert.equal(meal.authoredServingsDefault, 4);
+
+    // Both dishes mirror the meal.
+    for (const dish of rec.dishCreates) {
+      assert.equal(dish.servingsDefault, 2);
+      assert.equal(dish.authoredServingsDefault, 4);
+    }
+  });
+
+  it("Block 4a: falls back to source's servingsDefault as the anchor when the source has no authored anchor (legacy)", async () => {
+    const source = makeSource();
+    // Legacy source: null anchor on the meal.
+    (source as { authoredServingsDefault: number | null }).authoredServingsDefault =
+      null;
+    const { tx, rec } = makeTxStub(source, 2);
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    // Anchor preserved from source.servingsDefault (4), servings scaled to 2.
+    const meal = rec.mealCreates[0];
+    assert.equal(meal.servingsDefault, 2);
+    assert.equal(meal.authoredServingsDefault, 4);
+  });
+
+  it("Block 4a: a user with NO preferences row is NOT scaled (keeps source servings), anchor still preserved", async () => {
+    const source = makeSource();
+    const { tx, rec } = makeTxStub(source, null); // no prefs row
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    const meal = rec.mealCreates[0];
+    assert.equal(meal.servingsDefault, 4); // unchanged — no household signal
+    assert.equal(meal.authoredServingsDefault, 4); // anchor still set (BUG-045)
+  });
+
+  it("BUG-046: householdOverride (from a wizard plan's effectiveHousehold) wins over stored prefs", async () => {
+    const source = makeSource();
+    // Stored prefs say 6, but the caller passes a per-run effectiveHousehold of 2.
+    const { tx, rec } = makeTxStub(source, 6);
+
+    await forkMealForUser(tx as never, "src-meal", "user-1", 2);
+
+    const meal = rec.mealCreates[0];
+    assert.equal(meal.servingsDefault, 2, "override wins over stored 6");
+    assert.equal(meal.authoredServingsDefault, 4, "anchor still preserved");
+    for (const dish of rec.dishCreates) assert.equal(dish.servingsDefault, 2);
+  });
+
+  it("BUG-046: householdOverride SKIPS the internal stored-prefs read entirely", async () => {
+    const source = makeSource();
+    const { tx, rec } = makeTxStub(source, 6);
+    // If the helper reads prefs when an override is present, this throws.
+    tx.userPreferences.findUnique = async () => {
+      throw new Error("stored-prefs read must be skipped when override is passed");
+    };
+
+    await forkMealForUser(tx as never, "src-meal", "user-1", 2);
+
+    assert.equal(rec.mealCreates[0].servingsDefault, 2);
+  });
+
+  it("BUG-046: omitting householdOverride keeps the stored-prefs read (non-wizard fork callers)", async () => {
+    const source = makeSource();
+    // The plans.ts callers (use-template / add-to-plan / meal-swap) omit the arg.
+    const { tx, rec } = makeTxStub(source, 3);
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    assert.equal(rec.mealCreates[0].servingsDefault, 3, "stored household still read");
+  });
+
+  it("Block 4a piece 3 (D-WS9-073): stamps sourceStoreMealId on the user fork", async () => {
+    const source = makeSource();
+    const { tx, rec } = makeTxStub(source);
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    assert.equal(rec.mealCreates[0].sourceStoreMealId, "src-meal");
+  });
+
+  it("Block 4a piece 2: amountRefs survive the fork (real ref carried; null → DbNull)", async () => {
+    const source = makeSource();
+    const { tx, rec } = makeTxStub(source);
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    const dishStepBatch = rec.stepCreateMany.find(
+      (b) => b[0]?.ownerType === "dish",
+    );
+    assert.ok(dishStepBatch, "dish-owned steps copied");
+    const byText = (t: string) =>
+      dishStepBatch!.find((s) => s.stepTextRaw === t)!;
+
+    // The scratch step's real ref (→ ing-cream) is copied verbatim.
+    assert.deepEqual(byText("Simmer cream and parmesan into a sauce").amountRefs, [
+      { ingredientId: "ing-cream", quantity: 1, unit: "cup", charStart: 7, charEnd: 12 },
+    ]);
+    // A null (legacy/unwired) ref maps to DbNull, not a literal null.
+    assert.equal(byText("Boil").amountRefs, Prisma.DbNull);
+
+    // Meal-owned step likewise: null → DbNull.
+    const mealStepBatch = rec.stepCreateMany.find(
+      (b) => b[0]?.ownerType === "meal",
+    );
+    assert.equal(mealStepBatch![0].amountRefs, Prisma.DbNull);
+  });
+
+  it("Block 4a: publishMealToStore (write-back branch) does NOT scale and stamps NO lineage", async () => {
+    const source = makeSource();
+    // Even if a household is present in the tx, the publish branch must ignore it.
+    const { tx, rec } = makeTxStub(source, 6);
+
+    await publishMealToStore(tx as never, "src-meal");
+
+    const meal = rec.mealCreates[0];
+    assert.equal(meal.userId, null); // shared-pool
+    assert.equal(meal.isPublic, true);
+    assert.equal(meal.sourceType, "live_writeback");
+    assert.equal(meal.servingsDefault, 4); // authored servings kept, NOT scaled
+    assert.equal(meal.authoredServingsDefault, 4); // anchor preserved (BUG-045)
+    assert.equal(meal.sourceStoreMealId, null); // no self/foreign lineage
+  });
+
   it("never mutates the source meal (other plans keep their binding)", async () => {
     const source = makeSource();
     const before = JSON.stringify(source);
@@ -337,7 +489,10 @@ describe("forkMealForUser", () => {
   });
 
   it("throws when the source meal is missing", async () => {
-    const tx = { meal: { findUnique: async () => null } };
+    const tx = {
+      userPreferences: { findUnique: async () => null },
+      meal: { findUnique: async () => null },
+    };
     await assert.rejects(
       () => forkMealForUser(tx as never, "ghost", "user-1"),
       /Source meal not found/,

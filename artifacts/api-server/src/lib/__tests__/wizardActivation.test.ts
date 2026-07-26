@@ -25,12 +25,18 @@ import type { WizardSavePlan } from "../wizardSavePlan";
 // with writeBack:false (no store forks, no pool write-back) so behavior matches
 // the pre-B2 payload path exactly. Store/fork/write-back paths are covered by
 // the dedicated B-2 tests.
-function asSavePlan(expanded: WizardExpandedPlan): WizardSavePlan {
+function asSavePlan(
+  expanded: WizardExpandedPlan,
+  householdSize?: number,
+): WizardSavePlan {
   return {
     candidateId: expanded.candidateId,
     title: expanded.title,
     tags: expanded.tags,
     whyBullets: expanded.whyBullets,
+    // Servings unification (BUG-046) — the per-run household rides the savePlan
+    // (undefined = legacy draft → stored fallback at materialize).
+    householdSize,
     slots: expanded.meals.map((meal) => ({
       kind: "build" as const,
       meal,
@@ -209,6 +215,15 @@ function makeStubs(opts: {
   };
 
   const txStub = {
+    // Servings unification (BUG-046) — materialize resolves effectiveHousehold =
+    // savePlan.householdSize ?? stored. These build-slot tests default to NO stored
+    // prefs row; combined with an asSavePlan that omits householdSize, effective
+    // resolves undefined → build meals fall back to the AI's authored m.servings
+    // (the legacy behavior these tests assert). Tests that exercise the unified
+    // scaling pass a household via asSavePlan(expanded, N) and/or override this.
+    userPreferences: {
+      findUnique: async (): Promise<{ householdSize: number } | null> => null,
+    },
     meal: {
       create: async (args: { data: Record<string, unknown> }) => {
         captured.meals.push(args.data);
@@ -302,11 +317,15 @@ describe("materializeWizardDraft — WS7-5b-mobile FIX Template-pair (PRD §2.4)
 
 });
 
-// WS7-8 BUG-003 — the wizard create seam must set the immutable authored
-// anchor (authoredServingsDefault) == servingsDefault on BOTH the Meal and the
-// Dish at create time, so every freshly-wizarded meal/dish is born anchored.
+// WS7-8 BUG-003 — the wizard create seam sets the immutable authored anchor
+// (authoredServingsDefault) at create so every freshly-wizarded meal/dish is
+// born anchored. Servings unification (BUG-046) — the anchor is now the AI's
+// authored m.servings, while servingsDefault becomes effectiveHousehold; the
+// two are equal ONLY when there is no household signal (this fallback case,
+// null prefs + no per-run household → both = m.servings). The divergence case
+// (household set → servingsDefault ≠ anchor) is pinned in the block below.
 describe("materializeWizardDraft — WS7-8 BUG-003 authored-servings anchor", () => {
-  it("sets authoredServingsDefault == servingsDefault on every created Meal and Dish", async () => {
+  it("no household signal → anchor == servingsDefault == the AI's authored m.servings", async () => {
     const expanded = sampleExpanded(); // both meals have servings: 4
     const { prismaStub, txStub, captured } = makeStubs({ expanded });
 
@@ -315,7 +334,7 @@ describe("materializeWizardDraft — WS7-8 BUG-003 authored-servings anchor", ()
       tx: txStub as unknown as Prisma.TransactionClient,
       userId: USER_ID,
       draftId: DRAFT_ID,
-      savePlan: asSavePlan(expanded),
+      savePlan: asSavePlan(expanded), // no per-run household; stub has no prefs row
     });
 
     assert.equal(captured.meals.length, 2, "two meals created");
@@ -329,6 +348,72 @@ describe("materializeWizardDraft — WS7-8 BUG-003 authored-servings anchor", ()
       assert.equal(d.servingsDefault, 4);
       assert.equal(d.authoredServingsDefault, 4);
       assert.equal(d.authoredServingsDefault, d.servingsDefault);
+    }
+  });
+});
+
+// Servings unification (BUG-046 / D-WS9-070) — the build path applies the
+// plan's effectiveHousehold to servingsDefault while preserving the AI's
+// authored m.servings as the render anchor, so a plan generated at household=2
+// from meals authored at 4 renders at multiplier 0.5 (the symptom fix), and the
+// build path stops relying on the model obeying "servings = householdSize".
+describe("materializeWizardDraft — BUG-046 servings unification (build path)", () => {
+  it("per-run household=2 on meals authored at 4 → servingsDefault=2, anchor=4 (multiplier 0.5)", async () => {
+    const expanded = sampleExpanded(); // meals authored at servings: 4
+    const { prismaStub, txStub, captured } = makeStubs({ expanded });
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan: asSavePlan(expanded, 2), // per-run household = 2
+    });
+
+    for (const m of captured.meals) {
+      assert.equal(m.servingsDefault, 2, "meal servingsDefault = effectiveHousehold");
+      assert.equal(m.authoredServingsDefault, 4, "meal anchor = authored m.servings");
+    }
+    for (const d of captured.dishes) {
+      assert.equal(d.servingsDefault, 2, "dish servingsDefault = effectiveHousehold");
+      assert.equal(d.authoredServingsDefault, 4, "dish anchor = authored m.servings");
+    }
+  });
+
+  it("per-run household OVERRIDES stored (payload=2, stored=6 → servingsDefault=2)", async () => {
+    const expanded = sampleExpanded();
+    const { prismaStub, txStub, captured } = makeStubs({ expanded });
+    // Stored prefs say 6; the per-run value (2) must win.
+    txStub.userPreferences = { findUnique: async () => ({ householdSize: 6 }) };
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan: asSavePlan(expanded, 2),
+    });
+
+    for (const m of captured.meals) assert.equal(m.servingsDefault, 2);
+    for (const d of captured.dishes) assert.equal(d.servingsDefault, 2);
+  });
+
+  it("per-run ABSENT → falls back to stored household (payload undefined, stored=3 → servingsDefault=3)", async () => {
+    const expanded = sampleExpanded();
+    const { prismaStub, txStub, captured } = makeStubs({ expanded });
+    txStub.userPreferences = { findUnique: async () => ({ householdSize: 3 }) };
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan: asSavePlan(expanded), // legacy draft: no per-run household
+    });
+
+    for (const m of captured.meals) {
+      assert.equal(m.servingsDefault, 3, "falls back to stored household");
+      assert.equal(m.authoredServingsDefault, 4, "anchor still the authored count");
     }
   });
 });
@@ -781,6 +866,9 @@ function makeStoreStubs() {
   };
 
   const txStub = {
+    // Block 4a — forkMealForUser resolves the acquiring household once per fork.
+    // No prefs row here → the store fork keeps the source's authored servings.
+    userPreferences: { findUnique: async () => null },
     meal: {
       findUnique: async (args: { where: { id: string } }) => sourceMealGraph(args.where.id),
       create: async (args: { data: Record<string, unknown> }) => {
@@ -817,6 +905,49 @@ function makeStoreStubs() {
 
   return { prismaStub, txStub, captured };
 }
+
+// Servings unification (BUG-046 / D-WS9-070) — the money check: a MIXED plan
+// (store fork + live build) generated at per-run household=2, where both the
+// catalog source and the AI-authored live meal are at 4, must land EVERY meal at
+// servingsDefault=2 with anchor=4 → multiplier 0.5 on BOTH branches. This is the
+// split-source fix: forks no longer read stored household independently — they
+// receive the same effectiveHousehold the build slots use.
+describe("materializeWizardDraft — BUG-046 servings unification (mixed fork+build)", () => {
+  it("household=2 → both a forked slot and a built slot land at servingsDefault=2, anchor=4", async () => {
+    const liveMeal = sampleExpanded().meals[0]; // AI-authored at servings: 4
+    const savePlan: WizardSavePlan = {
+      candidateId: "c1",
+      title: "Mixed Plan",
+      tags: ["mix"],
+      whyBullets: ["b"],
+      householdSize: 2, // per-run household
+      slots: [
+        { kind: "store", sourceStoreMealId: "s1" }, // catalog source at 4
+        { kind: "build", meal: liveMeal, writeBack: false },
+      ],
+    };
+    const { prismaStub, txStub, captured } = makeStoreStubs();
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan,
+    });
+
+    // Both the fork's cloned meal and the built meal flow through tx.meal.create.
+    assert.equal(captured.mealCreates.length, 2, "one fork + one build meal");
+    for (const m of captured.mealCreates) {
+      assert.equal(m.servingsDefault, 2, "servingsDefault = effectiveHousehold on BOTH branches");
+      assert.equal(
+        m.authoredServingsDefault,
+        4,
+        "anchor = authored 4 on BOTH branches → render multiplier 2/4 = 0.5",
+      );
+    }
+  });
+});
 
 describe("materializeWizardDraft — D-WS9-038 store fork + write-back", () => {
   it("materializes a 4-store/1-live plan: 5 items in slot order, forks stores, writes back the live meal", async () => {

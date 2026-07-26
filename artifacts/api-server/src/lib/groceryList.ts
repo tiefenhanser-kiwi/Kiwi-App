@@ -334,8 +334,12 @@ export async function consolidatePlanIngredients(
       const dish = link.dish;
       // WS7-8 BUG-003 — DENOMINATOR is the immutable authored anchor
       // (authoredServingsDefault ?? servingsDefault); the NUMERATOR keeps its
-      // no-override fallback of the live servingsDefault. Anchor == servingsDefault
-      // until a future canonical promote, so today the multiplier is unchanged.
+      // no-override fallback of the live servingsDefault. Servings unification
+      // (BUG-046): a wizard-built or catalog-forked dish now has servingsDefault =
+      // effectiveHousehold while the anchor stays at the authored count, so the
+      // multiplier is < 1 for a small household — grocery quantities correctly
+      // scale down to what that household buys (e.g. household 2 on a dish authored
+      // at 4 → 0.5). The anchor-as-denominator is exactly what makes this right.
       const authoredBase =
         dish.authoredServingsDefault ?? dish.servingsDefault;
       const baseServings = authoredBase > 0 ? authoredBase : 1;

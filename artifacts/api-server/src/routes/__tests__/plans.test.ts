@@ -1637,6 +1637,9 @@ function makeC3Stub(opts: {
   const meals = opts.meals ?? [];
   const recorder = opts.recorder;
   const txClient = {
+    // Block 4a — forkMealForUser resolves the acquiring household once per fork
+    // inside the tx; no prefs row in these stubs → forks keep source servings.
+    userPreferences: { findUnique: async () => null },
     mealPlanTemplate: {
       findUnique: async (args: { where: { id: string } }) =>
         templates.find((t) => t.id === args.where.id) ?? null,
@@ -1889,6 +1892,9 @@ function makeC4Stub(opts: {
   let forkCounter = 0;
 
   const txClient = {
+    // Block 4a — forkMealForUser resolves the acquiring household once per fork
+    // inside the tx; no prefs row in these stubs → forks keep source servings.
+    userPreferences: { findUnique: async () => null },
     mealPlanTemplate: {
       findUnique: async (args: { where: { id: string } }) =>
         templates.find((t) => t.id === args.where.id) ?? null,
@@ -2332,6 +2338,9 @@ function makeC2Stub(opts: {
   let instanceCounter = 0;
 
   const txClient = {
+    // Block 4a — forkMealForUser resolves the acquiring household once per fork
+    // inside the tx; no prefs row in these stubs → forks keep source servings.
+    userPreferences: { findUnique: async () => null },
     mealPlanInstance: {
       updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
         recorder.updateManyCalls.push(args);
@@ -2754,6 +2763,9 @@ function makeC3DeleteStub(opts: {
   const recorder = opts.recorder;
 
   const txClient = {
+    // Block 4a — forkMealForUser resolves the acquiring household once per fork
+    // inside the tx; no prefs row in these stubs → forks keep source servings.
+    userPreferences: { findUnique: async () => null },
     mealPlanInstance: {
       findUnique: async (args: { where: { id: string } }) => {
         const row = instances.find((i) => i.id === args.where.id);
@@ -3063,6 +3075,9 @@ function makeC4PatchStub(opts: {
   const recorder = opts.recorder;
 
   const txClient = {
+    // Block 4a — forkMealForUser resolves the acquiring household once per fork
+    // inside the tx; no prefs row in these stubs → forks keep source servings.
+    userPreferences: { findUnique: async () => null },
     mealPlanInstance: {
       findUnique: async (args: { where: { id: string } }) => {
         const row = instances.find((i) => i.id === args.where.id);
@@ -4516,6 +4531,9 @@ function makeD1Stub(opts: {
   let itemCounter = 0;
 
   const txClient = {
+    // Block 4a — forkMealForUser resolves the acquiring household once per fork
+    // inside the tx; no prefs row in these stubs → forks keep source servings.
+    userPreferences: { findUnique: async () => null },
     mealPlanInstance: {
       findUnique: async (args: { where: { id: string } }) => {
         const row = plans.find((p) => p.id === args.where.id);
@@ -5072,6 +5090,9 @@ function makeD2Stub(opts: {
   const recorder = opts.recorder;
 
   const txClient = {
+    // Block 4a — forkMealForUser resolves the acquiring household once per fork
+    // inside the tx; no prefs row in these stubs → forks keep source servings.
+    userPreferences: { findUnique: async () => null },
     mealPlanInstance: {
       findUnique: async (args: { where: { id: string } }) => {
         const row = plans.find((p) => p.id === args.where.id);
@@ -5366,6 +5387,9 @@ function makeD3Stub(opts: {
   let itemCounter = 0;
 
   const txClient = {
+    // Block 4a — forkMealForUser resolves the acquiring household once per fork
+    // inside the tx; no prefs row in these stubs → forks keep source servings.
+    userPreferences: { findUnique: async () => null },
     mealPlanInstance: {
       findUnique: async (args: { where: { id: string } }) => {
         const row = plans.find((p) => p.id === args.where.id);
@@ -6140,6 +6164,9 @@ function makeD4Stub(opts: {
   let dishCounter = 0;
 
   const txClient = {
+    // Block 4a — forkMealForUser resolves the acquiring household once per fork
+    // inside the tx; no prefs row in these stubs → forks keep source servings.
+    userPreferences: { findUnique: async () => null },
     mealPlanInstance: {
       findUnique: async (args: { where: { id: string } }) => {
         const row = plans.find((p) => p.id === args.where.id);

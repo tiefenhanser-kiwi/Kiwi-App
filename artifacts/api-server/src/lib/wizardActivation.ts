@@ -151,6 +151,30 @@ export async function materializeWizardDraft(
   );
   const ingredientIdByCanonical = await resolveIngredients(prisma, mentions);
 
+  // Servings unification (BUG-046 / D-WS9-070) — resolve ONE effectiveHousehold
+  // for the whole plan and apply it uniformly to EVERY meal (forked + live), so a
+  // plan generated at per-run household=2 lands every meal at 2 regardless of
+  // source. Precedence: the PER-RUN value the user set for this generation (rode
+  // the draft payload → savePlan) wins; else the user's STORED household. This
+  // resolves the split the diagnostic found (forks used to read stored while live
+  // meals trusted the AI's m.servings) and stops the build path relying on AI
+  // adherence. Per-run is NOT persisted to UserPreferences (D-WS7-035) — it lives
+  // only in the transient draft. Legacy drafts predating the payload field have
+  // savePlan.householdSize undefined → stored fallback. If BOTH are somehow absent
+  // (no prefs row AND legacy draft), we fall back per-meal to the meal's authored
+  // m.servings so nothing crashes — not a real-user path (a prefs row always
+  // exists, non-null @default 2).
+  const storedHousehold = (
+    await tx.userPreferences.findUnique({
+      where: { userId },
+      select: { householdSize: true },
+    })
+  )?.householdSize;
+  const effectiveHousehold = savePlan.householdSize ?? storedHousehold;
+  // Leftovers note (D-WS7-190): wantsLeftovers is inert (hardcoded false), so no
+  // adjustment is wired. If leftovers ever returns, the "+1-2 servings" would be
+  // applied to effectiveHousehold HERE (the single per-plan resolution point).
+
   // ── Pass 2 (transactional): materialize the mixed graph, in slot order. ──
   let mealsCreated = 0;
   let dishesCreated = 0;
@@ -168,8 +192,17 @@ export async function materializeWizardDraft(
       // dishes come from the source row, so there is no build and no finalize.
       let bound = boundBySource.get(slot.sourceStoreMealId);
       if (!bound) {
-        bound = (await forkMealForUser(tx, slot.sourceStoreMealId, userId))
-          .mealId;
+        // Servings unification (BUG-046) — pass the plan's effectiveHousehold so a
+        // forked slot scales to the SAME value as this plan's live-built slots,
+        // NOT an independent stored-prefs read inside the helper.
+        bound = (
+          await forkMealForUser(
+            tx,
+            slot.sourceStoreMealId,
+            userId,
+            effectiveHousehold,
+          )
+        ).mealId;
         boundBySource.set(slot.sourceStoreMealId, bound);
         mealsCreated++;
       }
@@ -186,8 +219,19 @@ export async function materializeWizardDraft(
           mealType: "dinner",
           difficulty: m.difficulty,
           estimatedTimeMinutes: m.estimatedTimeMinutes,
-          servingsDefault: m.servings,
-          // WS7-8 BUG-003 — anchor frozen == servingsDefault at create.
+          // Servings unification (BUG-046 / D-WS9-070) — the live-built meal now
+          // lands at the plan's effectiveHousehold instead of the AI's authored
+          // m.servings, so the build path stops relying on the model obeying the
+          // "servings = householdSize" prompt rule. The anchor below stays at
+          // m.servings (the count the AI's ingredient quantities were written
+          // for), so the render multiplier becomes effectiveHousehold / m.servings
+          // — e.g. household 2 on a meal the AI authored at 4 → 0.5. Falls back to
+          // m.servings only if effectiveHousehold is unresolvable (see resolution
+          // note above; not a real-user path).
+          servingsDefault: effectiveHousehold ?? m.servings,
+          // WS7-8 BUG-003 — anchor frozen == the AUTHORED servings the AI wrote
+          // quantities against (m.servings), NOT servingsDefault, which now diverges
+          // to effectiveHousehold. This is the immutable render denominator.
           authoredServingsDefault: m.servings,
           isPublic: false,
           isArchived: false,
@@ -225,8 +269,12 @@ export async function materializeWizardDraft(
             sourceType: "wizard",
             estimatedTimeMinutes: m.estimatedTimeMinutes,
             difficulty: m.difficulty,
-            servingsDefault: m.servings,
-            // WS7-8 BUG-003 — anchor frozen == servingsDefault at create.
+            // Servings unification (BUG-046) — mirror the meal: dish servings land
+            // at effectiveHousehold; anchor stays at the AI's authored m.servings
+            // (the dish-level render path divides by the dish anchor, so meal and
+            // dish must stay consistent).
+            servingsDefault: effectiveHousehold ?? m.servings,
+            // WS7-8 BUG-003 — anchor frozen == the authored m.servings (see meal).
             authoredServingsDefault: m.servings,
             isArchived: false,
             ...macros,
