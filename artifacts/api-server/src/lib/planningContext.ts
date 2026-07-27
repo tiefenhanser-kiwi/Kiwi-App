@@ -19,6 +19,9 @@
 
 import type { PrismaClient } from "@prisma/client";
 
+import { logger } from "./logger";
+import { lookupDishFamily } from "./store/dishFamily";
+
 // ── shared types ─────────────────────────────────────────────────────────
 
 export type Season = "winter" | "spring" | "summer" | "fall";
@@ -350,6 +353,158 @@ export async function buildRecentPlanNames(
   return rows
     .map((r) => r.titleOverride ?? r.template?.title ?? null)
     .filter((n): n is string => n !== null && n.length > 0);
+}
+
+// ── recent rotation (Plan-Gen Arc · Block 4b-2, D-WS9-073) ────────────────
+//
+// The repeat-avoidance NUDGE feed for build-plans + directed. Distinct from
+// `recentMeals` above in three deliberate ways the D-WS9-073 ruling requires:
+//   1. PLAN-COUNT scoped, not a 28-day window — walk the user's last ~N real
+//      plans regardless of calendar age (a light user's history is thin either
+//      way; a heavy user's last 3 plans is the meaningful "rotation").
+//   2. LINEAGE identity for store-sourced meals — a user's fork of a catalog
+//      meal is resolved back to its parent DISH FAMILY, so "another version of
+//      the same dish" reads as one recurring thing, not N unrelated titles.
+//   3. ONE unit, TWO resolutions — store-lineage meals carry a `dishFamily`;
+//      live-generated meals (no catalog lineage) are title-only. Same list,
+//      same instruction governs both.
+//
+// This is a soft PROMPT nudge only (NOT the retrieval hard-filter excludeMealIds
+// — that is the rejected hard-exclusion cliff). Efficacy is unverifiable here
+// and is logged as an open measurement question in D-WS9-073.
+
+// How many of the user's most recent real plans the rotation walk covers. A
+// NAMED constant, not a literal, because it will be tuned against real output —
+// with few lineage-carrying forks in the system today there is little history
+// to bite on, and the right depth is a real-usage question.
+export const RECENT_ROTATION_PLAN_DEPTH = 3;
+
+export interface RecentRotationMeal {
+  // The representative title the user actually saw (the fork's own title, from
+  // the most recent plan it appeared in).
+  title: string;
+  // Parent dish-family key — present ONLY for a store-lineage meal, resolved
+  // fork → sourceStoreMealId → original.dishFamilyKey → lookupDishFamily().
+  // Absent means a live-generated meal (no catalog lineage): title-only.
+  dishFamily?: string;
+  // The parent dish's popularity rank (1 = most common). Present with dishFamily.
+  familyRank?: number;
+  // How many times this identity (family for store meals, lowercased title for
+  // live meals) recurs across the walked plans — the "is this dominating the
+  // rotation?" signal a window cannot express.
+  timesRecentlyServed: number;
+}
+
+export interface RecentRotation {
+  // Actual number of recent real plans walked (≤ RECENT_ROTATION_PLAN_DEPTH;
+  // fewer for a new user). Distinguishes "seen nothing yet" from "seen these".
+  plansConsidered: number;
+  // Recently-served meals, most-recent-first, deduped by identity (dish family
+  // for store meals, lowercased title for live meals).
+  meals: RecentRotationMeal[];
+}
+
+// Walk the user's last ~N real plans and resolve each served meal to a dish
+// family (store lineage) or a bare title (live). Best-effort: a query failure
+// returns an empty rotation rather than sinking plan generation (D-WS9-073 —
+// the nudge must never be load-bearing enough to fail a request).
+//
+// ⚠️ The family hop MUST go through `sourceStoreMealId` to the ORIGINAL catalog
+// meal's `dishFamilyKey`. The fork itself does NOT carry a usable key —
+// cloneMealInto never copies `dishFamilyKey` onto a fork (it is null there), and
+// even the catalog's own key is unique-per-title, so reading a fork's own key
+// would silently produce a per-title nudge that groups nothing.
+export async function buildRecentRotation(
+  prisma: PrismaClient,
+  userId: string,
+  planDepth: number = RECENT_ROTATION_PLAN_DEPTH,
+): Promise<RecentRotation> {
+  try {
+    // (1) The last N real (non-draft, non-archived) plans, newest first, with
+    //     each item's meal + its catalog-lineage pointer. Plan-COUNT scoping is
+    //     the `take` — no date window.
+    const plans = await prisma.mealPlanInstance.findMany({
+      where: { userId, isWizardDraft: false, isArchived: false },
+      orderBy: { createdAt: "desc" },
+      take: planDepth,
+      select: {
+        items: {
+          select: {
+            meal: {
+              select: { id: true, title: true, sourceStoreMealId: true },
+            },
+          },
+        },
+      },
+    });
+
+    // (2) Batch-resolve store lineage: fork.sourceStoreMealId → the ORIGINAL
+    //     catalog meal's dishFamilyKey (one query for all originals).
+    const originalIds = new Set<string>();
+    for (const p of plans) {
+      for (const it of p.items) {
+        const src = it.meal?.sourceStoreMealId;
+        if (src) originalIds.add(src);
+      }
+    }
+    const originals = originalIds.size
+      ? await prisma.meal.findMany({
+          where: { id: { in: [...originalIds] } },
+          select: { id: true, dishFamilyKey: true },
+        })
+      : [];
+    const familyKeyByOriginalId = new Map(
+      originals.map((o) => [o.id, o.dishFamilyKey]),
+    );
+
+    // (3) Walk items in recency order; resolve each to a family (store) or a
+    //     title (live), deduping by identity and counting recurrences.
+    //     Write-back forks are NOT special-cased: a served meal is a served
+    //     meal regardless of the meal's sourceType — if it carries lineage it
+    //     resolves to a family, otherwise it falls back to title-only. An
+    //     original that is archived/absent, or one missing dishFamilyKey (the
+    //     measured 1/20 case), also falls back cleanly to title-only.
+    const byIdentity = new Map<string, RecentRotationMeal>();
+    for (const p of plans) {
+      for (const it of p.items) {
+        const meal = it.meal;
+        if (!meal?.title) continue;
+        const src = meal.sourceStoreMealId;
+        const familyKey = src ? familyKeyByOriginalId.get(src) ?? null : null;
+        const info = familyKey ? lookupDishFamily(familyKey) : null;
+        if (info) {
+          const key = `fam:${info.parentKey}`;
+          const existing = byIdentity.get(key);
+          if (existing) {
+            existing.timesRecentlyServed += 1;
+          } else {
+            byIdentity.set(key, {
+              title: meal.title,
+              dishFamily: info.parentKey,
+              familyRank: info.rank,
+              timesRecentlyServed: 1,
+            });
+          }
+        } else {
+          const key = `title:${meal.title.trim().toLowerCase()}`;
+          const existing = byIdentity.get(key);
+          if (existing) {
+            existing.timesRecentlyServed += 1;
+          } else {
+            byIdentity.set(key, { title: meal.title, timesRecentlyServed: 1 });
+          }
+        }
+      }
+    }
+
+    return { plansConsidered: plans.length, meals: [...byIdentity.values()] };
+  } catch (err) {
+    logger.warn(
+      { event: "recent_rotation_failed", userId, err },
+      "Recent-rotation lineage query failed — nudge omitted this run",
+    );
+    return { plansConsidered: 0, meals: [] };
+  }
 }
 
 // ── assembly ─────────────────────────────────────────────────────────────

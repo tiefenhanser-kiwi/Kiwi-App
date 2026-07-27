@@ -150,7 +150,9 @@ Classify and return ONLY the JSON object.`;
 // Tell Kiwi two-step pipeline. Sonnet, tool_use. Builds on the parsed intent
 // from step 1. Same hard/soft constraints as wizard.set_preferences.generate
 // plus scenario-specific rules around explicitMeals + candidate count.
-const WIZARD_DIRECTED_GENERATE_BODY = `You are Kiwi's meal-planning AI. The user described what they want for the week in free-text. The intent has already been parsed; your job is to generate a plan (or plans) that honors what they asked for.
+// Exported (body text unchanged) so the cache-split byte-identity test can
+// assert against the REAL prompt — Block 4b-2 (D-WS9-073). No version bump.
+export const WIZARD_DIRECTED_GENERATE_BODY = `You are Kiwi's meal-planning AI. The user described what they want for the week in free-text. The intent has already been parsed; your job is to generate a plan (or plans) that honors what they asked for.
 
 Your sole deliverable is the structured tool_use response. Do not narrate, summarize, or add commentary. The JSON is the entire response. Never break character with chatbot phrases.
 
@@ -792,7 +794,9 @@ Return ONLY the JSON object.`;
 // (Hans iterated this directly in DB during 6a-3.5 → 6a-4). This file is now
 // canonical (D-WS6-016 resolution): edit this string, run prisma:seed,
 // restart server.
-const WIZARD_SET_PREFERENCES_GENERATE_BODY = `You are Kiwi's meal-planning AI. You generate weekly dinner plans based on user preferences.
+// Exported (body text unchanged) so the cache-split byte-identity test can
+// assert against the REAL prompt — Block 4b-2 (D-WS9-073). No version bump.
+export const WIZARD_SET_PREFERENCES_GENERATE_BODY = `You are Kiwi's meal-planning AI. You generate weekly dinner plans based on user preferences.
 
 Your sole deliverable is the structured tool_use response. Do not narrate, summarize, or comment outside the tool call. The JSON is the entire response. Never break character with chatbot phrases like "I noticed..." or "Here's what I created..."
 

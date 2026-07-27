@@ -61,7 +61,9 @@ import { computeWizardContentHash } from "../lib/wizardContentHash";
 import { currentWeekRange } from "../lib/planDates";
 import {
   buildPlanningContext,
+  buildRecentRotation,
   type PlanningContext,
+  type RecentRotation,
 } from "../lib/planningContext";
 import {
   resolveEffectivePreferences,
@@ -418,7 +420,15 @@ export function createWizardRouter(
       // body doesn't reference these keys yet (Block 2 does the wording), so the
       // extra JSON is inert until then. NOT added to buildHiddenContext because
       // that feed also powers the cheap Haiku parse_intent call.
-      const planningContext = await buildPlanningContext(prisma, userId);
+      // Block 4b-2 (D-WS9-073) — the recent-rotation repeat-avoidance nudge
+      // (last ~3 plans, store meals resolved to their dish family) rides on
+      // wizardInput BELOW the {{storeShortlist}} cache marker, so it costs no
+      // prompt-prefix change and no version bump. Loaded in parallel with the
+      // planning context — the two are independent reads.
+      const [planningContext, recentRotation] = await Promise.all([
+        buildPlanningContext(prisma, userId),
+        buildRecentRotation(prisma, userId),
+      ]);
       // Cookbook Phase B Block 2/4 — generation-shaping prefs (discovery /
       // sauce / cook-time cap) ride alongside planningContext on the generate
       // input. The four per-run override fields are peeled OFF parsed.data (so
@@ -444,11 +454,13 @@ export function createWizardRouter(
       const wizardInput: WizardInput & {
         planningContext: PlanningContext;
         preferencesContext: PreferencesContext;
+        recentRotation: RecentRotation;
       } = {
         ...aiInput,
         hiddenContext,
         planningContext,
         preferencesContext,
+        recentRotation,
       };
 
       // 4b. Plan-Gen Arc Block 2 (D-WS9-038) — retrieve the shared-pool
@@ -805,7 +817,15 @@ export function createWizardRouter(
       // parseInput above deliberately does NOT get it, keeping the Haiku
       // classifier's token count flat. Computed here (after the `unclear`
       // short-circuit) so the DB reads are skipped when no plan is generated.
-      const planningContext = await buildPlanningContext(prisma, userId);
+      // Block 4b-2 (D-WS9-073) — recent-rotation nudge on the directed generate
+      // input (below the shelf in the rendered body). Directed uses buffered
+      // runAICall with no cached prefix, so there is no marker to stay under
+      // here — but the shape mirrors build-plans for one coherent instruction.
+      // Loaded in parallel with the planning context (independent reads).
+      const [planningContext, recentRotation] = await Promise.all([
+        buildPlanningContext(prisma, userId),
+        buildRecentRotation(prisma, userId),
+      ]);
       // Cookbook Phase B Block 2/4 — generation-shaping prefs attached to the
       // GENERATE input only (parseInput above deliberately does not get it).
       // Per-run overrides on the directed body are resolved against stored.
@@ -835,6 +855,7 @@ export function createWizardRouter(
         hiddenContext,
         planningContext,
         preferencesContext,
+        recentRotation,
       };
 
       // Fix 4 — Tell Kiwi composes from the catalog too. The directed body carries

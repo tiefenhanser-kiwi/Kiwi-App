@@ -13,7 +13,10 @@ import {
   getUpcomingEvents,
   buildRecentMealHistory,
   buildRecentPlanNames,
+  buildRecentRotation,
 } from "../planningContext";
+import { TARGET_DISHES } from "../storeFillDishes";
+import { lookupDishFamily } from "../store/dishFamily";
 
 // ── helpers ────────────────────────────────────────────────────────────
 
@@ -297,5 +300,229 @@ describe("buildRecentPlanNames", () => {
 
     const names = await buildRecentPlanNames(prisma, "u1");
     assert.deepEqual(names, ["My Custom Plan", "Template Title"]);
+  });
+});
+
+// ── buildRecentRotation (Block 4b-2, D-WS9-073) ──────────────────────────
+
+interface RotItemMeal {
+  id: string;
+  title: string;
+  sourceStoreMealId: string | null;
+}
+interface RotInstance {
+  isWizardDraft: boolean;
+  isArchived: boolean;
+  createdAt: Date;
+  items: { meal: RotItemMeal | null }[];
+}
+
+// Stub that honors the draft/archive predicate + createdAt-desc + take on
+// mealPlanInstance.findMany, and the id-in filter on meal.findMany (the
+// original-lineage lookup). NOTE it does NOT expose the forks' own
+// dishFamilyKey — the real query never selects it, and the family must come
+// from the ORIGINAL via meal.findMany. That structural omission is the guard
+// against the per-title-nudge bug.
+function makeRotationPrisma(data: {
+  instances?: RotInstance[];
+  originals?: { id: string; dishFamilyKey: string | null }[];
+}): PrismaClient {
+  const instances = data.instances ?? [];
+  const originals = data.originals ?? [];
+  return {
+    mealPlanInstance: {
+      findMany: async ({
+        where,
+        take,
+      }: {
+        where: { isWizardDraft?: boolean; isArchived?: boolean };
+        take?: number;
+      }) => {
+        const rows = instances
+          .filter(
+            (i) =>
+              (where.isWizardDraft === undefined ||
+                i.isWizardDraft === where.isWizardDraft) &&
+              (where.isArchived === undefined ||
+                i.isArchived === where.isArchived),
+          )
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        return typeof take === "number" ? rows.slice(0, take) : rows;
+      },
+    },
+    meal: {
+      findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+        originals.filter((o) => where.id.in.includes(o.id)),
+    },
+  } as unknown as PrismaClient;
+}
+
+const plan = (createdAt: Date, meals: RotItemMeal[]): RotInstance => ({
+  isWizardDraft: false,
+  isArchived: false,
+  createdAt,
+  items: meals.map((meal) => ({ meal })),
+});
+
+// Two REAL catalog dish families with DISTINCT parents (TARGET_DISHES[0] and
+// [1] happen to share a parent, so resolve B by parentKey inequality).
+const famA = TARGET_DISHES[0];
+const infoA = lookupDishFamily(famA.key)!;
+const famB = TARGET_DISHES.find(
+  (t) => lookupDishFamily(t.key)!.parentKey !== infoA.parentKey,
+)!;
+const infoB = lookupDishFamily(famB.key)!;
+
+describe("buildRecentRotation", () => {
+  it("resolves a fork → original → parent dish family (not the fork's own key)", async () => {
+    const prisma = makeRotationPrisma({
+      instances: [
+        plan(utc("2026-06-20"), [
+          { id: "fork1", title: "Grandma's Bolognese", sourceStoreMealId: "orig1" },
+        ]),
+      ],
+      originals: [{ id: "orig1", dishFamilyKey: famA.key }],
+    });
+    const rot = await buildRecentRotation(prisma, "u1");
+    assert.equal(rot.plansConsidered, 1);
+    assert.equal(rot.meals.length, 1);
+    assert.equal(rot.meals[0].title, "Grandma's Bolognese");
+    assert.equal(rot.meals[0].dishFamily, infoA.parentKey);
+    assert.equal(rot.meals[0].familyRank, infoA.rank);
+    assert.equal(rot.meals[0].timesRecentlyServed, 1);
+  });
+
+  it("the family is driven by the ORIGINAL's key — swap it, the family swaps", async () => {
+    const rotA = await buildRecentRotation(
+      makeRotationPrisma({
+        instances: [
+          plan(utc("2026-06-20"), [
+            { id: "fork1", title: "Same Fork Title", sourceStoreMealId: "orig1" },
+          ]),
+        ],
+        originals: [{ id: "orig1", dishFamilyKey: famA.key }],
+      }),
+      "u1",
+    );
+    const rotB = await buildRecentRotation(
+      makeRotationPrisma({
+        instances: [
+          plan(utc("2026-06-20"), [
+            { id: "fork1", title: "Same Fork Title", sourceStoreMealId: "orig1" },
+          ]),
+        ],
+        // Same fork, same title — only the ORIGINAL's family key differs.
+        originals: [{ id: "orig1", dishFamilyKey: famB.key }],
+      }),
+      "u1",
+    );
+    assert.equal(rotA.meals[0].dishFamily, infoA.parentKey);
+    assert.equal(rotB.meals[0].dishFamily, infoB.parentKey);
+    assert.notEqual(rotA.meals[0].dishFamily, rotB.meals[0].dishFamily);
+  });
+
+  it("a meal with no sourceStoreMealId emits title-only (no dishFamily), no throw", async () => {
+    const prisma = makeRotationPrisma({
+      instances: [
+        plan(utc("2026-06-20"), [
+          { id: "live1", title: "Improvised Fridge Stir-Fry", sourceStoreMealId: null },
+        ]),
+      ],
+    });
+    const rot = await buildRecentRotation(prisma, "u1");
+    assert.equal(rot.meals.length, 1);
+    assert.equal(rot.meals[0].title, "Improvised Fridge Stir-Fry");
+    assert.equal(rot.meals[0].dishFamily, undefined);
+    assert.equal(rot.meals[0].familyRank, undefined);
+  });
+
+  it("an original missing dishFamilyKey falls back to title-only (the 1/20 case)", async () => {
+    const prisma = makeRotationPrisma({
+      instances: [
+        plan(utc("2026-06-20"), [
+          { id: "fork1", title: "Curated Special", sourceStoreMealId: "orig1" },
+        ]),
+      ],
+      originals: [{ id: "orig1", dishFamilyKey: null }],
+    });
+    const rot = await buildRecentRotation(prisma, "u1");
+    assert.equal(rot.meals.length, 1);
+    assert.equal(rot.meals[0].dishFamily, undefined);
+    assert.equal(rot.meals[0].title, "Curated Special");
+  });
+
+  it("a lineage pointer to an absent/archived original falls back to title-only", async () => {
+    const prisma = makeRotationPrisma({
+      instances: [
+        plan(utc("2026-06-20"), [
+          { id: "fork1", title: "Orphaned Fork", sourceStoreMealId: "gone" },
+        ]),
+      ],
+      originals: [], // original no longer resolvable
+    });
+    const rot = await buildRecentRotation(prisma, "u1");
+    assert.equal(rot.meals.length, 1);
+    assert.equal(rot.meals[0].dishFamily, undefined);
+  });
+
+  it("a write-back fork with lineage is NOT special-cased — it resolves to its family", async () => {
+    // The query never selects sourceType, so a live_writeback fork behaves like
+    // any lineage-carrying fork: a served meal is a served meal. (Decision:
+    // write-backs count as recently served and resolve their family.)
+    const prisma = makeRotationPrisma({
+      instances: [
+        plan(utc("2026-06-20"), [
+          { id: "wb1", title: "Written-Back Favorite", sourceStoreMealId: "orig1" },
+        ]),
+      ],
+      originals: [{ id: "orig1", dishFamilyKey: famA.key }],
+    });
+    const rot = await buildRecentRotation(prisma, "u1");
+    assert.equal(rot.meals[0].dishFamily, infoA.parentKey);
+  });
+
+  it("dedupes a recurring family across plans and counts recurrences", async () => {
+    const prisma = makeRotationPrisma({
+      instances: [
+        plan(utc("2026-06-20"), [
+          { id: "f1", title: "Bolognese v1", sourceStoreMealId: "orig1" },
+        ]),
+        plan(utc("2026-06-13"), [
+          { id: "f2", title: "Bolognese v2", sourceStoreMealId: "orig2" },
+        ]),
+      ],
+      // Two DIFFERENT originals (different titles) that map to the SAME family.
+      originals: [
+        { id: "orig1", dishFamilyKey: famA.key },
+        { id: "orig2", dishFamilyKey: famA.key },
+      ],
+    });
+    const rot = await buildRecentRotation(prisma, "u1");
+    assert.equal(rot.meals.length, 1);
+    assert.equal(rot.meals[0].dishFamily, infoA.parentKey);
+    assert.equal(rot.meals[0].timesRecentlyServed, 2);
+    // Newest plan's title represents the family.
+    assert.equal(rot.meals[0].title, "Bolognese v1");
+  });
+
+  it("scopes by PLAN COUNT (take = depth), not by meal count or date window", async () => {
+    const instances = [
+      plan(utc("2026-06-20"), [{ id: "a", title: "Newest", sourceStoreMealId: null }]),
+      plan(utc("2026-06-13"), [{ id: "b", title: "Second", sourceStoreMealId: null }]),
+      plan(utc("2026-06-06"), [{ id: "c", title: "Third", sourceStoreMealId: null }]),
+      plan(utc("2026-05-30"), [{ id: "d", title: "FourthDropped", sourceStoreMealId: null }]),
+      plan(utc("2026-05-23"), [{ id: "e", title: "FifthDropped", sourceStoreMealId: null }]),
+    ];
+    const rot = await buildRecentRotation(makeRotationPrisma({ instances }), "u1", 3);
+    assert.equal(rot.plansConsidered, 3);
+    const titles = rot.meals.map((m) => m.title);
+    assert.deepEqual(new Set(titles), new Set(["Newest", "Second", "Third"]));
+    assert.ok(!titles.includes("FourthDropped"));
+    assert.ok(!titles.includes("FifthDropped"));
+  });
+
+  it("returns an empty rotation for a user with no real plans", async () => {
+    const rot = await buildRecentRotation(makeRotationPrisma({}), "u1");
+    assert.deepEqual(rot, { plansConsidered: 0, meals: [] });
   });
 });

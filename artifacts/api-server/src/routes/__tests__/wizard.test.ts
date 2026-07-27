@@ -799,6 +799,127 @@ describe("POST /api/wizard/build-plans — planning-context wiring", () => {
   });
 });
 
+// Block 4b-2 (D-WS9-073) — the recent-rotation nudge is threaded onto the
+// build-plans + directed generate inputs, and DELIBERATELY NOT onto surprise
+// (ruling 2). The stub prisma has no plans, so the payload is the empty
+// rotation — presence/absence is the contract under test here.
+describe("recent-rotation nudge threading (Block 4b-2, D-WS9-073)", () => {
+  const EMPTY_ROTATION = { plansConsidered: 0, meals: [] };
+
+  it("build-plans threads recentRotation onto wizardInput", async () => {
+    const ai = makeRunAICall(async () => happyResult());
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("test-user-rotation-bp")}`,
+        },
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+      const vars = ai.getVars().at(-1) as {
+        wizardInput?: { recentRotation?: unknown };
+      };
+      assert.deepEqual(vars?.wizardInput?.recentRotation, EMPTY_ROTATION);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("build-from-text (directed) threads recentRotation onto generateInput", async () => {
+    const runner = makeTellKiwiRunner({
+      parse: () =>
+        parseSuccess({
+          scenario: "vague",
+          explicitMeals: [],
+          intentDescriptors: ["comfort"],
+          mealCount: 5,
+        }),
+      generate: () => genSuccess(threeCandidates("directed")),
+    });
+    const harness = await spinUp({
+      runAICall: runner.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("test-user-rotation-tk")}`,
+        },
+        body: JSON.stringify(TELL_KIWI_BODY),
+      });
+      assert.equal(res.status, 200);
+      const genCall = runner
+        .getCalls()
+        .find((c) => c.promptKey === "wizard.directed.generate");
+      assert.ok(genCall, "directed generate call missing");
+      const generateInput = genCall!.vars.generateInput as Record<
+        string,
+        unknown
+      >;
+      assert.deepEqual(generateInput.recentRotation, EMPTY_ROTATION);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("surprise-me does NOT thread recentRotation (ruling-2 guard; input byte-unchanged)", async () => {
+    const captured: { promptKey: string; vars: Record<string, unknown> }[] = [];
+    const runAICall = (async (
+      promptKey: string,
+      vars: Record<string, unknown>,
+    ) => {
+      captured.push({ promptKey, vars });
+      return genSuccess(threeCandidates("surprise"));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any;
+    const harness = await spinUp({
+      runAICall,
+      prisma: makeStubPrisma({
+        preferences: {
+          householdSize: 3,
+          planLengthDefault: 4,
+          cuisines: [],
+          eatingStyles: [],
+          allergiesAndAvoidances: [],
+          weeklyPacingDefault: "mostly_easy",
+          wantsLeftovers: false,
+        },
+      }),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/surprise-me`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("test-user-rotation-sm")}`,
+        },
+      });
+      assert.equal(res.status, 200);
+      const generateInput = captured[0].vars.generateInput as Record<
+        string,
+        unknown
+      >;
+      assert.ok(
+        !("recentRotation" in generateInput),
+        "surprise-me must not carry recentRotation",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
 describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-035)", () => {
   // The wizard hydrates its controls from stored prefs, the user may edit for
   // THIS plan only, and the edit must WIN over stored at generate time (else
