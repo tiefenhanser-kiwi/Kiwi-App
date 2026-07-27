@@ -24,7 +24,7 @@ import {
 } from "./modes";
 import { userFacingMessage, type AICallFailureReason } from "./errors";
 import {
-  estimateCostUsdFromRate,
+  estimateCacheAwareCostUsdFromRate,
   getModelRate,
   renderPromptBody,
   resolvePromptDescriptorFromDb,
@@ -121,6 +121,14 @@ function getClient(): Anthropic | null {
 // Test-only — reset the cached client between tests.
 export function _resetClientCache(): void {
   cachedClient = null;
+}
+
+// Latency Block (D-WS9-076) — the streaming sibling (streamPlanCandidates)
+// reuses this same lazily-built singleton so the undici connection pool is
+// shared with the buffered path (see the D-WS6-085 keep-alive note below).
+// Pure accessor; adds no behavior to runAICall itself.
+export function getSharedAnthropicClient(): Anthropic | null {
+  return getClient();
 }
 
 export async function runAICall<T extends z.ZodTypeAny>(
@@ -252,7 +260,12 @@ export async function runAICall<T extends z.ZodTypeAny>(
         outputTokens,
         cacheReadInputTokens,
         cacheCreationInputTokens,
-        costEstimateUsd: estimateCostUsdFromRate(rate, inputTokens, outputTokens),
+        costEstimateUsd: estimateCacheAwareCostUsdFromRate(rate, {
+          inputTokens,
+          outputTokens,
+          cacheReadInputTokens,
+          cacheCreationInputTokens,
+        }),
         retryCount: attempt,
         success: false,
         failureReason: reason,
@@ -287,7 +300,12 @@ export async function runAICall<T extends z.ZodTypeAny>(
     const parsed = schema.safeParse(extracted.value);
     if (parsed.success) {
       const latencyMs = Date.now() - start;
-      const costEstimateUsd = estimateCostUsdFromRate(rate, inputTokens, outputTokens);
+      const costEstimateUsd = estimateCacheAwareCostUsdFromRate(rate, {
+        inputTokens,
+        outputTokens,
+        cacheReadInputTokens,
+        cacheCreationInputTokens,
+      });
       const metadata: AICallMetadata = {
         promptKey,
         promptVersion,
@@ -360,7 +378,12 @@ export async function runAICall<T extends z.ZodTypeAny>(
     outputTokens,
     cacheReadInputTokens,
     cacheCreationInputTokens,
-    costEstimateUsd: estimateCostUsdFromRate(rate, inputTokens, outputTokens),
+    costEstimateUsd: estimateCacheAwareCostUsdFromRate(rate, {
+      inputTokens,
+      outputTokens,
+      cacheReadInputTokens,
+      cacheCreationInputTokens,
+    }),
     retryCount,
     success: false,
     failureReason: "validation_failed",

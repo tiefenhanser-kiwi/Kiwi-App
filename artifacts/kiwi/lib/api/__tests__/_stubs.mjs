@@ -34,6 +34,15 @@ export async function manipulateAsync() {
 // it has no package.json scope; the loader routes those specifiers to the
 // physical files via PHYSICAL_STUBS in _loader.mjs.
 
+// expo/fetch — the streaming fetch. Tests inject a fetchImpl into
+// streamWizardPlans, so this module-level export is only here to satisfy the
+// import graph; calling it directly in a test is a mistake and throws loudly.
+export const ExpoFetchStub = `
+export async function fetch() {
+  throw new Error("stub: expo/fetch called without an injected fetchImpl");
+}
+`;
+
 // In-memory AsyncStorage — lets AppContext (and lib/storage) load + run under
 // plain Node. Default export mirrors the real module's surface; the named
 // __resetForTests lets test harnesses clear state between cases.

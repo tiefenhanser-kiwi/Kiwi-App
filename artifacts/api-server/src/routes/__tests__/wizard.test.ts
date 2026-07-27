@@ -110,6 +110,8 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
       findMany: async () => [],
       // Block 1 (BUG-030) — expand-side idempotency lookup; default no reuse.
       findFirst: async () => null,
+      // Block 4b-1 (D-WS9-075) — shortlist rotation salt (user's plan count).
+      count: async () => 0,
     },
     meal: {
       findMany: async () => opts.storeMeals ?? [],
@@ -264,6 +266,9 @@ interface Harness {
 async function spinUp(deps: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   runAICall: any;
+  // Latency Block (D-WS9-076) — streaming seam for the SSE branch tests.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  streamPlanCandidates?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prisma: any;
   subscriptionService: SubscriptionService;
@@ -395,6 +400,215 @@ describe("POST /api/wizard/build-plans — happy path", () => {
     assert.deepEqual(ctx.pickyAvoidances, ["cilantro"]);
     assert.deepEqual(ctx.recurringItems, ["olive_oil", "salt"]);
     assert.deepEqual(ctx.pantryStaples, ["garlic", "rice"]);
+  });
+});
+
+// ── Latency Block (D-WS9-076) — build-plans SSE streaming branch ──────────
+// Parse an SSE response body ("event: X\ndata: {...}\n\n"*) into frames.
+function parseSse(text: string): Array<{ event: string; data: any }> {
+  const frames: Array<{ event: string; data: any }> = [];
+  for (const block of text.split("\n\n")) {
+    if (!block.trim()) continue;
+    let event = "message";
+    const dataLines: string[] = [];
+    for (const line of block.split("\n")) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+    }
+    if (dataLines.length === 0) continue;
+    frames.push({ event, data: JSON.parse(dataLines.join("\n")) });
+  }
+  return frames;
+}
+
+// Fake streamPlanCandidates: replays onCandidate for each candidate, then
+// resolves success (or failure when `fail` is set).
+function makeStreamFn(
+  candidates: WizardPlanCandidatesResult["candidates"],
+  opts: { fail?: boolean; skipProgressiveIndex?: number } = {},
+) {
+  let calls = 0;
+  const fn = async (
+    _promptKey: string,
+    _vars: Record<string, unknown>,
+    o: {
+      onCandidate?: (i: number, c: unknown) => void;
+      onProgress?: (info: { bytes: number }) => void;
+      cacheSplitMarker?: string;
+    },
+  ): Promise<AICallResult<WizardPlanCandidatesResult>> => {
+    calls++;
+    if (opts.fail) {
+      return {
+        success: false,
+        reason: "sdk_error",
+        userFacingMessage: "Kiwi got distracted. Try again?",
+        metadata: { promptKey: "wizard.set_preferences.generate" },
+      } as AICallFailure;
+    }
+    // Liveness frames precede the first candidate (the pre-first-card window).
+    o.onProgress?.({ bytes: 64 });
+    o.onProgress?.({ bytes: 512 });
+    candidates.forEach((c, i) => {
+      if (i === opts.skipProgressiveIndex) return; // simulate a catch-up-only card
+      o.onCandidate?.(i, c);
+    });
+    return {
+      success: true,
+      data: { candidates, cannotGenerateMore: false },
+      metadata: {
+        promptKey: "wizard.set_preferences.generate",
+        promptVersion: 5,
+        model: "claude-sonnet-4-6",
+        mode: "tool",
+        latencyMs: 900,
+        inputTokens: 1500,
+        outputTokens: 320,
+        costEstimateUsd: 0.009,
+        retryCount: 0,
+      },
+    } as AICallSuccess<WizardPlanCandidatesResult>;
+  };
+  return { fn, getCalls: () => calls };
+}
+
+describe("POST /api/wizard/build-plans — SSE streaming (D-WS9-076)", () => {
+  const STREAM_USER = "stream-user-1";
+
+  async function streamOnce(deps: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    streamFn: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prisma?: any;
+  }) {
+    const prisma = deps.prisma ?? makeStubPrisma();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      streamPlanCandidates: deps.streamFn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${signToken(STREAM_USER)}`,
+        },
+        body: JSON.stringify(VALID_BODY),
+      });
+      const text = await res.text();
+      return { res, frames: parseSse(text), prisma };
+    } finally {
+      await harness.close();
+    }
+  }
+
+  it("streams one candidate frame per candidate, then a done frame", async () => {
+    const stream = makeStreamFn(happyCandidates().candidates);
+    const { res, frames } = await streamOnce({ streamFn: stream.fn });
+
+    assert.equal(res.status, 200);
+    assert.ok(
+      (res.headers.get("content-type") ?? "").includes("text/event-stream"),
+    );
+    const candidateFrames = frames.filter((f) => f.event === "candidate");
+    const doneFrames = frames.filter((f) => f.event === "done");
+    assert.equal(candidateFrames.length, 3);
+    assert.deepEqual(
+      candidateFrames.map((f) => f.data.index),
+      [0, 1, 2],
+    );
+    assert.equal(candidateFrames[0].data.candidate.id, "c1");
+    assert.equal(doneFrames.length, 1);
+    assert.equal(doneFrames[0].data.cannotGenerateMore, false);
+  });
+
+  it("streams progress frames before the first candidate (watchdog liveness)", async () => {
+    const stream = makeStreamFn(happyCandidates().candidates);
+    const { frames } = await streamOnce({ streamFn: stream.fn });
+    const firstProgress = frames.findIndex((f) => f.event === "progress");
+    const firstCandidate = frames.findIndex((f) => f.event === "candidate");
+    assert.ok(firstProgress >= 0, "at least one progress frame is sent");
+    assert.ok(
+      firstProgress < firstCandidate,
+      "a progress frame arrives before the first candidate frame",
+    );
+    assert.equal(typeof frames[firstProgress].data.bytes, "number");
+  });
+
+  it("reconciles store slots per candidate — a hallucinated alias is dropped", async () => {
+    const cands = happyCandidates().candidates.map((c, i) =>
+      i === 0
+        ? { ...c, storeSlots: [{ slotIndex: 0, storeMealId: "not-a-real-alias" }] }
+        : c,
+    );
+    const stream = makeStreamFn(cands);
+    const { frames } = await streamOnce({ streamFn: stream.fn });
+    const first = frames.find(
+      (f) => f.event === "candidate" && f.data.index === 0,
+    );
+    // The unknown alias isn't in the (empty) shortlist → reconcile strips
+    // storeSlots entirely, proving the per-candidate reconcile runs at emit.
+    assert.equal(first?.data.candidate.storeSlots, undefined);
+  });
+
+  it("catch-up: a candidate not emitted progressively still arrives before done", async () => {
+    // Skip index 1 during progressive emit; the route must backfill it from the
+    // final result so the client ends with the complete set.
+    const stream = makeStreamFn(happyCandidates().candidates, {
+      skipProgressiveIndex: 1,
+    });
+    const { frames } = await streamOnce({ streamFn: stream.fn });
+    const idxs = frames
+      .filter((f) => f.event === "candidate")
+      .map((f) => f.data.index)
+      .sort();
+    assert.deepEqual(idxs, [0, 1, 2]);
+    // No duplicates.
+    assert.equal(new Set(idxs).size, 3);
+  });
+
+  it("emits an error frame (not a JSON 502) when the stream fails", async () => {
+    const stream = makeStreamFn([], { fail: true });
+    const { res, frames, prisma } = await streamOnce({ streamFn: stream.fn });
+    assert.equal(res.status, 200); // SSE committed 200 at header time
+    const errorFrames = frames.filter((f) => f.event === "error");
+    assert.equal(errorFrames.length, 1);
+    assert.ok(errorFrames[0].data.reason);
+    assert.equal(frames.filter((f) => f.event === "done").length, 0);
+    const events = prisma._activities().map((a: { eventType: string }) => a.eventType);
+    assert.ok(events.includes("wizard_failure"));
+  });
+
+  it("without an event-stream Accept header, the buffered JSON path is used", async () => {
+    // The streaming seam must NOT be called; the buffered runAICall path serves
+    // a normal JSON body. Uses a fresh user id for a fresh rate-limit bucket.
+    const stream = makeStreamFn(happyCandidates().candidates);
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      streamPlanCandidates: stream.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("buffered-user-1")}`,
+        },
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+      assert.ok((res.headers.get("content-type") ?? "").includes("application/json"));
+      const body = (await res.json()) as { candidates: unknown[] };
+      assert.equal(body.candidates.length, 3);
+      assert.equal(stream.getCalls(), 0);
+    } finally {
+      await harness.close();
+    }
   });
 });
 

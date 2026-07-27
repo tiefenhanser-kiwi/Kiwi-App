@@ -1,45 +1,44 @@
-// Plan-Gen Arc · Block 2 · D-WS9-037 — the pre-generated meal store's tunable
-// coverage threshold. NOT hardcoded inline at the call site: the compose seam
-// resolves this once per request so the store-vs-live bias is a single knob.
+// Plan-Gen Arc · Block 2 · D-WS9-037 / Block 4b-1 · D-WS9-075 — the pre-generated
+// meal store's tunable retrieval knobs. NOT hardcoded inline at the call site: the
+// compose seam resolves this once per request so the store-vs-live bias is a
+// single knob.
 //
 // Design (per the Block 2 ruling): the composer is AI-driven — build-plans hands
 // the AI a shortlist of shared-pool meals and the AI composes each candidate,
 // picking a store meal per slot when one genuinely fits and inventing a fresh
-// (live) meal otherwise. So the "per-slot coverage threshold" is expressed as
-// the RETRIEVAL knobs that shape the shelf the AI chooses from:
+// (live) meal otherwise. So the "coverage" lever is the shape of the shelf we hand
+// the AI:
 //
-//   shortlistSize  — how many pool meals to offer the AI. Larger = more store
-//                    reach (more slots can plausibly be store-filled).
-//   minMatchScore  — eligibility floor in [0,1]; a pool meal must score at least
-//                    this against the user's prefs to make the shelf. 0 = offer
-//                    everything that passes the hard filters (most aggressive).
+//   shortlistSize        — how many pool meals to offer the AI. With the Block
+//                          4b-1 selection each shelf entry is a DISTINCT parent
+//                          dish, so this is ~how many different dinners the AI can
+//                          choose from.
+//   cuisineQuotaFraction — when the user gave cuisines, the fraction of the shelf
+//                          reserved for cuisine matches; the remainder backfills
+//                          from the rest of the pool so a thin-cuisine user is
+//                          never stranded (narrow, don't strand).
 //
-// Aggressive / store-biased default: a generous shortlist and a zero floor, so a
-// well-stocked store fills most slots. Graceful degrade is STRUCTURAL, not a
-// special case — a thin/near-empty store simply yields a short (or empty) shelf,
-// the AI has little/nothing to pick, and it invents live meals for the gap. The
-// plan is always complete; only the store-vs-live MIX shifts. So Block 2 testing
-// against a near-empty store produces live-fallback plans, never broken ones.
+// Block 4b-1 removed `minMatchScore`: it was inert (floor 0 admitted everything)
+// and the eligibility floor is now expressed by the hard filters (allergen /
+// cuisine quota) plus rank-weighted sampling, not a score threshold.
 //
-// Env overrides let a deploy retune without a code change; a future
-// SystemSetting-backed override (like wizard.candidate_count) could layer on top
-// of resolveStoreComposeConfig without touching call sites.
+// Env overrides let a deploy retune without a code change.
 
 export interface StoreComposeConfig {
   /** Max shared-pool meals handed to the compose AI as the shortlist. */
   shortlistSize: number;
-  /** Eligibility floor in [0,1]; pool meals scoring below this are not offered. */
-  minMatchScore: number;
+  /** Fraction [0,1] of the shelf reserved for cuisine matches when prefs exist. */
+  cuisineQuotaFraction: number;
 }
 
-// Aggressive / store-biased defaults (D-WS9-037).
+// Store-biased defaults (D-WS9-037 / D-WS9-075).
 export const STORE_COMPOSE_DEFAULTS: StoreComposeConfig = {
   shortlistSize: 40,
-  minMatchScore: 0,
+  cuisineQuotaFraction: 0.7,
 };
 
 const ENV_SHORTLIST_SIZE = "KIWI_STORE_SHORTLIST_SIZE";
-const ENV_MIN_MATCH_SCORE = "KIWI_STORE_MIN_MATCH_SCORE";
+const ENV_CUISINE_QUOTA = "KIWI_STORE_CUISINE_QUOTA_FRACTION";
 
 function readNumberEnv(key: string, fallback: number): number {
   const raw = process.env[key];
@@ -49,9 +48,9 @@ function readNumberEnv(key: string, fallback: number): number {
 }
 
 /**
- * Resolve the store-compose threshold for this request. Reads env overrides at
- * call time (so tests can set process.env before invoking) and clamps to sane
- * bounds: shortlistSize to a non-negative integer, minMatchScore to [0,1].
+ * Resolve the store-compose config for this request. Reads env overrides at call
+ * time (so tests can set process.env before invoking) and clamps to sane bounds:
+ * shortlistSize to a non-negative integer, cuisineQuotaFraction to [0,1].
  */
 export function resolveStoreComposeConfig(): StoreComposeConfig {
   const shortlistSize = Math.max(
@@ -60,10 +59,12 @@ export function resolveStoreComposeConfig(): StoreComposeConfig {
       readNumberEnv(ENV_SHORTLIST_SIZE, STORE_COMPOSE_DEFAULTS.shortlistSize),
     ),
   );
-  const minMatchScoreRaw = readNumberEnv(
-    ENV_MIN_MATCH_SCORE,
-    STORE_COMPOSE_DEFAULTS.minMatchScore,
+  const cuisineQuotaFraction = Math.min(
+    1,
+    Math.max(
+      0,
+      readNumberEnv(ENV_CUISINE_QUOTA, STORE_COMPOSE_DEFAULTS.cuisineQuotaFraction),
+    ),
   );
-  const minMatchScore = Math.min(1, Math.max(0, minMatchScoreRaw));
-  return { shortlistSize, minMatchScore };
+  return { shortlistSize, cuisineQuotaFraction };
 }

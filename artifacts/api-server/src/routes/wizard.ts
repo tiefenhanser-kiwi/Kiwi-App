@@ -16,12 +16,14 @@ import { Router, type IRouter, type Request } from "express";
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
+import { streamPlanCandidates as productionStreamPlanCandidates } from "../lib/ai/streamPlanCandidates";
 import {
   WizardExpandRequestSchema,
   WizardExpandedPlanDetailsSchema,
   WizardInputSchema,
   WizardPlanCandidatesResultSchema,
   type WizardInput,
+  type WizardPlanCandidate,
 } from "../lib/ai/schemas/wizard";
 import {
   buildStoreShortlist,
@@ -79,6 +81,10 @@ type PreferencesContext = ResolvedPreferences;
 
 export interface WizardRouterDeps {
   runAICall: typeof productionRunAICall;
+  // Latency Block (D-WS9-076) — streaming sibling for progressive plan-card
+  // render on POST /wizard/build-plans. Injected in tests so the SSE branch is
+  // exercised with a controllable candidate emitter (no real stream).
+  streamPlanCandidates: typeof productionStreamPlanCandidates;
   prisma: PrismaClient;
   subscriptionService: SubscriptionService;
   // Override the rate limiter for tests that want to exercise burst behavior
@@ -114,6 +120,12 @@ export interface WizardRouterDeps {
 // getCandidateCount() (the SystemSetting that governs build-plans / Tell Kiwi).
 const SURPRISE_CANDIDATE_COUNT = 1;
 
+// Latency Block (D-WS9-076) — cache-split point for the generate prompt. The
+// stable instruction head (everything before this {{var}} token) is sent as a
+// cached `system` prefix; the volatile tail (shortlist + wizardInput) stays in
+// the user message. Must match the token in the seeded prompt body verbatim.
+const WIZARD_GENERATE_CACHE_MARKER = "{{storeShortlist}}";
+
 // D-WS9-038 / BUG-039 — shared catalog-compose retrieval. All three generate
 // endpoints (build-plans, surprise-me, build-from-text) hand the AI the same
 // shelf and reconcile the same way; this centralizes the retrieval + its
@@ -121,12 +133,27 @@ const SURPRISE_CANDIDATE_COUNT = 1;
 // the AI composes fully live, never a 500).
 async function retrieveShelf(
   prisma: PrismaClient,
-  opts: { cuisines: string[]; difficulty: string; excludeMealIds?: string[] },
+  opts: {
+    cuisines: string[];
+    allergiesAndAvoidances: string[];
+    difficulty: string;
+    userId: string;
+    excludeMealIds?: string[];
+  },
 ): Promise<Awaited<ReturnType<typeof buildStoreShortlist>>> {
   try {
+    // Rotation salt (Block 4b-1) — the user's saved-plan count. Seeds shortlist
+    // variety across a user's plans; deterministic within a request (build-plans
+    // and expand of the same plan share one salt).
+    const rotationSalt = await prisma.mealPlanInstance.count({
+      where: { userId: opts.userId, isWizardDraft: false },
+    });
     return await buildStoreShortlist(prisma, {
       cuisines: opts.cuisines,
+      allergiesAndAvoidances: opts.allergiesAndAvoidances,
       difficulty: opts.difficulty,
+      userId: opts.userId,
+      rotationSalt,
       excludeMealIds: opts.excludeMealIds,
       config: resolveStoreComposeConfig(),
     });
@@ -143,6 +170,8 @@ export function createWizardRouter(
   deps: Partial<WizardRouterDeps> = {},
 ): IRouter {
   const runAICall = deps.runAICall ?? productionRunAICall;
+  const streamPlanCandidates =
+    deps.streamPlanCandidates ?? productionStreamPlanCandidates;
   const prisma = deps.prisma ?? productionPrisma;
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
@@ -431,9 +460,137 @@ export function createWizardRouter(
       //     empty shelf (fully-live) rather than 500.
       const storeShortlist = await retrieveShelf(prisma, {
         cuisines: aiInput.cuisines ?? [],
+        allergiesAndAvoidances: aiInput.allergiesAndAvoidances ?? [],
         difficulty: aiInput.difficulty,
+        userId,
         excludeMealIds: hiddenContext?.recentMealIds,
       });
+
+      // 5-STREAM. Progressive render (Latency Block, D-WS9-076). When the client
+      //   negotiates an event stream, emit each candidate the MOMENT it
+      //   structurally completes instead of buffering all three (~22s wall →
+      //   first card in seconds). Any non-streaming Accept falls through to the
+      //   buffered path below, byte-unchanged — so old clients and a
+      //   stream-incapable client degrade to today's behavior, never fail.
+      const wantsStream = (req.headers.accept ?? "").includes(
+        "text/event-stream",
+      );
+      if (wantsStream) {
+        res.status(200);
+        res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("Connection", "keep-alive");
+        // Defeat proxy/gzip buffering (Replit/nginx) so frames flush live.
+        res.setHeader("X-Accel-Buffering", "no");
+        res.flushHeaders?.();
+
+        // Stop writing once the client is gone (navigated away mid-stream) so a
+        // closed socket doesn't throw EPIPE. The AI call still completes +
+        // logs server-side; only the wire writes are suppressed.
+        let clientGone = false;
+        res.on("close", () => {
+          clientGone = true;
+        });
+
+        const sent = new Set<number>();
+        const sendFrame = (event: string, data: unknown): void => {
+          if (clientGone) return;
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        };
+        // Reconcile store-slot aliases per-candidate at emit time (same guard as
+        // the buffered path, D-WS9-038), and never exceed the configured count.
+        const sendCandidate = (
+          index: number,
+          candidate: WizardPlanCandidate,
+        ): void => {
+          if (sent.has(index) || index >= candidateCount) return;
+          const [reconciled] = reconcileStoreSlots(
+            [candidate],
+            storeShortlist.aliasToId,
+          );
+          sent.add(index);
+          sendFrame("candidate", { index, candidate: reconciled });
+        };
+
+        const streamResult = await streamPlanCandidates(
+          "wizard.set_preferences.generate",
+          { wizardInput, storeShortlist: storeShortlist.forPrompt },
+          {
+            prisma,
+            userId,
+            cacheSplitMarker: WIZARD_GENERATE_CACHE_MARKER,
+            onCandidate: sendCandidate,
+            // Delta-driven liveness: keeps the client's stall watchdog alive
+            // across the ~9s window before the first candidate completes. Driven
+            // by real model output, so a true stall stops the frames and the
+            // watchdog fires correctly. Client ignores this frame type.
+            onProgress: (info) => sendFrame("progress", info),
+          },
+        );
+
+        if (!streamResult.success) {
+          logger.warn(
+            {
+              event: "wizard_build_plans_stream_failed",
+              userId,
+              reason: streamResult.reason,
+              promptKey: "wizard.set_preferences.generate",
+            },
+            "Wizard plan generation (stream) failed",
+          );
+          await emitActivity(userId, "wizard_failure");
+          // Client falls back to the buffered endpoint on an error frame with
+          // zero candidates; if some already streamed it keeps them + offers a
+          // retry (client-owned fallback).
+          sendFrame("error", {
+            error: streamResult.userFacingMessage,
+            reason: streamResult.reason,
+          });
+          return res.end();
+        }
+
+        // Catch-up: emit any validated candidate that didn't surface
+        // progressively (e.g. one that only became parseable at finalMessage),
+        // so the client always ends with the full set regardless of mid-stream
+        // parse timing. `sent` dedupes; `candidateCount` trims.
+        const finalCandidates = streamResult.data.candidates.slice(
+          0,
+          candidateCount,
+        );
+        finalCandidates.forEach((c, index) => sendCandidate(index, c));
+
+        // Guard 2 (D-WS9-076) — generate-time store-slot adherence signal for
+        // the cache A/B. `path:"stream"` uses the cached system prefix; compare
+        // storeSlotsMarked against the `path:"buffered"` line (no cache) over a
+        // handful of generations to catch an adherence shift from the
+        // system-block move. Raw MARKED count (pre-reconcile) is the purest
+        // "did the model still bind to the shelf?" signal.
+        logger.info(
+          {
+            event: "wizard_build_plans_summary",
+            path: "stream",
+            userId,
+            candidates: finalCandidates.length,
+            storeSlotsMarked: finalCandidates.reduce(
+              (n, c) => n + (c.storeSlots?.length ?? 0),
+              0,
+            ),
+            latencyMs: streamResult.metadata.latencyMs,
+          },
+          "Wizard build-plans generate summary (stream)",
+        );
+
+        sendFrame("done", {
+          cannotGenerateMore: streamResult.data.cannotGenerateMore,
+          reason: streamResult.data.reason,
+          metadata: {
+            promptVersion: streamResult.metadata.promptVersion,
+            latencyMs: streamResult.metadata.latencyMs,
+          },
+        });
+        await emitActivity(userId, "wizard_complete");
+        return res.end();
+      }
 
       // 5. Run the AI call — compose against the shelf.
       const result = await runAICall(
@@ -469,9 +626,24 @@ export function createWizardRouter(
       //    so a slot only stays store-filled when its alias was genuinely
       //    offered. The fork-time isPublic recheck (save path) is the second,
       //    authoritative guard; this one keeps the wire honest.
-      const candidates = reconcileStoreSlots(
-        result.data.candidates.slice(0, candidateCount),
-        storeShortlist.aliasToId,
+      const trimmed = result.data.candidates.slice(0, candidateCount);
+      const candidates = reconcileStoreSlots(trimmed, storeShortlist.aliasToId);
+      // Guard 2 (D-WS9-076) — buffered-path counterpart to the stream summary
+      // above (this path does NOT use the cached system prefix). Same shape so
+      // storeSlotsMarked is directly comparable across the two paths.
+      logger.info(
+        {
+          event: "wizard_build_plans_summary",
+          path: "buffered",
+          userId,
+          candidates: trimmed.length,
+          storeSlotsMarked: trimmed.reduce(
+            (n, c) => n + (c.storeSlots?.length ?? 0),
+            0,
+          ),
+          latencyMs: result.metadata.latencyMs,
+        },
+        "Wizard build-plans generate summary (buffered)",
       );
       const response = {
         candidates,
@@ -665,10 +837,18 @@ export function createWizardRouter(
         preferencesContext,
       };
 
-      // Fix 4 — Tell Kiwi composes from the catalog too.
+      // Fix 4 — Tell Kiwi composes from the catalog too. The directed body carries
+      // no difficulty, so the shelf ceiling reads the user's stored skill level
+      // (Block 4b-1) rather than the old hardcoded "medium".
+      const tkPrefs = await prisma.userPreferences.findUnique({
+        where: { userId },
+        select: { difficultyDefault: true },
+      });
       const storeShortlist = await retrieveShelf(prisma, {
         cuisines: directed.cuisines ?? [],
-        difficulty: "medium",
+        allergiesAndAvoidances: directed.allergiesAndAvoidances ?? [],
+        difficulty: tkPrefs?.difficultyDefault ?? "easy",
+        userId,
         excludeMealIds: hiddenContext?.recentMealIds,
       });
 
@@ -780,6 +960,7 @@ export function createWizardRouter(
             cuisines: true,
             eatingStyles: true,
             allergiesAndAvoidances: true,
+            difficultyDefault: true,
             dietaryNotes: true,
             weeklyPacingDefault: true,
             wantsLeftovers: true,
@@ -816,7 +997,9 @@ export function createWizardRouter(
         // Fix 4 — Surprise-me composes from the catalog too.
         const storeShortlist = await retrieveShelf(prisma, {
           cuisines: storedPrefs?.cuisines ?? [],
-          difficulty: "medium",
+          allergiesAndAvoidances: storedPrefs?.allergiesAndAvoidances ?? [],
+          difficulty: storedPrefs?.difficultyDefault ?? "easy",
+          userId,
           excludeMealIds: hiddenContext?.recentMealIds,
         });
 

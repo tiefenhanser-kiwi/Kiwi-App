@@ -15,6 +15,7 @@ import {
   SecureStoreStub,
   ImageManipulatorStub,
   AsyncStorageStub,
+  ExpoFetchStub,
 } from "./_stubs.mjs";
 
 // Inline-source stubs (don't import React; safe to ship as data-style modules
@@ -23,6 +24,7 @@ const STUBS = new Map([
   ["expo-secure-store", SecureStoreStub],
   ["expo-image-manipulator", ImageManipulatorStub],
   ["@react-native-async-storage/async-storage", AsyncStorageStub],
+  ["expo/fetch", ExpoFetchStub],
 ]);
 
 // WS7-4-B c6 — physical stub files. These need real file URLs so the loader

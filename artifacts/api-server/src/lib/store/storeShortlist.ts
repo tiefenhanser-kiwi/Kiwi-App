@@ -18,17 +18,17 @@
 // store-filled with an id we actually offered, and only at an in-range slot.
 // Hallucinated / out-of-range marks are dropped, demoting those slots to live.
 
-import type { PrismaClient } from "@prisma/client";
+import type { DifficultyLevel, Prisma, PrismaClient } from "@prisma/client";
 
 import type { StoreComposeConfig } from "./storeComposeConfig";
 import type { WizardPlanCandidate } from "../ai/schemas/wizard";
-
-// Difficulty ordering for the ceiling signal.
-const DIFFICULTY_RANK: Record<string, number> = {
-  easy: 0,
-  medium: 1,
-  fancy: 2,
-};
+import { lookupDishFamily, NON_CATALOG_RANK } from "./dishFamily";
+import { cuisineMatches, userCuisineTokens } from "./cuisineNormalize";
+import { allergenTokensForUser, allergenWhereConditions } from "./allergenFilter";
+import {
+  rngFromString,
+  weightedSampleWithoutReplacement,
+} from "./shortlistSampling";
 
 // The per-meal shape handed to the compose AI. Lean but enough to reason about
 // fit + macros. `id` is a SHORT per-shortlist alias (m1, m2, …) the AI echoes
@@ -48,6 +48,22 @@ export interface StoreShortlistMeal {
   };
 }
 
+// The projected DB row the selection pipeline works over.
+interface StoreRow {
+  id: string;
+  title: string;
+  cuisineType: string | null;
+  difficulty: string;
+  estimatedTimeMinutes: number;
+  tags: string[];
+  caloriesPerServing: number;
+  proteinGPerServing: number;
+  carbsGPerServing: number;
+  fatGPerServing: number;
+  dishFamilyKey: string | null;
+  allergens: string[];
+}
+
 export interface StoreShortlist {
   /** JSON-serializable shelf for the {{storeShortlist}} prompt slot. */
   forPrompt: StoreShortlistMeal[];
@@ -63,23 +79,87 @@ export interface StoreShortlist {
 }
 
 export interface BuildStoreShortlistOptions {
+  /** The user's selected cuisine prefs (free-form UI labels). */
   cuisines: string[];
-  /** The user's difficulty ceiling (easy | medium | fancy). */
+  /** The user's allergy labels (domain.ts ALLERGIES_AND_AVOIDANCES) — hard filter. */
+  allergiesAndAvoidances: string[];
+  /** The user's cooking skill (easy | medium | fancy) — tiered difficulty ceiling. */
   difficulty: string;
+  /** Seeds per-user shortlist variety (two users with equal prefs differ). */
+  userId: string;
+  /** Rotates the seed across a user's plans so repeat requests vary. */
+  rotationSalt: number;
   /** Meal ids to exclude (recent history — avoid repeats). */
   excludeMealIds?: string[];
   config: StoreComposeConfig;
 }
 
-// Over-fetch factor: pull more than shortlistSize from the DB, score, then trim.
-// Cheap headroom so ranking isn't decided by the DB's arbitrary row order.
-const OVERFETCH = 4;
-const OVERFETCH_CAP = 400;
+// Difficulty tiers, ordered. The user's skill sets a HARD ceiling one tier above
+// their level (a beginner gets easy+medium, never fancy — a too-hard meal reads as
+// "this app makes cooking hard" and churns; a mild stretch reads as a pleasant
+// surprise). No floor: an easy weeknight meal suits any skill level.
+const DIFFICULTY_RANK: Record<string, number> = { easy: 0, medium: 1, fancy: 2 };
+const DIFFICULTY_LEVELS = ["easy", "medium", "fancy"] as const;
+
+// Within the allowed band, weight toward the user's ACTUAL level: each tier of
+// distance from their level multiplies the meal's weight by this falloff. So a
+// beginner's easy+medium band leans easy; a medium cook's band leans medium.
+const DIFFICULTY_WEIGHT_FALLOFF = 0.5;
+
+function difficultyLevel(v: string): number {
+  return DIFFICULTY_RANK[v] ?? DIFFICULTY_RANK.fancy;
+}
+
+// The difficulty tokens a user of the given skill may be served: everything up to
+// and including one tier above their level. Missing/unknown skill → treat as the
+// most permissive (fancy) so we never over-restrict on bad input.
+function allowedDifficultyLevels(userDifficulty: string): DifficultyLevel[] {
+  const ceiling = Math.min(
+    difficultyLevel(userDifficulty) + 1,
+    DIFFICULTY_RANK.fancy,
+  );
+  return DIFFICULTY_LEVELS.filter((d) => DIFFICULTY_RANK[d] <= ceiling);
+}
+
+// Safety bound on the eligible fetch. Far above the current dinner pool (~1.1k),
+// so reach ≈ the whole filtered catalog (the old newest-160 window is gone).
+// Keyset-paginate here if the catalog ever grows past this.
+const POOL_FETCH_CAP = 5000;
+
+// Rank → sampling weight. Decreasing in rank so popular parents (low rank) are
+// favored, but every parent keeps a positive chance (tail stays reachable). The
+// gentle 1/sqrt(rank) curve leans popular without starving the mid/tail.
+// Exported so the non-catalog-rank regression test can assert the tail-starvation
+// property against the REAL curve (a future change to it must not re-starve
+// live_writeback meals silently).
+export function rankWeight(rank: number): number {
+  return 1 / Math.sqrt(rank);
+}
+
+interface EnrichedRow {
+  row: StoreRow;
+  parentKey: string;
+  rank: number;
+  matches: boolean;
+  /** Distance (in tiers) of this meal's difficulty from the user's level. */
+  difficultyDistance: number;
+}
 
 /**
- * Retrieve + rank the shared-pool shortlist for a compose request. Returns an
- * empty shelf (not an error) when the store is thin — the caller then composes
- * fully-live, which is the structural graceful-degrade (D-WS9-037).
+ * Retrieve + select the shared-pool shortlist for a compose request (Block 4b-1,
+ * D-WS9-075). Pipeline:
+ *   1. HARD FILTERS in the DB: isPublic/dinner/not-archived, recent-exclude, and
+ *      the allergen filter (exclude stamped matches; conservative unstamped
+ *      exclusion when the user has any allergy).
+ *   2. DIVERSITY CAP: recover each meal's parent dish (dishFamilyKey → spine) and
+ *      keep ONE seeded version per parent — so a 40-shelf is ~40 DISTINCT dinners,
+ *      not six versions of a crowd-pleaser.
+ *   3. CUISINE QUOTA: reserve the majority of the shelf for cuisine matches, then
+ *      backfill from the rest so a thin-cuisine user is never stranded.
+ *   4. RANK-WEIGHTED SAMPLING seeded by (userId, rotationSalt): leans popular,
+ *      varies per user + per request, fully deterministic.
+ * Returns an empty shelf (not an error) when the pool is empty — the caller then
+ * composes fully-live (structural graceful-degrade, D-WS9-037).
  */
 export async function buildStoreShortlist(
   prisma: PrismaClient,
@@ -90,16 +170,25 @@ export async function buildStoreShortlist(
     return { forPrompt: [], aliasToId: new Map() };
   }
 
-  const take = Math.min(config.shortlistSize * OVERFETCH, OVERFETCH_CAP);
-  const rows = await prisma.meal.findMany({
-    where: {
-      isPublic: true,
-      isArchived: false,
-      mealType: "dinner",
-      ...(opts.excludeMealIds && opts.excludeMealIds.length > 0
-        ? { id: { notIn: opts.excludeMealIds } }
-        : {}),
-    },
+  const allergenTokens = allergenTokensForUser(opts.allergiesAndAvoidances);
+  const andConditions: Prisma.MealWhereInput[] = allergenWhereConditions(
+    allergenTokens,
+  );
+  const allowedLevels = allowedDifficultyLevels(opts.difficulty);
+  const where: Prisma.MealWhereInput = {
+    isPublic: true,
+    isArchived: false,
+    mealType: "dinner",
+    // Hard difficulty ceiling — one tier above the user's skill (D-WS9-075).
+    difficulty: { in: allowedLevels },
+    ...(opts.excludeMealIds && opts.excludeMealIds.length > 0
+      ? { id: { notIn: opts.excludeMealIds } }
+      : {}),
+    ...(andConditions.length > 0 ? { AND: andConditions } : {}),
+  };
+
+  const rows = (await prisma.meal.findMany({
+    where,
     select: {
       id: true,
       title: true,
@@ -111,57 +200,111 @@ export async function buildStoreShortlist(
       proteinGPerServing: true,
       carbsGPerServing: true,
       fatGPerServing: true,
-      useCount: true,
-      likeCount: true,
-      createdAt: true,
+      dishFamilyKey: true,
+      allergens: true,
     },
-    // Popular first, so an over-fetch that can't hold the whole pool still
-    // captures the strongest candidates before scoring re-ranks them.
-    orderBy: [{ useCount: "desc" }, { likeCount: "desc" }, { createdAt: "desc" }],
-    take,
+    // Deterministic base order so seeded sampling is reproducible regardless of
+    // the DB's physical row order (the sampling result depends on the order rng
+    // draws are assigned to rows).
+    orderBy: { id: "asc" },
+    take: POOL_FETCH_CAP,
+  })) as StoreRow[];
+
+  if (rows.length === 0) {
+    return { forPrompt: [], aliasToId: new Map() };
+  }
+
+  const userTokens = userCuisineTokens(opts.cuisines);
+  const userLevel = difficultyLevel(opts.difficulty);
+  const rng = rngFromString(`${opts.userId}:${opts.rotationSalt}`);
+
+  // Enrich with parent + rank + cuisine match + difficulty distance. Sorted by id
+  // above → stable.
+  const enriched: EnrichedRow[] = rows.map((row) => {
+    const info = lookupDishFamily(row.dishFamilyKey);
+    return {
+      row,
+      parentKey: info ? info.parentKey : `x:${row.id}`,
+      rank: info ? info.rank : NON_CATALOG_RANK,
+      matches: cuisineMatches(row.cuisineType, userTokens),
+      difficultyDistance: Math.abs(difficultyLevel(row.difficulty) - userLevel),
+    };
   });
 
-  const cuisineSet = new Set(
-    opts.cuisines.map((c) => c.trim().toLowerCase()).filter(Boolean),
-  );
-  const ceiling = DIFFICULTY_RANK[opts.difficulty] ?? DIFFICULTY_RANK.fancy;
-  const maxPopularity = rows.reduce(
-    (m, r) => Math.max(m, r.useCount + r.likeCount),
-    0,
-  );
+  // Sampling weight = popularity (rank) × difficulty affinity (leans toward the
+  // user's actual skill level). Used both for the per-parent version pick (rank is
+  // constant within a parent, so it leans the surviving version toward the user's
+  // level) and for the final shelf sampling.
+  const weightOf = (e: EnrichedRow): number =>
+    rankWeight(e.rank) *
+    Math.pow(DIFFICULTY_WEIGHT_FALLOFF, e.difficultyDistance);
 
-  const scored = rows.map((r) => {
-    let score = 0.4; // passed the hard filters
-    if (
-      r.cuisineType &&
-      cuisineSet.has(r.cuisineType.trim().toLowerCase())
-    ) {
-      score += 0.35;
-    }
-    const rank = DIFFICULTY_RANK[r.difficulty] ?? DIFFICULTY_RANK.fancy;
-    if (rank <= ceiling) score += 0.15;
-    if (maxPopularity > 0) {
-      score += 0.1 * ((r.useCount + r.likeCount) / maxPopularity);
-    }
-    return { row: r, score };
-  });
+  // 2. Diversity cap — one version per parent dish, leaning to the user's level.
+  const byParent = new Map<string, EnrichedRow[]>();
+  for (const e of enriched) {
+    const group = byParent.get(e.parentKey);
+    if (group) group.push(e);
+    else byParent.set(e.parentKey, [e]);
+  }
+  const reps: EnrichedRow[] = [];
+  for (const group of byParent.values()) {
+    const [pick] = weightedSampleWithoutReplacement(group, weightOf, 1, rng);
+    if (pick) reps.push(pick);
+  }
 
-  const eligible = scored
-    .filter((s) => s.score >= config.minMatchScore)
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        b.row.useCount + b.row.likeCount - (a.row.useCount + a.row.likeCount) ||
-        b.row.createdAt.getTime() - a.row.createdAt.getTime(),
-    )
-    .slice(0, config.shortlistSize);
+  // 3 + 4. Cuisine quota + rank/difficulty-weighted sampling.
+  const size = config.shortlistSize;
+  let selected: EnrichedRow[];
+
+  if (userTokens.size > 0) {
+    const matches = reps.filter((e) => e.matches);
+    const nonMatches = reps.filter((e) => !e.matches);
+    const matchTarget = Math.min(
+      matches.length,
+      Math.ceil(size * config.cuisineQuotaFraction),
+    );
+    const chosenMatches = weightedSampleWithoutReplacement(
+      matches,
+      weightOf,
+      matchTarget,
+      rng,
+    );
+    // Backfill from OUTSIDE the chosen cuisines first — guarantees some variety
+    // beyond the user's picks — then, only if those are exhausted, leftover
+    // matches. Narrow toward the prefs, but never strand a thin-cuisine user.
+    const chosenNon = weightedSampleWithoutReplacement(
+      nonMatches,
+      weightOf,
+      size - chosenMatches.length,
+      rng,
+    );
+    selected = [...chosenMatches, ...chosenNon];
+    if (selected.length < size) {
+      const taken = new Set(selected.map((e) => e.row.id));
+      const leftoverMatches = matches.filter((e) => !taken.has(e.row.id));
+      selected = [
+        ...selected,
+        ...weightedSampleWithoutReplacement(
+          leftoverMatches,
+          weightOf,
+          size - selected.length,
+          rng,
+        ),
+      ];
+    }
+  } else {
+    selected = weightedSampleWithoutReplacement(reps, weightOf, size, rng);
+  }
+
+  // Order popular-first (rank asc) for the prompt; stable id tiebreak.
+  selected.sort((a, b) => a.rank - b.rank || (a.row.id < b.row.id ? -1 : 1));
 
   // Assign a short per-shortlist alias (m1, m2, …) as the id the AI sees. The
   // real Meal.id is held in aliasToId for reconcile to translate back. This is
   // what scales: the alias space is bounded by shortlistSize, never the catalog,
   // and short tokens round-trip through the model far more reliably than UUIDs.
   const aliasToId = new Map<string, string>();
-  const forPrompt: StoreShortlistMeal[] = eligible.map(({ row }, i) => {
+  const forPrompt: StoreShortlistMeal[] = selected.map(({ row }, i) => {
     const alias = `m${i + 1}`;
     aliasToId.set(alias, row.id);
     return {

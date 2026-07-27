@@ -18,7 +18,7 @@ import type { WizardPlanCandidate, WizardPreferencesInput } from "../types";
 // kept mobile-side rather than imported so the mobile package stays
 // independent of the api-server build. `.passthrough()` for forward-compat.
 
-const WizardPlanCandidateSchema = z
+export const WizardPlanCandidateSchema = z
   .object({
     id: z.string(),
     title: z.string(),

@@ -393,6 +393,38 @@ export function renderPromptBody(
   });
 }
 
+// Latency Block (D-WS9-076) — cache-prefix split. Splits a raw prompt body at
+// the FIRST occurrence of `marker` (a {{var}} token that begins the volatile
+// tail) into a stable head + volatile tail, rendering each with `vars`. The
+// head carries no template vars (it is stable/byte-identical across users), so
+// it renders to itself and is safe to pass as a cached `system` prefix.
+//
+// INVARIANT (the Guard-1 acceptance criterion): for any body/marker/vars,
+//   splitRenderedPrompt(body, marker, vars).prefix + .body
+// is byte-for-byte identical to renderPromptBody(body, vars). This holds
+// because the split index is a token boundary — renderPromptBody replaces only
+// whole {{name}} tokens, and slicing at the marker's START never bisects one.
+//
+// When `marker` is undefined, empty, at index 0, or not found, prefix is null
+// and body is the full rendered body — byte-identical to the non-cached path
+// (no split, no cache). Callers treat prefix===null as "caching not applied".
+export function splitRenderedPrompt(
+  body: string,
+  marker: string | undefined,
+  vars: Record<string, unknown>,
+): { prefix: string | null; body: string } {
+  if (marker) {
+    const idx = body.indexOf(marker);
+    if (idx > 0) {
+      return {
+        prefix: renderPromptBody(body.slice(0, idx), vars),
+        body: renderPromptBody(body.slice(idx), vars),
+      };
+    }
+  }
+  return { prefix: null, body: renderPromptBody(body, vars) };
+}
+
 // ── Prisma surface ──────────────────────────────────────────────────────
 // Minimal structural type. Lets tests inject a stub without depending on
 // the full PrismaClient type or any Prisma runtime.
@@ -613,6 +645,32 @@ export function estimateCostUsdFromRate(
   const inputCost = (inputTokens / 1_000_000) * rate.inputPerMtokUsd;
   const outputCost = (outputTokens / 1_000_000) * rate.outputPerMtokUsd;
   return inputCost + outputCost;
+}
+
+// Latency Block (D-WS9-076, Bug 2) — cache-AWARE cost. The plain estimator
+// above bills only uncached input + output, which UNDER-reports every cached
+// call: the API's `input_tokens` is the uncached remainder, and cache writes
+// (1.25×) + cache reads (0.1×) are separate token buckets it omits entirely.
+// Same model as storeFill.ts's computeCacheAwareCostUsd (kept here to avoid a
+// circular import — storeFill imports runAICall, which imports this). Use this
+// wherever costEstimateUsd is written to LLMCallLog.
+export function estimateCacheAwareCostUsdFromRate(
+  rate: ModelRate,
+  tokens: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadInputTokens?: number;
+    cacheCreationInputTokens?: number;
+  },
+): number {
+  const inPerTok = rate.inputPerMtokUsd / 1_000_000;
+  const outPerTok = rate.outputPerMtokUsd / 1_000_000;
+  return (
+    tokens.inputTokens * inPerTok +
+    (tokens.cacheCreationInputTokens ?? 0) * inPerTok * 1.25 +
+    (tokens.cacheReadInputTokens ?? 0) * inPerTok * 0.1 +
+    tokens.outputTokens * outPerTok
+  );
 }
 
 // Sync convenience helper that uses the fallback rates table. Production

@@ -58,6 +58,10 @@ export type ExpandCandidateResult =
       // BUG-040 — how many store slots were rejected for invalid ingredients
       // (bad catalog data) and fell back to live. 0 on a healthy catalog.
       storeMealsRejected: number;
+      // Block 4b-1 (D-WS9-075) — store-hit telemetry. How many slots bound to a
+      // catalog meal vs were composed live, so the catalog hit-rate is measurable.
+      storeMealsBound: number;
+      liveMealsComposed: number;
     }
   | {
       status: "ai_failed";
@@ -153,6 +157,25 @@ export async function expandCandidate(
     }
     liveSlots.push({ slotIndex: i, title: mealTitles[i] });
   }
+
+  // Block 4b-1 (D-WS9-075) — store-hit telemetry. ONE structured line per expand
+  // so "how many slots bound to the catalog?" is answerable from logs without
+  // guessing (a successful bind was previously silent). `bound` counts slots the
+  // AI marked store-filled that read successfully; `rejected` were marked but had
+  // bad data and demoted to live; `live` includes both unmarked and demoted slots.
+  const storeMealsBound = storeComposedBySlot.size;
+  logger.info(
+    {
+      event: "wizard_store_compose_summary",
+      userId: opts.userId,
+      candidateId: opts.request.candidate.id,
+      totalSlots: mealTitles.length,
+      storeMealsBound,
+      liveMealsComposed: liveSlots.length,
+      storeMealsRejected,
+    },
+    "Wizard expand store-compose summary",
+  );
 
   // 1. AI-expand the LIVE slots only (store slots already carry full detail).
   const perMealResults = await Promise.all(
@@ -316,6 +339,8 @@ export async function expandCandidate(
   return {
     status: "success",
     storeMealsRejected,
+    storeMealsBound,
+    liveMealsComposed: liveSlots.length,
     expanded: {
       candidateId: opts.request.candidate.id,
       title: opts.request.candidate.title,

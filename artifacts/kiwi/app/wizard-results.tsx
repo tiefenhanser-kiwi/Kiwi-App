@@ -19,7 +19,13 @@ import { Header } from "@/components/Header";
 import { LoadingShim } from "@/components/LoadingShim";
 import { Screen } from "@/components/Screen";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
-import { useBuildWizardPlans } from "@/hooks/useBuildWizardPlans";
+// Latency Block (D-WS9-076) — streaming hook replaces the buffered
+// useBuildWizardPlans on the Set-Preferences path. Same mutation-shaped surface
+// (mutate/reset/data/isPending/isSuccess/isError), but data.candidates GROWS as
+// the SSE stream lands each card, so the gates below render progressively. It
+// falls back to the buffered endpoint on any stream failure (worst case =
+// today). Tell-Kiwi + Surprise-me stay buffered (separate flows).
+import { useBuildWizardPlansStreaming } from "@/hooks/useBuildWizardPlansStreaming";
 import { useBuildSurprise } from "@/hooks/useBuildSurprise";
 import {
   activateWizardDraft,
@@ -244,7 +250,7 @@ export default function WizardResultsScreen() {
   // `input` is identical (re-entering the wizard with unchanged prefs would
   // otherwise leave React Query showing the previous mount's data).
   const [attempt, setAttempt] = useState(0);
-  const mutation = useBuildWizardPlans();
+  const mutation = useBuildWizardPlansStreaming();
 
   useEffect(() => {
     // Tell Kiwi preloads its result via params; never re-fire the wizard
