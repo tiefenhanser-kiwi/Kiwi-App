@@ -63,10 +63,14 @@ describe("recent-rotation cache split (build-plans body)", () => {
       withRotationVars,
     );
     assert.ok(bare.prefix, "expected a cached prefix (marker must be found)");
+    // Byte-identity is the load-bearing guard: the tail cannot perturb the
+    // cached prefix, because the prefix carries no {{wizardInput}} token.
     assert.equal(nudged.prefix, bare.prefix);
-    // The prefix must not carry any part of the volatile tail's payload.
-    assert.ok(!nudged.prefix!.includes("recentRotation"));
-    assert.ok(!nudged.prefix!.includes("Fajitas"));
+    // The instruction text in the prefix may NAME the `recentRotation` field
+    // (the recent-history section references it), but the payload's DATA VALUES
+    // must never leak into the cached prefix.
+    assert.ok(!nudged.prefix!.includes("Weeknight Chicken Fajitas"));
+    assert.ok(!nudged.prefix!.includes("chicken-fajitas"));
   });
 
   it("the rotation payload lands in the volatile tail (below the marker)", () => {
@@ -75,7 +79,8 @@ describe("recent-rotation cache split (build-plans body)", () => {
       MARKER,
       withRotationVars,
     );
-    assert.ok(nudged.body.includes("recentRotation"));
+    // Assert on data VALUES (only rendered from {{wizardInput}}), not the field
+    // name (which now also appears in the instruction text above the marker).
     assert.ok(nudged.body.includes("Weeknight Chicken Fajitas"));
     assert.ok(nudged.body.includes("chicken-fajitas"));
   });
@@ -97,7 +102,7 @@ describe("recent-rotation renders in the directed body tail", () => {
   // Directed uses buffered runAICall (no cached prefix), so there is no marker
   // split at runtime — but the payload must still render inside {{generateInput}},
   // which sits after the shelf section in the body.
-  it("recentRotation appears after the storeShortlist marker in the rendered body", () => {
+  it("the rotation payload renders after the shelf in the directed body", () => {
     const rendered = renderPromptBody(WIZARD_DIRECTED_GENERATE_BODY, {
       storeShortlist: shortlist,
       generateInput: {
@@ -106,11 +111,14 @@ describe("recent-rotation renders in the directed body tail", () => {
       },
     });
     const shelfAt = rendered.indexOf("Sheet-pan chicken"); // rendered shortlist
-    const rotationAt = rendered.indexOf("recentRotation");
-    assert.ok(rotationAt > -1, "recentRotation missing from directed body");
+    // Key off a payload DATA value: the field name `recentRotation` now also
+    // appears in the body's instruction text (above the shelf), so searching
+    // for the name would find the wrong occurrence.
+    const rotationDataAt = rendered.indexOf("Weeknight Chicken Fajitas");
+    assert.ok(rotationDataAt > -1, "rotation payload missing from directed body");
     assert.ok(
-      rotationAt > shelfAt,
-      "recentRotation should render below the shelf",
+      rotationDataAt > shelfAt,
+      "rotation payload should render below the shelf",
     );
   });
 });

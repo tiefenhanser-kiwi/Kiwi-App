@@ -794,7 +794,10 @@ describe("POST /api/wizard/build-plans — planning-context wiring", () => {
       `unexpected season ${pc.season}`,
     );
     assert.ok(Array.isArray(pc.upcomingEvents));
-    assert.ok(Array.isArray(pc.recentMeals));
+    // Block 4b-2 (D-WS9-073, Part 1b) — recentMeals is STRIPPED from the
+    // build-plans payload (recentRotation is the recency unit now); it survives
+    // only on the surprise route. recentPlanNames stays on planningContext.
+    assert.ok(!("recentMeals" in pc), "recentMeals should be stripped");
     assert.ok(Array.isArray(pc.recentPlanNames));
   });
 });

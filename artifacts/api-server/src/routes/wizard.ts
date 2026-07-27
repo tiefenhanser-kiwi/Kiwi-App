@@ -451,14 +451,22 @@ export function createWizardRouter(
           maxCookTimeCoverage,
         },
       );
+      // Block 4b-2 (D-WS9-073, Part 1b) — recentRotation REPLACES recentMeals as
+      // this route's recency unit, so strip recentMeals from the payload: one
+      // recency signal, no two-sources-of-truth drift. recentMeals stays live
+      // ONLY for wizard.surprise.generate, which still reads it. (buildPlanning-
+      // Context still computes it — a negligible read left in place rather than
+      // refactoring the shared helper.)
+      const { recentMeals: _strippedRecentMeals, ...planningContextForPrompt } =
+        planningContext;
       const wizardInput: WizardInput & {
-        planningContext: PlanningContext;
+        planningContext: Omit<PlanningContext, "recentMeals">;
         preferencesContext: PreferencesContext;
         recentRotation: RecentRotation;
       } = {
         ...aiInput,
         hiddenContext,
-        planningContext,
+        planningContext: planningContextForPrompt,
         preferencesContext,
         recentRotation,
       };
@@ -839,6 +847,11 @@ export function createWizardRouter(
           maxCookTimeCoverage: directed.maxCookTimeCoverage,
         },
       );
+      // Block 4b-2 (D-WS9-073, Part 1b) — strip recentMeals: recentRotation is
+      // this route's recency unit now (see the build-plans handler). Kept live
+      // only for wizard.surprise.generate.
+      const { recentMeals: _strippedRecentMeals, ...planningContextForPrompt } =
+        planningContext;
       const generateInput = {
         parsedIntent,
         userInput: directed.description,
@@ -853,7 +866,7 @@ export function createWizardRouter(
         allergiesAndAvoidances: directed.allergiesAndAvoidances,
         dietaryNotes: directed.dietaryNotes ?? "",
         hiddenContext,
-        planningContext,
+        planningContext: planningContextForPrompt,
         preferencesContext,
         recentRotation,
       };

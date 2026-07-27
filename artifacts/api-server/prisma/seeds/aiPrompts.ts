@@ -214,9 +214,11 @@ Weak examples to avoid:
 
 For \`fully_specified\` and \`overflow\`, the whyBullets should ACKNOWLEDGE the user's input ("Here's your plan — exactly as you described, with sides paired up.") and call out the optimization the AI added (which sides, which prep cross-overs, etc.).
 
-# Recent history — keep the AI-chosen meals fresh
+# Recent history — vary the rotation
 
-\`planningContext.recentMeals\` lists meals the user recently planned or cooked (title, source, roughly when). When you pick meals to fill gaps, avoid rebuilding recent weeks — steer the fill meals toward things NOT on the recent list. Reusing about one recent meal is fine; more than that feels recycled. This applies only to the meals YOU choose; a meal the user explicitly named is honored even if it's on the recent list (if they asked for it again, they want it). Treat an entry the same whether its source is planned or cooked.
+\`recentRotation.meals\` lists the meals this user has been served across their last few plans (most-recent first). Every entry has a \`title\`; catalog-drawn meals also carry a \`dishFamily\` (the parent dish shared by its variations) and \`timesRecentlyServed\`. Freshly-invented meals have a title only.
+
+When you pick meals to fill gaps, prefer ones the user has NOT recently seen — steer away from repeating a recent \`title\` or piling onto a recent \`dishFamily\`. A recent meal, or another version in the same family, may be reused when the user's request points that way, but treat it as permitted rather than invited: no single meal or dish family should dominate the rotation. This applies ONLY to the meals YOU choose — a meal the user explicitly named is honored even if it was served recently (asking for it again means they want it). It is not a reason to invent fresh over a well-fitting shelf meal; prefer-unseen means a different shelf meal or family, not abandoning the shelf.
 
 # Season, date, and events
 
@@ -230,7 +232,7 @@ Use \`upcomingEvents\` as a gentle bias, never an override: a summer-holiday hin
 
 For the meals YOU choose to fill gaps, lean on the user's preferred cuisines if given, and aim for some spread rather than making every fill meal the same cuisine. Do NOT override the cuisine mix the user set by naming meals — if they deliberately named four Mexican dinners, that's their plan; don't "spread" it. If the user gave no cuisine steer and named nothing, default to a varied palette across American, Italian, Mexican, Asian, and Mediterranean dinners.
 
-Discovery (novelty) exception — \`preferencesContext.discoveryMealsPerWeek\` (0, 1, or 2): when set to 1 or 2 AND the user gave a cuisine steer, reserve that many of the meals YOU choose to fill gaps as DISCOVERY meals — additive novelty on top of the preferred cuisines. This is a hard count and a priority claim on the gap-fill slots, not slack-dependent. It applies ONLY to AI-chosen gap-fill meals and NEVER overrides an explicitly-named meal (a named meal is locked regardless). When gap-fill slots are scarce, fill them in this order: (1) the discovery count first, (2) one meal per preferred cuisine, (3) then double up on preferred cuisines. Each discovery meal is EITHER outside the preferred cuisines OR a preferred-cuisine dish deliberately unfamiliar versus \`planningContext.recentMeals\`, so it reinforces freshness. If the user gave no cuisine steer (the varied-palette default), discovery is a no-op — there is no preferred set to add novelty against, and named meals are never displaced.
+Discovery (novelty) exception — \`preferencesContext.discoveryMealsPerWeek\` (0, 1, or 2): when set to 1 or 2 AND the user gave a cuisine steer, reserve that many of the meals YOU choose to fill gaps as DISCOVERY meals — additive novelty on top of the preferred cuisines. This is a hard count and a priority claim on the gap-fill slots, not slack-dependent. It applies ONLY to AI-chosen gap-fill meals and NEVER overrides an explicitly-named meal (a named meal is locked regardless). When gap-fill slots are scarce, fill them in this order: (1) the discovery count first, (2) one meal per preferred cuisine, (3) then double up on preferred cuisines. Each discovery meal is EITHER outside the preferred cuisines OR a preferred-cuisine dish deliberately unfamiliar versus the meals in \`recentRotation\`, so it reinforces freshness. If the user gave no cuisine steer (the varied-palette default), discovery is a no-op — there is no preferred set to add novelty against, and named meals are never displaced.
 
 # Tone of titles + bullets
 
@@ -244,7 +246,7 @@ ${CATALOG_SHELF_SECTION}
 
 # Input
 
-The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`userInput\` is the user's original free-text. \`hiddenContext\` is server-injected from the user's profile. \`planningContext\` (also server-injected) carries the current date, season, upcoming events, and the user's recent meal/plan history — see the sections above for how to use it. \`planDurationDays\`, \`householdSize\`, etc. shape the plan.
+The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`userInput\` is the user's original free-text. \`hiddenContext\` is server-injected from the user's profile. \`planningContext\` (also server-injected) carries the current date, season, upcoming events, and recent plan names; the user's recent meal rotation arrives under the separate top-level \`recentRotation\` key — see the sections above for how to use them. \`planDurationDays\`, \`householdSize\`, etc. shape the plan.
 
 \`\`\`json
 {{generateInput}}
@@ -854,11 +856,13 @@ This is NOT a license to repeat the same protein or dish to force overlap. Makin
 
 Sensible bulk buys are still fine: one 3-lb pack of chicken thighs split across 2-3 meals is good economy. The line is — bulk-buy a shared staple when it fits naturally, but never bend the whole menu toward one ingredient just to overlap.
 
-# Recent history — avoid repeats
+# Recent history — vary the rotation
 
-\`planningContext.recentMeals\` lists meals the user has recently planned or cooked (each with a title, a source, and roughly when). Do NOT rebuild last week's menu. Reusing about one recent meal in a new plan is fine — a standing favorite is welcome. Reusing more than that is not: the user wants their week to feel fresh, not recycled. Steer new candidates toward meals that are NOT on the recent list.
+\`recentRotation.meals\` lists the meals this user has been served across their last few plans (most-recent first). Every entry has a \`title\`. Meals drawn from Kiwi's catalog also carry a \`dishFamily\` (the parent dish — several taco versions share one family) and \`timesRecentlyServed\` (how often that family recurred). Freshly-invented meals have a title only. \`recentRotation.plansConsidered\` is how many recent plans this covers (0 for a new user — then there is nothing to avoid).
 
-Treat every entry the same whether its source is planned or cooked — a meal the user recently had on their plan is "recent" regardless.
+Prefer meals the user has NOT recently seen. A recently-served meal — or a different meal in the same \`dishFamily\` — may be chosen when the user's preferences point that way: a listed cuisine, or an allergy/constraint that narrows the field. Treat that as permitted, not encouraged. The goal is that no single meal and no single \`dishFamily\` dominates the user's rotation — a favorite recurring now and then is fine; the same dish family week after week is what to avoid, more so when its \`timesRecentlyServed\` is already high.
+
+This shapes WHICH meals you choose, catalog or invented alike. It is not a reason to invent a fresh meal in place of a well-fitting shelf meal (see "Composing from Kiwi's catalog") — prefer-unseen means reaching for a different shelf meal or a different dish family, never abandoning the shelf.
 
 # Season, date, and events
 
@@ -872,7 +876,7 @@ Use \`upcomingEvents\` as a gentle bias, never an override. If a hint suggests a
 
 If the user supplied \`cuisines\`, weight meals toward those cuisines. Aim for spread WITHIN each plan too: roughly one meal per preferred cuisine, so a single plan isn't all-Mexican or all-Italian. Two or more meals of the same cuisine in one plan is fine when it helps use ingredients up (see waste minimization above) or when the user listed fewer cuisines than the plan has days — otherwise vary it.
 
-Discovery (novelty) exception — \`preferencesContext.discoveryMealsPerWeek\` (0, 1, or 2): when this is set to 1 or 2 AND \`cuisines\` is non-empty, reserve exactly that many dinners in each plan as DISCOVERY meals — additive novelty on top of the preferred cuisines. This is a hard count and a priority claim on slots, not slack-dependent: honor it even when slots are scarce. When there aren't enough dinners to do everything, fill slots in this priority order — (1) the discovery count first, (2) then one meal per preferred cuisine, (3) then use any remaining slots to double up on the preferred cuisines. Each discovery meal is EITHER outside the user's preferred cuisines OR within a preferred cuisine but a dish deliberately unfamiliar versus \`planningContext.recentMeals\` — so discovery still reinforces freshness rather than fighting it. Examples: 2 cuisines + 4 dinners + discovery 1 → cuisine A, cuisine B, cuisine B, 1 discovery; 3 cuisines + 3 dinners + discovery 1 → 2 of the cuisines + 1 discovery (discovery wins over covering every preferred cuisine). If \`cuisines\` is empty, discovery is a no-op — the empty-palette default already spans a broad variety, so there is no preferred set to add novelty against.
+Discovery (novelty) exception — \`preferencesContext.discoveryMealsPerWeek\` (0, 1, or 2): when this is set to 1 or 2 AND \`cuisines\` is non-empty, reserve exactly that many dinners in each plan as DISCOVERY meals — additive novelty on top of the preferred cuisines. This is a hard count and a priority claim on slots, not slack-dependent: honor it even when slots are scarce. When there aren't enough dinners to do everything, fill slots in this priority order — (1) the discovery count first, (2) then one meal per preferred cuisine, (3) then use any remaining slots to double up on the preferred cuisines. Each discovery meal is EITHER outside the user's preferred cuisines OR within a preferred cuisine but a dish deliberately unfamiliar versus the meals in \`recentRotation\` — so discovery still reinforces freshness rather than fighting it. Examples: 2 cuisines + 4 dinners + discovery 1 → cuisine A, cuisine B, cuisine B, 1 discovery; 3 cuisines + 3 dinners + discovery 1 → 2 of the cuisines + 1 discovery (discovery wins over covering every preferred cuisine). If \`cuisines\` is empty, discovery is a no-op — the empty-palette default already spans a broad variety, so there is no preferred set to add novelty against.
 
 Across the 1-3 candidates, keep them distinct: if the user listed three cuisines, ideally each candidate emphasizes a different one (when distinct candidates is the higher priority).
 
@@ -907,7 +911,7 @@ ${CATALOG_SHELF_SECTION}
 
 # Wizard input
 
-The user's full \`WizardInput\` arrives as a JSON object below. Use every field. Hidden context fields (\`hiddenContext.equipment\`, \`hiddenContext.spiceTolerance\`, \`hiddenContext.pantryStaples\`) are server-injected from the user's profile — treat them with equal weight as the user-supplied fields. Recent meal history and current-date/season/event context arrive under the top-level \`planningContext\` key (see the sections above).
+The user's full \`WizardInput\` arrives as a JSON object below. Use every field. Hidden context fields (\`hiddenContext.equipment\`, \`hiddenContext.spiceTolerance\`, \`hiddenContext.pantryStaples\`) are server-injected from the user's profile — treat them with equal weight as the user-supplied fields. The user's recent meal rotation arrives under the top-level \`recentRotation\` key; current-date/season/event context and recent plan names arrive under \`planningContext\` (see the sections above).
 
 \`\`\`json
 {{wizardInput}}
