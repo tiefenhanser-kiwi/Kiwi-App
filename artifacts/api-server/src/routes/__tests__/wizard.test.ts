@@ -112,9 +112,20 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
       findFirst: async () => null,
       // Block 4b-1 (D-WS9-075) — shortlist rotation salt (user's plan count).
       count: async () => 0,
+      // Block 4b-3 (BUG-047) — the generate routes now supersede prior expand-
+      // drafts on success. Benign no-op so a generate test that doesn't inject
+      // the supersede seam degrades cleanly instead of throwing best-effort.
+      updateMany: async () => ({ count: 0 }),
     },
     meal: {
       findMany: async () => opts.storeMeals ?? [],
+    },
+    // Block 4b-3 (D-WS9-072) — the generate routes now upsert the last-batch row
+    // on success. Benign no-ops so a generate test that doesn't inject the
+    // persist/read seams degrades cleanly.
+    wizardLastBatch: {
+      upsert: async () => ({}),
+      findUnique: async () => null,
     },
     lLMCallLog: {
       create: async ({ data }: { data: unknown }) => {
@@ -288,6 +299,14 @@ async function spinUp(deps: {
   // WS7-5c Block A — finalize-steps seam.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readAndFinalizeWizardDraft?: any;
+  // Block 1 (BUG-030 Part B / BUG-047) — supersede seam.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supersedeUnconsumedWizardDrafts?: any;
+  // Block 4b-3 (D-WS9-072) — last-batch persistence seams.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  persistWizardLastBatch?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readWizardLastBatch?: any;
 }): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
@@ -3661,8 +3680,13 @@ describe("GET /api/wizard/drafts/:id — WS7-5c Block A: stepless draft (details
 // differs (no demote, no active flip, no date set, no revisionId bump,
 // emits plan_created instead of plan_activated_this_week).
 
-describe("POST /api/wizard/drafts/:id/activate — supersede siblings (BUG-030 Part B)", () => {
+describe("POST /api/wizard/drafts/:id/activate — does NOT supersede siblings (BUG-047)", () => {
   let harness: Harness;
+  // The user activates draft-consume while a sibling (draft-sibling) from the
+  // same run sits unconsumed. Under the refined ruling (D-WS9-072) activation
+  // clears nothing — the sibling must survive and stay resume-able until the
+  // NEXT generation supersedes it. This is the intended behavior change from
+  // the old BUG-030 Part B consume-time supersede.
   const drafts = new Map<string, ActivateDraftRow>([
     [
       "draft-consume",
@@ -3672,6 +3696,17 @@ describe("POST /api/wizard/drafts/:id/activate — supersede siblings (BUG-030 P
         isWizardDraft: true,
         createdAt: new Date("2026-05-28T10:00:00Z"),
         wizardDraftPayload: SAMPLE_EXPANDED,
+      },
+    ],
+    [
+      "draft-sibling",
+      {
+        id: "draft-sibling",
+        userId: ACTIVATE_USER_ID,
+        isWizardDraft: true,
+        createdAt: new Date("2026-05-28T10:05:00Z"),
+        wizardDraftPayload: SAMPLE_EXPANDED,
+        isArchived: false,
       },
     ],
   ]);
@@ -3689,7 +3724,7 @@ describe("POST /api/wizard/drafts/:id/activate — supersede siblings (BUG-030 P
   });
   after(async () => harness.close());
 
-  it("archives sibling unconsumed drafts after activate — archive, never flip", async () => {
+  it("leaves sibling unconsumed drafts intact after activate", async () => {
     const token = signToken(ACTIVATE_USER_ID);
     const res = await fetch(
       `${harness.baseUrl}/wizard/drafts/draft-consume/activate`,
@@ -3702,20 +3737,91 @@ describe("POST /api/wizard/drafts/:id/activate — supersede siblings (BUG-030 P
       },
     );
     assert.equal(res.status, 201);
-    // Supersede ran exactly once, scoped to this user's UNCONSUMED drafts.
+    // NO top-level updateMany fired — neither the blanket supersede nor the
+    // scoped self-archive runs on the main (non-idempotent) activate path.
+    assert.equal(deps.rec.supersedeCalls.length, 0);
+    // The sibling draft is untouched — still an unconsumed, resume-able draft.
+    assert.equal(drafts.get("draft-sibling")?.isArchived ?? false, false);
+    assert.equal(drafts.get("draft-sibling")?.isWizardDraft, true);
+  });
+});
+
+describe("POST /api/wizard/drafts/:id/activate — idempotent archives ONLY its own draft (BUG-047)", () => {
+  let harness: Harness;
+  // Idempotent activate (a prior plan already carries this content-hash) returns
+  // that plan and archives ONLY the orphan draft it was called on — a sibling
+  // from the same run must survive (scoped self-archive, not blanket supersede).
+  const drafts = new Map<string, ActivateDraftRow>([
+    [
+      "draft-dupe",
+      {
+        id: "draft-dupe",
+        userId: ACTIVATE_USER_ID,
+        isWizardDraft: true,
+        createdAt: new Date("2026-05-28T10:00:00Z"),
+        wizardDraftPayload: SAMPLE_EXPANDED,
+        wizardContentHash: "hash-abc",
+        isArchived: false,
+      },
+    ],
+    [
+      "draft-sibling",
+      {
+        id: "draft-sibling",
+        userId: ACTIVATE_USER_ID,
+        isWizardDraft: true,
+        createdAt: new Date("2026-05-28T10:05:00Z"),
+        wizardDraftPayload: SAMPLE_EXPANDED,
+        wizardContentHash: "hash-other",
+        isArchived: false,
+      },
+    ],
+  ]);
+  const deps = makeActivateDeps({
+    drafts,
+    existingPlanForHash: { id: "plan-original", revisionId: 7 },
+  });
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+  });
+  after(async () => harness.close());
+
+  it("archives the orphan by id and spares the sibling", async () => {
+    const token = signToken(ACTIVATE_USER_ID);
+    const res = await fetch(
+      `${harness.baseUrl}/wizard/drafts/draft-dupe/activate`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    assert.equal(res.status, 201);
+    // Exactly one archive updateMany, SCOPED BY ID to the orphan draft.
     assert.equal(deps.rec.supersedeCalls.length, 1);
     const { where, data } = deps.rec.supersedeCalls[0];
+    assert.equal(where.id, "draft-dupe");
     assert.equal(where.userId, ACTIVATE_USER_ID);
     assert.equal(where.isWizardDraft, true);
-    assert.equal(where.isArchived, false);
-    // Archives + clears blob; MUST NOT flip isWizardDraft (that would surface
-    // the orphan as a real plan in My Plans/home — the Phase 0 constraint).
     assert.equal(data.isArchived, true);
-    assert.equal(data.optimizationNotes, Prisma.DbNull);
+    // Never flips isWizardDraft (would surface as a real plan — Phase 0 rule).
     assert.equal(
       Object.prototype.hasOwnProperty.call(data, "isWizardDraft"),
       false,
     );
+    // The orphan is archived; the sibling is spared.
+    assert.equal(drafts.get("draft-dupe")?.isArchived, true);
+    assert.equal(drafts.get("draft-sibling")?.isArchived ?? false, false);
   });
 });
 
@@ -3801,7 +3907,7 @@ describe("POST /api/wizard/drafts/:id/save — happy path", () => {
   });
 });
 
-describe("wizard draft lifecycle — peek A / peek B / save A (BUG-030 Part B)", () => {
+describe("wizard draft lifecycle — peek A / peek B / save A (BUG-047)", () => {
   let harness: Harness;
   // Two peeked drafts already exist (two expand calls, distinct content
   // hashes). The user goes back to A and saves it.
@@ -3845,7 +3951,7 @@ describe("wizard draft lifecycle — peek A / peek B / save A (BUG-030 Part B)",
   });
   after(async () => harness.close());
 
-  it("saves A once, archives sibling B, and never surfaces B (no dupe)", async () => {
+  it("saves A once and LEAVES sibling B intact (BUG-047 — save clears nothing)", async () => {
     const token = signToken(ACTIVATE_USER_ID);
     const res = await fetch(`${harness.baseUrl}/wizard/drafts/draft-A/save`, {
       method: "POST",
@@ -3861,11 +3967,15 @@ describe("wizard draft lifecycle — peek A / peek B / save A (BUG-030 Part B)",
     // A was consumed exactly once — flipped to a real plan, NOT archived.
     assert.equal(a.isWizardDraft, false);
     assert.notEqual(a.isArchived, true);
-    // B (the moot peeked sibling) is archived — archive, not flip. It stays
-    // isWizardDraft:true so My Plans/home never show it, and isArchived:true
-    // so the resume list (isArchived:false) never offers it again.
+    // BUG-047 intended change: B is NOT archived on save. Under the refined
+    // ruling (D-WS9-072) only generation clears; committing to A leaves the
+    // sibling peek resume-able until the next generate. (Old behavior archived
+    // B here.)
     assert.equal(b.isWizardDraft, true);
-    assert.equal(b.isArchived, true);
+    assert.notEqual(b.isArchived, true);
+    // No top-level updateMany fired — no supersede, no self-archive on the main
+    // (non-idempotent) save path.
+    assert.equal(deps.rec.supersedeCalls.length, 0);
     // Materialize ran exactly once (A), never for B — no duplicate plan.
     assert.equal(deps.rec.materializeCalls.length, 1);
     assert.equal(deps.rec.materializeCalls[0].draftId, "draft-A");
@@ -4162,6 +4272,361 @@ describe("POST /api/wizard/surprise-me — WS9 3c §7.6", () => {
       });
       assert.equal(res.status, 402);
       assert.equal(captured.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── Plan-Gen Arc Block 4b-3 (D-WS9-072 + BUG-047) — last-batch persistence ──
+// The generate routes now (1) upsert the user's single last-generated batch and
+// (2) supersede prior unconsumed expand-drafts — the two "generation clears"
+// effects, on two different objects. Both fire through swappable seams, so these
+// tests inject recorders and assert the effects without a real Prisma write.
+
+function makeBatchRecorder() {
+  const persistCalls: Array<{
+    userId: string;
+    source: string;
+    candidates: unknown[];
+    input: unknown;
+  }> = [];
+  const supersedeCalls: Array<{ userId: string }> = [];
+  return {
+    persistCalls,
+    supersedeCalls,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    persistWizardLastBatch: (async (args: any) => {
+      persistCalls.push({
+        userId: args.userId,
+        source: args.source,
+        candidates: args.candidates,
+        input: args.input,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supersedeUnconsumedWizardDrafts: (async (args: any) => {
+      supersedeCalls.push({ userId: args.userId });
+      return 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any,
+  };
+}
+
+describe("Block 4b-3 — build-plans last-batch persist + supersede", () => {
+  it("upserts batch (source wizard, replayable input) + supersedes on success", async () => {
+    const rec = makeBatchRecorder();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("test-user-batch-ok")}`,
+        },
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(rec.persistCalls.length, 1);
+      assert.equal(rec.persistCalls[0].source, "wizard");
+      assert.equal(rec.persistCalls[0].candidates.length, 3);
+      const input = rec.persistCalls[0].input as { planDurationDays?: number };
+      assert.equal(input.planDurationDays, 5);
+      assert.equal(rec.supersedeCalls.length, 1);
+      assert.equal(rec.supersedeCalls[0].userId, "test-user-batch-ok");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("does NOT persist or supersede when generation fails", async () => {
+    const rec = makeBatchRecorder();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => failureResult()).fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("test-user-batch-fail")}`,
+        },
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 502);
+      assert.equal(rec.persistCalls.length, 0);
+      assert.equal(rec.supersedeCalls.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // The STREAMED path (Accept: text/event-stream) is the LIVE one — the buffered
+  // fallback fires only when the client can't stream. This pins the batch write +
+  // supersede on the streamed branch so a real generation never persists nothing.
+  it("upserts batch + supersedes on the STREAMED (SSE) path too", async () => {
+    const rec = makeBatchRecorder();
+    const stream = makeStreamFn(happyCandidates().candidates);
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      streamPlanCandidates: stream.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${signToken("test-user-batch-stream")}`,
+        },
+        body: JSON.stringify(VALID_BODY),
+      });
+      const frames = parseSse(await res.text());
+      // The stream completed (done frame present) AND the batch write fired.
+      assert.equal(frames.filter((f) => f.event === "done").length, 1);
+      assert.equal(rec.persistCalls.length, 1);
+      assert.equal(rec.persistCalls[0].source, "wizard");
+      assert.equal(rec.persistCalls[0].candidates.length, 3);
+      assert.equal(rec.supersedeCalls.length, 1);
+      assert.equal(rec.supersedeCalls[0].userId, "test-user-batch-stream");
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("Block 4b-3 — surprise-me + tell-kiwi last-batch source/input", () => {
+  it("surprise-me persists source surprise with null input", async () => {
+    const rec = makeBatchRecorder();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: makeStubPrisma({
+        preferences: {
+          planLengthDefault: 5,
+          householdSize: 4,
+          cuisines: ["Italian"],
+          eatingStyles: [],
+          allergiesAndAvoidances: [],
+          weeklyPacingDefault: "mostly_easy",
+          wantsLeftovers: false,
+        },
+      }),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/surprise-me`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("test-user-surprise-batch")}`,
+        },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(rec.persistCalls.length, 1);
+      assert.equal(rec.persistCalls[0].source, "surprise");
+      assert.equal(rec.persistCalls[0].input, null);
+      // BUG-037 — surprise trims to ONE candidate.
+      assert.equal(rec.persistCalls[0].candidates.length, 1);
+      assert.equal(rec.supersedeCalls.length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("build-from-text persists source tellkiwi with a replayable input", async () => {
+    const rec = makeBatchRecorder();
+    const runner = makeTellKiwiRunner({
+      parse: () =>
+        parseSuccess({
+          scenario: "vague",
+          explicitMeals: [],
+          intentDescriptors: ["easy"],
+          mealCount: 5,
+        }),
+      generate: () => genSuccess(threeCandidates("batch")),
+    });
+    const harness = await spinUp({
+      runAICall: runner.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken(TELL_KIWI_USER_ID + "-batch")}`,
+        },
+        body: JSON.stringify(TELL_KIWI_BODY),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(rec.persistCalls.length, 1);
+      assert.equal(rec.persistCalls[0].source, "tellkiwi");
+      assert.equal(rec.persistCalls[0].candidates.length, 3);
+      const input = rec.persistCalls[0].input as { description?: string };
+      assert.equal(input.description, TELL_KIWI_BODY.description);
+      assert.equal(rec.supersedeCalls.length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("build-from-text 'unclear' does NOT persist or supersede (no candidates)", async () => {
+    const rec = makeBatchRecorder();
+    const runner = makeTellKiwiRunner({
+      parse: () =>
+        parseSuccess({
+          scenario: "unclear",
+          explicitMeals: [],
+          intentDescriptors: [],
+          mealCount: 5,
+          needsClarification: { reason: "Tell me more about what you like." },
+        }),
+    });
+    const harness = await spinUp({
+      runAICall: runner.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken(TELL_KIWI_USER_ID + "-unclear")}`,
+        },
+        body: JSON.stringify(TELL_KIWI_BODY),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(rec.persistCalls.length, 0);
+      assert.equal(rec.supersedeCalls.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("Block 4b-3 — GET /wizard/last-batch", () => {
+  it("returns { batch: null } for a user with no batch", async () => {
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      readWizardLastBatch: (async () => null) as any,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/last-batch`, {
+        headers: { Authorization: `Bearer ${signToken(TEST_USER_ID)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { batch: unknown };
+      assert.equal(body.batch, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns the stored batch (candidates round-trip + ISO createdAt)", async () => {
+    const stored = {
+      source: "wizard" as const,
+      payload: {
+        source: "wizard" as const,
+        candidates: happyCandidates().candidates,
+        input: { planDurationDays: 5 },
+      },
+      createdAt: new Date("2026-07-27T12:00:00.000Z"),
+    };
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      readWizardLastBatch: (async () => stored) as any,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/last-batch`, {
+        headers: { Authorization: `Bearer ${signToken(TEST_USER_ID)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        batch: {
+          source: string;
+          candidates: { id: string }[];
+          input: { planDurationDays: number };
+          createdAt: string;
+        } | null;
+      };
+      assert.ok(body.batch);
+      assert.equal(body.batch!.source, "wizard");
+      assert.equal(body.batch!.candidates.length, 3);
+      assert.equal(body.batch!.input.planDurationDays, 5);
+      assert.equal(body.batch!.createdAt, "2026-07-27T12:00:00.000Z");
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("Block 4b-3 — activation leaves the batch intact (Hans's ruling)", () => {
+  it("activate does NOT write the last-batch row", async () => {
+    const rec = makeBatchRecorder();
+    const drafts = new Map<string, ActivateDraftRow>([
+      [
+        "draft-keepbatch",
+        {
+          id: "draft-keepbatch",
+          userId: ACTIVATE_USER_ID,
+          isWizardDraft: true,
+          createdAt: new Date("2026-05-28T10:00:00Z"),
+          wizardDraftPayload: SAMPLE_EXPANDED,
+        },
+      ],
+    ]);
+    const deps = makeActivateDeps({ drafts });
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/wizard/drafts/draft-keepbatch/activate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${signToken(ACTIVATE_USER_ID)}`,
+          },
+        },
+      );
+      assert.equal(res.status, 201);
+      assert.equal(rec.persistCalls.length, 0);
     } finally {
       await harness.close();
     }

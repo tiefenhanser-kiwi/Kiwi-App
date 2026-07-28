@@ -251,6 +251,7 @@ model User {
 
   // Relations
   preferences             UserPreferences?
+  wizardLastBatch         WizardLastBatch?
   pantryStaples           PantryStaple[]
   planTemplates           MealPlanTemplate[]
   planInstances           MealPlanInstance[]
@@ -336,6 +337,33 @@ model UserPreferences {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
+}
+
+// Plan-Gen Arc Block 4b-3 (D-WS9-072) — the user's LAST generated plan-options
+// batch: the pre-expand candidate cards from the most recent build-plans /
+// build-from-text / surprise-me run, so "See Previous Options" can re-show the
+// last run without regenerating. EXACTLY ONE row per user (userId @unique): each
+// successful generation UPSERTS this row, and that overwrite IS "generation
+// clears" — nothing else clears it, not even activation (Hans's ruling: after
+// "Use this plan" the batch still shows, including the option the user used).
+// `payload` is { source, candidates, input } where `input` is the request slice
+// needed to rebuild candidateContext at a later expand (null for surprise —
+// context re-derives from stored prefs). It is a SNAPSHOT by design: no
+// preference-hash invalidation or allergen re-check at rehydrate (D-WS9-085
+// ruling). Deliberately holds NO foreign key into the plan graph so the table
+// stays cleanly droppable; cascade-deleted with the user.
+model WizardLastBatch {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  payload   Json
+  source    String
+  // The generation time of THIS batch. An upsert-overwrite is a NEW batch, so
+  // the write path bumps this to now(); a display surface (WS9 3c) can read it.
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wizard_last_batches")
 }
 
 model PantryStaple {

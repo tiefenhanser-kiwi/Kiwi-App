@@ -57,6 +57,11 @@ import {
   WIZARD_DRAFT_TTL_DAYS,
 } from "../lib/wizardExpansion";
 import { readAndFinalizeWizardDraft as productionReadAndFinalizeWizardDraft } from "../lib/wizardFinalize";
+import {
+  persistWizardLastBatch as productionPersistWizardLastBatch,
+  readWizardLastBatch as productionReadWizardLastBatch,
+  type WizardBatchSource,
+} from "../lib/wizardLastBatch";
 import { computeWizardContentHash } from "../lib/wizardContentHash";
 import { currentWeekRange } from "../lib/planDates";
 import {
@@ -115,6 +120,13 @@ export interface WizardRouterDeps {
   // its Sonnet call would blow the 60s tx budget). Tests stub this to
   // return a synthetic merged payload without needing a real AI call.
   readAndFinalizeWizardDraft?: typeof productionReadAndFinalizeWizardDraft;
+  // Block 4b-3 (D-WS9-072) — last-batch persistence seams. persistWizardLastBatch
+  // upserts the user's single last-generated batch at the end of each generate
+  // route (the overwrite IS "generation clears"); readWizardLastBatch backs
+  // GET /wizard/last-batch. Swappable so generate-route tests can assert the
+  // write fires with the right shape without a real Prisma upsert.
+  persistWizardLastBatch?: typeof productionPersistWizardLastBatch;
+  readWizardLastBatch?: typeof productionReadWizardLastBatch;
 }
 
 // BUG-037 — Surprise-me returns ONE plan (→ draft screen + "Surprise Me
@@ -190,6 +202,10 @@ export function createWizardRouter(
   const emitSharedActivity = deps.emitActivity ?? productionEmitActivity;
   const readAndFinalizeWizardDraftImpl =
     deps.readAndFinalizeWizardDraft ?? productionReadAndFinalizeWizardDraft;
+  const persistWizardLastBatch =
+    deps.persistWizardLastBatch ?? productionPersistWizardLastBatch;
+  const readWizardLastBatch =
+    deps.readWizardLastBatch ?? productionReadWizardLastBatch;
   const limiterOpts = deps.rateLimiterOpts ?? {
     capacity: 8,
     refillPerSec: 8 / 60,
@@ -273,6 +289,65 @@ export function createWizardRouter(
       logger.warn(
         { event: "activity_emit", userId, eventType, err },
         "Failed to emit activity",
+      );
+    }
+  }
+
+  // ── generation-clears (Block 4b-3, D-WS9-072 + BUG-047) ──────────────
+  // Called at the END of a SUCCESSFUL generation that produced candidates. Two
+  // clears fire together, on two DIFFERENT objects:
+  //   1. supersede — archive the user's prior UNCONSUMED expand-drafts. BUG-047
+  //      moved this OFF the activate/save consume path onto generation:
+  //      committing to a plan no longer wipes sibling drafts; GENERATING again
+  //      does. (Two objects — overwriting the batch does NOT archive draft rows,
+  //      so this second clear is not optional.)
+  //   2. last-batch upsert — overwrite the single last-batch row with this run;
+  //      the overwrite IS "generation clears" for the batch.
+  // Both are best-effort (each swallows its own errors): the candidates are
+  // already produced and about to ship, so neither clear may sink the response.
+  // MUST be called only when candidates.length > 0 — an empty/unclear result is
+  // not a new run and must not wipe the prior batch or the user's drafts.
+  async function commitGeneratedBatch(args: {
+    userId: string;
+    source: WizardBatchSource;
+    candidates: WizardPlanCandidate[];
+    input: unknown | null;
+  }): Promise<void> {
+    await supersedeUnconsumedWizardDrafts({ prisma, userId: args.userId });
+    await persistWizardLastBatch({
+      prisma,
+      userId: args.userId,
+      source: args.source,
+      candidates: args.candidates,
+      input: args.input,
+    });
+  }
+
+  // ── idempotent self-archive (Block 4b-3, BUG-047) ────────────────────
+  // The idempotent activate/save early-return hands back a pre-existing
+  // materialized plan WITHOUT flipping the draft it was called on, leaving an
+  // orphan unconsumed draft for a plan the user already owns. Archive ONLY that
+  // draft (scoped by id) — deliberately NOT the blanket supersede, which under
+  // the refined ruling (D-WS9-072) moved to the generate routes. Sibling drafts
+  // from the same run survive until the next generation. Best-effort: a stray
+  // orphan self-heals on the next generate or the 30-day TTL sweep.
+  async function archiveOwnDraft(
+    draftId: string,
+    userId: string,
+  ): Promise<void> {
+    try {
+      await prisma.mealPlanInstance.updateMany({
+        where: { id: draftId, userId, isWizardDraft: true, isArchived: false },
+        data: {
+          isArchived: true,
+          wizardDraftPayload: Prisma.DbNull,
+          optimizationNotes: Prisma.DbNull,
+        },
+      });
+    } catch (err) {
+      logger.warn(
+        { event: "wizard_draft_self_archive_failed", userId, draftId, err },
+        "Failed to self-archive idempotent orphan draft",
       );
     }
   }
@@ -600,6 +675,19 @@ export function createWizardRouter(
           "Wizard build-plans generate summary (stream)",
         );
 
+        // Block 4b-3 (D-WS9-072 + BUG-047) — generation-clears: overwrite the
+        // last-batch row + supersede prior expand-drafts. Persist regardless of
+        // clientGone (the AI call completed server-side; the batch is still
+        // worth re-showing later). Only when candidates were produced.
+        if (finalCandidates.length > 0) {
+          await commitGeneratedBatch({
+            userId,
+            source: "wizard",
+            candidates: finalCandidates,
+            input: parsed.data,
+          });
+        }
+
         sendFrame("done", {
           cannotGenerateMore: streamResult.data.cannotGenerateMore,
           reason: streamResult.data.reason,
@@ -674,6 +762,18 @@ export function createWizardRouter(
           latencyMs: result.metadata.latencyMs,
         },
       };
+
+      // 6b. Block 4b-3 (D-WS9-072 + BUG-047) — generation-clears (see the
+      //     streaming path). Overwrite the last-batch row + supersede prior
+      //     expand-drafts, only when candidates were produced.
+      if (candidates.length > 0) {
+        await commitGeneratedBatch({
+          userId,
+          source: "wizard",
+          candidates,
+          input: parsed.data,
+        });
+      }
 
       // 7. Activity event.
       await emitActivity(userId, "wizard_complete");
@@ -942,6 +1042,33 @@ export function createWizardRouter(
         },
       };
 
+      // Block 4b-3 (D-WS9-072 + BUG-047) — generation-clears. Only fires when
+      // the generate step actually produced candidates; the `unclear`
+      // short-circuit above returns [] and never reaches here, so a clarifying
+      // question never wipes the user's prior batch or drafts. The stored input
+      // is a TellKiwiInput-shaped slice so rehydrate can rebuild candidateContext.
+      if (candidates.length > 0) {
+        await commitGeneratedBatch({
+          userId,
+          source: "tellkiwi",
+          candidates,
+          input: {
+            description: directed.description,
+            planDurationDays,
+            householdSize: directed.householdSize,
+            cuisines: directed.cuisines,
+            weeklyPacing: directed.weeklyPacing,
+            eatingStyles: directed.eatingStyles,
+            allergiesAndAvoidances: directed.allergiesAndAvoidances,
+            dietaryNotes: directed.dietaryNotes,
+            discoveryMealsPerWeek: directed.discoveryMealsPerWeek,
+            saucePreference: directed.saucePreference,
+            maxCookTimeMinutes: directed.maxCookTimeMinutes,
+            maxCookTimeCoverage: directed.maxCookTimeCoverage,
+          },
+        });
+      }
+
       await emitActivity(userId, "wizard_complete");
 
       return res.json(response);
@@ -1078,6 +1205,18 @@ export function createWizardRouter(
           intentDescriptors: ["popular", "crowd-pleaser", "family-friendly"],
           mealCount: planDurationDays,
         };
+
+        // Block 4b-3 (D-WS9-072 + BUG-047) — generation-clears. input is null:
+        // Surprise-me has no request body, so rehydrate re-derives
+        // candidateContext from stored prefs (same as the live surprise flow).
+        if (candidates.length > 0) {
+          await commitGeneratedBatch({
+            userId,
+            source: "surprise",
+            candidates,
+            input: null,
+          });
+        }
 
         await emitActivity(userId, "wizard_complete");
 
@@ -1463,9 +1602,11 @@ export function createWizardRouter(
     // Part B sibling sweep — it is hidden from every isWizardDraft reader.)
     const activateIdempotent = await findExistingPlanForDraft(draftId, userId);
     if (activateIdempotent) {
-      // Clear this orphan draft + any siblings so the resume list can't offer
-      // a plan the user already has (the A/B seam).
-      await supersedeUnconsumedWizardDrafts({ prisma, userId });
+      // BUG-047 — archive ONLY this orphan draft (the row this activate targets,
+      // which was never flipped because a prior plan already carries its hash).
+      // NOT the blanket supersede: under D-WS9-072, siblings clear on the next
+      // generation, not on consume.
+      await archiveOwnDraft(draftId, userId);
       return res.status(201).json({ instance: activateIdempotent });
     }
 
@@ -1612,10 +1753,10 @@ export function createWizardRouter(
         `[WS7-5b-smoke] activate $transaction elapsed: ${Date.now() - __txStart}ms (ok)`,
       );
 
-      // BUG-030 Part B — supersede sibling unconsumed drafts (post-tx, best-
-      // effort). The just-activated row is now isWizardDraft:false, so it is
-      // excluded from the archive; only the moot peeked siblings are cleared.
-      await supersedeUnconsumedWizardDrafts({ prisma, userId });
+      // BUG-047 — supersede intentionally does NOT fire here. Under the refined
+      // ruling (D-WS9-072) generation clears; activation clears nothing. Sibling
+      // unconsumed drafts persist and remain resume-able until the next generate
+      // (an intended behavior change from the old consume-time supersede).
 
       return res
         .status(201)
@@ -1690,7 +1831,9 @@ export function createWizardRouter(
     // a save), so this guards genuine re-save of the same candidate.
     const saveIdempotent = await findExistingPlanForDraft(draftId, userId);
     if (saveIdempotent) {
-      await supersedeUnconsumedWizardDrafts({ prisma, userId });
+      // BUG-047 — archive ONLY this orphan draft (see /activate). Siblings clear
+      // on the next generation, not on consume.
+      await archiveOwnDraft(draftId, userId);
       return res.status(201).json({ instance: saveIdempotent });
     }
 
@@ -1818,9 +1961,8 @@ export function createWizardRouter(
         `[WS7-5b2-smoke] save $transaction elapsed: ${Date.now() - __txStart}ms (ok)`,
       );
 
-      // BUG-030 Part B — supersede sibling unconsumed drafts (post-tx, best-
-      // effort). Mirrors /activate; the just-saved row is isWizardDraft:false.
-      await supersedeUnconsumedWizardDrafts({ prisma, userId });
+      // BUG-047 — supersede intentionally does NOT fire here (mirrors /activate).
+      // Under D-WS9-072 generation clears; saving clears nothing.
 
       return res
         .status(201)
@@ -1853,6 +1995,31 @@ export function createWizardRouter(
       );
       return res.status(500).json({ error: "failed to save draft" });
     }
+  });
+
+  // ── GET /wizard/last-batch — "See Previous Options" (Block 4b-3) ──────
+  // Returns the user's single last-generated plan-options batch (the pre-expand
+  // candidate cards), or { batch: null } for a user who has never generated. The
+  // mobile generate surfaces read this to decide whether to show the link, and
+  // to rehydrate wizard-results without a fresh AI call. Never throws — the read
+  // helper degrades a failure to null (the no-batch case), so the link hides.
+  router.get("/wizard/last-batch", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const record = await readWizardLastBatch({ prisma, userId });
+    if (!record) {
+      return res.json({ batch: null });
+    }
+    return res.json({
+      batch: {
+        source: record.payload.source ?? record.source,
+        candidates: record.payload.candidates,
+        input: record.payload.input ?? null,
+        createdAt: record.createdAt.toISOString(),
+      },
+    });
   });
 
   router.get("/wizard/limits", requireAuth, async (_req, res) => {
