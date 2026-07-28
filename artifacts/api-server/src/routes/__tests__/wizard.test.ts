@@ -4408,6 +4408,59 @@ describe("Block 4b-3 — build-plans last-batch persist + supersede", () => {
       await harness.close();
     }
   });
+
+  // BUG-050 — the streamed path must commit the RECONCILED candidates (real
+  // Meal.ids), not the raw finalCandidates (m1-style aliases). Fails against the
+  // pre-fix code, which stored finalCandidates verbatim → storeMealId "m1".
+  it("STREAMED path commits REAL Meal.ids to the batch, not m-aliases (BUG-050)", async () => {
+    const rec = makeBatchRecorder();
+    // Candidate 0 marks slot 0 with alias m1; store-1 ranks first (useCount 100)
+    // → alias m1 → reconcile rewrites storeMealId to the real id "store-1".
+    const cands = happyCandidates().candidates.map((c, i) =>
+      i === 0
+        ? { ...c, storeSlots: [{ slotIndex: 0, storeMealId: "m1" }] }
+        : c,
+    );
+    const stream = makeStreamFn(cands);
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      streamPlanCandidates: stream.fn,
+      prisma: makeStubPrisma({
+        storeMeals: [
+          storeMealRow("store-1", { useCount: 100 }),
+          storeMealRow("store-2"),
+        ],
+      }),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${signToken("store-stream-commit-user")}`,
+        },
+        body: JSON.stringify(VALID_BODY),
+      });
+      // Drain the stream so the server reaches commitGeneratedBatch + res.end.
+      await res.text();
+
+      assert.equal(rec.persistCalls.length, 1);
+      const committed = rec.persistCalls[0].candidates as Array<{
+        storeSlots?: Array<{ slotIndex: number; storeMealId: string }>;
+      }>;
+      const slot = committed[0]?.storeSlots?.[0];
+      assert.ok(slot, "candidate 0 retained a reconciled store slot in the batch");
+      // The committed id is the REAL Meal.id, never the raw alias.
+      assert.equal(slot!.storeMealId, "store-1");
+      assert.notEqual(slot!.storeMealId, "m1");
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 describe("Block 4b-3 — surprise-me + tell-kiwi last-batch source/input", () => {

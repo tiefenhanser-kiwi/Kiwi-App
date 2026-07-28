@@ -21,6 +21,10 @@ const CANDIDATES = [
     whyBullets: ["one-pot meals"],
     mealTitles: ["Soup", "Chili", "Stew"],
     dailyMacros: { calories: 540, proteinG: 28, carbsG: 56, fatG: 22 },
+    // BUG-049/050 regression guard — storeSlots must survive the rehydrate JSON
+    // round trip (an omitted-field fixture was structurally blind to it). These
+    // carry REAL Meal.ids, as the server now commits post-reconcile (BUG-050).
+    storeSlots: [{ slotIndex: 0, storeMealId: "meal-real-abc123" }],
   },
 ];
 
@@ -54,6 +58,17 @@ test("buildRehydrateParams — wizard replays input, flags rehydrate", () => {
   assert.equal(JSON.parse(p.input).planDurationDays, 5);
   // Candidates round-trip VERBATIM — same title + mealTitles the server hashed.
   assert.deepEqual(JSON.parse(p.rehydratedCandidates), CANDIDATES);
+});
+
+test("buildRehydrateParams — storeSlots survive the round trip (BUG-049/050)", () => {
+  const p = buildRehydrateParams(batch({ source: "wizard" }));
+  const round = JSON.parse(p.rehydratedCandidates) as Array<{
+    storeSlots?: Array<{ slotIndex: number; storeMealId: string }>;
+  }>;
+  // The field is preserved AND still carries the real Meal.id, not an alias.
+  assert.deepEqual(round[0].storeSlots, [
+    { slotIndex: 0, storeMealId: "meal-real-abc123" },
+  ]);
 });
 
 test("buildRehydrateParams — tellkiwi carries source + tellKiwiInput", () => {

@@ -180,6 +180,50 @@ async function retrieveShelf(
   }
 }
 
+// Block 4b-3 follow-up (BUG-049) — post-reconcile store-slot instrumentation.
+// The pre-reconcile `storeSlotsMarked` count can't distinguish "marks reached
+// the wire" from "reconcile dropped them all" (D-WS9-038: reconcileStoreSlots
+// deletes storeSlots when no alias resolves). This counts the marks on THE EXACT
+// objects that ship (`reconciled`, same order as `raw`) and, whenever reconcile
+// dropped ≥1 mark for a candidate, warns with the unmatched aliases + a sample of
+// the real alias keys — the difference between "marks were dropped" and "the
+// model echoed the wrong alias format". Diagnostic-only; emits no error.
+function summarizeStoreSlotReconcile(opts: {
+  raw: WizardPlanCandidate[];
+  reconciled: WizardPlanCandidate[];
+  aliasToId: Map<string, string>;
+  userId: string;
+}): { storeSlotsReconciled: number; candidatesWithStoreSlots: number } {
+  let storeSlotsReconciled = 0;
+  let candidatesWithStoreSlots = 0;
+  for (let i = 0; i < opts.reconciled.length; i++) {
+    const survived = opts.reconciled[i]?.storeSlots ?? [];
+    storeSlotsReconciled += survived.length;
+    if (survived.length > 0) candidatesWithStoreSlots++;
+    const rawMarks = opts.raw[i]?.storeSlots ?? [];
+    if (rawMarks.length > survived.length) {
+      logger.warn(
+        {
+          event: "wizard_store_slot_reconcile_drop",
+          userId: opts.userId,
+          candidateIndex: i,
+          droppedCount: rawMarks.length - survived.length,
+          // Raw ids whose alias didn't resolve — the format-mismatch signal.
+          unmatchedStoreMealIds: rawMarks
+            .filter((m) => !opts.aliasToId.has(m.storeMealId))
+            .map((m) => m.storeMealId)
+            .slice(0, 10),
+          // Keys only (never the real Meal.id values) — enough to see the shape
+          // the model SHOULD have echoed.
+          aliasKeysSample: [...opts.aliasToId.keys()].slice(0, 10),
+        },
+        "Reconcile dropped store-slot marks",
+      );
+    }
+  }
+  return { storeSlotsReconciled, candidatesWithStoreSlots };
+}
+
 export function createWizardRouter(
   deps: Partial<WizardRouterDeps> = {},
 ): IRouter {
@@ -588,6 +632,11 @@ export function createWizardRouter(
         });
 
         const sent = new Set<number>();
+        // BUG-050 — capture the reconciled copy that ACTUALLY ships on the wire,
+        // keyed by index, so the last-batch commit persists real Meal.ids (not
+        // m1-style aliases) without mutating `finalCandidates` (which must stay
+        // raw for the baseline-comparable storeSlotsMarked count).
+        const reconciledByIndex = new Map<number, WizardPlanCandidate>();
         const sendFrame = (event: string, data: unknown): void => {
           if (clientGone) return;
           res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -604,6 +653,7 @@ export function createWizardRouter(
             storeShortlist.aliasToId,
           );
           sent.add(index);
+          reconciledByIndex.set(index, reconciled);
           sendFrame("candidate", { index, candidate: reconciled });
         };
 
@@ -654,12 +704,32 @@ export function createWizardRouter(
         );
         finalCandidates.forEach((c, index) => sendCandidate(index, c));
 
+        // The reconciled wire objects, in index order (BUG-050): what the client
+        // received AND what the last-batch commit persists. Every finalCandidates
+        // index was passed through sendCandidate above, so the map is complete.
+        const reconciledCandidates = finalCandidates
+          .map((_, i) => reconciledByIndex.get(i))
+          .filter((c): c is WizardPlanCandidate => !!c);
+
+        // BUG-049 instrumentation — post-reconcile counts from the shipped
+        // objects + per-candidate drop warns (helper). storeSlotsMarked below
+        // stays RAW so it remains comparable to the 4b-2 baseline of 12.
+        const { storeSlotsReconciled, candidatesWithStoreSlots } =
+          summarizeStoreSlotReconcile({
+            raw: finalCandidates,
+            reconciled: reconciledCandidates,
+            aliasToId: storeShortlist.aliasToId,
+            userId,
+          });
+
         // Guard 2 (D-WS9-076) — generate-time store-slot adherence signal for
         // the cache A/B. `path:"stream"` uses the cached system prefix; compare
         // storeSlotsMarked against the `path:"buffered"` line (no cache) over a
         // handful of generations to catch an adherence shift from the
         // system-block move. Raw MARKED count (pre-reconcile) is the purest
-        // "did the model still bind to the shelf?" signal.
+        // "did the model still bind to the shelf?" signal. storeSlotsReconciled /
+        // candidatesWithStoreSlots (BUG-049) are the POST-reconcile wire counts —
+        // marked ≫ reconciled means reconcile is silently dropping marks.
         logger.info(
           {
             event: "wizard_build_plans_summary",
@@ -670,6 +740,8 @@ export function createWizardRouter(
               (n, c) => n + (c.storeSlots?.length ?? 0),
               0,
             ),
+            storeSlotsReconciled,
+            candidatesWithStoreSlots,
             latencyMs: streamResult.metadata.latencyMs,
           },
           "Wizard build-plans generate summary (stream)",
@@ -679,11 +751,13 @@ export function createWizardRouter(
         // last-batch row + supersede prior expand-drafts. Persist regardless of
         // clientGone (the AI call completed server-side; the batch is still
         // worth re-showing later). Only when candidates were produced.
-        if (finalCandidates.length > 0) {
+        // BUG-050 — commit the RECONCILED candidates (real Meal.ids) so a
+        // rehydrated streamed batch binds at expand instead of demoting to live.
+        if (reconciledCandidates.length > 0) {
           await commitGeneratedBatch({
             userId,
             source: "wizard",
-            candidates: finalCandidates,
+            candidates: reconciledCandidates,
             input: parsed.data,
           });
         }
@@ -736,6 +810,16 @@ export function createWizardRouter(
       //    authoritative guard; this one keeps the wire honest.
       const trimmed = result.data.candidates.slice(0, candidateCount);
       const candidates = reconcileStoreSlots(trimmed, storeShortlist.aliasToId);
+      // BUG-049 instrumentation — post-reconcile counts + drop warns from the
+      // reconciled objects this path ships (already the wire shape). trimmed is
+      // the RAW input, so storeSlotsMarked below stays baseline-comparable.
+      const { storeSlotsReconciled, candidatesWithStoreSlots } =
+        summarizeStoreSlotReconcile({
+          raw: trimmed,
+          reconciled: candidates,
+          aliasToId: storeShortlist.aliasToId,
+          userId,
+        });
       // Guard 2 (D-WS9-076) — buffered-path counterpart to the stream summary
       // above (this path does NOT use the cached system prefix). Same shape so
       // storeSlotsMarked is directly comparable across the two paths.
@@ -749,6 +833,8 @@ export function createWizardRouter(
             (n, c) => n + (c.storeSlots?.length ?? 0),
             0,
           ),
+          storeSlotsReconciled,
+          candidatesWithStoreSlots,
           latencyMs: result.metadata.latencyMs,
         },
         "Wizard build-plans generate summary (buffered)",
