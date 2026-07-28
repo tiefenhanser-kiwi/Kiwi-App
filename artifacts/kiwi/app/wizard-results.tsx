@@ -88,6 +88,21 @@ function parseInput(raw: string | undefined): WizardPreferencesInput | null {
   }
 }
 
+// Block 4b-3 (D-WS9-072) — "See Previous Options" rehydrate. The link passes the
+// stored batch's candidates as a JSON param so this screen renders them directly,
+// skipping the generate mutation entirely (no AI call).
+function parseCandidates(
+  raw: string | undefined,
+): WizardPlanCandidate[] | null {
+  if (!raw) return null;
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? (arr as WizardPlanCandidate[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 function parseTellKiwiResult(
   raw: string | undefined,
 ): BuildFromTextResult | null {
@@ -215,13 +230,24 @@ export default function WizardResultsScreen() {
   //     JSON); the AI ran on the previous screen (tellkiwi.tsx). This screen
   //     just renders the result, branching by parsedIntent.scenario.
   const queryClient = useQueryClient();
-  const { source, input, tellKiwiResult, tellKiwiInput } =
+  const { source, input, tellKiwiResult, tellKiwiInput, rehydrate, rehydratedCandidates } =
     useLocalSearchParams<{
       source?: "tellkiwi" | "surprise";
       input?: string;
       tellKiwiResult?: string;
       tellKiwiInput?: string;
+      // Block 4b-3 (D-WS9-072) — rehydrate mode. `rehydrate:"1"` + the stored
+      // candidates JSON re-shows a prior batch with no generate call.
+      rehydrate?: string;
+      rehydratedCandidates?: string;
     }>();
+  // Block 4b-3 — when rehydrating a stored batch, render its candidates directly
+  // and suppress every mount-time generation effect below.
+  const isRehydrate = rehydrate === "1";
+  const rehydratedCands = useMemo(
+    () => parseCandidates(rehydratedCandidates),
+    [rehydratedCandidates],
+  );
   const wizardInput = useMemo(() => parseInput(input), [input]);
   const tellKiwiPayload = useMemo(
     () => parseTellKiwiResult(tellKiwiResult),
@@ -253,6 +279,8 @@ export default function WizardResultsScreen() {
   const mutation = useBuildWizardPlansStreaming();
 
   useEffect(() => {
+    // Block 4b-3 — rehydrate re-shows a stored batch; never generate.
+    if (isRehydrate) return;
     // Tell Kiwi preloads its result via params; never re-fire the wizard
     // mutation in that case, which would clobber the candidates with an
     // unrelated set from a different prompt. Surprise-me fires its own
@@ -267,11 +295,40 @@ export default function WizardResultsScreen() {
   useEffect(() => {
     // Surprise-me generation (no input). `attempt` re-fires it for the
     // "Surprise me again" re-roll, same as the wizard path's More-options.
+    if (isRehydrate) return; // Block 4b-3 — rehydrate never generates.
     if (!isSurprise) return;
     surpriseMutation.reset();
     surpriseMutation.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSurprise, attempt]);
+
+  // Block 4b-3 (D-WS9-072) — a successful generation just overwrote the server
+  // last-batch row AND superseded prior expand-drafts. Invalidate both client
+  // caches so the "See Previous Options" link + the (now stale) drafts list
+  // reflect the new state when the user returns to a form. Once per attempt;
+  // never on rehydrate (no new generation happened). Tell Kiwi generates on its
+  // own screen and invalidates there.
+  const invalidatedAttemptRef = useRef(-1);
+  useEffect(() => {
+    if (isRehydrate) return;
+    const generated =
+      (mutation.isSuccess && (mutation.data?.candidates?.length ?? 0) > 0) ||
+      (surpriseMutation.isSuccess &&
+        (surpriseMutation.data?.candidates?.length ?? 0) > 0);
+    if (generated && invalidatedAttemptRef.current !== attempt) {
+      invalidatedAttemptRef.current = attempt;
+      queryClient.invalidateQueries({ queryKey: ["wizard", "lastBatch"] });
+      queryClient.invalidateQueries({ queryKey: ["wizard", "drafts"] });
+    }
+  }, [
+    isRehydrate,
+    attempt,
+    mutation.isSuccess,
+    mutation.data,
+    surpriseMutation.isSuccess,
+    surpriseMutation.data,
+    queryClient,
+  ]);
 
   // For Surprise-me, synthesize the constraint slice the expand step needs
   // (allergies/eating-styles/household) from stored prefs — the candidate was
@@ -300,7 +357,9 @@ export default function WizardResultsScreen() {
     }
   };
 
-  const subtitle = isSurprise
+  const subtitle = isRehydrate
+    ? "Your previous options"
+    : isSurprise
     ? "3 crowd-pleasers Kiwi picked for you"
     : tellKiwiPayload && parsedIntent
     ? subtitleForScenario(parsedIntent.scenario)
@@ -308,7 +367,9 @@ export default function WizardResultsScreen() {
     ? "3 plans Kiwi built from your request"
     : "3 plans Kiwi cooked up just for you";
 
-  const candidates: WizardPlanCandidate[] = tellKiwiPayload
+  const candidates: WizardPlanCandidate[] = isRehydrate
+    ? rehydratedCands ?? []
+    : tellKiwiPayload
     ? tellKiwiPayload.candidates
     : isSurprise
     ? surpriseMutation.data?.candidates ?? []
@@ -534,6 +595,7 @@ export default function WizardResultsScreen() {
   // this screen fresh (attempt resets), so the guard re-arms.
   const autoExpandedAttemptRef = useRef(-1);
   useEffect(() => {
+    if (isRehydrate) return; // Block 4b-3 — a rehydrated surprise shows its card, no auto-expand.
     if (!isSurprise) return;
     if (chainState.kind !== "idle") return;
     if (!prefsQuery.data) return;
@@ -552,7 +614,7 @@ export default function WizardResultsScreen() {
   // path carries neither `wizardInput` nor `tellKiwiPayload` (it generates on
   // mount from stored prefs), so it MUST be exempted here or this guard fires
   // on first render and sends every surprise run to the error screen.
-  if (!wizardInput && !tellKiwiPayload && !isSurprise) {
+  if (!isRehydrate && !wizardInput && !tellKiwiPayload && !isSurprise) {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header showBack onBack={handleHeaderBack} title="Plan options" />
@@ -597,7 +659,9 @@ export default function WizardResultsScreen() {
               determines the scenario — re-rolling here would just call the
               same prompts and likely produce the same plan). For the wizard
               path it triggers a fresh AI call. */}
-          {!tellKiwiPayload && (
+          {/* Block 4b-3 — no re-roll on a rehydrated snapshot (it's a recall of
+              a prior run, not a fresh generation). */}
+          {!tellKiwiPayload && !isRehydrate && (
             <View style={{ flex: 1 }}>
               <Button
                 label="More options ↺"
@@ -695,7 +759,8 @@ export default function WizardResultsScreen() {
             </View>
           )}
 
-        {(tellKiwiPayload ||
+        {(isRehydrate ||
+          tellKiwiPayload ||
           (isSurprise && surpriseMutation.isSuccess) ||
           (!isSurprise && !mutation.isPending && mutation.isSuccess)) && (
           <View style={s.candidatesWrap}>

@@ -349,6 +349,44 @@ export async function dismissWizardDraft(
   });
 }
 
+// ── Block 4b-3 (D-WS9-072) — "See Previous Options" last-batch ───────────
+// The user's single last-generated plan-options batch (pre-expand candidate
+// cards). The generate surfaces read this to decide whether to show the link,
+// and to rehydrate wizard-results without a fresh AI call. `input` is the
+// request slice needed to rebuild candidateContext at a later expand (null for
+// surprise — context re-derives from stored prefs). Snapshot by design.
+
+const WizardLastBatchSchema = z.object({
+  source: z.enum(["wizard", "tellkiwi", "surprise"]),
+  candidates: z.array(WizardPlanCandidateSchema),
+  // Loosely typed on purpose — it round-trips verbatim into the wizard-results
+  // rehydrate params as the WizardPreferencesInput / TellKiwiInput slice. Null
+  // for surprise.
+  input: z.unknown().nullable(),
+  createdAt: z.string(),
+});
+export type WizardLastBatch = z.infer<typeof WizardLastBatchSchema>;
+
+const GetWizardLastBatchResponseSchema = z.object({
+  batch: WizardLastBatchSchema.nullable(),
+});
+export type GetWizardLastBatchResponse = z.infer<
+  typeof GetWizardLastBatchResponseSchema
+>;
+
+/**
+ * GET /api/wizard/last-batch — the "See Previous Options" batch, or
+ * { batch: null } for a user who has never generated. Never 404s.
+ *
+ * Propagates apiClient typed errors: `UnauthenticatedError` (401),
+ * `ApiError` (500), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function getWizardLastBatch(): Promise<GetWizardLastBatchResponse> {
+  return apiClient("/wizard/last-batch", {
+    schema: GetWizardLastBatchResponseSchema,
+  });
+}
+
 /**
  * GET /api/wizard/drafts/:id — resume detail fetch. Returns the same
  * envelope as POST /wizard/expand so resume navigates to the Block A

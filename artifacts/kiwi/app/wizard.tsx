@@ -18,6 +18,7 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Stepper } from "@/components/Stepper";
 import { WizardResumeInterstitial } from "@/components/WizardResumeInterstitial";
+import { WizardPreviousOptionsLink } from "@/components/WizardPreviousOptionsLink";
 import { AllergiesPicker } from "@/components/preference-pickers/AllergiesPicker";
 import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
 import { EatingStylesPicker } from "@/components/preference-pickers/EatingStylesPicker";
@@ -324,50 +325,13 @@ export default function Wizard() {
       </View>
     );
   }
-  const drafts = draftsQuery.data?.drafts ?? [];
-  // BUG-023 — hide drafts the user already dismissed on a prior entry. Only the
-  // never-dismissed drafts can surface the interstitial; a superseded plan
-  // stays gone.
-  const visibleDrafts = computeVisibleDrafts(drafts, dismissedDraftIds);
-  if (!interstitialDismissed && visibleDrafts.length > 0) {
-    return (
-      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
-        <Header showBack title="Kitchen Wizard" />
-        <WizardResumeInterstitial
-          drafts={visibleDrafts}
-          onResume={handleResume}
-          onDismiss={() => {
-            // "Get new results" declines these specific drafts. BUG-023 fix:
-            // archive them SERVER-SIDE so they can't resurface on another
-            // device or after a cache clear — the durable fix. The client set
-            // + AsyncStorage stay as an OPTIMISTIC hide (no flash before the
-            // server round-trip + refetch land). New drafts made later aren't
-            // in the set / stay unarchived, so they can still resume.
-            const dismissedIds = visibleDrafts.map((d) => d.id);
-            const next = addDismissed(dismissedDraftIds, dismissedIds);
-            setDismissedDraftIds(next);
-            void saveJSON(DISMISSED_DRAFTS_KEY, next);
-            setInterstitialDismissed(true);
-            setResumeErrorMessage(null);
-            // Fire-and-forget the server archive for each declined draft, then
-            // refresh the list. Failures are non-fatal — the optimistic client
-            // hide already covers this session; a surviving server row is
-            // caught on the next dismiss or by the TTL sweep.
-            void (async () => {
-              await Promise.allSettled(
-                dismissedIds.map((id) => dismissWizardDraft(id)),
-              );
-              void queryClient.invalidateQueries({
-                queryKey: ["wizard", "drafts"],
-              });
-            })();
-          }}
-          resumePendingDraftId={resumePendingDraftId}
-          resumeErrorMessage={resumeErrorMessage}
-        />
-      </View>
-    );
-  }
+  // Block 4b-3 (D-WS9-072) — the mount-time resume interstitial is REPLACED by
+  // the persistent "See Previous Options" link rendered in the form below (a
+  // mount interruption only catches the user at one moment; the link doesn't).
+  // The interstitial machinery above (draftsQuery, handleResume, the BUG-023
+  // dismissed-drafts state) is intentionally left in place but unreferenced —
+  // its removal, and WizardResumeInterstitial's, is WS9 3c cleanup, not this
+  // block. See components/WizardPreviousOptionsLink.tsx.
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
@@ -380,6 +344,9 @@ export default function Wizard() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Block 4b-3 — "See Previous Options" (hidden when no batch). */}
+        <WizardPreviousOptionsLink />
+
         {/* Always visible: Plan duration */}
         <Section label="Plan length" title="How long is this plan?">
           <View style={s.chipRow}>

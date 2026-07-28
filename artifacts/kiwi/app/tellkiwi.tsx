@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
@@ -19,6 +19,7 @@ import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { LoadingShim } from "@/components/LoadingShim";
 import { Stepper } from "@/components/Stepper";
+import { WizardPreviousOptionsLink } from "@/components/WizardPreviousOptionsLink";
 import { AllergiesPicker } from "@/components/preference-pickers/AllergiesPicker";
 import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
 import { EatingStylesPicker } from "@/components/preference-pickers/EatingStylesPicker";
@@ -116,6 +117,7 @@ function hydrateForm(
 
 export default function TellKiwi() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   // WS9 3a — free-text handoff from the Home Tell Kiwi card. `text` seeds the
   // description box so the user's typed prompt survives the navigation (no
   // retype). This is the handoff CONTRACT only; TODO(3c): 3c owns tellkiwi's
@@ -194,6 +196,12 @@ export default function TellKiwi() {
         ) {
           return;
         }
+        // Block 4b-3 (D-WS9-072) — this generation overwrote the server
+        // last-batch row + superseded prior expand-drafts. Invalidate both
+        // client caches so the "See Previous Options" link (shown on this form)
+        // and the drafts list reflect the new state on return.
+        queryClient.invalidateQueries({ queryKey: ["wizard", "lastBatch"] });
+        queryClient.invalidateQueries({ queryKey: ["wizard", "drafts"] });
         // PRD §6.5/§6.6 — share the wizard-results screen. Pass the result
         // payload via params so wizard-results renders without re-firing AI.
         // WS7-5b-mobile Block A — also pass the form payload so the per-
@@ -249,6 +257,9 @@ export default function TellKiwi() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Block 4b-3 — "See Previous Options" (hidden when no batch). */}
+        <WizardPreviousOptionsLink />
+
         {/* Section 1: Free-text description (always visible). */}
         <View style={s.card}>
           <Text style={s.sectionLabel}>Tell Kiwi</Text>
