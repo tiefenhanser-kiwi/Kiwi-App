@@ -46,6 +46,18 @@ export interface PlanDetailsCtaDecision {
     | { kind: "patch-plan"; planId: string };
 }
 
+export interface DecidePlanDetailsCtaOptions {
+  /**
+   * Label for the use button in its PRE-SAVE (draft-activate) state. Defaults
+   * to "Save and Use" — the wizard-plan-details surface. WS9 Block 3c
+   * (D-WS9-032) reuses this decider on the shared Plan Review draft surface and
+   * passes "Use This Week" there. Post-save the label is always "Use this week"
+   * regardless (the draft is already gone), so this only overrides the pre-save
+   * text.
+   */
+  activateLabel?: string;
+}
+
 /**
  * Decide the two CTAs' labels + the use-button target, given the current
  * post-save state. Pure function so the load-bearing post-save flip can be
@@ -54,14 +66,16 @@ export interface PlanDetailsCtaDecision {
  * @param savedPlanId the new plan id returned by saveWizardDraft, or null
  *   pre-save. Once non-null, the draft id is dead — the use button must
  *   target PATCH /plans/:savedPlanId, not /wizard/drafts/:draftId/activate.
+ * @param opts optional surface overrides (see DecidePlanDetailsCtaOptions).
  */
 export function decidePlanDetailsCta(
   savedPlanId: string | null,
+  opts: DecidePlanDetailsCtaOptions = {},
 ): PlanDetailsCtaDecision {
   if (savedPlanId === null) {
     return {
       saveButton: { label: "Save for Later", saved: false },
-      useButton: { label: "Save and Use" },
+      useButton: { label: opts.activateLabel ?? "Save and Use" },
       useTarget: { kind: "draft-activate" },
     };
   }

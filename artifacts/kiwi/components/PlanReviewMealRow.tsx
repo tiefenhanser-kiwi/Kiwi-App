@@ -35,6 +35,14 @@ interface Props {
   /** Fired when the row's "Compost" action is tapped — parent owns
    *  the confirmation alert + optimistic remove (PRD §8.4.5). */
   onCompost?: (planItemId: string, title: string) => void;
+  /** WS9 3c (D-WS9-032) — draft/preview mode. The row's meal has no real
+   *  server id (a wizard draft), so every interactive affordance is either
+   *  hidden (Cook Now + the edit action row) or routed to onReadOnlyEdit
+   *  (row tap, day pills) instead of navigating to a route that would 404.
+   *  Editing requires saving the plan first (point 6). */
+  readOnly?: boolean;
+  /** Guard invoked when a readOnly row's tappable surface is pressed. */
+  onReadOnlyEdit?: () => void;
 }
 
 export function PlanReviewMealRow({
@@ -44,6 +52,8 @@ export function PlanReviewMealRow({
   onFindSimilar,
   onAssignDay,
   onCompost,
+  readOnly = false,
+  onReadOnlyEdit,
 }: Props) {
   const router = useRouter();
 
@@ -64,6 +74,10 @@ export function PlanReviewMealRow({
   };
 
   const onRowTap = () => {
+    if (readOnly) {
+      onReadOnlyEdit?.();
+      return;
+    }
     console.log("[meal-row] row tapped (→ Meal Detail)", {
       planItemId: row.planItemId,
       mealId: row.mealId,
@@ -113,15 +127,19 @@ export function PlanReviewMealRow({
             {row.title}
           </Text>
         </Pressable>
-        <Pressable
-          onPress={onCookNow}
-          style={({ pressed }) => [
-            styles.cookNowBtn,
-            pressed && { opacity: 0.85 },
-          ]}
-        >
-          <Text style={styles.cookNowText}>Cook Now</Text>
-        </Pressable>
+        {/* Cook Now is a saved-plan action — hidden on a draft (no real meal
+            id to launch Cook Mode against). */}
+        {!readOnly && (
+          <Pressable
+            onPress={onCookNow}
+            style={({ pressed }) => [
+              styles.cookNowBtn,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={styles.cookNowText}>Cook Now</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Body row: thumbnail + meta + macros. Tapping body also navigates. */}
@@ -146,6 +164,10 @@ export function PlanReviewMealRow({
           <Pressable
             key={entry.day}
             onPress={() => {
+              if (readOnly) {
+                onReadOnlyEdit?.();
+                return;
+              }
               console.log("[meal-row] day-pill tapped", {
                 planItemId: row.planItemId,
                 day: entry.day,
@@ -177,7 +199,11 @@ export function PlanReviewMealRow({
           Change Recipe removed (R-3d-2); Compost relabeled "Remove from plan"
           (R-3d-3, still a soft-delete via onCompost). The prop interface is
           unchanged — swap targets are repointed by 3d, the Edit target by 3f
-          (see handoff TODOs). No 5-action rows survive Layer 2 (§3). */}
+          (see handoff TODOs). No 5-action rows survive Layer 2 (§3).
+          WS9 3c (D-WS9-032) — hidden entirely on a draft: these are all edits,
+          gated behind saving (the Add Meals button + row/day taps surface the
+          guard). */}
+      {!readOnly && (
       <View style={styles.actionRow}>
         <Pressable
           onPress={() => {
@@ -233,6 +259,7 @@ export function PlanReviewMealRow({
           <Text style={styles.actionText}>Remove from plan</Text>
         </Pressable>
       </View>
+      )}
     </View>
   );
 }

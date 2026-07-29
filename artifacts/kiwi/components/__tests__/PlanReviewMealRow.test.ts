@@ -192,3 +192,78 @@ test("PlanReviewMealRow: Remove from plan fires onCompost (soft-delete)", async 
   assert.deepEqual(calls.compost, [["pi-1", "Lemon Herb Salmon"]]);
   renderer.unmount();
 });
+
+// ── WS9 3c (D-WS9-032) readOnly / draft mode ──────────────────────────────
+// A draft row's meal has no real server id, so every edit affordance is either
+// hidden (Cook Now + the action buttons) or routed to onReadOnlyEdit (row tap,
+// day pills) instead of navigating to a route that would 404. The default-false
+// prop keeps the saved-plan tests above unchanged.
+
+// Renders the SAME ROW fixture (real-looking ids, one assigned day) but in
+// readOnly mode with an onReadOnlyEdit guard spy.
+async function renderReadOnly() {
+  let guardCalls = 0;
+  const assignDayCalls: Array<[string, string | null]> = [];
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(PlanReviewMealRow, {
+        row: ROW,
+        planId: "plan-1",
+        readOnly: true,
+        onReadOnlyEdit: () => {
+          guardCalls += 1;
+        },
+        onAssignDay: (planItemId: string, day: string | null) =>
+          assignDayCalls.push([planItemId, day]),
+      }),
+    );
+  });
+  return {
+    renderer,
+    tree: renderer.toJSON() as RenderedNode | null,
+    getGuardCalls: () => guardCalls,
+    assignDayCalls,
+  };
+}
+
+test("PlanReviewMealRow readOnly: Cook Now and the 4 edit actions are hidden", async () => {
+  const { renderer, tree } = await renderReadOnly();
+  const texts = allText(tree);
+  for (const gone of [
+    "Cook Now",
+    "Edit",
+    "Swap for Different Meal",
+    "Swap for Similar Meal",
+    "Remove from plan",
+  ]) {
+    assert.ok(!texts.includes(gone), `readOnly must hide "${gone}"`);
+  }
+  renderer.unmount();
+});
+
+test("PlanReviewMealRow readOnly: tapping the title fires the guard, not a route", async () => {
+  const { renderer, tree, getGuardCalls } = await renderReadOnly();
+  const title = findPressableByText(tree, "Lemon Herb Salmon");
+  assert.ok(title, "title pressable not found");
+  await act(async () => {
+    (title!.props!.onPress as () => void)();
+  });
+  assert.equal(getGuardCalls(), 1);
+  assert.equal(pushedRoutes.length, 0, "readOnly row must not navigate");
+  renderer.unmount();
+});
+
+test("PlanReviewMealRow readOnly: tapping a day pill fires the guard, not onAssignDay", async () => {
+  const { renderer, tree, getGuardCalls, assignDayCalls } =
+    await renderReadOnly();
+  // "M" is Monday's short label — unique in the strip (S/T repeat).
+  const dayPill = findPressableByText(tree, "M");
+  assert.ok(dayPill, "Monday day pill not found");
+  await act(async () => {
+    (dayPill!.props!.onPress as () => void)();
+  });
+  assert.equal(getGuardCalls(), 1);
+  assert.deepEqual(assignDayCalls, [], "readOnly day pill must not assign");
+  renderer.unmount();
+});

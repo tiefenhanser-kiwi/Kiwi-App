@@ -21,6 +21,24 @@ test("decidePlanDetailsCta pre-save (savedPlanId=null): use button targets draft
   assert.equal(decision.useTarget.kind, "draft-activate");
 });
 
+test("decidePlanDetailsCta pre-save with activateLabel override: use button relabels, target unchanged", () => {
+  // WS9 Block 3c (D-WS9-032) — the shared Plan Review draft surface reuses this
+  // decider but labels the use button "Use This Week". Only the label changes;
+  // the pre-save target stays draft-activate.
+  const decision = decidePlanDetailsCta(null, { activateLabel: "Use This Week" });
+  assert.equal(decision.useButton.label, "Use This Week");
+  assert.equal(decision.useTarget.kind, "draft-activate");
+  assert.equal(decision.saveButton.label, "Save for Later");
+});
+
+test("decidePlanDetailsCta: activateLabel is ignored post-save (draft already gone)", () => {
+  const decision = decidePlanDetailsCta("plan-saved-7", {
+    activateLabel: "Use This Week",
+  });
+  assert.equal(decision.useButton.label, "Use this week");
+  assert.equal(decision.useTarget.kind, "patch-plan");
+});
+
 // ── post-save (THE load-bearing flip) ─────────────────────────────────────
 
 test("decidePlanDetailsCta post-save: use button targets PATCH /plans/:savedPlanId, NOT draft-activate", () => {

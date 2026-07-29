@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { AddMealsSheet } from "@/components/AddMealsSheet";
 import { Button } from "@/components/Button";
@@ -34,16 +35,51 @@ import { ApiError } from "@/lib/api/errors";
 import { buildDayStrip } from "@/lib/domain";
 import { formatMacro } from "@/lib/format/macros";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
+import { getPlans } from "@/lib/api/plans";
+import {
+  activateWizardDraft,
+  saveWizardDraft,
+  WizardExpandedPlanSchema,
+  type WizardExpandedPlan,
+} from "@/lib/api/wizard";
+import { resolveActivatedPlanRouteAfter404 } from "@/lib/wizard/activateRecovery";
 import {
   mealDetailToRow,
   planDetailToReviewPlan,
 } from "@/lib/plans/reviewPlanAdapter";
+import { wizardExpandedPlanToReviewPlan } from "@/lib/plans/wizardDraftReviewAdapter";
+import { decidePlanDetailsCta } from "@/lib/plans/wizardPostSaveCta";
 import type {
   DayOfWeek,
   MealSummary,
   ReviewPlan,
   ReviewPlanMealRow,
 } from "@/lib/types";
+
+// WS9 3c (D-WS9-032) — client-side ceiling for the "Use This Week" activate
+// leg (materialize + finalize-steps AI, ~35s observed). 90s sits past the
+// server tx budget so a real success is never read as a timeout. Lifted from
+// wizard-plan-details.tsx's ACTIVATE_CLIENT_TIMEOUT_MS (the flow this replaces).
+const ACTIVATE_CLIENT_TIMEOUT_MS = 90_000;
+
+// WS9 3c (D-WS9-032, point 6) — edit-guard copy, verbatim. A draft is not yet
+// in the library, so meal edits/adds are gated behind this until the user
+// commits via the action bar.
+const DRAFT_EDIT_GUARD_COPY =
+  "To customize this plan, save it to your library for this week or later.";
+
+// Parse the expanded-draft route param (JSON) into a WizardExpandedPlan.
+// Returns null on malformed/absent input so the screen can render an error
+// frame instead of crashing inside a tap handler.
+function parseDraftExpanded(raw: string | undefined): WizardExpandedPlan | null {
+  if (!raw) return null;
+  try {
+    const parsed = WizardExpandedPlanSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
 
 // Android requires opt-in for LayoutAnimation. One-time global flag —
 // this is the only file that opts in today; safe no-op if set elsewhere.
@@ -102,11 +138,23 @@ function applyDayAssignment(
 
 export default function PlanReviewScreen() {
   const router = useRouter();
-  const { id, addMealId } = useLocalSearchParams<{
+  const queryClient = useQueryClient();
+  const { id, addMealId, draftId, expanded } = useLocalSearchParams<{
     id: string;
     addMealId?: string;
+    // WS9 3c (D-WS9-032, Option A) — draft mode. When a wizard candidate is
+    // tapped, the results card expands it and routes here with the draft id +
+    // the expanded payload; the plan is rendered UNSAVED until the action bar
+    // commits it (Save for Later / Use This Week). Absent = everyday saved plan.
+    draftId?: string;
+    expanded?: string;
   }>();
   const planId = id ?? "";
+  const isDraft = !!draftId;
+  const draftPlan = useMemo(
+    () => (isDraft ? parseDraftExpanded(expanded) : null),
+    [isDraft, expanded],
+  );
   const {
     changeMealForPlanItem,
     assignDayToPlanItem,
@@ -128,14 +176,26 @@ export default function PlanReviewScreen() {
   // the old id to the server and uncaught "item not found" ApiErrors fired.
   // Optimistic updates in the mutator helpers below remain visible until the
   // refetch arrives (~200ms) and then converge to server truth.
-  const planQuery = usePlan(planId);
-  const [reviewPlan, setReviewPlan] = useState<ReviewPlan | null>(null);
+  // Draft mode never hits the network — usePlan("") is disabled (enabled:
+  // id.length > 0). Saved mode fetches the real plan and seeds reviewPlan below.
+  const planQuery = usePlan(isDraft ? "" : planId);
+  // Draft mode seeds reviewPlan synchronously from the adapted expanded payload
+  // (lazy initializer) so the first render already has the plan — the draft
+  // params are fixed for this screen's life, and a commit navigates away
+  // (router.replace to the real plan id). Saved mode starts null and is seeded
+  // by the effect once planQuery resolves.
+  const [reviewPlan, setReviewPlan] = useState<ReviewPlan | null>(() =>
+    isDraft && draftPlan ? wizardExpandedPlanToReviewPlan(draftPlan) : null,
+  );
 
   useEffect(() => {
+    // Draft mode owns reviewPlan locally (seeded above, mutated by nothing —
+    // edits are guarded off); never let a disabled planQuery clobber it.
+    if (isDraft) return;
     if (planQuery.data) {
       setReviewPlan(planDetailToReviewPlan(planQuery.data));
     }
-  }, [planQuery.data]);
+  }, [isDraft, planQuery.data]);
 
   // PRD §9.4 — deep-link from AddMealToPlanSheet's "Create new plan" card.
   // Asynchronously fetches the meal detail and injects a row into the
@@ -315,11 +375,137 @@ export default function PlanReviewScreen() {
     void setPlanActiveThisWeek(planId);
   };
 
+  // ── WS9 3c (D-WS9-032, Option A) — draft-state action bar ────────────────
+  // The shared action bar shows Save for Later / Use This Week while the plan
+  // is an unsaved wizard draft, and flips to the real actions once committed.
+  // Labels come from the SAME decider the wizard-plan-details surface uses
+  // (decidePlanDetailsCta) — one decider, extended, not a parallel one. On
+  // Plan Review we only ever render its pre-save state: a commit navigates away
+  // to the freshly-materialized real plan (which then renders in saved mode).
+  const draftCta = decidePlanDetailsCta(null, { activateLabel: "Use This Week" });
+  const [draftCommit, setDraftCommit] = useState<"idle" | "save" | "use">(
+    "idle",
+  );
+  const [draftCommitError, setDraftCommitError] = useState<string | null>(null);
+
+  // Point 6 — meal edits/adds on an unsaved draft are gated behind this until
+  // the user commits. Single-arg Alert (matches the addMealId-fail pattern
+  // above): the guard sentence IS the message, no body.
+  const showDraftEditGuard = () => {
+    Alert.alert(DRAFT_EDIT_GUARD_COPY);
+  };
+
+  // "Save for Later" — POST /wizard/drafts/:id/save promotes the hidden draft
+  // into a real undated, inactive plan. On success we navigate to the real
+  // plan id; the screen re-renders in saved mode with the real actions (point
+  // 4: a saved plan never shows the save options again).
+  const handleSaveForLater = async () => {
+    if (!draftId) return;
+    if (draftCommit !== "idle") return;
+    setDraftCommit("save");
+    setDraftCommitError(null);
+    try {
+      const result = await saveWizardDraft(draftId);
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      queryClient.invalidateQueries({ queryKey: ["home"] });
+      router.replace({
+        pathname: "/plan/[id]",
+        params: { id: result.instance.id },
+      });
+    } catch (err) {
+      setDraftCommit("idle");
+      setDraftCommitError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't save this plan.",
+      );
+    }
+  };
+
+  // "Use This Week" — POST /wizard/drafts/:id/activate materializes the draft,
+  // demotes prior actives, auto-dates the current week, and lands on the real
+  // active plan. Mirrors wizard-results.tsx's "use" chain: 90s client ceiling
+  // over the activate leg + the D-WS7-080 404 recovery (a dropped-201 already
+  // consumed the draft; the plan is safe — route to it rather than showing red).
+  const handleUseThisWeek = async () => {
+    if (!draftId) return;
+    if (draftCommit !== "idle") return;
+    setDraftCommit("use");
+    setDraftCommitError(null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      ACTIVATE_CLIENT_TIMEOUT_MS,
+    );
+    try {
+      const result = await activateWizardDraft(draftId, {
+        signal: controller.signal,
+      });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      queryClient.invalidateQueries({ queryKey: ["home"] });
+      router.replace({
+        pathname: "/plan/[id]",
+        params: { id: result.instance.id },
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        try {
+          const route = await resolveActivatedPlanRouteAfter404(getPlans);
+          queryClient.invalidateQueries({ queryKey: ["plans"] });
+          queryClient.invalidateQueries({ queryKey: ["home"] });
+          if (route.kind === "plan") {
+            router.replace({
+              pathname: "/plan/[id]",
+              params: { id: route.planId },
+            });
+          } else {
+            router.replace("/(tabs)/plans");
+          }
+          return;
+        } catch {
+          // Recovery fetch itself failed — fall through to the error line.
+        }
+      }
+      setDraftCommit("idle");
+      setDraftCommitError(
+        controller.signal.aborted
+          ? "Kiwi is still working on it. Check your plans in a moment — it may have saved."
+          : err instanceof Error && err.message
+            ? err.message
+            : "Couldn't activate this plan.",
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
   // Block B gate (WS7-3 C4 c1) — server load, error, or adapter-not-yet-seeded
   // states render a loading / error frame. The error branch distinguishes 404
   // (plan not owned / missing) from generic load failure per the same pattern
   // app/dish/[id].tsx adopted in C3 c3.
-  if (planQuery.isLoading || (!reviewPlan && !planQuery.isError)) {
+  // Draft mode with a malformed/absent expanded payload — can't render. Route
+  // back to results rather than showing a dead plan screen.
+  if (isDraft && !reviewPlan) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
+        <Header showBack title="Plan Review" />
+        <View style={s.gateWrap}>
+          <Text style={s.gateText}>
+            Couldn&apos;t load this plan draft. Head back and pick again.
+          </Text>
+          <View style={s.gateBtnWrap}>
+            <Button
+              label="Back to results"
+              variant="ghost"
+              onPress={() => router.back()}
+            />
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (!isDraft && (planQuery.isLoading || (!reviewPlan && !planQuery.isError))) {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header showBack title="Plan Review" />
@@ -330,7 +516,7 @@ export default function PlanReviewScreen() {
     );
   }
 
-  if (planQuery.isError || !reviewPlan) {
+  if (!isDraft && (planQuery.isError || !reviewPlan)) {
     const err = planQuery.error;
     const isNotFound = err instanceof ApiError && err.status === 404;
     return (
@@ -362,22 +548,34 @@ export default function PlanReviewScreen() {
     );
   }
 
+  // Both gate clusters above (draft parse-fail + saved load/error) return when
+  // reviewPlan is null, so it is non-null here — this narrows it for TS across
+  // the compound isDraft conditions the analyzer can't combine on its own.
+  if (!reviewPlan) return null;
+
   const hasMeals =
     reviewPlan.scheduledMeals.length > 0 ||
     reviewPlan.unscheduledMeals.length > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
-      {/* §8.3.1 — Header with back button, page label, passive Saved pill.
-          Plan name + date range live in the editable meta strip below the
-          header (PRD §8 / §11). */}
+      {/* §8.3.1 — Header with back button, page label, and a state-aware pill:
+          "Draft" while unsaved (D-WS9-032), the passive "Saved" pill once the
+          plan is in the library. Plan name + date range live in the editable
+          meta strip below the header (PRD §8 / §11). */}
       <Header
         showBack
         title="Plan Review"
         rightContent={
-          <View style={s.savedPill}>
-            <Text style={s.savedPillText}>Saved</Text>
-          </View>
+          isDraft ? (
+            <View style={s.draftPill}>
+              <Text style={s.draftPillText}>Draft</Text>
+            </View>
+          ) : (
+            <View style={s.savedPill}>
+              <Text style={s.savedPillText}>Saved</Text>
+            </View>
+          )
         }
       />
 
@@ -387,84 +585,132 @@ export default function PlanReviewScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={s.planMetaSection}>
-          <PlanNameEditor
-            currentName={planName}
-            onSave={handleSavePlanName}
-          />
-          <PlanDateRangeEditor
-            startDate={reviewPlan.weekStartDate}
-            endDate={reviewPlan.weekEndDate}
-            onSave={handleSaveDateRange}
-          />
-          {/* WS7-6 (E) Block 2 §4 — Cook This Week chip. Lives in the meta
-              strip (NOT the §8.3.2 action bar — that's locked to 3 CTAs).
-              When this plan IS the winner: passive "This Week's Plan" badge.
-              Otherwise: tappable chip activates the plan (resolver demotes
-              prior winner silently — no constraint to reject). */}
-          {reviewPlan.isActiveThisWeek ? (
-            <View style={s.cookThisWeekBadge}>
-              <Feather name="check" size={12} color={Colors.sage[700]} />
-              <Text style={s.cookThisWeekBadgeText}>This Week's Plan</Text>
-            </View>
+          {/* Draft: name is fixed (the candidate title) and there is no week
+              yet — no name/date editors, no Cook This Week chip (the action bar
+              owns the commit). Saved: the full editable meta strip. */}
+          {isDraft ? (
+            <Text style={s.draftTitle}>{planName}</Text>
           ) : (
-            <Pressable
-              onPress={handleCookThisWeek}
-              hitSlop={6}
-              style={({ pressed }) => [
-                s.cookThisWeekChip,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Feather name="calendar" size={12} color={Colors.neutral[100]} />
-              <Text style={s.cookThisWeekChipText}>Cook This Week</Text>
-            </Pressable>
+            <>
+              <PlanNameEditor
+                currentName={planName}
+                onSave={handleSavePlanName}
+              />
+              <PlanDateRangeEditor
+                startDate={reviewPlan.weekStartDate}
+                endDate={reviewPlan.weekEndDate}
+                onSave={handleSaveDateRange}
+              />
+              {/* WS7-6 (E) Block 2 §4 — Cook This Week chip. Lives in the meta
+                  strip (NOT the §8.3.2 action bar). When this plan IS the
+                  winner: passive "This Week's Plan" badge. Otherwise: tappable
+                  chip activates the plan (resolver demotes prior winner). */}
+              {reviewPlan.isActiveThisWeek ? (
+                <View style={s.cookThisWeekBadge}>
+                  <Feather name="check" size={12} color={Colors.sage[700]} />
+                  <Text style={s.cookThisWeekBadgeText}>This Week's Plan</Text>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={handleCookThisWeek}
+                  hitSlop={6}
+                  style={({ pressed }) => [
+                    s.cookThisWeekChip,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Feather
+                    name="calendar"
+                    size={12}
+                    color={Colors.neutral[100]}
+                  />
+                  <Text style={s.cookThisWeekChipText}>Cook This Week</Text>
+                </Pressable>
+              )}
+            </>
           )}
         </View>
 
-        {/* §8.3.2 — Sticky-near-top action bar (1+2 stack) */}
-        <View style={s.actionBar}>
-          <Button
-            label="Prep and Cook"
-            variant="primary"
-            onPress={() => {
-              console.log("[plan-review] prep-and-cook tapped", { planId });
-              // WS7-8b B2 — plan-context entry: land on the Hub for this plan.
-              router.push({ pathname: "/prep-cook", params: { id: planId } });
-            }}
-          />
-          <View style={s.actionRow}>
-            <View style={s.actionCol}>
-              <Button
-                label="Get Groceries Online"
-                variant="primary"
-                onPress={() => {
-                  console.log("[plan-review] get-groceries-online tapped", {
-                    planId,
-                  });
-                  Alert.alert(
-                    "Coming in WS6 — retailer integration",
-                    "Online ordering requires the retailer adapter pattern from PRD §12.12.",
-                  );
-                }}
-              />
-            </View>
-            <View style={s.actionCol}>
-              <Button
-                label={isGeneratingList ? "Generating…" : "Grocery List"}
-                variant="ghost"
-                loading={isGeneratingList}
-                onPress={handleGroceryListPress}
-              />
+        {/* §8.3.2 — Sticky-near-top action bar. ONE component, TWO states
+            (D-WS9-032 point 4), driven by saved-state: an unsaved draft shows
+            Save for Later / Use This Week; a saved plan shows the real actions
+            and never re-offers the save options. */}
+        {isDraft ? (
+          <View style={s.actionBar}>
+            {draftCommitError && (
+              <Text style={s.draftCommitError}>{draftCommitError}</Text>
+            )}
+            <Button
+              label={
+                draftCommit === "use" ? "Activating…" : draftCta.useButton.label
+              }
+              variant="primary"
+              loading={draftCommit === "use"}
+              disabled={draftCommit !== "idle"}
+              onPress={handleUseThisWeek}
+            />
+            <Button
+              label={
+                draftCommit === "save" ? "Saving…" : draftCta.saveButton.label
+              }
+              variant="ghost"
+              loading={draftCommit === "save"}
+              disabled={draftCommit !== "idle"}
+              onPress={handleSaveForLater}
+            />
+          </View>
+        ) : (
+          <View style={s.actionBar}>
+            <Button
+              label="Prep and Cook"
+              variant="primary"
+              onPress={() => {
+                console.log("[plan-review] prep-and-cook tapped", { planId });
+                // WS7-8b B2 — plan-context entry: land on the Hub for this plan.
+                router.push({ pathname: "/prep-cook", params: { id: planId } });
+              }}
+            />
+            <View style={s.actionRow}>
+              <View style={s.actionCol}>
+                <Button
+                  label="Get Groceries Online"
+                  variant="primary"
+                  onPress={() => {
+                    console.log("[plan-review] get-groceries-online tapped", {
+                      planId,
+                    });
+                    Alert.alert(
+                      "Coming in WS6 — retailer integration",
+                      "Online ordering requires the retailer adapter pattern from PRD §12.12.",
+                    );
+                  }}
+                />
+              </View>
+              <View style={s.actionCol}>
+                <Button
+                  label={isGeneratingList ? "Generating…" : "Grocery List"}
+                  variant="ghost"
+                  loading={isGeneratingList}
+                  onPress={handleGroceryListPress}
+                />
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
-        {/* §8.3.2 (cont.) — single Add Meals affordance */}
+        {/* §8.3.2 (cont.) — single Add Meals affordance. On a draft it's
+            guarded (point 6): adding a meal requires saving first. */}
         <View style={s.addMealsWrap}>
-          <Button label="Add Meals" variant="ghost" onPress={onAddMeals} />
+          <Button
+            label="Add Meals"
+            variant="ghost"
+            onPress={isDraft ? showDraftEditGuard : onAddMeals}
+          />
         </View>
 
-        {/* §8.3.3 — Prep status indicator */}
+        {/* §8.3.3 — Prep status indicator (hidden on a draft — prep is a
+            saved-plan concept). */}
+        {!isDraft && (
         <View style={s.section}>
           {reviewPlan.prepStatus === "not_prepped" ? (
             <View style={s.prepBanner}>
@@ -493,6 +739,7 @@ export default function PlanReviewScreen() {
             </View>
           )}
         </View>
+        )}
 
         {/* §8.3.4 — Smart Optimization Panel (hidden when notes are empty per §8.6) */}
         {reviewPlan.optimizationNotes.length > 0 && (
@@ -582,6 +829,8 @@ export default function PlanReviewScreen() {
                   key={row.planItemId}
                   row={row}
                   planId={planId}
+                  readOnly={isDraft}
+                  onReadOnlyEdit={showDraftEditGuard}
                   onChangeMeal={(planItemId, currentMealId) =>
                     setChangeMealForRow({ planItemId, currentMealId })
                   }
@@ -599,12 +848,19 @@ export default function PlanReviewScreen() {
               ))}
               {reviewPlan.unscheduledMeals.length > 0 && (
                 <>
-                  <Text style={s.subSectionHeader}>Unscheduled</Text>
+                  {/* On a draft every meal is unscheduled (no day assignment
+                      until it's saved + activated), so the "Unscheduled"
+                      contrast header would be noise — omit it. */}
+                  {!isDraft && (
+                    <Text style={s.subSectionHeader}>Unscheduled</Text>
+                  )}
                   {reviewPlan.unscheduledMeals.map((row) => (
                     <PlanReviewMealRow
                       key={row.planItemId}
                       row={row}
                       planId={planId}
+                      readOnly={isDraft}
+                      onReadOnlyEdit={showDraftEditGuard}
                       onChangeMeal={(planItemId, currentMealId) =>
                         setChangeMealForRow({ planItemId, currentMealId })
                       }
@@ -626,7 +882,11 @@ export default function PlanReviewScreen() {
           )}
         </View>
 
-        {/* §8.3.7 — Breakfast & Lunch defaults (collapsed by default) */}
+        {/* §8.3.7 — Breakfast & Lunch defaults (collapsed by default).
+            Hidden on a draft: these are per-plan overrides that only make sense
+            once the plan is saved. */}
+        {!isDraft && (
+        <>
         <View
           style={s.section}
           onLayout={(e) => {
@@ -698,6 +958,8 @@ export default function PlanReviewScreen() {
             />
           )}
         </View>
+        </>
+        )}
       </KeyboardAwareScrollViewCompat>
 
       <ChangeMealSheet
@@ -883,6 +1145,30 @@ const s = StyleSheet.create({
     color: Colors.sage[700],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
+  },
+  draftPill: {
+    backgroundColor: Colors.neutral[200],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[1],
+  },
+  draftPillText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+  },
+  draftTitle: {
+    fontSize: Typography.fontSize.xxl,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.face.serif[700],
+  },
+  draftCommitError: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.terracotta[600],
+    fontFamily: Typography.face.sans[400],
+    textAlign: "center",
   },
   planMetaSection: {
     gap: 4,
