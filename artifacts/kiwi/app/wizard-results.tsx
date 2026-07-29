@@ -28,15 +28,12 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { useBuildWizardPlansStreaming } from "@/hooks/useBuildWizardPlansStreaming";
 import { useBuildSurprise } from "@/hooks/useBuildSurprise";
 import {
-  activateWizardDraft,
   expandWizardCandidate,
   type WizardExpandCandidateContext,
   type WizardExpandResponse,
 } from "@/lib/api/wizard";
-import { getPlans } from "@/lib/api/plans";
+import { buildOpenDraftParams } from "@/lib/wizard/openDraftPlanRoute";
 import { getPreferences, type UserPreferences } from "@/lib/api/me";
-import { ApiError } from "@/lib/api/errors";
-import { resolveActivatedPlanRouteAfter404 } from "@/lib/wizard/activateRecovery";
 import type {
   BuildFromTextResult,
   ParsedIntent,
@@ -44,12 +41,11 @@ import type {
 import { formatMacro } from "@/lib/format/macros";
 import type { TellKiwiInput, WizardPlanCandidate, WizardPreferencesInput } from "@/lib/types";
 
-// R5 (WS9 3c) — client-side timeout for the merged expand→activate chain. The
-// activate leg runs the server's finalize-steps + materialize $tx (~35s
-// observed); 90s sits comfortably past the server ceiling so a real success is
-// never perceived as a timeout, while a true 90s hang is still informative.
-// Lifted verbatim from wizard-plan-details.tsx's ACTIVATE_CLIENT_TIMEOUT_MS.
-const ACTIVATE_CLIENT_TIMEOUT_MS = 90_000;
+// WS9 3c (D-WS9-032) — client-side ceiling for the expand call that opens a
+// candidate as a draft. Expand is ~10-15s typical; 90s sits well past that so a
+// real success is never read as a timeout, while a true hang still surfaces via
+// the §5.4 error surface. The Cancel button also aborts this controller.
+const EXPAND_CLIENT_TIMEOUT_MS = 90_000;
 
 // Synthesize a TellKiwiInput-shaped constraint slice from stored preferences so
 // the Surprise-me path can build the same expand candidateContext the Tell Kiwi
@@ -195,28 +191,22 @@ const EXPAND_THOROUGH_THRESHOLD_SEC = 30;
 // to results" — the user came from the cards, so back-from-expand returns
 // to the cards, not the input form.
 //
-// R5 (WS9 3c) — one state machine now drives TWO card actions, distinguished
-// by `mode`:
-//   - "use"     → the merged expand→activate chain (one wait), lands on Plan
-//                 Review. This is the card's single primary.
-//   - "details" → expand-only, lands on the demoted read-only wizard-plan-
-//                 details peek (the optional "View details" tertiary).
-// BUG-037 — "surprise" auto-expands the single Surprise-me candidate straight
-// to the draft screen (with a "Surprise Me again" re-roll), skipping the card
-// picker. Same expand as "details" but lands non-peek (keeps the save CTAs).
-type ChainMode = "use" | "details" | "surprise";
+// WS9 3c (D-WS9-032) — the card no longer commits. One state machine now drives
+// a single action: EXPAND the picked candidate, then open the SHARED Plan
+// Review screen as an unsaved draft (the save/activate decision moves there,
+// onto its action bar). Tapping a card = one wait, then Plan Review; the commit
+// primary and the "View details" peek are both gone. Surprise-me reuses the
+// same expand → draft path (its auto-expand skips the card picker).
 type ChainState =
   | { kind: "idle" }
   | {
       kind: "pending";
-      mode: ChainMode;
       candidateId: string;
       controller: AbortController;
       elapsedSec: number;
     }
   | {
       kind: "error";
-      mode: ChainMode;
       candidate: WizardPlanCandidate;
       message: string;
     };
@@ -276,7 +266,18 @@ export default function WizardResultsScreen() {
   // `input` is identical (re-entering the wizard with unchanged prefs would
   // otherwise leave React Query showing the previous mount's data).
   const [attempt, setAttempt] = useState(0);
-  const mutation = useBuildWizardPlansStreaming();
+  const mutation = useBuildWizardPlansStreaming({
+    // BUG-051 fix — invalidate the "See Previous Options" cache only when the
+    // stream TRULY completes (server has written its last-batch row), NOT on
+    // isSuccess (which flips at the first streamed card, before the write).
+    // See the effect below for the surprise (buffered) path, whose isSuccess is
+    // already correctly timed. The ["wizard","drafts"] key is no longer
+    // invalidated here — its sole observer (wizard.tsx's draftsQuery) was
+    // removed with the resume interstitial (WS9 3c), so it has no observers.
+    onComplete: () => {
+      queryClient.invalidateQueries({ queryKey: ["wizard", "lastBatch"] });
+    },
+  });
 
   useEffect(() => {
     // Block 4b-3 — rehydrate re-shows a stored batch; never generate.
@@ -302,29 +303,27 @@ export default function WizardResultsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSurprise, attempt]);
 
-  // Block 4b-3 (D-WS9-072) — a successful generation just overwrote the server
-  // last-batch row AND superseded prior expand-drafts. Invalidate both client
-  // caches so the "See Previous Options" link + the (now stale) drafts list
-  // reflect the new state when the user returns to a form. Once per attempt;
-  // never on rehydrate (no new generation happened). Tell Kiwi generates on its
-  // own screen and invalidates there.
+  // Block 4b-3 (D-WS9-072) — a successful generation overwrote the server
+  // last-batch row, so the "See Previous Options" cache must be invalidated to
+  // reflect the new run. The STREAMING (Set-Prefs) path invalidates via the
+  // hook's onComplete above (BUG-051 — its isSuccess flips at the first card,
+  // before the server write). This effect handles the SURPRISE path only: it's
+  // buffered, so surpriseMutation.isSuccess fires after the server responds
+  // (post-write), making it correctly timed. Once per attempt; never on
+  // rehydrate. Tell Kiwi generates on its own screen and invalidates there.
   const invalidatedAttemptRef = useRef(-1);
   useEffect(() => {
     if (isRehydrate) return;
     const generated =
-      (mutation.isSuccess && (mutation.data?.candidates?.length ?? 0) > 0) ||
-      (surpriseMutation.isSuccess &&
-        (surpriseMutation.data?.candidates?.length ?? 0) > 0);
+      surpriseMutation.isSuccess &&
+      (surpriseMutation.data?.candidates?.length ?? 0) > 0;
     if (generated && invalidatedAttemptRef.current !== attempt) {
       invalidatedAttemptRef.current = attempt;
       queryClient.invalidateQueries({ queryKey: ["wizard", "lastBatch"] });
-      queryClient.invalidateQueries({ queryKey: ["wizard", "drafts"] });
     }
   }, [
     isRehydrate,
     attempt,
-    mutation.isSuccess,
-    mutation.data,
     surpriseMutation.isSuccess,
     surpriseMutation.data,
     queryClient,
@@ -419,19 +418,15 @@ export default function WizardResultsScreen() {
     router.replace("/(tabs)");
   };
 
-  // ── R5 (WS9 3c) — merged expand→activate chain + View-details peek ──
-  // "Use this plan" (the card's single primary) runs expand THEN activate in
-  // ONE wait and lands directly on Plan Review. "View details" (tertiary) runs
-  // expand-only and lands on the demoted read-only wizard-plan-details peek.
-  // Both share one §5.4 loading/error surface, distinguished by ChainState.mode.
-  //
-  // Activation goes through activateWizardDraft — the canonical draft
-  // materialize+activate endpoint — NOT setPlanActiveThisWeek, which needs an
-  // already-materialized plan id a fresh draft doesn't have (Phase 0 FLAG B).
-  // The server flip sets isActiveThisWeek; we invalidate ["plans"] AND ["home"]
-  // so the Home hero doesn't go stale (the dead-home trap 3b flagged).
+  // ── WS9 3c (D-WS9-032) — expand → open Plan Review as an unsaved draft ──
+  // Tapping a card expands the picked candidate (POST /wizard/expand → a hidden
+  // draft + the expanded payload) and pushes the SHARED Plan Review screen in
+  // draft mode. NO activation here — the save/activate decision lives on Plan
+  // Review's action bar now. `router.push` (not replace) keeps this results
+  // screen in the stack, so Back from Plan Review returns to the 3 candidates
+  // (point 5). One §5.4 loading/error surface, one action.
   const [chainState, setChainState] = useState<ChainState>({ kind: "idle" });
-  // Distinguishes a user Cancel (silent — returns to cards) from the 90s client
+  // Distinguishes a user Cancel (silent — returns to cards) from the client
   // timeout (informative "still working" copy). Both abort the same controller,
   // so the catch can't tell them apart without this flag.
   const userCancelledRef = useRef(false);
@@ -465,21 +460,18 @@ export default function WizardResultsScreen() {
     };
   }, [chainState.kind]);
 
-  const runChain = async (candidate: WizardPlanCandidate, mode: ChainMode) => {
+  const runOpenDraft = async (candidate: WizardPlanCandidate) => {
     // Already running — ignore. The §5.4 overlay blocks the cards anyway, but
     // the guard makes the intent explicit.
     if (chainState.kind === "pending") return;
     userCancelledRef.current = false;
     const controller = new AbortController();
-    // One 90s ceiling over the whole chain (expand ~15s + activate ~35s); well
-    // under 90s on success, but a true hang still surfaces.
     const timeoutId = setTimeout(
       () => controller.abort(),
-      ACTIVATE_CLIENT_TIMEOUT_MS,
+      EXPAND_CLIENT_TIMEOUT_MS,
     );
     setChainState({
       kind: "pending",
-      mode,
       candidateId: candidate.id,
       controller,
       elapsedSec: 0,
@@ -496,35 +488,15 @@ export default function WizardResultsScreen() {
         { candidate, candidateContext },
         { signal: controller.signal },
       );
-
-      if (mode === "details" || mode === "surprise") {
-        // "details" — read-only peek (`peek:"1"`, no CTAs); the card's "Use this
-        // plan" owns activation. "surprise" (BUG-037) — auto-expanded single
-        // plan; land NON-peek (keeps the save/use CTAs) and pass `surprise:"1"`
-        // so the draft screen shows the "Surprise Me again" re-roll.
-        setChainState({ kind: "idle" });
-        router.replace({
-          pathname: "/wizard-plan-details",
-          params: {
-            draftId: expandResult.draft.id,
-            expanded: JSON.stringify(expandResult.expanded),
-            ...(mode === "details" ? { peek: "1" } : { surprise: "1" }),
-          },
-        });
-        return;
-      }
-
-      // mode === "use" — chain straight into activate: materialize + demote
-      // prior actives + auto-date the current week, then land on Plan Review.
-      const activateResult = await activateWizardDraft(expandResult.draft.id, {
-        signal: controller.signal,
-      });
       setChainState({ kind: "idle" });
-      queryClient.invalidateQueries({ queryKey: ["plans"] });
-      queryClient.invalidateQueries({ queryKey: ["home"] });
-      router.replace({
+      // Open the SHARED Plan Review screen in draft mode. `id: "draft"` is a
+      // placeholder path segment (draft mode branches on draftId, never fetches
+      // it); the real plan id is minted only when the user commits on Plan
+      // Review. `push` keeps this results screen below in the stack so Back
+      // returns to the candidates (point 5).
+      router.push({
         pathname: "/plan/[id]",
-        params: { id: activateResult.instance.id },
+        params: buildOpenDraftParams(expandResult),
       });
     } catch (err) {
       // A user Cancel already flipped state to idle — don't clobber it.
@@ -532,44 +504,19 @@ export default function WizardResultsScreen() {
         userCancelledRef.current = false;
         return;
       }
-      // Activate 404 → the draft was already consumed by a dropped-201 (fetch
-      // timeout / app backgrounding mid-tx). The plan is safe; recover its id
-      // rather than showing red (D-WS7-080 recovery, lifted verbatim).
-      if (mode === "use" && err instanceof ApiError && err.status === 404) {
-        try {
-          const route = await resolveActivatedPlanRouteAfter404(getPlans);
-          queryClient.invalidateQueries({ queryKey: ["plans"] });
-          queryClient.invalidateQueries({ queryKey: ["home"] });
-          setChainState({ kind: "idle" });
-          if (route.kind === "plan") {
-            router.replace({
-              pathname: "/plan/[id]",
-              params: { id: route.planId },
-            });
-          } else {
-            router.replace("/(tabs)/plans");
-          }
-          return;
-        } catch {
-          // Recovery fetch itself failed — fall through to the error panel.
-        }
-      }
       const message = controller.signal.aborted
-        ? "Kiwi is still working on it. Check your plans in a moment — it may have saved."
+        ? "Kiwi is still working on it. Try again in a moment."
         : err instanceof Error && err.message
           ? err.message
           : "Something went wrong.";
-      setChainState({ kind: "error", mode, candidate, message });
+      setChainState({ kind: "error", candidate, message });
     } finally {
       clearTimeout(timeoutId);
     }
   };
 
-  const handleUsePlan = (candidate: WizardPlanCandidate) => {
-    void runChain(candidate, "use");
-  };
-  const handleViewDetails = (candidate: WizardPlanCandidate) => {
-    void runChain(candidate, "details");
+  const handleOpenDraft = (candidate: WizardPlanCandidate) => {
+    void runOpenDraft(candidate);
   };
 
   const handleChainCancel = () => {
@@ -581,18 +528,18 @@ export default function WizardResultsScreen() {
 
   const handleChainRetry = () => {
     if (chainState.kind !== "error") return;
-    void runChain(chainState.candidate, chainState.mode);
+    void runOpenDraft(chainState.candidate);
   };
 
   const handleChainBackToResults = () => {
     setChainState({ kind: "idle" });
   };
 
-  // BUG-037 — Surprise-me is ONE plan straight to the draft screen, not a card
-  // picker. Auto-expand the single candidate once per `attempt`, only once prefs
-  // have loaded (so the expand candidateContext carries the hard constraints)
-  // and while idle. The re-roll ("Surprise Me again" on the draft screen) mounts
-  // this screen fresh (attempt resets), so the guard re-arms.
+  // BUG-037 — Surprise-me is ONE plan straight to Plan Review (as a draft), not
+  // a card picker. Auto-expand the single candidate once per `attempt`, only
+  // once prefs have loaded (so the expand candidateContext carries the hard
+  // constraints) and while idle. Backing out returns to this screen's surprise
+  // card; "More options ↺" re-rolls (bumps attempt → re-arms the guard).
   const autoExpandedAttemptRef = useRef(-1);
   useEffect(() => {
     if (isRehydrate) return; // Block 4b-3 — a rehydrated surprise shows its card, no auto-expand.
@@ -603,7 +550,7 @@ export default function WizardResultsScreen() {
     if (!first) return;
     if (autoExpandedAttemptRef.current === attempt) return;
     autoExpandedAttemptRef.current = attempt;
-    void runChain(first, "surprise");
+    void runOpenDraft(first);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSurprise, candidates, chainState.kind, prefsQuery.data, attempt]);
 
@@ -770,8 +717,7 @@ export default function WizardResultsScreen() {
                 candidate={c}
                 expanded={expandedIds.has(c.id)}
                 onToggleExpanded={() => toggleExpanded(c.id)}
-                onUsePlan={() => handleUsePlan(c)}
-                onViewDetails={() => handleViewDetails(c)}
+                onOpenDraft={() => handleOpenDraft(c)}
                 disabled={chainState.kind === "pending"}
               />
             ))}
@@ -789,9 +735,7 @@ export default function WizardResultsScreen() {
             <ActivityIndicator size="large" color={Colors.sage[700]} />
             <Text style={s.expandTitle}>Kiwi is thinking…</Text>
             <Text style={s.expandBody}>
-              {chainState.mode === "use"
-                ? "Building your plan — this usually takes about 10-15 seconds"
-                : "This usually takes about 10-15 seconds"}
+              Building your plan — this usually takes about 10-15 seconds
             </Text>
             {chainState.elapsedSec >= EXPAND_THOROUGH_THRESHOLD_SEC && (
               <Text style={s.expandBodyEmphasis}>
@@ -845,21 +789,33 @@ function CandidateCard({
   candidate,
   expanded,
   onToggleExpanded,
-  onUsePlan,
-  onViewDetails,
+  onOpenDraft,
   disabled,
 }: {
   candidate: WizardPlanCandidate;
   expanded: boolean;
   onToggleExpanded: () => void;
-  onUsePlan: () => void;
-  onViewDetails: () => void;
+  onOpenDraft: () => void;
   disabled?: boolean;
 }) {
   const macrosLine = `Avg ${formatMacro(candidate.dailyMacros.calories, "0")} cal/day · ${formatMacro(candidate.dailyMacros.proteinG, "0")}g P · ${formatMacro(candidate.dailyMacros.carbsG, "0")}g C · ${formatMacro(candidate.dailyMacros.fatG, "0")}g F`;
 
+  // WS9 3c (D-WS9-032) — the whole card is the tap target: it opens Plan
+  // Review as an unsaved draft (the commit primary + "View details" peek are
+  // gone). The inline "Preview meals & macros" toggle is a nested Pressable, so
+  // tapping it expands the preview without also opening the draft (RN grants the
+  // responder to the innermost pressable).
   return (
-    <View style={s.card}>
+    <Pressable
+      onPress={disabled ? undefined : onOpenDraft}
+      disabled={disabled}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        s.card,
+        pressed && !disabled && { opacity: 0.9 },
+        disabled && { opacity: 0.6 },
+      ]}
+    >
       {/* Hero */}
       <View style={s.hero}>
         {candidate.imageUrl ? (
@@ -934,11 +890,15 @@ function CandidateCard({
         {expanded && (
           <View style={s.expandedSection}>
             <Text style={s.subSectionLabel}>Meals in this plan</Text>
+            {/* D-WS9-032 point 1 — meals render as ROWS (not bullets). Per-meal
+                images aren't on the candidate payload (C4 — no server change to
+                enrich it), so each row carries a neutral placeholder in the
+                thumbnail slot; a later enrichment can drop a real image in. */}
             <View style={s.mealList}>
               {candidate.mealTitles.map((title, i) => (
                 <View key={i} style={s.mealRow}>
-                  <View style={s.mealDot} />
-                  <Text style={s.mealText}>{title}</Text>
+                  <View style={s.mealThumbPlaceholder} />
+                  <Text style={s.mealRowText}>{title}</Text>
                 </View>
               ))}
             </View>
@@ -967,31 +927,15 @@ function CandidateCard({
           </View>
         )}
 
-        {/* R5 — one primary per card. "Use this plan" runs the merged
-            expand→activate chain and lands on Plan Review; "View details" is
-            the optional read-only peek (the demoted wizard-plan-details). */}
-        <View style={s.cardCtas}>
-          <Button
-            label="Use this plan"
-            variant="primary"
-            onPress={onUsePlan}
-            disabled={disabled}
-          />
-          <Pressable
-            onPress={onViewDetails}
-            disabled={disabled}
-            hitSlop={6}
-            style={({ pressed }) => [
-              s.viewDetailsLink,
-              pressed && !disabled && { opacity: 0.6 },
-              disabled && { opacity: 0.4 },
-            ]}
-          >
-            <Text style={s.viewDetailsText}>View details</Text>
-          </Pressable>
+        {/* D-WS9-032 — the card no longer commits. A tap-hint stands in for the
+            removed "Use this plan" primary; the whole card opens Plan Review as
+            a draft, where Save for Later / Use This Week live. */}
+        <View style={s.tapHintRow}>
+          <Text style={s.tapHintText}>Review &amp; save</Text>
+          <Feather name="arrow-right" size={16} color={Colors.sage[700]} />
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -1231,21 +1175,6 @@ const s = StyleSheet.create({
     borderTopColor: Colors.neutral[300],
     marginTop: Spacing[2],
   },
-  cardCtas: {
-    marginTop: Spacing[2],
-    gap: Spacing[1],
-  },
-  viewDetailsLink: {
-    alignSelf: "center",
-    paddingVertical: Spacing[2],
-    paddingHorizontal: Spacing[3],
-  },
-  viewDetailsText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.sage[700],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
-  },
   subSectionLabel: {
     fontSize: Typography.fontSize.xs,
     color: Colors.sage[600],
@@ -1261,19 +1190,35 @@ const s = StyleSheet.create({
   mealRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing[2],
+    gap: Spacing[3],
+    paddingVertical: Spacing[2],
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.neutral[200],
   },
-  mealDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: Colors.sage[600],
+  mealThumbPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.sage[100],
   },
-  mealText: {
+  mealRowText: {
     flex: 1,
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[800],
     fontFamily: Typography.face.sans[400],
+  },
+  tapHintRow: {
+    marginTop: Spacing[2],
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+  },
+  tapHintText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   macrosGrid: {
     flexDirection: "row",

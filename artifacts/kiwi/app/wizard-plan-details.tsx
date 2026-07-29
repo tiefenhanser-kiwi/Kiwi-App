@@ -26,7 +26,7 @@
 import React, { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
@@ -111,7 +111,20 @@ type UseState =
   | { kind: "pending" }
   | { kind: "error"; message: string };
 
+// WS9 3c (D-WS9-032) — RETIRED. The wizard plan-preview + save/activate flow
+// moved onto the SHARED Plan Review screen (app/plan/[id].tsx) in draft mode,
+// so this standalone screen is no longer part of any UI path (results cards now
+// open Plan Review as a draft; Surprise-me routes there too). This route is
+// kept ON DISK but made unreachable: any navigation to /wizard-plan-details
+// redirects out. Deletion is deferred until Hans confirms the new flow on
+// device (prompt Part B). The original implementation is preserved below as
+// LegacyWizardPlanDetailsScreen — dead, but kept compiling so it doesn't rot
+// before the deferred deletion.
 export default function WizardPlanDetailsScreen() {
+  return <Redirect href="/(tabs)" />;
+}
+
+function LegacyWizardPlanDetailsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { draftId, expanded, peek, surprise } = useLocalSearchParams<{
