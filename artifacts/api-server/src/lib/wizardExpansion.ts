@@ -535,43 +535,64 @@ export async function persistWizardDraft(
  * Flipping to false would surface it as a real plan — the one thing we must
  * not do (Phase 0 constraint).
  *
- * Scope note: with no wizard-session id (Phase 0), "same result set" resolves
- * to "all the user's unconsumed drafts" — committing to a plan clears every
- * pending peek. A narrower same-session scope would need a session id (see the
- * Part B report / deferred D-WS9). The consumed row is already isWizardDraft:
- * false by the time this runs, so it is never touched.
+ * Scope note: 4b-3 (D-WS9-072) moved this off consume onto the GENERATE routes —
+ * generating a new batch clears the user's prior unconsumed drafts; committing
+ * to a plan clears nothing. With no wizard-session id, "prior batch" resolves to
+ * "created strictly before this generation began" via the createdBefore cutoff
+ * (BUG-052) — enough to spare a draft the user made mid-stream from THIS batch,
+ * while still archiving genuinely stale siblings from earlier runs. A tighter
+ * per-session scope would need a session id (deferred).
  *
- * Best-effort: failures are logged and swallowed (the plan is already safely
- * saved/activated; a stray sibling self-heals on the next consume or TTL sweep).
+ * Best-effort: failures are logged and swallowed (the batch is already produced
+ * and about to ship; a stray sibling self-heals on the next generation / TTL sweep).
  */
 export async function supersedeUnconsumedWizardDrafts(opts: {
   prisma: PrismaClient;
   userId: string;
+  // BUG-052 — archive only drafts created strictly BEFORE this generation
+  // began. 3c moved expand to card-tap, which can fire mid-stream (the user
+  // taps the first candidate as it lands), creating a draft from THIS batch.
+  // The end-of-generation supersede must not eat that draft — else the user's
+  // Save/Use lands on a draft whose payload it just nulled (→ finalize "root").
+  // Omitted → no cutoff (archive all unconsumed — the legacy blanket behavior).
+  createdBefore?: Date;
 }): Promise<number> {
   try {
-    const result = await opts.prisma.mealPlanInstance.updateMany({
-      where: {
-        userId: opts.userId,
-        isWizardDraft: true,
-        isArchived: false,
-      },
+    const where: Prisma.MealPlanInstanceWhereInput = {
+      userId: opts.userId,
+      isWizardDraft: true,
+      isArchived: false,
+      ...(opts.createdBefore ? { createdAt: { lt: opts.createdBefore } } : {}),
+    };
+    // Read the ids first so the supersede log can name what it archived (Part D
+    // telemetry) — updateMany returns only a count. Best-effort: a concurrent
+    // draft created after this read carries createdAt > cutoff, so the same
+    // WHERE can't pick it up in the updateMany either.
+    const rows = await opts.prisma.mealPlanInstance.findMany({
+      where,
+      select: { id: true },
+    });
+    if (rows.length === 0) return 0;
+    const ids = rows.map((r) => r.id);
+    await opts.prisma.mealPlanInstance.updateMany({
+      where,
       data: {
         isArchived: true,
         wizardDraftPayload: Prisma.DbNull,
         optimizationNotes: Prisma.DbNull,
       },
     });
-    if (result.count > 0) {
-      logger.info(
-        {
-          event: "wizard_draft_supersede",
-          userId: opts.userId,
-          superseded: result.count,
-        },
-        "Archived sibling wizard drafts on consume",
-      );
-    }
-    return result.count;
+    logger.info(
+      {
+        event: "wizard_draft_supersede",
+        userId: opts.userId,
+        superseded: ids.length,
+        // Cap at 10, matching the unmatchedStoreMealIds telemetry pattern.
+        supersededDraftIds: ids.slice(0, 10),
+      },
+      "Archived sibling wizard drafts on generation",
+    );
+    return ids.length;
   } catch (err) {
     logger.warn(
       { event: "wizard_draft_supersede_failed", userId: opts.userId, err },

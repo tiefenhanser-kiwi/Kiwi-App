@@ -2772,7 +2772,7 @@ function makeActivateDeps(opts: {
   // (the materializer no longer parses optimizationNotes when a payload
   // is passed). The materializeBehavior name + values are kept for back-
   // compat with existing test setups; both stubs are driven by it.
-  materializeBehavior?: "ok" | "not_found" | "malformed";
+  materializeBehavior?: "ok" | "not_found" | "malformed" | "archived";
   recorder?: ActivateRecorder;
 }) {
   const rec: ActivateRecorder = opts.recorder ?? {
@@ -2927,6 +2927,9 @@ function makeActivateDeps(opts: {
   }) => {
     if (opts.materializeBehavior === "not_found") {
       return { status: "not_found" as const };
+    }
+    if (opts.materializeBehavior === "archived") {
+      return { status: "archived" as const };
     }
     if (opts.materializeBehavior === "malformed") {
       return {
@@ -3340,6 +3343,64 @@ describe("POST /api/wizard/drafts/:id/activate — malformed draft", () => {
     const body = (await res.json()) as { error: string; reason: string };
     assert.match(body.error, /draft malformed/);
     assert.equal(body.reason, "shape_mismatch");
+  });
+});
+
+// BUG-052 / Part E — a superseded (archived, null-payload) draft must return a
+// clear 409 "archived", NOT the old 422 "malformed" that read as corruption.
+describe("POST /api/wizard/drafts/:id — archived draft → 409 (BUG-052 / Part E)", () => {
+  let harness: Harness;
+  const drafts = new Map<string, ActivateDraftRow>();
+  const deps = makeActivateDeps({
+    drafts,
+    materializeBehavior: "archived",
+  });
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+  });
+  after(async () => harness.close());
+
+  it("activate returns 409 with reason 'archived'", async () => {
+    const token = signToken(ACTIVATE_USER_ID);
+    const res = await fetch(
+      `${harness.baseUrl}/wizard/drafts/superseded/activate`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    assert.equal(res.status, 409);
+    const body = (await res.json()) as { error: string; reason: string };
+    assert.equal(body.reason, "archived");
+    assert.match(body.error, /no longer available/);
+  });
+
+  it("save returns 409 with reason 'archived'", async () => {
+    const token = signToken(ACTIVATE_USER_ID);
+    const res = await fetch(
+      `${harness.baseUrl}/wizard/drafts/superseded/save`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    assert.equal(res.status, 409);
+    const body = (await res.json()) as { error: string; reason: string };
+    assert.equal(body.reason, "archived");
   });
 });
 

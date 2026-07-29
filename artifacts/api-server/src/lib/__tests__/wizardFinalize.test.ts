@@ -553,6 +553,57 @@ function shardLocalDishSteps(
   };
 }
 
+describe("readAndFinalizeWizardDraft — draft state guards (BUG-052 / Part E)", () => {
+  it("returns { status: 'archived' } for a superseded draft (isArchived:true, null payload)", async () => {
+    // Fixture: a draft that exists, is owned, and keeps isWizardDraft:true (so
+    // it passes the ownership/not-found check) but was archived + payload-nulled
+    // by a later generation's supersede. Must be reported archived BEFORE the
+    // parse — never reach the AI.
+    const prisma = {
+      mealPlanInstance: {
+        findUnique: async () => ({
+          userId: "user-1",
+          isWizardDraft: true,
+          isArchived: true,
+          wizardDraftPayload: null,
+        }),
+      },
+    } as unknown as PrismaClient;
+    const result = await readAndFinalizeWizardDraft({
+      prisma,
+      userId: "user-1",
+      draftId: "d-archived",
+      runAICall: (async () => {
+        throw new Error("AI must not run for an archived draft");
+      }) as unknown as Parameters<
+        typeof readAndFinalizeWizardDraft
+      >[0]["runAICall"],
+    });
+    assert.equal(result.status, "archived");
+  });
+
+  it("a NON-archived null payload is still 'malformed', not 'archived'", async () => {
+    // Fixture: isArchived:false but a null payload → genuine shape failure. The
+    // archived guard must not swallow real corruption.
+    const prisma = {
+      mealPlanInstance: {
+        findUnique: async () => ({
+          userId: "user-1",
+          isWizardDraft: true,
+          isArchived: false,
+          wizardDraftPayload: null,
+        }),
+      },
+    } as unknown as PrismaClient;
+    const result = await readAndFinalizeWizardDraft({
+      prisma,
+      userId: "user-1",
+      draftId: "d-bad",
+    });
+    assert.equal(result.status, "malformed");
+  });
+});
+
 describe("readAndFinalizeWizardDraft — per-meal fan-out", () => {
   const userId = "u-finalize";
   const draftId = "d-finalize";

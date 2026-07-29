@@ -68,6 +68,13 @@ const ACTIVATE_CLIENT_TIMEOUT_MS = 90_000;
 const DRAFT_EDIT_GUARD_COPY =
   "To customize this plan, save it to your library for this week or later.";
 
+// BUG-052 / Part E — shown when the server reports the draft was superseded
+// (409 archived) at commit time: a clear "no longer available" instead of the
+// old 422 "malformed" that read as corruption. The Back button (→ results) is
+// the obvious next action.
+const DRAFT_ARCHIVED_COPY =
+  "This plan is no longer available — it was replaced by a newer set. Go back to pick another, or generate a new one.";
+
 // Parse the expanded-draft route param (JSON) into a WizardExpandedPlan.
 // Returns null on malformed/absent input so the screen can render an error
 // frame instead of crashing inside a tap handler.
@@ -414,6 +421,10 @@ export default function PlanReviewScreen() {
       });
     } catch (err) {
       setDraftCommit("idle");
+      if (err instanceof ApiError && err.status === 409) {
+        setDraftCommitError(DRAFT_ARCHIVED_COPY);
+        return;
+      }
       setDraftCommitError(
         err instanceof Error && err.message
           ? err.message
@@ -448,6 +459,14 @@ export default function PlanReviewScreen() {
         params: { id: result.instance.id },
       });
     } catch (err) {
+      // BUG-052 / Part E — the draft was superseded between expand and commit.
+      // Distinct from the 404 dropped-201 recovery below: there is no plan to
+      // route to, so show the clear "no longer available" message.
+      if (err instanceof ApiError && err.status === 409) {
+        setDraftCommit("idle");
+        setDraftCommitError(DRAFT_ARCHIVED_COPY);
+        return;
+      }
       if (err instanceof ApiError && err.status === 404) {
         try {
           const route = await resolveActivatedPlanRouteAfter404(getPlans);

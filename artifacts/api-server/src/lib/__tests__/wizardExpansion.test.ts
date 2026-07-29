@@ -549,17 +549,32 @@ describe("WizardExpandDishSchema — dish ingredient floor (WS7-5b-server-fix2)"
 // ── supersedeUnconsumedWizardDrafts (Block 1, BUG-030 Part B) ──────────────
 
 describe("supersedeUnconsumedWizardDrafts", () => {
-  it("archives unconsumed drafts and clears the blob, never flips isWizardDraft", async () => {
-    const calls: Array<{ where: unknown; data: unknown }> = [];
+  // Mock that records the WHERE passed to findMany (id read for Part D
+  // telemetry) and updateMany (the archive). findMany returns the fixture ids.
+  function mockPrisma(ids: string[]) {
+    const findManyCalls: Array<{ where: Record<string, unknown> }> = [];
+    const updateCalls: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }> = [];
     const prisma = {
       mealPlanInstance: {
-        updateMany: async (args: { where: unknown; data: unknown }) => {
-          calls.push(args);
-          return { count: 2 };
+        findMany: async (args: { where: Record<string, unknown> }) => {
+          findManyCalls.push(args);
+          return ids.map((id) => ({ id }));
+        },
+        updateMany: async (args: {
+          where: Record<string, unknown>;
+          data: Record<string, unknown>;
+        }) => {
+          updateCalls.push(args);
+          return { count: ids.length };
         },
       },
     } as unknown as PrismaClient;
+    return { prisma, findManyCalls, updateCalls };
+  }
 
+  it("archives unconsumed drafts and clears the blob, never flips isWizardDraft", async () => {
+    // Fixture: two unconsumed drafts (ids d1, d2). No createdBefore cutoff.
+    const { prisma, findManyCalls, updateCalls } = mockPrisma(["d1", "d2"]);
     const { supersedeUnconsumedWizardDrafts } = await import(
       "../wizardExpansion"
     );
@@ -571,18 +586,23 @@ describe("supersedeUnconsumedWizardDrafts", () => {
     });
 
     assert.equal(count, 2);
-    assert.equal(calls.length, 1);
-    const where = calls[0].where as Record<string, unknown>;
-    const data = calls[0].data as Record<string, unknown>;
-    // Targets ONLY this user's unconsumed drafts.
-    assert.equal(where.userId, "user-1");
-    assert.equal(where.isWizardDraft, true);
-    assert.equal(where.isArchived, false);
+    assert.equal(findManyCalls.length, 1);
+    assert.equal(updateCalls.length, 1);
+    // Both queries target ONLY this user's unconsumed drafts.
+    for (const where of [findManyCalls[0].where, updateCalls[0].where]) {
+      assert.equal(where.userId, "user-1");
+      assert.equal(where.isWizardDraft, true);
+      assert.equal(where.isArchived, false);
+      // No cutoff when createdBefore is omitted (legacy blanket behavior).
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(where, "createdAt"),
+        false,
+      );
+    }
+    const data = updateCalls[0].data;
     // Archives + clears the blob; never flips isWizardDraft to false (that
     // would surface the orphan as a real plan — the Phase 0 constraint).
     assert.equal(data.isArchived, true);
-    // D-WS9-034 — the draft blob lives on wizardDraftPayload now; clear it.
-    // optimizationNotes is ALSO DbNull'd as legacy-blob defense.
     assert.equal(data.wizardDraftPayload, Prisma.DbNull);
     assert.equal(data.optimizationNotes, Prisma.DbNull);
     assert.equal(
@@ -591,10 +611,47 @@ describe("supersedeUnconsumedWizardDrafts", () => {
     );
   });
 
+  it("BUG-052 — createdBefore scopes the WHERE so a mid-generation draft survives", async () => {
+    // Fixture: one prior-batch draft (d-old). createdBefore = the generation
+    // start; a draft created AFTER it (the mid-stream card tap) must be excluded
+    // by the createdAt:{lt} clause, so it is never read or archived.
+    const cutoff = new Date("2026-07-29T13:28:00.000Z");
+    const { prisma, findManyCalls, updateCalls } = mockPrisma(["d-old"]);
+    const { supersedeUnconsumedWizardDrafts } = await import(
+      "../wizardExpansion"
+    );
+
+    const count = await supersedeUnconsumedWizardDrafts({
+      prisma,
+      userId: "user-1",
+      createdBefore: cutoff,
+    });
+
+    assert.equal(count, 1);
+    // The cutoff must ride on BOTH the read and the archive WHERE.
+    for (const where of [findManyCalls[0].where, updateCalls[0].where]) {
+      assert.deepEqual(where.createdAt, { lt: cutoff });
+    }
+  });
+
+  it("returns 0 without an update when nothing matches (empty read)", async () => {
+    // Fixture: no unconsumed drafts. Must NOT call updateMany.
+    const { prisma, updateCalls } = mockPrisma([]);
+    const { supersedeUnconsumedWizardDrafts } = await import(
+      "../wizardExpansion"
+    );
+    const count = await supersedeUnconsumedWizardDrafts({
+      prisma,
+      userId: "user-1",
+    });
+    assert.equal(count, 0);
+    assert.equal(updateCalls.length, 0);
+  });
+
   it("swallows errors and returns 0 (best-effort — never breaks the response)", async () => {
     const prisma = {
       mealPlanInstance: {
-        updateMany: async () => {
+        findMany: async () => {
           throw new Error("db boom");
         },
       },

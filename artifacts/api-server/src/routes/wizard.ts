@@ -356,8 +356,17 @@ export function createWizardRouter(
     source: WizardBatchSource;
     candidates: WizardPlanCandidate[];
     input: unknown | null;
+    // BUG-052 — captured at the top of each generate handler, before the AI
+    // call. Passed to the supersede as the createdBefore cutoff so a draft the
+    // user created mid-stream (card tapped as the first candidate landed) is not
+    // archived by its own batch's end-of-generation supersede.
+    generationStartedAt: Date;
   }): Promise<void> {
-    await supersedeUnconsumedWizardDrafts({ prisma, userId: args.userId });
+    await supersedeUnconsumedWizardDrafts({
+      prisma,
+      userId: args.userId,
+      createdBefore: args.generationStartedAt,
+    });
     await persistWizardLastBatch({
       prisma,
       userId: args.userId,
@@ -505,6 +514,9 @@ export function createWizardRouter(
       if (!userId) {
         return res.status(401).json({ error: "unauthenticated" });
       }
+      // BUG-052 — before the AI generate call, so the end-of-generation
+      // supersede spares any draft the user creates mid-stream from this batch.
+      const generationStartedAt = new Date();
 
       // 1. Validate the input.
       const parsed = WizardInputSchema.omit({ hiddenContext: true }).safeParse(
@@ -759,6 +771,7 @@ export function createWizardRouter(
             source: "wizard",
             candidates: reconciledCandidates,
             input: parsed.data,
+            generationStartedAt,
           });
         }
 
@@ -858,6 +871,7 @@ export function createWizardRouter(
           source: "wizard",
           candidates,
           input: parsed.data,
+          generationStartedAt,
         });
       }
 
@@ -902,6 +916,8 @@ export function createWizardRouter(
       if (!userId) {
         return res.status(401).json({ error: "unauthenticated" });
       }
+      // BUG-052 — capture before generation; see the build-plans handler.
+      const generationStartedAt = new Date();
 
       // 1. Validate body. The DirectedInputSchema covers the user's
       //    free-text + soft prefs from the Tell Kiwi form. The route
@@ -1152,6 +1168,7 @@ export function createWizardRouter(
             maxCookTimeMinutes: directed.maxCookTimeMinutes,
             maxCookTimeCoverage: directed.maxCookTimeCoverage,
           },
+          generationStartedAt,
         });
       }
 
@@ -1178,6 +1195,8 @@ export function createWizardRouter(
       if (!userId) {
         return res.status(401).json({ error: "unauthenticated" });
       }
+      // BUG-052 — capture before generation; see the build-plans handler.
+      const generationStartedAt = new Date();
 
       // BUG-039 — a genuine try/catch so a throw (e.g. a prompt-resolution
       // failure like the one that made this a bare 500) is LOGGED with its
@@ -1301,6 +1320,7 @@ export function createWizardRouter(
             source: "surprise",
             candidates,
             input: null,
+            generationStartedAt,
           });
         }
 
@@ -1462,6 +1482,19 @@ export function createWizardRouter(
         );
         return res.status(500).json({ error: "failed to persist draft" });
       }
+
+      // Part D telemetry (BUG-052) — tie the persisted draft id to this expand
+      // in the logs. The BUG-052 diagnosis needed a DB probe to learn which
+      // draft an expand produced and when; this log line makes that a grep.
+      logger.info(
+        {
+          event: "wizard_candidate_expanded",
+          userId,
+          draftId: draftRef.planId,
+          contentHash,
+        },
+        "Wizard candidate expanded into a draft",
+      );
 
       // 6. Activity event — new enum value wizard_candidate_expanded so
       //    funnel analytics can separate "candidates generated" from
@@ -1709,6 +1742,18 @@ export function createWizardRouter(
     if (finalizeResult.status === "not_found") {
       return res.status(404).json({ error: "draft not found" });
     }
+    if (finalizeResult.status === "archived") {
+      // BUG-052 / Part E — the draft was superseded by a later generation. Not
+      // corruption: tell the client the plan is gone so it can prompt a re-pick,
+      // rather than the old 422 "malformed" (which read as a broken plan).
+      logger.info(
+        { event: "wizard_draft_archived_on_consume", userId, draftId },
+        "Wizard draft archived (superseded) when activation was attempted",
+      );
+      return res
+        .status(409)
+        .json({ error: "plan no longer available", reason: "archived" });
+    }
     if (finalizeResult.status === "malformed") {
       logger.warn(
         {
@@ -1934,6 +1979,16 @@ export function createWizardRouter(
     });
     if (finalizeResult.status === "not_found") {
       return res.status(404).json({ error: "draft not found" });
+    }
+    if (finalizeResult.status === "archived") {
+      // BUG-052 / Part E — superseded draft; see the /activate handler.
+      logger.info(
+        { event: "wizard_draft_archived_on_consume", userId, draftId },
+        "Wizard draft archived (superseded) when save was attempted",
+      );
+      return res
+        .status(409)
+        .json({ error: "plan no longer available", reason: "archived" });
     }
     if (finalizeResult.status === "malformed") {
       logger.warn(

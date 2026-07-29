@@ -56,6 +56,12 @@ export interface ReadAndFinalizeWizardDraftOptions {
 export type ReadAndFinalizeWizardDraftResult =
   | { status: "success"; savePlan: WizardSavePlan }
   | { status: "not_found" }
+  // BUG-052 fix / Part E — the draft exists but was superseded (archived, its
+  // payload nulled) by a later generation. Distinct from "malformed" (a genuine
+  // payload-shape defect) so the route can tell the user the plan is no longer
+  // available instead of claiming corruption. safeParse(null) would otherwise
+  // report this as malformed "root".
+  | { status: "archived" }
   | { status: "malformed"; reason: string }
   | { status: "ai_failed"; reason: string; userFacingMessage: string }
   | { status: "merge_failed"; reason: string };
@@ -67,6 +73,7 @@ export type ReadAndFinalizeWizardDraftResult =
  *
  * Failure modes (the route handler maps each to a status code):
  *   - not_found        → draft missing / not owned / not a wizard draft (404)
+ *   - archived         → draft superseded by a later generation (409, BUG-052)
  *   - malformed        → stored draft fails WizardExpandedPlanDetailsSchema (422)
  *   - ai_failed        → wizard.candidate.finalize_steps failed (502)
  *   - merge_failed     → AI output didn't cover every (mealIndex,dishIndex)
@@ -84,11 +91,19 @@ export async function readAndFinalizeWizardDraft(
     select: {
       userId: true,
       isWizardDraft: true,
+      isArchived: true,
       wizardDraftPayload: true,
     },
   });
   if (!row || row.userId !== userId || !row.isWizardDraft) {
     return { status: "not_found" };
+  }
+  // BUG-052 / Part E — a superseded draft keeps isWizardDraft:true (so it passes
+  // the check above) but is archived with a null payload. Report it as
+  // "archived" BEFORE the parse, so the caller returns "no longer available"
+  // rather than the safeParse(null) → "root" malformed error.
+  if (row.isArchived) {
+    return { status: "archived" };
   }
 
   // 2. Parse the stored details-stage shape.
