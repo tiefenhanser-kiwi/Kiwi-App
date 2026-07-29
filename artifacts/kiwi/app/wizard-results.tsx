@@ -33,6 +33,11 @@ import {
   type WizardExpandResponse,
 } from "@/lib/api/wizard";
 import { buildOpenDraftParams } from "@/lib/wizard/openDraftPlanRoute";
+import {
+  accumulateShownPlans,
+  EMPTY_SESSION_EXCLUSION,
+  toExclusionRequest,
+} from "@/lib/wizard/sessionExclusion";
 import { getPreferences, type UserPreferences } from "@/lib/api/me";
 import type {
   BuildFromTextResult,
@@ -279,6 +284,13 @@ export default function WizardResultsScreen() {
     },
   });
 
+  // BUG-053 (Parts B + F) — every plan shown in THIS session, so a re-roll can
+  // exclude them. Accumulated from the arriving candidates (below), NOT from
+  // `attempt` (which bumps before the new data lands). Sent on each generation.
+  const [sessionExclusion, setSessionExclusion] = useState(
+    EMPTY_SESSION_EXCLUSION,
+  );
+
   useEffect(() => {
     // Block 4b-3 — rehydrate re-shows a stored batch; never generate.
     if (isRehydrate) return;
@@ -289,7 +301,8 @@ export default function WizardResultsScreen() {
     if (tellKiwiPayload || isSurprise) return;
     if (!wizardInput) return;
     mutation.reset();
-    mutation.mutate(wizardInput);
+    // Part F — exclude the plans shown so far this session from the re-roll.
+    mutation.mutate(wizardInput, toExclusionRequest(sessionExclusion));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, attempt, tellKiwiPayload]);
 
@@ -299,9 +312,31 @@ export default function WizardResultsScreen() {
     if (isRehydrate) return; // Block 4b-3 — rehydrate never generates.
     if (!isSurprise) return;
     surpriseMutation.reset();
-    surpriseMutation.mutate();
+    // Part B — exclude the plans shown so far this session from the re-roll.
+    surpriseMutation.mutate(toExclusionRequest(sessionExclusion));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSurprise, attempt]);
+
+  // Fold each shown generation into the session exclusion. Keyed on the
+  // arriving data (deduped by plan title in accumulateShownPlans), so the
+  // reset()→undefined→new-data cycle of a re-roll accumulates the NEW plan
+  // once and never re-counts the stale one. Same-ref-on-no-change keeps this
+  // from looping. Takes ALL candidates (surprise: 1, standard wizard: 3).
+  const shownCandidates = isSurprise
+    ? surpriseMutation.data?.candidates
+    : mutation.data?.candidates;
+  useEffect(() => {
+    if (!shownCandidates || shownCandidates.length === 0) return;
+    setSessionExclusion((prev) =>
+      accumulateShownPlans(
+        prev,
+        shownCandidates.map((c) => ({
+          title: c.title,
+          mealTitles: c.mealTitles,
+        })),
+      ),
+    );
+  }, [shownCandidates]);
 
   // Block 4b-3 (D-WS9-072) — a successful generation overwrote the server
   // last-batch row, so the "See Previous Options" cache must be invalidated to

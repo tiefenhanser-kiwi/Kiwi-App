@@ -8,6 +8,10 @@ import type { WizardPreferencesInput } from "@/lib/types";
 
 export function useBuildWizardPlans() {
   return useMutation<BuildWizardPlansResult, Error, WizardPreferencesInput>({
-    mutationFn: buildWizardPlans,
+    // Wrap rather than pass buildWizardPlans directly: it gained an optional
+    // second `exclude` param (BUG-053), which would otherwise collide with the
+    // MutationFunctionContext react-query passes as the 2nd arg. This legacy
+    // buffered hook threads no exclusion.
+    mutationFn: (input) => buildWizardPlans(input),
   });
 }

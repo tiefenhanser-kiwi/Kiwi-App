@@ -41,21 +41,28 @@ export interface BuildWizardPlansStreamingResult {
   isSuccess: boolean;
   isError: boolean;
   error: Error | null;
-  mutate: (input: WizardPreferencesInput) => void;
+  mutate: (input: WizardPreferencesInput, exclude?: WizardExclusionArg) => void;
   reset: () => void;
 }
 
 // Test seams — production callers pass nothing and get the real streaming +
 // buffered impls. `streamImpl` mirrors streamWizardPlans; `bufferedImpl`
 // mirrors buildWizardPlans (the fallback).
+// BUG-053 (Part F) — session re-roll exclusion, threaded to both impls.
+export interface WizardExclusionArg {
+  excludePlanTitles: string[];
+  excludeMealTitles: string[];
+}
+
 export interface UseBuildWizardPlansStreamingDeps {
   streamImpl?: (
     input: WizardPreferencesInput,
     onCandidate: (index: number, candidate: WizardPlanCandidate) => void,
-    opts: { signal?: AbortSignal },
+    opts: { signal?: AbortSignal; exclude?: WizardExclusionArg },
   ) => Promise<{ cannotGenerateMore?: boolean; reason?: string }>;
   bufferedImpl?: (
     input: WizardPreferencesInput,
+    exclude?: WizardExclusionArg,
   ) => Promise<BuildWizardPlansResult>;
   // BUG-051 fix (WS9 3c) — fired ONCE when a generation TRULY completes: the
   // stream's `done` resolved (server finished, including its end-of-run
@@ -101,7 +108,10 @@ export function useBuildWizardPlansStreaming(
   // socket open or fire a fallback after teardown.
   useEffect(() => stop, [stop]);
 
-  const mutate = useCallback((input: WizardPreferencesInput) => {
+  const mutate = useCallback((
+    input: WizardPreferencesInput,
+    exclude?: WizardExclusionArg,
+  ) => {
     const gen = ++genRef.current;
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -124,6 +134,7 @@ export function useBuildWizardPlansStreaming(
       try {
         const done = await streamImpl(input, onCandidate, {
           signal: controller.signal,
+          exclude,
         });
         if (gen !== genRef.current) return;
         setState((s) => ({
@@ -153,7 +164,7 @@ export function useBuildWizardPlansStreaming(
         }
         // Zero cards → fall back to the buffered endpoint (worst case = today).
         try {
-          const buffered = await bufferedImpl(input);
+          const buffered = await bufferedImpl(input, exclude);
           if (gen !== genRef.current) return;
           setState({
             status: "success",

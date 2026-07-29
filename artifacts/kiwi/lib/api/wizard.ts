@@ -60,10 +60,14 @@ export interface BuildWizardPlansResult {
 
 export async function buildWizardPlans(
   input: WizardPreferencesInput,
+  // BUG-053 (Part F) — session re-roll exclusion, merged into the POST body
+  // alongside the wizard input (server strips it from WizardInputSchema and
+  // reads it separately). Optional + backward-compatible.
+  exclude?: { excludePlanTitles: string[]; excludeMealTitles: string[] },
 ): Promise<BuildWizardPlansResult> {
   const body = await apiClient("/wizard/build-plans", {
     method: "POST",
-    body: input,
+    body: exclude ? { ...input, ...exclude } : input,
     schema: BuildWizardPlansResponseSchema,
   });
   return body as BuildWizardPlansResult;

@@ -140,6 +140,29 @@ const SURPRISE_CANDIDATE_COUNT = 1;
 // the user message. Must match the token in the seeded prompt body verbatim.
 const WIZARD_GENERATE_CACHE_MARKER = "{{storeShortlist}}";
 
+// WS9 3c follow-up (BUG-053, Parts B + F) — session re-roll exclusion. The
+// client sends the plan + meal titles already shown this surprise/wizard
+// session in the request body; we fold them into the recency signals the
+// generate prompt already avoids (recentPlanNames / recentMeals) so the re-roll
+// doesn't return a shown plan. Optional + backward-compatible: an absent or
+// malformed body yields empty lists (no-op), and both arrays are capped so a
+// long session can't bloat the prompt. Kept as a defensive hand-parser (this
+// route file imports no zod) — it only extracts two optional string arrays.
+function parseSessionExclusion(body: unknown): {
+  excludePlanTitles: string[];
+  excludeMealTitles: string[];
+} {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const toStrArr = (v: unknown, cap: number): string[] =>
+    Array.isArray(v)
+      ? v.filter((x): x is string => typeof x === "string" && x.length > 0).slice(0, cap)
+      : [];
+  return {
+    excludePlanTitles: toStrArr(b.excludePlanTitles, 50),
+    excludeMealTitles: toStrArr(b.excludeMealTitles, 200),
+  };
+}
+
 // D-WS9-038 / BUG-039 — shared catalog-compose retrieval. All three generate
 // endpoints (build-plans, surprise-me, build-from-text) hand the AI the same
 // shelf and reconcile the same way; this centralizes the retrieval + its
@@ -588,8 +611,25 @@ export function createWizardRouter(
       // ONLY for wizard.surprise.generate, which still reads it. (buildPlanning-
       // Context still computes it — a negligible read left in place rather than
       // refactoring the shared helper.)
-      const { recentMeals: _strippedRecentMeals, ...planningContextForPrompt } =
+      const { recentMeals: _strippedRecentMeals, ...planningContextBase } =
         planningContext;
+      // BUG-053 (Part F) — session re-roll exclusion. This route strips
+      // recentMeals (recentRotation is its recency unit, D-WS9-073), so BOTH the
+      // shown plan titles AND meal titles fold into recentPlanNames — the plain
+      // string[] repetition list the :895 instruction already avoids. (Not
+      // merged into recentRotation: that's a distinct lineage-rotation signal
+      // whose consumers aren't vetted for this, per Ruling 3's caution.)
+      const { excludePlanTitles, excludeMealTitles } = parseSessionExclusion(
+        req.body,
+      );
+      const planningContextForPrompt = {
+        ...planningContextBase,
+        recentPlanNames: [
+          ...planningContextBase.recentPlanNames,
+          ...excludePlanTitles,
+          ...excludeMealTitles,
+        ],
+      };
       const wizardInput: WizardInput & {
         planningContext: Omit<PlanningContext, "recentMeals">;
         preferencesContext: PreferencesContext;
@@ -1246,6 +1286,31 @@ export function createWizardRouter(
           userId,
         );
 
+        // BUG-053 (Part B) — fold this session's shown plans into the recency
+        // signals the prompt avoids: plan titles → recentPlanNames, meal titles
+        // → recentMeals (source "planned" — the only consumer of
+        // planningContext.recentMeals is this prompt's steer-away instruction,
+        // so labeling rejected meals "planned" only steers away from them,
+        // which is exactly the intent; verified by grep, D-WS9-074 untouched).
+        const { excludePlanTitles, excludeMealTitles } = parseSessionExclusion(
+          req.body,
+        );
+        const planningContextWithExclusion: PlanningContext = {
+          ...planningContext,
+          recentPlanNames: [
+            ...planningContext.recentPlanNames,
+            ...excludePlanTitles,
+          ],
+          recentMeals: [
+            ...planningContext.recentMeals,
+            ...excludeMealTitles.map((title) => ({
+              title,
+              source: "planned" as const,
+              when: planningContext.currentDate,
+            })),
+          ],
+        };
+
         const generateInput = {
           planDurationDays,
           householdSize: storedPrefs?.householdSize ?? 4,
@@ -1256,7 +1321,7 @@ export function createWizardRouter(
           allergiesAndAvoidances: storedPrefs?.allergiesAndAvoidances ?? [],
           dietaryNotes: storedPrefs?.dietaryNotes ?? "",
           hiddenContext,
-          planningContext,
+          planningContext: planningContextWithExclusion,
           preferencesContext,
         };
 

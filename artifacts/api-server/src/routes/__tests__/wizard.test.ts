@@ -942,6 +942,112 @@ describe("recent-rotation nudge threading (Block 4b-2, D-WS9-073)", () => {
   });
 });
 
+// BUG-053 (Parts B + F) — session re-roll exclusion. The client sends the
+// plan + meal titles shown so far; the routes must fold them into the recency
+// signals the generate prompt avoids so a re-roll returns something new.
+describe("POST /api/wizard — session re-roll exclusion (BUG-053)", () => {
+  it("surprise-me folds excludePlanTitles → recentPlanNames and excludeMealTitles → recentMeals", async () => {
+    // Fixture body carries the two exclusion arrays; stub prisma yields empty
+    // persisted recency, so the merged values are exactly the session's.
+    const captured: { promptKey: string; vars: Record<string, unknown> }[] = [];
+    const runAICall = (async (
+      promptKey: string,
+      vars: Record<string, unknown>,
+    ) => {
+      captured.push({ promptKey, vars });
+      return genSuccess(threeCandidates("surprise"));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any;
+    const harness = await spinUp({
+      runAICall,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/surprise-me`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("test-user-excl-surprise")}`,
+        },
+        body: JSON.stringify({
+          excludePlanTitles: ["Backyard Grill Night"],
+          excludeMealTitles: ["Old Tacos"],
+        }),
+      });
+      assert.equal(res.status, 200);
+      const generateInput = captured[0].vars.generateInput as {
+        planningContext: {
+          recentPlanNames: string[];
+          recentMeals: { title: string; source: string }[];
+        };
+      };
+      assert.ok(
+        generateInput.planningContext.recentPlanNames.includes(
+          "Backyard Grill Night",
+        ),
+        "shown plan title must land in recentPlanNames",
+      );
+      const mealTitles = generateInput.planningContext.recentMeals.map(
+        (m) => m.title,
+      );
+      assert.ok(
+        mealTitles.includes("Old Tacos"),
+        "shown meal title must land in recentMeals",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("build-plans folds BOTH excluded plan + meal titles into recentPlanNames (recentMeals is stripped on this route)", async () => {
+    // A plain fetch (no text/event-stream Accept) takes the BUFFERED path, which
+    // calls runAICall — capture its vars. The exclusion merge is shared across
+    // the stream + buffered branches (it builds wizardInput before either), so
+    // the buffered path exercises the same merge.
+    const captured: { promptKey: string; vars: Record<string, unknown> }[] = [];
+    const runAICall = (async (
+      promptKey: string,
+      vars: Record<string, unknown>,
+    ) => {
+      captured.push({ promptKey, vars });
+      return genSuccess(threeCandidates("wizard"));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any;
+    const harness = await spinUp({
+      runAICall,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("test-user-excl-wizard")}`,
+        },
+        body: JSON.stringify({
+          ...VALID_BODY,
+          excludePlanTitles: ["Shown Plan"],
+          excludeMealTitles: ["Shown Meal"],
+        }),
+      });
+      assert.equal(res.status, 200);
+      const wizardInput = captured[0].vars.wizardInput as {
+        planningContext: { recentPlanNames: string[] };
+      };
+      const names = wizardInput.planningContext.recentPlanNames;
+      assert.ok(names.includes("Shown Plan"), "plan title must be excluded");
+      assert.ok(
+        names.includes("Shown Meal"),
+        "meal title folds into recentPlanNames on this route",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
 describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-035)", () => {
   // The wizard hydrates its controls from stored prefs, the user may edit for
   // THIS plan only, and the edit must WIN over stored at generate time (else

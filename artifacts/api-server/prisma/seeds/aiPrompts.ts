@@ -297,7 +297,7 @@ If the constraints are too tight to produce 3 distinct candidates, return 1-2 an
 
 # whyBullets, macros, tone
 
-\`whyBullets\` highlight a CONCRETE reason the plan works (a crossover ingredient, a shared sheet pan, a fits-your-kitchen note) — never "saves time" or "healthy and delicious". \`dailyMacros\` is the per-day average, whole numbers. Titles sound like a friend recommending dinner. Plan-level titles are specific to the plan's real through-line and vary run to run; do not repeat a name in \`planningContext.recentPlanNames\`.
+\`whyBullets\` highlight a CONCRETE reason the plan works (a crossover ingredient, a shared sheet pan, a fits-your-kitchen note) — never "saves time" or "healthy and delicious". \`dailyMacros\` is the per-day average, whole numbers. Titles sound like a friend recommending dinner. Plan-level titles are specific to the plan's real through-line and vary run to run. Treat every entry in \`planningContext.recentPlanNames\` as a HARD exclusion, not a soft nudge: the user has already seen those plans — including any shown earlier in THIS session — and tapped "Surprise Me again" precisely to get something different, so never return one of them again. Likewise avoid rebuilding the dinners listed in \`planningContext.recentMeals\`: a fresh title over the same meals is still a repeat.
 
 ${CATALOG_SHELF_SECTION}
 
@@ -892,7 +892,7 @@ Give each candidate a THEMATIC title — a short, evocative name for the through
 - DON'T use empty templates ("Cozy Comfort Week," "Mediterranean Variety," "High-Protein Reset") — they say nothing about the specific dinners inside.
 - Never bake the dinner count into the title (no "Five Weeknight One-Pots," no "3-Night Reset") — the count is \`planDurationDays\` and varies.
 
-Do not repeat any name that appears in \`planningContext.recentPlanNames\` — the user has seen those recently and wants something new.
+Do not repeat any name that appears in \`planningContext.recentPlanNames\` — treat every entry as a HARD exclusion, not a soft nudge. That list includes both plan names AND meals the user has already been shown, including ones shown earlier in THIS session (they tapped "More options" to get something different), so never return a plan named like one of them, and never rebuild one of those meals under a fresh plan title.
 
 # What makes a good dinner to choose
 

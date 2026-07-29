@@ -121,9 +121,14 @@ export async function buildFromText(
  * the wizard-results screen renders it through the existing Tell Kiwi branch
  * and R5's "Use this plan" applies unchanged.
  */
-export async function buildSurprise(): Promise<BuildFromTextResult> {
+export async function buildSurprise(
+  // BUG-053 (Part B) — session re-roll exclusion (plan + meal titles shown so
+  // far). Optional + backward-compatible; empty/absent is a no-op server-side.
+  exclude?: { excludePlanTitles: string[]; excludeMealTitles: string[] },
+): Promise<BuildFromTextResult> {
   const body = await apiClient("/wizard/surprise-me", {
     method: "POST",
+    body: exclude ?? {},
     schema: BuildFromTextResponseSchema,
   });
   return body as BuildFromTextResult;

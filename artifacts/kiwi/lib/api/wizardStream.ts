@@ -52,6 +52,8 @@ export async function streamWizardPlans(
   opts: {
     signal?: AbortSignal;
     stallMs?: number;
+    // BUG-053 (Part F) — session re-roll exclusion, merged into the POST body.
+    exclude?: { excludePlanTitles: string[]; excludeMealTitles: string[] };
     // Test seam — inject a fetch. Production omits (uses expo/fetch, the only
     // RN fetch whose response body is a real ReadableStream).
     fetchImpl?: typeof expoFetch;
@@ -101,7 +103,9 @@ export async function streamWizardPlans(
           "Content-Type": "application/json",
           Accept: "text/event-stream",
         },
-        body: JSON.stringify(input),
+        body: JSON.stringify(
+          opts.exclude ? { ...input, ...opts.exclude } : input,
+        ),
         signal: controller.signal,
       });
     } catch (cause) {
