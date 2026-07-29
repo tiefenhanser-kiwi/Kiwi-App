@@ -197,11 +197,12 @@ export default function TellKiwi() {
           return;
         }
         // Block 4b-3 (D-WS9-072) — this generation overwrote the server
-        // last-batch row + superseded prior expand-drafts. Invalidate both
-        // client caches so the "See Previous Options" link (shown on this form)
-        // and the drafts list reflect the new state on return.
+        // last-batch row. Invalidate the "See Previous Options" cache so the
+        // link (shown on this form) reflects the new run on return. The
+        // ["wizard","drafts"] key is no longer invalidated — its sole observer
+        // (wizard.tsx's draftsQuery) was removed with the resume interstitial
+        // (WS9 3c), so it has no observers.
         queryClient.invalidateQueries({ queryKey: ["wizard", "lastBatch"] });
-        queryClient.invalidateQueries({ queryKey: ["wizard", "drafts"] });
         // PRD §6.5/§6.6 — share the wizard-results screen. Pass the result
         // payload via params so wizard-results renders without re-firing AI.
         // WS7-5b-mobile Block A — also pass the form payload so the per-

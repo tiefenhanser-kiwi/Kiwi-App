@@ -10,14 +10,13 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Stepper } from "@/components/Stepper";
-import { WizardResumeInterstitial } from "@/components/WizardResumeInterstitial";
 import { WizardPreviousOptionsLink } from "@/components/WizardPreviousOptionsLink";
 import { AllergiesPicker } from "@/components/preference-pickers/AllergiesPicker";
 import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
@@ -32,18 +31,6 @@ import {
 } from "@/lib/domain";
 import type { WizardPreferencesInput } from "@/lib/types";
 import { getPreferences, type UserPreferences } from "@/lib/api/me";
-import {
-  dismissWizardDraft,
-  getWizardDraft,
-  listWizardDrafts,
-  type ListWizardDraftsResponse,
-} from "@/lib/api/wizard";
-import { loadJSON, saveJSON } from "@/lib/storage";
-import {
-  addDismissed,
-  pruneDismissed,
-  visibleDrafts as computeVisibleDrafts,
-} from "@/lib/wizard/dismissedDrafts";
 
 type Difficulty = WizardPreferencesInput["difficulty"];
 type WeeklyPacing = WizardPreferencesInput["weeklyPacing"];
@@ -59,15 +46,6 @@ const PACING_OPTIONS: { key: WeeklyPacing; label: string }[] = [
 
 const HOUSEHOLD_MIN = 1;
 const HOUSEHOLD_MAX = 30;
-
-// BUG-023 (WS9 3c) — per-device persisted set of resume-draft ids the user has
-// dismissed ("Get new results"). Persisting it means a dismissed draft stays
-// dismissed across wizard remounts, so the "pick up where you left off?"
-// interstitial can't resurface a plan the user already moved past. Transient,
-// per-device, self-cleaning (the draft's server TTL is the real cleanup; we
-// also prune ids the server has already swept). Ruling 4 chose this over a
-// server sweep — that literal supersede rides with BUG-030.
-const DISMISSED_DRAFTS_KEY = "wizardDismissedDrafts";
 
 interface WizardFormState {
   planDurationDays: number;
@@ -149,7 +127,6 @@ function hydrateForm(prefs: UserPreferences): WizardFormState {
 
 export default function Wizard() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   // PRD §9.4 — when launched from the AddMealToPlanSheet "Create new
   // plan" path, the meal id we should attach to the new plan arrives
   // as a route param. WS5: param plumbing only — actual attach +
@@ -162,74 +139,12 @@ export default function Wizard() {
     }
   }, [params.addMealId]);
 
-  // WS7-5b-mobile Block B — wizard-entry resume interstitial.
-  // Fetch unsaved drafts on mount. While the fetch is in flight we render a
-  // small loader so the inputs don't flash before the interstitial can take
-  // over. On error we fall through to inputs — the resume prompt is an
-  // assist, not a blocker. `dismissed` is local-only (no persistence per
-  // spec: "Get new results" is the implicit pass for this session only).
-  const draftsQuery = useQuery<ListWizardDraftsResponse>({
-    queryKey: ["wizard", "drafts"],
-    queryFn: listWizardDrafts,
-    staleTime: 0,
-  });
   // Cookbook Phase B Block 4 — stored prefs hydrate the wizard controls
   // (D-WS7-035). Read-only here: the wizard never PATCHes /me/preferences.
   const prefsQuery = useQuery<UserPreferences>({
     queryKey: ["me", "preferences"],
     queryFn: getPreferences,
   });
-  const [interstitialDismissed, setInterstitialDismissed] = useState(false);
-  const [resumePendingDraftId, setResumePendingDraftId] = useState<
-    string | null
-  >(null);
-  const [resumeErrorMessage, setResumeErrorMessage] = useState<string | null>(
-    null,
-  );
-
-  // BUG-023 — load the persisted dismissed-draft set once on mount. `loaded`
-  // gates the interstitial so it can't flash before we know which drafts the
-  // user already dismissed.
-  const [dismissedDraftIds, setDismissedDraftIds] = useState<string[]>([]);
-  const [dismissedLoaded, setDismissedLoaded] = useState(false);
-  useEffect(() => {
-    let active = true;
-    loadJSON<string[]>(DISMISSED_DRAFTS_KEY, []).then((ids) => {
-      if (active) {
-        setDismissedDraftIds(ids);
-        setDismissedLoaded(true);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const handleResume = async (draftId: string) => {
-    if (resumePendingDraftId) return;
-    setResumePendingDraftId(draftId);
-    setResumeErrorMessage(null);
-    try {
-      const result = await getWizardDraft(draftId);
-      router.push({
-        pathname: "/wizard-plan-details",
-        params: {
-          draftId: result.draft.id,
-          // Block A's screen consumes a JSON-stringified expanded payload —
-          // same as POST /wizard/expand's flow, so resume reuses it verbatim.
-          expanded: JSON.stringify(result.expanded),
-        },
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error && err.message
-          ? err.message
-          : "Couldn't load that draft.";
-      setResumeErrorMessage(message);
-    } finally {
-      setResumePendingDraftId(null);
-    }
-  };
 
   const [form, setForm] = useState<WizardFormState>(INITIAL_FORM);
   // Once stored prefs arrive we seed the form exactly once. `hydrated` also
@@ -244,21 +159,6 @@ export default function Wizard() {
       setHydrated(true);
     }
   }, [prefsQuery.data, hydrated]);
-
-  // BUG-023 — keep the persisted dismissed set bounded: once the drafts list
-  // loads, drop any dismissed id the server has already swept (past TTL /
-  // activated). Guarded by the length check so it converges (no set → no
-  // re-run) and only runs when there's a list to compare against.
-  useEffect(() => {
-    if (!dismissedLoaded) return;
-    const draftIds = draftsQuery.data?.drafts.map((d) => d.id);
-    if (!draftIds || draftIds.length === 0) return;
-    const pruned = pruneDismissed(dismissedDraftIds, draftIds);
-    if (pruned !== dismissedDraftIds) {
-      setDismissedDraftIds(pruned);
-      void saveJSON(DISMISSED_DRAFTS_KEY, pruned);
-    }
-  }, [dismissedLoaded, draftsQuery.data, dismissedDraftIds]);
 
   const update = <K extends keyof WizardFormState>(
     key: K,
@@ -306,12 +206,13 @@ export default function Wizard() {
 
   const cuisineSelectedCount = form.cuisines.length;
 
-  // ── interstitial gate ────────────────────────────────────────────────
-  // Show a short loader while the drafts list AND stored prefs are in flight
-  // so the inputs don't flash unhydrated before the interstitial can take
-  // over. On either query's error we fall through — both are assists, not
-  // blockers (the form renders with defaults if prefs fail to load).
-  if (draftsQuery.isLoading || prefsQuery.isLoading || !dismissedLoaded) {
+  // ── prefs-hydration gate ─────────────────────────────────────────────
+  // Show a short loader while stored prefs are in flight so the inputs don't
+  // flash unhydrated. On a prefs error we fall through — hydration is an
+  // assist, not a blocker (the form renders with defaults). WS9 3c removed the
+  // mount-time resume interstitial (and its drafts-list / dismissed-drafts
+  // machinery); "See Previous Options" (rendered below) is the recall path now.
+  if (prefsQuery.isLoading) {
     return (
       <View
         style={{
@@ -325,13 +226,6 @@ export default function Wizard() {
       </View>
     );
   }
-  // Block 4b-3 (D-WS9-072) — the mount-time resume interstitial is REPLACED by
-  // the persistent "See Previous Options" link rendered in the form below (a
-  // mount interruption only catches the user at one moment; the link doesn't).
-  // The interstitial machinery above (draftsQuery, handleResume, the BUG-023
-  // dismissed-drafts state) is intentionally left in place but unreferenced —
-  // its removal, and WizardResumeInterstitial's, is WS9 3c cleanup, not this
-  // block. See components/WizardPreviousOptionsLink.tsx.
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>

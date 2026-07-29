@@ -215,6 +215,129 @@ test("a stale run's late candidate cannot clobber a newer run (tap/re-roll safet
   renderer.unmount();
 });
 
+// ── BUG-051 (WS9 3c) — onComplete fires on TRUE completion, not first card ──
+
+test("onComplete fires on true completion, NOT at the first streamed card (BUG-051)", async () => {
+  // The stream emits one card (isSuccess flips true for progressive render),
+  // then blocks until released before returning `done`. onComplete MUST stay
+  // silent until the stream truly completes — that was the race: invalidating
+  // on isSuccess re-fetched the last-batch before the server had written it.
+  let releaseDone!: () => void;
+  const gate = new Promise<void>((r) => {
+    releaseDone = r;
+  });
+  const streamImpl: UseBuildWizardPlansStreamingDeps["streamImpl"] = async (
+    _input,
+    onCandidate,
+  ) => {
+    onCandidate(0, candidate("c0"));
+    await gate;
+    return { cannotGenerateMore: false };
+  };
+  const bufferedImpl = async () => {
+    throw new Error("buffered should not be called");
+  };
+  let completeCalls = 0;
+  const { renderer, latest } = mount({
+    streamImpl,
+    bufferedImpl,
+    onComplete: () => {
+      completeCalls++;
+    },
+  });
+
+  await act(async () => {
+    latest().mutate(INPUT);
+    await flush();
+  });
+  // First card landed → progressive success, but generation is NOT complete.
+  assert.equal(latest().isSuccess, true);
+  assert.equal(completeCalls, 0, "must NOT fire before the stream completes");
+
+  await act(async () => {
+    releaseDone();
+    await flush();
+  });
+  assert.equal(completeCalls, 1, "fires exactly once on true completion");
+  renderer.unmount();
+});
+
+test("onComplete fires when the buffered fallback succeeds", async () => {
+  const streamImpl: UseBuildWizardPlansStreamingDeps["streamImpl"] = async () => {
+    throw new Error("stream boom");
+  };
+  const bufferedImpl = async () => ({
+    candidates: [candidate("b0")],
+    cannotGenerateMore: false,
+  });
+  let completeCalls = 0;
+  const { renderer, latest } = mount({
+    streamImpl,
+    bufferedImpl,
+    onComplete: () => {
+      completeCalls++;
+    },
+  });
+
+  await act(async () => {
+    latest().mutate(INPUT);
+    await flush();
+  });
+  assert.equal(completeCalls, 1);
+  renderer.unmount();
+});
+
+test("onComplete does NOT fire on an entitlement error", async () => {
+  const streamImpl: UseBuildWizardPlansStreamingDeps["streamImpl"] = async () => {
+    throw new UpgradeRequiredError({ status: 402, body: null });
+  };
+  const bufferedImpl = async () => ({ candidates: [], cannotGenerateMore: false });
+  let completeCalls = 0;
+  const { renderer, latest } = mount({
+    streamImpl,
+    bufferedImpl,
+    onComplete: () => {
+      completeCalls++;
+    },
+  });
+
+  await act(async () => {
+    latest().mutate(INPUT);
+    await flush();
+  });
+  assert.equal(completeCalls, 0);
+  renderer.unmount();
+});
+
+test("onComplete does NOT fire when the stream dies mid-flight (partial keep)", async () => {
+  // Cards arrived then the stream threw — a degraded success whose last-batch
+  // write may never have happened, so it is deliberately NOT a completion.
+  const streamImpl: UseBuildWizardPlansStreamingDeps["streamImpl"] = async (
+    _input,
+    onCandidate,
+  ) => {
+    onCandidate(0, candidate("c0"));
+    throw new Error("died after one card");
+  };
+  const bufferedImpl = async () => ({ candidates: [], cannotGenerateMore: false });
+  let completeCalls = 0;
+  const { renderer, latest } = mount({
+    streamImpl,
+    bufferedImpl,
+    onComplete: () => {
+      completeCalls++;
+    },
+  });
+
+  await act(async () => {
+    latest().mutate(INPUT);
+    await flush();
+  });
+  assert.equal(latest().isSuccess, true, "cards are kept");
+  assert.equal(completeCalls, 0, "partial-keep is not a true completion");
+  renderer.unmount();
+});
+
 test("reset() returns the hook to idle", async () => {
   const streamImpl: UseBuildWizardPlansStreamingDeps["streamImpl"] = async (
     _i,

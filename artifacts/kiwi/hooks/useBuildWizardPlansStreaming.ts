@@ -57,6 +57,16 @@ export interface UseBuildWizardPlansStreamingDeps {
   bufferedImpl?: (
     input: WizardPreferencesInput,
   ) => Promise<BuildWizardPlansResult>;
+  // BUG-051 fix (WS9 3c) — fired ONCE when a generation TRULY completes: the
+  // stream's `done` resolved (server finished, including its end-of-run
+  // last-batch write) OR the buffered fallback succeeded. NOT on the first
+  // streamed card (which is when isSuccess flips true for progressive render) —
+  // that was the race: the old caller invalidated ["wizard","lastBatch"] on
+  // isSuccess, before the server had written the new batch, so the client
+  // refetched the OLD batch and never re-asked. Invalidating here happens after
+  // the server write, closing BUG-051. Not fired on error / partial-keep (a
+  // died-mid-stream run may not have written the batch).
+  onComplete?: () => void;
 }
 
 const IDLE: InternalState = { status: "idle", candidates: [], error: null };
@@ -66,6 +76,10 @@ export function useBuildWizardPlansStreaming(
 ): BuildWizardPlansStreamingResult {
   const streamImpl = deps.streamImpl ?? streamWizardPlans;
   const bufferedImpl = deps.bufferedImpl ?? buildWizardPlans;
+  // Track onComplete in a ref so mutate's captured closure always calls the
+  // latest callback without needing to be in its useCallback dep list.
+  const onCompleteRef = useRef(deps.onComplete);
+  onCompleteRef.current = deps.onComplete;
   const [state, setState] = useState<InternalState>(IDLE);
   // Monotonic run id — a re-roll / reset / unmount bumps it so a stale stream's
   // late callbacks (or its fallback) can't clobber the current run's state.
@@ -119,6 +133,8 @@ export function useBuildWizardPlansStreaming(
           reason: done.reason,
           error: null,
         }));
+        // Stream truly completed — the server has written its last-batch row.
+        onCompleteRef.current?.();
       } catch (err) {
         if (gen !== genRef.current) return;
         // Entitlement / auth walls: a buffered retry hits the same wall, so
@@ -146,6 +162,8 @@ export function useBuildWizardPlansStreaming(
             reason: buffered.reason,
             error: null,
           });
+          // Buffered fallback succeeded — the server wrote its last-batch row.
+          onCompleteRef.current?.();
         } catch (bufErr) {
           if (gen !== genRef.current) return;
           setState({
