@@ -535,24 +535,13 @@ export default function WizardResultsScreen() {
     setChainState({ kind: "idle" });
   };
 
-  // BUG-037 — Surprise-me is ONE plan straight to Plan Review (as a draft), not
-  // a card picker. Auto-expand the single candidate once per `attempt`, only
-  // once prefs have loaded (so the expand candidateContext carries the hard
-  // constraints) and while idle. Backing out returns to this screen's surprise
-  // card; "More options ↺" re-rolls (bumps attempt → re-arms the guard).
-  const autoExpandedAttemptRef = useRef(-1);
-  useEffect(() => {
-    if (isRehydrate) return; // Block 4b-3 — a rehydrated surprise shows its card, no auto-expand.
-    if (!isSurprise) return;
-    if (chainState.kind !== "idle") return;
-    if (!prefsQuery.data) return;
-    const first = candidates[0];
-    if (!first) return;
-    if (autoExpandedAttemptRef.current === attempt) return;
-    autoExpandedAttemptRef.current = attempt;
-    void runOpenDraft(first);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSurprise, candidates, chainState.kind, prefsQuery.data, attempt]);
+  // WS9 3c follow-up (Part A / surprise A′) — Surprise-me NO LONGER auto-expands.
+  // It generates and lands on the single surprise card with details expanded by
+  // default; expand fires only when the user taps "See full plan & save". This
+  // deletes the effect that raced the generation on a re-roll (BUG-053): the
+  // effect re-armed on `attempt` and fired an expand on the STALE candidate as
+  // "Surprise Me again" kicked off a new generation. With no auto-expand, a
+  // re-roll is a generation only — the concurrent expand is gone by construction.
 
   // ── render branches ──────────────────────────────────────────────────
 
@@ -594,31 +583,46 @@ export default function WizardResultsScreen() {
         subtitle={subtitle}
       />
       <Screen>
-        <View style={s.actionRow}>
-          <View style={{ flex: 1 }}>
-            <Button
-              label={tellKiwiPayload ? "Edit my message" : "Refine preferences"}
-              variant="ghost"
-              onPress={handleRefine}
-            />
-          </View>
-          {/* For Tell Kiwi, "More options" returns to the form (the wording
-              determines the scenario — re-rolling here would just call the
-              same prompts and likely produce the same plan). For the wizard
-              path it triggers a fresh AI call. */}
-          {/* Block 4b-3 — no re-roll on a rehydrated snapshot (it's a recall of
-              a prior run, not a fresh generation). */}
-          {!tellKiwiPayload && !isRehydrate && (
+        {/* Surprise A′ (Part A) — "Surprise Me again" sits at the TOP: one tap,
+            no expand, straight to a new generation (the reject path costs
+            nothing). Not shown on a rehydrated snapshot (a recall, not a run). */}
+        {isSurprise && !isRehydrate ? (
+          <View style={s.actionRow}>
             <View style={{ flex: 1 }}>
               <Button
-                label="More options ↺"
+                label="Surprise Me again ↺"
                 variant="primary"
                 onPress={handleMoreOptions}
-                disabled={mutation.isPending}
+                disabled={surpriseMutation.isPending}
               />
             </View>
-          )}
-        </View>
+          </View>
+        ) : (
+          <View style={s.actionRow}>
+            <View style={{ flex: 1 }}>
+              <Button
+                label={tellKiwiPayload ? "Edit my message" : "Refine preferences"}
+                variant="ghost"
+                onPress={handleRefine}
+              />
+            </View>
+            {/* For Tell Kiwi, "More options" returns to the form (the wording
+                determines the scenario — re-rolling here would just call the
+                same prompts and likely produce the same plan). For the wizard
+                path it triggers a fresh AI call. */}
+            {/* Block 4b-3 — no re-roll on a rehydrated snapshot. */}
+            {!tellKiwiPayload && !isRehydrate && (
+              <View style={{ flex: 1 }}>
+                <Button
+                  label="More options ↺"
+                  variant="primary"
+                  onPress={handleMoreOptions}
+                  disabled={mutation.isPending}
+                />
+              </View>
+            )}
+          </View>
+        )}
 
         {!tellKiwiPayload && !isSurprise && mutation.isPending && (
           <LoadingShim variant="status-box" />
@@ -718,7 +722,18 @@ export default function WizardResultsScreen() {
                 expanded={expandedIds.has(c.id)}
                 onToggleExpanded={() => toggleExpanded(c.id)}
                 onOpenDraft={() => handleOpenDraft(c)}
-                disabled={chainState.kind === "pending"}
+                // Surprise: keep the commit button disabled until stored prefs
+                // load, so expand's candidateContext carries the user's hard
+                // constraints (allergies / eating styles) — the guard the old
+                // auto-expand effect enforced with `if (!prefsQuery.data)`.
+                disabled={
+                  chainState.kind === "pending" ||
+                  (isSurprise && !prefsQuery.data)
+                }
+                // Surprise A′ (Part A) — one card, expanded by default, commit
+                // via an explicit button (no whole-card tap).
+                forceExpanded={isSurprise}
+                explicitButton={isSurprise}
               />
             ))}
           </View>
@@ -791,31 +806,27 @@ function CandidateCard({
   onToggleExpanded,
   onOpenDraft,
   disabled,
+  forceExpanded = false,
+  explicitButton = false,
 }: {
   candidate: WizardPlanCandidate;
   expanded: boolean;
   onToggleExpanded: () => void;
   onOpenDraft: () => void;
   disabled?: boolean;
+  // WS9 3c follow-up (Part A / surprise A′) — surprise shows ONE card with its
+  // details expanded by default (forceExpanded, hiding the toggle) and commits
+  // via an explicit button, not a whole-card tap (explicitButton), so the
+  // single full-screen card can't be mis-tapped into an expand + navigation.
+  // The 3-candidate results screen passes neither and keeps whole-card-tap.
+  forceExpanded?: boolean;
+  explicitButton?: boolean;
 }) {
   const macrosLine = `Avg ${formatMacro(candidate.dailyMacros.calories, "0")} cal/day · ${formatMacro(candidate.dailyMacros.proteinG, "0")}g P · ${formatMacro(candidate.dailyMacros.carbsG, "0")}g C · ${formatMacro(candidate.dailyMacros.fatG, "0")}g F`;
+  const isExpanded = forceExpanded || expanded;
 
-  // WS9 3c (D-WS9-032) — the whole card is the tap target: it opens Plan
-  // Review as an unsaved draft (the commit primary + "View details" peek are
-  // gone). The inline "Preview meals & macros" toggle is a nested Pressable, so
-  // tapping it expands the preview without also opening the draft (RN grants the
-  // responder to the innermost pressable).
-  return (
-    <Pressable
-      onPress={disabled ? undefined : onOpenDraft}
-      disabled={disabled}
-      accessibilityRole="button"
-      style={({ pressed }) => [
-        s.card,
-        pressed && !disabled && { opacity: 0.9 },
-        disabled && { opacity: 0.6 },
-      ]}
-    >
+  const inner = (
+    <>
       {/* Hero */}
       <View style={s.hero}>
         {candidate.imageUrl ? (
@@ -869,25 +880,29 @@ function CandidateCard({
           {macrosLine}
         </Text>
 
-        <Pressable
-          onPress={onToggleExpanded}
-          hitSlop={6}
-          style={({ pressed }) => [
-            s.expandToggle,
-            pressed && { opacity: 0.6 },
-          ]}
-        >
-          <Text style={s.expandToggleText}>
-            {expanded ? "Hide preview" : "Preview meals & macros"}
-          </Text>
-          <Feather
-            name={expanded ? "chevron-up" : "chevron-down"}
-            size={16}
-            color={Colors.sage[700]}
-          />
-        </Pressable>
+        {/* No collapse toggle when forceExpanded (surprise) — the details are
+            the point of the single card. */}
+        {!forceExpanded && (
+          <Pressable
+            onPress={onToggleExpanded}
+            hitSlop={6}
+            style={({ pressed }) => [
+              s.expandToggle,
+              pressed && { opacity: 0.6 },
+            ]}
+          >
+            <Text style={s.expandToggleText}>
+              {expanded ? "Hide preview" : "Preview meals & macros"}
+            </Text>
+            <Feather
+              name={expanded ? "chevron-up" : "chevron-down"}
+              size={16}
+              color={Colors.sage[700]}
+            />
+          </Pressable>
+        )}
 
-        {expanded && (
+        {isExpanded && (
           <View style={s.expandedSection}>
             <Text style={s.subSectionLabel}>Meals in this plan</Text>
             {/* D-WS9-032 point 1 — meals render as ROWS (not bullets). Per-meal
@@ -927,14 +942,52 @@ function CandidateCard({
           </View>
         )}
 
-        {/* D-WS9-032 — the card no longer commits. A tap-hint stands in for the
-            removed "Use this plan" primary; the whole card opens Plan Review as
-            a draft, where Save for Later / Use This Week live. */}
-        <View style={s.tapHintRow}>
-          <Text style={s.tapHintText}>Review &amp; save</Text>
-          <Feather name="arrow-right" size={16} color={Colors.sage[700]} />
-        </View>
+        {explicitButton ? (
+          // Surprise (Part A) — an explicit primary owns the navigation; the
+          // card body is not a tap target.
+          <View style={s.cardButtonWrap}>
+            <Button
+              label="See full plan & save"
+              variant="primary"
+              onPress={onOpenDraft}
+              disabled={disabled}
+            />
+          </View>
+        ) : (
+          // D-WS9-032 — the card no longer commits. A tap-hint stands in for the
+          // removed "Use this plan" primary; the whole card opens Plan Review as
+          // a draft, where Save for Later / Use This Week live.
+          <View style={s.tapHintRow}>
+            <Text style={s.tapHintText}>Review &amp; save</Text>
+            <Feather name="arrow-right" size={16} color={Colors.sage[700]} />
+          </View>
+        )}
       </View>
+    </>
+  );
+
+  // Explicit-button mode (surprise): no whole-card tap target — the button owns
+  // the navigation, so the card is a plain View.
+  if (explicitButton) {
+    return <View style={[s.card, disabled && { opacity: 0.6 }]}>{inner}</View>;
+  }
+
+  // WS9 3c (D-WS9-032) — the whole card is the tap target on the 3-candidate
+  // screen. The inline "Preview meals & macros" toggle is a nested Pressable, so
+  // tapping it expands without also opening the draft (RN grants the responder
+  // to the innermost pressable).
+  return (
+    <Pressable
+      onPress={disabled ? undefined : onOpenDraft}
+      disabled={disabled}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        s.card,
+        pressed && !disabled && { opacity: 0.9 },
+        disabled && { opacity: 0.6 },
+      ]}
+    >
+      {inner}
     </Pressable>
   );
 }
@@ -1206,6 +1259,9 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[800],
     fontFamily: Typography.face.sans[400],
+  },
+  cardButtonWrap: {
+    marginTop: Spacing[3],
   },
   tapHintRow: {
     marginTop: Spacing[2],
