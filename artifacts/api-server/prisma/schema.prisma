@@ -332,6 +332,15 @@ model UserPreferences {
   saucePreference         String          @default("balanced")
   maxCookTimeMinutes      Int?
   maxCookTimeCoverage     String          @default("most")
+  // WS9 3d (D-WS9-013) — stamped in PATCH /me/preferences ONLY when an
+  // allergy/dietary field changes (allergiesAndAvoidances / dietaryNotes /
+  // eatingStyles / pickyAvoidances). Distinct from the generic `updatedAt`
+  // below, which @updatedAt bumps on EVERY column write (household size,
+  // retailer, …) and so over-fires for the staleness note. The Plan Review
+  // dietary-staleness note (§8.3) and grocery-list echo (§12.4) compare this
+  // against the plan/list commit timestamp. Nullable, no backfill: null =
+  // "no dietary edit recorded" → the note stays silent (safe default).
+  dietaryUpdatedAt        DateTime?
   updatedAt               DateTime        @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -707,6 +716,16 @@ model MealPlanInstance {
   // (activate/save) or superseded/dismissed. Null on every non-draft row.
   wizardDraftPayload Json?
   compostedAt        DateTime?
+  // WS9 3d (D-WS9-013, Part 2d) — the moment this row became a REAL, committed
+  // (non-draft) plan. Set on every commit path: at create for plans born
+  // committed (POST /plans, use-template), and on the draft→plan flip for
+  // wizard save/activate. Deliberately NOT `createdAt` — a wizard draft's
+  // createdAt is stamped at POST /wizard/expand (possibly weeks before commit),
+  // so comparing dietaryUpdatedAt > createdAt would fire the staleness note
+  // spuriously the instant an old draft is saved. NULL on hidden wizard drafts
+  // (not yet committed) and on pre-migration rows (backfill posture: null ⇒
+  // "never stale" → note silent, cheaper than a false allergy warning).
+  committedAt        DateTime?
   isArchived         Boolean    @default(false)
   // WS7-5a — Branch B wizard draft discriminator. true on rows written by
   // POST /api/wizard/expand; flipped to false on "Save and use" activation

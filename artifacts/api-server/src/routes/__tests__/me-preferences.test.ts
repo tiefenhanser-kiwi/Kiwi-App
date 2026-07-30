@@ -41,6 +41,8 @@ interface PrefsRow {
   saucePreference: string;
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: string;
+  // WS9 3d Part 2c (D-WS9-013) — stamped only on allergy/dietary edits.
+  dietaryUpdatedAt: Date | null;
   updatedAt: Date;
 }
 
@@ -73,6 +75,7 @@ function defaultsFor(userId: string): PrefsRow {
     saucePreference: "balanced",
     maxCookTimeMinutes: null,
     maxCookTimeCoverage: "most",
+    dietaryUpdatedAt: null,
     updatedAt: new Date("2026-05-19T12:00:00Z"),
   };
 }
@@ -399,6 +402,91 @@ describe("PATCH /me/preferences", () => {
         body: JSON.stringify({ householdSize: 3 }),
       });
       assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── WS9 3d Part 2c (D-WS9-013) — dietaryUpdatedAt stamp boundary ─────────
+  const patchPrefs = async (
+    harness: Harness,
+    payload: Record<string, unknown>,
+  ): Promise<PrefsRow & { dietaryUpdatedAt: string | null }> => {
+    const res = await fetch(`${harness.baseUrl}/me/preferences`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${signToken(USER_ID)}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    assert.equal(res.status, 200);
+    const out = (await res.json()) as {
+      preferences: PrefsRow & { dietaryUpdatedAt: string | null };
+    };
+    return out.preferences;
+  };
+
+  it("stamps dietaryUpdatedAt when an allergy/dietary field changes", async () => {
+    const harness = await spinUp(makeStubPrisma(defaultsFor(USER_ID)));
+    try {
+      const p = await patchPrefs(harness, { allergiesAndAvoidances: ["peanuts"] });
+      assert.equal(
+        typeof p.dietaryUpdatedAt,
+        "string",
+        "an allergy edit must stamp dietaryUpdatedAt",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("does NOT stamp dietaryUpdatedAt on a non-dietary-only edit (household size)", async () => {
+    const harness = await spinUp(makeStubPrisma(defaultsFor(USER_ID)));
+    try {
+      const p = await patchPrefs(harness, { householdSize: 4 });
+      assert.equal(
+        p.dietaryUpdatedAt,
+        null,
+        "a household-size edit must not raise an allergy-flavored stamp",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("stamps when a dietary field is bundled with a non-dietary field", async () => {
+    const harness = await spinUp(makeStubPrisma(defaultsFor(USER_ID)));
+    try {
+      const p = await patchPrefs(harness, {
+        householdSize: 4,
+        dietaryNotes: "lower sodium",
+      });
+      assert.equal(typeof p.dietaryUpdatedAt, "string", "bundled dietary edit must stamp");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("does NOT stamp on spiceTolerance/healthGoals (excluded from the dietary set)", async () => {
+    const harness = await spinUp(makeStubPrisma(defaultsFor(USER_ID)));
+    try {
+      const p1 = await patchPrefs(harness, { spiceTolerance: "very_hot" });
+      assert.equal(p1.dietaryUpdatedAt, null, "spice tolerance is not an allergy edit");
+      const p2 = await patchPrefs(harness, { healthGoals: ["high_protein"] });
+      assert.equal(p2.dietaryUpdatedAt, null, "health goals are excluded from the stamp set");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("stamps on a dietaryNotes:null clear (key presence, not truthiness)", async () => {
+    const seed = defaultsFor(USER_ID);
+    seed.dietaryNotes = "old note";
+    const harness = await spinUp(makeStubPrisma(seed));
+    try {
+      const p = await patchPrefs(harness, { dietaryNotes: null });
+      assert.equal(typeof p.dietaryUpdatedAt, "string", "clearing dietaryNotes is a dietary edit");
     } finally {
       await harness.close();
     }

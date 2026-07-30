@@ -468,6 +468,16 @@ export function createPlansRouter(
           revisionId: instance.revisionId,
           isActiveThisWeek: winnerId !== null && winnerId === instance.id,
           userId: instance.userId,
+          // WS9 3d Part 2d/3b — mealPlanTemplateId powers "Use again" (copies
+          // the plan's backing template via POST /plans/use-template); null on
+          // template-less plans (e.g. an empty POST /plans), which hides the
+          // action. committedAt anchors the dietary-staleness note (§8.3) — an
+          // ISO instant, NOT the YYYY-MM-DD calendar dates above; null on
+          // pre-migration rows keeps the note silent.
+          mealPlanTemplateId: instance.mealPlanTemplateId,
+          committedAt: instance.committedAt
+            ? instance.committedAt.toISOString()
+            : null,
           // sourceType lives on the template, not the instance.
           sourceType: instance.template?.sourceType ?? "manual",
           // WS7-8a B3 — derived rollup (or the manual pin when set), not the
@@ -654,6 +664,9 @@ export function createPlansRouter(
             startDate: createStartDate,
             endDate: createEndDate,
             activatedAt: coversNowAtCreate ? nowAtCreate : undefined,
+            // WS9 3d Part 2d (D-WS9-013) — POST /plans is born committed
+            // (isWizardDraft false by default), so stamp the commit instant now.
+            committedAt: nowAtCreate,
             optimizationNotes: Prisma.DbNull,
             breakfastOverrides: null,
             lunchOverrides: null,
@@ -758,6 +771,21 @@ export function createPlansRouter(
               revisionId: { increment: 1 },
             },
             select: { id: true, revisionId: true },
+          });
+
+          // WS9 3d Part 2a (D-WS9-001) — the plan's grocery lists archive WITH
+          // the plan, in the SAME transaction (rolls back together on failure).
+          // GroceryListStatus.archived is a server-INTERNAL write: it is set
+          // only by this cascade, never by the client PATCH /grocery-lists/:id
+          // validator (which accepts active|completed only) — a client that
+          // could archive a list independently of its plan would create a
+          // state this cascade can't reason about. Scoped to non-archived rows
+          // so a re-run (or an already-archived list) is a no-op. GET
+          // grocery-list / home reads already filter `status != archived`, so
+          // the lists drop off those surfaces with the plan.
+          await tx.groceryList.updateMany({
+            where: { mealPlanInstanceId: id, status: { not: "archived" } },
+            data: { status: "archived" },
           });
 
           await emitActivity({
@@ -1272,6 +1300,9 @@ export function createPlansRouter(
               status: "draft",
               startDate: null,
               endDate: null,
+              // WS9 3d Part 2d (D-WS9-013) — use-template mints a real committed
+              // (non-draft) plan, just undated/inactive; stamp the commit instant.
+              committedAt: new Date(),
               optimizationNotes:
                 (template.optimizationNotes as Prisma.InputJsonValue | null) ??
                 Prisma.DbNull,

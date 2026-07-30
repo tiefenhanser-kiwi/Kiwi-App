@@ -3292,6 +3292,11 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
       flip.activatedAt instanceof Date,
       "seam C: wizard activate must stamp activatedAt",
     );
+    // WS9 3d Part 2d — the draft→plan flip is a commit → stamp committedAt.
+    assert.ok(
+      flip.committedAt instanceof Date,
+      "wizard activate must stamp committedAt (dietary-note anchor)",
+    );
 
     assert.equal(deps.rec.activityCalls.length, 1);
     const act = deps.rec.activityCalls[0];
@@ -4066,6 +4071,13 @@ describe("POST /api/wizard/drafts/:id/save — happy path", () => {
     // D-WS9-034 — same draft-blob clear as /activate.
     assert.equal(flip.wizardDraftPayload, Prisma.DbNull);
     assert.equal(flip.optimizationNotes, Prisma.DbNull);
+    // WS9 3d Part 2d — save-for-later is also a commit → stamp committedAt,
+    // even though the plan lands undated + inactive (the case activatedAt
+    // would MISS — exactly the users likeliest to have edited prefs since).
+    assert.ok(
+      flip.committedAt instanceof Date,
+      "wizard save must stamp committedAt on an undated committed plan",
+    );
 
     // Activity emitted is plan_created (NOT plan_activated_this_week).
     assert.equal(deps.rec.activityCalls.length, 1);

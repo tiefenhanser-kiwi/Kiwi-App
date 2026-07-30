@@ -191,6 +191,21 @@ const preferencesPatchSchema = z
   })
   .strict();
 
+// WS9 3d Part 2c (D-WS9-013) — the ALLERGY/DIETARY subset of the preferences
+// accept list. A PATCH touching ANY of these stamps UserPreferences.
+// dietaryUpdatedAt (the staleness-note anchor); a PATCH touching only other
+// fields must NOT (household size / retailer / cook-time edits are not
+// allergy-relevant, and the note is allergy/restriction-worded). Deliberately
+// EXCLUDES healthGoals and spiceTolerance: a spice-tolerance change must not
+// raise an allergy warning (chat-Claude's ratified Phase-0 recommendation —
+// if Hans amends the set, it is a one-line change here + its boundary tests).
+const DIETARY_STAMP_FIELDS = [
+  "allergiesAndAvoidances",
+  "dietaryNotes",
+  "eatingStyles",
+  "pickyAvoidances",
+] as const;
+
 function serializePreferences(p: {
   id: string;
   userId: string;
@@ -777,11 +792,20 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       return res.status(400).json({ error: "no fields to update" });
     }
 
+    // WS9 3d Part 2c (D-WS9-013) — stamp dietaryUpdatedAt iff an allergy/dietary
+    // field is present in THIS patch (key presence, so a dietaryNotes:null clear
+    // still counts). Not derived from `updatedAt`, which @updatedAt bumps on
+    // every write. A household-size-only edit leaves the stamp untouched.
+    const touchesDietary = DIETARY_STAMP_FIELDS.some((f) => f in updates);
+    const data = touchesDietary
+      ? { ...updates, dietaryUpdatedAt: new Date() }
+      : updates;
+
     try {
       const prefs = await prisma.userPreferences.upsert({
         where: { userId: req.userId! },
-        update: updates,
-        create: { userId: req.userId!, ...updates },
+        update: data,
+        create: { userId: req.userId!, ...data },
       });
       return res.json({ preferences: serializePreferences(prefs) });
     } catch (err) {

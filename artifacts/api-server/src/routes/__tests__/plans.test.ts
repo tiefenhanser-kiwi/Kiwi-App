@@ -2062,6 +2062,9 @@ describe("POST /plans/use-template/:templateId — happy path", () => {
       assert.equal(created.endDate, null);
       assert.equal(created.status, "draft");
       assert.equal(created.titleOverride, null);
+      // WS9 3d Part 2d — use-template mints a committed (non-draft) plan, so
+      // committedAt is stamped at create even though it lands undated/inactive.
+      assert.ok(created.committedAt instanceof Date, "committedAt stamped on use-template copy");
 
       // optimizationNotes copied from the template.
       const notes = created.optimizationNotes as Array<{ type: string; text: string }>;
@@ -2411,6 +2414,8 @@ describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
       assert.equal(created.status, "draft");
       assert.equal(created.startDate, null);
       assert.equal(created.endDate, null);
+      // WS9 3d Part 2d — POST /plans is born committed → committedAt stamped.
+      assert.ok(created.committedAt instanceof Date, "committedAt stamped at create");
 
       // WS7-6 (E): no demote-prior — the per-user EXCLUDE constraint
       // enforces single-current, and an undated plan is null-exempt.
@@ -2753,11 +2758,15 @@ interface C3DeleteFix {
 interface C3DeleteRecorder {
   instanceUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
   activityWrites: Array<Record<string, unknown>>;
+  // WS9 3d Part 2a — records groceryList.updateMany calls (the compost
+  // cascade). Optional so pre-existing recorder literals don't need updating.
+  groceryArchives?: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>;
 }
 
 function makeC3DeleteStub(opts: {
   instances?: C3DeleteFix[];
   recorder: C3DeleteRecorder;
+  groceryThrows?: boolean;
 }) {
   const instances = opts.instances ?? [];
   const recorder = opts.recorder;
@@ -2812,6 +2821,16 @@ function makeC3DeleteStub(opts: {
         const row = instances.find((i) => i.id === args.where.id);
         const newRev = (row?.revisionId ?? 0) + 1;
         return { id: args.where.id, revisionId: newRev };
+      },
+    },
+    // WS9 3d Part 2a — the compost grocery-list cascade. `opts.groceryThrows`
+    // simulates a mid-tx failure so the "rolls back together" test can assert
+    // the whole DELETE aborts (no activity emitted).
+    groceryList: {
+      updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        recorder.groceryArchives?.push(args);
+        if (opts.groceryThrows) throw new Error("grocery archive failed");
+        return { count: 1 };
       },
     },
     userActivity: {
@@ -3036,6 +3055,70 @@ describe("DELETE /plans/:id — soft-delete (WS7-4-C c3)", () => {
       // Covering but not winner → wasActive=false under Model 2.
       assert.deepEqual(act.metadata, { wasActive: false },
         "covering-but-not-winner plan must record wasActive=false");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS9 3d Part 2a (D-WS9-001) — grocery-list cascade on compost.
+  it("archives the plan's grocery lists in the same tx (status=archived, scoped to non-archived)", async () => {
+    const recorder: C3DeleteRecorder = {
+      instanceUpdates: [],
+      activityWrites: [],
+      groceryArchives: [],
+    };
+    const harness = await mutationSpinUp(
+      makeC3DeleteStub({
+        recorder,
+        instances: [
+          { id: "p-1", userId: A2_USER, revisionId: 2, startDate: null, endDate: null },
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-1`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+
+      assert.equal(recorder.groceryArchives!.length, 1, "one grocery cascade write");
+      const g = recorder.groceryArchives![0];
+      assert.equal(g.where.mealPlanInstanceId, "p-1");
+      assert.deepEqual(g.where.status, { not: "archived" });
+      assert.deepEqual(g.data, { status: "archived" });
+      // Cascade + activity both ran → same successful tx.
+      assert.equal(recorder.activityWrites.length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rolls back together: a grocery-cascade failure aborts the compost (no activity emitted)", async () => {
+    const recorder: C3DeleteRecorder = {
+      instanceUpdates: [],
+      activityWrites: [],
+      groceryArchives: [],
+    };
+    const harness = await mutationSpinUp(
+      makeC3DeleteStub({
+        recorder,
+        groceryThrows: true,
+        instances: [
+          { id: "p-1", userId: A2_USER, revisionId: 2, startDate: null, endDate: null },
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-1`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 500, "cascade failure surfaces as 500");
+      // The instance update + cascade both ran inside the tx cb; the cascade
+      // threw BEFORE emitActivity, so no plan_composted activity was written —
+      // the real DB rolls the instance update back with it.
+      assert.equal(recorder.activityWrites.length, 0, "no activity on aborted tx");
     } finally {
       await harness.close();
     }

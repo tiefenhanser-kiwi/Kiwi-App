@@ -1901,6 +1901,10 @@ export function createWizardRouter(
             startDate: new Date(week.startDate),
             endDate: new Date(week.endDate),
             activatedAt: new Date(),
+            // WS9 3d Part 2d (D-WS9-013) — the draft→plan flip IS the commit;
+            // stamp committedAt so the dietary-staleness note anchors on the
+            // commit instant, not the (weeks-old) draft createdAt.
+            committedAt: new Date(),
             // WS7-5b-mobile FIX (PRD §2.4): link the freshly-created hidden
             // Template. Clear the draft blob from wizardDraftPayload (D-WS9-034),
             // and also DbNull optimizationNotes as legacy-blob defense — a pre-
@@ -2134,6 +2138,12 @@ export function createWizardRouter(
             // DbNull'd as legacy defense). Save path doesn't flip active / set
             // dates / bump revisionId — only the template link + notes change.
             mealPlanTemplateId: materialized.mealPlanTemplateId,
+            // WS9 3d Part 2d (D-WS9-013) — save-for-later is also a commit
+            // (draft→undated, inactive plan); stamp committedAt. Without this,
+            // an undated saved plan would carry no commit anchor and the note
+            // could never fire — yet these are exactly the users likeliest to
+            // have edited prefs since the draft was made.
+            committedAt: new Date(),
             wizardDraftPayload: Prisma.DbNull,
             optimizationNotes: Prisma.DbNull,
           },

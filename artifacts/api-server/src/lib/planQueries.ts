@@ -43,6 +43,11 @@ export interface PlanListItem {
   startDate: string | null;
   endDate: string | null;
   isActiveThisWeek: boolean;
+  // WS9 3d Part 3b — the instance's backing template id, powering the plan-card
+  // "⋯ → Use again" copy. Null for template rows (they have their own Use-Plan
+  // flow) and for template-less instances (an empty POST /plans), which hides
+  // the action.
+  mealPlanTemplateId: string | null;
 }
 
 export interface PlanSummary {
@@ -90,6 +95,9 @@ export interface InstanceRow {
   endDate: Date | null;
   revisionId: number;
   createdAt: Date;
+  // WS9 3d Part 3b — returned by the unscoped my_plans findMany (all scalars);
+  // powers the "⋯ → Use again" copy. Null on template-less instances.
+  mealPlanTemplateId: string | null;
   template: {
     title: string;
     description: string | null;
@@ -137,6 +145,7 @@ export function instanceToListItem(
     startDate: toYmd(row.startDate),
     endDate: toYmd(row.endDate),
     isActiveThisWeek: winnerId !== null && row.id === winnerId,
+    mealPlanTemplateId: row.mealPlanTemplateId,
   };
 }
 
@@ -152,6 +161,8 @@ function templateToListItem(row: TemplateRow): PlanListItem {
     startDate: null,
     endDate: null,
     isActiveThisWeek: false,
+    // Template rows use the Use-Plan flow, not the "⋯ → Use again" copy.
+    mealPlanTemplateId: null,
   };
 }
 
