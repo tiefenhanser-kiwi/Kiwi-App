@@ -37,6 +37,7 @@ import {
 } from "@/lib/api/meals";
 import {
   createPlan as createPlanAPI,
+  deletePlan as deletePlanAPI,
   deletePlanItem,
   patchPlan,
   patchPlanItem,
@@ -153,7 +154,9 @@ interface AppState {
    *  PATCH /plans/:id { isActiveThisWeek: true }; the resolver demotes prior
    *  actives silently (Model 2 has no constraint to reject). Drives the
    *  "Cook This Week" chip in Plan Review. */
-  setPlanActiveThisWeek: (planId: string) => Promise<void>;
+  setPlanActiveThisWeek: (
+    planId: string,
+  ) => Promise<{ demoted: { id: string; name: string } | null }>;
   /** PRD §10.5 — save a dish to user's library. WS7-6 Block 1E wires this
    *  to POST /me/dishes; returns the server-canonical id. NOTE: edit mode
    *  (dish.id present) still creates a NEW dish — PATCH /me/dishes/:id is
@@ -222,6 +225,10 @@ interface AppState {
    *  the caller can navigate to `/plan/[id]`. Throws (ApiError 404 / 429 /
    *  500, UnauthenticatedError 401, ApiSchemaError) on failure. */
   useTemplateAsPlan: (templateId: string) => Promise<{ instanceId: string }>;
+  // WS9 3d Part 3a (D-WS9-001) — soft-archive (compost) a saved plan. Server
+  // cascades its grocery lists. No optimistic state here; the caller owns the
+  // deferred-undo toast and only invokes this once the undo window closes.
+  compostPlan: (planId: string) => Promise<void>;
   /** WS7-5b-mobile Block C (D-WS7-059) — AddMealToPlanSheet "Create new plan"
    *  flow. Creates an empty undated MealPlanInstance, adds the seed meal as
    *  the first item (slot=dinner, no day), and returns the new plan id so the
@@ -667,9 +674,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // macrosStale is forced false on this flip server-side (no item membership
   // change), so coalesce to false for symmetry with other plan-level mutators.
   const setPlanActiveThisWeek = useCallback(
-    async (planId: string): Promise<void> => {
+    async (
+      planId: string,
+    ): Promise<{ demoted: { id: string; name: string } | null }> => {
       const response = await patchPlan(planId, { isActiveThisWeek: true });
       handleMutationResult(planId, response.macrosStale ?? false);
+      // WS9 3d Part 3c — surface the displaced plan so the caller can show the
+      // demotion toast (D-WS9-011a).
+      return { demoted: response.demoted ?? null };
     },
     [handleMutationResult],
   );
@@ -901,6 +913,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // refreshed payload either way.
       queryClient.invalidateQueries({ queryKey: ["home"] });
       return { instanceId };
+    },
+    [queryClient],
+  );
+
+  // WS9 3d Part 3a (D-WS9-001) — compost (soft-archive) a saved plan. The
+  // server flips status/compostedAt/isArchived and archives the plan's grocery
+  // lists in the same tx. Invalidate plans + home so the composted plan drops
+  // off My Plans, the This-Week callout, and the home hero on the next read.
+  const compostPlan = useCallback(
+    async (planId: string): Promise<void> => {
+      await deletePlanAPI(planId);
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      queryClient.invalidateQueries({ queryKey: ["home"] });
     },
     [queryClient],
   );
@@ -1172,6 +1197,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     completeOnboarding,
     deactivateAccount,
     useTemplateAsPlan,
+    compostPlan,
     createPlanWithMeal,
     isMacrosRecalcInFlight: macrosRecalcInFlightCount > 0,
     groceries,

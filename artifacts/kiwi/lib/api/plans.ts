@@ -54,6 +54,11 @@ export const PlanListItemSchema = z.object({
   startDate: z.string().nullable(),
   endDate: z.string().nullable(),
   isActiveThisWeek: z.boolean(),
+  // WS9 3d Part 3b — the instance's backing template id; powers the plan-card
+  // "⋯ → Use again" copy. Null for template rows + template-less instances.
+  // Optional (house style for additive wire fields) to tolerate a mobile build
+  // reading a not-yet-deployed server; consumers treat undefined as null.
+  mealPlanTemplateId: z.string().nullable().optional(),
 });
 export type PlanListItem = z.infer<typeof PlanListItemSchema>;
 
@@ -133,6 +138,12 @@ export const PlanDetailSchema = z.object({
   revisionId: z.number(),
   isActiveThisWeek: z.boolean(),
   userId: z.string(),
+  // WS9 3d Part 3b/3d — mealPlanTemplateId powers "Use again" from the Plan
+  // Review action area (null hides it); committedAt is the ISO commit instant
+  // the dietary-staleness note anchors on (null on pre-migration rows → note
+  // silent). committedAt is NOT the YYYY-MM-DD start/end dates above.
+  mealPlanTemplateId: z.string().nullable().optional(),
+  committedAt: z.string().nullable().optional(),
   sourceType: z.string(),
   // WS7-4-A c6 — new MealPlanInstance fields from PRD §8.3.3 / §8.3.4 / §8.3.7.
   // WS7-8b B1 — `prepStatus` is now the WS7-8a B3 effective rollup (the manual
@@ -206,6 +217,10 @@ export interface PostPlanBody {
 const PatchPlanResponseSchema = z.object({
   instance: z.object({ id: z.string(), revisionId: z.number() }),
   macrosStale: z.boolean().optional(),
+  // WS9 3d Part 3c (D-WS9-011a) — the plan this PATCH displaced as this week's
+  // plan, or null. Present on activation responses; absent on non-activating
+  // PATCHes (older shape) → coalesced to null by callers.
+  demoted: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
 });
 export type PatchPlanResponse = z.infer<typeof PatchPlanResponseSchema>;
 
@@ -336,6 +351,30 @@ export async function createPlan(
     instanceId: response.instance.id,
     revisionId: response.instance.revisionId,
   };
+}
+
+// WS9 3d Part 3a (D-WS9-001) — DELETE /plans/:id soft-archives the plan
+// (status=past, compostedAt, isArchived, revisionId++) AND cascades its grocery
+// lists to archived in the same server transaction. There is no hard delete and
+// no un-compost route; the mobile "undo" is a client-side deferral of THIS call
+// (see the Plans tab), so a cancelled compost simply never reaches the server.
+const DeletePlanResponseSchema = z.object({
+  instance: z.object({ id: z.string(), revisionId: z.number() }),
+});
+
+/**
+ * DELETE /plans/:id — soft-archive (compost) the plan. Propagates apiClient
+ * typed errors: `ApiError` (404 missing/non-owned, 429 rate limit, 500 tx),
+ * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function deletePlan(
+  planId: string,
+): Promise<{ instanceId: string; revisionId: number }> {
+  const body = await apiClient(`/plans/${encodeURIComponent(planId)}`, {
+    method: "DELETE",
+    schema: DeletePlanResponseSchema,
+  });
+  return { instanceId: body.instance.id, revisionId: body.instance.revisionId };
 }
 
 // ── WS7-4-D c5 — Plan Item mutation helpers ────────────────────────────────

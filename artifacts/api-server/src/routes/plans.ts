@@ -1091,6 +1091,19 @@ export function createPlansRouter(
           data.revisionId = { increment: 1 };
         }
 
+        // WS9 3d Part 3c (D-WS9-011a) — demotion detection. When this PATCH
+        // activates the plan (same gate as the plan_activated_this_week emit
+        // below), resolve the PRIOR this-week winner BEFORE the write. If a
+        // different plan currently holds the slot, it is displaced by this
+        // activation — the response carries its identity so the client can show
+        // the informational "…taken off this week" toast. Fires off the
+        // ACTIVATING plan's write (Model 2 never touches the demoted row).
+        const willActivate =
+          didNewlyCover || (body.isActiveThisWeek === true && nextCoversNow);
+        const priorWinnerId = willActivate
+          ? await resolveThisWeekWinnerId(tx, userId)
+          : null;
+
         const updated = await tx.mealPlanInstance.update({
           where: { id },
           data,
@@ -1213,7 +1226,23 @@ export function createPlansRouter(
 
         const macrosStale = await planNeedsMacroEstimation({ tx, planId: id });
 
-        return { kind: "updated" as const, instance: updated, macrosStale };
+        // WS9 3d Part 3c — resolve the displaced plan's name (only when a
+        // DIFFERENT plan held the slot pre-activation).
+        let demoted: { id: string; name: string } | null = null;
+        if (priorWinnerId && priorWinnerId !== id) {
+          const y = await tx.mealPlanInstance.findUnique({
+            where: { id: priorWinnerId },
+            select: { titleOverride: true, template: { select: { title: true } } },
+          });
+          if (y) {
+            demoted = {
+              id: priorWinnerId,
+              name: y.titleOverride ?? y.template?.title ?? "",
+            };
+          }
+        }
+
+        return { kind: "updated" as const, instance: updated, macrosStale, demoted };
       });
 
       if (result.kind === "not_found") {
@@ -1226,11 +1255,13 @@ export function createPlansRouter(
         return res.json({
           instance: { id, revisionId: result.row.revisionId },
           macrosStale: false,
+          demoted: null,
         });
       }
       return res.json({
         instance: { id: result.instance.id, revisionId: result.instance.revisionId },
         macrosStale: result.macrosStale,
+        demoted: result.demoted,
       });
     } catch (err) {
       logger.error({ err, userId, id }, "PATCH /plans/:id failed");

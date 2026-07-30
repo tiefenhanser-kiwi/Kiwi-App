@@ -3166,6 +3166,40 @@ function makeC4PatchStub(opts: {
         const row = instances.find((i) => i.id === args.where.id);
         return row ?? null;
       },
+      // WS9 3d Part 3c — resolveThisWeekWinnerId's covering-subset query, now
+      // called on the activation path to compute the prior winner (demotion).
+      // Mirrors the real Prisma filter + projects the resolver scalars; C4
+      // fixtures carry no activatedAt/createdAt, so they default (null / a
+      // fixed date), which is enough for the pre-update winner resolution.
+      findMany: async (args: {
+        where: {
+          userId: string;
+          isWizardDraft?: boolean;
+          startDate?: { lte: Date; not?: null };
+          endDate?: { gte: Date; not?: null };
+        };
+      }) => {
+        return instances
+          .filter((i) => {
+            if (i.userId !== args.where.userId) return false;
+            if (args.where.startDate?.lte) {
+              if (i.startDate === null) return false;
+              if (i.startDate.getTime() > args.where.startDate.lte.getTime()) return false;
+            }
+            if (args.where.endDate?.gte) {
+              if (i.endDate === null) return false;
+              if (i.endDate.getTime() < args.where.endDate.gte.getTime()) return false;
+            }
+            return true;
+          })
+          .map((i) => ({
+            id: i.id,
+            startDate: i.startDate,
+            endDate: i.endDate,
+            activatedAt: null,
+            createdAt: new Date("2026-05-01T00:00:00.000Z"),
+          }));
+      },
       updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
         recorder.updateManyCalls.push(args);
         return { count: 0 };
@@ -3910,6 +3944,65 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
       assert.ok(winner, "resolver must find a winner");
       assert.equal(winner.id, "q-future", "Q wins");
       assert.notEqual(winner.id, pCovering.id, "P (prior winner) demoted");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS9 3d Part 3c (D-WS9-011a) — the activation response names the displaced
+  // plan so the client can show the demotion toast.
+  it("activation returns the displaced plan as `demoted` when another plan holds the slot", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const pWinner = fixturePatch({
+      id: "p-pre",
+      titleOverride: "Old Plan",
+      startDate: new Date(now - 2 * day),
+      endDate: new Date(now + 2 * day),
+    });
+    const qNew = fixturePatch({
+      id: "q-act",
+      titleOverride: "New Plan",
+      startDate: new Date(now - 2 * day),
+      endDate: new Date(now + 2 * day),
+    });
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    // P is listed first → the null-activatedAt/equal-createdAt resolver keeps it
+    // as the pre-update winner, which q-act's activation then displaces.
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({ recorder, instances: [pWinner, qNew] }),
+    );
+    try {
+      const res = await patchPlan(harness, "q-act", { isActiveThisWeek: true });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        demoted: { id: string; name: string } | null;
+      };
+      assert.deepEqual(body.demoted, { id: "p-pre", name: "Old Plan" });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("activation returns demoted:null when no other plan holds the slot", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const qSolo = fixturePatch({
+      id: "q-solo",
+      startDate: new Date(now - 2 * day),
+      endDate: new Date(now + 2 * day),
+    });
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({ recorder, instances: [qSolo] }),
+    );
+    try {
+      const res = await patchPlan(harness, "q-solo", { isActiveThisWeek: true });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        demoted: { id: string; name: string } | null;
+      };
+      assert.equal(body.demoted, null);
     } finally {
       await harness.close();
     }

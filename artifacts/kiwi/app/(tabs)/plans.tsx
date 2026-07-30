@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -14,19 +15,110 @@ import { PlanPreviewModal } from "@/components/PlanPreviewModal";
 import { PlanRow } from "@/components/PlanRow";
 import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
+import { Toast } from "@/components/Toast";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlans } from "@/hooks/usePlans";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
-import { asPlanDiscoveryFilters, type PlanFilterKey } from "@/lib/api/plans";
+import { asPlanDiscoveryFilters, type PlanFilterKey, type PlanListItem } from "@/lib/api/plans";
 import { plansFilterDefault } from "@/lib/plans/filterDefault";
+import { needsActiveCompostConfirm } from "@/lib/plans/planLifecycleActions";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function PlansTab() {
   const router = useRouter();
   const { user, setUiState } = useAuth();
-  const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
+  const { useTemplateAsPlan, setPlanActiveThisWeek, compostPlan } = useApp();
+
+  // WS9 3d Part 3a/3b — plan-card ⋯ actions. Compost is deferred-undo: the row
+  // hides immediately, a 5s Undo toast shows, and only when the window closes
+  // does the destructive DELETE fire (no server un-compost route exists, so a
+  // cancelled compost simply never reaches the server). Use again copies the
+  // plan's backing template into a fresh undated/inactive plan and opens it.
+  const [pendingCompost, setPendingCompost] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<{
+    message: string;
+    actionLabel?: string;
+    onAction?: () => void;
+    onDismiss?: () => void;
+  } | null>(null);
+  // At most one compost is "in the undo window" at a time. Holds the id whose
+  // destructive call is still pending so a second compost (or the timeout) can
+  // finalize it deterministically under the single-toast slot.
+  const pendingRef = useRef<{ planId: string } | null>(null);
+
+  const unhide = (planId: string) =>
+    setPendingCompost((prev) => {
+      const next = new Set(prev);
+      next.delete(planId);
+      return next;
+    });
+
+  const commitPending = () => {
+    const p = pendingRef.current;
+    pendingRef.current = null;
+    if (!p) return;
+    void compostPlan(p.planId).catch(() => {
+      // Server failure → restore the row and tell the user.
+      unhide(p.planId);
+      setToast({ message: "Couldn't compost that plan. Please try again." });
+    });
+  };
+
+  const cancelPending = () => {
+    const p = pendingRef.current;
+    pendingRef.current = null;
+    if (p) unhide(p.planId);
+  };
+
+  const startDeferredCompost = (planId: string, planName: string) => {
+    // Finalize any prior deferred compost before opening a new window (the
+    // single toast slot can only track one).
+    commitPending();
+    pendingRef.current = { planId };
+    setPendingCompost((prev) => new Set(prev).add(planId));
+    setToast({
+      message: `“${planName}” composted.`,
+      actionLabel: "Undo",
+      onAction: cancelPending,
+      onDismiss: commitPending,
+    });
+  };
+
+  const handleCompost = (plan: PlanListItem) => {
+    // Only the active-this-week plan gets a confirm (it names the plan); every
+    // other compost relies on the Undo toast (friction priority, spec §8.3).
+    if (needsActiveCompostConfirm(plan.isActiveThisWeek)) {
+      Alert.alert(
+        "Compost plan",
+        `This is your active plan for this week. Compost “${plan.name}”?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Compost",
+            style: "destructive",
+            onPress: () => startDeferredCompost(plan.id, plan.name),
+          },
+        ],
+      );
+      return;
+    }
+    startDeferredCompost(plan.id, plan.name);
+  };
+
+  const handleUseAgain = async (plan: PlanListItem) => {
+    if (!plan.mealPlanTemplateId) return;
+    try {
+      // Lands an UNDATED, INACTIVE copy (server semantics) — deliberately NOT
+      // dated to this week. Open it so the user can date via "Cook This Week"
+      // or edit first (spec §8.3 D-WS9-008).
+      const { instanceId } = await useTemplateAsPlan(plan.mealPlanTemplateId);
+      router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
+    } catch {
+      setToast({ message: "Couldn't copy that plan. Please try again." });
+    }
+  };
 
   // WS7-4-B c11 — Use Plan preview overlay state. The PlanRow source
   // dispatcher (c9) routes template-source rows here; the modal fetches
@@ -103,7 +195,10 @@ export default function PlansTab() {
   // client-side over the result (Ruling C — D-WS7-048 moves these to
   // server params in WS9).
   const visibleRows = useMemo(() => {
-    let out = [...(plansQuery.data?.plans ?? [])];
+    // Hide rows in the compost undo-window (optimistic removal).
+    let out = [...(plansQuery.data?.plans ?? [])].filter(
+      (r) => !pendingCompost.has(r.id),
+    );
     if (debouncedQuery) {
       out = out.filter((r) => {
         const hay = `${r.name} ${r.tags.join(" ")}`.toLowerCase();
@@ -117,7 +212,7 @@ export default function PlansTab() {
       out.sort((a, b) => a.name.localeCompare(b.name));
     }
     return out;
-  }, [plansQuery.data, debouncedQuery, sortKey]);
+  }, [plansQuery.data, debouncedQuery, sortKey, pendingCompost]);
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
@@ -208,6 +303,8 @@ export default function PlansTab() {
                 key={row.id}
                 plan={row}
                 onPreviewTemplate={preview.open}
+                onCompost={handleCompost}
+                onUseAgain={handleUseAgain}
               />
             ))
           )}
@@ -218,6 +315,27 @@ export default function PlansTab() {
         templateId={preview.templateId}
         onClose={preview.close}
         onUsePlan={handleUseFromPreview}
+      />
+
+      {/* WS9 3d Part 3a — Compost undo toast (+ occasional error toasts). */}
+      <Toast
+        visible={toast !== null}
+        message={toast?.message ?? ""}
+        actionLabel={toast?.actionLabel}
+        onAction={
+          toast?.onAction
+            ? () => {
+                const act = toast.onAction!;
+                setToast(null);
+                act();
+              }
+            : undefined
+        }
+        onDismiss={() => {
+          const dismiss = toast?.onDismiss;
+          setToast(null);
+          dismiss?.();
+        }}
       />
     </View>
   );

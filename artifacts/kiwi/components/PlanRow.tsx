@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import type { PlanListItem } from "@/lib/api/plans";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
+import { canUseAgain } from "@/lib/plans/planLifecycleActions";
 
 type Props = {
   plan: PlanListItem;
@@ -87,7 +88,11 @@ export function PlanRow({ plan, onPreviewTemplate, onCompost, onUseAgain }: Prop
         <PlanCardOverflowMenu
           accessibilityLabel={`Actions for ${plan.name}`}
           onCompost={onCompost ? () => onCompost(plan) : undefined}
-          onUseAgain={onUseAgain ? () => onUseAgain(plan) : undefined}
+          // Use again copies the plan's backing template — hidden when the plan
+          // has none (e.g. an empty POST /plans instance).
+          onUseAgain={
+            onUseAgain && canUseAgain(plan) ? () => onUseAgain(plan) : undefined
+          }
         />
       )}
     </View>

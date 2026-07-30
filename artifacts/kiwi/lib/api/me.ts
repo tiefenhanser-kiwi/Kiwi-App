@@ -64,6 +64,11 @@ export const UserPreferencesSchema = z.object({
     .optional(),
   // Free-text notes — nullable.
   dietaryNotes: z.string().nullable(),
+  // WS9 3d (D-WS9-013) — last allergy/dietary edit instant (ISO) or null.
+  // Read-only here; the Plan Review dietary-staleness note compares it against
+  // the plan's committedAt. Optional (additive wire field) so a mobile build
+  // reading an older server still parses; consumers treat undefined as null.
+  dietaryUpdatedAt: z.string().nullable().optional(),
   // Cookbook Phase B Block 1 — new stored prefs. Enums have server defaults so
   // they are always present; maxCookTimeMinutes is Prisma Int? → explicit null.
   discoveryMealsPerWeek: z.number().int(),

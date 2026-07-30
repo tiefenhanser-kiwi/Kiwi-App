@@ -799,6 +799,70 @@ test("removeMealFromPlan DELETEs /items/:itemId and invalidates plan caches", as
   assert.equal(after?.isInvalidated, true);
 });
 
+// ── WS9 3d Part 3a/3c — compostPlan + demotion surfacing ──────────────────
+
+test("compostPlan DELETEs /plans/:id and invalidates the plan caches (D-WS9-001)", async () => {
+  const qc = await mountAuthed();
+  qc.setQueryData(["plans", "plan-1"], { id: "plan-1" });
+
+  let capturedMethod: string | null = null;
+  let capturedUrl: string | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      String(url).endsWith("/plans/plan-1") &&
+      (init?.method ?? "GET").toUpperCase() === "DELETE"
+    ) {
+      capturedMethod = "DELETE";
+      capturedUrl = String(url);
+      return Promise.resolve(
+        mockJson({ instance: { id: "plan-1", revisionId: 4 } }),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.compostPlan("plan-1");
+  });
+
+  assert.equal(capturedMethod, "DELETE");
+  assert.ok(capturedUrl?.endsWith("/plans/plan-1"));
+  assert.equal(qc.getQueryState(["plans", "plan-1"])?.isInvalidated, true);
+});
+
+test("setPlanActiveThisWeek surfaces the server-reported demoted plan (D-WS9-011a)", async () => {
+  await mountAuthed();
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      String(url).endsWith("/plans/plan-1") &&
+      (init?.method ?? "GET").toUpperCase() === "PATCH"
+    ) {
+      return Promise.resolve(
+        mockJson({
+          instance: { id: "plan-1", revisionId: 2 },
+          macrosStale: false,
+          demoted: { id: "plan-y", name: "Old Plan" },
+        }),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  let result: { demoted: { id: string; name: string } | null } | undefined;
+  await act(async () => {
+    result = await app!.setPlanActiveThisWeek("plan-1");
+  });
+  assert.deepEqual(result?.demoted, { id: "plan-y", name: "Old Plan" });
+});
+
 // ── WS7-4-D c8 — changeMealForPlanItem + Ruling 7 retirement ──────────────
 
 test("changeMealForPlanItem PATCHes /items with { mealId: newMealId } (Q-P0-3 atomic swap on server)", async () => {

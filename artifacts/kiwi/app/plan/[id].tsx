@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AddMealsSheet } from "@/components/AddMealsSheet";
 import { Button } from "@/components/Button";
@@ -33,6 +33,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useMeal } from "@/hooks/useMeal";
 import { usePlan } from "@/hooks/usePlan";
 import { ApiError } from "@/lib/api/errors";
+import { getPreferences } from "@/lib/api/me";
 import { buildDayStrip } from "@/lib/domain";
 import { formatMacro } from "@/lib/format/macros";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
@@ -50,6 +51,11 @@ import {
 } from "@/lib/plans/reviewPlanAdapter";
 import { wizardExpandedPlanToReviewPlan } from "@/lib/plans/wizardDraftReviewAdapter";
 import { decidePlanDetailsCta } from "@/lib/plans/wizardPostSaveCta";
+import {
+  demotionToastMessage,
+  needsActiveCompostConfirm,
+  shouldShowDietaryNote,
+} from "@/lib/plans/planLifecycleActions";
 import type {
   DayOfWeek,
   MealSummary,
@@ -172,6 +178,8 @@ export default function PlanReviewScreen() {
     updatePlanName,
     updatePlanDateRange,
     setPlanActiveThisWeek,
+    compostPlan,
+    useTemplateAsPlan,
     isMacrosRecalcInFlight,
   } = useApp();
 
@@ -388,12 +396,94 @@ export default function PlanReviewScreen() {
   // WS7-6 (E) Block 2 §4 — Model 2 activation. Optimistically flip the
   // local chip state so the tap feels instant; the post-mutation refetch
   // re-seeds reviewPlan from the server's resolver-derived value.
+  // WS9 3d Part 3c (D-WS9-011a) — when this activation displaces a prior
+  // this-week plan, the server response names it; show the informational
+  // demotion toast (no confirm — friction priority).
   const handleCookThisWeek = () => {
     setReviewPlan((prev) =>
       prev ? { ...prev, isActiveThisWeek: true } : prev,
     );
-    void setPlanActiveThisWeek(planId);
+    void setPlanActiveThisWeek(planId)
+      .then(({ demoted }) => {
+        const message = demotionToastMessage(planName, demoted);
+        if (message) setToast({ message });
+      })
+      .catch(() => {
+        // Optimistic flip stays; the focus refetch reconciles to server truth.
+      });
   };
+
+  // WS9 3d Part 3b (D-WS9-008) — Use again. Copies this plan's backing template
+  // into a fresh UNDATED, INACTIVE plan (server semantics; deliberately not
+  // dated to this week) and opens it so the user can date via "Cook This Week"
+  // or edit first. Hidden when the plan has no template (button gated below).
+  const handleUseAgainThisPlan = async () => {
+    const templateId = planQuery.data?.mealPlanTemplateId;
+    if (!templateId) return;
+    try {
+      const { instanceId } = await useTemplateAsPlan(templateId);
+      router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
+    } catch {
+      setToast({ message: "Couldn't copy that plan. Please try again." });
+    }
+  };
+
+  // WS9 3d Part 3a (D-WS9-001) — Compost from the Plan Review action area.
+  // Deferred-undo: the destructive DELETE only fires when the 5s Undo window
+  // closes (onDismiss), at which point we leave for the plans list; Undo keeps
+  // the user on the plan. The active-this-week plan gets a naming confirm; every
+  // other plan relies on the Undo toast (spec §8.3). Guarded off on drafts (no
+  // server row to compost).
+  const startPlanReviewCompost = () => {
+    setToast({
+      message: `“${planName}” composted.`,
+      actionLabel: "Undo",
+      onAction: () => {
+        // Cancelled — never reaches the server; stay on the plan.
+      },
+      onDismiss: () => {
+        void compostPlan(planId).catch(() => {
+          // The user has already been routed away; the next plans refetch
+          // reconciles either way.
+        });
+        router.replace("/(tabs)/plans");
+      },
+    });
+  };
+  const handleCompostThisPlan = () => {
+    if (needsActiveCompostConfirm(reviewPlan?.isActiveThisWeek ?? false)) {
+      Alert.alert(
+        "Compost plan",
+        `This is your active plan for this week. Compost “${planName}”?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Compost",
+            style: "destructive",
+            onPress: startPlanReviewCompost,
+          },
+        ],
+      );
+      return;
+    }
+    startPlanReviewCompost();
+  };
+
+  // WS9 3d Part 3d (D-WS9-013) — dietary-staleness note. Passive, render-time:
+  // fire only when the user's last allergy/dietary edit (dietaryUpdatedAt)
+  // post-dates the plan's commit instant (committedAt, NOT createdAt). Both
+  // timestamps are simple reads (prefs query + plan detail); null on either
+  // side keeps the note silent. Hidden on drafts (like the other saved-plan
+  // chrome). Self-resolves on regenerate; no dismiss state.
+  const prefsQuery = useQuery({
+    queryKey: ["me", "preferences"],
+    queryFn: getPreferences,
+  });
+  const showDietaryNote = shouldShowDietaryNote({
+    isDraft,
+    committedAt: planQuery.data?.committedAt ?? null,
+    dietaryUpdatedAt: prefsQuery.data?.dietaryUpdatedAt ?? null,
+  });
 
   // ── WS9 3c (D-WS9-032, Option A) — draft-state action bar ────────────────
   // The shared action bar shows Save for Later / Use This Week while the plan
@@ -727,6 +817,27 @@ export default function PlanReviewScreen() {
                 />
               </View>
             </View>
+            {/* WS9 3d Part 3a/3b — plan-lifecycle actions on the Plan Review
+                action area (same two the plan-card ⋯ offers). Use again shows
+                only when the plan has a backing template to copy. */}
+            <View style={s.actionRow}>
+              {planQuery.data?.mealPlanTemplateId && (
+                <View style={s.actionCol}>
+                  <Button
+                    label="Use again"
+                    variant="ghost"
+                    onPress={handleUseAgainThisPlan}
+                  />
+                </View>
+              )}
+              <View style={s.actionCol}>
+                <Button
+                  label="Compost"
+                  variant="ghost"
+                  onPress={handleCompostThisPlan}
+                />
+              </View>
+            </View>
           </View>
         )}
 
@@ -844,6 +955,22 @@ export default function PlanReviewScreen() {
             </Text>
           </Card>
         </View>
+
+        {/* WS9 3d Part 3d (D-WS9-013) — passive dietary-staleness note. Renders
+            only when the user's allergy/dietary prefs changed after this plan
+            was committed. Non-blocking gold state-chip banner (spec §3); no
+            confirm, no dismiss — self-resolves when the plan is regenerated. */}
+        {showDietaryNote && (
+          <View style={s.section}>
+            <View style={s.dietaryNote}>
+              <Feather name="alert-circle" size={16} color={Colors.gold.text} />
+              <Text style={s.dietaryNoteText}>
+                Your dietary preferences or restrictions were updated after this
+                plan was created. Double-check your ingredients.
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* §8.3.6 — Meals list (structure only; rows ship in 5E) */}
         <View style={s.section}>
@@ -1281,6 +1408,21 @@ const s = StyleSheet.create({
   },
   section: {
     marginTop: Spacing[4],
+  },
+  dietaryNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing[2],
+    backgroundColor: Colors.gold.background,
+    borderRadius: Radius.lg,
+    padding: Spacing[3],
+  },
+  dietaryNoteText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.gold.text,
+    fontFamily: Typography.face.sans[400],
+    lineHeight: 18,
   },
   prepBanner: {
     flexDirection: "row",
