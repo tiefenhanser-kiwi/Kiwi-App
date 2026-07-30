@@ -37,6 +37,7 @@ import { forkMealForUser } from "../lib/mealFork";
 import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
 import { markFirstPlanCreated } from "../lib/firstPlan";
+import { computeDietaryStale } from "../lib/planStaleness";
 import {
   clampLimit,
   mergeById,
@@ -356,6 +357,20 @@ export function createPlansRouter(
         return res.status(404).json({ error: "plan not found" });
       }
 
+      // WS9 3d Part 3b-1 (D-WS9-013) — the dietary-staleness DECISION is made
+      // here, not on the client: read the user's last allergy/dietary edit and
+      // compare it against the plan's commit instant. The client renders the
+      // resulting boolean; it never sees committedAt / dietaryUpdatedAt.
+      const prefs = await prisma.userPreferences.findUnique({
+        where: { userId },
+        select: { dietaryUpdatedAt: true },
+      });
+      const dietaryStale = computeDietaryStale({
+        isWizardDraft: instance.isWizardDraft,
+        committedAt: instance.committedAt,
+        dietaryUpdatedAt: prefs?.dietaryUpdatedAt ?? null,
+      });
+
       // WS7-8a B3 (D-WS7-153) — derive per-meal prepped state + the plan-level
       // prepStatus rollup. Join checked stepKeys against the FRESHLY ASSEMBLED
       // deterministic step set (no AI) so an all-easy plan rolls up to prepped
@@ -468,16 +483,15 @@ export function createPlansRouter(
           revisionId: instance.revisionId,
           isActiveThisWeek: winnerId !== null && winnerId === instance.id,
           userId: instance.userId,
-          // WS9 3d Part 2d/3b — mealPlanTemplateId powers "Use again" (copies
-          // the plan's backing template via POST /plans/use-template); null on
-          // template-less plans (e.g. an empty POST /plans), which hides the
-          // action. committedAt anchors the dietary-staleness note (§8.3) — an
-          // ISO instant, NOT the YYYY-MM-DD calendar dates above; null on
-          // pre-migration rows keeps the note silent.
+          // WS9 3d Part 3b-1 (D-WS9-013) — server-computed staleness flag. The
+          // client renders the passive dietary note off this boolean and does no
+          // timestamp arithmetic; committedAt / dietaryUpdatedAt never cross the
+          // wire (they stay server-owned).
+          dietaryStale,
+          // WS9 3d Part 3b — retired in 3b-3 when Use again switches to the
+          // copy-from-instance path; kept on the wire here so the old template-
+          // based Use again keeps compiling until then.
           mealPlanTemplateId: instance.mealPlanTemplateId,
-          committedAt: instance.committedAt
-            ? instance.committedAt.toISOString()
-            : null,
           // sourceType lives on the template, not the instance.
           sourceType: instance.template?.sourceType ?? "manual",
           // WS7-8a B3 — derived rollup (or the manual pin when set), not the

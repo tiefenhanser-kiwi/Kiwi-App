@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { AddMealsSheet } from "@/components/AddMealsSheet";
 import { Button } from "@/components/Button";
@@ -33,7 +33,6 @@ import { useApp } from "@/contexts/AppContext";
 import { useMeal } from "@/hooks/useMeal";
 import { usePlan } from "@/hooks/usePlan";
 import { ApiError } from "@/lib/api/errors";
-import { getPreferences } from "@/lib/api/me";
 import { buildDayStrip } from "@/lib/domain";
 import { formatMacro } from "@/lib/format/macros";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
@@ -54,7 +53,6 @@ import { decidePlanDetailsCta } from "@/lib/plans/wizardPostSaveCta";
 import {
   demotionToastMessage,
   needsActiveCompostConfirm,
-  shouldShowDietaryNote,
 } from "@/lib/plans/planLifecycleActions";
 import type {
   DayOfWeek,
@@ -469,21 +467,11 @@ export default function PlanReviewScreen() {
     startPlanReviewCompost();
   };
 
-  // WS9 3d Part 3d (D-WS9-013) — dietary-staleness note. Passive, render-time:
-  // fire only when the user's last allergy/dietary edit (dietaryUpdatedAt)
-  // post-dates the plan's commit instant (committedAt, NOT createdAt). Both
-  // timestamps are simple reads (prefs query + plan detail); null on either
-  // side keeps the note silent. Hidden on drafts (like the other saved-plan
-  // chrome). Self-resolves on regenerate; no dismiss state.
-  const prefsQuery = useQuery({
-    queryKey: ["me", "preferences"],
-    queryFn: getPreferences,
-  });
-  const showDietaryNote = shouldShowDietaryNote({
-    isDraft,
-    committedAt: planQuery.data?.committedAt ?? null,
-    dietaryUpdatedAt: prefsQuery.data?.dietaryUpdatedAt ?? null,
-  });
+  // WS9 3d Part 3b-1 (D-WS9-013) — dietary-staleness note. The DECISION is made
+  // server-side (GET /plans/:id.dietaryStale, which already accounts for the
+  // draft + null-commit cases); the client only renders. Draft mode never has a
+  // planQuery payload (usePlan is disabled), so dietaryStale is undefined → false.
+  const showDietaryNote = planQuery.data?.dietaryStale ?? false;
 
   // ── WS9 3c (D-WS9-032, Option A) — draft-state action bar ────────────────
   // The shared action bar shows Save for Later / Use This Week while the plan

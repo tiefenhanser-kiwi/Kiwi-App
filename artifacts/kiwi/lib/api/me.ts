@@ -64,11 +64,10 @@ export const UserPreferencesSchema = z.object({
     .optional(),
   // Free-text notes — nullable.
   dietaryNotes: z.string().nullable(),
-  // WS9 3d (D-WS9-013) — last allergy/dietary edit instant (ISO) or null.
-  // Read-only here; the Plan Review dietary-staleness note compares it against
-  // the plan's committedAt. Optional (additive wire field) so a mobile build
-  // reading an older server still parses; consumers treat undefined as null.
-  dietaryUpdatedAt: z.string().nullable().optional(),
+  // WS9 3d Part 3b-1 (D-WS9-013) — dietaryUpdatedAt is SERVER-OWNED and no
+  // longer crosses the wire: it round-tripped upward through the strict
+  // preferences PATCH validator and 400'd every save. The staleness decision
+  // now ships as GET /plans/:id.dietaryStale.
   // Cookbook Phase B Block 1 — new stored prefs. Enums have server defaults so
   // they are always present; maxCookTimeMinutes is Prisma Int? → explicit null.
   discoveryMealsPerWeek: z.number().int(),

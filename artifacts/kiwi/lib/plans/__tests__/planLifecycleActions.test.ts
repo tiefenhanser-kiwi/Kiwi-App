@@ -12,7 +12,6 @@ import { test } from "node:test";
 import {
   canUseAgain,
   needsActiveCompostConfirm,
-  shouldShowDietaryNote,
   demotionToastMessage,
 } from "../planLifecycleActions";
 
@@ -38,59 +37,8 @@ test("needsActiveCompostConfirm: only the active-this-week plan", () => {
   assert.equal(needsActiveCompostConfirm(false), false);
 });
 
-test("shouldShowDietaryNote: fires only when a dietary edit post-dates commit", () => {
-  const committedAt = "2026-07-01T00:00:00.000Z";
-  // Dietary edit AFTER commit → show.
-  assert.equal(
-    shouldShowDietaryNote({
-      isDraft: false,
-      committedAt,
-      dietaryUpdatedAt: "2026-07-10T00:00:00.000Z",
-    }),
-    true,
-  );
-  // Dietary edit BEFORE commit → hide.
-  assert.equal(
-    shouldShowDietaryNote({
-      isDraft: false,
-      committedAt,
-      dietaryUpdatedAt: "2026-06-01T00:00:00.000Z",
-    }),
-    false,
-  );
-});
-
-test("shouldShowDietaryNote: silent on a draft even when the edit is newer", () => {
-  assert.equal(
-    shouldShowDietaryNote({
-      isDraft: true,
-      committedAt: "2026-07-01T00:00:00.000Z",
-      dietaryUpdatedAt: "2026-07-10T00:00:00.000Z",
-    }),
-    false,
-  );
-});
-
-test("shouldShowDietaryNote: silent when either timestamp is null", () => {
-  assert.equal(
-    shouldShowDietaryNote({
-      isDraft: false,
-      committedAt: null,
-      dietaryUpdatedAt: "2026-07-10T00:00:00.000Z",
-    }),
-    false,
-    "no commit anchor → silent",
-  );
-  assert.equal(
-    shouldShowDietaryNote({
-      isDraft: false,
-      committedAt: "2026-07-01T00:00:00.000Z",
-      dietaryUpdatedAt: null,
-    }),
-    false,
-    "no dietary edit recorded → silent",
-  );
-});
+// NOTE: the dietary-staleness decision moved server-side (Part 3b-1); its
+// boundary tests now live in api-server planStaleness.test.ts.
 
 test("demotionToastMessage: fires with copy only when a plan was displaced", () => {
   assert.equal(

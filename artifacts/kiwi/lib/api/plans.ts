@@ -138,12 +138,12 @@ export const PlanDetailSchema = z.object({
   revisionId: z.number(),
   isActiveThisWeek: z.boolean(),
   userId: z.string(),
-  // WS9 3d Part 3b/3d — mealPlanTemplateId powers "Use again" from the Plan
-  // Review action area (null hides it); committedAt is the ISO commit instant
-  // the dietary-staleness note anchors on (null on pre-migration rows → note
-  // silent). committedAt is NOT the YYYY-MM-DD start/end dates above.
+  // WS9 3d Part 3b-1 (D-WS9-013) — server-computed dietary-staleness flag; the
+  // client renders the passive note off this and does no timestamp math. Optional
+  // (additive wire field) → undefined coalesces to "not stale".
+  dietaryStale: z.boolean().optional(),
+  // WS9 3d Part 3b — retired in 3b-3 when Use again switches to copy-from-instance.
   mealPlanTemplateId: z.string().nullable().optional(),
-  committedAt: z.string().nullable().optional(),
   sourceType: z.string(),
   // WS7-4-A c6 — new MealPlanInstance fields from PRD §8.3.3 / §8.3.4 / §8.3.7.
   // WS7-8b B1 — `prepStatus` is now the WS7-8a B3 effective rollup (the manual

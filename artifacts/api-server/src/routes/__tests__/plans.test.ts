@@ -212,6 +212,8 @@ function instanceFix(opts: {
   activatedAt?: Date | null;
   isWizardDraft?: boolean;
   createdAt?: Date;
+  // WS9 3d Part 3b-1 — plan commit instant for the dietary-staleness compare.
+  committedAt?: Date | null;
   startDate?: Date | null;
   endDate?: Date | null;
   prepStatus?: "not_prepped" | "partial" | "prepped";
@@ -240,6 +242,7 @@ function instanceFix(opts: {
     activatedAt: opts.activatedAt ?? null,
     isWizardDraft: opts.isWizardDraft ?? false,
     revisionId: 2,
+    committedAt: opts.committedAt ?? null,
     prepStatus: opts.prepStatus ?? "not_prepped",
     prepStatusIsManual: opts.prepStatusIsManual ?? false,
     _completions: opts.completions ?? [],
@@ -313,10 +316,16 @@ function makeA2Stub(opts: {
   featured?: ReturnType<typeof templateFix>[];
   topRated?: ReturnType<typeof templateFix>[];
   meals?: ReturnType<typeof mealFix>[];
+  // WS9 3d Part 3b-1 — the requester's last allergy/dietary edit, read by GET
+  // /plans/:id for the dietaryStale compare. Default null (no dietary edit).
+  dietaryUpdatedAt?: Date | null;
 }) {
   const instances = opts.instances ?? [];
   const meals = opts.meals ?? [];
   return {
+    userPreferences: {
+      findUnique: async () => ({ dietaryUpdatedAt: opts.dietaryUpdatedAt ?? null }),
+    },
     mealPlanInstance: {
       // WS7-6 (E) Block 1 REWORK — findMany is dual-purpose:
       //   (a) full-row my_plans list (no select, with include) — returned
@@ -985,6 +994,52 @@ describe("GET /plans/:id — composite Plan Review", () => {
       assert.equal(body.plan.items[0].meal?.calories, 600);
       // (600 + 400) / 2 distinct days = 500/day
       assert.equal(body.plan.macroDailyAverage.caloriesPerDay, 500);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS9 3d Part 3b-1 (D-WS9-013) — the staleness DECISION ships on the wire as
+  // a single boolean; committedAt / dietaryUpdatedAt never do.
+  it("ships dietaryStale=true when the dietary edit post-dates the plan commit", async () => {
+    const commit = new Date("2026-07-01T00:00:00.000Z");
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [instanceFix({ id: "p-stale", name: "Stale", committedAt: commit })],
+        dietaryUpdatedAt: new Date("2026-07-10T00:00:00.000Z"),
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-stale`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: Record<string, unknown>;
+      };
+      assert.equal(body.plan.dietaryStale, true);
+      // Server-owned timestamps must NOT cross the wire.
+      assert.equal("committedAt" in body.plan, false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("ships dietaryStale=false when the dietary edit predates the plan commit", async () => {
+    const commit = new Date("2026-07-01T00:00:00.000Z");
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [instanceFix({ id: "p-fresh", name: "Fresh", committedAt: commit })],
+        dietaryUpdatedAt: new Date("2026-06-01T00:00:00.000Z"),
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-fresh`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { plan: { dietaryStale: boolean } };
+      assert.equal(body.plan.dietaryStale, false);
     } finally {
       await harness.close();
     }

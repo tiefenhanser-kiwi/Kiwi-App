@@ -30,24 +30,9 @@ export function needsActiveCompostConfirm(isActiveThisWeek: boolean): boolean {
   return isActiveThisWeek;
 }
 
-/**
- * Passive dietary-staleness note (D-WS9-013): show iff the user's last
- * allergy/dietary edit (dietaryUpdatedAt) post-dates the plan's commit instant
- * (committedAt — NOT createdAt). Never on an unsaved draft; a null on either
- * timestamp keeps the note silent (the safe default for pre-migration rows and
- * users who have not edited dietary prefs).
- */
-export function shouldShowDietaryNote(args: {
-  isDraft: boolean;
-  committedAt: string | null;
-  dietaryUpdatedAt: string | null;
-}): boolean {
-  const { isDraft, committedAt, dietaryUpdatedAt } = args;
-  if (isDraft || !committedAt || !dietaryUpdatedAt) return false;
-  return (
-    new Date(dietaryUpdatedAt).getTime() > new Date(committedAt).getTime()
-  );
-}
+// NOTE (WS9 3d Part 3b-1): the dietary-staleness DECISION moved server-side
+// (computeDietaryStale + GET /plans/:id.dietaryStale) so the client never does
+// timestamp math — the former shouldShowDietaryNote helper was removed with it.
 
 /**
  * Demotion-toast copy (D-WS9-011a), or null when this activation displaced
