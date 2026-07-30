@@ -219,6 +219,10 @@ export async function expandWizardCandidate(
 // reuses the same Plan Review entry point at /plan/[id].
 const WizardDraftMutationResponseSchema = z.object({
   instance: z.object({ id: z.string(), revisionId: z.number() }),
+  // WS9 3d Part 3b-4 (D-WS9-011a) — present on /activate: the plan this
+  // activation displaced as this week's plan, or null. Absent on /save (which
+  // never activates) → undefined. The client shows the demotion toast off it.
+  demoted: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
 });
 export type WizardDraftMutationResponse = z.infer<
   typeof WizardDraftMutationResponseSchema

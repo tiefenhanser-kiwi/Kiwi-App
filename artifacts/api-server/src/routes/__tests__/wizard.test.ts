@@ -2880,6 +2880,10 @@ function makeActivateDeps(opts: {
   // compat with existing test setups; both stubs are driven by it.
   materializeBehavior?: "ok" | "not_found" | "malformed" | "archived";
   recorder?: ActivateRecorder;
+  // WS9 3d Part 3b-4 — a prior this-week winner this activation should displace.
+  // When set, the resolver's covering-subset query returns it (covering now,
+  // activated in the past) so the route computes `demoted`.
+  coveringWinner?: { id: string; name: string };
 }) {
   const rec: ActivateRecorder = opts.recorder ?? {
     materializeCalls: [],
@@ -2888,13 +2892,35 @@ function makeActivateDeps(opts: {
     activityCalls: [],
     supersedeCalls: [],
   };
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
 
   const buildTx = () => {
     return {
       mealPlanInstance: {
-        findUnique: async (args: { where: { id: string } }) => {
+        findUnique: async (args: {
+          where: { id: string };
+          select?: unknown;
+        }) => {
+          // WS9 3d Part 3b-4 — the demoted-name lookup for the displaced plan.
+          if (opts.coveringWinner && args.where.id === opts.coveringWinner.id) {
+            return { titleOverride: opts.coveringWinner.name, template: null };
+          }
           return opts.drafts.get(args.where.id) ?? null;
         },
+        // WS9 3d Part 3b-4 — resolveThisWeekWinnerId's covering-subset read.
+        findMany: async () =>
+          opts.coveringWinner
+            ? [
+                {
+                  id: opts.coveringWinner.id,
+                  startDate: new Date(now - day),
+                  endDate: new Date(now + day),
+                  activatedAt: new Date(now - day),
+                  createdAt: new Date(now - 2 * day),
+                },
+              ]
+            : [],
         updateMany: async (args: { where: Record<string, unknown> }) => {
           rec.updateManyCalls.push({ where: args.where });
           return { count: 0 };
@@ -3308,6 +3334,99 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
     assert.equal(meta.source, "wizard_draft_activate");
     assert.equal(typeof meta.mealsCreated, "number");
     assert.equal(typeof meta.itemsCreated, "number");
+  });
+});
+
+// WS9 3d Part 3b-4 (D-WS9-011a) — wizard activate names the displaced plan.
+describe("POST /api/wizard/drafts/:id/activate — demotion (D-WS9-011a)", () => {
+  it("returns the displaced plan as `demoted` when a prior plan held the slot", async () => {
+    const drafts = new Map<string, ActivateDraftRow>([
+      [
+        "draft-demote",
+        {
+          id: "draft-demote",
+          userId: ACTIVATE_USER_ID,
+          isWizardDraft: true,
+          createdAt: new Date("2026-05-28T10:00:00Z"),
+          wizardDraftPayload: SAMPLE_EXPANDED,
+        },
+      ],
+    ]);
+    const deps = makeActivateDeps({
+      drafts,
+      coveringWinner: { id: "prior-plan", name: "Last Week's Favorites" },
+    });
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/wizard/drafts/draft-demote/activate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${signToken(ACTIVATE_USER_ID)}`,
+          },
+        },
+      );
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as {
+        demoted: { id: string; name: string } | null;
+      };
+      assert.deepEqual(body.demoted, {
+        id: "prior-plan",
+        name: "Last Week's Favorites",
+      });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns demoted:null when no prior plan held the slot", async () => {
+    const drafts = new Map<string, ActivateDraftRow>([
+      [
+        "draft-solo",
+        {
+          id: "draft-solo",
+          userId: ACTIVATE_USER_ID,
+          isWizardDraft: true,
+          createdAt: new Date("2026-05-28T10:00:00Z"),
+          wizardDraftPayload: SAMPLE_EXPANDED,
+        },
+      ],
+    ]);
+    const deps = makeActivateDeps({ drafts });
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/wizard/drafts/draft-solo/activate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${signToken(ACTIVATE_USER_ID)}`,
+          },
+        },
+      );
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as { demoted: unknown };
+      assert.equal(body.demoted, null);
+    } finally {
+      await harness.close();
+    }
   });
 });
 

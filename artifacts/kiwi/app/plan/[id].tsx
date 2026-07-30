@@ -522,6 +522,11 @@ export default function PlanReviewScreen() {
       });
       queryClient.invalidateQueries({ queryKey: ["plans"] });
       queryClient.invalidateQueries({ queryKey: ["home"] });
+      // WS9 3d Part 3b-4 (D-WS9-011a) — if this activation displaced a prior
+      // this-week plan, show the demotion toast. The app-level host keeps it
+      // alive across the router.replace to the freshly-materialized plan.
+      const demotionMsg = demotionToastMessage(planName, result.demoted);
+      if (demotionMsg) showToast({ message: demotionMsg });
       router.replace({
         pathname: "/plan/[id]",
         params: { id: result.instance.id },

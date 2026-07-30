@@ -63,7 +63,7 @@ import {
   type WizardBatchSource,
 } from "../lib/wizardLastBatch";
 import { computeWizardContentHash } from "../lib/wizardContentHash";
-import { currentWeekRange } from "../lib/planDates";
+import { currentWeekRange, resolveThisWeekWinnerId } from "../lib/planDates";
 import {
   buildPlanningContext,
   buildRecentRotation,
@@ -1893,6 +1893,12 @@ export function createWizardRouter(
         // preserved (Phase 1 ruling): every wizard activate is a fresh
         // user commitment, regardless of pre-state.
         const week = currentWeekRange();
+        // WS9 3d Part 3b-4 (D-WS9-011a) — resolve the prior this-week winner
+        // BEFORE the flip. The draft is still isWizardDraft:true + undated here,
+        // so the resolver (which filters isWizardDraft:false) can never return
+        // it — any non-null winner is a plan this activation displaces. Its
+        // identity rides the response so the client shows the demotion toast.
+        const priorWinnerId = await resolveThisWeekWinnerId(tx, userId);
         const activated = await tx.mealPlanInstance.update({
           where: { id: draftId },
           data: {
@@ -1933,7 +1939,23 @@ export function createWizardRouter(
           },
         });
 
-        return activated;
+        // WS9 3d Part 3b-4 — name the displaced plan (any prior winner is
+        // displaced; it can't be this freshly-activated draft).
+        let demoted: { id: string; name: string } | null = null;
+        if (priorWinnerId && priorWinnerId !== activated.id) {
+          const y = await tx.mealPlanInstance.findUnique({
+            where: { id: priorWinnerId },
+            select: { titleOverride: true, template: { select: { title: true } } },
+          });
+          if (y) {
+            demoted = {
+              id: priorWinnerId,
+              name: y.titleOverride ?? y.template?.title ?? "",
+            };
+          }
+        }
+
+        return { ...activated, demoted };
       }, {
         // WS7-5b activate fix: default 5000ms timeout proved tight under
         // real-Postgres load. Phase-1 smoke measured tx=5088ms (P2028 at
@@ -1958,9 +1980,12 @@ export function createWizardRouter(
       // unconsumed drafts persist and remain resume-able until the next generate
       // (an intended behavior change from the old consume-time supersede).
 
-      return res
-        .status(201)
-        .json({ instance: { id: result.id, revisionId: result.revisionId } });
+      return res.status(201).json({
+        instance: { id: result.id, revisionId: result.revisionId },
+        // WS9 3d Part 3b-4 (D-WS9-011a) — the plan this activation displaced (or
+        // null). The client shows the demotion toast off this.
+        demoted: result.demoted,
+      });
     } catch (err) {
       __txElapsedAtThrow = Date.now() - __txStart;
       console.error(
