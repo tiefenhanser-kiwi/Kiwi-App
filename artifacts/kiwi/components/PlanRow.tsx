@@ -10,6 +10,7 @@ import { useRouter } from "expo-router";
 
 import type { PlanListItem } from "@/lib/api/plans";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
 
 type Props = {
   plan: PlanListItem;
@@ -18,9 +19,15 @@ type Props = {
    *  the row may receive template-sourced rows (Plans tab does; legacy
    *  callers with only Instance rows can pass a no-op). */
   onPreviewTemplate?: (templateId: string) => void;
+  // WS9 3d Part 1c — plan-card "⋯" host (D-WS9-001 / D-WS9-008). Supplied only
+  // for saved plans (source === "instance"); the parent screen owns the
+  // Compost confirm+undo and the Use-again copy. Each item hides when its
+  // handler is omitted (Use-again is dropped when the plan has no template).
+  onCompost?: (plan: PlanListItem) => void;
+  onUseAgain?: (plan: PlanListItem) => void;
 };
 
-export function PlanRow({ plan, onPreviewTemplate }: Props) {
+export function PlanRow({ plan, onPreviewTemplate, onCompost, onUseAgain }: Props) {
   const router = useRouter();
 
   // WS7-4-B c9 — source dispatcher. Templates route into the preview overlay
@@ -74,6 +81,15 @@ export function PlanRow({ plan, onPreviewTemplate }: Props) {
       >
         <Text style={styles.openText}>Open</Text>
       </Pressable>
+      {/* WS9 3d Part 1c — "⋯" only on saved plans; templates keep their own
+          Use/Preview flow and have no plan-lifecycle actions. */}
+      {plan.source === "instance" && (onCompost || onUseAgain) && (
+        <PlanCardOverflowMenu
+          accessibilityLabel={`Actions for ${plan.name}`}
+          onCompost={onCompost ? () => onCompost(plan) : undefined}
+          onUseAgain={onUseAgain ? () => onUseAgain(plan) : undefined}
+        />
+      )}
     </View>
   );
 }

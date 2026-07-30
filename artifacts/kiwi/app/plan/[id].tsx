@@ -27,6 +27,7 @@ import { LoadingShim } from "@/components/LoadingShim";
 import { PlanDateRangeEditor } from "@/components/PlanDateRangeEditor";
 import { PlanNameEditor } from "@/components/PlanNameEditor";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
+import { Toast } from "@/components/Toast";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { useMeal } from "@/hooks/useMeal";
@@ -232,17 +233,17 @@ export default function PlanReviewScreen() {
     });
   }, [addMealId, injectMealQuery.data, reviewPlan]);
 
-  // Ruling 9 — deep-link error UX. No toast component exists in the codebase
-  // today (verified via grep across artifacts/kiwi); Alert.alert is the
-  // fallback per the prompt. Flagged in the Phase 3 report so chat-Claude
-  // can decide whether to add a toast component or accept Alert long-term.
+  // WS9 3d Part 1b — deep-link error UX. Retires the Ruling-9 Alert fallback
+  // now that the shared Toast (Part 1a) exists: the failure surfaces as an
+  // informational toast ("Couldn't add that meal.") instead of a modal Alert,
+  // preserving the exact message the Alert carried.
   useEffect(() => {
     if (injectMealQuery.isError) {
       console.warn("[plan/id] addMealId fetch failed", {
         addMealId,
         error: injectMealQuery.error,
       });
-      Alert.alert("Couldn't add that meal.");
+      setToast({ message: "Couldn't add that meal." });
     }
   }, [injectMealQuery.isError, injectMealQuery.error, addMealId]);
 
@@ -262,6 +263,18 @@ export default function PlanReviewScreen() {
 
   // Sheet state for §8.3.8 Add Meals flow.
   const [addMealsVisible, setAddMealsVisible] = useState(false);
+
+  // WS9 3d Part 1 — the screen's single toast slot. Replaces the Ruling-9
+  // Alert fallback (Part 1b) and hosts the Compost-undo (Part 3a) and demotion
+  // (Part 3c) toasts. Each entry carries its own onDismiss (fired on timeout /
+  // dismiss-without-action) and optional onAction (Undo) so a deferred-
+  // destructive caller can distinguish "expired → commit" from "user undid".
+  const [toast, setToast] = useState<{
+    message: string;
+    actionLabel?: string;
+    onAction?: () => void;
+    onDismiss?: () => void;
+  } | null>(null);
 
   const planName = reviewPlan?.name || "Untitled plan";
 
@@ -1010,6 +1023,27 @@ export default function PlanReviewScreen() {
         planId={planId}
         onClose={() => setAddMealsVisible(false)}
         onPickExistingMeal={addExistingMealToPlan}
+      />
+
+      {/* WS9 3d Part 1 — single toast slot (informational + Undo variants). */}
+      <Toast
+        visible={toast !== null}
+        message={toast?.message ?? ""}
+        actionLabel={toast?.actionLabel}
+        onAction={
+          toast?.onAction
+            ? () => {
+                const act = toast.onAction!;
+                setToast(null);
+                act();
+              }
+            : undefined
+        }
+        onDismiss={() => {
+          const dismiss = toast?.onDismiss;
+          setToast(null);
+          dismiss?.();
+        }}
       />
     </View>
   );
