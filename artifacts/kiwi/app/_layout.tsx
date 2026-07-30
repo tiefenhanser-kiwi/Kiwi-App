@@ -27,6 +27,7 @@ import { StatusBar } from "expo-status-bar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ToastProvider } from "@/contexts/ToastProvider";
 import { Palette } from "@/constants/tokens";
 
 SplashScreen.preventAutoHideAsync();
@@ -107,8 +108,12 @@ export default function RootLayout() {
             <AppProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
-                  <StatusBar style="dark" />
-                  <RootLayoutNav />
+                  {/* WS9 3d Part 3b-2 — app-level toast host, above the
+                      navigator so toasts survive route changes. */}
+                  <ToastProvider>
+                    <StatusBar style="dark" />
+                    <RootLayoutNav />
+                  </ToastProvider>
                 </KeyboardProvider>
               </GestureHandlerRootView>
             </AppProvider>

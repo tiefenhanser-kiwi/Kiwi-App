@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -15,9 +15,10 @@ import { PlanPreviewModal } from "@/components/PlanPreviewModal";
 import { PlanRow } from "@/components/PlanRow";
 import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
-import { Toast } from "@/components/Toast";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastProvider";
+import { useCompostWithUndo } from "@/hooks/useCompostWithUndo";
 import { usePlans } from "@/hooks/usePlans";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
@@ -29,62 +30,14 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 export default function PlansTab() {
   const router = useRouter();
   const { user, setUiState } = useAuth();
-  const { useTemplateAsPlan, setPlanActiveThisWeek, compostPlan } = useApp();
+  const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
+  const { showToast } = useToast();
 
-  // WS9 3d Part 3a/3b — plan-card ⋯ actions. Compost is deferred-undo: the row
-  // hides immediately, a 5s Undo toast shows, and only when the window closes
-  // does the destructive DELETE fire (no server un-compost route exists, so a
-  // cancelled compost simply never reaches the server). Use again copies the
-  // plan's backing template into a fresh undated/inactive plan and opens it.
-  const [pendingCompost, setPendingCompost] = useState<Set<string>>(new Set());
-  const [toast, setToast] = useState<{
-    message: string;
-    actionLabel?: string;
-    onAction?: () => void;
-    onDismiss?: () => void;
-  } | null>(null);
-  // At most one compost is "in the undo window" at a time. Holds the id whose
-  // destructive call is still pending so a second compost (or the timeout) can
-  // finalize it deterministically under the single-toast slot.
-  const pendingRef = useRef<{ planId: string } | null>(null);
-
-  const unhide = (planId: string) =>
-    setPendingCompost((prev) => {
-      const next = new Set(prev);
-      next.delete(planId);
-      return next;
-    });
-
-  const commitPending = () => {
-    const p = pendingRef.current;
-    pendingRef.current = null;
-    if (!p) return;
-    void compostPlan(p.planId).catch(() => {
-      // Server failure → restore the row and tell the user.
-      unhide(p.planId);
-      setToast({ message: "Couldn't compost that plan. Please try again." });
-    });
-  };
-
-  const cancelPending = () => {
-    const p = pendingRef.current;
-    pendingRef.current = null;
-    if (p) unhide(p.planId);
-  };
-
-  const startDeferredCompost = (planId: string, planName: string) => {
-    // Finalize any prior deferred compost before opening a new window (the
-    // single toast slot can only track one).
-    commitPending();
-    pendingRef.current = { planId };
-    setPendingCompost((prev) => new Set(prev).add(planId));
-    setToast({
-      message: `“${planName}” composted.`,
-      actionLabel: "Undo",
-      onAction: cancelPending,
-      onDismiss: commitPending,
-    });
-  };
+  // WS9 3d Part 3a/3b-2 — plan-card ⋯ actions. Compost is deferred-undo via the
+  // shared hook: the row drops from the plans cache immediately, the app-level
+  // Undo toast shows, and the DELETE fires only when the window closes. Use
+  // again copies the plan's backing template into a fresh undated/inactive plan.
+  const compostWithUndo = useCompostWithUndo();
 
   const handleCompost = (plan: PlanListItem) => {
     // Only the active-this-week plan gets a confirm (it names the plan); every
@@ -98,13 +51,13 @@ export default function PlansTab() {
           {
             text: "Compost",
             style: "destructive",
-            onPress: () => startDeferredCompost(plan.id, plan.name),
+            onPress: () => compostWithUndo(plan.id, plan.name),
           },
         ],
       );
       return;
     }
-    startDeferredCompost(plan.id, plan.name);
+    compostWithUndo(plan.id, plan.name);
   };
 
   const handleUseAgain = async (plan: PlanListItem) => {
@@ -116,7 +69,7 @@ export default function PlansTab() {
       const { instanceId } = await useTemplateAsPlan(plan.mealPlanTemplateId);
       router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
     } catch {
-      setToast({ message: "Couldn't copy that plan. Please try again." });
+      showToast({ message: "Couldn't copy that plan. Please try again." });
     }
   };
 
@@ -195,10 +148,9 @@ export default function PlansTab() {
   // client-side over the result (Ruling C — D-WS7-048 moves these to
   // server params in WS9).
   const visibleRows = useMemo(() => {
-    // Hide rows in the compost undo-window (optimistic removal).
-    let out = [...(plansQuery.data?.plans ?? [])].filter(
-      (r) => !pendingCompost.has(r.id),
-    );
+    // Compost's optimistic removal happens in the plans cache (useCompostWithUndo),
+    // so plansQuery.data already excludes a composting row — no local filter here.
+    let out = [...(plansQuery.data?.plans ?? [])];
     if (debouncedQuery) {
       out = out.filter((r) => {
         const hay = `${r.name} ${r.tags.join(" ")}`.toLowerCase();
@@ -212,7 +164,7 @@ export default function PlansTab() {
       out.sort((a, b) => a.name.localeCompare(b.name));
     }
     return out;
-  }, [plansQuery.data, debouncedQuery, sortKey, pendingCompost]);
+  }, [plansQuery.data, debouncedQuery, sortKey]);
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
@@ -315,27 +267,6 @@ export default function PlansTab() {
         templateId={preview.templateId}
         onClose={preview.close}
         onUsePlan={handleUseFromPreview}
-      />
-
-      {/* WS9 3d Part 3a — Compost undo toast (+ occasional error toasts). */}
-      <Toast
-        visible={toast !== null}
-        message={toast?.message ?? ""}
-        actionLabel={toast?.actionLabel}
-        onAction={
-          toast?.onAction
-            ? () => {
-                const act = toast.onAction!;
-                setToast(null);
-                act();
-              }
-            : undefined
-        }
-        onDismiss={() => {
-          const dismiss = toast?.onDismiss;
-          setToast(null);
-          dismiss?.();
-        }}
       />
     </View>
   );

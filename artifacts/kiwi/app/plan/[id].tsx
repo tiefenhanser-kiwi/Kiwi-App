@@ -27,9 +27,10 @@ import { LoadingShim } from "@/components/LoadingShim";
 import { PlanDateRangeEditor } from "@/components/PlanDateRangeEditor";
 import { PlanNameEditor } from "@/components/PlanNameEditor";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
-import { Toast } from "@/components/Toast";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
+import { useToast } from "@/contexts/ToastProvider";
+import { useCompostWithUndo } from "@/hooks/useCompostWithUndo";
 import { useMeal } from "@/hooks/useMeal";
 import { usePlan } from "@/hooks/usePlan";
 import { ApiError } from "@/lib/api/errors";
@@ -176,10 +177,11 @@ export default function PlanReviewScreen() {
     updatePlanName,
     updatePlanDateRange,
     setPlanActiveThisWeek,
-    compostPlan,
     useTemplateAsPlan,
     isMacrosRecalcInFlight,
   } = useApp();
+  const { showToast } = useToast();
+  const compostWithUndo = useCompostWithUndo();
 
   // WS7-4-D c14 — Re-seed local state on every server payload change so
   // post-mutation itemIds (Q-P0-3 atomic-swap from Change Meal, real
@@ -249,9 +251,9 @@ export default function PlanReviewScreen() {
         addMealId,
         error: injectMealQuery.error,
       });
-      setToast({ message: "Couldn't add that meal." });
+      showToast({ message: "Couldn't add that meal." });
     }
-  }, [injectMealQuery.isError, injectMealQuery.error, addMealId]);
+  }, [injectMealQuery.isError, injectMealQuery.error, addMealId, showToast]);
 
   // Sheet state for §8.4.2 Change Meal flow.
   const [changeMealForRow, setChangeMealForRow] = useState<{
@@ -269,18 +271,6 @@ export default function PlanReviewScreen() {
 
   // Sheet state for §8.3.8 Add Meals flow.
   const [addMealsVisible, setAddMealsVisible] = useState(false);
-
-  // WS9 3d Part 1 — the screen's single toast slot. Replaces the Ruling-9
-  // Alert fallback (Part 1b) and hosts the Compost-undo (Part 3a) and demotion
-  // (Part 3c) toasts. Each entry carries its own onDismiss (fired on timeout /
-  // dismiss-without-action) and optional onAction (Undo) so a deferred-
-  // destructive caller can distinguish "expired → commit" from "user undid".
-  const [toast, setToast] = useState<{
-    message: string;
-    actionLabel?: string;
-    onAction?: () => void;
-    onDismiss?: () => void;
-  } | null>(null);
 
   const planName = reviewPlan?.name || "Untitled plan";
 
@@ -404,7 +394,7 @@ export default function PlanReviewScreen() {
     void setPlanActiveThisWeek(planId)
       .then(({ demoted }) => {
         const message = demotionToastMessage(planName, demoted);
-        if (message) setToast({ message });
+        if (message) showToast({ message });
       })
       .catch(() => {
         // Optimistic flip stays; the focus refetch reconciles to server truth.
@@ -422,31 +412,20 @@ export default function PlanReviewScreen() {
       const { instanceId } = await useTemplateAsPlan(templateId);
       router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
     } catch {
-      setToast({ message: "Couldn't copy that plan. Please try again." });
+      showToast({ message: "Couldn't copy that plan. Please try again." });
     }
   };
 
-  // WS9 3d Part 3a (D-WS9-001) — Compost from the Plan Review action area.
-  // Deferred-undo: the destructive DELETE only fires when the 5s Undo window
-  // closes (onDismiss), at which point we leave for the plans list; Undo keeps
-  // the user on the plan. The active-this-week plan gets a naming confirm; every
-  // other plan relies on the Undo toast (spec §8.3). Guarded off on drafts (no
-  // server row to compost).
+  // WS9 3d Part 3a/3b-2 (D-WS9-001) — Compost from the Plan Review action area.
+  // Navigate back to the plans list IMMEDIATELY (don't linger on a plan you just
+  // deleted) — the app-level toast rides to the destination and its Undo window
+  // keeps ticking above the navigator, so backing out no longer cancels the
+  // compost. The shared hook owns the deferred DELETE + optimistic cache removal.
+  // The active-this-week plan gets a naming confirm; drafts never reach here (the
+  // Compost affordance is saved-mode only).
   const startPlanReviewCompost = () => {
-    setToast({
-      message: `“${planName}” composted.`,
-      actionLabel: "Undo",
-      onAction: () => {
-        // Cancelled — never reaches the server; stay on the plan.
-      },
-      onDismiss: () => {
-        void compostPlan(planId).catch(() => {
-          // The user has already been routed away; the next plans refetch
-          // reconciles either way.
-        });
-        router.replace("/(tabs)/plans");
-      },
-    });
+    compostWithUndo(planId, planName);
+    router.replace("/(tabs)/plans");
   };
   const handleCompostThisPlan = () => {
     if (needsActiveCompostConfirm(reviewPlan?.isActiveThisWeek ?? false)) {
@@ -1138,27 +1117,6 @@ export default function PlanReviewScreen() {
         planId={planId}
         onClose={() => setAddMealsVisible(false)}
         onPickExistingMeal={addExistingMealToPlan}
-      />
-
-      {/* WS9 3d Part 1 — single toast slot (informational + Undo variants). */}
-      <Toast
-        visible={toast !== null}
-        message={toast?.message ?? ""}
-        actionLabel={toast?.actionLabel}
-        onAction={
-          toast?.onAction
-            ? () => {
-                const act = toast.onAction!;
-                setToast(null);
-                act();
-              }
-            : undefined
-        }
-        onDismiss={() => {
-          const dismiss = toast?.onDismiss;
-          setToast(null);
-          dismiss?.();
-        }}
       />
     </View>
   );
