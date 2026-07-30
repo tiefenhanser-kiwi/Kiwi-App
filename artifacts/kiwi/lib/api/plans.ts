@@ -54,11 +54,6 @@ export const PlanListItemSchema = z.object({
   startDate: z.string().nullable(),
   endDate: z.string().nullable(),
   isActiveThisWeek: z.boolean(),
-  // WS9 3d Part 3b — the instance's backing template id; powers the plan-card
-  // "⋯ → Use again" copy. Null for template rows + template-less instances.
-  // Optional (house style for additive wire fields) to tolerate a mobile build
-  // reading a not-yet-deployed server; consumers treat undefined as null.
-  mealPlanTemplateId: z.string().nullable().optional(),
 });
 export type PlanListItem = z.infer<typeof PlanListItemSchema>;
 
@@ -142,8 +137,6 @@ export const PlanDetailSchema = z.object({
   // client renders the passive note off this and does no timestamp math. Optional
   // (additive wire field) → undefined coalesces to "not stale".
   dietaryStale: z.boolean().optional(),
-  // WS9 3d Part 3b — retired in 3b-3 when Use again switches to copy-from-instance.
-  mealPlanTemplateId: z.string().nullable().optional(),
   sourceType: z.string(),
   // WS7-4-A c6 — new MealPlanInstance fields from PRD §8.3.3 / §8.3.4 / §8.3.7.
   // WS7-8b B1 — `prepStatus` is now the WS7-8a B3 effective rollup (the manual
@@ -304,6 +297,24 @@ export async function useTemplate(
 ): Promise<{ instanceId: string }> {
   const body = await apiClient(
     `/plans/use-template/${encodeURIComponent(templateId)}`,
+    { method: "POST", schema: UseTemplateResponseSchema },
+  );
+  return { instanceId: body.instance.id };
+}
+
+/**
+ * WS9 3d Part 3b-3 (D-WS9-008) — POST /plans/:id/copy — "Use again" on the
+ * user's OWN plan. Copies the plan INSTANCE (its items + per-plan overrides)
+ * into a fresh undated, inactive draft — the template route can't, because a
+ * wizard plan's template is an empty shell. Returns the new instance id.
+ * Propagates apiClient typed errors: `ApiError` (404 missing/non-owned, 429
+ * rate limit, 500 tx), `UnauthenticatedError` (401), `ApiSchemaError`.
+ */
+export async function copyPlan(
+  planId: string,
+): Promise<{ instanceId: string }> {
+  const body = await apiClient(
+    `/plans/${encodeURIComponent(planId)}/copy`,
     { method: "POST", schema: UseTemplateResponseSchema },
   );
   return { instanceId: body.instance.id };

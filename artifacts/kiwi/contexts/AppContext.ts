@@ -36,6 +36,7 @@ import {
   type UpdateMealResponse,
 } from "@/lib/api/meals";
 import {
+  copyPlan as copyPlanAPI,
   createPlan as createPlanAPI,
   deletePlan as deletePlanAPI,
   deletePlanItem,
@@ -225,6 +226,11 @@ interface AppState {
    *  the caller can navigate to `/plan/[id]`. Throws (ApiError 404 / 429 /
    *  500, UnauthenticatedError 401, ApiSchemaError) on failure. */
   useTemplateAsPlan: (templateId: string) => Promise<{ instanceId: string }>;
+  // WS9 3d Part 3b-3 (D-WS9-008) — "Use again" on an OWN plan: copies the plan
+  // INSTANCE (items + per-plan overrides) into a fresh undated, inactive draft.
+  // Distinct from useTemplateAsPlan (which copies a template shell → empty plan
+  // for wizard plans).
+  copyPlan: (planId: string) => Promise<{ instanceId: string }>;
   // WS9 3d Part 3a (D-WS9-001) — soft-archive (compost) a saved plan. Server
   // cascades its grocery lists. No optimistic state here; the caller owns the
   // deferred-undo toast and only invokes this once the undo window closes.
@@ -917,6 +923,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [queryClient],
   );
 
+  // WS9 3d Part 3b-3 (D-WS9-008) — "Use again": copy an own plan INSTANCE into a
+  // fresh undated, inactive draft (server clones items + per-plan overrides).
+  // Invalidate plans + home so the copy appears in My Plans on the next read.
+  const copyPlan = useCallback(
+    async (planId: string): Promise<{ instanceId: string }> => {
+      const { instanceId } = await copyPlanAPI(planId);
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      queryClient.invalidateQueries({ queryKey: ["home"] });
+      return { instanceId };
+    },
+    [queryClient],
+  );
+
   // WS9 3d Part 3a (D-WS9-001) — compost (soft-archive) a saved plan. The
   // server flips status/compostedAt/isArchived and archives the plan's grocery
   // lists in the same tx. Invalidate plans + home so the composted plan drops
@@ -1197,6 +1216,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     completeOnboarding,
     deactivateAccount,
     useTemplateAsPlan,
+    copyPlan,
     compostPlan,
     createPlanWithMeal,
     isMacrosRecalcInFlight: macrosRecalcInFlightCount > 0,

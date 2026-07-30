@@ -834,6 +834,41 @@ test("compostPlan DELETEs /plans/:id and invalidates the plan caches (D-WS9-001)
   assert.equal(qc.getQueryState(["plans", "plan-1"])?.isInvalidated, true);
 });
 
+test("copyPlan POSTs /plans/:id/copy and invalidates the plan caches (D-WS9-008)", async () => {
+  const qc = await mountAuthed();
+  qc.setQueryData(["plans", "my_plans"], { plans: [] });
+
+  let capturedMethod: string | null = null;
+  let capturedUrl: string | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      String(url).endsWith("/plans/plan-1/copy") &&
+      (init?.method ?? "GET").toUpperCase() === "POST"
+    ) {
+      capturedMethod = "POST";
+      capturedUrl = String(url);
+      return Promise.resolve(
+        mockJson({ instance: { id: "copy-1", revisionId: 1 } }),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  let result: { instanceId: string } | undefined;
+  await act(async () => {
+    result = await app!.copyPlan("plan-1");
+  });
+
+  assert.equal(capturedMethod, "POST");
+  assert.ok(capturedUrl?.endsWith("/plans/plan-1/copy"));
+  assert.equal(result?.instanceId, "copy-1");
+  assert.equal(qc.getQueryState(["plans", "my_plans"])?.isInvalidated, true);
+});
+
 test("setPlanActiveThisWeek surfaces the server-reported demoted plan (D-WS9-011a)", async () => {
   await mountAuthed();
   const prevFetch = globalThis.fetch;

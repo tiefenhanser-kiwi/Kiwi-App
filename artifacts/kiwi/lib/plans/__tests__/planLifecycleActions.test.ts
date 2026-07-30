@@ -15,21 +15,11 @@ import {
   demotionToastMessage,
 } from "../planLifecycleActions";
 
-test("canUseAgain: only a saved instance with a backing template", () => {
-  assert.equal(
-    canUseAgain({ source: "instance", mealPlanTemplateId: "t-1" }),
-    true,
-  );
-  // Template-less instance (e.g. empty POST /plans) — nothing to copy.
-  assert.equal(
-    canUseAgain({ source: "instance", mealPlanTemplateId: null }),
-    false,
-  );
+test("canUseAgain: any saved instance (3b-3 copies the instance, not a template)", () => {
+  // Every saved plan is copyable now — even a template-less one.
+  assert.equal(canUseAgain({ source: "instance" }), true);
   // Template rows use their own Use-Plan flow.
-  assert.equal(
-    canUseAgain({ source: "template", mealPlanTemplateId: "t-1" }),
-    false,
-  );
+  assert.equal(canUseAgain({ source: "template" }), false);
 });
 
 test("needsActiveCompostConfirm: only the active-this-week plan", () => {

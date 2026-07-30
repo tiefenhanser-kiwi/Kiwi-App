@@ -488,10 +488,6 @@ export function createPlansRouter(
           // timestamp arithmetic; committedAt / dietaryUpdatedAt never cross the
           // wire (they stay server-owned).
           dietaryStale,
-          // WS9 3d Part 3b — retired in 3b-3 when Use again switches to the
-          // copy-from-instance path; kept on the wire here so the old template-
-          // based Use again keeps compiling until then.
-          mealPlanTemplateId: instance.mealPlanTemplateId,
           // sourceType lives on the template, not the instance.
           sourceType: instance.template?.sourceType ?? "manual",
           // WS7-8a B3 — derived rollup (or the manual pin when set), not the
@@ -1434,6 +1430,125 @@ export function createPlansRouter(
           "POST /plans/use-template/:templateId failed",
         );
         return res.status(500).json({ error: "failed to use template" });
+      }
+    },
+  );
+
+  // WS9 3d Part 3b-3 (D-WS9-008) — POST /plans/:id/copy — "Use again" on the
+  // user's OWN plan. The template route (above) only copies a TEMPLATE, and a
+  // wizard plan's template is an empty shell (its meals live on the INSTANCE) —
+  // routing "Use again" through it produced an empty plan (the reported bug).
+  // This mirrors the useTemplateAsPlan copy SHAPE against the plan instance:
+  // it clones the instance's items + the instance-level state the user has
+  // invested in, into a fresh UNDATED, INACTIVE draft. No useCount bump (that
+  // counter is for template adoption). No fork — an own plan's meals are already
+  // user-owned, so items bind to the same Meal rows (per-item overrides give
+  // per-plan customization), exactly as use-template does for owned meals.
+  router.post(
+    "/plans/:id/copy",
+    requireAuth,
+    mutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const id = req.params.id;
+      if (typeof id !== "string" || id.length === 0 || id.length > 100) {
+        return res.status(400).json({ error: "invalid plan id" });
+      }
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const source = await tx.mealPlanInstance.findUnique({
+            where: { id },
+            include: { items: { orderBy: { positionIndex: "asc" } } },
+          });
+          // Instances are personal — a non-owner (or missing) source is a 404.
+          if (!source || source.userId !== userId) {
+            return { kind: "not_found" as const };
+          }
+
+          const copy = await tx.mealPlanInstance.create({
+            data: {
+              userId,
+              // Carry the (shell) template link so the copy keeps the original's
+              // sourceType / list title-image-tags; harmless, and NOT what the
+              // items come from. Works fine when null.
+              mealPlanTemplateId: source.mealPlanTemplateId,
+              titleOverride: source.titleOverride,
+              status: "draft",
+              // Undated + inactive — deliberately not this week (D-WS9-008).
+              startDate: null,
+              endDate: null,
+              // Born committed (not a wizard draft) — stamp the commit instant.
+              committedAt: new Date(),
+              // Carry the user's per-plan investment.
+              optimizationNotes:
+                (source.optimizationNotes as Prisma.InputJsonValue | null) ??
+                Prisma.DbNull,
+              breakfastOverrides: source.breakfastOverrides,
+              lunchOverrides: source.lunchOverrides,
+            },
+          });
+
+          // D-WS9-026 — stamp first-plan-created (write-if-null; first wins).
+          await markFirstPlanCreated(tx, userId);
+
+          if (source.items.length > 0) {
+            await tx.mealPlanItem.createMany({
+              data: source.items.map((it) => ({
+                mealPlanInstanceId: copy.id,
+                mealId: it.mealId,
+                positionIndex: it.positionIndex,
+                // assignedDayOfWeek is a weekly PATTERN — carried. assignedDate
+                // is a specific calendar date bound to the old week — dropped
+                // (the copy is undated). servingsOverride + the per-item
+                // override blobs (recipe/ingredient/component) are the user's
+                // customizations — all carried.
+                assignedDayOfWeek: it.assignedDayOfWeek,
+                servingsOverride: it.servingsOverride,
+                ingredientOverrides:
+                  (it.ingredientOverrides as Prisma.InputJsonValue | null) ??
+                  Prisma.DbNull,
+                recipeOverrideJson:
+                  (it.recipeOverrideJson as Prisma.InputJsonValue | null) ??
+                  Prisma.DbNull,
+                componentSelections:
+                  (it.componentSelections as Prisma.InputJsonValue | null) ??
+                  Prisma.DbNull,
+                isBreakfast: it.isBreakfast,
+                isLunch: it.isLunch,
+                isDinner: it.isDinner,
+                notes: it.notes,
+              })),
+            });
+          }
+
+          await emitActivity({
+            tx,
+            userId,
+            eventType: "plan_created",
+            entityType: "MealPlanInstance",
+            entityId: copy.id,
+            metadata: { source: "use_again", copiedFrom: id, itemCount: source.items.length },
+          });
+
+          return { kind: "created" as const, instance: copy };
+        });
+
+        if (result.kind === "not_found") {
+          return res.status(404).json({ error: "plan not found" });
+        }
+        return res.status(201).json({
+          instance: {
+            id: result.instance.id,
+            revisionId: result.instance.revisionId,
+          },
+        });
+      } catch (err) {
+        logger.error({ err, userId, id }, "POST /plans/:id/copy failed");
+        return res.status(500).json({ error: "failed to copy plan" });
       }
     },
   );

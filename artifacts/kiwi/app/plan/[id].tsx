@@ -177,7 +177,7 @@ export default function PlanReviewScreen() {
     updatePlanName,
     updatePlanDateRange,
     setPlanActiveThisWeek,
-    useTemplateAsPlan,
+    copyPlan,
     isMacrosRecalcInFlight,
   } = useApp();
   const { showToast } = useToast();
@@ -401,15 +401,13 @@ export default function PlanReviewScreen() {
       });
   };
 
-  // WS9 3d Part 3b (D-WS9-008) — Use again. Copies this plan's backing template
-  // into a fresh UNDATED, INACTIVE plan (server semantics; deliberately not
-  // dated to this week) and opens it so the user can date via "Cook This Week"
-  // or edit first. Hidden when the plan has no template (button gated below).
+  // WS9 3d Part 3b-3 (D-WS9-008) — Use again. Copies this plan INSTANCE (its
+  // meals + per-plan overrides) into a fresh UNDATED, INACTIVE plan and opens it
+  // so the user can date via "Cook This Week" or edit first. Works for any saved
+  // plan (drafts never reach here — the action is saved-mode only).
   const handleUseAgainThisPlan = async () => {
-    const templateId = planQuery.data?.mealPlanTemplateId;
-    if (!templateId) return;
     try {
-      const { instanceId } = await useTemplateAsPlan(templateId);
+      const { instanceId } = await copyPlan(planId);
       router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
     } catch {
       showToast({ message: "Couldn't copy that plan. Please try again." });
@@ -785,18 +783,16 @@ export default function PlanReviewScreen() {
               </View>
             </View>
             {/* WS9 3d Part 3a/3b — plan-lifecycle actions on the Plan Review
-                action area (same two the plan-card ⋯ offers). Use again shows
-                only when the plan has a backing template to copy. */}
+                action area (same two the plan-card ⋯ offers). Use again copies
+                this plan (any saved plan is copyable — 3b-3). */}
             <View style={s.actionRow}>
-              {planQuery.data?.mealPlanTemplateId && (
-                <View style={s.actionCol}>
-                  <Button
-                    label="Use again"
-                    variant="ghost"
-                    onPress={handleUseAgainThisPlan}
-                  />
-                </View>
-              )}
+              <View style={s.actionCol}>
+                <Button
+                  label="Use again"
+                  variant="ghost"
+                  onPress={handleUseAgainThisPlan}
+                />
+              </View>
               <View style={s.actionCol}>
                 <Button
                   label="Compost"

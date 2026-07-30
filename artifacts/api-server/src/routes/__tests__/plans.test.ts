@@ -2379,6 +2379,215 @@ describe("POST /plans/use-template/:templateId — errors", () => {
   });
 });
 
+// ── WS9 3d Part 3b-3 — POST /plans/:id/copy ("Use again", copy-from-instance) ──
+
+interface CopyRecorder {
+  created: Array<Record<string, unknown>>;
+  createManyItems: Array<Record<string, unknown>[]>;
+  templateUpdates: Array<unknown>;
+  activityWrites: Array<Record<string, unknown>>;
+}
+
+function makeCopyStub(opts: {
+  recorder: CopyRecorder;
+  source?: {
+    id: string;
+    userId: string;
+    mealPlanTemplateId: string | null;
+    titleOverride: string | null;
+    breakfastOverrides: string | null;
+    lunchOverrides: string | null;
+    optimizationNotes: unknown;
+    items: Record<string, unknown>[];
+  } | null;
+}) {
+  const recorder = opts.recorder;
+  const source = opts.source ?? null;
+  const txClient = {
+    userPreferences: { findUnique: async () => null },
+    mealPlanInstance: {
+      findUnique: async (args: { where: { id: string } }) =>
+        source && source.id === args.where.id ? source : null,
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.created.push(args.data);
+        return { id: "copy-new", revisionId: 1 };
+      },
+    },
+    mealPlanItem: {
+      createMany: async (args: { data: Record<string, unknown>[] }) => {
+        recorder.createManyItems.push(args.data);
+        return { count: args.data.length };
+      },
+    },
+    // If this ever fires, useCount would be self-bumped — the assertions below
+    // prove it does NOT.
+    mealPlanTemplate: {
+      update: async (args: unknown) => {
+        recorder.templateUpdates.push(args);
+        return {};
+      },
+    },
+    user: { updateMany: async () => ({ count: 0 }) },
+    userActivity: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        recorder.activityWrites.push(args.data);
+        return { id: "act-1" };
+      },
+    },
+  };
+  return {
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    mealPlanInstance: txClient.mealPlanInstance,
+  };
+}
+
+// A wizard-origin source: the MEALS live on the INSTANCE (3 items with per-plan
+// overrides); the backing template is an empty shell — exactly the shape the
+// probe found, and the one the old template-based Use again copied as empty.
+function wizardSourceFix(userId: string) {
+  return {
+    id: "src-plan",
+    userId,
+    mealPlanTemplateId: "tmpl-shell",
+    titleOverride: "Summer Grill Nights",
+    breakfastOverrides: "eggs",
+    lunchOverrides: "leftovers",
+    optimizationNotes: [{ type: "prep", text: "Batch the sauce" }],
+    items: [
+      {
+        mealId: "m-1",
+        positionIndex: 0,
+        assignedDayOfWeek: "Monday",
+        assignedDate: new Date("2026-07-06T00:00:00Z"),
+        servingsOverride: 6,
+        ingredientOverrides: [{ remove: "cilantro" }],
+        recipeOverrideJson: { note: "extra spicy" },
+        componentSelections: { d1: { c1: "bought" } },
+        isBreakfast: false,
+        isLunch: false,
+        isDinner: true,
+        notes: "double it",
+      },
+      {
+        mealId: "m-2",
+        positionIndex: 1,
+        assignedDayOfWeek: "Tuesday",
+        assignedDate: null,
+        servingsOverride: null,
+        ingredientOverrides: null,
+        recipeOverrideJson: null,
+        componentSelections: null,
+        isBreakfast: false,
+        isLunch: false,
+        isDinner: true,
+        notes: null,
+      },
+      {
+        mealId: "m-3",
+        positionIndex: 2,
+        assignedDayOfWeek: null,
+        assignedDate: null,
+        servingsOverride: null,
+        ingredientOverrides: null,
+        recipeOverrideJson: null,
+        componentSelections: null,
+        isBreakfast: false,
+        isLunch: false,
+        isDinner: true,
+        notes: null,
+      },
+    ],
+  };
+}
+
+describe("POST /plans/:id/copy — Use again (WS9 3d Part 3b-3)", () => {
+  it("copies the INSTANCE's items (not the empty template) into an undated, inactive draft", async () => {
+    const recorder: CopyRecorder = {
+      created: [],
+      createManyItems: [],
+      templateUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeCopyStub({ recorder, source: wizardSourceFix(A2_USER) }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/src-plan/copy`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as { instance: { id: string } };
+      assert.equal(body.instance.id, "copy-new");
+
+      // New instance: undated, draft, born-committed, carries per-plan state.
+      assert.equal(recorder.created.length, 1);
+      const created = recorder.created[0];
+      assert.equal(created.status, "draft");
+      assert.equal(created.startDate, null);
+      assert.equal(created.endDate, null);
+      assert.ok(created.committedAt instanceof Date, "committedAt stamped");
+      assert.equal(created.titleOverride, "Summer Grill Nights");
+      assert.equal(created.breakfastOverrides, "eggs");
+      assert.equal(created.lunchOverrides, "leftovers");
+
+      // Items copied FROM THE INSTANCE — the crux of the fix (the template is
+      // empty). All three carried, with the per-item overrides.
+      assert.equal(recorder.createManyItems.length, 1);
+      const items = recorder.createManyItems[0];
+      assert.equal(items.length, 3, "all 3 instance items copied");
+      assert.equal(items[0].mealId, "m-1");
+      assert.equal(items[0].assignedDayOfWeek, "Monday");
+      assert.equal(items[0].servingsOverride, 6);
+      assert.deepEqual(items[0].recipeOverrideJson, { note: "extra spicy" });
+      assert.deepEqual(items[0].ingredientOverrides, [{ remove: "cilantro" }]);
+      assert.deepEqual(items[0].componentSelections, { d1: { c1: "bought" } });
+      assert.equal(items[0].notes, "double it");
+      // assignedDate is time-bound → dropped (not carried).
+      assert.equal("assignedDate" in items[0], false);
+
+      // No useCount bump — this is an own-plan copy, not a template adoption.
+      assert.equal(recorder.templateUpdates.length, 0);
+
+      // plan_created activity with the use_again provenance.
+      assert.equal(recorder.activityWrites.length, 1);
+      assert.equal(recorder.activityWrites[0].eventType, "plan_created");
+      assert.deepEqual(recorder.activityWrites[0].metadata, {
+        source: "use_again",
+        copiedFrom: "src-plan",
+        itemCount: 3,
+      });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("404s when the source plan is not owned by the caller", async () => {
+    const recorder: CopyRecorder = {
+      created: [],
+      createManyItems: [],
+      templateUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeCopyStub({
+        recorder,
+        source: { ...wizardSourceFix("someone-else") },
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/src-plan/copy`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 404);
+      assert.equal(recorder.created.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
 // ── WS7-4-C c2 — POST /plans (empty plan create) ──────────────────────────
 
 interface C2Recorder {

@@ -30,7 +30,7 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 export default function PlansTab() {
   const router = useRouter();
   const { user, setUiState } = useAuth();
-  const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
+  const { useTemplateAsPlan, copyPlan, setPlanActiveThisWeek } = useApp();
   const { showToast } = useToast();
 
   // WS9 3d Part 3a/3b-2 — plan-card ⋯ actions. Compost is deferred-undo via the
@@ -61,12 +61,11 @@ export default function PlansTab() {
   };
 
   const handleUseAgain = async (plan: PlanListItem) => {
-    if (!plan.mealPlanTemplateId) return;
     try {
-      // Lands an UNDATED, INACTIVE copy (server semantics) — deliberately NOT
-      // dated to this week. Open it so the user can date via "Cook This Week"
-      // or edit first (spec §8.3 D-WS9-008).
-      const { instanceId } = await useTemplateAsPlan(plan.mealPlanTemplateId);
+      // Copies the plan INSTANCE (its meals + per-plan overrides) into a fresh
+      // UNDATED, INACTIVE plan — deliberately NOT dated to this week. Open it so
+      // the user can date via "Cook This Week" or edit first (D-WS9-008).
+      const { instanceId } = await copyPlan(plan.id);
       router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
     } catch {
       showToast({ message: "Couldn't copy that plan. Please try again." });

@@ -7,18 +7,15 @@
 
 export interface PlanCardActionTarget {
   source: "instance" | "template";
-  // Optional to match the (additive, optional) wire field — treat both null and
-  // undefined as "no backing template".
-  mealPlanTemplateId?: string | null;
 }
 
 /**
- * "Use again" (D-WS9-008) is offered only for a saved plan (instance) that has
- * a backing MealPlanTemplate to copy. Template rows use their own Use-Plan flow;
- * a template-less instance (e.g. an empty POST /plans) has nothing to copy.
+ * "Use again" (D-WS9-008) is offered for any saved plan (instance): 3b-3 copies
+ * the plan INSTANCE (not its template), so even a template-less plan is
+ * copyable — that is the whole point. Template rows use their own Use-Plan flow.
  */
 export function canUseAgain(plan: PlanCardActionTarget): boolean {
-  return plan.source === "instance" && plan.mealPlanTemplateId != null;
+  return plan.source === "instance";
 }
 
 /**
