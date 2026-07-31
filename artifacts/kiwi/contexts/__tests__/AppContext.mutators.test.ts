@@ -995,12 +995,21 @@ test("changeMealForPlanItem PATCHes /items with { mealId: newMealId } (Q-P0-3 at
     return prevFetch(url, init);
   }) as unknown as typeof fetch;
 
+  let result: { newPlanItemId: string } | null = null;
   await act(async () => {
-    await app!.changeMealForPlanItem("plan-1", "item-1", "m-new");
+    result = await app!.changeMealForPlanItem("plan-1", "item-1", "m-new");
   });
 
   // Per Q-P1-4 v1 restriction: body MUST be { mealId } alone.
   assert.deepEqual(capturedBody, { mealId: "m-new" });
+  // WS9 3d Part 4 follow-up — returns the server's NEW item id (the swap is
+  // delete+create) so the screen converges its optimistic row and a fast second
+  // swap doesn't send the deleted id (the "item not found" P1).
+  assert.equal(
+    (result as unknown as { newPlanItemId: string })?.newPlanItemId,
+    "swapped-item-1",
+    "changeMealForPlanItem returns the freshly-created plan-item id",
+  );
 });
 
 test("changeMealForPlanItem propagates server error (e.g. 404 when new meal missing)", async () => {

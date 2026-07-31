@@ -120,12 +120,16 @@ interface AppState {
     planId: string,
     planItemId: string,
   ) => Promise<void>;
-  /** PRD §8.4.2 — Change Meal: repoint planItem.mealId to a different Meal. */
+  /** PRD §8.4.2 — Change Meal: repoint planItem.mealId to a different Meal.
+   *  The swap is server-side delete+create, so it returns the NEW plan-item id
+   *  (WS9 3d Part 4 follow-up) — the caller converges its optimistic row to it
+   *  immediately so a subsequent swap on the same row doesn't send the deleted
+   *  id (the "item not found" P1). Rejects on failure so the caller can recover. */
   changeMealForPlanItem: (
     planId: string,
     planItemId: string,
     newMealId: string,
-  ) => Promise<void>;
+  ) => Promise<{ newPlanItemId: string }>;
   /** PRD §8.4.3 — Change Recipe (this-week-only): writes recipeOverrideJson; mealId unchanged. */
   changeRecipeForPlanItem: (
     planId: string,
@@ -588,11 +592,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       planId: string,
       planItemId: string,
       newMealId: string,
-    ): Promise<void> => {
+    ): Promise<{ newPlanItemId: string }> => {
       const response = await patchPlanItem(planId, planItemId, {
         mealId: newMealId,
       });
       handleMutationResult(planId, response.macrosStale);
+      // WS9 3d Part 4 follow-up — the server delete+creates the item, so the id
+      // changed. Hand it back so the caller repoints its optimistic row before
+      // the (async) refetch re-seed lands, closing the stale-id swap window.
+      return { newPlanItemId: response.item.id };
     },
     [handleMutationResult],
   );

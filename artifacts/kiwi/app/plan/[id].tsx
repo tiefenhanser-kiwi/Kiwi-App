@@ -1106,7 +1106,9 @@ export default function PlanReviewScreen() {
         onClose={() => setSwapForRow(null)}
         onPickReplacement={(newMeal) => {
           if (!swapForRow) return;
-          applyMealReplacement(swapForRow.planItemId, newMeal);
+          // applyMealReplacement handles its own errors (rollback + toast), so
+          // the floating promise never rejects — void it explicitly.
+          void applyMealReplacement(swapForRow.planItemId, newMeal);
           setSwapForRow(null);
         }}
       />
@@ -1120,14 +1122,25 @@ export default function PlanReviewScreen() {
     </View>
   );
 
-  // ── Optimistic-update helper shared by Change Meal (5J) and Find
-  //    Similar (5K-bis). Both repoint planItem.mealId to a different
-  //    Meal record and refresh the row's display copy + macros. The
-  //    AppContext mutator stays log-only until WS7. ──
-  function applyMealReplacement(
+  // ── Optimistic-update helper shared by both swap modes (Change Meal /
+  //    Find Similar, now the one merged SwapMealSheet). Repoints
+  //    planItem.mealId to a different Meal and refreshes the row's display.
+  //
+  //    WS9 3d Part 4 follow-up (P1 fix) — the swap is a server-side delete+
+  //    create, so the item id CHANGES. Previously this fired the mutator as a
+  //    bare `void ...` with no error handling: a swap that raced a prior swap's
+  //    refetch sent the just-deleted planItemId, the server 404'd "item not
+  //    found", and the rejection surfaced as an Uncaught (in promise) crash.
+  //    Now: (1) on success we converge the optimistic row's planItemId to the
+  //    server's new id immediately (not only via the ~200ms refetch re-seed),
+  //    so a fast second swap on the same row uses a live id; (2) on failure we
+  //    roll back the optimistic display, refetch to reconcile ids to server
+  //    truth, and surface a retryable toast instead of crashing. ──
+  async function applyMealReplacement(
     targetPlanItemId: string,
     newMeal: MealSummary,
   ) {
+    const prevReviewPlan = reviewPlan; // rollback snapshot
     const newMetaLine = `${capitalize(newMeal.difficulty)} · ${newMeal.estimatedTimeMinutes} min · serves ${newMeal.servingsDefault}`;
     const replaceRow = (m: ReviewPlanMealRow): ReviewPlanMealRow =>
       m.planItemId === targetPlanItemId
@@ -1153,7 +1166,34 @@ export default function PlanReviewScreen() {
           }
         : prev,
     );
-    void changeMealForPlanItem(planId, targetPlanItemId, newMeal.id);
+    try {
+      const { newPlanItemId } = await changeMealForPlanItem(
+        planId,
+        targetPlanItemId,
+        newMeal.id,
+      );
+      // Converge the row's id to the server's freshly-created item so the next
+      // swap on this row targets a live id, not the deleted one.
+      const repointRow = (m: ReviewPlanMealRow): ReviewPlanMealRow =>
+        m.planItemId === targetPlanItemId
+          ? { ...m, planItemId: newPlanItemId }
+          : m;
+      setReviewPlan((prev) =>
+        prev
+          ? {
+              ...prev,
+              scheduledMeals: prev.scheduledMeals.map(repointRow),
+              unscheduledMeals: prev.unscheduledMeals.map(repointRow),
+            }
+          : prev,
+      );
+    } catch {
+      // Revert the optimistic display, then refetch so reviewPlan reconciles to
+      // server truth (fixing a stale/deleted id for the retry). No uncaught crash.
+      setReviewPlan(prevReviewPlan);
+      void planQuery.refetch();
+      showToast({ message: "Couldn't swap that meal. Please try again." });
+    }
   }
 
   // ── Day-pill tap (PRD §8.3.6). null = unassign. Configures the
