@@ -957,6 +957,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await deletePlanAPI(planId);
       queryClient.invalidateQueries({ queryKey: ["plans"] });
       queryClient.invalidateQueries({ queryKey: ["home"] });
+      // WS9 3d Part 3c-2 (A1 case c hardening) — the server cascade archives the
+      // plan's grocery lists in the same tx, but this path previously omitted the
+      // ["groceries"] invalidation, so the composted plan's list lingered in the
+      // Groceries cache until staleTime (60s) or a focus-refetch. Refresh it now
+      // (["groceries"] is a valid prefix of ["groceries","list",filter]) so the
+      // list drops immediately, mirroring the plans/home refresh above.
+      queryClient.invalidateQueries({ queryKey: ["groceries"] });
     },
     [queryClient],
   );

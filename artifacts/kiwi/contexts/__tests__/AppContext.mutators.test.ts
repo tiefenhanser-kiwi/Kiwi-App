@@ -259,6 +259,38 @@ test("updateUserPreferences PATCHes /me/preferences and resolves", async () => {
   assert.equal(patched, true, "PATCH /me/preferences was called");
 });
 
+test("updateUserPreferences invalidates me/preferences + plans + home (dietary banner refresh — 792d450)", async () => {
+  // WS9 3d Part 3c-2 (B4) — the 792d450 invalidation shipped untested. A
+  // dietary/allergy edit re-stamps dietaryUpdatedAt server-side, flipping the
+  // plan payload's dietaryStale boolean that drives the Plan Review staleness
+  // banner. The plan-detail cache isn't touched by a prefs save, so without
+  // these invalidations the banner never surfaces until staleTime lapses.
+  const qc = await mountAuthed();
+  qc.setQueryData(["me", "preferences"], VALID_PREFS);
+  qc.setQueryData(["plans"], { plans: [], activeThisWeek: null, nextCursor: null });
+  qc.setQueryData(["home"], {});
+
+  route("PATCH", "/me/preferences", () => mockJson({ preferences: VALID_PREFS }));
+
+  await act(async () => {
+    await app!.updateUserPreferences({
+      allergiesAndAvoidances: ["peanuts"],
+    } as unknown as Parameters<AppValue["updateUserPreferences"]>[0]);
+  });
+
+  assert.equal(
+    qc.getQueryState(["me", "preferences"])?.isInvalidated,
+    true,
+    "preferences cache invalidated so the next read refetches the merged row",
+  );
+  assert.equal(
+    qc.getQueryState(["plans"])?.isInvalidated,
+    true,
+    "plans cache invalidated so the dietary-staleness banner surfaces on return",
+  );
+  assert.equal(qc.getQueryState(["home"])?.isInvalidated, true);
+});
+
 test("updateUserPreferences sends the partial body verbatim — no stub defaults (WS7-2-E Bug 3 / WS7-2-F)", async () => {
   // Bug 3 data-integrity half: onboarding-step-3's buildFullPrefs() now emits
   // a TRUE PARTIAL (step-2 draft ∪ step-3 form) instead of seeding from the
@@ -832,6 +864,46 @@ test("compostPlan DELETEs /plans/:id and invalidates the plan caches (D-WS9-001)
   assert.equal(capturedMethod, "DELETE");
   assert.ok(capturedUrl?.endsWith("/plans/plan-1"));
   assert.equal(qc.getQueryState(["plans", "plan-1"])?.isInvalidated, true);
+});
+
+test("compostPlan invalidates the groceries cache so the composted plan's list drops (A1 case c)", async () => {
+  // WS9 3d Part 3c-2 (B3, case c hardening) — the server cascade archives the
+  // plan's grocery lists in the same tx, but compostPlan previously omitted the
+  // ["groceries"] invalidation, so the composted plan's list lingered in the
+  // Groceries cache until staleTime / a focus-refetch. (The server-side index
+  // filter — A1 case b — is the primary fix; this keeps the client immediate.)
+  const qc = await mountAuthed();
+  qc.setQueryData(["groceries", "list", null], []);
+  qc.setQueryData(["plans"], { plans: [], activeThisWeek: null, nextCursor: null });
+  qc.setQueryData(["home"], {});
+
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      String(url).endsWith("/plans/plan-1") &&
+      (init?.method ?? "GET").toUpperCase() === "DELETE"
+    ) {
+      return Promise.resolve(
+        mockJson({ instance: { id: "plan-1", revisionId: 4 } }),
+      );
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.compostPlan("plan-1");
+  });
+
+  assert.equal(
+    qc.getQueryState(["groceries", "list", null])?.isInvalidated,
+    true,
+    "groceries cache invalidated so the composted plan's list disappears immediately",
+  );
+  assert.equal(qc.getQueryState(["plans"])?.isInvalidated, true);
+  assert.equal(qc.getQueryState(["home"])?.isInvalidated, true);
 });
 
 test("copyPlan POSTs /plans/:id/copy and invalidates the plan caches (D-WS9-008)", async () => {
