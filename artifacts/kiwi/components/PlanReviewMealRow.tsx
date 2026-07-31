@@ -225,8 +225,9 @@ export function PlanReviewMealRow({
             console.log("[meal-row] swap-different tapped", {
               planItemId: row.planItemId,
             });
-            // TODO(3d): repoint to the merged swap sheet (Different mode) per
-            // D-WS9-018. Wired now to the existing ChangeMealSheet via onChangeMeal.
+            // WS9 3d Part 4 (D-WS9-018) — opens the merged SwapMealSheet in
+            // "different" mode via onChangeMeal (the screen maps the callback to
+            // setSwapForRow({ mode: "different" })).
             onChangeMeal?.(row.planItemId, row.mealId);
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
@@ -239,8 +240,9 @@ export function PlanReviewMealRow({
               planItemId: row.planItemId,
               mealId: row.mealId,
             });
-            // TODO(3d): repoint to the merged swap sheet (Similar mode) per
-            // D-WS9-018. Wired now to the existing FindSimilarSheet via onFindSimilar.
+            // WS9 3d Part 4 (D-WS9-018) — opens the merged SwapMealSheet in
+            // "similar" mode via onFindSimilar (the screen maps the callback to
+            // setSwapForRow({ mode: "similar" })).
             onFindSimilar?.(row.planItemId, row.mealId, row.title);
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}

@@ -19,8 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AddMealsSheet } from "@/components/AddMealsSheet";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
-import { ChangeMealSheet } from "@/components/ChangeMealSheet";
-import { FindSimilarSheet } from "@/components/FindSimilarSheet";
+import { SwapMealSheet, type SwapMode } from "@/components/SwapMealSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { LoadingShim } from "@/components/LoadingShim";
@@ -256,14 +255,13 @@ export default function PlanReviewScreen() {
   }, [injectMealQuery.isError, injectMealQuery.error, addMealId, showToast]);
 
   // Sheet state for §8.4.2 Change Meal flow.
-  const [changeMealForRow, setChangeMealForRow] = useState<{
+  // WS9 3d Part 4 (D-WS9-018) — one swap-sheet state for BOTH row actions.
+  // `mode` selects Different (filter chips) vs Similar (AI ranking); the source
+  // meal is the one being replaced either way. Replaces the separate
+  // changeMealForRow / findSimilarForRow state the two old sheets used.
+  const [swapForRow, setSwapForRow] = useState<{
     planItemId: string;
-    currentMealId: string;
-  } | null>(null);
-
-  // Sheet state for §8.4.x Find Similar flow (WS5 amendment).
-  const [findSimilarForRow, setFindSimilarForRow] = useState<{
-    planItemId: string;
+    mode: SwapMode;
     sourceMealId: string;
     sourceMealTitle?: string;
     sourceCuisine?: string;
@@ -959,11 +957,16 @@ export default function PlanReviewScreen() {
                   readOnly={isDraft}
                   onReadOnlyEdit={showDraftEditGuard}
                   onChangeMeal={(planItemId, currentMealId) =>
-                    setChangeMealForRow({ planItemId, currentMealId })
+                    setSwapForRow({
+                      planItemId,
+                      mode: "different",
+                      sourceMealId: currentMealId,
+                    })
                   }
                   onFindSimilar={(planItemId, sourceMealId, title) => {
-                    setFindSimilarForRow({
+                    setSwapForRow({
                       planItemId,
+                      mode: "similar",
                       sourceMealId,
                       sourceMealTitle: title,
                       sourceCuisine: row.cuisine,
@@ -989,11 +992,16 @@ export default function PlanReviewScreen() {
                       readOnly={isDraft}
                       onReadOnlyEdit={showDraftEditGuard}
                       onChangeMeal={(planItemId, currentMealId) =>
-                        setChangeMealForRow({ planItemId, currentMealId })
+                        setSwapForRow({
+                          planItemId,
+                          mode: "different",
+                          sourceMealId: currentMealId,
+                        })
                       }
                       onFindSimilar={(planItemId, sourceMealId, title) => {
-                        setFindSimilarForRow({
+                        setSwapForRow({
                           planItemId,
+                          mode: "similar",
                           sourceMealId,
                           sourceMealTitle: title,
                           sourceCuisine: row.cuisine,
@@ -1089,27 +1097,17 @@ export default function PlanReviewScreen() {
         )}
       </KeyboardAwareScrollViewCompat>
 
-      <ChangeMealSheet
-        visible={changeMealForRow !== null}
-        currentMealId={changeMealForRow?.currentMealId ?? ""}
-        onClose={() => setChangeMealForRow(null)}
+      <SwapMealSheet
+        visible={swapForRow !== null}
+        mode={swapForRow?.mode ?? "different"}
+        sourceMealId={swapForRow?.sourceMealId ?? ""}
+        sourceMealTitle={swapForRow?.sourceMealTitle}
+        sourceCuisine={swapForRow?.sourceCuisine}
+        onClose={() => setSwapForRow(null)}
         onPickReplacement={(newMeal) => {
-          if (!changeMealForRow) return;
-          applyMealReplacement(changeMealForRow.planItemId, newMeal);
-          setChangeMealForRow(null);
-        }}
-      />
-
-      <FindSimilarSheet
-        visible={findSimilarForRow !== null}
-        sourceMealId={findSimilarForRow?.sourceMealId ?? ""}
-        sourceMealTitle={findSimilarForRow?.sourceMealTitle}
-        sourceCuisine={findSimilarForRow?.sourceCuisine}
-        onClose={() => setFindSimilarForRow(null)}
-        onPickReplacement={(newMeal) => {
-          if (!findSimilarForRow) return;
-          applyMealReplacement(findSimilarForRow.planItemId, newMeal);
-          setFindSimilarForRow(null);
+          if (!swapForRow) return;
+          applyMealReplacement(swapForRow.planItemId, newMeal);
+          setSwapForRow(null);
         }}
       />
 
