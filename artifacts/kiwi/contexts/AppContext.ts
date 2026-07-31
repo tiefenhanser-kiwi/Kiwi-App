@@ -858,6 +858,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Invalidate so the next getPreferences read (Block C wires the screen)
     // refetches the server-merged row rather than serving a stale cache.
     await queryClient.invalidateQueries({ queryKey: ["me", "preferences"] });
+    // WS9 3d Part 3c (D-WS9-013) — a dietary/allergy edit re-stamps
+    // UserPreferences.dietaryUpdatedAt server-side, which flips the plan
+    // payload's server-computed `dietaryStale` boolean (GET /plans/:id) that
+    // drives the Plan Review staleness banner. The plan-detail cache
+    // (["plans","detail",id]) is NOT touched by a prefs save, so without this
+    // the banner never appears until the plan's staleTime lapses or an
+    // unrelated plan mutation refetches. Mirror the plans/home invalidations
+    // that handleMutationResult already runs on plan edits so the banner
+    // surfaces on the next return to the plan. (Home's hero can also carry a
+    // plan, so ["home"] is refreshed too.)
+    queryClient.invalidateQueries({ queryKey: ["plans"] });
+    queryClient.invalidateQueries({ queryKey: ["home"] });
   };
 
   // WS7-2 Block C (D-WS7-025): marketing consent lives on User. Optimistic —
