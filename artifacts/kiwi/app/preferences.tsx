@@ -1,18 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
-  Pressable,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button } from "@/components/Button";
 import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -30,6 +27,7 @@ import { SpicePicker } from "@/components/preference-pickers/SpicePicker";
 import { StovetopPicker } from "@/components/preference-pickers/StovetopPicker";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastProvider";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   COOK_TIME_CAP_OPTIONS,
@@ -48,12 +46,17 @@ const HOUSEHOLD_MAX = 30;
 const KIDS_MIN = 0;
 const KIDS_MAX = 8;
 
-/** Inline result banner shown after a save / toggle attempt. */
+/** Inline result banner shown after a toggle attempt. */
 type Status = { kind: "success" | "error"; text: string } | null;
 
+// WS9 3d Part 3c (B5) — auto-save debounce. Coalesces rapid edits (chip taps,
+// stepper holds, typing in the notes field) into one PATCH after the user
+// settles, instead of a per-keystroke storm.
+const AUTOSAVE_DEBOUNCE_MS = 800;
+
 export default function Preferences() {
-  const router = useRouter();
   const { updateUserPreferences, updateMarketingConsent } = useApp();
+  const { showToast } = useToast();
   const auth = useAuth();
   const authUser = auth.user;
 
@@ -66,8 +69,6 @@ export default function Preferences() {
   });
 
   const [form, setForm] = useState<UserPreferencesData | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<Status>(null);
   const [marketingStatus, setMarketingStatus] = useState<Status>(null);
 
   // Seed the form once, when the query first resolves. Later refetches (e.g.
@@ -77,6 +78,51 @@ export default function Preferences() {
       setForm(toFormState(prefsQuery.data));
     }
   }, [prefsQuery.data, form]);
+
+  // WS9 3d Part 3c (B5, RULED) — preferences AUTO-SAVE, no Save button / bar.
+  // A debounced effect PATCHes the whole form whenever it changes after the
+  // initial seed; the app-level toast (ToastProvider, reused from Part 3b — no
+  // new save-indicator UI) confirms the write. `seededRef` skips the null→row
+  // seed so we don't PATCH on mount, and skips any subsequent seed-guarded
+  // refetch (which can't happen while `form` is non-null, but stays honest).
+  // No unsaved-changes state, so backing out (Header ← ) needs no warning.
+  const seededRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const persistPreferences = useCallback(
+    async (next: UserPreferencesData) => {
+      // wantsLeftovers is no longer user-set (D-WS7-190) — omit it from the
+      // PATCH rather than echo back the stored value (see also the server-only
+      // key peel in toFormState).
+      const { wantsLeftovers: _omitLeftovers, ...prefsToSave } = next;
+      try {
+        await updateUserPreferences(prefsToSave);
+        showToast({ message: "Preferences saved." });
+      } catch {
+        showToast({
+          message: "Couldn't save your preferences. Please try again.",
+        });
+      }
+    },
+    [updateUserPreferences, showToast],
+  );
+
+  useEffect(() => {
+    if (!form) return;
+    // Skip the one-time seed (null → server row): that is not a user edit.
+    if (!seededRef.current) {
+      seededRef.current = true;
+      return;
+    }
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    const snapshot = form;
+    saveTimerRef.current = setTimeout(() => {
+      void persistPreferences(snapshot);
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [form, persistPreferences]);
 
   const update = <K extends keyof UserPreferencesData>(
     key: K,
@@ -97,28 +143,6 @@ export default function Preferences() {
           }
         : prev,
     );
-  };
-
-  const handleSave = async () => {
-    if (!form) return;
-    Keyboard.dismiss();
-    setSaveStatus(null);
-    setSaving(true);
-    try {
-      // wantsLeftovers is no longer user-set (D-WS7-190) — its control was
-      // removed from this screen, so omit it from the PATCH rather than echo
-      // back the stored value.
-      const { wantsLeftovers: _omitLeftovers, ...prefsToSave } = form;
-      await updateUserPreferences(prefsToSave);
-      setSaveStatus({ kind: "success", text: "Preferences saved." });
-    } catch {
-      setSaveStatus({
-        kind: "error",
-        text: "Couldn't save your preferences. Please try again.",
-      });
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleMarketingToggle = async (
@@ -437,40 +461,12 @@ export default function Preferences() {
           )}
         </Section>
 
-        {/* Submit + cancel */}
-        <View style={s.footer}>
-          <Button
-            label="Save preferences"
-            variant="primary"
-            loading={saving}
-            disabled={saving}
-            onPress={handleSave}
-          />
-          {saveStatus ? (
-            <Text
-              style={[
-                s.statusText,
-                saveStatus.kind === "error"
-                  ? s.statusError
-                  : s.statusSuccess,
-              ]}
-            >
-              {saveStatus.text}
-            </Text>
-          ) : (
-            <Text style={s.footerHint}>Updates your saved preferences</Text>
-          )}
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={6}
-            style={({ pressed }) => [
-              s.cancelLink,
-              pressed && { opacity: 0.6 },
-            ]}
-          >
-            <Text style={s.cancelText}>Cancel</Text>
-          </Pressable>
-        </View>
+        {/* WS9 3d Part 3c (B5) — auto-save: no Save button / bar. Edits persist
+            automatically (debounced) and the app-level toast confirms each
+            save; backing out via the header needs no unsaved-changes warning. */}
+        <Text style={s.footerHint}>
+          Changes save automatically
+        </Text>
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -591,32 +587,14 @@ const s = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing[2],
   },
-  statusSuccess: {
-    color: Colors.sage[700],
-  },
   statusError: {
     color: Colors.terracotta[700],
   },
-  footer: {
-    marginTop: Spacing[4],
-    gap: Spacing[2],
-    alignItems: "center",
-  },
   footerHint: {
+    marginTop: Spacing[4],
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     textAlign: "center",
-  },
-  cancelLink: {
-    paddingVertical: Spacing[2],
-    paddingHorizontal: Spacing[3],
-    marginTop: Spacing[1],
-  },
-  cancelText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[700],
-    fontWeight: Typography.fontWeight.medium,
-    fontFamily: Typography.face.sans[500],
   },
 });
