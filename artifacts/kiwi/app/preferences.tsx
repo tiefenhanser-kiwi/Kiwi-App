@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
@@ -38,6 +38,7 @@ import {
   SAUCE_PREFERENCE_OPTIONS,
 } from "@/lib/domain";
 import { getPreferences } from "@/lib/api/me";
+import { useDebouncedAutoSave } from "@/hooks/useDebouncedAutoSave";
 import type { UserPreferencesData } from "@/lib/types";
 import { toFormState } from "@/lib/preferencesForm";
 
@@ -80,15 +81,13 @@ export default function Preferences() {
   }, [prefsQuery.data, form]);
 
   // WS9 3d Part 3c (B5, RULED) — preferences AUTO-SAVE, no Save button / bar.
-  // A debounced effect PATCHes the whole form whenever it changes after the
-  // initial seed; the app-level toast (ToastProvider, reused from Part 3b — no
-  // new save-indicator UI) confirms the write. `seededRef` skips the null→row
-  // seed so we don't PATCH on mount, and skips any subsequent seed-guarded
-  // refetch (which can't happen while `form` is non-null, but stays honest).
-  // No unsaved-changes state, so backing out (Header ← ) needs no warning.
-  const seededRef = useRef(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // useDebouncedAutoSave (below) PATCHes the whole form whenever it changes
+  // after the initial seed; the app-level toast (ToastProvider, reused from Part
+  // 3b — no new save-indicator UI) confirms the write. The hook owns the seed-
+  // skip (first non-null value is the server row, not an edit) AND the Part 3c-2
+  // (B2) flush-on-unmount so a fast swipe-back within the debounce window no
+  // longer drops the edit. No unsaved-changes state, so backing out (Header ← )
+  // needs no warning.
   const persistPreferences = useCallback(
     async (next: UserPreferencesData) => {
       // wantsLeftovers is no longer user-set (D-WS7-190) — omit it from the
@@ -107,22 +106,16 @@ export default function Preferences() {
     [updateUserPreferences, showToast],
   );
 
-  useEffect(() => {
-    if (!form) return;
-    // Skip the one-time seed (null → server row): that is not a user edit.
-    if (!seededRef.current) {
-      seededRef.current = true;
-      return;
-    }
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    const snapshot = form;
-    saveTimerRef.current = setTimeout(() => {
-      void persistPreferences(snapshot);
-    }, AUTOSAVE_DEBOUNCE_MS);
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, [form, persistPreferences]);
+  // WS9 3d Part 3c-2 (B2) — debounce + flush-on-unmount extracted to a
+  // unit-testable hook. Coalesces rapid edits into one PATCH and, critically,
+  // flushes a still-pending edit if the user swipes back within the 800ms window
+  // (previously lost). The hook owns the seed-skip too, so `seededRef` is no
+  // longer needed here.
+  useDebouncedAutoSave({
+    value: form,
+    onSave: persistPreferences,
+    delayMs: AUTOSAVE_DEBOUNCE_MS,
+  });
 
   const update = <K extends keyof UserPreferencesData>(
     key: K,
