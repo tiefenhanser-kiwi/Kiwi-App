@@ -52,3 +52,19 @@ attached_assets/
 firstrun-audit.md
 scripts/fixtures/.recipe-card-validated
 .block4-logs/
+
+# WS9 standing scratch/reference artifacts (kept on disk for CC reference; never
+# committed). Named explicitly per WS9 3d Part 3c-2 B6 — no broad globs, so a
+# genuinely new artifact still shows in `git status`.
+artifacts/api-server/scripts/ws9-block3-inspect-store.cjs
+artifacts/api-server/scripts/ws9-block3-top25-A.csv
+artifacts/api-server/scripts/ws9-block3-top25-B.csv
+artifacts/api-server/scripts/ws9-block3-top25-axis-diff.csv
+artifacts/api-server/scripts/ws9-block4b2-rotation-inspect.ts
+artifacts/api-server/ws9-block3-catalog-run.json
+artifacts/api-server/ws9-block3-resample25.json
+artifacts/api-server/ws9-block3-retry3.json
+artifacts/api-server/ws9-block3-sample50.json
+artifacts/design_tokens_4.ts
+artifacts/kiwi_screens_mockup.html
+artifacts/kiwi_ux_redesign_spec.md
