@@ -209,6 +209,30 @@ export async function expandCandidate(
     };
   }
 
+  // WS9 3d Part 3c-2 (B5) — cost-vs-coverage on ONE line. Joins the coverage
+  // counts (already on wizard_store_compose_summary, emitted pre-AI above) with
+  // the actual expand AI output tokens, so "did the catalog pay off?" is a single
+  // read instead of a timestamp join across the compose-summary and per-call
+  // ai_call events. expandOutputTokens is 0 for an all-store plan (zero live
+  // slots → zero expand calls). Measurement only — no behavior change.
+  const expandOutputTokens = perMealResults.reduce(
+    (sum, r) => sum + (r.ok ? r.outputTokens : 0),
+    0,
+  );
+  logger.info(
+    {
+      event: "wizard_expand_ai_summary",
+      userId: opts.userId,
+      candidateId: opts.request.candidate.id,
+      totalSlots: mealTitles.length,
+      storeMealsBound,
+      liveMealsComposed: liveSlots.length,
+      expandCalls: liveSlots.length,
+      expandOutputTokens,
+    },
+    "Wizard expand AI cost-vs-coverage",
+  );
+
   // Live meals keyed by their REAL slot index (stepless; macros added next).
   const liveMealBySlot = new Map<number, WizardExpandMealDetails>();
   perMealResults.forEach((r, k) => {
@@ -361,7 +385,14 @@ export async function expandCandidate(
 // ── per-meal shard helper ────────────────────────────────────────────────
 
 type PerMealResult =
-  | { ok: true; mealTitle: string; meal: WizardExpandMealDetails }
+  | {
+      ok: true;
+      mealTitle: string;
+      meal: WizardExpandMealDetails;
+      // WS9 3d Part 3c-2 (B5) — carry the model output tokens for this shard so
+      // the caller can join AI cost with the live-slot count on one summary line.
+      outputTokens: number;
+    }
   | {
       ok: false;
       mealTitle: string;
@@ -430,7 +461,13 @@ async function expandOneMeal(
       userFacingMessage: "Kiwi got distracted. Try again?",
     };
   }
-  return { ok: true, mealTitle: opts.mealTitle, meal: ai.data.meals[0] };
+  return {
+    ok: true,
+    mealTitle: opts.mealTitle,
+    meal: ai.data.meals[0],
+    // WS9 3d Part 3c-2 (B5) — measurement only.
+    outputTokens: ai.metadata.outputTokens,
+  };
 }
 
 // ── persistence (the swappable seam) ──────────────────────────────────────

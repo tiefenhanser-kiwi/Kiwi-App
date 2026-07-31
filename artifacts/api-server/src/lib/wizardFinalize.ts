@@ -213,6 +213,31 @@ export async function readAndFinalizeWizardDraft(
       dishSteps: assembledDishSteps,
     };
 
+    // WS9 3d Part 3c-2 (B5) — cost-vs-coverage on ONE line. Joins how many meals
+    // finalize was asked to author steps for (the BUILD subset — store slots are
+    // forked and skip finalize entirely) with the actual finalize AI output
+    // tokens, so "did the catalog pay off?" is a single read. There was no
+    // success-path finalize summary before (only wizard_finalize_steps_failed on
+    // failure), so this also closes that gap. Measurement only — no behavior
+    // change; this branch runs only when buildEntries.length > 0.
+    const finalizeOutputTokens = perMealResults.reduce(
+      (sum, r) => sum + (r.ok ? r.outputTokens : 0),
+      0,
+    );
+    logger.info(
+      {
+        event: "wizard_finalize_steps_summary",
+        userId,
+        draftId,
+        totalSlots: details.meals.length,
+        storeMealsForked: storeBySlot.size,
+        buildMealsFinalized: buildEntries.length,
+        finalizeCalls: buildEntries.length,
+        finalizeOutputTokens,
+      },
+      "Wizard finalize-steps AI cost-vs-coverage",
+    );
+
     const merged = mergeFinalizeStepsIntoDetails(buildDetails, assembled);
     if (merged.status !== "ok") {
       logger.warn(
@@ -388,7 +413,14 @@ export function unwrapFinalizeResultOrThrow(
 // ── per-meal shard helper ────────────────────────────────────────────────
 
 type PerMealFinalizeResult =
-  | { ok: true; mealIndex: number; dishSteps: WizardFinalizeStepsDish[] }
+  | {
+      ok: true;
+      mealIndex: number;
+      dishSteps: WizardFinalizeStepsDish[];
+      // WS9 3d Part 3c-2 (B5) — model output tokens for this shard, so the caller
+      // can join AI cost with the build-meal count on one summary line.
+      outputTokens: number;
+    }
   | {
       ok: false;
       mealIndex: number;
@@ -452,5 +484,7 @@ async function finalizeOneMeal(
     ok: true,
     mealIndex: opts.mealIndex,
     dishSteps: ai.data.dishSteps,
+    // WS9 3d Part 3c-2 (B5) — measurement only.
+    outputTokens: ai.metadata.outputTokens,
   };
 }
