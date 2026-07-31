@@ -480,13 +480,96 @@ describe("PATCH /me/preferences", () => {
     }
   });
 
-  it("stamps on a dietaryNotes:null clear (key presence, not truthiness)", async () => {
+  it("stamps on a dietaryNotes:null clear (value change, not truthiness)", async () => {
     const seed = defaultsFor(USER_ID);
     seed.dietaryNotes = "old note";
     const harness = await spinUp(makeStubPrisma(seed));
     try {
       const p = await patchPrefs(harness, { dietaryNotes: null });
       assert.equal(typeof p.dietaryUpdatedAt, "string", "clearing dietaryNotes is a dietary edit");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── WS9 3d Part 3c-2 (BUG-055) — stamp on CHANGE, not key presence ────────
+  // The mobile preferences screen AUTO-SAVES the whole form on every edit, so
+  // the four dietary keys ride along on EVERY PATCH regardless of what the user
+  // touched. A presence-only stamp therefore re-stamped on a spice-tolerance
+  // edit, marking every plan stale. These pin the fixed behavior against a
+  // PRODUCTION-SHAPED full-form body (not a convenient single-field patch — the
+  // single-field tests above passed while the real full-form path was broken).
+  const seededDietary = (): PrefsRow => {
+    const s = defaultsFor(USER_ID);
+    s.allergiesAndAvoidances = ["Dairy-free", "Nut-free"];
+    s.eatingStyles = ["Mediterranean"];
+    s.pickyAvoidances = ["Mushrooms"];
+    s.dietaryNotes = "no cilantro";
+    return s;
+  };
+  // The whole form the screen sends: dietary fields at their SEEDED values
+  // (unchanged by default), plus the non-dietary fields always present.
+  const fullFormBody = (
+    over: Record<string, unknown> = {},
+  ): Record<string, unknown> => ({
+    allergiesAndAvoidances: ["Dairy-free", "Nut-free"],
+    eatingStyles: ["Mediterranean"],
+    pickyAvoidances: ["Mushrooms"],
+    dietaryNotes: "no cilantro",
+    spiceTolerance: "medium",
+    householdSize: 2,
+    cookingEquipment: [],
+    cuisines: [],
+    budgetLevel: "mid_range",
+    healthGoals: [],
+    ...over,
+  });
+
+  it("BUG-055: full-form save with UNCHANGED dietary values does NOT stamp (spice edit)", async () => {
+    const harness = await spinUp(makeStubPrisma(seededDietary()));
+    try {
+      const p = await patchPrefs(harness, fullFormBody({ spiceTolerance: "very_hot" }));
+      assert.equal(
+        p.dietaryUpdatedAt,
+        null,
+        "changing spice tolerance in a full-form save must not mark plans dietarily stale",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BUG-055: reordering an allergy array in a full-form save does NOT stamp", async () => {
+    const harness = await spinUp(makeStubPrisma(seededDietary()));
+    try {
+      const p = await patchPrefs(
+        harness,
+        fullFormBody({ allergiesAndAvoidances: ["Nut-free", "Dairy-free"] }),
+      );
+      assert.equal(
+        p.dietaryUpdatedAt,
+        null,
+        "reordering the same allergies is not a dietary change",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BUG-055: a genuine allergy change inside a full-form save DOES stamp", async () => {
+    const harness = await spinUp(makeStubPrisma(seededDietary()));
+    try {
+      const p = await patchPrefs(
+        harness,
+        fullFormBody({
+          allergiesAndAvoidances: ["Dairy-free", "Nut-free", "Shellfish-free"],
+        }),
+      );
+      assert.equal(
+        typeof p.dietaryUpdatedAt,
+        "string",
+        "adding an allergy in a full-form save must stamp",
+      );
     } finally {
       await harness.close();
     }

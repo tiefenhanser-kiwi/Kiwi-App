@@ -206,6 +206,51 @@ const DIETARY_STAMP_FIELDS = [
   "pickyAvoidances",
 ] as const;
 
+// WS9 3d Part 3c-2 (BUG-055) — the mobile preferences screen AUTO-SAVES the
+// WHOLE form on every edit (preferences.tsx sends every field), so the four
+// DIETARY_STAMP_FIELDS keys are present in essentially every PATCH regardless
+// of what the user actually touched. A presence-only stamp therefore re-stamped
+// dietaryUpdatedAt on a spice-tolerance / household / equipment edit, marking
+// every plan dietarily stale. The stamp must fire on a VALUE change, not mere
+// key presence; the server owns this judgment (the client keeps sending the
+// full form). Array fields compare order-insensitively — reordering an allergy
+// list is not a dietary change.
+type StoredDietary = {
+  allergiesAndAvoidances: string[];
+  eatingStyles: string[];
+  pickyAvoidances: string[];
+  dietaryNotes: string | null;
+};
+
+function arraysEqualUnordered(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
+
+function dietaryFieldChanged(
+  field: (typeof DIETARY_STAMP_FIELDS)[number],
+  updates: Record<string, unknown>,
+  stored: StoredDietary,
+): boolean {
+  if (!(field in updates)) return false;
+  const next = updates[field];
+  if (field === "dietaryNotes") {
+    // Nullable string; normalize undefined→null so a `dietaryNotes: null` clear
+    // against a stored null is a no-op, while clearing a real note is a change.
+    return (next ?? null) !== stored.dietaryNotes;
+  }
+  const storedArr =
+    field === "allergiesAndAvoidances"
+      ? stored.allergiesAndAvoidances
+      : field === "eatingStyles"
+        ? stored.eatingStyles
+        : stored.pickyAvoidances;
+  const nextArr = Array.isArray(next) ? (next as string[]) : [];
+  return !arraysEqualUnordered(nextArr, storedArr);
+}
+
 function serializePreferences(p: {
   id: string;
   userId: string;
@@ -792,11 +837,31 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       return res.status(400).json({ error: "no fields to update" });
     }
 
-    // WS9 3d Part 2c (D-WS9-013) — stamp dietaryUpdatedAt iff an allergy/dietary
-    // field is present in THIS patch (key presence, so a dietaryNotes:null clear
-    // still counts). Not derived from `updatedAt`, which @updatedAt bumps on
-    // every write. A household-size-only edit leaves the stamp untouched.
-    const touchesDietary = DIETARY_STAMP_FIELDS.some((f) => f in updates);
+    // WS9 3d Part 3c-2 (BUG-055, was D-WS9-013) — stamp dietaryUpdatedAt only
+    // when a present allergy/dietary field's VALUE differs from the stored row,
+    // not on mere key presence (the mobile screen auto-saves the full form, so
+    // the dietary keys ride along on EVERY edit). Read the current dietary values
+    // first; a missing row (first save) compares against the schema defaults
+    // (empty arrays / null notes) so an initial dietary entry still stamps. Not
+    // derived from `updatedAt`, which @updatedAt bumps on every write.
+    const existing = await prisma.userPreferences.findUnique({
+      where: { userId: req.userId! },
+      select: {
+        allergiesAndAvoidances: true,
+        eatingStyles: true,
+        pickyAvoidances: true,
+        dietaryNotes: true,
+      },
+    });
+    const storedDietary: StoredDietary = existing ?? {
+      allergiesAndAvoidances: [],
+      eatingStyles: [],
+      pickyAvoidances: [],
+      dietaryNotes: null,
+    };
+    const touchesDietary = DIETARY_STAMP_FIELDS.some((f) =>
+      dietaryFieldChanged(f, updates, storedDietary),
+    );
     const data = touchesDietary
       ? { ...updates, dietaryUpdatedAt: new Date() }
       : updates;
