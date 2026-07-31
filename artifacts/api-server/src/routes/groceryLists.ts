@@ -407,7 +407,18 @@ export function createGroceryListsRouter(
       const cutoff = new Date(
         Date.now() - ACTIVE_WINDOW_DAYS * 24 * 60 * 60 * 1000,
       );
-      let where: Prisma.GroceryListWhereInput = { userId };
+      // WS9 3d Part 3c-2 (BUG-055 sibling / A1 root cause) — EVERY branch
+      // excludes archived rows. The compost cascade (plans.ts DELETE) sets a
+      // grocery list's status to "archived" so it drops off the library with its
+      // plan; the pre-existing default (no-filter) and "past" branches carried no
+      // status filter, so a composted plan's list stayed visible in the mobile
+      // Groceries index (which reads with no filter). Only the "active" branch
+      // filtered archived before. `archived` is a server-internal status the
+      // client PATCH validator never writes (see plans.ts cascade comment).
+      let where: Prisma.GroceryListWhereInput = {
+        userId,
+        status: { not: "archived" },
+      };
       if (filter === "active") {
         where = {
           userId,
@@ -415,7 +426,11 @@ export function createGroceryListsRouter(
           createdAt: { gt: cutoff },
         };
       } else if (filter === "past") {
-        where = { userId, createdAt: { lte: cutoff } };
+        where = {
+          userId,
+          status: { not: "archived" },
+          createdAt: { lte: cutoff },
+        };
       }
 
       const lists = await prisma.groceryList.findMany({

@@ -2135,6 +2135,54 @@ describe("GET /grocery-lists", () => {
     }
   });
 
+  it("no filter (mobile Groceries tab) EXCLUDES archived lists — BUG-055 sibling / A1 root cause", async () => {
+    // WS9 3d Part 3c-2 (B3, A1 case b) — composting a plan archives its grocery
+    // list server-side, but the no-filter index used to return `where:{userId}`
+    // with NO status filter, so the composted plan's list stayed visible in the
+    // mobile Groceries index (which reads with no filter). Production-shaped:
+    // one live plan's list + one composted plan's archived list, same user.
+    const recent = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    const harness = await glSpinUp([
+      glFix({ id: "gl-live", userId: GL_USER, status: "active", createdAt: recent }),
+      glFix({ id: "gl-composted", userId: GL_USER, status: "archived", createdAt: recent }),
+    ]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { groceryLists: { id: string }[] };
+      assert.deepEqual(
+        body.groceryLists.map((g) => g.id),
+        ["gl-live"],
+        "the composted plan's archived list must not appear in the default index",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("?filter=past EXCLUDES archived lists too (composted plan's list never resurfaces)", async () => {
+    const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const harness = await glSpinUp([
+      glFix({ id: "gl-old-live", userId: GL_USER, status: "completed", createdAt: old }),
+      glFix({ id: "gl-old-archived", userId: GL_USER, status: "archived", createdAt: old }),
+    ]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists?filter=past`, {
+        headers: { Authorization: `Bearer ${signToken(GL_USER)}` },
+      });
+      const body = (await res.json()) as { groceryLists: { id: string }[] };
+      assert.deepEqual(
+        body.groceryLists.map((g) => g.id),
+        ["gl-old-live"],
+        "an archived list must not surface via the past filter either",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("?filter=active returns only recent, non-archived lists", async () => {
     const recent = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
     const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
