@@ -1,6 +1,7 @@
 // Mobile client for the /api/meals namespace.
 // WS6 6b-1 — POST /meals/find-similar: replaces the cuisine-only client
-//   filter on FindSimilarSheet with a real semantic-similarity AI call.
+//   filter (now SwapMealSheet's Similar mode) with a real semantic-similarity
+//   AI call.
 // WS7-1 — migrated to apiClient + Zod validation.
 // WS7-3 Block B — GET /meals/:id: meal-detail read (see getMeal below).
 // WS7-3 Block C1 — GET /me/meals: filtered meal-list read. MealListItemSchema

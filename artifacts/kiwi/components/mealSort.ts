@@ -1,6 +1,6 @@
-// Shared meal-list sort helper for picker sheets (ChangeMealSheet,
-// FindSimilarSheet, AddMealsSheet). Lives in components/ so it can
-// import SortKey from SortDropdown without inverting layering.
+// Shared meal-list sort helper for picker sheets (SwapMealSheet,
+// AddMealsSheet). Lives in components/ so it can import SortKey from
+// SortDropdown without inverting layering.
 
 import type { SortKey } from "@/components/SortDropdown";
 import type { MealSummary } from "@/lib/types";

@@ -47,7 +47,7 @@ export function PlanCardOverflowMenu({
     setOpen(false);
     // Defer so the sheet's slide-out completes before the handler's own
     // dialog/toast/navigation mounts (mirrors the sheet pattern used across
-    // AddMealsSheet / ChangeMealSheet).
+    // AddMealsSheet / SwapMealSheet).
     setTimeout(handler, 150);
   };
 

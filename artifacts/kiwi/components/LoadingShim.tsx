@@ -16,7 +16,7 @@
 //   - "inline":     small horizontal row (spinner + text) for inline status
 //     under a submit button or list section. Drop-in for the
 //     [tellkiwi.tsx](../app/tellkiwi.tsx) `thinkingRow` and the
-//     [FindSimilarSheet.tsx](./FindSimilarSheet.tsx) `loadingCard` shapes.
+//     [SwapMealSheet.tsx](./SwapMealSheet.tsx) `loadingCard` shape (Similar mode).
 
 import React from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";

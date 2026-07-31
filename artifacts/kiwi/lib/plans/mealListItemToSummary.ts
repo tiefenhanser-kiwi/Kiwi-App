@@ -1,7 +1,7 @@
 // WS7-3 C4 c2 — adapter that maps the GET /me/meals row shape (MealListItem)
 // back to the legacy MealSummary that the picker sheets (AddMealsSheet,
-// ChangeMealSheet, FindSimilarSheet) and the screen's MealSummary-consuming
-// helpers (applyMealReplacement, addExistingMealToPlan) consume.
+// SwapMealSheet) and the screen's MealSummary-consuming helpers
+// (applyMealReplacement, addExistingMealToPlan) consume.
 //
 // Field renames (server -> MealSummary):
 //   cuisine        -> cuisineType (undefined when "")

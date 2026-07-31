@@ -183,7 +183,7 @@ test("WizardPlanMealCard expands on tap: ingredients + per-dish macros render", 
   assert.ok(texts.includes("(optional)"), `missing isOptional flag: ${texts}`);
   // Per-dish macro line — rendered template is the dominant in-app format
   // "X cal · Yg P · Zg C · Wg F (per serving)" (matches dish/[id].tsx,
-  // FindSimilarSheet, ChangeMealSheet, AddMealsSheet, PlanReviewMealRow).
+  // SwapMealSheet, AddMealsSheet, PlanReviewMealRow).
   // Test tolerates intervening whitespace because our naive child-walker
   // collapses sibling text nodes with spaces — the rendered copy itself
   // has no gap between value and unit.
