@@ -3027,13 +3027,26 @@ interface C3DeleteRecorder {
   groceryArchives?: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>;
 }
 
+// WS9 3d Part 3c (B3) — a seeded grocery-list store so the cascade test can
+// assert the ACTUAL list row flipped to archived (not merely that updateMany
+// was called). updateMany mutates these in place, mirroring the real Prisma
+// `where: { mealPlanInstanceId, status: { not: "archived" } } → { status:
+// "archived" }` semantics.
+interface C3GroceryFix {
+  id: string;
+  mealPlanInstanceId: string;
+  status: string;
+}
+
 function makeC3DeleteStub(opts: {
   instances?: C3DeleteFix[];
   recorder: C3DeleteRecorder;
   groceryThrows?: boolean;
+  groceryLists?: C3GroceryFix[];
 }) {
   const instances = opts.instances ?? [];
   const recorder = opts.recorder;
+  const groceryLists = opts.groceryLists ?? [];
 
   const txClient = {
     // Block 4a — forkMealForUser resolves the acquiring household once per fork
@@ -3094,7 +3107,19 @@ function makeC3DeleteStub(opts: {
       updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
         recorder.groceryArchives?.push(args);
         if (opts.groceryThrows) throw new Error("grocery archive failed");
-        return { count: 1 };
+        // Mutate the seeded store in place so the cascade test can assert the
+        // real list row was archived. Honors the same filter the handler uses:
+        // scoped to the plan and to non-archived rows.
+        const planId = (args.where as { mealPlanInstanceId?: string }).mealPlanInstanceId;
+        const nextStatus = (args.data as { status?: string }).status;
+        let count = 0;
+        for (const g of groceryLists) {
+          if (g.mealPlanInstanceId === planId && g.status !== "archived") {
+            g.status = nextStatus ?? g.status;
+            count += 1;
+          }
+        }
+        return { count };
       },
     },
     userActivity: {
@@ -3353,6 +3378,68 @@ describe("DELETE /plans/:id — soft-delete (WS7-4-C c3)", () => {
       assert.deepEqual(g.data, { status: "archived" });
       // Cascade + activity both ran → same successful tx.
       assert.equal(recorder.activityWrites.length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS9 3d Part 3c (B3, D-WS9-001) — proves the cascade on a WIZARD-ORIGIN
+  // plan (the shape real users compost: born a hidden wizard draft, flipped to
+  // a committed real plan on activate — isWizardDraft:false, committedAt +
+  // wizardContentHash set, covering the current week — WITH a real grocery
+  // list linked). The Part 2/3 cascade test asserted only the updateMany call
+  // shape; this seeds an actual active list and asserts the list ROW flips to
+  // archived, using a plan built the way the wizard builds one rather than a
+  // bare template fixture.
+  it("wizard-origin plan: composting archives its linked grocery list ROW (status → archived)", async () => {
+    const recorder: C3DeleteRecorder = {
+      instanceUpdates: [],
+      activityWrites: [],
+      groceryArchives: [],
+    };
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const groceryLists: C3GroceryFix[] = [
+      { id: "gl-wiz", mealPlanInstanceId: "p-wiz", status: "active" },
+    ];
+    const harness = await mutationSpinUp(
+      makeC3DeleteStub({
+        recorder,
+        groceryLists,
+        instances: [
+          {
+            id: "p-wiz",
+            userId: A2_USER,
+            revisionId: 1,
+            // Committed wizard plan covering "now" (activated this week).
+            startDate: new Date(now - 1 * day),
+            endDate: new Date(now + 6 * day),
+            activatedAt: new Date(now - 1 * day),
+            createdAt: new Date(now - 2 * day),
+            isWizardDraft: false,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-wiz`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+
+      // The plan itself soft-deleted.
+      assert.equal(recorder.instanceUpdates.length, 1);
+      assert.equal(recorder.instanceUpdates[0].data.isArchived, true);
+
+      // The linked grocery list ROW actually flipped to archived (not just a
+      // recorded call). This is the assertion the earlier suites lacked.
+      assert.equal(groceryLists[0].status, "archived");
+
+      // Cascade + activity ran in the same successful tx.
+      assert.equal(recorder.groceryArchives!.length, 1);
+      assert.equal(recorder.activityWrites.length, 1);
+      assert.deepEqual(recorder.activityWrites[0].metadata, { wasActive: true });
     } finally {
       await harness.close();
     }
