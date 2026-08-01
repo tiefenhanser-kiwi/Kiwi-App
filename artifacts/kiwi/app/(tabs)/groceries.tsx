@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -37,21 +36,6 @@ const SORT_OPTIONS: Array<{ key: GrocerySortKey; label: string }> = [
   { key: "alpha", label: "A–Z" },
 ];
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-// Client-side proxy for the action-row split (3-button "current list" vs
-// 2-button past-list). WS7-6 (E) Block 2: the BADGE now uses the server's
-// list.isActiveThisWeek (resolver-derived single winner); this date proxy
-// remains for the action row only — see D-WS7-105 in kiwi_ws6_plan.md §6
-// (resolved for badge, retained for action row pending a dedicated
-// status-vocabulary pass).
-function isCurrentWeek(list: GroceryListListItem): boolean {
-  if (!list.lastGeneratedAt) return false;
-  const t = Date.parse(list.lastGeneratedAt);
-  if (Number.isNaN(t)) return false;
-  return Date.now() - t < WEEK_MS;
-}
-
 export default function GroceriesTab() {
   const router = useRouter();
   const listsQuery = useGroceryLists();
@@ -77,12 +61,6 @@ export default function GroceriesTab() {
 
   const handleViewList = (id: string) => {
     router.push({ pathname: "/grocery-list/[id]", params: { id } });
-  };
-
-  // WS7-7-A B6 item 7 — interim placeholder; no retailer wiring (the `ordered`
-  // status stays reserved for the future retailer flow, D-WS7-125).
-  const handleOrderOnline = () => {
-    Alert.alert("Online ordering — coming soon.");
   };
 
   return (
@@ -154,7 +132,6 @@ export default function GroceriesTab() {
                 key={list.id}
                 list={list}
                 onViewList={() => handleViewList(list.id)}
-                onOrderOnline={handleOrderOnline}
                 onViewPlan={(() => {
                   // WS7-7-A B6 item 6 — link present only for plan-derived
                   // lists; planLinkTarget returns null otherwise.
@@ -173,20 +150,13 @@ export default function GroceriesTab() {
 type ListCardProps = {
   list: GroceryListListItem;
   onViewList: () => void;
-  onOrderOnline: () => void;
   // WS7-7-A B6 item 6 — present only when the list is plan-derived; the card
   // renders the "View Meal Plan" link iff this is defined.
   onViewPlan?: () => void;
 };
 
-function ListCard({
-  list,
-  onViewList,
-  onOrderOnline,
-  onViewPlan,
-}: ListCardProps) {
+function ListCard({ list, onViewList, onViewPlan }: ListCardProps) {
   const badge = chipLabel(list);
-  const isCurrent = isCurrentWeek(list);
 
   return (
     <Pressable
@@ -225,67 +195,10 @@ function ListCard({
 
       {/* WS7-7-A B6 items 2/3/4 — the whole card is pressable → View List, so
           the redundant View List button is removed; Get List + Reuse are gone.
-          Current-week cards keep Order Online only; past cards are button-less
-          (the card tap is the affordance). */}
-      {isCurrent && (
-        <View style={styles.actionsRow}>
-          <CardButton
-            variant="terra"
-            onPress={onOrderOnline}
-            label="Order Online"
-          />
-        </View>
-      )}
-    </Pressable>
-  );
-}
-
-function CardButton({
-  variant,
-  onPress,
-  label,
-}: {
-  variant: "primary" | "outline" | "terra";
-  onPress: () => void;
-  label: string;
-}) {
-  const palette =
-    variant === "primary"
-      ? {
-          bg: Colors.sage[700],
-          text: Colors.neutral[0],
-          border: Colors.sage[700],
-        }
-      : variant === "terra"
-        ? {
-            bg: Colors.terracotta[400],
-            text: Colors.neutral[0],
-            border: Colors.terracotta[400],
-          }
-        : {
-            bg: "transparent",
-            text: Colors.sage[700],
-            border: Colors.sage[300],
-          };
-
-  return (
-    <Pressable
-      onPress={(e) => {
-        // Stop propagation so tapping a button doesn't also fire the
-        // card's onPress (which routes to View List).
-        e.stopPropagation();
-        onPress();
-      }}
-      style={({ pressed }) => [
-        styles.cardBtn,
-        {
-          backgroundColor: palette.bg,
-          borderColor: palette.border,
-        },
-        pressed && { opacity: 0.85 },
-      ]}
-    >
-      <Text style={[styles.cardBtnText, { color: palette.text }]}>{label}</Text>
+          WS9 3e Part 1.4 — the dead "Order Online" stub (Alert "coming soon",
+          D-WS7-125) is removed entirely; it re-surfaces with roadmap row 8
+          (Instacart) under the R3 "Order Online" label. The card tap is the
+          only affordance now. */}
     </Pressable>
   );
 }
@@ -375,9 +288,13 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Palette.background.card,
-    borderRadius: Radius.xl,
+    // WS9 3e Part 1.3 — align to the 3d PlanRow token language (Radius.md +
+    // neutral[200] hairline) so the two list surfaces read as one family. The
+    // whole-card-tap affordance (B6) is kept, so this is a token-alignment
+    // restyle, not a structural conversion to PlanRow's thumb+Open row.
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Palette.border.default,
+    borderColor: Colors.neutral[200],
     padding: Spacing[3],
     gap: Spacing[1],
   },
@@ -417,27 +334,5 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
     marginTop: Spacing[1],
-  },
-  actionsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing[2],
-    marginTop: Spacing[2],
-  },
-  cardBtn: {
-    flexGrow: 1,
-    flexBasis: 0,
-    minWidth: 100,
-    paddingHorizontal: Spacing[2],
-    paddingVertical: 10,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardBtnText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
   },
 });
