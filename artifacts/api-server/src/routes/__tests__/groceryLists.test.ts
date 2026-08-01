@@ -109,6 +109,10 @@ interface StubState {
   // 6c-6 Block B: ingredient id → {defaultUnit} for the POST /items
   // route's unit-default backfill (prisma.ingredient.findUnique).
   ingredientDefaultUnits: Map<string, { defaultUnit: string }>;
+  // WS9 3e Part 2.2 — meal id → title, for the detail GET's provenance join
+  // (GroceryListItemSource.mealId → Meal.title). Empty by default (existing
+  // GET seeds have no sources → the join is a no-op).
+  meals: Map<string, string>;
   txCount: number;
 }
 
@@ -121,6 +125,7 @@ function makeState(): StubState {
     activities: [],
     ingredients: new Map(),
     ingredientDefaultUnits: new Map(),
+    meals: new Map(),
     txCount: 0,
   };
 }
@@ -203,6 +208,18 @@ function makeStubPrisma(state: StubState) {
   };
 
   return {
+    // WS9 3e Part 2.2 — meal-title lookup for the detail GET's provenance join.
+    meal: {
+      findMany: async (args: {
+        where: { id: { in: string[] } };
+        select?: unknown;
+      }) => {
+        const ids = new Set(args.where.id.in);
+        return [...state.meals.entries()]
+          .filter(([id]) => ids.has(id))
+          .map(([id, title]) => ({ id, title }));
+      },
+    },
     mealPlanInstance: {
       findFirst: async ({
         where,
@@ -287,6 +304,18 @@ function makeStubPrisma(state: StubState) {
             };
             const excludeDeleted =
               itemsInclude?.where?.deletedAt === null;
+            // WS9 3e Part 2.2 — honor include.items.include.sources so the
+            // provenance join has data to work with (mirrors real Prisma, which
+            // always returns a sources array for the include). Items with no
+            // matching source rows get [] — the majority-empty (~10.5% zero)
+            // case the route handles as "no label".
+            const wantsSources = Boolean(
+              (
+                itemsInclude as {
+                  include?: { sources?: unknown };
+                }
+              )?.include?.sources,
+            );
             result.items = state.listItems
               .filter(
                 (i) =>
@@ -297,6 +326,16 @@ function makeStubPrisma(state: StubState) {
                 a.storeSection === b.storeSection
                   ? a.displayName.localeCompare(b.displayName)
                   : a.storeSection.localeCompare(b.storeSection),
+              )
+              .map((i) =>
+                wantsSources
+                  ? {
+                      ...i,
+                      sources: state.itemSources
+                        .filter((sr) => sr.groceryListItemId === i.id)
+                        .map((sr) => ({ mealId: sr.mealId })),
+                    }
+                  : i,
               );
           }
           if (include?.planInstance) {
@@ -1350,6 +1389,65 @@ describe("GET /api/grocery-lists/:id", () => {
       assert.equal(body.list.items[0].displayName, "Cheddar");
       assert.equal(body.list.items[1].displayName, "Apple");
       assert.equal(body.list.items[2].displayName, "Zucchini");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("attaches per-item meal provenance (mealNames) joined from GroceryListItemSource — WS9 3e Part 2.2", async () => {
+    const harness = await spinUp();
+    const list = seedExistingList(harness.state, { id: "list-prov" });
+    // Production-shaped: two provenance-carrying items (Garlic is 1-to-MANY —
+    // the case the label must handle) + one AI-tail/merged item with ZERO
+    // sources (the ~10.5% no-label case measured in the §2.2 probe).
+    const mk = (id: string, displayName: string, storeSection: string) => ({
+      id,
+      groceryListId: list.id,
+      ingredientId: null,
+      displayName,
+      quantity: 1,
+      unit: "ct",
+      storeSection,
+      isUniversalStaple: false,
+      isUserPantryStaple: false,
+      isRecurringItem: false,
+      wasAiInferred: false,
+      isAmbiguous: false,
+      ambiguityOptions: [],
+      notes: null,
+    });
+    harness.state.listItems.push(
+      mk("gi-1", "Garlic", "produce"),
+      mk("gi-2", "Basmati Rice", "pantry"),
+      { ...mk("gi-3", "Salt", "pantry"), wasAiInferred: true },
+    );
+    // Garlic sourced from TWO meals (1-to-many); Rice from one; Salt from none.
+    harness.state.itemSources.push(
+      { groceryListItemId: "gi-1", mealId: "meal-a", dishId: "d1" },
+      { groceryListItemId: "gi-1", mealId: "meal-b", dishId: "d2" },
+      { groceryListItemId: "gi-2", mealId: "meal-b", dishId: "d3" },
+    );
+    harness.state.meals.set("meal-a", "Chicken Biryani");
+    harness.state.meals.set("meal-b", "Garlic Naan");
+    try {
+      const token = signToken(USER);
+      const res = await fetch(`${harness.baseUrl}/grocery-lists/list-prov`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        list: { items: { displayName: string; mealNames?: string[] }[] };
+      };
+      const byName = new Map(
+        body.list.items.map((i) => [i.displayName, i.mealNames]),
+      );
+      // 1-to-many: distinct titles across both sources, order-stable + deduped.
+      assert.deepEqual(byName.get("Garlic"), ["Chicken Biryani", "Garlic Naan"]);
+      // Single source.
+      assert.deepEqual(byName.get("Basmati Rice"), ["Garlic Naan"]);
+      // Zero sources → empty (client maps [] → no label, graceful absence).
+      assert.deepEqual(byName.get("Salt"), []);
     } finally {
       await harness.close();
     }

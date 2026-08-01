@@ -711,6 +711,10 @@ export interface GroceryListItem {
   purchaseUnit?: string;
   purchaseQuantity?: number;
   purchaseDisplay?: string;
+  /** WS9 3e Part 2.2 — distinct meal titles this item was sourced from
+   *  (1-to-many). Empty for merged/renamed AI-tail rows and user-added items
+   *  (~10.5% of plan-derived items) — render no provenance label in that case. */
+  mealNames?: string[];
 }
 
 // GroceryListSummary retired in WS7-3 C3 c5 — the Groceries tab consumes

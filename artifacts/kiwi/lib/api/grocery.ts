@@ -115,6 +115,12 @@ const GroceryListItemWireSchema = z
     purchaseUnit: z.string().nullable().optional(),
     purchaseQuantity: z.number().nullable().optional(),
     purchaseDisplay: z.string().nullable().optional(),
+    // WS9 3e Part 2.2 — per-item meal provenance ("from Meal A, Meal B").
+    // Distinct titles across this item's sources (1-to-many). Optional (not
+    // defaulted) so item-MUTATION responses that omit it — PATCH/DELETE/restore
+    // via UpdateItemResponseSchema — stay type-compatible; only the list GET
+    // populates it. Merged/user-added rows with no sources → absent → no label.
+    mealNames: z.array(z.string()).optional(),
   })
   .passthrough();
 
@@ -183,6 +189,9 @@ function normalizeListItem(wire: GroceryListItemWire): GroceryListItem {
     purchaseUnit: wire.purchaseUnit ?? undefined,
     purchaseQuantity: wire.purchaseQuantity ?? undefined,
     purchaseDisplay: wire.purchaseDisplay ?? undefined,
+    // WS9 3e Part 2.2 — meal provenance (absent / empty → no label).
+    mealNames:
+      wire.mealNames && wire.mealNames.length > 0 ? wire.mealNames : undefined,
   };
 }
 

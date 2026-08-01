@@ -551,6 +551,13 @@ export function createGroceryListsRouter(
               { storeSection: "asc" },
               { displayName: "asc" },
             ],
+            // WS9 3e Part 2.2 — per-item meal provenance ("from which meal").
+            // GroceryListItemSource carries mealId (a bare String, no Meal
+            // relation), so we pull the ids here and title-join below. An item
+            // is 1-to-many across sources; merged/renamed AI-tail rows join to
+            // ZERO sources (measured ~89.5% coverage) and render no label —
+            // graceful absence, not a placeholder.
+            include: { sources: { select: { mealId: true } } },
           },
           planInstance: {
             select: { id: true },
@@ -560,23 +567,50 @@ export function createGroceryListsRouter(
       if (!list) {
         return res.status(404).json({ error: "list_not_found" });
       }
+
+      // WS9 3e Part 2.2 — resolve source mealIds → distinct meal titles in ONE
+      // query, then attach `mealNames` (deduped, order-stable) to each item.
+      const sourceMealIds = [
+        ...new Set(
+          list.items.flatMap((i) => i.sources.map((sr) => sr.mealId)),
+        ),
+      ];
+      const mealTitleById = new Map<string, string>();
+      if (sourceMealIds.length > 0) {
+        const meals = await prisma.meal.findMany({
+          where: { id: { in: sourceMealIds } },
+          select: { id: true, title: true },
+        });
+        for (const m of meals) mealTitleById.set(m.id, m.title);
+      }
+      const itemsWithProvenance = list.items.map((i) => {
+        const { sources, ...rest } = i;
+        const names: string[] = [];
+        for (const sr of sources) {
+          const t = mealTitleById.get(sr.mealId);
+          if (t && !names.includes(t)) names.push(t);
+        }
+        return { ...rest, mealNames: names };
+      });
+      const listWithProvenance = { ...list, items: itemsWithProvenance };
       // WS7-6 (E) Block 1 REWORK — resolve "is the linked plan THIS WEEK's
       // plan?" against the list owner's covering subset, not the linked
       // row in isolation. Only fires when planInstance is present (lists
       // for null-plan source types like recurring stock skip this read).
-      const listWithComputedActive = list.planInstance
+      const listWithComputedActive = listWithProvenance.planInstance
         ? {
-            ...list,
+            ...listWithProvenance,
             planInstance: await (async () => {
               const winnerId = await resolveThisWeekWinnerId(prisma, userId);
               return {
-                id: list.planInstance!.id,
+                id: listWithProvenance.planInstance!.id,
                 isActiveThisWeek:
-                  winnerId !== null && winnerId === list.planInstance!.id,
+                  winnerId !== null &&
+                  winnerId === listWithProvenance.planInstance!.id,
               };
             })(),
           }
-        : list;
+        : listWithProvenance;
       return res
         .status(200)
         .json({ list: listWithComputedActive, reconciled });

@@ -122,6 +122,31 @@ test("getGroceryList maps the server stapleOptedIn flag onto each item", async (
   assert.equal(list.items[0].stapleOptedIn, true);
 });
 
+test("getGroceryList maps per-item mealNames provenance (1-to-many) — WS9 3e Part 2.2", async () => {
+  nextResponse = () =>
+    mockJson({
+      list: wireList({
+        items: [
+          wireItem({
+            id: "gi-1",
+            mealNames: ["Chicken Biryani", "Garlic Naan"],
+          }),
+        ],
+      }),
+    });
+  const { list } = await getGroceryList("list-1");
+  assert.deepEqual(list.items[0].mealNames, ["Chicken Biryani", "Garlic Naan"]);
+});
+
+test("getGroceryList leaves mealNames undefined for a zero-source item (no label) — WS9 3e Part 2.2", async () => {
+  // Server sends [] (or omits) for merged/AI-tail rows; the client maps that to
+  // undefined so the row renders no provenance label (graceful absence).
+  nextResponse = () =>
+    mockJson({ list: wireList({ items: [wireItem({ mealNames: [] })] }) });
+  const { list } = await getGroceryList("list-1");
+  assert.equal(list.items[0].mealNames, undefined);
+});
+
 test("getGroceryList surfaces the server reconciled flag (B5)", async () => {
   nextResponse = () => mockJson({ list: wireList({}), reconciled: true });
   const { reconciled } = await getGroceryList("list-1");

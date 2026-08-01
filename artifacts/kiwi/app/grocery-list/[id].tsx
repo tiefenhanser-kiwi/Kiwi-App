@@ -703,20 +703,6 @@ export default function GroceryListDetail() {
     advanceClarify();
   };
 
-  const handleEmail = () => {
-    Alert.alert(
-      "Coming in WS6 — email integration",
-      "Sending grocery lists via email requires server-side template + SES wiring.",
-    );
-  };
-
-  const handleOrderOnline = () => {
-    Alert.alert(
-      "Coming in WS6 — retailer integration",
-      "Online ordering requires the retailer adapter pattern from PRD §12.12.",
-    );
-  };
-
   const handleViewPlan = () => {
     if (list.planId) {
       router.push({ pathname: "/plan/[id]", params: { id: list.planId } });
@@ -746,25 +732,25 @@ export default function GroceryListDetail() {
     ? `${list.planName} · This Week`
     : list.planName;
 
+  // WS9 3e Part 2.1 — per-item progress (checked / total). "Checkable" excludes
+  // DEFAULT staples (isUniversalStaple && !stapleOptedIn): those render a dashed
+  // opt-in affordance, never a strike, so they aren't part of the shopping
+  // denominator (matching GroceryRow's showStrikethrough gate). An opted-in
+  // staple IS checkable. Empty list → no meter.
+  const checkableItems = list.items.filter(
+    (i) => !(i.isUniversalStaple && !(i.stapleOptedIn ?? false)),
+  );
+  const checkedCount = checkableItems.filter((i) => i.isCompleted).length;
+  const totalCount = checkableItems.length;
+  const progressPct =
+    totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
+
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
-      <Header
-        showBack
-        title="Grocery List"
-        subtitle={subtitle}
-        rightContent={
-          <Pressable
-            onPress={handleOrderOnline}
-            style={({ pressed }) => [
-              s.orderHeaderBtn,
-              pressed && { opacity: 0.85 },
-            ]}
-            hitSlop={6}
-          >
-            <Text style={s.orderHeaderBtnText}>Order →</Text>
-          </Pressable>
-        }
-      />
+      {/* WS9 3e Part 2.3 — the header "Order →" affordance was the same dead
+          Order Online Alert stub as the footer; removed (re-surfaces with
+          roadmap row 8 under the R3 "Order Online" label, D-WS9-099). */}
+      <Header showBack title="Grocery List" subtitle={subtitle} />
       <KeyboardAwareScrollViewCompat
         style={{ flex: 1 }}
         contentContainerStyle={s.scrollContent}
@@ -898,22 +884,29 @@ export default function GroceryListDetail() {
           />
         </View>
 
-        <View style={s.actionRow}>
-          <View style={{ flex: 1 }}>
-            <Button
-              label="Email Me My List"
-              variant="secondary"
-              onPress={handleEmail}
-            />
+        {/* WS9 3e Part 2.3 — the dead "Email Me My List" + "Order Online →"
+            Alert stubs are removed (R3: re-surface with the real send/retailer
+            paths under the "Email List" / "Order Online" labels — see
+            D-WS9-099). The list itself is the surface; no dead footer CTAs. */}
+
+        {/* WS9 3e Part 2.1 — per-item progress meter (checked / total). Single
+            sage fill bar + count; reused ProgressSegments was a poor fit (its
+            3-state ordered cursor assumes a "current" step — groceries are an
+            unordered checklist), so this is a minimal inline meter, not a new
+            reusable component. */}
+        {totalCount > 0 && (
+          <View style={s.progressWrap}>
+            <View style={s.progressHeaderRow}>
+              <Text style={s.progressLabel}>Shopping progress</Text>
+              <Text style={s.progressCount}>
+                {checkedCount} of {totalCount}
+              </Text>
+            </View>
+            <View style={s.progressTrack}>
+              <View style={[s.progressFill, { width: `${progressPct}%` }]} />
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Button
-              label="Order Online →"
-              variant="primary"
-              onPress={handleOrderOnline}
-            />
-          </View>
-        </View>
+        )}
 
         <View style={s.sectionsWrap}>
           {GROCERY_SECTIONS.map((section) => {
@@ -1184,6 +1177,13 @@ function GroceryRow({
             {packName}
           </Text>
         </Pressable>
+        {/* WS9 3e Part 2.2 — per-item meal provenance (1-to-many). Absent for
+            merged/renamed AI-tail rows + user-added items (~10.5%) → no line. */}
+        {item.mealNames && item.mealNames.length > 0 && (
+          <Text style={s.provenance} numberOfLines={1} ellipsizeMode="tail">
+            From {item.mealNames.join(", ")}
+          </Text>
+        )}
         {item.isUniversalStaple && (
           <Tag label="Pantry Staple" tone={isActiveStaple ? "sage" : "muted"} />
         )}
@@ -1292,18 +1292,6 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.md,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
-  },
-  orderHeaderBtn: {
-    backgroundColor: Colors.terracotta[400],
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: 6,
-  },
-  orderHeaderBtnText: {
-    color: Colors.neutral[0],
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
   },
   ambiguousBanner: {
     flexDirection: "row",
@@ -1435,9 +1423,36 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
   },
-  actionRow: {
-    flexDirection: "row",
+  progressWrap: {
     gap: Spacing[2],
+    marginBottom: Spacing[4],
+  },
+  progressHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  progressLabel: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+  },
+  progressCount: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.neutral[200],
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 3,
+    backgroundColor: Colors.sage[600],
   },
   sectionsWrap: {
     gap: Spacing[4],
@@ -1523,6 +1538,13 @@ const s = StyleSheet.create({
     color: Colors.neutral[900],
     fontFamily: Typography.face.sans[500],
     fontWeight: Typography.fontWeight.medium,
+  },
+  provenance: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
+    marginTop: 2,
+    width: "100%",
   },
   qty: {
     fontSize: Typography.fontSize.sm,
