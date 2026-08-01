@@ -483,6 +483,16 @@ export function createPlansRouter(
           revisionId: instance.revisionId,
           isActiveThisWeek: winnerId !== null && winnerId === instance.id,
           userId: instance.userId,
+          // WS9 3e Part 3 (D-WS9-090 guard) — expose the composted state so Plan
+          // Review can hide the Prep & Cook / Grocery CTAs on a soft-deleted plan
+          // (they otherwise act on a dead plan). `status:"past"` is ambiguous — a
+          // non-composted old plan is also "past" — so compostedAt is the real
+          // discriminator. The by-id GET deliberately still returns the archived
+          // record (no filter added) so the plan stays reachable read-only.
+          isArchived: instance.isArchived,
+          compostedAt: instance.compostedAt
+            ? instance.compostedAt.toISOString()
+            : null,
           // WS9 3d Part 3b-1 (D-WS9-013) — server-computed staleness flag. The
           // client renders the passive dietary note off this boolean and does no
           // timestamp arithmetic; committedAt / dietaryUpdatedAt never cross the

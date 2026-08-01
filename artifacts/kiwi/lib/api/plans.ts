@@ -137,6 +137,12 @@ export const PlanDetailSchema = z.object({
   // client renders the passive note off this and does no timestamp math. Optional
   // (additive wire field) → undefined coalesces to "not stale".
   dietaryStale: z.boolean().optional(),
+  // WS9 3e Part 3 (D-WS9-090 guard) — composted (soft-deleted) state. Plan
+  // Review hides the Prep & Cook / Grocery CTAs and shows a quiet composted
+  // line when compostedAt is set. Optional (additive wire fields) → a plan
+  // fetched before this shipped coalesces to not-composted.
+  isArchived: z.boolean().optional(),
+  compostedAt: z.string().nullable().optional(),
   sourceType: z.string(),
   // WS7-4-A c6 — new MealPlanInstance fields from PRD §8.3.3 / §8.3.4 / §8.3.7.
   // WS7-8b B1 — `prepStatus` is now the WS7-8a B3 effective rollup (the manual

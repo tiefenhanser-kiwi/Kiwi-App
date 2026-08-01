@@ -212,6 +212,12 @@ export default function PlanReviewScreen() {
     }
   }, [isDraft, planQuery.data]);
 
+  // WS9 3e Part 3 (D-WS9-090 guard) — composted (soft-deleted) plan. Read
+  // straight off the server payload: compost is terminal (no optimistic
+  // mutation flips it back), and a draft's planQuery is disabled so this is
+  // always false on a draft. Drives the composted action-bar branch below.
+  const isComposted = !!planQuery.data?.compostedAt;
+
   // PRD §9.4 — deep-link from AddMealToPlanSheet's "Create new plan" card.
   // Asynchronously fetches the meal detail and injects a row into the
   // unscheduled cluster. Idempotent via consumedAddMealRef so a re-render
@@ -748,6 +754,26 @@ export default function PlanReviewScreen() {
               disabled={draftCommit !== "idle"}
               onPress={handleSaveForLater}
             />
+          </View>
+        ) : isComposted ? (
+          // WS9 3e Part 3 (D-WS9-090 guard) — a composted (soft-deleted) plan
+          // hides the Prep & Cook and Grocery CTAs (they'd do real work against a
+          // dead plan) and the now-meaningless Compost action. "Use again" stays
+          // live — items still exist (soft-delete), copyPlan works, and it's the
+          // user's way back. One quiet line, no banner ceremony (there is no
+          // browsable path here — both indexes filter archived rows — so this
+          // only guards stale in-session navigation).
+          <View style={s.actionBar}>
+            <Text style={s.compostedNote}>This plan was composted.</Text>
+            <View style={s.actionRow}>
+              <View style={s.actionCol}>
+                <Button
+                  label="Use again"
+                  variant="ghost"
+                  onPress={handleUseAgainThisPlan}
+                />
+              </View>
+            </View>
           </View>
         ) : (
           <View style={s.actionBar}>
@@ -1388,6 +1414,11 @@ const s = StyleSheet.create({
     gap: Spacing[2],
   },
   actionCol: { flex: 1 },
+  compostedNote: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
+  },
   addMealsWrap: {
     marginTop: Spacing[2],
   },

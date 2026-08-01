@@ -1320,6 +1320,110 @@ describe("GET /plans/:id — composite Plan Review", () => {
     }
   });
 
+  // ── WS9 3e Part 3 (D-WS9-090 guard) — composted plan exposes compostedAt ──
+  // §6 mandate: reach compostedAt through the ACTUAL DELETE /plans/:id path, not
+  // a hand-set isArchived (supersede also sets isArchived — the guard keys on
+  // compostedAt, which ONLY compost writes). One stateful stub serves both the
+  // real DELETE (mutates the row) and the follow-up GET (reads the mutated row).
+  describe("GET /plans/:id — composted plan (WS9 3e Part 3)", () => {
+    it("a plan composted via the real DELETE path returns compostedAt + isArchived on GET (no 404)", async () => {
+      const instances = [
+        instanceFix({
+          id: "p-compost",
+          name: "Backyard BBQ",
+          items: [
+            { id: "it-1", mealId: "m-a", positionIndex: 0, assignedDayOfWeek: null },
+          ],
+        }),
+      ];
+      const base = makeA2Stub({ instances, meals: [mealFix("m-a", "Meal A", 500)] });
+      // Combined stub: base (GET reads) + DELETE write surfaces on the SAME
+      // `instances` array, so the DELETE's tx update is visible to the GET.
+      const stub: Record<string, unknown> = {
+        ...base,
+        mealPlanInstance: {
+          ...base.mealPlanInstance,
+          update: async ({
+            where,
+            data,
+          }: {
+            where: { id: string };
+            data: {
+              status?: string;
+              compostedAt?: Date;
+              isArchived?: boolean;
+              revisionId?: { increment: number };
+            };
+          }) => {
+            const row = instances.find((i) => i.id === where.id) as Record<
+              string,
+              unknown
+            >;
+            if (data.status !== undefined) row.status = data.status;
+            if (data.compostedAt !== undefined) row.compostedAt = data.compostedAt;
+            if (data.isArchived !== undefined) row.isArchived = data.isArchived;
+            if (data.revisionId?.increment) {
+              row.revisionId =
+                (row.revisionId as number) + data.revisionId.increment;
+            }
+            return { id: row.id, revisionId: row.revisionId };
+          },
+        },
+        groceryList: { updateMany: async () => ({ count: 0 }) },
+        userActivity: { create: async () => ({}) },
+        $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(stub),
+      };
+      const harness = await spinUp({
+        prisma: stub as never,
+        computePlanMacros: (async () => HAPPY_RESULT) as never,
+        loadPrepStepSet: (async () => []) as never,
+        mutationLimiterOpts: { capacity: 1000, refillPerSec: 100 },
+      });
+      try {
+        const token = signToken(A2_USER);
+        // 1. Real compost via the DELETE route (sets status/compostedAt/isArchived).
+        const del = await fetch(`${harness.baseUrl}/plans/p-compost`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        assert.equal(del.status, 200);
+        // 2. The composted plan must STILL be returned (no 404) with compostedAt.
+        const res = await fetch(`${harness.baseUrl}/plans/p-compost`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as {
+          plan: { isArchived: boolean; compostedAt: string | null; status: string };
+        };
+        assert.equal(body.plan.isArchived, true, "GET exposes isArchived post-compost");
+        assert.equal(
+          typeof body.plan.compostedAt,
+          "string",
+          "GET exposes compostedAt (ISO) post-compost — the guard's discriminator",
+        );
+        assert.equal(body.plan.status, "past");
+      } finally {
+        await harness.close();
+      }
+    });
+
+    it("a live (non-composted) plan returns compostedAt:null so the guard stays off", async () => {
+      const harness = await a2SpinUp(
+        makeA2Stub({ instances: [instanceFix({ id: "p-live", name: "Live Plan" })] }),
+      );
+      try {
+        const res = await fetch(`${harness.baseUrl}/plans/p-live`, {
+          headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+        });
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as { plan: { compostedAt: string | null } };
+        assert.equal(body.plan.compostedAt, null, "a live plan is never composted");
+      } finally {
+        await harness.close();
+      }
+    });
+  });
+
   // ── WS7-8a B3 — per-meal prep surfacing on GET /plans/:id (D-WS7-153) ──
   describe("GET /plans/:id — per-meal prep state (B3)", () => {
     const STEP_ONION = {
