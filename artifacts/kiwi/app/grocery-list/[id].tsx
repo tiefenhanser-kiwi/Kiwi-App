@@ -751,6 +751,27 @@ export default function GroceryListDetail() {
           Order Online Alert stub as the footer; removed (re-surfaces with
           roadmap row 8 under the R3 "Order Online" label, D-WS9-099). */}
       <Header showBack title="Grocery List" subtitle={subtitle} />
+      {/* WS9 3e follow-up — progress meter TOP-ANCHORED as a fixed band between
+          the Header and the scrolling list, so it stays visible while shopping a
+          long list (the actual store posture). Chose top over a floating footer
+          because the undo + reconcile banners already own the bottom edge
+          (position:absolute, bottom) — a bottom float would collide with them,
+          and "Mark Shopping Done" lives in-scroll. It's a plain flex sibling (not
+          absolute), so it can't overlay list content; the ScrollView flexes
+          below it. No SectionList here (plain Views), so no sticky-header fight. */}
+      {totalCount > 0 && (
+        <View style={s.progressBar}>
+          <View style={s.progressHeaderRow}>
+            <Text style={s.progressLabel}>Shopping progress</Text>
+            <Text style={s.progressCount}>
+              {checkedCount} of {totalCount}
+            </Text>
+          </View>
+          <View style={s.progressTrack}>
+            <View style={[s.progressFill, { width: `${progressPct}%` }]} />
+          </View>
+        </View>
+      )}
       <KeyboardAwareScrollViewCompat
         style={{ flex: 1 }}
         contentContainerStyle={s.scrollContent}
@@ -889,24 +910,9 @@ export default function GroceryListDetail() {
             paths under the "Email List" / "Order Online" labels — see
             D-WS9-099). The list itself is the surface; no dead footer CTAs. */}
 
-        {/* WS9 3e Part 2.1 — per-item progress meter (checked / total). Single
-            sage fill bar + count; reused ProgressSegments was a poor fit (its
-            3-state ordered cursor assumes a "current" step — groceries are an
-            unordered checklist), so this is a minimal inline meter, not a new
-            reusable component. */}
-        {totalCount > 0 && (
-          <View style={s.progressWrap}>
-            <View style={s.progressHeaderRow}>
-              <Text style={s.progressLabel}>Shopping progress</Text>
-              <Text style={s.progressCount}>
-                {checkedCount} of {totalCount}
-              </Text>
-            </View>
-            <View style={s.progressTrack}>
-              <View style={[s.progressFill, { width: `${progressPct}%` }]} />
-            </View>
-          </View>
-        )}
+        {/* WS9 3e Part 2.1 progress meter moved to a top-anchored band above the
+            ScrollView (follow-up) so it persists while scrolling — see the band
+            rendered between the Header and this list. */}
 
         <View style={s.sectionsWrap}>
           {GROCERY_SECTIONS.map((section) => {
@@ -1178,11 +1184,13 @@ function GroceryRow({
           </Text>
         </Pressable>
         {/* WS9 3e Part 2.2 — per-item meal provenance (1-to-many). Absent for
-            merged/renamed AI-tail rows + user-added items (~10.5%) → no line. */}
+            merged/renamed AI-tail rows + user-added items (~10.5%) → no line.
+            WS9 3e follow-up: "For" not "From" (purpose, not sourcing — Hans);
+            NO numberOfLines/ellipsize — the multi-meal case is the product
+            proving it consolidated across meals, so let it WRAP to as many
+            lines as it needs (the clip was numberOfLines={1}, not a width bug). */}
         {item.mealNames && item.mealNames.length > 0 && (
-          <Text style={s.provenance} numberOfLines={1} ellipsizeMode="tail">
-            From {item.mealNames.join(", ")}
-          </Text>
+          <Text style={s.provenance}>For {item.mealNames.join(", ")}</Text>
         )}
         {item.isUniversalStaple && (
           <Tag label="Pantry Staple" tone={isActiveStaple ? "sage" : "muted"} />
@@ -1423,9 +1431,18 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
   },
-  progressWrap: {
+  // WS9 3e follow-up — top-anchored progress band (fixed above the ScrollView).
+  // Card bg + bottom hairline so it reads as a header strip separate from the
+  // scrolling list; its own horizontal padding (the ScrollView's padding no
+  // longer applies now that it lives outside the scroll content).
+  progressBar: {
     gap: Spacing[2],
-    marginBottom: Spacing[4],
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    paddingBottom: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[300],
   },
   progressHeaderRow: {
     flexDirection: "row",
