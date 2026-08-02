@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -18,9 +17,12 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { SectionLabel } from "@/components/SectionLabel";
+import { TreatedImage } from "@/components/TreatedImage";
 import {
   Colors,
   Copy,
+  ImageTreatment,
   Palette,
   Radius,
   Spacing,
@@ -533,29 +535,44 @@ function MealDetailContent({
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero — image + title + description + quick stats */}
+        {/* Hero — treated image slot (16:10, warm-gradient placeholder is the
+            default until meal photos ship in WS7-10), title in Fraunces,
+            description, quick stats, and a display-only tag row. */}
         <View style={s.hero}>
-          {meal.image ? (
-            <Image source={{ uri: meal.image }} style={s.heroImage} />
-          ) : (
-            <View style={[s.heroImage, s.heroFallback]} />
-          )}
+          <TreatedImage
+            source={meal.image ? { uri: meal.image } : null}
+            aspectRatio={ImageTreatment.aspect.hero}
+            radius={Radius["2xl"]}
+            style={s.heroImage}
+          />
           <Text style={s.heroTitle}>{meal.title}</Text>
           {meal.description && (
             <Text style={s.heroDescription}>{meal.description}</Text>
           )}
           <Text style={s.heroQuickStats}>{quickStatsParts.join(" · ")}</Text>
+          {/* WS9 3f-1 — display-only tag chips (PRD §10.6.1), backed by the
+              existing meal.tags. No tag INPUT is built here (that's D-WS9-101 →
+              3f-2). The row is omitted entirely when the meal has no tags. */}
+          {meal.tags.length > 0 && (
+            <View style={s.tagRow}>
+              {meal.tags.map((tag) => (
+                <View key={tag} style={s.tagChip}>
+                  <Text style={s.tagChipText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
-        {/* Primary actions per PRD §10.6: Cook Now (most prominent),
-            then Add to Plan. Secondary library actions (Edit, Compost)
-            sit below as a row. */}
+        {/* Primary actions per PRD §10.6 / A1 one-primary-per-zone: Cook Now is
+            the sole primary (terracotta); Add to Plan steps down to secondary
+            (white + border); Edit / Compost are tertiary ghosts below. */}
         <View style={s.primaryActionStack}>
           <Button label="Cook Now" variant="primary" onPress={onCookNow} />
           {/* BUG-004 — Add to Plan only in the Library (My Recipes) context;
               hidden when the meal is already in a plan (inPlanContext). */}
           {!inPlanContext && (
-            <Button label="Add to Plan" variant="primary" onPress={onAddToPlan} />
+            <Button label="Add to Plan" variant="secondary" onPress={onAddToPlan} />
           )}
         </View>
         <View style={s.actionRow}>
@@ -594,7 +611,7 @@ function MealDetailContent({
 
         {/* Ingredients */}
         <View style={s.section}>
-          <Text style={s.sectionHeader}>Ingredients</Text>
+          <SectionLabel label="Ingredients" />
           <View style={s.servingsAdjuster}>
             <Text style={s.servingsLabel}>Adjust for</Text>
             <View style={s.stepperRow}>
@@ -677,7 +694,7 @@ function MealDetailContent({
             (PRD §10.6, mirroring the ingredients section); one flat
             numbered list otherwise. */}
         <View style={s.section}>
-          <Text style={s.sectionHeader}>Recipe steps</Text>
+          <SectionLabel label="Recipe steps" />
           {stepsAreGrouped
             ? meal.dishes
                 .filter((dish) => dish.steps.length > 0)
@@ -721,20 +738,18 @@ const s = StyleSheet.create({
   hero: {
     gap: Spacing[2],
   },
+  // TreatedImage owns the slot's aspect (16:10), radius, warm-gradient
+  // placeholder, and terracotta overlay; this style only pins full width.
   heroImage: {
     width: "100%",
-    height: 200,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.neutral[200],
   },
-  heroFallback: {
-    backgroundColor: Colors.sage[100],
-  },
+  // BUG-035 — the bold weight now rides the Fraunces_700Bold FACE so the
+  // numeric weight and the loaded face agree (no synthetic double-bold).
   heroTitle: {
     fontSize: Typography.fontSize.xl,
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.bold,
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
     marginTop: Spacing[2],
   },
   heroDescription: {
@@ -748,6 +763,27 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[600],
     fontFamily: Typography.face.sans[400],
+  },
+  // WS9 3f-1 — display-only tag chips. A near-neutral paper pill (not the
+  // interactive Chip component, which is a Pressable built for selection).
+  tagRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing[1],
+    marginTop: Spacing[1],
+  },
+  tagChip: {
+    backgroundColor: Palette.chip.default.background,
+    borderColor: Palette.chip.default.border,
+    borderWidth: 1,
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[2],
+    paddingVertical: 3,
+  },
+  tagChipText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[500],
   },
   primaryActionStack: {
     gap: Spacing[2],
@@ -784,13 +820,6 @@ const s = StyleSheet.create({
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
-  },
-  sectionHeader: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serif[600],
-    marginBottom: Spacing[3],
   },
   servingsAdjuster: {
     flexDirection: "row",
@@ -859,7 +888,8 @@ const s = StyleSheet.create({
   stepCircle: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    // D-WS9-022 — full radius for a 32px circle (was the ambiguous old-xl 16).
+    borderRadius: Radius.full,
     alignItems: "center",
     justifyContent: "center",
   },

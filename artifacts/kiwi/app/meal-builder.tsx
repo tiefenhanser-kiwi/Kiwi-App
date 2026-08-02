@@ -890,7 +890,7 @@ export default function MealBuilderScreen() {
                 (parse-meal 402); the UI stays ungated. */}
             <ModeCard
               icon="type"
-              title="Tell Kiwi what you want"
+              title="Ask Kiwi for a meal"
               subtitle="Describe a meal and Kiwi drafts the dishes, ingredients, and steps"
               selected={false}
               onPress={() => {

@@ -101,7 +101,7 @@ export default function AskKiwiDishScreen() {
   if (phase === "loading") {
     return (
       <View style={styles.bg}>
-        <Header title="Tell Kiwi about your dish" />
+        <Header title="Ask Kiwi for a dish" />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={Colors.sage[700]} />
           <Text style={styles.loadingTitle}>Building your dish...</Text>
@@ -115,7 +115,7 @@ export default function AskKiwiDishScreen() {
 
   return (
     <View style={styles.bg}>
-      <Header showBack title="Tell Kiwi about your dish" />
+      <Header showBack title="Ask Kiwi for a dish" />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -131,10 +131,11 @@ export default function AskKiwiDishScreen() {
           submitDisabled={submitDisabled}
           onSubmit={handleSubmit}
           errorMessage={errorMessage}
-          title="Tell Kiwi about your dish"
+          title="Ask Kiwi for a dish"
           subtitle="Describe one dish in your own words — Kiwi will turn it into ingredients and steps you can review and edit."
           placeholder="e.g. Roasted broccoli with garlic and lemon"
           helperText="Premium · Kiwi reads your description and drafts a single dish. You can change anything before saving."
+          submitLabel="Ask Kiwi for a dish"
         />
       </KeyboardAwareScrollViewCompat>
     </View>

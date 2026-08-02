@@ -53,7 +53,7 @@ test("renders the free-text input and the Ask Kiwi CTA", () => {
   assert.ok(submitButton(renderer.root), "submit CTA missing");
   const texts = renderer.root.findAllByType(Text).map((t) => t.props.children);
   assert.ok(
-    texts.some((c) => c === "Tell Kiwi what you want"),
+    texts.some((c) => c === "Ask Kiwi for a meal"),
     "title missing",
   );
   renderer.unmount();

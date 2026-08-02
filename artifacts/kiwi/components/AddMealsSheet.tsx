@@ -128,7 +128,7 @@ export function AddMealsSheet({
           <View style={s.list}>
             <PremiumSourceCard
               icon="zap"
-              title="Ask Kiwi"
+              title="Ask Kiwi for a meal"
               subtitle="Describe a meal and Kiwi drafts it to fit this plan"
               onPress={() => navigateAfterClose("/ask-kiwi")}
             />
@@ -347,7 +347,7 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.neutral[900],
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
   },
   scrollContent: {
     padding: Spacing[4],

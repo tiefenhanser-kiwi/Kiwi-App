@@ -43,7 +43,7 @@ test("AddDishChooserSheet: create cards render Ask-Kiwi-first", async () => {
   });
 
   const leaves = textLeaves(renderer.root);
-  const askKiwi = leaves.findIndex((t) => t === "Ask Kiwi");
+  const askKiwi = leaves.findIndex((t) => t === "Ask Kiwi for a dish");
   const manual = leaves.findIndex((t) => t === "Create manually");
 
   assert.ok(askKiwi >= 0, "Ask Kiwi card missing");

@@ -112,11 +112,11 @@ test("AddMealsSheet: tapping Ask Kiwi routes to /ask-kiwi with the plan id, no A
 
   const renderer = await renderSheet({ planId: "plan-77" });
 
-  // The Ask Kiwi card is the Pressable whose subtree contains the "Ask Kiwi"
-  // title but not the list/section headers.
+  // The Ask Kiwi card is the Pressable whose subtree contains the
+  // "Ask Kiwi for a meal" title (D-WS9-017) but not the list/section headers.
   const askCard = renderer.root.findAllByType(Pressable).find((p) => {
     const leaves = textLeavesOf(p);
-    return leaves.includes("Ask Kiwi");
+    return leaves.includes("Ask Kiwi for a meal");
   });
   assert.ok(askCard, "Ask Kiwi card not found");
 

@@ -278,7 +278,7 @@ export function DishChooserHeader({
         testID="dish-chooser-ask-kiwi"
       >
         <View style={s.askHeader}>
-          <Text style={s.sectionTitle}>Ask Kiwi</Text>
+          <Text style={s.sectionTitle}>Ask Kiwi for a dish</Text>
           <View style={s.premiumPill}>
             <Feather name="lock" size={10} color={Colors.terracotta[700]} />
             <Text style={s.premiumPillText}>Premium</Text>
@@ -469,7 +469,7 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.neutral[900],
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
   },
   scrollContent: {
     padding: Spacing[4],

@@ -151,7 +151,7 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.lg,
     color: Colors.terracotta[700],
     fontWeight: Typography.fontWeight.bold,
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
   },
   bulletList: {
     gap: Spacing[2],

@@ -2,7 +2,6 @@ import React from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +11,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
-import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
+import { SectionLabel } from "@/components/SectionLabel";
+import { TreatedImage } from "@/components/TreatedImage";
+import { Colors, ImageTreatment, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useDish } from "@/hooks/useDish";
 import { ApiError } from "@/lib/api/errors";
 import type { DishDetail } from "@/lib/api/dishes";
@@ -22,10 +23,12 @@ import { formatMacro } from "@/lib/format/macros";
 // the Block B gate/body pattern from app/meal/[id].tsx — DishDetailScreen
 // handles the read state machine; DishDetailContent renders the loaded body.
 //
-// Field loss vs the C3 stub (D-WS7-050): no Main/Side type pill, no Notes
-// section, no cuisine in the meta line — DishDetail's server shape omits
-// `type`, `notes`, `cuisine`. Gains: description (replacing implied prose),
-// real `servings` (replacing the hardcoded "serves 4").
+// D-WS7-050 (RULED 2026-08-02 — ratify the LEAN dish shape): this screen
+// intentionally renders NO Main/Side type pill, NO Notes section, and NO
+// cuisine in the meta line. The Dish model has no `type`/`notes`/`cuisineType`
+// columns and none are being added, so there is nothing to restore — the lean
+// shape (description + real `servings`) IS the shape. The prior "field loss"
+// framing is retired.
 export default function DishDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -144,11 +147,14 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={s.hero}>
-          {dish.image ? (
-            <Image source={{ uri: dish.image }} style={s.heroImage} />
-          ) : (
-            <View style={[s.heroImage, s.heroFallback]} />
-          )}
+          {/* Treated image slot (16:10, warm-gradient placeholder default —
+              dish photos ship in WS7-10). */}
+          <TreatedImage
+            source={dish.image ? { uri: dish.image } : null}
+            aspectRatio={ImageTreatment.aspect.hero}
+            radius={Radius["2xl"]}
+            style={s.heroImage}
+          />
           <Text style={s.heroTitle}>{dish.title}</Text>
           {dish.description && (
             <Text style={s.heroDescription}>{dish.description}</Text>
@@ -175,7 +181,7 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionHeader}>Ingredients</Text>
+          <SectionLabel label="Ingredients" />
           {dish.ingredients.map((ing, i) => (
             <Text key={i} style={s.ingredientLine}>
               {ing.quantity} {ing.unit} {ing.name}
@@ -185,7 +191,7 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
 
         {dish.steps.length > 0 && (
           <View style={s.section}>
-            <Text style={s.sectionHeader}>Steps</Text>
+            <SectionLabel label="Steps" />
             {dish.steps.map((step, i) => (
               <View key={i} style={s.stepRow}>
                 <View
@@ -246,20 +252,16 @@ const s = StyleSheet.create({
   hero: {
     gap: Spacing[2],
   },
+  // TreatedImage owns aspect / radius / placeholder / overlay; pin width only.
   heroImage: {
     width: "100%",
-    height: 200,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.neutral[200],
   },
-  heroFallback: {
-    backgroundColor: Colors.sage[100],
-  },
+  // BUG-035 — bold weight now rides the Fraunces_700Bold face (no synthetic bold).
   heroTitle: {
     fontSize: Typography.fontSize.xl,
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.bold,
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
     marginTop: Spacing[2],
   },
   heroDescription: {
@@ -291,13 +293,6 @@ const s = StyleSheet.create({
   section: {
     marginTop: Spacing[4],
   },
-  sectionHeader: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serif[600],
-    marginBottom: Spacing[3],
-  },
   ingredientLine: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[800],
@@ -313,7 +308,8 @@ const s = StyleSheet.create({
   stepCircle: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    // D-WS9-022 — full radius for a 32px circle (was the ambiguous old-xl 16).
+    borderRadius: Radius.full,
     alignItems: "center",
     justifyContent: "center",
   },

@@ -65,7 +65,7 @@ test("DishChooserHeader: add-method cards render reordered, above My Dishes", as
   const leaves = textLeaves(renderer.root);
   const idx = (s: string) => leaves.findIndex((t) => t === s);
 
-  const askKiwi = idx("Ask Kiwi");
+  const askKiwi = idx("Ask Kiwi for a dish");
   const simple = idx("Add Simple Dish");
   const scratch = idx("Create from scratch");
   const myDishes = idx("My Dishes");

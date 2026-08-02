@@ -65,7 +65,7 @@ export function AddDishChooserSheet({
             </View>
             <View style={{ flex: 1 }}>
               <View style={s.askTitleRow}>
-                <Text style={s.cardTitle}>Ask Kiwi</Text>
+                <Text style={s.cardTitle}>Ask Kiwi for a dish</Text>
                 <View style={s.premiumPill}>
                   <Feather
                     name="lock"
@@ -141,7 +141,7 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.neutral[900],
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
   },
   body: {
     padding: Spacing[4],

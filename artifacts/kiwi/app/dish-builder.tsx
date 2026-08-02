@@ -585,21 +585,14 @@ export default function DishBuilderScreen() {
                 </View>
               )}
             </View>
-            <View>
-              <Text style={s.fieldLabel}>Type</Text>
-              <View style={s.chipRow}>
-                <Chip
-                  label="Side"
-                  selected={form.type === "side"}
-                  onPress={() => update("type", "side")}
-                />
-                <Chip
-                  label="Main"
-                  selected={form.type === "main"}
-                  onPress={() => update("type", "main")}
-                />
-              </View>
-            </View>
+            {/* WS9 3f-1 — the Side/Main Type picker was removed. Dish has no
+                `type` column server-side (SaveDishInput carries no key for it),
+                so the control silently discarded its value on save. `form.type`
+                is retained (defaults "main", preserved on edit) only to satisfy
+                the required DishDraft.type contract; it is no longer user-set.
+                NOTE: the Cuisine picker above is deliberately KEPT — unlike type,
+                cuisine steers the Kiwi-assist ingredient/step calls this session
+                even though it, too, is dropped on save. */}
           </View>
         </View>
 
@@ -1165,7 +1158,9 @@ const s = StyleSheet.create({
   stepCircle: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    // D-WS9-022 — a 32px step circle wants a full radius, not the ambiguous
+    // old-xl(16). Radius.full clamps to a perfect circle (pixel-identical).
+    borderRadius: Radius.full,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,

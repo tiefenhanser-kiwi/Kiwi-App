@@ -83,7 +83,7 @@ export default function AskKiwiScreen() {
   if (phase === "loading") {
     return (
       <View style={styles.bg}>
-        <Header title="Tell Kiwi what you want" />
+        <Header title="Ask Kiwi for a meal" />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={Colors.sage[700]} />
           <Text style={styles.loadingTitle}>Building your meal...</Text>
@@ -97,7 +97,7 @@ export default function AskKiwiScreen() {
 
   return (
     <View style={styles.bg}>
-      <Header showBack title="Tell Kiwi what you want" />
+      <Header showBack title="Ask Kiwi for a meal" />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

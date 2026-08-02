@@ -36,6 +36,10 @@ export interface AskKiwiViewProps {
   subtitle?: string;
   placeholder?: string;
   helperText?: string;
+  // D-WS9-017 — the submit CTA carries the item-scoped qualifier ("Ask Kiwi
+  // for a meal" / "…for a dish"). Defaults to the meal wording so app/ask-kiwi.tsx
+  // is unchanged; app/ask-kiwi-dish.tsx passes the dish variant.
+  submitLabel?: string;
 }
 
 export function AskKiwiView({
@@ -46,10 +50,11 @@ export function AskKiwiView({
   submitDisabled,
   onSubmit,
   errorMessage,
-  title = "Tell Kiwi what you want",
+  title = "Ask Kiwi for a meal",
   subtitle = SUBTITLE,
   placeholder = PLACEHOLDER,
   helperText = HELPER,
+  submitLabel = "Ask Kiwi for a meal",
 }: AskKiwiViewProps) {
   return (
     <View style={s.body}>
@@ -82,7 +87,7 @@ export function AskKiwiView({
 
       <View style={s.buttonWrap}>
         <Button
-          label="Ask Kiwi"
+          label={submitLabel}
           variant="primary"
           disabled={submitDisabled}
           onPress={onSubmit}

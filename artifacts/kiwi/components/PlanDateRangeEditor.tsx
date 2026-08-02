@@ -397,7 +397,7 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.neutral[900],
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
   },
   scrollContent: {
     padding: Spacing[4],

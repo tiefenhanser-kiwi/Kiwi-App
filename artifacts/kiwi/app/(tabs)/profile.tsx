@@ -624,7 +624,7 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.xl,
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.bold,
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
     marginTop: Spacing[1],
   },
   userEmail: {
@@ -643,7 +643,7 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.md,
     color: Colors.neutral[800],
     fontWeight: Typography.fontWeight.bold,
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
     marginBottom: Spacing[2],
   },
   fieldList: {
@@ -752,7 +752,7 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.md,
     color: Colors.neutral[800],
     fontWeight: Typography.fontWeight.bold,
-    fontFamily: Typography.face.serif[600],
+    fontFamily: Typography.face.serif[700],
   },
   navCardSubtitle: {
     fontSize: Typography.fontSize.xs,
