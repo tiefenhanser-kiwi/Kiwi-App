@@ -22,6 +22,7 @@ import { CombineReview } from "@/components/CombineReview";
 import { DishChooserSheet } from "@/components/DishChooserSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { SectionLabel } from "@/components/SectionLabel";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import {
   Colors,
@@ -1461,7 +1462,7 @@ function ManualEditor(p: ManualEditorProps) {
 
       {/* Ingredients */}
       <View style={{ gap: Spacing[2] }}>
-        <Text style={s.subHeader}>Ingredients</Text>
+        <SectionLabel label="Ingredients" />
         {showIngredientError && (
           <Text style={s.invalidBadge}>
             Add at least one ingredient with a name.
@@ -1606,7 +1607,7 @@ function ManualEditor(p: ManualEditorProps) {
           single "Recipe steps" header — bound to that dish's steps array
           via dish.uid. */}
       <View style={{ gap: Spacing[2] }}>
-        <Text style={s.subHeader}>Recipe steps</Text>
+        <SectionLabel label="Recipe steps" />
         {showStepError && (
           <Text style={s.invalidBadge}>
             Add at least one cooking step.
@@ -1635,7 +1636,7 @@ function ManualEditor(p: ManualEditorProps) {
 
       {/* Notes */}
       <View style={{ gap: Spacing[2] }}>
-        <Text style={s.subHeader}>Notes (optional)</Text>
+        <SectionLabel label="Notes (optional)" />
         <TextInput
           value={p.notes}
           onChangeText={p.setNotes}
