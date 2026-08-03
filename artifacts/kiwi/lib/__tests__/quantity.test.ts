@@ -28,6 +28,11 @@ test("parseQuantity: comma-decimal locale input is normalized to a dot", () => {
   assert.equal(parseQuantity("1,5"), 1.5);
   assert.equal(parseQuantity("1,75"), 1.75);
   assert.equal(parseQuantity("0,25"), 0.25);
+  // Documented consequence (③): a comma is ALWAYS a decimal separator here, so
+  // a thousands-grouped "1,000" reads as 1.0, not 1000. This is safe — recipe
+  // quantities are small and no formatter emits thousands separators — but the
+  // behavior is locked so a future locale-aware change is a deliberate decision.
+  assert.equal(parseQuantity("1,000"), 1);
 });
 
 test("parseQuantity: invalid / empty returns null", () => {

@@ -731,20 +731,22 @@ export default function DishBuilderScreen() {
               {form.ingredients.map((ing) => (
                 <View key={ing.uid} style={s.ingredientRow}>
                   <TextInput
-                    // ① store the RAW text so a mid-typing "1." survives; the
-                    // old parseFloat→number→String round-trip discarded the
-                    // trailing dot, making "1.75" impossible to enter. Parsed at
-                    // save via parseQuantity. decimal-pad shows "." (and "," in
-                    // comma locales, which parseQuantity normalizes).
+                    // ① RAW-text storage (a mid-typing "1." or partial "1 3/"
+                    // survives), parsed to a number at save via parseQuantity.
+                    // DEFAULT keyboard — mirrors meal-builder — so "/" is
+                    // reachable for fraction entry like "1 3/4"; the previous
+                    // decimal-pad had no "/" key. parseQuantity handles decimals,
+                    // fractions, and comma-decimals.
                     value={ing.quantity}
                     onChangeText={(v) =>
                       updateIngredient(ing.uid, { quantity: v })
                     }
                     placeholder="Qty"
                     placeholderTextColor={Colors.neutral[600]}
-                    keyboardType="decimal-pad"
+                    autoCapitalize="none"
                     returnKeyType="done"
                     blurOnSubmit
+                    onSubmitEditing={Keyboard.dismiss}
                     style={[s.input, s.qtyInput]}
                   />
                   <TextInput

@@ -18,6 +18,7 @@ import { useDish } from "@/hooks/useDish";
 import { ApiError } from "@/lib/api/errors";
 import type { DishDetail } from "@/lib/api/dishes";
 import { formatMacro } from "@/lib/format/macros";
+import { formatQuantity } from "@/lib/format/quantity";
 
 // WS7-3 Block C3 c3: dish detail reads GET /dishes/:id via useDish. Adopts
 // the Block B gate/body pattern from app/meal/[id].tsx — DishDetailScreen
@@ -184,7 +185,10 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
           <SectionLabel label="Ingredients" />
           {dish.ingredients.map((ing, i) => (
             <Text key={i} style={s.ingredientLine}>
-              {ing.quantity} {ing.unit} {ing.name}
+              {/* ①-follow-up — render 1.75 back as "1¾" via the existing
+                  formatQuantity glyph formatter (same as Meal Detail), so a
+                  fraction the user typed reads as a fraction on reopen. */}
+              {formatQuantity(ing.quantity, ing.unit)} {ing.unit} {ing.name}
             </Text>
           ))}
         </View>
