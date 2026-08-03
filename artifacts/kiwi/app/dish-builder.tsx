@@ -31,6 +31,7 @@ import {
   CUISINES_TIER_2,
 } from "@/lib/domain";
 import { useDish } from "@/hooks/useDish";
+import { parseQuantity } from "@/lib/quantity";
 import type { DishDetail } from "@/lib/api/dishes";
 import type { DraftDish } from "@/lib/builder/parsedDishToDraft";
 import { resolveDishPostSaveNav } from "@/lib/builder/dishPostSaveNav";
@@ -44,7 +45,12 @@ const SERVINGS_MAX = 30;
 
 interface IngredientRow {
   uid: number;
-  quantity: number;
+  // ① decimal-entry fix — quantity is the RAW TEXT the user is typing (mirrors
+  // meal-builder's BuilderIngredient). Storing a number and re-stringifying it
+  // per keystroke dropped a trailing "." ("1." → 1 → "1"), which made decimals
+  // like "1.75" impossible to enter. Parsed to a number only at save/assist via
+  // parseQuantity (which also accepts fractions + comma-decimals).
+  quantity: string;
   unit: string;
   name: string;
 }
@@ -83,7 +89,7 @@ const nextUid = () => UID_COUNTER++;
 
 const emptyIngredient = (): IngredientRow => ({
   uid: nextUid(),
-  quantity: 1,
+  quantity: "",
   unit: "",
   name: "",
 });
@@ -133,7 +139,7 @@ function dishDetailToForm(dish: DishDetail): DishBuilderForm {
     ingredients: dish.ingredients.length
       ? dish.ingredients.map((i) => ({
           uid: nextUid(),
-          quantity: i.quantity,
+          quantity: String(i.quantity),
           unit: i.unit,
           name: i.name,
         }))
@@ -173,7 +179,7 @@ function draftDishToForm(draft: DraftDish): DishBuilderForm {
     ingredients: draft.ingredients.length
       ? draft.ingredients.map((i) => ({
           uid: nextUid(),
-          quantity: i.quantity,
+          quantity: String(i.quantity),
           unit: i.unit,
           name: i.name,
         }))
@@ -317,11 +323,14 @@ export default function DishBuilderScreen() {
     try {
       const existing = form.ingredients
         .filter((i) => i.name.trim())
-        .map((i) => ({
-          name: i.name.trim(),
-          quantity: i.quantity > 0 ? i.quantity : undefined,
-          unit: i.unit.trim() || undefined,
-        }));
+        .map((i) => {
+          const q = parseQuantity(i.quantity);
+          return {
+            name: i.name.trim(),
+            quantity: q != null && q > 0 ? q : undefined,
+            unit: i.unit.trim() || undefined,
+          };
+        });
       const result = await assistIngredients({
         dishTitle: form.name.trim(),
         cuisine: form.cuisineType,
@@ -334,7 +343,7 @@ export default function DishBuilderScreen() {
         ingredients: result.ingredients.length
           ? result.ingredients.map((ing) => ({
               uid: nextUid(),
-              quantity: ing.quantity,
+              quantity: String(ing.quantity),
               unit: ing.unit,
               name: ing.name,
             }))
@@ -366,10 +375,13 @@ export default function DishBuilderScreen() {
     // required quantity + unit). Surface this up-front instead of letting a
     // 400 round-trip the user back.
     const usableIngredients = form.ingredients
-      .filter((i) => i.name.trim() && i.quantity > 0 && i.unit.trim())
+      .filter((i) => {
+        const q = parseQuantity(i.quantity);
+        return i.name.trim() && q != null && q > 0 && i.unit.trim();
+      })
       .map((i) => ({
         name: i.name.trim(),
-        quantity: i.quantity,
+        quantity: parseQuantity(i.quantity) ?? 0,
         unit: i.unit.trim(),
       }));
     if (usableIngredients.length === 0) {
@@ -455,7 +467,10 @@ export default function DishBuilderScreen() {
       kiwiAssistIngredients: form.kiwiAssistIngredients,
       kiwiAssistSteps: form.kiwiAssistSteps,
       ingredients: cleanIngredients.map((i) => ({
-        quantity: i.quantity,
+        // ① parse the raw text to a number at save (mirrors meal-builder's
+        // `parseQuantity(i.quantity) ?? 1`); handles decimals, fractions, and
+        // comma-decimals. Blank/invalid falls back to 1.
+        quantity: parseQuantity(i.quantity) ?? 1,
         unit: i.unit.trim() || "unit",
         name: i.name.trim(),
       })),
@@ -697,13 +712,15 @@ export default function DishBuilderScreen() {
               {form.ingredients.map((ing) => (
                 <View key={ing.uid} style={s.ingredientRow}>
                   <TextInput
-                    value={ing.quantity === 0 ? "" : String(ing.quantity)}
-                    onChangeText={(v) => {
-                      const n = parseFloat(v.replace(/[^0-9.]/g, ""));
-                      updateIngredient(ing.uid, {
-                        quantity: Number.isFinite(n) ? n : 0,
-                      });
-                    }}
+                    // ① store the RAW text so a mid-typing "1." survives; the
+                    // old parseFloat→number→String round-trip discarded the
+                    // trailing dot, making "1.75" impossible to enter. Parsed at
+                    // save via parseQuantity. decimal-pad shows "." (and "," in
+                    // comma locales, which parseQuantity normalizes).
+                    value={ing.quantity}
+                    onChangeText={(v) =>
+                      updateIngredient(ing.uid, { quantity: v })
+                    }
                     placeholder="Qty"
                     placeholderTextColor={Colors.neutral[600]}
                     keyboardType="decimal-pad"

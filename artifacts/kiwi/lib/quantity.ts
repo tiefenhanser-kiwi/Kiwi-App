@@ -8,7 +8,12 @@
  * rule in one place.
  */
 export function parseQuantity(input: string): number | null {
-  const trimmed = input.trim();
+  // Locale: comma-decimal keypads (Android in many locales) emit "," rather
+  // than "." for the decimal separator, so "1,5" means 1.5. Normalize commas
+  // to dots before parsing so a comma-locale user's decimals are accepted.
+  // (A recipe quantity never uses "," as a thousands separator, so a blanket
+  // replace is safe; a genuinely malformed value still falls through to null.)
+  const trimmed = input.trim().replace(/,/g, ".");
   if (!trimmed) return null;
 
   // Plain decimal: "1.5", "0.25", "2"
