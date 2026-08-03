@@ -574,56 +574,13 @@ export default function DishBuilderScreen() {
                 style={s.input}
               />
             </View>
-            <View>
-              <Text style={s.fieldLabel}>Cuisine</Text>
-              <View style={s.chipRow}>
-                {CUISINES_TIER_1.map((c) => (
-                  <Chip
-                    key={c}
-                    label={c}
-                    selected={form.cuisineType === c}
-                    onPress={() =>
-                      update(
-                        "cuisineType",
-                        form.cuisineType === c ? undefined : c,
-                      )
-                    }
-                  />
-                ))}
-              </View>
-              <ExpandLink
-                expanded={form.cuisineExpanded}
-                label="More cuisines"
-                onPress={() =>
-                  update("cuisineExpanded", !form.cuisineExpanded)
-                }
-              />
-              {form.cuisineExpanded && (
-                <View style={[s.chipRow, { marginTop: Spacing[2] }]}>
-                  {CUISINES_TIER_2.map((c) => (
-                    <Chip
-                      key={c}
-                      label={c}
-                      selected={form.cuisineType === c}
-                      onPress={() =>
-                        update(
-                          "cuisineType",
-                          form.cuisineType === c ? undefined : c,
-                        )
-                      }
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
-            {/* WS9 3f-1 — the Side/Main Type picker was removed. Dish has no
-                `type` column server-side (SaveDishInput carries no key for it),
-                so the control silently discarded its value on save. `form.type`
-                is retained (defaults "main", preserved on edit) only to satisfy
-                the required DishDraft.type contract; it is no longer user-set.
-                NOTE: the Cuisine picker above is deliberately KEPT — unlike type,
-                cuisine steers the Kiwi-assist ingredient/step calls this session
-                even though it, too, is dropped on save. */}
+            {/* WS9 3f-2 — Cuisine moved OUT of this "details" card to sit with
+                the Kiwi-assist controls in Section 3, relabeled a generation
+                hint. Rationale: Dish has no cuisineType column, so cuisine is
+                never saved — it only steers Kiwi's ingredient/step suggestions.
+                Placed here it read as a stored attribute. (The Side/Main Type
+                picker was likewise removed in 3f-1; `form.type` stays as inert
+                "main" plumbing to satisfy the required DishDraft.type contract.) */}
           </View>
         </View>
 
@@ -658,7 +615,57 @@ export default function DishBuilderScreen() {
         {/* Section 3: What's in this dish (ingredients + Kiwi-assist) */}
         <View style={s.card}>
           <Text style={s.cardTitle}>What's in this dish</Text>
-          <View style={{ marginTop: Spacing[2] }}>
+          {/* Cuisine hint — a GENERATION hint, NOT a saved attribute. Dish has
+              no cuisineType column; this only steers Kiwi's ingredient/step
+              suggestions this session. Grouped with the Kiwi-assist controls and
+              labeled so it can't be read as a stored field. */}
+          <View style={{ marginTop: Spacing[3] }}>
+            <Text style={s.fieldLabel}>Cuisine hint</Text>
+            <Text style={s.assistHint}>
+              Guides Kiwi's ingredient and step suggestions — not saved on the
+              dish.
+            </Text>
+            <View style={[s.chipRow, { marginTop: Spacing[2] }]}>
+              {CUISINES_TIER_1.map((c) => (
+                <Chip
+                  key={c}
+                  label={c}
+                  selected={form.cuisineType === c}
+                  onPress={() =>
+                    update(
+                      "cuisineType",
+                      form.cuisineType === c ? undefined : c,
+                    )
+                  }
+                />
+              ))}
+            </View>
+            <ExpandLink
+              expanded={form.cuisineExpanded}
+              label="More cuisines"
+              onPress={() =>
+                update("cuisineExpanded", !form.cuisineExpanded)
+              }
+            />
+            {form.cuisineExpanded && (
+              <View style={[s.chipRow, { marginTop: Spacing[2] }]}>
+                {CUISINES_TIER_2.map((c) => (
+                  <Chip
+                    key={c}
+                    label={c}
+                    selected={form.cuisineType === c}
+                    onPress={() =>
+                      update(
+                        "cuisineType",
+                        form.cuisineType === c ? undefined : c,
+                      )
+                    }
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+          <View style={{ marginTop: Spacing[3] }}>
             <CheckboxRow
               checked={form.kiwiAssistIngredients}
               label="Have Kiwi suggest recipe"

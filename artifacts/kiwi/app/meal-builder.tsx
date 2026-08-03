@@ -2321,7 +2321,9 @@ const s = StyleSheet.create({
   stepCircle: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    // D-WS9-022 — full radius for a 32px circle (was the ambiguous old-xl 16;
+    // at 32px, 16 IS a circle, so this is pixel-identical).
+    borderRadius: Radius.full,
     backgroundColor: Colors.sage[100],
     alignItems: "center",
     justifyContent: "center",
