@@ -56,7 +56,7 @@ import type { SaveMealInput } from "@/lib/api/meals";
 import { useMeal } from "@/hooks/useMeal";
 import { CUISINES_TIER_1, CUISINES_TIER_2 } from "@/lib/domain";
 import { formatMacroLine } from "@/lib/format/macros";
-import { parseQuantity } from "@/lib/quantity";
+import { isQuantityInvalid } from "@/lib/quantity";
 import {
   buildManualSaveMealInput,
   buildRecipeOverride,
@@ -119,11 +119,15 @@ function summarizeMissing(v: {
   nameMissing: boolean;
   ingredientMissing: boolean;
   stepMissing: boolean;
+  quantityInvalid: boolean;
 }): string {
   const parts: string[] = [];
   if (v.nameMissing) parts.push("a name");
   if (v.ingredientMissing) parts.push("at least one ingredient");
   if (v.stepMissing) parts.push("at least one step");
+  // FU3 — surfaces near Save so a blocked save from an off-screen invalid
+  // quantity isn't a silent dead button (the field itself is also red-badged).
+  if (v.quantityInvalid) parts.push("a valid quantity on every ingredient");
   return `Needs: ${parts.join(", ")}.`;
 }
 
@@ -532,7 +536,8 @@ export default function MealBuilderScreen() {
   const manualSaveInvalid =
     manualValidation.nameMissing ||
     manualValidation.ingredientMissing ||
-    manualValidation.stepMissing;
+    manualValidation.stepMissing ||
+    manualValidation.quantityInvalid;
   // Mode C is intentionally NOT step-gated, NOR ingredient-gated: combine-mode
   // dishes are server-linked saved dishes (kind:"link") whose steps +
   // ingredients live with the linked dish, not this builder. The dishesQuery
@@ -1523,11 +1528,10 @@ function ManualEditor(p: ManualEditorProps) {
             </View>
             <View style={{ gap: Spacing[1], marginTop: Spacing[2] }}>
               {dish.ingredients.map((ing) => {
-                // Quantity supports decimals + fractions ("1/2", "1 1/2").
-                // Invalid only when non-empty AND parser rejects.
-                const qtyInvalid =
-                  ing.quantity.trim().length > 0 &&
-                  parseQuantity(ing.quantity) === null;
+                // FU3 — invalid when non-blank AND (unparseable OR ≤ 0). Blank
+                // is allowed (defaults to 1 at save). Shared rule so builder +
+                // save-block agree.
+                const qtyInvalid = isQuantityInvalid(ing.quantity);
                 return (
                   <View key={ing.uid}>
                     <View style={s.ingredientRow}>
@@ -1591,7 +1595,7 @@ function ManualEditor(p: ManualEditorProps) {
                     </View>
                     {qtyInvalid && (
                       <Text style={s.invalidBadge}>
-                        Invalid quantity (try 1, 1.5, 1/2, or 1 1/2)
+                        Enter a quantity above 0 (e.g. 1, 1.5, 1/2, or 1 1/2)
                       </Text>
                     )}
                   </View>

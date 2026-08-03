@@ -814,6 +814,63 @@ test("validateManualSave: all three gates satisfied → all flags false", () => 
   assert.equal(v.nameMissing, false);
   assert.equal(v.ingredientMissing, false);
   assert.equal(v.stepMissing, false);
+  // FU3 — a valid positive quantity does not trip the new gate.
+  assert.equal(v.quantityInvalid, false);
+});
+
+test("validateManualSave: quantityInvalid — a NAMED ingredient with an unparseable or ≤0 quantity trips the gate", () => {
+  const alloc = makeAlloc();
+  for (const q of ["abc", "-2", "0"]) {
+    const v = validateManualSave({
+      mealName: "Test",
+      dishes: [
+        newDish(alloc, {
+          ingredients: [
+            newIngredient(alloc, { name: "Flour", quantity: q, unit: "cup" }),
+          ],
+          steps: [newStep(alloc, { text: "Mix" })],
+        }),
+      ],
+    });
+    assert.equal(
+      v.quantityInvalid,
+      true,
+      `quantity ${JSON.stringify(q)} should be invalid`,
+    );
+  }
+});
+
+test("validateManualSave: quantityInvalid — blank quantity on a named ingredient is allowed (false)", () => {
+  const alloc = makeAlloc();
+  const v = validateManualSave({
+    mealName: "Test",
+    dishes: [
+      newDish(alloc, {
+        ingredients: [
+          newIngredient(alloc, { name: "Salt", quantity: "", unit: "" }),
+        ],
+        steps: [newStep(alloc, { text: "Season" })],
+      }),
+    ],
+  });
+  assert.equal(v.quantityInvalid, false);
+});
+
+test("validateManualSave: quantityInvalid — a bad quantity on an UNNAMED row does NOT trip the gate (dropped at save)", () => {
+  const alloc = makeAlloc();
+  const v = validateManualSave({
+    mealName: "Test",
+    dishes: [
+      newDish(alloc, {
+        ingredients: [
+          newIngredient(alloc, { name: "Flour", quantity: "1", unit: "cup" }),
+          newIngredient(alloc, { name: "", quantity: "abc", unit: "" }),
+        ],
+        steps: [newStep(alloc, { text: "Mix" })],
+      }),
+    ],
+  });
+  assert.equal(v.quantityInvalid, false);
 });
 
 // ── WS7-6 Block 1H — DishChooserSheet "Create from scratch" factory ─────

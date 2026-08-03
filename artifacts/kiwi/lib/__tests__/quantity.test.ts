@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseQuantity } from "../quantity";
+import { isQuantityInvalid, parseQuantity } from "../quantity";
 
 test("parseQuantity: plain decimals and integers", () => {
   assert.equal(parseQuantity("1"), 1);
@@ -41,6 +41,31 @@ test("parseQuantity: invalid / empty returns null", () => {
   assert.equal(parseQuantity("abc"), null);
   assert.equal(parseQuantity("1/0"), null); // zero denominator
   assert.equal(parseQuantity("1,,5"), null); // malformed
+});
+
+test("isQuantityInvalid: blank is VALID (allowed, defaults to 1 at save)", () => {
+  assert.equal(isQuantityInvalid(""), false);
+  assert.equal(isQuantityInvalid("   "), false);
+});
+
+test("isQuantityInvalid: unparseable non-blank is INVALID", () => {
+  assert.equal(isQuantityInvalid("a couple"), true);
+  assert.equal(isQuantityInvalid("abc"), true);
+  assert.equal(isQuantityInvalid("1/0"), true);
+});
+
+test("isQuantityInvalid: zero and negatives are INVALID (server requires positive)", () => {
+  assert.equal(isQuantityInvalid("0"), true);
+  assert.equal(isQuantityInvalid("-2"), true);
+  assert.equal(isQuantityInvalid("0,0"), true);
+});
+
+test("isQuantityInvalid: parseable positive values are VALID", () => {
+  assert.equal(isQuantityInvalid("1"), false);
+  assert.equal(isQuantityInvalid("1.5"), false);
+  assert.equal(isQuantityInvalid("1/2"), false);
+  assert.equal(isQuantityInvalid("1 3/4"), false);
+  assert.equal(isQuantityInvalid("1,75"), false);
 });
 
 test("parseQuantity: mid-typing partials do not throw (validation, not a gate)", () => {

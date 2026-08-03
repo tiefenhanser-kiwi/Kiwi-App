@@ -13,7 +13,7 @@
 // These helpers are framework-agnostic (no React) — call sites pass in a
 // uid allocator so the host module can keep its module-level counter.
 
-import { parseQuantity } from "./quantity";
+import { isQuantityInvalid, parseQuantity } from "./quantity";
 import { toServerDifficulty } from "./api/builder";
 import type {
   MealDetail,
@@ -118,6 +118,9 @@ export interface ManualSaveValidation {
   ingredientMissing: boolean;
   /** No step anywhere has non-empty trimmed text. */
   stepMissing: boolean;
+  /** A NAMED ingredient (one the serializer will keep) has a non-blank invalid
+   *  quantity — unparseable or ≤ 0. Blank is allowed (defaults to 1 at save). */
+  quantityInvalid: boolean;
 }
 
 export function validateManualSave(state: {
@@ -131,7 +134,14 @@ export function validateManualSave(state: {
   const stepMissing = !state.dishes.some((d) =>
     d.steps.some((st) => st.text.trim().length > 0),
   );
-  return { nameMissing, ingredientMissing, stepMissing };
+  // WS9 3f-2 FU3 — block save when a NAMED ingredient (the ones the serializer
+  // keeps) has a non-blank invalid quantity. Blank stays allowed (→ 1).
+  const quantityInvalid = state.dishes.some((d) =>
+    d.ingredients.some(
+      (i) => i.name.trim().length > 0 && isQuantityInvalid(i.quantity),
+    ),
+  );
+  return { nameMissing, ingredientMissing, stepMissing, quantityInvalid };
 }
 
 // ── Hydration ────────────────────────────────────────────────────────────

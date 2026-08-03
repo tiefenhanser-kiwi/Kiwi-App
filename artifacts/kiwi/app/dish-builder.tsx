@@ -31,7 +31,7 @@ import {
   CUISINES_TIER_2,
 } from "@/lib/domain";
 import { useDish } from "@/hooks/useDish";
-import { parseQuantity } from "@/lib/quantity";
+import { isQuantityInvalid, parseQuantity } from "@/lib/quantity";
 import type { DishDetail } from "@/lib/api/dishes";
 import type { DraftDish } from "@/lib/builder/parsedDishToDraft";
 import { resolveDishPostSaveNav } from "@/lib/builder/dishPostSaveNav";
@@ -466,6 +466,17 @@ export default function DishBuilderScreen() {
       );
       return;
     }
+    // FU3 — block save when a NAMED ingredient has a non-blank invalid quantity
+    // (unparseable or ≤ 0). The row is red-badged inline; this Alert names the
+    // reason so a blocked save (esp. from an off-screen row) isn't a silent
+    // no-op. Blank quantities are allowed and default to 1 at save.
+    if (cleanIngredients.some((i) => isQuantityInvalid(i.quantity))) {
+      Alert.alert(
+        "Fix quantities",
+        "One or more ingredients has an invalid quantity. Enter a quantity above 0 (e.g. 1, 1.5, 1/2) on the highlighted rows to save.",
+      );
+      return;
+    }
 
     const draft: DishDraft = {
       id: form.id,
@@ -728,57 +739,81 @@ export default function DishBuilderScreen() {
             </View>
           ) : (
             <View style={{ marginTop: Spacing[3], gap: Spacing[2] }}>
-              {form.ingredients.map((ing) => (
-                <View key={ing.uid} style={s.ingredientRow}>
-                  <TextInput
-                    // ① RAW-text storage (a mid-typing "1." or partial "1 3/"
-                    // survives), parsed to a number at save via parseQuantity.
-                    // DEFAULT keyboard — mirrors meal-builder — so "/" is
-                    // reachable for fraction entry like "1 3/4"; the previous
-                    // decimal-pad had no "/" key. parseQuantity handles decimals,
-                    // fractions, and comma-decimals.
-                    value={ing.quantity}
-                    onChangeText={(v) =>
-                      updateIngredient(ing.uid, { quantity: v })
-                    }
-                    placeholder="Qty"
-                    placeholderTextColor={Colors.neutral[600]}
-                    autoCapitalize="none"
-                    returnKeyType="done"
-                    blurOnSubmit
-                    onSubmitEditing={Keyboard.dismiss}
-                    style={[s.input, s.qtyInput]}
-                  />
-                  <TextInput
-                    value={ing.unit}
-                    onChangeText={(v) => updateIngredient(ing.uid, { unit: v })}
-                    placeholder="unit"
-                    placeholderTextColor={Colors.neutral[600]}
-                    returnKeyType="done"
-                    blurOnSubmit
-                    style={[s.input, s.unitInput]}
-                  />
-                  <TextInput
-                    value={ing.name}
-                    onChangeText={(v) => updateIngredient(ing.uid, { name: v })}
-                    placeholder="ingredient"
-                    placeholderTextColor={Colors.neutral[600]}
-                    returnKeyType="done"
-                    blurOnSubmit
-                    style={[s.input, { flex: 1 }]}
-                  />
-                  <Pressable
-                    onPress={() => removeIngredient(ing.uid)}
-                    hitSlop={8}
-                    style={({ pressed }) => [
-                      s.removeBtn,
-                      pressed && { opacity: 0.6 },
-                    ]}
-                  >
-                    <Feather name="x" size={16} color={Colors.neutral[700]} />
-                  </Pressable>
-                </View>
-              ))}
+              {form.ingredients.map((ing) => {
+                // FU3 — non-blank invalid quantity (unparseable or ≤ 0) → red
+                // border + badge, and save is blocked in handleSave. Blank stays
+                // valid (defaults to 1 at save). Same shared rule meal-builder uses.
+                const qtyInvalid = isQuantityInvalid(ing.quantity);
+                return (
+                  <View key={ing.uid}>
+                    <View style={s.ingredientRow}>
+                      <TextInput
+                        // ① RAW-text storage (a mid-typing "1." or partial
+                        // "1 3/" survives), parsed at save via parseQuantity.
+                        // DEFAULT keyboard mirrors meal-builder so "/" is
+                        // reachable for fractions; parseQuantity handles
+                        // decimals, fractions, and comma-decimals.
+                        value={ing.quantity}
+                        onChangeText={(v) =>
+                          updateIngredient(ing.uid, { quantity: v })
+                        }
+                        placeholder="Qty"
+                        placeholderTextColor={Colors.neutral[600]}
+                        autoCapitalize="none"
+                        returnKeyType="done"
+                        blurOnSubmit
+                        onSubmitEditing={Keyboard.dismiss}
+                        style={[
+                          s.input,
+                          s.qtyInput,
+                          qtyInvalid && s.inputInvalid,
+                        ]}
+                      />
+                      <TextInput
+                        value={ing.unit}
+                        onChangeText={(v) =>
+                          updateIngredient(ing.uid, { unit: v })
+                        }
+                        placeholder="unit"
+                        placeholderTextColor={Colors.neutral[600]}
+                        returnKeyType="done"
+                        blurOnSubmit
+                        style={[s.input, s.unitInput]}
+                      />
+                      <TextInput
+                        value={ing.name}
+                        onChangeText={(v) =>
+                          updateIngredient(ing.uid, { name: v })
+                        }
+                        placeholder="ingredient"
+                        placeholderTextColor={Colors.neutral[600]}
+                        returnKeyType="done"
+                        blurOnSubmit
+                        style={[s.input, { flex: 1 }]}
+                      />
+                      <Pressable
+                        onPress={() => removeIngredient(ing.uid)}
+                        hitSlop={8}
+                        style={({ pressed }) => [
+                          s.removeBtn,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Feather
+                          name="x"
+                          size={16}
+                          color={Colors.neutral[700]}
+                        />
+                      </Pressable>
+                    </View>
+                    {qtyInvalid && (
+                      <Text style={s.invalidBadge}>
+                        Enter a quantity above 0 (e.g. 1, 1.5, 1/2, or 1 1/2)
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
               <Pressable
                 onPress={addIngredient}
                 style={({ pressed }) => [
@@ -1198,6 +1233,17 @@ const s = StyleSheet.create({
   unitInput: {
     width: 70,
     paddingHorizontal: Spacing[2],
+  },
+  // FU3 — mirrors meal-builder's invalid-quantity affordance (red border + badge).
+  inputInvalid: {
+    borderColor: Colors.terracotta[400],
+  },
+  invalidBadge: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.terracotta[700],
+    fontFamily: Typography.face.sans[400],
+    marginTop: 2,
+    marginLeft: 4,
   },
   removeBtn: {
     width: 32,
