@@ -30,14 +30,11 @@ import {
   CUISINES_TIER_1,
   CUISINES_TIER_2,
 } from "@/lib/domain";
-import {
-  getFeaturedDishes,
-  getSavedDishes,
-  getTopRatedDishes,
-} from "@/lib/stubs";
+import { useDish } from "@/hooks/useDish";
+import type { DishDetail } from "@/lib/api/dishes";
 import type { DraftDish } from "@/lib/builder/parsedDishToDraft";
 import { resolveDishPostSaveNav } from "@/lib/builder/dishPostSaveNav";
-import type { DishDraft, SavedDish } from "@/lib/types";
+import type { DishDraft } from "@/lib/types";
 
 const TIME_MIN = 0;
 const TIME_MAX = 300;
@@ -110,35 +107,29 @@ const initialForm = (): DishBuilderForm => ({
   notes: "",
 });
 
-function findDishById(id: string): SavedDish | null {
-  const all: SavedDish[] = [
-    ...getSavedDishes(),
-    ...getFeaturedDishes(),
-    ...getTopRatedDishes(),
-  ];
-  return all.find((d) => d.id === id) ?? null;
-}
-
-function dishToForm(dish: SavedDish): DishBuilderForm {
-  const isTier2 =
-    !!dish.cuisineType &&
-    (CUISINES_TIER_2 as readonly string[]).includes(dish.cuisineType);
+// BUG-057 — edit mode hydrates from the SERVER (GET /dishes/:id via useDish),
+// mirroring meal-builder's WS7-6 1G migration off lib/stubs. The old
+// findDishById(stubs) path never matched a real (server-created) dish, so the
+// form stayed at initialForm — the blank-creation-page symptom — and every
+// "edit" forked a new dish on save. `DishDetail` carries no cuisineType/type
+// column (Dish has neither), so cuisine resets (it is a build-session AI hint,
+// not a stored attribute) and type falls to the inert "main" default. `notes`
+// maps to the Dish.description column, the same round-trip saveDish uses.
+function dishDetailToForm(dish: DishDetail): DishBuilderForm {
   return {
     id: dish.id,
-    name: dish.name,
-    cuisineType: dish.cuisineType,
-    cuisineExpanded: isTier2,
-    type: dish.type,
-    estimatedTimeMinutes: dish.estimatedTimeMinutes ?? 30,
-    servingsDefault: 4,
-    // Kiwi-assist defaults to false on edit — user's existing manual
-    // content takes precedence and shouldn't be silently overwritten.
+    name: dish.title,
+    cuisineType: undefined,
+    cuisineExpanded: false,
+    type: "main",
+    estimatedTimeMinutes: dish.minutes,
+    servingsDefault: dish.servings,
     kiwiAssistIngredients: false,
     kiwiAssistSteps: false,
-    caloriesPerServing: dish.caloriesPerServing,
-    proteinGPerServing: dish.proteinGPerServing,
-    carbsGPerServing: dish.carbsGPerServing,
-    fatGPerServing: dish.fatGPerServing,
+    caloriesPerServing: dish.calories,
+    proteinGPerServing: dish.protein,
+    carbsGPerServing: dish.carbs,
+    fatGPerServing: dish.fat,
     ingredients: dish.ingredients.length
       ? dish.ingredients.map((i) => ({
           uid: nextUid(),
@@ -147,21 +138,20 @@ function dishToForm(dish: SavedDish): DishBuilderForm {
           name: i.name,
         }))
       : [emptyIngredient()],
-    steps:
-      dish.steps?.map((s) => ({
-        uid: nextUid(),
-        text: s.text,
-        estimatedMinutes: s.estimatedMinutes ?? 0,
-        isTimingSensitive: s.isTimingSensitive ?? false,
-      })) ?? [],
-    notes: dish.notes ?? "",
+    steps: dish.steps.map((s) => ({
+      uid: nextUid(),
+      text: s.text,
+      estimatedMinutes: s.estimatedMinutes,
+      isTimingSensitive: s.isTimingSensitive,
+    })),
+    notes: dish.description ?? "",
   };
 }
 
 // WS7-6 G2 — Dish Mode A draft hydration. Maps a DraftDish (the
 // parsedDishToDraft output handed in via the draftJson param from the dish-side
-// "Ask Kiwi" screen) into the builder form. Mirrors dishToForm but seeds a NEW
-// dish (no id) — the user reviews/edits before the first save.
+// "Ask Kiwi" screen) into the builder form. Mirrors dishDetailToForm but seeds
+// a NEW dish (no id) — the user reviews/edits before the first save.
 function draftDishToForm(draft: DraftDish): DishBuilderForm {
   const isTier2 =
     !!draft.cuisineType &&
@@ -204,7 +194,7 @@ export default function DishBuilderScreen() {
     dishId?: string;
     draftJson?: string;
   }>();
-  const { saveDish } = useApp();
+  const { saveDish, updateDish } = useApp();
   const [form, setForm] = useState<DishBuilderForm>(initialForm);
   // WS7-6 Block 1C: in-flight flags for the two Kiwi-assist buttons.
   // Local-only state — each assist call is a one-shot fire that replaces
@@ -212,15 +202,15 @@ export default function DishBuilderScreen() {
   const [assistingIngredients, setAssistingIngredients] = useState(false);
   const [assistingSteps, setAssistingSteps] = useState(false);
 
+  // BUG-057 — edit-mode hydration reads the real dish from the server. useDish
+  // is a no-op when dishId is absent (create / draft-from-Ask-Kiwi context).
+  const dishDetailQuery = useDish(dishId ?? "");
+  const sourceDish = dishDetailQuery.data ?? null;
+
   useEffect(() => {
-    if (!dishId) return;
-    const dish = findDishById(dishId);
-    if (!dish) {
-      console.warn("[dish-builder] dishId not found in stubs", { dishId });
-      return;
-    }
-    setForm(dishToForm(dish));
-  }, [dishId]);
+    if (!dishId || !sourceDish) return;
+    setForm(dishDetailToForm(sourceDish));
+  }, [dishId, sourceDish]);
 
   // WS7-6 G2 — Dish Mode A: hydrate the form once from a draftJson (DraftDish)
   // handed in by the dish-side "Ask Kiwi" screen. Guarded behind !dishId so an
@@ -426,6 +416,16 @@ export default function DishBuilderScreen() {
 
   const handleSave = async () => {
     Keyboard.dismiss();
+    // BUG-057 — if we arrived with a dishId to edit but the server dish has not
+    // hydrated yet (form.id still unset), block save so we never fork a blank
+    // dish over the real one while GET /dishes/:id is in flight.
+    if (dishId && !form.id) {
+      Alert.alert(
+        "Still loading",
+        "This dish is still loading. Give it a second and try again.",
+      );
+      return;
+    }
     if (!form.name.trim()) {
       Alert.alert("Add a name", "Give this dish a name to save it.");
       return;
@@ -478,18 +478,49 @@ export default function DishBuilderScreen() {
     };
 
     try {
+      if (isEdit && form.id) {
+        // BUG-057 — edit now PATCHes the real dish (updateDish → PATCH
+        // /me/dishes/:id) instead of forking a new one. macros / tags /
+        // difficulty are deliberately OMITTED: rematerializeDish only rewrites
+        // the fields present in the patch, so leaving them out PRESERVES those
+        // columns (verified against mealMaterialize.ts). ingredients + steps are
+        // always sent, so the sub-graph is fully rewritten from the form.
+        const editedId = form.id;
+        await updateDish(editedId, {
+          title: draft.name,
+          description: draft.notes ?? null,
+          estimatedTimeMinutes: draft.estimatedTimeMinutes,
+          servingsDefault: draft.servingsDefault,
+          ingredients: draft.ingredients,
+          steps: draft.steps.map((st) => ({
+            text: st.text,
+            estimatedMinutes: st.estimatedMinutes,
+            isTimingSensitive: st.isTimingSensitive,
+          })),
+        });
+        Alert.alert("Dish updated", "Your changes were saved.", [
+          {
+            text: "OK",
+            onPress: () =>
+              router.replace({
+                pathname: "/dish/[id]",
+                params: { id: editedId },
+              }),
+          },
+        ]);
+        return;
+      }
+
       const { id: newDishId } = await saveDish(draft);
       // WS7-6 G3 Scope E / #3 — land on the new dish's Dish Detail on create
       // (LANDING CONTRACT), via `replace` so Back returns to the list, not the
       // half-filled builder. Fixes the dish-side Ask-Kiwi flow, which used to
       // `router.back()` onto the ask-kiwi-dish input screen instead of the
-      // saved dish. Edits keep their contextual back.
+      // saved dish.
       const nav = resolveDishPostSaveNav({ newDishId, isEdit });
       Alert.alert(
-        isEdit ? "Dish saved as new" : "Dish saved",
-        isEdit
-          ? "Editing existing dishes lands in a future block — your changes were saved as a new dish."
-          : "Added to your saved dishes.",
+        "Dish saved",
+        "Added to your saved dishes.",
         [
           {
             text: "OK",
