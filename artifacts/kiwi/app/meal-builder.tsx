@@ -1,4 +1,11 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -154,6 +161,11 @@ export default function MealBuilderScreen() {
     useApp();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  // ② synchronous double-tap guard, shared by all three save paths (create,
+  // runUpdateMeal, runSaveJustThisTime). `saving` state drives the button UI but
+  // is read stale on a same-tick second tap; the ref is set/reset synchronously
+  // so a rapid double-tap can't fire a second create POST and dupe the meal.
+  const savingRef = useRef(false);
 
   // WS7-6 1G — hydration now reads from the server (GET /meals/:id) instead
   // of the lib/stubs catalog. Without this, a library-context edit would
@@ -588,6 +600,8 @@ export default function MealBuilderScreen() {
   // plan instance + its grocery list reflect the change.
   const runSaveJustThisTime = async (input: SaveMealInput) => {
     if (!planId || !planItemId) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       await changeRecipeForPlanItem(planId, planItemId, buildRecipeOverride(input));
@@ -601,6 +615,7 @@ export default function MealBuilderScreen() {
           : "Couldn't save your changes. Try again?";
       Alert.alert("Couldn't save meal", msg);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -626,6 +641,8 @@ export default function MealBuilderScreen() {
     bumpPlanId?: string,
     overridePlanItemId?: string,
   ) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       if (bumpPlanId && overridePlanItemId) {
@@ -649,6 +666,7 @@ export default function MealBuilderScreen() {
           : "Couldn't save your changes. Try again?";
       Alert.alert("Couldn't save meal", msg);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -656,6 +674,9 @@ export default function MealBuilderScreen() {
   const onSave = async () => {
     Keyboard.dismiss();
     if (saving) return;
+    // ② synchronous re-entry guard (see savingRef) — closes the same-tick
+    // window the stale `saving` check leaves open, on every save branch below.
+    if (savingRef.current) return;
 
     // WS7-6 Block 1F — flip saveAttempted on the first tap so the
     // inline errors + summary line surface for manual-mode. Pristine
@@ -760,6 +781,7 @@ export default function MealBuilderScreen() {
     }
 
     // ── CREATE branches (Surface 1) — WS7-6 Block 1E ────────────────────
+    savingRef.current = true;
     setSaving(true);
     try {
       const { id: newMealId } = await saveMeal(input);
@@ -825,6 +847,7 @@ export default function MealBuilderScreen() {
           : "Saving failed. Try again?";
       Alert.alert("Couldn't save meal", msg);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
