@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -207,6 +207,13 @@ export default function DishBuilderScreen() {
   // the form section on success.
   const [assistingIngredients, setAssistingIngredients] = useState(false);
   const [assistingSteps, setAssistingSteps] = useState(false);
+  // ② save in-flight state. `saving` drives the button (spinner + disabled);
+  // `savingRef` is the SYNCHRONOUS guard — a state-only check (like
+  // meal-builder's) reads a stale closure value on a same-tick double-tap, so a
+  // rapid second tap could still fire a second POST and fork a duplicate (the
+  // BUG-057 class). The ref updates immediately, closing that window.
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   // BUG-057 — edit-mode hydration reads the real dish from the server. useDish
   // is a no-op when dishId is absent (create / draft-from-Ask-Kiwi context).
@@ -428,6 +435,9 @@ export default function DishBuilderScreen() {
 
   const handleSave = async () => {
     Keyboard.dismiss();
+    // ② synchronous double-tap guard — bail before any validation or network
+    // work if a save is already in flight (closes the same-tick window).
+    if (savingRef.current) return;
     // BUG-057 — if we arrived with a dishId to edit but the server dish has not
     // hydrated yet (form.id still unset), block save so we never fork a blank
     // dish over the real one while GET /dishes/:id is in flight.
@@ -492,6 +502,8 @@ export default function DishBuilderScreen() {
       notes: form.notes.trim() || undefined,
     };
 
+    savingRef.current = true;
+    setSaving(true);
     try {
       if (isEdit && form.id) {
         // BUG-057 — edit now PATCHes the real dish (updateDish → PATCH
@@ -558,6 +570,9 @@ export default function DishBuilderScreen() {
           ? err.message
           : "Saving failed. Try again?";
       Alert.alert("Couldn't save dish", msg);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -630,10 +645,13 @@ export default function DishBuilderScreen() {
         {/* Section 3: What's in this dish (ingredients + Kiwi-assist) */}
         <View style={s.card}>
           <Text style={s.cardTitle}>What's in this dish</Text>
-          {/* Cuisine hint — a GENERATION hint, NOT a saved attribute. Dish has
-              no cuisineType column; this only steers Kiwi's ingredient/step
-              suggestions this session. Grouped with the Kiwi-assist controls and
-              labeled so it can't be read as a stored field. */}
+          {/* Cuisine hint — a GENERATION hint, NOT a saved attribute (Dish has
+              no cuisineType column; it only steers Kiwi's ingredient/step
+              suggestions). ④ Shown in CREATE only: in edit mode the ingredients
+              and steps already exist, so the generation hint is noise. Gated on
+              the edit CONTEXT (dishId) so it hides immediately, not after
+              hydration. meal-builder's cuisine field is untouched — it persists. */}
+          {!dishId && (
           <View style={{ marginTop: Spacing[3] }}>
             <Text style={s.fieldLabel}>Cuisine hint</Text>
             <Text style={s.assistHint}>
@@ -680,6 +698,7 @@ export default function DishBuilderScreen() {
               </View>
             )}
           </View>
+          )}
           <View style={{ marginTop: Spacing[3] }}>
             <CheckboxRow
               checked={form.kiwiAssistIngredients}
@@ -867,6 +886,8 @@ export default function DishBuilderScreen() {
             label={isEdit ? "Save changes" : "Save dish"}
             variant="primary"
             onPress={handleSave}
+            loading={saving}
+            disabled={saving}
           />
           <Text style={s.footerHint}>
             {isEdit
