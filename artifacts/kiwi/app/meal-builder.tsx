@@ -875,8 +875,16 @@ export default function MealBuilderScreen() {
           </View>
         )}
 
-        {/* Edit-context info card: surfaces the §2.5 plan-vs-global save framing */}
-        {mealId && !isChangeRecipe && (
+        {/* Edit-context info card: surfaces the §2.5 plan-vs-global save framing.
+            FU4 ③ — gated on isEditFromPlanContext (plan-instance edit), NOT bare
+            `mealId`. The "just this time or apply to your saved recipe" choice is
+            ONLY offered when editing from a plan (onSave shows the apply-always /
+            just-this-time Alert). A library/base meal edit (§8.4.4) saves with no
+            prompt, so this framing was false there. Same component renders both
+            screens — this is a re-gate, not a deletion (deleting would kill the
+            correct copy on the plan-instance screen). Reuses the existing
+            discriminator that drives the runUpdateMeal / runSaveJustThisTime split. */}
+        {isEditFromPlanContext && !isChangeRecipe && (
           <View style={s.contextInfo}>
             <Text style={s.contextInfoText}>
               Adjust ingredients, steps, or dishes in this meal. You can make

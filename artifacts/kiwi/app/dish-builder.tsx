@@ -241,6 +241,14 @@ export default function DishBuilderScreen() {
 
   const isEdit = !!form.id;
   const headerTitle = isEdit ? `Edit Dish: ${form.name || "—"}` : "Create Dish";
+  // FU4 ② — offer "Have Kiwi suggest steps" ONLY when no real steps exist yet.
+  // Hans ruled on the steps-EXIST condition (not edit-mode): generating steps is
+  // nonsensical once steps are present — on edit (hydrated steps), after a
+  // generate, or after manual entry. The manual editor / step list still renders
+  // below regardless (kiwiAssistSteps is false whenever steps exist).
+  const stepsAlreadyExist = form.steps.some(
+    (s) => s.text.trim().length > 0,
+  );
 
   const update = <K extends keyof DishBuilderForm>(
     key: K,
@@ -714,7 +722,7 @@ export default function DishBuilderScreen() {
             <CheckboxRow
               checked={form.kiwiAssistIngredients}
               label="Have Kiwi suggest recipe"
-              premiumLabel="Premium · WS6"
+              premiumLabel="Premium"
               onToggle={() =>
                 update("kiwiAssistIngredients", !form.kiwiAssistIngredients)
               }
@@ -833,14 +841,19 @@ export default function DishBuilderScreen() {
         <View style={s.card}>
           <Text style={s.cardTitle}>How to make it</Text>
           <Text style={s.cardSubtitle}>Optional</Text>
-          <View style={{ marginTop: Spacing[2] }}>
-            <CheckboxRow
-              checked={form.kiwiAssistSteps}
-              label="Have Kiwi suggest steps"
-              premiumLabel="Premium · WS6"
-              onToggle={() => update("kiwiAssistSteps", !form.kiwiAssistSteps)}
-            />
-          </View>
+          {/* FU4 ② — the "let Kiwi generate steps" toggle is offered only while
+              no real steps exist. Once steps are present (edit, generated, or
+              typed), generating is off the table and the editor below shows. */}
+          {!stepsAlreadyExist && (
+            <View style={{ marginTop: Spacing[2] }}>
+              <CheckboxRow
+                checked={form.kiwiAssistSteps}
+                label="Have Kiwi suggest steps"
+                premiumLabel="Premium"
+                onToggle={() => update("kiwiAssistSteps", !form.kiwiAssistSteps)}
+              />
+            </View>
+          )}
           {form.kiwiAssistSteps ? (
             <View style={{ marginTop: Spacing[2], gap: Spacing[2] }}>
               <Text style={s.assistHint}>
