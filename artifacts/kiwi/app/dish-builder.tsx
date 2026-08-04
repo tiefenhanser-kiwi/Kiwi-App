@@ -249,6 +249,13 @@ export default function DishBuilderScreen() {
   const stepsAlreadyExist = form.steps.some(
     (s) => s.text.trim().length > 0,
   );
+  // FU5 ② — same rule for ingredients: offer "Have Kiwi suggest recipe" only
+  // while no ingredient row has a real name (the blank starter row from
+  // initialForm doesn't count). Safe to hide: the flag is false whenever
+  // ingredients exist AND the save never gates ingredients on the flag.
+  const ingredientsAlreadyExist = form.ingredients.some(
+    (i) => i.name.trim().length > 0,
+  );
 
   const update = <K extends keyof DishBuilderForm>(
     key: K,
@@ -718,16 +725,21 @@ export default function DishBuilderScreen() {
             )}
           </View>
           )}
-          <View style={{ marginTop: Spacing[3] }}>
-            <CheckboxRow
-              checked={form.kiwiAssistIngredients}
-              label="Have Kiwi suggest recipe"
-              premiumLabel="Premium"
-              onToggle={() =>
-                update("kiwiAssistIngredients", !form.kiwiAssistIngredients)
-              }
-            />
-          </View>
+          {/* FU5 ② — offered only while no ingredient has content (blank starter
+              row doesn't count), mirroring FU4's steps rule. FU5 ① — premium pill
+              dropped: monetization is moving to a trial + pay-or-lose-access
+              model, not per-feature gating, so these pills are wrong now. */}
+          {!ingredientsAlreadyExist && (
+            <View style={{ marginTop: Spacing[3] }}>
+              <CheckboxRow
+                checked={form.kiwiAssistIngredients}
+                label="Have Kiwi suggest recipe"
+                onToggle={() =>
+                  update("kiwiAssistIngredients", !form.kiwiAssistIngredients)
+                }
+              />
+            </View>
+          )}
           {form.kiwiAssistIngredients ? (
             <View style={{ marginTop: Spacing[2], gap: Spacing[2] }}>
               <Text style={s.assistHint}>
@@ -846,10 +858,10 @@ export default function DishBuilderScreen() {
               typed), generating is off the table and the editor below shows. */}
           {!stepsAlreadyExist && (
             <View style={{ marginTop: Spacing[2] }}>
+              {/* FU5 ① — premium pill dropped (see the ingredients toggle). */}
               <CheckboxRow
                 checked={form.kiwiAssistSteps}
                 label="Have Kiwi suggest steps"
-                premiumLabel="Premium"
                 onToggle={() => update("kiwiAssistSteps", !form.kiwiAssistSteps)}
               />
             </View>
