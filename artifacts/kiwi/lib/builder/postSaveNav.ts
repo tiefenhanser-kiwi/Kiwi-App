@@ -31,6 +31,10 @@ export type PostSaveNav =
 
 export function resolvePostSaveNav(args: {
   newMealId: string;
+  // WS9 3f-3 (Phase 1b) — the EDIT target, if this save edits an existing meal.
+  // Its mere presence forces a `meal-detail` landing: an edit is NEVER a plan
+  // mutation from this resolver. See the guard below.
+  mealId?: string;
   addToPlanId?: string;
   // WS9 3f-3 — the swap-slot coordinates. Both must be present to signal a
   // replace; a lone planId (no planItemId) is not a replace signal and falls
@@ -38,6 +42,21 @@ export function resolvePostSaveNav(args: {
   planId?: string;
   planItemId?: string;
 }): PostSaveNav {
+  // ── Self-enforcing edit guard (WS9 3f-3 Phase 1b). ─────────────────────────
+  // An edit-from-plan (mealId + planId + planItemId) must NEVER route into a
+  // slot replace, and a library edit must never append. In Phase 1 that held
+  // only STRUCTURALLY — onSave's isEditFromPlanContext branch returns before the
+  // CREATE branch, so the resolver never saw a mealId. Nothing ENFORCED it: a
+  // future edit that moved this call above that early return would silently turn
+  // a meal edit into a plan-slot replace with no failing test. This guard makes
+  // the property intrinsic to the resolver — a second, independent line of
+  // defense that does NOT replace onSave's early return. When mealId is present
+  // the save is an edit → land on the meal's own detail, regardless of any plan
+  // params. This sits ABOVE the replace > append > detail precedence; it does
+  // not reorder it.
+  if (args.mealId) {
+    return { kind: "meal-detail", mealId: args.newMealId };
+  }
   // ── Precedence: REPLACE > APPEND > DETAIL. ─────────────────────────────────
   // The append and replace signals come from different entry points and never
   // co-occur in normal use (the swap quartet threads planId+planItemId and NOT

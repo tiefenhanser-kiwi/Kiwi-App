@@ -810,6 +810,10 @@ export default function MealBuilderScreen() {
       //   meal-detail  → the library context: land on the new Meal Detail.
       const nav = resolvePostSaveNav({
         newMealId,
+        // Phase 1b — pass the route mealId as the self-enforcing edit guard. In
+        // this CREATE branch it is normally absent; if a future edit ever reaches
+        // here, the resolver forces a detail landing rather than a plan mutation.
+        mealId,
         addToPlanId,
         planId,
         planItemId,

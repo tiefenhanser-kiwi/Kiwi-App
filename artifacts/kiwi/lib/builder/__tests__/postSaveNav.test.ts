@@ -97,3 +97,47 @@ test("all-absent (only newMealId) resolves to meal-detail", () => {
   const nav = resolvePostSaveNav({ newMealId: "only-meal" });
   assert.deepEqual(nav, { kind: "meal-detail", mealId: "only-meal" });
 });
+
+// ── WS9 3f-3 Phase 1b — the self-enforcing edit guard ───────────────────────
+// The §9 test that was correctly unbuildable in Phase 1 (the property was only
+// structural then). An edit is NEVER a plan mutation from the resolver.
+
+test("EDIT-from-plan (mealId + planId + planItemId) resolves to meal-detail, NOT plan-replace", () => {
+  const nav = resolvePostSaveNav({
+    newMealId: "meal-new",
+    mealId: "meal-existing",
+    planId: "plan-7",
+    planItemId: "item-42",
+  });
+  assert.equal(nav.kind, "meal-detail");
+  assert.notEqual(nav.kind, "plan-replace");
+});
+
+test("EDIT with addToPlanId (library-ish edit) resolves to meal-detail, NOT plan-back", () => {
+  const nav = resolvePostSaveNav({
+    newMealId: "meal-new",
+    mealId: "meal-existing",
+    addToPlanId: "plan-append",
+  });
+  assert.deepEqual(nav, { kind: "meal-detail", mealId: "meal-new" });
+});
+
+test("the edit guard sits ABOVE precedence: mealId beats a full replace signal", () => {
+  // Same inputs as the plan-replace test, plus mealId → the guard wins.
+  const nav = resolvePostSaveNav({
+    newMealId: "m",
+    mealId: "edit-target",
+    planId: "p",
+    planItemId: "pi",
+  });
+  assert.equal(nav.kind, "meal-detail");
+});
+
+test("without mealId the replace precedence is unchanged (guard did not reorder it)", () => {
+  const nav = resolvePostSaveNav({
+    newMealId: "m",
+    planId: "p",
+    planItemId: "pi",
+  });
+  assert.deepEqual(nav, { kind: "plan-replace", planId: "p", planItemId: "pi" });
+});
