@@ -31,3 +31,69 @@ test("the new meal id threads through to the Meal Detail target", () => {
   const nav = resolvePostSaveNav({ newMealId: "abc-xyz" });
   assert.equal(nav.kind === "meal-detail" ? nav.mealId : null, "abc-xyz");
 });
+
+// ── WS9 3f-3 (D-WS9-005) — the replace outcome ──────────────────────────────
+
+test("swap-context save (planId + planItemId, no addToPlanId) resolves to plan-replace", () => {
+  const nav = resolvePostSaveNav({
+    newMealId: "meal-new",
+    planId: "plan-7",
+    planItemId: "item-42",
+  });
+  assert.deepEqual(nav, {
+    kind: "plan-replace",
+    planId: "plan-7",
+    planItemId: "item-42",
+  });
+});
+
+test("plan-replace threads BOTH the planId and the planItemId of the slot", () => {
+  const nav = resolvePostSaveNav({
+    newMealId: "m",
+    planId: "p-abc",
+    planItemId: "pi-def",
+  });
+  assert.equal(nav.kind, "plan-replace");
+  if (nav.kind === "plan-replace") {
+    assert.equal(nav.planId, "p-abc");
+    assert.equal(nav.planItemId, "pi-def");
+  }
+});
+
+test("a lone planId (no planItemId) is NOT a replace signal — falls through to detail", () => {
+  const nav = resolvePostSaveNav({ newMealId: "meal-1", planId: "plan-7" });
+  assert.deepEqual(nav, { kind: "meal-detail", mealId: "meal-1" });
+});
+
+test("a lone planItemId (no planId) is NOT a replace signal — falls through to detail", () => {
+  const nav = resolvePostSaveNav({ newMealId: "meal-1", planItemId: "item-9" });
+  assert.deepEqual(nav, { kind: "meal-detail", mealId: "meal-1" });
+});
+
+test("a lone planId with addToPlanId still appends (planId alone never overrides append)", () => {
+  const nav = resolvePostSaveNav({
+    newMealId: "meal-1",
+    addToPlanId: "plan-append",
+    planId: "plan-7",
+  });
+  assert.deepEqual(nav, { kind: "plan-back", planId: "plan-append" });
+});
+
+test("contradictory case: addToPlanId AND (planId + planItemId) → REPLACE wins (safe against the two-meals bug)", () => {
+  const nav = resolvePostSaveNav({
+    newMealId: "meal-new",
+    addToPlanId: "plan-append",
+    planId: "plan-replace",
+    planItemId: "item-42",
+  });
+  assert.deepEqual(nav, {
+    kind: "plan-replace",
+    planId: "plan-replace",
+    planItemId: "item-42",
+  });
+});
+
+test("all-absent (only newMealId) resolves to meal-detail", () => {
+  const nav = resolvePostSaveNav({ newMealId: "only-meal" });
+  assert.deepEqual(nav, { kind: "meal-detail", mealId: "only-meal" });
+});

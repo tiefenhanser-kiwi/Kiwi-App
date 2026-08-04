@@ -1129,6 +1129,11 @@ export default function PlanReviewScreen() {
         sourceMealId={swapForRow?.sourceMealId ?? ""}
         sourceMealTitle={swapForRow?.sourceMealTitle}
         sourceCuisine={swapForRow?.sourceCuisine}
+        // WS9 3f-3 (D-WS9-005) — the plan + slot being replaced, so the sheet's
+        // "Bring in something new" chooser threads them and an imported/created
+        // replacement REPLACES this slot (§8.4.2) instead of abandoning the swap.
+        planId={planId}
+        planItemId={swapForRow?.planItemId}
         onClose={() => setSwapForRow(null)}
         onPickReplacement={(newMeal) => {
           if (!swapForRow) return;

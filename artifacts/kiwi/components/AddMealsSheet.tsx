@@ -9,10 +9,10 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FilterChipRow } from "@/components/FilterChipRow";
+import { ImportSourceCards } from "@/components/ImportSourceCards";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -51,7 +51,6 @@ export function AddMealsSheet({
   onPickExistingMeal,
 }: AddMealsSheetProps) {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const [activeFilter, setActiveFilter] =
     useState<MealFilterKey>("my_meals");
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
@@ -70,33 +69,6 @@ export function AddMealsSheet({
   const handlePick = (meal: MealSummary) => {
     onPickExistingMeal(meal);
     onClose();
-  };
-
-  // WS7-6 G3 Scope B — the old "Run Kitchen Wizard for one meal" card and the
-  // bottom "Ask Kiwi for a meal recommendation" section were BOTH dead (each
-  // fired a "Coming in WS6" Alert). They collapse into ONE live "Ask Kiwi"
-  // create option routed to the Mode-A free-text screen (/ask-kiwi) — the same
-  // working flow surface #1's mode picker uses. planId rides along as
-  // addToPlanId so the saved meal returns to THIS plan (LANDING CONTRACT).
-  const navigateAfterClose = (
-    path:
-      | "/ask-kiwi"
-      | "/import-url"
-      | "/import-image"
-      | "/import-text"
-      | "/meal-builder",
-  ) => {
-    onClose();
-    // Defer so the sheet's slide-out animation completes before the
-    // destination screen mounts.
-    setTimeout(
-      () =>
-        router.push({
-          pathname: path,
-          params: { addToPlanId: planId },
-        }),
-      150,
-    );
   };
 
   return (
@@ -121,42 +93,15 @@ export function AddMealsSheet({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Section 1: Add something new — create/import options on top,
-              Ask-Kiwi first (WS7-6 G3 Scope A: mirrors the #4 reference
-              chooser's create-options-top / list-bottom contract). */}
-          <Text style={s.sectionTitle}>Add something new</Text>
-          <View style={s.list}>
-            <PremiumSourceCard
-              icon="zap"
-              title="Ask Kiwi for a meal"
-              subtitle="Describe a meal and Kiwi drafts it to fit this plan"
-              onPress={() => navigateAfterClose("/ask-kiwi")}
-            />
-            <NewSourceCard
-              icon="link"
-              title="Import from URL"
-              subtitle="Paste a recipe link"
-              onPress={() => navigateAfterClose("/import-url")}
-            />
-            <NewSourceCard
-              icon="image"
-              title="Import from photo"
-              subtitle="Take a photo or pick from your library"
-              onPress={() => navigateAfterClose("/import-image")}
-            />
-            <NewSourceCard
-              icon="clipboard"
-              title="Import from text"
-              subtitle="Paste a recipe from anywhere"
-              onPress={() => navigateAfterClose("/import-text")}
-            />
-            <NewSourceCard
-              icon="edit-3"
-              title="Create manually"
-              subtitle="Build a new meal from scratch"
-              onPress={() => navigateAfterClose("/meal-builder")}
-            />
-          </View>
+          {/* Section 1: Bring in something new — the shared import-entry chooser
+              (WS9 3f-3 dedup). APPEND context: planId threads as addToPlanId so
+              the saved meal returns to THIS plan. includeAskKiwi renders the live
+              Mode-A "Ask Kiwi for a meal" card on top (WS7-6 G3 Scope A ordering). */}
+          <ImportSourceCards
+            context={{ kind: "append", planId }}
+            includeAskKiwi
+            onClose={onClose}
+          />
 
           {/* Section 2: Pick from your meals — the saved-meals list scrolls at
               the BOTTOM (WS7-6 G3 Scope A: list-below-create contract). */}
@@ -242,71 +187,6 @@ function MealRow({
       {meal.timesCooked !== undefined && meal.timesCooked > 0 && (
         <Text style={s.useCount}>Cooked {meal.timesCooked}×</Text>
       )}
-    </Pressable>
-  );
-}
-
-function NewSourceCard({
-  icon,
-  title,
-  subtitle,
-  onPress,
-}: {
-  icon: React.ComponentProps<typeof Feather>["name"];
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [s.sourceCard, pressed && { opacity: 0.85 }]}
-    >
-      <View style={s.sourceIcon}>
-        <Feather name={icon} size={18} color={Colors.sage[700]} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={s.sourceTitle}>{title}</Text>
-        <Text style={s.sourceSubtitle}>{subtitle}</Text>
-      </View>
-      <Feather name="chevron-right" size={18} color={Colors.neutral[600]} />
-    </Pressable>
-  );
-}
-
-function PremiumSourceCard({
-  icon,
-  title,
-  subtitle,
-  onPress,
-}: {
-  icon: React.ComponentProps<typeof Feather>["name"];
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [s.premiumCard, pressed && { opacity: 0.85 }]}
-    >
-      <View style={s.premiumIcon}>
-        <Feather name={icon} size={18} color={Colors.sage[700]} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <View style={s.premiumTitleRow}>
-          <Text style={s.sourceTitle}>{title}</Text>
-          <View style={s.premiumPill}>
-            <Feather
-              name="lock"
-              size={10}
-              color={Colors.terracotta[700]}
-            />
-            <Text style={s.premiumPillText}>Premium</Text>
-          </View>
-        </View>
-        <Text style={s.sourceSubtitle}>{subtitle}</Text>
-      </View>
     </Pressable>
   );
 }

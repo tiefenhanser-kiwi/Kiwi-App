@@ -44,7 +44,14 @@ function normalizeUrl(input: string): string | null {
 
 export default function ImportUrlScreen() {
   const router = useRouter();
-  const { addToPlanId } = useLocalSearchParams<{ addToPlanId?: string }>();
+  // WS9 3f-3 (D-WS9-005) — planId + planItemId thread the SWAP (replace) context
+  // through to the builder's CREATE branch; addToPlanId threads the APPEND
+  // context. They are mutually exclusive in practice (different entry points).
+  const { addToPlanId, planId, planItemId } = useLocalSearchParams<{
+    addToPlanId?: string;
+    planId?: string;
+    planItemId?: string;
+  }>();
   const [phase, setPhase] = useState<Phase>("input");
   const [url, setUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -78,6 +85,8 @@ export default function ImportUrlScreen() {
           draftSource: "url",
           draftJson: JSON.stringify(result.draft),
           ...(addToPlanId ? { addToPlanId } : {}),
+          ...(planId ? { planId } : {}),
+          ...(planItemId ? { planItemId } : {}),
         },
       });
       setPhase("input");

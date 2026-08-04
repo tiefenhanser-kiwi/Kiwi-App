@@ -67,9 +67,12 @@ test("AddMealsSheet: create options sit ABOVE the saved-meals list", async () =>
   const renderer = await renderSheet({});
   const leaves = textLeavesOf(renderer.root);
 
-  const addNew = leaves.findIndex((t) => t === "Add something new");
+  // WS9 3f-3 — header copy unified across both sheets to "Bring in something new"
+  // (was "Add something new" here) when the inline chooser became the shared
+  // ImportSourceCards component.
+  const addNew = leaves.findIndex((t) => t === "Bring in something new");
   const pickList = leaves.findIndex((t) => t === "Pick from your meals");
-  assert.ok(addNew >= 0, "'Add something new' header missing");
+  assert.ok(addNew >= 0, "'Bring in something new' header missing");
   assert.ok(pickList >= 0, "'Pick from your meals' header missing");
   assert.ok(
     addNew < pickList,

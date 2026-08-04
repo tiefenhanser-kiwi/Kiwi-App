@@ -22,7 +22,14 @@ const MAX_CHARS = 40_000;
 
 export default function ImportTextScreen() {
   const router = useRouter();
-  const { addToPlanId } = useLocalSearchParams<{ addToPlanId?: string }>();
+  // WS9 3f-3 (D-WS9-005) — planId + planItemId thread the SWAP (replace) context
+  // through to the builder's CREATE branch; addToPlanId threads the APPEND
+  // context. They are mutually exclusive in practice (different entry points).
+  const { addToPlanId, planId, planItemId } = useLocalSearchParams<{
+    addToPlanId?: string;
+    planId?: string;
+    planItemId?: string;
+  }>();
   const [text, setText] = useState<string>("");
   const [phase, setPhase] = useState<Phase>("input");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -50,6 +57,8 @@ export default function ImportTextScreen() {
           draftSource: "text",
           draftJson: JSON.stringify(result.draft),
           ...(addToPlanId ? { addToPlanId } : {}),
+          ...(planId ? { planId } : {}),
+          ...(planItemId ? { planItemId } : {}),
         },
       });
       setPhase("input");

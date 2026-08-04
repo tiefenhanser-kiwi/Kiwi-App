@@ -9,10 +9,10 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FilterChipRow } from "@/components/FilterChipRow";
+import { ImportSourceCards } from "@/components/ImportSourceCards";
 import { LoadingShim } from "@/components/LoadingShim";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
@@ -20,6 +20,7 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { useFindSimilarMeals } from "@/hooks/useFindSimilarMeals";
 import { useMeal } from "@/hooks/useMeal";
 import { useMeals } from "@/hooks/useMeals";
+import type { ImportEntryContext } from "@/lib/builder/importEntryParams";
 import type { MealCandidatePayload, MealDetail, MealFilterKey } from "@/lib/api/meals";
 import { formatMacroLine } from "@/lib/format/macros";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
@@ -57,6 +58,13 @@ export interface SwapMealSheetProps {
    *  mode this is the old ChangeMealSheet `currentMealId`; in Similar mode the
    *  old FindSimilarSheet `sourceMealId`. Same meal either way. */
   sourceMealId: string;
+  /** WS9 3f-3 (D-WS9-005) — the plan + slot being replaced. When BOTH are
+   *  present, the "Bring in something new" chooser threads them so an
+   *  imported/created replacement REPLACES this slot (§8.4.2) instead of
+   *  abandoning the swap. Optional: when absent the chooser degrades to a bare
+   *  library create (the pre-fix behavior). */
+  planId?: string;
+  planItemId?: string;
   /** Display name for the sheet header (Similar mode). */
   sourceMealTitle?: string;
   /** Source cuisine for the Similar-mode header subtitle. */
@@ -108,10 +116,21 @@ export function SwapMealSheet({
   mode,
   sourceMealId,
   sourceCuisine,
+  planId,
+  planItemId,
   onClose,
   onPickReplacement,
 }: SwapMealSheetProps) {
   const insets = useSafeAreaInsets();
+
+  // WS9 3f-3 (D-WS9-005) — the swap is a REPLACE, so the chooser threads
+  // planId + planItemId. Degrade to a bare library create only if the host
+  // didn't supply them (keeps the pre-fix behavior for any caller that hasn't
+  // been updated, and keeps the sheet renderable in tests without plan props).
+  const importContext: ImportEntryContext =
+    planId && planItemId
+      ? { kind: "replace", planId, planItemId }
+      : { kind: "library" };
 
   // Freeze the rendered mode while the sheet is closing so the slide-out
   // animation doesn't flash the other mode's body (the parent flips `mode` back
@@ -177,11 +196,12 @@ export function SwapMealSheet({
               />
             )}
 
-            {/* Bring in something new — carried unchanged into BOTH modes.
-                KNOWN GAP (D-WS9-005, ruled to Block 3f): the import path pushes a
-                bare route with no addToPlanId/planItemId, so importing a
-                replacement abandons the swap. Fixed once in 3f's shared creator. */}
-            <ImportQuartet onClose={onClose} />
+            {/* WS9 3f-3 (D-WS9-005) — the shared chooser, reachable in BOTH modes.
+                In the swap context it threads planId + planItemId so an imported
+                or manually-created replacement REPLACES this slot (§8.4.2) rather
+                than abandoning the swap. No Ask-Kiwi card here ON PURPOSE (the
+                real shared creator is 3f-4's). */}
+            <ImportSourceCards context={importContext} onClose={onClose} />
           </ScrollView>
         </View>
       </View>
@@ -381,53 +401,6 @@ function DifferentBody({
   );
 }
 
-// ── Shared: Bring in something new (import quartet) ───────────────────────────
-
-function ImportQuartet({ onClose }: { onClose: () => void }) {
-  const router = useRouter();
-  // D-WS9-005 (ruled to 3f): bare push, no addToPlanId/planItemId — carried
-  // forward unchanged from ChangeMealSheet. Deferring past the slide-out so the
-  // destination doesn't mount behind a still-collapsing modal.
-  const navigateAfterClose = (
-    path: "/import-url" | "/import-image" | "/import-text" | "/meal-builder",
-  ) => {
-    onClose();
-    setTimeout(() => router.push(path), 150);
-  };
-
-  return (
-    <>
-      <Text style={[s.sectionTitle, s.sectionGap]}>Bring in something new</Text>
-      <View style={s.list}>
-        <NewSourceCard
-          icon="link"
-          title="Import from URL"
-          subtitle="Paste a recipe link"
-          onPress={() => navigateAfterClose("/import-url")}
-        />
-        <NewSourceCard
-          icon="image"
-          title="Import from photo"
-          subtitle="Take a photo or pick from your library"
-          onPress={() => navigateAfterClose("/import-image")}
-        />
-        <NewSourceCard
-          icon="clipboard"
-          title="Import from text"
-          subtitle="Paste a recipe from anywhere"
-          onPress={() => navigateAfterClose("/import-text")}
-        />
-        <NewSourceCard
-          icon="edit-3"
-          title="Create manually"
-          subtitle="Build a new meal from scratch"
-          onPress={() => navigateAfterClose("/meal-builder")}
-        />
-      </View>
-    </>
-  );
-}
-
 function MealRow({
   meal,
   onPress,
@@ -466,34 +439,6 @@ function MealRow({
       {meal.timesCooked !== undefined && meal.timesCooked > 0 && (
         <Text style={s.useCount}>Cooked {meal.timesCooked}×</Text>
       )}
-    </Pressable>
-  );
-}
-
-function NewSourceCard({
-  icon,
-  title,
-  subtitle,
-  onPress,
-}: {
-  icon: React.ComponentProps<typeof Feather>["name"];
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [s.sourceCard, pressed && { opacity: 0.85 }]}
-    >
-      <View style={s.sourceIcon}>
-        <Feather name={icon} size={18} color={Colors.sage[700]} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={s.sourceTitle}>{title}</Text>
-        <Text style={s.sourceSubtitle}>{subtitle}</Text>
-      </View>
-      <Feather name="chevron-right" size={18} color={Colors.neutral[600]} />
     </Pressable>
   );
 }

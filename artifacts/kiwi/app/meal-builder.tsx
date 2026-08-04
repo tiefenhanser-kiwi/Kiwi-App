@@ -139,7 +139,6 @@ export default function MealBuilderScreen() {
     mode: modeParam,
     draftSource,
     draftJson,
-    source,
     addToPlanId,
     addDishId,
   } = useLocalSearchParams<{
@@ -149,7 +148,6 @@ export default function MealBuilderScreen() {
     mode?: "manual" | "combine" | "ai";
     draftSource?: "url" | "image" | "text";
     draftJson?: string;
-    source?: "change-recipe";
     addToPlanId?: string;
     addDishId?: string;
   }>();
@@ -157,12 +155,21 @@ export default function MealBuilderScreen() {
   // WS7-6 1G — library-context edit (Meal Detail → Edit, no plan params).
   // Routes to PATCH /me/meals/:id with NO §2.5 prompt (PRD §8.4.4).
   const isLibraryEditContext = !!(mealId && !planId && !planItemId);
-  const isChangeRecipe = source === "change-recipe" && !!mealId;
+  // WS9 3f-3 (Thread C) — the Change-Recipe client branch (`source=change-recipe`)
+  // was deleted: unreachable (Phase 0 proof — no nav/route/deep-link/test ever set
+  // the param; the row action was removed in R-3d-2). The backend is RETAINED
+  // (D-WS7-216) and `changeRecipeForPlanItem` still powers the live "just this
+  // time / apply always" edit flow below — that is NOT part of this deletion.
 
   // WS7-6 Block 1E — Surface 1 (create) wiring.
   // WS7-6 1F — updateMeal mutator for the library / "Apply always" edit paths.
-  const { saveMeal, updateMeal, addMealToPlan, changeRecipeForPlanItem } =
-    useApp();
+  const {
+    saveMeal,
+    updateMeal,
+    addMealToPlan,
+    changeMealForPlanItem,
+    changeRecipeForPlanItem,
+  } = useApp();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   // ② synchronous double-tap guard, shared by all three save paths (create,
@@ -362,11 +369,9 @@ export default function MealBuilderScreen() {
     ]);
   }, [addDishId, mealId, draftJson]);
 
-  const headerTitle = isChangeRecipe && sourceMeal
-    ? `Change recipe: ${sourceMeal.title}`
-    : sourceMeal
-      ? `Edit Meal: ${sourceMeal.title}`
-      : mealId
+  const headerTitle = sourceMeal
+    ? `Edit Meal: ${sourceMeal.title}`
+    : mealId
         // mealId present but hydration not resolved yet — neutral header so
         // the screen doesn't flash a misleading "Create Meal" title before
         // GET /meals/:id returns.
@@ -795,7 +800,20 @@ export default function MealBuilderScreen() {
       // text/image/URL imports — all funnel through this CREATE branch). A
       // non-plan save lands on the NEW meal's Meal Detail page (PRD §10.6);
       // a plan-context save keeps its contextual return to the plan.
-      const nav = resolvePostSaveNav({ newMealId, addToPlanId });
+      //
+      // WS9 3f-3 (D-WS9-005) — three outcomes now, decided by the pure resolver:
+      //   plan-replace → the swap context (planId + planItemId, no mealId here
+      //                  because this is the CREATE branch): REPLACE the slot via
+      //                  changeMealForPlanItem (PRD §8.4.2). NOT addMealToPlan
+      //                  (append) — that would leave the old meal in the slot.
+      //   plan-back    → the append context (addToPlanId): addMealToPlan.
+      //   meal-detail  → the library context: land on the new Meal Detail.
+      const nav = resolvePostSaveNav({
+        newMealId,
+        addToPlanId,
+        planId,
+        planItemId,
+      });
       const applyNav = () => {
         // `replace` (not push) drops the builder/input screen so Back returns
         // to the list, not the half-filled form.
@@ -810,15 +828,45 @@ export default function MealBuilderScreen() {
           // builder and the plan. The pre-G3 `router.back()` popped a single
           // screen, which returned the user to the import/Ask-Kiwi INPUT screen
           // rather than the plan whenever a create flow funnelled through one.
+          // Both plan-replace and plan-back carry a planId for this.
           router.dismissTo({
             pathname: "/plan/[id]",
             params: { id: nav.planId },
           });
         }
       };
-      if (addToPlanId) {
+      if (nav.kind === "plan-replace") {
+        // WS9 3f-3 (D-WS9-005) — the imported/created meal REPLACES the swap
+        // slot. Two sequential writes (saveMeal already landed): if this second
+        // write fails, the meal IS in the library but the plan still shows the
+        // OLD meal. Landing on the plan silently would reproduce the exact
+        // abandon-the-swap bug this block fixes — so on failure we surface it
+        // and DO NOT navigate. (The plan screen's own applyMealReplacement owns
+        // optimistic rollback + toast; that machinery is screen-local, so from
+        // the builder we mirror the established append partial-failure Alert
+        // below rather than import it.)
         try {
-          await addMealToPlan(addToPlanId, newMealId);
+          await changeMealForPlanItem(nav.planId, nav.planItemId, newMealId);
+          Alert.alert(
+            "Saved and swapped in",
+            `${input.title} is saved and now in your plan.`,
+            [{ text: "OK", onPress: applyNav }],
+          );
+        } catch (planErr) {
+          const msg =
+            planErr instanceof Error && planErr.message
+              ? planErr.message
+              : "Try swapping it in from the plan instead.";
+          Alert.alert(
+            "Saved but couldn't swap it in",
+            `${input.title} was saved to your meals, but swapping it into the plan failed:\n\n${msg}`,
+          );
+          // Intentionally no nav — user keeps the form open (the old meal is
+          // still safely in the slot; nothing was lost).
+        }
+      } else if (nav.kind === "plan-back") {
+        try {
+          await addMealToPlan(nav.planId, newMealId);
           Alert.alert(
             "Saved and added to plan",
             `${input.title} is saved and on your plan.`,
@@ -864,17 +912,6 @@ export default function MealBuilderScreen() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Change-Recipe context (PRD §8.4.3): plan-scoped framing */}
-        {isChangeRecipe && (
-          <View style={s.contextInfo}>
-            <Text style={s.contextInfoText}>
-              You're adjusting the recipe just for this week's plan. When you
-              save, you can apply changes to only this plan or update your
-              saved recipe for future cooking.
-            </Text>
-          </View>
-        )}
-
         {/* Edit-context info card: surfaces the §2.5 plan-vs-global save framing.
             FU4 ③ — gated on isEditFromPlanContext (plan-instance edit), NOT bare
             `mealId`. The "just this time or apply to your saved recipe" choice is
@@ -883,8 +920,10 @@ export default function MealBuilderScreen() {
             prompt, so this framing was false there. Same component renders both
             screens — this is a re-gate, not a deletion (deleting would kill the
             correct copy on the plan-instance screen). Reuses the existing
-            discriminator that drives the runUpdateMeal / runSaveJustThisTime split. */}
-        {isEditFromPlanContext && !isChangeRecipe && (
+            discriminator that drives the runUpdateMeal / runSaveJustThisTime split.
+            WS9 3f-3 (Thread C) — the always-true `!isChangeRecipe` term was dropped
+            with the deleted Change-Recipe branch. */}
+        {isEditFromPlanContext && (
           <View style={s.contextInfo}>
             <Text style={s.contextInfoText}>
               Adjust ingredients, steps, or dishes in this meal. You can make
