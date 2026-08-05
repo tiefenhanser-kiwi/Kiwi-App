@@ -151,7 +151,7 @@ export default function ImportUrlScreen() {
 
         <View style={styles.buttonWrap}>
           <Button
-            label="Import recipe"
+            label="Import Recipe"
             variant="primary"
             disabled={importDisabled}
             onPress={handleImport}

@@ -18,6 +18,7 @@ import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useMeals } from "@/hooks/useMeals";
 import type { MealFilterKey } from "@/lib/api/meals";
+import { formatMacroLine } from "@/lib/format/macros";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
 
@@ -166,7 +167,14 @@ function MealRow({
     capitalize(meal.difficulty),
     `${meal.estimatedTimeMinutes} min`,
   ].filter(Boolean);
-  const macrosLine = `${meal.caloriesPerServing} cal · ${meal.proteinGPerServing}g P · ${meal.carbsGPerServing}g C · ${meal.fatGPerServing}g F`;
+  // WS9 3f-3 cleanup (BUG-060) — route through the shared formatter so raw
+  // float sums ("49.000000001g F") round like every other macro surface.
+  const macrosLine = formatMacroLine(
+    meal.caloriesPerServing,
+    meal.proteinGPerServing,
+    meal.carbsGPerServing,
+    meal.fatGPerServing,
+  );
   return (
     <Pressable
       onPress={onPress}

@@ -45,6 +45,17 @@ test("formatMacroLine builds the cal · P · C · F line, rounding each field", 
   );
 });
 
+// WS9 3f-3 cleanup (BUG-060) — the Add-Meals picker (AddMealsSheet MealRow)
+// was the one surface rendering meal.*PerServing raw, leaking the float sum
+// artifact ("49.000000001g F"). It now routes through formatMacroLine; this
+// pins the exact reported case to the formatter the fix relies on.
+test("formatMacroLine kills the raw float-sum artifact (BUG-060)", () => {
+  assert.equal(
+    formatMacroLine(542, 30, 40, 49.000000001),
+    "542 cal · 30g P · 40g C · 49g F",
+  );
+});
+
 test("formatMacroLine renders real zeros as-is (e.g. Garlic Green Beans 0 cal)", () => {
   assert.equal(formatMacroLine(0, 0, 0, 0), "0 cal · 0g P · 0g C · 0g F");
 });

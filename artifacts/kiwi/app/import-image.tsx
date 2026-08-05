@@ -156,11 +156,11 @@ export default function ImportImageScreen() {
         <View style={styles.buttonWrap}>
           <Button
             label="Choose from Library"
-            variant="primary"
+            variant="secondary"
             disabled={atCapacity}
             onPress={handleLibraryPick}
             iconLeft={
-              <Feather name="image" size={18} color={Colors.neutral[100]} />
+              <Feather name="image" size={18} color={Colors.sage[700]} />
             }
           />
         </View>
