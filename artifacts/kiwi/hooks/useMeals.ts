@@ -16,10 +16,20 @@ import {
   type MealSortKey,
 } from "@/lib/api/meals";
 
-export function useMeals(filter?: readonly MealFilterKey[]) {
+// WS9 3f-4 (Thread E, §5.2) — optional `limit` raises the first-page candidate
+// pool (Find Similar's ~20-row alphabetical truncation is the corpus half of
+// BUG-058). The key stays byte-identical to the pre-3f-4 shape when `limit` is
+// omitted, so every existing caller/primed-cache/AppContext list-update key is
+// untouched; only a limited call gets the extra key element. The server clamps
+// the value to [1,100] (listQuery.ts clampLimit), so a bounded raise is a pure
+// client change — no server contract change (that stays 3f-5's).
+export function useMeals(filter?: readonly MealFilterKey[], limit?: number) {
   return useQuery<MealListResponse>({
-    queryKey: ["meals", "list", filter ?? null],
-    queryFn: () => getMeals(filter),
+    queryKey:
+      limit === undefined
+        ? ["meals", "list", filter ?? null]
+        : ["meals", "list", filter ?? null, limit],
+    queryFn: () => getMeals(filter, limit === undefined ? {} : { limit }),
   });
 }
 

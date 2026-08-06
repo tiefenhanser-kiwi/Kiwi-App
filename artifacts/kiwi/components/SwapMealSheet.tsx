@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,8 +11,10 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AskKiwiCreator } from "@/components/AskKiwiCreator";
 import { FilterChipRow } from "@/components/FilterChipRow";
 import { ImportSourceCards } from "@/components/ImportSourceCards";
 import { LoadingShim } from "@/components/LoadingShim";
@@ -19,34 +23,34 @@ import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useFindSimilarMeals } from "@/hooks/useFindSimilarMeals";
 import { useMeal } from "@/hooks/useMeal";
-import { useMeals } from "@/hooks/useMeals";
-import type { ImportEntryContext } from "@/lib/builder/importEntryParams";
+import { useInfiniteMeals, useMeals } from "@/hooks/useMeals";
+import {
+  importEntryParams,
+  type ImportEntryContext,
+} from "@/lib/builder/importEntryParams";
 import type { MealCandidatePayload, MealDetail, MealFilterKey } from "@/lib/api/meals";
 import { formatMacroLine } from "@/lib/format/macros";
+import { dedupeMealsByTitle } from "@/lib/meals/dedupeByTitle";
+import { toMealSortKey } from "@/lib/meals/sortMapping";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
 
 // WS9 3d Part 4 (D-WS9-018) — ChangeMealSheet + FindSimilarSheet merged into ONE
 // swap sheet with two modes, driven off the Plan Review meal row's two swap
-// actions. Lossless merge (Hans's STOP-gate ruling: merge as-is, no AI candidate
-// generation for Different mode — spec §8.2's generated-pool is a logged gap, not
-// this block). Every feature of both sheets survives in at least one mode:
-//   - "different": the filter-chip browser over the 4 catalog buckets (was
-//     ChangeMealSheet).
-//   - "similar":   the useFindSimilarMeals AI RANKING pipeline over the 4 unioned
-//     buckets (was FindSimilarSheet) — it ranks existing rows, never generates.
-//   - BOTH modes:  the import source-quartet ("Bring in something new"), carried
-//     forward UNCHANGED — including its known D-WS9-005 gap (the import path omits
-//     addToPlanId/planItemId so an import abandons the swap; ruled to Block 3f,
-//     which builds the shared ask-kiwi.tsx creator that owns the threading).
-// Shell wins where the two conflicted:
-//   - Layout: FindSimilarSheet's (flex justify:flex-end + maxHeight:90%), which
-//     fixes the bottom-gap bug ChangeMealSheet's position:absolute;height:85% had.
-//   - Similar-mode loading/error: FindSimilarSheet's unified model (AI call + both
-//     underlying reads).
-//   - Header: mode-aware (Similar keeps the source-cuisine subtitle).
-// The dead premium "Ask Kiwi — coming in WS6" pill is removed, not carried; the
-// real Ask-Kiwi escape hatch belongs to Block 3f (one creator, two entry points).
+// actions.
+//   - "different": the filter-chip browser over the catalog buckets (was
+//     ChangeMealSheet). WS9 3f-4 (Thread B) — now keyset-paginated via
+//     useInfiniteMeals (load-on-scroll); free because it makes no AI call.
+//   - "similar":   the useFindSimilarMeals AI RANKING pipeline (was
+//     FindSimilarSheet) — it ranks existing rows, never generates. WS9 3f-4
+//     (Thread E) — the pool is de-duplicated by dish identity and bounded, the
+//     client half of BUG-058. NO infinite scroll here ON PURPOSE (each page is
+//     an AI call — cost guard, §4.2).
+//   - BOTH modes:  the "Bring in something new" import chooser, now in a PINNED
+//     bottom bar (Thread B) instead of buried under the scrolling list, and the
+//     Ask-Kiwi creator mounted INLINE (Thread A) instead of routing away.
+// Layout carried from FindSimilarSheet's gap-free shell (flex justify:flex-end +
+// maxHeight:90%); the per-body ScrollViews scroll behind the pinned import bar.
 
 export type SwapMode = "different" | "similar";
 
@@ -54,15 +58,13 @@ export interface SwapMealSheetProps {
   visible: boolean;
   /** Which swap the meal row invoked. */
   mode: SwapMode;
-  /** The meal being replaced — excluded from results in BOTH modes. In Different
-   *  mode this is the old ChangeMealSheet `currentMealId`; in Similar mode the
-   *  old FindSimilarSheet `sourceMealId`. Same meal either way. */
+  /** The meal being replaced — excluded from results in BOTH modes. */
   sourceMealId: string;
   /** WS9 3f-3 (D-WS9-005) — the plan + slot being replaced. When BOTH are
-   *  present, the "Bring in something new" chooser threads them so an
-   *  imported/created replacement REPLACES this slot (§8.4.2) instead of
-   *  abandoning the swap. Optional: when absent the chooser degrades to a bare
-   *  library create (the pre-fix behavior). */
+   *  present, the "Bring in something new" chooser AND the inline Ask-Kiwi
+   *  creator thread them so an imported/created replacement REPLACES this slot
+   *  (§8.4.2) instead of abandoning the swap. Optional: when absent the flows
+   *  degrade to a bare library create. */
   planId?: string;
   planItemId?: string;
   /** Display name for the sheet header (Similar mode). */
@@ -84,13 +86,27 @@ const FILTER_OPTIONS: { key: MealFilterKey; label: string }[] = [
 ];
 
 // Similar-mode: all four catalog buckets unioned in one request; the server
-// dedupes by id and React Query caches under the multi-key array.
+// dedupes by id and React Query caches under the multi-key array. (featured +
+// hosting resolve empty server-side today — D-WS7-039 — so the live union is
+// my_meals ∪ top_rated; the empty buckets are harmless and stay for when
+// curation flags land.)
 const FIND_SIMILAR_BUCKETS: readonly MealFilterKey[] = [
   "my_meals",
   "featured",
   "top_rated",
   "hosting",
 ];
+
+// WS9 3f-4 (Thread E, §5.2) — bounded raise of the candidate pool. The pre-3f-4
+// call used the default 20-row page; requesting 60 lets more of the user's own
+// meals through (the server clamps to [1,100], so this is a pure client change —
+// the public-catalog contribution stays capped server-side, 3f-5's fix).
+const SIMILAR_CANDIDATE_LIMIT = 60;
+// Hard ceiling on the model payload — never send more than this many candidates
+// to find-similar, regardless of library size. Bounded cost per call, forever.
+const FIND_SIMILAR_MAX_PAYLOAD = 60;
+// How many ranked matches to ask the model for (post-ranking cap).
+const FIND_SIMILAR_RESULT_LIMIT = 10;
 
 // MealListItem (GET /me/meals) has no mealType column, so candidate payloads use
 // a uniform placeholder for the required AI field (D-WS7-146 tracks widening the
@@ -122,27 +138,55 @@ export function SwapMealSheet({
   onPickReplacement,
 }: SwapMealSheetProps) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
-  // WS9 3f-3 (D-WS9-005) — the swap is a REPLACE, so the chooser threads
-  // planId + planItemId. Degrade to a bare library create only if the host
-  // didn't supply them (keeps the pre-fix behavior for any caller that hasn't
-  // been updated, and keeps the sheet renderable in tests without plan props).
+  // WS9 3f-3 (D-WS9-005) — the swap is a REPLACE, so the chooser + Ask-Kiwi
+  // creator thread planId + planItemId. Degrade to a bare library create only
+  // if the host didn't supply them.
   const importContext: ImportEntryContext =
     planId && planItemId
       ? { kind: "replace", planId, planItemId }
       : { kind: "library" };
 
   // Freeze the rendered mode while the sheet is closing so the slide-out
-  // animation doesn't flash the other mode's body (the parent flips `mode` back
-  // to a default the instant it clears the swap state). Only updated while open.
+  // animation doesn't flash the other mode's body. Only updated while open.
   const [displayMode, setDisplayMode] = useState<SwapMode>(mode);
+  // WS9 3f-4 (Thread A) — the inline Ask-Kiwi creator. Fresh opens (and mode
+  // switches) always start in the browse view.
+  const [askOpen, setAskOpen] = useState(false);
   useEffect(() => {
-    if (visible) setDisplayMode(mode);
+    if (visible) {
+      setDisplayMode(mode);
+      setAskOpen(false);
+    }
   }, [visible, mode]);
 
   const handlePick = (meal: MealSummary) => {
     onPickReplacement(meal);
     onClose();
+  };
+
+  // WS9 3f-4 (Thread A) — a successful in-sheet creation completes the swap by
+  // threading the REPLACE params (importEntryParams) into the meal-builder push;
+  // the builder's save then resolves plan-replace → changeMealForPlanItem
+  // (§8.4.2), NOT append. Close the sheet first, then push past the slide-out
+  // (mirrors ImportSourceCards.navigateAfterClose).
+  const handleAskNavigateToDraft = (draftJson: string) => {
+    onClose();
+    setTimeout(() => {
+      router.push({
+        pathname: "/meal-builder",
+        params: {
+          draftSource: "text",
+          draftJson,
+          ...importEntryParams(importContext),
+        },
+      });
+    }, 150);
+  };
+  const handleAskUpgrade = () => {
+    onClose();
+    setTimeout(() => router.push("/upgrade"), 150);
   };
 
   return (
@@ -160,11 +204,24 @@ export function SwapMealSheet({
         <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
           <View style={s.handle} />
           <View style={s.header}>
+            {askOpen ? (
+              <Pressable onPress={() => setAskOpen(false)} hitSlop={12}>
+                <Feather name="chevron-left" size={22} color={Colors.neutral[800]} />
+              </Pressable>
+            ) : null}
             <View style={{ flex: 1 }}>
               <Text style={s.title}>
-                {displayMode === "similar" ? "Find similar" : "Change meal"}
+                {askOpen
+                  ? "Ask Kiwi for a meal"
+                  : displayMode === "similar"
+                    ? "Find similar"
+                    : "Change meal"}
               </Text>
-              {displayMode === "similar" ? (
+              {askOpen ? (
+                <Text style={s.subtitle}>
+                  Describe a meal and Kiwi drafts it into this slot
+                </Text>
+              ) : displayMode === "similar" ? (
                 sourceCuisine ? (
                   <Text style={s.subtitle}>Cuisine: {sourceCuisine}</Text>
                 ) : null
@@ -177,39 +234,105 @@ export function SwapMealSheet({
             </Pressable>
           </View>
 
-          <ScrollView
-            style={s.scroll}
-            contentContainerStyle={s.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {displayMode === "similar" ? (
-              <SimilarBody
-                visible={visible}
-                sourceMealId={sourceMealId}
-                onPick={handlePick}
+          {askOpen ? (
+            // WS9 3f-4 (Thread A) — the inline creator (one-shot: free text → one
+            // parsed meal → meal-builder draft that completes the swap). A plain
+            // ScrollView (not the keyboard-controller wrapper) keeps this sheet
+            // free of a native dep; the sheet is bottom-anchored so the input
+            // sits well above the keyboard.
+            <ScrollView
+              style={s.scroll}
+              contentContainerStyle={s.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <AskKiwiCreator
+                navigateToDraft={handleAskNavigateToDraft}
+                routeToUpgrade={handleAskUpgrade}
               />
-            ) : (
-              <DifferentBody
-                sourceMealId={sourceMealId}
-                onPick={handlePick}
-              />
-            )}
+            </ScrollView>
+          ) : (
+            <>
+              {displayMode === "similar" ? (
+                <SimilarBody
+                  visible={visible}
+                  sourceMealId={sourceMealId}
+                  onPick={handlePick}
+                />
+              ) : (
+                <DifferentBody
+                  sourceMealId={sourceMealId}
+                  onPick={handlePick}
+                />
+              )}
 
-            {/* WS9 3f-3 (D-WS9-005) — the shared chooser, reachable in BOTH modes.
-                In the swap context it threads planId + planItemId so an imported
-                or manually-created replacement REPLACES this slot (§8.4.2) rather
-                than abandoning the swap. No Ask-Kiwi card here ON PURPOSE (the
-                real shared creator is 3f-4's). */}
-            <ImportSourceCards context={importContext} onClose={onClose} />
-          </ScrollView>
+              {/* WS9 3f-4 (Thread B) — the import chooser, now PINNED at the
+                  bottom (was last inside the scroll, buried under the list) and
+                  reachable in BOTH modes. Collapsed + subordinate by default so
+                  candidates stay primary; the Ask-Kiwi card mounts the creator
+                  inline (onAskKiwi) instead of routing away. */}
+              <ImportBar
+                context={importContext}
+                onClose={onClose}
+                onAskKiwi={() => setAskOpen(true)}
+              />
+            </>
+          )}
         </View>
       </View>
     </Modal>
   );
 }
 
-// ── Similar mode: the AI ranking pipeline (verbatim from FindSimilarSheet) ────
+// ── Pinned import bar (Thread B) ──────────────────────────────────────────────
+
+function ImportBar({
+  context,
+  onClose,
+  onAskKiwi,
+}: {
+  context: ImportEntryContext;
+  onClose: () => void;
+  onAskKiwi: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <View style={s.importBar}>
+      <Pressable
+        style={({ pressed }) => [s.importToggle, pressed && { opacity: 0.7 }]}
+        onPress={() => setExpanded((e) => !e)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+      >
+        <Feather name="plus-circle" size={16} color={Colors.sage[700]} />
+        <Text style={s.importToggleText}>Bring in something new</Text>
+        <Feather
+          name={expanded ? "chevron-down" : "chevron-up"}
+          size={18}
+          color={Colors.neutral[600]}
+        />
+      </Pressable>
+      {expanded ? (
+        <ScrollView
+          style={s.importScroll}
+          contentContainerStyle={s.importScrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <ImportSourceCards
+            context={context}
+            includeAskKiwi
+            onAskKiwi={onAskKiwi}
+            hideSectionTitle
+            onClose={onClose}
+          />
+        </ScrollView>
+      ) : null}
+    </View>
+  );
+}
+
+// ── Similar mode: the AI ranking pipeline ─────────────────────────────────────
 
 function SimilarBody({
   visible,
@@ -225,16 +348,26 @@ function SimilarBody({
   const [hadError, setHadError] = useState(false);
 
   const findSimilarMutation = useFindSimilarMeals();
-  const candidatesQuery = useMeals(FIND_SIMILAR_BUCKETS);
+  const candidatesQuery = useMeals(FIND_SIMILAR_BUCKETS, SIMILAR_CANDIDATE_LIMIT);
   const sourceMealQuery = useMeal(sourceMealId);
   const sourceMeal = sourceMealQuery.data;
 
-  const candidatePool = useMemo<MealSummary[]>(() => {
+  // WS9 3f-4 (Thread E, §5.1) — de-duplicate the raw candidate rows by dish
+  // identity (normalized title) BEFORE ranking. The user's own library holds
+  // distinct records for the same dish (measured: many "Beef Tacos" rows,
+  // different ids, dishFamilyKey null) — an id-key would miss them. Deduping the
+  // pool means the model's result slots each land on a distinct dish, and it
+  // cannot return three ids for the same title.
+  const dedupedItems = useMemo(() => {
     if (!sourceMealId || !candidatesQuery.data) return [];
-    return candidatesQuery.data.meals
-      .map((m) => mealListItemToSummary(m, "my_meals"))
-      .filter((m) => m.id !== sourceMealId);
+    const items = candidatesQuery.data.meals.filter((m) => m.id !== sourceMealId);
+    return dedupeMealsByTitle(items);
   }, [candidatesQuery.data, sourceMealId]);
+
+  const candidatePool = useMemo<MealSummary[]>(
+    () => dedupedItems.map((m) => mealListItemToSummary(m, "my_meals")),
+    [dedupedItems],
+  );
 
   // Fire the AI call when the sheet opens with a fresh source AND both reads have
   // landed. Reset each time so re-opening for a different meal doesn't leak.
@@ -250,19 +383,19 @@ function SimilarBody({
     }
     setAiOrderedIds(null);
     setHadError(false);
+    // §5.2 — hard-cap the payload regardless of library size.
+    const payload = dedupedItems.slice(0, FIND_SIMILAR_MAX_PAYLOAD);
     findSimilarMutation.mutate(
       {
         source: mealDetailToCandidate(sourceMeal),
-        candidates: candidatesQuery.data.meals
-          .filter((m) => m.id !== sourceMealId)
-          .map((m) => ({
-            id: m.id,
-            title: m.title,
-            cuisine: m.cuisine.length > 0 ? m.cuisine : null,
-            mealType: CANDIDATE_MEAL_TYPE,
-            tags: m.tags,
-          })),
-        limit: 10,
+        candidates: payload.map((m) => ({
+          id: m.id,
+          title: m.title,
+          cuisine: m.cuisine.length > 0 ? m.cuisine : null,
+          mealType: CANDIDATE_MEAL_TYPE,
+          tags: m.tags,
+        })),
+        limit: FIND_SIMILAR_RESULT_LIMIT,
       },
       {
         onSuccess: (data) => {
@@ -285,7 +418,11 @@ function SimilarBody({
     const ordered = aiOrderedIds
       .map((id) => byId.get(id))
       .filter((m): m is MealSummary => !!m);
-    return sortKey === "alpha" ? ordered : sortMeals(ordered, sortKey);
+    // Defensive second layer (§5.1): if the model repeats an id, both copies map
+    // to the same title — dedupe keeps the highest-ranked and drops the rest,
+    // never reordering the survivors.
+    const deduped = dedupeMealsByTitle(ordered);
+    return sortKey === "alpha" ? deduped : sortMeals(deduped, sortKey);
   }, [sourceMealId, aiOrderedIds, sortKey, candidatePool]);
 
   const isLoading =
@@ -304,7 +441,12 @@ function SimilarBody({
       (sourceMealQuery.isError || candidatesQuery.isError));
 
   return (
-    <>
+    <ScrollView
+      style={s.scroll}
+      contentContainerStyle={s.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       <View style={s.sectionTitleRow}>
         <Text style={s.sectionTitle}>Similar meals</Text>
         <SortDropdown value={sortKey} onChange={setSortKey} />
@@ -333,11 +475,11 @@ function SimilarBody({
           ))}
         </View>
       )}
-    </>
+    </ScrollView>
   );
 }
 
-// ── Different mode: the filter-chip browser (verbatim from ChangeMealSheet) ────
+// ── Different mode: the filter-chip browser (keyset-paginated) ─────────────────
 
 function DifferentBody({
   sourceMealId,
@@ -350,21 +492,43 @@ function DifferentBody({
   const [activeFilter, setActiveFilter] = useState<MealFilterKey>("my_meals");
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
 
-  const mealsQuery = useMeals([activeFilter]);
+  // WS9 3f-4 (Thread B, §4.2) — keyset-paginated + server-sorted, load-on-scroll.
+  // Server sort (toMealSortKey) keeps pages globally ordered, so there is no
+  // client re-sort of a partial page. No AI call here, so infinite scroll is free.
+  const mealsQuery = useInfiniteMeals([activeFilter], toMealSortKey(sortKey));
 
-  // Ruling 10 — current-meal exclusion applies symmetrically across all 4 buckets.
+  // Ruling 10 — current-meal exclusion applies symmetrically across all buckets.
   const visibleMeals = useMemo(() => {
-    const adapted = (mealsQuery.data?.meals ?? []).map((m) =>
+    const adapted = mealsQuery.meals.map((m) =>
       mealListItemToSummary(m, activeFilter),
     );
-    const filtered = sourceMealId
+    return sourceMealId
       ? adapted.filter((meal) => meal.id !== sourceMealId)
       : adapted;
-    return sortMeals(filtered, sortKey);
-  }, [mealsQuery.data, activeFilter, sourceMealId, sortKey]);
+  }, [mealsQuery.meals, activeFilter, sourceMealId]);
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const distanceFromBottom =
+      contentSize.height - contentOffset.y - layoutMeasurement.height;
+    if (
+      distanceFromBottom < 240 &&
+      mealsQuery.hasNextPage &&
+      !mealsQuery.isFetchingNextPage
+    ) {
+      void mealsQuery.fetchNextPage();
+    }
+  };
 
   return (
-    <>
+    <ScrollView
+      style={s.scroll}
+      contentContainerStyle={s.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      onScroll={onScroll}
+      scrollEventThrottle={32}
+    >
       <FilterChipRow<MealFilterKey>
         options={FILTER_OPTIONS}
         selected={[activeFilter]}
@@ -397,7 +561,12 @@ function DifferentBody({
           ))
         )}
       </View>
-    </>
+      {mealsQuery.isFetchingNextPage ? (
+        <View style={s.loadingRow}>
+          <ActivityIndicator color={Colors.sage[700]} />
+        </View>
+      ) : null}
+    </ScrollView>
   );
 }
 
@@ -494,7 +663,34 @@ const s = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing[4],
-    paddingBottom: Spacing[8],
+    paddingBottom: Spacing[6],
+  },
+  // WS9 3f-4 (Thread B) — the pinned import bar. A visible top border is the
+  // scroll boundary (content continues behind it); subordinate to the list.
+  importBar: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral[300],
+    backgroundColor: Colors.neutral[50],
+    paddingHorizontal: Spacing[4],
+  },
+  importToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[2],
+    paddingVertical: Spacing[3],
+  },
+  importToggleText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+  },
+  importScroll: {
+    maxHeight: 280,
+  },
+  importScrollContent: {
+    paddingBottom: Spacing[3],
   },
   sectionTitleRow: {
     flexDirection: "row",
@@ -507,9 +703,6 @@ const s = StyleSheet.create({
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.serif[600],
-  },
-  sectionGap: {
-    marginTop: Spacing[4],
   },
   list: {
     gap: Spacing[2],
@@ -622,35 +815,5 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[600],
     fontFamily: Typography.face.sans[400],
-  },
-  sourceCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing[3],
-    backgroundColor: Palette.background.card,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.neutral[300],
-    padding: Spacing[3],
-  },
-  sourceIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.sage[50],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sourceTitle: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serif[600],
-  },
-  sourceSubtitle: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
-    marginTop: 2,
   },
 });

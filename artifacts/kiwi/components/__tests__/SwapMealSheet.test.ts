@@ -1,29 +1,19 @@
-// WS9 3d Part 4 (D-WS9-018) — SwapMealSheet behavior tests. The merged sheet
-// replaces ChangeMealSheet + FindSimilarSheet with one shell + two modes. These
-// pin the LOSSLESS-MERGE contract (the recurring failure mode this block guards
-// against) plus the ported FindSimilarSheet coverage:
+// WS9 3d Part 4 (D-WS9-018) + WS9 3f-4 — SwapMealSheet behavior tests.
 //   - Different mode renders the filter-chip browser, excludes the source meal,
-//     and picking hands a real bucket row to the caller.
+//     picks a real row, and (3f-4 Thread B) paginates via useInfiniteMeals.
 //   - Similar mode runs the AI ranking pipeline: renders AI-ordered matches,
-//     drops unmatched candidates, renders the error state on AI hard-failure with
-//     no list and no second attempt, and hands a real candidate-pool meal on pick.
-//   - The import source-quartet ("Bring in something new") is reachable from BOTH
-//     modes — the explicit lossless-merge guard.
-//   - The dead "Ask Kiwi — coming in WS6" premium pill is gone from both modes.
-//   - Fractional server macros render rounded.
+//     drops unmatched candidates, renders the error state on AI hard-failure, and
+//     (3f-4 Thread E) de-duplicates the pool by dish identity and hard-caps the
+//     model payload at 60.
+//   - The import chooser lives in a PINNED bar (3f-4 Thread B); its quartet is
+//     reachable in BOTH modes once expanded — the lossless-merge guard.
+//   - The Ask-Kiwi card mounts the creator INLINE (3f-4 Thread A); a swap-context
+//     creation threads the REPLACE params into the meal-builder push.
 //
-// Harness: reads (useMeal source + useMeals candidate/bucket pool) are primed
+// Harness: reads (useMeal source + useMeals/useInfiniteMeals pools) are primed
 // into the QueryClient cache (staleTime Infinity → no network); an auth token is
-// seeded; global.fetch is stubbed so only the find-similar mutation hits the
-// wire. `.test.ts` (not .tsx) with React.createElement, per the sibling sheet
-// tests and the package glob.
-//
-// NOTE (carried from the FindSimilarSheet test): the loading branch and the
-// read-failure error branch are NOT unit-tested — they depend on a useQuery
-// loading→settled transition being reflected in the rendered tree, which this
-// harness (react-test-renderer + react-query's useSyncExternalStore) does not
-// propagate. The AI-failure path below covers the mutation half of the same
-// error UI; the read branches are verified by code review.
+// seeded; global.fetch is stubbed so only the find-similar + parse-meal calls
+// hit the wire. `.test.ts` (not .tsx) with React.createElement.
 
 import assert from "node:assert/strict";
 import { test, beforeEach, afterEach } from "node:test";
@@ -38,6 +28,10 @@ import {
   __setForTests as seedSecureItem,
   __resetForTests as resetSecureStore,
 } from "expo-secure-store";
+import {
+  __setRouterForTests,
+  __resetRouterForTests,
+} from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { SwapMealSheet, type SwapMode } from "../SwapMealSheet";
@@ -45,12 +39,12 @@ import type { MealDetail, MealListResponse } from "@/lib/api/meals";
 import type { MealSummary } from "@/lib/types";
 
 const SOURCE_ID = "src-1";
-// Mirrors FIND_SIMILAR_BUCKETS in SwapMealSheet (module-private); the react-query
-// key is hashed by stable JSON so a structural copy collides with the in-
-// component key and the primed cache entry is the one the hook reads.
+// Mirrors the module-private constants in SwapMealSheet; the react-query key is
+// hashed by stable JSON so a structural copy collides with the in-component key.
 const SIMILAR_BUCKETS = ["my_meals", "featured", "top_rated", "hosting"];
-// Different mode's default chip is my_meals → useMeals(["my_meals"]).
+const SIMILAR_LIMIT = 60; // SIMILAR_CANDIDATE_LIMIT
 const DIFFERENT_BUCKET = ["my_meals"];
+const DIFFERENT_SORT = "alpha"; // toMealSortKey("alpha")
 
 const SOURCE_MEAL = {
   id: SOURCE_ID,
@@ -105,6 +99,20 @@ const AI_RESPONSE = {
   metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
 };
 
+const PARSE_MEAL_SUCCESS = {
+  status: "success",
+  meal: {
+    title: "Chicken Piccata",
+    cuisine: "Italian",
+    estimatedPrepMinutes: 10,
+    estimatedCookMinutes: 20,
+    servingsDefault: 4,
+    difficulty: "medium",
+    tags: [],
+    subDishes: [],
+  },
+};
+
 interface FetchStubResponse {
   ok: boolean;
   status: number;
@@ -112,6 +120,8 @@ interface FetchStubResponse {
 }
 
 let fetchCalls: string[] = [];
+let lastFindSimilarBody: { candidates: { id: string; title: string }[] } | null =
+  null;
 let fetchImpl: (url: string) => FetchStubResponse;
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -125,18 +135,44 @@ function textLeavesOf(node: TestRenderer.ReactTestInstance): string[] {
   });
 }
 
+function pressableWithText(
+  root: TestRenderer.ReactTestInstance,
+  substr: string,
+): TestRenderer.ReactTestInstance | undefined {
+  return root
+    .findAllByType(Pressable)
+    .find((p) => textLeavesOf(p).some((t) => t.includes(substr)));
+}
+
+async function expandImportBar(renderer: TestRenderer.ReactTestRenderer) {
+  const toggle = pressableWithText(renderer.root, "Bring in something new");
+  assert.ok(toggle, "import bar toggle not found");
+  await act(async () => {
+    toggle!.props.onPress();
+  });
+}
+
 beforeEach(() => {
   resetSecureStore();
+  __resetRouterForTests();
   seedSecureItem("kiwi_authToken", "test-token");
   fetchCalls = [];
-  (globalThis as { fetch?: unknown }).fetch = (async (url: string) => {
+  lastFindSimilarBody = null;
+  (globalThis as { fetch?: unknown }).fetch = (async (
+    url: string,
+    init?: { body?: string },
+  ) => {
     fetchCalls.push(String(url));
+    if (String(url).includes("/meals/find-similar") && init?.body) {
+      lastFindSimilarBody = JSON.parse(String(init.body));
+    }
     return fetchImpl(String(url));
   }) as unknown as typeof fetch;
 });
 
 afterEach(() => {
   resetSecureStore();
+  __resetRouterForTests();
 });
 
 function primedClient(): QueryClient {
@@ -147,14 +183,28 @@ function primedClient(): QueryClient {
     },
   });
   client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
-  client.setQueryData(["meals", "list", SIMILAR_BUCKETS], SIMILAR_CANDIDATES);
-  client.setQueryData(["meals", "list", DIFFERENT_BUCKET], DIFFERENT_MEALS);
+  // Similar mode now requests a bounded pool (limit 60).
+  client.setQueryData(
+    ["meals", "list", SIMILAR_BUCKETS, SIMILAR_LIMIT],
+    SIMILAR_CANDIDATES,
+  );
+  // Different mode now uses useInfiniteMeals (server-sorted alpha).
+  client.setQueryData(["meals", "list", DIFFERENT_BUCKET, DIFFERENT_SORT], {
+    pages: [DIFFERENT_MEALS],
+    pageParams: [undefined],
+  });
   return client;
 }
 
 async function renderSheet(
   mode: SwapMode,
-  opts: { onPick?: (m: MealSummary) => void; client?: QueryClient } = {},
+  opts: {
+    onPick?: (m: MealSummary) => void;
+    client?: QueryClient;
+    planId?: string;
+    planItemId?: string;
+    onClose?: () => void;
+  } = {},
 ): Promise<TestRenderer.ReactTestRenderer> {
   const client = opts.client ?? primedClient();
   let renderer!: TestRenderer.ReactTestRenderer;
@@ -169,7 +219,9 @@ async function renderSheet(
           sourceMealId: SOURCE_ID,
           sourceMealTitle: "Spaghetti Carbonara",
           sourceCuisine: "Italian",
-          onClose: () => {},
+          planId: opts.planId,
+          planItemId: opts.planItemId,
+          onClose: opts.onClose ?? (() => {}),
           onPickReplacement: opts.onPick ?? (() => {}),
         }),
       ),
@@ -192,17 +244,13 @@ const IMPORT_CARD_TITLES = [
 test("Different mode: renders the filter-chip browser, excludes the source meal", async () => {
   fetchImpl = () => ({ ok: true, status: 200, text: async () => "{}" });
   const renderer = await renderSheet("different");
-  const leaves = textLeavesOf(renderer.root);
-  const joined = leaves.join(" | ");
+  const joined = textLeavesOf(renderer.root).join(" | ");
 
-  // Mode-specific header + chips.
   assert.ok(joined.includes("Change meal"), `different-mode title: ${joined}`);
   assert.ok(joined.includes("My Meals"), `filter chips present: ${joined}`);
   assert.ok(joined.includes("Featured"), `filter chips present: ${joined}`);
-  // Similar-mode affordance must NOT appear.
   assert.ok(!joined.includes("Similar meals"), `no similar section: ${joined}`);
 
-  // Bucket rows render; the source meal is excluded.
   assert.ok(joined.includes("Chicken Tacos"), `bucket row renders: ${joined}`);
   assert.ok(joined.includes("Veggie Stir Fry"), `bucket row renders: ${joined}`);
   assert.ok(
@@ -210,7 +258,6 @@ test("Different mode: renders the filter-chip browser, excludes the source meal"
     `the source meal must be excluded from its own replacement list: ${joined}`,
   );
 
-  // No AI ranking call in Different mode.
   assert.equal(
     fetchCalls.filter((u) => u.includes("/meals/find-similar")).length,
     0,
@@ -225,9 +272,7 @@ test("Different mode: picking a bucket meal hands it to the caller", async () =>
   let picked: MealSummary | null = null;
   const renderer = await renderSheet("different", { onPick: (m) => (picked = m) });
 
-  const row = renderer.root
-    .findAllByType(Pressable)
-    .find((p) => textLeavesOf(p).some((t) => t.includes("Chicken Tacos")));
+  const row = pressableWithText(renderer.root, "Chicken Tacos");
   assert.ok(row, "Chicken Tacos row not found");
   await act(async () => {
     row!.props.onPress();
@@ -241,7 +286,7 @@ test("Different mode: picking a bucket meal hands it to the caller", async () =>
   renderer.unmount();
 });
 
-// ── Similar mode (ported FindSimilarSheet coverage) ─────────────────────────
+// ── Similar mode ────────────────────────────────────────────────────────────
 
 test("Similar mode: renders AI-ordered matches from the candidate pool", async () => {
   fetchImpl = () => ({
@@ -303,9 +348,7 @@ test("Similar mode: picking a match hands a real candidate-pool meal to the call
   let picked: MealSummary | null = null;
   const renderer = await renderSheet("similar", { onPick: (m) => (picked = m) });
 
-  const row = renderer.root
-    .findAllByType(Pressable)
-    .find((p) => textLeavesOf(p).some((t) => t.includes("Bucatini Amatriciana")));
+  const row = pressableWithText(renderer.root, "Bucatini Amatriciana");
   assert.ok(row, "Bucatini row not found");
   await act(async () => {
     row!.props.onPress();
@@ -343,7 +386,10 @@ test("Similar mode: fractional server macros render rounded to whole numbers", a
     },
   });
   client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
-  client.setQueryData(["meals", "list", SIMILAR_BUCKETS], FRACTIONAL);
+  client.setQueryData(
+    ["meals", "list", SIMILAR_BUCKETS, SIMILAR_LIMIT],
+    FRACTIONAL,
+  );
   const renderer = await renderSheet("similar", { client });
 
   const joined = textLeavesOf(renderer.root).join(" | ");
@@ -357,30 +403,80 @@ test("Similar mode: fractional server macros render rounded to whole numbers", a
   renderer.unmount();
 });
 
+// ── WS9 3f-4 Thread E: de-dup + bounded payload ─────────────────────────────
+
+test("Similar mode: pool is de-duplicated by title and the payload is hard-capped at 60", async () => {
+  // 65 distinct dishes + 5 exact-title duplicates = 70 rows. After title-dedup:
+  // 65 unique; after the 60 hard-cap: 60 sent.
+  const meals = [];
+  for (let i = 1; i <= 65; i++) {
+    meals.push(listItem(`u-${i}`, `Dish Number ${String(i).padStart(3, "0")}`));
+  }
+  for (let i = 1; i <= 5; i++) {
+    meals.push(listItem(`dup-${i}`, `Dish Number ${String(i).padStart(3, "0")}`));
+  }
+  const BIG: MealListResponse = { meals, nextCursor: null };
+
+  fetchImpl = () => ({
+    ok: true,
+    status: 200,
+    text: async () =>
+      JSON.stringify({
+        matches: [],
+        metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
+      }),
+  });
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
+      mutations: { retry: false },
+    },
+  });
+  client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
+  client.setQueryData(["meals", "list", SIMILAR_BUCKETS, SIMILAR_LIMIT], BIG);
+  const renderer = await renderSheet("similar", { client });
+
+  assert.ok(lastFindSimilarBody, "find-similar was not called");
+  const sent = lastFindSimilarBody!.candidates;
+  assert.equal(sent.length, 60, `hard cap holds: sent ${sent.length}`);
+  const titles = sent.map((c) => c.title.toLowerCase().trim());
+  assert.equal(
+    new Set(titles).size,
+    titles.length,
+    "no duplicate titles reach the model",
+  );
+  assert.ok(
+    !sent.some((c) => c.id === SOURCE_ID),
+    "the source meal is excluded from the payload",
+  );
+
+  renderer.unmount();
+});
+
 // ── Lossless-merge guards ───────────────────────────────────────────────────
 
-test("LOSSLESS: the import source-quartet is reachable from BOTH modes", async () => {
+test("LOSSLESS: the import quartet is reachable from BOTH modes (pinned bar, expanded)", async () => {
   fetchImpl = () => ({
     ok: true,
     status: 200,
     text: async () => JSON.stringify(AI_RESPONSE),
   });
 
-  const diff = await renderSheet("different");
-  const diffJoined = textLeavesOf(diff.root).join(" | ");
-  assert.ok(diffJoined.includes("Bring in something new"), `quartet header (different): ${diffJoined}`);
-  for (const t of IMPORT_CARD_TITLES) {
-    assert.ok(diffJoined.includes(t), `"${t}" reachable in Different mode: ${diffJoined}`);
+  for (const mode of ["different", "similar"] as SwapMode[]) {
+    const renderer = await renderSheet(mode);
+    // The pinned bar's label is always present; the quartet appears on expand.
+    const collapsed = textLeavesOf(renderer.root).join(" | ");
+    assert.ok(
+      collapsed.includes("Bring in something new"),
+      `pinned bar label (${mode}): ${collapsed}`,
+    );
+    await expandImportBar(renderer);
+    const expanded = textLeavesOf(renderer.root).join(" | ");
+    for (const t of IMPORT_CARD_TITLES) {
+      assert.ok(expanded.includes(t), `"${t}" reachable in ${mode} mode: ${expanded}`);
+    }
+    renderer.unmount();
   }
-  diff.unmount();
-
-  const sim = await renderSheet("similar");
-  const simJoined = textLeavesOf(sim.root).join(" | ");
-  assert.ok(simJoined.includes("Bring in something new"), `quartet header (similar): ${simJoined}`);
-  for (const t of IMPORT_CARD_TITLES) {
-    assert.ok(simJoined.includes(t), `"${t}" reachable in Similar mode: ${simJoined}`);
-  }
-  sim.unmount();
 });
 
 test("the dead 'Ask Kiwi — coming in WS6' premium pill is gone from both modes", async () => {
@@ -400,4 +496,86 @@ test("the dead 'Ask Kiwi — coming in WS6' premium pill is gone from both modes
     );
     renderer.unmount();
   }
+});
+
+// ── WS9 3f-4 Thread A: inline Ask-Kiwi creator ──────────────────────────────
+
+test("Thread A: the Ask-Kiwi card mounts the creator INLINE (does not route away)", async () => {
+  fetchImpl = () => ({ ok: true, status: 200, text: async () => "{}" });
+  const pushes: unknown[] = [];
+  __setRouterForTests({ push: (a: unknown) => pushes.push(a) });
+
+  const renderer = await renderSheet("different");
+  await expandImportBar(renderer);
+
+  const askCard = pressableWithText(renderer.root, "Ask Kiwi for a meal");
+  assert.ok(askCard, "Ask-Kiwi card not found in expanded bar");
+  await act(async () => {
+    askCard!.props.onPress();
+  });
+
+  // Inline creator is now mounted (the input testID appears); no navigation fired.
+  const input = renderer.root.findAll(
+    (n) => n.props?.testID === "ask-kiwi-input",
+  );
+  assert.ok(input.length >= 1, "the inline Ask-Kiwi input is mounted in-sheet");
+  assert.equal(pushes.length, 0, "opening the creator must not route away");
+
+  renderer.unmount();
+});
+
+test("Thread A: a swap-context creation threads the REPLACE params (not append)", async () => {
+  fetchImpl = (url: string) =>
+    url.includes("/builder/parse-meal")
+      ? { ok: true, status: 200, text: async () => JSON.stringify(PARSE_MEAL_SUCCESS) }
+      : { ok: true, status: 200, text: async () => "{}" };
+  const pushes: { pathname?: string; params?: Record<string, unknown> }[] = [];
+  __setRouterForTests({
+    push: (a: unknown) =>
+      pushes.push(a as { pathname?: string; params?: Record<string, unknown> }),
+  });
+  let closed = false;
+
+  const renderer = await renderSheet("different", {
+    planId: "plan-1",
+    planItemId: "item-1",
+    onClose: () => (closed = true),
+  });
+  await expandImportBar(renderer);
+
+  const askCard = pressableWithText(renderer.root, "Ask Kiwi for a meal");
+  assert.ok(askCard, "Ask-Kiwi card not found");
+  await act(async () => {
+    askCard!.props.onPress();
+  });
+
+  const input = renderer.root.find((n) => n.props?.testID === "ask-kiwi-input");
+  await act(async () => {
+    input.props.onChangeText("chicken piccata");
+  });
+  const submitBtn = renderer.root
+    .findAll(
+      (n) =>
+        n.props?.testID === "ask-kiwi-submit" &&
+        typeof n.props?.onPress === "function",
+    )[0];
+  await act(async () => {
+    await submitBtn.props.onPress();
+    await wait(250); // past the 150ms close→push defer
+  });
+
+  assert.equal(closed, true, "the sheet closes before navigating");
+  const mbPush = pushes.find((p) => p.pathname === "/meal-builder");
+  assert.ok(mbPush, `expected a /meal-builder push, got: ${JSON.stringify(pushes)}`);
+  assert.equal(mbPush!.params?.planId, "plan-1", "REPLACE: planId threaded");
+  assert.equal(mbPush!.params?.planItemId, "item-1", "REPLACE: planItemId threaded");
+  assert.equal(
+    mbPush!.params?.addToPlanId,
+    undefined,
+    "REPLACE must NOT thread addToPlanId (that would append, not replace)",
+  );
+  assert.equal(mbPush!.params?.draftSource, "text");
+  assert.ok(mbPush!.params?.draftJson, "the parsed draft rides along");
+
+  renderer.unmount();
 });

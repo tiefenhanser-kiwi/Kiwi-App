@@ -37,9 +37,20 @@ interface ImportSourceCardsProps {
   /** Which completion context this chooser threads (append / replace / library). */
   context: ImportEntryContext;
   /** Render the (cosmetic, premium-pilled) "Ask Kiwi for a meal" card on top.
-   *  AddMealsSheet passes true; SwapMealSheet passes false ON PURPOSE — the real
-   *  shared Ask-Kiwi creator is 3f-4's work, and the dead pill was dropped. */
+   *  AddMealsSheet passes true (route-away). SwapMealSheet now passes true too,
+   *  paired with `onAskKiwi` so the card mounts the creator INLINE (3f-4 Thread
+   *  A) instead of routing to /ask-kiwi. */
   includeAskKiwi?: boolean;
+  /** WS9 3f-4 (Thread A) — when provided, the Ask-Kiwi card calls this INSTEAD
+   *  of routing to /ask-kiwi, so the host (SwapMealSheet) can mount the shared
+   *  AskKiwiCreator inline. Omitted → the shipped route-away behavior is kept
+   *  (AddMealsSheet is byte-unchanged). Only the Ask-Kiwi card is affected; the
+   *  four import cards' tap behavior is untouched either way. */
+  onAskKiwi?: () => void;
+  /** WS9 3f-4 (Thread B) — suppress the internal "Bring in something new" title
+   *  when the host supplies its own (the SwapMealSheet pinned bar). Presentational
+   *  only; changes no tap behavior. */
+  hideSectionTitle?: boolean;
   /** Close the host sheet before navigating (deferred past the slide-out). */
   onClose: () => void;
 }
@@ -47,6 +58,8 @@ interface ImportSourceCardsProps {
 export function ImportSourceCards({
   context,
   includeAskKiwi = false,
+  onAskKiwi,
+  hideSectionTitle = false,
   onClose,
 }: ImportSourceCardsProps) {
   const router = useRouter();
@@ -66,14 +79,16 @@ export function ImportSourceCards({
 
   return (
     <>
-      <Text style={[s.sectionTitle, s.sectionGap]}>Bring in something new</Text>
+      {!hideSectionTitle && (
+        <Text style={[s.sectionTitle, s.sectionGap]}>Bring in something new</Text>
+      )}
       <View style={s.list}>
         {includeAskKiwi && (
           <PremiumSourceCard
             icon="zap"
             title="Ask Kiwi for a meal"
             subtitle="Describe a meal and Kiwi drafts it to fit this plan"
-            onPress={() => navigateAfterClose("/ask-kiwi")}
+            onPress={onAskKiwi ?? (() => navigateAfterClose("/ask-kiwi"))}
           />
         )}
         <NewSourceCard
@@ -203,7 +218,11 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   sourceTitle: {
-    fontSize: Typography.fontSize.sm,
+    // WS9 3f-4 (Thread C) — typography parity with the meal-builder ModeCard
+    // title (fontSize.md=15). Was fontSize.sm=12, which read visibly smaller on
+    // the same device. Same serif[600] face + semibold weight; only the size
+    // token moves. The candidate-list rows keep their own (smaller) sizing.
+    fontSize: Typography.fontSize.md,
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.serif[600],

@@ -14,86 +14,24 @@
 // body in components/AskKiwiView — both unit-testable without expo-router or
 // the apiClient (Block 4 container/view precedent).
 
-import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  Keyboard,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import React from "react";
+import { StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import {
-  AskKiwiView,
-  ASK_KIWI_SERVINGS_DEFAULT,
-} from "@/components/AskKiwiView";
+import { AskKiwiCreator } from "@/components/AskKiwiCreator";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { Colors, Spacing, Typography } from "@/constants/tokens";
-import { parseMeal } from "@/lib/api/builder";
-import { runAskKiwiSubmit } from "@/lib/builder/askKiwiSubmit";
+import { Colors, Spacing } from "@/constants/tokens";
 
-type Phase = "input" | "loading";
-
+// WS9 3f-4 (Thread A) — thin router-backed wrapper over the shared, prop-driven
+// AskKiwiCreator. The standalone /ask-kiwi route is unchanged in behavior:
+// success pushes /meal-builder with { draftSource, draftJson, addToPlanId? }
+// (the APPEND context), exactly as before the extraction. The loading state now
+// renders inside the creator (below this screen's Header) instead of replacing
+// the whole body — a deliberate, minor cosmetic change.
 export default function AskKiwiScreen() {
   const router = useRouter();
   const { addToPlanId } = useLocalSearchParams<{ addToPlanId?: string }>();
-  const [text, setText] = useState("");
-  const [servings, setServings] = useState(ASK_KIWI_SERVINGS_DEFAULT);
-  const [phase, setPhase] = useState<Phase>("input");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const submitDisabled = text.trim().length === 0;
-
-  const handleSubmit = async () => {
-    if (submitDisabled) return;
-    Keyboard.dismiss();
-    setErrorMessage(null);
-    setPhase("loading");
-
-    const outcome = await runAskKiwiSubmit(
-      { freeText: text, servings },
-      {
-        parseMeal,
-        navigateToDraft: (draftJson) => {
-          router.push({
-            pathname: "/meal-builder",
-            params: {
-              draftSource: "text",
-              draftJson,
-              ...(addToPlanId ? { addToPlanId } : {}),
-            },
-          });
-        },
-        routeToUpgrade: () => router.push("/upgrade"),
-      },
-    );
-
-    // Whatever the outcome, drop back to the input phase so the user's typed
-    // text stays editable. On success the meal-builder push already happened;
-    // on upgrade the modal is up; on error we surface the message (input
-    // intact — we never clear `text`).
-    setPhase("input");
-    if (outcome.status === "error") {
-      setErrorMessage(outcome.message);
-    }
-  };
-
-  if (phase === "loading") {
-    return (
-      <View style={styles.bg}>
-        <Header title="Ask Kiwi for a meal" />
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={Colors.sage[700]} />
-          <Text style={styles.loadingTitle}>Building your meal...</Text>
-          <Text style={styles.loadingSubtitle}>
-            Kiwi is turning your description into dishes, ingredients, and steps.
-          </Text>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.bg}>
@@ -102,17 +40,18 @@ export default function AskKiwiScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <AskKiwiView
-          text={text}
-          onChangeText={(v) => {
-            setText(v);
-            if (errorMessage) setErrorMessage(null);
+        <AskKiwiCreator
+          navigateToDraft={(draftJson) => {
+            router.push({
+              pathname: "/meal-builder",
+              params: {
+                draftSource: "text",
+                draftJson,
+                ...(addToPlanId ? { addToPlanId } : {}),
+              },
+            });
           }}
-          servings={servings}
-          onServingsChange={setServings}
-          submitDisabled={submitDisabled}
-          onSubmit={handleSubmit}
-          errorMessage={errorMessage}
+          routeToUpgrade={() => router.push("/upgrade")}
         />
       </KeyboardAwareScrollViewCompat>
     </View>
@@ -125,27 +64,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing[4],
     paddingTop: Spacing[5],
     paddingBottom: Spacing[8],
-  },
-  loadingWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing[5],
-    gap: Spacing[3],
-  },
-  loadingTitle: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serif[600],
-    marginTop: Spacing[3],
-  },
-  loadingSubtitle: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
-    textAlign: "center",
-    lineHeight: 20,
-    paddingHorizontal: Spacing[3],
   },
 });
