@@ -8,7 +8,9 @@ import { test } from "node:test";
 
 import {
   dedupeMealsByTitle,
+  mealCompletenessScore,
   normalizeMealTitleKey,
+  preferMoreCompleteMeal,
 } from "../dedupeByTitle";
 
 test("normalizeMealTitleKey: lowercases, trims, collapses whitespace, strips trailing punctuation", () => {
@@ -72,4 +74,45 @@ test("dedupeMealsByTitle: no duplicates → identity (order + length preserved)"
   ];
   const out = dedupeMealsByTitle(meals);
   assert.deepEqual(out.map((m) => m.id), ["1", "2", "3"]);
+});
+
+// ── §6.2 pre-ranking tiebreak ────────────────────────────────────────────────
+
+test("mealCompletenessScore: counts image + real macros + cuisine + tags", () => {
+  assert.equal(
+    mealCompletenessScore({ id: "a", image: "p.jpg", calories: 500, cuisine: "Mexican", tags: ["x"] }),
+    4,
+  );
+  assert.equal(mealCompletenessScore({ id: "b", image: null, calories: 0, cuisine: "", tags: [] }), 0);
+  assert.equal(mealCompletenessScore({ id: "c", image: null, calories: 500, cuisine: "  ", tags: [] }), 1);
+});
+
+test("dedupeMealsByTitle + preferMoreCompleteMeal: the MORE COMPLETE record survives, at the first position", () => {
+  // A half-built bug-hunt duplicate (bare) appears BEFORE the fully-built one;
+  // without a tiebreak the bare record would win by merge order and get swapped
+  // into the plan. The tiebreak keeps the complete one.
+  const meals = [
+    { id: "bare", title: "Beef Tacos", image: null, calories: 0, cuisine: "", tags: [] },
+    { id: "full", title: "beef tacos", image: "p.jpg", calories: 520, cuisine: "Mexican", tags: ["quick"] },
+  ];
+  const out = dedupeMealsByTitle(meals, preferMoreCompleteMeal);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].id, "full", "the complete record survives regardless of merge order");
+});
+
+test("preferMoreCompleteMeal: equal completeness breaks by id deterministically", () => {
+  const a = { id: "zzz", title: "X", image: null, calories: 0, cuisine: "", tags: [] };
+  const b = { id: "aaa", title: "x", image: null, calories: 0, cuisine: "", tags: [] };
+  // Same order, then reversed — the survivor must be the same id both times.
+  assert.equal(dedupeMealsByTitle([a, b], preferMoreCompleteMeal)[0].id, "aaa");
+  assert.equal(dedupeMealsByTitle([b, a], preferMoreCompleteMeal)[0].id, "aaa");
+});
+
+test("dedupeMealsByTitle: post-ranking layer (no pickBest) still keeps the FIRST", () => {
+  const ranked = [
+    { id: "hi", title: "Beef Tacos", image: "p.jpg", calories: 500, cuisine: "Mexican", tags: ["x"] },
+    { id: "lo", title: "beef tacos", image: null, calories: 0, cuisine: "", tags: [] },
+  ];
+  // Highest-ranked (first) survives even though it is less complete — ranking wins.
+  assert.equal(dedupeMealsByTitle(ranked)[0].id, "hi");
 });

@@ -18,7 +18,6 @@ import { AskKiwiCreator } from "@/components/AskKiwiCreator";
 import { FilterChipRow } from "@/components/FilterChipRow";
 import { ImportSourceCards } from "@/components/ImportSourceCards";
 import { LoadingShim } from "@/components/LoadingShim";
-import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useFindSimilarMeals } from "@/hooks/useFindSimilarMeals";
@@ -30,7 +29,11 @@ import {
 } from "@/lib/builder/importEntryParams";
 import type { MealCandidatePayload, MealDetail, MealFilterKey } from "@/lib/api/meals";
 import { formatMacroLine } from "@/lib/format/macros";
-import { dedupeMealsByTitle } from "@/lib/meals/dedupeByTitle";
+import {
+  dedupeMealsByTitle,
+  normalizeMealTitleKey,
+  preferMoreCompleteMeal,
+} from "@/lib/meals/dedupeByTitle";
 import { toMealSortKey } from "@/lib/meals/sortMapping";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
@@ -38,19 +41,24 @@ import type { MealSummary } from "@/lib/types";
 // WS9 3d Part 4 (D-WS9-018) — ChangeMealSheet + FindSimilarSheet merged into ONE
 // swap sheet with two modes, driven off the Plan Review meal row's two swap
 // actions.
-//   - "different": the filter-chip browser over the catalog buckets (was
-//     ChangeMealSheet). WS9 3f-4 (Thread B) — now keyset-paginated via
-//     useInfiniteMeals (load-on-scroll); free because it makes no AI call.
-//   - "similar":   the useFindSimilarMeals AI RANKING pipeline (was
-//     FindSimilarSheet) — it ranks existing rows, never generates. WS9 3f-4
-//     (Thread E) — the pool is de-duplicated by dish identity and bounded, the
-//     client half of BUG-058. NO infinite scroll here ON PURPOSE (each page is
-//     an AI call — cost guard, §4.2).
-//   - BOTH modes:  the "Bring in something new" import chooser, now in a PINNED
-//     bottom bar (Thread B) instead of buried under the scrolling list, and the
-//     Ask-Kiwi creator mounted INLINE (Thread A) instead of routing away.
-// Layout carried from FindSimilarSheet's gap-free shell (flex justify:flex-end +
-// maxHeight:90%); the per-body ScrollViews scroll behind the pinned import bar.
+//   - "different": the filter-chip browser over the catalog buckets. WS9 3f-4 —
+//     keyset-paginated via useInfiniteMeals (load-on-scroll); free (no AI call).
+//   - "similar":   the useFindSimilarMeals AI RANKING pipeline. WS9 3f-4 — the
+//     pool is de-duplicated by dish identity and bounded (BUG-058 client half);
+//     NO infinite scroll here ON PURPOSE (each page is an AI call, cost guard).
+//   - BOTH modes:  the "Bring in something new" import chooser + inline Ask-Kiwi
+//     creator (Thread A).
+//
+// WS9 3f-4b (device-testing polish): the import chooser moved from a buried
+// bottom bar to a collapsible expander directly under the header (§5.2); the
+// filter chips + sort are pinned above the scrolling list (§5.3); the list
+// scrolls under a shadowed edge (§5.4); meal titles wrap to two lines (§5.1);
+// Similar mode shows a static "Best match" indicator instead of a sort control
+// that would let the user discard the ranking (§5.6). The transparent Modal is
+// navigationBar-translucent so it covers the Android nav bar on edge-to-edge
+// devices (BUG-056: otherwise the sheet stops above the nav bar and the plan
+// screen shows through the strip). Source exclusion is by id AND normalized
+// title so a same-title duplicate record of the source can't appear (BUG-061).
 
 export type SwapMode = "different" | "similar";
 
@@ -67,7 +75,9 @@ export interface SwapMealSheetProps {
    *  degrade to a bare library create. */
   planId?: string;
   planItemId?: string;
-  /** Display name for the sheet header (Similar mode). */
+  /** Display name for the sheet header (Similar mode) AND — WS9 3f-4b (BUG-061) —
+   *  the source's title, used to exclude same-title duplicate records of the
+   *  source from the candidate lists (id alone misses distinct-id duplicates). */
   sourceMealTitle?: string;
   /** Source cuisine for the Similar-mode header subtitle. */
   sourceCuisine?: string;
@@ -85,11 +95,9 @@ const FILTER_OPTIONS: { key: MealFilterKey; label: string }[] = [
   { key: "hosting", label: "Hosting & Events" },
 ];
 
-// Similar-mode: all four catalog buckets unioned in one request; the server
-// dedupes by id and React Query caches under the multi-key array. (featured +
+// Similar-mode: all four catalog buckets unioned in one request. (featured +
 // hosting resolve empty server-side today — D-WS7-039 — so the live union is
-// my_meals ∪ top_rated; the empty buckets are harmless and stay for when
-// curation flags land.)
+// my_meals ∪ top_rated; the empty buckets are harmless and stay for later.)
 const FIND_SIMILAR_BUCKETS: readonly MealFilterKey[] = [
   "my_meals",
   "featured",
@@ -97,25 +105,17 @@ const FIND_SIMILAR_BUCKETS: readonly MealFilterKey[] = [
   "hosting",
 ];
 
-// WS9 3f-4 (Thread E, §5.2) — bounded raise of the candidate pool. The pre-3f-4
-// call used the default 20-row page; requesting 60 lets more of the user's own
-// meals through (the server clamps to [1,100], so this is a pure client change —
-// the public-catalog contribution stays capped server-side, 3f-5's fix).
+// WS9 3f-4 (Thread E) — bounded raise of the candidate pool (server clamps to
+// [1,100]); the public-catalog contribution stays server-capped (3f-5's fix).
 const SIMILAR_CANDIDATE_LIMIT = 60;
 // Hard ceiling on the model payload — never send more than this many candidates
-// INTO find-similar, regardless of library size. Bounded cost per call, forever.
-// (Input bound / cost guard — distinct from the render count below.)
+// INTO find-similar, regardless of library size (input bound / cost guard).
 const FIND_SIMILAR_MAX_PAYLOAD = 60;
 // WS9 3f-4 follow-on — how many ranked matches actually RENDER (the "close but
-// not quite" near-miss set; 8 is enough to surface it without a browsing
-// session). 20 is the outer bound if a later ruling raises it — not built toward.
+// not quite" near-miss set). 20 is the outer bound if a later ruling raises it.
 const FIND_SIMILAR_RENDER_LIMIT = 8;
 // How many to ASK the model for: the render target plus headroom, because
-// de-duplication runs AFTER ranking and can shrink the returned set. The pool is
-// already title-deduped before sending, so the only post-rank shrink is the
-// model repeating an id (same title); the headroom absorbs that so a full 8
-// still render. We never pad with lower-ranked filler — if dedup leaves fewer
-// than 8, fewer render.
+// de-duplication runs AFTER ranking and can shrink the returned set.
 const FIND_SIMILAR_MODEL_LIMIT = FIND_SIMILAR_RENDER_LIMIT + 4;
 
 // MealListItem (GET /me/meals) has no mealType column, so candidate payloads use
@@ -137,10 +137,27 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// WS9 3f-4b (BUG-061) — exclude the source from its own replacement list by id
+// AND normalized title. The library holds distinct-id records that share a
+// title, so an id-only filter let a duplicate of the source survive.
+function excludesSource(
+  candidateId: string,
+  candidateTitle: string,
+  sourceMealId: string,
+  sourceTitleKey: string | null,
+): boolean {
+  if (candidateId === sourceMealId) return true;
+  if (sourceTitleKey && normalizeMealTitleKey(candidateTitle) === sourceTitleKey) {
+    return true;
+  }
+  return false;
+}
+
 export function SwapMealSheet({
   visible,
   mode,
   sourceMealId,
+  sourceMealTitle,
   sourceCuisine,
   planId,
   planItemId,
@@ -179,8 +196,7 @@ export function SwapMealSheet({
   // WS9 3f-4 (Thread A) — a successful in-sheet creation completes the swap by
   // threading the REPLACE params (importEntryParams) into the meal-builder push;
   // the builder's save then resolves plan-replace → changeMealForPlanItem
-  // (§8.4.2), NOT append. Close the sheet first, then push past the slide-out
-  // (mirrors ImportSourceCards.navigateAfterClose).
+  // (§8.4.2), NOT append. Close the sheet first, then push past the slide-out.
   const handleAskNavigateToDraft = (draftJson: string) => {
     onClose();
     setTimeout(() => {
@@ -204,11 +220,17 @@ export function SwapMealSheet({
       visible={visible}
       animationType="slide"
       transparent
+      // WS9 3f-4b (BUG-056) — cover the Android system bars on edge-to-edge
+      // devices (Expo SDK 54 forces edge-to-edge). Without navigationBarTranslucent
+      // the transparent Modal stops above the gesture nav bar, so the backdrop +
+      // sheet don't reach the true bottom and the Plan Review screen shows through
+      // the strip. iOS ignores both flags (full-screen already).
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       {/* Full-screen flex container pins the sheet flush to the true screen
-          bottom (justify flex-end) — the gap-free layout carried from
-          FindSimilarSheet. */}
+          bottom (justify flex-end). */}
       <View style={s.container}>
         <Pressable style={s.backdrop} onPress={onClose} />
         <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
@@ -248,8 +270,8 @@ export function SwapMealSheet({
             // WS9 3f-4 (Thread A) — the inline creator (one-shot: free text → one
             // parsed meal → meal-builder draft that completes the swap). A plain
             // ScrollView (not the keyboard-controller wrapper) keeps this sheet
-            // free of a native dep; the sheet is bottom-anchored so the input
-            // sits well above the keyboard.
+            // free of a native dep; the shared AskKiwiView owns the keyboard-Done
+            // affordance (§6.1).
             <ScrollView
               style={s.scroll}
               contentContainerStyle={s.scrollContent}
@@ -263,29 +285,28 @@ export function SwapMealSheet({
             </ScrollView>
           ) : (
             <>
+              {/* WS9 3f-4b (§5.2) — import chooser at the TOP, collapsible,
+                  expands downward over the list. Was a buried bottom bar. */}
+              <ImportExpander
+                context={importContext}
+                onClose={onClose}
+                onAskKiwi={() => setAskOpen(true)}
+              />
+
               {displayMode === "similar" ? (
                 <SimilarBody
                   visible={visible}
                   sourceMealId={sourceMealId}
+                  sourceMealTitle={sourceMealTitle}
                   onPick={handlePick}
                 />
               ) : (
                 <DifferentBody
                   sourceMealId={sourceMealId}
+                  sourceMealTitle={sourceMealTitle}
                   onPick={handlePick}
                 />
               )}
-
-              {/* WS9 3f-4 (Thread B) — the import chooser, now PINNED at the
-                  bottom (was last inside the scroll, buried under the list) and
-                  reachable in BOTH modes. Collapsed + subordinate by default so
-                  candidates stay primary; the Ask-Kiwi card mounts the creator
-                  inline (onAskKiwi) instead of routing away. */}
-              <ImportBar
-                context={importContext}
-                onClose={onClose}
-                onAskKiwi={() => setAskOpen(true)}
-              />
             </>
           )}
         </View>
@@ -294,9 +315,9 @@ export function SwapMealSheet({
   );
 }
 
-// ── Pinned import bar (Thread B) ──────────────────────────────────────────────
+// ── Import expander (§5.2) — collapsible, top-anchored ────────────────────────
 
-function ImportBar({
+function ImportExpander({
   context,
   onClose,
   onAskKiwi,
@@ -307,19 +328,20 @@ function ImportBar({
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <View style={s.importBar}>
+    <View style={s.importExpander}>
       <Pressable
-        style={({ pressed }) => [s.importToggle, pressed && { opacity: 0.7 }]}
+        style={({ pressed }) => [s.importToggle, pressed && s.importTogglePressed]}
         onPress={() => setExpanded((e) => !e)}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
       >
-        <Feather name="plus-circle" size={16} color={Colors.sage[700]} />
+        <Feather name="plus-circle" size={18} color={Colors.sage[700]} />
         <Text style={s.importToggleText}>Bring in something new</Text>
         <Feather
-          name={expanded ? "chevron-down" : "chevron-up"}
-          size={18}
+          name="chevron-down"
+          size={20}
           color={Colors.neutral[600]}
+          style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}
         />
       </Pressable>
       {expanded ? (
@@ -328,6 +350,7 @@ function ImportBar({
           contentContainerStyle={s.importScrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
         >
           <ImportSourceCards
             context={context}
@@ -347,13 +370,14 @@ function ImportBar({
 function SimilarBody({
   visible,
   sourceMealId,
+  sourceMealTitle,
   onPick,
 }: {
   visible: boolean;
   sourceMealId: string;
+  sourceMealTitle?: string;
   onPick: (meal: MealSummary) => void;
 }) {
-  const [sortKey, setSortKey] = useState<SortKey>("alpha");
   const [aiOrderedIds, setAiOrderedIds] = useState<string[] | null>(null);
   const [hadError, setHadError] = useState(false);
 
@@ -362,17 +386,21 @@ function SimilarBody({
   const sourceMealQuery = useMeal(sourceMealId);
   const sourceMeal = sourceMealQuery.data;
 
-  // WS9 3f-4 (Thread E, §5.1) — de-duplicate the raw candidate rows by dish
-  // identity (normalized title) BEFORE ranking. The user's own library holds
-  // distinct records for the same dish (measured: many "Beef Tacos" rows,
-  // different ids, dishFamilyKey null) — an id-key would miss them. Deduping the
-  // pool means the model's result slots each land on a distinct dish, and it
-  // cannot return three ids for the same title.
+  const sourceTitleKey = sourceMealTitle
+    ? normalizeMealTitleKey(sourceMealTitle)
+    : null;
+
+  // WS9 3f-4 (Thread E) — de-duplicate the raw candidate rows by dish identity
+  // (normalized title) BEFORE ranking, excluding the source by id AND title
+  // (BUG-061). §6.2 — the survivor per title is the most COMPLETE record
+  // (deterministic), so a half-built duplicate isn't the one swapped in.
   const dedupedItems = useMemo(() => {
     if (!sourceMealId || !candidatesQuery.data) return [];
-    const items = candidatesQuery.data.meals.filter((m) => m.id !== sourceMealId);
-    return dedupeMealsByTitle(items);
-  }, [candidatesQuery.data, sourceMealId]);
+    const items = candidatesQuery.data.meals.filter(
+      (m) => !excludesSource(m.id, m.title, sourceMealId, sourceTitleKey),
+    );
+    return dedupeMealsByTitle(items, preferMoreCompleteMeal);
+  }, [candidatesQuery.data, sourceMealId, sourceTitleKey]);
 
   const candidatePool = useMemo<MealSummary[]>(
     () => dedupedItems.map((m) => mealListItemToSummary(m, "my_meals")),
@@ -393,7 +421,7 @@ function SimilarBody({
     }
     setAiOrderedIds(null);
     setHadError(false);
-    // §5.2 — hard-cap the payload regardless of library size.
+    // Hard-cap the payload regardless of library size.
     const payload = dedupedItems.slice(0, FIND_SIMILAR_MAX_PAYLOAD);
     findSimilarMutation.mutate(
       {
@@ -417,8 +445,7 @@ function SimilarBody({
         },
       },
     );
-    // Intentionally only re-fire on the visible/source/data-arrival transitions —
-    // candidatePool churn would loop the effect that owns the AI call.
+    // Intentionally only re-fire on the visible/source/data-arrival transitions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, sourceMealId, sourceMeal, candidatesQuery.data]);
 
@@ -428,15 +455,11 @@ function SimilarBody({
     const ordered = aiOrderedIds
       .map((id) => byId.get(id))
       .filter((m): m is MealSummary => !!m);
-    // Defensive second layer (§5.1): if the model repeats an id, both copies map
-    // to the same title — dedupe keeps the highest-ranked and drops the rest,
-    // never reordering the survivors. THEN cap the rendered list at the target:
-    // the top N distinct matches by rank (no lower-ranked filler — a short list
-    // of good matches is the intent). Slice before the view-sort so the user's
-    // re-sort reorders the top-N-by-similarity, not a longer set.
-    const capped = dedupeMealsByTitle(ordered).slice(0, FIND_SIMILAR_RENDER_LIMIT);
-    return sortKey === "alpha" ? capped : sortMeals(capped, sortKey);
-  }, [sourceMealId, aiOrderedIds, sortKey, candidatePool]);
+    // Defensive second dedupe (id-repeat → same title), then cap at the render
+    // target: the top N distinct matches BY RANK. No sort control in this mode
+    // (§5.6) — the AI ranking is the whole value; we never reorder it.
+    return dedupeMealsByTitle(ordered).slice(0, FIND_SIMILAR_RENDER_LIMIT);
+  }, [sourceMealId, aiOrderedIds, candidatePool]);
 
   const isLoading =
     findSimilarMutation.isPending ||
@@ -444,9 +467,6 @@ function SimilarBody({
       !!sourceMealId &&
       (sourceMealQuery.isLoading || candidatesQuery.isLoading));
 
-  // Unified error state: covers the AI ranking call failing AND either underlying
-  // read failing — without the read branch, killing the network before the reads
-  // land would skip the mutation and fall through to the empty card.
   const showError =
     hadError ||
     (visible &&
@@ -454,41 +474,51 @@ function SimilarBody({
       (sourceMealQuery.isError || candidatesQuery.isError));
 
   return (
-    <ScrollView
-      style={s.scroll}
-      contentContainerStyle={s.scrollContent}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={s.sectionTitleRow}>
-        <Text style={s.sectionTitle}>Similar meals</Text>
-        <SortDropdown value={sortKey} onChange={setSortKey} />
+    <>
+      {/* §5.3 sticky header — kept out of the scroll. §5.5: the "Similar meals"
+          label does real work (no chips here). §5.6: a static "Best match"
+          indicator replaces the sort control. */}
+      <View style={s.stickyControls}>
+        <View style={s.sectionTitleRow}>
+          <Text style={s.sectionTitle}>Similar meals</Text>
+          <View style={s.bestMatchPill}>
+            <Feather name="zap" size={12} color={Colors.sage[700]} />
+            <Text style={s.bestMatchText}>Best match</Text>
+          </View>
+        </View>
       </View>
 
-      {isLoading ? (
-        <View style={s.loadingCard}>
-          <LoadingShim variant="inline" />
-        </View>
-      ) : showError ? (
-        <View style={s.errorBanner}>
-          <Feather name="alert-circle" size={14} color={Colors.terracotta[700]} />
-          <Text style={s.errorBannerText}>Couldn&apos;t reach Kiwi — try again.</Text>
-        </View>
-      ) : matches.length === 0 ? (
-        <View style={s.emptyCard}>
-          <Text style={s.emptyTitle}>No similar meals found.</Text>
-          <Text style={s.emptyBody}>
-            Try Change Meal to browse all your options.
-          </Text>
-        </View>
-      ) : (
-        <View style={s.list}>
-          {matches.map((meal) => (
-            <MealRow key={meal.id} meal={meal} onPress={() => onPick(meal)} />
-          ))}
-        </View>
-      )}
-    </ScrollView>
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {isLoading ? (
+          <View style={s.loadingCard}>
+            <LoadingShim variant="inline" />
+          </View>
+        ) : showError ? (
+          <View style={s.errorBanner}>
+            <Feather name="alert-circle" size={14} color={Colors.terracotta[700]} />
+            <Text style={s.errorBannerText}>Couldn&apos;t reach Kiwi — try again.</Text>
+          </View>
+        ) : matches.length === 0 ? (
+          <View style={s.emptyCard}>
+            <Text style={s.emptyTitle}>No similar meals found.</Text>
+            <Text style={s.emptyBody}>
+              Try Change Meal to browse all your options.
+            </Text>
+          </View>
+        ) : (
+          <View style={s.list}>
+            {matches.map((meal) => (
+              <MealRow key={meal.id} meal={meal} onPress={() => onPick(meal)} />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </>
   );
 }
 
@@ -496,29 +526,32 @@ function SimilarBody({
 
 function DifferentBody({
   sourceMealId,
+  sourceMealTitle,
   onPick,
 }: {
   sourceMealId: string;
+  sourceMealTitle?: string;
   onPick: (meal: MealSummary) => void;
 }) {
   // Default to My Meals — the most useful chip when swapping a known meal.
   const [activeFilter, setActiveFilter] = useState<MealFilterKey>("my_meals");
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
 
-  // WS9 3f-4 (Thread B, §4.2) — keyset-paginated + server-sorted, load-on-scroll.
-  // Server sort (toMealSortKey) keeps pages globally ordered, so there is no
-  // client re-sort of a partial page. No AI call here, so infinite scroll is free.
+  // WS9 3f-4 — keyset-paginated + server-sorted, load-on-scroll. No AI call, so
+  // infinite scroll is free.
   const mealsQuery = useInfiniteMeals([activeFilter], toMealSortKey(sortKey));
 
-  // Ruling 10 — current-meal exclusion applies symmetrically across all buckets.
+  const sourceTitleKey = sourceMealTitle
+    ? normalizeMealTitleKey(sourceMealTitle)
+    : null;
+
+  // Current-meal exclusion by id AND normalized title (BUG-061), symmetric with
+  // Similar mode. Not deduped otherwise — this is the raw library browser.
   const visibleMeals = useMemo(() => {
-    const adapted = mealsQuery.meals.map((m) =>
-      mealListItemToSummary(m, activeFilter),
-    );
-    return sourceMealId
-      ? adapted.filter((meal) => meal.id !== sourceMealId)
-      : adapted;
-  }, [mealsQuery.meals, activeFilter, sourceMealId]);
+    return mealsQuery.meals
+      .filter((m) => !excludesSource(m.id, m.title, sourceMealId, sourceTitleKey))
+      .map((m) => mealListItemToSummary(m, activeFilter));
+  }, [mealsQuery.meals, activeFilter, sourceMealId, sourceTitleKey]);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -534,52 +567,55 @@ function DifferentBody({
   };
 
   return (
-    <ScrollView
-      style={s.scroll}
-      contentContainerStyle={s.scrollContent}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-      onScroll={onScroll}
-      scrollEventThrottle={32}
-    >
-      <FilterChipRow<MealFilterKey>
-        options={FILTER_OPTIONS}
-        selected={[activeFilter]}
-        onToggle={(key) => setActiveFilter(key)}
-      />
-
-      <View style={[s.sectionTitleRow, { marginTop: Spacing[2] }]}>
-        <Text style={s.sectionTitle}>
-          {FILTER_OPTIONS.find((o) => o.key === activeFilter)?.label}
-        </Text>
-        <SortDropdown value={sortKey} onChange={setSortKey} />
+    <>
+      {/* §5.3 sticky: chips + sort pinned above the list. §5.5: the redundant
+          "My Meals" heading (it restated the selected chip) is removed. */}
+      <View style={s.stickyControls}>
+        <FilterChipRow<MealFilterKey>
+          options={FILTER_OPTIONS}
+          selected={[activeFilter]}
+          onToggle={(key) => setActiveFilter(key)}
+        />
+        <View style={s.sortRow}>
+          <SortDropdown value={sortKey} onChange={setSortKey} />
+        </View>
       </View>
-      <View style={s.list}>
-        {mealsQuery.isLoading ? (
+
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={32}
+      >
+        <View style={s.list}>
+          {mealsQuery.isLoading ? (
+            <View style={s.loadingRow}>
+              <ActivityIndicator color={Colors.sage[700]} />
+            </View>
+          ) : mealsQuery.isError ? (
+            <Pressable
+              onPress={() => mealsQuery.refetch()}
+              style={({ pressed }) => [s.errorRow, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={s.errorText}>Couldn&apos;t load meals. Tap to retry.</Text>
+            </Pressable>
+          ) : visibleMeals.length === 0 ? (
+            <Text style={s.emptyText}>No other meals here yet.</Text>
+          ) : (
+            visibleMeals.map((meal) => (
+              <MealRow key={meal.id} meal={meal} onPress={() => onPick(meal)} />
+            ))
+          )}
+        </View>
+        {mealsQuery.isFetchingNextPage ? (
           <View style={s.loadingRow}>
             <ActivityIndicator color={Colors.sage[700]} />
           </View>
-        ) : mealsQuery.isError ? (
-          <Pressable
-            onPress={() => mealsQuery.refetch()}
-            style={({ pressed }) => [s.errorRow, pressed && { opacity: 0.7 }]}
-          >
-            <Text style={s.errorText}>Couldn&apos;t load meals. Tap to retry.</Text>
-          </Pressable>
-        ) : visibleMeals.length === 0 ? (
-          <Text style={s.emptyText}>No other meals here yet.</Text>
-        ) : (
-          visibleMeals.map((meal) => (
-            <MealRow key={meal.id} meal={meal} onPress={() => onPick(meal)} />
-          ))
-        )}
-      </View>
-      {mealsQuery.isFetchingNextPage ? (
-        <View style={s.loadingRow}>
-          <ActivityIndicator color={Colors.sage[700]} />
-        </View>
-      ) : null}
-    </ScrollView>
+        ) : null}
+      </ScrollView>
+    </>
   );
 }
 
@@ -608,7 +644,10 @@ function MealRow({
     >
       <View style={[s.thumb, !meal.imageUrl && s.thumbFallback]} />
       <View style={{ flex: 1 }}>
-        <Text style={s.mealTitle} numberOfLines={1} ellipsizeMode="tail">
+        {/* §5.1 — titles wrap to TWO lines before truncating, so rows that share
+            a long prefix ("Air Fryer Crispy Chicken Tenders with…") stay
+            distinguishable. Rows grow; density decisions wait for real images. */}
+        <Text style={s.mealTitle} numberOfLines={2} ellipsizeMode="tail">
           {meal.title}
         </Text>
         <Text style={s.mealMeta} numberOfLines={1} ellipsizeMode="tail">
@@ -626,7 +665,6 @@ function MealRow({
 }
 
 const s = StyleSheet.create({
-  // Layout carried from FindSimilarSheet (fixes ChangeMealSheet's bottom-gap).
   container: {
     flex: 1,
     justifyContent: "flex-end",
@@ -675,27 +713,30 @@ const s = StyleSheet.create({
     marginTop: 2,
   },
   scrollContent: {
-    padding: Spacing[4],
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
     paddingBottom: Spacing[6],
   },
-  // WS9 3f-4 (Thread B) — the pinned import bar. A visible top border is the
-  // scroll boundary (content continues behind it); subordinate to the list.
-  importBar: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral[300],
+  // §5.2 — the top import expander. A pressable, bounded control row.
+  importExpander: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[300],
     backgroundColor: Colors.neutral[50],
-    paddingHorizontal: Spacing[4],
   },
   importToggle: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing[2],
     paddingVertical: Spacing[3],
+    paddingHorizontal: Spacing[4],
+  },
+  importTogglePressed: {
+    backgroundColor: Colors.neutral[200],
   },
   importToggleText: {
     flex: 1,
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[700],
+    color: Colors.neutral[800],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
   },
@@ -703,7 +744,29 @@ const s = StyleSheet.create({
     maxHeight: 280,
   },
   importScrollContent: {
+    paddingHorizontal: Spacing[4],
     paddingBottom: Spacing[3],
+  },
+  // §5.3 sticky chips/sort/label — pinned above the list. §5.4 — a subtle bottom
+  // shadow so scrolled content reads as passing UNDER it, not sliced by an edge.
+  stickyControls: {
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    paddingBottom: Spacing[2],
+    backgroundColor: Colors.neutral[100],
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[200],
+    zIndex: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  sortRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: Spacing[2],
   },
   sectionTitleRow: {
     flexDirection: "row",
@@ -716,6 +779,21 @@ const s = StyleSheet.create({
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.serif[600],
+  },
+  bestMatchPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing[2],
+    paddingVertical: 4,
+  },
+  bestMatchText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
   },
   list: {
     gap: Spacing[2],

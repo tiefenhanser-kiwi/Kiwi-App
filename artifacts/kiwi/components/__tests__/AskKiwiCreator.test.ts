@@ -118,6 +118,34 @@ test("upgrade: a 402 routes to routeToUpgrade, not navigateToDraft", async () =>
   renderer.unmount();
 });
 
+test("§6.1: a Done affordance appears while the input is focused and hides on blur", async () => {
+  const parseMeal = async (): Promise<ParseMealResult> => ({ meal: PARSED_MEAL });
+  const renderer = await renderCreator({ parseMeal });
+
+  const done0 = renderer.root.findAll((n) => n.props?.testID === "ask-kiwi-done");
+  assert.equal(done0.length, 0, "no Done control before focus");
+
+  const input = findByTestId(renderer.root, "ask-kiwi-input");
+  await act(async () => {
+    input.props.onFocus();
+  });
+  const doneFocused = renderer.root.findAll((n) => n.props?.testID === "ask-kiwi-done");
+  assert.ok(doneFocused.length >= 1, "Done appears while focused");
+
+  // Tapping Done dismisses the keyboard (stub no-op) and the field blurs.
+  await act(async () => {
+    doneFocused[0].props.onPress();
+    input.props.onBlur();
+  });
+  assert.equal(
+    renderer.root.findAll((n) => n.props?.testID === "ask-kiwi-done").length,
+    0,
+    "Done hides once the field blurs",
+  );
+
+  renderer.unmount();
+});
+
 test("error: an API failure surfaces the retryable message, no navigation", async () => {
   let draftJson: string | null = null;
   const parseMeal = async (): Promise<ParseMealResult> => {

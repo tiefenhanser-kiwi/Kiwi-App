@@ -4,8 +4,8 @@
 // the screen's expo-router / keyboard-controller dependencies — the screen
 // wraps this in KeyboardAwareScrollViewCompat + Header.
 
-import React from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useState } from "react";
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Button } from "@/components/Button";
 import { Stepper } from "@/components/Stepper";
@@ -56,14 +56,37 @@ export function AskKiwiView({
   helperText = HELPER,
   submitLabel = "Ask Kiwi for a meal",
 }: AskKiwiViewProps) {
+  // WS9 3f-4b (§6.1) — the input is `multiline`, so Android renders a newline
+  // key rather than a "done" key regardless of returnKeyType. There is no
+  // keyboard toolbar (the app uses no KeyboardToolbar), and on the swap sheet a
+  // tap outside hits the backdrop and CLOSES the sheet rather than dismissing
+  // the keyboard. So the Done affordance is solved IN LAYOUT: a control shown
+  // while the field is focused that dismisses the keyboard. Works on both
+  // surfaces (this is the shared body) and both platforms; no native dep.
+  const [focused, setFocused] = useState(false);
   return (
     <View style={s.body}>
       <Text style={s.title}>{title}</Text>
       <Text style={s.subtitle}>{subtitle}</Text>
 
+      {focused ? (
+        <View style={s.doneRow}>
+          <Pressable
+            onPress={() => Keyboard.dismiss()}
+            hitSlop={10}
+            accessibilityRole="button"
+            testID="ask-kiwi-done"
+          >
+            <Text style={s.doneText}>Done</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <TextInput
         value={text}
         onChangeText={onChangeText}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         placeholder={placeholder}
         placeholderTextColor={Colors.neutral[600]}
         style={s.textInput}
@@ -121,6 +144,19 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     lineHeight: 20,
     marginBottom: Spacing[5],
+  },
+  doneRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: Spacing[1],
+  },
+  doneText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+    paddingVertical: Spacing[1],
+    paddingHorizontal: Spacing[2],
   },
   textInput: {
     backgroundColor: Palette.background.card,

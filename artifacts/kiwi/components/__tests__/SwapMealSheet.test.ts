@@ -544,6 +544,93 @@ test("Similar mode: renders FEWER than 8 when the model returns fewer distinct �
   renderer.unmount();
 });
 
+// ── WS9 3f-4b BUG-061: source excluded by title, not just id ────────────────
+
+test("BUG-061 (Different): a same-title different-id record of the source is excluded", async () => {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
+      mutations: { retry: false },
+    },
+  });
+  client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
+  // "dup-src" is a DISTINCT id carrying the SOURCE's title — an id-only filter
+  // would let it through (the library-duplicate case from the DB measurement).
+  client.setQueryData(["meals", "list", DIFFERENT_BUCKET, DIFFERENT_SORT], {
+    pages: [
+      {
+        meals: [listItem("dup-src", "Spaghetti Carbonara"), listItem("d-1", "Chicken Tacos")],
+        nextCursor: null,
+      },
+    ],
+    pageParams: [undefined],
+  });
+  fetchImpl = () => ({ ok: true, status: 200, text: async () => "{}" });
+  const renderer = await renderSheet("different", { client });
+  const joined = textLeavesOf(renderer.root).join(" | ");
+
+  assert.ok(joined.includes("Chicken Tacos"), `decoy row renders: ${joined}`);
+  assert.ok(
+    !joined.includes("Spaghetti Carbonara"),
+    `the source's title must be excluded even under a different id: ${joined}`,
+  );
+
+  renderer.unmount();
+});
+
+test("BUG-061 (Similar): the source's title is excluded from the candidate payload", async () => {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
+      mutations: { retry: false },
+    },
+  });
+  client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
+  client.setQueryData(["meals", "list", SIMILAR_BUCKETS, SIMILAR_LIMIT], {
+    meals: [listItem("dup-src", "Spaghetti Carbonara"), listItem("c-1", "Cacio e Pepe")],
+    nextCursor: null,
+  });
+  fetchImpl = () => ({
+    ok: true,
+    status: 200,
+    text: async () =>
+      JSON.stringify({
+        matches: [],
+        metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
+      }),
+  });
+  const renderer = await renderSheet("similar", { client });
+
+  assert.ok(lastFindSimilarBody, "find-similar was not called");
+  const titles = lastFindSimilarBody!.candidates.map((c) => c.title.toLowerCase().trim());
+  assert.ok(
+    !titles.includes("spaghetti carbonara"),
+    `source-title duplicate must not reach the model: ${titles.join(", ")}`,
+  );
+  assert.ok(titles.includes("cacio e pepe"), "the genuine candidate still reaches the model");
+
+  renderer.unmount();
+});
+
+test("§5.1: meal titles wrap to two lines before truncating", async () => {
+  fetchImpl = () => ({ ok: true, status: 200, text: async () => "{}" });
+  const renderer = await renderSheet("different");
+
+  const titleNode = renderer.root.findAllByType(Text).find((t) => {
+    const ch = t.props.children;
+    const s = typeof ch === "string" ? ch : Array.isArray(ch) ? ch.join("") : String(ch);
+    return s === "Chicken Tacos";
+  });
+  assert.ok(titleNode, "meal title node not found");
+  assert.equal(
+    titleNode!.props.numberOfLines,
+    2,
+    "meal title must allow two lines so a distinguishing suffix is not truncated",
+  );
+
+  renderer.unmount();
+});
+
 // ── Lossless-merge guards ───────────────────────────────────────────────────
 
 test("LOSSLESS: the import quartet is reachable from BOTH modes (pinned bar, expanded)", async () => {
