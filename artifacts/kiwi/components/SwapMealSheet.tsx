@@ -103,10 +103,20 @@ const FIND_SIMILAR_BUCKETS: readonly MealFilterKey[] = [
 // the public-catalog contribution stays capped server-side, 3f-5's fix).
 const SIMILAR_CANDIDATE_LIMIT = 60;
 // Hard ceiling on the model payload — never send more than this many candidates
-// to find-similar, regardless of library size. Bounded cost per call, forever.
+// INTO find-similar, regardless of library size. Bounded cost per call, forever.
+// (Input bound / cost guard — distinct from the render count below.)
 const FIND_SIMILAR_MAX_PAYLOAD = 60;
-// How many ranked matches to ask the model for (post-ranking cap).
-const FIND_SIMILAR_RESULT_LIMIT = 10;
+// WS9 3f-4 follow-on — how many ranked matches actually RENDER (the "close but
+// not quite" near-miss set; 8 is enough to surface it without a browsing
+// session). 20 is the outer bound if a later ruling raises it — not built toward.
+const FIND_SIMILAR_RENDER_LIMIT = 8;
+// How many to ASK the model for: the render target plus headroom, because
+// de-duplication runs AFTER ranking and can shrink the returned set. The pool is
+// already title-deduped before sending, so the only post-rank shrink is the
+// model repeating an id (same title); the headroom absorbs that so a full 8
+// still render. We never pad with lower-ranked filler — if dedup leaves fewer
+// than 8, fewer render.
+const FIND_SIMILAR_MODEL_LIMIT = FIND_SIMILAR_RENDER_LIMIT + 4;
 
 // MealListItem (GET /me/meals) has no mealType column, so candidate payloads use
 // a uniform placeholder for the required AI field (D-WS7-146 tracks widening the
@@ -395,7 +405,7 @@ function SimilarBody({
           mealType: CANDIDATE_MEAL_TYPE,
           tags: m.tags,
         })),
-        limit: FIND_SIMILAR_RESULT_LIMIT,
+        limit: FIND_SIMILAR_MODEL_LIMIT,
       },
       {
         onSuccess: (data) => {
@@ -420,9 +430,12 @@ function SimilarBody({
       .filter((m): m is MealSummary => !!m);
     // Defensive second layer (§5.1): if the model repeats an id, both copies map
     // to the same title — dedupe keeps the highest-ranked and drops the rest,
-    // never reordering the survivors.
-    const deduped = dedupeMealsByTitle(ordered);
-    return sortKey === "alpha" ? deduped : sortMeals(deduped, sortKey);
+    // never reordering the survivors. THEN cap the rendered list at the target:
+    // the top N distinct matches by rank (no lower-ranked filler — a short list
+    // of good matches is the intent). Slice before the view-sort so the user's
+    // re-sort reorders the top-N-by-similarity, not a longer set.
+    const capped = dedupeMealsByTitle(ordered).slice(0, FIND_SIMILAR_RENDER_LIMIT);
+    return sortKey === "alpha" ? capped : sortMeals(capped, sortKey);
   }, [sourceMealId, aiOrderedIds, sortKey, candidatePool]);
 
   const isLoading =

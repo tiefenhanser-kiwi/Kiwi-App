@@ -453,6 +453,97 @@ test("Similar mode: pool is de-duplicated by title and the payload is hard-cappe
   renderer.unmount();
 });
 
+// ── WS9 3f-4 follow-on: rendered result count (target 8, post-dedup) ─────────
+
+// A pool of N distinct-title candidates (c-1.., "Sim 01"..) primed under the
+// Similar key, plus a QueryClient reading it.
+function primedSimilarPool(n: number): {
+  client: QueryClient;
+  title: (i: number) => string;
+  id: (i: number) => string;
+} {
+  const id = (i: number) => `c-${i}`;
+  const title = (i: number) => `Sim ${String(i).padStart(2, "0")}`;
+  const meals = [];
+  for (let i = 1; i <= n; i++) meals.push(listItem(id(i), title(i)));
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
+      mutations: { retry: false },
+    },
+  });
+  client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
+  client.setQueryData(
+    ["meals", "list", SIMILAR_BUCKETS, SIMILAR_LIMIT],
+    { meals, nextCursor: null } as MealListResponse,
+  );
+  return { client, title, id };
+}
+
+function renderedSimRows(root: TestRenderer.ReactTestInstance): string[] {
+  return textLeavesOf(root).filter((t) => /^Sim \d\d$/.test(t));
+}
+
+test("Similar mode: renders exactly 8 even when the returned set carries duplicate ids", async () => {
+  const { client, id, title } = primedSimilarPool(12);
+  // 12 returned ids, but c-1 and c-2 each appear twice → 10 distinct after the
+  // post-rank dedupe. The 8-cap then renders the top 8 DISTINCT dishes.
+  const returnedIds = [
+    id(1), id(1), id(2), id(2), id(3), id(4), id(5), id(6), id(7), id(8), id(9), id(10),
+  ];
+  fetchImpl = () => ({
+    ok: true,
+    status: 200,
+    text: async () =>
+      JSON.stringify({
+        matches: returnedIds.map((mealId, k) => ({
+          mealId,
+          similarityScore: 0.9 - k * 0.01,
+          reason: "x",
+        })),
+        metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
+      }),
+  });
+  const renderer = await renderSheet("similar", { client });
+
+  const rows = renderedSimRows(renderer.root);
+  assert.equal(rows.length, 8, `renders exactly 8 (got ${rows.length}: ${rows})`);
+  assert.equal(new Set(rows).size, 8, "the 8 are distinct dishes (dupes collapsed)");
+  // Top 8 by rank are Sim 01..08; the extras (Sim 09/10) are NOT padded in.
+  for (let i = 1; i <= 8; i++) {
+    assert.ok(rows.includes(title(i)), `${title(i)} rendered`);
+  }
+  assert.ok(!rows.includes(title(9)), "does not render beyond the 8-cap (no filler)");
+
+  renderer.unmount();
+});
+
+test("Similar mode: renders FEWER than 8 when the model returns fewer distinct — no padding", async () => {
+  const { client, id, title } = primedSimilarPool(12);
+  // The model deems only 5 candidates similar (quality gate) — render 5, not 8.
+  const returnedIds = [id(1), id(2), id(3), id(4), id(5)];
+  fetchImpl = () => ({
+    ok: true,
+    status: 200,
+    text: async () =>
+      JSON.stringify({
+        matches: returnedIds.map((mealId, k) => ({
+          mealId,
+          similarityScore: 0.9 - k * 0.05,
+          reason: "x",
+        })),
+        metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
+      }),
+  });
+  const renderer = await renderSheet("similar", { client });
+
+  const rows = renderedSimRows(renderer.root);
+  assert.equal(rows.length, 5, `renders the 5 good matches, not padded to 8 (got ${rows.length})`);
+  assert.ok(!rows.includes(title(6)), "no lower-ranked filler added to reach 8");
+
+  renderer.unmount();
+});
+
 // ── Lossless-merge guards ───────────────────────────────────────────────────
 
 test("LOSSLESS: the import quartet is reachable from BOTH modes (pinned bar, expanded)", async () => {
