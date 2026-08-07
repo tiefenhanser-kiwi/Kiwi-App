@@ -235,6 +235,12 @@ export default function Wizard() {
         subtitle="Set preferences"
       />
       <KeyboardAwareScrollViewCompat
+        // WS9 3f-4c (BUG-064) — the notes field sits at the bottom of the form;
+        // with the default bottomOffset (0) the focused caret aligns flush with
+        // the keyboard top, so on focus the field reads as covered. Give it
+        // clearance so KeyboardAwareScrollView lifts the caret clear of the
+        // keyboard. (The wrapper was already here — this tunes it, no new dep.)
+        bottomOffset={Spacing[6]}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >

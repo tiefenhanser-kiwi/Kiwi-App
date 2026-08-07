@@ -335,12 +335,12 @@ function ImportExpander({
         accessibilityRole="button"
         accessibilityState={{ expanded }}
       >
-        <Feather name="plus-circle" size={18} color={Colors.sage[700]} />
+        <Feather name="plus-circle" size={20} color={Colors.sage[700]} />
         <Text style={s.importToggleText}>Bring in something new</Text>
         <Feather
           name="chevron-down"
           size={20}
-          color={Colors.neutral[600]}
+          color={Colors.sage[700]}
           style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}
         />
       </Pressable>
@@ -717,11 +717,14 @@ const s = StyleSheet.create({
     paddingTop: Spacing[3],
     paddingBottom: Spacing[6],
   },
-  // §5.2 — the top import expander. A pressable, bounded control row.
+  // §5.2 — the top import expander. WS9 3f-4c (§6) — medium-green fill + larger
+  // text so it reads as a clear secondary affordance (terracotta is the primary
+  // CTA colour, so green doesn't compete as a CTA). Still one compact row, so
+  // the candidate list stays the dominant element.
   importExpander: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[300],
-    backgroundColor: Colors.neutral[50],
+    borderBottomColor: Colors.sage[400],
+    backgroundColor: Colors.sage[200],
   },
   importToggle: {
     flexDirection: "row",
@@ -731,12 +734,12 @@ const s = StyleSheet.create({
     paddingHorizontal: Spacing[4],
   },
   importTogglePressed: {
-    backgroundColor: Colors.neutral[200],
+    backgroundColor: Colors.sage[300],
   },
   importToggleText: {
     flex: 1,
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[800],
+    fontSize: Typography.fontSize.md,
+    color: Colors.sage[800],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
   },

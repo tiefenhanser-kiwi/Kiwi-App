@@ -72,6 +72,8 @@ export function ClarifySheetView({
     <Modal
       visible={visible}
       transparent
+      statusBarTranslucent
+      navigationBarTranslucent
       animationType="slide"
       onRequestClose={onClose}
     >

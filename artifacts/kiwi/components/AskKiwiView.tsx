@@ -4,8 +4,8 @@
 // the screen's expo-router / keyboard-controller dependencies — the screen
 // wraps this in KeyboardAwareScrollViewCompat + Header.
 
-import React, { useState } from "react";
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import React from "react";
+import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Button } from "@/components/Button";
 import { Stepper } from "@/components/Stepper";
@@ -56,42 +56,30 @@ export function AskKiwiView({
   helperText = HELPER,
   submitLabel = "Ask Kiwi for a meal",
 }: AskKiwiViewProps) {
-  // WS9 3f-4b (§6.1) — the input is `multiline`, so Android renders a newline
-  // key rather than a "done" key regardless of returnKeyType. There is no
-  // keyboard toolbar (the app uses no KeyboardToolbar), and on the swap sheet a
-  // tap outside hits the backdrop and CLOSES the sheet rather than dismissing
-  // the keyboard. So the Done affordance is solved IN LAYOUT: a control shown
-  // while the field is focused that dismisses the keyboard. Works on both
-  // surfaces (this is the shared body) and both platforms; no native dep.
-  const [focused, setFocused] = useState(false);
+  // WS9 3f-4c (BUG-063) — the 3f-4b claim that a `multiline` input cannot show
+  // an Android "done"/checkmark key was WRONG: the Preferences Wizard notes
+  // field is multiline and shows it, via `returnKeyType="done" + blurOnSubmit +
+  // onSubmitEditing`. Matching that config here gives the same keyboard-level
+  // Done — which both dismisses AND retains the text (confirmation) — on Android
+  // and iOS. The in-layout Done control from 3f-4b is removed as redundant. (The
+  // trade, same as the wizard: return dismisses instead of inserting a newline —
+  // fine for a one-line-ish meal description.)
   return (
     <View style={s.body}>
       <Text style={s.title}>{title}</Text>
       <Text style={s.subtitle}>{subtitle}</Text>
 
-      {focused ? (
-        <View style={s.doneRow}>
-          <Pressable
-            onPress={() => Keyboard.dismiss()}
-            hitSlop={10}
-            accessibilityRole="button"
-            testID="ask-kiwi-done"
-          >
-            <Text style={s.doneText}>Done</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
       <TextInput
         value={text}
         onChangeText={onChangeText}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
         placeholder={placeholder}
         placeholderTextColor={Colors.neutral[600]}
         style={s.textInput}
         multiline
         numberOfLines={6}
+        returnKeyType="done"
+        blurOnSubmit
+        onSubmitEditing={Keyboard.dismiss}
         textAlignVertical="top"
         autoCapitalize="sentences"
         autoCorrect
@@ -144,19 +132,6 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     lineHeight: 20,
     marginBottom: Spacing[5],
-  },
-  doneRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginBottom: Spacing[1],
-  },
-  doneText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.sage[700],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
-    paddingVertical: Spacing[1],
-    paddingHorizontal: Spacing[2],
   },
   textInput: {
     backgroundColor: Palette.background.card,

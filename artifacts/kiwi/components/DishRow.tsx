@@ -72,7 +72,7 @@ export function DishRow({
           )}
         </View>
         <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
             {dish.title}
           </Text>
           {metaParts.length > 0 && (

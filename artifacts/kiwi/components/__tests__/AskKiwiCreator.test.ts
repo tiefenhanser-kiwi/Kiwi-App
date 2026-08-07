@@ -118,29 +118,27 @@ test("upgrade: a 402 routes to routeToUpgrade, not navigateToDraft", async () =>
   renderer.unmount();
 });
 
-test("§6.1: a Done affordance appears while the input is focused and hides on blur", async () => {
+test("BUG-063: the Ask-Kiwi input carries the wizard's keyboard-Done config (checkmark that dismisses + retains)", async () => {
   const parseMeal = async (): Promise<ParseMealResult> => ({ meal: PARSED_MEAL });
   const renderer = await renderCreator({ parseMeal });
 
-  const done0 = renderer.root.findAll((n) => n.props?.testID === "ask-kiwi-done");
-  assert.equal(done0.length, 0, "no Done control before focus");
-
-  const input = findByTestId(renderer.root, "ask-kiwi-input");
-  await act(async () => {
-    input.props.onFocus();
-  });
-  const doneFocused = renderer.root.findAll((n) => n.props?.testID === "ask-kiwi-done");
-  assert.ok(doneFocused.length >= 1, "Done appears while focused");
-
-  // Tapping Done dismisses the keyboard (stub no-op) and the field blurs.
-  await act(async () => {
-    doneFocused[0].props.onPress();
-    input.props.onBlur();
-  });
+  const inputs = renderer.root.findAll((n) => n.props?.testID === "ask-kiwi-input");
+  assert.ok(inputs.length >= 1, "input mounted");
+  const input = inputs[0];
+  // Matches app/wizard.tsx's notes field, which DOES show the Android checkmark.
+  assert.equal(input.props.multiline, true, "multiline");
+  assert.equal(input.props.returnKeyType, "done", "returnKeyType=done → Android checkmark key");
+  assert.equal(input.props.blurOnSubmit, true, "blurOnSubmit → the key dismisses (text is retained by value)");
+  assert.equal(
+    typeof input.props.onSubmitEditing,
+    "function",
+    "onSubmitEditing dismisses the keyboard",
+  );
+  // The redundant in-layout Done control from 3f-4b is gone.
   assert.equal(
     renderer.root.findAll((n) => n.props?.testID === "ask-kiwi-done").length,
     0,
-    "Done hides once the field blurs",
+    "no in-layout Done control",
   );
 
   renderer.unmount();

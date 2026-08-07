@@ -67,6 +67,8 @@ export function PlanCardOverflowMenu({
         visible={open}
         animationType="slide"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setOpen(false)}
       >
         <Pressable style={s.backdrop} onPress={() => setOpen(false)} />

@@ -13,7 +13,13 @@ import { LoadingShim } from "./LoadingShim";
 
 export function GroceryGeneratingOverlay({ visible }: { visible: boolean }) {
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      statusBarTranslucent
+      navigationBarTranslucent
+      animationType="fade"
+    >
       <View style={s.backdrop}>
         <LoadingShim variant="status-box" label="Getting your groceries…" />
       </View>

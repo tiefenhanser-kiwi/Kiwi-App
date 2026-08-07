@@ -117,6 +117,8 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           visible={isModalVisible}
           animationType="slide"
           transparent={true}
+          statusBarTranslucent
+          navigationBarTranslucent
           onRequestClose={() => setIsModalVisible(false)}
         >
           <View style={styles.modalOverlay}>

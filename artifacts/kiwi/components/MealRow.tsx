@@ -74,7 +74,7 @@ export function MealRow({
           )}
         </View>
         <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title} numberOfLines={2}>
             {meal.title}
           </Text>
           <Text style={styles.meta} numberOfLines={1}>

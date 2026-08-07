@@ -123,7 +123,7 @@ export function PlanReviewMealRow({
             pressed && { opacity: 0.85 },
           ]}
         >
-          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
             {row.title}
           </Text>
         </Pressable>

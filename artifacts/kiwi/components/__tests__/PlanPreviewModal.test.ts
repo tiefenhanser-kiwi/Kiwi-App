@@ -150,6 +150,25 @@ function renderModal(props: {
   return { renderer, qc };
 }
 
+test("BUG-062: the bottom-sheet Modal is nav-bar + status-bar translucent (covers the Android system bars)", async () => {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  let qc!: QueryClient;
+  await act(async () => {
+    ({ renderer, qc } = renderModal({
+      visible: true,
+      templateId: "tmpl-1",
+      onClose: () => {},
+      onUsePlan: () => {},
+    }));
+  });
+  await settle(qc);
+  const modal = renderer.root.findAll((n) => n.type === "rn-modal")[0];
+  assert.ok(modal, "modal node found");
+  assert.equal(modal.props.navigationBarTranslucent, true, "navigationBarTranslucent set");
+  assert.equal(modal.props.statusBarTranslucent, true, "statusBarTranslucent set");
+  renderer.unmount();
+});
+
 test("renders title, description, tags, and items after the template loads", async () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   let qc!: QueryClient;

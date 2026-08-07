@@ -75,6 +75,8 @@ export function PlanPreviewModal({
       visible={visible}
       animationType="slide"
       transparent
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
@@ -152,7 +154,7 @@ export function PlanPreviewModal({
                         {/* D-WS6-043: image rendering deferred; placeholder block */}
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={s.itemName} numberOfLines={1}>
+                        <Text style={s.itemName} numberOfLines={2}>
                           {item.meal?.title ?? "Meal unavailable"}
                         </Text>
                         {item.assignedDayOfWeek && (

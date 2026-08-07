@@ -145,6 +145,8 @@ export function DishChooserSheetView({
       visible={visible}
       animationType="slide"
       transparent
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={handleClose}
     >
       <Pressable style={s.backdrop} onPress={handleClose} />

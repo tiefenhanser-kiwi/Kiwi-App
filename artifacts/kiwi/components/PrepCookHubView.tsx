@@ -327,7 +327,7 @@ function Hub({
                 <View style={s.mealText}>
                   <Text
                     style={s.mealTitle}
-                    numberOfLines={1}
+                    numberOfLines={2}
                     ellipsizeMode="tail"
                   >
                     {row.title}

@@ -124,6 +124,18 @@ async function render(overrides: Record<string, unknown> = {}) {
   return { renderer, calls, tree: renderer.toJSON() as RenderedNode | null };
 }
 
+test("BUG-065: the meal title renders on two lines so a long title is not truncated to indistinguishability", async () => {
+  const longTitle =
+    "Air Fryer Crispy Chicken Tenders with Honey Mustard and a Simple Green Salad";
+  const { renderer } = await render({ row: { ...ROW, title: longTitle } });
+  const titleNode = renderer.root.findAll(
+    (n) => typeof n.props?.children === "string" && n.props.children === longTitle,
+  )[0];
+  assert.ok(titleNode, "title node found");
+  assert.equal(titleNode.props.numberOfLines, 2, "meal title allows two lines");
+  renderer.unmount();
+});
+
 test("PlanReviewMealRow: renders exactly the 4 R2 actions, and Change Recipe is gone", async () => {
   const { renderer, tree } = await render();
   const texts = allText(tree);

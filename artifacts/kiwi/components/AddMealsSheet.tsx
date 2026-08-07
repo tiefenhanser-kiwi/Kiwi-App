@@ -77,6 +77,8 @@ export function AddMealsSheet({
       visible={visible}
       animationType="slide"
       transparent
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
@@ -182,7 +184,7 @@ function MealRow({
     >
       <View style={[s.thumb, !meal.imageUrl && s.thumbFallback]} />
       <View style={{ flex: 1 }}>
-        <Text style={s.mealTitle} numberOfLines={1} ellipsizeMode="tail">
+        <Text style={s.mealTitle} numberOfLines={2} ellipsizeMode="tail">
           {meal.title}
         </Text>
         <Text style={s.mealMeta} numberOfLines={1} ellipsizeMode="tail">

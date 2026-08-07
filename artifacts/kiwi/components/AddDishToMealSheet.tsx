@@ -93,6 +93,8 @@ export function AddDishToMealSheet({
       visible={visible}
       animationType="slide"
       transparent
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
@@ -154,7 +156,7 @@ export function AddDishToMealSheet({
                   <View style={{ flex: 1 }}>
                     <Text
                       style={s.mealName}
-                      numberOfLines={1}
+                      numberOfLines={2}
                       ellipsizeMode="tail"
                     >
                       {meal.title}
