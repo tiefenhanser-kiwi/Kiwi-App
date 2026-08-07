@@ -16,6 +16,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { CookSessionView } from "@/components/CookSessionView";
+import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { PrepWeekScreen } from "@/components/PrepWeekScreen";
 import { Screen } from "@/components/Screen";
@@ -143,7 +144,7 @@ export default function CookSession() {
   );
   const recapItems = useMemo(() => misePlaceItems(allSteps), [allSteps]);
 
-  const title = mealQuery.data?.title ?? dishQuery.data?.title ?? "Cook";
+  const title = resolveDisplayTitle(mealQuery.data ?? dishQuery.data, "Cook");
 
   // ── Fail-safe: a launch with no meal/dish should never happen (the no-param
   // Hub handoff was removed). If one slips through, route back rather than

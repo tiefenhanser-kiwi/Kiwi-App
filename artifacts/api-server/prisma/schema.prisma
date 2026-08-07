@@ -423,6 +423,10 @@ model Dish {
   userId               String?
   title                String
   description          String?
+  // WS9 3f-4d (D-WS9-121) — short display name. null = render `title` as-is;
+  // non-null = the ≤42-char name the UI shows while `title` STAYS canonical.
+  // Mirrors MealPlanInstance.titleOverride. Resolved via resolveDisplayTitle.
+  displayTitle         String?
   sourceType           SourceType      @default(manual)
   estimatedTimeMinutes Int             @default(30)
   difficulty           DifficultyLevel @default(easy)
@@ -515,6 +519,12 @@ model Meal {
   userId               String?
   title                String
   description          String?
+  // WS9 3f-4d (D-WS9-121) — short display name. null = render `title` as-is;
+  // non-null = the ≤42-char name the UI shows while `title` STAYS the canonical
+  // identity key (client dedupe, server dedupKey, wizard idempotency hash,
+  // SwapMealSheet self-exclusion, AI ranking inputs). Mirrors
+  // MealPlanInstance.titleOverride. Resolved via resolveDisplayTitle on read.
+  displayTitle         String?
   mealType             MealType        @default(dinner)
   sourceType           SourceType      @default(manual)
   cuisineType          String?
@@ -641,6 +651,10 @@ model MealPlanTemplate {
   userId              String
   title               String
   description         String?
+  // WS9 3f-4d (D-WS9-121) — short display name. null = render `title` as-is;
+  // non-null = the ≤42-char name the UI shows while `title` STAYS canonical.
+  // Mirrors MealPlanInstance.titleOverride. Resolved via resolveDisplayTitle.
+  displayTitle        String?
   sourceType          SourceType @default(wizard)
   defaultDaysCount    Int        @default(5)
   tags                String[]   @default([])

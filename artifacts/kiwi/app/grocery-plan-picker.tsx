@@ -13,6 +13,7 @@ import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 
+import { DisplayTitle } from "@/components/DisplayTitle";
 import { GroceryGeneratingOverlay } from "@/components/GroceryGeneratingOverlay";
 import { Header } from "@/components/Header";
 import { LoadingShim } from "@/components/LoadingShim";
@@ -160,9 +161,7 @@ function PlanRow({
           </View>
         </View>
       )}
-      <Text style={styles.planName} numberOfLines={2}>
-        {plan.name}
-      </Text>
+      <DisplayTitle source={plan} variant="row" style={styles.planName} />
       {plan.description ? (
         <Text style={styles.planDesc} numberOfLines={1}>
           {plan.description}

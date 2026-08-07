@@ -21,6 +21,7 @@ import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
+import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { formatMacro } from "@/lib/format/macros";
 import type { WizardExpandEnrichedMeal } from "@/lib/api/wizard";
@@ -52,7 +53,7 @@ export function WizardPlanMealCard({
       >
         <View style={s.headerText}>
           <Text style={s.mealHeader}>
-            Day {index + 1} · {meal.title}
+            Day {index + 1} · {resolveDisplayTitle(meal)}
           </Text>
           <Text style={s.mealMeta}>
             {meal.cuisineType} · {meal.estimatedTimeMinutes} min · serves{" "}
@@ -69,7 +70,7 @@ export function WizardPlanMealCard({
       {expanded &&
         meal.dishes.map((dish, di) => (
           <View key={`${dish.title}-${di}`} style={s.dishCard}>
-            <Text style={s.dishTitle}>{dish.title}</Text>
+            <Text style={s.dishTitle}>{resolveDisplayTitle(dish)}</Text>
             <Text style={s.dishRole}>{dish.role}</Text>
             {dish.macros && !dish.macros.failed && (
               <Text style={s.dishMacros}>

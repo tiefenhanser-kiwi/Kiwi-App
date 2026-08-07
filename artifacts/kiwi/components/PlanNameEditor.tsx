@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { DisplayTitle } from "@/components/DisplayTitle";
 
 export interface PlanNameEditorProps {
   currentName: string;
@@ -55,9 +56,7 @@ export function PlanNameEditor({ currentName, onSave }: PlanNameEditorProps) {
       style={({ pressed }) => [s.row, pressed && { opacity: 0.7 }]}
       hitSlop={6}
     >
-      <Text style={s.name} numberOfLines={1} ellipsizeMode="tail">
-        {currentName || "Untitled plan"}
-      </Text>
+      <DisplayTitle source={currentName} variant="slim" style={s.name} />
       <Feather name="edit-2" size={14} color={Colors.sage[700]} />
     </Pressable>
   );

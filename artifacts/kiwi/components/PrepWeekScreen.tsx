@@ -18,6 +18,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
+import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { PrepWeekView } from "@/components/PrepWeekView";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -287,7 +288,7 @@ export function PrepWeekScreen({
   return (
     <View style={s.bg}>
       <PrepWeekView
-        planName={planQuery.data?.name ?? "Your week"}
+        planName={resolveDisplayTitle(planQuery.data, "Your week")}
         vm={vm}
         mealCount={mealCount}
         phaseIndex={phaseIndex}

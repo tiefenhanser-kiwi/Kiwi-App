@@ -11,6 +11,7 @@
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { DisplayTitle } from "@/components/DisplayTitle";
 import { formatMacro } from "@/lib/format/macros";
 import type { HeroModel } from "@/lib/home/heroState";
 import {
@@ -61,9 +62,7 @@ export function HeroCard({
         </View>
         <View style={styles.heroTextCol}>
           <Text style={styles.heroEyebrow}>tonight</Text>
-          <Text style={styles.heroTitle} numberOfLines={2}>
-            {meal.title}
-          </Text>
+          <DisplayTitle source={meal} variant="row" style={styles.heroTitle} />
           {metaParts.length > 0 && (
             <Text style={styles.heroMeta} numberOfLines={1}>
               {metaParts.join(" · ")}
@@ -87,9 +86,7 @@ export function HeroCard({
         </View>
         <View style={styles.heroTextCol}>
           <Text style={styles.heroEyebrow}>this week</Text>
-          <Text style={styles.heroTitle} numberOfLines={2}>
-            {model.name}
-          </Text>
+          <DisplayTitle source={model} variant="row" style={styles.heroTitle} />
           {metaParts.length > 0 && (
             <Text style={styles.heroMeta} numberOfLines={1}>
               {metaParts.join(" · ")}

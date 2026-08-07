@@ -15,6 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
+import { DisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { LoadingShim } from "@/components/LoadingShim";
 import { Screen } from "@/components/Screen";
@@ -885,9 +886,7 @@ function CandidateCard({
               </Text>
             </View>
           )}
-          <Text style={s.heroTitle} numberOfLines={2}>
-            {candidate.title}
-          </Text>
+          <DisplayTitle source={candidate} variant="row" style={s.heroTitle} />
         </View>
       </View>
 

@@ -13,6 +13,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DisplayTitle } from "@/components/DisplayTitle";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { getUserPlans } from "@/lib/stubs";
@@ -159,13 +160,11 @@ export function AddMealToPlanSheet({
                   ]}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text
+                    <DisplayTitle
+                      source={plan}
+                      variant="slim"
                       style={s.planName}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {plan.name}
-                    </Text>
+                    />
                     {(plan.weekStartDate || plan.weekEndDate) && (
                       <Text style={s.planRange}>
                         {formatDateRange(

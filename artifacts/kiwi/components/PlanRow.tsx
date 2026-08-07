@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import type { PlanListItem } from "@/lib/api/plans";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
+import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { canUseAgain } from "@/lib/plans/planLifecycleActions";
 
 type Props = {
@@ -58,9 +59,7 @@ export function PlanRow({ plan, onPreviewTemplate, onCompost, onUseAgain }: Prop
         )}
       </View>
       <View style={styles.body}>
-        <Text style={styles.title} numberOfLines={1}>
-          {plan.name}
-        </Text>
+        <DisplayTitle source={plan} variant="slim" style={styles.title} />
         {plan.description && (
           <Text style={styles.meta} numberOfLines={1}>
             {plan.description}
@@ -86,7 +85,7 @@ export function PlanRow({ plan, onPreviewTemplate, onCompost, onUseAgain }: Prop
           Use/Preview flow and have no plan-lifecycle actions. */}
       {plan.source === "instance" && (onCompost || onUseAgain) && (
         <PlanCardOverflowMenu
-          accessibilityLabel={`Actions for ${plan.name}`}
+          accessibilityLabel={`Actions for ${resolveDisplayTitle(plan)}`}
           onCompost={onCompost ? () => onCompost(plan) : undefined}
           // Use again copies the plan's backing template — hidden when the plan
           // has none (e.g. an empty POST /plans instance).

@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 
+import { DisplayTitle } from "@/components/DisplayTitle";
 import type { SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { MealListItem } from "@/lib/api/meals";
@@ -74,9 +75,7 @@ export function MealRow({
           )}
         </View>
         <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={2}>
-            {meal.title}
-          </Text>
+          <DisplayTitle source={meal} variant="row" style={styles.title} />
           <Text style={styles.meta} numberOfLines={1}>
             {meta}
           </Text>

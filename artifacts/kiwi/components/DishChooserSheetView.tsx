@@ -24,6 +24,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
+import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
@@ -406,7 +407,7 @@ export function DishChooserRow({ dish, onPress }: DishChooserRowProps) {
     >
       <View style={[s.thumb, !dish.imageUrl && s.thumbFallback]} />
       <View style={{ flex: 1 }}>
-        <Text style={s.dishName}>{dish.name}</Text>
+        <Text style={s.dishName}>{resolveDisplayTitle(dish)}</Text>
         {metaParts.length > 0 && (
           <Text style={s.dishMeta}>{metaParts.join(" · ")}</Text>
         )}

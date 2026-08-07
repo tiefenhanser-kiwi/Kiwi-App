@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AskKiwiCreator } from "@/components/AskKiwiCreator";
+import { DisplayTitle } from "@/components/DisplayTitle";
 import { FilterChipRow } from "@/components/FilterChipRow";
 import { ImportSourceCards } from "@/components/ImportSourceCards";
 import { LoadingShim } from "@/components/LoadingShim";
@@ -647,9 +648,7 @@ function MealRow({
         {/* §5.1 — titles wrap to TWO lines before truncating, so rows that share
             a long prefix ("Air Fryer Crispy Chicken Tenders with…") stay
             distinguishable. Rows grow; density decisions wait for real images. */}
-        <Text style={s.mealTitle} numberOfLines={2} ellipsizeMode="tail">
-          {meal.title}
-        </Text>
+        <DisplayTitle source={meal} variant="row" style={s.mealTitle} />
         <Text style={s.mealMeta} numberOfLines={1} ellipsizeMode="tail">
           {metaParts.join(" · ")}
         </Text>

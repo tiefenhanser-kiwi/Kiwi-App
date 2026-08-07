@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FilterChipRow } from "@/components/FilterChipRow";
 import { ImportSourceCards } from "@/components/ImportSourceCards";
+import { DisplayTitle } from "@/components/DisplayTitle";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -184,9 +185,7 @@ function MealRow({
     >
       <View style={[s.thumb, !meal.imageUrl && s.thumbFallback]} />
       <View style={{ flex: 1 }}>
-        <Text style={s.mealTitle} numberOfLines={2} ellipsizeMode="tail">
-          {meal.title}
-        </Text>
+        <DisplayTitle source={meal} variant="row" style={s.mealTitle} />
         <Text style={s.mealMeta} numberOfLines={1} ellipsizeMode="tail">
           {metaParts.join(" · ")}
         </Text>

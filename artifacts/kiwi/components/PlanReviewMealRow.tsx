@@ -10,6 +10,7 @@ import {
   Spacing,
   Typography,
 } from "@/constants/tokens";
+import { DisplayTitle } from "@/components/DisplayTitle";
 import { formatMacroLine } from "@/lib/format/macros";
 import {
   DAY_SHORT,
@@ -123,9 +124,7 @@ export function PlanReviewMealRow({
             pressed && { opacity: 0.85 },
           ]}
         >
-          <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
-            {row.title}
-          </Text>
+          <DisplayTitle source={row} variant="row" style={styles.title} />
         </Pressable>
         {/* Cook Now is a saved-plan action — hidden on a draft (no real meal
             id to launch Cook Mode against). */}

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
+import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { FilterChipRow, PLAN_DISCOVERY_FILTER_OPTIONS } from "@/components/FilterChipRow";
 import { Header } from "@/components/Header";
 import { PlanPreviewModal } from "@/components/PlanPreviewModal";
@@ -45,7 +46,7 @@ export default function PlansTab() {
     if (needsActiveCompostConfirm(plan.isActiveThisWeek)) {
       Alert.alert(
         "Compost plan",
-        `This is your active plan for this week. Compost “${plan.name}”?`,
+        `This is your active plan for this week. Compost “${resolveDisplayTitle(plan)}”?`,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -175,9 +176,11 @@ export default function PlansTab() {
               <Text style={s.thisWeekBadgeText}>This Week</Text>
             </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={s.thisWeekTitle} numberOfLines={1}>
-                {activeThisWeek.name}
-              </Text>
+              <DisplayTitle
+                source={activeThisWeek}
+                variant="slim"
+                style={s.thisWeekTitle}
+              />
             </View>
             <Pressable
               onPress={() =>

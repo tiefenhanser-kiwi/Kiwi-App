@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
+import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { SectionLabel } from "@/components/SectionLabel";
 import { TreatedImage } from "@/components/TreatedImage";
@@ -107,7 +108,7 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
     console.log("[dish-detail] compost tapped", { dishId: dish.id });
     Alert.alert(
       "Compost dish",
-      `Compost ${dish.title}? It'll be removed from your dishes and any meals using it.`,
+      `Compost ${resolveDisplayTitle(dish)}? It'll be removed from your dishes and any meals using it.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -142,7 +143,7 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
-      <Header showBack title={dish.title} />
+      <Header showBack title={resolveDisplayTitle(dish)} />
       <ScrollView
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -156,7 +157,7 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
             radius={Radius["2xl"]}
             style={s.heroImage}
           />
-          <Text style={s.heroTitle}>{dish.title}</Text>
+          <DisplayTitle source={dish} variant="hero" style={s.heroTitle} />
           {dish.description && (
             <Text style={s.heroDescription}>{dish.description}</Text>
           )}

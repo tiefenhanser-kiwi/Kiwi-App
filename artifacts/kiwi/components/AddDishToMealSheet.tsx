@@ -15,6 +15,7 @@ import {
   FilterChipRow,
   type FilterChipOption,
 } from "@/components/FilterChipRow";
+import { DisplayTitle } from "@/components/DisplayTitle";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -154,13 +155,11 @@ export function AddDishToMealSheet({
                   ]}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text
+                    <DisplayTitle
+                      source={meal}
+                      variant="row"
                       style={s.mealName}
-                      numberOfLines={2}
-                      ellipsizeMode="tail"
-                    >
-                      {meal.title}
-                    </Text>
+                    />
                     <Text style={s.mealMeta} numberOfLines={1}>
                       {[
                         meal.cuisineType,

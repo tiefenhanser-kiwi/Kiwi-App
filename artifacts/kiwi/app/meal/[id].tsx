@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { SectionLabel } from "@/components/SectionLabel";
@@ -431,7 +432,7 @@ function MealDetailContent({
     if (inPlanContext) {
       Alert.alert(
         "Compost meal",
-        `Compost ${meal.title} from your plan? You can add it back later.`,
+        `Compost ${resolveDisplayTitle(meal)} from your plan? You can add it back later.`,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -455,7 +456,7 @@ function MealDetailContent({
     // backend, out of scope for this block. Unchanged WS5 stub behavior.
     Alert.alert(
       "Compost meal",
-      `Compost ${meal.title}? It'll be removed from your meals and any plans it's in.`,
+      `Compost ${resolveDisplayTitle(meal)}? It'll be removed from your meals and any plans it's in.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -498,7 +499,7 @@ function MealDetailContent({
       <AddMealToPlanSheet
         visible={addToPlanVisible}
         mealId={meal.id}
-        mealTitle={meal.title}
+        mealTitle={resolveDisplayTitle(meal)}
         onClose={() => setAddToPlanVisible(false)}
         onPickExistingPlan={(plan) => {
           // BUG-004 — real wiring to the existing add-to-plan path
@@ -511,7 +512,7 @@ function MealDetailContent({
           });
           void addMealToPlan(plan.id, meal.id)
             .then(() => {
-              Alert.alert("Added to plan", `${meal.title} was added to "${plan.name}".`);
+              Alert.alert("Added to plan", `${resolveDisplayTitle(meal)} was added to "${resolveDisplayTitle(plan)}".`);
             })
             .catch((err) => {
               console.warn("[meal-detail] add-to-plan failed", {
@@ -528,7 +529,7 @@ function MealDetailContent({
       />
       <Header
         showBack
-        title={meal.title}
+        title={resolveDisplayTitle(meal)}
         rightContent={<HeartButton mealId={meal.id} />}
       />
       <KeyboardAwareScrollViewCompat
@@ -545,7 +546,7 @@ function MealDetailContent({
             radius={Radius["2xl"]}
             style={s.heroImage}
           />
-          <Text style={s.heroTitle}>{meal.title}</Text>
+          <DisplayTitle source={meal} variant="hero" style={s.heroTitle} />
           {meal.description && (
             <Text style={s.heroDescription}>{meal.description}</Text>
           )}
@@ -678,7 +679,7 @@ function MealDetailContent({
           {meal.dishes.map((dish) => (
             <View key={dish.dishId} style={s.dishBlock}>
               {!onlyOneDish && (
-                <Text style={s.dishHeader}>For the {dish.title}:</Text>
+                <Text style={s.dishHeader}>For the {resolveDisplayTitle(dish)}:</Text>
               )}
               {dish.ingredients.map((ing, i) => (
                 <Text key={i} style={s.ingredientLine}>
@@ -700,7 +701,7 @@ function MealDetailContent({
                 .filter((dish) => dish.steps.length > 0)
                 .map((dish) => (
                   <View key={dish.dishId} style={s.dishBlock}>
-                    <Text style={s.dishHeader}>For the {dish.title}:</Text>
+                    <Text style={s.dishHeader}>For the {resolveDisplayTitle(dish)}:</Text>
                     {dish.steps.map((step, i) =>
                       renderStepRow(step, i + 1, i),
                     )}

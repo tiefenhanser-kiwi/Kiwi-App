@@ -13,6 +13,7 @@ import React from "react";
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
+import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { SavedDish } from "@/lib/types";
 
@@ -76,7 +77,7 @@ export function CombineReview({
       </Text>
       {selected.map((dish) => (
         <View key={dish.id} style={s.reviewDish}>
-          <Text style={s.reviewDishHeader}>{dish.name}</Text>
+          <Text style={s.reviewDishHeader}>{resolveDisplayTitle(dish)}</Text>
           {dish.ingredients.map((ing, i) => (
             <Text key={i} style={s.reviewIngredient}>
               {ing.quantity} {ing.unit} {ing.name}

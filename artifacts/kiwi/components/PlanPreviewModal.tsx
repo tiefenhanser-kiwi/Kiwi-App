@@ -24,6 +24,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DisplayTitle } from "@/components/DisplayTitle";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { getTemplate, type TemplateDetail } from "@/lib/api/plans";
 
@@ -84,9 +85,12 @@ export function PlanPreviewModal({
         <View style={s.handle} />
         <View style={s.header}>
           <View style={{ flex: 1 }}>
-            <Text style={s.title} numberOfLines={1}>
-              {query.data?.title ?? "Plan preview"}
-            </Text>
+            <DisplayTitle
+              source={query.data}
+              variant="slim"
+              style={s.title}
+              fallback="Plan preview"
+            />
             {query.data?.defaultDaysCount ? (
               <Text style={s.subtitle}>
                 {query.data.defaultDaysCount}{" "}
@@ -154,9 +158,12 @@ export function PlanPreviewModal({
                         {/* D-WS6-043: image rendering deferred; placeholder block */}
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={s.itemName} numberOfLines={2}>
-                          {item.meal?.title ?? "Meal unavailable"}
-                        </Text>
+                        <DisplayTitle
+                          source={item.meal}
+                          variant="row"
+                          style={s.itemName}
+                          fallback="Meal unavailable"
+                        />
                         {item.assignedDayOfWeek && (
                           <Text style={s.itemDay}>{item.assignedDayOfWeek}</Text>
                         )}

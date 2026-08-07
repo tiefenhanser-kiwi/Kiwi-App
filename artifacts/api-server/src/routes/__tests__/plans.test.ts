@@ -2778,7 +2778,12 @@ describe("POST /plans — empty plan create (WS7-4-C c2)", () => {
       const created = recorder.createdInstances[0];
       assert.equal(created.userId, A2_USER);
       assert.equal(created.mealPlanTemplateId, null);
-      assert.equal(created.titleOverride, null);
+      // BUG-066 — a template-less plan with no name used to persist
+      // titleOverride: null, which the title resolver turned into a blank ""
+      // name on the Plans tab. POST /plans now DEFAULTS a title when the body
+      // omits `name` (the optional-name POST stays optional; it is defaulted,
+      // not rejected). Minimal body → "Untitled plan".
+      assert.equal(created.titleOverride, "Untitled plan");
       assert.equal(created.status, "draft");
       assert.equal(created.startDate, null);
       assert.equal(created.endDate, null);

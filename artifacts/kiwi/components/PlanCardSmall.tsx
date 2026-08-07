@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 
 import type { PlanListItem } from "@/lib/api/plans";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { DisplayTitle } from "@/components/DisplayTitle";
 
 type Props = {
   plan: PlanListItem;
@@ -74,9 +75,7 @@ export function PlanCardSmall({ plan, onPreviewTemplate, onUseTemplate }: Props)
           )}
         </View>
         <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={1}>
-            {plan.name}
-          </Text>
+          <DisplayTitle source={plan} variant="slim" style={styles.title} />
           {visibleTags.length > 0 && (
             <View style={styles.tagRow}>
               {visibleTags.map((t) => (

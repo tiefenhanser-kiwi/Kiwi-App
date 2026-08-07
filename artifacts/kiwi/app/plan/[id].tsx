@@ -19,6 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AddMealsSheet } from "@/components/AddMealsSheet";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { SwapMealSheet, type SwapMode } from "@/components/SwapMealSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -276,7 +277,7 @@ export default function PlanReviewScreen() {
   // Sheet state for §8.3.8 Add Meals flow.
   const [addMealsVisible, setAddMealsVisible] = useState(false);
 
-  const planName = reviewPlan?.name || "Untitled plan";
+  const planName = resolveDisplayTitle(reviewPlan);
 
   const [breakfastOpen, setBreakfastOpen] = useState(false);
   const [breakfastDraft, setBreakfastDraft] = useState("");
@@ -685,7 +686,7 @@ export default function PlanReviewScreen() {
               yet — no name/date editors, no Cook This Week chip (the action bar
               owns the commit). Saved: the full editable meta strip. */}
           {isDraft ? (
-            <Text style={s.draftTitle}>{planName}</Text>
+            <DisplayTitle source={reviewPlan} variant="hero" style={s.draftTitle} />
           ) : (
             <>
               <PlanNameEditor

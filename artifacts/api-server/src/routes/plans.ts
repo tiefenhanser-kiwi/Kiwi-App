@@ -674,12 +674,20 @@ export function createPlansRouter(
         createStartDate.getTime() <= nowAtCreate.getTime() &&
         nowAtCreate.getTime() <= createEndDate.getTime();
 
+      // BUG-066 — this create path is the only one that can mint a plan with
+      // no name AND no template to inherit from (mealPlanTemplateId is null
+      // here), which the title resolver turns into a blank "" name (one such
+      // record predates this guard). The optional-name POST stays optional per
+      // the ruling above; we DEFAULT a title rather than reject the request.
+      // Uses the same "Untitled plan" string the client fallback renders.
+      const effectiveTitleOverride = body.name ?? "Untitled plan";
+
       const result = await prisma.$transaction(async (tx) => {
         const instance = await tx.mealPlanInstance.create({
           data: {
             userId,
             mealPlanTemplateId: null,
-            titleOverride: body.name ?? null,
+            titleOverride: effectiveTitleOverride,
             status: "draft",
             startDate: createStartDate,
             endDate: createEndDate,

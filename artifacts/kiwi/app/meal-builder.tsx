@@ -39,6 +39,7 @@ import {
   Typography,
 } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
+import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { fromServerDifficulty, toServerDifficulty } from "@/lib/api/builder";
 import { useDishes } from "@/hooks/useDishes";
 import { savedDishFromListItem } from "@/lib/dishes/savedDishFromListItem";
@@ -370,7 +371,7 @@ export default function MealBuilderScreen() {
   }, [addDishId, mealId, draftJson]);
 
   const headerTitle = sourceMeal
-    ? `Edit Meal: ${sourceMeal.title}`
+    ? `Edit Meal: ${resolveDisplayTitle(sourceMeal)}`
     : mealId
         // mealId present but hydration not resolved yet — neutral header so
         // the screen doesn't flash a misleading "Create Meal" title before
@@ -2032,7 +2033,7 @@ const DishPickerRow = memo(function DishPickerRow({
       />
       <View style={[s.dishThumb, !dish.imageUrl && s.dishThumbFallback]} />
       <View style={{ flex: 1 }}>
-        <Text style={s.dishPickerName}>{dish.name}</Text>
+        <Text style={s.dishPickerName}>{resolveDisplayTitle(dish)}</Text>
         {(() => {
           // WS7-6 C-fix Block 4 — calories moved into the full macro line
           // below; the meta line keeps cuisine + cook time (when present).

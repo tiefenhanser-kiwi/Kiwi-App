@@ -22,6 +22,7 @@ import {
 } from "@/constants/tokens";
 import { formatMacro } from "@/lib/format/macros";
 import type { HeroModel } from "@/lib/home/heroState";
+import { DisplayTitle } from "./DisplayTitle";
 import { TreatedImage } from "./TreatedImage";
 
 type Props = {
@@ -78,9 +79,7 @@ export function ActivePlanStrip({ model, onPress, onCook }: Props) {
         radius={Radius.md}
       />
       <View style={styles.textCol}>
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
+        <DisplayTitle source={title} variant="slim" style={styles.title} />
         <Text style={styles.meta} numberOfLines={1}>
           {meta}
         </Text>

@@ -30,6 +30,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
+import { DisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { WizardPlanMealCard } from "@/components/WizardPlanMealCard";
@@ -336,7 +337,7 @@ function LegacyWizardPlanDetailsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Title + tags + why bullets carried over from the candidate card. */}
-        <Text style={s.planTitle}>{plan.title}</Text>
+        <DisplayTitle source={plan} variant="hero" style={s.planTitle} />
         {plan.tags.length > 0 && (
           <View style={s.tagRow}>
             {plan.tags.map((tag) => (

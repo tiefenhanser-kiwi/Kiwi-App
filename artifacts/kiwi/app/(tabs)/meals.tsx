@@ -19,6 +19,7 @@ import {
   type FilterChipOption,
 } from "@/components/FilterChipRow";
 import { Header } from "@/components/Header";
+import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { MealRow } from "@/components/MealRow";
 import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
@@ -180,7 +181,7 @@ export default function MealsTab() {
           });
           Alert.alert(
             "Coming in WS7",
-            `When the API client lands, ${addToPlanFor?.mealTitle} will be added to "${plan.name}".`,
+            `When the API client lands, ${addToPlanFor?.mealTitle} will be added to "${resolveDisplayTitle(plan)}".`,
           );
           setAddToPlanFor(null);
         }}
@@ -197,7 +198,7 @@ export default function MealsTab() {
           });
           Alert.alert(
             "Coming in WS7",
-            `When the API client lands, ${addDishToMealFor?.dishName} will be added to "${meal.title}".`,
+            `When the API client lands, ${addDishToMealFor?.dishName} will be added to "${resolveDisplayTitle(meal)}".`,
           );
           setAddDishToMealFor(null);
         }}

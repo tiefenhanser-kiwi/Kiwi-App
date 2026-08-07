@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { DisplayTitle } from "@/components/DisplayTitle";
 import type { SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { DishListItem } from "@/lib/api/dishes";
@@ -72,9 +73,7 @@ export function DishRow({
           )}
         </View>
         <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
-            {dish.title}
-          </Text>
+          <DisplayTitle source={dish} variant="row" style={styles.title} />
           {metaParts.length > 0 && (
             <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
               {metaParts.join(" · ")}

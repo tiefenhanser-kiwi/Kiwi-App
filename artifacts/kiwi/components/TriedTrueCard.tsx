@@ -18,6 +18,7 @@ import {
   Palette,
   Typography,
 } from "@/constants/tokens";
+import { DisplayTitle } from "./DisplayTitle";
 import { TreatedImage } from "./TreatedImage";
 
 type Props = {
@@ -53,9 +54,7 @@ export function TriedTrueCard({
         </View>
       </View>
       <View style={styles.body}>
-        <Text style={styles.title} numberOfLines={2}>
-          {title}
-        </Text>
+        <DisplayTitle source={title} variant="railCard" style={styles.title} />
         {meta ? (
           <Text style={styles.meta} numberOfLines={1}>
             {meta}

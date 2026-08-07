@@ -17,6 +17,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import {
@@ -169,9 +170,7 @@ function PromotePlanCard({
         <View style={[s.planThumb, s.thumbFallback]} />
       )}
       <View style={s.planText}>
-        <Text style={s.planCardName} numberOfLines={1} ellipsizeMode="tail">
-          {plan.name}
-        </Text>
+        <DisplayTitle source={plan} variant="slim" style={s.planCardName} />
         {plan.dateRangeLabel && (
           <Text style={s.planMeta}>{plan.dateRangeLabel}</Text>
         )}
@@ -261,7 +260,7 @@ function Hub({
           >
             <Text style={s.todayEyebrow}>Tonight</Text>
             <Text style={s.todayTitle}>
-              Cook tonight&apos;s dinner: {model.todaysMeal.title}
+              Cook tonight&apos;s dinner: {resolveDisplayTitle(model.todaysMeal)}
             </Text>
           </Pressable>
         )}
@@ -325,13 +324,11 @@ function Hub({
                   <View style={[s.thumb, s.thumbFallback]} />
                 )}
                 <View style={s.mealText}>
-                  <Text
+                  <DisplayTitle
+                    source={row}
+                    variant="row"
                     style={s.mealTitle}
-                    numberOfLines={2}
-                    ellipsizeMode="tail"
-                  >
-                    {row.title}
-                  </Text>
+                  />
                   <Text style={s.mealMeta}>{row.metaLine}</Text>
                 </View>
                 <View style={[s.pill, { backgroundColor: pillTone.bg }]}>
