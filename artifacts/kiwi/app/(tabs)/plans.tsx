@@ -161,7 +161,11 @@ export default function PlansTab() {
     // sort keys need server metadata that GET /plans does not carry yet
     // (D-WS7-048). They fall through as a no-op until WS9.
     if (sortKey === "alpha") {
-      out.sort((a, b) => a.name.localeCompare(b.name));
+      // BUG-067 — order by the displayed string (displayTitle ?? name), via the
+      // shared resolver, not the raw name.
+      out.sort((a, b) =>
+        resolveDisplayTitle(a).localeCompare(resolveDisplayTitle(b)),
+      );
     }
     return out;
   }, [plansQuery.data, debouncedQuery, sortKey]);

@@ -53,3 +53,51 @@ test("BUG-065: MealRow renders the title on two lines", async () => {
 
   renderer.unmount();
 });
+
+// WS9 3f-4d Part 1c (D-WS9-124) — the one-line "what's on the plate" sub-text.
+const DESCRIPTION = "Crispy tenders with a tangy honey-mustard and a green salad.";
+
+test("D-WS9-124: MealRow renders description as a one-line sub-text when present", async () => {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(MealRow, {
+        meal: { ...MEAL, description: DESCRIPTION },
+        onPress: () => {},
+        onCookNow: () => {},
+        onAddToPlan: () => {},
+      }),
+    );
+  });
+
+  const descNode = renderer.root.findAll(
+    (n) => typeof n.props?.children === "string" && n.props.children === DESCRIPTION,
+  )[0];
+  assert.ok(descNode, "description sub-text node found");
+  assert.equal(descNode.props.numberOfLines, 1, "description clamps to one line");
+
+  renderer.unmount();
+});
+
+test("D-WS9-124: MealRow omits the sub-text line entirely when description is null", async () => {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(MealRow, {
+        meal: { ...MEAL, description: null },
+        onPress: () => {},
+        onCookNow: () => {},
+        onAddToPlan: () => {},
+      }),
+    );
+  });
+
+  // No Text node should carry the description string, and no empty placeholder
+  // node stands in its place — the render omits the line rather than blanking it.
+  const descNodes = renderer.root.findAll(
+    (n) => typeof n.props?.children === "string" && n.props.children === DESCRIPTION,
+  );
+  assert.equal(descNodes.length, 0, "no description node when description is null");
+
+  renderer.unmount();
+});

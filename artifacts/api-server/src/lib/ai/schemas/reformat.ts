@@ -152,6 +152,10 @@ export type CanonicalDish = z.infer<typeof DishSchema>;
 
 export const MealMetaSchema = z.object({
   title: z.string().min(1),
+  // WS9 3f-4d Part 1c (D-WS9-123) — short human-facing display name (the core
+  // dish, no sides), ≤50 hard. Distinct from the long canonical `title`; null =
+  // render title as-is. Persisted to Meal.displayTitle; resolved via resolveDisplayTitle.
+  displayTitle: z.string().max(50).optional(),
   description: z.string().optional(),
   cuisineType: CuisineTypeEnum,
   mealType: MealTypeEnum,

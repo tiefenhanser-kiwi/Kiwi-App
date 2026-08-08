@@ -243,6 +243,11 @@ export type WizardExpandDish = z.infer<typeof WizardExpandDishSchema>;
 
 export const WizardExpandMealSchema = z.object({
   title: z.string().min(1).max(120),
+  // WS9 3f-4d Part 1c (D-WS9-123/124) — short display name + one-line sub-text,
+  // carried from the details/expand payload through finalize into activation so
+  // a saved wizard meal persists both. Optional; null → render title as-is.
+  displayTitle: z.string().max(50).optional(),
+  description: z.string().max(200).optional(),
   cuisineType: z.string().min(1).max(60),
   estimatedTimeMinutes: z.number().int().positive(),
   difficulty: z.enum(["easy", "medium", "fancy"]),
@@ -341,6 +346,12 @@ export type WizardExpandDishDetails = z.infer<
 
 export const WizardExpandMealDetailsSchema = z.object({
   title: z.string().min(1).max(120),
+  // WS9 3f-4d Part 1c (D-WS9-123) — short human-facing display name (the core
+  // dish, no sides), ≤50 hard. Distinct from the long canonical `title`; null =
+  // render title as-is. Persisted to Meal.displayTitle via buildMaterializePayload;
+  // resolved via resolveDisplayTitle. Authored by store.generate_meal and the
+  // wizard.candidate.expand path; optional so a body that omits it is unaffected.
+  displayTitle: z.string().max(50).optional(),
   // One-line headnote giving the meal its character (the harness generate prompt
   // emits it → persisted to Meal.description via buildMaterializePayload). Optional
   // so the wizard.candidate.expand path — which does not author a headnote — is

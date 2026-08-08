@@ -2,6 +2,7 @@
 // AddMealsSheet). Lives in components/ so it can import SortKey from
 // SortDropdown without inverting layering.
 
+import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import type { SortKey } from "@/components/SortDropdown";
 import type { MealSummary } from "@/lib/types";
 
@@ -31,7 +32,11 @@ export function sortMeals(list: MealSummary[], key: SortKey): MealSummary[] {
       );
       return out;
     case "alpha":
-      out.sort((a, b) => a.title.localeCompare(b.title));
+      // BUG-067 — order by the STRING THE USER SEES (displayTitle ?? title),
+      // not the canonical title. resolveDisplayTitle owns the precedence.
+      out.sort((a, b) =>
+        resolveDisplayTitle(a).localeCompare(resolveDisplayTitle(b)),
+      );
       return out;
     case "cook_time":
       out.sort((a, b) => a.estimatedTimeMinutes - b.estimatedTimeMinutes);

@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
+import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
 import { useGroceryLists } from "@/hooks/useGroceryLists";
@@ -55,7 +56,10 @@ export default function GroceriesTab() {
     return [...filtered].sort((a, b) =>
       sortKey === "recent"
         ? b.createdAt.localeCompare(a.createdAt) // newest first
-        : a.title.localeCompare(b.title), // A–Z
+        : // BUG-067 — order by the displayed string via the shared resolver.
+          // Grocery lists carry no displayTitle today, so this resolves to
+          // `title` (a no-op now; forward-safe if a display name is ever added).
+          resolveDisplayTitle(a).localeCompare(resolveDisplayTitle(b)), // A–Z
     );
   }, [lists, query, sortKey]);
 

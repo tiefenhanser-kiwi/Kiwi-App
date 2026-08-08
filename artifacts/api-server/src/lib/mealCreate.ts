@@ -47,6 +47,7 @@ export async function createMealWithDishes(
     where: { id: sourceMealId },
     select: {
       title: true,
+      displayTitle: true,
       description: true,
       cuisineType: true,
       mealType: true,
@@ -67,6 +68,10 @@ export async function createMealWithDishes(
     data: {
       userId,
       title: override.titleOverride ?? source.title,
+      // WS9 3f-4d Part 1c (D-WS9-123) — carry the source's short display name only
+      // when the title is NOT overridden; a user-chosen new title makes the old
+      // short name stale, so fall back to null (render the new title as-is).
+      displayTitle: override.titleOverride ? null : source.displayTitle,
       description: source.description,
       cuisineType: source.cuisineType,
       mealType: source.mealType,

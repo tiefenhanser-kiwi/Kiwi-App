@@ -1,14 +1,20 @@
 // WS9 3f-4d Part 1 · Phase 4 (D-WS9-121) — one-time backfill.
+// WS9 3f-4d Part 1c (D-WS9-123/124) — scope widened: description backfill added.
 //
-// Populates two nullable/append-only fields on EXISTING records, via Haiku,
+// Populates nullable/append-only fields on EXISTING records, via Haiku,
 // through the Anthropic Message Batches API (50% cheaper than live calls):
 //
 //   1. Meal / Dish / MealPlanTemplate `displayTitle` — a short (≤42, hard-max
-//      50) display name for records whose canonical `title` runs long. Rendered
-//      by the app's DisplayTitle primitive as `displayTitle ?? title`.
-//   2. Meal `tags` — 3-5 derived tags for meals that have none, scoped to the
-//      provenances that ship untagged (wizard, live_writeback). batch_generated
-//      meals are ALREADY 100% tagged (Phase 0) and are SKIPPED.
+//      50) display name for records whose canonical `title` runs long, across
+//      ALL provenances (catalog + user-owned). Rendered by the app's
+//      DisplayTitle primitive as `displayTitle ?? title`.
+//   2. Meal `description` (D-WS9-124) — a one-line "what's on the plate" sub-text
+//      for meals that lack one, scoped to the provenances that ship without a
+//      description (wizard, live_writeback). batch_generated (catalog) meals
+//      ALREADY carry a description (Phase 0: 1,124/1,124) and are SKIPPED.
+//   3. Meal `tags` — 3-5 derived tags for meals that have none, same untagged
+//      provenances (wizard, live_writeback). batch_generated meals are ALREADY
+//      100% tagged (Phase 0) and are SKIPPED.
 //
 // SAFETY (read this before running):
 //   - DRY-RUN IS THE DEFAULT. Nothing is written without the explicit --apply
@@ -34,17 +40,21 @@
 //
 // Flags: --apply (write), --no-sample (skip Haiku sampling in dry-run),
 //        --sample-size=N (default 20), --batch-size=N (default 500),
-//        --only=titles|tags (restrict scope).
+//        --only=titles|descriptions|tags (restrict scope).
 
 import { PrismaClient } from "@prisma/client";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// ESM-safe script directory (`__dirname` is undefined under ESM/tsx — Part 1c fix).
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 const prisma = new PrismaClient();
 
 const APPLY = process.argv.includes("--apply");
 const NO_SAMPLE = process.argv.includes("--no-sample");
-const ONLY = argValue("--only"); // "titles" | "tags" | undefined
+const ONLY = argValue("--only"); // "titles" | "descriptions" | "tags" | undefined
 const SAMPLE_SIZE = Number(argValue("--sample-size") ?? "20");
 const BATCH_SIZE = Number(argValue("--batch-size") ?? "500");
 
@@ -59,7 +69,9 @@ function argValue(flag: string): string | undefined {
 
 // ── Anthropic (thin fetch client; no SDK dependency) ───────────────────────
 function loadApiKey(): string {
-  const envPath = path.join(__dirname, "..", ".env");
+  // Prefer an already-loaded env var (e.g. `node --env-file=.env`); else read .env.
+  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY.trim();
+  const envPath = path.join(scriptDir, "..", ".env");
   const raw = fs.readFileSync(envPath, "utf8");
   const line = raw
     .split(/\r?\n/)
@@ -79,6 +91,12 @@ const TITLE_SYSTEM =
 
 const TAGS_SYSTEM =
   `You assign tags to a home-cooked meal for filtering and search. Given the meal's title (and cuisine/difficulty when provided), return 3 to 5 short lowercase tags naming cuisine, a key ingredient, a technique, or an occasion (e.g. "italian","weeknight","lemon","pan-seared"). Skip generic filler like "dinner","meal","homemade","delicious". Return ONLY a JSON array of strings.`;
+
+// D-WS9-124 — matches the catalog voice (storeFillPrompts.ts:205): one line,
+// ≤160 chars, plain and appetizing, naming what's on the plate. Not a tagline.
+const DESCRIPTION_MAX = 160;
+const DESCRIPTION_SYSTEM =
+  `You write the one-line card description shown under a meal's name in a cooking app. Given the meal's title (and cuisine/difficulty when provided), return ONE plain, appetizing sentence of ${DESCRIPTION_MAX} characters or fewer describing what is on the plate — its character and components ("An all-American patty with a tangy slaw and crispy tater tots."). A real sentence, not a tagline; no puns, no byline, no quotes. Return ONLY the sentence on one line.`;
 
 async function haikuText(system: string, user: string): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -177,6 +195,31 @@ async function gatherTagWork() {
   return rows;
 }
 
+async function gatherDescriptionWork() {
+  // D-WS9-124 — only the provenances that ship WITHOUT a description. Catalog
+  // (batch_generated) meals already carry one (Phase 0: 1,124/1,124) — excluded.
+  // Idempotent: null OR empty-string description is outstanding.
+  const rows = await prisma.meal.findMany({
+    where: {
+      sourceType: { in: ["wizard", "live_writeback"] },
+      OR: [{ description: null }, { description: "" }],
+    },
+    select: { id: true, title: true, cuisineType: true, difficulty: true },
+  });
+  return rows;
+}
+
+// Trim + defensive hard cap. The prompt targets ≤160; the DB column tolerates
+// 200 (BUG-045 slack), so clamp at 200 rather than truncating good 161-char copy.
+const DESCRIPTION_HARD_MAX = 200;
+function clampDescription(s: string): string {
+  const clean = s.replace(/^["'“”]+|["'“”]+$/g, "").trim();
+  if (clean.length <= DESCRIPTION_HARD_MAX) return clean;
+  const cut = clean.slice(0, DESCRIPTION_HARD_MAX);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > 40 ? cut.slice(0, lastSpace) : cut).trim();
+}
+
 // ── Batch API (write path) ─────────────────────────────────────────────────
 type BatchRequest = {
   custom_id: string;
@@ -261,10 +304,12 @@ async function runBatch(
 
 // ── Main ───────────────────────────────────────────────────────────────────
 async function main() {
-  const doTitles = ONLY !== "tags";
-  const doTags = ONLY !== "titles";
+  const doTitles = ONLY === undefined || ONLY === "titles";
+  const doDescriptions = ONLY === undefined || ONLY === "descriptions";
+  const doTags = ONLY === undefined || ONLY === "tags";
 
   const title = doTitles ? await gatherTitleWork() : { meals: [], dishes: [], templates: [] };
+  const descRows = doDescriptions ? await gatherDescriptionWork() : [];
   const tagRows = doTags ? await gatherTagWork() : [];
 
   const titleTotal = title.meals.length + title.dishes.length + title.templates.length;
@@ -273,30 +318,47 @@ async function main() {
   console.log(`displayTitle — dishes:                              ${title.dishes.length}`);
   console.log(`displayTitle — plan templates:                      ${title.templates.length}`);
   console.log(`displayTitle — TOTAL:                               ${titleTotal}`);
+  console.log(`description — wizard + live_writeback meals, none:   ${descRows.length}`);
   console.log(`tags — wizard + live_writeback meals, no tags:      ${tagRows.length}`);
   console.log(`mode: ${APPLY ? "APPLY (writing)" : "DRY-RUN (no writes)"}`);
 
-  // Rough cost estimate (Haiku 4.5 Batch pricing ≈ $0.40 / $2.00 per Mtok in/out).
-  const totalCalls = titleTotal + tagRows.length;
-  const estInTok = totalCalls * 90; // ~system+title
-  const estOutTok = titleTotal * 16 + tagRows.length * 30;
-  const estCost =
-    (estInTok / 1e6) * 0.4 + (estOutTok / 1e6) * 2.0;
+  // Cost estimate — Haiku 4.5 Message Batches pricing (50% off standard
+  // $1.00/$5.00 per Mtok) = $0.50 in / $2.50 out per Mtok. Per-call input is the
+  // shared system prompt (~150 tok) + the title/meta line (~20 tok) ≈ 170 tok;
+  // output is short: displayTitle ~14 tok, description ~40 tok, tags ~24 tok.
+  const IN_RATE = 0.5 / 1e6; // $/token, batch input
+  const OUT_RATE = 2.5 / 1e6; // $/token, batch output
+  const IN_PER_CALL = 170;
+  const totalCalls = titleTotal + descRows.length + tagRows.length;
+  const estInTok = totalCalls * IN_PER_CALL;
+  const estOutTok = titleTotal * 14 + descRows.length * 40 + tagRows.length * 24;
+  const estCost = estInTok * IN_RATE + estOutTok * OUT_RATE;
   console.log(
-    `est. full-run cost: ~${totalCalls} calls, ~$${estCost.toFixed(3)} (Haiku Batch).`,
+    `est. full-run cost: ~${totalCalls} calls, ~$${estCost.toFixed(4)} ` +
+      `(${estInTok} in @ $0.50/Mtok + ${estOutTok} out @ $2.50/Mtok, Haiku Batch).`,
   );
 
   if (!APPLY) {
     if (!NO_SAMPLE && titleTotal > 0) {
-      const sample = [...title.meals, ...title.dishes, ...title.templates].slice(
-        0,
-        SAMPLE_SIZE,
+      // Sample the LONGEST titles first so the ≤50 cap is judged at its worst.
+      const byLongest = [...title.meals, ...title.dishes, ...title.templates].sort(
+        (a, b) => b.title.length - a.title.length,
       );
-      console.log(`\n── Sample proposals (${sample.length}, no writes) ───────────────`);
+      const sample = byLongest.slice(0, SAMPLE_SIZE);
+      console.log(`\n── Sample displayTitle proposals (${sample.length}, longest first, no writes) ──`);
       for (const r of sample) {
         const proposed = clampTitle(await haikuText(TITLE_SYSTEM, r.title));
         console.log(`  [${r.title.length}→${proposed.length}] ${r.title}`);
         console.log(`      → ${proposed}`);
+      }
+    }
+    if (!NO_SAMPLE && descRows.length > 0) {
+      const sample = descRows.slice(0, Math.min(5, SAMPLE_SIZE));
+      console.log(`\n── Sample description proposals (${sample.length}, no writes) ──`);
+      for (const r of sample) {
+        const proposed = clampDescription(await haikuText(DESCRIPTION_SYSTEM, r.title));
+        console.log(`  ${r.title}`);
+        console.log(`      → [${proposed.length}] ${proposed}`);
       }
     }
     console.log("\nDRY-RUN complete. Re-run with --apply to write.");
@@ -320,6 +382,32 @@ async function main() {
       else if (kind === "dish") await prisma.dish.update({ where: { id }, data });
       else if (kind === "template")
         await prisma.mealPlanTemplate.update({ where: { id }, data });
+    });
+  }
+
+  if (doDescriptions && descRows.length > 0) {
+    const reqs: BatchRequest[] = descRows.map((m) => ({
+      custom_id: `desc:meal:${m.id}`,
+      params: {
+        model: HAIKU_MODEL,
+        max_tokens: 96,
+        system: DESCRIPTION_SYSTEM,
+        messages: [
+          {
+            role: "user",
+            content: `Title: ${m.title}\nCuisine: ${m.cuisineType ?? "unknown"}\nDifficulty: ${m.difficulty}`,
+          },
+        ],
+      },
+    }));
+    console.log(`\nWriting description for ${reqs.length} meals…`);
+    await runBatch(reqs, async (customId, text) => {
+      const id = customId.split(":")[2];
+      const description = clampDescription(text);
+      if (!description) return;
+      const data = { description };
+      assertNoTitleWrite(data);
+      await prisma.meal.update({ where: { id }, data });
     });
   }
 

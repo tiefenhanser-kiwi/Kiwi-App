@@ -76,6 +76,13 @@ export function MealRow({
         </View>
         <View style={styles.body}>
           <DisplayTitle source={meal} variant="row" style={styles.title} />
+          {/* WS9 3f-4d Part 1c (D-WS9-124) — one-line sub-text ("what's on the
+              plate"). Omitted entirely when absent (no empty gap/placeholder). */}
+          {meal.description ? (
+            <Text style={styles.description} numberOfLines={1}>
+              {meal.description}
+            </Text>
+          ) : null}
           <Text style={styles.meta} numberOfLines={1}>
             {meta}
           </Text>
@@ -153,6 +160,11 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+  },
+  description: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
     fontFamily: Typography.face.sans[400],
   },
   sortLine: {

@@ -171,6 +171,11 @@ const MealDetailDishSchema = z.object({
 export const MealListItemSchema = z.object({
   id: z.string(),
   title: z.string(),
+  // WS9 3f-4d Part 1c (D-WS9-123/124) — short display name + one-line sub-text.
+  // .optional() guards responses from a server not yet redeployed/reseeded; a
+  // present value is null or a string. Rendered via resolveDisplayTitle + MealRow.
+  displayTitle: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
   cuisine: z.string(),
   minutes: z.number(),
   servings: z.number(),

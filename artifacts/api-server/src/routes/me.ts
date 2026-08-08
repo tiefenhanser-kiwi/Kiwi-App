@@ -50,6 +50,9 @@ const MEAL_LIST_SELECT_SORTED = {
 type MealListRow = {
   id: string;
   title: string;
+  // WS9 3f-4d Part 1c (D-WS9-123/124) — in MEAL_LIST_SELECT.
+  displayTitle: string | null;
+  description: string | null;
   cuisineType: string | null;
   estimatedTimeMinutes: number;
   servingsDefault: number;
@@ -427,6 +430,9 @@ const dishEntrySchema = z.discriminatedUnion("kind", [
 const postMeMealSchema = z
   .object({
     title: z.string().min(1).max(200),
+    // WS9 3f-4d Part 1c (D-WS9-123) — short display name from Mode-A / builder.
+    // Nullable + optional; persisted to Meal.displayTitle via materializeMeal.
+    displayTitle: z.string().max(50).nullable().optional(),
     description: z.string().max(2000).nullable().optional(),
     cuisineType: z.string().max(60).nullable().optional(),
     // Q2: omitted → "dinner" (Mode A has no mealType). Honored when supplied.
@@ -1547,7 +1553,14 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         ? [{ createdAt: "desc" }, { id: "asc" }]
         : sort === "cook_time"
           ? [{ estimatedTimeMinutes: "asc" }, { id: "asc" }]
-          : [{ title: "asc" }, { id: "asc" }];
+          : // BUG-067 — the A–Z sort should key on the DISPLAYED string
+            // COALESCE(displayTitle, title). Prisma orderBy cannot express
+            // COALESCE, so this stays on `title` (correct while displayTitle is
+            // null on every row — pre-backfill). Once the D-WS9-123 backfill
+            // populates displayTitle this diverges from the rendered order; the
+            // fix (denormalized indexed sortTitle column, or a raw ORDER BY
+            // COALESCE) is gated behind that backfill. See the Part 1c report.
+            [{ title: "asc" }, { id: "asc" }];
 
     try {
       const blocks: MealListRow[][] = [];
@@ -1663,7 +1676,10 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           ? [{ estimatedTimeMinutes: "asc" }, { id: "asc" }]
           : sort === "times_cooked"
             ? [{ id: "asc" }]
-            : [{ title: "asc" }, { id: "asc" }];
+            : // BUG-067 — see the meal-sort note above; dishes carry displayTitle
+              // too, so A–Z should key on COALESCE(displayTitle, title). Same
+              // Prisma limitation → stays on `title` until the D-WS9-123 backfill.
+              [{ title: "asc" }, { id: "asc" }];
 
     try {
       const blocks: DishListRow[][] = [];

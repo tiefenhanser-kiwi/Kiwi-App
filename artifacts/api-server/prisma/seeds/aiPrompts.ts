@@ -174,7 +174,7 @@ For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanatio
 - \`hiddenContext.equipment\`: only suggest meals the user can actually cook. No Instant-Pot recipes without an Instant Pot; no smoker dishes without a smoker; no sous-vide without one.
 - \`hiddenContext.pickyAvoidances\` (free-text) → exclusions for the household, treated with the same weight as allergies.
 - \`parsedIntent.explicitMeals\` are LOCKED for partial / fully_specified / overflow — they MUST appear (in spirit) in every candidate. Don't substitute "Salmon Salad" when the user asked for "Salmon"; don't drop a named meal because it's a stretch with the user's diet — instead, if the named meal violates a hard constraint, produce the plan WITHOUT it and note the conflict in \`whyBullets\` ("Skipped salmon — you marked pescatarian-no-fish; subbed shrimp.").
-- Meal titles are appetizing, specific, clear, and SHORT — aim for 42 characters or fewer and NEVER exceed 50. Name the dish the way you'd tell a friend what you cooked, not a full menu line; keep sides / technique / garnish detail out of the title. Never "Generic Stir Fry" or placeholder titles.
+- Meal titles are appetizing, specific, and clear. Never "Generic Stir Fry" or placeholder titles. Each title reads like a real recipe.
 
 # Soft preferences (PRD §11.7 weighting)
 
@@ -236,7 +236,7 @@ Discovery (novelty) exception — \`preferencesContext.discoveryMealsPerWeek\` (
 
 # Tone of titles + bullets
 
-Titles should sound like a friend recommending dinner, not an AI listing categories, and stay SHORT — aim for 42 characters or fewer and NEVER exceed 50 (this applies to BOTH the plan title and each meal title). "Sheet-pan harissa chicken with chickpeas" beats "Chicken Sheet-Pan Meal." Plan-level titles for vague/partial should be specific to that plan's actual meals and context, and vary from run to run — not a recycled template. Avoid generic reusable labels like "Cozy Comfort Week," "Mediterranean Variety," or "High-Protein Reset"; name the plan's real through-line instead ("Grill Nights + Big Salads," "Five Weeknight One-Pots"). Do not repeat a name that appears in \`planningContext.recentPlanNames\`. For fully_specified or overflow, the plan title should reflect the user's named theme ("Your 5-Meal Lineup," "What You Asked For").
+Titles should sound like a friend recommending dinner, not an AI listing categories. "Sheet-pan harissa chicken with chickpeas" beats "Chicken Sheet-Pan Meal." Plan-level titles for vague/partial should be specific to that plan's actual meals and context, and vary from run to run — not a recycled template. Avoid generic reusable labels like "Cozy Comfort Week," "Mediterranean Variety," or "High-Protein Reset"; name the plan's real through-line instead ("Grill Nights + Big Salads," "Five Weeknight One-Pots"). Do not repeat a name that appears in \`planningContext.recentPlanNames\`. For fully_specified or overflow, the plan title should reflect the user's named theme ("Your 5-Meal Lineup," "What You Asked For").
 
 # Macros
 
@@ -470,14 +470,16 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 
 # Field rules
 
-- **meal.title** — appetizing, specific, and SHORT: aim for 42 characters or fewer and NEVER exceed 50. Mirror the user's description without padding (e.g., "Chicken Piccata with Arugula Salad" not "AI-Generated Italian Dinner"), and don't cram sides / technique / garnish detail into the title. Title-cased.
+- **meal.title** — appetizing and specific. Mirror the user's description without padding (e.g., "Chicken Piccata with Arugula Salad" not "AI-Generated Italian Dinner"). Title-cased.
+- **meal.displayTitle** — the SHORT name a person scans in a list: the core dish WITHOUT the sides ("Chicken Piccata" for a title of "Chicken Piccata with Arugula Salad"). Title-cased, ≤42 chars, NEVER over 50. This does NOT replace \`title\` — \`title\` stays the full, descriptive name; \`displayTitle\` is only the short list label. When the title is already short, you may repeat it or omit this field.
+- **meal.description** — one line, ≤160 chars, naming what's on the plate ("Lemon-caper chicken piccata over a bright arugula salad"). Plain and appetizing — a real sentence, not a tagline, no puns, no byline.
 - **meal.cuisine** — pick EXACTLY ONE value from Kiwi's canonical title-case catalog: \`American\`, \`Italian\`, \`Mexican\`, \`Asian\`, \`Mediterranean\`, \`Indian\`, \`Comfort Food\`, \`BBQ/Grill\`, \`Chinese\`, \`Japanese\`, \`Thai\`, \`Vietnamese\`, \`Korean\`, \`Middle Eastern\`, \`French\`, \`Spanish\`, \`Greek\`, \`Caribbean\`, \`African\`, \`Cajun/Creole\`, \`Tex-Mex\`, \`Latin American\`, \`Soul Food\`, \`Brazilian\`, or \`Other\`. Use the dominant cuisine if the meal mixes traditions; fall back to \`Other\` if none fits. Match the casing and spelling exactly — no lowercase, no compound cuisines like "italian-american", no values outside this list. \`null\` only if the dish is genuinely cuisine-agnostic (e.g., "grain bowl with whatever's in the fridge").
 - **meal.estimatedPrepMinutes / estimatedCookMinutes** — positive integers. \`estimatedCookMinutes\` is TOTAL elapsed wall-clock cooking time from first heat to servable, INCLUDING unattended time — a slow-cooker braise is ~480, not the 15 minutes of hands-on work; a stew's long simmer and a marinade's rest count in full. \`estimatedPrepMinutes\` is the hands-on prep before cooking. Together they are the meal's total time a user reads as "how long until dinner," so never report only the active minutes for a long, mostly-unattended cook. The sum should roughly match the sum of all sub-dish step minutes; don't double-count steps that run in parallel across sub-dishes.
 - **meal.servingsDefault** — positive integer. Default to the input \`servings\`; only deviate if the dish itself implies a fixed yield (e.g., a 2-serving omelet).
 - **meal.difficulty** — \`easy\` (simple meal, ≤30 min total), \`medium\` (some technique, 30-60 min), or \`fancy\` (multi-step technique, 60+ min OR plating-intensive).
 - **meal.tags** — up to 5 informative lowercase strings (e.g., "italian", "weeknight", "lemon", "pan-seared"). Aim for 3. Skip generic filler like "dinner" or "homemade".
 - **meal.subDishes** — 1 to 5 entries. Order them as the user listed them: the main usually first, sauces/toppings last.
-- **subDish.title** — specific (e.g., "Arugula Salad" not "Salad") and short (42 characters or fewer). For a single-dish meal, the sub-dish title MAY match the meal title.
+- **subDish.title** — specific (e.g., "Arugula Salad" not "Salad"). For a single-dish meal, the sub-dish title MAY match the meal title.
 - **subDish.role** — \`main\` (entrée), \`side\` (vegetable, starch), \`sauce\` (dressing, gravy, dip), \`topping\` (garnish, finishing element), \`base\` (rice, grain, or starch underneath). Most meals: 1 main + 1-2 sides. Sauces and toppings are common but optional.
 - **subDish.positionIndex** — 0-indexed sequential integer in the order the sub-dishes appear in this response.
 - **ingredient.name** — lower-case unless a proper noun. Specific over generic ("pecorino romano" > "cheese"). Use realistic kitchen quantities scaled to \`servings\`.
@@ -816,7 +818,7 @@ If the constraints are too tight to produce 3 genuinely distinct candidates, ret
 - Allergies and avoidances in \`allergiesAndAvoidances\` are absolute exclusions for every ingredient in every meal.
 - Items in \`hiddenContext.equipment\`: only suggest meals the user can actually cook. If they don't have an Instant Pot, no Instant-Pot recipes; no smoker dishes without a smoker; no sous-vide without one.
 - Picky-eater avoidances inside \`additionalNotes\` or \`dietaryNotes\` (free-text) are exclusions for the household, treated with the same weight as allergies.
-- Meal titles are appetizing, specific, clear, and SHORT — aim for 42 characters or fewer and NEVER exceed 50. Name the dish the way you'd tell a friend what you cooked ("Harissa Chicken with Chickpeas"), not a full menu line ("Sheet-Pan Harissa Chicken Thighs with Chickpeas, Lemon & Herbed Yogurt"). Never "Grain Bowl Variation #3" or generic placeholders. The descriptive detail — sides, technique, garnishes — is authored into the recipe at the later detail stage, so keep it OUT of the title.
+- Meal titles are appetizing, specific, and clear. Never "Grain Bowl Variation #3" or generic placeholders. Titles read like real recipes a person would tell a friend they cooked.
 - Never suggest a meal whose core ingredient is missing in spirit (no "burgers" without buns, no "spaghetti" without pasta).
 
 # Soft preferences (PRD §11.7 weighting)
@@ -886,9 +888,9 @@ If \`cuisines\` is empty, default to a varied palette across American, Italian, 
 
 Plans and meal titles should sound like a friend recommending dinner, not an AI listing categories. "Sheet-pan harissa chicken with chickpeas" beats "Chicken Sheet-Pan Meal." "Tomato soup + grilled cheese" beats "Comfort Soup Combination."
 
-Give each candidate a THEMATIC title — a short, evocative name for the through-line the plan actually has (its season, cooking style, or mood), specific to THAT plan, never a recycled label. Keep it SHORT: aim for 42 characters or fewer and NEVER exceed 50. Titles should vary from run to run; a user generating plans two weeks apart should not see the same names.
+Give each candidate a THEMATIC title — a short, evocative name for the through-line the plan actually has (its season, cooking style, or mood), specific to THAT plan, never a recycled label. Titles should vary from run to run; a user generating plans two weeks apart should not see the same names.
 - DO name the through-line: "Grill Nights + Big Salads" for a hot-week plan, "Cozy One-Pot Comforts" for a low-effort week, "Bright Weeknight Mediterranean" for a fresh-and-fast week.
-- DON'T list the dishes. The candidate title is NOT a menu. Never string the meal names together ("Tacos, Stir-Fry, and Salmon") or enumerate them — the individual \`mealTitles\` already carry the dishes; the plan title names the theme over them.
+- DON'T list the dishes. The candidate title is NOT a menu. Never string the meal names together ("Tacos, Stir-Fry, and Salmon") or enumerate them — the individual \`mealTitles\` already carry the dishes (per the tone rule above); the plan title names the theme over them.
 - DON'T use empty templates ("Cozy Comfort Week," "Mediterranean Variety," "High-Protein Reset") — they say nothing about the specific dinners inside.
 - Never bake the dinner count into the title (no "Five Weeknight One-Pots," no "3-Night Reset") — the count is \`planDurationDays\` and varies.
 
@@ -937,6 +939,8 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 
 For the candidate the user picked (input below), expand each meal in \`mealTitles\` into a single object with:
 - \`title\` — the meal title (keep verbatim from \`mealTitles\`; this is how Kiwi tracks the meal across the candidate / expanded / saved states).
+- \`displayTitle\` — the SHORT name a person scans in a list: the core dish WITHOUT the sides ("Braised Beef Short Ribs" for a meal of short ribs with mashed potatoes and carrots). Title-cased, ≤42 chars, NEVER over 50. This does NOT replace \`title\` — \`title\` stays the tracking identity. When \`title\` is already a short core-dish name, you may repeat it here or omit \`displayTitle\` entirely (Kiwi then renders \`title\`).
+- \`description\` — a one-line, ≤160-char user-facing sub-text naming what's on the plate ("Seared short ribs over creamy mashed potatoes with roasted carrots"). Plain and appetizing — a real sentence, not a tagline, no puns, no byline.
 - \`cuisineType\` — short cuisine label ("Italian", "Mexican", "American", "Thai", "Mediterranean", etc.). Required.
 - \`estimatedTimeMinutes\` — integer total time in minutes including prep + cook. Required.
 - \`difficulty\` — one of \`easy | medium | fancy\`. Required.
@@ -1265,8 +1269,9 @@ Source recipes often combine multiple components ("Salmon with lemon caper sauce
 
 # Meal-level fields
 
-- \`title\` — appetizing, specific, and SHORT: aim for 42 characters or fewer and NEVER exceed 50. Strip publisher noise ("World's Best 5-Star Recipe for…" → "…") AND trim a long descriptive recipe name down to the core dish — the descriptive detail you trim goes into \`description\`, never the title. Title-cased.
-- \`description\` — one or two sentences summarizing the dish (cuisine, key ingredients, the result), absorbing any descriptive detail you trimmed out of \`title\`. If the source has a clean lede, use or adapt it. Otherwise write one.
+- \`title\` — appetizing, specific. Strip publisher noise ("World's Best 5-Star Recipe for…" → "…"). Title-cased.
+- \`displayTitle\` — the SHORT name a person scans in a list: the core dish WITHOUT the sides ("Braised Beef Short Ribs" for a title of "Braised Beef Short Ribs with Creamy Mashed Potatoes and Roasted Carrots"). Title-cased, ≤42 chars, NEVER over 50. This does NOT replace \`title\` — \`title\` stays the long, descriptive name; \`displayTitle\` is only the short list label. When the title is already short, you may repeat it or omit this field.
+- \`description\` — one or two sentences summarizing the dish (cuisine, key ingredients, the result). If the source has a clean lede, use or adapt it. Otherwise write one.
 - \`cuisineType\` — exact value from the closed cuisine list above. Use \`"Other"\` only when no listed cuisine fits.
 - \`mealType\` — exact value from the 5-value mealType enum above.
 - \`estimatedTimeMinutes\` — TOTAL elapsed wall-clock time from the first step to servable, INCLUDING unattended time. A slow-cooker braise is ~480, not the 15 minutes of hands-on work; a marinade's rest and a stew's long simmer count in full. Do not report only the active/hands-on minutes for a long, mostly-unattended cook. Use the source's stated total time if present; otherwise sum the step durations (accounting for parallel work).

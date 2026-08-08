@@ -66,6 +66,9 @@ interface PlanItemLite {
   meal: {
     id: string;
     title: string;
+    // WS9 3f-4d Part 1c (D-WS9-123/124) — in MEAL_LIST_SELECT.
+    displayTitle: string | null;
+    description: string | null;
     cuisineType: string | null;
     estimatedTimeMinutes: number;
     servingsDefault: number;

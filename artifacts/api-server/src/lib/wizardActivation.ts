@@ -214,6 +214,11 @@ export async function materializeWizardDraft(
         data: {
           userId,
           title: m.title,
+          // WS9 3f-4d Part 1c (D-WS9-123/124) — carry the short display name and
+          // one-line sub-text the expand path now authors (null-safe for drafts
+          // predating the fields).
+          displayTitle: m.displayTitle ?? null,
+          description: m.description ?? null,
           sourceType: "wizard",
           cuisineType: m.cuisineType,
           mealType: "dinner",

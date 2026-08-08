@@ -179,6 +179,9 @@ async function cloneMealInto(
     data: {
       userId,
       title: source.title,
+      // WS9 3f-4d Part 1c (D-WS9-123) — a fork carries the parent's short display
+      // name verbatim, exactly as it carries title/description.
+      displayTitle: source.displayTitle,
       description: source.description,
       mealType: source.mealType,
       sourceType: target.sourceTypeOverride ?? source.sourceType,
@@ -221,6 +224,8 @@ async function cloneMealInto(
       data: {
         userId,
         title: d.title,
+        // WS9 3f-4d Part 1c (D-WS9-123) — carry the parent dish's short display name.
+        displayTitle: d.displayTitle,
         description: d.description,
         sourceType: d.sourceType,
         estimatedTimeMinutes: d.estimatedTimeMinutes,

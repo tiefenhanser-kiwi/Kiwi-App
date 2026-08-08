@@ -90,6 +90,11 @@ function applyOverrides(
 export interface MealListItem {
   id: string;
   title: string;
+  // WS9 3f-4d Part 1c (D-WS9-123/124) — short display name + one-line sub-text.
+  // Null-passthrough on the wire (mirrors `image`); the client renders
+  // displayTitle via resolveDisplayTitle and shows description as a sub-line.
+  displayTitle: string | null;
+  description: string | null;
   cuisine: string;
   minutes: number;
   servings: number;
@@ -110,6 +115,8 @@ export interface MealListItem {
 export const MEAL_LIST_SELECT = {
   id: true,
   title: true,
+  displayTitle: true,
+  description: true,
   cuisineType: true,
   estimatedTimeMinutes: true,
   servingsDefault: true,
@@ -128,6 +135,8 @@ export const MEAL_LIST_SELECT = {
 export function toListShape(m: {
   id: string;
   title: string;
+  displayTitle: string | null;
+  description: string | null;
   cuisineType: string | null;
   estimatedTimeMinutes: number;
   servingsDefault: number;
@@ -142,6 +151,8 @@ export function toListShape(m: {
   return {
     id: m.id,
     title: m.title,
+    displayTitle: m.displayTitle ?? null,
+    description: m.description ?? null,
     cuisine: m.cuisineType ?? "",
     minutes: m.estimatedTimeMinutes,
     servings: m.servingsDefault,
@@ -469,8 +480,12 @@ function composeLoadedMealDetail(
     // tags, image. Detail-only fields keep their DB-style names.
     ...toListShape(meal),
     // A "just this time" rename rides on titleOverride; apply it over the
-    // canonical title when present.
-    ...(override?.titleOverride ? { title: override.titleOverride } : {}),
+    // canonical title when present. WS9 3f-4d Part 1c (D-WS9-123) — a per-plan
+    // rename makes the base short name stale, so null displayTitle too; the
+    // client's resolveDisplayTitle then falls back to the overridden title.
+    ...(override?.titleOverride
+      ? { title: override.titleOverride, displayTitle: null }
+      : {}),
     description: meal.description,
     difficulty: meal.difficulty,
     mealType: meal.mealType,
@@ -756,6 +771,10 @@ export function createMealsRouter(
         },
         take: limit + 1,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        // BUG-067 — should order by COALESCE(displayTitle, title) (the displayed
+        // string). Prisma orderBy can't express COALESCE; stays on `title`
+        // (correct while displayTitle is null pre-backfill). Fix gated behind the
+        // D-WS9-123 backfill — see the Part 1c report.
         orderBy: { title: "asc" },
       });
 

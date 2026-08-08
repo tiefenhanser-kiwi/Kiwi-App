@@ -387,6 +387,30 @@ test("MealListItemSchema parses a renamed-flat list row", () => {
   assert.equal(m.minutes, 40);
 });
 
+// WS9 3f-4d Part 1c (D-WS9-123/124) — displayTitle + description survive the
+// list schema (Part 1 had neither field, so they were stripped client-side even
+// when the server sent them).
+test("MealListItemSchema round-trips displayTitle + description", () => {
+  const m = MealListItemSchema.parse({
+    ...MEAL_LIST_RESPONSE.meals[0],
+    displayTitle: "Chicken Tikka",
+    description: "Yogurt-marinated chicken in a spiced tomato-cream sauce over basmati.",
+  });
+  assert.equal(m.displayTitle, "Chicken Tikka");
+  assert.equal(
+    m.description,
+    "Yogurt-marinated chicken in a spiced tomato-cream sauce over basmati.",
+  );
+});
+
+test("MealListItemSchema tolerates an older server that omits both new fields", () => {
+  // The fixture omits displayTitle/description — an un-redeployed server. The
+  // .optional() guard must not reject it (else every list read 500s post-deploy).
+  const m = MealListItemSchema.parse(MEAL_LIST_RESPONSE.meals[0]);
+  assert.equal(m.displayTitle, undefined);
+  assert.equal(m.description, undefined);
+});
+
 test("getMeals parses the meal-list response", async () => {
   nextResponse = () => mockJson(MEAL_LIST_RESPONSE);
   const res = await getMeals();

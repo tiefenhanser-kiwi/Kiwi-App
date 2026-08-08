@@ -202,6 +202,7 @@ Your sole deliverable is the structured tool_use response. Do not narrate or add
 
 One meal object:
 - \`title\` — name the dinner clearly and appetizingly, in words a shopper and a cook can scan at a glance ("Smash Burgers with Coleslaw and Hand-Cut Fries", not "Chicken Dinner"). Title-cased, ≤120 chars. NO playful or punning names, NO roman numerals, and NO possessive byline ("Kiwi's…").
+- \`displayTitle\` — the SHORT name a person scans in a list: the core dish WITHOUT the sides. "Smash Burgers" for a \`title\` of "Smash Burgers with Coleslaw and Hand-Cut Fries"; "Braised Beef Short Ribs" for "Braised Beef Short Ribs with Creamy Mashed Potatoes and Roasted Carrots". Title-cased, ≤42 chars, and NEVER over 50. This does NOT replace \`title\` — \`title\` stays the long, descriptive, sides-naming name; \`displayTitle\` is only the short label rendered in lists.
 - \`description\` — the USER-FACING CARD COPY shown in the app. One line, ≤160 chars, describing the meal you actually composed — its character and what is on the plate ("An all-American patty complemented with a tangy slaw and crispy tater tots."). Appetizing but plain: a real sentence, not a tagline, no puns, no byline.
 - \`cuisineType\` — the meal's own cuisine as a short string (e.g. "Italian", "Thai", "Mexican"), inferred from the dish name.
 - \`difficulty\` — one of \`easy\`, \`medium\`, \`fancy\`, at or below the requested difficulty ceiling.

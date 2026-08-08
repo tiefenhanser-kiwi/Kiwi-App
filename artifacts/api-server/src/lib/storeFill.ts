@@ -456,6 +456,9 @@ export function buildMaterializePayload(
 
   return {
     title: meal.title,
+    // WS9 3f-4d Part 1c (D-WS9-123) — short display name from the generate prompt
+    // → Meal.displayTitle. Nullable: a pre-field generate omits it (render title).
+    displayTitle: meal.displayTitle ?? null,
     // One-line headnote from the generate prompt → Meal.description. Nullable:
     // a meal generated before this field existed simply omits it.
     description: meal.description ?? null,

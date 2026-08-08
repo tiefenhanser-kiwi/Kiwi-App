@@ -187,6 +187,14 @@ export type ParsedSubDish = z.infer<typeof ParsedSubDishSchema>;
 
 export const ParsedMealSchema = z.object({
   title: z.string().min(1).max(200),
+  // WS9 3f-4d Part 1c (D-WS9-123) — short human-facing display name (the core
+  // dish, no sides), ≤50 hard. Distinct from the long canonical `title`; null =
+  // render title as-is. Persisted to Meal.displayTitle; resolved via resolveDisplayTitle.
+  displayTitle: z.string().max(50).optional(),
+  // WS9 3f-4d Part 1c (D-WS9-124) — one-line user-facing sub-text, what's on the
+  // plate. Matches the catalog voice (≤160 chars; schema cap 200 for BUG-045
+  // slack). Optional; persisted to Meal.description.
+  description: z.string().max(200).optional(),
   // CuisineTypeEnum (title-case 24+Other) so Mode A output persists
   // cleanly into Meal.cuisineType during save-canonical (WS7-6).
   // Nullable when the description doesn't imply a cuisine (e.g. "grain bowl").

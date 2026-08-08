@@ -140,6 +140,9 @@ export type MaterializeMealDish =
 
 export interface MaterializeMealPayload {
   title: string;
+  // WS9 3f-4d Part 1c (D-WS9-123) — short display name, rides alongside the long
+  // canonical title. Null = render title as-is.
+  displayTitle?: string | null;
   description?: string | null;
   cuisineType?: string | null;
   // Q2: ParsedMeal has no mealType. When omitted, the materializer
@@ -273,6 +276,7 @@ export async function materializeMeal(
     data: {
       userId: ownerUserId,
       title: payload.title,
+      displayTitle: payload.displayTitle ?? null,
       description: payload.description ?? null,
       cuisineType: payload.cuisineType ?? null,
       // Deliberate: Mode A has no mealType; picker is a Block-6 concern, not a TODO.
