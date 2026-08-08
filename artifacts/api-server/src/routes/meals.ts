@@ -95,6 +95,13 @@ export interface MealListItem {
   // displayTitle via resolveDisplayTitle and shows description as a sub-line.
   displayTitle: string | null;
   description: string | null;
+  // WS9 3f-4d Part 1d (D-WS9-125) — the meal's dish titles, MAIN FIRST then
+  // authoring order, for the multi-dish sub-line ("Chicken Tenders · Honey
+  // Mustard Slaw · Roasted Potatoes"). Sourced from the existing MealDishLink
+  // relation — no AI, no cap, no backfill. Always an array (empty when the meal
+  // has no dishes or the query didn't select them). The short-title program
+  // (displayTitle authoring) it replaces is abandoned.
+  dishTitles: string[];
   cuisine: string;
   minutes: number;
   servings: number;
@@ -127,6 +134,15 @@ export const MEAL_LIST_SELECT = {
   fatGPerServing: true,
   tags: true,
   imageUrl: true,
+  // WS9 3f-4d Part 1d (D-WS9-125) — dish titles for the multi-dish sub-line.
+  // A nested relation select ordered by positionIndex; toListShape re-sorts
+  // main-first. Bounded by the caller's page size (this select is only ever
+  // issued on paginated list queries), so the cost scales with the page, not
+  // the catalog. `roleLabel` distinguishes the main dish.
+  dishLinks: {
+    orderBy: { positionIndex: "asc" },
+    select: { roleLabel: true, dish: { select: { title: true } } },
+  },
 } as const;
 
 // GET /meals list shape. Field names are renamed/flattened from the DB
@@ -147,12 +163,21 @@ export function toListShape(m: {
   fatGPerServing: number;
   tags: string[];
   imageUrl: string | null;
+  // WS9 3f-4d Part 1d (D-WS9-125) — optional so callers that don't select the
+  // relation (a rare lean projection) degrade to an empty dishTitles array.
+  dishLinks?: { roleLabel: string; dish: { title: string } }[];
 }): MealListItem {
+  // Main dish first (roleLabel === "main"), otherwise preserve the query's
+  // positionIndex order. A stable sort keeps ties in authoring order.
+  const dishTitles = [...(m.dishLinks ?? [])]
+    .sort((a, b) => (a.roleLabel === "main" ? 0 : 1) - (b.roleLabel === "main" ? 0 : 1))
+    .map((l) => l.dish.title);
   return {
     id: m.id,
     title: m.title,
     displayTitle: m.displayTitle ?? null,
     description: m.description ?? null,
+    dishTitles,
     cuisine: m.cuisineType ?? "",
     minutes: m.estimatedTimeMinutes,
     servings: m.servingsDefault,
@@ -756,19 +781,13 @@ export function createMealsRouter(
     try {
       const meals = await prisma.meal.findMany({
         where: { isArchived: false, isPublic: true },
-        select: {
-          id: true,
-          title: true,
-          cuisineType: true,
-          estimatedTimeMinutes: true,
-          servingsDefault: true,
-          caloriesPerServing: true,
-          proteinGPerServing: true,
-          carbsGPerServing: true,
-          fatGPerServing: true,
-          tags: true,
-          imageUrl: true,
-        },
+        // BUG-068 — this inline select predated Part 1c and silently dropped
+        // displayTitle / description / authoredServingsDefault (toListShape read
+        // them as undefined → null via .map() parameter bivariance, so tsc never
+        // flagged it and catalog rows lost their description). Use the shared
+        // MEAL_LIST_SELECT so this list matches GET /me/meals exactly and gains
+        // the D-WS9-125 dishLinks in one move.
+        select: MEAL_LIST_SELECT,
         take: limit + 1,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
         // BUG-067 — should order by COALESCE(displayTitle, title) (the displayed

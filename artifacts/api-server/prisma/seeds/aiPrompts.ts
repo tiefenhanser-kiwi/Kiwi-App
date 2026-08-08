@@ -471,7 +471,6 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 # Field rules
 
 - **meal.title** — appetizing and specific. Mirror the user's description without padding (e.g., "Chicken Piccata with Arugula Salad" not "AI-Generated Italian Dinner"). Title-cased.
-- **meal.displayTitle** — the SHORT name a person scans in a list: the core dish WITHOUT the sides ("Chicken Piccata" for a title of "Chicken Piccata with Arugula Salad"). Title-cased, ≤42 chars, NEVER over 50. This does NOT replace \`title\` — \`title\` stays the full, descriptive name; \`displayTitle\` is only the short list label. When the title is already short, you may repeat it or omit this field.
 - **meal.description** — one line, ≤160 chars, naming what's on the plate ("Lemon-caper chicken piccata over a bright arugula salad"). Plain and appetizing — a real sentence, not a tagline, no puns, no byline.
 - **meal.cuisine** — pick EXACTLY ONE value from Kiwi's canonical title-case catalog: \`American\`, \`Italian\`, \`Mexican\`, \`Asian\`, \`Mediterranean\`, \`Indian\`, \`Comfort Food\`, \`BBQ/Grill\`, \`Chinese\`, \`Japanese\`, \`Thai\`, \`Vietnamese\`, \`Korean\`, \`Middle Eastern\`, \`French\`, \`Spanish\`, \`Greek\`, \`Caribbean\`, \`African\`, \`Cajun/Creole\`, \`Tex-Mex\`, \`Latin American\`, \`Soul Food\`, \`Brazilian\`, or \`Other\`. Use the dominant cuisine if the meal mixes traditions; fall back to \`Other\` if none fits. Match the casing and spelling exactly — no lowercase, no compound cuisines like "italian-american", no values outside this list. \`null\` only if the dish is genuinely cuisine-agnostic (e.g., "grain bowl with whatever's in the fridge").
 - **meal.estimatedPrepMinutes / estimatedCookMinutes** — positive integers. \`estimatedCookMinutes\` is TOTAL elapsed wall-clock cooking time from first heat to servable, INCLUDING unattended time — a slow-cooker braise is ~480, not the 15 minutes of hands-on work; a stew's long simmer and a marinade's rest count in full. \`estimatedPrepMinutes\` is the hands-on prep before cooking. Together they are the meal's total time a user reads as "how long until dinner," so never report only the active minutes for a long, mostly-unattended cook. The sum should roughly match the sum of all sub-dish step minutes; don't double-count steps that run in parallel across sub-dishes.
@@ -939,7 +938,6 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 
 For the candidate the user picked (input below), expand each meal in \`mealTitles\` into a single object with:
 - \`title\` — the meal title (keep verbatim from \`mealTitles\`; this is how Kiwi tracks the meal across the candidate / expanded / saved states).
-- \`displayTitle\` — the SHORT name a person scans in a list: the core dish WITHOUT the sides ("Braised Beef Short Ribs" for a meal of short ribs with mashed potatoes and carrots). Title-cased, ≤42 chars, NEVER over 50. This does NOT replace \`title\` — \`title\` stays the tracking identity. When \`title\` is already a short core-dish name, you may repeat it here or omit \`displayTitle\` entirely (Kiwi then renders \`title\`).
 - \`description\` — a one-line, ≤160-char user-facing sub-text naming what's on the plate ("Seared short ribs over creamy mashed potatoes with roasted carrots"). Plain and appetizing — a real sentence, not a tagline, no puns, no byline.
 - \`cuisineType\` — short cuisine label ("Italian", "Mexican", "American", "Thai", "Mediterranean", etc.). Required.
 - \`estimatedTimeMinutes\` — integer total time in minutes including prep + cook. Required.
@@ -1270,7 +1268,6 @@ Source recipes often combine multiple components ("Salmon with lemon caper sauce
 # Meal-level fields
 
 - \`title\` — appetizing, specific. Strip publisher noise ("World's Best 5-Star Recipe for…" → "…"). Title-cased.
-- \`displayTitle\` — the SHORT name a person scans in a list: the core dish WITHOUT the sides ("Braised Beef Short Ribs" for a title of "Braised Beef Short Ribs with Creamy Mashed Potatoes and Roasted Carrots"). Title-cased, ≤42 chars, NEVER over 50. This does NOT replace \`title\` — \`title\` stays the long, descriptive name; \`displayTitle\` is only the short list label. When the title is already short, you may repeat it or omit this field.
 - \`description\` — one or two sentences summarizing the dish (cuisine, key ingredients, the result). If the source has a clean lede, use or adapt it. Otherwise write one.
 - \`cuisineType\` — exact value from the closed cuisine list above. Use \`"Other"\` only when no listed cuisine fits.
 - \`mealType\` — exact value from the 5-value mealType enum above.

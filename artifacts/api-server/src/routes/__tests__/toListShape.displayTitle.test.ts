@@ -45,3 +45,31 @@ describe("toListShape — displayTitle + description round-trip", () => {
     assert.equal(row.description, null);
   });
 });
+
+// WS9 3f-4d Part 1d (D-WS9-125) — toListShape derives dishTitles (main first)
+// from the MealDishLink relation for the multi-dish sub-line.
+describe("toListShape — dishTitles derivation", () => {
+  it("orders the main dish first, then authoring order", () => {
+    const row = toListShape({
+      ...BASE,
+      displayTitle: null,
+      description: null,
+      // Deliberately out of order: main is not first in the input array.
+      dishLinks: [
+        { roleLabel: "base", dish: { title: "Creamy Mashed Potatoes" } },
+        { roleLabel: "side", dish: { title: "Roasted Carrots" } },
+        { roleLabel: "main", dish: { title: "Braised Beef Short Ribs" } },
+      ],
+    });
+    assert.deepEqual(row.dishTitles, [
+      "Braised Beef Short Ribs", // main hoisted to front
+      "Creamy Mashed Potatoes",
+      "Roasted Carrots",
+    ]);
+  });
+
+  it("defaults to an empty array when the relation was not selected", () => {
+    const row = toListShape({ ...BASE, displayTitle: null, description: null });
+    assert.deepEqual(row.dishTitles, []);
+  });
+});

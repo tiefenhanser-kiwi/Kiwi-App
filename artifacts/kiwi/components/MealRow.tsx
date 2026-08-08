@@ -56,6 +56,16 @@ export function MealRow({
   // pill on empty strings so the row stays clean.
   const cuisineTag = meal.cuisine.length > 0 ? meal.cuisine : null;
   const meta = `${meal.minutes} min · serves ${meal.servings}`;
+  // WS9 3f-4d Part 1d (D-WS9-125) — a Kiwi meal is a composite of separate Dish
+  // rows, so a multi-dish meal enumerates them on a sub-line ("Chicken Tenders ·
+  // Honey Mustard Slaw · Roasted Potatoes") using the ` · ` separator the meta
+  // line already uses. Server orders them main-first. Only shown for MORE THAN
+  // ONE dish — a single-dish meal would just repeat its own title. On multi-dish
+  // meals the dish line REPLACES the description sub-text (two stacked sub-lines
+  // is too much for a list row, and dish titles are more actionable); single-dish
+  // meals keep the description. `?? []` guards callers that don't populate it.
+  const dishTitles = meal.dishTitles ?? [];
+  const dishLine = dishTitles.length > 1 ? dishTitles.join(" · ") : null;
 
   return (
     <View style={styles.row}>
@@ -76,9 +86,14 @@ export function MealRow({
         </View>
         <View style={styles.body}>
           <DisplayTitle source={meal} variant="row" style={styles.title} />
-          {/* WS9 3f-4d Part 1c (D-WS9-124) — one-line sub-text ("what's on the
-              plate"). Omitted entirely when absent (no empty gap/placeholder). */}
-          {meal.description ? (
+          {/* WS9 3f-4d Part 1d (D-WS9-125) — dish sub-line on multi-dish meals;
+              falls back to the Part 1c description sub-text on single-dish meals.
+              Both truncate to one line and are omitted entirely when absent. */}
+          {dishLine ? (
+            <Text style={styles.description} numberOfLines={1}>
+              {dishLine}
+            </Text>
+          ) : meal.description ? (
             <Text style={styles.description} numberOfLines={1}>
               {meal.description}
             </Text>

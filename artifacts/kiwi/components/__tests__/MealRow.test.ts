@@ -101,3 +101,86 @@ test("D-WS9-124: MealRow omits the sub-text line entirely when description is nu
 
   renderer.unmount();
 });
+
+// WS9 3f-4d Part 1d (D-WS9-125) — the multi-dish sub-line.
+async function renderRow(meal: MealListItem): Promise<TestRenderer.ReactTestRenderer> {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(MealRow, {
+        meal,
+        onPress: () => {},
+        onCookNow: () => {},
+        onAddToPlan: () => {},
+      }),
+    );
+  });
+  return renderer;
+}
+
+const DISH_LINE = "Chicken Tenders · Honey Mustard Slaw · Roasted Potatoes";
+
+test("D-WS9-125: MealRow shows the dish sub-line (joined) when the meal has >1 dish", async () => {
+  const renderer = await renderRow({
+    ...MEAL,
+    dishTitles: ["Chicken Tenders", "Honey Mustard Slaw", "Roasted Potatoes"],
+  });
+  const node = renderer.root.findAll(
+    (n) => typeof n.props?.children === "string" && n.props.children === DISH_LINE,
+  )[0];
+  assert.ok(node, "dish sub-line node found");
+  assert.equal(node.props.numberOfLines, 1, "dish line clamps to one line");
+  renderer.unmount();
+});
+
+test("D-WS9-125: MealRow shows NO dish sub-line for exactly one dish", async () => {
+  const renderer = await renderRow({ ...MEAL, dishTitles: ["Baked Salmon"] });
+  const nodes = renderer.root.findAll(
+    (n) => typeof n.props?.children === "string" && n.props.children === "Baked Salmon",
+  );
+  assert.equal(nodes.length, 0, "single dish never repeats itself as a sub-line");
+  renderer.unmount();
+});
+
+test("D-WS9-125: MealRow shows NO dish sub-line for zero dishes", async () => {
+  const renderer = await renderRow({ ...MEAL, dishTitles: [] });
+  // The only ` · `-joined string on the row would be the dish line; the meta
+  // line uses ` · ` too, so assert specifically that no >1-dish line rendered by
+  // checking the join of the (empty) titles is absent.
+  const nodes = renderer.root.findAll(
+    (n) => typeof n.props?.children === "string" && n.props.children.includes(" · ") &&
+      !n.props.children.includes("min"),
+  );
+  assert.equal(nodes.length, 0, "no dish sub-line for zero dishes");
+  renderer.unmount();
+});
+
+test("D-WS9-125: dish line REPLACES description on a multi-dish meal (precedence)", async () => {
+  const renderer = await renderRow({
+    ...MEAL,
+    description: DESCRIPTION,
+    dishTitles: ["Chicken Tenders", "Honey Mustard Slaw", "Roasted Potatoes"],
+  });
+  const dishNode = renderer.root.findAll(
+    (n) => typeof n.props?.children === "string" && n.props.children === DISH_LINE,
+  );
+  const descNode = renderer.root.findAll(
+    (n) => typeof n.props?.children === "string" && n.props.children === DESCRIPTION,
+  );
+  assert.ok(dishNode.length >= 1, "dish line shown on multi-dish meal");
+  assert.equal(descNode.length, 0, "description suppressed when the dish line shows");
+  renderer.unmount();
+});
+
+test("D-WS9-125: single-dish meal keeps the description line", async () => {
+  const renderer = await renderRow({
+    ...MEAL,
+    description: DESCRIPTION,
+    dishTitles: ["Baked Salmon"],
+  });
+  const descNode = renderer.root.findAll(
+    (n) => typeof n.props?.children === "string" && n.props.children === DESCRIPTION,
+  );
+  assert.ok(descNode.length >= 1, "single-dish meal falls back to the description line");
+  renderer.unmount();
+});
