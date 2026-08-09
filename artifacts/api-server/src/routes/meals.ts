@@ -95,14 +95,6 @@ export interface MealListItem {
   // displayTitle via resolveDisplayTitle and shows description as a sub-line.
   displayTitle: string | null;
   description: string | null;
-  // WS9 3f-4d Part 1e (D-WS9-126) — the meal's SIDE dish titles (main EXCLUDED),
-  // in authoring order, for the multi-dish sub-line ("Roasted Garlic Mashed
-  // Potatoes · Sautéed Green Beans"). The main dish title nearly duplicates the
-  // meal title, so it is dropped (Part 1d showed all dishes and just restated the
-  // title). Sourced from the existing MealDishLink relation — no AI, no cap, no
-  // backfill. Always an array; empty when the meal has no non-main dishes or the
-  // query didn't select the relation → the client falls back to `description`.
-  dishTitles: string[];
   cuisine: string;
   minutes: number;
   servings: number;
@@ -135,15 +127,6 @@ export const MEAL_LIST_SELECT = {
   fatGPerServing: true,
   tags: true,
   imageUrl: true,
-  // WS9 3f-4d Part 1d (D-WS9-125) — dish titles for the multi-dish sub-line.
-  // A nested relation select ordered by positionIndex; toListShape re-sorts
-  // main-first. Bounded by the caller's page size (this select is only ever
-  // issued on paginated list queries), so the cost scales with the page, not
-  // the catalog. `roleLabel` distinguishes the main dish.
-  dishLinks: {
-    orderBy: { positionIndex: "asc" },
-    select: { roleLabel: true, dish: { select: { title: true } } },
-  },
 } as const;
 
 // GET /meals list shape. Field names are renamed/flattened from the DB
@@ -164,37 +147,12 @@ export function toListShape(m: {
   fatGPerServing: number;
   tags: string[];
   imageUrl: string | null;
-  // WS9 3f-4d Part 1d (D-WS9-125) — optional so callers that don't select the
-  // relation (a rare lean projection) degrade to an empty dishTitles array.
-  dishLinks?: { roleLabel: string; dish: { title: string } }[];
 }): MealListItem {
-  // WS9 3f-4d Part 1e (D-WS9-126) — SIDES ONLY: exclude the main dish. The
-  // generator names dishes descriptively, so the main's title nearly duplicates
-  // the meal title (Part 1d shipped a sub-line that just restated + re-truncated
-  // the title). Showing only the non-main dishes names what the truncated title
-  // hid ("Roasted Garlic Mashed Potatoes · Sautéed Green Beans"). roleLabel is a
-  // reliable enum — every multi-dish meal has exactly one `main` (live-DB
-  // verified, D-WS9-126) — so filtering on it is authoritative; no positionIndex
-  // fallback is needed. The query already orders by positionIndex, so filtering
-  // preserves authoring order.
-  //
-  // The sub-line GATE is the FULL dish count (> 1), not the side count: a
-  // single-dish meal shows none, a 2-dish meal shows its one side. That gate is
-  // enforced HERE (dishTitles stays empty for single-dish meals) so the wire
-  // shape stays a bare `string[]` and the client just renders what it's given.
-  // Empty result (single-dish, or a multi-dish meal that is somehow all-main) →
-  // no sub-line; the client falls back to `description`.
-  const allLinks = m.dishLinks ?? [];
-  const dishTitles =
-    allLinks.length > 1
-      ? allLinks.filter((l) => l.roleLabel !== "main").map((l) => l.dish.title)
-      : [];
   return {
     id: m.id,
     title: m.title,
     displayTitle: m.displayTitle ?? null,
     description: m.description ?? null,
-    dishTitles,
     cuisine: m.cuisineType ?? "",
     minutes: m.estimatedTimeMinutes,
     servings: m.servingsDefault,
@@ -802,8 +760,7 @@ export function createMealsRouter(
         // displayTitle / description / authoredServingsDefault (toListShape read
         // them as undefined → null via .map() parameter bivariance, so tsc never
         // flagged it and catalog rows lost their description). Use the shared
-        // MEAL_LIST_SELECT so this list matches GET /me/meals exactly and gains
-        // the D-WS9-125 dishLinks in one move.
+        // MEAL_LIST_SELECT so this list matches GET /me/meals exactly.
         select: MEAL_LIST_SELECT,
         take: limit + 1,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

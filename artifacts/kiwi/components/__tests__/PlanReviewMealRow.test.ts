@@ -124,7 +124,7 @@ async function render(overrides: Record<string, unknown> = {}) {
   return { renderer, calls, tree: renderer.toJSON() as RenderedNode | null };
 }
 
-test("BUG-065: the meal title renders on two lines so a long title is not truncated to indistinguishability", async () => {
+test("D-WS9-127: the meal title renders on up to three lines so a long title is not truncated to indistinguishability", async () => {
   const longTitle =
     "Air Fryer Crispy Chicken Tenders with Honey Mustard and a Simple Green Salad";
   const { renderer } = await render({ row: { ...ROW, title: longTitle } });
@@ -132,7 +132,8 @@ test("BUG-065: the meal title renders on two lines so a long title is not trunca
     (n) => typeof n.props?.children === "string" && n.props.children === longTitle,
   )[0];
   assert.ok(titleNode, "title node found");
-  assert.equal(titleNode.props.numberOfLines, 2, "meal title allows two lines");
+  // WS9 3f-4d Part 1f (D-WS9-127) — row variant grew 2 → 3 lines via the DisplayTitle primitive.
+  assert.equal(titleNode.props.numberOfLines, 3, "meal title allows three lines");
   renderer.unmount();
 });
 

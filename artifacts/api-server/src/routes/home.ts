@@ -80,8 +80,6 @@ interface PlanItemLite {
     fatGPerServing: number;
     tags: string[];
     imageUrl: string | null;
-    // WS9 3f-4d Part 1d (D-WS9-125) — dish titles for the sub-line (in MEAL_LIST_SELECT).
-    dishLinks: { roleLabel: string; dish: { title: string } }[];
   };
 }
 

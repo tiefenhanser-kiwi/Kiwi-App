@@ -66,7 +66,12 @@ export type DisplayTitleVariant = "row" | "slim" | "railCard" | "hero";
 // uncapped (wraps freely) for the detail-screen hero titles that were
 // deliberately left uncapped.
 const VARIANT_LINES: Record<DisplayTitleVariant, number | undefined> = {
-  row: 2, // list rows — grow to two lines then truncate
+  // WS9 3f-4d Part 1f (D-WS9-127) — row grows to THREE lines then truncates.
+  // The dish sub-line was abandoned (dish titles are as descriptive as meal
+  // titles, so it duplicated/re-truncated the title); a third line instead lets
+  // the longest ~10% of composite titles render in full, and the row grows only
+  // when the text needs it (a 1-2 line title still renders at its natural height).
+  row: 3, // list rows — grow to three lines then truncate
   slim: 1, // fixed-height strips / one-line plan-name caps
   railCard: 2, // TriedTrueCard (fixed 150px width; the rail edge still clips)
   hero: undefined, // detail-screen hero titles — wrap freely

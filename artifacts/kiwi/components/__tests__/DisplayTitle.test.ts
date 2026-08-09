@@ -75,12 +75,13 @@ function renderTitle(props: React.ComponentProps<typeof DisplayTitle>) {
   return renderer.root.findByType(Text);
 }
 
-test("DisplayTitle: variant 'row' caps at 2 lines and renders resolved text", () => {
+test("DisplayTitle: variant 'row' caps at 3 lines and renders resolved text", () => {
   const node = renderTitle({
     source: { title: "Canonical", displayTitle: "Short name" },
     variant: "row",
   });
-  assert.equal(node.props.numberOfLines, 2);
+  // WS9 3f-4d Part 1f (D-WS9-127) — row grew 2 → 3 lines (dish sub-line abandoned).
+  assert.equal(node.props.numberOfLines, 3);
   assert.equal(node.props.ellipsizeMode, "tail");
   assert.equal(node.props.children, "Short name");
 });

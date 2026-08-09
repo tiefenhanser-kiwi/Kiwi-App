@@ -612,7 +612,7 @@ test("BUG-061 (Similar): the source's title is excluded from the candidate paylo
   renderer.unmount();
 });
 
-test("§5.1: meal titles wrap to two lines before truncating", async () => {
+test("§5.1 / D-WS9-127: meal titles wrap to up to three lines before truncating", async () => {
   fetchImpl = () => ({ ok: true, status: 200, text: async () => "{}" });
   const renderer = await renderSheet("different");
 
@@ -622,10 +622,11 @@ test("§5.1: meal titles wrap to two lines before truncating", async () => {
     return s === "Chicken Tacos";
   });
   assert.ok(titleNode, "meal title node not found");
+  // WS9 3f-4d Part 1f (D-WS9-127) — row variant grew 2 → 3 lines via the DisplayTitle primitive.
   assert.equal(
     titleNode!.props.numberOfLines,
-    2,
-    "meal title must allow two lines so a distinguishing suffix is not truncated",
+    3,
+    "meal title must allow three lines so a distinguishing suffix is not truncated",
   );
 
   renderer.unmount();

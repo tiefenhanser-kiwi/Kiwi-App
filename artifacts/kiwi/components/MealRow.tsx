@@ -56,18 +56,6 @@ export function MealRow({
   // pill on empty strings so the row stays clean.
   const cuisineTag = meal.cuisine.length > 0 ? meal.cuisine : null;
   const meta = `${meal.minutes} min · serves ${meal.servings}`;
-  // WS9 3f-4d Part 1e (D-WS9-126) — a Kiwi meal is a composite of separate Dish
-  // rows whose titles are each descriptive, so the MAIN dish nearly duplicates
-  // the meal title. The sub-line therefore lists the SIDE dishes only ("Roasted
-  // Garlic Mashed Potatoes · Sautéed Green Beans"), naming what the truncated
-  // title above hid. The server already excludes the main AND enforces the
-  // multi-dish gate (dishTitles is non-empty only for a multi-dish meal that has
-  // at least one side), so here we render whenever it's non-empty. On such meals
-  // the dish line REPLACES the description sub-text; single-dish meals (empty
-  // dishTitles) fall back to `description`. `?? []` guards callers that don't
-  // populate it.
-  const dishTitles = meal.dishTitles ?? [];
-  const dishLine = dishTitles.length > 0 ? dishTitles.join(" · ") : null;
 
   return (
     <View style={styles.row}>
@@ -88,14 +76,9 @@ export function MealRow({
         </View>
         <View style={styles.body}>
           <DisplayTitle source={meal} variant="row" style={styles.title} />
-          {/* WS9 3f-4d Part 1d (D-WS9-125) — dish sub-line on multi-dish meals;
-              falls back to the Part 1c description sub-text on single-dish meals.
-              Both truncate to one line and are omitted entirely when absent. */}
-          {dishLine ? (
-            <Text style={styles.description} numberOfLines={1}>
-              {dishLine}
-            </Text>
-          ) : meal.description ? (
+          {/* WS9 3f-4d Part 1c (D-WS9-124) — one-line "what's on the plate"
+              sub-text. Omitted entirely when absent (no empty gap/placeholder). */}
+          {meal.description ? (
             <Text style={styles.description} numberOfLines={1}>
               {meal.description}
             </Text>
