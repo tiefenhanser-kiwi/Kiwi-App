@@ -176,10 +176,11 @@ export const MealListItemSchema = z.object({
   // present value is null or a string. Rendered via resolveDisplayTitle + MealRow.
   displayTitle: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
-  // WS9 3f-4d Part 1d (D-WS9-125) — the meal's dish titles (main first) for the
-  // multi-dish sub-line on MealRow. .optional() (like displayTitle/description)
-  // guards an older server that omits the field; MealRow coalesces with `?? []`
-  // and gates on length > 1.
+  // WS9 3f-4d Part 1e (D-WS9-126) — the meal's SIDE dish titles (main excluded)
+  // for the multi-dish sub-line on MealRow. Server-populated only for multi-dish
+  // meals with ≥1 side (the multi-dish gate is enforced server-side), so MealRow
+  // renders whenever non-empty. .optional() (like displayTitle/description)
+  // guards an older server that omits the field; MealRow coalesces with `?? []`.
   dishTitles: z.array(z.string()).optional(),
   cuisine: z.string(),
   minutes: z.number(),

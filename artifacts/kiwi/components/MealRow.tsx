@@ -56,16 +56,18 @@ export function MealRow({
   // pill on empty strings so the row stays clean.
   const cuisineTag = meal.cuisine.length > 0 ? meal.cuisine : null;
   const meta = `${meal.minutes} min · serves ${meal.servings}`;
-  // WS9 3f-4d Part 1d (D-WS9-125) — a Kiwi meal is a composite of separate Dish
-  // rows, so a multi-dish meal enumerates them on a sub-line ("Chicken Tenders ·
-  // Honey Mustard Slaw · Roasted Potatoes") using the ` · ` separator the meta
-  // line already uses. Server orders them main-first. Only shown for MORE THAN
-  // ONE dish — a single-dish meal would just repeat its own title. On multi-dish
-  // meals the dish line REPLACES the description sub-text (two stacked sub-lines
-  // is too much for a list row, and dish titles are more actionable); single-dish
-  // meals keep the description. `?? []` guards callers that don't populate it.
+  // WS9 3f-4d Part 1e (D-WS9-126) — a Kiwi meal is a composite of separate Dish
+  // rows whose titles are each descriptive, so the MAIN dish nearly duplicates
+  // the meal title. The sub-line therefore lists the SIDE dishes only ("Roasted
+  // Garlic Mashed Potatoes · Sautéed Green Beans"), naming what the truncated
+  // title above hid. The server already excludes the main AND enforces the
+  // multi-dish gate (dishTitles is non-empty only for a multi-dish meal that has
+  // at least one side), so here we render whenever it's non-empty. On such meals
+  // the dish line REPLACES the description sub-text; single-dish meals (empty
+  // dishTitles) fall back to `description`. `?? []` guards callers that don't
+  // populate it.
   const dishTitles = meal.dishTitles ?? [];
-  const dishLine = dishTitles.length > 1 ? dishTitles.join(" · ") : null;
+  const dishLine = dishTitles.length > 0 ? dishTitles.join(" · ") : null;
 
   return (
     <View style={styles.row}>

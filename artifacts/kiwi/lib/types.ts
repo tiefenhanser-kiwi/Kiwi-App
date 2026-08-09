@@ -466,8 +466,8 @@ export interface MealSummary {
   // WS9 3f-4d Part 1c (D-WS9-123) — short display name; resolveDisplayTitle reads
   // it for render + A–Z sort (BUG-067). Optional: picker DTOs populate it in Part 2.
   displayTitle?: string | null;
-  // WS9 3f-4d Part 1d (D-WS9-125) — dish titles (main first) for the multi-dish
-  // sub-line. Optional: picker DTOs populate it in Part 2.
+  // WS9 3f-4d Part 1e (D-WS9-126) — SIDE dish titles (main excluded) for the
+  // multi-dish sub-line. Optional: picker DTOs populate it in Part 2.
   dishTitles?: string[];
   cuisineType?: string;
   difficulty: "easy" | "medium" | "hard";

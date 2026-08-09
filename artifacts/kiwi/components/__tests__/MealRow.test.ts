@@ -102,7 +102,11 @@ test("D-WS9-124: MealRow omits the sub-text line entirely when description is nu
   renderer.unmount();
 });
 
-// WS9 3f-4d Part 1d (D-WS9-125) — the multi-dish sub-line.
+// WS9 3f-4d Part 1e (D-WS9-126) — the SIDES-ONLY sub-line. `dishTitles` is the
+// server's already-filtered output: side dishes only, non-empty ONLY for a
+// multi-dish meal that has ≥1 side (the main is excluded and the multi-dish gate
+// is enforced server-side). So MealRow shows the line whenever dishTitles is
+// non-empty, and falls back to `description` when it's empty.
 async function renderRow(meal: MealListItem): Promise<TestRenderer.ReactTestRenderer> {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
@@ -118,69 +122,71 @@ async function renderRow(meal: MealListItem): Promise<TestRenderer.ReactTestRend
   return renderer;
 }
 
-const DISH_LINE = "Chicken Tenders · Honey Mustard Slaw · Roasted Potatoes";
+const SIDES_LINE = "Honey Mustard Slaw · Roasted Potatoes";
 
-test("D-WS9-125: MealRow shows the dish sub-line (joined) when the meal has >1 dish", async () => {
+test("D-WS9-126: MealRow shows the sides sub-line (joined), main already excluded", async () => {
   const renderer = await renderRow({
     ...MEAL,
-    dishTitles: ["Chicken Tenders", "Honey Mustard Slaw", "Roasted Potatoes"],
+    dishTitles: ["Honey Mustard Slaw", "Roasted Potatoes"],
   });
   const node = renderer.root.findAll(
-    (n) => typeof n.props?.children === "string" && n.props.children === DISH_LINE,
+    (n) => typeof n.props?.children === "string" && n.props.children === SIDES_LINE,
   )[0];
-  assert.ok(node, "dish sub-line node found");
-  assert.equal(node.props.numberOfLines, 1, "dish line clamps to one line");
+  assert.ok(node, "sides sub-line node found");
+  assert.equal(node.props.numberOfLines, 1, "sides line clamps to one line");
   renderer.unmount();
 });
 
-test("D-WS9-125: MealRow shows NO dish sub-line for exactly one dish", async () => {
-  const renderer = await renderRow({ ...MEAL, dishTitles: ["Baked Salmon"] });
+test("D-WS9-126: MealRow shows the single side of a 2-dish meal", async () => {
+  const renderer = await renderRow({ ...MEAL, dishTitles: ["Warm Store-Bought Roti"] });
   const nodes = renderer.root.findAll(
-    (n) => typeof n.props?.children === "string" && n.props.children === "Baked Salmon",
+    (n) =>
+      typeof n.props?.children === "string" &&
+      n.props.children === "Warm Store-Bought Roti",
   );
-  assert.equal(nodes.length, 0, "single dish never repeats itself as a sub-line");
+  assert.ok(nodes.length >= 1, "a 2-dish meal shows its one side");
   renderer.unmount();
 });
 
-test("D-WS9-125: MealRow shows NO dish sub-line for zero dishes", async () => {
-  const renderer = await renderRow({ ...MEAL, dishTitles: [] });
-  // The only ` · `-joined string on the row would be the dish line; the meta
-  // line uses ` · ` too, so assert specifically that no >1-dish line rendered by
-  // checking the join of the (empty) titles is absent.
+test("D-WS9-126: MealRow shows NO sub-line when dishTitles is empty (single-dish / all-main)", async () => {
+  const renderer = await renderRow({ ...MEAL, description: null, dishTitles: [] });
+  // Only the meta line uses ` · `; assert no OTHER ` · `-joined line rendered.
   const nodes = renderer.root.findAll(
-    (n) => typeof n.props?.children === "string" && n.props.children.includes(" · ") &&
+    (n) =>
+      typeof n.props?.children === "string" &&
+      n.props.children.includes(" · ") &&
       !n.props.children.includes("min"),
   );
-  assert.equal(nodes.length, 0, "no dish sub-line for zero dishes");
+  assert.equal(nodes.length, 0, "no sub-line when there are no sides");
   renderer.unmount();
 });
 
-test("D-WS9-125: dish line REPLACES description on a multi-dish meal (precedence)", async () => {
+test("D-WS9-126: sides line REPLACES description on a multi-dish meal (precedence)", async () => {
   const renderer = await renderRow({
     ...MEAL,
     description: DESCRIPTION,
-    dishTitles: ["Chicken Tenders", "Honey Mustard Slaw", "Roasted Potatoes"],
+    dishTitles: ["Honey Mustard Slaw", "Roasted Potatoes"],
   });
   const dishNode = renderer.root.findAll(
-    (n) => typeof n.props?.children === "string" && n.props.children === DISH_LINE,
+    (n) => typeof n.props?.children === "string" && n.props.children === SIDES_LINE,
   );
   const descNode = renderer.root.findAll(
     (n) => typeof n.props?.children === "string" && n.props.children === DESCRIPTION,
   );
-  assert.ok(dishNode.length >= 1, "dish line shown on multi-dish meal");
-  assert.equal(descNode.length, 0, "description suppressed when the dish line shows");
+  assert.ok(dishNode.length >= 1, "sides line shown on multi-dish meal");
+  assert.equal(descNode.length, 0, "description suppressed when the sides line shows");
   renderer.unmount();
 });
 
-test("D-WS9-125: single-dish meal keeps the description line", async () => {
+test("D-WS9-126: empty dishTitles falls back to the description line", async () => {
   const renderer = await renderRow({
     ...MEAL,
     description: DESCRIPTION,
-    dishTitles: ["Baked Salmon"],
+    dishTitles: [],
   });
   const descNode = renderer.root.findAll(
     (n) => typeof n.props?.children === "string" && n.props.children === DESCRIPTION,
   );
-  assert.ok(descNode.length >= 1, "single-dish meal falls back to the description line");
+  assert.ok(descNode.length >= 1, "empty dishTitles falls back to the description line");
   renderer.unmount();
 });

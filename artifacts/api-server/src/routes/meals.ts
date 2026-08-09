@@ -95,12 +95,13 @@ export interface MealListItem {
   // displayTitle via resolveDisplayTitle and shows description as a sub-line.
   displayTitle: string | null;
   description: string | null;
-  // WS9 3f-4d Part 1d (D-WS9-125) — the meal's dish titles, MAIN FIRST then
-  // authoring order, for the multi-dish sub-line ("Chicken Tenders · Honey
-  // Mustard Slaw · Roasted Potatoes"). Sourced from the existing MealDishLink
-  // relation — no AI, no cap, no backfill. Always an array (empty when the meal
-  // has no dishes or the query didn't select them). The short-title program
-  // (displayTitle authoring) it replaces is abandoned.
+  // WS9 3f-4d Part 1e (D-WS9-126) — the meal's SIDE dish titles (main EXCLUDED),
+  // in authoring order, for the multi-dish sub-line ("Roasted Garlic Mashed
+  // Potatoes · Sautéed Green Beans"). The main dish title nearly duplicates the
+  // meal title, so it is dropped (Part 1d showed all dishes and just restated the
+  // title). Sourced from the existing MealDishLink relation — no AI, no cap, no
+  // backfill. Always an array; empty when the meal has no non-main dishes or the
+  // query didn't select the relation → the client falls back to `description`.
   dishTitles: string[];
   cuisine: string;
   minutes: number;
@@ -167,11 +168,27 @@ export function toListShape(m: {
   // relation (a rare lean projection) degrade to an empty dishTitles array.
   dishLinks?: { roleLabel: string; dish: { title: string } }[];
 }): MealListItem {
-  // Main dish first (roleLabel === "main"), otherwise preserve the query's
-  // positionIndex order. A stable sort keeps ties in authoring order.
-  const dishTitles = [...(m.dishLinks ?? [])]
-    .sort((a, b) => (a.roleLabel === "main" ? 0 : 1) - (b.roleLabel === "main" ? 0 : 1))
-    .map((l) => l.dish.title);
+  // WS9 3f-4d Part 1e (D-WS9-126) — SIDES ONLY: exclude the main dish. The
+  // generator names dishes descriptively, so the main's title nearly duplicates
+  // the meal title (Part 1d shipped a sub-line that just restated + re-truncated
+  // the title). Showing only the non-main dishes names what the truncated title
+  // hid ("Roasted Garlic Mashed Potatoes · Sautéed Green Beans"). roleLabel is a
+  // reliable enum — every multi-dish meal has exactly one `main` (live-DB
+  // verified, D-WS9-126) — so filtering on it is authoritative; no positionIndex
+  // fallback is needed. The query already orders by positionIndex, so filtering
+  // preserves authoring order.
+  //
+  // The sub-line GATE is the FULL dish count (> 1), not the side count: a
+  // single-dish meal shows none, a 2-dish meal shows its one side. That gate is
+  // enforced HERE (dishTitles stays empty for single-dish meals) so the wire
+  // shape stays a bare `string[]` and the client just renders what it's given.
+  // Empty result (single-dish, or a multi-dish meal that is somehow all-main) →
+  // no sub-line; the client falls back to `description`.
+  const allLinks = m.dishLinks ?? [];
+  const dishTitles =
+    allLinks.length > 1
+      ? allLinks.filter((l) => l.roleLabel !== "main").map((l) => l.dish.title)
+      : [];
   return {
     id: m.id,
     title: m.title,

@@ -46,26 +46,61 @@ describe("toListShape — displayTitle + description round-trip", () => {
   });
 });
 
-// WS9 3f-4d Part 1d (D-WS9-125) — toListShape derives dishTitles (main first)
-// from the MealDishLink relation for the multi-dish sub-line.
-describe("toListShape — dishTitles derivation", () => {
-  it("orders the main dish first, then authoring order", () => {
+// WS9 3f-4d Part 1e (D-WS9-126) — toListShape derives dishTitles as the SIDE
+// dishes only (main excluded), gated on the FULL dish count > 1, in authoring
+// order. The main title nearly duplicates the meal title, so it is dropped.
+describe("toListShape — dishTitles derivation (sides only)", () => {
+  it("excludes the main dish and preserves authoring order for the sides", () => {
     const row = toListShape({
       ...BASE,
       displayTitle: null,
       description: null,
-      // Deliberately out of order: main is not first in the input array.
       dishLinks: [
+        { roleLabel: "main", dish: { title: "Braised Beef Short Ribs" } },
         { roleLabel: "base", dish: { title: "Creamy Mashed Potatoes" } },
         { roleLabel: "side", dish: { title: "Roasted Carrots" } },
-        { roleLabel: "main", dish: { title: "Braised Beef Short Ribs" } },
       ],
     });
     assert.deepEqual(row.dishTitles, [
-      "Braised Beef Short Ribs", // main hoisted to front
       "Creamy Mashed Potatoes",
       "Roasted Carrots",
     ]);
+  });
+
+  it("shows the single side of a 2-dish meal (gate is full dish count > 1)", () => {
+    const row = toListShape({
+      ...BASE,
+      displayTitle: null,
+      description: null,
+      dishLinks: [
+        { roleLabel: "main", dish: { title: "Thai Red Curry with Chicken" } },
+        { roleLabel: "base", dish: { title: "Warm Store-Bought Roti" } },
+      ],
+    });
+    assert.deepEqual(row.dishTitles, ["Warm Store-Bought Roti"]);
+  });
+
+  it("returns [] for a single-dish meal (no sub-line — falls back to description)", () => {
+    const row = toListShape({
+      ...BASE,
+      displayTitle: null,
+      description: null,
+      dishLinks: [{ roleLabel: "main", dish: { title: "Baked Salmon" } }],
+    });
+    assert.deepEqual(row.dishTitles, []);
+  });
+
+  it("returns [] for a multi-dish meal that is somehow all-main", () => {
+    const row = toListShape({
+      ...BASE,
+      displayTitle: null,
+      description: null,
+      dishLinks: [
+        { roleLabel: "main", dish: { title: "Main A" } },
+        { roleLabel: "main", dish: { title: "Main B" } },
+      ],
+    });
+    assert.deepEqual(row.dishTitles, []);
   });
 
   it("defaults to an empty array when the relation was not selected", () => {
