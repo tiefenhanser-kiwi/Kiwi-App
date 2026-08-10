@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,20 +14,12 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import {
-  FilterChipRow,
-  type FilterChipOption,
-} from "@/components/FilterChipRow";
 import { DisplayTitle } from "@/components/DisplayTitle";
-import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
-import {
-  getFeaturedMeals,
-  getHostingMeals,
-  getSavedMeals,
-  getTopRatedMeals,
-} from "@/lib/stubs";
+import { useInfiniteMeals } from "@/hooks/useMeals";
+import { toMealSortKey } from "@/lib/meals/sortMapping";
+import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
 
 export interface AddDishToMealSheetProps {
@@ -37,15 +32,6 @@ export interface AddDishToMealSheetProps {
   onPickExistingMeal: (meal: MealSummary) => void;
 }
 
-type MealsChip = "featured" | "my_meals" | "top_rated" | "hosting";
-
-const MEALS_CHIPS: FilterChipOption<MealsChip>[] = [
-  { key: "featured", label: "Featured" },
-  { key: "my_meals", label: "My Meals" },
-  { key: "top_rated", label: "Top Rated" },
-  { key: "hosting", label: "Hosting & Events" },
-];
-
 export function AddDishToMealSheet({
   visible,
   dishId,
@@ -56,27 +42,31 @@ export function AddDishToMealSheet({
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [chip, setChip] = useState<MealsChip>("my_meals");
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
 
-  const meals = useMemo<MealSummary[]>(() => {
-    let source: MealSummary[];
-    switch (chip) {
-      case "my_meals":
-        source = getSavedMeals();
-        break;
-      case "featured":
-        source = getFeaturedMeals();
-        break;
-      case "top_rated":
-        source = getTopRatedMeals();
-        break;
-      case "hosting":
-        source = getHostingMeals();
-        break;
+  // WS9-2 BUG-073 — the user's OWN saved meals only. The Featured / Top Rated /
+  // Hosting chips were removed: Meal carries no featuring flags at all
+  // (D-WS7-039), so those chips would return empty arrays forever, and catalog
+  // meals (userId null) can't be mutated by a user anyway. Keyset-paginated +
+  // server-sorted (useInfiniteMeals), load-on-scroll — mirrors SwapMealSheet.
+  const mealsQuery = useInfiniteMeals(["my_meals"], toMealSortKey(sortKey));
+  const meals = useMemo<MealSummary[]>(
+    () => mealsQuery.meals.map((m) => mealListItemToSummary(m, "my_meals")),
+    [mealsQuery.meals],
+  );
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const distanceFromBottom =
+      contentSize.height - contentOffset.y - layoutMeasurement.height;
+    if (
+      distanceFromBottom < 240 &&
+      mealsQuery.hasNextPage &&
+      !mealsQuery.isFetchingNextPage
+    ) {
+      void mealsQuery.fetchNextPage();
     }
-    return sortMeals(source, sortKey);
-  }, [chip, sortKey]);
+  };
 
   const handleCreateNewMeal = () => {
     onClose();
@@ -119,27 +109,27 @@ export function AddDishToMealSheet({
           contentContainerStyle={s.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={32}
         >
           {/* Section 1: pick an existing meal */}
           <Text style={s.sectionTitle}>Pick a meal</Text>
 
-          <View style={s.filterWrap}>
-            <FilterChipRow<MealsChip>
-              options={MEALS_CHIPS}
-              selected={[chip]}
-              onToggle={(key) => setChip(key)}
-            />
-          </View>
-
+          {/* WS9-2 BUG-073 — one source (your meals); the Featured / Top Rated /
+              Hosting chips were removed (see the useInfiniteMeals note above). */}
           <View style={s.controlsRow}>
-            <Text style={s.chipLabel}>
-              {MEALS_CHIPS.find((c) => c.key === chip)?.label}
-            </Text>
+            <Text style={s.chipLabel}>My Meals</Text>
             <SortDropdown value={sortKey} onChange={setSortKey} />
           </View>
 
           <View style={s.list}>
-            {meals.length === 0 ? (
+            {mealsQuery.isLoading ? (
+              <Text style={s.emptyText}>Loading…</Text>
+            ) : mealsQuery.isError ? (
+              <Text style={s.emptyText}>
+                Couldn't load meals right now. Try again in a moment.
+              </Text>
+            ) : meals.length === 0 ? (
               <Text style={s.emptyText}>No meals here yet.</Text>
             ) : (
               meals.map((meal) => (
@@ -179,6 +169,11 @@ export function AddDishToMealSheet({
               ))
             )}
           </View>
+          {mealsQuery.isFetchingNextPage && (
+            <View style={s.footerLoading}>
+              <ActivityIndicator size="small" color={Colors.sage[700]} />
+            </View>
+          )}
 
           {/* Section 2: create a new meal */}
           <Text style={[s.sectionTitle, s.sectionGap]}>Create a new meal</Text>
@@ -290,6 +285,10 @@ const s = StyleSheet.create({
   list: {
     gap: Spacing[2],
     marginTop: Spacing[2],
+  },
+  footerLoading: {
+    paddingVertical: Spacing[3],
+    alignItems: "center",
   },
   emptyText: {
     fontSize: Typography.fontSize.sm,
