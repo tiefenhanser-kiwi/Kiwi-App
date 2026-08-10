@@ -17,8 +17,11 @@ const resetLimiter = rateLimit({ capacity: 5, refillPerSec: 5 / 300 }); // 5 bur
 
 // WS9-2 — free-trial length in days. Ruled 14 (was 30): the business-plan
 // economics are modeled on a 14-day trial. No backfill — existing rows keep
-// their prior +30 stamp (no real customer data yet). The mobile copy surfaces
-// carry their own TRIAL_LENGTH_DAYS (lib/domain) — separate package.
+// their prior +30 stamp (no real customer data yet). This const sets the actual
+// trialEndsAt stamp.
+// ⚠️ KEEP IN SYNC with the mobile copy const: artifacts/kiwi/lib/domain.ts has
+// its own `TRIAL_LENGTH_DAYS` (separate package, no cheap shared module). Change
+// BOTH together.
 const TRIAL_LENGTH_DAYS = 14;
 
 // Password-reset tokens are short-lived per WS7-2 Block A. Reuses the

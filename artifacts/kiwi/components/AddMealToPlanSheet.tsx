@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -74,12 +74,22 @@ export function AddMealToPlanSheet({
   // WS9-2 BUG-070 — the "Pick an existing plan" list now reads the real saved
   // plans (usePlans(["my_plans"]), the same query the Home Plan Discovery card
   // + Plans tab use) instead of the three hardcoded getUserPlans() demo rows.
-  // The GET /plans list payload (PlanListItem) carries no per-plan meal count
-  // or createdAt, so the row no longer shows a "N meals" badge and the list is
-  // rendered in server order (was createdAt-desc). Empty state (first time it
-  // can actually be reached) renders the existing copy below.
+  // The GET /plans list payload (PlanListItem) carries no per-plan meal count,
+  // so the row no longer shows a "N meals" badge.
   const plansQuery = usePlans(["my_plans"]);
-  const plans: PlanListItem[] = plansQuery.data?.plans ?? [];
+  // WS9-2 2a Commit B — order most-recent-first by startDate. PlanListItem has
+  // no createdAt, but startDate is already on the client (the row shows it), so
+  // no server change. Undated drafts (null startDate) sort LAST — a dated plan
+  // is the likely "add to which plan?" target.
+  const plans = useMemo<PlanListItem[]>(() => {
+    const rows = plansQuery.data?.plans ?? [];
+    return [...rows].sort((a, b) => {
+      if (a.startDate && b.startDate) return b.startDate.localeCompare(a.startDate);
+      if (a.startDate) return -1;
+      if (b.startDate) return 1;
+      return 0;
+    });
+  }, [plansQuery.data]);
 
   // WS7-5b-mobile Block C — D-WS7-059 real wiring. Replaces the prior stub
   // that deep-linked to `demo-plan-just-created` with `addMealId=` (a dead

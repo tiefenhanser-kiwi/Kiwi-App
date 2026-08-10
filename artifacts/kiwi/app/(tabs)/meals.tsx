@@ -211,13 +211,16 @@ export default function MealsTab() {
         dishName={addDishToMealFor?.dishName}
         onClose={() => setAddDishToMealFor(null)}
         onPickExistingMeal={(meal) => {
+          // WS9-2 2a Commit B — the add-dish-to-existing-meal write is still
+          // stubbed (Gate A found no safe path — see Block 2a report). Replaced
+          // the stale, now-false "Coming in WS7" string (WS7 has closed, and it
+          // leaked an internal codename) with user-facing copy.
           console.log("[recipes-tab] add-dish-to-meal", {
             dishId: addDishToMealFor?.dishId,
             mealId: meal.id,
           });
           Alert.alert(
-            "Coming in WS7",
-            `When the API client lands, ${addDishToMealFor?.dishName} will be added to "${resolveDisplayTitle(meal)}".`,
+            "Coming soon — you'll be able to add this dish to an existing meal.",
           );
           setAddDishToMealFor(null);
         }}
