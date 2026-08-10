@@ -467,8 +467,8 @@ function MealDetailContent({
               mealId: meal.id,
             });
             Alert.alert(
-              "Coming in WS7",
-              "Soft-deleting the meal record and removing from active plans requires the API client. The action will fully wire in WS7.",
+              "Coming soon — you'll be able to delete this meal.",
+              undefined,
               [{ text: "OK", onPress: () => router.back() }],
             );
           },

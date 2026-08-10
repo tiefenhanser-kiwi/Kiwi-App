@@ -17,8 +17,7 @@ export default function ManageAccount() {
 
   const handleManageSubscription = () => {
     Alert.alert(
-      "Coming in WS6 — Stripe integration",
-      "Subscription management requires the Stripe Customer Portal. This will be wired in WS6.",
+      "Coming soon — you'll be able to manage your subscription here.",
     );
   };
 

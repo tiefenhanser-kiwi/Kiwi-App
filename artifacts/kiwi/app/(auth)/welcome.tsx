@@ -11,7 +11,7 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 // when those screens exist. For WS5, both fire a "coming soon" alert.
 function showLegalStub() {
   Alert.alert(
-    "Coming in WS9 — ToS and Privacy Policy pages",
+    "Coming soon — Terms of Service and Privacy Policy.",
     "We're still drafting these. They'll be live before launch.",
   );
 }

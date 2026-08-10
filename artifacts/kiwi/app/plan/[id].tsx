@@ -797,8 +797,7 @@ export default function PlanReviewScreen() {
                       planId,
                     });
                     Alert.alert(
-                      "Coming in WS6 — retailer integration",
-                      "Online ordering requires the retailer adapter pattern from PRD §12.12.",
+                      "Coming soon — you'll be able to send this list to a grocery service.",
                     );
                   }}
                 />

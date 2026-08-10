@@ -20,12 +20,11 @@ export default function Upgrade() {
             <Feather name="credit-card" size={32} color={Colors.sage[700]} />
           </View>
           <Text style={s.heading}>
-            <Text style={s.headingItalic}>Coming in WS6</Text> — Stripe
-            integration
+            <Text style={s.headingItalic}>Coming soon</Text>
           </Text>
           <Text style={s.body}>
-            Subscription management requires the Stripe Customer Portal. We're
-            wiring this up in our next development workstream.
+            Subscription management is on the way — we're putting the finishing
+            touches on it.
           </Text>
           <Text style={s.bodyMuted}>
             For now, you have full access to all premium features during your

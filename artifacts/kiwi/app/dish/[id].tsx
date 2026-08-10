@@ -120,8 +120,8 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
             // cleanup requires the API client (WS7).
             console.log("[dish-detail] compost confirmed", { dishId: dish.id });
             Alert.alert(
-              "Coming in WS7",
-              "Soft-deleting dishes requires the API client. The action will fully wire in WS7.",
+              "Coming soon — you'll be able to delete this dish.",
+              undefined,
               [{ text: "OK", onPress: () => router.back() }],
             );
           },
