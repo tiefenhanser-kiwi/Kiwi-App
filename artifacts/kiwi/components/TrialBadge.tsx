@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { trialDaysRemaining } from "@/lib/domain";
+import { TRIAL_LENGTH_DAYS, trialDaysRemaining } from "@/lib/domain";
 import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 
 type TrialState = "active" | "expiring" | "expired" | "hidden";
@@ -50,7 +50,7 @@ export function TrialBadge() {
 
   const copy =
     state === "active"
-      ? `30-day trial · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left`
+      ? `${TRIAL_LENGTH_DAYS}-day trial · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left`
       : state === "expiring"
         ? `Trial ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`
         : "Trial expired — Upgrade →";

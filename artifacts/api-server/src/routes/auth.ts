@@ -15,6 +15,12 @@ const meLimiter = rateLimit({ capacity: 30, refillPerSec: 30 / 60 });
 // Even tighter for password reset request (prevents email enumeration via rate patterns)
 const resetLimiter = rateLimit({ capacity: 5, refillPerSec: 5 / 300 }); // 5 burst, ~1/60s
 
+// WS9-2 — free-trial length in days. Ruled 14 (was 30): the business-plan
+// economics are modeled on a 14-day trial. No backfill — existing rows keep
+// their prior +30 stamp (no real customer data yet). The mobile copy surfaces
+// carry their own TRIAL_LENGTH_DAYS (lib/domain) — separate package.
+const TRIAL_LENGTH_DAYS = 14;
+
 // Password-reset tokens are short-lived per WS7-2 Block A. Reuses the
 // session signing helper with purpose='password_reset' so a leaked reset
 // token can't be replayed as a session.
@@ -123,7 +129,9 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       }
 
       const passwordHash = await hashPassword(password);
-      const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+      const trialEndsAt = new Date(
+        Date.now() + TRIAL_LENGTH_DAYS * 24 * 60 * 60 * 1000,
+      );
 
       // Create user and subscription in a transaction — every user has a Subscription row.
       const user = await prisma.$transaction(async (tx) => {

@@ -16,6 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/contexts/AuthContext";
+import { TRIAL_LENGTH_DAYS } from "@/lib/domain";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function SignUpPage() {
@@ -205,7 +206,7 @@ export default function SignUpPage() {
           <Button onPress={handleSubmit} label="Create account" />
         )}
         <Text style={styles.trustSignal}>
-          30-day free trial · no credit card needed
+          {`${TRIAL_LENGTH_DAYS}-day free trial · no credit card needed`}
         </Text>
       </KeyboardAwareScrollViewCompat>
     </View>

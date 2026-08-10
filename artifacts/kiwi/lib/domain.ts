@@ -185,6 +185,12 @@ export function formatSubscriptionState(sub: SubscriptionInfo): string {
   }
 }
 
+// WS9-2 — free-trial length in days. Single source for the mobile copy surfaces
+// (TrialBadge + the sign-up trust signal). Ruled 14 (the business-plan economics
+// are modeled on 14, not the prior 30). The server stamps trialEndsAt from its
+// own TRIAL_LENGTH_DAYS const (separate package — no cheap cross-package share).
+export const TRIAL_LENGTH_DAYS = 14;
+
 // WS9-2 BUG-072 — days left in a trial: ceil((trialEndsAt - now) / day), floored
 // at 0. Single source of the computation TrialBadge (components/TrialBadge.tsx)
 // and the Profile / Manage-Account subscription line both read, so a trial-length
