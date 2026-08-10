@@ -64,3 +64,43 @@ test("subscriptionInfoFromAuth: past_due / canceled / unknown map through", () =
   assert.equal(subscriptionInfoFromAuth({ ...base, status: "canceled" }).tier, "canceled");
   assert.equal(subscriptionInfoFromAuth({ ...base, status: "none" }).tier, "none");
 });
+
+// ── WS9-2 2a — expired trial reads "Trial ended", not "Trial · 0 days remaining"
+
+test("expired trial (past trialEndsAt) → 0 days → 'Trial ended'", () => {
+  const info = subscriptionInfoFromAuth({
+    status: "trialing",
+    planCode: "free",
+    trialEndsAt: new Date(Date.now() - 2 * DAY).toISOString(),
+    currentPeriodEnd: null,
+  });
+  assert.equal(info.tier, "trial");
+  assert.equal(info.trialDaysRemaining, 0);
+  assert.equal(formatSubscriptionState(info), "Trial ended");
+});
+
+test("trialing with a NULL trialEndsAt → undefined count → plain 'Trial' (NOT 'Trial ended')", () => {
+  const info = subscriptionInfoFromAuth({
+    status: "trialing",
+    planCode: "free",
+    trialEndsAt: null,
+    currentPeriodEnd: null,
+  });
+  assert.equal(info.tier, "trial");
+  assert.equal(info.trialDaysRemaining, undefined);
+  assert.equal(formatSubscriptionState(info), "Trial");
+});
+
+test("active trial still shows the day count", () => {
+  const info = subscriptionInfoFromAuth({
+    status: "trialing",
+    planCode: "free",
+    trialEndsAt: new Date(Date.now() + 5 * DAY - 1000).toISOString(),
+    currentPeriodEnd: null,
+  });
+  assert.equal(formatSubscriptionState(info), "Trial · 5 days remaining");
+});
+
+test("null subscription → 'No active subscription'", () => {
+  assert.equal(formatSubscriptionState(subscriptionInfoFromAuth(null)), "No active subscription");
+});

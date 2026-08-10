@@ -452,29 +452,13 @@ function MealDetailContent({
       );
       return;
     }
-    // BUG-008 case 3 — Library (My Recipes) meal soft-delete is net-new
-    // backend, out of scope for this block. Unchanged WS5 stub behavior.
-    Alert.alert(
-      "Compost meal",
-      `Compost ${resolveDisplayTitle(meal)}? It'll be removed from your meals and any plans it's in.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Compost",
-          style: "destructive",
-          onPress: () => {
-            console.log("[meal-detail] compost confirmed", {
-              mealId: meal.id,
-            });
-            Alert.alert(
-              "Coming soon — you'll be able to delete this meal.",
-              undefined,
-              [{ text: "OK", onPress: () => router.back() }],
-            );
-          },
-        },
-      ],
-    );
+    // D-WS9-006 / BUG-008 Case 3 — library (My Recipes) meal delete is net-new
+    // backend (no DELETE /me/meals/:id, no Meal.compostedAt), assigned to Block
+    // 3f. Until then a SINGLE informational alert: no confirm-then-fake-success
+    // double-alert, and no router.back() — the meal is NOT gone, so the screen
+    // must not imply the delete worked. The inPlanContext branch above is the
+    // real path (removeMealFromPlan + route back to the plan) and is untouched.
+    Alert.alert("Coming soon — you'll be able to delete this meal.");
   };
 
   const difficultyLabel =

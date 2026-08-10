@@ -105,29 +105,13 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
   };
 
   const onCompost = () => {
+    // D-WS9-006 / BUG-008 Case 3 — library dish delete is net-new backend (no
+    // DELETE /me/dishes/:id, no compostedAt), assigned to Block 3f. Until then a
+    // SINGLE informational alert: no confirm-then-fake-success double-alert, and
+    // no router.back() — the dish is NOT gone, so the screen must not imply the
+    // delete worked (the affordance stays; only the false navigation goes).
     console.log("[dish-detail] compost tapped", { dishId: dish.id });
-    Alert.alert(
-      "Compost dish",
-      `Compost ${resolveDisplayTitle(dish)}? It'll be removed from your dishes and any meals using it.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Compost",
-          style: "destructive",
-          onPress: () => {
-            // Same double-alert pattern as Meal Detail (5M deviation 4):
-            // confirmation flow only in WS5; real soft-delete + meal-link
-            // cleanup requires the API client (WS7).
-            console.log("[dish-detail] compost confirmed", { dishId: dish.id });
-            Alert.alert(
-              "Coming soon — you'll be able to delete this dish.",
-              undefined,
-              [{ text: "OK", onPress: () => router.back() }],
-            );
-          },
-        },
-      ],
-    );
+    Alert.alert("Coming soon — you'll be able to delete this dish.");
   };
 
   const macrosAllZero =

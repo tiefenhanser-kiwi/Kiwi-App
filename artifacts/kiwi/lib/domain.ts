@@ -168,9 +168,14 @@ export const SAUCE_PREFERENCE_OPTIONS: ReadonlyArray<{
 export function formatSubscriptionState(sub: SubscriptionInfo): string {
   switch (sub.tier) {
     case "trial":
-      return sub.trialDaysRemaining != null
-        ? `Trial · ${sub.trialDaysRemaining} days remaining`
-        : "Trial";
+      // WS9-2 2a — a genuinely-past trial floors to 0 days; surface "Trial ended"
+      // rather than the technically-true-but-broken-looking "Trial · 0 days
+      // remaining". A null trialEndsAt arrives here as undefined (see
+      // subscriptionInfoFromAuth) → plain "Trial", never "ended".
+      if (sub.trialDaysRemaining == null) return "Trial";
+      return sub.trialDaysRemaining <= 0
+        ? "Trial ended"
+        : `Trial · ${sub.trialDaysRemaining} days remaining`;
     case "active":
       return sub.nextRenewalDate
         ? `Active · renews ${sub.nextRenewalDate}`
@@ -227,8 +232,13 @@ export function subscriptionInfoFromAuth(
             : "none";
   return {
     tier,
+    // WS9-2 2a — only a REAL trialEndsAt yields a day count. A null date must
+    // stay undefined (→ plain "Trial"), NOT floor to 0, so formatSubscriptionState
+    // can't misread it as "Trial ended". A genuine past date floors to 0 → ended.
     trialDaysRemaining:
-      tier === "trial" ? trialDaysRemaining(sub.trialEndsAt) : undefined,
+      tier === "trial" && sub.trialEndsAt != null
+        ? trialDaysRemaining(sub.trialEndsAt)
+        : undefined,
     nextRenewalDate: sub.currentPeriodEnd
       ? new Date(sub.currentPeriodEnd).toLocaleDateString("en-US", {
           month: "short",
