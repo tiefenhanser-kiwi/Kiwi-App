@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,8 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DisplayTitle } from "@/components/DisplayTitle";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
-import { getUserPlans } from "@/lib/stubs";
-import type { UserPlanSummary } from "@/lib/types";
+import { usePlans } from "@/hooks/usePlans";
+import type { PlanListItem } from "@/lib/api/plans";
 
 export interface AddMealToPlanSheetProps {
   visible: boolean;
@@ -27,10 +27,10 @@ export interface AddMealToPlanSheetProps {
   mealTitle?: string;
   onClose: () => void;
   /** Called when user picks an existing plan. */
-  onPickExistingPlan: (plan: UserPlanSummary) => void;
+  onPickExistingPlan: (plan: PlanListItem) => void;
 }
 
-function formatDateRange(start?: string, end?: string): string {
+function formatDateRange(start: string | null, end: string | null): string {
   if (!start || !end) return "";
   const s = new Date(start);
   const e = new Date(end);
@@ -46,7 +46,7 @@ function formatDateRange(start?: string, end?: string): string {
   return `${sFormatted} – ${eFormatted}`;
 }
 
-function statusLabel(status: UserPlanSummary["status"]): string {
+function statusLabel(status: string | null): string {
   switch (status) {
     case "active":
       return "Active";
@@ -54,6 +54,8 @@ function statusLabel(status: UserPlanSummary["status"]): string {
       return "Completed";
     case "draft":
       return "Draft";
+    default:
+      return "Plan";
   }
 }
 
@@ -69,13 +71,15 @@ export function AddMealToPlanSheet({
   const { createPlanWithMeal } = useApp();
   const [creating, setCreating] = useState(false);
 
-  const plans = useMemo(
-    () =>
-      [...getUserPlans()].sort((a, b) =>
-        b.createdAt.localeCompare(a.createdAt),
-      ),
-    [],
-  );
+  // WS9-2 BUG-070 — the "Pick an existing plan" list now reads the real saved
+  // plans (usePlans(["my_plans"]), the same query the Home Plan Discovery card
+  // + Plans tab use) instead of the three hardcoded getUserPlans() demo rows.
+  // The GET /plans list payload (PlanListItem) carries no per-plan meal count
+  // or createdAt, so the row no longer shows a "N meals" badge and the list is
+  // rendered in server order (was createdAt-desc). Empty state (first time it
+  // can actually be reached) renders the existing copy below.
+  const plansQuery = usePlans(["my_plans"]);
+  const plans: PlanListItem[] = plansQuery.data?.plans ?? [];
 
   // WS7-5b-mobile Block C — D-WS7-059 real wiring. Replaces the prior stub
   // that deep-linked to `demo-plan-just-created` with `addMealId=` (a dead
@@ -142,7 +146,13 @@ export function AddMealToPlanSheet({
           {/* Section 1: pick an existing plan */}
           <Text style={s.sectionTitle}>Pick an existing plan</Text>
           <View style={s.list}>
-            {plans.length === 0 ? (
+            {plansQuery.isLoading ? (
+              <Text style={s.emptyText}>Loading…</Text>
+            ) : plansQuery.isError ? (
+              <Text style={s.emptyText}>
+                Couldn't load your plans right now. Try again in a moment.
+              </Text>
+            ) : plans.length === 0 ? (
               <Text style={s.emptyText}>
                 You don't have any plans yet. Create your first one below.
               </Text>
@@ -165,12 +175,9 @@ export function AddMealToPlanSheet({
                       variant="slim"
                       style={s.planName}
                     />
-                    {(plan.weekStartDate || plan.weekEndDate) && (
+                    {(plan.startDate || plan.endDate) && (
                       <Text style={s.planRange}>
-                        {formatDateRange(
-                          plan.weekStartDate,
-                          plan.weekEndDate,
-                        )}
+                        {formatDateRange(plan.startDate, plan.endDate)}
                       </Text>
                     )}
                   </View>
@@ -195,9 +202,6 @@ export function AddMealToPlanSheet({
                         {statusLabel(plan.status)}
                       </Text>
                     </View>
-                    <Text style={s.mealCount}>
-                      {plan.mealCount} {plan.mealCount === 1 ? "meal" : "meals"}
-                    </Text>
                   </View>
                 </Pressable>
               ))

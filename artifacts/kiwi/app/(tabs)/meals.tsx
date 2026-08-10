@@ -23,6 +23,7 @@ import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { MealRow } from "@/components/MealRow";
 import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
+import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDishes } from "@/hooks/useDishes";
 import { useInfiniteMeals } from "@/hooks/useMeals";
@@ -81,6 +82,7 @@ const DISHES_CHIPS: FilterChipOption<DishFilterKey>[] = [
 export default function MealsTab() {
   const router = useRouter();
   const { user, setUiState } = useAuth();
+  const { addMealToPlan } = useApp();
   const [subTab, setSubTab] = useState<SubTab>("meals");
 
   // Per-tab filter + sort state — chip selection should not bleed
@@ -175,15 +177,32 @@ export default function MealsTab() {
         mealTitle={addToPlanFor?.mealTitle}
         onClose={() => setAddToPlanFor(null)}
         onPickExistingPlan={(plan) => {
-          console.log("[meals] add-to-plan picked", {
-            planId: plan.id,
-            mealId: addToPlanFor?.mealId,
-          });
-          Alert.alert(
-            "Coming in WS7",
-            `When the API client lands, ${addToPlanFor?.mealTitle} will be added to "${resolveDisplayTitle(plan)}".`,
-          );
+          // WS9-2 BUG-070 — real add-to-plan wiring, mirroring the proven
+          // Meal-detail path (addMealToPlan → POST /plans/:id/items, append-
+          // only). The sheet closes itself on pick; capture the meal before
+          // clearing state, then confirm/err via Alert (no toast component).
+          const mealId = addToPlanFor?.mealId;
+          const mealTitle = addToPlanFor?.mealTitle;
           setAddToPlanFor(null);
+          if (!mealId) return;
+          void addMealToPlan(plan.id, mealId)
+            .then(() => {
+              Alert.alert(
+                "Added to plan",
+                `${mealTitle} was added to "${resolveDisplayTitle(plan)}".`,
+              );
+            })
+            .catch((err) => {
+              console.warn("[meals] add-to-plan failed", {
+                planId: plan.id,
+                mealId,
+                err,
+              });
+              Alert.alert(
+                "Couldn't add to plan",
+                "Something went wrong. Please try again.",
+              );
+            });
         }}
       />
       <AddDishToMealSheet
