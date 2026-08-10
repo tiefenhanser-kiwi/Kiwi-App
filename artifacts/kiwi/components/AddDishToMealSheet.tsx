@@ -18,7 +18,7 @@ import { DisplayTitle } from "@/components/DisplayTitle";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useInfiniteMeals } from "@/hooks/useMeals";
-import { toMealSortKey } from "@/lib/meals/sortMapping";
+import { MEAL_DISABLED_SORT_KEYS, toMealSortKey } from "@/lib/meals/sortMapping";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
 
@@ -119,7 +119,12 @@ export function AddDishToMealSheet({
               Hosting chips were removed (see the useInfiniteMeals note above). */}
           <View style={s.controlsRow}>
             <Text style={s.chipLabel}>My Meals</Text>
-            <SortDropdown value={sortKey} onChange={setSortKey} />
+            {/* WS9-2 BUG-075 — grey the cook-stat keys with no backing meal field. */}
+            <SortDropdown
+              value={sortKey}
+              onChange={setSortKey}
+              disabledKeys={MEAL_DISABLED_SORT_KEYS}
+            />
           </View>
 
           <View style={s.list}>

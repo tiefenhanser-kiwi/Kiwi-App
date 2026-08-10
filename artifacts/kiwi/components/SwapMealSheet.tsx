@@ -35,7 +35,7 @@ import {
   normalizeMealTitleKey,
   preferMoreCompleteMeal,
 } from "@/lib/meals/dedupeByTitle";
-import { toMealSortKey } from "@/lib/meals/sortMapping";
+import { MEAL_DISABLED_SORT_KEYS, toMealSortKey } from "@/lib/meals/sortMapping";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
 
@@ -578,7 +578,12 @@ function DifferentBody({
           onToggle={(key) => setActiveFilter(key)}
         />
         <View style={s.sortRow}>
-          <SortDropdown value={sortKey} onChange={setSortKey} />
+          {/* WS9-2 BUG-075 — grey the cook-stat keys with no backing meal field. */}
+          <SortDropdown
+            value={sortKey}
+            onChange={setSortKey}
+            disabledKeys={MEAL_DISABLED_SORT_KEYS}
+          />
         </View>
       </View>
 

@@ -16,6 +16,7 @@ import { ImportSourceCards } from "@/components/ImportSourceCards";
 import { DisplayTitle } from "@/components/DisplayTitle";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
+import { MEAL_DISABLED_SORT_KEYS } from "@/lib/meals/sortMapping";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useMeals } from "@/hooks/useMeals";
 import type { MealFilterKey } from "@/lib/api/meals";
@@ -121,7 +122,12 @@ export function AddMealsSheet({
             <Text style={s.sectionLabel}>
               {FILTER_OPTIONS.find((o) => o.key === activeFilter)?.label}
             </Text>
-            <SortDropdown value={sortKey} onChange={setSortKey} />
+            {/* WS9-2 BUG-075 — grey the cook-stat keys with no backing meal field. */}
+            <SortDropdown
+              value={sortKey}
+              onChange={setSortKey}
+              disabledKeys={MEAL_DISABLED_SORT_KEYS}
+            />
           </View>
           <View style={s.list}>
             {mealsQuery.isLoading ? (

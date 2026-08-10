@@ -25,6 +25,10 @@ import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { asPlanDiscoveryFilters, type PlanFilterKey, type PlanListItem } from "@/lib/api/plans";
 import { plansFilterDefault } from "@/lib/plans/filterDefault";
+import {
+  PLAN_DISABLED_SORT_KEYS,
+  PLAN_HIDDEN_SORT_KEYS,
+} from "@/lib/plans/sortMapping";
 import { needsActiveCompostConfirm } from "@/lib/plans/planLifecycleActions";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
@@ -218,7 +222,14 @@ export default function PlansTab() {
               style={s.searchInput}
             />
           </View>
-          <SortDropdown value={sortKey} onChange={setSortKey} />
+          {/* WS9-2 BUG-075 — cook_time HIDDEN (no plan cook time); last_cooked +
+              times_cooked GREYED (no backing plan field, D-WS7-048). */}
+          <SortDropdown
+            value={sortKey}
+            onChange={setSortKey}
+            hiddenKeys={PLAN_HIDDEN_SORT_KEYS}
+            disabledKeys={PLAN_DISABLED_SORT_KEYS}
+          />
         </View>
 
         <View style={s.list}>

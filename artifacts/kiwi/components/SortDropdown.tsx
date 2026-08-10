@@ -39,6 +39,11 @@ type Props = {
    *  Dish contexts pass `["last_cooked"]` (no Dish.lastUsedAt write path,
    *  D-WS7-111). The option stays visible in the list, just disabled. */
   disabledKeys?: readonly SortKey[];
+  /** WS9-2 BUG-075 — keys removed from the menu entirely (not just greyed).
+   *  The Plans context passes `["cook_time"]` — a plan has no cook time and no
+   *  server aggregate for one, so the option is dropped rather than disabled.
+   *  `value` must never be a hidden key. */
+  hiddenKeys?: readonly SortKey[];
 };
 
 export function SortDropdown({
@@ -46,6 +51,7 @@ export function SortDropdown({
   onChange,
   labelOverrides,
   disabledKeys,
+  hiddenKeys,
 }: Props) {
   const [open, setOpen] = useState(false);
   // WS7-6 B-fix Block 3-fix: the open menu renders in a Modal (portal) anchored
@@ -64,6 +70,9 @@ export function SortDropdown({
   const labelFor = (key: SortKey, fallback: string) =>
     labelOverrides?.[key] ?? fallback;
   const isDisabled = (key: SortKey) => disabledKeys?.includes(key) ?? false;
+  const visibleOptions = hiddenKeys
+    ? SORT_OPTIONS.filter((o) => !hiddenKeys.includes(o.key))
+    : SORT_OPTIONS;
   const current = SORT_OPTIONS.find((o) => o.key === value) ?? SORT_OPTIONS[0];
 
   const openMenu = () => {
@@ -123,7 +132,7 @@ export function SortDropdown({
             accessibilityLabel="Close sort menu"
           />
           <View style={[styles.menu, styles.menuFloating, menuPosition]}>
-            {SORT_OPTIONS.map((opt) => {
+            {visibleOptions.map((opt) => {
               const isOn = opt.key === value;
               const disabled = isDisabled(opt.key);
               return (
