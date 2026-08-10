@@ -75,11 +75,7 @@ import {
   type BuilderStep,
   type Difficulty,
 } from "@/lib/meal-builder-state";
-import {
-  getFeaturedDishes,
-  getSavedDishes,
-  getTopRatedDishes,
-} from "@/lib/stubs";
+import { useDish } from "@/hooks/useDish";
 import type { DraftMeal, SavedDish } from "@/lib/types";
 
 type Mode = "manual" | "combine" | "ai" | null;
@@ -342,21 +338,23 @@ export default function MealBuilderScreen() {
   // (Create-new-meal path) seeds a fresh meal with the dish injected as
   // its first BuilderDish. Only runs in fresh-create mode (no mealId,
   // no draftJson) so we never overwrite an existing meal's dishes.
+  //
+  // WS9-2 BUG-078 (was live): the seed dish is resolved by id from the REAL
+  // GET /dishes/:id endpoint. The pre-fix code searched the lib/stubs fixture
+  // arrays, but addDishId is a real server id (AddDishToMealSheet passes the
+  // tapped dish's id) — it never matched a fixture, so the dish silently failed
+  // to inject and the user landed on an empty builder. Steps now carry through
+  // too (the stub path dropped them), matching pickSavedDishToBuilderDish.
+  const seedDishQuery = useDish(
+    addDishId && !mealId && !draftJson ? addDishId : "",
+  );
   useEffect(() => {
     if (!addDishId || mealId || draftJson) return;
-    const all: SavedDish[] = [
-      ...getSavedDishes(),
-      ...getFeaturedDishes(),
-      ...getTopRatedDishes(),
-    ];
-    const dish = all.find((d) => d.id === addDishId);
-    if (!dish) {
-      console.warn("[meal-builder] addDishId not found in stubs", { addDishId });
-      return;
-    }
+    const dish = seedDishQuery.data;
+    if (!dish) return;
     setDishes([
       newDish({
-        name: dish.name,
+        name: dish.title,
         ingredients: dish.ingredients.length
           ? dish.ingredients.map((ing) =>
               newIngredient({
@@ -366,9 +364,19 @@ export default function MealBuilderScreen() {
               }),
             )
           : [newIngredient()],
+        steps: dish.steps.map((st) =>
+          newStep({
+            text: st.text,
+            estimatedMinutes:
+              st.estimatedMinutes && st.estimatedMinutes > 0
+                ? String(st.estimatedMinutes)
+                : "",
+            isTimingSensitive: st.isTimingSensitive,
+          }),
+        ),
       }),
     ]);
-  }, [addDishId, mealId, draftJson]);
+  }, [addDishId, mealId, draftJson, seedDishQuery.data]);
 
   const headerTitle = sourceMeal
     ? `Edit Meal: ${resolveDisplayTitle(sourceMeal)}`
