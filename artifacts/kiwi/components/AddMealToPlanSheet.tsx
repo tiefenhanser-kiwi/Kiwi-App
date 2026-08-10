@@ -153,8 +153,46 @@ export function AddMealToPlanSheet({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Section 1: pick an existing plan */}
-          <Text style={s.sectionTitle}>Pick an existing plan</Text>
+          {/* WS9-2 2a device-fix — "Create a new plan" sits ABOVE the plans list
+              so it stays reachable as plans accumulate (the list is unbounded, and
+              a card below it gets pushed out of reach). */}
+          <Text style={s.sectionTitle}>Create a new plan</Text>
+          <Pressable
+            onPress={handleCreateNewPlan}
+            disabled={creating}
+            style={({ pressed }) => [
+              s.newPlanCard,
+              (pressed || creating) && { opacity: 0.7 },
+            ]}
+          >
+            <View style={s.newPlanIcon}>
+              <Feather
+                name="plus-square"
+                size={20}
+                color={Colors.sage[700]}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.newPlanTitle}>
+                {creating ? "Creating plan…" : "Create a new plan"}
+              </Text>
+              <Text style={s.newPlanSubtitle}>
+                Start a new plan with this meal
+              </Text>
+            </View>
+            {creating ? (
+              <ActivityIndicator size="small" color={Colors.sage[700]} />
+            ) : (
+              <Feather
+                name="chevron-right"
+                size={18}
+                color={Colors.neutral[600]}
+              />
+            )}
+          </Pressable>
+
+          {/* Pick an existing plan — the list lives BELOW the create card. */}
+          <Text style={[s.sectionTitle, s.sectionGap]}>Pick an existing plan</Text>
           <View style={s.list}>
             {plansQuery.isLoading ? (
               <Text style={s.emptyText}>Loading…</Text>
@@ -164,7 +202,7 @@ export function AddMealToPlanSheet({
               </Text>
             ) : plans.length === 0 ? (
               <Text style={s.emptyText}>
-                You don't have any plans yet. Create your first one below.
+                You don't have any plans yet. Create your first one above.
               </Text>
             ) : (
               plans.map((plan) => (
@@ -217,42 +255,6 @@ export function AddMealToPlanSheet({
               ))
             )}
           </View>
-
-          {/* Section 2: create a new plan */}
-          <Text style={[s.sectionTitle, s.sectionGap]}>Create a new plan</Text>
-          <Pressable
-            onPress={handleCreateNewPlan}
-            disabled={creating}
-            style={({ pressed }) => [
-              s.newPlanCard,
-              (pressed || creating) && { opacity: 0.7 },
-            ]}
-          >
-            <View style={s.newPlanIcon}>
-              <Feather
-                name="plus-square"
-                size={20}
-                color={Colors.sage[700]}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.newPlanTitle}>
-                {creating ? "Creating plan…" : "Create a new plan"}
-              </Text>
-              <Text style={s.newPlanSubtitle}>
-                Start a new plan with this meal
-              </Text>
-            </View>
-            {creating ? (
-              <ActivityIndicator size="small" color={Colors.sage[700]} />
-            ) : (
-              <Feather
-                name="chevron-right"
-                size={18}
-                color={Colors.neutral[600]}
-              />
-            )}
-          </Pressable>
         </ScrollView>
       </View>
     </Modal>

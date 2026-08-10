@@ -112,8 +112,40 @@ export function AddDishToMealSheet({
           onScroll={onScroll}
           scrollEventThrottle={32}
         >
-          {/* Section 1: pick an existing meal */}
-          <Text style={s.sectionTitle}>Pick a meal</Text>
+          {/* WS9-2 2a device-fix — "Create a new meal" sits ABOVE the meals list.
+              The list paginates (useInfiniteMeals), so a create card BELOW it got
+              pushed out of reach as pages loaded. Mirrors AddMealsSheet's
+              list-below-create convention (WS7-6 G3 Scope A). */}
+          <Text style={s.sectionTitle}>Create a new meal</Text>
+          <Pressable
+            onPress={handleCreateNewMeal}
+            style={({ pressed }) => [
+              s.newMealCard,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <View style={s.newMealIcon}>
+              <Feather
+                name="plus-square"
+                size={20}
+                color={Colors.sage[700]}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.newMealTitle}>Create a new meal</Text>
+              <Text style={s.newMealSubtitle}>
+                Build a fresh meal with this dish included
+              </Text>
+            </View>
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={Colors.neutral[600]}
+            />
+          </Pressable>
+
+          {/* Pick an existing meal — the paginating list lives BELOW the card. */}
+          <Text style={[s.sectionTitle, s.sectionGap]}>Pick a meal</Text>
 
           {/* WS9-2 BUG-073 — one source (your meals); the Featured / Top Rated /
               Hosting chips were removed (see the useInfiniteMeals note above). */}
@@ -179,35 +211,6 @@ export function AddDishToMealSheet({
               <ActivityIndicator size="small" color={Colors.sage[700]} />
             </View>
           )}
-
-          {/* Section 2: create a new meal */}
-          <Text style={[s.sectionTitle, s.sectionGap]}>Create a new meal</Text>
-          <Pressable
-            onPress={handleCreateNewMeal}
-            style={({ pressed }) => [
-              s.newMealCard,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <View style={s.newMealIcon}>
-              <Feather
-                name="plus-square"
-                size={20}
-                color={Colors.sage[700]}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.newMealTitle}>Create a new meal</Text>
-              <Text style={s.newMealSubtitle}>
-                Build a fresh meal with this dish included
-              </Text>
-            </View>
-            <Feather
-              name="chevron-right"
-              size={18}
-              color={Colors.neutral[600]}
-            />
-          </Pressable>
         </ScrollView>
       </View>
     </Modal>
