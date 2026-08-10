@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { trialDaysRemaining } from "@/lib/domain";
 import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 
 type TrialState = "active" | "expiring" | "expired" | "hidden";
@@ -25,8 +26,7 @@ function computeTrialState(
   // Trialing but no end date set — defensive expired
   if (!trialEndsAt) return { state: "expired", daysLeft: 0 };
 
-  const msLeft = new Date(trialEndsAt).getTime() - Date.now();
-  const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+  const daysLeft = trialDaysRemaining(trialEndsAt);
 
   if (daysLeft <= 0) return { state: "expired", daysLeft: 0 };
   if (daysLeft <= EXPIRING_THRESHOLD_DAYS) return { state: "expiring", daysLeft };

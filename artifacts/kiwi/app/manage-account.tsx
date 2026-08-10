@@ -1,19 +1,19 @@
-import React, { useState } from "react";
+import React from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
+import { useAuth } from "@/contexts/AuthContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
-import { formatSubscriptionState } from "@/lib/domain";
-import { getCurrentSubscription } from "@/lib/stubs";
-import type { SubscriptionInfo } from "@/lib/types";
+import { formatSubscriptionState, subscriptionInfoFromAuth } from "@/lib/domain";
 
 export default function ManageAccount() {
   const router = useRouter();
-  const [subscription] = useState<SubscriptionInfo>(() =>
-    getCurrentSubscription(),
-  );
+  // WS9-2 BUG-072 — real DB-backed subscription (user.subscription) instead of
+  // the getCurrentSubscription() stub.
+  const { user } = useAuth();
+  const subscription = subscriptionInfoFromAuth(user?.subscription);
 
   const handleManageSubscription = () => {
     Alert.alert(

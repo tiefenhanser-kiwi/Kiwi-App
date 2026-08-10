@@ -6,6 +6,7 @@ import type {
   DayKey,
   DayOfWeek,
   GroceryListItem,
+  Subscription,
   SubscriptionInfo,
 } from "./types";
 
@@ -182,6 +183,51 @@ export function formatSubscriptionState(sub: SubscriptionInfo): string {
     default:
       return "No active subscription";
   }
+}
+
+// WS9-2 BUG-072 — days left in a trial: ceil((trialEndsAt - now) / day), floored
+// at 0. Single source of the computation TrialBadge (components/TrialBadge.tsx)
+// and the Profile / Manage-Account subscription line both read, so a trial-length
+// change lands everywhere at once.
+export function trialDaysRemaining(
+  trialEndsAt: string | null | undefined,
+): number {
+  if (!trialEndsAt) return 0;
+  const msLeft = new Date(trialEndsAt).getTime() - Date.now();
+  return Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+}
+
+// WS9-2 BUG-072 — map the real DB-backed Subscription (AuthContext.user.
+// subscription) into the SubscriptionInfo shape formatSubscriptionState renders.
+// The status names differ: server "trialing" -> UI tier "trial". Renewal date is
+// the ISO currentPeriodEnd, formatted for display; the trial day count is
+// computed (never hardcoded) via trialDaysRemaining.
+export function subscriptionInfoFromAuth(
+  sub: Subscription | null | undefined,
+): SubscriptionInfo {
+  if (!sub) return { tier: "none" };
+  const tier: SubscriptionInfo["tier"] =
+    sub.status === "trialing"
+      ? "trial"
+      : sub.status === "active"
+        ? "active"
+        : sub.status === "past_due"
+          ? "past_due"
+          : sub.status === "canceled"
+            ? "canceled"
+            : "none";
+  return {
+    tier,
+    trialDaysRemaining:
+      tier === "trial" ? trialDaysRemaining(sub.trialEndsAt) : undefined,
+    nextRenewalDate: sub.currentPeriodEnd
+      ? new Date(sub.currentPeriodEnd).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : undefined,
+  };
 }
 
 /** PRD §3.5 — cooking equipment chips (multi-select). */

@@ -18,9 +18,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError } from "@/lib/api/errors";
-import { formatSubscriptionState } from "@/lib/domain";
-import { getCurrentSubscription } from "@/lib/stubs";
-import type { SubscriptionInfo } from "@/lib/types";
+import { formatSubscriptionState, subscriptionInfoFromAuth } from "@/lib/domain";
 
 type EditableField = "name" | "email" | "phone";
 
@@ -62,16 +60,15 @@ export default function ProfileTab() {
 
   // The auth cache is the source of truth for account fields — the profile
   // mutators field-merge their PATCH result into ['auth','me'], so these
-  // re-derive automatically once a save lands. (Subscription stays stubbed —
-  // Stripe wiring is WS8.)
+  // re-derive automatically once a save lands. WS9-2 BUG-072 — subscription now
+  // reads the real DB-backed user.subscription (via subscriptionInfoFromAuth)
+  // instead of the getCurrentSubscription() stub's fixed 14-days-remaining.
   const user = auth.user;
   const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
   const displayEmail = user?.email ?? "";
   const displayPhone = user?.phone ?? "";
 
-  const [subscription] = useState<SubscriptionInfo>(() =>
-    getCurrentSubscription(),
-  );
+  const subscription = subscriptionInfoFromAuth(user?.subscription);
   const [editingField, setEditingField] = useState<EditableField | null>(null);
   const [draftValue, setDraftValue] = useState("");
   const [fieldStatus, setFieldStatus] = useState<FieldStatus>(null);
