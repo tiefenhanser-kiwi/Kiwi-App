@@ -836,6 +836,7 @@ test(
             isActiveThisWeek: false,
             userId: "user-1",
             sourceType: "user_created",
+            image: null,
             prepStatus: "not_prepped" as const,
             prepStatusIsManual: false,
             optimizationNotes: [],
