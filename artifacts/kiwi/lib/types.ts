@@ -277,6 +277,12 @@ export interface ReviewPlanMealRow {
   fatGPerServing?: number;
   /** Day strip — 7 entries Sun-Sat with assignment state. */
   dayStrip: DayAssignment[];
+  /** MealPlanItem.positionIndex — server append order (server assigns max+1 on
+   *  add). D-WS9-142 sorts the UNSCHEDULED bucket by this DESCENDING so a newly
+   *  added meal surfaces at the top of that bucket. DISPLAY-ONLY — the stored
+   *  values never move (prep sequencing reads the same field). Undefined on
+   *  optimistic/deep-link stub rows (no server item yet) → they sort to top. */
+  positionIndex?: number;
   /** WS7-7-A B5 — per-instance servings (MealPlanItem.servingsOverride); null
    *  = inherit the meal's default. Plumbed to Meal Detail so the servings
    *  stepper initializes from the plan's value and persists back to it. */

@@ -50,6 +50,7 @@ import { resolveActivatedPlanRouteAfter404 } from "@/lib/wizard/activateRecovery
 import {
   mealDetailToRow,
   planDetailToReviewPlan,
+  sortUnscheduledNewestFirst,
 } from "@/lib/plans/reviewPlanAdapter";
 import { wizardExpandedPlanToReviewPlan } from "@/lib/plans/wizardDraftReviewAdapter";
 import { decidePlanDetailsCta } from "@/lib/plans/wizardPostSaveCta";
@@ -662,6 +663,11 @@ export default function PlanReviewScreen() {
     reviewPlan.scheduledMeals.length + reviewPlan.unscheduledMeals.length;
   const mealCountLabel = `${mealCount} ${mealCount === 1 ? "meal" : "meals"}`;
 
+  // D-WS9-142 — render the unscheduled bucket newest-first (positionIndex desc)
+  // so a just-added meal lands at the TOP of Unscheduled. Display-only; the
+  // scheduled section keeps its own order untouched.
+  const unscheduledSorted = sortUnscheduledNewestFirst(reviewPlan.unscheduledMeals);
+
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       {/* §8.3.1 — Header with back button, page label, and a state-aware pill:
@@ -1028,7 +1034,7 @@ export default function PlanReviewScreen() {
                   {!isDraft && (
                     <Text style={s.subSectionHeader}>Unscheduled</Text>
                   )}
-                  {reviewPlan.unscheduledMeals.map((row) => (
+                  {unscheduledSorted.map((row) => (
                     <PlanReviewMealRow
                       key={row.planItemId}
                       row={row}

@@ -10,7 +10,9 @@ import type { MealDetail } from "@/lib/api/meals";
 import {
   planDetailToReviewPlan,
   mealDetailToRow,
+  sortUnscheduledNewestFirst,
 } from "../reviewPlanAdapter";
+import type { ReviewPlanMealRow } from "@/lib/types";
 
 function makeMeal(over: Partial<MealDetail> = {}): MealDetail {
   return {
@@ -298,6 +300,57 @@ test("planDetailToReviewPlan: meta line falls back to meal.servings when serving
     }),
   );
   assert.equal(result.scheduledMeals[0].metaLine, "Easy · 30 min · serves 5");
+});
+
+// ── D-WS9-142 — unscheduled newest-first sort ────────────────────────────────
+
+function row(over: Partial<ReviewPlanMealRow> = {}): ReviewPlanMealRow {
+  return {
+    planItemId: "pi-x",
+    mealId: "m-x",
+    title: "Row",
+    metaLine: "Easy · 30 min · serves 4",
+    dayStrip: [],
+    ...over,
+  };
+}
+
+test("sortUnscheduledNewestFirst: orders by positionIndex descending", () => {
+  const out = sortUnscheduledNewestFirst([
+    row({ planItemId: "a", positionIndex: 0 }),
+    row({ planItemId: "b", positionIndex: 2 }),
+    row({ planItemId: "c", positionIndex: 1 }),
+  ]);
+  assert.deepEqual(out.map((r) => r.planItemId), ["b", "c", "a"]);
+});
+
+test("sortUnscheduledNewestFirst: an added meal (highest positionIndex) lands first", () => {
+  const out = sortUnscheduledNewestFirst([
+    row({ planItemId: "old-1", positionIndex: 3 }),
+    row({ planItemId: "old-2", positionIndex: 4 }),
+    row({ planItemId: "added", positionIndex: 5 }), // server max+1
+  ]);
+  assert.equal(out[0].planItemId, "added");
+});
+
+test("sortUnscheduledNewestFirst: an optimistic stub (no positionIndex) floats to top", () => {
+  const out = sortUnscheduledNewestFirst([
+    row({ planItemId: "server-1", positionIndex: 1 }),
+    row({ planItemId: "stub", positionIndex: undefined }),
+    row({ planItemId: "server-2", positionIndex: 2 }),
+  ]);
+  assert.equal(out[0].planItemId, "stub");
+  assert.deepEqual(out.map((r) => r.planItemId), ["stub", "server-2", "server-1"]);
+});
+
+test("sortUnscheduledNewestFirst: pure — does not mutate the input array", () => {
+  const input = [
+    row({ planItemId: "a", positionIndex: 0 }),
+    row({ planItemId: "b", positionIndex: 1 }),
+  ];
+  const before = input.map((r) => r.planItemId);
+  sortUnscheduledNewestFirst(input);
+  assert.deepEqual(input.map((r) => r.planItemId), before);
 });
 
 test("mealDetailToRow: deep-link injection row carries cuisine + macros, empty day strip", () => {

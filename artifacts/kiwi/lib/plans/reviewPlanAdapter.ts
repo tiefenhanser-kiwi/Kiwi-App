@@ -87,7 +87,23 @@ function itemToRow(
     dayStrip: buildDayStrip(day),
     // WS7-7-A B5 — carry the plan-instance servings override to Meal Detail.
     servingsOverride: item.servingsOverride,
+    // D-WS9-142 — server append order; the unscheduled bucket sorts on this.
+    positionIndex: item.positionIndex,
   };
+}
+
+// D-WS9-142 (RULED, Hans) — order the UNSCHEDULED bucket newest-first so a just-
+// added meal appears at the top of that bucket (server assigns positionIndex =
+// max+1 on add). DISPLAY-ONLY: returns a sorted copy, mutates nothing, and the
+// stored positionIndex values are untouched (prep sequencing still reads them).
+// Optimistic / deep-link stub rows have no positionIndex yet → treated as the
+// newest (sorted to top) so the add reads as successful before the refetch. Sort
+// is stable, so same-key rows keep their incoming order.
+export function sortUnscheduledNewestFirst(
+  rows: ReviewPlanMealRow[],
+): ReviewPlanMealRow[] {
+  const rank = (r: ReviewPlanMealRow) => r.positionIndex ?? Number.MAX_SAFE_INTEGER;
+  return [...rows].sort((a, b) => rank(b) - rank(a));
 }
 
 // `servings` defaults to the canonical meal default so the deep-link inject
