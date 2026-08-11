@@ -500,6 +500,11 @@ export function createPlansRouter(
           dietaryStale,
           // sourceType lives on the template, not the instance.
           sourceType: instance.template?.sourceType ?? "manual",
+          // BUG-076 — the plan's header image. MealPlanInstance has no image of
+          // its own; it inherits the backing template's imageUrl (null for the
+          // ~95% of plans with no photo → the client renders the gradient
+          // fallback). The template.imageUrl select above was previously dead.
+          image: instance.template?.imageUrl ?? null,
           // WS7-8a B3 — derived rollup (or the manual pin when set), not the
           // raw stored column. prepStatusIsManual surfaces which one is in play
           // so the client can show "auto" vs "pinned".

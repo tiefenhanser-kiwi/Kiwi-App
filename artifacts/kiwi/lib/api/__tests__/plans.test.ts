@@ -151,6 +151,7 @@ const PLAN_DETAIL_RESPONSE = {
     isActiveThisWeek: true,
     userId: "user-1",
     sourceType: "curated",
+    image: null,
     prepStatus: "not_prepped" as const,
     prepStatusIsManual: false,
     optimizationNotes: [],
@@ -274,6 +275,24 @@ test("PlanDetailSchema rejects a plan missing prepStatusIsManual", () => {
   const { prepStatusIsManual, ...withoutManual } = PLAN_DETAIL_RESPONSE.plan;
   void prepStatusIsManual;
   assert.equal(PlanDetailSchema.safeParse(withoutManual).success, false);
+});
+
+// BUG-076 — the plan header image crosses the wire. Non-optional nullable:
+// parses null, parses a URL, and rejects an omitted key (a plain z.object would
+// otherwise strip it and the band would never see a real image).
+test("PlanDetailSchema carries image (null and URL) and rejects a missing key", () => {
+  const nullImage = PlanDetailSchema.parse(PLAN_DETAIL_RESPONSE.plan);
+  assert.equal(nullImage.image, null);
+
+  const withUrl = PlanDetailSchema.parse({
+    ...PLAN_DETAIL_RESPONSE.plan,
+    image: "https://example.com/plan.jpg",
+  });
+  assert.equal(withUrl.image, "https://example.com/plan.jpg");
+
+  const { image, ...withoutImage } = PLAN_DETAIL_RESPONSE.plan;
+  void image;
+  assert.equal(PlanDetailSchema.safeParse(withoutImage).success, false);
 });
 
 // ── getPlans ────────────────────────────────────────────────────────────────

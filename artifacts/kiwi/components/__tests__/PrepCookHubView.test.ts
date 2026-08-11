@@ -125,6 +125,7 @@ function plan(overrides: Partial<PlanDetail> = {}): PlanDetail {
     isActiveThisWeek: true,
     userId: "u1",
     sourceType: "user",
+    image: null,
     prepStatus: "not_prepped",
     prepStatusIsManual: false,
     optimizationNotes: [],

@@ -88,6 +88,7 @@ function makeDetail(over: Partial<PlanDetail> = {}): PlanDetail {
     isActiveThisWeek: false,
     userId: "user-1",
     sourceType: "user",
+    image: null,
     prepStatus: "not_prepped",
     prepStatusIsManual: false,
     optimizationNotes: [],

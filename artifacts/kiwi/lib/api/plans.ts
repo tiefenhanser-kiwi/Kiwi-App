@@ -144,6 +144,10 @@ export const PlanDetailSchema = z.object({
   isArchived: z.boolean().optional(),
   compostedAt: z.string().nullable().optional(),
   sourceType: z.string(),
+  // BUG-076 — plan header image (the backing template's imageUrl, null for
+  // most plans). Non-optional: the server always emits the key now (a plain
+  // z.object strips it otherwise), and the fallback is the primary visual.
+  image: z.string().nullable(),
   // WS7-4-A c6 — new MealPlanInstance fields from PRD §8.3.3 / §8.3.4 / §8.3.7.
   // WS7-8b B1 — `prepStatus` is now the WS7-8a B3 effective rollup (the manual
   // pin when prepStatusIsManual, else the derived per-meal rollup); the field

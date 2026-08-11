@@ -218,6 +218,8 @@ function instanceFix(opts: {
   endDate?: Date | null;
   prepStatus?: "not_prepped" | "partial" | "prepped";
   prepStatusIsManual?: boolean;
+  // BUG-076 — backing template imageUrl, surfaced by GET /plans/:id as `image`.
+  imageUrl?: string | null;
   // WS7-8a B3 — checked stepKeys for this plan (drives the per-meal derivation;
   // the step set itself comes from the injected loadPrepStepSet stub).
   completions?: string[];
@@ -253,7 +255,7 @@ function instanceFix(opts: {
     template: {
       title: opts.name,
       description: "instance template",
-      imageUrl: null as string | null,
+      imageUrl: opts.imageUrl ?? (null as string | null),
       tags: ["dev"],
       sourceType: "wizard",
     },
@@ -994,6 +996,41 @@ describe("GET /plans/:id — composite Plan Review", () => {
       assert.equal(body.plan.items[0].meal?.calories, 600);
       // (600 + 400) / 2 distinct days = 500/day
       assert.equal(body.plan.macroDailyAverage.caloriesPerDay, 500);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // BUG-076 — GET /plans/:id surfaces the backing template's imageUrl as
+  // `image` (the select was previously dead — never emitted). null when the
+  // template has no photo; the URL when it does.
+  it("ships the backing template imageUrl as `image` (URL and null)", async () => {
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-img",
+            name: "Has Image",
+            imageUrl: "https://example.com/plan.jpg",
+          }),
+          instanceFix({ id: "p-noimg", name: "No Image" }),
+        ],
+      }),
+    );
+    try {
+      const withImg = await fetch(`${harness.baseUrl}/plans/p-img`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(withImg.status, 200);
+      const withImgBody = (await withImg.json()) as { plan: { image: string | null } };
+      assert.equal(withImgBody.plan.image, "https://example.com/plan.jpg");
+
+      const noImg = await fetch(`${harness.baseUrl}/plans/p-noimg`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(noImg.status, 200);
+      const noImgBody = (await noImg.json()) as { plan: { image: string | null } };
+      assert.equal(noImgBody.plan.image, null);
     } finally {
       await harness.close();
     }

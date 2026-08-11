@@ -694,11 +694,12 @@ export default function PlanReviewScreen() {
             tap-to-edit intact), a compact date + meal-count meta row, and the
             "Cook This Week" pill. The band replaces the old flat meta strip. */}
         <View style={s.headerBand}>
-          {/* Image block. §27.2 — TreatedImage always renders its warm gradient
-              placeholder behind; the real photo (Commit 4) shows only when
-              present, so ~95% of plans read as the intended fallback. */}
+          {/* Image block (BUG-076). §27.2 — TreatedImage always renders its
+              warm gradient placeholder behind; the real photo shows only when
+              present, so the ~95% of plans with no image read as the intended
+              fallback. */}
           <TreatedImage
-            source={null}
+            source={reviewPlan.image ? { uri: reviewPlan.image } : null}
             height={132}
             radius={Radius.md}
             style={s.headerImage}

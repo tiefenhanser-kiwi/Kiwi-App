@@ -54,6 +54,8 @@ export function planDetailToReviewPlan(detail: PlanDetail): ReviewPlan {
     // WS7-6 (E) Block 2 §4 — Model 2 resolver-derived. Drives the
     // "Cook This Week" / "This Week's Plan" chip in Plan Review.
     isActiveThisWeek: detail.isActiveThisWeek,
+    // BUG-076 — header image (template imageUrl; null for most plans).
+    image: detail.image ?? null,
   };
 }
 
