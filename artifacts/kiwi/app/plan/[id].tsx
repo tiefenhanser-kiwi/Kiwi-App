@@ -24,6 +24,7 @@ import { SwapMealSheet, type SwapMode } from "@/components/SwapMealSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { LoadingShim } from "@/components/LoadingShim";
+import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
 import { PlanDateRangeEditor } from "@/components/PlanDateRangeEditor";
 import { PlanNameEditor } from "@/components/PlanNameEditor";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
@@ -778,6 +779,18 @@ export default function PlanReviewScreen() {
           </View>
         ) : (
           <View style={s.actionBar}>
+            {/* WS9-2 2b Commit 2 — Use again + Compost relocated off the action
+                card into the ⋯ overflow (recovers a full button row). The ⋯
+                lives in the action area, top-right of the card; both handlers
+                (undated-inactive copy / active-plan compost confirm + undo)
+                are carried verbatim — position-only move. */}
+            <View style={s.actionBarHeader}>
+              <PlanCardOverflowMenu
+                accessibilityLabel="Plan actions"
+                onUseAgain={handleUseAgainThisPlan}
+                onCompost={handleCompostThisPlan}
+              />
+            </View>
             <Button
               label="Prep and Cook"
               variant="primary"
@@ -808,25 +821,6 @@ export default function PlanReviewScreen() {
                   variant="ghost"
                   loading={isGeneratingList}
                   onPress={handleGroceryListPress}
-                />
-              </View>
-            </View>
-            {/* WS9 3d Part 3a/3b — plan-lifecycle actions on the Plan Review
-                action area (same two the plan-card ⋯ offers). Use again copies
-                this plan (any saved plan is copyable — 3b-3). */}
-            <View style={s.actionRow}>
-              <View style={s.actionCol}>
-                <Button
-                  label="Use again"
-                  variant="ghost"
-                  onPress={handleUseAgainThisPlan}
-                />
-              </View>
-              <View style={s.actionCol}>
-                <Button
-                  label="Compost"
-                  variant="ghost"
-                  onPress={handleCompostThisPlan}
                 />
               </View>
             </View>
@@ -1404,6 +1398,14 @@ const s = StyleSheet.create({
     gap: Spacing[2],
   },
   actionCol: { flex: 1 },
+  actionBarHeader: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    // Pull the ⋯ up into the card padding so it doesn't add a full row of
+    // height above the primary action.
+    marginTop: -Spacing[1],
+    marginBottom: -Spacing[1],
+  },
   compostedNote: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[600],
