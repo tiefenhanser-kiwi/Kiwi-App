@@ -844,36 +844,21 @@ export default function PlanReviewScreen() {
         </View>
 
         {/* §8.3.3 — Prep status indicator (hidden on a draft — prep is a
-            saved-plan concept). */}
-        {!isDraft && (
-        <View style={s.section}>
-          {reviewPlan.prepStatus === "not_prepped" ? (
-            <View style={s.prepBanner}>
-              <Feather name="zap" size={16} color={Colors.sage[700]} />
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={s.prepBannerText}>
-                  Prep these meals with Kiwi to save time during the week
-                </Text>
-                <Pressable
-                  onPress={() => {
-                    console.log("[plan-review] start-prep tapped", { planId });
-                  }}
-                  hitSlop={8}
-                >
-                  <Text style={s.prepLink}>Start Prep</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : reviewPlan.prepStatus === "prepped" ? (
+            saved-plan concept). D-WS9-133: the not_prepped "Start Prep" banner
+            is removed entirely — its handler was a dead console.log and the
+            live prep entry is the "Prep and Cook" action-bar button above. Only
+            the positive prepped / partial badges remain; not_prepped shows
+            nothing (recovers the banner's vertical space). */}
+        {!isDraft && reviewPlan.prepStatus !== "not_prepped" && (
+          <View style={s.section}>
             <View style={s.prepBadge}>
-              <Text style={s.prepBadgeText}>Prepped this week ✓</Text>
+              <Text style={s.prepBadgeText}>
+                {reviewPlan.prepStatus === "prepped"
+                  ? "Prepped this week ✓"
+                  : "Prepped (mostly) ✓"}
+              </Text>
             </View>
-          ) : (
-            <View style={s.prepBadge}>
-              <Text style={s.prepBadgeText}>Prepped (mostly) ✓</Text>
-            </View>
-          )}
-        </View>
+          </View>
         )}
 
         {/* §8.3.4 — Smart Optimization Panel (hidden when notes are empty per §8.6) */}
@@ -1444,28 +1429,6 @@ const s = StyleSheet.create({
     color: Colors.gold.text,
     fontFamily: Typography.face.sans[400],
     lineHeight: 18,
-  },
-  prepBanner: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing[2],
-    backgroundColor: Colors.sage[50],
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.sage[300],
-    padding: Spacing[3],
-  },
-  prepBannerText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[900],
-    fontFamily: Typography.face.sans[400],
-    lineHeight: 18,
-  },
-  prepLink: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.sage[700],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
   },
   prepBadge: {
     alignSelf: "flex-start",
