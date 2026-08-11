@@ -28,6 +28,7 @@ import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
 import { PlanDateRangeEditor } from "@/components/PlanDateRangeEditor";
 import { PlanNameEditor } from "@/components/PlanNameEditor";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
+import { TreatedImage } from "@/components/TreatedImage";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { useToast } from "@/contexts/ToastProvider";
@@ -655,6 +656,12 @@ export default function PlanReviewScreen() {
     reviewPlan.scheduledMeals.length > 0 ||
     reviewPlan.unscheduledMeals.length > 0;
 
+  // WS9-2 2b Commit 3 — client-derived meal count for the header band. There is
+  // no server scalar for this; it is just the two buckets summed.
+  const mealCount =
+    reviewPlan.scheduledMeals.length + reviewPlan.unscheduledMeals.length;
+  const mealCountLabel = `${mealCount} ${mealCount === 1 ? "meal" : "meals"}`;
+
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       {/* §8.3.1 — Header with back button, page label, and a state-aware pill:
@@ -682,27 +689,58 @@ export default function PlanReviewScreen() {
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={s.planMetaSection}>
-          {/* Draft: name is fixed (the candidate title) and there is no week
-              yet — no name/date editors, no Cook This Week chip (the action bar
-              owns the commit). Saved: the full editable meta strip. */}
+        {/* WS9-2 2b Commit 3 (D-WS9-133) — sage-tinted header band. Holds the
+            plan image (fallback-primary — see Commit 4), the plan name (inline
+            tap-to-edit intact), a compact date + meal-count meta row, and the
+            "Cook This Week" pill. The band replaces the old flat meta strip. */}
+        <View style={s.headerBand}>
+          {/* Image block. §27.2 — TreatedImage always renders its warm gradient
+              placeholder behind; the real photo (Commit 4) shows only when
+              present, so ~95% of plans read as the intended fallback. */}
+          <TreatedImage
+            source={null}
+            height={132}
+            radius={Radius.md}
+            style={s.headerImage}
+          />
+          {/* Draft: title is fixed (the candidate name), no week yet — no
+              name/date editors, no Cook This Week pill (the action bar owns the
+              commit). Meal count still renders (client-derived). Saved: the full
+              editable meta strip. */}
           {isDraft ? (
-            <DisplayTitle source={reviewPlan} variant="hero" style={s.draftTitle} />
+            <View style={s.headerBandBody}>
+              <DisplayTitle
+                source={reviewPlan}
+                variant="hero"
+                style={s.draftTitle}
+              />
+              <Text style={s.mealCountText}>{mealCountLabel}</Text>
+            </View>
           ) : (
-            <>
+            <View style={s.headerBandBody}>
+              {/* PlanNameEditor sits directly in the column-stretch band body
+                  so its edit-mode flex:1 TextInput fills the band's bounded
+                  width (PRD §8.3.1 inline tap-to-edit intact — no competing tap
+                  handler over its Pressable row). */}
               <PlanNameEditor
                 currentName={planName}
                 onSave={handleSavePlanName}
               />
-              <PlanDateRangeEditor
-                startDate={reviewPlan.weekStartDate}
-                endDate={reviewPlan.weekEndDate}
-                onSave={handleSaveDateRange}
-              />
-              {/* WS7-6 (E) Block 2 §4 — Cook This Week chip. Lives in the meta
-                  strip (NOT the §8.3.2 action bar). When this plan IS the
-                  winner: passive "This Week's Plan" badge. Otherwise: tappable
-                  chip activates the plan (resolver demotes prior winner). */}
+              <View style={s.headerMetaRow}>
+                <PlanDateRangeEditor
+                  startDate={reviewPlan.weekStartDate}
+                  endDate={reviewPlan.weekEndDate}
+                  onSave={handleSaveDateRange}
+                />
+                <Text style={s.headerDot}>·</Text>
+                <Text style={s.mealCountText}>{mealCountLabel}</Text>
+              </View>
+              {/* WS7-6 (E) Block 2 §4 — Cook This Week pill. Relocated into the
+                  header band (D-WS9-133 doesn't spec its home). Behavior is
+                  unchanged — it still drives handleCookThisWeek (which mutates
+                  isActiveThisWeek / demotes the prior winner). When this plan IS
+                  the winner: passive "This Week's Plan" badge; else the tappable
+                  activate pill. */}
               {reviewPlan.isActiveThisWeek ? (
                 <View style={s.cookThisWeekBadge}>
                   <Feather name="check" size={12} color={Colors.sage[700]} />
@@ -725,7 +763,7 @@ export default function PlanReviewScreen() {
                   <Text style={s.cookThisWeekChipText}>Cook This Week</Text>
                 </Pressable>
               )}
-            </>
+            </View>
           )}
         </View>
 
@@ -1345,9 +1383,37 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
-  planMetaSection: {
-    gap: 4,
+  headerBand: {
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.sage[200],
+    padding: Spacing[3],
+    gap: Spacing[3],
     marginBottom: Spacing[3],
+  },
+  headerImage: {
+    width: "100%",
+  },
+  headerBandBody: {
+    gap: 6,
+  },
+  headerMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  headerDot: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[500],
+    fontFamily: Typography.face.sans[400],
+  },
+  mealCountText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   cookThisWeekChip: {
     flexDirection: "row",
