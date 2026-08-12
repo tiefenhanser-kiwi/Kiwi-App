@@ -23,6 +23,17 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { ImageTreatment } from "@/constants/tokens";
 
+// WS9-2 2c Commit 2 — best-effort URI extraction for the failure signal only.
+// ImageSourcePropType is a union: a bundled asset (number), a {uri} object, or
+// an array of those. Returns null for anything without a URI — a bundled asset
+// cannot 404 over the network, so there is nothing to report for it.
+function uriOf(source: ImageSourcePropType | null | undefined): string | null {
+  if (!source || typeof source === "number") return null;
+  const first = Array.isArray(source) ? source[0] : source;
+  const uri = (first as { uri?: unknown } | undefined)?.uri;
+  return typeof uri === "string" ? uri : null;
+}
+
 type Props = {
   source?: ImageSourcePropType | null;
   /** Fixed aspect for the slot, e.g. ImageTreatment.aspect.railCard. Used only
@@ -34,6 +45,21 @@ type Props = {
   radius?: number;
   gradient?: readonly [string, string];
   style?: StyleProp<ViewStyle>;
+  /**
+   * WS9-2 2c Commit 2 — fired when a REMOTE photo fails to load. Additive
+   * signal ONLY: the rendering is unchanged in every case, including failure
+   * (the warm gradient underneath keeps showing through, exactly as before).
+   *
+   * This exists because plan-template images are now hand-curated by pasting an
+   * HTTPS URL straight into MealPlanTemplate.imageUrl (D-WS9-149), and a typo'd
+   * or dead URL was previously indistinguishable from a plan that simply has no
+   * photo — both render as the identical gradient, with nothing logged. That is
+   * a debugging trap for a data-entry workflow.
+   *
+   * Omitting the prop still logs a console warning, so the signal exists even
+   * where no caller opts in.
+   */
+  onError?: (uri: string | null) => void;
 };
 
 export function TreatedImage({
@@ -44,8 +70,17 @@ export function TreatedImage({
   radius = 0,
   gradient = ImageTreatment.placeholder.gradient,
   style,
+  onError,
 }: Props) {
   const hasFixedDim = width != null || height != null;
+  // ⚠️ Declared unconditionally (hooks rule) but only ever WIRED to the <Image>
+  // below, which is itself only rendered when `source` is non-null. The
+  // null-source path therefore does not change by construction — see §0.2.
+  const handleError = React.useCallback(() => {
+    const uri = uriOf(source);
+    console.warn("[TreatedImage] image failed to load", { uri });
+    onError?.(uri);
+  }, [source, onError]);
   return (
     <View
       style={[
@@ -68,6 +103,7 @@ export function TreatedImage({
           source={source}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
+          onError={handleError}
         />
       ) : null}
       <View

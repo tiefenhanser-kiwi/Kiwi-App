@@ -49,3 +49,73 @@ test("legacy null-stamp user with a plan: both leads surface (arc then thisWeek)
     ["arc", "thisWeek", "makeLane", "rail"],
   );
 });
+
+// ── WS9-2 2c Commit 2 — the loading lead ────────────────────────────────────
+// Before this commit, "GET /home is in flight" and "this user genuinely has no
+// plan" produced the SAME section list. Home therefore asserted something false
+// for the duration of every cold request. These tests pin the distinction.
+
+test("loading: the lead slot is HELD by a placeholder, not collapsed", () => {
+  // isFirstRun/hasActivePlan are false-by-default here, not false-by-fact —
+  // exactly the pre-fix input that used to silently yield ["makeLane"].
+  assert.deepEqual(
+    homeSectionOrder({
+      isFirstRun: false,
+      hasActivePlan: false,
+      hasRail: false,
+      isLoading: true,
+    }),
+    ["leadLoading", "makeLane"],
+  );
+});
+
+test("loading PRE-EMPTS both leads — no arc flash, no premature this-week module", () => {
+  // A returning user must never see the first-run treatment (D-WS9-026), and a
+  // stale-cache hasActivePlan must not paint a strip we cannot yet fill.
+  assert.deepEqual(
+    homeSectionOrder({
+      isFirstRun: true,
+      hasActivePlan: true,
+      hasRail: true,
+      isLoading: true,
+    }),
+    ["leadLoading", "makeLane", "rail"],
+  );
+});
+
+test("loading resolves: the placeholder is replaced by the real lead, order unchanged", () => {
+  const loading = homeSectionOrder({
+    isFirstRun: false,
+    hasActivePlan: true,
+    hasRail: true,
+    isLoading: true,
+  });
+  const settled = homeSectionOrder({
+    isFirstRun: false,
+    hasActivePlan: true,
+    hasRail: true,
+    isLoading: false,
+  });
+  assert.deepEqual(loading, ["leadLoading", "makeLane", "rail"]);
+  assert.deepEqual(settled, ["thisWeek", "makeLane", "rail"]);
+  // Same arity and same tail — the swap is in place, so nothing below it moves.
+  assert.equal(loading.length, settled.length);
+  assert.deepEqual(loading.slice(1), settled.slice(1));
+});
+
+test("isLoading is optional — omitting it is identical to passing false", () => {
+  // Back-compat guard: every pre-2c caller omits the flag.
+  const omitted = homeSectionOrder({
+    isFirstRun: true,
+    hasActivePlan: false,
+    hasRail: true,
+  });
+  const explicit = homeSectionOrder({
+    isFirstRun: true,
+    hasActivePlan: false,
+    hasRail: true,
+    isLoading: false,
+  });
+  assert.deepEqual(omitted, explicit);
+  assert.ok(!omitted.includes("leadLoading"));
+});

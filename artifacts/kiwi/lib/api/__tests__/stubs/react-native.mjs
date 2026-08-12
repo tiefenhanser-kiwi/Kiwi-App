@@ -38,6 +38,9 @@ export const StyleSheet = {
   },
   hairlineWidth: 1,
   absoluteFillObject: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
+  // WS9-2 2c Commit 2 — TreatedImage layers its gradient / photo / overlay with
+  // StyleSheet.absoluteFill (the registered-style alias of absoluteFillObject).
+  absoluteFill: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
 };
 
 let __alertHandler = null;

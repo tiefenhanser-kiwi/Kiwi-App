@@ -37,6 +37,8 @@ const PHYSICAL_STUBS = new Map([
   ["react-native-safe-area-context", "./stubs/safe-area-context.mjs"],
   ["expo-router", "./stubs/expo-router.mjs"],
   ["expo-haptics", "./stubs/expo-haptics.mjs"],
+  // WS9-2 2c Commit 2 — lets TreatedImage (and its consumers) be tested.
+  ["expo-linear-gradient", "./stubs/expo-linear-gradient.mjs"],
 ]);
 
 // kiwi/ root, used to resolve the `@/*` tsconfig path alias.

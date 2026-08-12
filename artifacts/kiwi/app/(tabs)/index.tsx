@@ -22,6 +22,7 @@ import { useRouter } from "expo-router";
 import { ActivePlanStrip } from "@/components/ActivePlanStrip";
 import { GroceryGeneratingOverlay } from "@/components/GroceryGeneratingOverlay";
 import { HomeHeader } from "@/components/HomeHeader";
+import { LoadingShim } from "@/components/LoadingShim";
 import { PlanPreviewModal } from "@/components/PlanPreviewModal";
 import { Screen } from "@/components/Screen";
 import { SectionLabel } from "@/components/SectionLabel";
@@ -66,6 +67,12 @@ export default function HomeTab() {
   // (a returning user must never see the first-run treatment). null AND loaded
   // ⇒ genuine first run.
   const isFirstRun = homeQuery.data?.firstPlanCreatedAt == null && !!homeQuery.data;
+
+  // WS9-2 2c Commit 2 — first-load only. React Query's isLoading is
+  // (pending && fetching), so a background refetch driven by useRefetchOnFocus
+  // does NOT re-show the placeholder once data exists; the lead only goes
+  // neutral when we genuinely have nothing to render from.
+  const isHomeLoading = homeQuery.isLoading;
 
   // D-WS5-033 — usePlans is the canonical server plan source for the grocery
   // fallback disambiguation (NOT useApp().plans, the legacy cache).
@@ -180,20 +187,44 @@ export default function HomeTab() {
 
   const hasActivePlan = heroModel.kind !== "empty";
 
+  // Section order is the ruled contract (D-WS9-025) — mockup composition: the
+  // LEAD (loading placeholder / arc first-run / tonight strip returning) sits
+  // ABOVE the make-lane eyebrow. Driven by homeSectionOrder so the order lives
+  // in one tested place, not reshuffleable JSX.
+  const sections = homeSectionOrder({
+    isFirstRun,
+    hasActivePlan,
+    hasRail: railItems.length > 0,
+    isLoading: isHomeLoading,
+  });
+  // The make-lane eyebrow takes its tight top margin only when it genuinely
+  // LEADS the screen. Derived from the computed order rather than re-deriving
+  // the condition, so a new lead section can never drift out of sync with it
+  // (the loading placeholder is a lead too).
+  const makeLaneLeads = sections[0] === "makeLane";
+
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <HomeHeader />
       <Screen>
-        {/* Section order is the ruled contract (D-WS9-025) — mockup composition:
-            the LEAD (arc first-run / tonight strip returning) sits ABOVE the
-            make-lane eyebrow. Driven by homeSectionOrder so the order lives in
-            one tested place, not reshuffleable JSX. */}
-        {homeSectionOrder({
-          isFirstRun,
-          hasActivePlan,
-          hasRail: railItems.length > 0,
-        }).map((section) => {
+        {sections.map((section) => {
           switch (section) {
+            case "leadLoading":
+              // WS9-2 2c Commit 2 — holds the LEAD slot while GET /home is in
+              // flight. Before this, the slot collapsed and Home read as
+              // "you have no plan this week" for the whole request — a false
+              // statement, not merely a missing one.
+              //
+              // Deliberately NOT a "this week" eyebrow: we do not yet know
+              // whether there IS a this-week plan, and labelling the slot
+              // would substitute one wrong claim for another.
+              //
+              // §27.2 — reuses the shared LoadingShim; no new primitive.
+              return (
+                <View key="leadLoading" style={styles.leadLoadingWrap}>
+                  <LoadingShim variant="inline" label="Getting your week…" />
+                </View>
+              );
             case "arc":
               return (
                 <View key="arc" style={styles.arcWrap}>
@@ -260,7 +291,7 @@ export default function HomeTab() {
                         ? "what do you want to eat?"
                         : "plan something new"
                     }
-                    first={!hasActivePlan}
+                    first={makeLaneLeads}
                   />
                   <TellKiwiCard
                     value={tellText}
@@ -314,6 +345,14 @@ const styles = StyleSheet.create({
   // 12px below to the make-lane eyebrow (mockup .arc margin-bottom).
   arcWrap: {
     marginBottom: Spacing[3],
+  },
+  // The loading placeholder occupies the same lead slot as arcWrap /
+  // thisWeekBlock and carries the same 12px bottom gap, so resolving the query
+  // swaps the content in place instead of shoving the make lane around.
+  leadLoadingWrap: {
+    marginBottom: Spacing[3],
+    paddingVertical: Spacing[3],
+    alignItems: "center",
   },
   // The this-week module (eyebrow + strip + utility row) as one grouped block;
   // 12px below it to the make-lane eyebrow.

@@ -17,7 +17,9 @@
 // tested place instead of raw JSX that can silently be reshuffled.
 
 // "thisWeek" is a compound section: eyebrow + tonight strip + utility row.
-export type HomeSection = "arc" | "thisWeek" | "makeLane" | "rail";
+// "leadLoading" is the placeholder that occupies the LEAD slot while GET /home
+// is still in flight (WS9-2 2c Commit 2) — see the isLoading note below.
+export type HomeSection = "leadLoading" | "arc" | "thisWeek" | "makeLane" | "rail";
 
 export function homeSectionOrder(opts: {
   /** firstPlanCreatedAt == null (and payload loaded). */
@@ -26,14 +28,41 @@ export function homeSectionOrder(opts: {
   hasActivePlan: boolean;
   /** the Tried & True rail has at least one card. */
   hasRail: boolean;
+  /**
+   * WS9-2 2c Commit 2 — GET /home has not resolved yet, so we do NOT KNOW the
+   * user's state. Optional (absent ⇒ false) so every pre-existing caller and
+   * test keeps its exact behavior.
+   *
+   * This exists because "loading" and "genuinely has no plan" rendered
+   * IDENTICALLY before this commit: deriveHeroModel(undefined) collapses to
+   * `empty`, isFirstRun is false while the payload is undefined, and the rail
+   * is empty — so the lead slot silently vanished and Home asserted "you have
+   * no plan" for the whole request. That assertion is not merely absent
+   * information, it is WRONG information, and on a cold start or a slow network
+   * it is the first thing a returning user sees.
+   *
+   * While loading, the lead slot is held by a neutral placeholder instead of
+   * collapsing. The make lane still renders (it is always available and makes
+   * no claim about state); the rail's own late arrival is a layout pop, not a
+   * false statement, and is deliberately left alone.
+   */
+  isLoading?: boolean;
 }): HomeSection[] {
   const sections: HomeSection[] = [];
   // LEAD slot — above the make-lane eyebrow. Arc and the this-week module are
   // mutually exclusive in production (a first plan stamps firstPlanCreatedAt, so
   // a user with a plan is never first-run); both conditions stay independent so
   // a legacy null-stamp row still surfaces its this-week module.
-  if (opts.isFirstRun) sections.push("arc");
-  if (opts.hasActivePlan) sections.push("thisWeek");
+  //
+  // Loading PRE-EMPTS both: until the payload lands, isFirstRun and
+  // hasActivePlan are both false-by-default rather than false-by-fact, so
+  // branching on them would be branching on an unknown.
+  if (opts.isLoading) {
+    sections.push("leadLoading");
+  } else {
+    if (opts.isFirstRun) sections.push("arc");
+    if (opts.hasActivePlan) sections.push("thisWeek");
+  }
   sections.push("makeLane");
   if (opts.hasRail) sections.push("rail");
   return sections;
