@@ -135,6 +135,34 @@ interface StubOpts {
   // WS9 3a — R4 active-plan grocery-list pointer + D-WS9-026 first-plan stamp.
   existingGroceryListId?: string | null;
   firstPlanCreatedAt?: Date | null;
+  // WS9-2 2c (D-WS9-154) — GET /home/rail rows.
+  rail?: ReturnType<typeof railTemplate>[];
+}
+
+// A public MealPlanTemplate row in the RAIL_SELECT shape (TEMPLATE_SELECT plus
+// the two featuring flags the badge pill derives from).
+function railTemplate(
+  id: string,
+  title: string,
+  over: Partial<{
+    imageUrl: string | null;
+    isFeatured: boolean;
+    isHostingFeatured: boolean;
+    tags: string[];
+  }> = {},
+) {
+  return {
+    id,
+    title,
+    description: "a curated plan",
+    imageUrl:
+      over.imageUrl !== undefined
+        ? over.imageUrl
+        : "https://images.unsplash.com/photo-1504674900247",
+    tags: over.tags ?? ["hosting", "dev"],
+    isFeatured: over.isFeatured ?? false,
+    isHostingFeatured: over.isHostingFeatured ?? true,
+  };
 }
 
 function makeStubPrisma(opts: StubOpts) {
@@ -195,8 +223,14 @@ function makeStubPrisma(opts: StubOpts) {
     },
     mealPlanTemplate: {
       findMany: async (args: {
-        where?: { isFeatured?: boolean; isHostingFeatured?: boolean };
+        where?: {
+          isFeatured?: boolean;
+          isHostingFeatured?: boolean;
+          railPosition?: { not: null };
+        };
       }) => {
+        // WS9-2 2c — GET /home/rail keys off railPosition, not the flags.
+        if (args.where?.railPosition !== undefined) return opts.rail ?? [];
         if (args.where?.isFeatured === true) return opts.featured ?? [];
         if (args.where?.isHostingFeatured === true) return opts.hosting ?? [];
         return opts.topRated ?? [];
@@ -458,6 +492,114 @@ describe("GET /home", () => {
     try {
       const res = await authGet(harness, "/home", false);
       assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS9-2 2c (D-WS9-154) — GET /home/rail ───────────────────────────────────
+
+describe("GET /home/rail", () => {
+  it("returns the curated rail with images intact", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        activeInstance: null,
+        rail: [
+          railTemplate("t-1", "Game Day Spread"),
+          railTemplate("t-2", "Quick Weeknights", {
+            isFeatured: true,
+            isHostingFeatured: false,
+            tags: ["quick"],
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/home/rail");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plans: {
+          id: string;
+          name: string;
+          image: string | null;
+          tags: string[];
+          isFeatured: boolean;
+          isHostingFeatured: boolean;
+        }[];
+      };
+      assert.equal(body.plans.length, 2);
+      assert.equal(body.plans[0].name, "Game Day Spread");
+      // The whole point of the guard chain: images must cross the wire.
+      assert.ok(body.plans.every((p) => p.image !== null));
+      assert.equal(body.plans[0].isHostingFeatured, true);
+      assert.equal(body.plans[1].isFeatured, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("emits `image` as a present key when a curated row has no photo", async () => {
+    // Non-optional on the mobile Zod side — an absent key is a hard parse
+    // failure, which is the loud-not-silent behavior we want.
+    const harness = await spinUp(
+      makeStubPrisma({
+        activeInstance: null,
+        rail: [railTemplate("t-1", "No Photo", { imageUrl: null })],
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/home/rail");
+      const body = (await res.json()) as { plans: Record<string, unknown>[] };
+      assert.ok("image" in body.plans[0]);
+      assert.equal(body.plans[0].image, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("returns an empty list when nothing is curated (rail section then omits)", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({ activeInstance: null, rail: [] }),
+    );
+    try {
+      const res = await authGet(harness, "/home/rail");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { plans: unknown[] };
+      assert.deepEqual(body.plans, []);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rejects 401 when no auth header is present", async () => {
+    const harness = await spinUp(makeStubPrisma({ activeInstance: null }));
+    try {
+      const res = await authGet(harness, "/home/rail", false);
+      assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("does not collide with GET /home", async () => {
+    // Route-ordering guard: /home/rail must not be swallowed by /home, and
+    // /home must keep returning its own composite payload.
+    const harness = await spinUp(
+      makeStubPrisma({
+        activeInstance: null,
+        rail: [railTemplate("t-1", "Game Day Spread")],
+      }),
+    );
+    try {
+      const rail = (await (await authGet(harness, "/home/rail")).json()) as {
+        plans: unknown[];
+      };
+      const home = (await (await authGet(harness, "/home")).json()) as {
+        todaysMeal: unknown;
+      };
+      assert.equal(rail.plans.length, 1);
+      assert.ok(!("plans" in home));
     } finally {
       await harness.close();
     }

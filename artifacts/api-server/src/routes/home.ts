@@ -16,6 +16,7 @@ import { MEAL_LIST_SELECT, toListShape } from "./meals";
 import {
   PLAN_FILTER_KEYS,
   resolvePlansForFilter,
+  resolveRailPlans,
   toYmd,
   type PlanFilterKey,
 } from "../lib/planQueries";
@@ -252,6 +253,33 @@ export function createHomeRouter(
     } catch (err) {
       logger.error({ err, userId }, "GET /home failed");
       return res.status(500).json({ error: "failed to load home" });
+    }
+  });
+
+  // GET /api/home/rail — the Home "Tried & True" rail (WS9-2 2c, D-WS9-154).
+  //
+  // A dedicated read rather than a fifth PLAN_FILTER_KEY: that constant is a
+  // wire contract shared with GET /plans, mirrored on mobile, rendered as the
+  // Plans-tab filter chips, and PERSISTED per user in lastPlanDiscoveryFilters.
+  // Adding "rail" to it would leak a Home-only concept into all four of those.
+  //
+  // Also NOT folded into GET /home: the rail is public catalog content with no
+  // per-user component, so it caches independently of the user's own payload
+  // and does not need to be re-fetched when their plan state changes.
+  //
+  // Auth-gated for consistency with the rest of the surface — the content is
+  // public, but every other Home read requires a session and an unauthenticated
+  // client has no Home to render it on.
+  router.get("/home/rail", requireAuth, async (req, res) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    try {
+      const plans = await resolveRailPlans(prisma);
+      return res.json({ plans });
+    } catch (err) {
+      logger.error({ err, userId: req.userId }, "GET /home/rail failed");
+      return res.status(500).json({ error: "failed to load rail" });
     }
   });
 

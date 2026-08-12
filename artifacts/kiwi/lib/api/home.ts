@@ -61,3 +61,42 @@ export type HomePayload = z.infer<typeof HomePayloadSchema>;
 export async function getHomePayload(): Promise<HomePayload> {
   return apiClient("/home", { schema: HomePayloadSchema });
 }
+
+// ── WS9-2 2c (D-WS9-154) — the Tried & True rail ────────────────────────────
+//
+// Transcribed field-for-field from the server builder (RailPlanItem +
+// railRowToItem in api-server/src/lib/planQueries.ts). Replaces the retired
+// three-query merge over GET /plans.
+//
+// ⚠️ `image` is NON-OPTIONAL and nullable, matching the server, which always
+// emits the key. This is load-bearing: the rail is the only surface in the app
+// where photographs actually render, and if a server-side projection ever drops
+// imageUrl the field arrives absent and THIS schema fails loudly rather than
+// blanking the cards silently. Do not soften it to .optional().
+const RailPlanItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  image: z.string().nullable(),
+  tags: z.array(z.string()),
+  // The badge pill derives from these two client-side — the label is copy.
+  isFeatured: z.boolean(),
+  isHostingFeatured: z.boolean(),
+});
+export type RailPlanItem = z.infer<typeof RailPlanItemSchema>;
+
+const HomeRailResponseSchema = z.object({
+  plans: z.array(RailPlanItemSchema),
+});
+export type HomeRailResponse = z.infer<typeof HomeRailResponseSchema>;
+
+/**
+ * GET /home/rail — the ordered Tried & True rail (public catalog templates with
+ * a non-null railPosition). Propagates the apiClient typed errors:
+ * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function getHomeRail(): Promise<RailPlanItem[]> {
+  const body = await apiClient("/home/rail", {
+    schema: HomeRailResponseSchema,
+  });
+  return body.plans;
+}

@@ -45,6 +45,22 @@ export interface PlanListItem {
   isActiveThisWeek: boolean;
 }
 
+// WS9-2 2c (D-WS9-154) — one Home rail card, as it crosses the wire.
+//
+// Deliberately NOT PlanListItem: the rail needs the two featuring flags (its
+// badge pill derives from them) and needs none of source/status/dates/
+// isActiveThisWeek, which are meaningless for a public catalog template. The
+// BADGE LABEL and the meta line stay client-side — they are display copy, and
+// all other display copy lives on the client.
+export interface RailPlanItem {
+  id: string;
+  name: string;
+  image: string | null;
+  tags: string[];
+  isFeatured: boolean;
+  isHostingFeatured: boolean;
+}
+
 export interface PlanSummary {
   id: string;
   name: string;
@@ -106,6 +122,16 @@ interface TemplateRow {
   tags: string[];
 }
 
+// WS9-2 2c (D-WS9-154) — the Home "Tried & True" rail row. A superset of
+// TemplateRow: the rail derives its badge pill from the two featuring flags, so
+// it needs them on the row. `description` rides along because RAIL_SELECT
+// spreads TEMPLATE_SELECT (see §0.1 — the spread is what keeps `imageUrl`
+// impossible to drop); the wire item does not emit it.
+interface RailRow extends TemplateRow {
+  isFeatured: boolean;
+  isHostingFeatured: boolean;
+}
+
 // WS9-2 2c Commit 1 — the select↔row-shape guard.
 //
 // Dropping a column from one of these projections while a shared mapper still
@@ -148,6 +174,18 @@ const TEMPLATE_SELECT = {
   tags: true,
 } satisfies SelectFor<TemplateRow>;
 
+// ⚠️ §0.1 — SPREAD, never a fresh inline select. The rail is the only surface in
+// the app where photographs actually render (Meal.imageUrl is non-null on
+// 0/1471 rows, Dish.imageUrl on 0/3485), and re-typing this projection by hand
+// is exactly how BUG-076 happened. The `satisfies` guard would catch a dropped
+// imageUrl at compile time, but the spread means it can't be dropped by accident
+// in the first place.
+const RAIL_SELECT = {
+  ...TEMPLATE_SELECT,
+  isFeatured: true,
+  isHostingFeatured: true,
+} satisfies SelectFor<RailRow>;
+
 export function instanceToListItem(
   row: InstanceRow,
   winnerId: string | null,
@@ -179,6 +217,56 @@ function templateToListItem(row: TemplateRow): PlanListItem {
     endDate: null,
     isActiveThisWeek: false,
   };
+}
+
+function railRowToItem(row: RailRow): RailPlanItem {
+  return {
+    id: row.id,
+    name: row.title,
+    image: row.imageUrl,
+    tags: row.tags,
+    isFeatured: row.isFeatured,
+    isHostingFeatured: row.isHostingFeatured,
+  };
+}
+
+// The rail's ceiling. 12 is not arbitrary: it is exactly the old client-side
+// ceiling (buildTriedTrueRail's perBadgeLimit of 4 × 3 badges), so collapsing
+// the three queries into one changes nothing at any pool size up to 12. The live
+// pool is 6.
+export const RAIL_LIMIT = 12;
+
+/**
+ * WS9-2 2c (D-WS9-154) — resolve the Home "Tried & True" rail.
+ *
+ * Replaces the retired three-query merge (hosting_events + featured + top_rated,
+ * flattened and de-duped client-side by buildTriedTrueRail). That shape had two
+ * problems: it cost three round-trips for one strip, and its ordering was an
+ * accident of bucket order rather than a decision — `top_rated` carries no
+ * featured gate, so it swept the entire public pool and whatever it added landed
+ * last regardless of merit.
+ *
+ * Membership is now explicit: `railPosition` non-null means "in the rail",
+ * null means "out". Ordering is railPosition ASC with createdAt DESC as the
+ * stable tiebreak, so gaps and duplicate positions are both harmless.
+ */
+export async function resolveRailPlans(
+  prisma: PrismaClient,
+  limit: number = RAIL_LIMIT,
+): Promise<RailPlanItem[]> {
+  const rows = await prisma.mealPlanTemplate.findMany({
+    where: {
+      isPublic: true,
+      isArchived: false,
+      // null = out of the rail. This is the membership test, not a sort hint.
+      railPosition: { not: null },
+    },
+    select: RAIL_SELECT,
+    orderBy: [{ railPosition: "asc" }, { createdAt: "desc" }],
+    take: limit,
+  });
+  // Arrow-wrapped: strict call check, not Array.map's bivariant one.
+  return rows.map((r) => railRowToItem(r));
 }
 
 export function instanceToSummary(row: InstanceRow): PlanSummary {

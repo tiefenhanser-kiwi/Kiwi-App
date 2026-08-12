@@ -33,13 +33,14 @@ import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroceryGeneration } from "@/hooks/useGroceryGeneration";
 import { useHomePayload } from "@/hooks/useHomePayload";
+import { useHomeRail } from "@/hooks/useHomeRail";
 import { usePlans } from "@/hooks/usePlans";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { resolveGroceryRoute } from "@/lib/groceryPicker";
 import { deriveHeroModel } from "@/lib/home/heroState";
 import { homeSectionOrder } from "@/lib/home/homeSections";
-import { buildTriedTrueRail, TRIED_TRUE_BADGES } from "@/lib/home/triedTrue";
+import { buildRailItems } from "@/lib/home/rail";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function HomeTab() {
@@ -78,20 +79,15 @@ export default function HomeTab() {
   // fallback disambiguation (NOT useApp().plans, the legacy cache).
   const plansQuery = usePlans(["my_plans"]);
 
-  // Tried & True rail — fetch the lead badges (Hosting → Featured → Top Rated),
-  // cache-shared with the Plans tab (same pattern the retired PlanDiscoveryCard
-  // used). Ordering/flatten is buildTriedTrueRail's job, not the card's.
-  const hostingQuery = usePlans(["hosting_events"]);
-  const featuredQuery = usePlans(["featured"]);
-  const topRatedQuery = usePlans(["top_rated"]);
+  // Tried & True rail — ONE ordered read (WS9-2 2c, D-WS9-154). Replaces the
+  // three per-badge usePlans calls that used to be merged client-side; the
+  // server now owns membership (railPosition non-null) and order
+  // (railPosition ASC, createdAt DESC). buildRailItems is display mapping only
+  // and deliberately does NOT re-sort — curation is a data decision.
+  const railQuery = useHomeRail();
   const railItems = useMemo(
-    () =>
-      buildTriedTrueRail([
-        { badge: TRIED_TRUE_BADGES[0], plans: hostingQuery.data?.plans ?? [] },
-        { badge: TRIED_TRUE_BADGES[1], plans: featuredQuery.data?.plans ?? [] },
-        { badge: TRIED_TRUE_BADGES[2], plans: topRatedQuery.data?.plans ?? [] },
-      ]),
-    [hostingQuery.data, featuredQuery.data, topRatedQuery.data],
+    () => buildRailItems(railQuery.data ?? []),
+    [railQuery.data],
   );
 
   // Tried & True cards are catalog templates → the vetted preview-then-use flow

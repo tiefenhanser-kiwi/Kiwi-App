@@ -488,6 +488,14 @@ interface DevDiscoveryTemplate {
   occasionType: string | null;
   /** WS7-4-B c2: placeholder Unsplash thumbnail per Q-P1-2 (Hans can swap any of these). */
   imageUrl: string;
+  /**
+   * WS9-2 2c (D-WS9-154) — position in the Home "Tried & True" rail. 1 =
+   * leftmost, null = out of the rail. Seeded to reproduce the exact order the
+   * pre-2c three-bucket merge rendered (Hosting, then Featured, then unbadged;
+   * createdAt DESC within each group), so a fresh reseed and the production
+   * backfill agree.
+   */
+  railPosition: number | null;
   /** WS7-4-B c2: per Q-P1-1 ruling — meal slots for the Use Plan flow. */
   items: DevDiscoveryTemplateItem[];
 }
@@ -499,6 +507,7 @@ interface DevDiscoveryTemplate {
 const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
   {
     id: DEV_DISCOVERY_TEMPLATE_IDS.familyFavorites,
+    railPosition: 5,
     title: "Family Favorites Week",
     description: "A week of crowd-pleasing dinners the whole household will eat.",
     tags: ["family", "kid-friendly", DEV_TAG],
@@ -520,6 +529,7 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
   },
   {
     id: DEV_DISCOVERY_TEMPLATE_IDS.quickWeeknights,
+    railPosition: 4,
     title: "Quick Weeknights",
     description: "Five 30-minute dinners for busy weeknights.",
     tags: ["quick", "weeknight", DEV_TAG],
@@ -541,6 +551,7 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
   },
   {
     id: DEV_DISCOVERY_TEMPLATE_IDS.holidayHosting,
+    railPosition: 3,
     title: "Holiday Hosting Menu",
     description: "An elevated multi-course menu for hosting a holiday gathering.",
     tags: ["hosting", "holiday", "entertaining", DEV_TAG],
@@ -560,6 +571,7 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
   },
   {
     id: DEV_DISCOVERY_TEMPLATE_IDS.budgetBowls,
+    railPosition: 6,
     title: "Budget Bowls",
     description: "Hearty grain bowls that keep the weekly grocery bill down.",
     tags: ["budget", "meal-prep", DEV_TAG],
@@ -584,6 +596,7 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
   // so the multiply-blend approximation renders against real images on device.
   {
     id: DEV_DISCOVERY_TEMPLATE_IDS.fourthOfJuly,
+    railPosition: 2,
     title: "4th of July BBQ",
     description: "A crowd-sized cookout spread for the summer holiday.",
     tags: ["hosting", "bbq", "summer", DEV_TAG],
@@ -603,6 +616,7 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
   },
   {
     id: DEV_DISCOVERY_TEMPLATE_IDS.gameDay,
+    railPosition: 1,
     title: "Game Day Spread",
     description: "Shareable plates for a full house on game day.",
     tags: ["hosting", "game-day", "shareable", DEV_TAG],
@@ -1062,6 +1076,8 @@ async function seedDiscoveryTemplate(
     useCount: t.useCount,
     isFeatured: t.isFeatured,
     isHostingFeatured: t.isHostingFeatured,
+    // WS9-2 2c (D-WS9-154) — rail membership + order.
+    railPosition: t.railPosition,
     occasionType: t.occasionType,
   };
   await prisma.$transaction(async (tx) => {

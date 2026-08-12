@@ -9,7 +9,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { PrismaClient } from "@prisma/client";
 
-import { resolvePlansForFilter, toYmd } from "../planQueries";
+import {
+  RAIL_LIMIT,
+  resolvePlansForFilter,
+  resolveRailPlans,
+  toYmd,
+} from "../planQueries";
 
 describe("toYmd — calendar-date wire formatter", () => {
   it("returns null for null input", () => {
@@ -343,5 +348,146 @@ describe("resolvePlansForFilter — bucket predicates and ordering", () => {
     );
 
     assert.equal(rows[0].isActiveThisWeek, false);
+  });
+});
+
+// ── WS9-2 2c (D-WS9-154) — resolveRailPlans ─────────────────────────────────
+
+function railRow(
+  id: string,
+  title: string,
+  over: Partial<{
+    imageUrl: string | null;
+    isFeatured: boolean;
+    isHostingFeatured: boolean;
+  }> = {},
+) {
+  return {
+    id,
+    title,
+    description: `${title} description`,
+    imageUrl: over.imageUrl !== undefined ? over.imageUrl : RAIL_IMAGE,
+    tags: ["hosting", "dev"],
+    isFeatured: over.isFeatured ?? false,
+    isHostingFeatured: over.isHostingFeatured ?? true,
+  };
+}
+
+describe("resolveRailPlans — the Home Tried & True rail", () => {
+  it("selects imageUrl and maps it to `image`", async () => {
+    const { prisma, captured } = makeStubPrisma({
+      templates: [railRow("t-1", "Game Day Spread")],
+    });
+    const rows = await resolveRailPlans(prisma as unknown as PrismaClient);
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].image, RAIL_IMAGE);
+    const select = (captured.templateArgs as { select: Record<string, boolean> })
+      .select;
+    assert.equal(
+      select.imageUrl,
+      true,
+      "RAIL_SELECT spreads TEMPLATE_SELECT — imageUrl must survive the collapse",
+    );
+  });
+
+  it("carries both featuring flags so the client can derive the badge", async () => {
+    const { prisma, captured } = makeStubPrisma({
+      templates: [
+        railRow("t-1", "Quick Weeknights", {
+          isFeatured: true,
+          isHostingFeatured: false,
+        }),
+      ],
+    });
+    const rows = await resolveRailPlans(prisma as unknown as PrismaClient);
+
+    assert.equal(rows[0].isFeatured, true);
+    assert.equal(rows[0].isHostingFeatured, false);
+    const select = (captured.templateArgs as { select: Record<string, boolean> })
+      .select;
+    assert.equal(select.isFeatured, true);
+    assert.equal(select.isHostingFeatured, true);
+  });
+
+  it("MEMBERSHIP is railPosition non-null — a null row is out of the rail", async () => {
+    const { prisma, captured } = makeStubPrisma({ templates: [] });
+    await resolveRailPlans(prisma as unknown as PrismaClient);
+
+    const where = (captured.templateArgs as { where: Record<string, unknown> })
+      .where;
+    assert.deepEqual(where.railPosition, { not: null });
+    assert.equal(where.isPublic, true);
+    assert.equal(where.isArchived, false);
+  });
+
+  it("orders by railPosition ASC with createdAt DESC as the stable tiebreak", async () => {
+    const { prisma, captured } = makeStubPrisma({ templates: [] });
+    await resolveRailPlans(prisma as unknown as PrismaClient);
+
+    assert.deepEqual((captured.templateArgs as { orderBy: unknown }).orderBy, [
+      { railPosition: "asc" },
+      { createdAt: "desc" },
+    ]);
+  });
+
+  it("does NOT gate on isFeatured/isHostingFeatured — an unbadged curated row still shows", async () => {
+    // railPosition is the membership test. The flags only pick the badge label.
+    const { prisma, captured } = makeStubPrisma({
+      templates: [
+        railRow("t-6", "Budget Bowls", {
+          isFeatured: false,
+          isHostingFeatured: false,
+        }),
+      ],
+    });
+    const rows = await resolveRailPlans(prisma as unknown as PrismaClient);
+
+    const where = (captured.templateArgs as { where: Record<string, unknown> })
+      .where;
+    assert.equal(where.isFeatured, undefined);
+    assert.equal(where.isHostingFeatured, undefined);
+    assert.equal(rows.length, 1);
+  });
+
+  it("caps at RAIL_LIMIT — the same ceiling the retired 4-per-badge × 3 merge had", async () => {
+    const { prisma, captured } = makeStubPrisma({ templates: [] });
+    await resolveRailPlans(prisma as unknown as PrismaClient);
+
+    assert.equal((captured.templateArgs as { take: number }).take, RAIL_LIMIT);
+    assert.equal(RAIL_LIMIT, 12);
+  });
+
+  it("an explicit limit overrides the default cap", async () => {
+    const { prisma, captured } = makeStubPrisma({ templates: [] });
+    await resolveRailPlans(prisma as unknown as PrismaClient, 3);
+
+    assert.equal((captured.templateArgs as { take: number }).take, 3);
+  });
+
+  it("emits `image: null` as a PRESENT key when a curated row has no photo", async () => {
+    const { prisma } = makeStubPrisma({
+      templates: [railRow("t-1", "No Photo", { imageUrl: null })],
+    });
+    const rows = await resolveRailPlans(prisma as unknown as PrismaClient);
+
+    assert.equal(rows[0].image, null);
+    assert.ok("image" in rows[0]);
+  });
+
+  it("does not leak description onto the wire (the card never renders it)", async () => {
+    const { prisma } = makeStubPrisma({
+      templates: [railRow("t-1", "Game Day Spread")],
+    });
+    const rows = await resolveRailPlans(prisma as unknown as PrismaClient);
+
+    assert.deepEqual(Object.keys(rows[0]).sort(), [
+      "id",
+      "image",
+      "isFeatured",
+      "isHostingFeatured",
+      "name",
+      "tags",
+    ]);
   });
 });

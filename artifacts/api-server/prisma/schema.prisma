@@ -672,6 +672,19 @@ model MealPlanTemplate {
   featuredEndDate     DateTime?
   isHostingFeatured   Boolean    @default(false)
   hostingFeaturedRank Int?
+  // WS9-2 2c (D-WS9-154) — hand-curated order for the Home "Tried & True" rail.
+  // 1 = leftmost, null = out of the rail entirely. No default, no unique
+  // constraint, no index: gaps are fine, ties fall through to createdAt desc,
+  // and the pool is 72 rows.
+  //
+  // Why NOT featuredRank / hostingFeaturedRank: PRD S15.6.2 defines those as
+  // manual sort WITHIN Featured and manual sort WITHIN Hosting & Events -- two
+  // per-pool orderings. The rail is a single FLAT sequence spanning both badge
+  // families plus unbadged rows, which neither can express (a row that is both
+  // Featured and Hosting has no defined winner between two per-pool ranks).
+  // Those two columns are inert today and STAY inert; this is not a duplicate
+  // of either. See the 2c Phase 0 audit S3.
+  railPosition        Int?
   occasionType        String?
   // WS7-3 A1: Top Rated score cache (PRD §15.6.4). Nullable — compute-on-write
   // helper + scoring formula land in WS7-3 A2; both stay null until then.
