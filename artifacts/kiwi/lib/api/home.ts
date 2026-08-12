@@ -10,7 +10,7 @@ import { z } from "zod";
 
 import { apiClient } from "./client";
 import { MealListItemSchema } from "./meals";
-import { PLAN_FILTER_KEYS, PlanListItemSchema, PlanSummarySchema } from "./plans";
+import { PlanSummarySchema } from "./plans";
 
 // Today's assigned meal — a plan-slot reference plus the list-shaped Meal.
 const TodaysMealSchema = z.object({
@@ -22,12 +22,10 @@ const TodaysMealSchema = z.object({
 });
 export type TodaysMeal = z.infer<typeof TodaysMealSchema>;
 
-// One badged discovery card — a filter key plus up to five plans.
-const PlanDiscoveryCardSchema = z.object({
-  badge: z.enum(PLAN_FILTER_KEYS),
-  plans: z.array(PlanListItemSchema),
-});
-export type PlanDiscoveryCard = z.infer<typeof PlanDiscoveryCardSchema>;
+// WS9-2 2c Commit 6 — PlanDiscoveryCardSchema / PlanDiscoveryCard REMOVED. The
+// server built the field on every /home request and this schema parsed it, but
+// nothing on the client ever read it: useHomePayload has exactly one consumer
+// and that screen reads only todaysMeal, activePlan and firstPlanCreatedAt.
 
 // The active-plan summary as /home returns it: PlanSummary plus the R4
 // grocery-list pointer (WS9 3a). `groceryListId` is the plan's non-archived
@@ -44,7 +42,6 @@ export type HomeActivePlan = z.infer<typeof HomeActivePlanSchema>;
 export const HomePayloadSchema = z.object({
   todaysMeal: TodaysMealSchema.nullable(),
   activePlan: HomeActivePlanSchema.nullable(),
-  planDiscoveryCards: z.array(PlanDiscoveryCardSchema),
   // D-WS9-026 — ISO timestamp of the user's first committed plan, or null
   // (first-run). null → show the Home teaching arc; non-null → collapsed
   // forever. A timestamp, not a boolean, so the value doubles as the

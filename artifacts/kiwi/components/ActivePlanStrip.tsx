@@ -26,8 +26,16 @@ import { formatMacro } from "@/lib/format/macros";
 import type { HeroModel } from "@/lib/home/heroState";
 import { DisplayTitle } from "./DisplayTitle";
 
+/**
+ * WS9-2 2c Commit 6 — the strip renders the TWO populated HeroModel states.
+ * `empty` is excluded at the type level: Home omits the whole this-week section
+ * in that state (homeSectionOrder gates it on hasActivePlan), so an empty model
+ * can never reach this component.
+ */
+export type ActivePlanStripModel = Exclude<HeroModel, { kind: "empty" }>;
+
 type Props = {
-  model: HeroModel;
+  model: ActivePlanStripModel;
   /** Tap the strip → Plan Review (parent owns the route). */
   onPress?: () => void;
   /** Tonight state only — launch Cook Mode for tonight's meal (parent owns it). */
@@ -41,7 +49,7 @@ type Props = {
 // "today" state read Meal.imageUrl, which is non-null on 0 of 1471 rows. It was
 // a warm-gradient square, permanently. That is exactly the ruling's logic — a
 // generated MealPlanInstance surface with nothing honest to show.
-function resolve(model: HeroModel): {
+function resolve(model: ActivePlanStripModel): {
   title: string;
   meta: string;
   showCook: boolean;
@@ -57,16 +65,18 @@ function resolve(model: HeroModel): {
       showCook: true,
     };
   }
-  if (model.kind === "plan") {
-    const parts = ["This week"];
-    if (model.durationDays) parts.push(`${model.durationDays} days`);
-    return { title: model.name, meta: parts.join(" · "), showCook: false };
-  }
-  return {
-    title: "No plan this week yet",
-    meta: "Tap to get started",
-    showCook: false,
-  };
+  // WS9-2 2c Commit 6 — the `empty` branch is GONE, and the prop type narrowed
+  // to exclude it. It was UNREACHABLE: the strip is mounted only inside the
+  // "thisWeek" section, homeSectionOrder emits that section only when
+  // hasActivePlan, and hasActivePlan is exactly `heroModel.kind !== "empty"`.
+  // So kind === "empty" could never arrive here — yet the branch carried
+  // written, styled copy ("No plan this week yet" / "Tap to get started") that
+  // read like a live empty state and would mislead the next person to touch
+  // this file. Narrowing the type means the compiler now enforces what the
+  // section order already guaranteed.
+  const parts = ["This week"];
+  if (model.durationDays) parts.push(`${model.durationDays} days`);
+  return { title: model.name, meta: parts.join(" · "), showCook: false };
 }
 
 export function ActivePlanStrip({ model, onPress, onCook }: Props) {

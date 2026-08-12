@@ -1,8 +1,13 @@
 // GET /api/home — composite Home-tab payload (WS7-3 A2).
 //
-// Folds /plans/today + /plans/current (per WS7-3 §1.3 locked decision) into
-// one read: today's meal, the active plan summary, and the badged plan
-// discovery cards. Flat shape — NOT enveloped under a `home:` key.
+// Folds /plans/today + /plans/current (per WS7-3 §1.3 locked decision) into one
+// read: today's meal, the active plan summary, and the first-plan stamp. Flat
+// shape — NOT enveloped under a `home:` key.
+//
+// WS9-2 2c Commit 6 — the badged `planDiscoveryCards` block was removed; it was
+// built on every request and read by nothing.
+//
+// Also serves GET /api/home/rail (WS9-2 2c, D-WS9-154).
 //
 // Auth: requireAuth (JWT). Same factory + DI pattern as meals.ts.
 
@@ -13,21 +18,12 @@ import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { MEAL_LIST_SELECT, toListShape } from "./meals";
-import {
-  PLAN_FILTER_KEYS,
-  resolvePlansForFilter,
-  resolveRailPlans,
-  toYmd,
-  type PlanFilterKey,
-} from "../lib/planQueries";
+import { resolveRailPlans, toYmd } from "../lib/planQueries";
 import { resolveThisWeekWinnerId } from "../lib/planDates";
 
 export interface HomeRouterDeps {
   prisma: PrismaClient;
 }
-
-// Up to 5 plans per discovery card (WS7-3 §1.6 Q9 ruling).
-const DISCOVERY_CARD_LIMIT = 5;
 
 // Sunday-indexed (Date.getDay()) → day name, matching MealPlanItem.assignedDayOfWeek.
 const DAY_NAMES = [
@@ -206,46 +202,32 @@ export function createHomeRouter(
         }
       }
 
-      // ── plan discovery cards ────────────────────────────────────────
+      // WS9-2 2c Commit 6 — `planDiscoveryCards` REMOVED. It was built on every
+      // /home request and parsed by the mobile Zod schema, and NOTHING on the
+      // client ever read it: useHomePayload has exactly one consumer, and that
+      // screen reads only todaysMeal, activePlan and firstPlanCreatedAt.
+      //
+      // Removing it also deletes the filter-resolution block that fed it — the
+      // savedFilters narrowing, the default-by-plan-count branch, and with it
+      // ONE `mealPlanInstance.count()` per Home load.
+      //
+      // ⚠️ Consequence for `user.lastPlanDiscoveryFilters`: /home no longer
+      // reads it. The column is NOT dropped and is NOT orphaned — GET /plans
+      // still persists and reads it for the Plans-tab chip selection. Its
+      // meaning simply narrows from "the filters Home AND Plans remember" to
+      // "the filters the Plans tab remembers", which is the only place a user
+      // can actually set them. (The Plans tab additionally has its own
+      // `lastPlansFilters`; reconciling the two is not 2c's.)
       const user = await prisma.user.findUnique({
         where: { id: userId },
         // D-WS9-026 — firstPlanCreatedAt drives the Home teaching-arc collapse
         // (null → first-run, show the arc; non-null → collapsed forever).
-        select: { lastPlanDiscoveryFilters: true, firstPlanCreatedAt: true },
+        select: { firstPlanCreatedAt: true },
       });
-      const savedFilters = (user?.lastPlanDiscoveryFilters ?? []).filter(
-        (k): k is PlanFilterKey =>
-          (PLAN_FILTER_KEYS as readonly string[]).includes(k),
-      );
-
-      let filterKeys: PlanFilterKey[];
-      if (savedFilters.length > 0) {
-        filterKeys = savedFilters;
-      } else {
-        // Default by saved-plan count (WS7-3 §1.6 Q9 ruling).
-        const savedPlanCount = await prisma.mealPlanInstance.count({
-          where: { userId },
-        });
-        filterKeys = savedPlanCount > 0 ? ["my_plans"] : ["featured"];
-      }
-
-      const planDiscoveryCards = [];
-      for (const key of filterKeys) {
-        const plans = await resolvePlansForFilter(
-          prisma,
-          key,
-          userId,
-          now,
-          DISCOVERY_CARD_LIMIT,
-          winnerId,
-        );
-        planDiscoveryCards.push({ badge: key, plans });
-      }
 
       return res.json({
         todaysMeal,
         activePlan,
-        planDiscoveryCards,
         // D-WS9-026 — ISO timestamp (full precision preserves the
         // time-to-first-plan metric); client only needs null-vs-not.
         firstPlanCreatedAt: user?.firstPlanCreatedAt?.toISOString() ?? null,

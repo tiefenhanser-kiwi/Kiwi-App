@@ -38,7 +38,10 @@ function mkPayload(over: Partial<HomePayload>): HomePayload {
   return {
     todaysMeal: null,
     activePlan: null,
-    planDiscoveryCards: [],
+    // WS9-2 2c Commit 6 — `planDiscoveryCards` dropped from the fixture with the
+    // field itself. firstPlanCreatedAt is required by HomePayload, so it is
+    // spelled out here rather than relying on the caller's override.
+    firstPlanCreatedAt: null,
     ...over,
   };
 }

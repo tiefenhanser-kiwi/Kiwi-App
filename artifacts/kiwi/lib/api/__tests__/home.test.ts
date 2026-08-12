@@ -15,7 +15,7 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import * as SecureStore from "expo-secure-store";
 
-import { getHomePayload, HomePayloadSchema } from "../home";
+import { getHomePayload, getHomeRail, HomePayloadSchema } from "../home";
 import { ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 import { useHomePayload } from "@/hooks/useHomePayload";
@@ -25,7 +25,7 @@ const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
-// A list-shaped meal — `todaysMeal.meal` and each discovery card's plans.
+// A list-shaped meal — the `todaysMeal.meal` expansion.
 const MEAL_LIST_ITEM = {
   id: "meal-1",
   title: "Salmon Teriyaki",
@@ -39,19 +39,6 @@ const MEAL_LIST_ITEM = {
   fat: 24,
   tags: ["seafood"],
   image: null,
-};
-
-const PLAN_LIST_ITEM = {
-  id: "plan-1",
-  name: "Spice It Up",
-  description: "A bold week.",
-  image: null,
-  tags: ["spicy"],
-  source: "instance",
-  status: "this_week",
-  startDate: "2026-05-18T00:00:00.000Z",
-  endDate: "2026-05-24T00:00:00.000Z",
-  isActiveThisWeek: true,
 };
 
 // A fully-populated Home payload.
@@ -72,7 +59,6 @@ const HOME_FULL = {
     revisionId: 3,
     groceryListId: "gl-1",
   },
-  planDiscoveryCards: [{ badge: "my_plans", plans: [PLAN_LIST_ITEM] }],
   firstPlanCreatedAt: "2026-05-10T00:00:00.000Z",
 };
 
@@ -80,7 +66,6 @@ const HOME_FULL = {
 const HOME_EMPTY = {
   todaysMeal: null,
   activePlan: null,
-  planDiscoveryCards: [{ badge: "featured", plans: [] }],
   firstPlanCreatedAt: null,
 };
 
@@ -114,22 +99,32 @@ test("HomePayloadSchema parses a fully-populated payload", () => {
   const home = HomePayloadSchema.parse(HOME_FULL);
   assert.equal(home.todaysMeal?.meal.id, "meal-1");
   assert.equal(home.activePlan?.revisionId, 3);
-  assert.equal(home.planDiscoveryCards[0].badge, "my_plans");
 });
 
 test("HomePayloadSchema parses the all-null empty state", () => {
   const home = HomePayloadSchema.parse(HOME_EMPTY);
   assert.equal(home.todaysMeal, null);
   assert.equal(home.activePlan, null);
-  assert.equal(home.planDiscoveryCards[0].plans.length, 0);
 });
 
-test("HomePayloadSchema rejects an unknown discovery-card badge", () => {
-  const bad = {
+// WS9-2 2c Commit 6 — REPLACES "rejects an unknown discovery-card badge". The
+// field is gone from both the server builder and this schema; the payload the
+// client actually reads is exactly these three keys.
+test("HomePayloadSchema no longer carries planDiscoveryCards", () => {
+  const parsed = HomePayloadSchema.parse(HOME_FULL);
+  assert.deepEqual(Object.keys(parsed).sort(), [
+    "activePlan",
+    "firstPlanCreatedAt",
+    "todaysMeal",
+  ]);
+
+  // An older server still sending the field parses cleanly (a plain z.object
+  // strips unknown keys) — which is what makes the rollout order safe.
+  const withLegacy = HomePayloadSchema.parse({
     ...HOME_EMPTY,
-    planDiscoveryCards: [{ badge: "trending", plans: [] }],
-  };
-  assert.equal(HomePayloadSchema.safeParse(bad).success, false);
+    planDiscoveryCards: [{ badge: "featured", plans: [] }],
+  });
+  assert.ok(!("planDiscoveryCards" in withLegacy));
 });
 
 // ── getHomePayload ──────────────────────────────────────────────────────────
@@ -138,7 +133,7 @@ test("getHomePayload parses the composite payload", async () => {
   nextResponse = () => mockJson(HOME_FULL);
   const home = await getHomePayload();
   assert.equal(home.todaysMeal?.planName, "Spice It Up");
-  assert.equal(home.planDiscoveryCards.length, 1);
+  assert.equal(home.activePlan?.groceryListId, "gl-1");
 });
 
 test("getHomePayload propagates a 401 as an UnauthenticatedError", async () => {
@@ -150,12 +145,64 @@ test("getHomePayload propagates a 401 as an UnauthenticatedError", async () => {
 });
 
 test("getHomePayload rejects a malformed response body", async () => {
-  // `planDiscoveryCards` omitted — fails HomePayloadSchema validation.
+  // `firstPlanCreatedAt` omitted — fails HomePayloadSchema validation. (It used
+  // to be `planDiscoveryCards`, removed in 2c Commit 6; the required-key
+  // contract is what this test is really about.)
   nextResponse = () => mockJson({ todaysMeal: null, activePlan: null });
   await assert.rejects(
     () => getHomePayload(),
     (err: unknown) => err instanceof ApiSchemaError,
   );
+});
+
+// ── WS9-2 2c (D-WS9-154) — getHomeRail ──────────────────────────────────────
+
+const RAIL_ROW = {
+  id: "dev-plan-template-game-day-spread",
+  name: "Game Day Spread",
+  image:
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80",
+  tags: ["hosting", "game-day"],
+  isFeatured: false,
+  isHostingFeatured: true,
+};
+
+test("getHomeRail parses the rail and unwraps `plans`", async () => {
+  nextResponse = () => mockJson({ plans: [RAIL_ROW] });
+  const rail = await getHomeRail();
+  assert.equal(rail.length, 1);
+  assert.equal(rail[0].name, "Game Day Spread");
+  assert.equal(rail[0].isHostingFeatured, true);
+});
+
+test("getHomeRail: `image` survives the parse — the rail is the ONLY surface where photos render", async () => {
+  nextResponse = () => mockJson({ plans: [RAIL_ROW] });
+  const rail = await getHomeRail();
+  assert.equal(rail[0].image, RAIL_ROW.image);
+});
+
+test("getHomeRail: a MISSING `image` key is a hard parse failure, not a silent blank", async () => {
+  // The whole guard chain exists for this: if a server-side projection ever
+  // drops imageUrl, res.json omits the key and this must fail LOUDLY rather
+  // than rendering six gradient rectangles. `image` is nullable, NOT optional.
+  const { image, ...withoutImage } = RAIL_ROW;
+  void image;
+  nextResponse = () => mockJson({ plans: [withoutImage] });
+  await assert.rejects(
+    () => getHomeRail(),
+    (err: unknown) => err instanceof ApiSchemaError,
+  );
+});
+
+test("getHomeRail: an explicit null image parses (a curated row may have no photo yet)", async () => {
+  nextResponse = () => mockJson({ plans: [{ ...RAIL_ROW, image: null }] });
+  const rail = await getHomeRail();
+  assert.equal(rail[0].image, null);
+});
+
+test("getHomeRail: empty rail parses to an empty array", async () => {
+  nextResponse = () => mockJson({ plans: [] });
+  assert.deepEqual(await getHomeRail(), []);
 });
 
 // ── useHomePayload ──────────────────────────────────────────────────────────

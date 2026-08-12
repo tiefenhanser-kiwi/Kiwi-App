@@ -11,7 +11,8 @@
 //
 // Default state is collapsed: a 5-day plan otherwise produces a wall of
 // text before the user has decided whether to keep the plan. Tapping
-// the header (Pressable + chevron, matching PlanDiscoveryCard's pattern)
+// the header (Pressable + chevron — a pattern inherited from the since-deleted
+// PlanDiscoveryCard)
 // flips it open. Component is intentionally stateless about its peers —
 // each card owns its own open/closed flag, so expanding one doesn't
 // collapse another (matches Hans's "validation" framing where the user

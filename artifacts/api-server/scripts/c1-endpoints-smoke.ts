@@ -188,11 +188,20 @@ async function main(): Promise<void> {
 
   try {
     // ── id-free surfaces ──────────────────────────────────────────────────
+    // WS9-2 2c Commit 6 — discoveryCards dropped from the summary line with the
+    // field itself. WS9-2 2c (D-WS9-154) — the rail is its own read now.
     await run(harness, token, "home", "GET /home", "/home", (b) => {
       const r = b as Rec;
       return `todaysMeal=${r?.todaysMeal ? "set" : "null"}, activePlan=${
         r?.activePlan ? "set" : "null"
-      }, discoveryCards=${arrLen(r?.planDiscoveryCards)}`;
+      }, firstPlanCreatedAt=${r?.firstPlanCreatedAt ? "set" : "null"}`;
+    });
+
+    await run(harness, token, "home", "GET /home/rail", "/home/rail", (b) => {
+      const r = b as Rec;
+      const plans = (r?.plans ?? []) as { image?: string | null }[];
+      const withPhotos = plans.filter((p) => p.image).length;
+      return `rail=${arrLen(r?.plans)}, withPhotos=${withPhotos}`;
     });
 
     const plans = await run(

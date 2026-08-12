@@ -419,69 +419,46 @@ describe("GET /home", () => {
     }
   });
 
-  it("honors saved lastPlanDiscoveryFilters for the discovery cards", async () => {
-    const harness = await spinUp(
-      makeStubPrisma({
-        activeInstance: null,
-        lastPlanDiscoveryFilters: ["featured", "top_rated"],
-        featured: [discoveryTemplate("t-feat", "Featured Plan")],
-        topRated: [discoveryTemplate("t-top", "Top Plan")],
-      }),
-    );
+  // WS9-2 2c Commit 6 — REPLACES three tests that covered planDiscoveryCards
+  // (saved-filter honoring, and the two default-by-plan-count branches). The
+  // field is gone: the server built it on every request and nothing on the
+  // client ever read it. The whole filter-resolution block that fed it went
+  // with it, including one mealPlanInstance.count() per Home load.
+  //
+  // Inverted rather than deleted, so a re-added field fails here.
+  it("does NOT ship planDiscoveryCards, and reads no discovery filters", async () => {
+    let countCalls = 0;
+    const stub = makeStubPrisma({
+      activeInstance: null,
+      lastPlanDiscoveryFilters: ["featured", "top_rated"],
+      savedPlanCount: 3,
+      featured: [discoveryTemplate("t-feat", "Featured Plan")],
+    });
+    stub.mealPlanInstance.count = async () => {
+      countCalls += 1;
+      return 3;
+    };
+    const harness = await spinUp(stub);
     try {
       const res = await authGet(harness, "/home");
-      const body = (await res.json()) as {
-        planDiscoveryCards: { badge: string; plans: { id: string }[] }[];
-      };
-      assert.deepEqual(
-        body.planDiscoveryCards.map((c) => c.badge),
-        ["featured", "top_rated"],
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as Record<string, unknown>;
+
+      assert.ok(
+        !("planDiscoveryCards" in body),
+        "planDiscoveryCards was removed — nothing on the client ever read it",
       );
-      assert.equal(body.planDiscoveryCards[0].plans[0].id, "t-feat");
-      assert.equal(body.planDiscoveryCards[1].plans[0].id, "t-top");
-    } finally {
-      await harness.close();
-    }
-  });
+      // The payload the client DOES read is intact.
+      assert.ok("todaysMeal" in body);
+      assert.ok("activePlan" in body);
+      assert.ok("firstPlanCreatedAt" in body);
 
-  it("defaults discovery to my_plans when filters are unset and the user has saved plans", async () => {
-    const harness = await spinUp(
-      makeStubPrisma({
-        activeInstance: null,
-        lastPlanDiscoveryFilters: [],
-        savedPlanCount: 3,
-        myPlans: [discoveryInstance("p-a", "Plan A")],
-      }),
-    );
-    try {
-      const res = await authGet(harness, "/home");
-      const body = (await res.json()) as {
-        planDiscoveryCards: { badge: string; plans: { id: string }[] }[];
-      };
-      assert.equal(body.planDiscoveryCards.length, 1);
-      assert.equal(body.planDiscoveryCards[0].badge, "my_plans");
-      assert.equal(body.planDiscoveryCards[0].plans[0].id, "p-a");
-    } finally {
-      await harness.close();
-    }
-  });
-
-  it("defaults discovery to featured when filters are unset and the user has no saved plans", async () => {
-    const harness = await spinUp(
-      makeStubPrisma({
-        activeInstance: null,
-        lastPlanDiscoveryFilters: [],
-        savedPlanCount: 0,
-        featured: [discoveryTemplate("t-feat", "Featured Plan")],
-      }),
-    );
-    try {
-      const res = await authGet(harness, "/home");
-      const body = (await res.json()) as {
-        planDiscoveryCards: { badge: string }[];
-      };
-      assert.equal(body.planDiscoveryCards.length, 1);
-      assert.equal(body.planDiscoveryCards[0].badge, "featured");
+      // The saved-plan-count query existed ONLY to pick a discovery filter.
+      assert.equal(
+        countCalls,
+        0,
+        "the per-request saved-plan count went with the discovery cards",
+      );
     } finally {
       await harness.close();
     }

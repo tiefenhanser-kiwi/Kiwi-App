@@ -3,8 +3,9 @@
 // Establishes the visual idiom: a sage ActivityIndicator paired with a
 // "Kiwi is thinking…" (or caller-supplied) label. Three variants cover
 // the call sites WS7-1 migrates today; further consumers (the cancellable
-// useEffect idioms in plans.tsx / PlanDiscoveryCard.tsx etc.) adopt this
-// in WS7-2+ alongside their endpoint integrations.
+// useEffect idioms in plans.tsx etc.) adopt this in WS7-2+ alongside their
+// endpoint integrations. (PlanDiscoveryCard.tsx, named here originally, was
+// deleted in WS9-2 2c Commit 6.)
 //
 // Variants:
 //   - "status-box": large card with centered spinner + label. Drop-in for

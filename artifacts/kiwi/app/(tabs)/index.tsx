@@ -5,8 +5,12 @@
 //
 // This screen supplies ROUTING to the dumb Layer-2b primitives (TellKiwiCard,
 // ActivePlanStrip, TriedTrueCard, SectionLabel, TreatedImage) and owns the
-// ordering the cards don't. Removed vs the pre-3a home: HeroCard, the two
-// WizardCtaCards, CookNowCtaCard, PlanDiscoveryCard, the HomeActionButton row.
+// ordering the cards don't.
+//
+// The pre-3a home's HeroCard / WizardCtaCard x2 / CookNowCtaCard /
+// PlanDiscoveryCard / HomeActionButton were unmounted in 3a and DELETED in
+// WS9-2 2c Commit 6 — they had sat in components/ with zero importers since,
+// two of them still certified by green tests.
 
 import React, { useMemo, useState } from "react";
 import {
@@ -90,8 +94,7 @@ export default function HomeTab() {
     [railQuery.data],
   );
 
-  // Tried & True cards are catalog templates → the vetted preview-then-use flow
-  // (identical to the retired PlanDiscoveryCard).
+  // Tried & True cards are catalog templates → the vetted preview-then-use flow.
   const preview = useTemplatePreview();
   // BUG-036 fix: "Use This Week" creates the instance AND activates it for the
   // current week via the shared setPlanActiveThisWeek (dates + activatedAt +
@@ -181,7 +184,12 @@ export default function HomeTab() {
   };
   const handlePrepAndCookPress = () => router.push("/prep-cook");
 
-  const hasActivePlan = heroModel.kind !== "empty";
+  // WS9-2 2c Commit 6 — ONE narrowing drives both the section gate and the
+  // strip's prop. ActivePlanStrip's model type now EXCLUDES the empty state
+  // (that branch was unreachable and was deleted), so the compiler enforces
+  // what homeSectionOrder already guaranteed: no this-week section, no strip.
+  const activeHeroModel = heroModel.kind === "empty" ? null : heroModel;
+  const hasActivePlan = activeHeroModel !== null;
 
   // Section order is the ruled contract (D-WS9-025) — mockup composition: the
   // LEAD (loading placeholder / arc first-run / tonight strip returning) sits
@@ -235,11 +243,13 @@ export default function HomeTab() {
               return (
                 <View key="thisWeek" style={styles.thisWeekBlock}>
                   <SectionLabel label="this week" first />
-                  <ActivePlanStrip
-                    model={heroModel}
-                    onPress={handleStripPress}
-                    onCook={handleCook}
-                  />
+                  {activeHeroModel ? (
+                    <ActivePlanStrip
+                      model={activeHeroModel}
+                      onPress={handleStripPress}
+                      onCook={handleCook}
+                    />
+                  ) : null}
                   {/* Secondary — must never compete with the lanes (G2);
                       terracotta stays unspent. R4: grocery is a post-plan
                       shopping tool, not a planning entry. */}
