@@ -45,10 +45,22 @@ const styles = StyleSheet.create({
     paddingTop: 13,
     paddingBottom: 12,
   },
-  // Override SectionLabel's scroll-eyebrow margins for in-card use.
+  // ⚠️ WS9-2 2c Commit 4 — this override is the one flagged in §4.2: because it
+  // sets BOTH margins, SectionLabel's own margin changes are INERT here. That
+  // is intentional and stays — these values are tuned to the card's padding,
+  // not to the scroll rhythm, so the arc must not inherit the scroll gap.
+  //
+  // Alignment IS overridden back to centered, explicitly. The primitive went
+  // left-aligned for the scroll eyebrows, but this label sits inside a centered
+  // card (centered flow row, centered sub-line); inheriting left would leave it
+  // as the only off-axis element in the card. This is a per-surface composition
+  // choice, which is exactly what the `style` prop is for — NOT a second
+  // heading treatment (color, face, size and the dropped dashes all still come
+  // from the primitive).
   label: {
     marginTop: 0,
     marginBottom: Spacing[2],
+    textAlign: "center",
   },
   flow: {
     flexDirection: "row",

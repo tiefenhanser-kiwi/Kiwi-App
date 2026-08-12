@@ -350,9 +350,14 @@ export const Components = {
   sectionLabel: {
     fontFamily:  Typography.fontFamily.serif,
     fontStyle:   'italic' as const,
-    color:       Colors.neutral[600],
+    // WS9-2 2c Commit 4 — neutral[600] is the LOCKED *muted text* value, which
+    // is the wrong role for a section heading: the eyebrows read as captions
+    // rather than as structure. neutral[800] is the high-emphasis text token.
+    color:       Colors.neutral[800],
     cookColor:   Colors.terracotta[400],
-    dash:        '—',
+    // `dash` REMOVED in WS9-2 2c Commit 4. It had exactly one reader
+    // (SectionLabel, which wrapped every label as "— label —"); the eyebrows
+    // are now left-aligned and undecorated, so the token had no consumer left.
   },
 } as const;
 

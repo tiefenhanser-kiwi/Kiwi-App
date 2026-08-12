@@ -5,9 +5,18 @@
 //
 // Presentational + dumb: the input is controlled (value/onChangeText/onSubmit) and
 // the chips take handlers as PROPS. Chip routing is 3a's spec, NOT this card's
-// (§5.1: Surprise → surprise-me gen; Use my preferences → wizard prefilled). The
-// same card is reused on tellkiwi.tsx (§7.1) — hence controlled input, not a
-// tap-to-navigate stub.
+// (§5.1: Surprise → surprise-me gen; Use my preferences → wizard prefilled).
+//
+// ⚠️ WS9-2 2c Commit 4 — CORRECTED STALE COMMENT. This previously claimed "the
+// same card is reused on tellkiwi.tsx (§7.1) — hence controlled input". It is
+// NOT. tellkiwi.tsx neither imports nor mounts this component (it composes its
+// own Header / Chip / Stepper / picker stack); `<TellKiwiInput>` in that file is
+// a TYPE, not this card. Verified by three independently-shaped searches.
+//
+// THERE IS EXACTLY ONE MOUNT: app/(tabs)/index.tsx:265. The controlled input is
+// still the right shape — Home owns the draft text and forwards it to
+// /tellkiwi as a param — but a copy or prop change here reflows one surface,
+// not two. Do not re-derive "shared component" caution from this file.
 //
 // Card radius = Radius["2xl"] (18px) — deliberately rounder than the 14px card
 // family; it is the hero of the make lane (do not harmonize to 14). Chips use

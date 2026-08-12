@@ -336,25 +336,32 @@ export default function HomeTab() {
   );
 }
 
+// ⚠️ WS9-2 2c Commit 4 (§4.3) — THE LEAD BLOCKS CONTRIBUTE NO BOTTOM MARGIN.
+//
+// The measured problem was 28px of dead space mid-screen, between the utility
+// row and the make-lane eyebrow. It was not one oversized value; it was two
+// stacking: thisWeekBlock.marginBottom (12) + SectionLabel's own marginTop (16).
+// RN has no margin collapse, so they summed.
+//
+// Every section below the lead opens with a SectionLabel, so SectionLabel's
+// marginTop is now the SINGLE OWNER of every inter-section gap (16px). Do not
+// re-add marginBottom to arcWrap / leadLoadingWrap / thisWeekBlock — it would
+// silently restore the double-count.
+//
+// NOT touched: Screen's `paddingBottom: insets.bottom + 24`. It is shared by all
+// four tabs and belongs to 3g.
 const styles = StyleSheet.create({
-  // Lead slot sits at the top of the body (Screen supplies the top padding);
-  // 12px below to the make-lane eyebrow (mockup .arc margin-bottom).
-  arcWrap: {
-    marginBottom: Spacing[3],
-  },
+  // Lead slot sits at the top of the body (Screen supplies the top padding).
+  arcWrap: {},
   // The loading placeholder occupies the same lead slot as arcWrap /
-  // thisWeekBlock and carries the same 12px bottom gap, so resolving the query
-  // swaps the content in place instead of shoving the make lane around.
+  // thisWeekBlock, so resolving the query swaps the content in place instead of
+  // shoving the make lane around.
   leadLoadingWrap: {
-    marginBottom: Spacing[3],
     paddingVertical: Spacing[3],
     alignItems: "center",
   },
-  // The this-week module (eyebrow + strip + utility row) as one grouped block;
-  // 12px below it to the make-lane eyebrow.
-  thisWeekBlock: {
-    marginBottom: Spacing[3],
-  },
+  // The this-week module (eyebrow + strip + utility row) as one grouped block.
+  thisWeekBlock: {},
   rail: {
     gap: Spacing[3],
     paddingBottom: Spacing[1],

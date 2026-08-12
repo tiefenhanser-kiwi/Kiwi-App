@@ -88,11 +88,18 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     letterSpacing: -0.3,
   },
+  // BUG-035 — the declared numeric weight must MATCH the loaded face, or
+  // Android synthesises a bold on top of it. This was the last surviving site
+  // of that defect app-wide (semibold/600 declared over the Medium/500 italic
+  // face); every other serif style in the app already pairs correctly.
+  // Resolved toward the FACE, not the weight: 500 Medium Italic is the greeting
+  // treatment the header was designed with, so the numeric weight is what was
+  // wrong, not the family.
   greeting: {
     marginTop: Spacing[3],
     fontSize: Typography.fontSize.xxl,
     color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
+    fontWeight: Typography.fontWeight.medium,
     fontFamily: Typography.face.serifItalic[500],
     fontStyle: "italic",
   },
