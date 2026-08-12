@@ -106,11 +106,37 @@ interface TemplateRow {
   tags: string[];
 }
 
+// WS9-2 2c Commit 1 — the select↔row-shape guard.
+//
+// Dropping a column from one of these projections while a shared mapper still
+// reads it is the BUG-068 / BUG-076 / BUG-083 defect class: it typechecks, CI
+// stays green, and the field silently vanishes in production. Removing the old
+// `as TemplateRow[]` assertions was NOT enough on its own — `rows.map(mapper)`
+// checks the callback's parameter BIVARIANTLY (Array.map is method-declared in
+// lib.es5.d.ts), so a narrower row type still slides into a wider mapper param.
+// Verified empirically: commenting out `imageUrl` below with the assertions
+// already gone still compiled clean.
+//
+// `satisfies Record<keyof XRow, true>` closes it directly — the select must name
+// EVERY key its row type declares, so a dropped column is a compile error at the
+// projection itself, which is where the mistake is actually made. The call sites
+// additionally arrow-wrap their mappers so the row→mapper hop is checked
+// strictly rather than bivariantly. Both guards are cheap; keep both.
+//
+// ⚠️ The Tried & True rail's images ride TEMPLATE_SELECT.imageUrl through eight
+// hops; this is hop 1. Do not replace it with a fresh inline select.
+type SelectFor<Row> = Record<keyof Row, true>;
+
 // Prisma include/select fragments — exported so route handlers that load an
 // instance for other reasons (e.g. GET /plans/:id) reuse the same projection.
 export const INSTANCE_TEMPLATE_INCLUDE = {
   template: {
-    select: { title: true, description: true, imageUrl: true, tags: true },
+    select: {
+      title: true,
+      description: true,
+      imageUrl: true,
+      tags: true,
+    } satisfies SelectFor<NonNullable<InstanceRow["template"]>>,
   },
 } as const;
 
@@ -120,7 +146,7 @@ const TEMPLATE_SELECT = {
   description: true,
   imageUrl: true,
   tags: true,
-} as const;
+} satisfies SelectFor<TemplateRow>;
 
 export function instanceToListItem(
   row: InstanceRow,
@@ -198,12 +224,16 @@ export async function resolvePlansForFilter(
     // so an abandoned-but-liked plan can be resumed (GET /wizard/drafts);
     // it must NOT appear in the user's general plan list until "Save and
     // use" flips isWizardDraft -> false.
-    const rows = (await prisma.mealPlanInstance.findMany({
+    // WS9-2 2c Commit 1 — NO `as InstanceRow[]` assertion. Prisma's inferred
+    // row type flows straight into instanceToListItem, so dropping a field from
+    // INSTANCE_TEMPLATE_INCLUDE becomes a COMPILE error instead of an
+    // undefined at runtime (the BUG-068/076 defect class).
+    const rows = await prisma.mealPlanInstance.findMany({
       where: { userId, isArchived: false, isWizardDraft: false },
       include: INSTANCE_TEMPLATE_INCLUDE,
       orderBy: { createdAt: "desc" },
       take: limit,
-    })) as InstanceRow[];
+    });
     return rows.map((r) => instanceToListItem(r, winnerId));
   }
 
@@ -215,19 +245,26 @@ export async function resolvePlansForFilter(
         ? featuredWhere(now)
         : hostingFeaturedWhere(now)),
     };
-    const rows = (await prisma.mealPlanTemplate.findMany({
+    // WS9-2 2c Commit 1 — NO `as TemplateRow[]` assertion (see my_plans above).
+    // TEMPLATE_SELECT is the single source of the projection; an inline select
+    // that omitted `imageUrl` here would now fail to typecheck against
+    // templateToListItem instead of silently blanking the Tried & True rail.
+    const rows = await prisma.mealPlanTemplate.findMany({
       where,
       select: TEMPLATE_SELECT,
       orderBy: { createdAt: "desc" },
       take: limit,
-    })) as TemplateRow[];
-    return rows.map(templateToListItem);
+    });
+    // Arrow-wrapped so the row→mapper hop is a strict call check, not Array.map's
+    // bivariant callback check (see the SelectFor guard above).
+    return rows.map((r) => templateToListItem(r));
   }
 
   // top_rated — order by the cached score, NULLS LAST, then useCount as the
   // tie-break while topRatedScore is still being populated by WS7-4/WS7-5.
   const settings = await getTopRatedSettings(prisma);
-  const rows = (await prisma.mealPlanTemplate.findMany({
+  // WS9-2 2c Commit 1 — NO `as TemplateRow[]` assertion (see above).
+  const rows = await prisma.mealPlanTemplate.findMany({
     where: { isPublic: true, isArchived: false },
     select: TEMPLATE_SELECT,
     orderBy: [
@@ -236,6 +273,6 @@ export async function resolvePlansForFilter(
       { createdAt: "desc" },
     ],
     take: Math.min(limit, settings.displayCount),
-  })) as TemplateRow[];
+  });
   return rows.map(templateToListItem);
 }
