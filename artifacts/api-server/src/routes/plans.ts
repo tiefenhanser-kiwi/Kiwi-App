@@ -342,7 +342,14 @@ export function createPlansRouter(
             select: {
               title: true,
               description: true,
-              imageUrl: true,
+              // WS9-2 2c Commit 5 (D-WS9-144) — `imageUrl` removed: the plan
+              // payload no longer emits an image, so this was the last read and
+              // it is now dead. (`description` and `tags` are ALSO unread by
+              // this handler, but that predates 2c and is left alone.)
+              //
+              // ⚠️ This is a route-local inline select and is NOT covered by
+              // Commit 1's SelectFor guard. GET /plans/templates/:id and the
+              // rail have their own projections and are untouched.
               tags: true,
               sourceType: true,
             },
@@ -500,11 +507,16 @@ export function createPlansRouter(
           dietaryStale,
           // sourceType lives on the template, not the instance.
           sourceType: instance.template?.sourceType ?? "manual",
-          // BUG-076 — the plan's header image. MealPlanInstance has no image of
-          // its own; it inherits the backing template's imageUrl (null for the
-          // ~95% of plans with no photo → the client renders the gradient
-          // fallback). The template.imageUrl select above was previously dead.
-          image: instance.template?.imageUrl ?? null,
+          // WS9-2 2c Commit 5 (D-WS9-144) — `image` REMOVED from the plan-review
+          // payload. MealPlanInstance has no image of its own; the inherited
+          // template imageUrl was null for ~95% of plans, so BUG-076's field
+          // only ever fed a gradient placeholder on the client. Plan imagery
+          // returns as a per-meal collage gated on WS7-10.
+          //
+          // ⚠️ The template.imageUrl select below STAYS — GET /plans/templates/:id
+          // (the Use-Plan preview) and the Tried & True rail both still need it.
+          // Curated MealPlanTemplate photos are real; only INSTANCE-side plan
+          // imagery is being removed.
           // WS7-8a B3 — derived rollup (or the manual pin when set), not the
           // raw stored column. prepStatusIsManual surfaces which one is in play
           // so the client can show "auto" vs "pinned".

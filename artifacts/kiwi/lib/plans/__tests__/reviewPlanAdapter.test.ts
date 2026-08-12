@@ -69,7 +69,6 @@ function makeDetail(over: Partial<PlanDetail> = {}): PlanDetail {
     isActiveThisWeek: false,
     userId: "user-1",
     sourceType: "user",
-    image: null,
     prepStatus: "not_prepped",
     prepStatusIsManual: false,
     optimizationNotes: [],
@@ -184,14 +183,13 @@ test("planDetailToReviewPlan: null dates map to undefined", () => {
   assert.equal(result.weekEndDate, undefined);
 });
 
-test("planDetailToReviewPlan: BUG-076 — plan image carries through (URL and null)", () => {
-  const withUrl = planDetailToReviewPlan(
-    makeDetail({ image: "https://example.com/plan.jpg" }),
+// WS9-2 2c Commit 5 (D-WS9-144) — replaces the BUG-076 carry-through test.
+test("planDetailToReviewPlan: does NOT surface a plan image (D-WS9-144)", () => {
+  const plan = planDetailToReviewPlan(makeDetail({}));
+  assert.ok(
+    !("image" in plan),
+    "ReviewPlan.image was removed — Plan Review renders no header photo",
   );
-  assert.equal(withUrl.image, "https://example.com/plan.jpg");
-
-  const withNull = planDetailToReviewPlan(makeDetail({ image: null }));
-  assert.equal(withNull.image, null);
 });
 
 test("planDetailToReviewPlan: present dates carry through", () => {

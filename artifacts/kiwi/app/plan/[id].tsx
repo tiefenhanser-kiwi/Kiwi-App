@@ -28,7 +28,6 @@ import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
 import { PlanDateRangeEditor } from "@/components/PlanDateRangeEditor";
 import { PlanNameEditor } from "@/components/PlanNameEditor";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
-import { TreatedImage } from "@/components/TreatedImage";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { useToast } from "@/contexts/ToastProvider";
@@ -700,16 +699,23 @@ export default function PlanReviewScreen() {
             tap-to-edit intact), a compact date + meal-count meta row, and the
             "Cook This Week" pill. The band replaces the old flat meta strip. */}
         <View style={s.headerBand}>
-          {/* Image block (BUG-076). §27.2 — TreatedImage always renders its
-              warm gradient placeholder behind; the real photo shows only when
-              present, so the ~95% of plans with no image read as the intended
-              fallback. */}
-          <TreatedImage
-            source={reviewPlan.image ? { uri: reviewPlan.image } : null}
-            height={132}
-            radius={Radius.md}
-            style={s.headerImage}
-          />
+          {/* WS9-2 2c Commit 5 (D-WS9-144) — the plan header image is GONE.
+              It was a 132px warm-gradient block on ~95% of plans: a
+              MealPlanInstance has no image of its own and inherits the backing
+              template's, which is null for everything except the six curated
+              catalog rows. A placeholder that large, that often, is decoration
+              standing in for content the app does not have.
+
+              This is a REMOVAL, not a swap to a different placeholder.
+
+              ⚠️ The Tried & True rail is the explicit EXCEPTION and keeps its
+              images — the distinction is PROVENANCE, not surface: a curated
+              MealPlanTemplate carries a real photo someone chose; a generated
+              instance has nothing honest to show. Same component, different
+              data reality. Do not "restore consistency" by stripping the rail.
+
+              Destination is a collage built from the plan's own meals, gated on
+              WS7-10 (unbuilt: Meal.imageUrl is non-null on 0/1471 rows). */}
           {/* Draft: title is fixed (the candidate name), no week yet — no
               name/date editors, no Cook This Week pill (the action bar owns the
               commit). Meal count still renders (client-derived). Saved: the full
@@ -1398,9 +1404,6 @@ const s = StyleSheet.create({
     padding: Spacing[3],
     gap: Spacing[3],
     marginBottom: Spacing[3],
-  },
-  headerImage: {
-    width: "100%",
   },
   headerBandBody: {
     gap: 6,

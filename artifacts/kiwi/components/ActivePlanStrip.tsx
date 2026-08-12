@@ -1,6 +1,9 @@
 // WS9 L2b — active-plan / "tonight" strip (net-new, §3 · Components.activePlanStrip).
-// A slim single-line replacement for the Home HeroCard: thumb · title · meta,
-// with a right-aligned terracotta "Cook" text action on the tonight state.
+// A slim single-line replacement for the Home HeroCard: title · meta, with a
+// right-aligned terracotta "Cook" text action on the tonight state.
+//
+// WS9-2 2c Commit 5 (D-WS9-144) — the 42px leading thumb was REMOVED. See
+// resolve() below for why it never showed a photograph.
 //
 // Copy source (RULED): the three states survive verbatim from live code — this
 // consumes the existing HeroModel (lib/home/heroState) and mirrors HeroCard's
@@ -16,14 +19,12 @@ import {
   Colors,
   Components,
   Palette,
-  Radius,
   Spacing,
   Typography,
 } from "@/constants/tokens";
 import { formatMacro } from "@/lib/format/macros";
 import type { HeroModel } from "@/lib/home/heroState";
 import { DisplayTitle } from "./DisplayTitle";
-import { TreatedImage } from "./TreatedImage";
 
 type Props = {
   model: HeroModel;
@@ -34,8 +35,13 @@ type Props = {
 };
 
 // Mirror of HeroCard's per-state copy, folded into a single slim meta line.
+//
+// WS9-2 2c Commit 5 (D-WS9-144) — `thumb` is gone. The 42px slot has PROVABLY
+// never rendered a photograph: the "plan" state hard-coded null, and the
+// "today" state read Meal.imageUrl, which is non-null on 0 of 1471 rows. It was
+// a warm-gradient square, permanently. That is exactly the ruling's logic — a
+// generated MealPlanInstance surface with nothing honest to show.
 function resolve(model: HeroModel): {
-  thumb: { uri: string } | null;
   title: string;
   meta: string;
   showCook: boolean;
@@ -46,7 +52,6 @@ function resolve(model: HeroModel): {
     if (meal.minutes) parts.push(`${meal.minutes} min`);
     if (meal.calories) parts.push(`${formatMacro(meal.calories, "0")} cal`);
     return {
-      thumb: meal.image ? { uri: meal.image } : null,
       title: meal.title,
       meta: parts.join(" · "),
       showCook: true,
@@ -55,10 +60,9 @@ function resolve(model: HeroModel): {
   if (model.kind === "plan") {
     const parts = ["This week"];
     if (model.durationDays) parts.push(`${model.durationDays} days`);
-    return { thumb: null, title: model.name, meta: parts.join(" · "), showCook: false };
+    return { title: model.name, meta: parts.join(" · "), showCook: false };
   }
   return {
-    thumb: null,
     title: "No plan this week yet",
     meta: "Tap to get started",
     showCook: false,
@@ -66,18 +70,12 @@ function resolve(model: HeroModel): {
 }
 
 export function ActivePlanStrip({ model, onPress, onCook }: Props) {
-  const { thumb, title, meta, showCook } = resolve(model);
+  const { title, meta, showCook } = resolve(model);
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.strip, pressed && { opacity: 0.9 }]}
     >
-      <TreatedImage
-        source={thumb}
-        width={Components.activePlanStrip.thumbSize}
-        height={Components.activePlanStrip.thumbSize}
-        radius={Radius.md}
-      />
       <View style={styles.textCol}>
         <DisplayTitle source={title} variant="slim" style={styles.title} />
         <Text style={styles.meta} numberOfLines={1}>

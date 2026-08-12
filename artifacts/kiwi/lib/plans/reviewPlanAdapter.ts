@@ -54,8 +54,11 @@ export function planDetailToReviewPlan(detail: PlanDetail): ReviewPlan {
     // WS7-6 (E) Block 2 §4 — Model 2 resolver-derived. Drives the
     // "Cook This Week" / "This Week's Plan" chip in Plan Review.
     isActiveThisWeek: detail.isActiveThisWeek,
-    // BUG-076 — header image (template imageUrl; null for most plans).
-    image: detail.image ?? null,
+    // WS9-2 2c Commit 5 (D-WS9-144) — `image` removed. Plan Review no longer
+    // renders a header photo; a MealPlanInstance has no image of its own and
+    // the inherited template imageUrl was null for ~95% of plans, so the field
+    // only ever fed a gradient placeholder. The rail keeps its images — that is
+    // a different table with real curated photos.
   };
 }
 

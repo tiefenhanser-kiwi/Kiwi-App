@@ -1001,10 +1001,20 @@ describe("GET /plans/:id — composite Plan Review", () => {
     }
   });
 
-  // BUG-076 — GET /plans/:id surfaces the backing template's imageUrl as
-  // `image` (the select was previously dead — never emitted). null when the
-  // template has no photo; the URL when it does.
-  it("ships the backing template imageUrl as `image` (URL and null)", async () => {
+  // WS9-2 2c Commit 5 (D-WS9-144) — INVERTS the BUG-076 test above it. The plan
+  // payload no longer emits `image`: a MealPlanInstance has no photo of its own,
+  // and the inherited template imageUrl was null for ~95% of plans, so the field
+  // only ever fed a 132px gradient placeholder on the client.
+  //
+  // The assertion is inverted rather than deleted so the removal cannot be
+  // silently undone — re-adding the field to the builder fails here.
+  //
+  // ⚠️ NOT a blanket ban on plan imagery: GET /plans/templates/:id still ships
+  // `image` (see the template-detail tests), and the Home rail still ships its
+  // six curated photos. The distinction is PROVENANCE — a hand-curated
+  // MealPlanTemplate carries a real photo someone chose; a generated instance
+  // does not.
+  it("does NOT ship an `image` field, even when the backing template has one", async () => {
     const harness = await a2SpinUp(
       makeA2Stub({
         instances: [
@@ -1022,15 +1032,22 @@ describe("GET /plans/:id — composite Plan Review", () => {
         headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
       });
       assert.equal(withImg.status, 200);
-      const withImgBody = (await withImg.json()) as { plan: { image: string | null } };
-      assert.equal(withImgBody.plan.image, "https://example.com/plan.jpg");
+      const withImgBody = (await withImg.json()) as {
+        plan: Record<string, unknown>;
+      };
+      assert.ok(
+        !("image" in withImgBody.plan),
+        "plan-instance imagery was removed (D-WS9-144) — the template's photo must not resurface here",
+      );
 
       const noImg = await fetch(`${harness.baseUrl}/plans/p-noimg`, {
         headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
       });
       assert.equal(noImg.status, 200);
-      const noImgBody = (await noImg.json()) as { plan: { image: string | null } };
-      assert.equal(noImgBody.plan.image, null);
+      const noImgBody = (await noImg.json()) as {
+        plan: Record<string, unknown>;
+      };
+      assert.ok(!("image" in noImgBody.plan));
     } finally {
       await harness.close();
     }

@@ -151,7 +151,6 @@ const PLAN_DETAIL_RESPONSE = {
     isActiveThisWeek: true,
     userId: "user-1",
     sourceType: "curated",
-    image: null,
     prepStatus: "not_prepped" as const,
     prepStatusIsManual: false,
     optimizationNotes: [],
@@ -277,22 +276,31 @@ test("PlanDetailSchema rejects a plan missing prepStatusIsManual", () => {
   assert.equal(PlanDetailSchema.safeParse(withoutManual).success, false);
 });
 
-// BUG-076 — the plan header image crosses the wire. Non-optional nullable:
-// parses null, parses a URL, and rejects an omitted key (a plain z.object would
-// otherwise strip it and the band would never see a real image).
-test("PlanDetailSchema carries image (null and URL) and rejects a missing key", () => {
-  const nullImage = PlanDetailSchema.parse(PLAN_DETAIL_RESPONSE.plan);
-  assert.equal(nullImage.image, null);
+// WS9-2 2c Commit 5 (D-WS9-144) — REPLACES the BUG-076 test that asserted the
+// plan header image crossed the wire. Plan Review no longer renders a header
+// photo, so the field is gone from the schema.
+//
+// The inverted assertion is kept deliberately rather than deleted: it pins that
+// the removal is COMPLETE (nothing downstream can still read `image`) and that
+// a server still emitting the field does not break the parse, which is what
+// makes the mobile-first rollout order safe.
+test("PlanDetailSchema no longer carries `image` (D-WS9-144 removal is complete)", () => {
+  const parsed = PlanDetailSchema.parse(PLAN_DETAIL_RESPONSE.plan);
+  assert.ok(
+    !("image" in parsed),
+    "plan-instance imagery was removed — a re-added field would resurrect the gradient placeholder on ~95% of plans",
+  );
 
-  const withUrl = PlanDetailSchema.parse({
+  // An older server that still sends `image` must parse cleanly: a plain
+  // z.object strips unknown keys. This is why mobile can ship ahead of the API.
+  const withLegacyField = PlanDetailSchema.parse({
     ...PLAN_DETAIL_RESPONSE.plan,
     image: "https://example.com/plan.jpg",
   });
-  assert.equal(withUrl.image, "https://example.com/plan.jpg");
+  assert.ok(!("image" in withLegacyField));
 
-  const { image, ...withoutImage } = PLAN_DETAIL_RESPONSE.plan;
-  void image;
-  assert.equal(PlanDetailSchema.safeParse(withoutImage).success, false);
+  // ⚠️ The RAIL is the explicit exception and still carries images — see
+  // lib/home/__tests__/rail.test.ts. Provenance, not surface.
 });
 
 // ── getPlans ────────────────────────────────────────────────────────────────
@@ -836,7 +844,6 @@ test(
             isActiveThisWeek: false,
             userId: "user-1",
             sourceType: "user_created",
-            image: null,
             prepStatus: "not_prepped" as const,
             prepStatusIsManual: false,
             optimizationNotes: [],

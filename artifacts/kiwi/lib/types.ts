@@ -328,10 +328,11 @@ export interface ReviewPlan {
    *  "Cook This Week" chip for a passive "This Week's Plan" badge in that
    *  state. Surfaced from PlanDetail.isActiveThisWeek by the adapter. */
   isActiveThisWeek: boolean;
-  /** BUG-076 — plan header image (backing template's imageUrl; null/undefined
-   *  for the ~95% of plans with no photo). The header band's TreatedImage
-   *  renders the gradient fallback when absent. */
-  image?: string | null;
+  // WS9-2 2c Commit 5 (D-WS9-144) — `image` REMOVED. Was BUG-076's plan header
+  // image (the backing template's imageUrl), null for ~95% of plans, so the
+  // header band rendered a 132px warm gradient far more often than a photo.
+  // Plan imagery returns as a collage built from the plan's own meals, gated on
+  // WS7-10. Do not re-add a single-image field here in the interim.
 }
 
 /**
