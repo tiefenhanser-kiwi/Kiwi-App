@@ -61,7 +61,7 @@ test("the dash token is gone from the design system entirely", () => {
 // ── treatment ───────────────────────────────────────────────────────────────
 
 test("left-aligned, not centered", () => {
-  assert.equal(flatStyle(render({ label: "tried & true" })).textAlign, "left");
+  assert.equal(flatStyle(render({ label: "Featured plans" })).textAlign, "left");
 });
 
 test("high-emphasis colour, not the muted caption value", () => {

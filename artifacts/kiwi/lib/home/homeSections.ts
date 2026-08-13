@@ -26,7 +26,7 @@ export function homeSectionOrder(opts: {
   isFirstRun: boolean;
   /** heroModel.kind !== "empty" — there is a today/plan to show. */
   hasActivePlan: boolean;
-  /** the Tried & True rail has at least one card. */
+  /** the Featured-plans rail has at least one card. */
   hasRail: boolean;
   /**
    * WS9-2 2c Commit 2 — GET /home has not resolved yet, so we do NOT KNOW the

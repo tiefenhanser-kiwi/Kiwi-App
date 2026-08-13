@@ -1,16 +1,20 @@
-// WS9-2 2c (D-WS9-154) — Tried & True rail view-model.
+// WS9-2 2c (D-WS9-154) — Featured-plans rail view-model.
 //
-// Replaces lib/home/triedTrue.ts. That module existed to flatten and de-dupe
-// THREE separate per-badge queries; the server now returns one ordered list, so
-// there is nothing left to merge. What remains is display mapping, which is what
-// this file is: badge label and meta line, both pure, both copy.
+// Replaces lib/home/triedTrue.ts (deleted in Commit 3). That module existed to
+// flatten and de-dupe THREE separate per-badge queries; the server now returns
+// one ordered list, so there is nothing left to merge. What remains is display
+// mapping, which is what this file is: badge label and meta line, both pure,
+// both copy.
 //
-// The emitted item shape is unchanged (id / occasion / title / image / meta) so
-// TriedTrueCard is untouched.
+// WS9-2 2c Commit 8 (D-WS9-130) — the rail is "Featured plans"; the item type
+// renamed TriedTrueItem -> FeaturedPlanItem to match.
+//
+// The emitted item SHAPE is unchanged (id / occasion / title / image / meta) —
+// only the type name moved, so FeaturedPlanCard needs no prop changes.
 
 import type { RailPlanItem } from "@/lib/api/home";
 
-export interface TriedTrueItem {
+export interface FeaturedPlanItem {
   id: string;
   occasion: string;
   title: string;
@@ -18,7 +22,7 @@ export interface TriedTrueItem {
   meta: string | null;
 }
 
-// Badge precedence, preserved from the retired TRIED_TRUE_BADGES order: Hosting
+// Badge precedence, preserved from the retired three-bucket order: Hosting
 // leads, then Featured. A row carrying BOTH flags shows as Hosting, exactly as
 // the old first-badge-wins dedupe did.
 //
@@ -68,7 +72,7 @@ export function railMeta(
  */
 export function buildRailItems(
   rows: readonly RailPlanItem[],
-): TriedTrueItem[] {
+): FeaturedPlanItem[] {
   return rows.map((row) => {
     const occasion = railBadge(row);
     return {

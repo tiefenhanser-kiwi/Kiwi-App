@@ -708,7 +708,7 @@ export default function PlanReviewScreen() {
 
               This is a REMOVAL, not a swap to a different placeholder.
 
-              ⚠️ The Tried & True rail is the explicit EXCEPTION and keeps its
+              ⚠️ The Featured-plans rail is the explicit EXCEPTION and keeps its
               images — the distinction is PROVENANCE, not surface: a curated
               MealPlanTemplate carries a real photo someone chose; a generated
               instance has nothing honest to show. Same component, different

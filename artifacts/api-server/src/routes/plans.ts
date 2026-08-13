@@ -514,7 +514,7 @@ export function createPlansRouter(
           // returns as a per-meal collage gated on WS7-10.
           //
           // ⚠️ The template.imageUrl select below STAYS — GET /plans/templates/:id
-          // (the Use-Plan preview) and the Tried & True rail both still need it.
+          // (the Use-Plan preview) and the Featured-plans rail both still need it.
           // Curated MealPlanTemplate photos are real; only INSTANCE-side plan
           // imagery is being removed.
           // WS7-8a B3 — derived rollup (or the manual pin when set), not the

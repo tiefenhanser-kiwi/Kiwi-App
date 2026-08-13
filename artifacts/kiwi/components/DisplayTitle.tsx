@@ -73,7 +73,7 @@ const VARIANT_LINES: Record<DisplayTitleVariant, number | undefined> = {
   // when the text needs it (a 1-2 line title still renders at its natural height).
   row: 3, // list rows — grow to three lines then truncate
   slim: 1, // fixed-height strips / one-line plan-name caps
-  railCard: 2, // TriedTrueCard (fixed 150px width; the rail edge still clips)
+  railCard: 2, // FeaturedPlanCard (fixed 150px width; the rail edge still clips)
   hero: undefined, // detail-screen hero titles — wrap freely
 };
 

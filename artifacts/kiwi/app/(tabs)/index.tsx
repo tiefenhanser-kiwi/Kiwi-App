@@ -33,7 +33,7 @@ import { Screen } from "@/components/Screen";
 import { SectionLabel } from "@/components/SectionLabel";
 import { TeachingArc } from "@/components/TeachingArc";
 import { TellKiwiCard } from "@/components/TellKiwiCard";
-import { TriedTrueCard } from "@/components/TriedTrueCard";
+import { FeaturedPlanCard } from "@/components/FeaturedPlanCard";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHomePayload } from "@/hooks/useHomePayload";
@@ -92,7 +92,7 @@ export default function HomeTab() {
   // change. Left deliberately, not by omission.
   usePlans(["my_plans"]);
 
-  // Tried & True rail — ONE ordered read (WS9-2 2c, D-WS9-154). Replaces the
+  // Featured-plans rail — ONE ordered read (WS9-2 2c, D-WS9-154). Replaces the
   // three per-badge usePlans calls that used to be merged client-side; the
   // server now owns membership (railPosition non-null) and order
   // (railPosition ASC, createdAt DESC). buildRailItems is display mapping only
@@ -103,7 +103,7 @@ export default function HomeTab() {
     [railQuery.data],
   );
 
-  // Tried & True cards are catalog templates → the vetted preview-then-use flow.
+  // Featured-plan cards are catalog templates → the vetted preview-then-use flow.
   const preview = useTemplatePreview();
   // BUG-036 fix: "Use This Week" creates the instance AND activates it for the
   // current week via the shared setPlanActiveThisWeek (dates + activatedAt +
@@ -280,14 +280,14 @@ export default function HomeTab() {
             case "rail":
               return (
                 <React.Fragment key="rail">
-                  <SectionLabel label="tried & true" />
+                  <SectionLabel label="Featured plans" />
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.rail}
                   >
                     {railItems.map((item) => (
-                      <TriedTrueCard
+                      <FeaturedPlanCard
                         key={item.id}
                         image={item.image ? { uri: item.image } : null}
                         occasion={item.occasion}

@@ -1,7 +1,21 @@
-// WS9 L2b — Tried & True rail card (net-new, §3 · Components.triedTrueRail).
+// WS9 L2b — Featured-plans rail card (net-new, §3 · Components.featuredRail).
 // A 150-wide card: image slot (via TreatedImage) with an occasion pill floated
 // top-left over the photo, title + meta below on the white card. Presentational —
-// seasonal-lead ordering is the consuming screen's job, not the card's.
+// ordering is the consuming screen's job, not the card's.
+//
+// WS9-2 2c Commit 8 (D-WS9-130, Option A) — RENAMED from TriedTrueCard, and the
+// rail's eyebrow from "tried & true" to "Featured plans".
+//
+// The old mixed-rail name rested on the rail being all `top_rated` with
+// `featured` empty. BOTH halves measured false: `featured` holds two live rows,
+// and `top_rated` is ungated so it swept the whole public pool rather than
+// being a distinct tier. "Featured plans" is an OBJECT noun, which also keeps
+// it distinct from D-WS9-120's Featured — a MEAL-level shelf for publishing
+// creators. Different objects, no collision.
+//
+// ⚠️ The per-card "Top Rated" BADGE is a separate, known overclaim
+// (topRatedScore is null on 72/72 rows and the scorer has never run). It is NOT
+// this rename's to fix and was deliberately left alone.
 //
 // Type-scale: mockup authors nm 13.5 / meta 10.5; rendered on the token scale
 // (base / xxs) per FLAG 1. The occasion pill is a near-opaque cream chip that
@@ -30,7 +44,7 @@ type Props = {
   onPress?: () => void;
 };
 
-export function TriedTrueCard({
+export function FeaturedPlanCard({
   image,
   occasion,
   title,
@@ -45,7 +59,7 @@ export function TriedTrueCard({
       <View>
         <TreatedImage
           source={image ?? null}
-          height={Components.triedTrueRail.imageHeight}
+          height={Components.featuredRail.imageHeight}
         />
         <View style={styles.cat} pointerEvents="none">
           <Text style={styles.catText} numberOfLines={1}>
@@ -67,11 +81,11 @@ export function TriedTrueCard({
 
 const styles = StyleSheet.create({
   card: {
-    width: Components.triedTrueRail.cardWidth,
+    width: Components.featuredRail.cardWidth,
     backgroundColor: Palette.background.card,
     borderWidth: 1,
     borderColor: Palette.border.default,
-    borderRadius: Components.triedTrueRail.cardRadius,
+    borderRadius: Components.featuredRail.cardRadius,
     overflow: "hidden",
   },
   cat: {
@@ -79,7 +93,7 @@ const styles = StyleSheet.create({
     top: 7,
     left: 7,
     backgroundColor: ImageTreatment.overlayPill,
-    borderRadius: Components.triedTrueRail.pillRadius,
+    borderRadius: Components.featuredRail.pillRadius,
     paddingHorizontal: 9,
     paddingVertical: 3,
   },

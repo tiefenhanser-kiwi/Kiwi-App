@@ -324,7 +324,7 @@ export const ImageTreatment = {
     gradient: ['#e6cba6', '#d99e6b'],  // warm 120° ramp
   },
   // Near-opaque paper pill for a legible tag floated over a treated image (e.g.
-  // the Tried & True occasion tag) — opaque enough to need no scrim.
+  // the Featured-plans occasion tag) — opaque enough to need no scrim.
   overlayPill: 'rgba(251, 247, 239, 0.92)',
 } as const;
 
@@ -335,7 +335,14 @@ export const Components = {
     inputPlaceholder:  Colors.neutral[600],
     inputRadius:       Radius.full,
   },
-  triedTrueRail: {
+  // WS9-2 2c Commit 8 (D-WS9-130) — renamed from `triedTrueRail`. Values are
+  // unchanged; only the dead concept's name is gone.
+  //
+  // ⚠️ artifacts/design_tokens_4.ts (the canonical v4 token doc) still spells
+  // this `triedTrueRail` at :369. That file is GITIGNORED and UNTRACKED, so it
+  // is outside the commit surface and was deliberately not edited — changing it
+  // would diverge a local copy with no record in history. Reported instead.
+  featuredRail: {
     cardWidth:     150,
     imageHeight:   74,
     cardRadius:    Radius.xl,

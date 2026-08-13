@@ -54,8 +54,8 @@ describe("toYmd — calendar-date wire formatter", () => {
 //
 // Phase 0 found this function had NO unit test at all, and that no test anywhere
 // asserted `image` on a PlanListItem coming out of GET /plans. That combination
-// is what makes the rail's imagery a silent-failure surface: the Tried & True
-// rail is the ONLY place in the app where photographs actually render (Meal.
+// is what makes the rail's imagery a silent-failure surface: the Featured-
+// plans rail is the ONLY place in the app where photographs actually render (Meal.
 // imageUrl is non-null on 0/1471 rows; every other TreatedImage shows its
 // gradient), and its images ride TEMPLATE_SELECT.imageUrl through eight hops.
 //
@@ -373,7 +373,7 @@ function railRow(
   };
 }
 
-describe("resolveRailPlans — the Home Tried & True rail", () => {
+describe("resolveRailPlans — the Home Featured-plans rail", () => {
   it("selects imageUrl and maps it to `image`", async () => {
     const { prisma, captured } = makeStubPrisma({
       templates: [railRow("t-1", "Game Day Spread")],

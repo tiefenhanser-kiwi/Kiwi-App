@@ -1,4 +1,4 @@
-// WS9-2 2c (D-WS9-154) — Tried & True rail view-model. Replaces
+// WS9-2 2c (D-WS9-154 / D-WS9-130) — Featured-plans rail view-model. Replaces
 // triedTrue.test.ts, whose subject (a three-query client-side merge) no longer
 // exists: the server now returns one ordered list.
 
@@ -30,8 +30,8 @@ function row(over: Partial<RailPlanItem> = {}): RailPlanItem {
 // ── badge ───────────────────────────────────────────────────────────────────
 
 test("railBadge: Hosting leads — a row with BOTH flags shows as Hosting", () => {
-  // Preserves the retired first-badge-wins dedupe, where TRIED_TRUE_BADGES led
-  // with hosting_events.
+  // Preserves the retired first-badge-wins dedupe, whose badge order led with
+  // hosting_events.
   assert.equal(
     railBadge({ isFeatured: true, isHostingFeatured: true }),
     BADGE_HOSTING,

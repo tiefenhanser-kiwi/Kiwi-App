@@ -122,7 +122,7 @@ interface TemplateRow {
   tags: string[];
 }
 
-// WS9-2 2c (D-WS9-154) — the Home "Tried & True" rail row. A superset of
+// WS9-2 2c (D-WS9-154) — the Home "Featured plans" rail row. A superset of
 // TemplateRow: the rail derives its badge pill from the two featuring flags, so
 // it needs them on the row. `description` rides along because RAIL_SELECT
 // spreads TEMPLATE_SELECT (see §0.1 — the spread is what keeps `imageUrl`
@@ -149,7 +149,7 @@ interface RailRow extends TemplateRow {
 // additionally arrow-wrap their mappers so the row→mapper hop is checked
 // strictly rather than bivariantly. Both guards are cheap; keep both.
 //
-// ⚠️ The Tried & True rail's images ride TEMPLATE_SELECT.imageUrl through eight
+// ⚠️ The Featured-plans rail's images ride TEMPLATE_SELECT.imageUrl through eight
 // hops; this is hop 1. Do not replace it with a fresh inline select.
 type SelectFor<Row> = Record<keyof Row, true>;
 
@@ -231,16 +231,16 @@ function railRowToItem(row: RailRow): RailPlanItem {
 }
 
 // The rail's ceiling. 12 is not arbitrary: it is exactly the old client-side
-// ceiling (buildTriedTrueRail's perBadgeLimit of 4 × 3 badges), so collapsing
+// ceiling (the retired client merge's perBadgeLimit of 4 × 3 badges), so collapsing
 // the three queries into one changes nothing at any pool size up to 12. The live
 // pool is 6.
 export const RAIL_LIMIT = 12;
 
 /**
- * WS9-2 2c (D-WS9-154) — resolve the Home "Tried & True" rail.
+ * WS9-2 2c (D-WS9-154) — resolve the Home "Featured plans" rail.
  *
  * Replaces the retired three-query merge (hosting_events + featured + top_rated,
- * flattened and de-duped client-side by buildTriedTrueRail). That shape had two
+ * flattened and de-duped client-side). That shape had two
  * problems: it cost three round-trips for one strip, and its ordering was an
  * accident of bucket order rather than a decision — `top_rated` carries no
  * featured gate, so it swept the entire public pool and whatever it added landed
@@ -336,7 +336,7 @@ export async function resolvePlansForFilter(
     // WS9-2 2c Commit 1 — NO `as TemplateRow[]` assertion (see my_plans above).
     // TEMPLATE_SELECT is the single source of the projection; an inline select
     // that omitted `imageUrl` here would now fail to typecheck against
-    // templateToListItem instead of silently blanking the Tried & True rail.
+    // templateToListItem instead of silently blanking the Featured-plans rail.
     const rows = await prisma.mealPlanTemplate.findMany({
       where,
       select: TEMPLATE_SELECT,

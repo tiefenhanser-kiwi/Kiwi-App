@@ -1,8 +1,8 @@
 // WS9-2 2c Commit 2 — TreatedImage.
 //
 // This component had NO test file despite being the app's ONE image primitive
-// and the only surface where photographs actually render (the Tried & True
-// rail). Its null-source behavior is load-bearing: every other TreatedImage in
+// and the only surface where photographs actually render (the Featured-
+// plans rail). Its null-source behavior is load-bearing: every other TreatedImage in
 // the app renders the gradient permanently, because Meal.imageUrl is non-null
 // on 0/1471 rows and Dish.imageUrl on 0/3485.
 //

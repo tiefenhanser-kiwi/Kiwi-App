@@ -81,7 +81,7 @@ const DEV_DISCOVERY_TEMPLATE_IDS = {
   quickWeeknights: "dev-plan-template-quick-weeknights",
   holidayHosting: "dev-plan-template-holiday-hosting",
   budgetBowls: "dev-plan-template-budget-bowls",
-  // WS9 3a device-test — extra hosting_events rows so the Tried & True rail
+  // WS9 3a device-test — extra hosting_events rows so the Featured-plans rail
   // leads with a realistic Hosting set (occasion-flavored, mockup register).
   fourthOfJuly: "dev-plan-template-fourth-of-july-bbq",
   gameDay: "dev-plan-template-game-day-spread",
@@ -489,7 +489,7 @@ interface DevDiscoveryTemplate {
   /** WS7-4-B c2: placeholder Unsplash thumbnail per Q-P1-2 (Hans can swap any of these). */
   imageUrl: string;
   /**
-   * WS9-2 2c (D-WS9-154) — position in the Home "Tried & True" rail. 1 =
+   * WS9-2 2c (D-WS9-154) — position in the Home "Featured plans" rail. 1 =
    * leftmost, null = out of the rail. Seeded to reproduce the exact order the
    * pre-2c three-bucket merge rendered (Hosting, then Featured, then unbadged;
    * createdAt DESC within each group), so a fresh reseed and the production

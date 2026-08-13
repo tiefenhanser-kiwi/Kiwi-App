@@ -59,7 +59,7 @@ export async function getHomePayload(): Promise<HomePayload> {
   return apiClient("/home", { schema: HomePayloadSchema });
 }
 
-// ── WS9-2 2c (D-WS9-154) — the Tried & True rail ────────────────────────────
+// ── WS9-2 2c (D-WS9-154) — the Featured-plans rail ──────────────────────────
 //
 // Transcribed field-for-field from the server builder (RailPlanItem +
 // railRowToItem in api-server/src/lib/planQueries.ts). Replaces the retired
@@ -87,7 +87,7 @@ const HomeRailResponseSchema = z.object({
 export type HomeRailResponse = z.infer<typeof HomeRailResponseSchema>;
 
 /**
- * GET /home/rail — the ordered Tried & True rail (public catalog templates with
+ * GET /home/rail — the ordered Featured-plans rail (public catalog templates with
  * a non-null railPosition). Propagates the apiClient typed errors:
  * `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape mismatch.
  */

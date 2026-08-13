@@ -672,7 +672,7 @@ model MealPlanTemplate {
   featuredEndDate     DateTime?
   isHostingFeatured   Boolean    @default(false)
   hostingFeaturedRank Int?
-  // WS9-2 2c (D-WS9-154) — hand-curated order for the Home "Tried & True" rail.
+  // WS9-2 2c (D-WS9-154) — hand-curated order for the Home "Featured plans" rail.
   // 1 = leftmost, null = out of the rail entirely. No default, no unique
   // constraint, no index: gaps are fine, ties fall through to createdAt desc,
   // and the pool is 72 rows.

@@ -238,7 +238,7 @@ export function createHomeRouter(
     }
   });
 
-  // GET /api/home/rail — the Home "Tried & True" rail (WS9-2 2c, D-WS9-154).
+  // GET /api/home/rail — the Home "Featured plans" rail (WS9-2 2c, D-WS9-154).
   //
   // A dedicated read rather than a fifth PLAN_FILTER_KEY: that constant is a
   // wire contract shared with GET /plans, mirrored on mobile, rendered as the
