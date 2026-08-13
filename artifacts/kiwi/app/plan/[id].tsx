@@ -38,6 +38,7 @@ import { ApiError } from "@/lib/api/errors";
 import { buildDayStrip } from "@/lib/domain";
 import { formatMacro } from "@/lib/format/macros";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
+import { dispatchGenerateResult } from "@/lib/groceryHandoff";
 import { getPlans } from "@/lib/api/plans";
 import {
   activateWizardDraft,
@@ -337,6 +338,24 @@ export default function PlanReviewScreen() {
   // the button shows its loading state for the full duration and guards
   // against double-taps. 409 (list_exists) and 200 (success) both route to
   // the grocery list screen — same UX from the user's perspective.
+  // WS9-2 2c Commit 10 — CLOSES D-WS7-144 (open since 2026-06-15).
+  //
+  // The in-flight guard, the isGeneratingList state and the button's loading
+  // treatment stay here — they are this screen's. What LEFT is the six-outcome
+  // error ladder that used to be inlined below: it is now
+  // dispatchGenerateResult, which resolves the result and delivers it through
+  // the sinks this screen supplies.
+  //
+  // Why it mattered: the inlined ladder was UNTESTED (app/ is outside the
+  // mobile test glob) and had already drifted from the shared mapper on two of
+  // six outcomes — `unauthenticated` said "Sign-in required" where the rest of
+  // the app says the session expired, and the unknown-error case claimed
+  // "Could not generate list" for a failure we cannot actually attribute.
+  // Both divergences are retired; see lib/groceryHandoff.ts for the canonical
+  // copy and lib/__tests__/groceryHandoff.test.ts for the coverage.
+  //
+  // ⚠️ There is ONE request path (generateGroceryListForPlan) and now ONE
+  // mapping (resolveGenerateResult). Do not re-inline a second ladder here.
   const [isGeneratingList, setIsGeneratingList] = useState(false);
   const handleGroceryListPress = async () => {
     if (isGeneratingList) return;
@@ -344,31 +363,13 @@ export default function PlanReviewScreen() {
     setIsGeneratingList(true);
     try {
       const result = await generateGroceryListForPlan(planId);
-      if (result.success) {
-        router.push({
-          pathname: "/grocery-list/[id]",
-          params: { id: result.groceryListId },
-        });
-      } else if (result.error === "list_exists") {
-        router.push({
-          pathname: "/grocery-list/[id]",
-          params: { id: result.existingListId },
-        });
-      } else if (result.error === "ai_failed") {
-        Alert.alert(
-          "Could not generate list",
-          "Our AI hit a hiccup. Please try again in a moment.",
-        );
-      } else if (result.error === "plan_not_found") {
-        Alert.alert(
-          "Plan not found",
-          "We couldn't find this plan. Try reloading.",
-        );
-      } else if (result.error === "unauthenticated") {
-        Alert.alert("Sign-in required", "Please sign in and try again.");
-      } else {
-        Alert.alert("Could not generate list", "Please try again in a moment.");
-      }
+      dispatchGenerateResult(result, {
+        // 200-new and 409-exists both land here — same destination, because
+        // the user asked for this plan's list and gets this plan's list.
+        navigate: (id) =>
+          router.push({ pathname: "/grocery-list/[id]", params: { id } }),
+        alert: (title, message) => Alert.alert(title, message),
+      });
     } finally {
       setIsGeneratingList(false);
     }

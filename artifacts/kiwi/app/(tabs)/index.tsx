@@ -77,19 +77,23 @@ export default function HomeTab() {
   // neutral when we genuinely have nothing to render from.
   const isHomeLoading = homeQuery.isLoading;
 
-  // ⚠️ WS9-2 2c Commit 7 — RETAINED BY INSTRUCTION, and it is now a PREFETCH,
-  // not a read. Its former consumer (the Grocery list button's
-  // resolveGroceryRoute fallback, D-WS5-033) left Home with the utility row in
-  // §7.5, so nothing on this screen reads `plansQuery.data` any more.
+  // ⚠️ DELIBERATE PREFETCH — NOT DEAD CODE. DO NOT SWEEP.
   //
-  // It still earns its keep: the query key ["plans","list",["my_plans"]] is
-  // SHARED with the Plans tab (plans.tsx:102), the Prep & Cook hub
-  // (prep-cook.tsx:53) and AddMealToPlanSheet, so issuing it here warms all
-  // three — and the hub in particular is now a 2-tap path FROM Home, so warming
-  // it is worth more than it was, not less.
+  // Nothing on this screen reads the result, and that is intentional. Its
+  // former consumer was the Grocery list button's route fallback, which came
+  // off Home in 2c Commit 7; the fallback itself (resolveGroceryRoute) was
+  // deleted in Commit 10 along with the orphaned picker screen it fed.
   //
-  // If a ruling says drop it, this line and the usePlans import are the whole
-  // change. Left deliberately, not by omission.
+  // The call stays because the query key ["plans","list",["my_plans"]] is
+  // SHARED with three live consumers, so issuing it here warms all of them:
+  //   • the Plans tab            (app/(tabs)/plans.tsx)
+  //   • the Prep & Cook hub      (app/prep-cook.tsx) — now a TWO-tap path from
+  //     Home (this-week card → View plan → Prep and Cook), so warming it is
+  //     worth MORE than when the hub had its own Home button, not less
+  //   • AddMealToPlanSheet       (components/AddMealToPlanSheet.tsx)
+  //
+  // A future "unused query" sweep will look at this and see dead weight. It is
+  // not. If it should go, that is a ruling, not a cleanup.
   usePlans(["my_plans"]);
 
   // Featured-plans rail — ONE ordered read (WS9-2 2c, D-WS9-154). Replaces the
@@ -167,9 +171,8 @@ export default function HomeTab() {
 
   // ⚠️ WS9-2 2c Commit 7 §7.5 — the Grocery list / Prep & Cook utility row is
   // GONE from Home, and with it this screen's handleGroceryPress /
-  // handlePrepAndCookPress handlers, useGroceryGeneration wiring and the
-  // GroceryGeneratingOverlay mount. Ruled, not an oversight: on the today state
-  // Grocery list is a plan-level action and Prep & Cook duplicated Start
+  // handlePrepAndCookPress handlers. Ruled, not an oversight: on the today
+  // state Grocery list is a plan-level action and Prep & Cook duplicated Start
   // cooking's intent; consistency carries the removal to the plan state.
   //
   // WHAT STILL REACHES THEM (verified, not assumed):
@@ -181,9 +184,12 @@ export default function HomeTab() {
   //                     from Home it is now TWO taps (card → View plan →
   //                     Prep and Cook) where it was one.
   //
-  // R4's smart-route logic SURVIVES INTACT in lib/groceryPicker.ts with all 21
-  // of its tests — nothing about resolveGroceryRoute changed. What went away is
-  // only this screen's now-buttonless call into it.
+  // Commit 10 finished the job: removing the button left resolveGroceryRoute
+  // with zero callers, which in turn left app/grocery-plan-picker.tsx — its
+  // only downstream screen — unreachable from anywhere in the app. Picker,
+  // route helpers, useGroceryGeneration and GroceryGeneratingOverlay are all
+  // deleted. The generate MAPPING survived and moved to lib/groceryHandoff.ts,
+  // where Plan Review now consumes it (closes D-WS7-144).
 
   // WS9-2 2c Commit 6 — ONE narrowing drives both the section gate and the
   // strip's prop. ActivePlanStrip's model type now EXCLUDES the empty state

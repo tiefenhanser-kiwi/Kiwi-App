@@ -3,7 +3,9 @@
 // Replaces the three usePlans(["hosting_events"]) / (["featured"]) /
 // (["top_rated"]) calls the rail used to make. Home now issues TWO plan-ish
 // reads, not one: this, plus usePlans(["my_plans"]) at index.tsx, which is NOT
-// part of the rail — it feeds resolveGroceryRoute's no-active-plan fallback.
+// part of the rail — it is a deliberate PREFETCH warming the shared
+// ["plans","list",["my_plans"]] cache for the Plans tab, the Prep & Cook hub
+// and AddMealToPlanSheet. See the comment at that call site before touching it.
 //
 // Query key ["home", "rail"] sits under the same "home" prefix as
 // useHomePayload, so an invalidation of ["home"] refreshes both.
