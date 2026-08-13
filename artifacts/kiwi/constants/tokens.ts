@@ -343,7 +343,14 @@ export const Components = {
   },
   activePlanStrip: {
     background:  Colors.neutral[0],
-    thumbSize:   ImageTreatment.thumbSize,
+    // WS9-2 2c Commit 7 — 42 (ImageTreatment.thumbSize) -> 56. The this-week
+    // card's meal thumbnail now ADOPTS the app's meal-row treatment rather than
+    // carrying its own size: PlanReviewMealRow (the plan-item row) renders
+    // 56 x 56 at Radius.md, and MealRow (catalog rows) 56 x 56 at Radius.sm.
+    // The plan-item value wins — this card shows a plan item.
+    // ImageTreatment.thumbSize stays 42 as the canonical v4 value; it simply
+    // has no consumer now.
+    thumbSize:   56,
     radius:      Radius.xl,
     cookAccent:  Colors.terracotta[400],
   },

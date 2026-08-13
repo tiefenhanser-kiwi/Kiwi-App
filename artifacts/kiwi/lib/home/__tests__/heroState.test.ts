@@ -76,6 +76,11 @@ test("deriveHeroModel: today's meal → today branch", () => {
     // #1 — mealPlanItemId is threaded so the today card can open Meal Detail
     // with full plan-item context (no longer dropped).
     assert.equal(model.planItemId, "item-1");
+    // WS9-2 2c Commit 7 — planName is carried through so the this-week card can
+    // render the provenance line ("from Spice It Up") that ties tonight's meal
+    // to the plan its actions operate on. It was already on the wire; the model
+    // simply dropped it.
+    assert.equal(model.planName, "Spice It Up");
     assert.equal(model.meal.id, "meal-1");
     assert.equal(model.meal.minutes, 30);
   }

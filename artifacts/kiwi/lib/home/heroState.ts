@@ -20,6 +20,12 @@ export type HeroModel =
        *  full plan-item context (servings override + "just this time" edits via
        *  useMeal(mealId, planItemId)). Maps from todaysMeal.mealPlanItemId. */
       planItemId: string;
+      /** WS9-2 2c Commit 7 — the plan this meal came from. The card shows it as
+       *  a provenance line under the meal ("from Spice It Up"), which is what
+       *  connects tonight's meal to the plan the card's actions operate on.
+       *  Already on the wire as todaysMeal.planName; it was simply never
+       *  carried through this model. */
+      planName: string;
       meal: MealListItem;
     }
   | { kind: "plan"; planId: string; name: string; durationDays: number | null }
@@ -54,6 +60,7 @@ export function deriveHeroModel(payload: HomePayload | undefined): HeroModel {
       kind: "today",
       planId: payload.todaysMeal.planId,
       planItemId: payload.todaysMeal.mealPlanItemId,
+      planName: payload.todaysMeal.planName,
       meal: payload.todaysMeal.meal,
     };
   }

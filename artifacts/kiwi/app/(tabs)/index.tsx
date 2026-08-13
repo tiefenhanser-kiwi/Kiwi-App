@@ -1,10 +1,19 @@
-// WS9 Block 3a — the two-lane Home (flagship). Layout top→bottom (spec §5.1):
-// header (owns mark · greeting · badge + avatar chip) → teaching arc (first-run
-// only) → make-lane eyebrow → Tell Kiwi card → tonight strip (below the make
-// lane) → Tried & True eyebrow → Tried & True rail → utility row.
+// WS9 Block 3a — the two-lane Home (flagship). Layout top→bottom, as of
+// WS9-2 2c: header (mark · greeting · badge + avatar chip) → teaching arc
+// (first-run) OR this-week card (returning) OR loading placeholder →
+// make-lane eyebrow → Tell Kiwi card → "Featured plans" eyebrow → rail.
+//
+// ⚠️ THE RAIL IS LAST. Nothing renders after it. If a future block appends a
+// section below the rail, re-run the off-screen check — a variable-length list
+// with content beneath it is the 2a defect class (a "Create new" card pushed
+// below the fold), and this screen is currently immune only because nothing
+// follows the rail.
+//
+// The utility button row (Grocery list · Prep & Cook) was removed in 2c Commit
+// 7; the this-week card now carries its own actions.
 //
 // This screen supplies ROUTING to the dumb Layer-2b primitives (TellKiwiCard,
-// ActivePlanStrip, TriedTrueCard, SectionLabel, TreatedImage) and owns the
+// ActivePlanStrip, FeaturedPlanCard, SectionLabel, TreatedImage) and owns the
 // ordering the cards don't.
 //
 // The pre-3a home's HeroCard / WizardCtaCard x2 / CookNowCtaCard /
@@ -13,18 +22,10 @@
 // two of them still certified by green tests.
 
 import React, { useMemo, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { ActivePlanStrip } from "@/components/ActivePlanStrip";
-import { GroceryGeneratingOverlay } from "@/components/GroceryGeneratingOverlay";
 import { HomeHeader } from "@/components/HomeHeader";
 import { LoadingShim } from "@/components/LoadingShim";
 import { PlanPreviewModal } from "@/components/PlanPreviewModal";
@@ -35,23 +36,20 @@ import { TellKiwiCard } from "@/components/TellKiwiCard";
 import { TriedTrueCard } from "@/components/TriedTrueCard";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useGroceryGeneration } from "@/hooks/useGroceryGeneration";
 import { useHomePayload } from "@/hooks/useHomePayload";
 import { useHomeRail } from "@/hooks/useHomeRail";
 import { usePlans } from "@/hooks/usePlans";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
-import { resolveGroceryRoute } from "@/lib/groceryPicker";
 import { deriveHeroModel } from "@/lib/home/heroState";
 import { homeSectionOrder } from "@/lib/home/homeSections";
 import { buildRailItems } from "@/lib/home/rail";
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { Colors, Spacing } from "@/constants/tokens";
 
 export default function HomeTab() {
   const router = useRouter();
   const { user } = useAuth();
   const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
-  const { generate: generateGroceries, isGenerating } = useGroceryGeneration();
 
   // Paywall: an expired/lapsed subscription routes the MAKE-lane actions to
   // upgrade (preserved from the pre-3a home; grocery/prep/cook stay ungated as
@@ -79,9 +77,20 @@ export default function HomeTab() {
   // neutral when we genuinely have nothing to render from.
   const isHomeLoading = homeQuery.isLoading;
 
-  // D-WS5-033 — usePlans is the canonical server plan source for the grocery
-  // fallback disambiguation (NOT useApp().plans, the legacy cache).
-  const plansQuery = usePlans(["my_plans"]);
+  // ⚠️ WS9-2 2c Commit 7 — RETAINED BY INSTRUCTION, and it is now a PREFETCH,
+  // not a read. Its former consumer (the Grocery list button's
+  // resolveGroceryRoute fallback, D-WS5-033) left Home with the utility row in
+  // §7.5, so nothing on this screen reads `plansQuery.data` any more.
+  //
+  // It still earns its keep: the query key ["plans","list",["my_plans"]] is
+  // SHARED with the Plans tab (plans.tsx:102), the Prep & Cook hub
+  // (prep-cook.tsx:53) and AddMealToPlanSheet, so issuing it here warms all
+  // three — and the hub in particular is now a 2-tap path FROM Home, so warming
+  // it is worth more than it was, not less.
+  //
+  // If a ruling says drop it, this line and the usePlans import are the whole
+  // change. Left deliberately, not by omission.
+  usePlans(["my_plans"]);
 
   // Tried & True rail — ONE ordered read (WS9-2 2c, D-WS9-154). Replaces the
   // three per-badge usePlans calls that used to be merged client-side; the
@@ -156,33 +165,25 @@ export default function HomeTab() {
         })
     : undefined;
 
-  // ── Utility row: R4 grocery smart-route ─────────────────────────────────
-  // active plan has list → open · plan-no-list → generate · no plan → wizard
-  // (2+ plans, none active → picker). See resolveGroceryRoute.
-  const handleGroceryPress = () => {
-    const route = resolveGroceryRoute(
-      homeQuery.data?.activePlan ?? null,
-      plansQuery.data?.plans ?? [],
-    );
-    switch (route.kind) {
-      case "open":
-        router.push({
-          pathname: "/grocery-list/[id]",
-          params: { id: route.listId },
-        });
-        break;
-      case "generate":
-        void generateGroceries(route.planId);
-        break;
-      case "picker":
-        router.push("/grocery-plan-picker");
-        break;
-      case "wizard":
-        router.push("/wizard");
-        break;
-    }
-  };
-  const handlePrepAndCookPress = () => router.push("/prep-cook");
+  // ⚠️ WS9-2 2c Commit 7 §7.5 — the Grocery list / Prep & Cook utility row is
+  // GONE from Home, and with it this screen's handleGroceryPress /
+  // handlePrepAndCookPress handlers, useGroceryGeneration wiring and the
+  // GroceryGeneratingOverlay mount. Ruled, not an oversight: on the today state
+  // Grocery list is a plan-level action and Prep & Cook duplicated Start
+  // cooking's intent; consistency carries the removal to the plan state.
+  //
+  // WHAT STILL REACHES THEM (verified, not assumed):
+  //   • Grocery list  → the Groceries tab (a first-class tab), and Plan
+  //                     Review's own "Grocery List" action.
+  //   • Prep & Cook   → Plan Review's "Prep and Cook" primary action
+  //                     (app/plan/[id].tsx), and the "Start Prep & Cook →"
+  //                     CTA at the end of a grocery list. It is NOT a tab, so
+  //                     from Home it is now TWO taps (card → View plan →
+  //                     Prep and Cook) where it was one.
+  //
+  // R4's smart-route logic SURVIVES INTACT in lib/groceryPicker.ts with all 21
+  // of its tests — nothing about resolveGroceryRoute changed. What went away is
+  // only this screen's now-buttonless call into it.
 
   // WS9-2 2c Commit 6 — ONE narrowing drives both the section gate and the
   // strip's prop. ActivePlanStrip's model type now EXCLUDES the empty state
@@ -236,10 +237,11 @@ export default function HomeTab() {
                 </View>
               );
             case "thisWeek":
-              // The this-week MODULE: eyebrow + tonight strip + utility row. The
-              // utility row lives here (not a standalone section) so it is
-              // structurally impossible to render without a plan (G5), and its
-              // actions sit in the context of the plan they act on.
+              // WS9-2 2c Commit 7 — the this-week MODULE is now ONE card. The
+              // actions moved INSIDE it (ActivePlanStrip owns them), because a
+              // card with a sibling button row read as two unrelated objects
+              // and nothing indicated the buttons acted on the plan above.
+              // There is no longer a utility row on this page at all (§7.5).
               return (
                 <View key="thisWeek" style={styles.thisWeekBlock}>
                   <SectionLabel label="this week" first />
@@ -250,39 +252,6 @@ export default function HomeTab() {
                       onCook={handleCook}
                     />
                   ) : null}
-                  {/* Secondary — must never compete with the lanes (G2);
-                      terracotta stays unspent. R4: grocery is a post-plan
-                      shopping tool, not a planning entry. */}
-                  <View style={styles.utilityRow}>
-                    <Pressable
-                      onPress={handleGroceryPress}
-                      style={({ pressed }) => [
-                        styles.secBtn,
-                        pressed && styles.secBtnPressed,
-                      ]}
-                    >
-                      <Feather
-                        name="shopping-bag"
-                        size={20}
-                        color={Colors.sage[700]}
-                      />
-                      <Text style={styles.secBtnText}>Grocery List</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={handlePrepAndCookPress}
-                      style={({ pressed }) => [
-                        styles.secBtn,
-                        pressed && styles.secBtnPressed,
-                      ]}
-                    >
-                      <Feather
-                        name="clipboard"
-                        size={20}
-                        color={Colors.sage[700]}
-                      />
-                      <Text style={styles.secBtnText}>Prep &amp; Cook</Text>
-                    </Pressable>
-                  </View>
                 </View>
               );
             case "makeLane":
@@ -340,8 +309,6 @@ export default function HomeTab() {
         onClose={preview.close}
         onUsePlan={handleUseFromPreview}
       />
-      {/* D-WS5-033 — 1-plan direct generate (5-15s AI pipeline) loading cover. */}
-      <GroceryGeneratingOverlay visible={isGenerating} />
     </View>
   );
 }
@@ -370,41 +337,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing[3],
     alignItems: "center",
   },
-  // The this-week module (eyebrow + strip + utility row) as one grouped block.
+  // The this-week module: eyebrow + card. The card owns its own actions as of
+  // 2c Commit 7 — there is no sibling button row here any more.
   thisWeekBlock: {},
   rail: {
     gap: Spacing[3],
     paddingBottom: Spacing[1],
-  },
-  // Grouped directly under the strip inside the this-week module (small gap,
-  // NOT the old bottom-of-screen spacing).
-  utilityRow: {
-    flexDirection: "row",
-    gap: Spacing[3],
-    marginTop: Spacing[2],
-  },
-  secBtn: {
-    flex: 1,
-    flexDirection: "row",
-    gap: Spacing[2],
-    backgroundColor: Palette.background.card,
-    borderWidth: 1.2,
-    borderColor: Palette.border.strong,
-    // Radius.lg (12px) per mockup .secbtn (D-WS9-025 — mockup = composition authority).
-    borderRadius: Radius.lg,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secBtnPressed: {
-    backgroundColor: Colors.neutral[200],
-  },
-  secBtnText: {
-    fontSize: Typography.fontSize.base,
-    // All-sage (label + icon) — reads finished, still secondary to the filled
-    // sage card (this is a white outlined button). Terracotta stays unspent (G2).
-    color: Colors.sage[700],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
   },
 });
