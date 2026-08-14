@@ -280,3 +280,109 @@ test("PlanReviewMealRow readOnly: tapping a day pill fires the guard, not onAssi
   assert.deepEqual(assignDayCalls, [], "readOnly day pill must not assign");
   renderer.unmount();
 });
+
+// ── WS9-2 2e Phase 4 (D-WS9-159) composted / INERT rows ─────────────────────
+// A composted plan is a SOFT delete: the meals stay VISIBLE so the user can see
+// what was in the plan and decide whether to bring it back, but nothing on the
+// row may act. That is `readOnly` with NO onReadOnlyEdit — a draft's guard
+// EXPLAINS why editing is off ("save it to your library"); a composted plan has
+// nothing to explain and no action to offer.
+//
+// This is the other half of the guard that lib/plans/__tests__/planReviewSurface
+// pins: that file decides `rowsReadOnly` is true here, and this file proves what
+// `rowsReadOnly` without a handler actually DOES.
+
+async function renderInert() {
+  const calls = {
+    changeMeal: [] as unknown[],
+    findSimilar: [] as unknown[],
+    compost: [] as unknown[],
+    assignDay: [] as unknown[],
+  };
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(PlanReviewMealRow, {
+        row: ROW,
+        planId: "plan-1",
+        readOnly: true,
+        // NO onReadOnlyEdit — this is the composted wiring.
+        onChangeMeal: (...a: unknown[]) => calls.changeMeal.push(a),
+        onFindSimilar: (...a: unknown[]) => calls.findSimilar.push(a),
+        onCompost: (...a: unknown[]) => calls.compost.push(a),
+        onAssignDay: (...a: unknown[]) => calls.assignDay.push(a),
+      }),
+    );
+  });
+  return { renderer, calls, tree: renderer.toJSON() as RenderedNode | null };
+}
+
+test("PlanReviewMealRow inert: the meal is still VISIBLE — title and meta render", async () => {
+  // Load-bearing: the whole reason a composted plan renders its meal list is so
+  // the user can see what was in it. An inert row must not be an EMPTY row.
+  const { renderer, tree } = await renderInert();
+  const texts = allText(tree);
+  assert.ok(texts.includes("Lemon Herb Salmon"), "meal title must still render");
+  assert.ok(
+    texts.includes("Easy · 30 min · serves 4"),
+    "meta line must still render",
+  );
+  renderer.unmount();
+});
+
+test("PlanReviewMealRow inert: no edit affordance renders at all", async () => {
+  const { renderer, tree } = await renderInert();
+  const texts = allText(tree);
+  for (const gone of [
+    "Cook Now",
+    "Edit",
+    "Swap for Different Meal",
+    "Swap for Similar Meal",
+    "Remove from plan",
+  ]) {
+    assert.ok(!texts.includes(gone), `a composted row must not offer "${gone}"`);
+  }
+  renderer.unmount();
+});
+
+test("PlanReviewMealRow inert: tapping the row does nothing — no route, no guard", async () => {
+  const { renderer, tree } = await renderInert();
+  const title = findPressableByText(tree, "Lemon Herb Salmon");
+  assert.ok(title, "title pressable not found");
+  await act(async () => {
+    (title!.props!.onPress as () => void)();
+  });
+  assert.equal(
+    pushedRoutes.length,
+    0,
+    "an inert row must not navigate to Meal Detail",
+  );
+  renderer.unmount();
+});
+
+test("PlanReviewMealRow inert: day pills do not mutate the schedule", async () => {
+  // The 7 pills still RENDER (they show which day the meal sat on — part of
+  // 'see what was in the plan'), but they must not reassign anything.
+  const { renderer, calls, tree } = await renderInert();
+  const dayPill = findPressableByText(tree, "M");
+  assert.ok(dayPill, "Monday day pill not found");
+  await act(async () => {
+    (dayPill!.props!.onPress as () => void)();
+  });
+  assert.deepEqual(
+    calls.assignDay,
+    [],
+    "a composted plan's day pills must not assign",
+  );
+  renderer.unmount();
+});
+
+test("PlanReviewMealRow inert: no handler fires even though all four are supplied", async () => {
+  // The screen still passes its mutators down; readOnly is what makes them
+  // unreachable. If readOnly ever stops hiding the action row, this catches it.
+  const { renderer, calls } = await renderInert();
+  assert.deepEqual(calls.changeMeal, []);
+  assert.deepEqual(calls.findSimilar, []);
+  assert.deepEqual(calls.compost, []);
+  renderer.unmount();
+});
