@@ -1,5 +1,5 @@
-// WS9-2 2e (D-WS9-159) — which controls Plan Review renders, per plan state.
-// Pure; no React, no network.
+// WS9-2 2e (D-WS9-157 / D-WS9-159 / D-WS9-161) — which controls Plan Review
+// renders, per plan state. Pure; no React, no network.
 //
 // WHY THIS FILE EXISTS AT ALL: app/plan/[id].tsx is outside the test runner's
 // glob, so every branch in it has historically been unguarded. That is exactly
@@ -60,10 +60,12 @@ export interface PlanReviewSurface {
   showThisWeekSlot: boolean;
   /** Draft commit bar: Use This Week / Save for Later. */
   showDraftCommitBar: boolean;
+  /** D-WS9-161 — the "fully customizable" line under the draft commit bar. */
+  showDraftCustomizableNote: boolean;
   /** Composted notice + the standalone "Use again" — the user's only way back. */
   showCompostedBar: boolean;
-  /** The "Add Meals" affordance. */
-  showAddMeals: boolean;
+  /** The five-cell action panel (D-WS9-157). Live states only. */
+  showActionPanel: boolean;
   /** Breakfast / Lunch defaults collapsibles. */
   showMealDefaults: boolean;
   /**
@@ -74,14 +76,16 @@ export interface PlanReviewSurface {
 }
 
 const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
-  // An unsaved wizard candidate. Editing is gated behind saving it first
-  // (D-WS9-032 point 6); the rows are readOnly and Add Meals is guarded.
+  // An unsaved candidate. Its job is ACCEPT OR SAVE, not edit — every edit
+  // affordance is off and D-WS9-161's line explains why in one sentence
+  // (a user who dislikes one meal must not conclude the plan is fixed).
   draft: {
     headerBand: "draftTitle",
     showThisWeekSlot: false,
     showDraftCommitBar: true,
+    showDraftCustomizableNote: true,
     showCompostedBar: false,
-    showAddMeals: true,
+    showActionPanel: false,
     showMealDefaults: false,
     rowsReadOnly: true,
   },
@@ -95,8 +99,9 @@ const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
     headerBand: "staticMeta",
     showThisWeekSlot: false,
     showDraftCommitBar: false,
+    showDraftCustomizableNote: false,
     showCompostedBar: true,
-    showAddMeals: false,
+    showActionPanel: false,
     showMealDefaults: false,
     rowsReadOnly: true,
   },
@@ -104,8 +109,9 @@ const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
     headerBand: "editors",
     showThisWeekSlot: true,
     showDraftCommitBar: false,
+    showDraftCustomizableNote: false,
     showCompostedBar: false,
-    showAddMeals: true,
+    showActionPanel: true,
     showMealDefaults: true,
     rowsReadOnly: false,
   },
@@ -113,8 +119,9 @@ const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
     headerBand: "editors",
     showThisWeekSlot: true,
     showDraftCommitBar: false,
+    showDraftCustomizableNote: false,
     showCompostedBar: false,
-    showAddMeals: true,
+    showActionPanel: true,
     showMealDefaults: true,
     rowsReadOnly: false,
   },
@@ -123,3 +130,14 @@ const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
 export function planReviewSurface(state: PlanReviewState): PlanReviewSurface {
   return SURFACES[state];
 }
+
+/**
+ * D-WS9-161, verbatim. Rendered on the DRAFT state only, below the commit bar.
+ *
+ * ⚠️ NOT a caption. A user looking at generated plans who dislikes one meal may
+ * conclude the product does not understand them and leave, never learning the
+ * plan is fully editable. This line is the ONLY thing on a draft that tells
+ * them otherwise — it is styled as body copy, not fine print.
+ */
+export const DRAFT_CUSTOMIZABLE_COPY =
+  "This plan is fully customizable — save it to add, swap, or remove meals.";

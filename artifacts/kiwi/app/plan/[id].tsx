@@ -24,7 +24,6 @@ import { SwapMealSheet, type SwapMode } from "@/components/SwapMealSheet";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { LoadingShim } from "@/components/LoadingShim";
-import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
 import { PlanDateRangeEditor } from "@/components/PlanDateRangeEditor";
 import { PlanNameEditor } from "@/components/PlanNameEditor";
 import { PlanReviewMealRow } from "@/components/PlanReviewMealRow";
@@ -59,6 +58,7 @@ import {
   needsActiveCompostConfirm,
 } from "@/lib/plans/planLifecycleActions";
 import {
+  DRAFT_CUSTOMIZABLE_COPY,
   planReviewState,
   planReviewSurface,
 } from "@/lib/plans/planReviewSurface";
@@ -248,11 +248,6 @@ export default function PlanReviewScreen() {
         ? { ...prev, unscheduledMeals: [...prev.unscheduledMeals, injected] }
         : prev,
     );
-
-    console.log("[plan/id] addMealId consumed, meal injected", {
-      addMealId,
-      title: injectMealQuery.data.title,
-    });
   }, [addMealId, injectMealQuery.data, reviewPlan]);
 
   // WS9 3d Part 1b — deep-link error UX. Retires the Ruling-9 Alert fallback
@@ -334,7 +329,6 @@ export default function PlanReviewScreen() {
   };
 
   const onAddMeals = () => {
-    console.log("[plan-review] add-meals tapped", { planId });
     setAddMealsVisible(true);
   };
 
@@ -364,7 +358,6 @@ export default function PlanReviewScreen() {
   const [isGeneratingList, setIsGeneratingList] = useState(false);
   const handleGroceryListPress = async () => {
     if (isGeneratingList) return;
-    console.log("[plan-review] grocery-list tapped", { planId });
     setIsGeneratingList(true);
     try {
       const result = await generateGroceryListForPlan(planId);
@@ -674,12 +667,12 @@ export default function PlanReviewScreen() {
   const unscheduledSorted = sortUnscheduledNewestFirst(reviewPlan.unscheduledMeals);
 
   // ── WS9-2 2e — ONE state, ONE surface table (lib/plans/planReviewSurface) ──
-  // Every state-dependent branch below reads a named flag off `surface`. It is
-  // deliberately NOT a pile of inline `isDraft ? … : isComposted ? …` ternaries:
-  // app/ is outside the test glob, and the inline form is precisely how
-  // D-WS9-090's composted guard came to cover the action bar and nothing else.
-  // The table is pinned by lib/plans/__tests__/planReviewSurface.test.ts — but
-  // only while the screen keeps consuming it. Do not re-derive these locally.
+  // Every branch below reads a named flag off `surface`. It is deliberately NOT
+  // a pile of inline `isDraft ? … : isComposted ? …` ternaries: app/ is outside
+  // the test glob, and the inline form is precisely how D-WS9-090's composted
+  // guard came to cover the action bar and nothing else. The table is pinned by
+  // lib/plans/__tests__/planReviewSurface.test.ts — but only while the screen
+  // keeps consuming it. Do not re-derive these locally.
   const state = planReviewState({
     isDraft,
     isComposted,
@@ -744,10 +737,9 @@ export default function PlanReviewScreen() {
 
               Destination is a collage built from the plan's own meals, gated on
               WS7-10 (unbuilt: Meal.imageUrl is non-null on 0/1471 rows). */}
-          {/* Draft: title is fixed (the candidate name), no week yet — no
-              name/date editors, no Cook This Week pill (the action bar owns the
-              commit). Meal count still renders (client-derived). Saved: the full
-              editable meta strip. */}
+          {/* Three presentations of the same identity, chosen by the surface
+              table: a draft's fixed candidate title, a composted plan's plain
+              read-only text, or the live editable meta strip. */}
           {surface.headerBand === "draftTitle" ? (
             <View style={s.headerBandBody}>
               <DisplayTitle
@@ -782,14 +774,52 @@ export default function PlanReviewScreen() {
             </View>
           ) : (
             <View style={s.headerBandBody}>
-              {/* PlanNameEditor sits directly in the column-stretch band body
-                  so its edit-mode flex:1 TextInput fills the band's bounded
-                  width (PRD §8.3.1 inline tap-to-edit intact — no competing tap
-                  handler over its Pressable row). */}
-              <PlanNameEditor
-                currentName={planName}
-                onSave={handleSavePlanName}
-              />
+              {/* WS9-2 2e (D-WS9-157) — the this-week slot moved UP here, to the
+                  right of the title, which removes a whole row from the band.
+                  BOTH arms move: the passive "This Week's Plan" badge and the
+                  tappable "Cook This Week" chip occupy the same slot, and moving
+                  only the badge would reclaim the row in one state out of two.
+
+                  ⚠️ PlanNameEditor's edit mode is a flex:1 TextInput that relies
+                  on sitting in a COLUMN-STRETCH parent to get its width. This row
+                  would have handed it a content-width box instead (flex-basis
+                  auto, no grow), collapsing the input on a short name. The
+                  s.titleCol wrapper restores the invariant locally: it takes the
+                  remaining width via flex:1, and the editor is still the stretched
+                  child of a column. PlanNameEditor itself is UNTOUCHED. */}
+              <View style={s.headerTitleRow}>
+                <View style={s.titleCol}>
+                  <PlanNameEditor
+                    currentName={planName}
+                    onSave={handleSavePlanName}
+                  />
+                </View>
+                {surface.showThisWeekSlot &&
+                  (reviewPlan.isActiveThisWeek ? (
+                    <View style={s.cookThisWeekBadge}>
+                      <Feather name="check" size={12} color={Colors.sage[700]} />
+                      <Text style={s.cookThisWeekBadgeText}>
+                        This Week&apos;s Plan
+                      </Text>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={handleCookThisWeek}
+                      hitSlop={6}
+                      style={({ pressed }) => [
+                        s.cookThisWeekChip,
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <Feather
+                        name="calendar"
+                        size={12}
+                        color={Colors.neutral[100]}
+                      />
+                      <Text style={s.cookThisWeekChipText}>Cook This Week</Text>
+                    </Pressable>
+                  ))}
+              </View>
               <View style={s.headerMetaRow}>
                 <PlanDateRangeEditor
                   startDate={reviewPlan.weekStartDate}
@@ -799,37 +829,6 @@ export default function PlanReviewScreen() {
                 <Text style={s.headerDot}>·</Text>
                 <Text style={s.mealCountText}>{mealCountLabel}</Text>
               </View>
-              {/* WS7-6 (E) Block 2 §4 — Cook This Week pill. Relocated into the
-                  header band (D-WS9-133 doesn't spec its home). Behavior is
-                  unchanged — it still drives handleCookThisWeek (which mutates
-                  isActiveThisWeek / demotes the prior winner). When this plan IS
-                  the winner: passive "This Week's Plan" badge; else the tappable
-                  activate pill. */}
-              {surface.showThisWeekSlot &&
-                (reviewPlan.isActiveThisWeek ? (
-                  <View style={s.cookThisWeekBadge}>
-                    <Feather name="check" size={12} color={Colors.sage[700]} />
-                    <Text style={s.cookThisWeekBadgeText}>
-                      This Week&apos;s Plan
-                    </Text>
-                  </View>
-                ) : (
-                  <Pressable
-                    onPress={handleCookThisWeek}
-                    hitSlop={6}
-                    style={({ pressed }) => [
-                      s.cookThisWeekChip,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <Feather
-                      name="calendar"
-                      size={12}
-                      color={Colors.neutral[100]}
-                    />
-                    <Text style={s.cookThisWeekChipText}>Cook This Week</Text>
-                  </Pressable>
-                ))}
             </View>
           )}
         </View>
@@ -861,16 +860,33 @@ export default function PlanReviewScreen() {
               disabled={draftCommit !== "idle"}
               onPress={handleSaveForLater}
             />
+            {/* WS9-2 2e (D-WS9-161) — replaces the Add Meals button that used to
+                sit below this bar. That button existed only to explain that it
+                did not work yet: a fake affordance on the highest-priority path
+                in the product. This sentence does the same job honestly.
+
+                ⚠️ NOT a caption, and not fine print. A user looking at generated
+                plans who dislikes one meal may conclude the product does not
+                understand them and leave, never learning the plan is fully
+                editable. This line is the ONLY thing on a draft that says
+                otherwise — body copy, neutral[800] at 15px on this card's white
+                surface: 10.27:1, well past AA's 4.5:1. */}
+            {surface.showDraftCustomizableNote && (
+              <Text style={s.draftCustomizableNote}>
+                {DRAFT_CUSTOMIZABLE_COPY}
+              </Text>
+            )}
           </View>
         ) : surface.showCompostedBar ? (
           // WS9 3e Part 3 / D-WS9-159 — a composted (soft-deleted) plan. Every
           // action that would do real work against a dead plan is gone; the
           // meals below stay VISIBLE BUT INERT so the user can see what was in
-          // the plan before deciding whether to bring it back.
+          // the plan before deciding.
           //
           // ⚠️ "Use again" MUST SURVIVE. Items still exist (soft-delete),
           // copyPlan works against them, and this is the user's ONLY way back
-          // from here.
+          // from here. It is a standalone button, deliberately NOT part of the
+          // ⋯ overflow that 2e removed from this screen.
           <View style={s.actionBar}>
             <Text style={s.compostedNote}>This plan was composted.</Text>
             <View style={s.actionRow}>
@@ -883,38 +899,54 @@ export default function PlanReviewScreen() {
               </View>
             </View>
           </View>
-        ) : (
+        ) : surface.showActionPanel ? (
+          /* WS9-2 2e (D-WS9-157) — ONE symmetric action panel, replacing the
+             asymmetric cluster (a full-width primary, a 50/50 split row, a ⋯
+             overflow, and a detached Add Meals below the card).
+             "Basically like an action/control panel for the plan."
+
+             FOUR EQUAL PEERS in a 2×2, then Compost — the ruling names exactly
+             one hierarchy distinction ("Compost visually smaller than the other
+             four"), so the four are rendered as genuine peers rather than
+             carrying a second, unruled distinction. That costs "Prep and Cook"
+             its old filled-terracotta treatment, which is the price of symmetry.
+
+             ⚠️ Add Meals is ABSORBED here — it is not a sixth control. The old
+             s.addMealsWrap is gone, and with it the draft-only guarded copy of
+             this button (D-WS9-161 replaces that with a sentence).
+
+             ⚠️ Compost uses the shared Button's new `size="sm"` (Phase 1), NOT a
+             hand-rolled Pressable. */
           <View style={s.actionBar}>
-            {/* WS9-2 2b Commit 2 — Use again + Compost relocated off the action
-                card into the ⋯ overflow (recovers a full button row). The ⋯
-                lives in the action area, top-right of the card; both handlers
-                (undated-inactive copy / active-plan compost confirm + undo)
-                are carried verbatim — position-only move. */}
-            <View style={s.actionBarHeader}>
-              <PlanCardOverflowMenu
-                accessibilityLabel="Plan actions"
-                onUseAgain={handleUseAgainThisPlan}
-                onCompost={handleCompostThisPlan}
-              />
-            </View>
-            <Button
-              label="Prep and Cook"
-              variant="primary"
-              onPress={() => {
-                console.log("[plan-review] prep-and-cook tapped", { planId });
-                // WS7-8b B2 — plan-context entry: land on the Hub for this plan.
-                router.push({ pathname: "/prep-cook", params: { id: planId } });
-              }}
-            />
             <View style={s.actionRow}>
               <View style={s.actionCol}>
                 <Button
-                  label="Get Groceries Online"
-                  variant="primary"
+                  label="Prep and Cook"
+                  variant="secondary"
                   onPress={() => {
-                    console.log("[plan-review] get-groceries-online tapped", {
-                      planId,
-                    });
+                    // WS7-8b B2 — plan-context entry: land on the Hub for this plan.
+                    router.push({ pathname: "/prep-cook", params: { id: planId } });
+                  }}
+                />
+              </View>
+              <View style={s.actionCol}>
+                <Button
+                  label={isGeneratingList ? "Generating…" : "Grocery List"}
+                  variant="secondary"
+                  loading={isGeneratingList}
+                  onPress={handleGroceryListPress}
+                />
+              </View>
+            </View>
+            <View style={s.actionRow}>
+              <View style={s.actionCol}>
+                {/* D-WS9-158 — a stub that no-ops behind an Alert. Ruled: style
+                    it as a full peer cell, because 2e styles for the destination
+                    state (the Instacart work makes it function later). */}
+                <Button
+                  label="Get Groceries Online"
+                  variant="secondary"
+                  onPress={() => {
                     Alert.alert(
                       "Coming soon — you'll be able to send this list to a grocery service.",
                     );
@@ -923,28 +955,20 @@ export default function PlanReviewScreen() {
               </View>
               <View style={s.actionCol}>
                 <Button
-                  label={isGeneratingList ? "Generating…" : "Grocery List"}
-                  variant="ghost"
-                  loading={isGeneratingList}
-                  onPress={handleGroceryListPress}
+                  label="Add Meals"
+                  variant="secondary"
+                  onPress={onAddMeals}
                 />
               </View>
             </View>
-          </View>
-        )}
-
-        {/* §8.3.2 (cont.) — single Add Meals affordance. On a draft it's
-            guarded (point 6): adding a meal requires saving first. D-WS9-159
-            drops it entirely on a composted plan — there is nothing to add to. */}
-        {surface.showAddMeals && (
-          <View style={s.addMealsWrap}>
             <Button
-              label="Add Meals"
+              label="Compost"
               variant="ghost"
-              onPress={isDraft ? showDraftEditGuard : onAddMeals}
+              size="sm"
+              onPress={handleCompostThisPlan}
             />
           </View>
-        )}
+        ) : null}
 
         {/* §8.3.3 — Prep status indicator (hidden on a draft — prep is a
             saved-plan concept). D-WS9-133: the not_prepped "Start Prep" banner
@@ -1482,17 +1506,32 @@ const s = StyleSheet.create({
   headerBandBody: {
     gap: 6,
   },
-  // D-WS9-159 — composted: the plan name as plain text (no editor, no tap
-  // target). Matches PlanNameEditor's own resting treatment so the only
-  // difference the user perceives is that it can't be tapped.
+  // WS9-2 2e (D-WS9-157) — title + this-week slot share one row, which is what
+  // cuts the band's height: the slot used to be a third stacked row costing
+  // ~43px (6 gap + 4 marginTop + 8/8 padding + ~17 line).
+  headerTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[2],
+  },
+  // ⚠️ Load-bearing. PlanNameEditor's edit mode is a flex:1 TextInput that needs
+  // a COLUMN-STRETCH parent to get its width; headerTitleRow is a ROW, which
+  // would hand it a content-width box. This wrapper takes the leftover width and
+  // re-supplies the column stretch. minWidth:0 lets a long plan name shrink
+  // rather than shoving the chip off the edge.
+  titleCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  // Composted — the plan name as plain text (no editor, no tap target).
   staticPlanName: {
     fontSize: Typography.fontSize.lg,
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.serif[600],
   },
-  // D-WS9-159 — composted: the date range, matching PlanDateRangeEditor's own
-  // trigger text treatment for the same reason.
+  // Composted — the date range, matching the editor trigger's own text
+  // treatment so the only difference the user sees is that it isn't tappable.
   staticMetaText: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[800],
@@ -1565,21 +1604,26 @@ const s = StyleSheet.create({
     gap: Spacing[2],
   },
   actionCol: { flex: 1 },
-  actionBarHeader: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    // Pull the ⋯ up into the card padding so it doesn't add a full row of
-    // height above the primary action.
-    marginTop: -Spacing[1],
-    marginBottom: -Spacing[1],
-  },
   compostedNote: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[600],
     fontFamily: Typography.face.sans[400],
   },
-  addMealsWrap: {
-    marginTop: Spacing[2],
+  // D-WS9-161 — body copy, NOT fine print. Deliberately at the same size and
+  // colour role as this file's gateText (fontSize.md / neutral[800] / sans 400),
+  // the app's existing "readable sentence on a card" treatment: 10.27:1 on the
+  // card's white surface, well past AA 4.5:1 at 15px.
+  //
+  // Written as its own entry rather than aliasing s.gateText so that retuning
+  // the load/error gate copy can never silently restyle this line — the two are
+  // unrelated surfaces that happen to share a treatment.
+  draftCustomizableNote: {
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
+    lineHeight: 21,
+    textAlign: "center",
+    marginTop: Spacing[1],
   },
   section: {
     marginTop: Spacing[4],
