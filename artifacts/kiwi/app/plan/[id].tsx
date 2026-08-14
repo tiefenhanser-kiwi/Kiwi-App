@@ -58,6 +58,11 @@ import {
   demotionToastMessage,
   needsActiveCompostConfirm,
 } from "@/lib/plans/planLifecycleActions";
+import {
+  planReviewState,
+  planReviewSurface,
+} from "@/lib/plans/planReviewSurface";
+import { formatPlanDateRange } from "@/lib/cooking/hubModel";
 import type {
   DayOfWeek,
   MealSummary,
@@ -668,6 +673,28 @@ export default function PlanReviewScreen() {
   // scheduled section keeps its own order untouched.
   const unscheduledSorted = sortUnscheduledNewestFirst(reviewPlan.unscheduledMeals);
 
+  // ── WS9-2 2e — ONE state, ONE surface table (lib/plans/planReviewSurface) ──
+  // Every state-dependent branch below reads a named flag off `surface`. It is
+  // deliberately NOT a pile of inline `isDraft ? … : isComposted ? …` ternaries:
+  // app/ is outside the test glob, and the inline form is precisely how
+  // D-WS9-090's composted guard came to cover the action bar and nothing else.
+  // The table is pinned by lib/plans/__tests__/planReviewSurface.test.ts — but
+  // only while the screen keeps consuming it. Do not re-derive these locally.
+  const state = planReviewState({
+    isDraft,
+    isComposted,
+    isActiveThisWeek: reviewPlan.isActiveThisWeek,
+  });
+  const surface = planReviewSurface(state);
+
+  // Composted renders the plan's identity as PLAIN TEXT. The date string comes
+  // from the shared, tested formatPlanDateRange so it reads identically to the
+  // editor's own trigger label — this is a treatment change, not a format fork.
+  const staticDateLabel = formatPlanDateRange(
+    reviewPlan.weekStartDate ?? null,
+    reviewPlan.weekEndDate ?? null,
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       {/* §8.3.1 — Header with back button, page label, and a state-aware pill:
@@ -721,7 +748,7 @@ export default function PlanReviewScreen() {
               name/date editors, no Cook This Week pill (the action bar owns the
               commit). Meal count still renders (client-derived). Saved: the full
               editable meta strip. */}
-          {isDraft ? (
+          {surface.headerBand === "draftTitle" ? (
             <View style={s.headerBandBody}>
               <DisplayTitle
                 source={reviewPlan}
@@ -729,6 +756,29 @@ export default function PlanReviewScreen() {
                 style={s.draftTitle}
               />
               <Text style={s.mealCountText}>{mealCountLabel}</Text>
+            </View>
+          ) : surface.headerBand === "staticMeta" ? (
+            /* D-WS9-159 — composted. The EDITORS don't render; the INFORMATION
+               does. The plan's name and dates live nowhere else on this screen
+               (<Header> carries the static string "Plan Review"), so dropping
+               the band outright would leave an unnamed, undated page — which
+               defeats the whole reason the meal list stays visible: letting the
+               user see what was in the plan before deciding to bring it back. */
+            <View style={s.headerBandBody}>
+              <DisplayTitle
+                source={reviewPlan}
+                variant="slim"
+                style={s.staticPlanName}
+              />
+              <View style={s.headerMetaRow}>
+                {staticDateLabel && (
+                  <>
+                    <Text style={s.staticMetaText}>{staticDateLabel}</Text>
+                    <Text style={s.headerDot}>·</Text>
+                  </>
+                )}
+                <Text style={s.mealCountText}>{mealCountLabel}</Text>
+              </View>
             </View>
           ) : (
             <View style={s.headerBandBody}>
@@ -755,28 +805,31 @@ export default function PlanReviewScreen() {
                   isActiveThisWeek / demotes the prior winner). When this plan IS
                   the winner: passive "This Week's Plan" badge; else the tappable
                   activate pill. */}
-              {reviewPlan.isActiveThisWeek ? (
-                <View style={s.cookThisWeekBadge}>
-                  <Feather name="check" size={12} color={Colors.sage[700]} />
-                  <Text style={s.cookThisWeekBadgeText}>This Week's Plan</Text>
-                </View>
-              ) : (
-                <Pressable
-                  onPress={handleCookThisWeek}
-                  hitSlop={6}
-                  style={({ pressed }) => [
-                    s.cookThisWeekChip,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Feather
-                    name="calendar"
-                    size={12}
-                    color={Colors.neutral[100]}
-                  />
-                  <Text style={s.cookThisWeekChipText}>Cook This Week</Text>
-                </Pressable>
-              )}
+              {surface.showThisWeekSlot &&
+                (reviewPlan.isActiveThisWeek ? (
+                  <View style={s.cookThisWeekBadge}>
+                    <Feather name="check" size={12} color={Colors.sage[700]} />
+                    <Text style={s.cookThisWeekBadgeText}>
+                      This Week&apos;s Plan
+                    </Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={handleCookThisWeek}
+                    hitSlop={6}
+                    style={({ pressed }) => [
+                      s.cookThisWeekChip,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <Feather
+                      name="calendar"
+                      size={12}
+                      color={Colors.neutral[100]}
+                    />
+                    <Text style={s.cookThisWeekChipText}>Cook This Week</Text>
+                  </Pressable>
+                ))}
             </View>
           )}
         </View>
@@ -785,7 +838,7 @@ export default function PlanReviewScreen() {
             (D-WS9-032 point 4), driven by saved-state: an unsaved draft shows
             Save for Later / Use This Week; a saved plan shows the real actions
             and never re-offers the save options. */}
-        {isDraft ? (
+        {surface.showDraftCommitBar ? (
           <View style={s.actionBar}>
             {draftCommitError && (
               <Text style={s.draftCommitError}>{draftCommitError}</Text>
@@ -809,14 +862,15 @@ export default function PlanReviewScreen() {
               onPress={handleSaveForLater}
             />
           </View>
-        ) : isComposted ? (
-          // WS9 3e Part 3 (D-WS9-090 guard) — a composted (soft-deleted) plan
-          // hides the Prep & Cook and Grocery CTAs (they'd do real work against a
-          // dead plan) and the now-meaningless Compost action. "Use again" stays
-          // live — items still exist (soft-delete), copyPlan works, and it's the
-          // user's way back. One quiet line, no banner ceremony (there is no
-          // browsable path here — both indexes filter archived rows — so this
-          // only guards stale in-session navigation).
+        ) : surface.showCompostedBar ? (
+          // WS9 3e Part 3 / D-WS9-159 — a composted (soft-deleted) plan. Every
+          // action that would do real work against a dead plan is gone; the
+          // meals below stay VISIBLE BUT INERT so the user can see what was in
+          // the plan before deciding whether to bring it back.
+          //
+          // ⚠️ "Use again" MUST SURVIVE. Items still exist (soft-delete),
+          // copyPlan works against them, and this is the user's ONLY way back
+          // from here.
           <View style={s.actionBar}>
             <Text style={s.compostedNote}>This plan was composted.</Text>
             <View style={s.actionRow}>
@@ -880,14 +934,17 @@ export default function PlanReviewScreen() {
         )}
 
         {/* §8.3.2 (cont.) — single Add Meals affordance. On a draft it's
-            guarded (point 6): adding a meal requires saving first. */}
-        <View style={s.addMealsWrap}>
-          <Button
-            label="Add Meals"
-            variant="ghost"
-            onPress={isDraft ? showDraftEditGuard : onAddMeals}
-          />
-        </View>
+            guarded (point 6): adding a meal requires saving first. D-WS9-159
+            drops it entirely on a composted plan — there is nothing to add to. */}
+        {surface.showAddMeals && (
+          <View style={s.addMealsWrap}>
+            <Button
+              label="Add Meals"
+              variant="ghost"
+              onPress={isDraft ? showDraftEditGuard : onAddMeals}
+            />
+          </View>
+        )}
 
         {/* §8.3.3 — Prep status indicator (hidden on a draft — prep is a
             saved-plan concept). D-WS9-133: the not_prepped "Start Prep" banner
@@ -1011,8 +1068,17 @@ export default function PlanReviewScreen() {
                   key={row.planItemId}
                   row={row}
                   planId={planId}
-                  readOnly={isDraft}
-                  onReadOnlyEdit={showDraftEditGuard}
+                  // D-WS9-159 — REUSED, not rebuilt. PlanReviewMealRow already
+                  // owns this mechanism (WS9 3c, for drafts): readOnly hides Cook
+                  // Now + the four edit actions, and routes row taps / day pills
+                  // to onReadOnlyEdit instead of mutating. Composted simply
+                  // becomes its second caller.
+                  readOnly={surface.rowsReadOnly}
+                  // A draft's guard EXPLAINS why editing is off ("save it to your
+                  // library"). A composted plan has nothing to explain and no
+                  // action to offer, so the handler is omitted and the row is
+                  // genuinely INERT — onReadOnlyEdit?.() no-ops.
+                  onReadOnlyEdit={isDraft ? showDraftEditGuard : undefined}
                   onChangeMeal={(planItemId, currentMealId) =>
                     setSwapForRow({
                       planItemId,
@@ -1046,8 +1112,8 @@ export default function PlanReviewScreen() {
                       key={row.planItemId}
                       row={row}
                       planId={planId}
-                      readOnly={isDraft}
-                      onReadOnlyEdit={showDraftEditGuard}
+                      readOnly={surface.rowsReadOnly}
+                      onReadOnlyEdit={isDraft ? showDraftEditGuard : undefined}
                       onChangeMeal={(planItemId, currentMealId) =>
                         setSwapForRow({
                           planItemId,
@@ -1075,9 +1141,16 @@ export default function PlanReviewScreen() {
         </View>
 
         {/* §8.3.7 — Breakfast & Lunch defaults (collapsed by default).
-            Hidden on a draft: these are per-plan overrides that only make sense
-            once the plan is saved. */}
-        {!isDraft && (
+            Hidden on a draft (per-plan overrides only make sense once the plan
+            is saved) and, as of D-WS9-159, on a composted plan: "genuinely
+            read-only" cannot mean a screen with two live text fields on it.
+
+            ⚠️ THIS IS A RENDER CONDITION AND NOTHING ELSE. It is NOT a fix for
+            BUG-088 — breakfastDraft / lunchDraft are still never seeded from
+            reviewPlan.breakfastOverrides and still never persisted, exactly as
+            broken on a live plan as they were before. Do not "finish the job"
+            here; the persistence path is logged separately and is not 2e's. */}
+        {surface.showMealDefaults && (
         <>
         <View
           style={s.section}
@@ -1408,6 +1481,23 @@ const s = StyleSheet.create({
   },
   headerBandBody: {
     gap: 6,
+  },
+  // D-WS9-159 — composted: the plan name as plain text (no editor, no tap
+  // target). Matches PlanNameEditor's own resting treatment so the only
+  // difference the user perceives is that it can't be tapped.
+  staticPlanName: {
+    fontSize: Typography.fontSize.lg,
+    color: Colors.neutral[900],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.serif[600],
+  },
+  // D-WS9-159 — composted: the date range, matching PlanDateRangeEditor's own
+  // trigger text treatment for the same reason.
+  staticMetaText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   headerMetaRow: {
     flexDirection: "row",
