@@ -970,8 +970,15 @@ export default function PlanReviewScreen() {
                     state (the Instacart work makes it function later).
                     ⚠️ This is the STUB. "Grocery List" above is the working
                     navigation — never conflate them (D-WS9-133). */}
+                {/* Item 3 — "Get Groceries Online" → "Order Online".
+                    ⚠️ There is no separate accessibility label to change:
+                    Button exposes no accessibilityLabel prop, so the accessible
+                    name is derived from the rendered label Text. Changing
+                    `label` changes what a screen reader announces too. Adding
+                    the prop would mean editing components/Button.tsx, which is
+                    out of scope for this pass. */}
                 <Button
-                  label="Get Groceries Online"
+                  label="Order Online"
                   variant="secondary"
                   size="sm"
                   style={s.panelCell}
