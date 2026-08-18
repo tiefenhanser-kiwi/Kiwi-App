@@ -1,35 +1,42 @@
-// WS9 L2b — Tell Kiwi card (net-new, R1-AMENDED · §3 · Components.tellKiwi).
-// ONE sage card: serif-italic headline + sub, a single-line PILL free-text field
-// (paper, serif italic — mockup .tell .input border-radius:99px, NOT multiline),
-// and two on-sage chips: "✦ Surprise me" · "Use my preferences".
+// WS9 L2b — Tell Kiwi card. ONE sage card: the make lane's hero.
 //
-// Presentational + dumb: the input is controlled (value/onChangeText/onSubmit) and
-// the chips take handlers as PROPS. Chip routing is 3a's spec, NOT this card's
-// (§5.1: Surprise → surprise-me gen; Use my preferences → wizard prefilled).
+// WS9-2 2e (D-WS9-162) — REBUILT. Structure, top to bottom:
+//   1. title "Tell Kiwi" INLINE, left of the input, sharing one row (frees a
+//      full row of height that a stacked headline used to cost);
+//   2. the input filling the rest of that row — white, pill-radius, with a
+//      circular terracotta send button at its right edge;
+//   3. a rotating placeholder (5 strings, ~2.6s each, short cross-fade);
+//   4. a sub-line;
+//   5. a LIGHT connector line;
+//   6. two or three white option rows with terracotta ICON TINTS.
 //
-// ⚠️ WS9-2 2c Commit 4 — CORRECTED STALE COMMENT. This previously claimed "the
-// same card is reused on tellkiwi.tsx (§7.1) — hence controlled input". It is
-// NOT. tellkiwi.tsx neither imports nor mounts this component (it composes its
-// own Header / Chip / Stepper / picker stack); `<TellKiwiInput>` in that file is
-// a TYPE, not this card. Verified by three independently-shaped searches.
+// ⚠️ THE SEND BUTTON IS THE CARD'S ONLY TERRACOTTA FILL. The option-row icons
+// are a tint on white, which is a different thing. Do not add a second fill.
 //
-// THERE IS EXACTLY ONE MOUNT: app/(tabs)/index.tsx:265. The controlled input is
-// still the right shape — Home owns the draft text and forwards it to
-// /tellkiwi as a param — but a copy or prop change here reflows one surface,
-// not two. Do not re-derive "shared component" caution from this file.
+// ⚠️ WHY THE CHIPS WENT AWAY: the previous "✦ Surprise me" / "Use my
+// preferences" chips were 55%-alpha hairlines measuring 2.54:1 against the sage
+// surface — below the 3:1 non-text bar, so their boundary dissolved. Their TEXT
+// was 4.62:1, only 0.12 above AA, so darkening the text was never available as
+// a fix. Solid white surfaces are the fix.
 //
-// Card radius = Radius["2xl"] (18px) — deliberately rounder than the 14px card
-// family; it is the hero of the make lane (do not harmonize to 14). Chips use
-// Palette.chip.onSage. Type-scale on the token scale per FLAG 1.
+// Presentational + dumb: the input is controlled and every action is a PROP.
+// Routing is the Home screen's (§5.1), not this card's.
+//
+// THERE IS EXACTLY ONE MOUNT: app/(tabs)/index.tsx. tellkiwi.tsx neither imports
+// nor mounts this component (`<TellKiwiInput>` in that file is a TYPE, not this
+// card) — do not re-derive "shared component" caution from this file.
 
 import React from "react";
 import {
+  AccessibilityInfo,
+  Animated,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 
 import {
   Colors,
@@ -41,30 +48,86 @@ import {
 } from "@/constants/tokens";
 
 const DEFAULT_TITLE = "Tell Kiwi";
-const DEFAULT_SUBTITLE = "Say it in your words — a mood, a cuisine, a whole week.";
-const DEFAULT_PLACEHOLDER = "something cozy for a rainy week…";
+const DEFAULT_SUBTITLE =
+  "A mood, a cuisine, a whole week — say it however you like.";
+const CONNECTOR_COPY = "or let Kiwi take it from here";
+
+/**
+ * D-WS9-162 — the rotating placeholders, in ruled order. Exported so a test can
+ * pin them without re-typing (a re-typed copy is a copy that drifts).
+ */
+export const TELL_KIWI_PLACEHOLDERS = [
+  "something cozy for a rainy week…",
+  "tacos twice, and something light…",
+  "I have chicken and no time…",
+  "feed six people on Saturday…",
+  "meatless, but not boring…",
+] as const;
+
+export const PLACEHOLDER_INTERVAL_MS = 2600;
+const FADE_MS = 220;
+
+/** D-WS9-161/162 — the sub-line under the conditional third option. */
+export const ADD_OWN_MEALS_SUBLINE =
+  "or bring in recipes you already love — by link, photo, or paste.";
 
 type Props = {
   value?: string;
   onChangeText?: (text: string) => void;
   onSubmit?: () => void;
-  placeholder?: string;
   editable?: boolean;
   title?: string;
   subtitle?: string;
-  /** ✦ Surprise me — 3a wires the surprise-me generation path. */
+  /** ✦ Surprise me — Home wires the surprise-me generation path. */
   onSurprise?: () => void;
-  /** Use my preferences — 3a wires the prefilled wizard. */
+  /** Use my preferences — Home wires the prefilled wizard. */
   onUsePreferences?: () => void;
+  /**
+   * §4.5 — "Add my own meals". Renders ONLY when `showAddOwnMeals` is true;
+   * Home passes that when the user has NO SAVED PLANS (not when they are
+   * "first run" — a user who composts their only plan needs this option and is
+   * no longer first-run).
+   */
+  onAddOwnMeals?: () => void;
+  showAddOwnMeals?: boolean;
+  /**
+   * Test seam ONLY. Forces the reduced-motion branch without an OS query, so
+   * the static-placeholder path is exercisable rather than assumed. Production
+   * leaves it undefined and the real AccessibilityInfo answer wins.
+   */
+  __forceReduceMotion?: boolean;
 };
 
-function Chip({ label, onPress }: { label: string; onPress?: () => void }) {
+function OptionRow({
+  icon,
+  title,
+  description,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  title: string;
+  description: string;
+  onPress?: () => void;
+}) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.chip, pressed && { opacity: 0.75 }]}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      style={({ pressed }) => [styles.option, pressed && { opacity: 0.85 }]}
     >
-      <Text style={styles.chipText}>{label}</Text>
+      <Feather
+        name={icon}
+        size={18}
+        color={Components.tellKiwi.optionIcon}
+        style={styles.optionIcon}
+      />
+      <View style={styles.optionTextCol}>
+        <Text style={styles.optionTitle}>{title}</Text>
+        <Text style={styles.optionDesc} numberOfLines={1}>
+          {description}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -73,34 +136,159 @@ export function TellKiwiCard({
   value,
   onChangeText,
   onSubmit,
-  placeholder = DEFAULT_PLACEHOLDER,
   editable = true,
   title = DEFAULT_TITLE,
   subtitle = DEFAULT_SUBTITLE,
   onSurprise,
   onUsePreferences,
+  onAddOwnMeals,
+  showAddOwnMeals = false,
+  __forceReduceMotion,
 }: Props) {
+  const [index, setIndex] = React.useState(0);
+  const [focused, setFocused] = React.useState(false);
+  const [reduceMotion, setReduceMotion] = React.useState(
+    __forceReduceMotion ?? false,
+  );
+  const fade = React.useRef(new Animated.Value(1)).current;
+
+  // Ask the OS once. The test seam short-circuits it so the reduced-motion
+  // branch does not depend on an async answer landing inside act().
+  React.useEffect(() => {
+    if (__forceReduceMotion !== undefined) {
+      setReduceMotion(__forceReduceMotion);
+      return;
+    }
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((on) => {
+        if (alive) setReduceMotion(on);
+      })
+      .catch(() => {
+        // No answer → treat as motion-allowed, the pre-2e behaviour.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [__forceReduceMotion]);
+
+  // ⚠️ ROTATION STOPS on focus and whenever the field holds any text. A
+  // placeholder that moves under a live cursor is disorienting, and once the
+  // user has typed the placeholder is not even visible — animating it would be
+  // burning a timer to redraw something nobody can see.
+  const hasText = !!value && value.length > 0;
+  const rotating = !reduceMotion && !focused && !hasText;
+
+  React.useEffect(() => {
+    if (!rotating) return;
+    const timer = setInterval(() => {
+      // Fade out, swap the string at the trough, fade back in.
+      Animated.timing(fade, {
+        toValue: 0,
+        duration: FADE_MS,
+        useNativeDriver: true,
+      }).start(() => {
+        setIndex((i) => (i + 1) % TELL_KIWI_PLACEHOLDERS.length);
+        Animated.timing(fade, {
+          toValue: 1,
+          duration: FADE_MS,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, PLACEHOLDER_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [rotating, fade]);
+
+  // When rotation is off for ANY reason, show the first string — never a
+  // half-faded frame or whichever one the timer happened to stop on.
+  const placeholder = rotating ? TELL_KIWI_PLACEHOLDERS[index] : TELL_KIWI_PLACEHOLDERS[0];
+
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>{title}</Text>
+      {/* 1 + 2 — title and input share one row. */}
+      <View style={styles.headRow}>
+        <Text style={styles.title}>{title}</Text>
+        <View style={styles.inputWrap}>
+          {/* The placeholder is rendered as our OWN overlaid Text rather than
+              TextInput's placeholder prop: RN cannot cross-fade a native
+              placeholder, and swapping the prop outright makes the strings
+              snap. The real placeholder prop stays empty so the two can never
+              both paint. */}
+          <Animated.Text
+            pointerEvents="none"
+            numberOfLines={1}
+            style={[styles.placeholder, { opacity: fade }]}
+          >
+            {hasText ? "" : placeholder}
+          </Animated.Text>
+          <TextInput
+            style={styles.input}
+            value={value}
+            onChangeText={onChangeText}
+            onSubmitEditing={onSubmit}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder=""
+            editable={editable}
+            returnKeyType="go"
+          />
+          {/* ⚠️ The card's ONLY terracotta FILL. */}
+          <Pressable
+            onPress={onSubmit}
+            accessibilityRole="button"
+            accessibilityLabel="Send"
+            hitSlop={8}
+            style={({ pressed }) => [styles.send, pressed && { opacity: 0.85 }]}
+          >
+            <Feather
+              name="arrow-right"
+              size={18}
+              color={Components.tellKiwi.sendGlyph}
+            />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* 4 */}
       <Text style={styles.subtitle}>{subtitle}</Text>
-      <TextInput
-        style={styles.input}
-        value={value}
-        onChangeText={onChangeText}
-        onSubmitEditing={onSubmit}
-        placeholder={placeholder}
-        placeholderTextColor={Components.tellKiwi.inputPlaceholder}
-        editable={editable}
-        returnKeyType="go"
-      />
-      <View style={styles.chips}>
-        <Chip label="✦ Surprise me" onPress={onSurprise} />
-        <Chip label="Use my preferences" onPress={onUsePreferences} />
+
+      {/* 5 — LIGHT, not muted-dark. On a sage[600] surface a lighter tone means
+          MORE contrast, so legibility and the visual intent pull the same way:
+          4.62:1. The old onSageSub value would have been 3.71:1 — below AA. */}
+      <Text style={styles.connector}>{CONNECTOR_COPY}</Text>
+
+      {/* 6 */}
+      <View style={styles.options}>
+        <OptionRow
+          icon="zap"
+          title="Surprise me"
+          description="A full week, chosen for you"
+          onPress={onSurprise}
+        />
+        <OptionRow
+          icon="sliders"
+          title="Use my preferences"
+          description="Built from what you already like"
+          onPress={onUsePreferences}
+        />
+        {showAddOwnMeals && (
+          <>
+            <OptionRow
+              icon="edit-3"
+              title="Add my own meals"
+              description="Start from a recipe you know"
+              onPress={onAddOwnMeals}
+            />
+            <Text style={styles.addOwnSub}>{ADD_OWN_MEALS_SUBLINE}</Text>
+          </>
+        )}
       </View>
     </View>
   );
 }
+
+const INPUT_HEIGHT = 44;
+const SEND_SIZE = 34;
 
 const styles = StyleSheet.create({
   card: {
@@ -110,45 +298,114 @@ const styles = StyleSheet.create({
     paddingTop: Spacing[4],
     paddingBottom: 14,
   },
+  headRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[3],
+  },
   title: {
     fontFamily: Typography.face.serifItalic[500],
     fontStyle: "italic",
     fontSize: Typography.fontSize.xl,
     color: Palette.text.onSage,
-    marginBottom: 3,
+    // flexShrink so a longer title can never squeeze the input to nothing.
+    flexShrink: 0,
   },
-  subtitle: {
-    fontSize: Typography.fontSize.sm,
-    color: Palette.text.onSageSub,
-    fontFamily: Typography.face.sans[400],
-    marginBottom: 11,
-  },
-  input: {
+  inputWrap: {
+    flex: 1,
+    minWidth: 0,
+    height: INPUT_HEIGHT,
+    justifyContent: "center",
     backgroundColor: Components.tellKiwi.inputBackground,
     borderRadius: Components.tellKiwi.inputRadius,
-    paddingVertical: 12,
-    paddingHorizontal: 17,
+    paddingLeft: 17,
+    // room for the send button + its inset
+    paddingRight: SEND_SIZE + 12,
+  },
+  // Sits exactly where the input's own text sits, so the swap is invisible.
+  placeholder: {
+    position: "absolute",
+    left: 17,
+    right: SEND_SIZE + 12,
+    fontFamily: Typography.face.serifItalic[400],
+    fontStyle: "italic",
+    fontSize: Typography.fontSize.base,
+    color: Components.tellKiwi.inputPlaceholder,
+  },
+  input: {
     fontFamily: Typography.face.serifItalic[400],
     fontStyle: "italic",
     fontSize: Typography.fontSize.base,
     color: Colors.neutral[900],
+    padding: 0,
   },
-  chips: {
-    flexDirection: "row",
-    gap: Spacing[1] * 2,
-    marginTop: Spacing[2] + 2,
+  send: {
+    position: "absolute",
+    right: 5,
+    width: SEND_SIZE,
+    height: SEND_SIZE,
+    borderRadius: SEND_SIZE / 2,
+    backgroundColor: Components.tellKiwi.sendFill,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  chip: {
-    borderWidth: 1.2,
-    borderColor: Palette.chip.onSage.border,
-    borderRadius: Radius.full,
-    paddingHorizontal: 13,
-    paddingVertical: 6,
-  },
-  chipText: {
-    color: Palette.chip.onSage.text,
+  // ⚠️ NOT IN THE 2e RULING, disclosed: this was Palette.text.onSageSub
+  // (#D5DCCB), which measures 3.71:1 on sage[600] — below AA. The ruling only
+  // required the CONNECTOR to go light, but shipping an accessibility fix to
+  // one line of a card while leaving its neighbour failing beside it is not a
+  // fix. Raised to the same onSage tone (4.62:1); hierarchy against the
+  // connector is carried by WEIGHT (regular vs medium), not by tone.
+  subtitle: {
     fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.medium,
+    color: Palette.text.onSage,
+    fontFamily: Typography.face.sans[400],
+    marginTop: 10,
+  },
+  connector: {
+    fontSize: Typography.fontSize.sm,
+    color: Components.tellKiwi.connector,
     fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  options: {
+    gap: Spacing[2],
+  },
+  option: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[3],
+    backgroundColor: Components.tellKiwi.optionSurface,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+  },
+  optionIcon: {
+    // The icon is a TINT on white, never a fill — the send button owns the
+    // card's only terracotta fill.
+  },
+  optionTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  optionTitle: {
+    fontSize: Typography.fontSize.base,
+    color: Components.tellKiwi.optionTitle,
+    fontFamily: Typography.face.sans[600],
+    fontWeight: Typography.fontWeight.semibold,
+  },
+  optionDesc: {
+    fontSize: Typography.fontSize.sm,
+    color: Components.tellKiwi.optionDesc,
+    fontFamily: Typography.face.sans[400],
+    marginTop: 1,
+  },
+  addOwnSub: {
+    fontSize: Typography.fontSize.sm,
+    color: Components.tellKiwi.connector,
+    fontFamily: Typography.face.sans[400],
+    marginTop: 2,
+    paddingHorizontal: 2,
   },
 });

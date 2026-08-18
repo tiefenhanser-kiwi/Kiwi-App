@@ -69,3 +69,57 @@ export const Dimensions = {
 export const Keyboard = {
   dismiss() {},
 };
+
+// WS9-2 2e Part 2 — added for TellKiwiCard's rotating placeholder.
+//
+// AccessibilityInfo: the card must render its FIRST placeholder statically when
+// the OS reports reduce-motion, so the query has to exist under node:test or
+// importing the card throws. Default false (motion allowed) keeps every
+// pre-existing test unchanged; __setReduceMotionForTests flips it so the
+// reduced-motion path is actually exercisable rather than assumed.
+let __reduceMotion = false;
+export function __setReduceMotionForTests(v) {
+  __reduceMotion = v;
+}
+export function __resetReduceMotionForTests() {
+  __reduceMotion = false;
+}
+export const AccessibilityInfo = {
+  isReduceMotionEnabled: async () => __reduceMotion,
+  addEventListener: () => ({ remove() {} }),
+};
+
+// Animated: enough surface for an opacity cross-fade. timing().start() applies
+// the target value and invokes the callback SYNCHRONOUSLY — the real driver is
+// async, so a test must never infer real timing from this; it exists so the
+// component mounts and its fade bookkeeping runs.
+function AnimatedValue(v) {
+  this._value = v;
+}
+AnimatedValue.prototype.setValue = function (v) {
+  this._value = v;
+};
+AnimatedValue.prototype.interpolate = function () {
+  return this;
+};
+export const Animated = {
+  View: makeHost("rn-animated-view"),
+  Text: makeHost("rn-animated-text"),
+  Value: AnimatedValue,
+  timing(value, config) {
+    return {
+      start(cb) {
+        value.setValue(config.toValue);
+        if (cb) cb({ finished: true });
+      },
+    };
+  },
+  sequence(animations) {
+    return {
+      start(cb) {
+        animations.forEach((a) => a.start());
+        if (cb) cb({ finished: true });
+      },
+    };
+  },
+};

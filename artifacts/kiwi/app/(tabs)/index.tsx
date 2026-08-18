@@ -36,6 +36,7 @@ import { TellKiwiCard } from "@/components/TellKiwiCard";
 import { FeaturedPlanCard } from "@/components/FeaturedPlanCard";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastProvider";
 import { useHomePayload } from "@/hooks/useHomePayload";
 import { useHomeRail } from "@/hooks/useHomeRail";
 import { usePlans } from "@/hooks/usePlans";
@@ -50,6 +51,7 @@ export default function HomeTab() {
   const router = useRouter();
   const { user } = useAuth();
   const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
+  const { showToast } = useToast();
 
   // Paywall: an expired/lapsed subscription routes the MAKE-lane actions to
   // upgrade (preserved from the pre-3a home; grocery/prep/cook stay ungated as
@@ -77,24 +79,37 @@ export default function HomeTab() {
   // neutral when we genuinely have nothing to render from.
   const isHomeLoading = homeQuery.isLoading;
 
-  // ⚠️ DELIBERATE PREFETCH — NOT DEAD CODE. DO NOT SWEEP.
+  // Prefetch AND, as of 2e, this screen's saved-plan count.
   //
-  // Nothing on this screen reads the result, and that is intentional. Its
-  // former consumer was the Grocery list button's route fallback, which came
-  // off Home in 2c Commit 7; the fallback itself (resolveGroceryRoute) was
-  // deleted in Commit 10 along with the orphaned picker screen it fed.
-  //
-  // The call stays because the query key ["plans","list",["my_plans"]] is
-  // SHARED with three live consumers, so issuing it here warms all of them:
+  // The query key ["plans","list",["my_plans"]] is SHARED with three live
+  // consumers, so issuing it here warms all of them:
   //   • the Plans tab            (app/(tabs)/plans.tsx)
-  //   • the Prep & Cook hub      (app/prep-cook.tsx) — now a TWO-tap path from
-  //     Home (this-week card → View plan → Prep and Cook), so warming it is
-  //     worth MORE than when the hub had its own Home button, not less
+  //   • the Prep & Cook hub      (app/prep-cook.tsx)
   //   • AddMealToPlanSheet       (components/AddMealToPlanSheet.tsx)
   //
-  // A future "unused query" sweep will look at this and see dead weight. It is
-  // not. If it should go, that is a ruling, not a cleanup.
-  usePlans(["my_plans"]);
+  // ⚠️ IT NOW HAS A READER — see hasNoSavedPlans below. The long-standing
+  // "deliberate prefetch with no reader, do not sweep" warning is retired: the
+  // call is load-bearing for the make lane's third option, not just a cache
+  // warm. Removing it now breaks a visible feature, not only a latency win.
+  const myPlans = usePlans(["my_plans"]);
+
+  // §4.5 — "Add my own meals" renders ONLY when the user has NO SAVED PLANS.
+  //
+  // ⚠️ THIS IS NOT `isFirstRun`. firstPlanCreatedAt is a permanent stamp — once
+  // set it is never cleared — so a user who creates a plan and composts it is
+  // no longer "first run" while having zero saved plans. That user is exactly
+  // who needs this option, and gating on isFirstRun would hide it from them.
+  //
+  // `my_plans` excludes soft-deleted rows server-side (planQueries: the
+  // isArchived:false gate), so length === 0 genuinely means "nothing saved",
+  // post-compost included.
+  //
+  // ⚠️ SUPPRESS WHILE UNKNOWN (ruled). While the query is in flight `data` is
+  // undefined — that is "we don't know yet", not "zero". Rendering the option
+  // then retracting it is worse than showing it a beat late, and it matches the
+  // isFirstRun precedent (2c Commit 2: never assert a state you have not
+  // loaded). So this is false until the count actually resolves to 0.
+  const hasNoSavedPlans = myPlans.data ? myPlans.data.plans.length === 0 : false;
 
   // Featured-plans rail — ONE ordered read (WS9-2 2c, D-WS9-154). Replaces the
   // three per-badge usePlans calls that used to be merged client-side; the
@@ -148,6 +163,24 @@ export default function HomeTab() {
   // hydrateForm — review-then-generate, no explicit param needed).
   const handleUsePreferences = () =>
     router.push(isLocked ? "/upgrade" : "/wizard");
+  // §4.5 — Add my own meals → the meal builder, the SAME zero-param push the
+  // Meals tab uses (app/(tabs)/meals.tsx handleAddMeal), which lands on the
+  // mode picker.
+  //
+  // ⚠️ DELIBERATELY NOT PAYWALLED. The two actions above route to /upgrade when
+  // locked because they trigger AI GENERATION. Manual meal entry is not
+  // generation, and the Meals tab does not gate it — gating it here would be a
+  // bug, and a nasty one: it would tell a lapsed user they cannot type in a
+  // recipe they own.
+  //
+  // The toast is fired BEFORE the push on purpose. The app-level ToastProvider
+  // lives above the navigator specifically so a toast shown right before a
+  // route change survives the transition with its timer running (the same
+  // property compost-with-undo relies on), so this lands ON the builder screen.
+  const handleAddOwnMeals = () => {
+    showToast({ message: "Anytime: Recipes → Meals → Add Meal." });
+    router.push("/meal-builder");
+  };
 
   // ── Tonight strip routing (branch by model.kind — the strip is dumb) ─────
   const stripPlanId =
@@ -280,6 +313,8 @@ export default function HomeTab() {
                     onSubmit={handleTellSubmit}
                     onSurprise={handleSurprise}
                     onUsePreferences={handleUsePreferences}
+                    onAddOwnMeals={handleAddOwnMeals}
+                    showAddOwnMeals={hasNoSavedPlans}
                   />
                 </React.Fragment>
               );
