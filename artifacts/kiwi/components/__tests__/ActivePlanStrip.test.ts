@@ -110,14 +110,40 @@ test("today: a meal WITH a photo mounts an Image over the gradient", () => {
   assert.equal(findAll(root, "rn-image").length, 1);
 });
 
-test("today: exposes exactly TWO actions — Start cooking, then View plan", () => {
-  const t = texts(render({ model: TODAY }));
+// ⚠️ WS9-2 2e (BUG-091) — these two tests CHANGED. The card gained a third
+// press target: the meal block itself, which was dead before. The old
+// assertions counted pressables (2) and destructured them positionally
+// ([primary, footer]) — both of which a new target invalidates.
+//
+// They are updated by naming what each target IS, not by relaxing the count.
+// The LABELLED-action count is still asserted at two, so the thing the original
+// test protected — Grocery list / Prep & Cook must not creep back onto this
+// card (2c §7.5) — is still protected, and now cannot be satisfied by an
+// unlabelled target sneaking in either.
+
+/** Press targets keyed by accessibilityLabel, so no test depends on order. */
+function pressableByLabel(root: Json, label: string): Json | undefined {
+  return pressables(root).find((p) => p.props.accessibilityLabel === label);
+}
+
+test("today: exposes exactly TWO labelled actions — Start cooking, then View plan", () => {
+  const root = render({ model: TODAY });
+  const t = texts(root);
   assert.ok(t.includes("Start cooking"));
   assert.ok(t.includes("View plan"));
+  // Exactly two targets carry an action LABEL; the third is the meal block.
+  const labelled = pressables(root).filter((p) =>
+    ["Start cooking", "View plan"].includes(texts(p).join("")),
+  );
   assert.equal(
-    pressables(render({ model: TODAY })).length,
+    labelled.length,
     2,
     "Grocery list / Prep & Cook are deliberately NOT on this card (2c §7.5)",
+  );
+  assert.equal(
+    pressables(root).length,
+    3,
+    "two labelled actions + the BUG-091 meal-block tap target",
   );
 });
 
@@ -127,17 +153,77 @@ test("today: Start cooking fires onCook, View plan fires onPress", () => {
     model: TODAY,
     onCook: () => fired.push("cook"),
     onPress: () => fired.push("plan"),
+    onOpenMeal: () => fired.push("meal"),
   });
-  const [primary, footer] = pressables(root);
+  // Located by their text, NOT by position — adding the meal target shifted the
+  // indices the old destructure relied on.
+  const primary = pressables(root).find(
+    (p) => texts(p).join("") === "Start cooking",
+  );
+  const footer = pressables(root).find(
+    (p) => texts(p).join("") === "View plan",
+  );
+  assert.ok(primary && footer, "both labelled actions found");
 
   act(() => {
-    (primary.props.onPress as () => void)();
+    (primary!.props.onPress as () => void)();
   });
   act(() => {
-    (footer.props.onPress as () => void)();
+    (footer!.props.onPress as () => void)();
   });
 
-  assert.deepEqual(fired, ["cook", "plan"]);
+  assert.deepEqual(fired, ["cook", "plan"], "neither fires the meal tap");
+});
+
+// ── BUG-091: the card body opens the plan-instance meal detail ──────────────
+
+test("BUG-091: the meal block is a press target and fires onOpenMeal", () => {
+  // Before this, the card rendered two working buttons and a dead body — a card
+  // that looks like a meal and does nothing when you tap the meal.
+  let fired = 0;
+  const root = render({ model: TODAY, onOpenMeal: () => (fired += 1) });
+  const target = pressableByLabel(root, "Open Salmon Teriyaki");
+  assert.ok(target, "meal-block tap target not found");
+  act(() => {
+    (target!.props.onPress as () => void)();
+  });
+  assert.equal(fired, 1);
+});
+
+test("BUG-091: the meal tap target does NOT contain the other two actions", () => {
+  // Structural guarantee rather than a bet on how RN resolves nested press
+  // responders: if "Start cooking" ever became a DESCENDANT of the body target,
+  // whether it still fires depends on gesture bubbling. It must be a sibling.
+  const root = render({ model: TODAY });
+  const target = pressableByLabel(root, "Open Salmon Teriyaki");
+  assert.ok(target);
+  const inner = texts(target!);
+  assert.ok(
+    !inner.includes("Start cooking"),
+    "Start cooking must be a SIBLING of the tap target, not inside it",
+  );
+  assert.ok(
+    !inner.includes("View plan"),
+    "View plan must be a SIBLING of the tap target, not inside it",
+  );
+  // It does carry the meal identity — that is the region a user aims at.
+  assert.ok(inner.includes("Salmon Teriyaki"));
+  assert.ok(inner.includes("Tonight"));
+});
+
+test("BUG-091: the PLAN state gets no body tap — it has no meal to open", () => {
+  // Its whole surface would otherwise duplicate its single "View plan" action.
+  const root = render({ model: PLAN, onOpenMeal: () => {} });
+  assert.equal(
+    pressables(root).length,
+    1,
+    "plan state keeps exactly its one action",
+  );
+  assert.equal(
+    pressables(root)[0].props.accessibilityLabel,
+    undefined,
+    "and it is not the meal tap target",
+  );
 });
 
 test("today: meta degrades gracefully when minutes/calories are absent", () => {

@@ -67,17 +67,45 @@ export function FeaturedPlanCard({
           </Text>
         </View>
       </View>
+      {/* BUG-086 — RESERVED SLOTS. The rail had TWO independent height inputs
+          and fixing either alone leaves it ragged:
+            (1) the meta line is suppressed when tags[0] merely restates the
+                occasion badge — true on 3 of the 6 live cards, not the 2 the
+                bug report named;
+            (2) railCard titles wrap to TWO lines, so a long title makes a card
+                taller whether or not it has meta.
+          Both slots are now fixed-height and ALWAYS present, so every card is
+          identical regardless of its content. The dead band is not removed by
+          shrinking the short cards — that is what made the rail ragged — it is
+          removed by making the reservation uniform and deliberate.
+
+          ⚠️ Do NOT re-derive this as "3 short, 3 tall". Rail membership is
+          hand-curated railPosition integers in the database; the mix changes
+          without a deploy. The fix has to hold for any mix, which is why it is
+          expressed as fixed slots rather than as a conditional. */}
       <View style={styles.body}>
-        <DisplayTitle source={title} variant="railCard" style={styles.title} />
-        {meta ? (
-          <Text style={styles.meta} numberOfLines={1}>
-            {meta}
-          </Text>
-        ) : null}
+        <View style={styles.titleSlot}>
+          <DisplayTitle source={title} variant="railCard" style={styles.title} />
+        </View>
+        <View style={styles.metaSlot}>
+          {meta ? (
+            <Text style={styles.meta} numberOfLines={1}>
+              {meta}
+            </Text>
+          ) : null}
+        </View>
       </View>
     </Pressable>
   );
 }
+
+// BUG-086 — the reserved-slot metrics. Exported so the rail's own test can
+// assert card-height uniformity against the same numbers the card renders with,
+// rather than re-deriving them (a re-derived constant is one that drifts).
+export const RAIL_TITLE_LINE_HEIGHT = Typography.fontSize.base * 1.22;
+/** railCard titles wrap to 2 lines (DisplayTitle VARIANT_LINES.railCard). */
+export const RAIL_TITLE_SLOT_HEIGHT = RAIL_TITLE_LINE_HEIGHT * 2;
+export const RAIL_META_LINE_HEIGHT = 13;
 
 const styles = StyleSheet.create({
   card: {
@@ -108,17 +136,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingBottom: 11,
   },
+  // Always two lines' worth, whether the title uses one or two. A 1-line title
+  // sits top-aligned with space below it — consistent across the rail, which is
+  // the point.
+  titleSlot: {
+    height: RAIL_TITLE_SLOT_HEIGHT,
+  },
   title: {
     fontSize: Typography.fontSize.base,
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.medium,
     fontFamily: Typography.face.serif[500],
-    lineHeight: Typography.fontSize.base * 1.22,
+    lineHeight: RAIL_TITLE_LINE_HEIGHT,
+  },
+  // Always one line's worth, whether meta is present or suppressed. This is the
+  // slot that used to collapse and leave the card short — and then get stretched
+  // back to the tallest sibling by the rail's default alignItems, which is
+  // where the dead white band came from.
+  metaSlot: {
+    height: RAIL_META_LINE_HEIGHT,
+    marginTop: 4,
   },
   meta: {
     fontSize: Typography.fontSize.xxs,
     color: Colors.neutral[600],
     fontFamily: Typography.face.sans[400],
-    marginTop: 4,
+    // Explicit, so the reserved slot and the rendered line are the same number.
+    lineHeight: RAIL_META_LINE_HEIGHT,
   },
 });

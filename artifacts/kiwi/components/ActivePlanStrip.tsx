@@ -52,13 +52,23 @@ export type ActivePlanStripModel = Exclude<HeroModel, { kind: "empty" }>;
 
 type Props = {
   model: ActivePlanStripModel;
-  /** Tap the card / "View plan" → Plan Review (parent owns the route). */
+  /** "View plan" → Plan Review (parent owns the route). */
   onPress?: () => void;
   /** today state only — launch Cook Mode for tonight's meal (parent owns it). */
   onCook?: () => void;
+  /**
+   * BUG-091, today state only — tapping the CARD BODY opens the plan-instance
+   * meal detail for tonight's meal. The card rendered two working buttons and a
+   * dead body; a card that looks like a meal and does nothing when you tap the
+   * meal is the defect.
+   *
+   * ⚠️ The plan state has no meal, so it gets no body tap — its whole surface
+   * would otherwise duplicate its single "View plan" action.
+   */
+  onOpenMeal?: () => void;
 };
 
-export function ActivePlanStrip({ model, onPress, onCook }: Props) {
+export function ActivePlanStrip({ model, onPress, onCook, onOpenMeal }: Props) {
   if (model.kind === "today") {
     const { meal } = model;
     const meta = [
@@ -71,7 +81,21 @@ export function ActivePlanStrip({ model, onPress, onCook }: Props) {
     return (
       <View style={styles.card}>
         <View style={styles.body}>
-          <View style={styles.mealRow}>
+          {/* BUG-091 — the MEAL BLOCK is the tap target, not the whole card.
+              "Start cooking" and the footer "View plan" are SIBLINGS of this
+              Pressable, not descendants, so neither can be swallowed by it —
+              that is a structural guarantee rather than a bet on how RN resolves
+              nested press responders. The tapped region is also exactly the
+              region that looks like a meal, which is what a user aims at. */}
+          <Pressable
+            onPress={onOpenMeal}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${model.meal.title}`}
+            style={({ pressed }) => [
+              styles.mealRow,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
             {/* ⚠️ WS9-2 2c Commit 7 — this call site was REMOVED in Commit 5 and
                 is deliberately RESTORED here, enlarged to the meal-row
                 thumbnail treatment (56 × 56, Radius.md — PlanReviewMealRow's
@@ -101,7 +125,7 @@ export function ActivePlanStrip({ model, onPress, onCook }: Props) {
                 {`from ${model.planName}`}
               </Text>
             </View>
-          </View>
+          </Pressable>
 
           {/* Primary — filled terracotta, inset within the card's padding. */}
           <Pressable

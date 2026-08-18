@@ -201,6 +201,31 @@ export default function HomeTab() {
           params: { mealId: todayMealId },
         })
     : undefined;
+  // BUG-091 — tapping the card's meal block opens the PLAN-INSTANCE meal
+  // detail. Same route + param shape PlanReviewMealRow already uses, so both
+  // entry points land on the same screen in the same plan context.
+  //
+  // The ids were already plumbed and simply never spent: HeroModel.today has
+  // carried planItemId since 3a with a comment saying it exists "so the today
+  // card opens Meal Detail with full plan-item context".
+  //
+  // ⚠️ servingsOverride is NOT passed — it is not on MealListItem, so Home has
+  // no access to it. Meal Detail resolves plan context server-side via
+  // useMeal(mealId, planItemId), so the stepper should still seed from the
+  // plan's value; that is the one behavioural difference from the Plan Review
+  // call site and it is a device-test item.
+  const handleOpenTodaysMeal =
+    heroModel.kind === "today"
+      ? () =>
+          router.push({
+            pathname: "/meal/[id]",
+            params: {
+              id: heroModel.meal.id,
+              planId: heroModel.planId,
+              planItemId: heroModel.planItemId,
+            },
+          })
+      : undefined;
 
   // ⚠️ WS9-2 2c Commit 7 §7.5 — the Grocery list / Prep & Cook utility row is
   // GONE from Home, and with it this screen's handleGroceryPress /
@@ -289,6 +314,7 @@ export default function HomeTab() {
                       model={activeHeroModel}
                       onPress={handleStripPress}
                       onCook={handleCook}
+                      onOpenMeal={handleOpenTodaysMeal}
                     />
                   ) : null}
                 </View>
@@ -321,7 +347,19 @@ export default function HomeTab() {
             case "rail":
               return (
                 <React.Fragment key="rail">
-                  <SectionLabel label="Featured plans" />
+                  {/* BUG-087 — lowercase, matching Home's other eyebrows
+                      ("this week", "what do you want to eat?").
+                      ⚠️ A STRING EDIT AT THE CALL SITE, deliberately. The
+                      Home-lowercase / detail-screen-Title-case split is a real
+                      convention and stays: SectionLabel is shared with 8
+                      Title-case renders on dish detail, meal detail and
+                      meal-builder. A textTransform on the primitive would
+                      lowercase "Ingredients", "Recipe steps" and "Notes
+                      (optional)" on three screens this block never touches —
+                      and SectionLabel's test asserts CHILDREN equal the raw
+                      string, so it would catch a content transform but sail
+                      straight past a style-level one. */}
+                  <SectionLabel label="featured plans" />
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -384,5 +422,16 @@ const styles = StyleSheet.create({
   rail: {
     gap: Spacing[3],
     paddingBottom: Spacing[1],
+    // BUG-086 — sever the stretch coupling explicitly. A horizontal ScrollView's
+    // content container is a flex ROW, and Yoga's default align-items is
+    // `stretch`, so every card was being pulled to the height of the tallest
+    // one — that is the mechanism that turned one short card into a column of
+    // dead white space inside its own border.
+    //
+    // FeaturedPlanCard's reserved slots already make the cards equal, so this
+    // changes nothing today. It is here so that if they ever DO diverge, the
+    // rail goes visibly ragged (a bug someone fixes) instead of silently
+    // padding the short ones (a bug that shipped once already).
+    alignItems: "flex-start",
   },
 });
