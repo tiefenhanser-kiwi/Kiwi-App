@@ -44,6 +44,10 @@ import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { deriveHeroModel } from "@/lib/home/heroState";
 import { homeSectionOrder } from "@/lib/home/homeSections";
+import {
+  ADD_OWN_MEALS_TOAST,
+  shouldOfferAddOwnMeals,
+} from "@/lib/home/makeLaneOptions";
 import { buildRailItems } from "@/lib/home/rail";
 import { Colors, Spacing } from "@/constants/tokens";
 
@@ -105,11 +109,10 @@ export default function HomeTab() {
   // post-compost included.
   //
   // ⚠️ SUPPRESS WHILE UNKNOWN (ruled). While the query is in flight `data` is
-  // undefined — that is "we don't know yet", not "zero". Rendering the option
-  // then retracting it is worse than showing it a beat late, and it matches the
-  // isFirstRun precedent (2c Commit 2: never assert a state you have not
-  // loaded). So this is false until the count actually resolves to 0.
-  const hasNoSavedPlans = myPlans.data ? myPlans.data.plans.length === 0 : false;
+  // undefined — that is "we don't know yet", not "zero". The decision lives in
+  // lib/home/makeLaneOptions so it can be pinned by a test; this screen is
+  // outside the test glob and must not re-derive it inline.
+  const hasNoSavedPlans = shouldOfferAddOwnMeals(myPlans.data?.plans.length);
 
   // Featured-plans rail — ONE ordered read (WS9-2 2c, D-WS9-154). Replaces the
   // three per-badge usePlans calls that used to be merged client-side; the
@@ -178,7 +181,7 @@ export default function HomeTab() {
   // route change survives the transition with its timer running (the same
   // property compost-with-undo relies on), so this lands ON the builder screen.
   const handleAddOwnMeals = () => {
-    showToast({ message: "Anytime: Recipes → Meals → Add Meal." });
+    showToast({ message: ADD_OWN_MEALS_TOAST });
     router.push("/meal-builder");
   };
 
