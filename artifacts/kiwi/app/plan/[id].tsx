@@ -961,14 +961,40 @@ export default function PlanReviewScreen() {
                 />
               </View>
             </View>
-            <Button
-              label="Compost"
-              variant="ghost"
-              size="sm"
-              onPress={handleCompostThisPlan}
-            />
           </View>
         ) : null}
+
+        {/* BUG-092 — Compost LEAVES the action cluster.
+            As a Button it rendered full width (Button.fullWidth defaults true,
+            and size="sm" only shrinks height and type, not the stretch), so the
+            one control ruled "visually smaller" was the widest thing in the
+            panel — the exact opposite of its intended weight.
+
+            It is now a quiet right-aligned text link BELOW the panel. Muted
+            neutral ink, NOT terracotta: the demotion is the point, and a
+            terracotta destructive tint would re-promote it into the loudest
+            thing on the screen.
+
+            ⚠️ BEHAVIOUR IS UNCHANGED — same handler, so the active-plan confirm
+            (needsActiveCompostConfirm) and the deferred-delete undo toast
+            (compostWithUndo) are both still wired. This is a presentation move.
+            Render condition is unchanged too: it lives in the same
+            showActionPanel branch it always did, so draft and composted states
+            are untouched. */}
+        {surface.showActionPanel && (
+          <Pressable
+            onPress={handleCompostThisPlan}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Compost this plan"
+            style={({ pressed }) => [
+              s.compostLink,
+              pressed && { opacity: 0.6 },
+            ]}
+          >
+            <Text style={s.compostLinkText}>Compost</Text>
+          </Pressable>
+        )}
 
         {/* §8.3.3 — Prep status indicator (hidden on a draft — prep is a
             saved-plan concept). D-WS9-133: the not_prepped "Start Prep" banner
@@ -1608,6 +1634,31 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[600],
     fontFamily: Typography.face.sans[400],
+  },
+  // BUG-092 — the demoted Compost affordance. Follows the app's existing
+  // quiet-link shape (app/wizard.tsx cancelLink + cancelText, and the same
+  // pattern in deactivate-account / tellkiwi / dish-builder): a Pressable that
+  // supplies the tap padding wrapping a small, muted Text.
+  //
+  // ⚠️ neutral[700], NOT the neutral[600] some of those precedents use.
+  // neutral[600] is the LOCKED muted-text token but measures 3.49:1 on this
+  // screen's paper background — below AA. neutral[700] is 5.90:1 and still
+  // reads as secondary next to the panel above it.
+  //
+  // No underline: the precedents split on this (grocery-list's unmarkLink
+  // underlines, cancelText does not) and an underline would shout for
+  // attention, which is the opposite of a demotion.
+  compostLink: {
+    alignSelf: "flex-end",
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[2],
+    marginTop: Spacing[1],
+  },
+  compostLinkText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
   },
   // D-WS9-161 — body copy, NOT fine print. Deliberately at the same size and
   // colour role as this file's gateText (fontSize.md / neutral[800] / sans 400),
