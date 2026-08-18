@@ -1,22 +1,39 @@
-// WS9 Block 3a — the first-run teaching arc (net-new; Option B, locked). Surfaces
-// the five-capability sequence — meals → plans → groceries → prep → cook — and
-// collapses PERMANENTLY once the user commits their first plan (the Home screen
-// gates it on firstPlanCreatedAt / D-WS9-026; this component is pure presentation).
+// WS9 Block 3a — the first-run teaching arc. Surfaces the five-capability
+// sequence and collapses PERMANENTLY once the user commits their first plan
+// (Home gates it on firstPlanCreatedAt / D-WS9-026; this component is pure
+// presentation).
 //
 // Mockup .arc: card + italic dash label "— kitchen made easy —" + the flow row
-// (first word lit terracotta) + a sub-line. The label reuses SectionLabel (the
-// dash treatment is identical); the flow row is arc-specific and inline here.
-// Type-scale on the token scale per FLAG 1 (role, not raw px).
+// + a sub-line. The label reuses SectionLabel (the dash treatment is identical);
+// the flow row is arc-specific and inline here. Type-scale on the token scale
+// per FLAG 1 (role, not raw px).
 
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { SectionLabel } from "./SectionLabel";
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import {
+  Colors,
+  Components,
+  Palette,
+  Radius,
+  Spacing,
+  Typography,
+} from "@/constants/tokens";
 
-// The five-capability flow; the first word is lit (terracotta) — the sequence
-// "begins below" with the make lane.
-const STEPS = ["meals", "plans", "groceries", "prep", "cook"] as const;
+// WS9-2 2e (D-WS9-160) — ORDER REVERSED: plans now leads.
+//
+// ⚠️ THIS DELIBERATELY REVERSES A PRIOR LOCK. This file previously documented
+// `meals → plans → …` as "Option B, locked". The reversal is ruled: you get a
+// PLAN first and the meals arrive inside it, so the old order described the
+// product backwards to the exact user who has never seen it work.
+//
+// ⚠️ Index-aligned with Components.teachingArc.ramp — STEPS[i] is coloured by
+// ramp[i]. Reordering here without reordering the ramp silently re-assigns
+// colours; a test pins the lengths and the pairing.
+export const STEPS = ["plans", "meals", "groceries", "prep", "cook"] as const;
+
+export const ARC_SUBLINE = "One flow, start to finish. It begins below.";
 
 export function TeachingArc() {
   return (
@@ -26,11 +43,32 @@ export function TeachingArc() {
         {STEPS.map((word, i) => (
           <React.Fragment key={word}>
             {i > 0 ? <Text style={styles.arrow}>→</Text> : null}
-            <Text style={[styles.word, i === 0 && styles.wordLit]}>{word}</Text>
+            {/* WS9-2 2e (D-WS9-160) — every word now carries its own ramp stop.
+                ⚠️ That DESTROYS the arc's previous emphasis mechanism, which was
+                purely chromatic: four words sat at 14.30:1 and exactly one (the
+                lit first word) at 4.73:1, and that 3× separation WAS the
+                emphasis. With all five coloured, nothing is the odd one out.
+                Emphasis is therefore re-established by WEIGHT — the first word
+                is bold, the rest medium — which is a channel the ramp does not
+                compete with. Do not "restore" a colour highlight on top. */}
+            <Text
+              style={[
+                styles.word,
+                { color: Components.teachingArc.ramp[i] },
+                i === 0 && styles.wordLead,
+              ]}
+            >
+              {word}
+            </Text>
           </React.Fragment>
         ))}
       </View>
-      <Text style={styles.sub}>One flow, start to finish. It begins below.</Text>
+      {/* D-WS9-160 — the sub-line is PROMOTED. It was 11px at neutral[600],
+          measuring 3.73:1 on this card — below AA, and the smallest thing on a
+          card whose whole job is explaining the product to a first-run user.
+          Now 14px at neutral[800] (the high-emphasis role SectionLabel uses):
+          10.27:1. */}
+      <Text style={styles.sub}>{ARC_SUBLINE}</Text>
     </View>
   );
 }
@@ -73,20 +111,26 @@ const styles = StyleSheet.create({
     fontFamily: Typography.face.serif[500],
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.medium,
-    color: Colors.neutral[900],
+    // NOTE: no `color` here. Every word's colour comes from the ramp, applied
+    // per-index at the call site — a default here would silently win for any
+    // word whose ramp stop went missing, hiding the bug.
   },
-  wordLit: {
-    color: Colors.terracotta[400],
+  // The emphasis channel (see the call-site comment). Weight only — the lead
+  // word's COLOUR is still just ramp[0].
+  wordLead: {
+    fontFamily: Typography.face.serif[700],
+    fontWeight: Typography.fontWeight.bold,
   },
   arrow: {
     color: Colors.neutral[400],
     fontSize: Typography.fontSize.sm,
   },
   sub: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
-    fontFamily: Typography.face.sans[400],
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
     textAlign: "center",
-    marginTop: 7,
+    marginTop: 9,
   },
 });

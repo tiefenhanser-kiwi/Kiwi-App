@@ -76,6 +76,35 @@ export const Colors = {
     text:       '#996E1B',
     background: '#F6E8C8',
   },
+
+  // WS9-2 2e (D-WS9-160) — THE TERRACOTTA→SAGE BRIDGE. Three net-new interior
+  // stops so the Home teaching arc can render a five-word progression from the
+  // locked A1 accent (terracotta[400]) to the brand green (sage[700]).
+  //
+  // ⚠️ WHY NEW VALUES AND NOT EXISTING SCALE STOPS: hand-picking from the
+  // terracotta and sage scales produces a NON-MONOTONIC lightness sequence
+  // (measured: 4.73 → 5.94 → 10.83 → 8.61 → 11.69 against white). A ramp that
+  // gets darker, then lighter, then darker again does not read as a
+  // progression — it reads as a rendering error.
+  //
+  // ⚠️ AND WHY NOT INTERPOLATE IN THE COMPONENT: a naive sRGB lerp between the
+  // endpoints collapses chroma through the middle and lands on muddy browns
+  // (#7e512d, #5c5131) that measure fine and look broken. These are computed in
+  // OKLCH — lightness and hue interpolated linearly (39° → 64° → 90° → 115° →
+  // 140°), chroma lifted on a bell curve peaking mid-ramp so the middle stays a
+  // real colour. The midpoint lands at h90°, essentially the hue of the brand's
+  // own gold.text (#996E1B, h79°) — the bridge reads as family, not as sludge.
+  //
+  // Contrast against the arc card's white surface, all AA-passing and strictly
+  // monotonic: 4.73 → 5.42 → 6.23 → 7.29 → 8.61.
+  //
+  // ⚠️ These are ARC RAMP values. They are not a general-purpose scale and have
+  // no 50/900 siblings — do not reach for them as ordinary text colours.
+  bridge: {
+    amber: '#a45500',  // stop 2 — 5.42:1 on white
+    gold:  '#7d5b00',  // stop 3 — 6.23:1 on white
+    olive: '#545b0f',  // stop 4 — 7.29:1 on white
+  },
 } as const;
 
 export const Palette = {
@@ -334,6 +363,40 @@ export const Components = {
     inputBackground:   '#FBF7EF',
     inputPlaceholder:  Colors.neutral[600],
     inputRadius:       Radius.full,
+    // WS9-2 2e (D-WS9-162) — the circular send affordance at the input's right
+    // edge. ⚠️ THIS IS THE CARD'S ONLY TERRACOTTA FILL. Nothing else on the
+    // Tell Kiwi card may be a terracotta fill — the option rows below use
+    // terracotta as an ICON TINT on white, which is a different thing.
+    sendFill:          Colors.terracotta[400],
+    sendGlyph:         '#FBF7EF',
+    // The three option rows: solid white surfaces, terracotta icon tint.
+    // ⚠️ Replaces the 55%-alpha hairline chips, which measured 2.54:1 against
+    // the sage surface — below the 3:1 non-text bar. Their TEXT was 4.62:1,
+    // only 0.12 above AA, so the fix had to be a surface, not a darker tint.
+    optionSurface:     Colors.neutral[0],
+    optionIcon:        Colors.terracotta[400],
+    optionTitle:       Colors.neutral[900],
+    optionDesc:        Colors.neutral[700],
+    // The connector line above the options. LIGHT, per ruling — on sage[600]
+    // a lighter tone means MORE contrast, so legibility and the visual
+    // intent pull the same direction here. 4.62:1.
+    connector:         Palette.text.onSage,
+  },
+  // WS9-2 2e (D-WS9-160) — the Home teaching arc.
+  teachingArc: {
+    // The five-word progression, terracotta → sage, one colour per STEP index.
+    // Endpoints are the locked brand accents; the interior three are the
+    // net-new bridge stops (see Colors.bridge for the derivation and why this
+    // is a table and not an interpolation).
+    //
+    // ⚠️ MUST stay the same length as TeachingArc's STEPS. A test pins that.
+    ramp: [
+      Colors.terracotta[400],
+      Colors.bridge.amber,
+      Colors.bridge.gold,
+      Colors.bridge.olive,
+      Colors.sage[700],
+    ],
   },
   // WS9-2 2c Commit 8 (D-WS9-130) — renamed from `triedTrueRail`. Values are
   // unchanged; only the dead concept's name is gone.
