@@ -114,6 +114,12 @@ if (
 const capitalize = (s: string) =>
   s.charAt(0).toUpperCase() + s.slice(1);
 
+// WS9-2 2e Part 3 — action-panel cell icon size. 18 is the app's most common
+// in-control Feather size (16 of 41 call sites across app/ + components/,
+// including PlanCardOverflowMenu's sheet items), so the panel inherits the
+// existing sizing convention rather than introducing a new one.
+const PANEL_ICON_SIZE = 18;
+
 /**
  * Apply a day-pill tap. Updates the row's dayStrip to reflect the
  * new assignment and moves the row between scheduledMeals and
@@ -900,29 +906,39 @@ export default function PlanReviewScreen() {
             </View>
           </View>
         ) : surface.showActionPanel ? (
-          /* WS9-2 2e (D-WS9-157) — ONE symmetric action panel, replacing the
-             asymmetric cluster (a full-width primary, a 50/50 split row, a ⋯
-             overflow, and a detached Add Meals below the card).
-             "Basically like an action/control panel for the plan."
+          /* WS9-2 2e Part 3 (D-WS9-157 + D-WS9-162) — panel direction B.
+             ONE symmetric 2×2 group on a SAGE-TINTED panel, replacing the flat
+             white card. "Basically like an action/control panel for the plan."
 
-             FOUR EQUAL PEERS in a 2×2, then Compost — the ruling names exactly
-             one hierarchy distinction ("Compost visually smaller than the other
-             four"), so the four are rendered as genuine peers rather than
-             carrying a second, unruled distinction. That costs "Prep and Cook"
-             its old filled-terracotta treatment, which is the price of symmetry.
+             ⚠️ Prep and Cook is THE TERRACOTTA FILL — and the only fill on this
+             screen (D-WS9-162). Part 1 rendered all four as equal `secondary`
+             peers on the reading that "symmetric" forbade a second hierarchy
+             distinction; direction B overrules that. The four cells are
+             symmetric in GEOMETRY (same grid, same size, same icon treatment)
+             while the primary action carries the fill. Symmetry of layout, not
+             of emphasis.
 
-             ⚠️ Add Meals is ABSORBED here — it is not a sixth control. The old
-             s.addMealsWrap is gone, and with it the draft-only guarded copy of
-             this button (D-WS9-161 replaces that with a sentence).
+             ⚠️ Compost is NOT here any more — BUG-092 moved it out to a quiet
+             link below the panel. Do not re-add a fifth cell.
 
-             ⚠️ Compost uses the shared Button's new `size="sm"` (Phase 1), NOT a
-             hand-rolled Pressable. */
-          <View style={s.actionBar}>
+             ⚠️ The panel REUSES the shared Button rather than hand-rolling
+             cells: `iconLeft` for the Feather glyph, `variant="primary"` for the
+             fill, and a per-cell `style` border override for the other three.
+             Do not fork a bespoke Pressable here (§27.2). */
+          <View style={s.actionPanel}>
             <View style={s.actionRow}>
               <View style={s.actionCol}>
                 <Button
                   label="Prep and Cook"
-                  variant="secondary"
+                  variant="primary"
+                  size="sm"
+                  iconLeft={
+                    <Feather
+                      name="play"
+                      size={PANEL_ICON_SIZE}
+                      color={Palette.button.primary.text}
+                    />
+                  }
                   onPress={() => {
                     // WS7-8b B2 — plan-context entry: land on the Hub for this plan.
                     router.push({ pathname: "/prep-cook", params: { id: planId } });
@@ -933,7 +949,16 @@ export default function PlanReviewScreen() {
                 <Button
                   label={isGeneratingList ? "Generating…" : "Grocery List"}
                   variant="secondary"
+                  size="sm"
+                  style={s.panelCell}
                   loading={isGeneratingList}
+                  iconLeft={
+                    <Feather
+                      name="list"
+                      size={PANEL_ICON_SIZE}
+                      color={Colors.sage[600]}
+                    />
+                  }
                   onPress={handleGroceryListPress}
                 />
               </View>
@@ -942,10 +967,21 @@ export default function PlanReviewScreen() {
               <View style={s.actionCol}>
                 {/* D-WS9-158 — a stub that no-ops behind an Alert. Ruled: style
                     it as a full peer cell, because 2e styles for the destination
-                    state (the Instacart work makes it function later). */}
+                    state (the Instacart work makes it function later).
+                    ⚠️ This is the STUB. "Grocery List" above is the working
+                    navigation — never conflate them (D-WS9-133). */}
                 <Button
                   label="Get Groceries Online"
                   variant="secondary"
+                  size="sm"
+                  style={s.panelCell}
+                  iconLeft={
+                    <Feather
+                      name="shopping-cart"
+                      size={PANEL_ICON_SIZE}
+                      color={Colors.sage[600]}
+                    />
+                  }
                   onPress={() => {
                     Alert.alert(
                       "Coming soon — you'll be able to send this list to a grocery service.",
@@ -957,6 +993,15 @@ export default function PlanReviewScreen() {
                 <Button
                   label="Add Meals"
                   variant="secondary"
+                  size="sm"
+                  style={s.panelCell}
+                  iconLeft={
+                    <Feather
+                      name="plus"
+                      size={PANEL_ICON_SIZE}
+                      color={Colors.sage[600]}
+                    />
+                  }
                   onPress={onAddMeals}
                 />
               </View>
@@ -1617,6 +1662,8 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[500],
     fontWeight: Typography.fontWeight.medium,
   },
+  // The DRAFT commit bar and the COMPOSTED bar. Untouched by Part 3's panel
+  // work — direction B restyles the live action panel only.
   actionBar: {
     backgroundColor: Palette.background.card,
     borderRadius: Radius.lg,
@@ -1624,6 +1671,28 @@ const s = StyleSheet.create({
     borderColor: Colors.neutral[400],
     padding: Spacing[3],
     gap: Spacing[2],
+  },
+  // WS9-2 2e Part 3 (D-WS9-157) — the live action panel, direction B.
+  // Deliberately the SAME recipe as s.headerBand directly above it (sage[50]
+  // fill, Radius.lg, 1px sage[200], Spacing[3] padding) so the two tinted
+  // blocks read as one stacked pair rather than two unrelated surfaces.
+  actionPanel: {
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.sage[200],
+    padding: Spacing[3],
+    gap: Spacing[2],
+  },
+  // Per-cell border override for the three UNFILLED cells. Button's `secondary`
+  // variant supplies the white surface and the ink label; only the border
+  // colour changes, and it changes HERE rather than in the token.
+  //
+  // ⚠️ Deliberately NOT a retune of Palette.button.secondary.border
+  // (neutral[400]) — that token has consumers well beyond this screen, and this
+  // is a per-surface composition choice, which is exactly what `style` is for.
+  panelCell: {
+    borderColor: Colors.sage[400],
   },
   actionRow: {
     flexDirection: "row",
