@@ -800,29 +800,54 @@ export default function PlanReviewScreen() {
                     onSave={handleSavePlanName}
                   />
                 </View>
+                {/* Part 3 Item 4 — BOTH arms shorten to "This week" and adopt
+                    IDENTICAL pill geometry (s.thisWeekPill supplies the box;
+                    each arm only adds its own fill/border/ink). Two reasons:
+                    the row height no longer changes when a plan is activated,
+                    and the ~90px the old "This Week's Plan" / "Cook This Week"
+                    strings ate goes back to the plan title, which was
+                    truncating ("Italian Comfort mee…").
+
+                    Active = FILLED sage; inactive = OUTLINED, same footprint.
+                    The tap behaviour of the inactive arm is exactly what "Cook
+                    This Week" did — handleCookThisWeek is unchanged. */}
                 {surface.showThisWeekSlot &&
                   (reviewPlan.isActiveThisWeek ? (
-                    <View style={s.cookThisWeekBadge}>
-                      <Feather name="check" size={12} color={Colors.sage[700]} />
-                      <Text style={s.cookThisWeekBadgeText}>
-                        This Week&apos;s Plan
+                    <View style={[s.thisWeekPill, s.thisWeekPillActive]}>
+                      <Feather
+                        name="check"
+                        size={12}
+                        color={Palette.text.onSage}
+                      />
+                      <Text
+                        style={[s.thisWeekPillText, s.thisWeekPillTextActive]}
+                        numberOfLines={1}
+                      >
+                        This week
                       </Text>
                     </View>
                   ) : (
                     <Pressable
                       onPress={handleCookThisWeek}
-                      hitSlop={6}
+                      hitSlop={8}
+                      accessibilityRole="button"
                       style={({ pressed }) => [
-                        s.cookThisWeekChip,
+                        s.thisWeekPill,
+                        s.thisWeekPillInactive,
                         pressed && { opacity: 0.7 },
                       ]}
                     >
                       <Feather
                         name="calendar"
                         size={12}
-                        color={Colors.neutral[100]}
+                        color={Colors.sage[600]}
                       />
-                      <Text style={s.cookThisWeekChipText}>Cook This Week</Text>
+                      <Text
+                        style={[s.thisWeekPillText, s.thisWeekPillTextInactive]}
+                        numberOfLines={1}
+                      >
+                        This week
+                      </Text>
                     </Pressable>
                   ))}
               </View>
@@ -1633,41 +1658,45 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[500],
     fontWeight: Typography.fontWeight.medium,
   },
-  cookThisWeekChip: {
+  // Part 3 Item 4 — ONE pill geometry, two skins.
+  //
+  // ⚠️ The box lives here and NOWHERE else, so the two arms cannot drift apart:
+  // a stable footprint across the active/inactive flip is the whole point (the
+  // title row must not change height when a plan is activated). Each arm below
+  // adds ONLY its fill / border / ink. Both carry a 1px border — transparent on
+  // the filled arm — so the outlined arm's border cannot make it taller than
+  // the filled one.
+  thisWeekPill: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    gap: 6,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    borderRadius: Radius.full,
-    backgroundColor: Colors.sage[700],
-    marginTop: Spacing[1],
-  },
-  cookThisWeekChipText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[100],
-    fontFamily: Typography.face.sans[500],
-    fontWeight: Typography.fontWeight.medium,
-  },
-  cookThisWeekBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
+    flexShrink: 0,
     gap: 6,
     paddingHorizontal: Spacing[3],
     paddingVertical: Spacing[2],
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.sage[700],
-    backgroundColor: Colors.sage[100],
-    marginTop: Spacing[1],
   },
-  cookThisWeekBadgeText: {
+  thisWeekPillActive: {
+    backgroundColor: Colors.sage[600],
+    borderColor: Colors.sage[600],
+  },
+  thisWeekPillInactive: {
+    backgroundColor: "transparent",
+    borderColor: Colors.sage[400],
+  },
+  thisWeekPillText: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.sage[700],
     fontFamily: Typography.face.sans[500],
     fontWeight: Typography.fontWeight.medium,
+  },
+  // Cream on sage[600] — 4.62:1.
+  thisWeekPillTextActive: {
+    color: Palette.text.onSage,
+  },
+  // sage[600] on the band's sage[50] tint — 4.70:1.
+  thisWeekPillTextInactive: {
+    color: Colors.sage[600],
   },
   // The DRAFT commit bar and the COMPOSTED bar. Untouched by Part 3's panel
   // work — direction B restyles the live action panel only.
