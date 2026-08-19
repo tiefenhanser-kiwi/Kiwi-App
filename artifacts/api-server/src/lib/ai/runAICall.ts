@@ -183,13 +183,16 @@ export async function runAICall<T extends z.ZodTypeAny>(
   const baseBody = renderPromptBody(descriptor.body, vars);
 
   let attempt = 0;
+  // BUG-100 — holds the FULL-PATH issue list (see formatZodIssues), not
+  // zod's .flatten(). This value is fed straight back to the model as its
+  // retry instruction, so its wording is load-bearing, not cosmetic.
   let lastValidationError: unknown = null;
   // WS7-5b-server-fix2 — captured for the validation-failure-exhaustion WARN
   // below. Holds whatever the LAST failing safeParse received as input (raw
-  // tool_use input or parsed JSON from text mode). When zod's flattened error
-  // names a path but the cause is the SHAPE the model returned, this is the
-  // diagnostic that explains "what did the model actually emit?". Truncated
-  // at log time so a runaway payload can't blow up logs.
+  // tool_use input or parsed JSON from text mode). Paired with the full-path
+  // issue list in lastValidationError, this answers "what did the model
+  // actually emit?". Truncated at log time so a runaway payload can't blow
+  // up logs.
   let lastExtractedValue: unknown = null;
   let inputTokens = 0;
   let outputTokens = 0;
@@ -342,7 +345,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
       return { success: true, data: parsed.data as z.infer<T>, metadata };
     }
 
-    lastValidationError = parsed.error.flatten();
+    lastValidationError = formatZodIssues(parsed.error);
     lastExtractedValue = extracted.value;
     attempt++;
   }
@@ -438,6 +441,43 @@ async function writeLogSafely(
       "LLMCallLog write failed — call result preserved",
     );
   }
+}
+
+// BUG-100 — render a ZodError as one full-path issue per line, e.g.
+//   needsClarification.reason: Required
+//
+// This replaces `error.flatten()` on the retry path, and the reason is not
+// tidiness. .flatten() groups every issue under `path[0]`, so a failure at
+// `["needsClarification","reason"]` comes out as
+//   {"fieldErrors":{"needsClarification":["Required"]}}
+// and buildUserMessage hands THAT to the model as its correction. The model
+// reads "needsClarification: Required" and adds the key — which for the
+// wizard.directed.parse_intent prompt is the exact opposite of the
+// instruction it is meant to follow ("omit entirely"). The retry was feeding
+// the model false information about its own mistake. Full paths remove the
+// ambiguity: the model is told which nested key is wrong.
+//
+// Same value also reaches the exhaustion WARN and AICallFailure.internalError.
+// Both are log-only — no consumer parses or pattern-matches either (checked
+// across src/ and scripts/) — and a full path is what would have made this
+// defect legible from the log the first time.
+//
+// Capped so a runaway response can't bloat the retry prompt.
+const MAX_REPORTED_ISSUES = 20;
+
+function formatZodIssues(error: z.ZodError): string {
+  const issues = error.issues;
+  const lines = issues
+    .slice(0, MAX_REPORTED_ISSUES)
+    .map((issue) => {
+      // Array indices render as numbers, e.g. `options.0: Expected string`.
+      const path = issue.path.join(".");
+      return `${path === "" ? "(root)" : path}: ${issue.message}`;
+    });
+  if (issues.length > MAX_REPORTED_ISSUES) {
+    lines.push(`…and ${issues.length - MAX_REPORTED_ISSUES} more issue(s).`);
+  }
+  return lines.join("\n");
 }
 
 function buildUserMessage(args: {

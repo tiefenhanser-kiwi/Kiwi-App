@@ -978,3 +978,140 @@ describe("runAICall — R2 cached system prefix (additive)", () => {
     assert.equal(result.metadata.cacheCreationInputTokens, 0);
   });
 });
+
+// ── BUG-100 — retry feedback carries full issue paths ──────────────────
+//
+// The retry prompt used to be built from `error.flatten()`, which groups every
+// issue under `path[0]`. A failure at ["needsClarification","reason"] came out
+// as {"fieldErrors":{"needsClarification":["Required"]}}, and that string was
+// handed to the model as its correction — telling it to ADD a key the
+// wizard.directed.parse_intent prompt tells it to omit. These tests pin the
+// full dotted path in the text the model actually receives.
+//
+// SCOPE — what these reach and what they do not. They exercise the real
+// runAICall against a stubbed SDK client, so they cover the message runAICall
+// builds and sends. They do NOT reach the Tell Kiwi route: the wizard route
+// tests stub runAICall at the boundary, so nothing there sees this string.
+// They also cannot show that better feedback raises the model's real recovery
+// rate — that is an empirical question for LLMCallLog after this ships.
+
+// Mirrors the real defect shape: an optional outer object with a required
+// inner field, so a bare {} fails on the NESTED key.
+const NestedSchema = z.object({
+  scenario: z.string(),
+  needsClarification: z
+    .object({ reason: z.string() })
+    .optional(),
+});
+
+function textResponse(payload: unknown): {
+  content: Anthropic.ContentBlock[];
+} {
+  return {
+    content: [
+      { type: "text", text: JSON.stringify(payload) } as Anthropic.ContentBlock,
+    ],
+  };
+}
+
+describe("BUG-100 — validation retry feedback", () => {
+  it("feeds the model the full dotted path, not the flattened top-level key", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    // Attempt 1: exactly the payload from Hans's 502 log.
+    // Attempt 2: valid, so the call succeeds and we can inspect the retry.
+    const { client, callCount, lastCall } = makeFakeClient([
+      textResponse({ scenario: "vague", needsClarification: {} }),
+      textResponse({ scenario: "vague" }),
+    ]);
+
+    const result = await runAICall(TEXT_KEY, {}, NestedSchema, {
+      client,
+      mode: "text",
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(callCount(), 2);
+
+    const retryMessage = lastCall()!.messages[0].content;
+    assert.equal(typeof retryMessage, "string");
+    const text = retryMessage as string;
+
+    // The correction names the nested key that actually failed.
+    assert.match(text, /needsClarification\.reason: Required/);
+    // And no longer carries zod's flattened grouping, which said the opposite.
+    assert.doesNotMatch(text, /fieldErrors/);
+    assert.doesNotMatch(text, /formErrors/);
+    // Still framed as a correction.
+    assert.match(text, /Your previous response failed validation:/);
+  });
+
+  it("renders array indices in the path", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const ArraySchema = z.object({ options: z.array(z.string()) });
+    const { client, lastCall } = makeFakeClient([
+      textResponse({ options: [1, "ok"] }),
+      textResponse({ options: ["a"] }),
+    ]);
+
+    const result = await runAICall(TEXT_KEY, {}, ArraySchema, {
+      client,
+      mode: "text",
+    });
+
+    assert.equal(result.success, true);
+    assert.match(
+      lastCall()!.messages[0].content as string,
+      /options\.0: Expected string, received number/,
+    );
+  });
+
+  it("surfaces the same full-path text on AICallFailure.internalError", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    // Both attempts bad → exhaustion. internalError is log-only (no consumer
+    // parses it — checked across src/ and scripts/), but it is the field the
+    // exhaustion WARN carries, and a full path is what would have made this
+    // defect legible from the log the first time.
+    const { client } = makeFakeClient([
+      textResponse({ scenario: "vague", needsClarification: {} }),
+      textResponse({ scenario: "vague", needsClarification: {} }),
+    ]);
+
+    const result = await runAICall(TEXT_KEY, {}, NestedSchema, {
+      client,
+      mode: "text",
+    });
+
+    assert.equal(result.success, false);
+    if (result.success) return;
+    assert.equal(result.reason, "validation_failed");
+    assert.equal(
+      result.internalError,
+      "needsClarification.reason: Required",
+    );
+  });
+
+  it("caps a runaway issue list so the retry prompt can't bloat", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    _resetClientCache();
+    const WideSchema = z.object({ options: z.array(z.string()) });
+    const many = Array.from({ length: 25 }, () => 1); // 25 type errors
+    const { client, lastCall } = makeFakeClient([
+      textResponse({ options: many }),
+      textResponse({ options: ["a"] }),
+    ]);
+
+    const result = await runAICall(TEXT_KEY, {}, WideSchema, {
+      client,
+      mode: "text",
+    });
+
+    assert.equal(result.success, true);
+    const text = lastCall()!.messages[0].content as string;
+    assert.match(text, /options\.19: /);
+    assert.doesNotMatch(text, /options\.20: /);
+    assert.match(text, /and 5 more issue\(s\)\./);
+  });
+});
