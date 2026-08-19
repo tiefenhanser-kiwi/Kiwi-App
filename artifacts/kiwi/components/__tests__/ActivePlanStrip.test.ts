@@ -16,6 +16,7 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import { ActivePlanStrip, type ActivePlanStripModel } from "../ActivePlanStrip";
 import type { MealListItem } from "@/lib/api/meals";
+import { Colors } from "@/constants/tokens";
 
 type Json = {
   type: string;
@@ -115,64 +116,101 @@ test("today: a meal WITH a photo mounts an Image over the gradient", () => {
 // assertions counted pressables (2) and destructured them positionally
 // ([primary, footer]) — both of which a new target invalidates.
 //
-// They are updated by naming what each target IS, not by relaxing the count.
-// The LABELLED-action count is still asserted at two, so the thing the original
-// test protected — Grocery list / Prep & Cook must not creep back onto this
-// card (2c §7.5) — is still protected, and now cannot be satisfied by an
-// unlabelled target sneaking in either.
+// ⚠️ WS9-2 2e Part 4 Item 3 — they CHANGED AGAIN, and this time the RULING
+// under them moved, not just the markup. The stacked full-width buttons are
+// gone (the filled "Start cooking", the full-bleed "View plan" footer, and the
+// plan state's outlined "View plan" primary) and both states now render one 2×2
+// action panel. So "exactly two labelled actions" is no longer the contract.
+//
+// What replaces it is STRICTER, not looser:
+//   • the exact cell roster is pinned, by name, on both states;
+//   • "View plan" must appear EXACTLY ONCE — which is the same duplication the
+//     original test forbade, now enforced against the panel instead of a footer;
+//   • every cell must fire its OWN handler and no other.
 
 /** Press targets keyed by accessibilityLabel, so no test depends on order. */
 function pressableByLabel(root: Json, label: string): Json | undefined {
   return pressables(root).find((p) => p.props.accessibilityLabel === label);
 }
 
-test("today: exposes exactly TWO labelled actions — Start cooking, then View plan", () => {
+/** A panel cell located by its rendered label. */
+function cell(root: Json, label: string): Json | undefined {
+  return pressables(root).find((p) => texts(p).join("") === label);
+}
+
+/** The four cell labels, in render order. */
+function cellLabels(root: Json): string[] {
+  const wanted = new Set([
+    "Start Cooking",
+    "Prep and Cook",
+    "Grocery List",
+    "Order Online",
+    "View plan",
+  ]);
+  return pressables(root)
+    .map((p) => texts(p).join(""))
+    .filter((s) => wanted.has(s));
+}
+
+test("today: the panel is Start Cooking · Grocery List · Order Online · View plan", () => {
   const root = render({ model: TODAY });
-  const t = texts(root);
-  assert.ok(t.includes("Start cooking"));
-  assert.ok(t.includes("View plan"));
-  // Exactly two targets carry an action LABEL; the third is the meal block.
-  const labelled = pressables(root).filter((p) =>
-    ["Start cooking", "View plan"].includes(texts(p).join("")),
-  );
-  assert.equal(
-    labelled.length,
-    2,
-    "Grocery list / Prep & Cook are deliberately NOT on this card (2c §7.5)",
-  );
+  assert.deepEqual(cellLabels(root), [
+    "Start Cooking",
+    "Grocery List",
+    "Order Online",
+    "View plan",
+  ]);
   assert.equal(
     pressables(root).length,
-    3,
-    "two labelled actions + the BUG-091 meal-block tap target",
+    5,
+    "four panel cells + the BUG-091 meal-block tap target",
   );
 });
 
-test("today: Start cooking fires onCook, View plan fires onPress", () => {
+test("today: the stacked full-width buttons are GONE, and View plan is not doubled", () => {
+  // The card used to carry a filled "Start cooking" AND a full-bleed "View
+  // plan" footer. Both are superseded by the panel. Rendering the footer
+  // alongside the panel's own "View plan" cell would put the same action on the
+  // card twice — the exact defect the pre-Part-4 version of this test guarded.
+  const t = texts(render({ model: TODAY }));
+  assert.equal(
+    t.filter((s) => s === "View plan").length,
+    1,
+    "a footer View plan under a panel View plan is the same action twice",
+  );
+  assert.ok(
+    !t.includes("Start cooking"),
+    "the old full-width button's label is gone; the cell reads 'Start Cooking'",
+  );
+});
+
+test("today: every cell fires its OWN handler and no other", () => {
   const fired: string[] = [];
   const root = render({
     model: TODAY,
     onCook: () => fired.push("cook"),
     onPress: () => fired.push("plan"),
+    onGroceryList: () => fired.push("grocery"),
+    onOrderOnline: () => fired.push("order"),
     onOpenMeal: () => fired.push("meal"),
   });
-  // Located by their text, NOT by position — adding the meal target shifted the
-  // indices the old destructure relied on.
-  const primary = pressables(root).find(
-    (p) => texts(p).join("") === "Start cooking",
+  for (const label of [
+    "Start Cooking",
+    "Grocery List",
+    "Order Online",
+    "View plan",
+  ]) {
+    const c = cell(root, label);
+    assert.ok(c, `cell not found: ${label}`);
+    act(() => {
+      (c!.props.onPress as () => void)();
+    });
+  }
+  assert.deepEqual(
+    fired,
+    ["cook", "grocery", "order", "plan"],
+    "no cell fires the meal-block tap, and none fires a neighbour's handler",
   );
-  const footer = pressables(root).find(
-    (p) => texts(p).join("") === "View plan",
-  );
-  assert.ok(primary && footer, "both labelled actions found");
-
-  act(() => {
-    (primary!.props.onPress as () => void)();
-  });
-  act(() => {
-    (footer!.props.onPress as () => void)();
-  });
-
-  assert.deepEqual(fired, ["cook", "plan"], "neither fires the meal tap");
 });
 
 // ── BUG-091: the card body opens the plan-instance meal detail ──────────────
@@ -190,40 +228,74 @@ test("BUG-091: the meal block is a press target and fires onOpenMeal", () => {
   assert.equal(fired, 1);
 });
 
-test("BUG-091: the meal tap target does NOT contain the other two actions", () => {
+test("BUG-091: the meal tap target does NOT contain any panel cell", () => {
   // Structural guarantee rather than a bet on how RN resolves nested press
-  // responders: if "Start cooking" ever became a DESCENDANT of the body target,
-  // whether it still fires depends on gesture bubbling. It must be a sibling.
+  // responders: if a cell ever became a DESCENDANT of the body target, whether
+  // it still fires depends on gesture bubbling. Cells must be siblings.
   const root = render({ model: TODAY });
   const target = pressableByLabel(root, "Open Salmon Teriyaki");
   assert.ok(target);
   const inner = texts(target!);
-  assert.ok(
-    !inner.includes("Start cooking"),
-    "Start cooking must be a SIBLING of the tap target, not inside it",
-  );
-  assert.ok(
-    !inner.includes("View plan"),
-    "View plan must be a SIBLING of the tap target, not inside it",
-  );
+  for (const label of [
+    "Start Cooking",
+    "Grocery List",
+    "Order Online",
+    "View plan",
+  ]) {
+    assert.ok(
+      !inner.includes(label),
+      `${label} must be a SIBLING of the tap target, not inside it`,
+    );
+  }
   // It does carry the meal identity — that is the region a user aims at.
   assert.ok(inner.includes("Salmon Teriyaki"));
   assert.ok(inner.includes("Tonight"));
 });
 
-test("BUG-091: the PLAN state gets no body tap — it has no meal to open", () => {
-  // Its whole surface would otherwise duplicate its single "View plan" action.
-  const root = render({ model: PLAN, onOpenMeal: () => {} });
-  assert.equal(
-    pressables(root).length,
-    1,
-    "plan state keeps exactly its one action",
-  );
-  assert.equal(
-    pressables(root)[0].props.accessibilityLabel,
-    undefined,
-    "and it is not the meal tap target",
-  );
+// ⚠️ WS9-2 2e Part 4 Item 3 — THIS TEST IS INVERTED, DELIBERATELY.
+//
+// It used to assert that the PLAN state has NO body tap. That was the correct
+// reading of BUG-091 at the time: the destination considered was a MEAL detail,
+// this state has no meal, and a body tap would have duplicated the full-width
+// "View plan" primary sitting directly beneath it.
+//
+// Both halves of that reasoning are gone. The destination is Plan Review, not a
+// meal, and `planId` has always been plumbed on this branch. The full-width
+// primary it would have duplicated has been superseded by the panel. What was
+// left on device was a named plan that did nothing when you touched it — the
+// same dead-card defect BUG-091 was raised for, on the other branch.
+//
+// The assertion is rewritten to pin the new intent, not deleted.
+test("BUG-091 (second half): the PLAN state's body IS a tap target, to Plan Review", () => {
+  let fired = 0;
+  const root = render({ model: PLAN, onPress: () => (fired += 1) });
+  const target = pressableByLabel(root, "Open Spice It Up");
+  assert.ok(target, "plan-state body tap target not found");
+  act(() => {
+    (target!.props.onPress as () => void)();
+  });
+  assert.equal(fired, 1, "the body tap routes through onPress → Plan Review");
+});
+
+test("BUG-091 (second half): the plan body tap does NOT contain any panel cell", () => {
+  // Same structural guarantee as the today state's — siblings, not descendants.
+  const root = render({ model: PLAN });
+  const target = pressableByLabel(root, "Open Spice It Up");
+  assert.ok(target);
+  const inner = texts(target!);
+  for (const label of [
+    "Prep and Cook",
+    "Grocery List",
+    "Order Online",
+    "View plan",
+  ]) {
+    assert.ok(
+      !inner.includes(label),
+      `${label} must be a SIBLING of the tap target, not inside it`,
+    );
+  }
+  assert.ok(inner.includes("Spice It Up"));
+  assert.ok(inner.includes("This week"));
 });
 
 test("today: meta degrades gracefully when minutes/calories are absent", () => {
@@ -249,25 +321,61 @@ test("plan: renders NO image (D-WS9-144 — only the MEAL thumbnail is the excep
   assert.equal(findAll(root, "rn-image").length, 0);
 });
 
-test("plan: exposes exactly ONE action, and it is NOT duplicated in a footer", () => {
+test("plan: the panel is Prep and Cook · Grocery List · Order Online · View plan", () => {
   const root = render({ model: PLAN });
-  const t = texts(root);
+  assert.deepEqual(cellLabels(root), [
+    "Prep and Cook",
+    "Grocery List",
+    "Order Online",
+    "View plan",
+  ]);
   assert.equal(
-    t.filter((s) => s === "View plan").length,
-    1,
-    "a footer View plan under a View plan primary is the same action twice",
+    pressables(root).length,
+    5,
+    "four panel cells + the plan-body tap target",
   );
-  assert.equal(pressables(root).length, 1);
-  assert.ok(!t.includes("Start cooking"));
 });
 
-test("plan: the single action fires onPress", () => {
-  let fired = 0;
-  const root = render({ model: PLAN, onPress: () => (fired += 1) });
-  act(() => {
-    (pressables(root)[0].props.onPress as () => void)();
+test("plan: View plan is NOT duplicated — the panel superseded the primary", () => {
+  // The plan state's whole primary button WAS "View plan". Keeping it beside
+  // the panel's own "View plan" cell would be the same action twice, which is
+  // what this test has forbidden since 2c Commit 7.
+  const t = texts(render({ model: PLAN }));
+  assert.equal(t.filter((s) => s === "View plan").length, 1);
+  assert.ok(!t.includes("Start cooking"), "the old label is gone entirely");
+  assert.ok(
+    !t.includes("Start Cooking"),
+    "Start Cooking is the TODAY state's contextual cell — it must not leak here",
+  );
+});
+
+test("plan: every cell fires its OWN handler and no other", () => {
+  const fired: string[] = [];
+  const root = render({
+    model: PLAN,
+    onPress: () => fired.push("plan"),
+    onPrepAndCook: () => fired.push("prep"),
+    onGroceryList: () => fired.push("grocery"),
+    onOrderOnline: () => fired.push("order"),
+    onCook: () => fired.push("cook"),
   });
-  assert.equal(fired, 1);
+  for (const label of [
+    "Prep and Cook",
+    "Grocery List",
+    "Order Online",
+    "View plan",
+  ]) {
+    const c = cell(root, label);
+    assert.ok(c, `cell not found: ${label}`);
+    act(() => {
+      (c!.props.onPress as () => void)();
+    });
+  }
+  assert.deepEqual(
+    fired,
+    ["prep", "grocery", "order", "plan"],
+    "onCook belongs to the today state and must not be reachable here",
+  );
 });
 
 test("plan: singular day count reads 'day', not 'days'", () => {
@@ -280,12 +388,101 @@ test("plan: a null duration still says nothing is set for today", () => {
   assert.ok(t.includes("Nothing set for today"));
 });
 
-// ── the §7.5 removal, pinned ────────────────────────────────────────────────
+// ── §7.5 is REVERSED — Part 4 Item 3 ────────────────────────────────────────
+//
+// ⚠️ THIS TEST IS INVERTED, DELIBERATELY. It used to assert that NEITHER state
+// offers Grocery list or Prep & Cook, pinning 2c Commit 7 §7.5.
+//
+// §7.5's reasoning was that on the today state Grocery list is a plan-level
+// action and Prep & Cook duplicated Start cooking's intent — sound while the
+// two were loose buttons in a row that pointed at nothing in particular. The
+// card is now explicitly a PANEL FOR THE PLAN, so plan-level actions are
+// exactly what belongs on it, and Prep & Cook is no longer a sibling competing
+// with Start Cooking: they are the SAME SLOT on two different states, never
+// rendered together.
+//
+// Kept as a test rather than deleted because the roster is now a contract in
+// its own right — a fifth cell, or a missing one, is a regression either way.
 
-test("NEITHER state offers Grocery list or Prep & Cook", () => {
+test("Part 4 Item 3: BOTH states carry Grocery List and the contextual cook cell", () => {
   for (const model of [TODAY, PLAN]) {
     const t = texts(render({ model }));
-    assert.ok(!t.some((s) => /grocery/i.test(s)), `grocery leaked into ${model.kind}`);
-    assert.ok(!t.some((s) => /prep/i.test(s)), `prep leaked into ${model.kind}`);
+    assert.ok(
+      t.includes("Grocery List"),
+      `Grocery List missing from ${model.kind}`,
+    );
+    assert.ok(
+      t.includes("Order Online"),
+      `Order Online missing from ${model.kind}`,
+    );
+  }
+});
+
+test("Part 4 Item 3: the FIRST cell is contextual, and the two labels never co-occur", () => {
+  // Same slot, same tint, same glyph; the label and destination switch by
+  // branch. Rendering both would mean the card was offering two cook entries.
+  const today = texts(render({ model: TODAY }));
+  assert.ok(today.includes("Start Cooking"));
+  assert.ok(!today.includes("Prep and Cook"));
+
+  const plan = texts(render({ model: PLAN }));
+  assert.ok(plan.includes("Prep and Cook"));
+  assert.ok(!plan.includes("Start Cooking"));
+});
+
+test("Part 4 Item 3: NOTHING on this card is a terracotta FILL", () => {
+  // Home's only terracotta fill is the Tell Kiwi send button. The panel's
+  // primary is a TINT — pale surface, full-strength edge, dark ink. If it ever
+  // resolves back to variant="primary", the card regains a fill and Home has
+  // two, which is the whole distinction Part 4 Item 2 established.
+  for (const model of [TODAY, PLAN]) {
+    const filled = findAll(render({ model }), "rn-pressable").filter((n) => {
+      const raw = n.props.style;
+      const resolved =
+        typeof raw === "function"
+          ? (raw as (s: { pressed: boolean }) => unknown)({ pressed: false })
+          : raw;
+      const flat = Object.assign(
+        {},
+        ...(Array.isArray(resolved) ? resolved : [resolved]).filter(Boolean),
+      ) as Record<string, unknown>;
+      return flat.backgroundColor === Colors.terracotta[400];
+    });
+    assert.deepEqual(
+      filled,
+      [],
+      `a terracotta fill leaked onto the ${model.kind} state`,
+    );
+  }
+});
+
+test("Part 4 Item 3: the Grocery List cell shows a busy state and blocks re-taps", () => {
+  // Generation is the two-AI-call pipeline and takes 5–15s. Without a busy
+  // state the tap is silent for up to fifteen seconds and reads as broken.
+  //
+  // ⚠️ The busy state is a SPINNER, not a swapped label: Button renders either
+  // the ActivityIndicator or the icon+label, never both. A test written against
+  // a "Generating…" string would pass only by accident of never running.
+  for (const model of [TODAY, PLAN]) {
+    const idle = render({ model });
+    assert.equal(findAll(idle, "rn-activity-indicator").length, 0);
+    assert.ok(texts(idle).includes("Grocery List"));
+
+    const busy = render({ model, groceryLoading: true });
+    assert.equal(
+      findAll(busy, "rn-activity-indicator").length,
+      1,
+      `no busy state on the ${model.kind} state's grocery cell`,
+    );
+    assert.ok(
+      !texts(busy).includes("Grocery List"),
+      "the spinner replaces the label rather than sitting beside it",
+    );
+    // The same flag disables the press, which is what guards the double-tap.
+    const c = pressables(busy).find(
+      (p) => findAll(p, "rn-activity-indicator").length === 1,
+    );
+    assert.ok(c, "busy cell not found");
+    assert.equal(c!.props.disabled, true);
   }
 });

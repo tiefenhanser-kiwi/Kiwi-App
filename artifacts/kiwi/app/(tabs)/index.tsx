@@ -22,7 +22,7 @@
 // two of them still certified by green tests.
 
 import React, { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { ActivePlanStrip } from "@/components/ActivePlanStrip";
@@ -49,6 +49,8 @@ import {
   shouldOfferAddOwnMeals,
 } from "@/lib/home/makeLaneOptions";
 import { buildRailItems } from "@/lib/home/rail";
+import { generateGroceryListForPlan } from "@/lib/api/grocery";
+import { dispatchGenerateResult } from "@/lib/groceryHandoff";
 import { Colors, Spacing } from "@/constants/tokens";
 
 export default function HomeTab() {
@@ -230,20 +232,78 @@ export default function HomeTab() {
           })
       : undefined;
 
+  // ── WS9-2 2e Part 4 Item 3 — the this-week card's 2×2 action panel ────────
+  //
+  // ⚠️ These three handlers RE-ADD what 2c Commit 7 §7.5 removed from Home, and
+  // that reversal is ruled. §7.5's reasoning was that Grocery list is
+  // plan-level and Prep & Cook duplicated Start cooking — true while they were
+  // loose buttons in a row that pointed at nothing in particular. The card is
+  // now explicitly a panel FOR THE PLAN, so plan-level is exactly what belongs.
+  //
+  // ⚠️ DELIBERATELY NOT PAYWALLED, matching the pre-existing rule at the top of
+  // this file: isLocked routes the MAKE-lane actions to /upgrade because they
+  // trigger AI generation; grocery / prep / cook have always stayed ungated.
+
+  // §27.2 — the SAME request path and the SAME shared result mapper Plan Review
+  // uses (generateGroceryListForPlan → dispatchGenerateResult). The six-outcome
+  // error ladder lives in lib/groceryHandoff.ts and is tested there; re-inlining
+  // a second copy here is precisely the drift 2c Commit 10 retired.
+  const [isGeneratingList, setIsGeneratingList] = useState(false);
+  const handleStripGroceryList = async () => {
+    if (!stripPlanId || isGeneratingList) return;
+    setIsGeneratingList(true);
+    try {
+      const result = await generateGroceryListForPlan(stripPlanId);
+      dispatchGenerateResult(result, {
+        navigate: (id) =>
+          router.push({ pathname: "/grocery-list/[id]", params: { id } }),
+        alert: (title, message) => Alert.alert(title, message),
+      });
+    } finally {
+      setIsGeneratingList(false);
+    }
+  };
+
+  // WS7-8b B2 — plan-context entry: the Prep & Cook hub for this plan. The
+  // plan state's contextual first cell (the today state's is Start Cooking).
+  const handleStripPrepAndCook = () => {
+    if (!stripPlanId) return;
+    router.push({ pathname: "/prep-cook", params: { id: stripPlanId } });
+  };
+
+  // D-WS9-158 — the Order Online STUB, byte-matching Plan Review's copy. It
+  // ships styled as a full peer cell because 2e styles for the destination
+  // state; the Instacart work makes it function later.
+  // ⚠️ This is the STUB. "Grocery List" above is the working navigation — never
+  // conflate them (D-WS9-133).
+  const handleStripOrderOnline = () =>
+    Alert.alert(
+      "Coming soon — you'll be able to send this list to a grocery service.",
+    );
+
   // ⚠️ WS9-2 2c Commit 7 §7.5 — the Grocery list / Prep & Cook utility row is
   // GONE from Home, and with it this screen's handleGroceryPress /
   // handlePrepAndCookPress handlers. Ruled, not an oversight: on the today
   // state Grocery list is a plan-level action and Prep & Cook duplicated Start
   // cooking's intent; consistency carries the removal to the plan state.
   //
-  // WHAT STILL REACHES THEM (verified, not assumed):
+  // ⚠️ WS9-2 2e Part 4 Item 3 — §7.5 IS REVERSED. Both actions are back, as
+  // CELLS OF THE THIS-WEEK CARD'S OWN 2×2 PANEL (handleStripGroceryList /
+  // handleStripPrepAndCook above), not as a loose utility row. What changed is
+  // the container, and that is what the original reasoning turned on: the
+  // buttons were removed because nothing tied them to a plan, and the panel is
+  // now explicitly a panel FOR the plan named directly above it. Prep & Cook is
+  // also no longer a sibling competing with Start cooking — they are the SAME
+  // SLOT on two mutually exclusive states.
+  //
+  // Prep & Cook is ONE tap from Home again, not two.
+  //
+  // WHAT ELSE REACHES THEM (verified, not assumed):
   //   • Grocery list  → the Groceries tab (a first-class tab), and Plan
   //                     Review's own "Grocery List" action.
   //   • Prep & Cook   → Plan Review's "Prep and Cook" primary action
   //                     (app/plan/[id].tsx), and the "Start Prep & Cook →"
-  //                     CTA at the end of a grocery list. It is NOT a tab, so
-  //                     from Home it is now TWO taps (card → View plan →
-  //                     Prep and Cook) where it was one.
+  //                     CTA at the end of a grocery list.
   //
   // Commit 10 finished the job: removing the button left resolveGroceryRoute
   // with zero callers, which in turn left app/grocery-plan-picker.tsx — its
@@ -317,6 +377,10 @@ export default function HomeTab() {
                       model={activeHeroModel}
                       onPress={handleStripPress}
                       onCook={handleCook}
+                      onPrepAndCook={handleStripPrepAndCook}
+                      onGroceryList={handleStripGroceryList}
+                      groceryLoading={isGeneratingList}
+                      onOrderOnline={handleStripOrderOnline}
                       onOpenMeal={handleOpenTodaysMeal}
                     />
                   ) : null}

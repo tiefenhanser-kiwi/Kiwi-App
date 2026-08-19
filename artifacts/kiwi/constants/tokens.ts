@@ -442,6 +442,13 @@ export const Components = {
     // has no consumer now.
     thumbSize:   56,
     radius:      Radius.xl,
+    // ⚠️ WS9-2 2e Part 4 Item 3 — NO CONSUMER. It coloured the card's filled
+    // "Start cooking" and outlined "View plan" primaries; both are gone, and the
+    // panel that replaced them takes its terracotta from Palette.button.tint.
+    // Kept, not deleted, on the ImageTreatment.thumbSize precedent above: it is
+    // still the canonical v4 value for this component's accent. Two searches
+    // (git grep + a non-gitignore-respecting grep over the repo) found this
+    // definition and nothing else.
     cookAccent:  Colors.terracotta[400],
   },
   sectionLabel: {
