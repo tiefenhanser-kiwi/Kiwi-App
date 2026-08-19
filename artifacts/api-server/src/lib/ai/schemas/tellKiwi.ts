@@ -34,6 +34,23 @@ export const DirectedInputSchema = z.object({
 });
 export type DirectedInput = z.infer<typeof DirectedInputSchema>;
 
+// BUG-099 — see the `needsClarification` note below. Collapses the model’s
+// several spellings of "nothing to clarify" to `undefined` (key absent) and
+// passes everything else through untouched, so the object validator still
+// rejects genuinely malformed payloads.
+function normalizeNeedsClarification(value: unknown): unknown {
+  if (value == null) return undefined;
+  // Non-objects (and arrays) are NOT ours to interpret — hand them to the
+  // object validator so they reject with a real type error.
+  if (typeof value !== "object" || Array.isArray(value)) return value;
+  const reason = (value as { reason?: unknown }).reason;
+  // A blank reason is as useless to the client as no reason at all: mobile
+  // renders `needsClarification?.reason` directly, so an empty string would
+  // surface an empty notice. Treat it as absent.
+  if (typeof reason !== "string" || reason.trim() === "") return undefined;
+  return value;
+}
+
 // PRD §6.8 — output of step 1 (parse_intent).
 // Five scenarios per PRD §6.5; populated fields differ by scenario.
 export const ParsedIntentSchema = z.object({
@@ -52,12 +69,35 @@ export const ParsedIntentSchema = z.object({
   mealCount: z.number().int().min(0).max(7).optional(),
   // Populated for `unclear` and `overflow` scenarios per PRD §6.5
   // Scenario E/F. Client surfaces this as a clarification modal.
-  needsClarification: z
-    .object({
-      reason: z.string().max(280),
-      options: z.array(z.string()).max(6).optional(),
-    })
-    .optional(),
+  //
+  // BUG-099 — the model is nondeterministic about how it spells "nothing to
+  // clarify". The prompt says to omit the key entirely for vague / partial /
+  // fully_specified, and mostly it does — but it also emits a bare `{}`, which
+  // `.optional()` does NOT cover: the key is present, so the inner object runs
+  // and its required `reason` fails. `.flatten()` then files that under
+  // `fieldErrors.needsClarification`, which reads like a missing top-level key
+  // and is what made this look like a prompt bug rather than a tolerance one.
+  // Observed rate off LLMCallLog: 3 of 24 calls returned 502 this way.
+  //
+  // So normalise every honest spelling of "nothing to clarify" — omitted, null,
+  // `{}`, or any object whose `reason` is missing/blank — to ONE canonical
+  // internal form: the key absent (`undefined`). That form is forced, not
+  // chosen: the mobile client re-validates with its own Zod requiring `reason`
+  // (artifacts/kiwi/lib/api/tellKiwi.ts), so forwarding `{}` would merely move
+  // the failure to the device. Every reader already handles absent.
+  //
+  // Tolerance is deliberately narrow — only the "no usable reason" shapes are
+  // dropped. A non-object, an over-long reason, or bad `options` still fails
+  // validation exactly as before.
+  needsClarification: z.preprocess(
+    normalizeNeedsClarification,
+    z
+      .object({
+        reason: z.string().max(280),
+        options: z.array(z.string()).max(6).optional(),
+      })
+      .optional(),
+  ),
 });
 export type ParsedIntent = z.infer<typeof ParsedIntentSchema>;
 
