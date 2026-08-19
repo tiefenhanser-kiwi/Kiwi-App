@@ -56,7 +56,20 @@ export function PlanNameEditor({ currentName, onSave }: PlanNameEditorProps) {
       style={({ pressed }) => [s.row, pressed && { opacity: 0.7 }]}
       hitSlop={6}
     >
-      <DisplayTitle source={currentName} variant="slim" style={s.name} />
+      {/* WS9-2 2e Part 4 Item 1 — `slim` → `hero`. This is a LINE-POLICY change
+          and nothing else: slim caps at one line and ellipsizes, hero is
+          uncapped and wraps (DisplayTitle VARIANT_LINES). It mirrors the
+          meal/dish detail heroes, which were confirmed uncapped rather than
+          two-line-capped.
+
+          ⚠️ NO TYPE CHANGE. DisplayTitle deliberately does not own typography —
+          size, weight and face stay with s.name below, exactly as they were. So
+          the visible difference is a long name WRAPPING where it used to
+          truncate, not a jump in type size.
+
+          The editor now sits on its own full-width row (app/plan/[id].tsx Item
+          1), so a wrapped name has the width to be worth wrapping into. */}
+      <DisplayTitle source={currentName} variant="hero" style={s.name} />
       <Feather name="edit-2" size={14} color={Colors.sage[700]} />
     </Pressable>
   );

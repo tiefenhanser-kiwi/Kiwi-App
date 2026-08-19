@@ -780,40 +780,64 @@ export default function PlanReviewScreen() {
             </View>
           ) : (
             <View style={s.headerBandBody}>
-              {/* WS9-2 2e (D-WS9-157) — the this-week slot moved UP here, to the
-                  right of the title, which removes a whole row from the band.
-                  BOTH arms move: the passive "This Week's Plan" badge and the
-                  tappable "Cook This Week" chip occupy the same slot, and moving
-                  only the badge would reclaim the row in one state out of two.
+              {/* WS9-2 2e Part 4 Item 1 — THE PLAN NAME GETS ITS OWN FULL-WIDTH
+                  ROW. Part 3 Item 4 put it in a row shared with the this-week
+                  chip; that bought the band a row of height and cost the title
+                  its tail ("Italian Comfort mee…"). The chip moves DOWN into the
+                  meta strip instead, so the name is the only thing on its line
+                  and is free to wrap.
 
-                  ⚠️ PlanNameEditor's edit mode is a flex:1 TextInput that relies
-                  on sitting in a COLUMN-STRETCH parent to get its width. This row
-                  would have handed it a content-width box instead (flex-basis
-                  auto, no grow), collapsing the input on a short name. The
-                  s.titleCol wrapper restores the invariant locally: it takes the
-                  remaining width via flex:1, and the editor is still the stretched
-                  child of a column. PlanNameEditor itself is UNTOUCHED. */}
-              <View style={s.headerTitleRow}>
-                <View style={s.titleCol}>
-                  <PlanNameEditor
-                    currentName={planName}
-                    onSave={handleSavePlanName}
-                  />
-                </View>
+                  ⚠️ MIRRORS the meal/dish detail hero, which is a REPEATED LOCAL
+                  LAYOUT, not a shared component (app/meal/[id].tsx s.hero /
+                  s.heroTitle / s.heroQuickStats, duplicated in app/dish/[id].tsx):
+                  an uncapped title alone on a full-width row above a "·"-joined
+                  meta line. Mirrored, not extracted — the three surfaces do not
+                  share typography, and this one is an EDITOR rather than a static
+                  title, so the only thing genuinely common is the line policy,
+                  which already lives in DisplayTitle.
+
+                  ⚠️ s.headerTitleRow / s.titleCol are GONE with the row they
+                  existed for. Their whole job was re-supplying column-stretch to
+                  PlanNameEditor's flex:1 TextInput inside a ROW parent;
+                  headerBandBody is itself a column, so the editor is a stretched
+                  child again by default and the wrapper is dead weight. That
+                  invariant is the reason this must not go back into a row. */}
+              <PlanNameEditor
+                currentName={planName}
+                onSave={handleSavePlanName}
+              />
+              <View style={s.headerMetaRow}>
+                <PlanDateRangeEditor
+                  startDate={reviewPlan.weekStartDate}
+                  endDate={reviewPlan.weekEndDate}
+                  onSave={handleSaveDateRange}
+                />
+                <Text style={s.headerDot}>·</Text>
+                <Text style={s.mealCountText}>{mealCountLabel}</Text>
                 {/* Part 3 Item 4 — BOTH arms shorten to "This week" and adopt
                     IDENTICAL pill geometry (s.thisWeekPill supplies the box;
-                    each arm only adds its own fill/border/ink). Two reasons:
-                    the row height no longer changes when a plan is activated,
-                    and the ~90px the old "This Week's Plan" / "Cook This Week"
-                    strings ate goes back to the plan title, which was
-                    truncating ("Italian Comfort mee…").
+                    each arm only adds its own fill/border/ink), so the row
+                    height does not change when a plan is activated.
+
+                    Part 4 Item 1 — the slot now rides the META STRIP, pushed
+                    right by s.thisWeekPillPushRight (marginLeft:auto). It is the
+                    tallest thing on that strip, so it ABSORBS the row the title
+                    vacated rather than adding one: the band's content height is
+                    now title + max(meta, pill) where it was max(title, pill) +
+                    meta. That is why an extra title row costs ~nothing.
 
                     Active = FILLED sage; inactive = OUTLINED, same footprint.
                     The tap behaviour of the inactive arm is exactly what "Cook
                     This Week" did — handleCookThisWeek is unchanged. */}
                 {surface.showThisWeekSlot &&
                   (reviewPlan.isActiveThisWeek ? (
-                    <View style={[s.thisWeekPill, s.thisWeekPillActive]}>
+                    <View
+                      style={[
+                        s.thisWeekPill,
+                        s.thisWeekPillPushRight,
+                        s.thisWeekPillActive,
+                      ]}
+                    >
                       <Feather
                         name="check"
                         size={12}
@@ -833,6 +857,7 @@ export default function PlanReviewScreen() {
                       accessibilityRole="button"
                       style={({ pressed }) => [
                         s.thisWeekPill,
+                        s.thisWeekPillPushRight,
                         s.thisWeekPillInactive,
                         pressed && { opacity: 0.7 },
                       ]}
@@ -850,15 +875,6 @@ export default function PlanReviewScreen() {
                       </Text>
                     </Pressable>
                   ))}
-              </View>
-              <View style={s.headerMetaRow}>
-                <PlanDateRangeEditor
-                  startDate={reviewPlan.weekStartDate}
-                  endDate={reviewPlan.weekEndDate}
-                  onSave={handleSaveDateRange}
-                />
-                <Text style={s.headerDot}>·</Text>
-                <Text style={s.mealCountText}>{mealCountLabel}</Text>
               </View>
             </View>
           )}
@@ -1597,34 +1613,31 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
+  // WS9-2 2e Part 4 Item 1 — paddingVertical tightened Spacing[3] (12) → 10 to
+  // part-pay for the plan name's own row. HORIZONTAL padding is unchanged: the
+  // band's side inset is what keeps it reading as a card rather than a bleed,
+  // and narrowing it would push the title toward MORE lines, not fewer.
+  //
+  // Measured from these style values at a 375pt viewport (band inner width 317,
+  // title text width 317 − 8 gap − 14 pencil = 295):
+  //   before — max(title 22, pill 32) + 6 + meta 23 = 61 content + 26 chrome = 87
+  //   after  — title 22 + 6 + max(meta 23, pill 32) = 60 content + 22 chrome = 82
+  //   after, 2-line name — 44 + 6 + 32 = 82 content + 22 chrome = 104
+  // So a one-line name is 5px SHORTER than before and a wrapped one is 17px
+  // taller. Not flat at two lines, and deliberately not claimed to be: those
+  // 17px are the untruncated name, which is the whole point of the item.
   headerBand: {
     backgroundColor: Colors.sage[50],
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.sage[200],
-    padding: Spacing[3],
+    paddingHorizontal: Spacing[3],
+    paddingVertical: 10,
     gap: Spacing[3],
     marginBottom: Spacing[3],
   },
   headerBandBody: {
     gap: 6,
-  },
-  // WS9-2 2e (D-WS9-157) — title + this-week slot share one row, which is what
-  // cuts the band's height: the slot used to be a third stacked row costing
-  // ~43px (6 gap + 4 marginTop + 8/8 padding + ~17 line).
-  headerTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing[2],
-  },
-  // ⚠️ Load-bearing. PlanNameEditor's edit mode is a flex:1 TextInput that needs
-  // a COLUMN-STRETCH parent to get its width; headerTitleRow is a ROW, which
-  // would hand it a content-width box. This wrapper takes the leftover width and
-  // re-supplies the column stretch. minWidth:0 lets a long plan name shrink
-  // rather than shoving the chip off the edge.
-  titleCol: {
-    flex: 1,
-    minWidth: 0,
   },
   // Composted — the plan name as plain text (no editor, no tap target).
   staticPlanName: {
@@ -1676,6 +1689,15 @@ const s = StyleSheet.create({
     paddingVertical: Spacing[2],
     borderRadius: Radius.full,
     borderWidth: 1,
+  },
+  // Part 4 Item 1 — the pill rides the meta strip, hard right. marginLeft:auto
+  // rather than justifyContent on the row, because the row's OTHER children
+  // (date editor · dot · meal count) must stay packed left against each other;
+  // space-between would fan them out. It also survives headerMetaRow's flexWrap
+  // — if the strip wraps on a narrow device the pill is still right-aligned on
+  // whatever line it lands on.
+  thisWeekPillPushRight: {
+    marginLeft: "auto",
   },
   thisWeekPillActive: {
     backgroundColor: Colors.sage[600],
