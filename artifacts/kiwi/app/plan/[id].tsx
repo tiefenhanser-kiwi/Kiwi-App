@@ -865,7 +865,7 @@ export default function PlanReviewScreen() {
                       <Feather
                         name="calendar"
                         size={12}
-                        color={Colors.sage[600]}
+                        color={Colors.sage[700]}
                       />
                       <Text
                         style={[s.thisWeekPillText, s.thisWeekPillTextInactive]}
@@ -947,37 +947,44 @@ export default function PlanReviewScreen() {
             </View>
           </View>
         ) : surface.showActionPanel ? (
-          /* WS9-2 2e Part 3 (D-WS9-157 + D-WS9-162) — panel direction B.
+          /* WS9-2 2e Part 3 (D-WS9-157 + D-WS9-162) — panel direction B, as
+             amended by Part 4 Item 2.
              ONE symmetric 2×2 group on a SAGE-TINTED panel, replacing the flat
              white card. "Basically like an action/control panel for the plan."
 
-             ⚠️ Prep and Cook is THE TERRACOTTA FILL — and the only fill on this
-             screen (D-WS9-162). Part 1 rendered all four as equal `secondary`
-             peers on the reading that "symmetric" forbade a second hierarchy
-             distinction; direction B overrules that. The four cells are
-             symmetric in GEOMETRY (same grid, same size, same icon treatment)
-             while the primary action carries the fill. Symmetry of layout, not
-             of emphasis.
+             ⚠️ THIS SCREEN NOW HAS ZERO TERRACOTTA FILLS. That is the amendment
+             and it is intended, not an oversight. Part 3 made Prep and Cook a
+             terracotta FILL and called it "the only fill on this screen"; a
+             solid terracotta[400] block inside a tinted panel reads as the
+             loudest object on the page and flattens the panel's own tint
+             underneath it. The primary is now carried by TINT — pale surface,
+             full-strength edge, dark ink (Button variant="tint"). Do not add a
+             fill back to satisfy the earlier wording.
 
-             ⚠️ Compost is NOT here any more — BUG-092 moved it out to a quiet
-             link below the panel. Do not re-add a fifth cell.
+             The four cells stay symmetric in GEOMETRY (same grid, same size,
+             same icon size) while the primary carries the tint. Symmetry of
+             layout, not of emphasis.
+
+             ⚠️ Part 4 Item 2 — Compost is back INSIDE the panel, but as the
+             quiet corner LINK BUG-092 made it, not as a fifth cell. Do not
+             promote it back to a Button.
 
              ⚠️ The panel REUSES the shared Button rather than hand-rolling
-             cells: `iconLeft` for the Feather glyph, `variant="primary"` for the
-             fill, and a per-cell `style` border override for the other three.
+             cells: `iconLeft` for the Feather glyph, `variant="tint"` for the
+             primary, and a per-cell `style` border override for the other three.
              Do not fork a bespoke Pressable here (§27.2). */
           <View style={s.actionPanel}>
             <View style={s.actionRow}>
               <View style={s.actionCol}>
                 <Button
                   label="Prep and Cook"
-                  variant="primary"
+                  variant="tint"
                   size="sm"
                   iconLeft={
                     <Feather
                       name="play"
                       size={PANEL_ICON_SIZE}
-                      color={Palette.button.primary.text}
+                      color={Palette.button.tint.text}
                     />
                   }
                   onPress={() => {
@@ -997,7 +1004,7 @@ export default function PlanReviewScreen() {
                     <Feather
                       name="list"
                       size={PANEL_ICON_SIZE}
-                      color={Colors.sage[600]}
+                      color={Colors.terracotta[400]}
                     />
                   }
                   onPress={handleGroceryListPress}
@@ -1027,7 +1034,7 @@ export default function PlanReviewScreen() {
                     <Feather
                       name="shopping-cart"
                       size={PANEL_ICON_SIZE}
-                      color={Colors.sage[600]}
+                      color={Colors.terracotta[400]}
                     />
                   }
                   onPress={() => {
@@ -1047,47 +1054,52 @@ export default function PlanReviewScreen() {
                     <Feather
                       name="plus"
                       size={PANEL_ICON_SIZE}
-                      color={Colors.sage[600]}
+                      color={Colors.terracotta[400]}
                     />
                   }
                   onPress={onAddMeals}
                 />
               </View>
             </View>
+
+            {/* BUG-092 — Compost is a quiet right-aligned text LINK, not a
+                cell. As a Button it rendered full width (Button.fullWidth
+                defaults true, and size="sm" only shrinks height and type, not
+                the stretch), so the one control ruled "visually smaller" was
+                the widest thing in the panel — the exact opposite of its
+                intended weight.
+
+                Part 4 Item 2 — it moves back INSIDE the panel, bottom-right,
+                below the 2×2 grid. It is a plan-level action like the other
+                four, and sitting outside the panel made it read as belonging to
+                whatever came next down the page. It stays a LINK: the demotion
+                BUG-092 bought is the point, and re-promoting it to a cell would
+                undo that. Muted neutral ink, NOT terracotta — a destructive
+                tint would make it the loudest thing on the screen.
+
+                ⚠️ neutral[700] now sits on the panel's sage[100] rather than on
+                paper: 5.06:1, down from 5.90:1 but still past AA 4.5:1.
+
+                ⚠️ BEHAVIOUR IS BYTE-UNCHANGED — same handler, so the
+                active-plan confirm (needsActiveCompostConfirm) and the
+                deferred-delete undo toast (compostWithUndo) are both still
+                wired. Render condition is unchanged too: it was gated on
+                showActionPanel and is now a child of the panel that flag
+                renders, which is the same condition expressed structurally. */}
+            <Pressable
+              onPress={handleCompostThisPlan}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Compost this plan"
+              style={({ pressed }) => [
+                s.compostLink,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Text style={s.compostLinkText}>Compost</Text>
+            </Pressable>
           </View>
         ) : null}
-
-        {/* BUG-092 — Compost LEAVES the action cluster.
-            As a Button it rendered full width (Button.fullWidth defaults true,
-            and size="sm" only shrinks height and type, not the stretch), so the
-            one control ruled "visually smaller" was the widest thing in the
-            panel — the exact opposite of its intended weight.
-
-            It is now a quiet right-aligned text link BELOW the panel. Muted
-            neutral ink, NOT terracotta: the demotion is the point, and a
-            terracotta destructive tint would re-promote it into the loudest
-            thing on the screen.
-
-            ⚠️ BEHAVIOUR IS UNCHANGED — same handler, so the active-plan confirm
-            (needsActiveCompostConfirm) and the deferred-delete undo toast
-            (compostWithUndo) are both still wired. This is a presentation move.
-            Render condition is unchanged too: it lives in the same
-            showActionPanel branch it always did, so draft and composted states
-            are untouched. */}
-        {surface.showActionPanel && (
-          <Pressable
-            onPress={handleCompostThisPlan}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Compost this plan"
-            style={({ pressed }) => [
-              s.compostLink,
-              pressed && { opacity: 0.6 },
-            ]}
-          >
-            <Text style={s.compostLinkText}>Compost</Text>
-          </Pressable>
-        )}
 
         {/* §8.3.3 — Prep status indicator (hidden on a draft — prep is a
             saved-plan concept). D-WS9-133: the not_prepped "Start Prep" banner
@@ -1626,8 +1638,13 @@ const s = StyleSheet.create({
   // So a one-line name is 5px SHORTER than before and a wrapped one is 17px
   // taller. Not flat at two lines, and deliberately not claimed to be: those
   // 17px are the untruncated name, which is the whole point of the item.
+  // ⚠️ Part 4 Item 2 — sage[50] → sage[100], FOLLOWING the action panel below
+  // it. Part 3 made the band and the panel a deliberate byte-copy of each other
+  // so the two tinted blocks read as one stacked pair; deepening only the panel
+  // would leave them 1.16:1 apart, which is the worst available outcome — too
+  // close to read as hierarchy, far enough to read as a rendering bug.
   headerBand: {
-    backgroundColor: Colors.sage[50],
+    backgroundColor: Colors.sage[100],
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.sage[200],
@@ -1703,9 +1720,15 @@ const s = StyleSheet.create({
     backgroundColor: Colors.sage[600],
     borderColor: Colors.sage[600],
   },
+  // ⚠️ Part 4 Item 2 — sage[400] → sage[500], forced by the band going sage[100].
+  // The outline measured 2.45:1 on sage[50] and would have DROPPED to 2.19:1 on
+  // the deeper tint; sage[500] restores it to 3.29:1, which is the first value
+  // in the scale that clears the 3:1 non-text bar on this surface. Not a
+  // free-standing restyle — the same number the panel's cell borders take, for
+  // the same reason, on the same background.
   thisWeekPillInactive: {
     backgroundColor: "transparent",
-    borderColor: Colors.sage[400],
+    borderColor: Colors.sage[500],
   },
   thisWeekPillText: {
     fontSize: Typography.fontSize.sm,
@@ -1716,9 +1739,13 @@ const s = StyleSheet.create({
   thisWeekPillTextActive: {
     color: Palette.text.onSage,
   },
-  // sage[600] on the band's sage[50] tint — 4.70:1.
+  // ⚠️ Part 4 Item 2 — sage[600] → sage[700], forced by the band going sage[100].
+  // sage[600] measured 4.70:1 on sage[50] and falls to 4.20:1 on sage[100],
+  // which is BELOW AA for this 12px label. sage[700] is 6.92:1. Deepening the
+  // band without this would have shipped a text-contrast regression caused by a
+  // colour change made two styles away.
   thisWeekPillTextInactive: {
-    color: Colors.sage[600],
+    color: Colors.sage[700],
   },
   // The DRAFT commit bar and the COMPOSTED bar. Untouched by Part 3's panel
   // work — direction B restyles the live action panel only.
@@ -1731,11 +1758,17 @@ const s = StyleSheet.create({
     gap: Spacing[2],
   },
   // WS9-2 2e Part 3 (D-WS9-157) — the live action panel, direction B.
-  // Deliberately the SAME recipe as s.headerBand directly above it (sage[50]
-  // fill, Radius.lg, 1px sage[200], Spacing[3] padding) so the two tinted
-  // blocks read as one stacked pair rather than two unrelated surfaces.
+  // Deliberately the SAME recipe as s.headerBand directly above it (Radius.lg,
+  // 1px sage[200], Spacing[3] padding) so the two tinted blocks read as one
+  // stacked pair rather than two unrelated surfaces. If one moves, the other
+  // moves — Part 4 Item 2 deepened both together for exactly that reason.
+  //
+  // ⚠️ Part 4 Item 2 — sage[50] → sage[100]. The panel is the frame the cells
+  // are read against, and against sage[50] a white cell separated by only
+  // 1.28:1; at sage[100] it is 1.24:1 on the surface alone, so the CELL BORDER
+  // is what carries the boundary — which is why it moves in the same breath.
   actionPanel: {
-    backgroundColor: Colors.sage[50],
+    backgroundColor: Colors.sage[100],
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.sage[200],
@@ -1749,8 +1782,15 @@ const s = StyleSheet.create({
   // ⚠️ Deliberately NOT a retune of Palette.button.secondary.border
   // (neutral[400]) — that token has consumers well beyond this screen, and this
   // is a per-surface composition choice, which is exactly what `style` is for.
+  //
+  // ⚠️ Part 4 Item 2 — sage[400] → sage[500]. Part 3 shipped sage[400] believing
+  // it measured 3.1:1 against the panel; it was 2.45:1 on sage[50] and would be
+  // 2.19:1 on sage[100] — below the 3:1 non-text bar on both. sage[500] is
+  // 3.29:1 against the sage[100] panel (outer edge) and 4.09:1 against the
+  // cell's own white surface (inner edge). A border has two sides and both have
+  // to clear the bar; sage[500] is the first stop in the scale that does.
   panelCell: {
-    borderColor: Colors.sage[400],
+    borderColor: Colors.sage[500],
   },
   actionRow: {
     flexDirection: "row",
@@ -1769,17 +1809,25 @@ const s = StyleSheet.create({
   //
   // ⚠️ neutral[700], NOT the neutral[600] some of those precedents use.
   // neutral[600] is the LOCKED muted-text token but measures 3.49:1 on this
-  // screen's paper background — below AA. neutral[700] is 5.90:1 and still
-  // reads as secondary next to the panel above it.
+  // screen's paper background — below AA.
+  //
+  // ⚠️ Part 4 Item 2 — the link now sits INSIDE the panel, so its background is
+  // sage[100], not paper: neutral[700] measures 5.06:1 there (it was 5.90:1 on
+  // paper, and that figure in this comment was stale the moment it moved).
+  // Still past AA 4.5:1, and still reads as secondary next to the cells.
   //
   // No underline: the precedents split on this (grocery-list's unmarkLink
   // underlines, cancelText does not) and an underline would shout for
   // attention, which is the opposite of a demotion.
+  //
+  // Geometry: marginTop is GONE — the panel's own `gap: Spacing[2]` now supplies
+  // the separation from the grid, and keeping both would double it. Padding is
+  // tightened so the link sits in the panel's corner rather than floating in
+  // it; hitSlop={12} at the call site keeps the tap target honest.
   compostLink: {
     alignSelf: "flex-end",
-    paddingVertical: Spacing[2],
-    paddingHorizontal: Spacing[2],
-    marginTop: Spacing[1],
+    paddingVertical: 6,
+    paddingHorizontal: Spacing[1],
   },
   compostLinkText: {
     fontSize: Typography.fontSize.sm,

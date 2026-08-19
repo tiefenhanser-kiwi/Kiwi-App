@@ -11,7 +11,14 @@ import * as Haptics from "expo-haptics";
 
 import { Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
-type Variant = "primary" | "secondary" | "ghost";
+// WS9-2 2e Part 4 Item 2 — `tint` is net-new: a primary that carries terracotta
+// as a pale surface + full-strength edge + dark ink instead of as a fill. It
+// exists as a VARIANT rather than a per-screen override because Button derives
+// its label colour from VARIANTS and `style` (a ViewStyle) cannot reach it —
+// and because two surfaces need the identical cell (Plan Review's action panel
+// and Home's ActivePlanStrip panel). §27.2: extend the primitive, do not
+// hand-roll the same Pressable twice.
+type Variant = "primary" | "secondary" | "ghost" | "tint";
 
 // WS9-2 2e (D-WS9-157) — size scale. The plan-review action panel needs one
 // cell (Compost) rendered visually SMALLER than its four peers, and the ruling
@@ -114,6 +121,11 @@ const VARIANTS: Record<
     bg: Palette.button.ghost.background,
     text: Palette.button.ghost.text,
     border: Palette.button.ghost.border,
+  },
+  tint: {
+    bg: Palette.button.tint.background,
+    text: Palette.button.tint.text,
+    border: Palette.button.tint.border,
   },
 };
 

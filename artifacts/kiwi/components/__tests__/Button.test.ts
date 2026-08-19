@@ -20,7 +20,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
 import { Button } from "../Button";
-import { Radius, Spacing, Typography } from "@/constants/tokens";
+import { Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 type Json = {
   type: string;
@@ -128,4 +128,65 @@ test("sm is the SAME button at lower volume — radius, weight and face are shar
 test("a caller `style` still wins over the size metrics", () => {
   const s = rootStyle(render({ label: "x", size: "sm", style: { paddingVertical: 40 } }));
   assert.equal(s.paddingVertical, 40);
+});
+
+// ── the `tint` variant (WS9-2 2e Part 4 Item 2) ─────────────────────────────
+//
+// `tint` exists so a primary can sit inside a tinted panel without being a
+// solid terracotta block. Two things are worth pinning: that it is genuinely
+// NOT a fill (the whole point), and that its ink is unreachable from `style`
+// (the reason it had to be a variant rather than a per-screen override).
+
+test("tint is NOT a fill — it never paints the primary's terracotta[400]", () => {
+  // If someone "simplifies" tint back onto the primary background, both action
+  // panels silently regain the loud block this variant was created to remove.
+  const s = rootStyle(render({ label: "Prep and Cook", variant: "tint" }));
+  assert.equal(s.backgroundColor, Palette.button.tint.background);
+  assert.notEqual(
+    s.backgroundColor,
+    Palette.button.primary.background,
+    "tint must not resolve to the terracotta fill",
+  );
+});
+
+test("tint is surface + EDGE + ink — a tint without its border is just a wash", () => {
+  for (const size of ["md", "sm"] as const) {
+    const s = rootStyle(render({ label: "Prep and Cook", variant: "tint", size }));
+    assert.equal(s.borderWidth, 1, `tint keeps its edge at size=${size}`);
+    assert.equal(s.borderColor, Palette.button.tint.border);
+  }
+});
+
+test("tint's LABEL colour comes from the variant, and `style` cannot reach it", () => {
+  // This is why tint is a variant at all: Button derives label colour from
+  // VARIANTS, and `style` is a ViewStyle that never touches the Text. A test
+  // that only checked the background would not notice the ink reverting.
+  const node = render({ label: "Prep and Cook", variant: "tint" });
+  assert.equal(labelStyle(node).color, Palette.button.tint.text);
+
+  const overridden = render({
+    label: "Prep and Cook",
+    variant: "tint",
+    style: { backgroundColor: "#000000" },
+  });
+  assert.equal(
+    labelStyle(overridden).color,
+    Palette.button.tint.text,
+    "a ViewStyle override moves the surface but must not move the ink",
+  );
+});
+
+test("adding tint left the other three variants alone", () => {
+  assert.equal(
+    rootStyle(render({ label: "x", variant: "primary" })).backgroundColor,
+    Palette.button.primary.background,
+  );
+  assert.equal(
+    rootStyle(render({ label: "x", variant: "secondary" })).backgroundColor,
+    Palette.button.secondary.background,
+  );
+  assert.equal(
+    rootStyle(render({ label: "x", variant: "ghost" })).backgroundColor,
+    Palette.button.ghost.background,
+  );
 });

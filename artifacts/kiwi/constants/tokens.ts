@@ -167,6 +167,26 @@ export const Palette = {
       text:       Colors.terracotta[600],
       border:     Colors.terracotta[300],
     },
+    // WS9-2 2e Part 4 Item 2 — TERRACOTTA AS A TINT, NOT A FILL. The primary
+    // action of a group carries the accent as a pale surface + a full-strength
+    // edge and dark ink, rather than as a solid block of terracotta[400].
+    //
+    // ⚠️ NOT interchangeable with `primary`. This is the treatment for a
+    // primary that sits INSIDE a tinted panel among peer cells: a fill there
+    // reads as the loudest object on the whole screen and flattens the panel's
+    // own tint underneath it. On a plain white card, `primary` is still right.
+    //
+    // Measured: terracotta[600] on terracotta[50] = 7.04:1 (label + icon, past
+    // AA at any size). The terracotta[400] edge is 4.16:1 against its own
+    // surface and 3.80:1 against the sage[100] panel it sits on — it clears the
+    // 3:1 non-text bar on BOTH sides, which a tint has to, since it has an
+    // inside and an outside.
+    tint: {
+      background: Colors.terracotta[50],
+      text:       Colors.terracotta[600],
+      border:     Colors.terracotta[400],
+      hover:      Colors.terracotta[100],
+    },
   },
 
   chip: {
