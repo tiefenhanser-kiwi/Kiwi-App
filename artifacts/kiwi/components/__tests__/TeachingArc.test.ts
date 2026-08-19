@@ -1,15 +1,19 @@
 // WS9-2 2e Phase 1 (D-WS9-160) — TeachingArc.
 //
 // This component had NO test file and it is the first thing a brand-new user
-// sees. Three things are pinned here, all of which a careless edit breaks
-// silently:
+// sees. Things pinned here, all of which a careless edit breaks silently:
 //   1. the WORD ORDER, which was deliberately reversed and could be "corrected"
 //      back by anyone reading the old locked-order comment in git history;
-//   2. the ramp PAIRING — STEPS[i] is coloured by ramp[i], so reordering one
-//      list without the other re-assigns colours with no type error;
-//   3. the emphasis channel — with all five words coloured, WEIGHT is the only
-//      thing distinguishing the lead word, and a "tidy-up" that unifies the
-//      font faces would erase it invisibly.
+//   2. the INDEX PAIRINGS — STEPS[i] takes STEP_ICONS[i] and is dotted by
+//      ramp[i], so reordering one list without the others re-pairs them with no
+//      type error;
+//   3. the emphasis channel — WEIGHT is the only thing distinguishing the lead
+//      word, and a "tidy-up" that unifies the font faces would erase it.
+//
+// ⚠️ WS9-2 2e Part 4 Item 5 rewrote a block of these. Colour left the WORDS and
+// moved into a decorative gradient rule, so what used to be pinned as
+// "word i is painted with ramp[i]" is now pinned as its inverse — no word may
+// carry a ramp colour — plus the sweep, its stop positions, and the dots.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -20,7 +24,13 @@ import { test } from "node:test";
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
-import { TeachingArc, STEPS, ARC_SUBLINE } from "../TeachingArc";
+import {
+  TeachingArc,
+  STEPS,
+  STEP_ICONS,
+  ARC_SUBLINE,
+  stopLocations,
+} from "../TeachingArc";
 import { Colors, Components, Typography } from "@/constants/tokens";
 
 type Json = {
@@ -40,6 +50,16 @@ function render(): Json {
 function flatten(style: unknown): Record<string, unknown> {
   const parts = Array.isArray(style) ? style : [style];
   return Object.assign({}, ...parts.filter(Boolean));
+}
+
+/** Every node of `type` in render order. */
+function findAll(node: Json | string | null, type: string): Json[] {
+  if (node == null || typeof node === "string") return [];
+  const here = node.type === type ? [node] : [];
+  const kids = Array.isArray(node.children)
+    ? node.children.flatMap((c) => findAll(c, type))
+    : [];
+  return [...here, ...kids];
 }
 
 /** Every rn-text node in render order. */
@@ -98,25 +118,36 @@ test("the ramp has exactly one stop per word", () => {
   );
 });
 
-test("word i is painted with ramp[i] — the pairing is positional", () => {
-  const nodes = wordNodes(render());
-  nodes.forEach((n, i) => {
-    assert.equal(
-      flatten(n.props.style).color,
-      Components.teachingArc.ramp[i],
-      `"${textContent(n)}" must use ramp stop ${i}`,
-    );
-  });
+// ⚠️ WS9-2 2e Part 4 Item 5 — THE NEXT FOUR TESTS ARE REWRITTEN, and the
+// ruling under them moved. Part 2 painted each WORD with its own ramp stop, so
+// these pinned the word↔stop pairing, the exact bridge values, and the absence
+// of a fallback word colour.
+//
+// Treatment A takes colour off the words entirely and puts it in a decorative
+// gradient RULE beneath them. So the pairing being pinned is now stop↔DOT, and
+// the strongest assertion available is the inverse of the old one: NO word may
+// carry a ramp colour at all.
+
+test("the ramp runs sage → terracotta — the direction is REVERSED from Part 2", () => {
+  // ⚠️ Part 2's ramp ran terracotta → sage through three net-new bridge browns.
+  // This is the other way round, on ordinary scale stops, and it is ruled.
+  assert.deepEqual(Components.teachingArc.ramp, [
+    Colors.sage[700],
+    Colors.sage[400],
+    Colors.sage[300],
+    Colors.terracotta[300],
+    Colors.terracotta[600],
+  ]);
 });
 
-test("the ramp runs terracotta → sage, through the three net-new bridge stops", () => {
-  assert.deepEqual(Components.teachingArc.ramp, [
-    Colors.terracotta[400],
-    Colors.bridge.amber,
-    Colors.bridge.gold,
-    Colors.bridge.olive,
-    Colors.sage[700],
-  ]);
+test("Colors.bridge is GONE — the ramp it existed for no longer exists", () => {
+  // It had exactly two consumers: that ramp and this file. If it comes back,
+  // something has re-imposed the AA floor that forced it into existence.
+  assert.equal(
+    (Colors as Record<string, unknown>).bridge,
+    undefined,
+    "bridge amber/gold/olive were computed to make WORDS pass AA; words are neutral now",
+  );
 });
 
 test("all five stops are DISTINCT — a progression, not a flat fill", () => {
@@ -124,17 +155,133 @@ test("all five stops are DISTINCT — a progression, not a flat fill", () => {
   assert.equal(unique.size, 5);
 });
 
-test("no word carries a hardcoded fallback colour under the ramp", () => {
-  // styles.word deliberately omits `color`. If a default is reintroduced, a
-  // missing ramp stop stops being visible as a bug.
+test("Item 5: NO word carries a ramp colour — the colour left the type", () => {
+  // The inverse of the assertion this replaces. Part 2's whole problem was that
+  // ramp stops had to double as body-text ink; if a stop reappears on a word,
+  // that constraint is back and the pale middle of the rule becomes a bug
+  // report waiting to happen.
   const nodes = wordNodes(render());
+  assert.equal(nodes.length, STEPS.length);
   for (const n of nodes) {
     const c = flatten(n.props.style).color;
+    assert.equal(
+      c,
+      Colors.neutral[800],
+      `"${textContent(n)}" must be neutral ink, not a ramp stop`,
+    );
     assert.ok(
-      Components.teachingArc.ramp.includes(c as string),
-      `word colour ${String(c)} is not a ramp stop`,
+      !Components.teachingArc.ramp.includes(c as string),
+      `ramp colour ${String(c)} leaked back onto a word`,
     );
   }
+});
+
+test("Item 5: the icons are muted NEUTRAL too, never ramp stops", () => {
+  const icons = findAll(render(), "icon-feather");
+  assert.equal(icons.length, STEPS.length, "one icon per stop");
+  for (const i of icons) {
+    assert.equal(i.props.color, Colors.neutral[600]);
+    assert.ok(
+      !Components.teachingArc.ramp.includes(i.props.color as string),
+      "an icon must not carry a ramp stop either",
+    );
+  }
+});
+
+test("Item 5: each STEP owns its glyph, by name", () => {
+  // ⚠️ PINNED AS A MAP, not compared against STEP_ICONS. A deepEqual of the
+  // render against STEP_ICONS is a TAUTOLOGY — edit the constant and both sides
+  // move together, so it stays green through exactly the re-pairing it claims
+  // to catch. (Found by deliberately breaking it; the first version passed.)
+  assert.equal(STEP_ICONS.length, STEPS.length);
+  assert.deepEqual(
+    Object.fromEntries(STEPS.map((s, i) => [s, STEP_ICONS[i]])),
+    {
+      plans: "calendar",
+      meals: "book-open",
+      groceries: "shopping-cart",
+      prep: "clipboard",
+      cook: "play",
+    },
+  );
+});
+
+test("Item 5: the five glyphs are DISTINCT — one identity per stop", () => {
+  assert.equal(new Set(STEP_ICONS).size, STEPS.length);
+});
+
+test("Item 5: the component renders those glyphs, in STEPS order", () => {
+  const rendered = findAll(render(), "icon-feather").map((n) => n.props.name);
+  assert.deepEqual(rendered, [...STEP_ICONS]);
+});
+
+// ── the gradient rule ───────────────────────────────────────────────────────
+
+test("Item 5: the rule is ONE gradient, not five bands", () => {
+  // Five adjacent two-stop gradients would render with visible seams at every
+  // join. A single sweep is the entire point of the treatment.
+  const grads = findAll(render(), "rn-linear-gradient");
+  assert.equal(grads.length, 1, "one continuous sweep across the whole rule");
+});
+
+test("Item 5: the sweep carries every ramp stop, in ramp order", () => {
+  const g = findAll(render(), "rn-linear-gradient")[0];
+  assert.ok(g, "gradient not found");
+  assert.deepEqual(
+    [...(g.props.colors as string[])],
+    [...Components.teachingArc.ramp],
+  );
+  // Horizontal, left to right — a vertical sweep would be invisible on a 3px rule.
+  assert.deepEqual(g.props.start, { x: 0, y: 0.5 });
+  assert.deepEqual(g.props.end, { x: 1, y: 0.5 });
+});
+
+test("Item 5: each stop's colour lands on its own DOT's centre", () => {
+  // The stops are laid out in five equal flex:1 cells, so cell i is centred at
+  // (2i+1)/2n. If `locations` drifted off those centres the sweep would still
+  // look fine and every dot would sit on the wrong colour.
+  const g = findAll(render(), "rn-linear-gradient")[0];
+  assert.deepEqual(
+    [...(g.props.locations as number[])],
+    [0.1, 0.3, 0.5, 0.7, 0.9],
+  );
+  assert.deepEqual(stopLocations(STEPS.length), [0.1, 0.3, 0.5, 0.7, 0.9]);
+});
+
+test("Item 5: stopLocations is DERIVED — it tracks the step count", () => {
+  // Hardcoded locations would silently mis-register every dot the moment a
+  // sixth step was added.
+  assert.deepEqual(stopLocations(2), [0.25, 0.75]);
+  assert.deepEqual(stopLocations(4), [0.125, 0.375, 0.625, 0.875]);
+  assert.equal(stopLocations(6).length, 6);
+});
+
+test("Item 5: there is one DOT per stop, each carrying its own ramp colour", () => {
+  const root = render();
+  const dots = findAll(root, "rn-view").filter((n) => {
+    const s = flatten(n.props.style);
+    return (
+      typeof s.borderRadius === "number" &&
+      s.width === s.height &&
+      typeof s.width === "number" &&
+      Components.teachingArc.ramp.includes(s.backgroundColor as string)
+    );
+  });
+  assert.equal(dots.length, STEPS.length, "one dot per stop");
+  assert.deepEqual(
+    dots.map((d) => flatten(d.props.style).backgroundColor),
+    [...Components.teachingArc.ramp],
+  );
+});
+
+test("Item 5: the arrows are GONE — the rule is the only connector", () => {
+  // Keeping "→" between the words alongside the gradient would be two
+  // connectors doing one job.
+  const rendered = texts(render()).map(textContent);
+  assert.ok(
+    !rendered.some((s) => s.includes("→")),
+    "an arrow survived the move to the gradient rule",
+  );
 });
 
 // ── emphasis is WEIGHT, not colour ──────────────────────────────────────────
@@ -158,10 +305,14 @@ test("the other four words share ONE lighter weight", () => {
   }
 });
 
-test("emphasis is not smuggled back in as colour — ramp[0] is just terracotta", () => {
-  // i.e. the lead word must NOT get a second, louder colour on top of its stop.
-  const lead = flatten(wordNodes(render())[0].props.style);
-  assert.equal(lead.color, Components.teachingArc.ramp[0]);
+test("emphasis is not smuggled back in as colour — every word is the SAME ink", () => {
+  // ⚠️ Rewritten for Item 5. It used to assert the lead word carried ramp[0]
+  // and nothing louder. There is no per-word colour left, so the equivalent
+  // guarantee is that the lead word's ink is identical to its four neighbours'
+  // — weight is the only thing telling them apart.
+  const inks = wordNodes(render()).map((n) => flatten(n.props.style).color);
+  assert.equal(new Set(inks).size, 1, `five inks found: ${JSON.stringify(inks)}`);
+  assert.equal(inks[0], Colors.neutral[800]);
 });
 
 // ── the sub-line ────────────────────────────────────────────────────────────
