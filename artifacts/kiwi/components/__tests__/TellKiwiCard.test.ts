@@ -22,9 +22,10 @@ import {
   TellKiwiCard,
   TELL_KIWI_PLACEHOLDERS,
   ADD_OWN_MEALS_SUBLINE,
+  DEFAULT_SUBTITLE,
   PLACEHOLDER_INTERVAL_MS,
 } from "../TellKiwiCard";
-import { Colors, Components, Palette } from "@/constants/tokens";
+import { Colors, Components, Palette, Typography } from "@/constants/tokens";
 
 type Json = {
   type: string;
@@ -285,23 +286,83 @@ test("rotation is OFF while the field holds text — a moving placeholder under 
   );
 });
 
-test("rotation is OFF while focused", async () => {
+// ⚠️ Part 4 Item 4 — THIS TEST CHANGED. It used to assert that the placeholder
+// was still showing TELL_KIWI_PLACEHOLDERS[0] after focus, i.e. that focus
+// stopped the rotation but left the string painted. Focus now CLEARS it: a
+// frozen suggestion under a live cursor looks like text the user has to delete,
+// and the only way to learn it is not real text is to try.
+//
+// The original intent — "focused: the placeholder must not advance" — is kept
+// and strengthened: it must not advance AND must not be visible at all.
+test("focus CLEARS the placeholder, and nothing advances while focused", async () => {
   const { root, tree } = render({ __forceReduceMotion: false });
   const input = byType(root, "rn-text-input")[0];
   assert.ok(input, "input found");
+  assert.ok(
+    allText(root).includes(TELL_KIWI_PLACEHOLDERS[0]),
+    "unfocused: a suggestion is showing",
+  );
+
   act(() => {
     (input.props.onFocus as () => void)();
   });
-  const before = allText(tree.toJSON() as unknown as Json);
-  assert.ok(before.includes(TELL_KIWI_PLACEHOLDERS[0]));
+  const ph = () =>
+    walk(tree.toJSON() as unknown as Json).find(
+      (n) => n.type === "rn-animated-text",
+    );
+  assert.equal(
+    allText(ph()!).join(""),
+    "",
+    "focused: the user types into a genuinely empty field",
+  );
+
   await act(async () => {
     await new Promise((r) => setTimeout(r, 60));
   });
-  const after = allText(tree.toJSON() as unknown as Json);
-  assert.ok(
-    after.includes(TELL_KIWI_PLACEHOLDERS[0]),
-    "focused: the placeholder must not advance",
+  assert.equal(
+    allText(ph()!).join(""),
+    "",
+    "focused: nothing advances underneath, either",
   );
+  // And no OTHER placeholder leaked into the tree in its place.
+  const after = allText(tree.toJSON() as unknown as Json);
+  for (const p of TELL_KIWI_PLACEHOLDERS) {
+    assert.ok(!after.includes(p), `placeholder still painted while focused: ${p}`);
+  }
+});
+
+test("blur RESTORES the placeholder on an empty field", () => {
+  // The clear is a focus state, not a one-way door: an empty field that stays
+  // blank after the user taps away has simply lost its invitation.
+  const { root, tree } = render({ __forceReduceMotion: false });
+  const input = byType(root, "rn-text-input")[0];
+  act(() => {
+    (input.props.onFocus as () => void)();
+  });
+  act(() => {
+    (input.props.onBlur as () => void)();
+  });
+  const ph = walk(tree.toJSON() as unknown as Json).find(
+    (n) => n.type === "rn-animated-text",
+  );
+  assert.equal(allText(ph!).join(""), TELL_KIWI_PLACEHOLDERS[0]);
+});
+
+test("blur does NOT restore a placeholder over text the user typed", () => {
+  // `hasText` already blanks it; the focus clear must not have introduced a
+  // path where blurring a filled field repaints a suggestion behind the value.
+  const { root, tree } = render({ __forceReduceMotion: false, value: "tacos" });
+  const input = byType(root, "rn-text-input")[0];
+  act(() => {
+    (input.props.onFocus as () => void)();
+  });
+  act(() => {
+    (input.props.onBlur as () => void)();
+  });
+  const ph = walk(tree.toJSON() as unknown as Json).find(
+    (n) => n.type === "rn-animated-text",
+  );
+  assert.equal(allText(ph!).join(""), "");
 });
 
 test("blurring an empty field resumes from the FIRST string, not a half-faded frame", () => {
@@ -339,6 +400,108 @@ test("title and input share ONE row", () => {
     byType(row!, "rn-text-input").length,
     1,
     "the input sits in the same row as the title",
+  );
+});
+
+// ── Part 4 Item 4: the vertical order ───────────────────────────────────────
+//
+// The copy lines are DIVIDERS — each introduces the path below it. That is a
+// claim about ORDER, so order is what gets pinned. Reading it off the rendered
+// tree rather than off the source means a re-shuffle cannot pass by looking
+// plausible in a diff.
+
+/** Every rendered string, in render (document) order. */
+function orderedText(root: Json): string[] {
+  return allText(root).filter((s) => s.trim().length > 0);
+}
+function indexOf(root: Json, needle: string): number {
+  return orderedText(root).indexOf(needle);
+}
+
+test("Item 4: the sub-line LEADS — it sits ABOVE the input, not below it", () => {
+  // It used to sit under the input, reading as a footnote to a control the user
+  // had already decided about.
+  const { root } = render();
+  const sub = indexOf(root, DEFAULT_SUBTITLE);
+  const title = indexOf(root, "Tell Kiwi");
+  assert.ok(sub >= 0, "sub-line not found");
+  assert.ok(title >= 0, "title not found");
+  assert.ok(sub < title, "the sub-line must precede the Tell Kiwi input row");
+});
+
+test("Item 4: the sub-line is one step UP the type scale", () => {
+  // It read slightly small on device, and it is now the first line on the card.
+  const { root } = render();
+  const node = walk(root).find(
+    (n) => allText(n).join("") === DEFAULT_SUBTITLE,
+  );
+  assert.ok(node, "sub-line node not found");
+  const s = flatten(node!.props.style);
+  assert.equal(s.fontSize, Typography.fontSize.base, "14px, not 12px");
+  assert.notEqual(
+    s.fontSize,
+    Typography.fontSize.sm,
+    "fontSize.sm is the size it was bumped off",
+  );
+});
+
+test("Item 4: 'Use my preferences' comes BEFORE 'Surprise me' — reversed, ruled", () => {
+  const { root } = render();
+  const prefs = indexOf(root, "Use my preferences");
+  const surprise = indexOf(root, "Surprise me");
+  assert.ok(prefs >= 0 && surprise >= 0, "both options render");
+  assert.ok(
+    prefs < surprise,
+    "2e Part 2 shipped these the other way round; Part 4 reverses it",
+  );
+});
+
+test("Item 4: the conditional connector introduces the option BELOW it", () => {
+  const { root } = render({ showAddOwnMeals: true });
+  const line = indexOf(root, ADD_OWN_MEALS_SUBLINE);
+  const option = indexOf(root, "Add my own meals");
+  assert.ok(line >= 0 && option >= 0, "both render together");
+  assert.ok(
+    line < option,
+    "it was a caption under the option; it is now a divider above it",
+  );
+});
+
+test("Item 4: the WHOLE card reads in the ruled order, top to bottom", () => {
+  // One assertion over the real render order, so a re-shuffle of any pair is
+  // caught even if each pairwise test above were individually satisfied.
+  const { root } = render({ showAddOwnMeals: true });
+  const marks = [
+    DEFAULT_SUBTITLE,
+    "Tell Kiwi",
+    "or let Kiwi take it from here",
+    "Use my preferences",
+    "Surprise me",
+    ADD_OWN_MEALS_SUBLINE,
+    "Add my own meals",
+  ];
+  const positions = marks.map((m) => indexOf(root, m));
+  for (const [i, p] of positions.entries()) {
+    assert.ok(p >= 0, `missing from the card: ${marks[i]}`);
+  }
+  assert.deepEqual(
+    positions,
+    [...positions].sort((a, b) => a - b),
+    `render order was ${JSON.stringify(
+      positions.map((p, i) => [marks[i], p]),
+    )}`,
+  );
+});
+
+test("Item 4: D-WS9-163's gate is UNCHANGED — the connector is gated too", () => {
+  // Both the connector and the option hang off the same flag. If the connector
+  // ever escaped the gate, a user with saved plans would see a line introducing
+  // a path that is not there.
+  const t = allText(render().root);
+  assert.ok(!t.includes("Add my own meals"));
+  assert.ok(
+    !t.includes(ADD_OWN_MEALS_SUBLINE),
+    "the connector must not render without the option it introduces",
   );
 });
 

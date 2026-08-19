@@ -1,14 +1,25 @@
 // WS9 L2b — Tell Kiwi card. ONE sage card: the make lane's hero.
 //
-// WS9-2 2e (D-WS9-162) — REBUILT. Structure, top to bottom:
-//   1. title "Tell Kiwi" INLINE, left of the input, sharing one row (frees a
+// WS9-2 2e (D-WS9-162) — REBUILT. Restructured again in Part 4 Item 4.
+//
+// ⚠️ THE COPY LINES ARE DIVIDERS. Each one introduces the path BELOW it, and
+// that is why the sub-line moved above the input: it was sitting under the
+// thing it describes, reading as a footnote to the input rather than as the
+// invitation to use it. Order, top to bottom:
+//
+//   1. the sub-line — "A mood, a cuisine, a whole week…" — INTRODUCING the
+//      input beneath it (was below the input);
+//   2. title "Tell Kiwi" INLINE, left of the input, sharing one row (frees a
 //      full row of height that a stacked headline used to cost);
-//   2. the input filling the rest of that row — white, pill-radius, with a
-//      circular terracotta send button at its right edge;
-//   3. a rotating placeholder (5 strings, ~2.6s each, short cross-fade);
-//   4. a sub-line;
-//   5. a LIGHT connector line;
-//   6. two or three white option rows with terracotta ICON TINTS.
+//   3. the input filling the rest of that row — white, pill-radius, with a
+//      circular terracotta send button at its right edge, plus a rotating
+//      placeholder (5 strings, ~2.6s each, short cross-fade);
+//   4. a LIGHT connector line — "or let Kiwi take it from here";
+//   5. "Use my preferences", THEN "Surprise me" (⚠️ reversed from what 2e
+//      Part 2 shipped — ruled);
+//   6. a CONDITIONAL connector — "or bring in recipes you already love…" —
+//      which likewise moved ABOVE the option it introduces;
+//   7. "Add my own meals", the conditional third option.
 //
 // ⚠️ THE SEND BUTTON IS THE CARD'S ONLY TERRACOTTA FILL. The option-row icons
 // are a tint on white, which is a different thing. Do not add a second fill.
@@ -48,7 +59,7 @@ import {
 } from "@/constants/tokens";
 
 const DEFAULT_TITLE = "Tell Kiwi";
-const DEFAULT_SUBTITLE =
+export const DEFAULT_SUBTITLE =
   "A mood, a cuisine, a whole week — say it however you like.";
 const CONNECTOR_COPY = "or let Kiwi take it from here";
 
@@ -199,13 +210,33 @@ export function TellKiwiCard({
     return () => clearInterval(timer);
   }, [rotating, fade]);
 
-  // When rotation is off for ANY reason, show the first string — never a
-  // half-faded frame or whichever one the timer happened to stop on.
-  const placeholder = rotating ? TELL_KIWI_PLACEHOLDERS[index] : TELL_KIWI_PLACEHOLDERS[0];
+  // ⚠️ Part 4 Item 4 — FOCUS CLEARS THE VISIBLE STRING, it does not merely stop
+  // it moving. Rotation already stopped on focus, which left a frozen suggestion
+  // sitting under the cursor: the user is typing into a field that still appears
+  // to contain someone else's sentence, and the only way to find out it is not
+  // real text is to try to delete it.
+  //
+  // Restored on blur when the field is empty — `focused` goes false, `rotating`
+  // goes true again, and the string comes back. A field with text keeps
+  // rendering nothing, which is the pre-existing `hasText` behaviour below.
+  //
+  // When rotation is off for any OTHER reason (reduce-motion, or text present),
+  // still show the first string — never a half-faded frame or whichever one the
+  // timer happened to stop on.
+  const placeholder = focused
+    ? ""
+    : rotating
+      ? TELL_KIWI_PLACEHOLDERS[index]
+      : TELL_KIWI_PLACEHOLDERS[0];
 
   return (
     <View style={styles.card}>
-      {/* 1 + 2 — title and input share one row. */}
+      {/* 1 — the sub-line LEADS. It introduces the input below it; underneath
+          the input it read as a footnote to a control the user had already
+          decided about. */}
+      <Text style={styles.subtitle}>{subtitle}</Text>
+
+      {/* 2 + 3 — title and input share one row. */}
       <View style={styles.headRow}>
         <Text style={styles.title}>{title}</Text>
         <View style={styles.inputWrap}>
@@ -249,37 +280,50 @@ export function TellKiwiCard({
         </View>
       </View>
 
-      {/* 4 */}
-      <Text style={styles.subtitle}>{subtitle}</Text>
-
-      {/* 5 — LIGHT, not muted-dark. On a sage[600] surface a lighter tone means
+      {/* 4 — LIGHT, not muted-dark. On a sage[600] surface a lighter tone means
           MORE contrast, so legibility and the visual intent pull the same way:
           4.62:1. The old onSageSub value would have been 3.71:1 — below AA. */}
       <Text style={styles.connector}>{CONNECTOR_COPY}</Text>
 
-      {/* 6 */}
+      {/* 5 */}
       <View style={styles.options}>
-        <OptionRow
-          icon="zap"
-          title="Surprise me"
-          description="A full week, chosen for you"
-          onPress={onSurprise}
-        />
+        {/* ⚠️ Part 4 Item 4 — "Use my preferences" LEADS, and "Surprise me"
+            follows. This is REVERSED from what 2e Part 2 shipped and the
+            reversal is ruled. */}
         <OptionRow
           icon="sliders"
           title="Use my preferences"
           description="Built from what you already like"
           onPress={onUsePreferences}
         />
+        <OptionRow
+          icon="zap"
+          title="Surprise me"
+          description="A full week, chosen for you"
+          onPress={onSurprise}
+        />
+        {/* ⚠️ 6 + 7 — THE CONDITIONAL GATE IS UNCHANGED (D-WS9-163). Both the
+            connector AND the option are gated on `showAddOwnMeals`, which Home
+            derives from shouldOfferAddOwnMeals(usePlans(["my_plans"]) count):
+            true only when the count RESOLVES to zero. While the query is in
+            flight the count is UNKNOWN, not zero, and the two-option form
+            renders. It is deliberately NOT isFirstRun — that stamp is permanent
+            and monotonic, so it would hide this option from exactly the user
+            who has composted their only plan and needs it.
+
+            Part 4 Item 4 — the sub-line moved ABOVE the option it introduces,
+            like every other copy line on this card. Same string, verbatim,
+            naming the three input methods; that is the whole point of the line
+            and it is pinned by a test. */}
         {showAddOwnMeals && (
           <>
+            <Text style={styles.addOwnSub}>{ADD_OWN_MEALS_SUBLINE}</Text>
             <OptionRow
               icon="edit-3"
               title="Add my own meals"
               description="Start from a recipe you know"
               onPress={onAddOwnMeals}
             />
-            <Text style={styles.addOwnSub}>{ADD_OWN_MEALS_SUBLINE}</Text>
           </>
         )}
       </View>
@@ -355,11 +399,16 @@ const styles = StyleSheet.create({
   // one line of a card while leaving its neighbour failing beside it is not a
   // fix. Raised to the same onSage tone (4.62:1); hierarchy against the
   // connector is carried by WEIGHT (regular vs medium), not by tone.
+  //
+  // ⚠️ Part 4 Item 4 — fontSize.sm (12) → fontSize.base (14), one step up the
+  // scale: it read slightly small on device, and it is now the FIRST line on
+  // the card rather than a footnote under the input. marginTop → marginBottom
+  // for the same reason — it leads the card, so its spacing belongs beneath it.
   subtitle: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: Typography.fontSize.base,
     color: Palette.text.onSage,
     fontFamily: Typography.face.sans[400],
-    marginTop: 10,
+    marginBottom: 12,
   },
   connector: {
     fontSize: Typography.fontSize.sm,
@@ -401,11 +450,22 @@ const styles = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     marginTop: 1,
   },
+  // ⚠️ Part 4 Item 4 — this is now a CONNECTOR, not a caption. It moved above
+  // the option it introduces, so it takes the same treatment as the connector
+  // above the first two options (size, tone, and the medium weight): the two
+  // lines do the same job on the same card and reading as two different kinds
+  // of text would be the tell that one of them is an afterthought.
+  //
+  // No margins of its own — styles.options already supplies Spacing[2] between
+  // every child, and marginTop would stack on top of that gap rather than
+  // replace it. marginTop:6 buys a little extra air above it only, because it
+  // opens a new path rather than continuing the list above.
   addOwnSub: {
     fontSize: Typography.fontSize.sm,
     color: Components.tellKiwi.connector,
-    fontFamily: Typography.face.sans[400],
-    marginTop: 2,
+    fontFamily: Typography.face.sans[500],
+    fontWeight: Typography.fontWeight.medium,
+    marginTop: 6,
     paddingHorizontal: 2,
   },
 });
