@@ -42,6 +42,8 @@ import {
   type SectionKey,
 } from "./ai/schemas/grocery";
 import type { ConsolidatedItem } from "./groceryList";
+import { normalizeIngredientName } from "./groceryNormalization";
+import { logger } from "./logger";
 import {
   resolveConversion,
   scalePurchaseForSubUnit,
@@ -417,6 +419,81 @@ export async function generateFinalGroceryList(
     );
   }
 
+  // BUG-095 — match AI output back to source items by IDENTITY, not position.
+  //
+  // The prompt explicitly permits reordering ("The output order should follow
+  // grocery-store flow when possible ... but a stable input order is also
+  // acceptable") and permits merging two same-canonicalName inputs into one
+  // output (rule 2). The only guard was a LENGTH comparison, so the old
+  // `aiSubset[i]` zip attached the i-th source's purchase pack — and the i-th
+  // source's final index — to whatever the model happened to put in slot i.
+  // That is how `1 bunch eggs`, `1 dozen milk` and a bananas row wearing white
+  // onion's pack reach a real user's list.
+  //
+  // canonicalName is the identity key: the prompt tells the model to refine
+  // displayName, never canonicalName, and echoes it in every worked example.
+  // Names are matched through normalizeIngredientName so a case or whitespace
+  // wobble in the echo does not fail the match.
+  //
+  // Queue-per-name, consumed in original-index order. This is what defines the
+  // three interesting cases:
+  //   • REORDER — each output pops the one source carrying its name, wherever
+  //     the model moved it to. Pack and index follow the source, not the slot.
+  //   • MERGE (rule 2 — same canonicalName, different units) — both sources sit
+  //     in the same queue, so the single merged output pops the FIRST of them:
+  //     it inherits the LOWEST original index (the merged row lands where the
+  //     earlier of its parts was) and that same source's pack basis. The two
+  //     parts share a canonicalName, so they resolve the same conversion row
+  //     and the pack is recomputed against the AI's merged quantity/unit
+  //     anyway; picking the lowest index makes the outcome DEFINED rather than
+  //     incidentally-correct. The un-popped sibling is simply dropped, which is
+  //     what a merge means.
+  //   • DUPLICATE canonicals that were NOT merged (BUG-096's singular/plural
+  //     rows can produce these) — outputs pop in order, so the first output for
+  //     a name takes the first source, the second takes the second. Same
+  //     tie-break, one rule.
+  //
+  // FAIL CLOSED: an output whose name matches no unconsumed source gets NULL
+  // pack fields and a leftover index — never a neighbour's pack. It is logged,
+  // because a model that stops echoing canonicalName would otherwise silently
+  // strip every pack from the list.
+  const queueByName = new Map<string, PartitionedItem[]>();
+  for (const entry of aiSubset) {
+    const key = normalizeIngredientName(entry.item.canonicalName);
+    const q = queueByName.get(key);
+    if (q) q.push(entry);
+    else queueByName.set(key, [entry]);
+  }
+  // Leftover index pool for unmatched outputs, ascending. Populated after the
+  // matching pass so it only contains indices no matched row claimed.
+  const claimed = new Set<number>();
+  const matches: (PartitionedItem | null)[] = result.data.items.map((out) => {
+    const q = queueByName.get(normalizeIngredientName(out.canonicalName));
+    const entry = q && q.length > 0 ? q.shift()! : null;
+    if (entry) claimed.add(entry.index);
+    return entry ?? null;
+  });
+  const leftoverIndices = aiSubset
+    .map((e) => e.index)
+    .filter((idx) => !claimed.has(idx))
+    .sort((a, b) => a - b);
+  const unmatchedNames = result.data.items
+    .filter((_, i) => matches[i] === null)
+    .map((o) => o.canonicalName);
+  if (unmatchedNames.length > 0) {
+    logger.warn(
+      {
+        event: "grocery_ai_output_unmatched",
+        userId: opts.userId,
+        unmatchedNames,
+        unmatchedCount: unmatchedNames.length,
+        aiOutputCount: result.data.items.length,
+        aiSubsetCount: aiSubset.length,
+      },
+      "grocery.generate_list returned items whose canonicalName matched no input row; shipping them with a null purchase pack",
+    );
+  }
+
   for (let i = 0; i < result.data.items.length; i++) {
     const out = result.data.items[i];
     // WS7-8b B2 — the AI subset carries the same-canonical/different-unit rows
@@ -429,12 +506,15 @@ export async function generateFinalGroceryList(
     //       item + head↔clove scaling against the AI's merged quantity. The
     //       client composes the two-part line; the pack is not baked into the
     //       name. displayName stays the AI's shopper-friendly name.
-    const src = aiSubset[i]?.item;
+    // BUG-095 — identity match, not `aiSubset[i]`. Null src means the model
+    // emitted a name no input row carried: null pack, leftover slot.
+    const match = matches[i];
+    const src = match?.item;
     const pack = src
       ? resolvePurchaseFields({ ...src, quantity: out.quantity, unit: out.unit })
       : { purchaseUnit: null, purchaseQuantity: null, purchaseDisplay: null };
     placed.push({
-      index: aiSubset[i].index,
+      index: match ? match.index : (leftoverIndices.shift() ?? items.length + i),
       out: {
         ...out,
         quantity: roundNeedQuantity(out.quantity, out.unit),

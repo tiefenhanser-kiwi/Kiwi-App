@@ -24,6 +24,7 @@ import type {
   SystemSettingRow,
 } from "../ai/promptRegistry";
 import type { ConsolidatedItem } from "../groceryList";
+import { logger } from "../logger";
 
 // ── stub prisma ────────────────────────────────────────────────────────
 
@@ -1417,5 +1418,327 @@ describe("categorizeGroceryItem", () => {
         ),
       (err: unknown) => err instanceof GroceryListAIError,
     );
+  });
+});
+
+// ── BUG-095 — AI output is matched back to source rows by IDENTITY ────────
+//
+// generateFinalGroceryList used to zip Sonnet's output back onto the input
+// subset by ARRAY INDEX (`aiSubset[i]`), and because `...pack` is spread last
+// the purchase pack — and the row's final `index` — came from position rather
+// than identity. The prompt explicitly permits both reordering ("a stable
+// input order is also acceptable") and merging (rule 2), and the only guard
+// was a length comparison. That is how `1 bunch eggs` and `1 dozen milk` reach
+// a real list.
+//
+// These tests drive the model's output ORDER, which is the only thing the old
+// code was sensitive to.
+describe("BUG-095 — generateFinalGroceryList output→source matching", () => {
+  // sectionKey "extras" routes an item to the AI subset (partitionForAI
+  // rule 2) without needing a vague canonical, so each row can carry a
+  // distinct, recognisable name.
+  function aiItem(overrides: Partial<ConsolidatedItem> = {}): ConsolidatedItem {
+    return makeItem({ sectionKey: "extras", ...overrides });
+  }
+
+  function aiOut(
+    canonicalName: string,
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      canonicalName,
+      displayName: canonicalName,
+      quantity: 1,
+      unit: "each",
+      sectionKey: "extras",
+      isUniversalStaple: false,
+      isUserPantryStaple: false,
+      isRecurringItem: false,
+      notes: null,
+      isAmbiguous: false,
+      wasAiInferred: false,
+      ...overrides,
+    };
+  }
+
+  it("REORDERED output: every row keeps its OWN purchase pack and its OWN position", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    // The model returns the three rows in reverse order — permitted by the
+    // prompt's grocery-store-flow clause. Pre-fix, eggs got bread's pack.
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            items: [aiOut("bread"), aiOut("milk"), aiOut("eggs")],
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      aiItem({
+        canonicalName: "eggs",
+        displayName: "eggs",
+        purchaseUnit: "dozen",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 dozen",
+      }),
+      aiItem({
+        canonicalName: "milk",
+        displayName: "milk",
+        purchaseUnit: "bottle",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 bottle (1 quart)",
+      }),
+      aiItem({
+        canonicalName: "bread",
+        displayName: "bread",
+        purchaseUnit: "loaf",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 loaf",
+      }),
+    ];
+
+    const result = await generateFinalGroceryList("Plan", items, ["extras"], {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(result.items.length, 3);
+    const byName = new Map(result.items.map((r) => [r.canonicalName, r]));
+    assert.equal(byName.get("eggs")?.purchaseDisplay, "1 dozen");
+    assert.equal(byName.get("milk")?.purchaseDisplay, "1 bottle (1 quart)");
+    assert.equal(byName.get("bread")?.purchaseDisplay, "1 loaf");
+    // The final index is identity-derived too: the list comes back in the
+    // ORIGINAL input order, not the order the model chose.
+    assert.deepEqual(
+      result.items.map((r) => r.canonicalName),
+      ["eggs", "milk", "bread"],
+    );
+  });
+
+  it("MERGED output (rule 2): the merged row takes the LOWEST source index and that source's pack", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    // Two olive-oil rows at different units partner into the AI subset
+    // (partitionForAI rule 3); the model merges them into one output. A third
+    // row sits BETWEEN them in the input so the merged row's landing position
+    // is observable.
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            // Merged row returned SECOND — the model reordered, which is
+            // exactly what the positional zip could not survive.
+            items: [
+              aiOut("paprika"),
+              aiOut("olive oil", {
+                quantity: 0.625,
+                unit: "cup",
+                notes: "combined 2 tbsp + 0.5 cup",
+                wasAiInferred: true,
+              }),
+            ],
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      aiItem({
+        canonicalName: "olive oil",
+        displayName: "olive oil",
+        quantity: 2,
+        unit: "tbsp",
+        purchaseUnit: "bottle",
+        purchaseQuantity: 1,
+        purchaseDisplay: "FIRST-SOURCE-PACK",
+      }),
+      aiItem({
+        canonicalName: "paprika",
+        displayName: "paprika",
+        purchaseUnit: "jar",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 jar",
+      }),
+      aiItem({
+        canonicalName: "olive oil",
+        displayName: "olive oil",
+        quantity: 0.5,
+        unit: "cup",
+        purchaseUnit: "bottle",
+        purchaseQuantity: 2,
+        purchaseDisplay: "SECOND-SOURCE-PACK",
+      }),
+    ];
+
+    const result = await generateFinalGroceryList("Plan", items, ["extras"], {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(result.items.length, 2, "the merge decreased the count by one");
+    // DEFINED behaviour: the merged row lands where the FIRST of its parts was
+    // (index 0), ahead of paprika (index 1) — not where the model put it.
+    assert.deepEqual(
+      result.items.map((r) => r.canonicalName),
+      ["olive oil", "paprika"],
+    );
+    assert.equal(
+      result.items[0].purchaseDisplay,
+      "FIRST-SOURCE-PACK",
+      "a merged output takes its pack basis from the lowest-index source that carried its canonicalName",
+    );
+    assert.equal(result.items[1].purchaseDisplay, "1 jar");
+  });
+
+  it("AMBIGUOUS duplicate canonicals that were NOT merged: outputs claim sources in original-index order", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    // Two rows share a canonicalName (BUG-096's singular/plural collisions can
+    // produce this) and the model returns BOTH rather than merging. The
+    // tie-break is FIFO over the source queue: first output → first source.
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            // Both duplicates returned FIRST, with the unrelated basil row
+            // pushed to the end. Under the positional zip out[1] lands on the
+            // basil source and wears basil pack.
+            items: [
+              aiOut("roma tomato", { quantity: 7, unit: "each" }),
+              aiOut("roma tomato", { quantity: 4, unit: "each" }),
+              aiOut("basil"),
+            ],
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      aiItem({
+        canonicalName: "roma tomato",
+        displayName: "roma tomato",
+        quantity: 7,
+        unit: "each",
+        purchaseDisplay: "PACK-A",
+        purchaseUnit: "each",
+        purchaseQuantity: 6,
+      }),
+      aiItem({
+        canonicalName: "basil",
+        displayName: "basil",
+        purchaseDisplay: "BASIL-PACK",
+        purchaseUnit: "bunch",
+        purchaseQuantity: 1,
+      }),
+      aiItem({
+        canonicalName: "roma tomato",
+        displayName: "roma tomato",
+        quantity: 4,
+        unit: "lb",
+        purchaseDisplay: "PACK-B",
+        purchaseUnit: "each",
+        purchaseQuantity: 3,
+      }),
+    ];
+
+    const result = await generateFinalGroceryList("Plan", items, ["extras"], {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(result.items.length, 3);
+    // Original input order restored: tomato(A) @0, basil @1, tomato(B) @2 —
+    // each carrying its own pack.
+    assert.deepEqual(
+      result.items.map((r) => r.purchaseDisplay),
+      ["PACK-A", "BASIL-PACK", "PACK-B"],
+    );
+    assert.deepEqual(
+      result.items.map((r) => r.canonicalName),
+      ["roma tomato", "basil", "roma tomato"],
+    );
+  });
+
+  it("UNMATCHED output: null pack + a warn — never a neighbour's pack", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    // The model renames canonicalName (against the prompt) so the row matches
+    // no source. Fail closed: nulls, not the pack of whatever sat in that slot.
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            items: [aiOut("bananas"), aiOut("white onion")],
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      aiItem({
+        canonicalName: "white onion",
+        displayName: "white onion",
+        purchaseUnit: "bag",
+        purchaseQuantity: 1,
+        purchaseDisplay: "ONION-PACK",
+      }),
+      aiItem({
+        canonicalName: "shallot",
+        displayName: "shallot",
+        purchaseUnit: "each",
+        purchaseQuantity: 3,
+        purchaseDisplay: "SHALLOT-PACK",
+      }),
+    ];
+
+    const warns: Array<Record<string, unknown>> = [];
+    const realWarn = logger.warn.bind(logger);
+    (logger as unknown as { warn: (...a: unknown[]) => void }).warn = ((
+      obj: unknown,
+      ...rest: unknown[]
+    ) => {
+      if (obj && typeof obj === "object") {
+        warns.push(obj as Record<string, unknown>);
+      }
+      return realWarn(obj as never, ...(rest as [never]));
+    }) as never;
+
+    let result;
+    try {
+      result = await generateFinalGroceryList("Plan", items, ["extras"], {
+        prisma,
+        userId: TEST_USER_ID,
+        client: fake.client,
+      });
+    } finally {
+      (logger as unknown as { warn: unknown }).warn = realWarn;
+    }
+
+    const bananas = result.items.find((r) => r.canonicalName === "bananas");
+    assert.ok(bananas, "the unmatched row still ships");
+    assert.equal(bananas.purchaseUnit, null);
+    assert.equal(bananas.purchaseQuantity, null);
+    assert.equal(
+      bananas.purchaseDisplay,
+      null,
+      "an unmatched output must never inherit a neighbour's pack",
+    );
+    // The matched sibling is unaffected.
+    const onion = result.items.find((r) => r.canonicalName === "white onion");
+    assert.equal(onion?.purchaseDisplay, "ONION-PACK");
+    // And the mismatch is observable in the logs.
+    const hit = warns.find((w) => w["event"] === "grocery_ai_output_unmatched");
+    assert.ok(hit, "an unmatched output must be logged");
+    assert.deepEqual(hit["unmatchedNames"], ["bananas"]);
   });
 });
