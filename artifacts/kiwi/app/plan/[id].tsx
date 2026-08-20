@@ -33,6 +33,7 @@ import { useToast } from "@/contexts/ToastProvider";
 import { useCompostWithUndo } from "@/hooks/useCompostWithUndo";
 import { useMeal } from "@/hooks/useMeal";
 import { usePlan } from "@/hooks/usePlan";
+import { usePlanWrite } from "@/hooks/usePlanWrite";
 import { ApiError } from "@/lib/api/errors";
 import { buildDayStrip } from "@/lib/domain";
 import { formatMacro } from "@/lib/format/macros";
@@ -51,6 +52,17 @@ import {
   planDetailToReviewPlan,
   sortUnscheduledNewestFirst,
 } from "@/lib/plans/reviewPlanAdapter";
+import {
+  addItemToDetail,
+  applyDayAssignmentToDetail,
+  buildOptimisticPlanItem,
+  removeItemFromDetail,
+  repointItemIdInDetail,
+  replaceItemMealInDetail,
+  setPlanActiveThisWeekInDetail,
+  setPlanDateRangeInDetail,
+  setPlanNameInDetail,
+} from "@/lib/plans/planDetailOptimistic";
 import { wizardExpandedPlanToReviewPlan } from "@/lib/plans/wizardDraftReviewAdapter";
 import { decidePlanDetailsCta } from "@/lib/plans/wizardPostSaveCta";
 import {
@@ -111,57 +123,22 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const capitalize = (s: string) =>
-  s.charAt(0).toUpperCase() + s.slice(1);
-
 // WS9-2 2e Part 3 — action-panel cell icon size. 18 is the app's most common
 // in-control Feather size (16 of 41 call sites across app/ + components/,
 // including PlanCardOverflowMenu's sheet items), so the panel inherits the
 // existing sizing convention rather than introducing a new one.
 const PANEL_ICON_SIZE = 18;
 
-/**
- * Apply a day-pill tap. Updates the row's dayStrip to reflect the
- * new assignment and moves the row between scheduledMeals and
- * unscheduledMeals if its scheduled status flipped.
- *
- * Pure — caller wraps the resulting state with setReviewPlan plus
- * any animation/persistence side effects.
- */
-function applyDayAssignment(
-  plan: ReviewPlan,
-  planItemId: string,
-  newDay: DayOfWeek | null,
-): ReviewPlan {
-  const allRows = [...plan.scheduledMeals, ...plan.unscheduledMeals];
-  const row = allRows.find((r) => r.planItemId === planItemId);
-  if (!row) return plan;
-
-  const updatedRow: ReviewPlanMealRow = {
-    ...row,
-    dayStrip: buildDayStrip(newDay),
-  };
-  const isNowScheduled = newDay !== null;
-
-  const filteredScheduled = plan.scheduledMeals.filter(
-    (r) => r.planItemId !== planItemId,
-  );
-  const filteredUnscheduled = plan.unscheduledMeals.filter(
-    (r) => r.planItemId !== planItemId,
-  );
-
-  return isNowScheduled
-    ? {
-        ...plan,
-        scheduledMeals: [...filteredScheduled, updatedRow],
-        unscheduledMeals: filteredUnscheduled,
-      }
-    : {
-        ...plan,
-        scheduledMeals: filteredScheduled,
-        unscheduledMeals: [...filteredUnscheduled, updatedRow],
-      };
-}
+// BUG-104 — the local applyDayAssignment(ReviewPlan) helper was REMOVED here.
+// Its superseded reasoning, kept because it explains why the replacement lives
+// where it does: it rewrote the row's dayStrip and moved the row between the
+// scheduled / unscheduled clusters, and the caller wrapped it in setReviewPlan.
+// That made component state the home of optimism — and the day pill then read
+// its NEXT value back out of that same state, so any GET landing mid-write
+// produced a wrong write rather than a stale render. The equivalent transform
+// is now applyDayAssignmentToDetail in lib/plans/planDetailOptimistic.ts: it
+// edits the PlanDetail in the query cache and lets planDetailToReviewPlan
+// re-derive both the dayStrip and the cluster split.
 
 export default function PlanReviewScreen() {
   const router = useRouter();
@@ -209,6 +186,10 @@ export default function PlanReviewScreen() {
   // Draft mode never hits the network — usePlan("") is disabled (enabled:
   // id.length > 0). Saved mode fetches the real plan and seeds reviewPlan below.
   const planQuery = usePlan(isDraft ? "" : planId);
+  // BUG-104 — every plan write on this screen goes through here: cancel the
+  // in-flight detail GET, apply the optimistic edit to the CACHE, roll the
+  // cache back on failure, and invalidate once when the burst of writes drains.
+  const planWrite = usePlanWrite(planId);
   // Draft mode seeds reviewPlan synchronously from the adapted expanded payload
   // (lazy initializer) so the first render already has the plan — the draft
   // params are fixed for this screen's life, and a commit navigates away
@@ -379,18 +360,30 @@ export default function PlanReviewScreen() {
     }
   };
 
+  // BUG-104 / BUG-112 — optimism moved into the query cache (planWrite) and the
+  // rejection is caught. Previously these set local state and fired the mutator
+  // as a bare `void`: a failed PATCH left the edit on screen with nothing to
+  // reconcile it, and the rejection surfaced as an uncaught-in-promise.
   const handleSavePlanName = (newName: string) => {
-    setReviewPlan((prev) => (prev ? { ...prev, name: newName } : prev));
-    void updatePlanName(planId, newName);
+    void planWrite
+      .write(
+        (prev) => setPlanNameInDetail(prev, newName),
+        () => updatePlanName(planId, newName),
+      )
+      .catch(() => {
+        showToast({ message: "Couldn't rename that plan. Please try again." });
+      });
   };
 
   const handleSaveDateRange = (start: string, end: string) => {
-    setReviewPlan((prev) =>
-      prev
-        ? { ...prev, weekStartDate: start, weekEndDate: end }
-        : prev,
-    );
-    void updatePlanDateRange(planId, { startDate: start, endDate: end });
+    void planWrite
+      .write(
+        (prev) => setPlanDateRangeInDetail(prev, start, end),
+        () => updatePlanDateRange(planId, { startDate: start, endDate: end }),
+      )
+      .catch(() => {
+        showToast({ message: "Couldn't update those dates. Please try again." });
+      });
   };
 
   // WS7-6 (E) Block 2 §4 — Model 2 activation. Optimistically flip the
@@ -400,16 +393,21 @@ export default function PlanReviewScreen() {
   // this-week plan, the server response names it; show the informational
   // demotion toast (no confirm — friction priority).
   const handleCookThisWeek = () => {
-    setReviewPlan((prev) =>
-      prev ? { ...prev, isActiveThisWeek: true } : prev,
-    );
-    void setPlanActiveThisWeek(planId)
+    void planWrite
+      .write(
+        (prev) => setPlanActiveThisWeekInDetail(prev, true),
+        () => setPlanActiveThisWeek(planId),
+      )
       .then(({ demoted }) => {
         const message = demotionToastMessage(planName, demoted);
         if (message) showToast({ message });
       })
       .catch(() => {
-        // Optimistic flip stays; the focus refetch reconciles to server truth.
+        // BUG-104 — the runner has already rolled the cache back to pre-flip and
+        // scheduled the reconciling refetch, so the chip un-flips on its own.
+        // Previously the optimistic flip STAYED on a failure and only a focus
+        // refetch corrected it, so the plan read as active when it was not.
+        showToast({ message: "Couldn't set this week's plan. Please try again." });
       });
   };
 
@@ -1450,62 +1448,30 @@ export default function PlanReviewScreen() {
   //    so a fast second swap on the same row uses a live id; (2) on failure we
   //    roll back the optimistic display, refetch to reconcile ids to server
   //    truth, and surface a retryable toast instead of crashing. ──
+  //    BUG-104 — this handler already had the right SHAPE (snapshot →
+  //    optimistic → rollback → toast); it just kept its snapshot in component
+  //    state, where an in-flight GET could land between the optimistic write
+  //    and the rollback and make the rollback restore a payload that had itself
+  //    already been clobbered. It now runs on the shared cache-backed runner,
+  //    so the snapshot, the rollback and the id repoint are all cache-level and
+  //    the burst-wide invalidation is deferred until the last write settles.
+  //    The explicit `planQuery.refetch()` is gone because the runner's
+  //    invalidate does it — and does it ONCE per burst rather than per failure.
   async function applyMealReplacement(
     targetPlanItemId: string,
     newMeal: MealSummary,
   ) {
-    const prevReviewPlan = reviewPlan; // rollback snapshot
-    const newMetaLine = `${capitalize(newMeal.difficulty)} · ${newMeal.estimatedTimeMinutes} min · serves ${newMeal.servingsDefault}`;
-    const replaceRow = (m: ReviewPlanMealRow): ReviewPlanMealRow =>
-      m.planItemId === targetPlanItemId
-        ? {
-            ...m,
-            mealId: newMeal.id,
-            title: newMeal.title,
-            thumbnailUrl: newMeal.imageUrl,
-            cuisine: newMeal.cuisineType,
-            metaLine: newMetaLine,
-            caloriesPerServing: newMeal.caloriesPerServing,
-            proteinGPerServing: newMeal.proteinGPerServing,
-            carbsGPerServing: newMeal.carbsGPerServing,
-            fatGPerServing: newMeal.fatGPerServing,
-          }
-        : m;
-    setReviewPlan((prev) =>
-      prev
-        ? {
-            ...prev,
-            scheduledMeals: prev.scheduledMeals.map(replaceRow),
-            unscheduledMeals: prev.unscheduledMeals.map(replaceRow),
-          }
-        : prev,
-    );
     try {
-      const { newPlanItemId } = await changeMealForPlanItem(
-        planId,
-        targetPlanItemId,
-        newMeal.id,
+      const { newPlanItemId } = await planWrite.write(
+        (prev) => replaceItemMealInDetail(prev, targetPlanItemId, newMeal),
+        () => changeMealForPlanItem(planId, targetPlanItemId, newMeal.id),
       );
       // Converge the row's id to the server's freshly-created item so the next
       // swap on this row targets a live id, not the deleted one.
-      const repointRow = (m: ReviewPlanMealRow): ReviewPlanMealRow =>
-        m.planItemId === targetPlanItemId
-          ? { ...m, planItemId: newPlanItemId }
-          : m;
-      setReviewPlan((prev) =>
-        prev
-          ? {
-              ...prev,
-              scheduledMeals: prev.scheduledMeals.map(repointRow),
-              unscheduledMeals: prev.unscheduledMeals.map(repointRow),
-            }
-          : prev,
+      planWrite.patchCache((prev) =>
+        repointItemIdInDetail(prev, targetPlanItemId, newPlanItemId),
       );
     } catch {
-      // Revert the optimistic display, then refetch so reviewPlan reconciles to
-      // server truth (fixing a stale/deleted id for the retry). No uncaught crash.
-      setReviewPlan(prevReviewPlan);
-      void planQuery.refetch();
       showToast({ message: "Couldn't swap that meal. Please try again." });
     }
   }
@@ -1513,16 +1479,32 @@ export default function PlanReviewScreen() {
   // ── Day-pill tap (PRD §8.3.6). null = unassign. Configures the
   //    next layout pass so the row's move between scheduled and
   //    unscheduled clusters animates rather than snaps. ──
+  //    BUG-104 — optimism now lands in the QUERY CACHE, not in `reviewPlan`.
+  //    The mirror is re-seeded wholesale from planQuery.data, so local-state
+  //    optimism was erased by any GET that resolved mid-write — and because the
+  //    day pill computes its next value from that mirror
+  //    (`row.dayStrip.find(d => d.isAssigned)`), a clobbered mirror produced a
+  //    WRONG WRITE, not merely a display revert. Server UserActivity showed
+  //    four A→B→A oscillations with each PATCH's `from` equal to the previous
+  //    `to`. Writing through the cache makes the mirror a pure derivation of
+  //    something already correct.
+  //
+  //    BUG-112 — the rejection is caught and surfaced. It was two bare `void`
+  //    calls, so a failed PATCH left the pill looking assigned with nothing to
+  //    reconcile it and the rejection went uncaught-in-promise.
   function handleAssignDay(planItemId: string, newDay: DayOfWeek | null) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setReviewPlan((prev) =>
-      prev ? applyDayAssignment(prev, planItemId, newDay) : prev,
-    );
-    if (newDay === null) {
-      void unassignDayFromPlanItem(planId, planItemId);
-    } else {
-      void assignDayToPlanItem(planId, planItemId, newDay);
-    }
+    void planWrite
+      .write(
+        (prev) => applyDayAssignmentToDetail(prev, planItemId, newDay),
+        () =>
+          newDay === null
+            ? unassignDayFromPlanItem(planId, planItemId)
+            : assignDayToPlanItem(planId, planItemId, newDay),
+      )
+      .catch(() => {
+        showToast({ message: "Couldn't move that meal. Please try again." });
+      });
   }
 
   // ── Compost from plan (PRD §8.4.5). Confirmation alert with a
@@ -1542,20 +1524,19 @@ export default function PlanReviewScreen() {
             LayoutAnimation.configureNext(
               LayoutAnimation.Presets.easeInEaseOut,
             );
-            setReviewPlan((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    scheduledMeals: prev.scheduledMeals.filter(
-                      (m) => m.planItemId !== planItemId,
-                    ),
-                    unscheduledMeals: prev.unscheduledMeals.filter(
-                      (m) => m.planItemId !== planItemId,
-                    ),
-                  }
-                : prev,
-            );
-            void removeMealFromPlan(planId, planItemId);
+            // BUG-104 / BUG-112 — cache-backed optimism + a caught rejection.
+            // A failed remove used to leave the row gone from the screen while
+            // it still existed on the server.
+            void planWrite
+              .write(
+                (prev) => removeItemFromDetail(prev, planItemId),
+                () => removeMealFromPlan(planId, planItemId),
+              )
+              .catch(() => {
+                showToast({
+                  message: "Couldn't compost that meal. Please try again.",
+                });
+              });
           },
         },
       ],
@@ -1567,26 +1548,20 @@ export default function PlanReviewScreen() {
   //    The planItemId is a stub — WS7 will overwrite with a server
   //    id when the persistence call returns. ──
   function addExistingMealToPlan(meal: MealSummary) {
-    const newRow: ReviewPlanMealRow = {
-      planItemId: `pi-${Date.now()}`,
-      mealId: meal.id,
-      title: meal.title,
-      thumbnailUrl: meal.imageUrl,
-      cuisine: meal.cuisineType,
-      metaLine: `${capitalize(meal.difficulty)} · ${meal.estimatedTimeMinutes} min · serves ${meal.servingsDefault}`,
-      caloriesPerServing: meal.caloriesPerServing,
-      proteinGPerServing: meal.proteinGPerServing,
-      carbsGPerServing: meal.carbsGPerServing,
-      fatGPerServing: meal.fatGPerServing,
-      dayStrip: buildDayStrip(null),
-    };
+    // BUG-104 — the optimistic row is built as a PlanDetailItem and written to
+    // the cache, so the adapter derives the ReviewPlan row from it exactly as
+    // it will derive the real one after the refetch. Same stub-id invention as
+    // before, one layer down.
+    const stubItem = buildOptimisticPlanItem(meal, `pi-${Date.now()}`);
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setReviewPlan((prev) =>
-      prev
-        ? { ...prev, unscheduledMeals: [...prev.unscheduledMeals, newRow] }
-        : prev,
-    );
-    void addMealToPlan(planId, meal.id);
+    void planWrite
+      .write(
+        (prev) => addItemToDetail(prev, stubItem),
+        () => addMealToPlan(planId, meal.id),
+      )
+      .catch(() => {
+        showToast({ message: "Couldn't add that meal. Please try again." });
+      });
     setAddMealsVisible(false);
   }
 }

@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -256,6 +257,16 @@ interface AppState {
    *  (so refetch #1 doesn't briefly render macros computed without the new
    *  uncached dish), then flips off after recalc settles. */
   isMacrosRecalcInFlight: boolean;
+  /** BUG-104 — write-depth bookkeeping for the optimistic plan-write runner
+   *  (lib/plans/planWriteRunner.ts). `beginPlanWrite` / `endPlanWrite` return
+   *  the depth AFTER the change; while the depth is > 0 handleMutationResult
+   *  defers its cache invalidations so a mid-burst refetch cannot revert a
+   *  sibling write's optimism. `invalidatePlanCaches` is the deferred set,
+   *  flushed by the runner when the burst drains. Exposed on the context
+   *  because the counter must be shared by every plan write on the screen. */
+  beginPlanWrite: () => number;
+  endPlanWrite: () => number;
+  invalidatePlanCaches: () => void;
   groceries: GroceryItem[];
   toggleGrocery: (id: string) => Promise<void>;
   // ── Grocery list system (PRD §12; WS7-7-A B3 wires real persistence) ──
@@ -387,6 +398,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // invalidate so the inline loading shim covers refetch #1 too (otherwise
   // the user briefly sees stale macros render between mutation-resolve and
   // recalc-complete).
+  // BUG-104 — depth of in-flight optimistic plan writes (see
+  // lib/plans/planWriteRunner.ts). While this is > 0 the post-mutation
+  // invalidations are DEFERRED: each write's own invalidation would otherwise
+  // start a refetch that resolves mid-burst and reverts a sibling write's
+  // optimism in the cache. A ref, not state — nothing renders off it, and it
+  // must be readable synchronously by handleMutationResult inside the same tick
+  // as the write that set it.
+  const planWriteDepthRef = useRef(0);
+
   const dispatchRecalcMacros = useCallback(
     (planId: string): void => {
       void (async () => {
@@ -411,12 +431,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // flag BEFORE the cache invalidations (so the inline shim mounts immediately
   // and stays mounted across refetch #1), then runs the standard plans-cache
   // invalidations, then kicks off the recalc.
-  const handleMutationResult = useCallback(
-    (planId: string, macrosStale: boolean): void => {
-      if (macrosStale) {
-        setMacrosRecalcInFlightCount((n) => n + 1);
-      }
-      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+  // BUG-104 — the plans/home/groceries invalidation set, extracted so the
+  // runner can flush it once when a burst of writes drains.
+  const invalidatePlanCaches = useCallback((): void => {
+      // BUG-110 — the `["plans", planId]` line that used to sit here matched no
+      // live query at all (see dispatchRecalcMacros above). It was harmless
+      // ONLY because the broad ["plans"] on the next line covered it, but a key
+      // that matches nothing is a lie in the source and it hid the same defect
+      // in the recalc path for as long as it stood. Removed, not "corrected" —
+      // ["plans"] below is already a prefix of every plan query key.
       queryClient.invalidateQueries({ queryKey: ["plans"] });
       // WS7-6 (E) Block 2 §5 — Home's hero card (GET /home) is independent of
       // the plans cache, so every plan mutation must also invalidate ["home"]
@@ -430,11 +453,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // staleTime (60s) or a focus-refetch. ["groceries"] is a valid prefix of
       // ["groceries","list",filter].
       queryClient.invalidateQueries({ queryKey: ["groceries"] });
+    }, [queryClient]);
+
+  // BUG-104 — write-depth bookkeeping handed to the runner as deps. The runner
+  // invalidates unconditionally when the depth returns to 0, so a write that
+  // FAILED (and therefore never reached handleMutationResult) still reconciles
+  // the rolled-back cache with the server.
+  const beginPlanWrite = useCallback((): number => {
+    planWriteDepthRef.current += 1;
+    return planWriteDepthRef.current;
+  }, []);
+
+  const endPlanWrite = useCallback((): number => {
+    planWriteDepthRef.current = Math.max(0, planWriteDepthRef.current - 1);
+    return planWriteDepthRef.current;
+  }, []);
+
+  const handleMutationResult = useCallback(
+    (planId: string, macrosStale: boolean): void => {
+      if (macrosStale) {
+        setMacrosRecalcInFlightCount((n) => n + 1);
+      }
+      // BUG-104 — defer while another optimistic write is still in flight. An
+      // invalidation here starts a refetch that can resolve mid-burst carrying
+      // pre-sibling state, land in the cache, and revert the sibling's optimism
+      // — and because the day-pill computes its next value from that cache, the
+      // NEXT tap then sends the old day back as a real write. The runner
+      // invalidates once when the burst drains (endPlanWrite() === 0).
+      if (planWriteDepthRef.current === 0) {
+        invalidatePlanCaches();
+      }
       if (macrosStale) {
         dispatchRecalcMacros(planId);
       }
     },
-    [queryClient, dispatchRecalcMacros],
+    [invalidatePlanCaches, dispatchRecalcMacros],
   );
 
   const setOnboardingStep2Draft = useCallback((draft: Step2Draft) => {
@@ -1248,6 +1301,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     compostPlan,
     createPlanWithMeal,
     isMacrosRecalcInFlight: macrosRecalcInFlightCount > 0,
+    beginPlanWrite,
+    endPlanWrite,
+    invalidatePlanCaches,
     groceries,
     toggleGrocery,
     toggleGroceryItemCompleted,

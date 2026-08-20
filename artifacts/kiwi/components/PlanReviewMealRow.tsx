@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
@@ -17,6 +17,12 @@ import {
   type DayOfWeek,
   type ReviewPlanMealRow,
 } from "@/lib/types";
+
+// BUG-104 — day-pill repeat-tap lockout. Sized to swallow a hardware/gesture
+// double-fire (the observed pair was 54ms apart) while staying far below a
+// deliberate re-tap: a user changing their mind about a day takes an order of
+// magnitude longer than this to aim at a second pill.
+export const DAY_PILL_LOCKOUT_MS = 350;
 
 interface Props {
   row: ReviewPlanMealRow;
@@ -57,6 +63,22 @@ export function PlanReviewMealRow({
   onReadOnlyEdit,
 }: Props) {
   const router = useRouter();
+
+  // BUG-104 — day-pill double-fire guard.
+  //
+  // The pills had hitSlop={6}, no debounce and no in-flight disable. Hans's
+  // device log shows two PATCHes 54ms apart from one intended tap, which is
+  // one of the two candidate sources of the A→B→A write oscillation (the other
+  // is transport-side and could not be settled from code — the
+  // "[meal-row] day-pill tapped" console.log below is deliberately RETAINED so
+  // that question stays answerable on device).
+  //
+  // A timestamp ref rather than an in-flight boolean: the row has no handle on
+  // the write's completion (onAssignDay returns void), and a latch keyed on the
+  // row catching up would WEDGE the pills permanently if the write failed and
+  // rolled back to the pre-tap value. A lockout window always expires, so the
+  // worst case is one ignored deliberate tap, never a dead control.
+  const lastDayTapAtRef = useRef(0);
 
   const navigateToDetail = () => {
     router.push({
@@ -171,6 +193,19 @@ export function PlanReviewMealRow({
                 planItemId: row.planItemId,
                 day: entry.day,
               });
+              // BUG-104 — swallow a repeat inside the lockout window. Logged
+              // ABOVE this check on purpose: the console line must record every
+              // real tap event so the device test can still distinguish "the UI
+              // fired twice" from "the transport sent twice".
+              const now = Date.now();
+              if (now - lastDayTapAtRef.current < DAY_PILL_LOCKOUT_MS) {
+                console.log("[meal-row] day-pill tap ignored (lockout)", {
+                  planItemId: row.planItemId,
+                  day: entry.day,
+                });
+                return;
+              }
+              lastDayTapAtRef.current = now;
               const currentlyAssigned = row.dayStrip.find((d) => d.isAssigned);
               const next: DayOfWeek | null =
                 currentlyAssigned?.day === entry.day ? null : entry.day;

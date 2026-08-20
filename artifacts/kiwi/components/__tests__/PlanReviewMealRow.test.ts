@@ -22,7 +22,10 @@ import {
   __resetRouterForTests,
 } from "expo-router";
 
-import { PlanReviewMealRow } from "../PlanReviewMealRow";
+import {
+  DAY_PILL_LOCKOUT_MS,
+  PlanReviewMealRow,
+} from "../PlanReviewMealRow";
 import type { ReviewPlanMealRow } from "@/lib/types";
 
 let pushedRoutes: Array<{ pathname: string; params: Record<string, string> }>;
@@ -385,4 +388,95 @@ test("PlanReviewMealRow inert: no handler fires even though all four are supplie
   assert.deepEqual(calls.findSimilar, []);
   assert.deepEqual(calls.compost, []);
   renderer.unmount();
+});
+
+// ── BUG-104 — day-pill repeat-tap lockout ──────────────────────────────────
+//
+// The pills had hitSlop={6}, no debounce and no in-flight disable. Hans's
+// device log recorded two PATCHes 54ms apart from one intended tap. A repeat
+// inside DAY_PILL_LOCKOUT_MS is now swallowed.
+//
+// A timestamp lockout rather than an in-flight latch on purpose: the row has no
+// handle on the write's completion (onAssignDay returns void), so a latch that
+// waited for the row to catch up would WEDGE the pills permanently whenever a
+// write failed and rolled back to the pre-tap value.
+
+test("BUG-104: a second day-pill tap inside the lockout window is swallowed", async () => {
+  const assignDayCalls: Array<[string, string | null]> = [];
+  const { renderer, tree } = await render({
+    onAssignDay: (planItemId: string, day: string | null) =>
+      assignDayCalls.push([planItemId, day]),
+  });
+  // "W" is Wednesday's short label — unique in the strip.
+  const pill = findPressableByText(tree, "W");
+  assert.ok(pill, "Wednesday day pill not found");
+
+  await act(async () => {
+    (pill!.props!.onPress as () => void)();
+    (pill!.props!.onPress as () => void)();
+  });
+
+  assert.deepEqual(
+    assignDayCalls,
+    [["pi-1", "Wednesday"]],
+    "one intended tap must produce exactly one assignment, not two",
+  );
+  renderer.unmount();
+});
+
+test("BUG-104: the lockout is time-based, so a later deliberate tap still works", async () => {
+  // Pins that the guard cannot WEDGE. Two taps separated by more than the
+  // window both land — the control is never dead, only rate-limited.
+  const assignDayCalls: Array<[string, string | null]> = [];
+  const { renderer, tree } = await render({
+    onAssignDay: (planItemId: string, day: string | null) =>
+      assignDayCalls.push([planItemId, day]),
+  });
+  const pill = findPressableByText(tree, "W");
+  assert.ok(pill);
+
+  await act(async () => {
+    (pill!.props!.onPress as () => void)();
+  });
+  await act(async () => {
+    await new Promise<void>((r) => setTimeout(r, DAY_PILL_LOCKOUT_MS + 25));
+  });
+  await act(async () => {
+    (pill!.props!.onPress as () => void)();
+  });
+
+  assert.equal(
+    assignDayCalls.length,
+    2,
+    "a tap after the window must land — a permanently dead pill would be worse than the bug",
+  );
+  renderer.unmount();
+});
+
+test("BUG-104: the day-pill console log is RETAINED (Hans is using it on device)", async () => {
+  // The log line distinguishes "the UI fired twice" from "the transport sent
+  // twice" — the one open question the code could not settle. It must fire for
+  // EVERY tap, including one the lockout then swallows.
+  const logged: unknown[][] = [];
+  const realLog = console.log;
+  console.log = (...args: unknown[]) => {
+    logged.push(args);
+  };
+  try {
+    const { renderer, tree } = await render({ onAssignDay: () => {} });
+    const pill = findPressableByText(tree, "W");
+    await act(async () => {
+      (pill!.props!.onPress as () => void)();
+      (pill!.props!.onPress as () => void)();
+    });
+    renderer.unmount();
+  } finally {
+    console.log = realLog;
+  }
+  const taps = logged.filter((a) => a[0] === "[meal-row] day-pill tapped");
+  assert.equal(
+    taps.length,
+    2,
+    "both raw tap events must still be logged even though only one assignment fires",
+  );
 });
