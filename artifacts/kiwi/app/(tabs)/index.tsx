@@ -52,6 +52,7 @@ import {
 import { buildRailItems } from "@/lib/home/rail";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
 import { dispatchGenerateResult } from "@/lib/groceryHandoff";
+import { buildCookSessionParams } from "@/lib/cooking/cookSession";
 import { Colors, Spacing } from "@/constants/tokens";
 
 export default function HomeTab() {
@@ -194,20 +195,38 @@ export default function HomeTab() {
     heroModel.kind === "today" || heroModel.kind === "plan"
       ? heroModel.planId
       : null;
-  const todayMealId = heroModel.kind === "today" ? heroModel.meal.id : null;
   const handleStripPress = () => {
     if (stripPlanId) {
       router.push({ pathname: "/plan/[id]", params: { id: stripPlanId } });
     }
   };
   // G6 (verified-only) — Cook Mode is the existing /cook-session route.
-  const handleCook = todayMealId
-    ? () =>
-        router.push({
-          pathname: "/cook-session",
-          params: { mealId: todayMealId },
-        })
-    : undefined;
+  //
+  // BUG-105 — pass planId + planItemId. This pushed `{ mealId }` alone, so the
+  // cook screen's resolvePrepGate ran with hasPlanContext=false, returned
+  // "unknown", and asked "Did you prep this already?" about a plan that already
+  // knows — `isPrepped` is on the wire and typed (PlanDetailItemSchema).
+  //
+  // The ids were already plumbed and simply never spent: HeroModel.today has
+  // carried both since 3a, and handleOpenTodaysMeal directly below spends them.
+  // Same instance-not-class miss BUG-091 had here.
+  //
+  // REUSE: buildCookSessionParams is the shared, already-tested builder for this
+  // exact launch (app/meal/[id].tsx uses it; its "never fabricate a planItemId"
+  // rule is pinned in lib/cooking/__tests__/cookSession.test.ts). Hand-rolling
+  // the object literal here would have been a fourth copy of the same shape.
+  const handleCook =
+    heroModel.kind === "today"
+      ? () =>
+          router.push({
+            pathname: "/cook-session",
+            params: buildCookSessionParams({
+              mealId: heroModel.meal.id,
+              planId: heroModel.planId,
+              planItemId: heroModel.planItemId,
+            }),
+          })
+      : undefined;
   // BUG-091 — tapping the card's meal block opens the PLAN-INSTANCE meal
   // detail. Same route + param shape PlanReviewMealRow already uses, so both
   // entry points land on the same screen in the same plan context.
