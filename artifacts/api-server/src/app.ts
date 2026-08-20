@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { noStore } from "./middleware/cacheControl";
+import { errorHandler } from "./middleware/errorHandler";
 
 const app: Express = express();
 
@@ -50,5 +51,11 @@ app.use(express.urlencoded({ extended: true }));
 // overwrite it in their own handler (the wizard SSE stream does).
 app.use("/api", noStore);
 app.use("/api", router);
+
+// BUG-103 — terminal error boundary. MUST be the last app.use: Express picks
+// error handlers by arity and runs them in mount order, so anything mounted
+// after this would never see an error. Backstop only — routes that catch their
+// own failures never reach it.
+app.use(errorHandler);
 
 export default app;
