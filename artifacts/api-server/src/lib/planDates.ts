@@ -172,6 +172,23 @@ export async function resolveThisWeekWinnerId(
     where: {
       userId,
       isWizardDraft: false,
+      // BUG-109 — a composted plan is NOT eligible to be This Week's plan.
+      // DELETE /plans/:id soft-deletes (status "past", compostedAt set,
+      // isArchived: true) and deliberately LEAVES startDate/endDate intact,
+      // so without this gate a composted plan whose dates still covered today
+      // stayed the resolver winner: Home rendered it as this week's plan with
+      // live actions pointed at a dead row, it out-ranked a live sibling on
+      // the activatedAt tiebreak, and the activation seams reported it as the
+      // "demoted" plan. Mirrors the isArchived:false gate every other
+      // plan-listing read already uses (planQueries.ts, planningContext.ts).
+      //
+      // The DELETE-tx call site (plans.ts wasActive metadata) resolves BEFORE
+      // its own update runs, so the row under deletion is still
+      // isArchived:false at that moment and keeps answering correctly — no
+      // includeArchived escape hatch is needed. A *second* DELETE against an
+      // already-composted row now reports wasActive:false, which is the
+      // truthful answer (it was not this user's This Week plan).
+      isArchived: false,
       startDate: { lte: nowDay, not: null },
       endDate: { gte: nowDay, not: null },
     },

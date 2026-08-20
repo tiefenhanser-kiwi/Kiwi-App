@@ -618,3 +618,180 @@ describe("D-WS7-103 — resolveThisWeekWinnerId SQL pre-filter day-granularity",
     assert.equal(winnerId, null);
   });
 });
+
+// ── BUG-109 — a composted plan is not This Week's plan ────────────────────
+//
+// DELETE /plans/:id soft-deletes a plan (status "past", compostedAt set,
+// isArchived: true) and deliberately LEAVES startDate/endDate intact. Before
+// this fix resolveThisWeekWinnerId filtered only on userId / isWizardDraft /
+// date coverage, so a composted plan whose dates still covered today stayed
+// the winner — Home rendered a dead plan as "This Week" with live actions,
+// and the dead row could out-rank a live sibling.
+//
+// The stub below honours `isArchived` the way Prisma does: an explicit
+// `isArchived: false` in the WHERE clause excludes archived rows, and its
+// ABSENCE admits them. That is what makes this a real lock — delete the gate
+// from planDates.ts and the archived row flows through and these assertions
+// go red, rather than the stub quietly re-implementing the fix.
+describe("BUG-109 — resolveThisWeekWinnerId excludes composted plans", () => {
+  const NOW = new Date("2026-06-03T12:00:00.000Z"); // Wednesday, midday UTC
+
+  interface ArchRow {
+    id: string;
+    userId: string;
+    isWizardDraft: boolean;
+    isArchived: boolean;
+    startDate: Date | null;
+    endDate: Date | null;
+    activatedAt: Date | null;
+    createdAt: Date;
+  }
+
+  // Covers 2026-05-31 .. 2026-06-06 (the week containing NOW).
+  const COVERS_NOW = {
+    startDate: new Date("2026-05-31T00:00:00.000Z"),
+    endDate: new Date("2026-06-06T00:00:00.000Z"),
+  };
+
+  function makeStub(rows: ArchRow[]) {
+    return {
+      mealPlanInstance: {
+        findMany: async (args: {
+          where: {
+            userId?: string;
+            isWizardDraft?: boolean;
+            isArchived?: boolean;
+            startDate?: { lte?: Date; not?: null };
+            endDate?: { gte?: Date; not?: null };
+          };
+        }) =>
+          rows.filter((r) => {
+            if (args.where.userId && r.userId !== args.where.userId) return false;
+            if (
+              args.where.isWizardDraft !== undefined &&
+              r.isWizardDraft !== args.where.isWizardDraft
+            ) {
+              return false;
+            }
+            // Prisma semantics: the predicate applies only when present.
+            if (
+              args.where.isArchived !== undefined &&
+              r.isArchived !== args.where.isArchived
+            ) {
+              return false;
+            }
+            if (args.where.startDate?.not === null && r.startDate === null) {
+              return false;
+            }
+            if (args.where.endDate?.not === null && r.endDate === null) {
+              return false;
+            }
+            if (
+              args.where.startDate?.lte &&
+              r.startDate !== null &&
+              r.startDate.getTime() > args.where.startDate.lte.getTime()
+            ) {
+              return false;
+            }
+            if (
+              args.where.endDate?.gte &&
+              r.endDate !== null &&
+              r.endDate.getTime() < args.where.endDate.gte.getTime()
+            ) {
+              return false;
+            }
+            return true;
+          }),
+      },
+    };
+  }
+
+  it("a composted plan covering today is NOT the winner (sole row → null)", async () => {
+    const stub = makeStub([
+      {
+        id: "p-composted",
+        userId: "u-1",
+        isWizardDraft: false,
+        isArchived: true,
+        ...COVERS_NOW,
+        activatedAt: new Date("2026-06-01T08:00:00.000Z"),
+        createdAt: new Date("2026-05-20T00:00:00.000Z"),
+      },
+    ]);
+    assert.equal(
+      await resolveThisWeekWinnerId(stub as never, "u-1", NOW),
+      null,
+      "a soft-deleted plan must never be This Week's plan",
+    );
+  });
+
+  it("a LIVE plan covering today is still the winner (the gate did not over-filter)", async () => {
+    const stub = makeStub([
+      {
+        id: "p-live",
+        userId: "u-1",
+        isWizardDraft: false,
+        isArchived: false,
+        ...COVERS_NOW,
+        activatedAt: new Date("2026-06-01T08:00:00.000Z"),
+        createdAt: new Date("2026-05-20T00:00:00.000Z"),
+      },
+    ]);
+    assert.equal(
+      await resolveThisWeekWinnerId(stub as never, "u-1", NOW),
+      "p-live",
+    );
+  });
+
+  it("a composted plan does NOT block a live sibling from winning, even with a fresher activatedAt", async () => {
+    // Pre-fix this is the damaging shape: the composted row has the greatest
+    // activatedAt, so resolveThisWeekPlan hands it the tiebreak and the live
+    // plan the user actually has is silently not "This Week".
+    const stub = makeStub([
+      {
+        id: "p-composted-fresher",
+        userId: "u-1",
+        isWizardDraft: false,
+        isArchived: true,
+        ...COVERS_NOW,
+        activatedAt: new Date("2026-06-02T09:00:00.000Z"),
+        createdAt: new Date("2026-05-28T00:00:00.000Z"),
+      },
+      {
+        id: "p-live-older",
+        userId: "u-1",
+        isWizardDraft: false,
+        isArchived: false,
+        ...COVERS_NOW,
+        activatedAt: new Date("2026-06-01T08:00:00.000Z"),
+        createdAt: new Date("2026-05-20T00:00:00.000Z"),
+      },
+    ]);
+    assert.equal(
+      await resolveThisWeekWinnerId(stub as never, "u-1", NOW),
+      "p-live-older",
+      "the live plan wins once the composted sibling is excluded",
+    );
+  });
+
+  it("the WHERE clause actually carries isArchived:false (call-shape lock)", async () => {
+    // Guards the seam the stub above depends on: if the gate is ever removed
+    // from the query the stub would admit archived rows silently in a future
+    // rewrite. Pin the emitted predicate directly.
+    let seen: Record<string, unknown> | null = null;
+    const spy = {
+      mealPlanInstance: {
+        findMany: async (args: { where: Record<string, unknown> }) => {
+          seen = args.where;
+          return [];
+        },
+      },
+    };
+    await resolveThisWeekWinnerId(spy as never, "u-1", NOW);
+    assert.deepEqual(
+      (seen as Record<string, unknown> | null)?.["isArchived"],
+      false,
+      "resolveThisWeekWinnerId must pre-filter archived (composted) plans in SQL",
+    );
+  });
+});

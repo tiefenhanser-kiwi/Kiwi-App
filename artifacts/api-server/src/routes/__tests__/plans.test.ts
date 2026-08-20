@@ -3180,6 +3180,10 @@ interface C3DeleteFix {
   activatedAt?: Date | null;
   createdAt?: Date;
   isWizardDraft?: boolean;
+  // BUG-109 — the resolver now pre-filters composted rows. Optional so the
+  // pre-existing fixture literals (all live plans) need no change; the stub's
+  // findMany defaults an absent flag to false.
+  isArchived?: boolean;
 }
 
 interface C3DeleteRecorder {
@@ -3229,6 +3233,7 @@ function makeC3DeleteStub(opts: {
         where: {
           userId: string;
           isWizardDraft?: boolean;
+          isArchived?: boolean;
           startDate?: { lte: Date; not?: null };
           endDate?: { gte: Date; not?: null };
         };
@@ -3238,6 +3243,11 @@ function makeC3DeleteStub(opts: {
             if (i.userId !== args.where.userId) return false;
             const draftFlag = i.isWizardDraft ?? false;
             if (args.where.isWizardDraft !== undefined && draftFlag !== args.where.isWizardDraft) return false;
+            // BUG-109 — honour the archived pre-filter with real Prisma
+            // semantics: the predicate applies only when the caller sends it.
+            // Drop it from planDates.ts and archived rows flow through here.
+            const archivedFlag = i.isArchived ?? false;
+            if (args.where.isArchived !== undefined && archivedFlag !== args.where.isArchived) return false;
             if (args.where.startDate?.lte) {
               if (i.startDate === null) return false;
               if (i.startDate.getTime() > args.where.startDate.lte.getTime()) return false;
@@ -3260,6 +3270,19 @@ function makeC3DeleteStub(opts: {
         recorder.instanceUpdates.push(args);
         const row = instances.find((i) => i.id === args.where.id);
         const newRev = (row?.revisionId ?? 0) + 1;
+        // BUG-109 — the soft-delete WRITE must land on the in-memory row, the
+        // way Prisma's does. Without this the fixture stayed live for the rest
+        // of the transaction and any later read (including the resolver) saw
+        // pre-update state, so a refactor that moved the wasActive resolve
+        // AFTER this update would have gone undetected by the ordering lock.
+        // Only plain scalars are applied — `revisionId: { increment: 1 }` is an
+        // operator object, so it is handled by the newRev counter above.
+        if (row) {
+          if (typeof args.data["isArchived"] === "boolean") {
+            row.isArchived = args.data["isArchived"];
+          }
+          row.revisionId = newRev;
+        }
         return { id: args.where.id, revisionId: newRev };
       },
     },
@@ -7192,6 +7215,135 @@ describe("POST /plans/:id/items/:itemId/promote-override (WS7-4-D c4)", () => {
       const res = await promotePlanItemReq(harness, "p-1", "it-x");
       assert.equal(res.status, 404);
       assert.equal(recorder.mealCreates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── BUG-109 — the compost route's wasActive metadata survives the gate ────
+//
+// resolveThisWeekWinnerId now pre-filters isArchived:true rows. The DELETE
+// /plans/:id handler calls it INSIDE its own transaction to answer "was this
+// row the This Week winner immediately before the soft-delete", and that call
+// happens BEFORE the update that sets isArchived:true — so the row under
+// deletion is still live when it is resolved and wasActive keeps answering
+// truthfully. These tests pin that ordering: they are what would catch a
+// future refactor that moves the resolver call after the update (which would
+// silently make wasActive always false).
+describe("BUG-109 — DELETE /plans/:id wasActive under the archived gate", () => {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const covering = {
+    startDate: new Date(now - 3 * day),
+    endDate: new Date(now + 3 * day),
+  };
+
+  it("ORDERING LOCK: deleting the live winner still records wasActive=true (resolver runs pre-update)", async () => {
+    const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC3DeleteStub({
+        recorder,
+        instances: [
+          {
+            id: "p-winner",
+            userId: A2_USER,
+            revisionId: 1,
+            isArchived: false,
+            activatedAt: new Date(now - 1 * day),
+            ...covering,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-winner`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(
+        recorder.activityWrites[0].metadata,
+        { wasActive: true },
+        "the archived gate must not swallow the row being deleted — it is still live when resolved",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("deleting a live plan that a COMPOSTED sibling was outranking records wasActive=true", async () => {
+    // Pre-fix the composted sibling held the slot (fresher activatedAt), so
+    // compostng the plan the user actually had ships wasActive=false — the
+    // wrong story in the activity log. Post-fix the live row is the winner.
+    const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC3DeleteStub({
+        recorder,
+        instances: [
+          {
+            id: "p-dead-sibling",
+            userId: A2_USER,
+            revisionId: 9,
+            isArchived: true,
+            activatedAt: new Date(now - 1 * day),
+            ...covering,
+          },
+          {
+            id: "p-live",
+            userId: A2_USER,
+            revisionId: 1,
+            isArchived: false,
+            activatedAt: new Date(now - 2 * day),
+            ...covering,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-live`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(
+        recorder.activityWrites[0].metadata,
+        { wasActive: true },
+        "a composted sibling must not steal the winner slot from the live plan being deleted",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("re-deleting an already-composted plan records wasActive=false (it was not This Week's plan)", async () => {
+    const recorder: C3DeleteRecorder = { instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC3DeleteStub({
+        recorder,
+        instances: [
+          {
+            id: "p-already-dead",
+            userId: A2_USER,
+            revisionId: 5,
+            isArchived: true,
+            activatedAt: new Date(now - 1 * day),
+            ...covering,
+          },
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-already-dead`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(
+        recorder.activityWrites[0].metadata,
+        { wasActive: false },
+        "an already-composted row was not the This Week plan at delete time",
+      );
     } finally {
       await harness.close();
     }
