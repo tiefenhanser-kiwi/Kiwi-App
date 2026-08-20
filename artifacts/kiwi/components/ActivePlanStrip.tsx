@@ -6,22 +6,29 @@
 // on the plan above them. The actions now live INSIDE the card.
 //
 // WS9-2 2e Part 4 Item 3 — REBUILT AGAIN, onto Plan Review's action panel.
-// Structure is now identical on both states:
+// Part 4's fix pass then made the two rosters DIFFER:
 //
-//   ┌──────────────────────────────────────┐
-//   │  identity block  (tappable)          │   today: thumb + Tonight + meal
-//   │                                      │   plan:  This week + plan name
-//   │  ┌────────────────────────────────┐  │
-//   │  │ [primary tint] │ Grocery List  │  │   ONE 2×2 panel, both states
-//   │  │ Order Online   │ View plan     │  │
-//   │  └────────────────────────────────┘  │
-//   └──────────────────────────────────────┘
+//   BRANCH A — a meal is set for today          BRANCH B — a plan, nothing today
+//   ┌────────────────────────────────┐          ┌────────────────────────────────┐
+//   │ thumb + Tonight + meal (tap)   │          │ This week + plan name (tap)    │
+//   │ ┌────────────────────────────┐ │          │ ┌────────────────────────────┐ │
+//   │ │ [Start Cooking] │ View plan│ │          │ │ [Prep and Cook] │ Grocery  │ │
+//   │ └────────────────────────────┘ │          │ │ Order Online    │ View plan│ │
+//   └────────────────────────────────┘          │ └────────────────────────────┘ │
+//                                               └────────────────────────────────┘
 //
-// ⚠️ THE FIRST CELL IS CONTEXTUAL AND ONLY THE FIRST CELL IS. Same slot, same
-// tint, same `play` glyph; the label and destination switch by branch:
+// ⚠️ BRANCH A IS TWO CELLS, ON PURPOSE. `Grocery List` and `Order Online` are
+// PLAN-scoped; on a card whose identity block is one meal they read as acting on
+// that meal, and "Order Online" beside tonight's dinner suggests ordering
+// tonight's dinner. Both remain one tap away behind `View plan`.
+//
+// ⚠️ THE BRANCHES ARE ASYMMETRIC AND THE CARDS DIFFER IN HEIGHT. Accepted and
+// intended. No filler cell, no spacer, no re-balancing.
+//
+// ⚠️ THE FIRST CELL IS CONTEXTUAL. Same slot, same tint, same `play` glyph; the
+// label and destination switch by branch:
 //   today → "Start Cooking" (onCook, Cook Mode for tonight's meal)
 //   plan  → "Prep and Cook" (onPrepAndCook, the Prep & Cook hub for the plan)
-// The remaining three are identical on both.
 //
 // ⚠️ THE STACKED FULL-WIDTH BUTTONS ARE GONE — all three of them. The today
 // state's filled "Start cooking" and its full-bleed "View plan" footer, and the
@@ -89,16 +96,24 @@ type Props = {
   onCook?: () => void;
   /** plan state only — the Prep & Cook hub for this plan. */
   onPrepAndCook?: () => void;
-  /** The plan's grocery list. Both states. */
+  /**
+   * The plan's grocery list. ⚠️ PLAN STATE ONLY as of Part 4's fix pass — the
+   * today state dropped its plan-scoped cells (Item 1).
+   *
+   * ⚠️ NOT ORPHANED, and do not sweep it. Home cannot know which branch it is
+   * feeding — it passes one prop set and the model picks the branch — so this
+   * is wired on both and consumed by one. The same is true of `onOrderOnline`
+   * and `groceryLoading` below.
+   */
   onGroceryList?: () => void;
   /**
    * Grocery-list generation is the two-AI-call pipeline and takes 5–15s in the
    * wild. Threaded through so the cell can show it, exactly as Plan Review's
    * identical cell does — without it, this tap is silent for up to fifteen
-   * seconds and reads as broken.
+   * seconds and reads as broken. Plan state only (see onGroceryList).
    */
   groceryLoading?: boolean;
-  /** D-WS9-158 — the Order Online stub. Both states. */
+  /** D-WS9-158 — the Order Online stub. Plan state only (see onGroceryList). */
   onOrderOnline?: () => void;
   /**
    * BUG-091, today state only — tapping the CARD BODY opens the plan-instance
@@ -117,114 +132,74 @@ type Props = {
   onOpenMeal?: () => void;
 };
 
+/** One panel cell. `tint` marks the branch's primary; everything else is a peer. */
+type PanelCell = {
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  tint?: boolean;
+  loading?: boolean;
+  onPress?: () => void;
+};
+
 /**
- * The 2×2 action panel. IDENTICAL on both states except the first cell's label
- * and handler, which is why it is one function and not two JSX blocks — a copy
- * per branch is how the two silently drift.
+ * The action panel. Takes its cells as DATA and lays them out two per row, so
+ * the two branches can carry different rosters without a second JSX block — a
+ * copy per branch is how the two silently drift.
+ *
+ * ⚠️ Part 4 fix pass Item 1 — the roster is no longer the same on both. Branch A
+ * (a meal is set for today) is TWO cells, one row; branch B is four, two rows.
+ * The cell list is therefore the thing that varies, which is why this went from
+ * a fixed 2×2 to a chunked list.
  *
  * ⚠️ Mirrors Plan Review's panel (app/plan/[id].tsx s.actionPanel / s.panelCell
  * / s.actionRow / s.actionCol) rather than extracting a shared component. The
  * two are the same TREATMENT applied to different action sets on surfaces with
- * different parents (paper vs. a white card); a shared component would have to
- * take the cells as data and would be a worse read than either call site. §27.2
- * asks whether the existing thing can be reused — here the reused thing is the
- * shared Button and its new `tint` variant, which is the part that carries the
- * design.
+ * different parents (paper vs. a white card). §27.2 asks whether the existing
+ * thing can be reused — here the reused thing is the shared Button and its
+ * `tint` variant, which is the part that carries the design.
  */
-function ActionPanel({
-  primaryLabel,
-  onPrimary,
-  onGroceryList,
-  groceryLoading,
-  onOrderOnline,
-  onViewPlan,
-}: {
-  primaryLabel: string;
-  onPrimary?: () => void;
-  onGroceryList?: () => void;
-  groceryLoading?: boolean;
-  onOrderOnline?: () => void;
-  onViewPlan?: () => void;
-}) {
+function ActionPanel({ cells }: { cells: PanelCell[] }) {
+  // Two per row. A trailing odd cell would sit at half width with a gap beside
+  // it rather than stretching — but no branch has an odd roster today, and a
+  // fake spacer to "balance" one is exactly what the ruling forbids.
+  const rows: PanelCell[][] = [];
+  for (let i = 0; i < cells.length; i += 2) rows.push(cells.slice(i, i + 2));
+
   return (
     <View style={styles.actionPanel}>
-      <View style={styles.actionRow}>
-        <View style={styles.actionCol}>
-          {/* The contextual cell. `play` on BOTH labels on purpose: the slot
-              means "go and cook" either way, and swapping the glyph with the
-              label would make the two states look like different panels. */}
-          <Button
-            label={primaryLabel}
-            variant="tint"
-            size="sm"
-            iconLeft={
-              <Feather
-                name="play"
-                size={PANEL_ICON_SIZE}
-                color={Palette.button.tint.text}
+      {rows.map((row, r) => (
+        <View key={r} style={styles.actionRow}>
+          {row.map((c) => (
+            <View key={c.label} style={styles.actionCol}>
+              <Button
+                label={c.label}
+                variant={c.tint ? "tint" : "secondary"}
+                size="sm"
+                style={c.tint ? undefined : styles.panelCell}
+                // ⚠️ NO "Generating…" label swap. Button renders EITHER the
+                // spinner OR the icon+label, never both, so a swapped label is
+                // unreachable while `loading` is true. (Plan Review's identical
+                // cell does carry one; it is inert there for the same reason —
+                // reported, not fixed here.) The spinner is the busy state, and
+                // `loading` also disables the press, which guards the double-tap.
+                loading={c.loading}
+                iconLeft={
+                  <Feather
+                    name={c.icon}
+                    size={PANEL_ICON_SIZE}
+                    color={
+                      c.tint
+                        ? Palette.button.tint.text
+                        : Colors.terracotta[400]
+                    }
+                  />
+                }
+                onPress={c.onPress}
               />
-            }
-            onPress={onPrimary}
-          />
+            </View>
+          ))}
         </View>
-        <View style={styles.actionCol}>
-          <Button
-            label="Grocery List"
-            variant="secondary"
-            size="sm"
-            style={styles.panelCell}
-            // ⚠️ NO "Generating…" label swap. Button renders EITHER the spinner
-            // OR the icon+label, never both, so a swapped label is unreachable
-            // while `loading` is true. (Plan Review's identical cell does carry
-            // one; it is inert there for the same reason — reported, not fixed
-            // here.) The spinner is the busy state, and `loading` also disables
-            // the press, which is what guards the double-tap.
-            loading={groceryLoading}
-            iconLeft={
-              <Feather
-                name="list"
-                size={PANEL_ICON_SIZE}
-                color={Colors.terracotta[400]}
-              />
-            }
-            onPress={onGroceryList}
-          />
-        </View>
-      </View>
-      <View style={styles.actionRow}>
-        <View style={styles.actionCol}>
-          <Button
-            label="Order Online"
-            variant="secondary"
-            size="sm"
-            style={styles.panelCell}
-            iconLeft={
-              <Feather
-                name="shopping-cart"
-                size={PANEL_ICON_SIZE}
-                color={Colors.terracotta[400]}
-              />
-            }
-            onPress={onOrderOnline}
-          />
-        </View>
-        <View style={styles.actionCol}>
-          <Button
-            label="View plan"
-            variant="secondary"
-            size="sm"
-            style={styles.panelCell}
-            iconLeft={
-              <Feather
-                name="calendar"
-                size={PANEL_ICON_SIZE}
-                color={Colors.terracotta[400]}
-              />
-            }
-            onPress={onViewPlan}
-          />
-        </View>
-      </View>
+      ))}
     </View>
   );
 }
@@ -297,13 +272,20 @@ export function ActivePlanStrip({
             </View>
           </Pressable>
 
+          {/* ⚠️ Part 4 fix pass Item 1 — BRANCH A IS TWO CELLS, ONE ROW.
+              `Grocery List` and `Order Online` are PLAN-scoped, and on a card
+              whose whole identity block is one meal they read as acting on that
+              meal — "Order Online" beside tonight's dinner suggests ordering
+              tonight's dinner. Both stay one tap away behind `View plan`.
+
+              ⚠️ The two branches are now ASYMMETRIC and the cards differ in
+              height. That is accepted and intended. Do not add a filler cell to
+              re-balance them, and do not "restore" the missing two. */}
           <ActionPanel
-            primaryLabel="Start Cooking"
-            onPrimary={onCook}
-            onGroceryList={onGroceryList}
-            groceryLoading={groceryLoading}
-            onOrderOnline={onOrderOnline}
-            onViewPlan={onPress}
+            cells={[
+              { label: "Start Cooking", icon: "play", tint: true, onPress: onCook },
+              { label: "View plan", icon: "calendar", onPress: onPress },
+            ]}
           />
         </View>
       </View>
@@ -347,13 +329,20 @@ export function ActivePlanStrip({
           </View>
         </Pressable>
 
+        {/* Branch B is UNCHANGED — four cells, two rows, Prep and Cook tinted.
+            Nothing here is meal-scoped, so the plan-scoped cells are at home. */}
         <ActionPanel
-          primaryLabel="Prep and Cook"
-          onPrimary={onPrepAndCook}
-          onGroceryList={onGroceryList}
-          groceryLoading={groceryLoading}
-          onOrderOnline={onOrderOnline}
-          onViewPlan={onPress}
+          cells={[
+            { label: "Prep and Cook", icon: "play", tint: true, onPress: onPrepAndCook },
+            {
+              label: "Grocery List",
+              icon: "list",
+              loading: groceryLoading,
+              onPress: onGroceryList,
+            },
+            { label: "Order Online", icon: "shopping-cart", onPress: onOrderOnline },
+            { label: "View plan", icon: "calendar", onPress: onPress },
+          ]}
         />
       </View>
     </View>

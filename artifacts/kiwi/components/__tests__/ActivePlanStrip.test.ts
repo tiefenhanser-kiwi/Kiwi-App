@@ -152,19 +152,35 @@ function cellLabels(root: Json): string[] {
     .filter((s) => wanted.has(s));
 }
 
-test("today: the panel is Start Cooking · Grocery List · Order Online · View plan", () => {
+// ⚠️ Part 4 fix pass Item 1 — the today roster SHRANK to two, and these
+// assertions move with it. Not a relaxation: the roster is still pinned by name
+// AND order, and two new tests below pin the absences explicitly, which the old
+// four-cell assertion could not have expressed.
+test("today: the panel is exactly TWO cells — Start Cooking · View plan", () => {
   const root = render({ model: TODAY });
-  assert.deepEqual(cellLabels(root), [
-    "Start Cooking",
-    "Grocery List",
-    "Order Online",
-    "View plan",
-  ]);
+  assert.deepEqual(cellLabels(root), ["Start Cooking", "View plan"]);
   assert.equal(
     pressables(root).length,
-    5,
-    "four panel cells + the BUG-091 meal-block tap target",
+    3,
+    "two panel cells + the BUG-091 meal-block tap target",
   );
+});
+
+test("today: the PLAN-SCOPED cells are absent — they would read as meal-scoped", () => {
+  // "Order Online" beside tonight's dinner suggests ordering tonight's dinner.
+  // Both actions stay one tap away behind "View plan"; neither belongs on a
+  // card whose identity block is a single meal.
+  const t = texts(render({ model: TODAY }));
+  assert.ok(!t.includes("Grocery List"), "Grocery List is plan-scoped");
+  assert.ok(!t.includes("Order Online"), "Order Online is plan-scoped");
+});
+
+test("Item 1: the two branches are ASYMMETRIC, and that is the contract", () => {
+  // The cards differ in height by a whole panel row. If some later change
+  // "re-balances" them — a filler cell, a spacer, restoring the two cells —
+  // this is what should stop it.
+  assert.equal(cellLabels(render({ model: TODAY })).length, 2);
+  assert.equal(cellLabels(render({ model: PLAN })).length, 4);
 });
 
 test("today: the stacked full-width buttons are GONE, and View plan is not doubled", () => {
@@ -190,16 +206,14 @@ test("today: every cell fires its OWN handler and no other", () => {
     model: TODAY,
     onCook: () => fired.push("cook"),
     onPress: () => fired.push("plan"),
+    // ⚠️ Still WIRED here even though branch A renders no cell for them. Home
+    // cannot know which branch it is feeding, so it passes one prop set for
+    // both; nothing on this branch may reach them.
     onGroceryList: () => fired.push("grocery"),
     onOrderOnline: () => fired.push("order"),
     onOpenMeal: () => fired.push("meal"),
   });
-  for (const label of [
-    "Start Cooking",
-    "Grocery List",
-    "Order Online",
-    "View plan",
-  ]) {
+  for (const label of ["Start Cooking", "View plan"]) {
     const c = cell(root, label);
     assert.ok(c, `cell not found: ${label}`);
     act(() => {
@@ -208,8 +222,8 @@ test("today: every cell fires its OWN handler and no other", () => {
   }
   assert.deepEqual(
     fired,
-    ["cook", "grocery", "order", "plan"],
-    "no cell fires the meal-block tap, and none fires a neighbour's handler",
+    ["cook", "plan"],
+    "no cell fires the meal tap, a neighbour's handler, or a plan-scoped one",
   );
 });
 
@@ -404,18 +418,14 @@ test("plan: a null duration still says nothing is set for today", () => {
 // Kept as a test rather than deleted because the roster is now a contract in
 // its own right — a fifth cell, or a missing one, is a regression either way.
 
-test("Part 4 Item 3: BOTH states carry Grocery List and the contextual cook cell", () => {
-  for (const model of [TODAY, PLAN]) {
-    const t = texts(render({ model }));
-    assert.ok(
-      t.includes("Grocery List"),
-      `Grocery List missing from ${model.kind}`,
-    );
-    assert.ok(
-      t.includes("Order Online"),
-      `Order Online missing from ${model.kind}`,
-    );
-  }
+// ⚠️ Part 4 fix pass Item 1 — NARROWED FROM "BOTH states" TO THE PLAN STATE.
+// §7.5's reversal still stands (these actions ARE back on Home), but only where
+// they are in scope. The today state's absences are pinned by their own test
+// above, so nothing that this used to guard has gone unguarded.
+test("Part 4 Item 3: the PLAN state carries the plan-scoped cells", () => {
+  const t = texts(render({ model: PLAN }));
+  assert.ok(t.includes("Grocery List"), "Grocery List missing from plan");
+  assert.ok(t.includes("Order Online"), "Order Online missing from plan");
 });
 
 test("Part 4 Item 3: the FIRST cell is contextual, and the two labels never co-occur", () => {
@@ -463,26 +473,47 @@ test("Part 4 Item 3: the Grocery List cell shows a busy state and blocks re-taps
   // ⚠️ The busy state is a SPINNER, not a swapped label: Button renders either
   // the ActivityIndicator or the icon+label, never both. A test written against
   // a "Generating…" string would pass only by accident of never running.
-  for (const model of [TODAY, PLAN]) {
-    const idle = render({ model });
-    assert.equal(findAll(idle, "rn-activity-indicator").length, 0);
-    assert.ok(texts(idle).includes("Grocery List"));
+  //
+  // ⚠️ Part 4 fix pass — PLAN STATE ONLY. Branch A has no grocery cell to be
+  // busy; that half moved to the test below.
+  const idle = render({ model: PLAN });
+  assert.equal(findAll(idle, "rn-activity-indicator").length, 0);
+  assert.ok(texts(idle).includes("Grocery List"));
 
-    const busy = render({ model, groceryLoading: true });
-    assert.equal(
-      findAll(busy, "rn-activity-indicator").length,
-      1,
-      `no busy state on the ${model.kind} state's grocery cell`,
+  const busy = render({ model: PLAN, groceryLoading: true });
+  assert.equal(
+    findAll(busy, "rn-activity-indicator").length,
+    1,
+    "no busy state on the plan state's grocery cell",
+  );
+  assert.ok(
+    !texts(busy).includes("Grocery List"),
+    "the spinner replaces the label rather than sitting beside it",
+  );
+  // The same flag disables the press, which is what guards the double-tap.
+  const c = pressables(busy).find(
+    (p) => findAll(p, "rn-activity-indicator").length === 1,
+  );
+  assert.ok(c, "busy cell not found");
+  assert.equal(c!.props.disabled, true);
+});
+
+test("Item 1: groceryLoading is INERT on the today state, not orphaned", () => {
+  // Home passes one prop set and the model picks the branch, so this flag is
+  // wired on both and consumed by one. It must not paint a spinner onto a
+  // branch that has no grocery cell — and it must not disable Start Cooking.
+  const busy = render({ model: TODAY, groceryLoading: true });
+  assert.equal(
+    findAll(busy, "rn-activity-indicator").length,
+    0,
+    "branch A has no cell for this flag to make busy",
+  );
+  assert.deepEqual(cellLabels(busy), ["Start Cooking", "View plan"]);
+  for (const p of pressables(busy)) {
+    assert.notEqual(
+      p.props.disabled,
+      true,
+      "a plan-scoped busy flag must not disable a meal-scoped cell",
     );
-    assert.ok(
-      !texts(busy).includes("Grocery List"),
-      "the spinner replaces the label rather than sitting beside it",
-    );
-    // The same flag disables the press, which is what guards the double-tap.
-    const c = pressables(busy).find(
-      (p) => findAll(p, "rn-activity-indicator").length === 1,
-    );
-    assert.ok(c, "busy cell not found");
-    assert.equal(c!.props.disabled, true);
   }
 });
