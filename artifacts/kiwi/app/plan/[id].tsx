@@ -348,13 +348,23 @@ export default function PlanReviewScreen() {
     setIsGeneratingList(true);
     try {
       const result = await generateGroceryListForPlan(planId);
-      dispatchGenerateResult(result, {
+      const action = dispatchGenerateResult(result, {
         // 200-new and 409-exists both land here — same destination, because
         // the user asked for this plan's list and gets this plan's list.
         navigate: (id) =>
           router.push({ pathname: "/grocery-list/[id]", params: { id } }),
         alert: (title, message) => Alert.alert(title, message),
       });
+      // BUG-111 — a successful generate used to invalidate NOTHING. The
+      // Groceries tab's useRefetchOnFocus is gated on isStale and the default
+      // staleTime is 60s, so a user who generated a list and switched tabs
+      // within a minute did not see it; Home carries activePlan.groceryListId
+      // and was equally stale. Gated on the navigate outcome (a list really
+      // exists) so an error alert does not trigger two pointless refetches.
+      if (action.kind === "navigate") {
+        queryClient.invalidateQueries({ queryKey: ["groceries"] });
+        queryClient.invalidateQueries({ queryKey: ["home"] });
+      }
     } finally {
       setIsGeneratingList(false);
     }

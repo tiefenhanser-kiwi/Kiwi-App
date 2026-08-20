@@ -24,6 +24,7 @@
 import React, { useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { ActivePlanStrip } from "@/components/ActivePlanStrip";
 import { HomeHeader } from "@/components/HomeHeader";
@@ -55,6 +56,7 @@ import { Colors, Spacing } from "@/constants/tokens";
 
 export default function HomeTab() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
   const { showToast } = useToast();
@@ -254,11 +256,20 @@ export default function HomeTab() {
     setIsGeneratingList(true);
     try {
       const result = await generateGroceryListForPlan(stripPlanId);
-      dispatchGenerateResult(result, {
+      const action = dispatchGenerateResult(result, {
         navigate: (id) =>
           router.push({ pathname: "/grocery-list/[id]", params: { id } }),
         alert: (title, message) => Alert.alert(title, message),
       });
+      // BUG-111 — see the twin at app/plan/[id].tsx. A successful generate
+      // invalidated nothing, so the Groceries tab (60s staleTime, focus-refetch
+      // gated on isStale) did not show a list the user had just made, and
+      // Home's activePlan.groceryListId stayed null. Gated on the navigate
+      // outcome so an error alert costs no refetches.
+      if (action.kind === "navigate") {
+        queryClient.invalidateQueries({ queryKey: ["groceries"] });
+        queryClient.invalidateQueries({ queryKey: ["home"] });
+      }
     } finally {
       setIsGeneratingList(false);
     }
