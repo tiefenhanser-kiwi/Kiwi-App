@@ -124,7 +124,7 @@ function coerceOptimizationNotes(
 // WS7-6 Fix-Block 2 (D, closes D-WS7-060). Hans's ruling for PRD §8.3.5:
 // per-day average = sum of ASSIGNED meals ÷ count of ASSIGNED days. Both
 // numerator and denominator gate on the SAME per-item assignment check
-// (`assignedDate ?? assignedDayOfWeek`). Pre-fix divisor switched to
+// (assignedDayOfWeek). Pre-fix divisor switched to
 // assigned-day count while the numerator summed ALL items unconditionally
 // — N items + 1 assigned → per-day = sum-of-all (user read it as "macros
 // stopped calculating"). Empty state (no items assigned) → null per
@@ -141,7 +141,14 @@ function computeMacroDailyAverage(items: PlanReviewItem[]): {
   let fat = 0;
   const days = new Set<string>();
   for (const it of items) {
-    const dayKey = it.assignedDate ?? it.assignedDayOfWeek;
+    // BUG-114 — key on assignedDayOfWeek ALONE. Nothing writes assignedDate
+    // (see resolveTodaysItem in home.ts for the full evidence), so the old
+    // `assignedDate ?? assignedDayOfWeek` could only ever be driven by seed
+    // rows — and it mixed two key SPACES in one Set: an item keyed by an ISO
+    // date string and a sibling keyed "Monday" counted as two distinct days
+    // even when they were the same Monday, inflating the divisor and
+    // under-reporting the daily average.
+    const dayKey = it.assignedDayOfWeek;
     if (!dayKey) continue;
     days.add(dayKey);
     if (it.meal) {

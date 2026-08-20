@@ -239,6 +239,10 @@ function instanceFix(opts: {
     mealId: string;
     positionIndex: number;
     assignedDayOfWeek: string | null;
+    // BUG-114 — seedable so a test can prove a DISAGREEING assignedDate no
+    // longer steers the daily-average day count. Defaults null, so every
+    // pre-existing fixture literal is unchanged.
+    assignedDate?: Date | null;
   }[];
 }) {
   return {
@@ -269,7 +273,7 @@ function instanceFix(opts: {
     },
     items: (opts.items ?? []).map((it) => ({
       ...it,
-      assignedDate: null as Date | null,
+      assignedDate: (it.assignedDate ?? null) as Date | null,
       servingsOverride: null as number | null,
       isBreakfast: false,
       isLunch: false,
@@ -7351,6 +7355,111 @@ describe("BUG-109 — DELETE /plans/:id wasActive under the archived gate", () =
         recorder.activityWrites[0].metadata,
         { wasActive: false },
         "an already-composted row was not the This Week plan at delete time",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── BUG-114 — macroDailyAverage keys on assignedDayOfWeek alone ───────────
+//
+// computeMacroDailyAverage used `it.assignedDate ?? it.assignedDayOfWeek` as
+// its day key. Nothing writes assignedDate, so the date arm could only ever be
+// driven by seed rows — and it mixed two key SPACES inside one Set: an item
+// keyed by an ISO date string and a sibling keyed "Monday" counted as two
+// distinct days even when they were the same Monday, inflating the divisor and
+// under-reporting the average.
+describe("BUG-114 — macroDailyAverage day key", () => {
+  it("two items on the SAME weekday count as ONE day even when one carries an assignedDate", async () => {
+    // Pre-fix: it-1's ISO date string and it-2's "Monday" are different Set
+    // members -> divisor 2 -> 500/day. Post-fix both key "Monday" -> divisor 1
+    // -> 1000/day, which is what the plan actually schedules for that day.
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-samesday",
+            name: "Same Day Plan",
+            items: [
+              {
+                id: "it-1",
+                mealId: "m-a",
+                positionIndex: 0,
+                assignedDayOfWeek: "Monday",
+                assignedDate: new Date("2026-07-13T00:00:00.000Z"),
+              },
+              {
+                id: "it-2",
+                mealId: "m-b",
+                positionIndex: 1,
+                assignedDayOfWeek: "Monday",
+              },
+            ],
+          }),
+        ],
+        meals: [mealFix("m-a", "Meal A", 500), mealFix("m-b", "Meal B", 500)],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-samesday`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: { macroDailyAverage: { caloriesPerDay: number | null } };
+      };
+      assert.equal(
+        body.plan.macroDailyAverage.caloriesPerDay,
+        1000,
+        "both meals are on Monday — one assigned day, so the divisor is 1",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a DISAGREEING assignedDate does not create a phantom extra day", async () => {
+    // The stranded-row shape: the user moved it-1 to Monday but the orphan
+    // assignedDate still says Wednesday. Pre-fix that produced two day keys.
+    const harness = await a2SpinUp(
+      makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-disagree",
+            name: "Disagreeing Plan",
+            items: [
+              {
+                id: "it-1",
+                mealId: "m-a",
+                positionIndex: 0,
+                assignedDayOfWeek: "Monday",
+                assignedDate: new Date("2026-07-15T00:00:00.000Z"), // a Wednesday
+              },
+              {
+                id: "it-2",
+                mealId: "m-b",
+                positionIndex: 1,
+                assignedDayOfWeek: "Monday",
+              },
+            ],
+          }),
+        ],
+        meals: [mealFix("m-a", "Meal A", 600), mealFix("m-b", "Meal B", 400)],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/p-disagree`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        plan: { macroDailyAverage: { caloriesPerDay: number | null } };
+      };
+      assert.equal(
+        body.plan.macroDailyAverage.caloriesPerDay,
+        1000,
+        "the stale date must not add a day the user never scheduled",
       );
     } finally {
       await harness.close();

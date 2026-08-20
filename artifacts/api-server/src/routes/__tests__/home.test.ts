@@ -369,17 +369,23 @@ describe("GET /home", () => {
     }
   });
 
-  it("resolves today's meal by assignedDate and computes dayOffset from plan start", async () => {
+  // BUG-114 — today's item resolves by assignedDayOfWeek. This test used to
+  // seed only assignedDate and rely on the removed date branch; nothing writes
+  // that column, so the branch could only ever fire for seed rows.
+  it("resolves today's meal by assignedDayOfWeek and computes dayOffset from plan start", async () => {
     const today = startOfDay(new Date());
     const startDate = startOfDay(new Date(Date.now() - 2 * MS_PER_DAY));
+    const DAY_NAMES_T = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const todayName = DAY_NAMES_T[new Date().getDay()];
+    const yesterdayName = DAY_NAMES_T[(new Date().getDay() + 6) % 7];
     const harness = await spinUp(
       makeStubPrisma({
         activeInstance: activeInstanceRow({
           startDate,
           items: [
             planItem("item-yesterday", 0, "m-y", "Yesterday Meal",
-              new Date(today.getTime() - MS_PER_DAY), null),
-            planItem("item-today", 1, "m-t", "Today Meal", today, null),
+              new Date(today.getTime() - MS_PER_DAY), yesterdayName),
+            planItem("item-today", 1, "m-t", "Today Meal", today, todayName),
           ],
         }),
         savedPlanCount: 1,
@@ -577,6 +583,91 @@ describe("GET /home/rail", () => {
       };
       assert.equal(rail.plans.length, 1);
       assert.ok(!("plans" in home));
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── BUG-114 — assignedDate is written by nothing and must not be read ─────
+//
+// Two differently-shaped searches found 27 occurrences of assignedDate in
+// src/ and every one is a select, a projection, a type or a read. The single
+// `data:` appearance copies current.assignedDate forward during a mealId
+// swap; neither PatchPlanItemBody nor PostPlanItemBody accepts the field, so
+// a client can neither set it nor clear it. Measured 9 of 371 items non-null
+// (2.4259%), all seed rows, all agreeing with their assignedDayOfWeek — so
+// removing the read changes nothing today. What it removes is the trap: a
+// day-change PATCH moves assignedDayOfWeek and a stale assignedDate would win
+// forever, unfixably from the client.
+describe("BUG-114 — today's item is driven by assignedDayOfWeek alone", () => {
+  const DAY_NAMES_B = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+
+  it("a DISAGREEING assignedDate does not win over the matching assignedDayOfWeek", async () => {
+    // This is the shape the bug produced: the user moved the meal to today
+    // (assignedDayOfWeek updated) while the orphan assignedDate still points at
+    // a different day. Pre-fix the date branch ran first and item-stale won.
+    const today = startOfDay(new Date());
+    const startDate = startOfDay(new Date(Date.now() - 2 * MS_PER_DAY));
+    const todayName = DAY_NAMES_B[new Date().getDay()];
+    const otherName = DAY_NAMES_B[(new Date().getDay() + 3) % 7];
+    const harness = await spinUp(
+      makeStubPrisma({
+        activeInstance: activeInstanceRow({
+          startDate,
+          items: [
+            // Stale assignedDate == today, but its weekday says otherwise.
+            planItem("item-stale-date", 0, "m-s", "Stale Meal", today, otherName),
+            // Genuinely assigned to today, carrying no date at all.
+            planItem("item-real", 1, "m-r", "Real Meal", null, todayName),
+          ],
+        }),
+        savedPlanCount: 1,
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/home");
+      const body = (await res.json()) as {
+        todaysMeal: Record<string, unknown> | null;
+      };
+      assert.ok(body.todaysMeal);
+      assert.equal(
+        body.todaysMeal.mealPlanItemId,
+        "item-real",
+        "a stale assignedDate must not out-rank the weekday the user actually set",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("an item whose ONLY assignment is assignedDate is not today's meal", async () => {
+    const today = startOfDay(new Date());
+    const harness = await spinUp(
+      makeStubPrisma({
+        activeInstance: activeInstanceRow({
+          startDate: startOfDay(new Date(Date.now() - 2 * MS_PER_DAY)),
+          items: [planItem("item-date-only", 0, "m-d", "Date Only", today, null)],
+        }),
+        savedPlanCount: 1,
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/home");
+      const body = (await res.json()) as { todaysMeal: unknown };
+      assert.equal(
+        body.todaysMeal,
+        null,
+        "assignedDayOfWeek is the only assignment signal a client can write, so it is the only one read",
+      );
     } finally {
       await harness.close();
     }

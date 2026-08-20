@@ -80,10 +80,30 @@ interface PlanItemLite {
   };
 }
 
-// Find the plan item assigned to today: by assignedDate (same calendar day)
-// first, else by assignedDayOfWeek name. Returns the item + a dayOffset
-// measured from the plan start (or derived from the weekday when there is no
-// startDate). null when nothing is assigned to today.
+// Find the plan item assigned to today, BY WEEKDAY NAME.
+//
+// BUG-114 — this used to try `assignedDate` (same calendar day) first and only
+// fall back to `assignedDayOfWeek`. Nothing writes assignedDate: two
+// differently-shaped searches found 27 occurrences in src/, every one a select,
+// a projection, a type or a read. The single `data:` appearance copies
+// `current.assignedDate` forward during a mealId swap, and PatchPlanItemBody /
+// PostPlanItemBody do not accept the field — so a client can neither set it nor
+// clear it. Measured 9 of 371 items non-null (2.4259%), all of them seed rows,
+// all agreeing with their assignedDayOfWeek, so removing the branch changes
+// nothing today. What it removes is the trap: a day-change PATCH moves
+// assignedDayOfWeek and leaves the stale assignedDate winning here forever,
+// unfixably from the client.
+//
+// It was also wrong on its own terms. The stored values are UTC midnight but
+// startOfDay() truncates in LOCAL time, so on any server west of UTC
+// `startOfDay(2026-07-13T00:00:00Z)` is July 12 local and the branch matched
+// the wrong day.
+//
+// The column and every projection STAY — dropping a column is a migration and
+// a separate ruling. This only stops reading it.
+//
+// Returns the item + a dayOffset measured from the plan start (or derived from
+// the weekday when there is no startDate). null when nothing is assigned today.
 function resolveTodaysItem(
   items: PlanItemLite[],
   startDate: Date | null,
@@ -94,17 +114,9 @@ function resolveTodaysItem(
 
   let match: PlanItemLite | null = null;
   for (const item of items) {
-    if (item.assignedDate && startOfDay(item.assignedDate).getTime() === today.getTime()) {
+    if (item.assignedDayOfWeek === todayName) {
       match = item;
       break;
-    }
-  }
-  if (!match) {
-    for (const item of items) {
-      if (item.assignedDayOfWeek === todayName) {
-        match = item;
-        break;
-      }
     }
   }
   if (!match) return null;
