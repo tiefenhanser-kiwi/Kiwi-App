@@ -412,7 +412,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void (async () => {
         try {
           await recalcPlanMacros(planId);
-          queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+          // BUG-110 — was `["plans", planId]`, which matches NO live query. The
+          // full key inventory under "plans" is ["plans","detail",id],
+          // ["plans","list",filter] and ["plans","template",id]; a plan id at
+          // index 1 matches none of them. This was dispatchRecalcMacros's ONLY
+          // invalidation, so after an AI macro recalc completed Plan Review
+          // never refetched and stale macroDailyAverage rendered until
+          // staleTime expired or an unrelated mutation fired.
+          queryClient.invalidateQueries({
+            queryKey: ["plans", "detail", planId],
+          });
         } catch (err) {
           // PRD §8.3.5 redline — "brief loading state while AI estimates."
           // A recalc failure is best-effort: the user's mutation succeeded

@@ -1,4 +1,4 @@
-// BUG-104 — the plan-mutation invalidation contract.
+// BUG-110 + BUG-104 — the plan-mutation invalidation contract.
 //
 // BUG-110: `invalidateQueries({ queryKey: ["plans", planId] })` matched NO
 // live query. The full key inventory under "plans" is ["plans","detail",id],
@@ -223,6 +223,52 @@ function seedPlanDetailQuery(qc: QueryClient, planId: string) {
   const unsubscribe = observer.subscribe(() => {});
   return { count: () => fetches, observer, unsubscribe };
 }
+
+// ── BUG-110 ───────────────────────────────────────────────────────────────
+
+test("BUG-110: after the AI macro recalc resolves, the plan-detail query REFETCHES", async () => {
+  const qc = await mountAuthed();
+  const detail = seedPlanDetailQuery(qc, "plan-1");
+  await act(async () => {
+    await observerFetch(detail.observer);
+  });
+  assert.equal(detail.count(), 1, "precondition: the detail query has fetched once");
+
+  // Hold the recalc POST open so its invalidation is separable in time from
+  // the mutation's own ["plans"] invalidation.
+  let releaseRecalc!: (r: Response) => void;
+  const recalcHeld = new Promise<Response>((r) => {
+    releaseRecalc = r;
+  });
+  route("PATCH", "/plans/plan-1/items/item-1", () =>
+    mockJson(itemMutationResponse(true)),
+  );
+  routeTable.set("POST /plans/plan-1/recalc-macros", (() =>
+    recalcHeld) as unknown as () => Response);
+
+  await act(async () => {
+    await app!.assignDayToPlanItem("plan-1", "item-1", "Tuesday");
+  });
+  await settle(qc);
+
+  const afterMutation = detail.count();
+  assert.ok(
+    afterMutation >= 2,
+    `the mutation's own ["plans"] invalidation should already have refetched the detail query, got ${afterMutation}`,
+  );
+
+  // Now let the recalc land. Its invalidation is the ONE under test.
+  await act(async () => {
+    releaseRecalc(mockJson(RECALC_BODY));
+    await new Promise<void>((r) => setTimeout(r, 0));
+  });
+  await settle(qc);
+
+  assert.ok(
+    detail.count() > afterMutation,
+    `the recalc's invalidation must refetch the plan-detail query (was ${afterMutation}, now ${detail.count()}). A key matching nothing fails exactly like a slow network — this is the difference.`,
+  );
+});
 
 // ── BUG-104 ───────────────────────────────────────────────────────────────
 
