@@ -557,33 +557,50 @@ export function createPlansRouter(
     }
 
     try {
-      // WS7-4-C c0: wrap findUnique + plan_preview_opened emission in a single
-      // transaction. Emission fires AFTER the 404 gate and ONLY for non-owners
-      // (PRD §9.7 "for non-owned plans" — owners viewing their own template
-      // emit nothing).
-      const template = await prisma.$transaction(async (tx) => {
-        const t = await tx.mealPlanTemplate.findUnique({
-          where: { id },
-          include: { items: { orderBy: { positionIndex: "asc" } } },
-        });
-        if (!t || (!t.isPublic && t.userId !== userId)) {
-          return null;
-        }
-        if (t.userId !== userId) {
-          await emitActivity({
-            tx,
-            userId,
-            eventType: "plan_preview_opened",
-            entityType: "MealPlanTemplate",
-            entityId: id,
-            metadata: { isPublic: t.isPublic },
-          });
-        }
-        return t;
+      // BUG-116 (2) — this used to be ONE interactive $transaction wrapping the
+      // findUnique AND the plan_preview_opened activity insert (WS7-4-C c0).
+      // That opened a write transaction on a pure read path — and this is the
+      // route behind the featured-plan preview modal, the most-tapped read on
+      // Home. It held a pooled connection for the whole read, and an analytics
+      // insert failing (or timing out) took the user's preview down with it.
+      //
+      // The read now stands alone. The activity emit is fire-and-forget off the
+      // critical path: same gate as before (after the 404 check, non-owners
+      // only, PRD §9.7), same event, but it can neither block nor fail the
+      // read. A dropped analytics row is strictly cheaper than a failed preview.
+      const template = await prisma.mealPlanTemplate.findUnique({
+        where: { id },
+        include: { items: { orderBy: { positionIndex: "asc" } } },
       });
 
-      if (!template) {
+      if (!template || (!template.isPublic && template.userId !== userId)) {
         return res.status(404).json({ error: "template not found" });
+      }
+
+      if (template.userId !== userId) {
+        void emitActivity({
+          // Pass the ROUTE's injected client, not a tx. emitActivity falls back
+          // to the module-level prisma singleton when `tx` is absent, which
+          // would bypass this router's DI seam entirely (and reach the real
+          // database from tests). Every other call site in this file threads a
+          // client the same way.
+          tx: prisma,
+          userId,
+          eventType: "plan_preview_opened",
+          entityType: "MealPlanTemplate",
+          entityId: id,
+          metadata: { isPublic: template.isPublic },
+        }).catch((activityErr: unknown) => {
+          logger.warn(
+            {
+              event: "plan_preview_activity_failed",
+              userId,
+              templateId: id,
+              err: activityErr,
+            },
+            "plan_preview_opened emit failed — preview read unaffected",
+          );
+        });
       }
 
       const items: {

@@ -1851,6 +1851,13 @@ function templateDetailFix(opts: Partial<TemplateDetailFix> & { id: string }): T
 
 interface C3Recorder {
   activityWrites: Array<Record<string, unknown>>;
+  // BUG-116 (2) — counts $transaction opens so a test can prove the template
+  // READ no longer starts a write transaction. Optional: pre-existing recorder
+  // literals do not set it.
+  transactionOpens?: number;
+  // Makes userActivity.create throw, to prove the read survives an analytics
+  // write failure now that the emit is off the critical path.
+  activityThrows?: boolean;
 }
 
 function makeC3Stub(opts: {
@@ -1861,6 +1868,7 @@ function makeC3Stub(opts: {
   const templates = opts.templates ?? [];
   const meals = opts.meals ?? [];
   const recorder = opts.recorder;
+  let txAborted = false;
   const txClient = {
     // Block 4a — forkMealForUser resolves the acquiring household once per fork
     // inside the tx; no prefs row in these stubs → forks keep source servings.
@@ -1871,13 +1879,31 @@ function makeC3Stub(opts: {
     },
     userActivity: {
       create: async (args: { data: Record<string, unknown> }) => {
+        if (recorder?.activityThrows) {
+          // BUG-116 (2) — model Postgres: a statement that errors INSIDE a
+          // transaction poisons it, and the commit then fails. emitActivity
+          // swallows the throw itself, so without this the fake would let a
+          // failed insert inside a tx look harmless and the "read survives"
+          // test could not tell the two designs apart.
+          txAborted = true;
+          throw new Error("activity insert failed");
+        }
         recorder?.activityWrites.push(args.data);
         return { id: "act-c3" };
       },
     },
   };
   return {
-    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
+    $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => {
+      if (recorder) recorder.transactionOpens = (recorder.transactionOpens ?? 0) + 1;
+      txAborted = false;
+      const out = await cb(txClient);
+      if (txAborted) {
+        txAborted = false;
+        throw new Error("current transaction is aborted, commands ignored until end of transaction block");
+      }
+      return out;
+    },
     mealPlanTemplate: txClient.mealPlanTemplate,
     userActivity: txClient.userActivity,
     meal: {
@@ -7460,6 +7486,108 @@ describe("BUG-114 — macroDailyAverage day key", () => {
         body.plan.macroDailyAverage.caloriesPerDay,
         1000,
         "the stale date must not add a day the user never scheduled",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── BUG-116 (2) — the template preview READ no longer opens a write tx ────
+//
+// GET /plans/templates/:id used to wrap its findUnique AND a
+// plan_preview_opened activity insert in one interactive $transaction — a
+// write transaction on a pure read path, on the route behind the featured-plan
+// preview modal (the most-tapped read on Home). It held a pooled connection for
+// the whole read and let an analytics insert take the preview down with it.
+describe("BUG-116 — GET /plans/templates/:id keeps the activity write off the read path", () => {
+  // The emit is fire-and-forget, so let its microtask settle before asserting.
+  const settle = () => new Promise((r) => setImmediate(r));
+
+  it("opens NO transaction for the read", async () => {
+    const recorder: C3Recorder = { activityWrites: [] };
+    const harness = await c3SpinUp(
+      makeC3Stub({
+        recorder,
+        templates: [
+          templateDetailFix({
+            id: "t-notx",
+            userId: "owner-other",
+            isPublic: true,
+            items: [],
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/templates/t-notx`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      await settle();
+      assert.equal(
+        recorder.transactionOpens ?? 0,
+        0,
+        "a read must not hold an interactive write transaction",
+      );
+      // ...and the activity still lands, just outside the read.
+      assert.equal(recorder.activityWrites.length, 1);
+      assert.equal(recorder.activityWrites[0].eventType, "plan_preview_opened");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("still returns 200 with the full template when the activity write FAILS", async () => {
+    const recorder: C3Recorder = { activityWrites: [], activityThrows: true };
+    const harness = await c3SpinUp(
+      makeC3Stub({
+        recorder,
+        templates: [
+          templateDetailFix({
+            id: "t-actfail",
+            userId: "owner-other",
+            title: "Preview Survives",
+            isPublic: true,
+            items: [],
+          }),
+        ],
+      }),
+    );
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/templates/t-actfail`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(
+        res.status,
+        200,
+        "a dropped analytics row must never cost the user their preview",
+      );
+      const body = (await res.json()) as {
+        template: { id: string; title: string };
+      };
+      assert.equal(body.template.id, "t-actfail");
+      assert.equal(body.template.title, "Preview Survives");
+      await settle();
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a non-existent template is still a 404 and emits nothing", async () => {
+    const recorder: C3Recorder = { activityWrites: [] };
+    const harness = await c3SpinUp(makeC3Stub({ recorder, templates: [] }));
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/templates/t-missing`, {
+        headers: { Authorization: `Bearer ${signToken(A2_USER)}` },
+      });
+      assert.equal(res.status, 404);
+      await settle();
+      assert.equal(
+        recorder.activityWrites.length,
+        0,
+        "the emit gate still sits AFTER the 404 check",
       );
     } finally {
       await harness.close();

@@ -410,24 +410,41 @@ export async function reconcileGroceryListIfStale(
   //     stamp even on a structural no-op delta so a no-grocery-effect revision
   //     bump (day/notes/servings-deferred) doesn't re-run the consolidator on
   //     every subsequent GET.
-  await prisma.$transaction(async (tx) => {
-    if (deleteIds.length > 0) {
-      await tx.groceryListItem.deleteMany({ where: { id: { in: deleteIds } } });
-    }
-    if (newItems.length > 0) {
-      await tx.groceryListItem.createMany({ data: newItems });
-    }
-    if (newSources.length > 0) {
-      await tx.groceryListItemSource.createMany({ data: newSources });
-    }
-    await tx.groceryList.update({
-      where: { id: list.id },
-      data: {
-        lastGeneratedFromPlanRevisionId: plan.revisionId,
-        lastGeneratedAt: new Date(),
-      },
-    });
-  });
+  await prisma.$transaction(
+    async (tx) => {
+      if (deleteIds.length > 0) {
+        await tx.groceryListItem.deleteMany({ where: { id: { in: deleteIds } } });
+      }
+      if (newItems.length > 0) {
+        await tx.groceryListItem.createMany({ data: newItems });
+      }
+      if (newSources.length > 0) {
+        await tx.groceryListItemSource.createMany({ data: newSources });
+      }
+      await tx.groceryList.update({
+        where: { id: list.id },
+        data: {
+          lastGeneratedFromPlanRevisionId: plan.revisionId,
+          lastGeneratedAt: new Date(),
+        },
+      });
+    },
+    // BUG-116 (1) — this was the last plan-scale write batch still running on
+    // Prisma's DEFAULT 5000ms interactive-transaction budget, and it is reached
+    // from grocery READ paths (reconcile-on-read in GET /grocery-lists/:id), so
+    // a P2028 here fails a read the user did not know was a write. The same
+    // shape produced live P2028s elsewhere and was raised.
+    //
+    // Matched the me.ts precedent — { timeout: 15000 } — not wizard.ts's
+    // { timeout: 60_000, maxWait: 20_000 }. This tx is four bulk statements
+    // (deleteMany + two createMany + one update) with no AI and no per-row
+    // loop, the same weight class as me.ts's materializeMeal batch; wizard's
+    // 60s covers a whole plan materialization plus activation and would be
+    // masking rather than sizing. maxWait is deliberately left at its default,
+    // as me.ts leaves it — inventing a third value in the codebase is worse
+    // than matching an existing one.
+    { timeout: 15000 },
+  );
 
   return { reconciled: true, stamped: true };
 }

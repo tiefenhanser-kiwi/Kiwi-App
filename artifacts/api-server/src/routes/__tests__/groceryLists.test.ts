@@ -114,6 +114,9 @@ interface StubState {
   // GET seeds have no sources → the join is a no-op).
   meals: Map<string, string>;
   txCount: number;
+  // BUG-116 (1) — the options object each $transaction was opened with, in
+  // call order. Lets a test pin the reconcile batch's raised budget.
+  txOptions: Array<Record<string, unknown> | undefined>;
 }
 
 function makeState(): StubState {
@@ -127,6 +130,7 @@ function makeState(): StubState {
     ingredientDefaultUnits: new Map(),
     meals: new Map(),
     txCount: 0,
+    txOptions: [] as Array<Record<string, unknown> | undefined>,
   };
 }
 
@@ -467,8 +471,12 @@ function makeStubPrisma(state: StubState) {
         return row;
       },
     },
-    $transaction: async <T>(fn: (txClient: typeof tx) => Promise<T>) => {
+    $transaction: async <T>(
+      fn: (txClient: typeof tx) => Promise<T>,
+      opts?: Record<string, unknown>,
+    ) => {
       state.txCount++;
+      state.txOptions.push(opts);
       return fn(tx);
     },
   };
@@ -4364,6 +4372,61 @@ describe("WS7-7-A B4 — 409 generate contract regression pin", () => {
       assert.equal(body.error, "list_exists");
       assert.equal(body.existingListId, "list-existing-pin");
       assert.equal(body.message, "A grocery list already exists for this plan.");
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+// ── BUG-116 (1) — the reconcile delta-apply runs on a raised tx budget ────
+//
+// reconcileGroceryListIfStale applies its delta (deleteMany + two createMany +
+// one update) in one interactive transaction, invoked from grocery READ paths.
+// It was the last plan-scale write batch still on Prisma's DEFAULT 5000ms
+// budget — and a P2028 there fails a read the user never knew was a write. The
+// budget is matched to the me.ts precedent, { timeout: 15000 }, not to
+// wizard.ts's 60s (which covers a whole plan materialization).
+//
+// The expected value is the ratified number written out here, NOT read back
+// from the source — deleting the option makes this go red.
+describe("BUG-116 — reconcile delta-apply transaction budget", () => {
+  it("opens its delta-apply transaction with { timeout: 15000 }", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 2,
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 8);
+    seedReconList(h.state, 7); // stale → reconcile runs and commits
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 3,
+      storeSection: "produce",
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.ok(
+        h.state.txOptions.length > 0,
+        "precondition: the stale read committed a delta-apply transaction",
+      );
+      const opts = h.state.txOptions[h.state.txOptions.length - 1];
+      assert.ok(
+        opts,
+        "the delta-apply must NOT run on Prisma's default 5000ms budget — it is the last plan-scale write batch reached from a read path",
+      );
+      assert.equal(opts.timeout, 15000);
     } finally {
       await h.close();
     }
