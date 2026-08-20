@@ -24,6 +24,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { estimateDishMacros } from "./dishMacros";
 import { logger } from "./logger";
 import { recomputeAndPersistMealMacros } from "./mealMacros";
+import { bumpPlanRevision } from "./planRevision";
 import {
   hasOverrides,
   resolveEffectiveIngredients,
@@ -87,6 +88,11 @@ export interface PlanMacrosResult {
   computedAt: string; // ISO
   hasEstimatedMacros: boolean;
   estimationCaveats: string[];
+  // BUG-113 — the plan's revisionId AFTER this recalc. Non-null only when the
+  // recalc actually persisted fresh macros (see the bump below); null when the
+  // recalc was a pure read (everything cached). Callers echo it so the client
+  // can invalidate plan reads the way every other plan mutation lets it.
+  revisionId: number | null;
 }
 
 export class PlanMacrosNotFoundError extends Error {
@@ -412,6 +418,35 @@ export async function computePlanMacros(
     }
   }
 
+  // BUG-113 — a recalc that PERSISTED macros changed what plan and home reads
+  // return: Meal.{calories,protein,carbs,fat}PerServing are in MEAL_LIST_SELECT
+  // (routes/meals.ts), so the plan payload's numbers moved while the plan's
+  // revisionId stood still. A client that invalidates on revisionId — the whole
+  // point of the field — kept showing the old macros.
+  //
+  // Gated on persistedMealIds rather than bumped unconditionally: revisionId is
+  // also the cache key for the prep-week structure (routes/cooking.ts) and the
+  // drift pointer for grocery lists (lib/groceryReconcile.ts). An unconditional
+  // bump would invalidate an AI-backed prep-week cache on every recalc,
+  // including the common all-cached recalc that changes nothing at all. When
+  // the set IS non-empty the invalidation is earned — the meal macros really
+  // did move — and the grocery side is cheap (an empty delta skips the AI pass
+  // and just re-stamps the pointer).
+  //
+  // Best-effort, matching the persistence loop above: a failed bump must not
+  // fail a recalc whose numbers are already in the response.
+  let revisionId: number | null = null;
+  if (persistedMealIds.size > 0) {
+    try {
+      revisionId = await bumpPlanRevision(planId, prisma);
+    } catch (err) {
+      logger.warn(
+        { event: "plan_macros_revision_bump_failed", userId, planId, err },
+        "Failed to bump plan revision after macro persist",
+      );
+    }
+  }
+
   // Aggregate per-meal-item.
   const perMealMap = new Map<string, MealMacroEntry>();
   for (const o of outcomes) {
@@ -521,5 +556,6 @@ export async function computePlanMacros(
     computedAt: new Date().toISOString(),
     hasEstimatedMacros,
     estimationCaveats: [...caveatSet],
+    revisionId,
   };
 }

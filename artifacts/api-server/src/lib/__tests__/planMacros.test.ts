@@ -103,12 +103,17 @@ interface StubPrismaResult {
     dishUpdates: Array<{ id: string; data: object }>;
     activities: Array<{ eventType: string; entityId: string | null; userId: string }>;
     llmCalls: number;
+    // BUG-113 — every mealPlanInstance.update issued during the recalc. The
+    // only one computePlanMacros makes is the revision bump.
+    planUpdates: Array<{ id: string; data: Record<string, unknown> }>;
   };
 }
 
 function makeStubPrisma(plan: PlanStub | null): StubPrismaResult {
   const dishUpdates: Array<{ id: string; data: object }> = [];
   const activities: Array<{ eventType: string; entityId: string | null; userId: string }> = [];
+  const planUpdates: Array<{ id: string; data: Record<string, unknown> }> = [];
+  let planRevision = 4;
   let llmCalls = 0;
 
   // Cast to PrismaClient — we only implement the methods computePlanMacros
@@ -118,6 +123,22 @@ function makeStubPrisma(plan: PlanStub | null): StubPrismaResult {
       findUnique: async (_args: unknown) => {
         if (!plan) return null;
         return buildPrismaPlanRow(plan);
+      },
+      // BUG-113 — the plan-revision bump. Applies `{ increment: 1 }` to a real
+      // counter and returns the POST-increment value, so a test asserting the
+      // returned revisionId is reading the bump's effect, not a constant it
+      // supplied itself.
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        planUpdates.push({ id: where.id, data });
+        const rev = data["revisionId"] as { increment?: number } | undefined;
+        if (typeof rev?.increment === "number") planRevision += rev.increment;
+        return { id: where.id, revisionId: planRevision };
       },
     },
     dish: {
@@ -146,7 +167,10 @@ function makeStubPrisma(plan: PlanStub | null): StubPrismaResult {
     },
   } as unknown as PrismaClient;
 
-  return { prisma, state: { dishUpdates, activities, llmCalls: 0 } as any };
+  return {
+    prisma,
+    state: { dishUpdates, activities, planUpdates, llmCalls: 0 } as any,
+  };
 }
 
 // re-bind state.llmCalls to a getter would be nicer; cheap helper below.
@@ -723,5 +747,114 @@ describe("planNeedsMacroEstimation", () => {
     });
     const result = await planNeedsMacroEstimation({ tx, planId: "plan-1" });
     assert.equal(result, false);
+  });
+});
+
+// ── BUG-113 — a recalc that persists macros bumps the plan revision ───────
+//
+// computePlanMacros writes Dish.*PerServing and then re-sums the parent
+// Meal.*PerServing caches. Those Meal fields are in MEAL_LIST_SELECT
+// (routes/meals.ts), so they are part of what plan and home reads return —
+// the plan's payload changed while its revisionId stood still, and a client
+// invalidating on revisionId kept showing the old numbers.
+//
+// The bump is GATED on having actually persisted something: revisionId is
+// also the prep-week structure's cache key (routes/cooking.ts) and the
+// grocery drift pointer (lib/groceryReconcile.ts), so an unconditional bump
+// would throw away an AI-backed prep-week cache on every all-cached recalc
+// that changed nothing.
+describe("BUG-113 — computePlanMacros plan-revision bump", () => {
+  it("all-cached recalc persists nothing → NO revision bump, revisionId null", async () => {
+    const plan = makePlan();
+    // Give every dish stored macros so nothing recomputes.
+    for (const item of plan.items) {
+      for (const d of item.dishes) {
+        d.caloriesPerServing = 500;
+        d.proteinGPerServing = 30;
+        d.carbsGPerServing = 40;
+        d.fatGPerServing = 20;
+      }
+    }
+    const stub = makeStubPrisma(plan);
+    const fake = makeFakeClient({});
+
+    const result = await computePlanMacros({
+      prisma: stub.prisma,
+      userId: TEST_USER_ID,
+      planId: plan.id,
+      client: fake.client,
+    });
+
+    assert.equal(stub.state.dishUpdates.length, 0, "nothing was persisted");
+    assert.equal(
+      stub.state.planUpdates.length,
+      0,
+      "a pure-read recalc must not invalidate the prep-week cache or the grocery drift pointer",
+    );
+    assert.equal(result.revisionId, null);
+  });
+
+  it("a recalc that persists fresh macros bumps revisionId and reports the post-bump value", async () => {
+    // makePlan leaves fajitas + grain at zero macros, so they recompute and
+    // persist. The fallback client answers whichever dish is asked.
+    const plan = makePlan();
+    const stub = makeStubPrisma(plan);
+    const fake = makeFakeClient(
+      {},
+      { calories: 500, proteinG: 30, carbsG: 40, fatG: 20 },
+    );
+
+    const result = await computePlanMacros({
+      prisma: stub.prisma,
+      userId: TEST_USER_ID,
+      planId: plan.id,
+      client: fake.client,
+    });
+
+    assert.ok(
+      stub.state.dishUpdates.length > 0,
+      "precondition: this recalc persisted fresh dish macros",
+    );
+    assert.equal(
+      stub.state.planUpdates.length,
+      1,
+      "exactly one plan-revision bump per recalc, regardless of how many dishes persisted",
+    );
+    assert.equal(stub.state.planUpdates[0].id, plan.id);
+    assert.deepEqual(stub.state.planUpdates[0].data, {
+      revisionId: { increment: 1 },
+    });
+    // The stub seeds revisionId at 4 and applies the increment itself, so
+    // reading 5 back proves the bump ran — the value is not handed to the
+    // stub by the code under test.
+    assert.equal(result.revisionId, 5);
+  });
+
+  it("a failing revision bump does not fail the recalc (macros still ship)", async () => {
+    const plan = makePlan();
+    const stub = makeStubPrisma(plan);
+    // Replace the plan update with a thrower — the recalc's numbers are
+    // already computed at that point and must still reach the caller.
+    (
+      stub.prisma as unknown as {
+        mealPlanInstance: { update: () => Promise<never> };
+      }
+    ).mealPlanInstance.update = async () => {
+      throw new Error("simulated bump failure");
+    };
+    const fake = makeFakeClient(
+      {},
+      { calories: 500, proteinG: 30, carbsG: 40, fatG: 20 },
+    );
+
+    const result = await computePlanMacros({
+      prisma: stub.prisma,
+      userId: TEST_USER_ID,
+      planId: plan.id,
+      client: fake.client,
+    });
+
+    assert.equal(result.revisionId, null);
+    assert.equal(result.perMeal.length, 4, "the recalc result still ships");
   });
 });

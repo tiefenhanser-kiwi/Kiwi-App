@@ -64,6 +64,9 @@ const HAPPY_RESULT: PlanMacrosResult = {
   computedAt: new Date().toISOString(),
   hasEstimatedMacros: true,
   estimationCaveats: [],
+  // BUG-113 — a recalc that persisted fresh macros bumps the plan revision and
+  // reports the post-bump value so the client can invalidate its plan read.
+  revisionId: 7,
 };
 
 describe("POST /api/plans/:id/recalc-macros — happy path", () => {
@@ -95,6 +98,11 @@ describe("POST /api/plans/:id/recalc-macros — happy path", () => {
     assert.equal(body.dailyAverages.caloriesPerDay, 538);
     assert.equal(calls, 1);
     assert.equal(lastPlanId, "plan-abc");
+    // BUG-113 — the post-bump plan revision reaches the wire. Before the fix
+    // this route returned no version signal at all, so a client had no way to
+    // know its cached plan read (whose macros this call just changed) was
+    // stale.
+    assert.equal(body.revisionId, 7);
   });
 
   it("returns dailyAverages with the per-day-suffixed shape (D-WS6-029 contract)", async () => {

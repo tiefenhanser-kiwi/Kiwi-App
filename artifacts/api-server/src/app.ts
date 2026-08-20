@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { noStore } from "./middleware/cacheControl";
 
 const app: Express = express();
 
@@ -42,6 +43,12 @@ app.use((req, res, next) => {
 
 app.use(express.urlencoded({ extended: true }));
 
+// BUG-104 — no API response may be stored by a platform HTTP cache. Mounted
+// on the same path as the router and BEFORE it, so it covers every /api route
+// including the unauthenticated ones (health, auth) — a signed-in device
+// should not be replaying any of them. Routes needing a different directive
+// overwrite it in their own handler (the wizard SSE stream does).
+app.use("/api", noStore);
 app.use("/api", router);
 
 export default app;
