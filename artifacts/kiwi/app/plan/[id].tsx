@@ -1062,7 +1062,41 @@ export default function PlanReviewScreen() {
               </View>
             </View>
 
-            {/* BUG-092 — Compost is a quiet right-aligned text LINK, not a
+            {/* The panel's FOOTER ROW — status on the left, the quiet
+                destructive link on the right.
+
+                Part 4 fix pass Item 2 — the prepped badge moved in here from
+                the strip between the panel and the cards below, where it read
+                as unattached to anything. It is STATE, not an action: bottom
+                left, opposite Compost, in a warm neutral so it cannot be
+                mistaken for a fifth cell.
+
+                ⚠️ Compost keeps marginLeft:auto rather than the row's
+                justifyContent, so it stays hard right whether or not the badge
+                renders beside it. Its position is unchanged in both cases. */}
+            <View style={s.panelFooterRow}>
+              {/* §8.3.3 — Prep status indicator. RENDER CONDITION UNCHANGED:
+                  the same `!isDraft && prepStatus !== "not_prepped"` it has
+                  always carried. (`!isDraft` is now structurally redundant —
+                  surface.showActionPanel is false on a draft — but it is kept
+                  so the condition is literally, not merely equivalently,
+                  unchanged.)
+
+                  D-WS9-133: the not_prepped "Start Prep" banner was removed
+                  entirely — its handler was a dead console.log and the live
+                  prep entry is the "Prep and Cook" cell above. Only the
+                  positive prepped / partial badges remain. */}
+              {!isDraft && reviewPlan.prepStatus !== "not_prepped" ? (
+                <View style={s.prepBadge}>
+                  <Text style={s.prepBadgeText}>
+                    {reviewPlan.prepStatus === "prepped"
+                      ? "Prepped this week ✓"
+                      : "Prepped (mostly) ✓"}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* BUG-092 — Compost is a quiet right-aligned text LINK, not a
                 cell. As a Button it rendered full width (Button.fullWidth
                 defaults true, and size="sm" only shrinks height and type, not
                 the stretch), so the one control ruled "visually smaller" was
@@ -1086,38 +1120,28 @@ export default function PlanReviewScreen() {
                 wired. Render condition is unchanged too: it was gated on
                 showActionPanel and is now a child of the panel that flag
                 renders, which is the same condition expressed structurally. */}
-            <Pressable
-              onPress={handleCompostThisPlan}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="Compost this plan"
-              style={({ pressed }) => [
-                s.compostLink,
-                pressed && { opacity: 0.6 },
-              ]}
-            >
-              <Text style={s.compostLinkText}>Compost</Text>
-            </Pressable>
+              <Pressable
+                onPress={handleCompostThisPlan}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Compost this plan"
+                style={({ pressed }) => [
+                  s.compostLink,
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Text style={s.compostLinkText}>Compost</Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
-        {/* §8.3.3 — Prep status indicator (hidden on a draft — prep is a
-            saved-plan concept). D-WS9-133: the not_prepped "Start Prep" banner
-            is removed entirely — its handler was a dead console.log and the
-            live prep entry is the "Prep and Cook" action-bar button above. Only
-            the positive prepped / partial badges remain; not_prepped shows
-            nothing (recovers the banner's vertical space). */}
-        {!isDraft && reviewPlan.prepStatus !== "not_prepped" && (
-          <View style={s.section}>
-            <View style={s.prepBadge}>
-              <Text style={s.prepBadgeText}>
-                {reviewPlan.prepStatus === "prepped"
-                  ? "Prepped this week ✓"
-                  : "Prepped (mostly) ✓"}
-              </Text>
-            </View>
-          </View>
-        )}
+        {/* ⚠️ §8.3.3's prep badge USED TO SIT HERE, in its own s.section between
+            the action panel and the cards below. It moved INSIDE the panel's
+            footer row (Part 4 fix pass Item 2) — as a free-standing chip out
+            here it read as unattached to anything, since the panel above it
+            owns the plan's actions and the card below it owns the numbers. Its
+            render condition travelled with it, unchanged. */}
 
         {/* §8.3.4 — Smart Optimization Panel (hidden when notes are empty per §8.6) */}
         {reviewPlan.optimizationNotes.length > 0 && (
@@ -1824,8 +1848,13 @@ const s = StyleSheet.create({
   // the separation from the grid, and keeping both would double it. Padding is
   // tightened so the link sits in the panel's corner rather than floating in
   // it; hitSlop={12} at the call site keeps the tap target honest.
+  // ⚠️ Part 4 fix pass Item 2 — alignSelf:"flex-end" → marginLeft:"auto". The
+  // link now shares a ROW with the prepped badge, where a cross-axis alignSelf
+  // no longer pushes it right. marginLeft:auto is the main-axis equivalent and
+  // holds it hard right whether or not the badge renders. Rendered position is
+  // unchanged in both cases; padding, ink and hit target are untouched.
   compostLink: {
-    alignSelf: "flex-end",
+    marginLeft: "auto",
     paddingVertical: 6,
     paddingHorizontal: Spacing[1],
   },
@@ -1869,18 +1898,48 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
+  // Part 4 fix pass Item 2 — RE-TREATED as a warm-neutral status marker, because
+  // it now lives inside the sage[100] action panel.
+  //
+  // ⚠️ IT WAS sage[100] ON sage[100] — 1.00:1. Moving it in without re-treating
+  // it would have made the chip literally invisible: same token, same surface.
+  //
+  // ⚠️ THE BORDER IS DOING ALL THE WORK, and that is why it is stronger than the
+  // action cells'. Measured against the panel: this chip's neutral[200] surface
+  // is 1.04:1, where the cells' white is 1.24:1 — the surface contributes
+  // essentially nothing, so the outline is the only thing defining the shape.
+  //
+  // ⚠️ neutral[600] was REJECTED at 2.9966:1 — it rounds to "3.00" and reads as
+  // passing, but it is under the 3:1 non-text bar. neutral[700] is 5.06:1
+  // against the panel and 5.26:1 against the chip's own fill, and it is the same
+  // ink as the Compost link sharing this row, so the footer reads as one quiet
+  // neutral band beneath the sage cells rather than as a second palette.
+  //
+  // Hue keeps it out of the fight: warm neutral, no sage (the cells), no
+  // terracotta (the tinted primary), no gold (this screen's warning banner).
+  // Text neutral[800] on neutral[200] is 8.58:1.
   prepBadge: {
     alignSelf: "flex-start",
-    backgroundColor: Colors.sage[100],
+    backgroundColor: Colors.neutral[200],
+    borderWidth: 1,
+    borderColor: Colors.neutral[700],
     borderRadius: Radius.full,
     paddingHorizontal: Spacing[3],
-    paddingVertical: 6,
+    paddingVertical: 5,
   },
   prepBadgeText: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.sage[700],
+    color: Colors.neutral[800],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
+  },
+  // Status left, destructive link right. `justifyContent` is deliberately NOT
+  // used: the badge is conditional, and space-between would slide Compost to
+  // the left edge on every plan that has not been prepped. compostLink's
+  // marginLeft:auto pins it right in both cases.
+  panelFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   cardTitle: {
     fontSize: Typography.fontSize.md,
