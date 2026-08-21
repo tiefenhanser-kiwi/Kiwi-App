@@ -157,26 +157,36 @@ function makePrisma(
     displayName?: string;
     category?: string;
   }> = [],
+  // WS9 BUG-096 — aliasKey → canonicalName. Models the POST-MERGE catalog:
+  // the loser row is GONE and its name survives only as an alias.
+  aliases: Record<string, string> = {},
 ): PrismaClient {
   const byName = new Map(ingredients.map((i) => [i.canonicalName, i]));
+  const byId = new Map(ingredients.map((i) => [i.id, i]));
   return {
     mealPlanInstance: {
       findUnique: async () => (plan ? buildPlanRow(plan) : null),
     },
     // WS9 BUG-096 — the alias-aware lookup consults this after a canonical
-    // miss. Empty = "no aliases in this fixture" (the pre-merge state);
-    // alias BEHAVIOUR is covered in ingredientLookup.test.ts.
+    // miss, resolving against the `aliases` fixture so a merged-away name is
+    // exercised through consolidatePlanIngredients, not against the helper.
     ingredientAlias: {
-      findUnique: async () => null,
+      findUnique: async ({ where }: { where: { aliasKey: string } }) => {
+        const canonical = aliases[where.aliasKey];
+        const hit = canonical ? byName.get(canonical) : undefined;
+        return hit ? { ingredient: { id: hit.id, canonicalName: hit.canonicalName } } : null;
+      },
       findMany: async () => [],
     },
     ingredient: {
+      // Handles BOTH shapes the resolver uses: the canonical-name probe, and
+      // the by-id re-read that follows an alias hit.
       findFirst: async ({
         where,
       }: {
-        where: { canonicalName: string };
+        where: { canonicalName?: string; id?: string };
       }) => {
-        const hit = byName.get(where.canonicalName);
+        const hit = where.id ? byId.get(where.id) : byName.get(where.canonicalName!);
         if (!hit) return null;
         return {
           id: hit.id,
@@ -1650,5 +1660,103 @@ describe("consolidatePlanIngredients — B1 no-add/no-drop invariant", () => {
     assert.equal(salt.isUniversalStaple, true); // greyed, not buyable
     assert.equal(salt.canonicalName, "kosher salt"); // NOT mutated to "salt"
     assert.equal(salt.displayName, "Kosher salt"); // user still sees the variant
+  });
+});
+
+// ── WS9 BUG-096 — alias resolution through consolidatePlanIngredients ────────
+//
+// resolveOverrideIngredients (groceryList.ts:234) is one of the three grocery
+// name->id paths that fail SILENTLY: a miss yields ingredient:null, the line
+// loses its pack size / conversion / store section, and it buckets under the
+// raw name instead of the survivor's. 80 of 1,292 live grocery rows already
+// carry a null ingredientId, so a fresh batch of them is invisible.
+//
+// recipeOverride ingredient names are FREE TEXT the user typed, which makes
+// this the path most likely to name a form the 81-pair merge deleted.
+//
+// Asserted through consolidatePlanIngredients, NOT against the helper: a test
+// that called lookupIngredientByName directly would stay green even if this
+// call site stopped using it.
+
+describe("consolidatePlanIngredients — BUG-096 alias resolution", () => {
+  it("an override naming a MERGED-AWAY ingredient resolves to the survivor", async () => {
+    const prisma = makePrisma(
+      {
+        items: [
+          {
+            id: "i1",
+            recipeOverrideJson: {
+              dishes: [{ ingredients: [{ name: "Roma tomato", quantity: 5, unit: "each" }] }],
+            },
+            dishes: [
+              {
+                id: "d1",
+                title: "Salad",
+                servingsDefault: 4,
+                ingredients: [
+                  { name: "Roma tomatoes", quantity: 2, unit: "each", category: "Produce" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      // POST-MERGE catalog: only the survivor row exists.
+      [{ canonicalName: "roma tomatoes", id: "ing-survivor", displayName: "Roma tomatoes" }],
+      { "roma tomato": "roma tomatoes" },
+    );
+    const out = await consolidatePlanIngredients({
+      prisma,
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const line = out.find((i) => i.ingredientId === "ing-survivor");
+    assert.ok(
+      line,
+      `the override must resolve to the survivor, not a null FK. got: ${JSON.stringify(
+        out.map((i) => ({ n: i.canonicalName, id: i.ingredientId })),
+      )}`,
+    );
+    assert.equal(line.quantity, 5, "override quantity wins");
+    assert.ok(
+      !out.some((i) => i.ingredientId === null),
+      "no line may fall back to a null ingredientId",
+    );
+  });
+
+  it("an override naming something genuinely unknown STILL gets a null FK", async () => {
+    // The alias step is additive. It must not turn a real miss into a hit.
+    const prisma = makePrisma(
+      {
+        items: [
+          {
+            id: "i1",
+            recipeOverrideJson: {
+              dishes: [{ ingredients: [{ name: "Dragonfruit", quantity: 1, unit: "each" }] }],
+            },
+            dishes: [
+              {
+                id: "d1",
+                title: "Salad",
+                servingsDefault: 4,
+                ingredients: [
+                  { name: "Roma tomatoes", quantity: 2, unit: "each", category: "Produce" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      [{ canonicalName: "roma tomatoes", id: "ing-survivor", displayName: "Roma tomatoes" }],
+      { "roma tomato": "roma tomatoes" },
+    );
+    const out = await consolidatePlanIngredients({
+      prisma,
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const saffron = findItem(out, "dragonfruit");
+    assert.ok(saffron, "the unknown ingredient is still bucketed under its own name");
+    assert.equal(saffron.ingredientId, null);
   });
 });

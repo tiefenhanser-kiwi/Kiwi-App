@@ -106,6 +106,12 @@ interface StubState {
   // canonicalName → ingredient id (case-insensitive lookup is emulated by
   // lowercasing both sides at compare time).
   ingredients: Map<string, string>;
+  // WS9 BUG-096 — aliasKey → canonicalName. Models the POST-MERGE catalog: the
+  // loser row is GONE and its name survives only here. A canonical miss that
+  // silently writes ingredientId:null is invisible in production (80 of 1,292
+  // live rows already carry a null FK), so the alias hop has to be asserted at
+  // the call site, not just on the helper.
+  aliases: Map<string, string>;
   // 6c-6 Block B: ingredient id → {defaultUnit} for the POST /items
   // route's unit-default backfill (prisma.ingredient.findUnique).
   ingredientDefaultUnits: Map<string, { defaultUnit: string }>;
@@ -127,6 +133,7 @@ function makeState(): StubState {
     itemSources: [],
     activities: [],
     ingredients: new Map(),
+    aliases: new Map(),
     ingredientDefaultUnits: new Map(),
     meals: new Map(),
     txCount: 0,
@@ -194,10 +201,15 @@ function makeStubPrisma(state: StubState) {
       },
     },
     // WS9 BUG-096 — the alias-aware lookup consults this after a canonical
-    // miss. Empty = "no aliases in this fixture" (the pre-merge state);
-    // alias BEHAVIOUR is covered in ingredientLookup.test.ts.
+    // miss, and it resolves against state.aliases so a merged-away name can be
+    // exercised through the ROUTE rather than against the helper directly.
     ingredientAlias: {
-      findUnique: async () => null,
+      findUnique: async ({ where }: { where: { aliasKey: string } }) => {
+        const canonical = state.aliases.get(where.aliasKey);
+        if (!canonical) return null;
+        const id = state.ingredients.get(canonical);
+        return id ? { ingredient: { id, canonicalName: canonical } } : null;
+      },
       findMany: async () => [],
     },
     ingredient: {
@@ -387,10 +399,15 @@ function makeStubPrisma(state: StubState) {
     // tx variant; ingredient.findFirst + findUnique back the canonical-name
     // lookup + defaultUnit resolution.
     // WS9 BUG-096 — the alias-aware lookup consults this after a canonical
-    // miss. Empty = "no aliases in this fixture" (the pre-merge state);
-    // alias BEHAVIOUR is covered in ingredientLookup.test.ts.
+    // miss, and it resolves against state.aliases so a merged-away name can be
+    // exercised through the ROUTE rather than against the helper directly.
     ingredientAlias: {
-      findUnique: async () => null,
+      findUnique: async ({ where }: { where: { aliasKey: string } }) => {
+        const canonical = state.aliases.get(where.aliasKey);
+        if (!canonical) return null;
+        const id = state.ingredients.get(canonical);
+        return id ? { ingredient: { id, canonicalName: canonical } } : null;
+      },
       findMany: async () => [],
     },
     ingredient: {
@@ -1171,6 +1188,67 @@ describe("POST /api/plans/:id/generate-grocery-list — Ingredient lookup", () =
       assert.equal(res.status, 200);
       assert.equal(harness.state.listItems.length, 1);
       assert.equal(harness.state.listItems[0].ingredientId, "ing-salt-1");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS9 BUG-096 — the alias hop on the GENERATE route (groceryLists.ts:136).
+  //
+  // This path fails SILENTLY: a miss writes ingredientId:null and the row loses
+  // its pack size, conversion and store section. 80 of 1,292 live rows already
+  // carry a null FK, so a fresh batch blends into existing noise. The 81-pair
+  // merge deletes the loser rows, and the AI's canonicalName output is free
+  // text, so a merged-away form arriving here is the expected case, not an edge.
+  //
+  // Asserted through the ROUTE, not against lookupIngredientByName: a helper
+  // test would stay green even if this call site stopped using it.
+  it("BUG-096: an AI canonicalName naming a MERGED-AWAY row resolves via its alias", async () => {
+    const harness = await spinUp({
+      finalItems: [
+        finalListItem({ canonicalName: "roma tomato", displayName: "Roma tomato" }),
+      ],
+    });
+    seedPlan(harness.state);
+    // POST-MERGE catalog: only the survivor row exists; the loser's name
+    // survives solely as an alias.
+    harness.state.ingredients.set("roma tomatoes", "ing-survivor");
+    harness.state.aliases.set("roma tomato", "roma tomatoes");
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/plans/plan-1/generate-grocery-list`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      );
+      assert.equal(res.status, 200);
+      assert.equal(harness.state.listItems.length, 1);
+      assert.equal(
+        harness.state.listItems[0].ingredientId,
+        "ing-survivor",
+        "a merged-away name must reach the survivor, NOT write a silent null FK",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BUG-096: the alias hop is additive — a genuine miss still writes null", async () => {
+    const harness = await spinUp({
+      finalItems: [
+        finalListItem({ canonicalName: "dragonfruit", displayName: "Dragonfruit" }),
+      ],
+    });
+    seedPlan(harness.state);
+    harness.state.ingredients.set("roma tomatoes", "ing-survivor");
+    harness.state.aliases.set("roma tomato", "roma tomatoes");
+    try {
+      const token = signToken(USER);
+      const res = await fetch(
+        `${harness.baseUrl}/plans/plan-1/generate-grocery-list`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      );
+      assert.equal(res.status, 200);
+      assert.equal(harness.state.listItems[0].ingredientId, null);
     } finally {
       await harness.close();
     }
@@ -3918,6 +3996,80 @@ describe("WS7-7-A B4 — reconcile: added meal", () => {
       assert.equal(srcs.length, 1);
       assert.equal(srcs[0].mealId, "meal-b");
       assert.equal(h.spies.finalPass, 1);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+// WS9 BUG-096 — the alias hop on the RECONCILE path (groceryReconcile.ts:462).
+//
+// Third of the three silent-failure grocery paths. reconcile re-derives
+// ingredientId from the FINAL AI canonicalName (groceryReconcile.ts:353) before
+// the tx; a miss writes a null FK onto the row and the line silently loses its
+// pack size, conversion and store section. Distinct call site from the generate
+// route's -- it kept its own local helper rather than widening that module's
+// API -- so it needs its own guard.
+//
+// Asserted through GET /grocery-lists/:id, which is what actually drives
+// reconcile, NOT against lookupIngredientByName.
+describe("WS7-7-A B4 — reconcile: BUG-096 alias resolution", () => {
+  it("an added meal naming a MERGED-AWAY ingredient resolves to the survivor", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "roma tomato",
+          displayName: "Roma tomato",
+          ingredientId: "ing-survivor",
+          unit: "each",
+          quantity: 3,
+          sources: [{ mealId: "meal-new", dishId: "dish-n" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 5);
+    seedReconList(h.state, 4);
+    // POST-MERGE catalog: the loser row is gone; its name is only an alias.
+    h.state.ingredients.set("roma tomatoes", "ing-survivor");
+    h.state.aliases.set("roma tomato", "roma tomatoes");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      const row = h.state.listItems.find((i) => i.displayName === "Roma tomato");
+      assert.ok(row, "the added line was written");
+      assert.equal(
+        row.ingredientId,
+        "ing-survivor",
+        "reconcile must reach the survivor through the alias, NOT write a silent null FK",
+      );
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("the alias hop is additive — an unknown name still reconciles to a null FK", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "dragonfruit",
+          displayName: "Dragonfruit",
+          ingredientId: null,
+          unit: "each",
+          quantity: 1,
+          sources: [{ mealId: "meal-new", dishId: "dish-n" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 5);
+    seedReconList(h.state, 4);
+    h.state.ingredients.set("roma tomatoes", "ing-survivor");
+    h.state.aliases.set("roma tomato", "roma tomatoes");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      const row = h.state.listItems.find((i) => i.displayName === "Dragonfruit");
+      assert.ok(row);
+      assert.equal(row.ingredientId, null);
     } finally {
       await h.close();
     }
