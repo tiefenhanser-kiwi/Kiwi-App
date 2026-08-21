@@ -22,6 +22,8 @@ interface CreateMealRecorder {
 function makeTx(opts: {
   sourceMealExists?: boolean;
   ingredients: Array<{ id: string; canonicalName: string }>;
+  /** WS9 BUG-096 — aliasKey -> canonicalName, the post-merge alias table. */
+  aliases?: Record<string, string>;
   recorder: CreateMealRecorder;
   /** Throw on first dish.create — exercises mid-tx rollback. */
   throwOnFirstDishCreate?: boolean;
@@ -77,15 +79,28 @@ function makeTx(opts: {
         return { id: `new-dish-${dishCounter}` };
       },
     },
+    // WS9 BUG-096 — the alias-aware lookup consults this after a canonical
+    // miss. `opts.aliases` maps aliasKey -> canonicalName, modelling the
+    // post-merge catalog where a loser's name survives only as an alias.
+    ingredientAlias: {
+      findUnique: async (args: { where: { aliasKey: string } }) => {
+        const canonical = (opts.aliases ?? {})[args.where.aliasKey];
+        if (!canonical) return null;
+        const hit = opts.ingredients.find((i) => i.canonicalName === canonical);
+        return hit ? { ingredient: { id: hit.id, canonicalName: hit.canonicalName } } : null;
+      },
+      findMany: async () => [],
+    },
     ingredient: {
       findFirst: async (args: {
-        where: { canonicalName: { equals: string; mode: string } };
+        where: { canonicalName: { equals: string; mode: string } | string };
       }) => {
-        const target = args.where.canonicalName.equals;
+        const w = args.where.canonicalName;
+        const target = typeof w === "string" ? w : w.equals;
         const hit = opts.ingredients.find(
-          (i) => i.canonicalName === target,
+          (i) => i.canonicalName.toLowerCase() === target.toLowerCase(),
         );
-        return hit ? { id: hit.id } : null;
+        return hit ? { id: hit.id, canonicalName: hit.canonicalName } : null;
       },
     },
     dishIngredient: {
@@ -226,5 +241,82 @@ describe("createMealWithDishes (WS7-4-D c4 helper)", () => {
         return true;
       },
     );
+  });
+});
+
+
+// ── WS9 BUG-096 — the 422 path is the reason this call site is in scope ──────
+// createMealWithDishes is the ONLY one of the five name→id paths that hard-fails
+// on a miss: it throws, plans.ts:2482 catches it, and POST
+// /plans/:id/items/:itemId/promote-override returns HTTP 422
+// unresolved_ingredient. All three live recipeOverrideJson rows in the database
+// name a merge LOSER ("flour tortilla", "baby yukon gold potato", "large egg"),
+// so without alias awareness the merge would 422 every promote-override there is.
+
+describe("createMealWithDishes — alias resolution (BUG-096)", () => {
+  it("a merged-away ingredient name RESOLVES via its alias instead of throwing 422", async () => {
+    const recorder = emptyRecorder();
+    const tx = makeTx({
+      recorder,
+      ingredients: [{ id: "ing-survivor", canonicalName: "flour tortillas" }],
+      aliases: { "flour tortilla": "flour tortillas" },
+    });
+    await createMealWithDishes(tx as never, {
+      userId: "u1",
+      sourceMealId: "meal-src",
+      override: {
+        createdAt: "2026-08-01T00:00:00.000Z",
+        dishes: [
+          { name: "Tacos", ingredients: [{ name: "Flour tortilla", quantity: 8, unit: "each" }] },
+        ],
+      },
+    });
+    assert.equal(recorder.dishIngredientCreates.length, 1);
+    assert.equal(
+      recorder.dishIngredientCreates[0].data.ingredientId,
+      "ing-survivor",
+      "the DishIngredient must point at the SURVIVOR row",
+    );
+  });
+
+  it("still throws when the name matches neither a canonical name nor an alias", async () => {
+    // The alias step is additive: it must not turn a genuine miss into a hit.
+    const tx = makeTx({
+      recorder: emptyRecorder(),
+      ingredients: [{ id: "ing-survivor", canonicalName: "flour tortillas" }],
+      aliases: { "flour tortilla": "flour tortillas" },
+    });
+    await assert.rejects(
+      createMealWithDishes(tx as never, {
+        userId: "u1",
+        sourceMealId: "meal-src",
+        override: {
+          createdAt: "2026-08-01T00:00:00.000Z",
+          dishes: [{ name: "D", ingredients: [{ name: "dragonfruit", quantity: 1, unit: "each" }] }],
+        },
+      }),
+      (err: unknown) => err instanceof IngredientResolutionError,
+    );
+  });
+
+  it("canonical still beats alias on this path too", async () => {
+    const recorder = emptyRecorder();
+    const tx = makeTx({
+      recorder,
+      ingredients: [
+        { id: "ing-own", canonicalName: "flour tortilla" },
+        { id: "ing-survivor", canonicalName: "flour tortillas" },
+      ],
+      aliases: { "flour tortilla": "flour tortillas" },
+    });
+    await createMealWithDishes(tx as never, {
+      userId: "u1",
+      sourceMealId: "meal-src",
+      override: {
+        createdAt: "2026-08-01T00:00:00.000Z",
+        dishes: [{ name: "D", ingredients: [{ name: "flour tortilla", quantity: 1, unit: "each" }] }],
+      },
+    });
+    assert.equal(recorder.dishIngredientCreates[0].data.ingredientId, "ing-own");
   });
 });

@@ -397,6 +397,11 @@ model Ingredient {
   subcategory         String?
   defaultUnit         String
   nutritionRefPerUnit Json?
+  // WS9 BUG-096 (D-WS9-174) — SUPERSEDED by the IngredientAlias table below.
+  // Retained (not dropped) so the 6c-6 seeded values survive the cutover, but
+  // NOTHING reads or writes it any more: the alias source of truth is
+  // `ingredient_aliases`, which carries the unique index that makes a colliding
+  // alias a P2002 instead of a silent coin-flip. Drop candidate: D-WS7-218.
   aliases             String[] @default([])
   isOptionalDefault   Boolean  @default(false)
   // WS6 6c-4: purchase-pack metadata for grocery list consolidation.
@@ -414,8 +419,46 @@ model Ingredient {
 
   dishIngredients DishIngredient[]
   groceryItems    GroceryListItem[]
+  aliasRows       IngredientAlias[]
 
   @@map("ingredients")
+}
+
+// WS9 BUG-096 (D-WS9-174) — alias source of truth, replacing the inert
+// `Ingredient.aliases String[]`.
+//
+// WHY A TABLE AND NOT THE ARRAY: Ruling 2 requires a colliding alias to RAISE,
+// not to be silently resolved one way or the other. Postgres cannot enforce
+// that on a `text[]` — an exclusion constraint needs an index AM with
+// `amgettuple` (GiST/SP-GiST only; GIN has none), and core Postgres ships no
+// GiST opclass for `text[]`. A unique index on a scalar column is the only
+// mechanism that actually enforces it, and it needs its own row to sit on.
+//
+// `aliasKey` is `normalizeAliasKey(alias)` (lower + collapse whitespace + trim,
+// ingredientLookup.ts) and carries the @unique. `alias` keeps the authored
+// casing for display. Two rows claiming one alias is now a P2002 at write time
+// rather than a coin flip at read time.
+//
+// PRECEDENCE (ruled): a canonical name ALWAYS beats an alias. So an aliasKey
+// that also exists as some row's canonicalName is legal and deliberate — 20
+// such pairs exist today (alias "apple" on row "apples", etc.). This table
+// enforces only "no alias string owned by two rows", which is the invariant
+// the resolver's determinism actually rests on.
+//
+// Cascade on ingredient delete so a merged-away loser cannot leave a dangling
+// alias behind; the merge moves the loser's aliases onto the survivor first.
+model IngredientAlias {
+  id           String @id @default(uuid())
+  ingredientId String
+  // Authored form, casing preserved (display + provenance).
+  alias        String
+  // normalizeAliasKey(alias). THE uniqueness surface.
+  aliasKey     String @unique
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@index([ingredientId])
+  @@map("ingredient_aliases")
 }
 
 model Dish {

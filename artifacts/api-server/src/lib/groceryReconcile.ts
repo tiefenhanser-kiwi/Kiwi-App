@@ -65,6 +65,7 @@ import {
   generateFinalGroceryList as productionGenerateFinalGroceryList,
 } from "./groceryListAI";
 import { normalizeIngredientName } from "./groceryNormalization";
+import { lookupIngredientByName } from "./ingredientLookup";
 
 // Mirrors the route's KNOWN_SECTIONS (same duplication note as
 // groceryLists.ts ↔ groceryList.ts: kept local to avoid widening a shared
@@ -451,14 +452,18 @@ export async function reconcileGroceryListIfStale(
 
 // Best-effort canonical-name → Ingredient.id lookup. Mirrors the generate
 // route's private helper (kept local rather than widening that module's API).
+//
+// WS9 BUG-096 — ALIAS-AWARE via the shared helper. A miss here writes
+// `ingredientId: null` on the grocery row, which silently loses the pack size,
+// the conversion and the store section; the 81-pair merge deletes the loser
+// rows, so without the alias fallback every AI/user mention of a merged-away
+// name would start doing exactly that. The primary key stays
+// `normalizeIngredientName` — unchanged, so nothing that resolves today stops.
 async function lookupIngredientId(
   prisma: PrismaClient,
   canonicalName: string,
 ): Promise<string | null> {
   const normalized = normalizeIngredientName(canonicalName);
-  const row = await prisma.ingredient.findFirst({
-    where: { canonicalName: normalized },
-    select: { id: true },
-  });
-  return row?.id ?? null;
+  const hit = await lookupIngredientByName(prisma, normalized, canonicalName);
+  return hit?.id ?? null;
 }

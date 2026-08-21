@@ -18,10 +18,19 @@ interface IngredientRow {
   aliases: string[];
 }
 
+// WS9 BUG-096 — aliases moved off the inert `Ingredient.aliases` array onto the
+// `IngredientAlias` table (the only shape a uniqueness constraint can sit on).
+// The fixtures below still author `aliases: [...]` because that is the readable
+// form; this adapter projects them into the relation shape the query now
+// selects, so every existing ranking assertion keeps testing what it always did.
 function makePrisma(rows: IngredientRow[]): PrismaClient {
+  const projected = rows.map((r) => ({
+    ...r,
+    aliasRows: r.aliases.map((alias) => ({ alias })),
+  }));
   return {
     ingredient: {
-      findMany: async () => rows,
+      findMany: async () => projected,
     },
   } as unknown as PrismaClient;
 }

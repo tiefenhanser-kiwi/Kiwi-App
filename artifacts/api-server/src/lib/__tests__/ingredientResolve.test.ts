@@ -32,28 +32,90 @@ interface CapturedUpsert {
   update: Record<string, unknown>;
 }
 
-function makeStubPrisma(): {
+interface StubOpts {
+  /** canonicalName -> id. Rows that ALREADY exist; the resolver must not upsert these. */
+  existing?: Record<string, string>;
+  /** aliasKey -> canonicalName of the owning row (which must be in `existing`). */
+  aliases?: Record<string, string>;
+  /** ids whose nutritionRefPerUnit is SQL NULL (enrichment candidates). */
+  nullNutrition?: string[];
+}
+
+// WS9 BUG-096 — the stub grew a real catalog.
+//
+// FIXTURE STRENGTH (§27.4): the pre-BUG-096 stub returned `{ id }` from upsert
+// and nothing else, so `upserted.nutritionRefPerUnit === null` was
+// `undefined === null` — FALSE — and the USDA enrichment branch could never
+// fire in ANY test. That is a fake too weak to express the failure it was
+// nominally covering. It now returns the field, models the alias table, and
+// records every call so ordering can be asserted.
+function makeStubPrisma(opts: StubOpts = {}): {
   prisma: PrismaClient;
   captured: CapturedUpsert[];
+  calls: string[];
 } {
   const captured: CapturedUpsert[] = [];
+  const calls: string[] = [];
+  const existing = opts.existing ?? {};
+  const aliases = opts.aliases ?? {};
+  const nullNutrition = new Set(opts.nullNutrition ?? []);
+  const idFor = (canonicalName: string) =>
+    existing[canonicalName] ?? `ing-${canonicalName.replace(/\s+/g, "-")}`;
+
   const stub = {
     ingredient: {
+      findMany: async (args: {
+        where: { canonicalName?: { in: string[] }; id?: { in: string[] } };
+      }) => {
+        calls.push("ingredient.findMany");
+        if (args.where.canonicalName) {
+          return args.where.canonicalName.in
+            .filter((n) => n in existing)
+            .map((n) => ({ id: existing[n], canonicalName: n }));
+        }
+        const wanted = args.where.id?.in ?? [];
+        const byId = new Map(Object.entries(existing).map(([n, id]) => [id, n]));
+        return wanted
+          .filter((id) => byId.has(id))
+          .map((id) => ({
+            id,
+            canonicalName: byId.get(id)!,
+            nutritionRefPerUnit: nullNutrition.has(id) ? null : { source: "usda", matched: false },
+          }));
+      },
       upsert: async (args: {
         where: { canonicalName: string };
         update: Record<string, unknown>;
         create: Record<string, unknown>;
       }) => {
+        calls.push("ingredient.upsert");
         captured.push({
           canonicalName: args.where.canonicalName,
           create: args.create,
           update: args.update,
         });
-        return { id: `ing-${args.where.canonicalName.replace(/\s+/g, "-")}` };
+        const id = idFor(args.where.canonicalName);
+        // Real Prisma returns every column in `select`. Returning it is what
+        // lets the enrichment branch be observable at all.
+        // A non-null ref means "already enriched" — the USDA fire-and-forget
+        // stays quiet, which is what every test here wants. Tests that need the
+        // enrichment branch opt in via `nullNutrition`.
+        return { id, nutritionRefPerUnit: nullNutrition.has(id) ? null : { source: "usda", matched: false } };
+      },
+    },
+    ingredientAlias: {
+      findMany: async (args: { where: { aliasKey: { in: string[] } } }) => {
+        calls.push("ingredientAlias.findMany");
+        return args.where.aliasKey.in
+          .filter((k) => k in aliases)
+          .map((k) => ({
+            aliasKey: k,
+            ingredient: { id: existing[aliases[k]], canonicalName: aliases[k] },
+          }));
       },
     },
   };
-  return { prisma: stub as unknown as PrismaClient, captured };
+  return { prisma: stub as unknown as PrismaClient, captured, calls };
 }
 
 // ── inferCategory pin (matches wizardActivation behavior verbatim) ─────
@@ -319,5 +381,89 @@ describe("resolveIngredients — non-tx client contract", () => {
     assert.equal(captured.length, 2);
     assert.equal(map.get("chicken thighs"), "ing-chicken-thighs");
     assert.equal(map.get("harissa"), "ing-harissa");
+  });
+});
+
+// ── WS9 BUG-096 — alias awareness on the CREATING path ─────────────────
+// This is the half that makes the 81-pair merge durable. Without it the
+// resolver upserts "roma tomatoes" straight back into existence the next
+// time a dish mentions it, and the merge is a one-time cleanup.
+
+describe("resolveIngredients — alias awareness (BUG-096)", () => {
+  it("a merged-away name resolves to the survivor and DOES NOT create a row", async () => {
+    const { prisma, captured } = makeStubPrisma({
+      existing: { "roma tomatoes": "ing-survivor" },
+      aliases: { "roma tomato": "roma tomatoes" },
+    });
+    const ids = await resolveIngredients(prisma, [{ name: "Roma tomato", unit: "each" }]);
+    assert.equal(captured.length, 0, "NO upsert may fire — that is the re-accumulation bug");
+    assert.equal(ids.get("roma tomato"), "ing-survivor");
+  });
+
+  it("keys the returned map by the MENTION's canonical form, not the survivor's", async () => {
+    // mealMaterialize.ts:392 and friends look up by
+    // `ing.name.toLowerCase().trim()`. Re-keying would break every caller.
+    const { prisma } = makeStubPrisma({
+      existing: { "roma tomatoes": "ing-survivor" },
+      aliases: { "roma tomato": "roma tomatoes" },
+    });
+    const ids = await resolveIngredients(prisma, [{ name: "Roma tomato", unit: "each" }]);
+    assert.ok(ids.has("roma tomato"));
+    assert.ok(!ids.has("roma tomatoes"));
+  });
+
+  it("a genuinely new name still upserts — the alias step is additive only", async () => {
+    const { prisma, captured } = makeStubPrisma({
+      existing: { "roma tomatoes": "ing-survivor" },
+      aliases: { "roma tomato": "roma tomatoes" },
+    });
+    await resolveIngredients(prisma, [
+      { name: "Roma tomato", unit: "each" },
+      { name: "Dragonfruit", unit: "each" },
+    ]);
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0].canonicalName, "dragonfruit");
+  });
+
+  it("canonical beats alias: a name that is BOTH resolves to its own row", async () => {
+    const { prisma, captured } = makeStubPrisma({
+      existing: { apple: "ing-apple", apples: "ing-apples" },
+      aliases: { apples: "apple" },
+    });
+    const ids = await resolveIngredients(prisma, [{ name: "apples", unit: "each" }]);
+    assert.equal(ids.get("apples"), "ing-apples", "the canonical row must win over the alias");
+    assert.equal(captured.length, 0);
+  });
+
+  it("builds the enrich-candidate list FROM THE ROWS, not from the mentions", async () => {
+    // With alias resolution a mention of "roma tomato" lands on the "roma
+    // tomatoes" row; searching USDA for the mention would search the wrong
+    // string, so the enrich list is re-read from the resolved rows. Observable
+    // as a SECOND ingredient.findMany — a branch the pre-BUG-096 stub could not
+    // reach at all, because its upsert returned no nutritionRefPerUnit field.
+    //
+    // NOT asserted here: the canonicalName actually handed to enrichIngredients.
+    // That module is imported directly with no DI seam, so observing its
+    // arguments would mean firing a real USDA request from a unit test. The
+    // seam is worth adding; it is logged rather than faked (D-WS7-218).
+    const { prisma, calls } = makeStubPrisma({
+      existing: { "roma tomatoes": "ing-survivor" },
+      aliases: { "roma tomato": "roma tomatoes" },
+    });
+    await resolveIngredients(prisma, [{ name: "Roma tomato", unit: "each" }]);
+    assert.ok(
+      calls.filter((c) => c === "ingredient.findMany").length === 2,
+      `expected a canonical lookup + an enrich-candidate lookup; calls were ${calls.join(",")}`,
+    );
+  });
+
+  it("still issues exactly one upsert per unique canonical when nothing pre-exists", async () => {
+    const { prisma, captured } = makeStubPrisma();
+    await resolveIngredients(prisma, [
+      { name: "Chicken Thighs", unit: "lb" },
+      { name: "chicken thighs", unit: "lb" },
+      { name: "Garlic", unit: "clove" },
+    ]);
+    assert.equal(captured.length, 2);
   });
 });

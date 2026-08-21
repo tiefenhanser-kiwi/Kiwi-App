@@ -200,7 +200,18 @@ function makeStubs(opts: {
         };
       },
     },
+    // WS9 BUG-096 — the alias-aware lookup consults this after a canonical
+    // miss. Empty = "no aliases in this fixture" (the pre-merge state);
+    // alias BEHAVIOUR is covered in ingredientLookup.test.ts.
+    ingredientAlias: {
+      findUnique: async () => null,
+      findMany: async () => [],
+    },
     ingredient: {
+      // WS9 BUG-096 — resolveIngredients now batch-checks for existing rows
+      // before upserting. Empty = "the catalog has none of these yet", which is
+      // exactly what this fixture asserts by expecting an upsert per mention.
+      findMany: async () => [],
       upsert: async (args: {
         where: { canonicalName: string };
         create: Record<string, unknown>;
@@ -858,7 +869,18 @@ function makeStoreStubs() {
     mealPlanInstance: {
       findUnique: async () => ({ userId: USER_ID, isWizardDraft: true }),
     },
+    // WS9 BUG-096 — the alias-aware lookup consults this after a canonical
+    // miss. Empty = "no aliases in this fixture" (the pre-merge state);
+    // alias BEHAVIOUR is covered in ingredientLookup.test.ts.
+    ingredientAlias: {
+      findUnique: async () => null,
+      findMany: async () => [],
+    },
     ingredient: {
+      // WS9 BUG-096 — resolveIngredients now batch-checks for existing rows
+      // before upserting. Empty = "the catalog has none of these yet", which is
+      // exactly what this fixture asserts by expecting an upsert per mention.
+      findMany: async () => [],
       upsert: async (args: { where: { canonicalName: string } }) => ({
         id: `ing-${args.where.canonicalName}`,
       }),

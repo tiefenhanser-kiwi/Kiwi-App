@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import type { PrismaClient, StoreSection } from "@prisma/client";
 
 import { normalizeIngredientName } from "./groceryNormalization";
+import { lookupIngredientByName } from "./ingredientLookup";
 import { baseStapleName, UNIVERSAL_STAPLES } from "./groceryStaples";
 import { lookupConversion, lookupPurchaseDefault } from "./ingredientConversions";
 import { mergeConvertibleGroups } from "./groceryMerge";
@@ -221,6 +222,12 @@ function parseRecipeOverrideDishes(
 // looking up each by normalized canonical name. A per-call cache dedupes
 // repeated names across dishes. No match → ingredient:null (brand-new
 // override ingredient), bucketed under its normalized name.
+//
+// WS9 BUG-096 — ALIAS-AWARE. A miss here bucket-splits the line under its raw
+// name and drops the pack/conversion payload; the 81-pair merge deletes the
+// loser rows, and recipeOverride ingredient names are free text the user typed,
+// so this is the path most likely to name a merged-away form. Primary key stays
+// `normalizeIngredientName` — the alias step is purely additive.
 async function resolveOverrideIngredients(
   prisma: PrismaClient,
   overrideDish: RecipeOverrideDishLite,
@@ -231,19 +238,34 @@ async function resolveOverrideIngredients(
     const norm = normalizeIngredientName(ovr.name);
     let ingredient = cache.get(norm);
     if (ingredient === undefined) {
+      const SELECT = {
+        id: true,
+        canonicalName: true,
+        displayName: true,
+        category: true,
+        purchaseUnit: true,
+        purchaseQuantity: true,
+        purchaseDisplay: true,
+        conversionRef: true,
+      } as const;
+      // Canonical first, with the full select — byte-for-byte the pre-BUG-096
+      // query, so the hit path costs exactly what it always did.
       ingredient = await prisma.ingredient.findFirst({
         where: { canonicalName: norm },
-        select: {
-          id: true,
-          canonicalName: true,
-          displayName: true,
-          category: true,
-          purchaseUnit: true,
-          purchaseQuantity: true,
-          purchaseDisplay: true,
-          conversionRef: true,
-        },
+        select: SELECT,
       });
+      if (ingredient === null) {
+        // Only a MISS pays for the alias hop. This is the path the merge would
+        // otherwise break: the loser row is gone, so a free-text override
+        // naming it would bucket with a null ingredient and lose its pack.
+        const hit = await lookupIngredientByName(prisma, norm, ovr.name);
+        if (hit) {
+          ingredient = await prisma.ingredient.findFirst({
+            where: { id: hit.id },
+            select: SELECT,
+          });
+        }
+      }
       cache.set(norm, ingredient);
     }
     out.push({

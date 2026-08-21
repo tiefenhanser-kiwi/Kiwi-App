@@ -163,6 +163,13 @@ function makePrisma(
     mealPlanInstance: {
       findUnique: async () => (plan ? buildPlanRow(plan) : null),
     },
+    // WS9 BUG-096 — the alias-aware lookup consults this after a canonical
+    // miss. Empty = "no aliases in this fixture" (the pre-merge state);
+    // alias BEHAVIOUR is covered in ingredientLookup.test.ts.
+    ingredientAlias: {
+      findUnique: async () => null,
+      findMany: async () => [],
+    },
     ingredient: {
       findFirst: async ({
         where,

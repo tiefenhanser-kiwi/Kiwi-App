@@ -5,6 +5,7 @@
 
 import { PrismaClient } from "@prisma/client";
 
+import { normalizeAliasKey } from "../src/lib/ingredientLookup";
 import { seedAIPrompts } from "./seeds/aiPrompts";
 import { seedSystemSettings } from "./seeds/systemSettings";
 
@@ -182,7 +183,7 @@ const RECIPES: SeedRecipe[] = [
       { name: "Corn tortillas", amount: "12", category: "Bakery" },
       { name: "White onion", amount: "1", category: "Produce" },
       { name: "Cilantro", amount: "1 bunch", category: "Produce" },
-      { name: "Limes", amount: "3", category: "Produce" },
+      { name: "Lime", amount: "3", category: "Produce" },
       { name: "Avocado", amount: "2", category: "Produce" },
       { name: "Salsa verde", amount: "1 jar", category: "Pantry" },
       { name: "Cotija cheese", amount: "4 oz", category: "Dairy" },
@@ -355,7 +356,7 @@ const RECIPES: SeedRecipe[] = [
     fat: 18,
     tags: ["vegan", "high-fiber", "meal-prep"],
     ingredients: [
-      { name: "Sweet potato", amount: "1 large", category: "Produce" },
+      { name: "Sweet potatoes", amount: "1 large", category: "Produce" },
       { name: "Beets", amount: "2", category: "Produce" },
       { name: "Kale", amount: "1 bunch", category: "Produce" },
       { name: "Quinoa", amount: "1 cup", category: "Pantry" },
@@ -414,7 +415,7 @@ const RECIPES: SeedRecipe[] = [
     fat: 28,
     tags: ["vegetarian", "quick", "light"],
     ingredients: [
-      { name: "Tomatoes", amount: "4", category: "Produce" },
+      { name: "Tomato", amount: "4", category: "Produce" },
       { name: "Cucumber", amount: "1", category: "Produce" },
       { name: "Red onion", amount: "1/2", category: "Produce" },
       { name: "Kalamata olives", amount: "1 cup", category: "Pantry" },
@@ -448,15 +449,26 @@ const HOUSEHOLD_BASIC_INGREDIENTS: Array<{
 }> = [
   // Produce
   { canonicalName: "bananas", displayName: "Bananas", category: "Produce", defaultUnit: "each", aliases: ["banana"] },
-  { canonicalName: "apples", displayName: "Apples", category: "Produce", defaultUnit: "each", aliases: ["apple", "gala apples", "honeycrisp apples"] },
-  { canonicalName: "oranges", displayName: "Oranges", category: "Produce", defaultUnit: "each", aliases: ["orange", "navel oranges"] },
-  { canonicalName: "strawberries", displayName: "Strawberries", category: "Produce", defaultUnit: "container", aliases: ["strawberry"] },
+  // WS9 BUG-096 (D-WS9-174) — canonicalName corrected to the MERGE SURVIVOR for
+  // apples/oranges/strawberries, and the old canonical demoted to an alias.
+  // Before this, `pnpm prisma:seed` re-created three merged-away loser rows and
+  // then hard-failed P2002 (its alias "apple" would have collided with the
+  // merge-written alias on the surviving "apple" row). See the seed-conflict
+  // finding in the BUG-096 Phase 0 audit.
+  { canonicalName: "apple", displayName: "Apple", category: "Produce", defaultUnit: "each", aliases: ["apples", "gala apples", "honeycrisp apples"] },
+  { canonicalName: "orange", displayName: "Orange", category: "Produce", defaultUnit: "each", aliases: ["oranges", "navel oranges"] },
+  { canonicalName: "strawberry", displayName: "Strawberry", category: "Produce", defaultUnit: "container", aliases: ["strawberries"] },
   { canonicalName: "blueberries", displayName: "Blueberries", category: "Produce", defaultUnit: "container", aliases: ["blueberry"] },
   { canonicalName: "russet potatoes", displayName: "Russet potatoes", category: "Produce", defaultUnit: "lb", aliases: ["potatoes", "potato", "baking potatoes"] },
   { canonicalName: "baby spinach", displayName: "Baby spinach", category: "Produce", defaultUnit: "bag", aliases: ["spinach", "fresh spinach"] },
   { canonicalName: "romaine lettuce", displayName: "Romaine lettuce", category: "Produce", defaultUnit: "head", aliases: ["lettuce", "romaine"] },
   // Protein
-  { canonicalName: "large eggs", displayName: "Large eggs", category: "Protein", defaultUnit: "dozen", aliases: ["eggs", "egg", "dozen eggs"] },
+  // WS9 BUG-096 — "eggs" REMOVED from this row's aliases. The merge folds
+  // eggs → egg and writes aliasKey "eggs" onto the surviving "egg" row; leaving
+  // it here too would be two rows claiming one alias, i.e. P2002 at seed time.
+  // "egg" stays: it is a surviving canonical row, and canonical-beats-alias
+  // makes that overlap legal and deliberate (20 such pairs exist).
+  { canonicalName: "large eggs", displayName: "Large eggs", category: "Protein", defaultUnit: "dozen", aliases: ["egg", "dozen eggs"] },
   { canonicalName: "bacon", displayName: "Bacon", category: "Protein", defaultUnit: "lb", aliases: ["thick-cut bacon", "bacon strips"] },
   { canonicalName: "ground turkey", displayName: "Ground turkey", category: "Protein", defaultUnit: "lb", aliases: ["turkey", "ground turkey breast"] },
   { canonicalName: "chicken thighs", displayName: "Chicken thighs", category: "Protein", defaultUnit: "lb", aliases: ["boneless skinless chicken thighs", "chicken thigh"] },
@@ -517,23 +529,45 @@ async function main() {
   console.log(`seeded ${ingredientIdMap.size} unique ingredients`);
 
   // WS6 6c-6 Block A — household-basic ingredients with aliases.
+  //
+  // WS9 BUG-096 (D-WS9-174) — aliases now go to the IngredientAlias table, and
+  // the write is a UNION, not an overwrite. The old `update: { aliases: [...] }`
+  // clobbered the whole array, so any alias the merge wrote onto one of these 30
+  // rows would vanish on the next `pnpm prisma:seed` and the catalog would start
+  // re-accumulating duplicates. Upserting one row per alias adds what the seed
+  // knows about and never deletes what it doesn't.
+  //
+  // `Ingredient.aliases` is deliberately NOT written any more (see schema).
   for (const ing of HOUSEHOLD_BASIC_INGREDIENTS) {
-    await prisma.ingredient.upsert({
+    const row = await prisma.ingredient.upsert({
       where: { canonicalName: ing.canonicalName },
       update: {
         displayName: ing.displayName,
         category: ing.category,
         defaultUnit: ing.defaultUnit,
-        aliases: ing.aliases,
       },
       create: {
         canonicalName: ing.canonicalName,
         displayName: ing.displayName,
         category: ing.category,
         defaultUnit: ing.defaultUnit,
-        aliases: ing.aliases,
       },
+      select: { id: true },
     });
+    for (const alias of ing.aliases) {
+      const aliasKey = normalizeAliasKey(alias);
+      if (aliasKey.length === 0) continue;
+      // Upsert by the UNIQUE aliasKey. If another ingredient already owns this
+      // alias the update re-points it — which is the seed asserting ownership,
+      // deliberately, rather than crashing the whole seed. That is only ever
+      // reachable for a genuine authoring mistake in the list above; the merge's
+      // own alias writes are disjoint from it by construction (BUG-096 Phase 1).
+      await prisma.ingredientAlias.upsert({
+        where: { aliasKey },
+        update: { ingredientId: row.id, alias },
+        create: { ingredientId: row.id, alias, aliasKey },
+      });
+    }
   }
   console.log(
     `seeded ${HOUSEHOLD_BASIC_INGREDIENTS.length} household-basic ingredients (with aliases)`,

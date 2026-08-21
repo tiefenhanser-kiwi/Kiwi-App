@@ -12,6 +12,8 @@
 
 import type { Prisma } from "@prisma/client";
 
+import { lookupIngredientByName } from "./ingredientLookup";
+
 export interface RecipeOverrideForCreate {
   titleOverride?: string;
   dishes: Array<{
@@ -127,9 +129,21 @@ export async function createMealWithDishes(
       const lower = ing.name.toLowerCase();
       // Q-P1-2: strict canonicalName resolution (case-insensitive equality).
       // No fuzzy/prefix/auto-create.
-      const resolved = await tx.ingredient.findFirst({
-        where: { canonicalName: { equals: lower, mode: "insensitive" } },
-        select: { id: true },
+      //
+      // WS9 BUG-096 — ALIAS-AWARE. This is the ONLY one of the five name→id
+      // paths that HARD-FAILS on a miss: it throws, plans.ts:2482 catches it
+      // and the promote-override route returns HTTP 422 unresolved_ingredient.
+      // The 81-pair merge deletes the loser rows, and all three live
+      // recipeOverrideJson rows in the database name a loser form ("flour
+      // tortilla", "baby yukon gold potato", "large egg") — so without the
+      // alias fallback the merge would 422 every promote-override in existence.
+      //
+      // The primary lookup below is byte-for-byte unchanged, including the
+      // absence of a `.trim()` (its inputs are Zod-validated route payloads and
+      // no catalog canonicalName is untrimmed — measured, BUG-096 Phase 0 §S10).
+      // The alias step is additive and DOES trim, so it can only ever help.
+      const resolved = await lookupIngredientByName(tx, lower, ing.name, {
+        caseInsensitivePrimary: true,
       });
       if (!resolved) {
         throw new IngredientResolutionError(ing.name);

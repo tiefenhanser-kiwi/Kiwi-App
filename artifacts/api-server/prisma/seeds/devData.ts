@@ -199,7 +199,7 @@ const MEALS: DevMeal[] = [
     ingredients: [
       { name: "Spaghetti", category: "Pantry", quantity: 1, unit: "lb" },
       { name: "Bacon", category: "Protein", quantity: 6, unit: "oz" },
-      { name: "Eggs", category: "Dairy", quantity: 4, unit: "each" },
+      { name: "Egg", category: "Dairy", quantity: 4, unit: "each" },
       { name: "Parmesan", category: "Dairy", quantity: 1, unit: "cup" },
       { name: "Black pepper", category: "Pantry", quantity: 1, unit: "tsp" },
       { name: "Garlic", category: "Produce", quantity: 2, unit: "cloves" },
@@ -307,7 +307,7 @@ const MEALS: DevMeal[] = [
       { name: "Tamarind paste", category: "Pantry", quantity: 2, unit: "tbsp" },
       { name: "Fish sauce", category: "Pantry", quantity: 2, unit: "tbsp" },
       { name: "Lime", category: "Produce", quantity: 2, unit: "each" },
-      { name: "Eggs", category: "Dairy", quantity: 2, unit: "each" },
+      { name: "Egg", category: "Dairy", quantity: 2, unit: "each" },
     ],
     steps: [
       { text: "Soak rice noodles in hot water for 8 minutes; drain.", estimatedMinutes: 8, isTimingSensitive: true },
@@ -736,7 +736,7 @@ async function ensureUserPreferences(userId: string): Promise<void> {
       spiceTolerance: "medium",
       difficultyDefault: "medium",
       budgetLevel: "mid_range",
-      recurringGroceryItems: ["eggs", "milk", "bread", "coffee"],
+      recurringGroceryItems: ["egg", "milk", "bread", "coffee"],
     },
     create: {
       userId,
@@ -754,7 +754,7 @@ async function ensureUserPreferences(userId: string): Promise<void> {
       spiceTolerance: "medium",
       difficultyDefault: "medium",
       budgetLevel: "mid_range",
-      recurringGroceryItems: ["eggs", "milk", "bread", "coffee"],
+      recurringGroceryItems: ["egg", "milk", "bread", "coffee"],
     },
   });
 }

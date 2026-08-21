@@ -19,6 +19,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { logger } from "./logger";
 import { lookupPurchaseDefault } from "./ingredientConversions";
+import { lookupIngredientsByName } from "./ingredientLookup";
 import {
   enrichIngredients,
   type EnrichIngredientTarget,
@@ -277,6 +278,21 @@ export interface IngredientMention {
  * On hit: `update: {}` — never overwrites existing rows. Categories,
  * display names, and purchase fields are write-once reference content;
  * a later AI-reconciliation pass (D-WS7-065 / WS6 6c-4 analog) refines.
+ *
+ * WS9 BUG-096 (D-WS9-174) — ALIAS-AWARE. Before creating anything, every
+ * discovered canonical is run through the shared `lookupIngredientsByName`:
+ * canonical match first (unchanged behaviour), then the IngredientAlias table.
+ * A mention of "roma tomatoes" now lands on the "roma tomatoes" survivor via
+ * its alias instead of minting the duplicate back. THIS IS THE HALF THAT MAKES
+ * THE 81-PAIR MERGE DURABLE — without it the merge is a one-time cleanup and
+ * the catalog re-accumulates exactly the way it did the first time.
+ *
+ * The RETURN MAP IS STILL KEYED BY THE MENTION'S OWN CANONICAL FORM. Callers
+ * look up by `ing.name.toLowerCase().trim()` (mealMaterialize.ts:392 et al);
+ * alias-awareness changes the VALUE, never the KEY, so no caller changes.
+ *
+ * The upsert below is UNCHANGED and still runs for every genuine miss, so the
+ * concurrent-create race it protects against is still protected.
  */
 export async function resolveIngredients(
   prisma: PrismaClient,
@@ -306,7 +322,41 @@ export async function resolveIngredients(
   // enrichment. A matched record OR a miss-marker both make the field
   // non-null, so an already-enriched row is skipped and never re-searched.
   const enrichTargets: EnrichIngredientTarget[] = [];
+
+  // BUG-096 — two batched queries (canonical, then alias) resolve every mention
+  // that already has a row. Only genuine misses fall through to the upsert.
+  const existing = await lookupIngredientsByName(
+    prisma,
+    [...discovered.values()].map((d) => ({ primaryKey: d.canonical, rawName: d.displayName })),
+  );
+
+  // Enrichment candidates among the rows we did NOT create. Same `=== null`
+  // test as the create path below (a matched record and a miss-marker both make
+  // the column non-null, so an enriched row is never re-searched).
+  //
+  // NOTE the canonicalName passed to enrichment is the ROW's, not the mention's.
+  // Pre-BUG-096 they were always identical; with alias resolution a mention of
+  // "roma tomatoes" can land on the "roma tomato" row, and USDA must be searched
+  // for what the row actually is. See the Phase 3 decisions list.
+  const hitIds = [...new Set([...existing.values()].map((m) => m.id))];
+  if (hitIds.length > 0) {
+    const hitRows = await prisma.ingredient.findMany({
+      where: { id: { in: hitIds } },
+      select: { id: true, canonicalName: true, nutritionRefPerUnit: true },
+    });
+    for (const r of hitRows) {
+      if (r.nutritionRefPerUnit === null) {
+        enrichTargets.push({ id: r.id, canonicalName: r.canonicalName });
+      }
+    }
+  }
+
   for (const d of discovered.values()) {
+    const hit = existing.get(d.canonical);
+    if (hit) {
+      out.set(d.canonical, hit.id);
+      continue;
+    }
     const purchase = lookupPurchaseDefault(d.canonical);
     const upserted = await prisma.ingredient.upsert({
       where: { canonicalName: d.canonical },

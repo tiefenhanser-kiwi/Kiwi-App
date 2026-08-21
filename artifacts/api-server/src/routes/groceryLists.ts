@@ -42,6 +42,7 @@ import {
 } from "../lib/groceryListAI";
 import { reconcileGroceryListIfStale } from "../lib/groceryReconcile";
 import { normalizeIngredientName } from "../lib/groceryNormalization";
+import { lookupIngredientByName } from "../lib/ingredientLookup";
 import {
   searchIngredientsByPrefix as productionSearchIngredientsByPrefix,
 } from "../lib/ingredientSearch";
@@ -129,16 +130,19 @@ const ACTIVE_WINDOW_DAYS = 7;
 // WS7-5b activate D-WS7-067). Lookups read immutable canonical rows
 // (ingredients are upserted upstream during wizard activation); running
 // them before the tx is race-free in practice.
+//
+// WS9 BUG-096 — ALIAS-AWARE via the shared helper. A miss writes a null
+// ingredientId, losing the pack size / conversion / store section for that row;
+// the 81-pair merge deletes the loser rows, so an AI or user mention of a
+// merged-away name would start missing without the alias fallback. The primary
+// key stays `normalizeIngredientName` so nothing that resolves today stops.
 async function lookupIngredientIdByCanonicalName(
   db: PrismaClient | Prisma.TransactionClient,
   canonicalName: string,
 ): Promise<string | null> {
   const normalized = normalizeIngredientName(canonicalName);
-  const row = await db.ingredient.findFirst({
-    where: { canonicalName: normalized },
-    select: { id: true },
-  });
-  return row?.id ?? null;
+  const hit = await lookupIngredientByName(db, normalized, canonicalName);
+  return hit?.id ?? null;
 }
 
 export function createGroceryListsRouter(

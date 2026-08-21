@@ -193,6 +193,13 @@ function makeStubPrisma(state: StubState) {
         return { count: data.length };
       },
     },
+    // WS9 BUG-096 — the alias-aware lookup consults this after a canonical
+    // miss. Empty = "no aliases in this fixture" (the pre-merge state);
+    // alias BEHAVIOUR is covered in ingredientLookup.test.ts.
+    ingredientAlias: {
+      findUnique: async () => null,
+      findMany: async () => [],
+    },
     ingredient: {
       findFirst: async ({
         where,
@@ -379,6 +386,13 @@ function makeStubPrisma(state: StubState) {
     // route. groceryListItem.create writes into the same in-memory state as the
     // tx variant; ingredient.findFirst + findUnique back the canonical-name
     // lookup + defaultUnit resolution.
+    // WS9 BUG-096 — the alias-aware lookup consults this after a canonical
+    // miss. Empty = "no aliases in this fixture" (the pre-merge state);
+    // alias BEHAVIOUR is covered in ingredientLookup.test.ts.
+    ingredientAlias: {
+      findUnique: async () => null,
+      findMany: async () => [],
+    },
     ingredient: {
       findFirst: async ({
         where,
