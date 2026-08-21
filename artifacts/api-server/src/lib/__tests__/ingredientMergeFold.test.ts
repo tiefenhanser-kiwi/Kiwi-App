@@ -16,8 +16,9 @@
 // round-trip proves the database was clean at one moment. This proves the
 // SOURCE FILES can never re-introduce the failure — it goes red the day someone
 // adds `{ name: "Limes", ... }` back to a seed recipe, months from now, with no
-// database involved. The live round-trip still runs as a post-apply smoke
-// (scripts/ws9-bug096-durability-smoke.ts); this is the regression fence.
+// database involved. A live post-apply round-trip is still worth running once
+// against the merged catalog; it lands with the apply. This is the permanent
+// regression fence and does not depend on it.
 //
 // FIXTURE STRENGTH (§27.4): the seed files are read from disk and parsed, so
 // the assertions are against what `prisma:seed` will actually execute. Nothing
