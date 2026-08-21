@@ -153,6 +153,19 @@ export function tokenizeForMatch(name: string): Set<string> {
  * present in the USDA description's token set (and the Kiwi name yielded at
  * least one content token). Auto-accept only on true.
  */
+// ── CATALOG CONVENTION (Hans, ratified during BUG-096; D-WS9-178) ───────────
+// MACROS DESCRIBE THE INGREDIENT AS PURCHASED.
+//
+// Quantities are as-purchased, and "cooked"/"baked"/"fried" is a PREPARATION
+// NOTE on the step, never a different ingredient. So when two USDA records
+// both plausibly describe a catalog row, the RAW / unprepared one wins:
+//   russet potatoes -> 170027 "flesh and skin, RAW", not 170030 "... BAKED"
+//   yellow potatoes -> 170026 "flesh and skin, raw", not 169764 "FRENCH FRIED"
+//
+// This is written down because BUG-032's wrong-food class came from a matcher
+// INFERRING a convention instead of being handed one, and BUG-122 re-judges
+// ~75-80 unaudited rows against exactly this question. The rule is not encoded
+// in code below — it is a curation rule for whoever picks between candidates.
 export function nameMatches(kiwiName: string, usdaDescription: string): boolean {
   const kiwiTokens = tokenizeForMatch(kiwiName);
   if (kiwiTokens.size === 0) return false;

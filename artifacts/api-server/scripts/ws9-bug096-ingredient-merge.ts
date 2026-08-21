@@ -688,7 +688,18 @@ async function main(): Promise<void> {
   console.log(`  UserPreferences.recurring      : ${prefRewrite.length} row(s)`);
   console.log(`  MealPlanItem.recipeOverrideJson: ${overrideRewrite.reduce((a, s) => a + s.hits, 0)} name(s) in ${overrideRewrite.length} item(s)`);
   console.log(`  IngredientAlias                : ${aliasCreate.length} created, ${aliasRepoint.length} re-pointed, ${aliasDropSelf.length} self-alias dropped`);
-  console.log(`  Ingredient (survivor field writes): nutrition=${nutritionDecisions.size} pack=${packDecisions.size} conversionRef=${groups.filter((g) => !g.survivor.conversionRef && g.loser.conversionRef).length}`);
+  // Count the writes that will actually FIRE, not the decisions read. A
+  // SURVIVOR decision is a no-op (the survivor already holds that value), so
+  // printing the sheet size here overstated 23/12 against a real 9/2 — the
+  // opposite of "every write enumerated and counted".
+  const nutritionWrites = groups.filter((g) => {
+    const d = nutritionDecisions.get(g.survivorName);
+    return d === "LOSER" || d === "MISS";
+  }).length;
+  const packWrites = groups.filter((g) => packDecisions.get(g.survivorName) === "LOSER").length;
+  const conversionWrites = groups.filter((g) => !g.survivor.conversionRef && g.loser.conversionRef).length;
+  console.log(`  Ingredient (survivor field writes): nutrition=${nutritionWrites} pack=${packWrites} conversionRef=${conversionWrites}`);
+  console.log(`    (decisions read from the sheets: nutrition=${nutritionDecisions.size} pack=${packDecisions.size}; SURVIVOR decisions are no-ops)`);
   console.log(`  Ingredient DELETE (losers)     : ${groups.length}`);
 
   // ── PASS 2: one transaction. ──────────────────────────────────────────────
