@@ -42,7 +42,9 @@
 //   DRY-RUN (default) — zero DB writes. Enumerates every write it WOULD make,
 //     per carrier, survivor-side vs loser-side, and emits two reviewable CSVs
 //     to scripts/output/:
-//       bug096-nutrition-<ts>.csv   the 15 groups needing a nutrition decision,
+//       bug096-nutrition-<ts>.csv   the 23 groups whose two rows carry DIFFERENT
+//                                   nutrition (14 one-matched + 9 both-matched-
+//                                   but-different),
 //                                   PRE-FILLED with a pick + reason + the
 //                                   RE-FETCHED FDC description for both fdcIds
 //                                   (the description is not persisted; a CSV
@@ -393,14 +395,28 @@ function hasPack(r: IngRow): boolean {
  * Pre-fill rule and WHY it is not simply "the survivor's": the pack is a
  * SEMANTIC value, not a count. `egg` survives with `[2 eggs]` while the loser
  * `eggs` carries `[1 dozen]` — and the dozen is the thing you actually buy.
- * The heuristic below prefers the side whose purchaseUnit is a real retail
- * package word over a bare count, which is the archetype Hans named; every row
- * still arrives with its reason spelled out so the call is reviewable.
+ * The heuristic prefers the side that names a real retail package over a bare
+ * count, which is the archetype Hans named.
+ *
+ * It scans purchaseUnit AND purchaseDisplay, because the retail word often
+ * lives only in the display: carrots' pack is unit="lb" display="1 lb bag", and
+ * garlic's is unit="each" display="1 head of garlic". Reading the unit alone
+ * scored both of those as bare counts and pre-filled the wrong side — measured
+ * on the first dry-run. Every row still carries its reason, so a tie ("both are
+ * the same KIND of unit") is visibly a default rather than a judgement.
  */
-const RETAIL_UNITS = new Set([
+const RETAIL_WORDS = [
   "dozen", "package", "pack", "bag", "box", "bunch", "container", "jar", "bottle",
-  "can", "loaf", "head", "pint", "block", "gallon", "carton", "tub",
-]);
+  "can", "loaf", "head", "pint", "quart", "block", "gallon", "carton", "tub",
+];
+
+/** Does this pack name a buyable package, or is it a bare count of the item? */
+function namesRetailPack(r: IngRow): string | null {
+  const hay = `${r.purchaseUnit ?? ""} ${r.purchaseDisplay ?? ""}`.toLowerCase();
+  // \\b in a template literal, not \b — the latter is a backspace character and
+  // the word-boundary match would silently never fire.
+  return RETAIL_WORDS.find((w) => new RegExp(`\\b${w}s?\\b`).test(hay)) ?? null;
+}
 
 function buildPackCsv(groups: Group[]): { path: string; rows: number } {
   mkdirSync(OUT_DIR, { recursive: true });
@@ -411,15 +427,15 @@ function buildPackCsv(groups: Group[]): { path: string; rows: number } {
     const s = g.survivor, l = g.loser;
     if (!hasPack(s) || !hasPack(l)) continue;
     if (s.purchaseUnit === l.purchaseUnit && s.purchaseQuantity === l.purchaseQuantity && s.purchaseDisplay === l.purchaseDisplay) continue;
-    const sRetail = s.purchaseUnit != null && RETAIL_UNITS.has(s.purchaseUnit.toLowerCase());
-    const lRetail = l.purchaseUnit != null && RETAIL_UNITS.has(l.purchaseUnit.toLowerCase());
+    const sRetail = namesRetailPack(s);
+    const lRetail = namesRetailPack(l);
     let decision: string, reason: string;
     if (lRetail && !sRetail) {
       decision = "LOSER";
-      reason = `loser's unit "${l.purchaseUnit}" is a retail package, survivor's "${s.purchaseUnit}" is a bare count`;
+      reason = `loser names a retail package ("${lRetail}"), survivor's "${s.purchaseDisplay}" is a bare count of the item`;
     } else if (sRetail && !lRetail) {
       decision = "SURVIVOR";
-      reason = `survivor's unit "${s.purchaseUnit}" is a retail package, loser's "${l.purchaseUnit}" is a bare count`;
+      reason = `survivor names a retail package ("${sRetail}"), loser's "${l.purchaseDisplay}" is a bare count of the item`;
     } else {
       decision = "SURVIVOR";
       reason = "both packs are the same KIND of unit; survivor's is the default — override to LOSER if its size is the one you'd buy";
