@@ -189,6 +189,10 @@ const stubPrisma = {
   ingredient: {
     findMany: async () => [],
   },
+  // BUG-128 — the grounding lookup now goes through lookupIngredientsByName,
+  // which falls back to the alias table when a name misses canonicalName. No
+  // aliases here, so behaviour is unchanged; the table just has to EXIST.
+  ingredientAlias: { findMany: async () => [] },
 } as unknown as PrismaClient;
 
 // ── tests ─────────────────────────────────────────────────────────────────
@@ -342,6 +346,7 @@ describe("expandCandidate — per-run preference resolution at expand", () => {
     },
     // D-WS9-050 P1.2 — estimator-grounding lookup (stubbed estimator → unused).
     ingredient: { findMany: async () => [] },
+  ingredientAlias: { findMany: async () => [] }, // BUG-128 alias hop
   } as unknown as PrismaClient;
 
   function captureContexts() {
@@ -761,6 +766,7 @@ const storePrisma = {
   },
   // D-WS9-050 P1.2 — estimator-grounding lookup (stubbed estimator → unused).
   ingredient: { findMany: async () => [] },
+  ingredientAlias: { findMany: async () => [] }, // BUG-128 alias hop
 } as unknown as PrismaClient;
 
 describe("expandCandidate — D-WS9-038 store compose", () => {
@@ -808,6 +814,7 @@ describe("expandCandidate — D-WS9-038 store compose", () => {
       },
       // D-WS9-050 P1.2 — estimator-grounding lookup (stubbed estimator → unused).
       ingredient: { findMany: async () => [] },
+      ingredientAlias: { findMany: async () => [] }, // BUG-128 alias hop
     } as unknown as PrismaClient;
 
     const req = makeRequest(["A", "B"]); // slot 0 marked store, slot 1 live
@@ -860,5 +867,147 @@ describe("expandCandidate — D-WS9-038 store compose", () => {
       result.expanded.meals.map((m) => m.sourceStoreMealId),
       ["store-1", "store-2"],
     );
+  });
+});
+
+// ── BUG-128 — the wizard grounding lookup is alias-aware ──────────────────
+//
+// This was the SIXTH name→id path, and BUG-096 enumerated five. It keyed off
+// canonicalName in a batch `in` clause instead of an audited helper, so after
+// the 81-pair merge every wizard-generated mention of a merged-away name
+// (roma tomato, garlic clove, bay leaf, …) missed the catalog. The failure is
+// SILENT: toEffectiveIngredient just returns the bare ingredient, the estimate
+// still succeeds, and macroGroundedPct is stamped lower with nothing logged.
+//
+// The assertion is on what reaches the ESTIMATOR, not on the returned macros —
+// the estimator is stubbed here, so a grounded and an ungrounded ingredient
+// produce byte-identical output. Only its INPUT can tell the two apart.
+describe("expandCandidate — BUG-128 merged-away names still ground", () => {
+  // A loser name from the FOLD list, deliberately mis-cased so the test also
+  // covers ingredientCanonicalKey's lowercasing on the way in.
+  const MERGED_AWAY = "Roma Tomato";
+  const SURVIVOR_ID = "ing-roma-survivor";
+  const NUTRITION = {
+    source: "usda",
+    matched: true,
+    basis: "per100g",
+    per100g: { calories: 18, proteinG: 0.9, carbsG: 3.9, fatG: 0.2 },
+  };
+
+  function aliasAwarePrisma(opts: { aliasRows: unknown[] }): PrismaClient {
+    return {
+      userPreferences: { findUnique: async () => null },
+      ingredient: {
+        findMany: async (args: {
+          where: { canonicalName?: { in: string[] }; id?: { in: string[] } };
+        }) => {
+          // Pass 1 (inside lookupIngredientsByName) — canonical only. The
+          // merged-away name is NOT a canonicalName any more, so it misses here
+          // and MUST fall through to the alias table.
+          if (args.where.canonicalName) return [];
+          // Pass 2 — the grounding columns, fetched by resolved id.
+          if (args.where.id) {
+            return args.where.id.in
+              .filter((id) => id === SURVIVOR_ID)
+              .map((id) => ({
+                id,
+                canonicalName: "roma tomatoes",
+                nutritionRefPerUnit: NUTRITION,
+                conversionRef: { gramsPerUnit: 62, unit: "each" },
+              }));
+          }
+          return [];
+        },
+      },
+      ingredientAlias: { findMany: async () => opts.aliasRows },
+    } as unknown as PrismaClient;
+  }
+
+  function mealNamingMergedAway(
+    title: string,
+  ): WizardExpandResult["meals"][number] {
+    const meal = makeMeal(title);
+    meal.dishes[0].ingredients = [
+      { name: MERGED_AWAY, quantity: 3, unit: "each" },
+    ];
+    return meal;
+  }
+
+  type SeenIngredient = {
+    name: string;
+    ingredientId?: string | null;
+    canonicalName?: string;
+    nutritionRefPer100g?: unknown;
+    conversionRef?: unknown;
+  };
+
+  // Capture what toEffectiveIngredient actually handed the estimator.
+  function capturingEstimateStub(): {
+    impl: Parameters<typeof expandCandidate>[0]["estimateDishMacrosImpl"];
+    seen: SeenIngredient[];
+  } {
+    const seen: SeenIngredient[] = [];
+    const impl = (async (a: { ingredients: SeenIngredient[] }) => {
+      seen.push(...a.ingredients);
+      return {
+        status: "success",
+        perServing: { calories: 500, proteinG: 30, carbsG: 50, fatG: 20 },
+        sanityFlags: [],
+        grounding: { grounded: 1, counted: 1, ratio: 1, stamp: "grounded" },
+      };
+    }) as unknown as Parameters<
+      typeof expandCandidate
+    >[0]["estimateDishMacrosImpl"];
+    return { impl, seen };
+  }
+
+  it("reaches the survivor through the alias and grounds the estimate", async () => {
+    const { impl, seen } = capturingEstimateStub();
+    const res = await expandCandidate({
+      prisma: aliasAwarePrisma({
+        aliasRows: [
+          {
+            aliasKey: "roma tomato",
+            ingredient: { id: SURVIVOR_ID, canonicalName: "roma tomatoes" },
+          },
+        ],
+      }),
+      userId: "u1",
+      request: makeRequest(["A"]),
+      runAICall: makeRunAICallStub((t) =>
+        successResult([mealNamingMergedAway(t)]),
+      ).fn,
+      estimateDishMacrosImpl: impl,
+    });
+    assert.equal(res.status, "success");
+    const ing = seen.find((i) => i.name === MERGED_AWAY);
+    assert.ok(ing, "the merged-away ingredient must reach the estimator at all");
+    // The three grounding fields toEffectiveIngredient copies off the row. All
+    // three are absent when the lookup misses — and NOTHING else changes.
+    assert.equal(ing.ingredientId, SURVIVOR_ID);
+    assert.equal(ing.canonicalName, "roma tomatoes");
+    assert.ok(
+      ing.nutritionRefPer100g,
+      "a merged-away name must still carry USDA grounding",
+    );
+    assert.ok(ing.conversionRef, "and still carry the conversion identity");
+  });
+
+  it("an unknown name is still sent, just ungrounded (never dropped)", async () => {
+    const { impl, seen } = capturingEstimateStub();
+    const res = await expandCandidate({
+      prisma: aliasAwarePrisma({ aliasRows: [] }), // no alias hop available
+      userId: "u1",
+      request: makeRequest(["A"]),
+      runAICall: makeRunAICallStub((t) =>
+        successResult([mealNamingMergedAway(t)]),
+      ).fn,
+      estimateDishMacrosImpl: impl,
+    });
+    assert.equal(res.status, "success");
+    const ing = seen.find((i) => i.name === MERGED_AWAY);
+    assert.ok(ing, "an unresolved ingredient is still sent to the estimator");
+    assert.equal(ing.ingredientId, undefined);
+    assert.equal(ing.nutritionRefPer100g, undefined);
   });
 });

@@ -14,6 +14,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { estimateDishMacros } from "./dishMacros";
+import { lookupIngredientsByName } from "./ingredientLookup";
 import { ingredientCanonicalKey, toEffectiveIngredient } from "./overrideResolver";
 import { logger } from "./logger";
 import { resolveEffectivePreferences } from "./wizardPreferences";
@@ -272,18 +273,46 @@ export async function expandCandidate(
   // AI-generated (unpersisted), so we key on the same canonical form
   // resolveIngredients uses; a brand-new ingredient with no row yet simply
   // isn't in the map and is sent ungrounded (still sent — never dropped).
-  const wantedCanon = new Set<string>();
+  // BUG-128 — this was the SIXTH name->id path and BUG-096 missed it: it keyed
+  // straight off canonicalName in a batch `in` clause rather than going through
+  // an audited helper, so none of the 81 merged-away names (roma tomato, garlic
+  // clove, bay leaf, ...) reach the catalog any more. Nothing errors when they
+  // miss — toEffectiveIngredient just returns the bare ingredient, the estimate
+  // runs UNGROUNDED, and macroGroundedPct is silently stamped lower.
+  //
+  // Two queries, not one. lookupIngredientsByName owns the alias hop but selects
+  // only { id, canonicalName }, and grounding needs nutritionRefPerUnit +
+  // conversionRef — so resolve name->id through the shared helper, then fetch the
+  // grounding columns by the resolved ids. Both are batched, and the map stays
+  // keyed by the primaryKey the caller passed in, so the call site is unchanged.
+  const wantedCanon = new Map<string, string>(); // primaryKey -> raw name (alias hop)
   for (const w of work) {
-    for (const ing of w.dish.ingredients) wantedCanon.add(ingredientCanonicalKey(ing.name));
+    for (const ing of w.dish.ingredients) {
+      const key = ingredientCanonicalKey(ing.name);
+      if (!wantedCanon.has(key)) wantedCanon.set(key, ing.name);
+    }
   }
-  const ingredientRows =
+  const matches =
     wantedCanon.size > 0
+      ? await lookupIngredientsByName(
+          opts.prisma,
+          [...wantedCanon].map(([primaryKey, rawName]) => ({ primaryKey, rawName })),
+        )
+      : new Map<string, { id: string }>();
+  const groundingIds = [...new Set([...matches.values()].map((m) => m.id))];
+  const groundingRows =
+    groundingIds.length > 0
       ? await opts.prisma.ingredient.findMany({
-          where: { canonicalName: { in: [...wantedCanon] } },
+          where: { id: { in: groundingIds } },
           select: { id: true, canonicalName: true, nutritionRefPerUnit: true, conversionRef: true },
         })
       : [];
-  const rowByCanon = new Map(ingredientRows.map((r) => [r.canonicalName, r]));
+  const groundingById = new Map(groundingRows.map((r) => [r.id, r]));
+  const rowByCanon = new Map<string, (typeof groundingRows)[number]>();
+  for (const [primaryKey, m] of matches) {
+    const row = groundingById.get(m.id);
+    if (row) rowByCanon.set(primaryKey, row);
+  }
 
   const macroResults = await Promise.all(
     work.map(async (w): Promise<WizardExpandEnrichedDishDetails> => {
