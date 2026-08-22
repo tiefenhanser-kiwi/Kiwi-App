@@ -4439,6 +4439,91 @@ describe("WS7-7-A B4 — reconcile: mixed and bucket-merge edge cases", () => {
   });
 });
 
+// ── BUG-126 — a bucket that GAINS a source inside an unchanged meal ───────
+//
+// The carry test in step 7 iterates `r.sources` — the sources the ROW ALREADY
+// HAS — so it can only ever notice a stored source that changed or vanished.
+// A source the row LACKS is invisible to it. `unchanged` is keyed on mealId
+// alone, so when the new contribution comes from a dish inside a meal that is
+// still in the plan, `allMealsIn` passes too and the row carries with a stale
+// quantity. Measured live: an ingredient added to one dish of a planned meal
+// never reached the list (live 8 each, persisted 1 each).
+//
+// This is NOT the bucket-merge case above: there the added source belongs to an
+// ADDED meal, which `allMealsIn(line.sources…, unchanged)` already rejects.
+// Here BOTH meals are already in the plan, which is why nothing caught it.
+describe("BUG-126 — reconcile: bucket gains a source from an already-planned meal", () => {
+  it("re-resolves the row that gained a dish, and leaves the untouched row carried", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        // Gained dish-z (meal-b was ALREADY in the plan) → must re-resolve.
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 4,
+          sources: [
+            { mealId: "meal-a", dishId: "dish-x" },
+            { mealId: "meal-b", dishId: "dish-z" },
+          ],
+        }),
+        // Untouched: its stored sources exactly equal its live sources. This is
+        // what proves the new condition does not over-fire — a row with no new
+        // source must still carry, or every read would re-resolve everything.
+        consolidatedItem({
+          canonicalName: "onion",
+          displayName: "Onion",
+          ingredientId: "ing-onion",
+          unit: "each",
+          quantity: 1,
+          sources: [{ mealId: "meal-b", dishId: "dish-z" }],
+        }),
+      ],
+    });
+    seedReconPlan(h.state, 6);
+    seedReconList(h.state, 5); // stale
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 2, // pre-edit — reflects dish-x ONLY, must not be carried
+      isChecked: true,
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x"); // matching defaults
+    seedReconItem(h.state, {
+      id: "it-onion",
+      ingredientId: "ing-onion",
+      displayName: "Onion",
+      unit: "each",
+      quantity: 1,
+    });
+    seedReconSource(h.state, "it-onion", "meal-b", "dish-z"); // matching defaults
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      // meal-b is in BOTH the prior and the current meal set, so the stale
+      // garlic row passed every existing arm of the carry test.
+      assert.equal(findRow(h.state, "it-garlic"), undefined);
+      const fresh = h.state.listItems.find(
+        (i) => i.displayName === "Garlic" && i.id !== "it-garlic",
+      )!;
+      assert.ok(fresh, "the gained-source row must be re-resolved, not carried");
+      assert.equal(fresh.quantity, 4); // the live quantity finally lands
+      // The untouched row carried: same id, same quantity, state intact.
+      const onion = findRow(h.state, "it-onion")!;
+      assert.ok(onion, "a row with no new source must still carry");
+      assert.equal(onion.quantity, 1);
+      // Exactly one bucket re-resolved — the AI pass is the expensive half, so
+      // a fix that pushed both into the subset would be a cost regression.
+      assert.equal(h.spies.finalPass, 1);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
 describe("WS7-7-A B4 — reconcile: failure path", () => {
   it("on GroceryListAIError serves prior state un-stamped (no writes, pointer not advanced)", async () => {
     const h = await spinUpReconcile({

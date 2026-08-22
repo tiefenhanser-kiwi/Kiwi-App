@@ -301,9 +301,24 @@ export async function reconcileGroceryListIfStale(
         live.ingredientSignature === s.ingredientSignature
       );
     });
+    // BUG-126 — the SYMMETRIC counterpart of the check above. signaturesMatch
+    // iterates r.sources: the sources the row ALREADY HAS. It sees a stored
+    // source that changed or vanished, but a source the row LACKS is invisible
+    // to it — and `unchanged` is keyed on mealId alone, so a bucket that gains a
+    // contribution from a NEW dish inside an ALREADY-PLANNED meal passed every
+    // arm and carried a stale quantity. (A gain from an ADDED meal was already
+    // caught by the second allMealsIn — that is why only this shape survived.)
+    // Measured live: roma tomatoes added to one dish of a planned meal stayed at
+    // the pre-edit quantity while the consolidator read the correct one.
+    const noNewSources =
+      line == null ||
+      line.sources.every((ls) =>
+        r.sources.some((s) => s.mealId === ls.mealId && s.dishId === ls.dishId),
+      );
     const carry =
       line != null &&
       signaturesMatch &&
+      noNewSources &&
       allMealsIn(rowMealIds, unchanged) &&
       allMealsIn(
         line.sources.map((s) => s.mealId),
