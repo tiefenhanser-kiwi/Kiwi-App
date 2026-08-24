@@ -299,3 +299,161 @@ describe("BUG-125: composePackName order quantity covers the need", () => {
     assert.equal(composePackName("saffron", null, null), "saffron");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WS9 grocery quantity block — Roots D and A (BUG-125 device-pass follow-ups).
+//
+// D: at a count of exactly 1 the residue-swap branch emitted the pack's own
+//    plural ("2 lemons" → residue "lemons" → "1 lemons"). Every one of the 25
+//    guards `083d935` shipped used a count >= 2, which is why it went green.
+// A: `scalePurchaseForSubUnit` covers ONE ingredient in a 1,570-row catalog
+//    (garlic). Every other container pack printed verbatim regardless of need,
+//    so "1 lb ground beef" stood against a need of 1.75 lb — under-ordering,
+//    the failure mode ruled worst.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Root D: the order line singularises at a count of exactly 1", () => {
+  it("guard D1 — a plural pack residue against a singular name renders singular", () => {
+    assert.equal(composePackName("Lemon", "each", "2 lemons", "1", "each"), "1 Lemon");
+    assert.equal(composePackName("jalapeño", "each", "4 jalapeños", "1", "each"), "1 jalapeño");
+    assert.equal(composePackName("Lime", "each", "2 limes", "1", "each"), "1 Lime");
+    assert.equal(
+      composePackName("english cucumber", "each", "2 english cucumbers", "1", "each"),
+      "1 english cucumber",
+    );
+    // And explicitly NOT the shipped defect.
+    assert.notEqual(composePackName("Lemon", "each", "2 lemons", "1", "each"), "1 lemons");
+  });
+
+  it("guard D2 — a name that is ITSELF plural stays plural (accepted, no stemmer)", () => {
+    // "roma tomatoes" has no singular to fall back to. One live row. Ruled:
+    // leave it rather than build a stemmer for a single row.
+    assert.equal(
+      composePackName("roma tomatoes", "each", "7 roma tomatoes", "1", "each"),
+      "1 roma tomatoes",
+    );
+  });
+
+  it("guard D3 — counts >= 2 are untouched by the singularisation branch", () => {
+    assert.equal(composePackName("Lemon", "each", "2 lemons", "5", "each"), "5 lemons");
+    assert.equal(composePackName("Lemon", "each", "2 lemons", "2", "each"), "2 lemons");
+  });
+});
+
+describe("Root A: a container pack scales to cover the need", () => {
+  it("guard A1 — same-unit arithmetic scales the pack", () => {
+    // The sliders case: 1¾ lb of beef against a 1 lb pack.
+    assert.equal(
+      composePackName("ground beef", "lb", "1 lb", "1.75", "pound"),
+      "2 lb ground beef",
+    );
+    // The cilantro case: 3 bunches needed, sold by the bunch.
+    assert.equal(
+      composePackName("fresh cilantro", "bunch", "1 bunch", "3", "bunch"),
+      "3 bunches fresh cilantro",
+    );
+    // A multi-unit pack: 3.5 lb needed, 1.5 lb per pack -> 3 packs = 4.5 lb.
+    assert.equal(
+      composePackName("chicken thighs", "lb", "1.5 lb pack", "3.5", "pound"),
+      "4.5 lb pack chicken thighs",
+    );
+  });
+
+  it("guard A2 — BOUNDARY: need == purchaseQuantity is exactly ONE pack", () => {
+    // Float noise makes ceil(1.0/1.0) unsafe without an epsilon.
+    assert.equal(composePackName("ground beef", "lb", "1 lb", "1", "pound"), "1 lb ground beef");
+    assert.equal(
+      composePackName("chicken thighs", "lb", "1.5 lb pack", "1.5", "pound"),
+      "1.5 lb pack chicken thighs",
+    );
+    assert.equal(
+      composePackName("fresh cilantro", "bunch", "1 bunch", "1", "bunch"),
+      "1 bunch fresh cilantro",
+    );
+    // Just over the boundary is two.
+    assert.equal(
+      composePackName("ground beef", "lb", "1 lb", "1.125", "pound"),
+      "2 lb ground beef",
+    );
+    // Under the boundary is still one — never round DOWN to zero packs.
+    assert.equal(composePackName("ground beef", "lb", "1 lb", "0.5", "pound"), "1 lb ground beef");
+  });
+
+  it("guard A3 — the display's size hint scales when its unit matches the need", () => {
+    assert.equal(
+      composePackName("crushed tomatoes", "can", "1 can (14.5 oz)", "56", "ounce"),
+      "4 cans (14.5 oz) crushed tomatoes",
+    );
+    assert.equal(
+      composePackName("Baby spinach", "container", "1 container (5 oz)", "10", "ounce"),
+      "2 containers (5 oz) Baby spinach",
+    );
+  });
+
+  it("guard A4 — a size hint whose unit does NOT match the need falls through untouched", () => {
+    // oz hint vs a cup need: no cross-dimension conversion here (out of scope,
+    // and the data to do it safely does not exist). Must NOT mis-scale.
+    //
+    // The need is 30 CUPS deliberately. An earlier version of this guard used
+    // 3 cups, and mutation testing showed it could not fail: dropping the unit
+    // check made the code compute ceil(3 / 14.5) = 1 pack, which renders
+    // identically to not scaling at all. 30 cups mis-scales to "3 cans" if the
+    // unit check is removed, so the guard now discriminates.
+    assert.equal(
+      composePackName("crushed tomatoes", "can", "1 can (14.5 oz)", "30", "cup"),
+      "1 can (14.5 oz) crushed tomatoes",
+    );
+    assert.equal(
+      composePackName("crushed tomatoes", "can", "1 can (14.5 oz)", "3", "cup"),
+      "1 can (14.5 oz) crushed tomatoes",
+    );
+    // No hint at all, differing units: unchanged.
+    assert.equal(
+      composePackName("cardamom", "bottle", "1 bottle", "2", "tbsp"),
+      "1 bottle cardamom",
+    );
+  });
+
+  it("guard A5 — the server-scaled subUnit (garlic) path is NOT touched", () => {
+    // clove-vs-head is scaled SERVER-side by scalePurchaseForSubUnit; the client
+    // has no conversionRef and must pass both through byte-identically.
+    assert.equal(composePackName("garlic", "head", "1 head", "6", "clove"), "1 head garlic");
+    assert.equal(composePackName("garlic", "head", "3 heads", "30", "clove"), "3 heads garlic");
+  });
+
+  it("guard A6 — the residue elide still wins over scaling", () => {
+    assert.equal(
+      composePackName("seedless watermelon", "each", "1 seedless watermelon", "3", "cup"),
+      "1 seedless watermelon",
+    );
+  });
+});
+
+describe("Roots A+B compose: the order line rounds up, the need stays fine-grained", () => {
+  it("guard AB1 — 1¼ bunches needed, sold by the bunch → order 2, need 1¼", () => {
+    // This is the pair that proves the two roots compose. The ORDER line ceils;
+    // the NEED parenthetical does not.
+    assert.equal(
+      composePackName("fresh cilantro", "bunch", "1 bunch", "1.25", "bunch"),
+      "2 bunches fresh cilantro",
+    );
+    assert.equal(formatNeedText("1.25", "bunch", ""), "1¼ bunches");
+    assert.equal(
+      composeGroceryLine("fresh cilantro", "bunch", "1 bunch", "1¼ bunches", "1.25", "bunch"),
+      "2 bunches fresh cilantro (1¼ bunches)",
+    );
+  });
+
+  it("guard AB2 — half a lemon: order 1, need ½ (the change Hans could not see)", () => {
+    assert.equal(composePackName("Lemon", "each", "2 lemons", "0.5", "each"), "1 Lemon");
+    assert.equal(formatNeedText("0.5", "each", ""), "½ each");
+    assert.equal(
+      composeGroceryLine("Lemon", "each", "2 lemons", "½ each", "0.5", "each"),
+      "1 Lemon (½ each)",
+    );
+    // ...and after the second half is added, the need moves and the order does not.
+    assert.equal(
+      composeGroceryLine("Lemon", "each", "2 lemons", "1 each", "1", "each"),
+      "1 Lemon (1 each)",
+    );
+  });
+});

@@ -181,14 +181,29 @@ function matchLeadingCase(original: string, replacement: string): string {
   return replacement.charAt(0).toUpperCase() + replacement.slice(1);
 }
 
+/**
+ * Does this word already read as a plural? "cloves", "peppers", "tomatillos"
+ * yes; "glass", "asparagus", "iris" no (those -ss/-us/-is endings are
+ * singular). Used both to avoid double-pluralizing and, in Root D, to decide
+ * whether a stored pack residue can be swapped for the singular name.
+ */
+function isPluralWord(word: string): boolean {
+  const w = word.trim().toLowerCase();
+  return w.endsWith("s") && !/(?:ss|us|is)$/.test(w);
+}
+
+/** The last whitespace-separated word, which is where the plural marker sits. */
+function lastWord(phrase: string): string {
+  const parts = phrase.trim().split(/\s+/);
+  return parts[parts.length - 1] ?? "";
+}
+
 /** Pluralize ONE noun, or return it unchanged when we can't do it safely. */
 function pluralizeNoun(word: string): string {
   const w = word.toLowerCase();
   if (!w) return word;
   if (INVARIANT_NAME_NOUNS.has(w)) return word;
-  // Already plural ("cloves", "peppers", "tomatillos"). "ss"/"us"/"is" endings
-  // are singular ("glass", "asparagus", "iris") and fall through.
-  if (w.endsWith("s") && !/(?:ss|us|is)$/.test(w)) return word;
+  if (isPluralWord(w)) return word;
   // Reuse the count-noun map first — it already knows the irregulars this
   // codebase cares about (ear→ears, loaf→loaves, leaf→leaves, bunch→bunches).
   const viaUnit = pluralizeNeedUnit(w, 2);
@@ -234,6 +249,131 @@ function resolveNeed(amount: string | number | null | undefined): number | null 
   if (typeof amount === "number") return Number.isFinite(amount) ? amount : null;
   if (typeof amount !== "string") return null;
   return parseQuantity(amount);
+}
+
+// ── WS9 Root A — a container pack must SCALE to cover the need ──────────────
+//
+// BUG-125 fixed the `each` branch. The container branch was left alone on the
+// belief that the server already scaled it — and it does, in
+// scalePurchaseForSubUnit, for ingredients carrying a `subUnit`. Measured
+// against the live catalog that is **1 row out of 1,570** (garlic, head↔clove).
+// Every other container pack printed verbatim whatever the need, so "1 lb
+// ground beef" stood against a need of 1.75 lb. Under-ordering, ruled worst.
+//
+// Two scalable shapes, and nothing else:
+//   1. the need unit and the pack unit are the same → pure arithmetic,
+//      ceil(need / packQuantity). No conversion data needed at all.
+//   2. purchaseDisplay carries a parenthetical size in the need's own unit
+//      ("1 can (14.5 oz)" against a need in oz) → ceil(need / (qty × size)).
+// Anything else — a need in cups against a pack in bunches — needs a
+// container→measure factor that does not exist anywhere in the data. Those
+// rows are OUT OF SCOPE and must render exactly as they do today.
+//
+// This lives client-side beside the `each` fix for the same reason: the need is
+// user-editable inline and PATCH /grocery-lists/:id/items/:itemId does not
+// recompute the stored pack, so a server-computed order quantity goes stale on
+// the first edit.
+
+const PACK_EPSILON = 1e-9;
+
+// Unit spellings that mean the same thing. Only what the live data actually
+// uses — the need side says "pound"/"ounce" where the pack side says "lb"/"oz",
+// and without this the two never match and nothing scales.
+const UNIT_ALIASES: Record<string, string> = {
+  lbs: "lb", pound: "lb", pounds: "lb",
+  ounce: "oz", ounces: "oz", "fl oz": "oz",
+  cups: "cup",
+  tablespoon: "tbsp", tablespoons: "tbsp", tbsps: "tbsp",
+  teaspoon: "tsp", teaspoons: "tsp", tsps: "tsp",
+  gram: "g", grams: "g", kilogram: "kg", kilograms: "kg",
+  milliliter: "ml", milliliters: "ml", liter: "l", liters: "l",
+  bunches: "bunch", cans: "can", jars: "jar", bags: "bag", boxes: "box",
+  heads: "head", cloves: "clove", containers: "container", bottles: "bottle",
+  packages: "package", packets: "packet", cartons: "carton", loaves: "loaf",
+  blocks: "block", wedges: "wedge", pints: "pint", quarts: "quart",
+  gallons: "gallon", sticks: "stick", ears: "ear", slices: "slice",
+};
+
+function normalizeUnitToken(unit: string | null | undefined): string {
+  const s = (unit ?? "").trim().toLowerCase();
+  return UNIT_ALIASES[s] ?? s;
+}
+
+/**
+ * The pack's own count, read off the front of `purchaseDisplay` ("1.5 lb pack"
+ * → 1.5). Read from the display rather than threading `purchaseQuantity`
+ * through a sixth parameter: the Phase 0 audit found the display's leading
+ * number and the `purchaseQuantity` column agree on **all 1,308 live rows that
+ * carry both**, and they cannot disagree on any path that writes them together.
+ */
+function packLeadingQuantity(purchaseDisplay: string): number | null {
+  const m = /^\s*([\d.]+)\s+/.exec(purchaseDisplay);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** "1 can (14.5 oz)" → 14.5 oz per pack. Null when there is no size in parens. */
+function packSizeHint(purchaseDisplay: string): { amt: number; unit: string } | null {
+  const m = /\(\s*~?\s*([\d.]+)\s*([a-zA-Z]+)\s*(?:each)?\s*\)/.exec(purchaseDisplay);
+  if (!m) return null;
+  const amt = parseFloat(m[1]);
+  return Number.isFinite(amt) && amt > 0 ? { amt, unit: m[2] } : null;
+}
+
+/**
+ * How many packs cover the need. Null when nothing in the data can relate the
+ * need's unit to the pack — the caller then leaves the pack exactly as stored.
+ * Never returns 0: half a pound of beef still means buying one pack.
+ */
+function packsToCoverNeed(
+  need: number,
+  packQuantity: number,
+  needUnit: string,
+  packUnit: string,
+  purchaseDisplay: string,
+): number | null {
+  if (!(need > 0) || !(packQuantity > 0)) return null;
+  const nu = normalizeUnitToken(needUnit);
+  const pu = normalizeUnitToken(packUnit);
+  // 1. Same unit on both sides — pure arithmetic. The epsilon is load-bearing:
+  //    without it a need of exactly one pack can ceil to two on float noise.
+  if (nu.length > 0 && nu === pu) {
+    return Math.max(1, Math.ceil(need / packQuantity - PACK_EPSILON));
+  }
+  // 2. The display names a size in the need's own unit.
+  const hint = packSizeHint(purchaseDisplay);
+  if (hint && normalizeUnitToken(hint.unit) === nu) {
+    return Math.max(1, Math.ceil(need / (packQuantity * hint.amt) - PACK_EPSILON));
+  }
+  // 3. Needs a container→measure factor nothing supplies. Out of scope.
+  return null;
+}
+
+/** Pack counts keep the display's own decimal style — glyphs are the NEED's convention. */
+function formatPackAmount(n: number): string {
+  return String(parseFloat(n.toFixed(4)));
+}
+
+/**
+ * Rewrite the display's leading count to the scaled TOTAL and pluralize the
+ * pack noun: "1 lb" ×2 → "2 lb" · "1 bunch" ×3 → "3 bunches" ·
+ * "1 can (14.5 oz)" ×4 → "4 cans (14.5 oz)". At one pack the stored string is
+ * returned untouched, so the no-scaling case stays byte-identical.
+ */
+function scalePackDisplay(
+  purchaseDisplay: string,
+  packs: number,
+  packQuantity: number,
+): string {
+  if (packs <= 1) return purchaseDisplay;
+  const m = /^(\s*)([\d.]+)(\s+)(\S+)([\s\S]*)$/.exec(purchaseDisplay);
+  if (!m) return purchaseDisplay;
+  const [, lead, , gap, noun, rest] = m;
+  const total = packs * packQuantity;
+  // The same count-noun map the need parenthetical uses, so the two halves of
+  // the line cannot pluralize differently. Measure units pass through.
+  return `${lead}${formatPackAmount(total)}${gap}${pluralizeNeedUnit(noun, total)}${rest}`;
 }
 
 // Pack + name, composed into the order half of the two-part line. `needAmount`
@@ -284,15 +424,44 @@ export function composePackName(
     // and correctly pluralized ("roma tomatoes"), so no pluralizer is needed
     // for this majority case. Only a mismatch ("4 ears" vs "ear of corn")
     // falls through to pluralizing the name.
-    return `${q} ${packNamesItem ? residue : pluralizeIngredientName(name, q)}`;
+    if (packNamesItem) {
+      // WS9 Root D — at a count of exactly 1 the stored residue is still the
+      // pack's own plural ("2 lemons" -> "lemons"), so swapping the count in
+      // front of it reads "1 lemons". The ingredient NAME is authored singular
+      // in 22 of the 23 live rows, so prefer it. No stemmer: a name that is
+      // itself plural ("roma tomatoes") has no singular to fall back to and
+      // stays plural - one live row, accepted rather than stemmed.
+      // No `!isPluralWord(name)` guard here: mutation testing proved it dead.
+      // This branch only runs when the residue already NAMES the item, so the
+      // fallback IS the name — for a plural name ("roma tomatoes") both sides
+      // return the same string, and the extra condition could never change an
+      // output. Deleted rather than left as reassuring-looking dead code.
+      if (q === 1 && isPluralWord(lastWord(residue))) {
+        return `1 ${name}`;
+      }
+      return `${q} ${residue}`;
+    }
+    return `${q} ${pluralizeIngredientName(name, q)}`;
   }
 
   // ── Rule 2: the units differ → a real container, used as stored ──────────
-  if (packNamesItem) return purchaseDisplay;
+  // WS9 Root A — scale the container to cover the need. Returns the stored
+  // display untouched whenever the need and the pack cannot be related.
+  const packQuantity = packLeadingQuantity(purchaseDisplay);
+  const packs =
+    need !== null && packQuantity !== null
+      ? packsToCoverNeed(need, packQuantity, nUnit, pUnit, purchaseDisplay)
+      : null;
+  const display =
+    packs !== null && packQuantity !== null
+      ? scalePackDisplay(purchaseDisplay, packs, packQuantity)
+      : purchaseDisplay;
+
+  if (packNamesItem) return display;
   // Pre-BUG-125 back-compat: with no need to decide with, an "each" pack whose
   // residue doesn't match the name is still dropped rather than guessed at.
   if (pUnit === "each" && need === null) return name;
-  return `${purchaseDisplay} ${name}`;
+  return `${display} ${name}`;
 }
 
 /**

@@ -1361,10 +1361,18 @@ describe("consolidatePlanIngredients — prep-note merging + dish title", () => 
 
 // ── WS7-8b B1 (BUG-025-2) — fractional round-up per PRD §2.8 [LOCKED] ────────
 //
-// Consolidation multiplies scaled quantities into decimals; the shopper must
-// never see a fractional buy-count. Discrete/unknown units ceil to a whole
-// unit; measured (volume/weight) units round the fractional remainder UP to
-// the nearest sensible kitchen fraction on the ¼/⅓/½/⅔/¾ ladder.
+// Consolidation multiplies scaled quantities into decimals. Every unit —
+// discrete and measured alike — rounds the fractional remainder UP to the
+// nearest sensible kitchen fraction on the ⅛ ladder (clean ⅓/⅔ preserved).
+//
+// WS9 Root B RETITLED THE DISCRETE CASES BELOW. They previously asserted that
+// discrete/unknown units CEIL to a whole (5.5 each → 6). That was rounding the
+// NEED toward a purchasable amount, which PRD §2.8 [LOCKED] forbids in the same
+// sentence this block cites — and it hid real changes, because ½ lemon and
+// 1 lemon both displayed as 1. The shopper still "never sees a fractional
+// buy-count": BUG-125 moved that round-up to the ORDER line (composePackName
+// ceils the pack count), which is where a buy-count belongs. The NEED half is
+// decision-support and now stays fine-grained for every unit.
 
 describe("consolidatePlanIngredients — BUG-025-2 quantity round-up", () => {
   const oneIng = (
@@ -1405,20 +1413,29 @@ describe("consolidatePlanIngredients — BUG-025-2 quantity round-up", () => {
     return out[0].quantity;
   };
 
-  it("discrete count ceils to a whole unit (0.75 → 1, 5.5 → 6, 3.75 → 4)", async () => {
-    assert.equal(await qtyOf(0.75, "each"), 1);
-    assert.equal(await qtyOf(5.5, "each"), 6);
-    assert.equal(await qtyOf(3.75, "clove"), 4);
+  // Root B: was "discrete count ceils to a whole unit (0.75 → 1, 5.5 → 6,
+  // 3.75 → 4)". A count need now keeps its fraction; the ORDER line does the
+  // ceiling. Half a lemon must read as half a lemon, or adding the other half
+  // looks like nothing happened.
+  it("a discrete count keeps its fraction on the ⅛ ladder (0.75, 5.5, 3.75)", async () => {
+    assert.equal(await qtyOf(0.75, "each"), 0.75);
+    assert.equal(await qtyOf(5.5, "each"), 5.5);
+    assert.equal(await qtyOf(3.75, "clove"), 3.75);
   });
 
-  it("discrete ceil applies to the multiply→decimal path (3 cloves × 1.25 = 3.75 → 4)", async () => {
+  // Root B: was "discrete ceil applies to the multiply→decimal path (3 cloves
+  // × 1.25 = 3.75 → 4)". The multiply→decimal path is unchanged; only what
+  // happens to the decimal afterwards is.
+  it("the multiply→decimal path keeps its fraction (3 cloves × 1.25 = 3.75)", async () => {
     // servingsOverride 5 over a default of 4 → multiplier 1.25 → 3 × 1.25 = 3.75.
-    assert.equal(await qtyOf(3, "clove", 4, 5), 4);
+    assert.equal(await qtyOf(3, "clove", 4, 5), 3.75);
   });
 
-  it("unknown / empty units are treated as discrete and ceil to whole", async () => {
-    assert.equal(await qtyOf(2.1, "sprig"), 3); // sprig not measured
-    assert.equal(await qtyOf(1.2, ""), 2); // empty unit
+  // Root B: was "unknown / empty units are treated as discrete and ceil to
+  // whole". They now take the same ladder as every other unit.
+  it("unknown / empty units take the ⅛ ladder like everything else", async () => {
+    assert.equal(await qtyOf(2.1, "sprig"), 2.125); // 0.1 → ⅛
+    assert.equal(await qtyOf(1.2, ""), 1.25); // 0.2 → ¼
   });
 
   it("measured need quantities round UP on the ⅛ ladder — fine-grained, NOT toward a purchase size", async () => {
@@ -1654,7 +1671,11 @@ describe("consolidatePlanIngredients — B1 no-add/no-drop invariant", () => {
     ]);
 
     // Quantities rounded up; staple flagged; canonical/display names untouched.
-    assert.equal(findItem(out, "lemon")!.quantity, 6); // 5.5 → 6 discrete
+    // Root B: the lemon assertion was 6 (5.5 ceiled as a discrete count). The
+    // need now keeps its half — 5.5 is already on the ⅛ ladder, so it passes
+    // through untouched. Nothing else in this test moved: the point of the
+    // test is the item SET and grouping, which are unchanged.
+    assert.equal(findItem(out, "lemon")!.quantity, 5.5); // 5.5 stays 5.5
     assert.ok(Math.abs(findItem(out, "flour")!.quantity - 1.5) < 1e-9); // 1.43 → 1½
     const salt = findItem(out, "kosher salt")!;
     assert.equal(salt.isUniversalStaple, true); // greyed, not buyable

@@ -10,24 +10,6 @@
 
 const QTY_EPSILON = 1e-9;
 
-// Volume/weight units that follow the sensible-fraction rule. Everything not
-// listed (each, clove, slice, can, head, bunch, …, empty, unknown) is a
-// discrete whole-unit count. Lowercase; matched case-insensitively.
-export const MEASURED_UNITS = new Set<string>([
-  "cup", "cups",
-  "tbsp", "tablespoon", "tablespoons",
-  "tsp", "teaspoon", "teaspoons",
-  "oz", "ounce", "ounces", "fl oz", "fluid ounce", "fluid ounces",
-  "lb", "lbs", "pound", "pounds",
-  "g", "gram", "grams",
-  "kg", "kilogram", "kilograms",
-  "ml", "milliliter", "milliliters",
-  "l", "liter", "liters",
-  "pinch", "pinches",
-  "quart", "quarts",
-  "gallon", "gallons",
-]);
-
 // Sensible kitchen fractions, ascending, with the 0 and 1 ladder ends. Eighths
 // give fine-grained "need" granularity; ⅓ and ⅔ stay so a value just below them
 // rounds up to clean thirds (1.3 → ⅓). Round-UP only, never down.
@@ -36,19 +18,27 @@ const FRACTION_LADDER = [
 ];
 
 /**
- * Round a NEED quantity per PRD §2.8:
- *   - Discrete / unknown / empty units → round UP to a whole unit
- *     (3.75 cloves → 4; you can't buy 0.75 of a lemon).
- *   - Measured units (volume/weight) → round the fractional remainder UP to ⅛
- *     granularity, keeping clean ⅓/⅔. Never inflates a value already on-ladder.
- * Whole-number inputs pass through unchanged (epsilon-guarded).
+ * Round a NEED quantity per PRD §2.8: round the fractional remainder UP to ⅛
+ * granularity, keeping clean ⅓/⅔. Never inflates a value already on-ladder;
+ * whole numbers pass through unchanged (epsilon-guarded).
+ *
+ * WS9 Root B — this used to CEIL discrete/unknown units (each, clove, bunch…)
+ * to a whole. That was a direct violation of the locked rule this file exists
+ * to enforce: 1.25 bunch became 2 bunch, which is rounding the need TOWARD A
+ * PURCHASABLE AMOUNT. It also made real changes invisible — half a lemon and
+ * a whole lemon both displayed as 1, so adding the second half looked like
+ * nothing had happened.
+ *
+ * The round-UP that shoppers need did not disappear: BUG-125 moved it to the
+ * ORDER line, where composePackName ceils the pack count. The need half is
+ * decision-support and stays fine-grained for EVERY unit, which is why the
+ * measured/discrete split is gone rather than merely relaxed.
+ *
+ * The unit is retained in the signature — every caller passes it, and a future
+ * per-unit granularity rule would want it — but it no longer selects a branch.
  */
-export function roundNeedQuantity(quantity: number, unit: string): number {
+export function roundNeedQuantity(quantity: number, _unit: string): number {
   if (!(quantity > 0)) return quantity;
-
-  if (!MEASURED_UNITS.has(unit.trim().toLowerCase())) {
-    return Math.ceil(quantity - QTY_EPSILON);
-  }
 
   const whole = Math.floor(quantity + QTY_EPSILON);
   const frac = quantity - whole;
