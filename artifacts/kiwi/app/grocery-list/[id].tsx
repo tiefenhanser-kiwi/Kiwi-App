@@ -1125,10 +1125,17 @@ function GroceryRow({
   // The need is read TOGETHER with the pack as one line, but stays its own
   // sibling Pressable (edit affordance) — never nested inside the name toggle,
   // so the WS5-5Q responder-race bug can't return. quantityAmount is untouched.
+  // WS9 BUG-125 — the raw need rides along so the ORDER half can cover it
+  // (9 roma tomatoes for a need of 9, not the stored 4-pack). Same raw values
+  // the parenthetical is built from, so the two halves cannot drift; and
+  // because it is computed HERE, an inline need edit moves the order line
+  // immediately (the PATCH does not recompute the stored pack).
   const packName = composePackName(
     item.userResolvedTo ?? item.name,
     item.purchaseUnit,
     item.purchaseDisplay,
+    item.quantityAmount,
+    item.quantityUnit,
   );
   const needText = displayQty ? String(displayQty) : "";
 
