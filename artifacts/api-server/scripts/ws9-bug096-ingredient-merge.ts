@@ -61,9 +61,17 @@
 //
 // Run (from artifacts/api-server):
 //   DRY-RUN: node --env-file=.env --import tsx scripts/ws9-bug096-ingredient-merge.ts
-//   APPLY:   node --env-file=.env --import tsx scripts/ws9-bug096-ingredient-merge.ts --apply \
+//              Writes the two review CSVs and, since D-WS9-185, ENUMERATES THE
+//              GROCERY BUCKET PLAN — the merges and deletes BUG-134 added.
+//   PLAN:    ...the APPLY command below WITHOUT --confirm. Reads the reviewed
+//              sheets, prints every write it would make, and HALTS before the
+//              transaction opens. Nothing is written.
+//   APPLY:   node --env-file=.env --import tsx scripts/ws9-bug096-ingredient-merge.ts \
+//              --apply --confirm \
 //              --nutrition scripts/output/bug096-nutrition-<ts>.csv \
 //              --pack scripts/output/bug096-pack-<ts>.csv
+//            ⚠️ --confirm is REQUIRED. Without it the run stops at the abort
+//            point; the plan above that line is a review, not a receipt.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -481,9 +489,48 @@ async function loadGroups(): Promise<{ groups: Group[]; skipped: string[] }> {
   return { groups, skipped };
 }
 
+/**
+ * D-WS9-185 — load the grocery rows and plan their buckets.
+ *
+ * Extracted so the DRY-RUN and the APPLY pass call the SAME function on the
+ * SAME inputs rather than each building their own copy. That is what makes
+ * "the preview cannot disagree with what runs" a structural property instead
+ * of a claim: there is one query and one planner, and planGroceryBucketMerges
+ * is pure and deterministic (loser rows processed in id order).
+ */
+async function loadGroceryBucketPlan(
+  loserIds: ReadonlySet<string>,
+  survivorIds: ReadonlySet<string>,
+  survivorByLoserId: ReadonlyMap<string, string>,
+) {
+  const rows = (await prisma.groceryListItem.findMany({
+    where: { ingredientId: { in: [...loserIds, ...survivorIds] } },
+    select: {
+      id: true, groceryListId: true, ingredientId: true, unit: true,
+      quantity: true, isUserAdded: true, deletedAt: true,
+    },
+  })) as unknown as GroceryRowLike[];
+  return planGroceryBucketMerges(rows, survivorByLoserId);
+}
+
+/** The bucket plan, enumerated. One printer, called from dry-run AND apply. */
+function printBucketPlan(gliPlan: ReturnType<typeof planGroceryBucketMerges>): void {
+  console.log(`    of which plain repoint (bucket free) : ${gliPlan.repointIds.length}`);
+  console.log(`    of which BUCKET MERGE (BUG-134)      : ${gliPlan.merges.length}`);
+  for (const m of gliPlan.merges) {
+    console.log(`       list ${m.groceryListId.slice(0, 8)} [${m.unit}] keep ${m.keepId.slice(0, 8)} <- absorb ${m.absorbId.slice(0, 8)}  qty -> ${m.mergedQuantity}`);
+  }
+  console.log(`    exempt, repointed unmerged           : ${gliPlan.exempt.length}`);
+  for (const e of gliPlan.exempt) console.log(`       ${e.id.slice(0, 8)} (${e.reason})`);
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const apply = argv.includes("--apply");
+  // D-WS9-185 — the write plan used to print and the transaction open on the
+  // very next statement, so an apply run had no abort point AFTER the plan
+  // became visible. Without a gate the enumeration is a receipt, not a review.
+  const confirmed = argv.includes("--confirm");
   const nutritionCsv = argv[argv.indexOf("--nutrition") + 1];
   const packCsv = argv[argv.indexOf("--pack") + 1];
 
@@ -512,6 +559,9 @@ async function main(): Promise<void> {
   const survivorIds = new Set(groups.map((g) => g.survivor.id));
   const loserNames = new Set(groups.map((g) => g.loserName));
   const survivorNames = new Set(groups.map((g) => g.survivorName));
+  // D-WS9-185 — hoisted above the dry-run return. It derives purely from
+  // `groups`, which is already in hand, so the preview can plan buckets with it.
+  const survivorByLoserId = new Map(groups.map((g) => [g.loser.id, g.survivor.id]));
 
   console.log(`\n--- reference census ---`);
   const loserRefs = await scanReferences(loserIds, loserNames);
@@ -527,8 +577,17 @@ async function main(): Promise<void> {
     console.log(`  pack:      ${pack.rows} contested group(s) -> ${pack.path}`);
     console.log(`\n  Per-group fold (survivor <- loser):`);
     for (const g of groups) console.log(`    ${g.survivorName}  <-  ${g.loserName}`);
+
+    // D-WS9-185 — the bucket plan, previewed. Before this the plan existed ONLY
+    // in --apply, built after the reviewed sheets were parsed, so the one part
+    // of the merge that DELETES rows was the one part nobody could look at
+    // first. BUG-137's fold is the first real execution of that path.
+    console.log(`\n--- grocery bucket plan (BUG-134) ---`);
+    const previewPlan = await loadGroceryBucketPlan(loserIds, survivorIds, survivorByLoserId);
+    printBucketPlan(previewPlan);
+
     console.log(`\nDRY-RUN — nothing written. Review both CSVs, then re-run with:`);
-    console.log(`  --apply --nutrition <csv> --pack <csv>\n`);
+    console.log(`  --apply --confirm --nutrition <csv> --pack <csv>\n`);
     return;
   }
 
@@ -567,7 +626,6 @@ async function main(): Promise<void> {
   }
   console.log(`\n  reviewed decisions: nutrition=${nutritionDecisions.size}  pack=${packDecisions.size}`);
 
-  const survivorByLoserId = new Map(groups.map((g) => [g.loser.id, g.survivor.id]));
   const groupByLoserId = new Map(groups.map((g) => [g.loser.id, g]));
   const groupByLoserName = new Map(groups.map((g) => [g.loserName, g]));
   const survivorNameByLoserName = new Map(groups.map((g) => [g.loserName, g.survivorName]));
@@ -636,14 +694,9 @@ async function main(): Promise<void> {
   // used to be a bare updateMany that never looked at the DESTINATION, so a list
   // already holding a survivor-side row in the same unit gained a second row for
   // one ingredient. Planned here, outside the tx, reading BOTH sides' rows.
-  const gliRows = (await prisma.groceryListItem.findMany({
-    where: { ingredientId: { in: [...loserIds, ...survivorIds] } },
-    select: {
-      id: true, groceryListId: true, ingredientId: true, unit: true,
-      quantity: true, isUserAdded: true, deletedAt: true,
-    },
-  })) as unknown as GroceryRowLike[];
-  const gliPlan = planGroceryBucketMerges(gliRows, survivorByLoserId);
+  // D-WS9-185 — the SAME loader the dry-run previews with. One query, one
+  // planner, so the preview and the apply cannot describe different plans.
+  const gliPlan = await loadGroceryBucketPlan(loserIds, survivorIds, survivorByLoserId);
   const gliAbsorbedIds = new Set(gliPlan.merges.map((m) => m.absorbId));
 
   // A row this plan DELETES must not also reach the displayName loop — that
@@ -735,13 +788,7 @@ async function main(): Promise<void> {
   console.log(`\n--- write plan (every write, counted) ---`);
   console.log(`  DishIngredient.ingredientId    : ${loserRefs.dishIngredient} row(s) across ${groups.length} updateMany`);
   console.log(`  GroceryListItem.ingredientId   : ${loserRefs.groceryListItemFk} row(s)`);
-  console.log(`    of which plain repoint (bucket free) : ${gliPlan.repointIds.length}`);
-  console.log(`    of which BUCKET MERGE (BUG-134)      : ${gliPlan.merges.length}`);
-  for (const m of gliPlan.merges) {
-    console.log(`       list ${m.groceryListId.slice(0, 8)} [${m.unit}] keep ${m.keepId.slice(0, 8)} <- absorb ${m.absorbId.slice(0, 8)}  qty -> ${m.mergedQuantity}`);
-  }
-  console.log(`    exempt, repointed unmerged           : ${gliPlan.exempt.length}`);
-  for (const e of gliPlan.exempt) console.log(`       ${e.id.slice(0, 8)} (${e.reason})`);
+  printBucketPlan(gliPlan); // D-WS9-185 — the same printer the dry-run uses.
   console.log(`  GroceryListItemSource          : ${gliSourceMove.length} moved, ${gliSourceDrop.length} dropped as duplicate-of-keeper`);
   console.log(`  RecipeInstructionStep.amountRefs: ${stepsToRewrite.reduce((a, s) => a + s.changed, 0)} ref(s) in ${stepsToRewrite.length} step(s)`);
   console.log(`  PrepStepCompletion             : ${pscUpdate.length} rekeyed, ${pscDelete.length} deleted as duplicate-of-survivor`);
@@ -764,6 +811,21 @@ async function main(): Promise<void> {
   console.log(`  Ingredient (survivor field writes): nutrition=${nutritionWrites} pack=${packWrites} conversionRef=${conversionWrites}`);
   console.log(`    (decisions read from the sheets: nutrition=${nutritionDecisions.size} pack=${packDecisions.size}; SURVIVOR decisions are no-ops)`);
   console.log(`  Ingredient DELETE (losers)     : ${groups.length}`);
+
+  // ── D-WS9-185: THE ABORT POINT. ───────────────────────────────────────────
+  // Everything above this line is a READ. Everything below it writes. The plan
+  // has now been printed in full; this is the last statement before the
+  // transaction opens, which is exactly where a reviewer needs to be able to
+  // stop. A flag rather than an interactive prompt on purpose: this script is
+  // run non-interactively (stdin is not a TTY under the runner), so a
+  // readline prompt would read EOF and "confirm" itself.
+  if (!confirmed) {
+    console.log(`\n  HALTED before the transaction — the write plan above is what WOULD run.`);
+    console.log(`  Nothing has been written. Re-run the identical command with --confirm to execute:`);
+    console.log(`    node --env-file=.env --import tsx scripts/ws9-bug096-ingredient-merge.ts \\`);
+    console.log(`      --apply --confirm --nutrition ${nutritionCsv} --pack ${packCsv}\n`);
+    return;
+  }
 
   // ── PASS 2: one transaction. ──────────────────────────────────────────────
   // WHY ONE: a half-merged catalog — some carriers rewritten, losers still
