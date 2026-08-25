@@ -1,0 +1,92 @@
+bucket,listId,status,lastGeneratedAt,rowId,displayName,unit,stored,sourceSum,expected,delta,nSources,oldCeilExplains
+POST_ROOT_B,65345fd0-7b9b-4e95-92c9-87c750a4fcac,active,2026-08-24T22:21:11.903Z,dfb57e05-1a17-467a-a8f5-456bdb3dc237,kosher salt,teaspoon,10.75,7.75,7.75,3,10,false
+POST_ROOT_B,65345fd0-7b9b-4e95-92c9-87c750a4fcac,active,2026-08-24T22:21:11.903Z,0510f588-2148-4f78-aa3e-7099dc2f1508,smoked paprika,teaspoon,3.5,0.5,0.5,3,1,false
+POST_ROOT_B,22117b24-4157-462c-aec4-28940e9fc9cd,active,2026-08-24T22:41:39.618Z,b4b0e7f5-c217-4b2b-a004-a0f598b492d5,fresh cilantro,cup,3,1.5,1.5,1.5,5,false
+POST_ROOT_B,641eb305-9fcd-47da-bc15-2c6fa472aea1,active,2026-08-25T12:09:14.052Z,38ada349-6bc9-4ae9-b280-f280e73fa03d,white onion,large,2,1,1,1,1,false
+POST_ROOT_B,22117b24-4157-462c-aec4-28940e9fc9cd,active,2026-08-24T22:41:39.618Z,49f204fc-08c9-4f6d-a98d-e1796b6f31bd,roma tomatoes,each,7,8,8,-1,2,false
+POST_ROOT_B,641eb305-9fcd-47da-bc15-2c6fa472aea1,active,2026-08-25T12:09:14.052Z,0003f2b5-a02f-4d9f-aca7-12ec7c6bea5b,roma tomatoes,each,6,5,5,1,2,false
+POST_ROOT_B,641eb305-9fcd-47da-bc15-2c6fa472aea1,active,2026-08-25T12:09:14.052Z,3c747745-55cc-458b-8aa4-c1970bf5b69a,Lemon,each,5,4.5,4.5,0.5,4,true
+POST_ROOT_B,641eb305-9fcd-47da-bc15-2c6fa472aea1,active,2026-08-25T12:09:14.052Z,e2dac0fe-e339-4985-89dc-c7d2b8f83fdc,Red onion,each,2,1.5,1.5,0.5,2,true
+POST_ROOT_B,c6ff50af-befa-4352-9e6a-481309fab150,active,2026-08-25T14:05:59.063Z,ef1338fc-6ea0-413e-826a-a0254c7eccd8,Yellow onion,each,1,0.5,0.5,0.5,1,true
+POST_ROOT_B,c6ff50af-befa-4352-9e6a-481309fab150,active,2026-08-25T14:05:59.063Z,adba56db-378a-4e8d-86fd-426d9d1cd225,Lemon,each,1,0.5,0.5,0.5,1,true
+POST_ROOT_B,d3d7d302-2468-4117-9daa-7241257457d4,active,2026-08-24T22:34:19.435Z,6930851c-3101-4daf-8e6a-382f6b9becfa,fresh cilantro,bunch,1.5,1.25,1.25,0.25,3,false
+PRE_ROOT_B,8908a51a-dcf9-4a2b-878a-527a648c3362,active,2026-07-12T23:45:50.614Z,55cc86f6-fccd-48ea-8e5c-bd79c145238d,Garlic,clove,45,30,30,15,9,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,d9138473-def7-4000-83f4-0a62012bde13,Mayonnaise,tablespoon,11,5,5,6,2,false
+PRE_ROOT_B,9dc136a0-0588-4713-9eae-4f1b64d775b5,active,2026-07-26T21:53:01.722Z,2ee3c104-f329-416d-a1b6-9f57ad537aaa,garlic,cloves,8,4,4,4,1,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,5007ffaf-8aab-4fb7-9acb-8cb734d5d0cc,Garlic,clove,15,11,11,4,4,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,ff0b4adf-579f-49f4-80bf-45f04a7ec2a9,roma tomatoes,each,11,7,7,4,3,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,c450618f-bfcc-4321-bbfe-db9ce7e0fde1,Ketchup,tablespoon,6,2,2,4,1,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,95671326-c3b0-4a5e-877e-dc257e7dea32,iceberg lettuce,cup,6,2,2,4,1,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,6113de9c-de65-4f22-bf0a-3533406c0c3b,black pepper,tsp,3.625,0.375,0.375,3.25,2,false
+PRE_ROOT_B,8908a51a-dcf9-4a2b-878a-527a648c3362,active,2026-07-12T23:45:50.614Z,63c0a87b-424b-40d2-9b90-805ee8c46407,kosher salt,teaspoon,12.5,9.5,9.5,3,11,false
+PRE_ROOT_B,ffc7d5a2-3cb9-4689-b4cf-4d59d4fd46a6,archived,2026-07-31T13:44:09.429Z,4210a190-9596-4831-9132-848d0b83101d,kosher salt,teaspoon,8.75,5.75,5.75,3,6,false
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,d69e4eac-b6e8-4a58-a524-0bb344b39315,dijon mustard,tablespoon,6,3,3,3,1,false
+PRE_ROOT_B,06451a2c-f4f7-40a0-a60b-450bb9e4570b,active,2026-08-13T02:10:47.437Z,f633e63b-d4a7-4b01-90ae-a243e98cd8f6,kosher salt,teaspoon,11.5,8.5,8.5,3,10,false
+PRE_ROOT_B,b51f22ce-60e3-402e-ab14-c988f32ac082,active,2026-08-23T11:52:53.490Z,28bd303b-b3c0-4092-9eb8-a4251de83229,kosher salt,teaspoon,10.5,7.5,7.5,3,9,false
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,211f6f98-0820-45aa-be0c-c54bd76e9a53,Large eggs,each,4,2,2,2,1,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,f4f52b04-76e7-4d76-9982-62fe4215a65b,Kosher salt,teaspoon,15.25,13.25,13.25,2,16,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,b7b2ff35-3710-4aa5-8f65-029d435e53d4,yellow mustard,tablespoon,3,1,1,2,1,false
+PRE_ROOT_B,d51f9ce9-7aee-4172-8e1d-2d2156ce9afa,active,2026-07-11T21:15:54.310Z,f06a1dc1-9d7f-4884-9c29-294445a10bb9,smoked paprika,tablespoon,2.8333,1,1,1.8333,1,false
+PRE_ROOT_B,8908a51a-dcf9-4a2b-878a-527a648c3362,active,2026-07-12T23:45:50.614Z,0cc3d690-230d-475b-aae7-d970dbf7d953,fresh flat-leaf parsley,bunch,2,0.25,0.25,1.75,1,false
+PRE_ROOT_B,13645f91-507a-4614-8bd2-130e09aef3b0,active,2026-08-21T22:53:38.200Z,495faad3-ef9d-4a68-a083-7b91456772a8,fresh cilantro,bunch,3,1.25,1.25,1.75,3,false
+PRE_ROOT_B,3de51a7a-5dc6-4d7e-a47d-e5533c45a9c2,active,2026-08-21T23:11:39.412Z,2eea28f8-1149-4413-9374-03597eb36241,fresh cilantro,bunch,3,1.25,1.25,1.75,3,false
+PRE_ROOT_B,ffc7d5a2-3cb9-4689-b4cf-4d59d4fd46a6,archived,2026-07-31T13:44:09.429Z,b3f49158-deaf-43d7-86e2-7180bbea804f,white onion,each,2,0.5,0.5,1.5,1,false
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,e4a07928-c865-4aa2-bd52-d3835ceeea61,panko breadcrumbs,cup,3,1.5,1.5,1.5,1,false
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,7afd693a-6765-4dfc-adf7-1d29607e8ae4,boneless skinless chicken breasts,pound,3,1.5,1.5,1.5,1,false
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,f24ca092-14c2-4c7a-8efe-05f9f5426938,Kosher salt,teaspoon,6.75,5.5,5.5,1.25,8,false
+PRE_ROOT_B,d51f9ce9-7aee-4172-8e1d-2d2156ce9afa,active,2026-07-11T21:15:54.310Z,d3b5801a-dbb5-4aa0-88a4-d8588ecc396d,black pepper,tablespoon,2.1667,1,1,1.1667,1,false
+PRE_ROOT_B,613ed74b-4865-4d2f-bb85-ef4654b75d8a,active,2026-07-08T00:12:26.537Z,d7cd10da-6b27-49b0-b490-5331a8f7919a,fresh cilantro,bunch,1.5,0.5,0.5,1,2,false
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,1856dfbb-9cbb-4f7b-9f28-9b0302cf09fa,garlic powder,teaspoon,2.5,1.5,1.5,1,2,false
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,1cb4fe04-304b-4eb5-8072-32263d3916df,smoked paprika,teaspoon,2.5,1.5,1.5,1,2,false
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,418aa84d-2d19-43fd-a66e-509de51c1d2d,olive oil spray,ounce,2,1,1,1,1,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,68ff2e7b-5b35-4dba-bee3-bec8e71475be,smoked paprika,teaspoon,5.5,4.5,4.5,1,6,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,65c8a5e3-6a2a-44e4-bd72-c168befd9173,dill pickle chips,cup,1.5,0.5,0.5,1,1,false
+PRE_ROOT_B,d51f9ce9-7aee-4172-8e1d-2d2156ce9afa,active,2026-07-11T21:15:54.310Z,d99e3f63-38b5-4c47-ac0a-2f5c34ddc079,1 bunch fresh cilantro,bunch,1,0.25,0.25,0.75,1,true
+PRE_ROOT_B,ffc7d5a2-3cb9-4689-b4cf-4d59d4fd46a6,archived,2026-07-31T13:44:09.429Z,4b77dd2b-2d97-4c20-9d1d-ddccc5aac473,red cabbage,head,1,0.25,0.25,0.75,1,true
+PRE_ROOT_B,8ebee547-3c89-47e1-a626-59035dea948e,archived,2026-07-31T14:52:35.230Z,d0c90048-efbb-40ac-ae69-3a61a9b2a891,fresh flat-leaf parsley,bunch,1,0.25,0.25,0.75,1,true
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,fdd19577-ba88-472b-9202-e89caece532f,fresh basil,bunch,1,0.25,0.25,0.75,1,true
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,5e0178df-82dd-4bd3-9947-5d8693a2c70a,All-purpose flour,cup,1.5,0.75,0.75,0.75,1,false
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,87594fc5-1b5e-4a9a-81db-0899763abdcc,fresh flat-leaf parsley,bunch,1,0.25,0.25,0.75,1,true
+PRE_ROOT_B,06451a2c-f4f7-40a0-a60b-450bb9e4570b,active,2026-08-13T02:10:47.437Z,ba706f2a-1586-4bbe-9330-527a3bc7e904,red cabbage,head,1,0.25,0.25,0.75,1,true
+PRE_ROOT_B,c08a9f4e-b563-4f28-94ab-cd8eb059b993,active,2026-08-17T23:16:22.633Z,4b7769ec-1e85-49fe-bafe-d8bca14056b4,fresh cilantro,bunch,1,0.25,0.25,0.75,1,true
+PRE_ROOT_B,5813da45-53ff-4c39-967a-75ef9f17ca06,archived,2026-08-21T00:46:04.429Z,06dbf9a5-be34-45b9-be1a-004100588274,Red onion,each,1,0.25,0.25,0.75,1,true
+PRE_ROOT_B,65ee0f93-27d7-4370-ae06-ca69fc2de17c,active,2026-08-24T01:25:38.040Z,0bc6e074-973d-42f0-98ab-ff53679b7ad7,Red onion,each,1,0.25,0.25,0.75,1,true
+PRE_ROOT_B,d17828c9-a740-4662-8bac-4faadbb4e074,active,2026-08-22T00:13:26.935Z,85adf6ed-1ffc-4810-85b7-339d8a34f9ac,Red onion,each,1,0.25,0.25,0.75,1,true
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,d79de377-e5e3-40f3-aa27-bda95d2648ae,Red onion,each,2,1.25,1.25,0.75,4,true
+PRE_ROOT_B,d51f9ce9-7aee-4172-8e1d-2d2156ce9afa,active,2026-07-11T21:15:54.310Z,9a000141-21bb-41da-9717-64333bf4c9fe,White onion,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,8908a51a-dcf9-4a2b-878a-527a648c3362,active,2026-07-12T23:45:50.614Z,0d50efcf-eb73-41c3-8714-c30928e8b28c,Lemon,each,2,1.5,1.5,0.5,2,true
+PRE_ROOT_B,ffc7d5a2-3cb9-4689-b4cf-4d59d4fd46a6,archived,2026-07-31T13:44:09.429Z,65fc22af-e277-4adb-9045-9a46b83f0ef8,green cabbage,head,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,8ebee547-3c89-47e1-a626-59035dea948e,archived,2026-07-31T14:52:35.230Z,be604c61-d838-41fc-8774-a4b42b170d14,White onion,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,8ebee547-3c89-47e1-a626-59035dea948e,archived,2026-07-31T14:52:35.230Z,1029dc72-96ac-4846-8f74-7e54261ff732,Lemon,each,3,2.5,2.5,0.5,4,true
+PRE_ROOT_B,00a19f2b-68fd-41fd-ad41-a2b48f39d549,archived,2026-08-01T23:24:43.273Z,5e2d5eb5-a023-4bd8-b300-8b27864f2293,english cucumber,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,762f7cfb-8247-4200-baa3-a75a42816678,Lemon,each,3,2.5,2.5,0.5,2,true
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,268f70e0-cd40-4766-b31d-6a99af828653,Yellow onion,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,457e17f6-a782-4a56-b590-603fa0f45bbc,onion powder,teaspoon,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,8daea33e-6716-4915-95c4-b3954cbe87be,Black pepper,teaspoon,2.625,2.125,2.125,0.5,5,false
+PRE_ROOT_B,84ab7e43-3fad-4a00-b3b4-4f868551d130,active,2026-08-13T01:03:48.915Z,c9ff2a57-af84-4918-9d0f-750893a32040,Lemon,each,2,1.5,1.5,0.5,2,true
+PRE_ROOT_B,5813da45-53ff-4c39-967a-75ef9f17ca06,archived,2026-08-21T00:46:04.429Z,540af0fa-e90a-48c8-a397-724abf4be7c9,Lemon,each,3,2.5,2.5,0.5,2,true
+PRE_ROOT_B,4bf45cf6-58b0-49f7-be37-dd89d1105d00,active,2026-08-10T23:56:07.403Z,8ad0c885-914b-4c17-8064-3f29bd68d662,Yellow onion,each,3,2.5,2.5,0.5,2,true
+PRE_ROOT_B,4bf45cf6-58b0-49f7-be37-dd89d1105d00,active,2026-08-10T23:56:07.403Z,a020a2b1-b187-4346-8287-1b2af04dddbd,green cabbage,head,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,06451a2c-f4f7-40a0-a60b-450bb9e4570b,active,2026-08-13T02:10:47.437Z,fd6d53c3-8f88-4113-a861-7fd9db96ee30,Lemon,each,2,1.5,1.5,0.5,2,true
+PRE_ROOT_B,06451a2c-f4f7-40a0-a60b-450bb9e4570b,active,2026-08-13T02:10:47.437Z,bcd34845-f769-4be6-9f1b-0af4391f598e,green cabbage,head,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,3d8c4838-20dc-4154-8fcd-4203632a37a5,archived,2026-08-14T01:15:29.805Z,d5945471-d4f3-4d87-9fdb-fe9aa5842853,Lemon,each,3,2.5,2.5,0.5,2,true
+PRE_ROOT_B,3de51a7a-5dc6-4d7e-a47d-e5533c45a9c2,active,2026-08-21T23:11:39.412Z,390a11f4-19be-49b1-b33c-5f46aa6d07d1,Yellow onion,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,3de51a7a-5dc6-4d7e-a47d-e5533c45a9c2,active,2026-08-21T23:11:39.412Z,a1846415-e037-4a43-987e-bc2ae88fde5f,Lemon,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,5813da45-53ff-4c39-967a-75ef9f17ca06,archived,2026-08-21T00:46:04.429Z,2344236e-8ea2-4297-ae43-9a714ec6b22d,Yellow onion,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,3de51a7a-5dc6-4d7e-a47d-e5533c45a9c2,active,2026-08-21T23:11:39.412Z,513dd074-f155-4ff2-9b4f-f3e9a6f405b2,Red onion,each,1,0.5,0.5,0.5,2,true
+PRE_ROOT_B,13645f91-507a-4614-8bd2-130e09aef3b0,active,2026-08-21T22:53:38.200Z,f43238ec-5484-4ef5-80f0-1b672c5d7f6b,Yellow onion,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,13645f91-507a-4614-8bd2-130e09aef3b0,active,2026-08-21T22:53:38.200Z,19381187-b6ac-4c95-9343-1c071c790a39,Red onion,each,1,0.5,0.5,0.5,2,true
+PRE_ROOT_B,13645f91-507a-4614-8bd2-130e09aef3b0,active,2026-08-21T22:53:38.200Z,5a90b1ee-ffc3-4601-9bfc-80533ae0189c,Lemon,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,65ee0f93-27d7-4370-ae06-ca69fc2de17c,active,2026-08-24T01:25:38.040Z,07cc56ad-ca73-4316-82d8-34801600ff2a,White onion,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,65ee0f93-27d7-4370-ae06-ca69fc2de17c,active,2026-08-24T01:25:38.040Z,104b0ab1-09af-47fe-a8cc-03dd07f3fac5,green cabbage,head,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,d17828c9-a740-4662-8bac-4faadbb4e074,active,2026-08-22T00:13:26.935Z,7b12992e-e3c4-4cd0-8586-c126d225a419,Yellow onion,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,b51f22ce-60e3-402e-ab14-c988f32ac082,active,2026-08-23T11:52:53.490Z,7f183adf-59bc-4992-b64d-c58a602a7e20,White onion,each,1,0.5,0.5,0.5,1,true
+PRE_ROOT_B,24fd18b3-ddf9-4c7f-ae5b-5f2a05d16734,active,2026-08-24T01:21:40.745Z,2367c81a-5230-406a-9d33-0161cdf6126d,Lemon,each,3,2.5,2.5,0.5,2,true
+PRE_ROOT_B,06451a2c-f4f7-40a0-a60b-450bb9e4570b,active,2026-08-13T02:10:47.437Z,a207bc19-d04f-4e69-9860-5a1bdfab227e,fresh rosemary,tablespoon,0.625,1,1,-0.375,1,false
+PRE_ROOT_B,d51f9ce9-7aee-4172-8e1d-2d2156ce9afa,active,2026-07-11T21:15:54.310Z,4e77ac1f-3f93-40bd-a4d2-c278df200658,1 jar (16 oz) bread and butter pickles,cup,0.75,0.5,0.5,0.25,1,false
+PRE_ROOT_B,7d1d049c-b42a-4887-828a-3cf6b75c456f,active,2026-08-23T01:20:57.860Z,3cfc305f-9acf-4bff-a097-a1908a8027ac,fresh cilantro,bunch,1,0.75,0.75,0.25,2,true
+PRE_ROOT_B,d51f9ce9-7aee-4172-8e1d-2d2156ce9afa,active,2026-07-11T21:15:54.310Z,025d8650-9b40-4726-8807-bb0ceb78399d,kosher salt,tablespoon,2.1667,2,2,0.16670000000000007,1,false
+PRE_ROOT_B,d51f9ce9-7aee-4172-8e1d-2d2156ce9afa,active,2026-07-11T21:15:54.310Z,a169e7ad-0c6b-498d-99bf-93bb9aa16b92,mayonnaise,cup,0.7917,0.66,0.6666666666666666,0.12503333333333333,2,false
+PRE_ROOT_B,4bf45cf6-58b0-49f7-be37-dd89d1105d00,active,2026-08-10T23:56:07.403Z,4d76dd21-4618-4db8-824b-7f2974a96902,hot sauce,cup,0.625,0.5,0.5,0.125,1,false
+PRE_ROOT_B,d51f9ce9-7aee-4172-8e1d-2d2156ce9afa,active,2026-07-11T21:15:54.310Z,ab7c2d57-54eb-449c-a2a5-88af22fccd42,apple cider vinegar,cup,0.3125,0.25,0.25,0.0625,1,false
+PRE_ROOT_B,613ed74b-4865-4d2f-bb85-ef4654b75d8a,active,2026-07-08T00:12:26.537Z,0cb83f7b-750b-4160-8c71-71d164a13595,1 can (14.5 oz) low-sodium beef broth,cup,0.33,0.33,0.3333333333333333,-0.0033333333333332993,1,false
