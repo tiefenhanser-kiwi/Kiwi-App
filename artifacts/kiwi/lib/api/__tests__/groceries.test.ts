@@ -140,16 +140,30 @@ test("getGroceryLists returns the unwrapped list array", async () => {
   assert.equal(lists[0].itemCount, 24);
 });
 
-test("getGroceryLists with no filter omits the query param", async () => {
+// BUG-139 — the limit is asserted as a LITERAL `100`, not read back from the
+// module's constant. An expectation derived from the same value the code sends
+// moves whenever the code moves and pins nothing; the whole point here is that
+// the request must stop relying on the server's default of 20.
+test("getGroceryLists with no filter still sends the explicit limit", async () => {
   await getGroceryLists();
-  assert.ok(lastUrl?.endsWith("/grocery-lists"), `unexpected url: ${lastUrl}`);
+  assert.ok(lastUrl?.endsWith("/grocery-lists?limit=100"), `unexpected url: ${lastUrl}`);
 });
 
-test("getGroceryLists appends the active/past filter", async () => {
+test("getGroceryLists appends the active/past filter alongside the limit", async () => {
   await getGroceryLists("past");
   assert.ok(
-    lastUrl?.endsWith("/grocery-lists?filter=past"),
+    lastUrl?.endsWith("/grocery-lists?filter=past&limit=100"),
     `unexpected url: ${lastUrl}`,
+  );
+});
+
+// The regression this exists to prevent: omitting `limit` makes the server
+// clamp to 20 and the tab silently drops every list past the 20th.
+test("getGroceryLists never sends a bare /grocery-lists with no limit", async () => {
+  await getGroceryLists();
+  assert.ok(
+    /[?&]limit=\d+(&|$)/.test(lastUrl ?? ""),
+    `request must carry an explicit limit; got: ${lastUrl}`,
   );
 });
 

@@ -2,8 +2,20 @@
 // WS7-3 Block C1 — API-client + hook foundation; no screens migrate here.
 //
 // Schema transcribed from the real server route (artifacts/api-server/src/
-// routes/groceryLists.ts). GET /grocery-lists is NOT paginated (no nextCursor)
-// — per-user list counts are small.
+// routes/groceryLists.ts).
+//
+// BUG-139 — GET /grocery-lists IS paginated. It gained a keyset cursor in
+// WS7-7-A Block 6 (`clampLimit` defaults to 20, and the body carries a
+// `nextCursor`), and this comment's original claim that it was not is what let
+// the client keep sending no `limit` and never following the cursor: the tab
+// silently showed only the 20 newest lists, with no scroll-to-load and no way
+// to reach anything older. Measured live: 8 of one account's 28 lists were
+// unreachable in the app, and because the Groceries screen sorts and searches
+// over the rows it already has, neither A–Z nor the search box could find them.
+//
+// This asks for the server's ceiling instead. It is a STOPGAP, not the fix —
+// the real one is useInfiniteQuery (as useDishes/useMeals already do) plus
+// server-side sort and search, which needs the screen off ScrollView+map.
 
 import { z } from "zod";
 
@@ -66,9 +78,21 @@ export function planLinkTarget(
   return { pathname: "/plan/[id]", params: { id: list.mealPlanInstanceId } };
 }
 
+// `nextCursor` is deliberately absent: zod strips it, and declaring a field
+// this client never follows would read as "pagination handled". It is not —
+// see the BUG-139 note at the top of this file.
 const GroceryListsResponseSchema = z.object({
   groceryLists: z.array(GroceryListListItemSchema),
 });
+
+/**
+ * The server's own ceiling (`clampLimit` in api-server/src/lib/listQuery.ts
+ * clamps to [1, 100]), asked for explicitly so the tab stops silently
+ * truncating at the default 20. A user who passes 100 lists is truncated again,
+ * silently — that is BUG-139's remaining half, not something this constant can
+ * solve.
+ */
+const GROCERY_LIST_PAGE_LIMIT = 100;
 
 // ── Getter ─────────────────────────────────────────────────────────────────
 
@@ -81,8 +105,10 @@ const GroceryListsResponseSchema = z.object({
 export async function getGroceryLists(
   filter?: GroceryListFilterKey,
 ): Promise<GroceryListListItem[]> {
-  const query = filter ? `?filter=${encodeURIComponent(filter)}` : "";
-  const body = await apiClient(`/grocery-lists${query}`, {
+  const params = new URLSearchParams();
+  if (filter) params.set("filter", filter);
+  params.set("limit", String(GROCERY_LIST_PAGE_LIMIT));
+  const body = await apiClient(`/grocery-lists?${params.toString()}`, {
     schema: GroceryListsResponseSchema,
   });
   return body.groceryLists;
