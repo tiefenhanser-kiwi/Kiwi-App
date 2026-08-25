@@ -10,6 +10,8 @@ import {
   composeGroceryLine,
   formatNeedText,
   pluralizeNeedUnit,
+  pluralizeIngredientName,
+  singularizeIngredientName,
 } from "../format/grocery";
 
 describe("composePackName (pack + name, with count-produce elide)", () => {
@@ -455,5 +457,262 @@ describe("Roots A+B compose: the order line rounds up, the need stays fine-grain
       composeGroceryLine("Lemon", "each", "2 lemons", "1 each", "1", "each"),
       "1 Lemon (1 each)",
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WS9 BUG-143 — the oz↔lb gap in packsToCoverNeed.
+//
+// Root A gave the container branch two ways to relate a need to a pack: an
+// exact unit-token match, or a parenthetical size in the need's own unit.
+// A need in `oz` against a pack in `lb` matched NEITHER, so 35 live rows fell
+// through to "print the pack verbatim, whatever the need" — the same
+// under-order Root A existed to kill, one unit-pair short.
+//
+// ⚠️ THE NUMBERS ARE ASSERTED AS LITERAL PACK COUNTS, never by importing
+// WEIGHT_UNIT_TO_GRAMS. Deriving the expectation from the same constant the
+// code uses would move both sides together and pin nothing — the tautology
+// shape `cc90e95` avoided by asserting the literal 100. A boundary at exactly
+// 16 oz per lb is what actually pins the ratio.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("BUG-143: weight↔weight packs scale; nothing else starts scaling", () => {
+  it("guard W1 — a need in oz above the pack scales it (was: printed verbatim)", () => {
+    // 24 oz against a 1 lb block is two blocks. Before BUG-143 this returned
+    // "1 lb block Cotija cheese" — half the cheese the recipes call for.
+    assert.equal(
+      composePackName("Cotija cheese", "lb", "1 lb block", "24", "ounce"),
+      "2 lb block Cotija cheese",
+    );
+    assert.equal(
+      composePackName("thick-cut bacon", "lb", "1 lb pack", "40", "ounce"),
+      "3 lb pack thick-cut bacon",
+    );
+  });
+
+  it("guard W2 — BOUNDARY: exactly 16 oz is ONE pound, not two", () => {
+    // This is the assertion that pins the ratio. If either gram constant drifts
+    // by any amount, 16 oz stops being exactly one pack and this goes red.
+    assert.equal(
+      composePackName("Cotija cheese", "lb", "1 lb block", "16", "ounce"),
+      "1 lb block Cotija cheese",
+    );
+    // ...and one ounce more is two. 15 oz is still one.
+    assert.equal(
+      composePackName("Cotija cheese", "lb", "1 lb block", "17", "ounce"),
+      "2 lb block Cotija cheese",
+    );
+    assert.equal(
+      composePackName("Cotija cheese", "lb", "1 lb block", "15", "ounce"),
+      "1 lb block Cotija cheese",
+    );
+  });
+
+  it("guard W3 — BOUNDARY: a half-pound pack, where the epsilon earns its keep", () => {
+    // 8 oz against "0.5 lb pack" is EXACTLY one pack. Without the epsilon this
+    // is the case that ceils to 2 on float noise.
+    assert.equal(
+      composePackName("guanciale", "lb", "0.5 lb pack", "8", "ounce"),
+      "0.5 lb pack guanciale",
+    );
+    // 9 oz needs two half-pound packs — which is one pound of total product,
+    // the same total-not-count convention guard A3 already pins.
+    assert.equal(
+      composePackName("guanciale", "lb", "0.5 lb pack", "9", "ounce"),
+      "1 lb pack guanciale",
+    );
+  });
+
+  it("guard W4 — the reverse direction and grams both relate", () => {
+    // A need in lb against a pack in oz. 2 lb = 32 oz = four 8-oz packages.
+    assert.equal(
+      composePackName("feta", "oz", "8 oz package", "2", "pound"),
+      "32 oz package feta",
+    );
+    // Grams: 500 g is more than one 453.59 g pound, so two.
+    assert.equal(
+      composePackName("ground beef", "lb", "1 lb", "500", "gram"),
+      "2 lb ground beef",
+    );
+  });
+
+  it("guard W5 — every live weight row today needs ONE pack and is untouched", () => {
+    // Measured against the DB at build time: all 35 weight↔weight rows need at
+    // most one pack, so BUG-143 changes ZERO current rows. It is a forward fix
+    // (D-WS9-186) and writes nothing. These are the real live shapes.
+    assert.equal(
+      composePackName("Cotija cheese", "lb", "1 lb block", "5.125", "ounce"),
+      "1 lb block Cotija cheese",
+    );
+    assert.equal(
+      composePackName("Mexican fresh chorizo", "lb", "0.75 lb pack", "12", "ounce"),
+      "0.75 lb pack Mexican fresh chorizo",
+    );
+    assert.equal(
+      composePackName("gruyère cheese", "lb", "0.5 lb block", "4", "ounce"),
+      "0.5 lb block gruyère cheese",
+    );
+  });
+
+  it("guard W6 — SCOPE: volume and container pairs still do NOT scale", () => {
+    // The 258 tsp→container, 156 tbsp→bottle and 68 cup→bunch rows need a
+    // per-ingredient density that no table here supplies. An absurd need is
+    // used deliberately: if the weight rule ever leaked into these, a need this
+    // large could not possibly still print one pack.
+    assert.equal(
+      composePackName("olive oil", "bottle", "1 bottle", "400", "tablespoon"),
+      "1 bottle olive oil",
+    );
+    assert.equal(
+      composePackName("kosher salt", "container", "1 container", "900", "teaspoon"),
+      "1 container kosher salt",
+    );
+    assert.equal(
+      composePackName("fresh basil", "bunch", "1 bunch", "300", "cup"),
+      "1 bunch fresh basil",
+    );
+  });
+
+  it("guard W7 — SCOPE: a weight need against a CONTAINER pack is still out of scope", () => {
+    // "1 package (12 oz)" against a 2 lb need is a real under-order, and it is
+    // deliberately NOT fixed here: the pack unit is `package`, not a weight, so
+    // relating them means trusting a size parsed out of authored display prose
+    // across a unit boundary. Widening to it would move rows outside the 35
+    // this block scoped. Pinned so the next person sees the choice was made.
+    assert.equal(
+      composePackName("bacon", "package", "1 package (12 oz)", "2", "pound"),
+      "1 package (12 oz) bacon",
+    );
+  });
+
+  it("guard W8 — the pre-existing hint rule still works and is not shadowed", () => {
+    // The parenthetical-size rule must survive the new weight rule sitting in
+    // front of it. `can` is not a weight unit, so the hint is the only way in.
+    assert.equal(
+      composePackName("crushed tomatoes", "can", "1 can (14.5 oz)", "56", "ounce"),
+      "4 cans (14.5 oz) crushed tomatoes",
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WS9 BUG-144 — the count-of-1 plural on the branch Root D did not cover.
+//
+// Root D fixed "1 lemons" on the branch where the pack residue NAMES the item,
+// by falling back to the ingredient name. The sibling branch — residue does not
+// name the item — has no fallback, because there the NAME is the plural:
+// "garlic cloves" against a pack of "1 head of garlic" rendered
+// "1 garlic cloves". It renders live on list 22117b24.
+//
+// ⚠️ EVERY GUARD BELOW HAS A CASE AT EXACTLY 1, ON EACH BRANCH. That is the
+// whole lesson of BUG-130: all 25 guards `083d935` shipped used counts >= 2,
+// which is precisely how "1 lemons" went green.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("BUG-144: the order line agrees with a count of 1 on BOTH branches", () => {
+  it("guard S1 — the live defect: residue does not name the item, name is plural", () => {
+    // The exact row on list 22117b24.
+    assert.equal(
+      composePackName("garlic cloves", "each", "1 head of garlic", "1", "each"),
+      "1 garlic clove",
+    );
+    // And explicitly NOT the shipped defect.
+    assert.notEqual(
+      composePackName("garlic cloves", "each", "1 head of garlic", "1", "each"),
+      "1 garlic cloves",
+    );
+  });
+
+  it("guard S2 — the SAME branch at counts >= 2 stays plural", () => {
+    assert.equal(
+      composePackName("garlic cloves", "each", "1 head of garlic", "2", "each"),
+      "2 garlic cloves",
+    );
+    assert.equal(
+      composePackName("garlic cloves", "each", "1 head of garlic", "20", "each"),
+      "20 garlic cloves",
+    );
+  });
+
+  it("guard S3 — the no-pack branch had the same defect, at 1 and above", () => {
+    // Nine of the ten live rows this block corrects are here, not on the branch
+    // the bug was reported from: "1 bananas", "1 pet treats", "1 Nespresso pods".
+    assert.equal(composePackName("Carrots", null, null, "1", "each"), "1 Carrot");
+    assert.equal(composePackName("bananas", null, null, "1", "each"), "1 banana");
+    assert.equal(composePackName("pet treats", null, null, "1", "each"), "1 pet treat");
+    // ...and counts >= 2 are untouched, matching the pre-existing guard.
+    assert.equal(composePackName("Carrots", null, null, "3", "each"), "3 Carrots");
+    assert.equal(composePackName("Yellow onion", null, null, "4", "each"), "4 Yellow onions");
+  });
+
+  it("guard S4 — irregulars come from the SAME map as the plural direction", () => {
+    // COUNT_NOUN_SINGULARS is derived by inverting COUNT_NOUN_PLURALS, so the
+    // two directions cannot drift. These are the irregulars a hand-authored
+    // second list would be free to get wrong.
+    assert.equal(singularizeIngredientName("Bay leaves"), "Bay leaf");
+    assert.equal(singularizeIngredientName("ears of corn"), "ear of corn");
+    assert.equal(singularizeIngredientName("lime wedges"), "lime wedge");
+    assert.equal(singularizeIngredientName("brioche buns"), "brioche bun");
+    // -ies and -oes, the two rules English disagrees with itself about.
+    assert.equal(singularizeIngredientName("mixed berries"), "mixed berry");
+    assert.equal(singularizeIngredientName("Cherry tomatoes"), "Cherry tomato");
+    assert.equal(singularizeIngredientName("fingerling potatoes"), "fingerling potato");
+  });
+
+  it("guard S5 — words that only LOOK plural are not stemmed", () => {
+    // ⚠️ THIS GUARD WAS REWRITTEN. It first asserted that INVARIANT_NAME_NOUNS
+    // protected these, and deleting that check from singularizeNoun left the
+    // suite GREEN — the check was unreachable, because every invariant noun
+    // already fails isPluralWord. The assertion was describing a guard that
+    // was not doing the work. What actually holds this line is the
+    // -ss / -us / -is clause in isPluralWord, so that is what is pinned now.
+    assert.equal(singularizeIngredientName("asparagus"), "asparagus"); // -us
+    assert.equal(singularizeIngredientName("couscous"), "couscous"); // -us
+    assert.equal(singularizeIngredientName("watercress"), "watercress"); // -ss
+    assert.equal(singularizeIngredientName("molasses"), "molasses"); // -es on -ss
+    assert.equal(singularizeIngredientName("Swiss chard"), "Swiss chard"); // -ss mid-name
+    assert.equal(singularizeIngredientName("corn on the cob"), "corn on the cob"); // no -s
+    assert.equal(singularizeIngredientName("Yellow onion"), "Yellow onion"); // already singular
+    // Through the composer, at exactly 1, on the uncovered branch.
+    assert.equal(
+      composePackName("corn on the cob", "each", "2 ears", "1", "each"),
+      "1 corn on the cob",
+    );
+  });
+
+  it("guard S6 — a trailing prep clause rides along untouched", () => {
+    assert.equal(
+      singularizeIngredientName("garlic cloves, peeled"),
+      "garlic clove, peeled",
+    );
+    assert.equal(
+      composePackName("garlic cloves, peeled", "each", "1 head of garlic", "1", "each"),
+      "1 garlic clove, peeled",
+    );
+  });
+
+  it("guard S7 — Root D's ruled branch is UNCHANGED (guard D2 still stands)", () => {
+    // A stemmer now exists, which was the stated reason D2 accepted
+    // "1 roma tomatoes". This pins that the residue-swap branch was NOT
+    // rerouted through it — changing a ruled outcome is not this block's call.
+    assert.equal(
+      composePackName("roma tomatoes", "each", "7 roma tomatoes", "1", "each"),
+      "1 roma tomatoes",
+    );
+    assert.equal(composePackName("Lemon", "each", "2 lemons", "1", "each"), "1 Lemon");
+  });
+
+  it("guard S8 — singularise is the INVERSE of pluralise, not a lookalike", () => {
+    // A property, not a table: this is what proves the derived map is really
+    // the inverse rather than a second hand-authored list that happens to agree
+    // on the cases someone thought to write down. Measured over the live
+    // catalog at build time, 583 of 584 changed names round-trip.
+    for (const singular of [
+      "Carrot", "banana", "green onion", "Kalamata olive", "brioche bun",
+      "Bay leaf", "fingerling potato", "Cherry tomato", "garlic clove",
+      "lime wedge", "chicken thigh", "ear of corn",
+    ]) {
+      const plural = pluralizeIngredientName(singular, 2);
+      assert.notEqual(plural, singular, `${singular} should pluralize`);
+      assert.equal(singularizeIngredientName(plural), singular);
+    }
   });
 });

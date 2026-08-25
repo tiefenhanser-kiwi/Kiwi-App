@@ -175,6 +175,27 @@ const INVARIANT_NAME_NOUNS = new Set([
 // here ("tomatoes" but "avocados"), so any rule gets one of the two wrong.
 const O_TAKES_ES = new Set(["tomato", "potato"]);
 
+// WS9 BUG-144 — the inverse of COUNT_NOUN_PLURALS ("cloves" → "clove",
+// "loaves" → "loaf", "leaves" → "leaf"). Derived rather than authored so the
+// two directions cannot drift: adding one irregular to the map above gives
+// both. It is the same set of irregulars this codebase already cares about.
+const COUNT_NOUN_SINGULARS: Record<string, string> = Object.fromEntries(
+  Object.entries(COUNT_NOUN_PLURALS).map(([one, many]) => [many, one]),
+);
+
+// WS9 BUG-144 — words that PASS isPluralWord but are not the plural of
+// anything. The (ss|x|z|ch|sh)es reversal cannot tell "glasses" → "glass" from
+// "molasses" → nothing: both end in -sses, and no morphological rule separates
+// them.
+//
+// Sized to the live data, same discipline as INVARIANT_NAME_NOUNS above and NOT
+// to general English. Scanning all 1,725 distinct ingredient + grocery-row
+// names, exactly THREE hit that reversal: "peaches" → "peach" and "radishes" →
+// "radish" are both correct, and "molasses" is the only one that is not.
+// "pomegranate molasses" is a real catalog row. Add here only what the data
+// shows — a speculative list of English mass nouns would be unfalsifiable.
+const NOT_A_PLURAL = new Set(["molasses"]);
+
 /** Preserve a leading capital when a lookup returns a lowercase plural. */
 function matchLeadingCase(original: string, replacement: string): string {
   if (!original || original[0] !== original[0].toUpperCase()) return replacement;
@@ -244,6 +265,78 @@ export function pluralizeIngredientName(
   return `${words.join(" ")}${rest}${tail}`;
 }
 
+/**
+ * Singularize ONE noun, or return it unchanged when we can't do it safely.
+ *
+ * ⚠️ NO `INVARIANT_NAME_NOUNS` CHECK HERE, AND THAT IS DELIBERATE — mutation
+ * testing proved one dead. Every one of the 14 invariant nouns (corn, bread,
+ * asparagus, celery…) already fails `isPluralWord`: none ends in a bare `s`,
+ * and `asparagus` is caught by the `-us` clause. Deleting an invariant check
+ * changed no test and no live row, so it was reassuring-looking dead code —
+ * the same call, on the same grounds, that the Root D branch below records.
+ * The plural direction is different: there the check IS live, because it is
+ * what stops "corn" becoming "corns".
+ *
+ * ⚠️ IF YOU ADD A GENUINELY-PLURAL MASS NOUN to INVARIANT_NAME_NOUNS
+ * ("greens", "breadcrumbs", "flakes" — all real ingredient names, all measured
+ * in cups or teaspoons today so none reaches this branch), it will NOT be
+ * protected by that set and will stem to "green" / "breadcrumb" / "flake".
+ * Add it to NOT_A_PLURAL instead, which is the set this function does read.
+ */
+function singularizeNoun(word: string): string {
+  const w = word.toLowerCase();
+  if (!w) return word;
+  if (NOT_A_PLURAL.has(w)) return word; // "molasses" is not molasses-plural
+  if (!isPluralWord(w)) return word; // already singular / -ss / -us / -is
+  const viaUnit = COUNT_NOUN_SINGULARS[w];
+  if (viaUnit) return matchLeadingCase(word, viaUnit); // cloves → clove
+  if (/[^aeiou]ies$/.test(w)) return matchLeadingCase(word, `${w.slice(0, -3)}y`); // berries → berry
+  if (O_TAKES_ES.has(w.slice(0, -2))) return word.slice(0, -2); // tomatoes → tomato
+  if (/(?:ss|x|z|ch|sh)es$/.test(w)) return word.slice(0, -2); // squashes → squash
+  return word.slice(0, -1); // lemons → lemon
+}
+
+/**
+ * WS9 BUG-144 — the mirror of {@link pluralizeIngredientName}, for a count of
+ * exactly 1. Same shape by construction: head noun only (the word before an
+ * " of " / " on " phrase, else the last word of the head clause), a trailing
+ * prep clause rides along untouched, and the name is returned UNCHANGED
+ * whenever singularizeNoun declines.
+ *
+ * WHY IT EXISTS: Root D fixed "1 lemons" on the branch where the pack residue
+ * NAMES the item, by falling back to the ingredient name — which is authored
+ * singular in 22 of 23 live rows. The OTHER branch has no such fallback: when
+ * the residue does not name the item ("1 head of garlic" against "garlic
+ * cloves") the name IS the plural, so there is nothing to fall back TO and
+ * `1 garlic cloves` shipped. That row renders live on list 22117b24.
+ */
+export function singularizeIngredientName(name: string): string {
+  const comma = name.indexOf(",");
+  const head = comma === -1 ? name : name.slice(0, comma);
+  const tail = comma === -1 ? "" : name.slice(comma);
+  const phrase = /^(.*?)(\s+(?:of|on|in|with)\s+.*)$/i.exec(head);
+  const stem = phrase ? phrase[1] : head;
+  const rest = phrase ? phrase[2] : "";
+  const words = stem.split(/\s+/);
+  const last = words[words.length - 1];
+  const singular = singularizeNoun(last);
+  if (singular === last) return name; // invariant / already singular → untouched
+  words[words.length - 1] = singular;
+  return `${words.join(" ")}${rest}${tail}`;
+}
+
+/**
+ * The ingredient name agreed with a whole COUNT, in both directions. The two
+ * order-line branches that print "{q} {name}" both route through here so a
+ * count of 1 cannot singularise on one and not the other — which is exactly
+ * how BUG-144 hid: Root D guarded one branch and left its twin uncovered.
+ */
+function countedName(name: string, quantity: number): string {
+  return quantity === 1
+    ? singularizeIngredientName(name)
+    : pluralizeIngredientName(name, quantity);
+}
+
 /** The need as a number, from the raw editable amount. null when unknown. */
 function resolveNeed(amount: string | number | null | undefined): number | null {
   if (typeof amount === "number") return Number.isFinite(amount) ? amount : null;
@@ -260,10 +353,12 @@ function resolveNeed(amount: string | number | null | undefined): number | null 
 // Every other container pack printed verbatim whatever the need, so "1 lb
 // ground beef" stood against a need of 1.75 lb. Under-ordering, ruled worst.
 //
-// Two scalable shapes, and nothing else:
+// Three scalable shapes, and nothing else:
 //   1. the need unit and the pack unit are the same → pure arithmetic,
 //      ceil(need / packQuantity). No conversion data needed at all.
-//   2. purchaseDisplay carries a parenthetical size in the need's own unit
+//   2. both units are WEIGHT units (BUG-143) → grams relate them outright,
+//      ceil(need·g / (qty · pack·g)). Ingredient-independent, so no data.
+//   3. purchaseDisplay carries a parenthetical size in the need's own unit
 //      ("1 can (14.5 oz)" against a need in oz) → ceil(need / (qty × size)).
 // Anything else — a need in cups against a pack in bunches — needs a
 // container→measure factor that does not exist anywhere in the data. Those
@@ -298,6 +393,38 @@ function normalizeUnitToken(unit: string | null | undefined): string {
   const s = (unit ?? "").trim().toLowerCase();
   return UNIT_ALIASES[s] ?? s;
 }
+
+// WS9 BUG-143 — weight unit → grams.
+//
+// ⚠️ SOURCE OF TRUTH IS SERVER-SIDE: artifacts/api-server/src/lib/
+// ingredientConversions.ts, `WEIGHT_UNIT_TO_GRAMS`. These two numbers are
+// DUPLICATED here deliberately, matching the hand-synced-mirror precedent every
+// cross-package contract in lib/api/* already carries (see lib/api/builder.ts,
+// lib/api/cooking.ts): the mobile package does not import api-server, and a
+// shared package for two constants is not worth its own build graph. If the
+// server table changes, change this one.
+//
+// WHY IT IS NEEDED HERE AT ALL: the factor is not missing from the project — it
+// was left behind. BUG-125 and Root A moved the order-line arithmetic
+// client-side, and packsToCoverNeed arrived with no numeric table, so a need in
+// `oz` against a pack in `lb` related to nothing and printed the pack verbatim.
+//
+// ⚠️ SCOPE: WEIGHT ONLY, and that is the whole point. A pound is 16 ounces for
+// cheese and for beef alike, so weight↔weight is the ONE cross-unit conversion
+// that needs no per-ingredient data. `tsp`→container, `tbsp`→bottle and
+// `cup`→bunch each need a density this table cannot supply and are correctly
+// left unrelatable. Nothing volumetric is served from here.
+//
+// Only the four CANONICAL tokens are listed: normalizeUnitToken runs first and
+// has already folded ounce/ounces→oz, pound/pounds/lbs→lb, gram(s)→g,
+// kilogram(s)→kg. The server's table spells all fifteen because it has no
+// normalizer in front of it.
+const WEIGHT_UNIT_TO_GRAMS: Record<string, number> = {
+  g: 1,
+  kg: 1000,
+  oz: 28.349523125,
+  lb: 453.59237,
+};
 
 /**
  * The pack's own count, read off the front of `purchaseDisplay` ("1.5 lb pack"
@@ -341,12 +468,30 @@ function packsToCoverNeed(
   if (nu.length > 0 && nu === pu) {
     return Math.max(1, Math.ceil(need / packQuantity - PACK_EPSILON));
   }
-  // 2. The display names a size in the need's own unit.
+  // 2. WS9 BUG-143 — both sides are WEIGHT units in different spellings. Grams
+  //    relate them outright, with no per-ingredient data: 8 oz of Cotija
+  //    against a "1 lb block" is one block. Before this the pair fell through
+  //    to rule 3 and the pack printed verbatim whatever the need — the same
+  //    Root A failure, one unit-pair short of being caught.
+  //    Placed ahead of the size hint on purpose: a direct weight relation is
+  //    exact, while the hint is parsed out of authored display prose. (No live
+  //    row is decided by that ordering today — every weight↔weight row's pack
+  //    carries no parenthetical size — but the precedence should not depend on
+  //    that staying true.)
+  const needGrams = WEIGHT_UNIT_TO_GRAMS[nu];
+  const packGrams = WEIGHT_UNIT_TO_GRAMS[pu];
+  if (needGrams !== undefined && packGrams !== undefined) {
+    return Math.max(
+      1,
+      Math.ceil((need * needGrams) / (packQuantity * packGrams) - PACK_EPSILON),
+    );
+  }
+  // 3. The display names a size in the need's own unit.
   const hint = packSizeHint(purchaseDisplay);
   if (hint && normalizeUnitToken(hint.unit) === nu) {
     return Math.max(1, Math.ceil(need / (packQuantity * hint.amt) - PACK_EPSILON));
   }
-  // 3. Needs a container→measure factor nothing supplies. Out of scope.
+  // 4. Needs a container→measure factor nothing supplies. Out of scope.
   return null;
 }
 
@@ -403,7 +548,9 @@ export function composePackName(
       // under-orders. (roundNeedQuantity already ceils counts server-side;
       // this is the belt for the rows that predate it.)
       const q = Math.ceil(need - 1e-9);
-      return `${q} ${pluralizeIngredientName(name, q)}`;
+      // BUG-144 — countedName, not pluralizeIngredientName: a name authored
+      // plural ("Carrots") against a need of 1 read "1 Carrots" here too.
+      return `${q} ${countedName(name, q)}`;
     }
     // A measured need carries its unit — a bare number would be meaningless.
     // The unit is pluralized by the SAME helper the parenthetical uses, so the
@@ -441,7 +588,11 @@ export function composePackName(
       }
       return `${q} ${residue}`;
     }
-    return `${q} ${pluralizeIngredientName(name, q)}`;
+    // WS9 BUG-144 — the branch Root D did not cover. Here the residue does NOT
+    // name the item, so there is no authored-singular fallback and the NAME
+    // itself carries the plural ("garlic cloves" against "1 head of garlic").
+    // countedName singularises it at exactly 1 and pluralises above it.
+    return `${q} ${countedName(name, q)}`;
   }
 
   // ── Rule 2: the units differ → a real container, used as stored ──────────
