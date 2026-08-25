@@ -1,0 +1,13 @@
+group,survivor,loser,decision,reason,survivor_display,survivor_quantity,survivor_unit,loser_display,loser_quantity,loser_unit
+boneless skinless chicken breasts,boneless skinless chicken breasts,boneless skinless chicken breast,SURVIVOR,both packs are the same KIND of unit; survivor's is the default — override to LOSER if its size is the one you'd buy,2 lb pack,2,lb,2.5 lb pack,2.5,lb
+carrots,carrots,carrot,SURVIVOR,"survivor names a retail package (""bag""), loser's ""3 medium carrots"" is a bare count of the item",1 lb bag,1,lb,3 medium carrots,3,each
+cherry tomatoes,cherry tomatoes,cherry tomato,SURVIVOR,both packs are the same KIND of unit; survivor's is the default — override to LOSER if its size is the one you'd buy,1 pint,1,pint,1 pint container,1,pint
+corn tortillas,corn tortillas,corn tortilla,SURVIVOR,both packs are the same KIND of unit; survivor's is the default — override to LOSER if its size is the one you'd buy,1 package (12 count),1,package,1 package (24 count),1,package
+egg,egg,eggs,LOSER,"loser names a retail package (""dozen""), survivor's ""2 eggs"" is a bare count of the item",2 eggs,2,each,1 dozen,1,dozen
+flour tortillas,flour tortillas,flour tortilla,SURVIVOR,both packs are the same KIND of unit; survivor's is the default — override to LOSER if its size is the one you'd buy,1 package (10 ct),1,package,2 packages (20 count each),2,package
+garlic cloves,garlic cloves,garlic clove,LOSER,"loser names a retail package (""head""), survivor's ""13 cloves (1–2 bulbs)"" is a bare count of the item",13 cloves (1–2 bulbs),13,each,1 head of garlic,1,each
+green onions,green onions,green onion,SURVIVOR,both packs are the same KIND of unit; survivor's is the default — override to LOSER if its size is the one you'd buy,1 bunch,1,bunch,1 bunch (~6–8 stalks),1,bunch
+lime,lime,limes,SURVIVOR,both packs are the same KIND of unit; survivor's is the default — override to LOSER if its size is the one you'd buy,2 limes,2,each,3 limes,3,each
+roma tomatoes,roma tomatoes,roma tomato,SURVIVOR,both packs are the same KIND of unit; survivor's is the default — override to LOSER if its size is the one you'd buy,4 roma tomatoes,4,each,7 roma tomatoes,7,each
+shallot,shallot,shallots,SURVIVOR,both packs are the same KIND of unit; survivor's is the default — override to LOSER if its size is the one you'd buy,1 shallot,1,each,2 shallots,2,each
+small flour tortillas,small flour tortillas,small flour tortilla,SURVIVOR,both packs are the same KIND of unit; survivor's is the default — override to LOSER if its size is the one you'd buy,1 package (8 count),1,package,1 package (12 count),1,package

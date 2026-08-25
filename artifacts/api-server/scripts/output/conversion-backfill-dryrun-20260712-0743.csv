@@ -1,0 +1,442 @@
+ingredientId,ingredientName,decision,gramsPerCup,gramsPerEach,fdcId,usdaDescription,note
+c0199008-0dcf-4681-a250-893484f1c8a7,80/20 ground beef,MISS,,,174036,"Beef, ground, 80% lean meat / 20% fat, raw",no cup/each portion
+3c25346e-19d8-43df-950a-178dbb0406ef,adobo sauce,MISS,,,,,no curated + no usda match
+a8c608eb-aef0-40a7-a3cc-598c38f445ff,all-beef hot dog,MISS,,,,,no curated + no usda match
+9de0d54d-e301-4509-85fb-4722c49ca6d4,all-purpose flour,CURATED,,,,,curated
+16bf6c82-14f3-4c03-acbe-7e71e13f3039,american cheese,MISS,,,747429,,usda fetch unavailable
+59f09126-8f75-424e-afd0-4c3fa2d759fe,anchovy fillet,MISS,,,,,no curated + no usda match
+d6b9e626-ea5b-4459-ad40-b807286b87ef,angel hair pasta,USDA_DERIVED,64,,169736,"Pasta, dry, enriched",
+f1c509bb-0198-40b9-815b-7c06d10a63f2,apple cider vinegar,USDA_DERIVED,239,,173469,"Vinegar, cider",
+f4218e7c-4ff8-45e6-8398-2bc127d93a0e,apples,MISS,,,174988,"Croissants, apple","form mismatch: Croissants, apple"
+cf277eec-4715-4c0d-84a8-bd7a2acfdfa8,applewood smoking chips,MISS,,,,,no curated + no usda match
+11afb0dc-2cd7-4e72-9427-800958b318b6,asparagus,USDA_DERIVED,134,16,168389,"Asparagus, raw",
+b7425a8e-6692-4d4a-b07a-514eca487056,avocado,MISS,,,173573,"Oil, avocado","form mismatch: Oil, avocado"
+23d9798e-7b8f-452a-8241-a4810705882b,baby arugula,MISS,,,,,no curated + no usda match
+f486b7e2-fb54-43db-89e0-27af6f7eb7e2,baby back pork ribs,MISS,,,,,no curated + no usda match
+cfb99073-94bd-414c-afe2-baf724d9fcfc,baby carrot,USDA_DERIVED,,10,168568,"Carrots, baby, raw",
+b96171ad-3a06-496f-b092-d7f513066aff,baby potato,MISS,,,,,no curated + no usda match
+b9f90c34-f963-4a43-aedd-553af1b98e7f,baby spinach,MISS,,,,,no curated + no usda match
+971d1b65-ad8f-4156-ada7-50980b2408ed,baby yellow potato,MISS,,,,,no curated + no usda match
+3a55d9bc-49b6-442f-843a-16f66c111353,baby yukon gold potato,MISS,,,,,no curated + no usda match
+36becf24-3b73-4df3-95f6-2e669095de16,bacon,CURATED,,,,,curated
+f8ed1594-d084-4967-8fde-15ea196e88b0,bagels,USDA_DERIVED,,105,174901,"Bagels, egg",
+d5deeec4-08a6-4d13-9fb6-4f8381af6d90,baguette,MISS,,,,,no curated + no usda match
+6fb9eb28-0cf9-4aa7-b44c-bcfa167313ae,balsamic vinegar,USDA_DERIVED,255,,172241,"Vinegar, balsamic",
+9660aa49-438b-4058-8c6c-2da896287226,bananas,CURATED,,,,,curated
+9284298b-6d50-45a9-ad94-3253b9b2eb32,barbecue sauce,USDA_DERIVED,279,,174523,"Sauce, barbecue",
+dd5bac34-6412-47d9-902e-357cb61cdf9e,basmati rice,CURATED,,,,,curated
+c72613c4-1eba-4d4b-8b07-b36064e51cf5,bay leaf,MISS,,,170917,"Spices, bay leaf","form mismatch: Spices, bay leaf"
+92272599-a3dc-42f7-9235-5b0a7aa6f67b,bay leaves,MISS,,,170917,"Spices, bay leaf","form mismatch: Spices, bay leaf"
+c2ffeff8-e96a-4299-9771-68802d3143d9,bbq sauce,MISS,,,,,no curated + no usda match
+6a7d7f26-2f80-471a-bee2-ccbaafae9710,bean sprouts,CURATED,,,,,curated
+a4065ed8-3a25-4505-95d1-e1f57706462a,beef brisket flat,MISS,,,168658,"Beef, brisket, flat half, boneless, separable lean only, trimmed to 0"" fat, select, raw",no cup/each portion
+465709f9-c999-4a56-a826-d352cbaab93b,beef broth,MISS,,,171561,"Soup, beef broth, cubed, dry","form mismatch: Soup, beef broth, cubed, dry"
+2db7c24e-8012-4c01-b8aa-80e4b2ab74f4,beef chuck roast,MISS,,,169496,"Beef, chuck eye roast, boneless, America's Beef Roast, separable lean only, trimmed to 0"" fat, choice, cooked, roasted",no cup/each portion
+370f00ee-c7e5-4a47-94a5-da3ca41dac75,beef hot dogs,MISS,,,323121,,usda fetch unavailable
+b0d80843-4713-4068-955e-8dc26b855fa1,beef sirloin,MISS,,,169458,"Beef, top sirloin, steak, separable lean and fat, trimmed to 0"" fat, choice, cooked, broiled",no cup/each portion
+512b543f-1882-4b52-8e8b-136dc6ad67b5,beef sirloin steak tips,MISS,,,174024,"Beef, loin, bottom sirloin butt, tri-tip steak, separable lean and fat, trimmed to 0"" fat, all grades, cooked, broiled",no cup/each portion
+739946bb-765b-42cc-b660-d9c6512cd4a5,beef stock,MISS,,,172883,"Soup, stock, beef, home-prepared","form mismatch: Soup, stock, beef, home-prepared"
+ecaf6983-7955-4dc3-b631-e923f93a1878,beef strip steak,MISS,,,169429,"Beef, grass-fed, strip steaks, lean only, raw",no cup/each portion
+a5a4cc90-0e44-4e35-a394-3f7ec6e8cbb1,beefsteak tomato,MISS,,,,,no curated + no usda match
+af9f97f5-87d5-4017-80cd-ba82b2a867c2,beets,USDA_DERIVED,136,,169145,"Beets, raw",
+b8346d79-b5a6-4537-98ce-5b903d36118e,bell peppers,CURATED,,,,,curated
+0c4cb179-526e-483d-a228-6796ea4fda9e,black beans,USDA_DERIVED,194,,173734,"Beans, black, mature seeds, raw",
+57c876d1-6780-4cc6-994a-efd4a0f1dd53,black forest ham,MISS,,,170712,"SUBWAY, black forest ham sub on white bread with lettuce and tomato","form mismatch: SUBWAY, black forest ham sub on white bread with lettuce and tomato"
+5239a6f5-25a5-4b8a-a83a-1cddcb4b86af,black pepper,CURATED,,,,,curated
+220cfce9-04e0-4afe-82dc-0efec673e944,black peppercorn,MISS,,,,,no curated + no usda match
+4b8ca960-7dde-4f23-8443-9f102db3c8fe,blueberries,USDA_DERIVED,148,,171711,"Blueberries, raw",
+d89d1028-18f0-4640-9829-ba307ed778f5,bone-in beef chuck roast,MISS,,,,,no curated + no usda match
+6b37f00b-ccab-4f79-807c-b9f5e4f335f1,bone-in beef short ribs,MISS,,,,,no curated + no usda match
+4d4e1ec7-ed22-4232-9142-7ab40c7513f1,bone-in pork chops,MISS,,,168238,"Pork, fresh, loin, center loin (chops), bone-in, separable lean and fat, raw",no cup/each portion
+51b4cd3f-3f4e-4db0-8949-83fae51800e9,bone-in pork shoulder,MISS,,,167843,"Pork, fresh, shoulder, whole, separable lean and fat, raw",no cup/each portion
+f320cc23-f85e-416b-97d0-c08158de434b,bone-in ribeye steak,MISS,,,,,no curated + no usda match
+37de43ce-1444-4776-bda9-bc1c13eb251b,bone-in skin-on chicken drumsticks,MISS,,,,,no curated + no usda match
+fed1a01e-3472-4edb-8da8-ac6e4a49db14,bone-in skin-on chicken thighs,MISS,,,,,no curated + no usda match
+46d5ad9b-0a30-4070-8a89-cbf7e5aca66c,boneless lamb shoulder,MISS,,,174464,"Lamb, New Zealand, imported, netted shoulder, rolled, boneless, separable lean and fat, raw",no cup/each portion
+6a749dc2-1bc2-4d5a-8669-476d6c6b7b95,boneless pork shoulder,MISS,,,169187,"Pork, Shoulder breast, boneless, separable lean and fat, raw",no cup/each portion
+f2d71245-a506-4122-8661-ce96e55d6f97,boneless ribeye steak,MISS,,,174699,"Beef, ribeye cap steak, boneless, separable lean only, trimmed to 0"" fat, choice, raw","form mismatch: Beef, ribeye cap steak, boneless, separable lean only, trimmed to 0"" fat, choice, raw"
+6b033296-776c-4517-be5a-93a46d8c9c91,boneless skinless chicken breast,MISS,,,171077,"Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw",no cup/each portion
+a7cd8cb2-1a82-4dfe-addf-2ddf5532a9a1,boneless skinless chicken thighs,MISS,,,,,no curated + no usda match
+3f20d4ee-1e45-4f07-9038-ea9002862cf0,bratwurst sausage,MISS,,,171622,"Bratwurst, pork, beef, link",no cup/each portion
+7e68f69a-2f7f-41bb-8243-5e2618d163e7,bread and butter pickles,USDA_DERIVED,153,35,169378,"Pickles, cucumber, sweet (includes bread and butter pickles)",
+2e7b43da-15d5-4ac1-8016-0ab4fcd80b9a,breadcrumbs,CURATED,,,,,curated
+dc907631-8b9e-447a-b541-2bbe14910cf6,brioche bun,MISS,,,,,no curated + no usda match
+c007f541-aaa1-4100-8a5e-c577720873c4,brioche burger bun,MISS,,,,,no curated + no usda match
+841e065e-ebff-4a57-952f-fc75b69efe0e,brioche burger buns,MISS,,,,,no curated + no usda match
+1e90af81-b53c-4257-b3f4-3a3c7cb3844e,brioche hamburger bun,MISS,,,172796,"Rolls, hamburger or hotdog, plain","form mismatch: Rolls, hamburger or hotdog, plain"
+78b0ad83-c6bd-4c34-8090-86b81384a451,brioche hot dog bun,MISS,,,,,no curated + no usda match
+dd44f3ae-68e2-4dad-9015-ce1e2a2d4fe9,brioche slider buns,MISS,,,,,no curated + no usda match
+c53f866a-2ee8-455e-b633-88f387a57db3,broccoli,MISS,,,747447,,usda fetch unavailable
+a9bda26d-d24a-473b-b0d8-579b2eaf84b0,broccoli floret,USDA_DERIVED,71,,169330,"Broccoli, flower clusters, raw",
+1919e2c6-93a2-42ae-a10a-eeadf3de9128,broccolini,MISS,,,,,no curated + no usda match
+6b0c36e4-b6b5-4223-a14a-bda1da2f384e,brown rice,MISS,,,1104812,"Flour, rice, brown","form mismatch: Flour, rice, brown"
+aafa07d7-22fa-40bd-960a-1f3121dd5c0f,brown sugar,CURATED,,,,,curated
+0afb999a-7605-4df1-bd0f-3809e276ec1d,butter,CURATED,,,,,curated
+c2f5b970-8511-4145-9b7b-7a84ec5d3675,buttermilk,MISS,,,171274,"Milk, buttermilk, dried","form mismatch: Milk, buttermilk, dried"
+4efd3dd1-7fa6-42b1-bfe4-7ea5793701b5,canned black beans,MISS,,,171141,"Soup, black bean, canned, condensed","form mismatch: Soup, black bean, canned, condensed"
+b80e01e1-954e-4c02-ab5c-cd9755739c47,canned diced green chiles,MISS,,,168577,"Peppers, chili, green, canned","form mismatch: Peppers, chili, green, canned"
+b0c9782e-2622-47c9-9314-42bc3378cd7d,canned diced tomatoes,MISS,,,333281,,usda fetch unavailable
+3dd771d4-c915-4861-9c24-5954ec8e1d0e,canned green chiles,MISS,,,168577,"Peppers, chili, green, canned","form mismatch: Peppers, chili, green, canned"
+f1d09aee-ad2f-4586-b58f-3c7cea0a5eea,canned kidney beans,USDA_DERIVED,256,,173741,"Beans, kidney, all types, mature seeds, canned",
+368434b4-8369-4b7a-9b1a-01e75b32c79f,canned mild red enchilada sauce,USDA_DERIVED,224,,174074,"Sauce, enchilada, red, mild, ready to serve",
+1a124335-8fa4-4b90-8730-3f77cec670df,canned navy beans,USDA_DERIVED,262,,173747,"Beans, navy, mature seeds, canned",
+6dddf4f5-406f-451c-9d5e-cfea6e904e51,canned pinto beans,MISS,,,174286,"Beans, pinto, canned, drained solids",no cup/each portion
+bd2fece7-ba5f-4b4f-b110-85fcd7e7b62b,canned refried beans,USDA_DERIVED,242,,174296,"Refried beans, canned, vegetarian",
+137a69e7-a969-4fc5-a5fa-5f2aba2d0b20,canned tomato sauce,USDA_DERIVED,245,,170054,"Tomato products, canned, sauce",
+dd9a22e4-4665-417e-9cc8-213fe4f72a03,canned tuna in olive oil,MISS,,,,,no curated + no usda match
+230b457f-56c6-45b8-8e85-2a8514f53310,canned white cannellini beans,MISS,,,,,no curated + no usda match
+f65f6f62-b2dc-4c51-acbc-47c914b76911,caper,MISS,,,172238,"Capers, canned",no cup/each portion
+6acbbea1-4564-4357-a373-26fe2c571596,capers,MISS,,,172238,"Capers, canned",no cup/each portion
+8215eb8c-0d90-4e8a-a6bf-6000e415d5cb,carrot,MISS,,,170500,"Carrot, dehydrated","form mismatch: Carrot, dehydrated"
+46f8a102-3c8f-4201-a012-87c4c094e284,carrots,MISS,,,170500,"Carrot, dehydrated","form mismatch: Carrot, dehydrated"
+f40a7dfc-1917-4a52-895d-05df64413278,cayenne pepper,MISS,,,170932,"Spices, pepper, red or cayenne","form mismatch: Spices, pepper, red or cayenne"
+f925bf0a-cbda-4969-8104-c7f23dae72b5,celery,USDA_DERIVED,101,40,169988,"Celery, raw",
+d4ddb4d0-14b6-4a52-afd1-2c6f3b9e7e38,celery seed,MISS,,,170920,"Spices, celery seed","form mismatch: Spices, celery seed"
+1968ad0b-eecf-4203-8f2d-2b6f8b659bf6,celery stalk,MISS,,,,,no curated + no usda match
+ff5c0f12-8f37-4ef8-9525-c134ea34b74f,cheddar,CURATED,,,,,curated
+da808643-91de-48c9-972f-a6934cb07bed,cheddar cheese,MISS,,,328637,,usda fetch unavailable
+9ec92e5e-0617-42e8-b721-91572511ef22,cherry tomato,MISS,,,321360,,usda fetch unavailable
+e4cb225c-b61d-4832-a74a-6fc248e0940e,cherry tomatoes,CURATED,,,,,curated
+afdc10c0-e03e-4649-96fe-54f17fe9ae47,chicken breast,CURATED,,,,,curated
+f3287ad9-32a4-4a9b-b701-0faa71228100,chicken broth,MISS,,,171110,"Chicken, canned, no broth","denylist (wrong food/state): Chicken, canned, no broth"
+80e03e21-9da4-4780-8533-de2ad0a48062,chicken drumstick,MISS,,,172855,"Chicken, skin (drumsticks and thighs), raw",no cup/each portion
+d89b08b7-abcf-4286-b5ac-3f93eea20f82,chicken drumsticks,MISS,,,172855,"Chicken, skin (drumsticks and thighs), raw",no cup/each portion
+0d363fb7-d089-4b8d-ae8c-680e68c72417,chicken stock,MISS,,,172884,"Soup, stock, chicken, home-prepared","form mismatch: Soup, stock, chicken, home-prepared"
+8abd0dbd-35de-4a18-8921-f72f58454c28,chicken tenderloins,MISS,,,169842,"CRACKER BARREL, chicken tenderloin platter, fried","form mismatch: CRACKER BARREL, chicken tenderloin platter, fried"
+f115d3eb-ee04-4798-b532-e64ef5107689,chicken thighs,CURATED,,,,,curated
+df8679ed-1d64-4d6f-9cfb-89627da92483,chickpeas,CURATED,,,,,curated
+2aff49c6-46d7-47a2-acee-ca6f6d39614b,chili powder,MISS,,,171319,"Spices, chili powder","form mismatch: Spices, chili powder"
+562f9793-fc2a-41fa-92a8-72b3a8704b3d,chipotle pepper in adobo sauce,MISS,,,,,no curated + no usda match
+d3340dd7-2cb3-47bc-a351-de1f70871498,chipotle peppers in adobo sauce,MISS,,,,,no curated + no usda match
+22a31385-0229-4444-891b-13e01edfb0fe,chunky salsa,MISS,,,,,no curated + no usda match
+d53ea28f-9d07-4347-a27b-2400de856380,cilantro,CURATED,,,,,curated
+7f8cf47c-a74f-4f20-92fc-6ebe029f9be5,coconut milk,CURATED,,,,,curated
+5b1e291d-6e21-4352-a198-012516a34148,cognac,MISS,,,,,no curated + no usda match
+d3253865-61ce-4863-aba5-b7c94463b4c8,coleslaw mix,MISS,,,,,no curated + no usda match
+63a6a6f0-1558-43e7-9d57-6b2bbe2d3695,"cooked chicken, shrimp, or preferred protein",MISS,,,,,no curated + no usda match
+ed5e75cf-243d-4c13-936d-d143489255ac,cooked edamame,MISS,,,,,no curated + no usda match
+afd614de-4f84-4891-aea6-faae6ab07bf7,cooked ham,MISS,,,174611,"Ham, honey, smoked, cooked",no cup/each portion
+e5d1e735-7f0f-4aa2-8d57-73f8bdfa4e30,cooking spray,MISS,,,171430,"Oil, PAM cooking spray, original","form mismatch: Oil, PAM cooking spray, original"
+e5927b7e-f7f8-44e9-b19b-6edab2383e3b,corn on the cob,USDA_DERIVED,165,,169365,"Corn, sweet, white, frozen, kernels on cob, unprepared",
+dad43259-760c-424a-b563-3473c937f752,corn tortilla,MISS,,,169829,"Tortilla, blue corn, Sakwavikaviki (Hopi)",no cup/each portion
+5f90592a-e2f9-46c7-8ef1-3f2c0d33dc59,corn tortillas,MISS,,,169829,"Tortilla, blue corn, Sakwavikaviki (Hopi)",no cup/each portion
+ecdfb4dd-4bd7-4ec5-a1b7-ec6a16135724,corn tostada shells,MISS,,,167525,"Tostada shells, corn",no cup/each portion
+5449ba18-9db9-465e-9f35-10a867ce3bdd,cornstarch,USDA_DERIVED,128,,169698,Cornstarch,
+e10a8ae0-cc5c-4fac-8fbf-0b92aa9b9a51,cotija cheese,MISS,,,170898,"Cheese, mexican, queso cotija",no cup/each portion
+56ec7cfa-526f-4a07-bcac-83cf3d1997cd,cream cheese,USDA_DERIVED,232,85,173418,"Cheese, cream",
+6f8a9220-8580-448d-819e-f058dfaab84a,cream of mushroom soup,MISS,,,172901,"CAMPBELL'S, Cream of Mushroom Soup, condensed","form mismatch: CAMPBELL'S, Cream of Mushroom Soup, condensed"
+006f6c83-d0e8-46eb-b5b0-5a3991839cda,cremini mushroom,MISS,,,,,no curated + no usda match
+35bf8a9e-195f-4bca-b7f4-1e27188a50d0,cremini mushrooms,MISS,,,,,no curated + no usda match
+bfcde4cd-048a-42f3-92bb-e277c4aec6f6,crumbled feta cheese,MISS,,,,,no curated + no usda match
+47ed736d-e251-47b8-af38-fc86b7ef604d,crunchy chow mein noodles,USDA_DERIVED,45,,169735,"Noodles, flat, crunchy, Chinese restaurant",
+8d5a7f98-a16a-46a5-a6c7-f4babc5857bb,crushed red pepper flakes,MISS,,,170932,"Spices, pepper, red or cayenne","form mismatch: Spices, pepper, red or cayenne"
+c86b4b14-e644-4f8f-b0f5-9fd45f5809a9,crushed san marzano tomatoes,MISS,,,,,no curated + no usda match
+09331db6-36b8-4996-9553-a6dd769c30d2,crushed tomatoes,USDA_DERIVED,242,,170501,"Tomatoes, crushed, canned",
+aad2eda0-7fba-41a2-8702-15fdec421686,crusty artisan bread loaf,MISS,,,173261,"Pillsbury, Crusty French Loaf, refrigerated dough","form mismatch: Pillsbury, Crusty French Loaf, refrigerated dough"
+1b19107b-a7f3-4a29-88e3-eb4f2381e735,crusty baguette,MISS,,,,,no curated + no usda match
+ef9ae6a4-d8ce-4075-a19d-68b4600f1b25,crusty bread,MISS,,,,,no curated + no usda match
+9edd8d69-9ede-40ec-852f-a84c9e335ecd,crusty sourdough bread,MISS,,,172675,"Bread, french or vienna (includes sourdough)",no cup/each portion
+04973da3-6fd9-4198-b9bd-d38baae3f00b,crusty sourdough loaf,MISS,,,173261,"Pillsbury, Crusty French Loaf, refrigerated dough","form mismatch: Pillsbury, Crusty French Loaf, refrigerated dough"
+30495083-97d7-4343-a081-9279491bb0f7,cucumber,CURATED,,,,,curated
+aac77d74-46f5-4f68-bfbd-4caec7ff78a8,deli turkey breast,USDA_DERIVED,81,,174572,"Turkey breast, low salt, prepackaged or deli, luncheon meat",
+ba92b72b-999e-42e5-a6f1-540357132068,diced tomatoes,CURATED,,,,,curated
+607d7bb1-8306-4371-9d86-364566f0d5ff,dijon mustard,MISS,,,,,no curated + no usda match
+e2bbf495-ae0f-4a67-91f4-7c61cff84fc8,dill pickle,MISS,,,324653,,usda fetch unavailable
+65881b55-42db-4ce1-94a4-8cc530fdc439,dill pickle chips,MISS,,,324653,,usda fetch unavailable
+cf5f3e4c-a0f8-434f-98ec-6d45e8e92e70,dill pickle relish,USDA_DERIVED,244,,169386,"Pickle relish, hamburger",
+5eb8ecf9-c1c2-45df-8ca0-4c543a18a376,dill pickle slices,MISS,,,324653,,usda fetch unavailable
+4a754373-39f7-474d-b89e-ce56b4d6e698,dried ancho chile,MISS,,,169396,"Peppers, ancho, dried","form mismatch: Peppers, ancho, dried"
+72e04c80-d097-4b92-ba94-3f2df150f936,dried ancho chili,MISS,,,169396,"Peppers, ancho, dried","form mismatch: Peppers, ancho, dried"
+5d7d8100-42df-4ae1-b636-366424644bb5,dried basil,MISS,,,171317,"Spices, basil, dried","form mismatch: Spices, basil, dried"
+8d62a14b-4680-4732-9c28-1768ca42c964,dried chipotle chile,MISS,,,168570,"Peppers, hot chile, sun-dried","form mismatch: Peppers, hot chile, sun-dried"
+6fc1590b-8b7f-4947-9469-0f8f23352277,dried chipotle chili,MISS,,,,,no curated + no usda match
+3e475aad-2042-4cf1-bd48-23a95c7632bd,dried guajillo chile,MISS,,,168570,"Peppers, hot chile, sun-dried","form mismatch: Peppers, hot chile, sun-dried"
+7d886a60-5c9b-4f04-b50e-95643339d942,dried guajillo chili,MISS,,,,,no curated + no usda match
+721d2e54-584a-42df-b417-e3987cc0a310,dried italian seasoning,MISS,,,,,no curated + no usda match
+2f911309-d6ae-4ac9-b2fa-2c2ef7112a89,dried oregano,MISS,,,171328,"Spices, oregano, dried","form mismatch: Spices, oregano, dried"
+eda4dbad-29d1-4916-a3d7-439f2cf90b7d,dried pappardelle pasta,MISS,,,,,no curated + no usda match
+ef94f604-94a6-4d42-a130-3c94002e2aa3,dried rosemary,MISS,,,171333,"Spices, rosemary, dried","form mismatch: Spices, rosemary, dried"
+793ecd9e-2662-4a03-bbce-a619031d2107,dried thyme,MISS,,,170938,"Spices, thyme, dried","form mismatch: Spices, thyme, dried"
+b0d4d297-527c-4bbf-8db2-7459bea59298,dry hard cider,MISS,,,174146,"Beverages, AMBER, hard cider","form mismatch: Beverages, AMBER, hard cider"
+2e8daed2-3532-4b27-a20a-4f640007bb5e,dry red wine,MISS,,,173190,"Alcoholic beverage, wine, table, red","form mismatch: Alcoholic beverage, wine, table, red"
+44212437-d9d6-4333-8d8d-eacf27f6e9fa,dry sherry,MISS,,,,,no curated + no usda match
+e32a229f-4d01-4fc1-9495-49b73d742000,dry white wine,MISS,,,174837,"Alcoholic beverage, wine, table, white","form mismatch: Alcoholic beverage, wine, table, white"
+e10f3d57-874b-4319-a99c-ec7fffecaf60,ear of corn,MISS,,,,,no curated + no usda match
+d904631c-e51e-4a3f-9a52-bcca0152a278,edamame,USDA_DERIVED,155,,168411,"Edamame, frozen, prepared",
+ff985025-9437-410a-bf2f-b65624bc9020,egg,CURATED,,,,,curated
+d0297d4d-b358-4038-b7f3-78b772914f8e,eggs,CURATED,,,,,curated
+8c7de655-52b1-45b9-8221-88cf44a0aa6d,elbow macaroni,MISS,,,,,no curated + no usda match
+d6fc9da2-dc51-41eb-991b-797d9379479e,english cucumber,MISS,,,,,no curated + no usda match
+538379f5-01c7-4b8b-ae11-3fe1ae091974,english muffins,MISS,,,172761,"Muffins, English, wheat",no cup/each portion
+27d1f342-5eb2-4626-a4b9-69f976e68af4,extra virgin olive oil,MISS,,,,,no curated + no usda match
+439df6d3-de2a-4d0a-9c5d-f264d642ad5a,extra-firm tofu,MISS,,,174290,"Tofu, extra firm, prepared with nigari",no cup/each portion
+5250f216-5b02-4267-ab79-1fdd144c791b,fajita seasoning,CURATED,,,,,curated
+6dec053b-1489-49dd-84eb-c149ca97907a,farro,CURATED,,,,,curated
+1b68541a-1e72-42bb-9a60-8e949b21178d,feta,CURATED,,,,,curated
+d6de7ab9-9368-4782-85c6-410a5d61f843,feta block,MISS,,,173420,"Cheese, feta","form mismatch: Cheese, feta"
+f7dcbee0-6f7b-4ec4-9887-874f48ddfd6c,feta cheese,USDA_DERIVED,150,,173420,"Cheese, feta",
+618bf537-9583-45a3-84e1-858c5f92b0d3,fine sea salt,MISS,,,,,no curated + no usda match
+839e1d3d-bed5-4911-afb6-65332beefc74,fingerling potatoes,MISS,,,,,no curated + no usda match
+ce442361-c2a2-4947-ab2b-dbd9eb050325,fish sauce,CURATED,,,,,curated
+303cbdde-1486-4d97-8795-58a06dade4eb,flaky sea salt,MISS,,,173468,"Salt, table","denylist (wrong food/state): Salt, table"
+c34bcc09-fff1-4fa9-a2ac-38131ff6a583,flank steak,MISS,,,169433,,usda fetch unavailable
+c4a3646c-f855-4684-95e5-6a3b5f562225,flat-leaf parsley,MISS,,,170416,,usda fetch unavailable
+fd91a11a-38e3-464c-b3dd-b7875219ea8e,flatbread,MISS,,,167945,"Focaccia, Italian flatbread, plain","form mismatch: Focaccia, Italian flatbread, plain"
+255aedc9-13a9-4639-96d7-cfb8de89ef6b,flour tortilla,USDA_DERIVED,,30,175037,"Tortillas, ready-to-bake or -fry, flour, refrigerated",
+d69f55dc-1073-454f-9104-5c7815432139,flour tortillas,CURATED,,,,,curated
+5a53191c-f44e-4474-bc4a-8d5ba9e49e52,french baguette,MISS,,,172795,"Rolls, french","form mismatch: Rolls, french"
+2269bebb-2fdf-4bb6-9f43-4d54e1cfb475,fresh basil,USDA_DERIVED,24,,172232,"Basil, fresh",
+729f7f28-557a-4ff5-ae32-2ea1323da9aa,fresh chive,MISS,,,169994,"Chives, raw",no cup/each portion
+a7b7127f-cf27-4e9a-8f87-874c9219f035,fresh chives,MISS,,,169994,"Chives, raw",no cup/each portion
+563574fb-fbd1-4dcb-8414-5208e4ca1aca,fresh cilantro,USDA_DERIVED,16,,169997,"Coriander (cilantro) leaves, raw",
+93578a62-6efa-4822-93e9-00959f7a43ee,fresh dill,CURATED,,,,,curated
+357a73e6-2b6b-4a49-96ac-b0c09286f4a5,fresh flat-leaf parsley,MISS,,,170416,,usda fetch unavailable
+acc8ebfc-1a5c-4d38-8c38-6674178e028d,fresh lemon juice,USDA_DERIVED,244,,167747,"Lemon juice, raw",
+dff2e873-26df-4190-8b68-00c598b527e6,fresh lime,USDA_DERIVED,,67,168155,"Limes, raw",
+de4fbf1e-ee3a-4e7f-8b0f-83344b5daeeb,fresh lime juice,USDA_DERIVED,242,,168156,"Lime juice, raw",
+c336da16-8447-44b5-976a-a26f1566c47c,fresh mint,MISS,,,168766,"Candies, NESTLE, AFTER EIGHT Mints","form mismatch: Candies, NESTLE, AFTER EIGHT Mints"
+934853c3-6af7-4e79-8efa-44e5ea501e74,fresh mozzarella,MISS,,,169011,"APPLEBEE'S, mozzarella sticks","form mismatch: APPLEBEE'S, mozzarella sticks"
+cbb3a153-0fb7-4c77-a942-fe0bf186d95f,fresh parsley,MISS,,,170416,,usda fetch unavailable
+fc28c8da-6319-4e12-acc1-4d84c6edd33c,fresh rosemary,MISS,,,173473,"Rosemary, fresh",no cup/each portion
+6f5e6a4d-d077-4f84-a3b6-68da4ac88b19,fresh tarragon,MISS,,,170937,"Spices, tarragon, dried","form mismatch: Spices, tarragon, dried"
+4f9881d4-cd43-4575-b9cb-d7a3c5099fff,fresh thyme,MISS,,,173470,"Thyme, fresh",no cup/each portion
+a3a99a64-b774-4dee-8857-6d1a91ec0ee2,freshly grated nutmeg,MISS,,,171326,"Spices, nutmeg, ground","form mismatch: Spices, nutmeg, ground"
+24cdf1ae-69ff-4009-84f7-94d3a08ad3fe,frisée lettuce,MISS,,,,,no curated + no usda match
+280e7a5b-7681-4f6d-8f81-dbdf234607c3,frozen corn kernels,USDA_DERIVED,141,,169217,"Corn, yellow, whole kernel, frozen, microwaved",
+6f612817-2d9b-4684-a22b-dc8cc2929671,frozen mixed vegetables,MISS,,,170471,"Vegetables, mixed, frozen, unprepared",no cup/each portion
+4524f44a-6092-45b5-bc34-57a33e20309a,frozen peas,MISS,,,170425,"Peas and carrots, frozen, unprepared","denylist (wrong food/state): Peas and carrots, frozen, unprepared"
+fcfea3de-8fb3-43e2-83df-14de3bdd0c14,frozen waffles,MISS,,,167516,"Waffles, buttermilk, frozen, ready-to-heat",no cup/each portion
+2b2ea520-9fc5-48ec-b19a-df00c2efa4c1,garam masala,MISS,,,,,no curated + no usda match
+e6753984-d315-4484-bf78-783c61f197ab,garlic,CURATED,,,,,curated
+56b12d21-41cf-47af-8f98-a1af11306ad7,garlic powder,MISS,,,171325,"Spices, garlic powder","form mismatch: Spices, garlic powder"
+fe0de063-a467-4d32-9c5a-d4e6003e5950,ginger,CURATED,,,,,curated
+fbc50f2b-e620-4823-a8cc-eec71806937a,granulated sugar,CURATED,,,,,curated
+fbd9b1a6-da0f-49fe-bd7f-b9b49ebd068a,grated parmesan cheese,USDA_DERIVED,100,,171247,"Cheese, parmesan, grated",
+2d0a4ca5-76b8-4716-99dd-dcb416e6177a,greek yogurt or mayo,MISS,,,170903,"Yogurt, Greek, plain, lowfat",no cup/each portion
+6539773c-87bc-47cb-a95c-becccd8fcca3,green beans,USDA_DERIVED,116,,169965,"Beans, snap, green, microwaved",
+79a002c7-c1bd-4e5f-b1b1-40254c592065,green bell pepper,MISS,,,,,no curated + no usda match
+0f85ccd3-1b62-4cbf-af31-f6bb1e6504f2,green cabbage,MISS,,,,,no curated + no usda match
+d25f4281-a95a-4792-ac71-701cda4221f3,green leaf lettuce,USDA_DERIVED,36,,169249,"Lettuce, green leaf, raw",
+68f32117-db3e-4f8c-b210-533559390605,green lentils,MISS,,,,,no curated + no usda match
+0245775d-77c8-4c00-ab97-7436874fb5eb,green onion,USDA_DERIVED,71,,170006,"Onions, young green, tops only",
+f0c342ba-c185-4555-b805-f23124808db7,ground beef,CURATED,,,,,curated
+e935bc93-7825-427b-a7e7-6dd787d0d754,ground beef (80/20),MISS,,,174036,"Beef, ground, 80% lean meat / 20% fat, raw",no cup/each portion
+4d7a27af-c92d-4207-9596-47f69b4d7f21,ground beef (90/10),MISS,,,174030,"Beef, ground, 90% lean meat / 10% fat, raw",no cup/each portion
+65e43530-1149-4486-97a2-fd41557b2c52,ground beef patties,MISS,,,169447,"Beef, ground, patties, frozen, cooked, broiled",no cup/each portion
+e9fb396b-7644-4711-bf39-97a109114cb1,ground cinnamon,MISS,,,171320,"Spices, cinnamon, ground","form mismatch: Spices, cinnamon, ground"
+7366a265-7a6f-488e-8e7c-e081c5754a05,ground cloves,MISS,,,171321,"Spices, cloves, ground","form mismatch: Spices, cloves, ground"
+5f46e746-c6b6-4332-9830-2e435bb9c0f5,ground coriander,MISS,,,170922,"Spices, coriander seed","form mismatch: Spices, coriander seed"
+75679482-f7f3-466a-9db5-c552f0fc6969,ground cumin,MISS,,,170923,"Spices, cumin seed","form mismatch: Spices, cumin seed"
+8c3bb600-2beb-4d12-9f56-4c3db5d550ba,ground lamb,MISS,,,174370,"Lamb, ground, raw",no cup/each portion
+0ecb8f59-0dbc-4aed-b298-0444604b08b6,ground turkey,MISS,,,171506,"Turkey, Ground, cooked",no cup/each portion
+e3236be0-e30d-4b05-bb9a-da169d7b61af,gruyère cheese,MISS,,,,,no curated + no usda match
+e54575d6-b61a-4b28-8152-caa53b719dcc,guacamole,MISS,,,,,no curated + no usda match
+ca10796c-4b72-4f85-9a23-b10b0a20ba54,hard corn taco shell,MISS,,,,,no curated + no usda match
+30fd8410-d505-44c1-9b9a-b02712b692b8,haricots verts,MISS,,,,,no curated + no usda match
+fb29f3ae-11ae-4426-9548-6e77101881da,head of garlic,MISS,,,1104647,"Garlic, raw",no cup/each portion
+d766f2ab-192e-4167-859e-7264f579c744,heavy cream,USDA_DERIVED,120,,170859,"Cream, fluid, heavy whipping",
+ac27a9af-8654-4d2f-85f0-77402ce7222f,herbes de provence,MISS,,,,,no curated + no usda match
+ef745d59-e90d-4dbe-8e2e-7629ccc0e871,hoagie roll,MISS,,,172795,"Rolls, french",no cup/each portion
+998ed3cf-2cc6-4eac-8685-ad6e981ccee4,honey,CURATED,,,,,curated
+49f8b927-ec8e-46a9-8f16-a3f3d1741d8e,honey bbq sauce,MISS,,,,,no curated + no usda match
+2c7ead4f-b4cc-41ef-96a4-1fbb1fda0963,honeycrisp apple,MISS,,,,,no curated + no usda match
+ba1a3e82-d327-4369-a010-4f1cfc895cfb,hot dog buns,MISS,,,174090,"Rolls, hamburger or hot dog, whole wheat","form mismatch: Rolls, hamburger or hot dog, whole wheat"
+c978dead-0da2-44df-99c8-9d42fe0028b6,hot sauce,MISS,,,171186,"Sauce, hot chile, sriracha",no cup/each portion
+afe568ed-9fb0-4bf5-af9a-1dc111379ff0,iceberg lettuce,USDA_DERIVED,57,539,169248,"Lettuce, iceberg (includes crisphead types), raw",
+616b839f-b069-40f1-ab09-331d745813d9,italian bread loaf,MISS,,,174913,,usda fetch unavailable
+7a8dc6be-6d29-4b0d-89d9-dc1d0ed4e02a,italian pork sausage links,MISS,,,172952,,usda fetch unavailable
+b119c2f1-adf0-4d1f-965e-c3adc4c03295,jalapeño,MISS,,,,,no curated + no usda match
+65f5b145-d695-4e77-b394-ebc62798a25e,jarred salsa,MISS,,,746777,,usda fetch unavailable
+4156e5ff-49d5-4e6e-bcf1-cef19ab94340,jasmine rice,MISS,,,,,no curated + no usda match
+97976910-84ae-455c-809d-0c482e95ad5f,jumbo pasta shells,USDA_DERIVED,64,,169736,"Pasta, dry, enriched",
+cc849afe-1bc6-4e20-a8c9-17dc7a8bf733,kalamata olive,MISS,,,,,no curated + no usda match
+60dafed5-31a9-47e2-ab5b-338c491d9da9,kalamata olives,MISS,,,,,no curated + no usda match
+34388632-aecc-470d-aaed-426a126e6dd7,kale,CURATED,,,,,curated
+e89f3688-4e92-4918-8391-822fc97bda2c,ketchup,MISS,,,747693,,usda fetch unavailable
+94ce9fb2-e942-4f8f-917e-76c8008bd11d,kosher salt,MISS,,,,,no curated + no usda match
+63fb4f32-1371-442d-b918-27c8166948bb,lager beer,MISS,,,168746,,usda fetch unavailable
+e44ced9d-f2bc-41d9-9d5b-50c7ca965811,large egg,MISS,,,747997,,usda fetch unavailable
+179e8716-f88b-46b9-b8ba-13d15162ee0d,large eggs,MISS,,,747997,,usda fetch unavailable
+ae8d392d-9224-4b82-9eba-2e86616b901b,large flour tortilla,USDA_DERIVED,,30,175037,"Tortillas, ready-to-bake or -fry, flour, refrigerated",
+d0f7e5f5-99e6-4c87-8460-ccf5506f1bbd,large shrimp,MISS,,,175180,,usda fetch unavailable
+f8371cd6-28a7-489d-87be-032abaf64b07,lean ground beef,MISS,,,168652,,usda fetch unavailable
+c510aa05-8533-4635-af99-ee51630cc259,lean ground beef meat boi,MISS,,,174030,"Beef, ground, 90% lean meat / 10% fat, raw",no cup/each portion
+c732b2f0-affc-4af2-9181-d2a77917f87f,lean ground turkey,MISS,,,174493,"Turkey, ground, 85% lean, 15% fat, raw",no cup/each portion
+057e48fd-245a-4ce2-a22b-37c7a6881ad3,lemon,CURATED,,,,,curated
+2a5fee1b-024a-4347-84d4-f104a7883235,lemon juice,USDA_DERIVED,244,,167747,"Lemon juice, raw",
+25987874-479c-455e-8681-80d5dfa75d63,lemon zest,MISS,,,167749,"Lemon peel, raw",no cup/each portion
+d092344a-df5c-406e-abf4-a0954f1cbdc3,lettuce,CURATED,,,,,curated
+9741d311-3b40-4e79-aa9c-9e835e95995b,lime,CURATED,,,,,curated
+ecd2a410-0015-4aa6-b980-8331f507b4c4,lime juice,USDA_DERIVED,242,,168156,"Lime juice, raw",
+f2916482-d44a-42c9-9e91-6895d84b6424,lime zest,MISS,,,168155,"Limes, raw","denylist (wrong food/state): Limes, raw"
+2d7bb575-dbb6-4aee-b4cf-a6da1956e4bf,limes,USDA_DERIVED,,67,168155,"Limes, raw",
+0c6d4457-83e6-4ac4-ab0b-51a723fe0b50,linguine,MISS,,,,,no curated + no usda match
+5759303d-9d51-487e-a55b-615f951e14b2,long grain white rice,MISS,,,169708,"Rice, white, long-grain, parboiled, enriched, cooked","denylist (wrong food/state): Rice, white, long-grain, parboiled, enriched, cooked"
+17823f2b-2375-4ecc-95d9-8acbfa5a8e5b,long-grain white rice,MISS,,,169708,"Rice, white, long-grain, parboiled, enriched, cooked","denylist (wrong food/state): Rice, white, long-grain, parboiled, enriched, cooked"
+194e3223-86ca-461d-8778-eb56aa4617ea,low-moisture mozzarella cheese,MISS,,,329370,,usda fetch unavailable
+edb8a58f-2314-4ca2-8e4b-9a2a316083bc,low-sodium beef broth,MISS,,,172889,"Soup, beef broth, less/reduced sodium, ready to serve","form mismatch: Soup, beef broth, less/reduced sodium, ready to serve"
+7e3ac570-a911-47cb-8e74-deba619258e5,low-sodium chicken broth,MISS,,,171609,"Soup, chicken broth, low sodium, canned","form mismatch: Soup, chicken broth, low sodium, canned"
+012c52a0-45d4-415d-85b7-8aa89b641678,marinara sauce,MISS,,,169037,"OLIVE GARDEN, cheese ravioli with marinara sauce","form mismatch: OLIVE GARDEN, cheese ravioli with marinara sauce"
+64c65100-d625-4c27-b555-c20115f72db9,mayonnaise,MISS,,,168112,"Salad dressing, mayonnaise and mayonnaise-type, low calorie","form mismatch: Salad dressing, mayonnaise and mayonnaise-type, low calorie"
+eb7dd186-bbe3-48be-bad1-90ca1bca8098,mexican crema,MISS,,,,,no curated + no usda match
+41476c52-8a71-4c72-a727-81289ffc0be7,mild chili powder,MISS,,,171319,"Spices, chili powder","form mismatch: Spices, chili powder"
+89774213-886f-4ce8-b0fa-4db76b5330e9,mild italian pork sausage,MISS,,,171631,"Sausage, Italian, pork, mild, raw",no cup/each portion
+4f6641d4-e964-485c-a50b-a04a285de06f,mild italian sausage,MISS,,,171631,"Sausage, Italian, pork, mild, raw",no cup/each portion
+cf1cf761-d757-463e-bf8f-7ba69970204d,mild red enchilada sauce,USDA_DERIVED,224,,174074,"Sauce, enchilada, red, mild, ready to serve",
+5e0eacc1-b637-4d0f-b0a1-590e0b0747aa,mild salsa,MISS,,,746777,,usda fetch unavailable
+1fbb715f-d0b3-42c3-9849-fcc3cf2a4299,mixed green lettuce,MISS,,,,,no curated + no usda match
+81848eae-db1d-46e8-ba62-f00c340aa8df,mixed greens,MISS,,,169085,"Vegetables, mixed (corn, lima beans, peas, green beans, carrots) canned, no salt added","form mismatch: Vegetables, mixed (corn, lima beans, peas, green beans, carrots) canned, no salt added"
+c0dbc042-8c98-4688-9935-afd65aefa46f,monterey jack cheese,MISS,,,,,no curated + no usda match
+72c22abc-2dae-420e-b6f3-c47223865071,neutral cooking oil,USDA_DERIVED,218,,171411,"Oil, soybean, salad or cooking",
+ae340870-fe19-4559-ad28-a36153b3f5c4,neutral cooking spray,MISS,,,171430,"Oil, PAM cooking spray, original","form mismatch: Oil, PAM cooking spray, original"
+602378e3-ba36-4fce-9b40-d7388e05857b,neutral oil,MISS,,,,,no curated + no usda match
+a2fad7ec-c107-40e1-83b7-126c2a7ca83c,new york strip steak,MISS,,,,,no curated + no usda match
+5bd4246a-de44-4ffb-9ec7-9e63a4b1e4a4,niçoise olive,MISS,,,,,no curated + no usda match
+f37ae360-99ba-4eae-8c95-47e585e8c1f6,olive oil,CURATED,,,,,curated
+421cd86d-daa9-4ec0-bd55-3fc0ec141704,olive oil spray,USDA_DERIVED,216,,171413,"Oil, olive, salad or cooking",
+7665424b-4943-41c5-8654-e8291064b99e,onion powder,MISS,,,171327,"Spices, onion powder","form mismatch: Spices, onion powder"
+d90df00f-2d56-4ff8-b07f-fe4d3103705d,orange,MISS,,,168819,"Marmalade, orange","form mismatch: Marmalade, orange"
+be315867-a066-46c3-9c52-f2d38140bf0d,orange juice,MISS,,,171354,"Babyfood, juice, orange","form mismatch: Babyfood, juice, orange"
+1de51135-fb85-491c-b056-b896c2c68fa6,oranges,MISS,,,168819,"Marmalade, orange","form mismatch: Marmalade, orange"
+c2cbd983-0bfe-4616-831a-cffa42cf7d31,orzo pasta,USDA_DERIVED,64,,169736,"Pasta, dry, enriched",
+214b14a8-8c8e-48a5-927b-b21b329a67b3,pancetta,MISS,,,,,no curated + no usda match
+6c24f73e-e3ef-4393-bf63-0f914da6729e,panko breadcrumbs,MISS,,,,,no curated + no usda match
+e65392e4-4dd0-4a62-bbad-4b1981782736,pappardelle,MISS,,,,,no curated + no usda match
+3a038cfb-4aa1-4c50-9264-6225419e9d7b,parmesan,CURATED,,,,,curated
+e2840a45-8732-42db-ab36-323f3d024185,parmesan cheese,USDA_DERIVED,100,,171247,"Cheese, parmesan, grated",
+37517757-7de3-4662-afdf-a5943c7eeb7a,parsley,CURATED,,,,,curated
+ef8dfcb3-2b00-4569-ac3e-51da71600700,peach preserves,MISS,,,,,no curated + no usda match
+0565aff0-f37f-4e88-8459-768e5981fc3c,peanut butter,CURATED,,,,,curated
+c2607813-c5c5-4d31-bace-1b1c8cd30779,peanuts,CURATED,,,,,curated
+093c6f1a-fd59-4f7d-8838-f91a9cf55a6b,pearl onion,USDA_DERIVED,160,,170000,"Onions, raw",
+3d752897-3fa9-408a-9b97-e1426fd108ed,penne pasta,USDA_DERIVED,64,,169736,"Pasta, dry, enriched",
+598c317d-e4a5-47ae-b1d2-ee07fbd24b46,pickled banana peppers,USDA_DERIVED,136,,169766,"Peppers, hot pickled, canned",
+fcb38d2a-a301-4614-ac26-adcbb8765fce,pickled jalapeño,MISS,,,169766,"Peppers, hot pickled, canned","form mismatch: Peppers, hot pickled, canned"
+3f663ad7-3a4e-4fda-a1da-3e30578d40bd,pickled jalapeño slices,MISS,,,169766,"Peppers, hot pickled, canned","form mismatch: Peppers, hot pickled, canned"
+4b0d0433-e00d-4d27-b7f0-daa9d097715c,pico de gallo,MISS,,,,,no curated + no usda match
+8a939f7d-7887-4738-84c8-12d47f356b2f,pita bread,USDA_DERIVED,,60,174915,"Bread, pita, white, enriched",
+c04cc708-9e2f-4e7e-9769-4031c485afda,pizza dough,MISS,,,,,no curated + no usda match
+48799fce-4ec0-4182-bf19-ed7db665955b,plain greek yogurt,MISS,,,170903,"Yogurt, Greek, plain, lowfat",no cup/each portion
+ea9e6b26-95e3-47b3-a6b0-39e072764e07,plain whole-milk greek yogurt,MISS,,,171304,"Yogurt, Greek, plain, whole milk",no cup/each portion
+2e221412-4eb9-4352-a010-78d8697257fe,pork tenderloin,MISS,,,168317,"HORMEL ALWAYS TENDER, Pork Tenderloin, Peppercorn-Flavored","form mismatch: HORMEL ALWAYS TENDER, Pork Tenderloin, Peppercorn-Flavored"
+0683553e-3ff2-41d8-a3c9-10f0a6eae3d3,potato hamburger bun,MISS,,,,,no curated + no usda match
+f0f6d400-69a9-48be-85f9-a389a434900c,potato slider rolls,MISS,,,,,no curated + no usda match
+3b231660-5424-4ffd-bcc9-4b23ef5a0df5,provolone cheese,USDA_DERIVED,132,,170850,"Cheese, provolone",
+8f62b9df-4fcc-417c-982c-0b8d64397d1d,pumpkin seeds,MISS,,,170556,"Seeds, pumpkin and squash seed kernels, dried","form mismatch: Seeds, pumpkin and squash seed kernels, dried"
+41039297-51bb-48c2-912e-6b79b0a69712,purple cabbage,USDA_DERIVED,70,839,169977,"Cabbage, red, raw",
+c1132c30-ddf3-49a1-aacc-9632e1f224c5,quinoa,MISS,,,168917,"Quinoa, cooked","denylist (wrong food/state): Quinoa, cooked"
+95131d20-ab13-4522-98f2-d73b28e40a7b,radish,USDA_DERIVED,116,4.5,169276,"Radishes, raw",
+e7dac7e1-7eb1-4ccd-9df0-c5e5e95282fb,ranch dressing,MISS,,,173592,"Salad dressing, ranch dressing, regular",no cup/each portion
+ef8cc2b5-6b0a-4e35-aead-b5171bb3df0a,red bell pepper,MISS,,,,,no curated + no usda match
+fc5856e9-886d-4541-aae1-666e7289ead5,red cabbage,USDA_DERIVED,70,839,169977,"Cabbage, red, raw",
+ab512311-15c0-4be5-9260-27835b194d82,red grapes,USDA_DERIVED,151,,174683,"Grapes, red or green (European type, such as Thompson seedless), raw",
+a5790b3f-a6c2-4e0f-87ea-ea90a90b4af0,red onion,MISS,,,790577,"Onions, red, raw",no cup/each portion
+1113bc19-d945-4744-8994-3cdddee893a5,red pepper flakes,MISS,,,170932,"Spices, pepper, red or cayenne","form mismatch: Spices, pepper, red or cayenne"
+a53f3776-12cc-4f06-9197-72045a4a8974,red wine vinegar,USDA_DERIVED,239,,172240,"Vinegar, red wine",
+efe35246-a7da-4c40-9cc1-c93695476c66,refried beans,MISS,,,169032,"ON THE BORDER, refried beans","form mismatch: ON THE BORDER, refried beans"
+f31c4939-6013-4df5-8e06-1b36e5861c89,reserved birria braising liquid,MISS,,,,,no curated + no usda match
+707fd479-e88c-4c9a-bacc-6534e752bbc1,ribeye steak,MISS,,,172599,"Game meat, bison, ribeye, separable lean only, 1"" steak, cooked, broiled","form mismatch: Game meat, bison, ribeye, separable lean only, 1"" steak, cooked, broiled"
+b7849e78-e861-42d4-9d03-eb24d0bf17a3,rice noodles,CURATED,,,,,curated
+4a9b0a75-d018-4d02-b074-d4319732ce29,rigatoni,MISS,,,,,no curated + no usda match
+d9af62f2-48e4-4d54-96fa-e8bf6a1d9d0d,rigatoni pasta,MISS,,,,,no curated + no usda match
+31e982f4-8f28-47ea-ab32-e2b433b26706,ripe avocado,MISS,,,173573,"Oil, avocado","form mismatch: Oil, avocado"
+04adaa9b-344f-4809-b4ba-5a6154d09894,roasted cashews,MISS,,,169421,"Nuts, cashew nuts, dry roasted, with salt added","form mismatch: Nuts, cashew nuts, dry roasted, with salt added"
+2dee1a9b-2fe0-4b8c-97ae-f5d91c0d7147,roma tomato,MISS,,,,,no curated + no usda match
+9649a5b2-adf3-4512-a47c-e2d71d0506bb,romaine lettuce,USDA_DERIVED,47,,169247,"Lettuce, cos or romaine, raw",
+0ee25c3c-57ea-4036-a6d2-0c9a600a684b,rotisserie chicken,MISS,,,171524,"Chicken, broiler, rotisserie, BBQ, skin",no cup/each portion
+4e39013e-7876-448b-a353-15b31768a738,russet potato,USDA_DERIVED,,173,170030,"Potatoes, Russet, flesh and skin, baked",
+f533213a-0121-485e-b6b8-5113a67f1c68,russet potatoes,USDA_DERIVED,,173,170030,"Potatoes, Russet, flesh and skin, baked",
+c9f183d1-3903-4762-93e3-f078f16c23ac,salmon fillet,MISS,,,173688,"Fish, salmon, chinook, raw","form mismatch: Fish, salmon, chinook, raw"
+688eb228-2b7c-4b8c-9060-576b59694342,salmon fillets,CURATED,,,,,curated
+31f66ba4-af40-4905-bd20-530f34c4b814,salsa,CURATED,,,,,curated
+127c5e26-bd95-4dff-affe-3e8d60cf62ec,salsa roja,MISS,,,746777,,usda fetch unavailable
+f1972e25-d68b-4a84-ab6e-5be354e9cc44,salsa verde,MISS,,,171824,"Sauce, salsa, verde, ready-to-serve","form mismatch: Sauce, salsa, verde, ready-to-serve"
+fd091fd2-b2e4-410d-9587-fbe273baa7b6,salt,CURATED,,,,,curated
+9cb2d59e-e9b7-4c4a-9876-169007cb9e9a,san marzano tomatoes,MISS,,,170051,"Tomatoes, red, ripe, canned, packed in tomato juice","form mismatch: Tomatoes, red, ripe, canned, packed in tomato juice"
+8e7dc0de-9696-4acc-b89f-eae12edffe67,sandwich bread,MISS,,,167597,"Rudi's, Gluten-Free Bakery, Original Sandwich Bread","form mismatch: Rudi's, Gluten-Free Bakery, Original Sandwich Bread"
+16cb2019-31e3-44d8-9b18-2956387e7dab,scallions,CURATED,,,,,curated
+ff6e0219-928b-438b-9813-c90ac99f6528,seedless watermelon,MISS,,,,,no curated + no usda match
+e85481ea-01c9-4b7a-991d-8975286dcf9b,sesame oil,USDA_DERIVED,218,,171016,"Oil, sesame, salad or cooking",
+019aac74-201a-4b00-9ed1-18180dacc1b6,sesame seeds,MISS,,,170150,"Seeds, sesame seeds, whole, dried","form mismatch: Seeds, sesame seeds, whole, dried"
+1a8d88c4-b9c0-437b-9b60-03e9a4c8c4b2,shallot,MISS,,,170499,"Shallots, raw",no cup/each portion
+0a7b4c4a-eef9-48ee-8511-246e2dda9eac,sharp cheddar,MISS,,,170899,"Cheese, cheddar, sharp, sliced","form mismatch: Cheese, cheddar, sharp, sliced"
+a6d28768-dd9a-470b-80f4-d1ece5b3e000,sharp cheddar cheese,MISS,,,170899,"Cheese, cheddar, sharp, sliced",no cup/each portion
+59eed004-2bb0-4936-b3fc-10f160a52ad9,shaved parmesan cheese,MISS,,,173431,"Cheese, parmesan, shredded",no cup/each portion
+c43dc8b1-e89d-45be-9750-b058be8fc8ae,shredded cheddar cheese,MISS,,,328637,,usda fetch unavailable
+528c0eda-2b60-4585-9ecd-944835b94679,shredded coleslaw mix,MISS,,,,,no curated + no usda match
+f23e6a07-a315-423f-ba32-423830672a32,shredded iceberg lettuce,MISS,,,,,no curated + no usda match
+86b2a7d7-9948-4fed-b3ef-0b9db7b5906b,shredded low-moisture mozzarella,MISS,,,170900,"Cheese, mozzarella, low moisture, part-skim, shredded","form mismatch: Cheese, mozzarella, low moisture, part-skim, shredded"
+6ff7c7ab-c7fd-424c-b187-ed7c02e28428,shredded mexican blend cheese,USDA_DERIVED,112,,171288,"Cheese, Mexican blend",
+49cf59be-946e-4c1e-93c0-a826869319b8,shredded mexican cheese blend,USDA_DERIVED,112,,171288,"Cheese, Mexican blend",
+3c093b24-205a-4188-9465-28360df79385,shredded monterey jack cheese,MISS,,,,,no curated + no usda match
+971a225b-6392-44ac-b001-42c0bb54fb9e,shredded mozzarella cheese,USDA_DERIVED,86,,170900,"Cheese, mozzarella, low moisture, part-skim, shredded",
+a2cbf347-ca67-4cb8-a14e-d97498f1c777,shredded rotisserie chicken,MISS,,,,,no curated + no usda match
+473ef450-5398-4263-8c0c-206a998f1d4d,shrimp,CURATED,,,,,curated
+4719c3bd-db21-4119-9cee-473393605ffa,sirloin steak,MISS,,,167673,"DENNY'S, top sirloin steak","form mismatch: DENNY'S, top sirloin steak"
+5061c4fe-a936-4c8f-9d04-9a530442ee3f,skirt steak,MISS,,,172159,"Beef, plate steak, boneless, inside skirt, separable lean and fat, trimmed to 0"" fat, choice, raw","form mismatch: Beef, plate steak, boneless, inside skirt, separable lean and fat, trimmed to 0"" fat, choice, raw"
+d671bbd6-638d-40ce-bb5d-77518b2fce0b,sliced black olives,MISS,,,,,no curated + no usda match
+e00a8d80-5560-4f8b-a533-174421371a1d,sliced jalapeño,MISS,,,,,no curated + no usda match
+9729ffd4-cf4f-4a3f-9724-0d7775236111,small corn tortilla,MISS,,,169829,"Tortilla, blue corn, Sakwavikaviki (Hopi)",no cup/each portion
+cf7ba28e-f755-4cfc-8ce3-b67ae8b868c3,small corn tortillas,MISS,,,169829,"Tortilla, blue corn, Sakwavikaviki (Hopi)",no cup/each portion
+d8ed1a6a-c402-47d6-9942-516238dc8e51,small flour tortilla,USDA_DERIVED,,30,175037,"Tortillas, ready-to-bake or -fry, flour, refrigerated",
+b7b0cdde-e043-45fd-9142-6488374a6b61,small potato,MISS,,,167943,"Bread, potato","form mismatch: Bread, potato"
+6e4409ac-84d5-4cda-845b-234b219a9194,smoked paprika,MISS,,,171329,"Spices, paprika","form mismatch: Spices, paprika"
+1a972d92-8735-4aa7-8f0e-a2364a0e0b7f,smoked sausage,MISS,,,174584,"Sausage, smoked link sausage, pork",no cup/each portion
+19d42432-04c6-4fee-a565-35ab93824c63,soft dinner roll,MISS,,,167590,"Andrea's, Gluten Free Soft Dinner Roll","form mismatch: Andrea's, Gluten Free Soft Dinner Roll"
+01689966-95b5-4f03-976a-d148d347db5f,sour cream,CURATED,,,,,curated
+3097daa0-ba99-49a2-9346-e1ea97f86de8,soy sauce,MISS,,,174278,Soy sauce made from soy (tamari),no cup/each portion
+0a3b1c67-3ba5-4b3c-b180-be4b2cdc0fd1,spaghetti,CURATED,,,,,curated
+29c60410-87e6-44c5-a10c-bc21d7469b11,spiced & diced green chiles,MISS,,,,,no curated + no usda match
+cef4f185-2aa4-44bd-874b-5e5a556c434d,strawberries,USDA_DERIVED,232,12,167762,"Strawberries, raw",
+2d2a1ebd-f7d0-4de3-afd6-a3d2de52a47c,strawberry,USDA_DERIVED,232,12,167762,"Strawberries, raw",
+97cfece8-f2a4-4c18-86e6-c8402ea90420,sugar,CURATED,,,,,curated
+fe5c3b8a-9a55-4d53-a9a4-c6945b54cdb2,sun-dried tomatoes in oil,USDA_DERIVED,110,,169384,"Tomatoes, sun-dried, packed in oil, drained",
+9c6fc8d9-b44a-4c53-833a-0bd94763e39d,sweet pickle relish,USDA_DERIVED,245,,168561,"Pickle relish, sweet",
+c538d854-f369-4e0c-baf8-7839f2782c4a,sweet potato,MISS,,,169303,"Sweet potato leaves, raw","denylist (wrong food/state): Sweet potato leaves, raw"
+c6669ccf-e4bd-4dbb-9b58-653e38aad6b6,sweet relish,USDA_DERIVED,245,,168561,"Pickle relish, sweet",
+929e2132-88e2-437d-9ccb-06656cbbf2b4,swiss cheese,MISS,,,746767,,usda fetch unavailable
+5c2604b4-2b33-4955-a12a-b81469c3d3bd,taco seasoning,CURATED,,,,,curated
+b8058f00-20ce-4ef5-a0fb-16372dec23c0,taco shells,CURATED,,,,,curated
+cf8b8e57-7275-4ffd-8a08-c173691668a6,tahini,CURATED,,,,,curated
+db5d024f-450c-4aa3-88ff-1e60f18dba82,tamarind paste,CURATED,,,,,curated
+9126e99a-8317-405a-b7ca-623803e35bbb,teriyaki sauce,USDA_DERIVED,288,,171167,"Sauce, teriyaki, ready-to-serve",
+15a6bcdc-e79e-46ac-b9bc-38dd09129dca,thick-cut bacon,MISS,,,,,no curated + no usda match
+722a1617-4b36-4911-98a0-50e42446b3b9,thick-cut white sandwich bread,MISS,,,167598,"Udi's, Gluten Free, Soft & Delicious White Sandwich Bread","form mismatch: Udi's, Gluten Free, Soft & Delicious White Sandwich Bread"
+56383d18-4421-4893-8dd7-be0f9ce50b7f,tikka masala paste,CURATED,,,,,curated
+1237e572-952f-4b11-b765-50880aa67dc8,tomato,CURATED,,,,,curated
+9d9f5824-625e-43b8-b6e0-a97d8e1a262d,tomato paste,USDA_DERIVED,264,,170459,"Tomato products, canned, paste, without salt added (Includes foods for USDA's Food Distribution Program)",
+69982c27-e9e2-42fa-8602-f287a3d0e85e,tomato sauce,USDA_DERIVED,244,,170463,"Tomato products, canned, sauce, with tomato tidbits",
+4a9e7eb5-4a1b-4c63-b31c-1b04b4d95d44,tomatoes,MISS,,,170461,Tomato powder,form mismatch: Tomato powder
+c67fae8f-a753-4607-898d-511b3d826b17,tortilla chips,MISS,,,167559,"Snacks, tortilla chips, nacho cheese","form mismatch: Snacks, tortilla chips, nacho cheese"
+edeffc3b-ec52-463c-80e0-c996aedce9e5,unsalted butter,MISS,,,,,no curated + no usda match
+f352003c-7645-4104-a5cf-1b2e8272d949,vanilla ice cream,USDA_DERIVED,66,,167575,"Ice creams, vanilla",
+1de9bb8d-747b-4ad7-9e78-dacdccfd9b81,vegetable broth,CURATED,,,,,curated
+c79df015-203b-4736-b591-96fac80b8314,vegetable oil,CURATED,,,,,curated
+0950e8ee-4506-49b9-a1c1-fee0a256c30d,water,CURATED,,,,,curated
+fa764309-73b4-4497-9c21-799022cbe6b3,white onion,MISS,,,1104962,"Onions, white, raw",no cup/each portion
+2a6267fa-0479-4947-81fd-08e4813db840,white sandwich bread,MISS,,,170709,"Fast foods, submarine sandwich, meatball marinara on white bread","form mismatch: Fast foods, submarine sandwich, meatball marinara on white bread"
+ca5403ee-fdf5-4497-bb56-9f831cd49acf,white vinegar,USDA_DERIVED,238,,172237,"Vinegar, distilled",
+6eb317aa-fc54-44a6-bfae-edc5c12784c5,white wine,MISS,,,174837,"Alcoholic beverage, wine, table, white","form mismatch: Alcoholic beverage, wine, table, white"
+3fc51764-36ed-4ce1-82fb-b254bbca36bb,white wine vinegar,MISS,,,,,no curated + no usda match
+3d3316ac-1005-47dd-a667-cbf79be788c1,whole black peppercorns,MISS,,,,,no curated + no usda match
+01970db2-fbfb-4e98-9297-f5fbe32e9be5,whole chicken,MISS,,,170795,"School Lunch, chicken nuggets, whole grain breaded","form mismatch: School Lunch, chicken nuggets, whole grain breaded"
+d10747ca-9444-4fcc-bdd1-5153c4f9aa48,whole milk,MISS,,,170845,"Cheese, mozzarella, whole milk","form mismatch: Cheese, mozzarella, whole milk"
+b4f50ccf-b7e1-4a12-a3b6-90f11fbe8007,whole milk ricotta cheese,MISS,,,746766,,usda fetch unavailable
+1180f321-0176-43e1-be93-c067b4d7847a,whole nutmeg,MISS,,,172335,"Oil, nutmeg butter","form mismatch: Oil, nutmeg butter"
+11bd8ab0-59b3-4c6c-8373-454d6a808140,whole-grain mustard,MISS,,,,,no curated + no usda match
+782b0eea-bbfd-4ea6-a3d2-1bafed231244,whole-milk ricotta cheese,MISS,,,746766,,usda fetch unavailable
+db7189e4-bb7e-414c-9596-48d863f43bea,wide egg noodle,USDA_DERIVED,38,,169731,"Noodles, egg, dry, enriched",
+32d5e6a9-d0a1-4f98-afb9-e298d542161b,wide egg noodles,USDA_DERIVED,38,,169731,"Noodles, egg, dry, enriched",
+7a30edab-2b3d-4204-86a7-f98b3f9f2ff9,wild rice,MISS,,,168897,"Wild rice, cooked","denylist (wrong food/state): Wild rice, cooked"
+d4273123-63d2-42e5-96fe-86af868d36f0,wood smoking chips,MISS,,,,,no curated + no usda match
+92080c2d-aae6-4abf-bcdc-49b9f928138a,wooden or metal skewers,MISS,,,,,no curated + no usda match
+0b887e03-135c-4881-b348-c606105b3e87,worcestershire sauce,USDA_DERIVED,275,,171610,"Sauce, worcestershire",
+75307f60-f5fc-40ae-97e6-1e713c5b2abf,yellow bell pepper,MISS,,,,,no curated + no usda match
+b1cce1aa-0acd-4dc8-8bbb-08e698bd5aca,yellow mustard,MISS,,,326698,,usda fetch unavailable
+d948945b-f4fc-4eb6-bb46-ccb9ae721b16,yellow on-yon,MISS,,,790646,"Onions, yellow, raw","form mismatch: Onions, yellow, raw"
+34744d96-c0b0-4e57-a118-06b41523a02c,yellow onion,CURATED,,,,,curated
+dfef6d3a-64a5-47aa-82f5-64fa45447a5b,yellow pooping onion,MISS,,,790646,"Onions, yellow, raw",no cup/each portion
+bd6c6905-10e9-4cd4-b096-13e0e25342c9,yellow potato,MISS,,,169764,"Potatoes, yellow fleshed, french fried, frozen, unprepared",no cup/each portion
+2cf2cfbb-72f0-408e-ae29-43fb0690bd55,yukon gold potato,MISS,,,,,no curated + no usda match
+54aaeb6d-451e-46f0-9929-aeaca6d967d7,ziti pasta,MISS,,,,,no curated + no usda match
+259d8f7b-86b0-4960-9d30-d75700868a11,zucchini,MISS,,,168565,"Squash, zucchini, baby, raw","form mismatch: Squash, zucchini, baby, raw"

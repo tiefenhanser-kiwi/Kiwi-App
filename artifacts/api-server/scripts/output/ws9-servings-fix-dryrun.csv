@@ -1,0 +1,3 @@
+mealId,title,currentServings,proposedServings,rawProteinLbPerServ_current,rawProteinLbPerServ_proposed,reasoning,recomputeAfter
+4c1a206d-d9eb-4ab4-9cbf-b2d5f9166f5e,Herb-Roasted Whole Chicken with Roasted Garlic Pan Jus,2,4,1.75,0.88,"3.5 lb whole chicken yields ~4 dinner servings; at 2 the per-serving is 1.75 lb raw / ~0.9 lb edible (implausible). Also update the 4 child dishes' servingsDefault 2->4 in lock-step.",YES
+a40f036a-10ae-4a52-8a07-f19004cf4f34,Crispy Oven-Baked Chicken Thighs with Roasted Bell Peppers and Garlic White Rice,2,2,0.75,0.75,"BORDERLINE / REVIEW ONLY — 1.5 lb BONE-IN thighs at 2 servings = 0.75 lb raw but ~0.53 lb edible/serv (bone ~30%), a large-but-valid portion. Raw-weight flag is inflated by bone; no change proposed. Left for your call.",NO

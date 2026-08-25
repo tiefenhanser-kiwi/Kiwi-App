@@ -1,0 +1,13 @@
+mealId,title,serv,curCal,curP,curC,curF,newCal,newP,newC,newF,dCal,grounded%,basisTag,sanityFlags
+r-grain-bowl,Mediterranean Grain Bowl,2,540,22,68,18,815,36.2,89.8,28.5,275,88,LEGUME/GRAIN,
+r-salmon,Lemon Herb Salmon,2,620,38,42,28,555,38.2,51.8,20.1,-65,100,LEGUME/GRAIN,
+r-stirfry,Chicken Veggie Stir-fry,4,480,32,52,14,555,40.1,58.2,14.8,75,88,LEGUME/GRAIN,
+r-tacos,Beef Street Tacos,4,560,30,48,24,605,32.8,52.4,24.6,45,100,LEGUME/GRAIN,
+r-pasta,Creamy Mushroom Pasta,4,620,18,78,26,745,32.2,72.1,32.8,125,75,,
+r-stew,Hearty Lentil Stew,6,380,18,56,8,335,18.5,50.2,2.8,-45,75,LEGUME/GRAIN,
+r-tofu,Teriyaki Tofu Bowl,2,510,24,62,18,570,24.8,56.2,21.1,60,100,LEGUME/GRAIN,
+r-pizza,Margherita Pizza Night,4,580,22,68,22,565,16.8,54.7,27.4,-15,83,LEGUME/GRAIN,
+r-curry,Coconut Chickpea Curry,4,480,16,62,18,605,22.1,87.3,13.8,125,75,LEGUME/GRAIN,
+r-buddha,Roasted Veg Buddha Bowl,2,520,16,72,18,680,33.8,74.5,28.2,160,100,LEGUME/GRAIN,
+r-shrimp,Garlic Shrimp Scampi,4,540,32,58,18,555,32.8,61.2,14.8,15,88,,
+r-greek,Big Greek Salad,2,380,12,22,28,625,20.8,32.1,45.2,245,88,,

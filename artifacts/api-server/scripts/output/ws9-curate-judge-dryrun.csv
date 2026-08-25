@@ -1,0 +1,81 @@
+canonicalName,category,catalogUses,decision,proposedFdcId,usdaDescription,dataType,per100kcal,confidence,flag,judgeReasoning
+unsalted butter,Dairy,19,MISS,,,,,none,,None of the candidates are butter; all are snack foods
+garlic cloves,Produce,8,AI_PICK,169230,"Garlic, raw",SR Legacy,149,medium,,"Garlic, raw is the plain, unprepared generic form of garlic cloves"
+extra-virgin olive oil,Pantry,8,AI_PICK,171413,"Oil, olive, salad or cooking",SR Legacy,884,medium,,"Oil, olive, salad or cooking is the most generic olive oil product; extra-virgin is a grade/type of olive oil"
+dijon mustard,Pantry,8,MISS,,,,,none,,"No prepared Dijon mustard record available; candidates are either mustard greens, mustard oil/seed, or honey mustard dressings"
+neutral oil,Pantry,6,AI_PICK,172336,"Oil, canola",SR Legacy,884,medium,,Canola oil is the most common neutral-flavored cooking oil used as a generic substitute when 'neutral oil' is specified
+jalapeño,Produce,5,MISS,,,,,none,,no USDA candidates
+cherry tomatoes,Produce,4,MISS,,,,,none,,"No candidate for raw cherry tomatoes; available options are other tomato varieties (green, orange, yellow) or processed forms"
+broccoli florets,Produce,4,AI_PICK,169330,"Broccoli, flower clusters, raw",SR Legacy,28,medium,,"Broccoli florets are the flower clusters of broccoli; this is the most direct match for raw, unprepared broccoli florets"
+basmati rice,Pantry,3,MISS,,,,,none,,No basmati rice or plain rice grain records in candidates; all are rice-based snacks or processed products
+romaine lettuce hearts,Produce,3,AI_PICK,169247,"Lettuce, cos or romaine, raw",SR Legacy,17,medium,,Romaine lettuce is also known as cos lettuce; this is the direct match for the ingredient
+yukon gold potatoes,Produce,3,MISS,,,,,none,,"No candidate matches raw Yukon Gold potatoes; all are processed, prepared, or non-potato products"
+sliced almonds,Pantry,3,AI_PICK,170567,"Nuts, almonds",SR Legacy,579,medium,,"Nuts, almonds is the plain, generic form of sliced almonds; slicing is a basic preparation method"
+boneless skinless chicken thighs,Protein,3,MISS,,,,,none,,No candidate matches boneless skinless chicken thighs; all candidates are either breasts or thighs with skin
+jasmine rice,Pantry,3,MISS,,,,,none,,"No candidate matches jasmine rice; all candidates are rice-based snacks or processed products, not raw jasmine rice grain"
+canned crushed san marzano tomatoes,Canned,2,AI_PICK,170501,"Tomatoes, crushed, canned",SR Legacy,32,medium,,"Crushed canned tomatoes is the most direct match; San Marzano variety is a specific type but the generic form 'crushed, canned' is the closest available option"
+roma tomatoes,Produce,2,MISS,,,,,none,,"Roma tomatoes are a fresh, raw variety; no candidate matches fresh red tomatoes, raw"
+panko breadcrumbs,Pantry,2,MISS,,,,,none,,no USDA candidates
+green cabbage,Produce,2,AI_PICK,169975,"Cabbage, raw",SR Legacy,25,medium,,"Cabbage, raw is the plain, unprepared generic form of green cabbage"
+parmigiano-reggiano,Pantry,2,MISS,,,,,none,,no USDA candidates
+store-bought naan,Bakery,2,AI_PICK,171845,"Bread, naan, plain, commercially prepared, refrigerated",SR Legacy,291,medium,,"Plain naan bread, commercially prepared and refrigerated, matches store-bought naan"
+kalamata olives,Pantry,2,MISS,,,,,none,,"No candidate matches kalamata olives; candidate 7 is green olives, not kalamata (black) olives"
+celery stalks,Produce,2,AI_PICK,169988,"Celery, raw",SR Legacy,14,medium,,"Celery, raw is the plain, unprepared generic form of celery stalks"
+garlic clove,Produce,2,AI_PICK,169230,"Garlic, raw",SR Legacy,149,medium,,"Garlic, raw is the plain, unprepared generic form of garlic clove"
+"bone-in, skin-on chicken thighs",Protein,2,AI_PICK,172385,"Chicken, broilers or fryers, thigh, meat and skin, raw",SR Legacy,221,medium,,"Chicken broilers or fryers thigh with meat and skin, raw - most generic unprepared form matching bone-in, skin-on chicken thighs"
+shredded romaine lettuce,Produce,1,AI_PICK,169247,"Lettuce, cos or romaine, raw",SR Legacy,17,medium,,"Romaine lettuce is cos lettuce; this is the plain, raw, unprepared form matching the ingredient"
+celery stalk,Produce,1,AI_PICK,169988,"Celery, raw",SR Legacy,14,medium,,"Celery, raw is the plain, unprepared generic form that matches celery stalk"
+shredded sharp cheddar cheese,Dairy,1,AI_PICK,170899,"Cheese, cheddar, sharp, sliced",SR Legacy,410,medium,,Sharp cheddar cheese in shredded form; candidate 0 is sharp cheddar (sliced form is closest match to shredded as both are prepared cuts of the same cheese)
+shredded iceberg lettuce,Produce,1,AI_PICK,169248,"Lettuce, iceberg (includes crisphead types), raw",SR Legacy,14,medium,,Iceberg lettuce raw is the exact match; shredding is a preparation method that doesn't change the base food
+brioche burger buns,Bakery,1,MISS,,,,,none,,No candidate matches brioche burger buns; all candidates are either finished dishes or unrelated baked goods
+american cheese slices,Dairy,1,AI_PICK,170853,"Cheese, pasteurized process, American, fortified with vitamin D",SR Legacy,366,medium,,"Pasteurized process American cheese is the standard form of sliced American cheese, and this option is the most generic without additional modifications like low fat or low sodium"
+iceberg lettuce leaves,Produce,1,AI_PICK,169248,"Lettuce, iceberg (includes crisphead types), raw",SR Legacy,14,medium,,"Exact match: iceberg lettuce raw, unprepared form"
+beefsteak tomato,Produce,1,MISS,,,,,none,,Beefsteak tomato is a specific fresh raw tomato variety; no raw red tomato option exists in candidates
+baby yukon gold potatoes,Produce,1,MISS,,,,,none,,"No candidate matches potatoes; closest options are potato flour and potato bread, neither of which represent baby yukon gold potatoes"
+dry breadcrumbs,Pantry,1,MISS,,,,,none,,"None of the candidates are breadcrumbs; all are pasta, grains, or gravies"
+san marzano whole peeled tomatoes,Canned,1,MISS,,,,,none,,"No candidate matches canned whole peeled tomatoes; available options are cucumbers, citrus peels, chestnuts, tomato powder, and tomato sauce"
+canned fire-roasted diced tomatoes,Canned,1,AI_PICK,170051,"Tomatoes, red, ripe, canned, packed in tomato juice",SR Legacy,16,medium,,"Canned diced tomatoes are most similar to canned tomatoes packed in tomato juice, which is a plain, generic canned tomato product"
+white basmati rice,Pantry,1,MISS,,,,,none,,"No basmati rice record available; candidates are medium-grain, short-grain, or glutinous varieties"
+prosciutto,Protein,1,MISS,,,,,none,,no USDA candidates
+orzo,Pantry,1,MISS,,,,,none,,no USDA candidates
+roma tomato,Produce,1,MISS,,,,,none,,"Roma tomato is a fresh raw tomato variety, but no fresh red raw tomato option is available in the candidates"
+rigatoni,Pantry,1,MISS,,,,,none,,no USDA candidates
+hot italian sausage,Protein,1,MISS,,,,,none,,"No candidate matches 'hot italian sausage' - candidates are either sweet Italian, turkey-based, or mild pork Italian sausage, but none are specifically hot/spicy Italian pork sausage"
+extra virgin olive oil,Pantry,1,AI_PICK,171413,"Oil, olive, salad or cooking",SR Legacy,884,medium,,"Oil, olive, salad or cooking is the closest match to extra virgin olive oil as a plain, generic olive oil product"
+pecorino romano,Pantry,1,AI_PICK,171249,"Cheese, romano",SR Legacy,387,medium,,"Pecorino romano is a type of romano cheese, and this is the generic USDA record for romano cheese"
+bone-in skin-on chicken thighs,Protein,1,AI_PICK,172385,"Chicken, broilers or fryers, thigh, meat and skin, raw",SR Legacy,221,medium,,"Chicken broilers or fryers thigh with meat and skin, raw - matches bone-in skin-on chicken thighs in unprepared form"
+red thai chili,Pantry,1,AI_PICK,170106,"Peppers, hot chili, red, raw",SR Legacy,40,medium,,"Red thai chili is a raw hot chili pepper; this is the plain, unprepared form matching the ingredient"
+dark soy sauce,Pantry,1,AI_PICK,174277,Soy sauce made from soy and wheat (shoyu),SR Legacy,53,medium,,"Dark soy sauce is typically made from soy and wheat (shoyu style), which is the most common type of dark soy sauce"
+english cucumber,Produce,1,AI_PICK,168409,"Cucumber, with peel, raw",SR Legacy,15,medium,,English cucumbers are typically eaten with peel; this is the most appropriate raw cucumber option
+fresh jalapeño,Produce,1,MISS,,,,,none,,"No jalapeño pepper option available in candidates; all options are herbs, cheese, or eggs"
+plain breadcrumbs,Pantry,1,MISS,,,,,none,,"No breadcrumbs record found; croutons (index 0) is closest but is toasted cubes, not crumbs"
+italian-seasoned breadcrumbs,Pantry,1,MISS,,,,,none,,No breadcrumbs product in candidates; closest option (croutons) is a different form of bread product
+shredded whole-milk mozzarella,Dairy,1,AI_PICK,170845,"Cheese, mozzarella, whole milk",SR Legacy,299,medium,,Whole milk mozzarella is the base product; shredded form is a preparation method not reflected in USDA records
+pepperoni slices,Protein,1,AI_PICK,174575,"Pepperoni, beef and pork, sliced",SR Legacy,504,medium,,"Generic pepperoni slices in plain form, matching the ingredient description"
+elbow macaroni,Pantry,1,MISS,,,,,none,,"No plain elbow macaroni pasta candidate; all options are either prepared dishes, vegetable macaroni, or baby food"
+gruyère cheese,Dairy,1,MISS,,,,,none,,Gruyère cheese is not among the candidate options; closest candidates are other hard cheeses but none specifically match Gruyère
+braising liquid from pot roast,Pantry,1,MISS,,,,,none,,"Braising liquid is a cooking byproduct/liquid, not the cooked meat itself; no candidate represents the liquid component"
+toasted sesame oil,Pantry,1,AI_PICK,171016,"Oil, sesame, salad or cooking",SR Legacy,884,medium,,"Toasted sesame oil is a type of sesame oil used for cooking/salad dressing, matching the generic sesame cooking oil record"
+neutral oil (such as avocado or vegetable),Produce,1,AI_PICK,173573,"Oil, avocado",SR Legacy,884,medium,,"Oil, avocado is a neutral oil explicitly mentioned in the ingredient; vegetable oil option (index 1) is also neutral but avocado oil is specifically called out in the ingredient"
+snap peas,Produce,1,AI_PICK,170010,"Peas, edible-podded, raw",SR Legacy,42,medium,,"Snap peas are edible-podded peas; this is the raw, unprepared generic form"
+"salmon fillets, skin-on",Protein,1,MISS,,,,,none,,"No candidate matches plain, raw salmon fillets with skin; available options are either processed (kippered, smoked, canned), potato dishes, or vegetarian fillets"
+asparagus spears,Produce,1,AI_PICK,168389,"Asparagus, raw",SR Legacy,20,medium,,"Raw asparagus is the most generic, unprepared form matching 'asparagus spears'"
+ears of corn,Produce,1,AI_PICK,170288,"Corn grain, yellow",SR Legacy,365,medium,,Yellow corn grain is the most common form of fresh corn ears used in recipes
+sourdough boule,Bakery,1,AI_PICK,172675,"Bread, french or vienna (includes sourdough)",SR Legacy,272,medium,,"Sourdough boule is a type of French/Vienna bread; this is the plain, unprepared generic form without toasting or muffin variations"
+low-sodium chicken stock,Canned,1,AI_PICK,171609,"Soup, chicken broth, low sodium, canned",SR Legacy,16,medium,,"Chicken broth is the closest match to chicken stock; both are savory broths made from chicken, and this is the only chicken-based broth option available."
+white wine vinegar,Pantry,1,MISS,,,,,none,,"None of the candidates are white wine vinegar; all are either red wine vinegar or unfermented white wines, not vinegar"
+baby potatoes,Produce,1,MISS,,,,,none,,"No candidate matches baby potatoes; closest options are potato flour and potato pancakes, which are processed forms, not fresh baby potatoes"
+"beef chuck, cut into 1.5-inch cubes",Protein,1,AI_PICK,169495,"Beef, chuck, blade roast, separable lean and fat, trimmed to 1/8"" fat, choice, raw",SR Legacy,268,medium,,"Beef chuck blade roast raw is the most generic, unprepared form matching the ingredient; cubing is a preparation step not reflected in USDA records"
+"yukon gold potatoes, cut into chunks",Produce,1,MISS,,,,,none,,Ingredient is raw Yukon gold potatoes; all candidates are either frozen french fried potatoes or unrelated foods
+"carrots, peeled and sliced",Produce,1,AI_PICK,170393,"Carrots, raw",SR Legacy,41,medium,,"Carrots, raw is the generic base food; peeling and slicing are preparation methods not reflected in the food record"
+"celery stalks, sliced",Produce,1,AI_PICK,169988,"Celery, raw",SR Legacy,14,medium,,"Celery, raw is the plain, unprepared generic form of celery; slicing is a basic preparation method that doesn't change the fundamental food identity"
+"yellow onion, diced",Produce,1,AI_PICK,170000,"Onions, raw",SR Legacy,40,medium,,"Onions, raw is the plain, unprepared form of yellow onion; candidate 0 is sautéed (prepared), making it less generic"
+"garlic cloves, minced",Produce,1,AI_PICK,169230,"Garlic, raw",SR Legacy,149,medium,,"Garlic, raw is the plain, unprepared generic form of garlic; mincing is a preparation method, not a different food"
+"sourdough bread, sliced",Bakery,1,AI_PICK,172675,"Bread, french or vienna (includes sourdough)",SR Legacy,272,medium,,"Bread, french or vienna (includes sourdough) is the plain, generic sourdough bread form; sliced is a preparation method not affecting the base food match"
+bell peppers,Produce,1,MISS,,,,,none,,None of the candidates are bell peppers; all are Taco Bell prepared dishes
+pappardelle,Pantry,1,MISS,,,,,none,,no USDA candidates
+cremini mushrooms,Produce,1,MISS,,,,,none,,"Cremini mushrooms are not represented in the candidate list; portabella is a mature cremini but candidates show only grilled or raw portabella, not the cremini variety specifically"
+green lentils,Pantry,1,AI_PICK,172420,"Lentils, raw",SR Legacy,352,medium,,Generic raw lentils is the best match; green lentils are a common variety of the standard lentil (Lens culinaris)
+crusty bread,Bakery,1,AI_PICK,174913,"Bread, Italian",SR Legacy,259,medium,,"Italian bread is the closest match to crusty bread, which typically refers to a crusty Italian or French-style loaf"
+pizza dough,Bakery,1,MISS,,,,,none,,No pizza dough candidate available; closest options are finished pizza products or other dough types
+linguine,Pantry,1,MISS,,,,,none,,no USDA candidates

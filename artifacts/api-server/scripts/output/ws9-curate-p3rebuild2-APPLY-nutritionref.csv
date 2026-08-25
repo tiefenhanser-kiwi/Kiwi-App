@@ -1,0 +1,78 @@
+ingredientId,ingredientName,decision,fdcId,usdaDescription,dataType,cal100g,protein100g,carbs100g,fat100g,aiReason,candidateCount
+edeffc3b-ec52-463c-80e0-c996aedce9e5,unsalted butter,AI_PICK,173430,"Butter, without salt",SR Legacy,717,0.85,0.06,81.11,D-WS9-050 P3 curation (ratified),1
+7835b896-5d7f-44fe-82e9-d3e0d247b77f,garlic cloves,AI_PICK,169230,"Garlic, raw",SR Legacy,149,6.36,33.06,0.5,D-WS9-050 P3 curation (ratified),1
+b3555040-b8ad-4291-8c1b-4f1f982d55be,extra-virgin olive oil,AI_PICK,171413,"Oil, olive, salad or cooking",SR Legacy,884,0,0,100,D-WS9-050 P3 curation (ratified),1
+607d7bb1-8306-4371-9d86-364566f0d5ff,dijon mustard,AI_PICK,172234,"Mustard, prepared, yellow",SR Legacy,60,3.74,5.83,3.34,D-WS9-050 P3 curation (ratified),1
+602378e3-ba36-4fce-9b40-d7388e05857b,neutral oil,AI_PICK,172336,"Oil, canola",SR Legacy,884,0,0,100,D-WS9-050 P3 curation (ratified),1
+ef8cc2b5-6b0a-4e35-aead-b5171bb3df0a,red bell pepper,AI_PICK,170108,"Peppers, sweet, red, raw",SR Legacy,26,0.99,6.03,0.3,D-WS9-050 P3 curation (ratified),1
+b119c2f1-adf0-4d1f-965e-c3adc4c03295,jalapeño,AI_PICK,168576,"Peppers, jalapeno, raw",SR Legacy,29,0.91,6.5,0.37,D-WS9-050 P3 curation (ratified),1
+e4cb225c-b61d-4832-a74a-6fc248e0940e,cherry tomatoes,AI_PICK,170457,"Tomatoes, red, ripe, raw, year round average",SR Legacy,18,0.88,3.89,0.2,D-WS9-050 P3 curation (ratified),1
+75d6f416-3a19-442f-b293-98af005ec9cf,broccoli florets,AI_PICK,169330,"Broccoli, flower clusters, raw",SR Legacy,28,2.98,5.06,0.35,D-WS9-050 P3 curation (ratified),1
+dd5bac34-6412-47d9-902e-357cb61cdf9e,basmati rice,AI_PICK,168877,"Rice, white, long-grain, regular, raw, enriched",SR Legacy,365,7.13,79.95,0.66,D-WS9-050 P3 curation (ratified),1
+ee0e193d-4a2d-40c4-95d1-cff2a4435000,romaine lettuce hearts,AI_PICK,169247,"Lettuce, cos or romaine, raw",SR Legacy,17,1.23,3.29,0.3,D-WS9-050 P3 curation (ratified),1
+9afe5db6-2869-4cd3-8650-3604f97b5b29,yukon gold potatoes,AI_PICK,170026,"Potatoes, flesh and skin, raw",SR Legacy,77,2.05,17.49,0.09,D-WS9-050 P3 curation (ratified),1
+8a1ea1fd-01a7-4fbd-84a5-f538387cbab6,sliced almonds,AI_PICK,170567,"Nuts, almonds",SR Legacy,579,21.15,21.55,49.93,D-WS9-050 P3 curation (ratified),1
+79a002c7-c1bd-4e5f-b1b1-40254c592065,green bell pepper,AI_PICK,170427,"Peppers, sweet, green, raw",SR Legacy,20,0.86,4.64,0.17,D-WS9-050 P3 curation (ratified),1
+a7cd8cb2-1a82-4dfe-addf-2ddf5532a9a1,boneless skinless chicken thighs,AI_PICK,173627,"Chicken, broilers or fryers, dark meat, thigh, meat only, raw",SR Legacy,121,19.66,0,4.12,D-WS9-050 P3 curation (ratified),1
+75307f60-f5fc-40ae-97e6-1e713c5b2abf,yellow bell pepper,AI_PICK,169383,"Peppers, sweet, yellow, raw",SR Legacy,27,1,6.32,0.21,D-WS9-050 P3 curation (ratified),1
+4156e5ff-49d5-4e6e-bcf1-cef19ab94340,jasmine rice,AI_PICK,168877,"Rice, white, long-grain, regular, raw, enriched",SR Legacy,365,7.13,79.95,0.66,D-WS9-050 P3 curation (ratified),1
+ffdb8a4f-1ccd-4096-84e8-9801ed0ca5da,canned crushed san marzano tomatoes,AI_PICK,170501,"Tomatoes, crushed, canned",SR Legacy,32,1.64,7.29,0.28,D-WS9-050 P3 curation (ratified),1
+d74cded9-dcfe-43ab-81bf-a8e76e27c614,roma tomatoes,AI_PICK,170457,"Tomatoes, red, ripe, raw, year round average",SR Legacy,18,0.88,3.89,0.2,D-WS9-050 P3 curation (ratified),1
+6c24f73e-e3ef-4393-bf63-0f914da6729e,panko breadcrumbs,AI_PICK,174928,"Bread, crumbs, dry, grated, plain",SR Legacy,395,13.35,71.98,5.3,D-WS9-050 P3 curation (ratified),1
+0f85ccd3-1b62-4cbf-af31-f6bb1e6504f2,green cabbage,AI_PICK,169975,"Cabbage, raw",SR Legacy,25,1.28,5.8,0.1,D-WS9-050 P3 curation (ratified),1
+59e59e38-c3d4-40b3-9072-f5c0aba0b767,parmigiano-reggiano,AI_PICK,170848,"Cheese, parmesan, hard",SR Legacy,392,35.75,3.22,25,D-WS9-050 P3 curation (ratified),1
+60531bfb-6686-44dc-87d4-b80f29093e72,store-bought naan,AI_PICK,171845,"Bread, naan, plain, commercially prepared, refrigerated",SR Legacy,291,9.62,50.43,5.65,D-WS9-050 P3 curation (ratified),1
+fe743e38-6996-4c15-a6f3-adbcc5a0ce42,celery stalks,AI_PICK,169988,"Celery, raw",SR Legacy,14,0.69,2.97,0.17,D-WS9-050 P3 curation (ratified),1
+2da73e25-c5de-4bd6-8479-5a8dfb8ded6b,garlic clove,AI_PICK,169230,"Garlic, raw",SR Legacy,149,6.36,33.06,0.5,D-WS9-050 P3 curation (ratified),1
+ed879b83-0357-4583-87ac-31be21980502,"bone-in, skin-on chicken thighs",AI_PICK,172385,"Chicken, broilers or fryers, thigh, meat and skin, raw",SR Legacy,221,16.52,0.25,16.61,D-WS9-050 P3 curation (ratified),1
+f3b3f9a3-fd48-4c51-a2c6-ccfccc2d74c3,shredded romaine lettuce,AI_PICK,169247,"Lettuce, cos or romaine, raw",SR Legacy,17,1.23,3.29,0.3,D-WS9-050 P3 curation (ratified),1
+1968ad0b-eecf-4203-8f2d-2b6f8b659bf6,celery stalk,AI_PICK,169988,"Celery, raw",SR Legacy,14,0.69,2.97,0.17,D-WS9-050 P3 curation (ratified),1
+73d4f868-c209-4918-b54b-3a11441c46c3,shredded sharp cheddar cheese,AI_PICK,170899,"Cheese, cheddar, sharp, sliced",SR Legacy,410,24.25,2.13,33.82,D-WS9-050 P3 curation (ratified),1
+f23e6a07-a315-423f-ba32-423830672a32,shredded iceberg lettuce,AI_PICK,169248,"Lettuce, iceberg (includes crisphead types), raw",SR Legacy,14,0.9,2.97,0.14,D-WS9-050 P3 curation (ratified),1
+b5be5c1f-d565-4851-9903-69a3348952d1,american cheese slices,AI_PICK,170853,"Cheese, pasteurized process, American, fortified with vitamin D",SR Legacy,366,18.13,4.78,30.71,D-WS9-050 P3 curation (ratified),1
+dcab8a88-1df6-4eaa-98c9-18500186b088,iceberg lettuce leaves,AI_PICK,169248,"Lettuce, iceberg (includes crisphead types), raw",SR Legacy,14,0.9,2.97,0.14,D-WS9-050 P3 curation (ratified),1
+a5a4cc90-0e44-4e35-a394-3f7ec6e8cbb1,beefsteak tomato,AI_PICK,170457,"Tomatoes, red, ripe, raw, year round average",SR Legacy,18,0.88,3.89,0.2,D-WS9-050 P3 curation (ratified),1
+103c4faf-940d-462d-a8dc-4a677042f698,baby yukon gold potatoes,AI_PICK,170026,"Potatoes, flesh and skin, raw",SR Legacy,77,2.05,17.49,0.09,D-WS9-050 P3 curation (ratified),1
+3a2709d9-52c2-4a2b-aca3-8b1ab3b9a37f,dry breadcrumbs,AI_PICK,174928,"Bread, crumbs, dry, grated, plain",SR Legacy,395,13.35,71.98,5.3,D-WS9-050 P3 curation (ratified),1
+435f10c6-1d62-4cf3-a656-153d392ab3fd,san marzano whole peeled tomatoes,AI_PICK,170051,"Tomatoes, red, ripe, canned, packed in tomato juice",SR Legacy,16,0.79,3.47,0.25,D-WS9-050 P3 curation (ratified),1
+886a7eb6-8464-4c58-b5be-40315dca1246,canned fire-roasted diced tomatoes,AI_PICK,170051,"Tomatoes, red, ripe, canned, packed in tomato juice",SR Legacy,16,0.79,3.47,0.25,D-WS9-050 P3 curation (ratified),1
+71197561-9e61-4730-b769-1b0d2ef28f15,white basmati rice,AI_PICK,168877,"Rice, white, long-grain, regular, raw, enriched",SR Legacy,365,7.13,79.95,0.66,D-WS9-050 P3 curation (ratified),1
+89b3a00c-d586-4658-a08e-0354fc9ac5eb,orzo,AI_PICK,169736,"Pasta, dry, enriched",SR Legacy,371,13.04,74.67,1.51,D-WS9-050 P3 curation (ratified),1
+2dee1a9b-2fe0-4b8c-97ae-f5d91c0d7147,roma tomato,AI_PICK,170457,"Tomatoes, red, ripe, raw, year round average",SR Legacy,18,0.88,3.89,0.2,D-WS9-050 P3 curation (ratified),1
+4a9b0a75-d018-4d02-b074-d4319732ce29,rigatoni,AI_PICK,169736,"Pasta, dry, enriched",SR Legacy,371,13.04,74.67,1.51,D-WS9-050 P3 curation (ratified),1
+27d1f342-5eb2-4626-a4b9-69f976e68af4,extra virgin olive oil,AI_PICK,171413,"Oil, olive, salad or cooking",SR Legacy,884,0,0,100,D-WS9-050 P3 curation (ratified),1
+7e854caf-6e12-41cf-ba02-21f20180aa88,pecorino romano,AI_PICK,171249,"Cheese, romano",SR Legacy,387,31.8,3.63,26.94,D-WS9-050 P3 curation (ratified),1
+fed1a01e-3472-4edb-8da8-ac6e4a49db14,bone-in skin-on chicken thighs,AI_PICK,172385,"Chicken, broilers or fryers, thigh, meat and skin, raw",SR Legacy,221,16.52,0.25,16.61,D-WS9-050 P3 curation (ratified),1
+48c03d07-cd69-482b-bf73-389e68936bf1,bell pepper,AI_PICK,170427,"Peppers, sweet, green, raw",SR Legacy,20,0.86,4.64,0.17,D-WS9-050 P3 curation (ratified),1
+31b97ea0-75b0-4211-8d6b-944a5dba4839,red thai chili,AI_PICK,170106,"Peppers, hot chili, red, raw",SR Legacy,40,1.87,8.81,0.44,D-WS9-050 P3 curation (ratified),1
+780a59f3-f65f-45d6-be55-bc488946ba55,dark soy sauce,AI_PICK,174277,Soy sauce made from soy and wheat (shoyu),SR Legacy,53,8.14,4.93,0.57,D-WS9-050 P3 curation (ratified),1
+d6fc9da2-dc51-41eb-991b-797d9379479e,english cucumber,AI_PICK,168409,"Cucumber, with peel, raw",SR Legacy,15,0.65,3.63,0.11,D-WS9-050 P3 curation (ratified),1
+9bfb0b55-e6c1-49b5-90e2-17628fed814e,fresh jalapeño,AI_PICK,168576,"Peppers, jalapeno, raw",SR Legacy,29,0.91,6.5,0.37,D-WS9-050 P3 curation (ratified),1
+f60a5066-a0e0-46c0-a603-eb1481e6023f,plain breadcrumbs,AI_PICK,174928,"Bread, crumbs, dry, grated, plain",SR Legacy,395,13.35,71.98,5.3,D-WS9-050 P3 curation (ratified),1
+22331d2c-7ed5-46cc-b32c-2fb35d76b13d,italian-seasoned breadcrumbs,AI_PICK,172806,"Bread, crumbs, dry, grated, seasoned",SR Legacy,383,14.13,68.49,5.48,D-WS9-050 P3 curation (ratified),1
+a4a4313e-9c2c-4312-88cf-d6d4afbaa90f,shredded whole-milk mozzarella,AI_PICK,170845,"Cheese, mozzarella, whole milk",SR Legacy,299,22.17,2.4,22.14,D-WS9-050 P3 curation (ratified),1
+adeb6ec3-a979-4ab1-b5cb-7a5154730df6,pepperoni slices,AI_PICK,174575,"Pepperoni, beef and pork, sliced",SR Legacy,504,19.25,1.18,46.28,D-WS9-050 P3 curation (ratified),1
+8c7de655-52b1-45b9-8221-88cf44a0aa6d,elbow macaroni,AI_PICK,169736,"Pasta, dry, enriched",SR Legacy,371,13.04,74.67,1.51,D-WS9-050 P3 curation (ratified),1
+e3236be0-e30d-4b05-bb9a-da169d7b61af,gruyère cheese,AI_PICK,171242,"Cheese, gruyere",SR Legacy,413,29.81,0.36,32.34,D-WS9-050 P3 curation (ratified),1
+179fa1cb-bbe4-4293-8faa-360a423b03d1,toasted sesame oil,AI_PICK,171016,"Oil, sesame, salad or cooking",SR Legacy,884,0,0,100,D-WS9-050 P3 curation (ratified),1
+85867315-6815-429c-88ef-65a275aca49f,neutral oil (such as avocado or vegetable),AI_PICK,173573,"Oil, avocado",SR Legacy,884,0,0,100,D-WS9-050 P3 curation (ratified),1
+732102e1-f100-4747-8f8d-aa4bc83bf06b,snap peas,AI_PICK,170010,"Peas, edible-podded, raw",SR Legacy,42,2.8,7.55,0.2,D-WS9-050 P3 curation (ratified),1
+054bd1a9-f24a-4a99-a426-3ed38cfae803,"salmon fillets, skin-on",AI_PICK,173688,"Fish, salmon, chinook, raw",SR Legacy,179,19.93,0,10.43,D-WS9-050 P3 curation (ratified),1
+f184338b-c1e9-4ed0-a38d-9f6679ccd4ed,asparagus spears,AI_PICK,168389,"Asparagus, raw",SR Legacy,20,2.2,3.88,0.12,D-WS9-050 P3 curation (ratified),1
+51b1422a-9fad-46d5-9a9f-ac71fdd5fe79,ears of corn,AI_PICK,169998,"Corn, sweet, yellow, raw",SR Legacy,86,3.27,18.7,1.35,D-WS9-050 P3 curation (ratified),1
+09d86025-4ff6-47a7-b95d-c63c35614681,sourdough boule,AI_PICK,172675,"Bread, french or vienna (includes sourdough)",SR Legacy,272,10.75,51.88,2.42,D-WS9-050 P3 curation (ratified),1
+41c08f29-eb73-4326-9387-c54950968a50,low-sodium chicken stock,AI_PICK,171609,"Soup, chicken broth, low sodium, canned",SR Legacy,16,2,1.2,0.6,D-WS9-050 P3 curation (ratified),1
+3fbb4888-eb7f-44a4-8059-cbe70cbe499b,baby potatoes,AI_PICK,170026,"Potatoes, flesh and skin, raw",SR Legacy,77,2.05,17.49,0.09,D-WS9-050 P3 curation (ratified),1
+1abf58ff-d0bd-4022-afab-314330c7e48a,"beef chuck, cut into 1.5-inch cubes",AI_PICK,171206,"Beef, chuck for stew, separable lean and fat, all grades, raw",SR Legacy,128,21.75,0.16,4.48,D-WS9-050 P3 curation (ratified),1
+765b6707-2b6f-4323-8596-28becc01d10a,"yukon gold potatoes, cut into chunks",AI_PICK,170026,"Potatoes, flesh and skin, raw",SR Legacy,77,2.05,17.49,0.09,D-WS9-050 P3 curation (ratified),1
+723696a0-95ca-4cc7-b235-5df19abc8a50,"carrots, peeled and sliced",AI_PICK,170393,"Carrots, raw",SR Legacy,41,0.93,9.58,0.24,D-WS9-050 P3 curation (ratified),1
+392f11f1-b7bd-4c7c-9348-d9f385b93139,"celery stalks, sliced",AI_PICK,169988,"Celery, raw",SR Legacy,14,0.69,2.97,0.17,D-WS9-050 P3 curation (ratified),1
+4908fa30-9551-4369-809b-bf5a8d7fbaa1,"yellow onion, diced",AI_PICK,170000,"Onions, raw",SR Legacy,40,1.1,9.34,0.1,D-WS9-050 P3 curation (ratified),1
+8da2f4cc-15ea-4fbf-9e7b-0c5edac077d5,"garlic cloves, minced",AI_PICK,169230,"Garlic, raw",SR Legacy,149,6.36,33.06,0.5,D-WS9-050 P3 curation (ratified),1
+3b0c1569-7b00-4e7b-bec9-4acc6ef9dc57,"sourdough bread, sliced",AI_PICK,172675,"Bread, french or vienna (includes sourdough)",SR Legacy,272,10.75,51.88,2.42,D-WS9-050 P3 curation (ratified),1
+b8346d79-b5a6-4537-98ce-5b903d36118e,bell peppers,AI_PICK,170427,"Peppers, sweet, green, raw",SR Legacy,20,0.86,4.64,0.17,D-WS9-050 P3 curation (ratified),1
+e65392e4-4dd0-4a62-bbad-4b1981782736,pappardelle,AI_PICK,169736,"Pasta, dry, enriched",SR Legacy,371,13.04,74.67,1.51,D-WS9-050 P3 curation (ratified),1
+35bf8a9e-195f-4bca-b7f4-1e27188a50d0,cremini mushrooms,AI_PICK,168434,"Mushrooms, brown, italian, or crimini, raw",SR Legacy,22,2.5,4.3,0.1,D-WS9-050 P3 curation (ratified),1
+68f32117-db3e-4f8c-b210-533559390605,green lentils,AI_PICK,172420,"Lentils, raw",SR Legacy,352,24.63,63.35,1.06,D-WS9-050 P3 curation (ratified),1
+ef9ae6a4-d8ce-4075-a19d-68b4600f1b25,crusty bread,AI_PICK,174913,"Bread, Italian",SR Legacy,259,9.49,48.11,2.73,D-WS9-050 P3 curation (ratified),1
+0c6d4457-83e6-4ac4-ab0b-51a723fe0b50,linguine,AI_PICK,169736,"Pasta, dry, enriched",SR Legacy,371,13.04,74.67,1.51,D-WS9-050 P3 curation (ratified),1
