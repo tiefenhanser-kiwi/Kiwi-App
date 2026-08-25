@@ -1,2 +1,9 @@
 .env
-scripts/output/
+# D-WS7-219 — reviewed backfill sheets are COMMITTED.
+# `scripts/output/` (directory form) is wrong here: git does not descend into an
+# excluded directory, so a later negation can never re-include anything inside
+# it. `scripts/output/*` excludes the CONTENTS instead, which leaves the negation
+# below able to fire. Every other artefact in there (dry-run scratch, JSON dumps)
+# stays ignored.
+scripts/output/*
+!scripts/output/*.csv

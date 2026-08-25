@@ -83,6 +83,8 @@ import {
   rewriteStructureJson,
   rewriteSubstitutions,
   stepKeyTouches,
+  planGroceryBucketMerges,
+  type GroceryRowLike,
 } from "../src/lib/ingredientMergeCarriers";
 import { FOLD } from "../src/lib/ingredientMergeFold";
 import { normalizeAliasKey } from "../src/lib/ingredientLookup";
@@ -624,10 +626,63 @@ async function main(): Promise<void> {
   // GroceryListItem.displayName — only rows whose display text IS exactly a
   // loser canonical name. A user-edited label never matches that, so this
   // cannot overwrite someone's own wording.
-  const gliNameRewrite: Array<{ id: string; displayName: string }> = [];
+  const gliNameRewriteAll: Array<{ id: string; displayName: string }> = [];
   for (const g of await prisma.groceryListItem.findMany({ select: { id: true, displayName: true } })) {
     const grp = groupByLoserName.get(g.displayName.toLowerCase().trim());
-    if (grp) gliNameRewrite.push({ id: g.id, displayName: grp.survivor.displayName });
+    if (grp) gliNameRewriteAll.push({ id: g.id, displayName: grp.survivor.displayName });
+  }
+
+  // GroceryListItem.ingredientId BUCKET COLLISIONS (BUG-134). The repoint below
+  // used to be a bare updateMany that never looked at the DESTINATION, so a list
+  // already holding a survivor-side row in the same unit gained a second row for
+  // one ingredient. Planned here, outside the tx, reading BOTH sides' rows.
+  const gliRows = (await prisma.groceryListItem.findMany({
+    where: { ingredientId: { in: [...loserIds, ...survivorIds] } },
+    select: {
+      id: true, groceryListId: true, ingredientId: true, unit: true,
+      quantity: true, isUserAdded: true, deletedAt: true,
+    },
+  })) as unknown as GroceryRowLike[];
+  const gliPlan = planGroceryBucketMerges(gliRows, survivorByLoserId);
+  const gliAbsorbedIds = new Set(gliPlan.merges.map((m) => m.absorbId));
+
+  // A row this plan DELETES must not also reach the displayName loop — that
+  // update runs later in the same tx and would P2025 on a row already gone.
+  const gliNameRewrite = gliNameRewriteAll.filter((g) => !gliAbsorbedIds.has(g.id));
+
+  // Sources move with the need. UNION, with the PrepStepCompletion precedent for
+  // a collision: a (mealId, dishId) the keeper already carries is ONE source,
+  // not two, so the absorbed copy is DELETED rather than moved. Both counts are
+  // reported — a silent swallow here looks identical to a no-op.
+  const gliSourceMove: Array<{ id: string; groceryListItemId: string }> = [];
+  const gliSourceDrop: string[] = [];
+  if (gliPlan.merges.length > 0) {
+    const involved = [...new Set(gliPlan.merges.flatMap((m) => [m.keepId, m.absorbId]))];
+    const srcRows = await prisma.groceryListItemSource.findMany({
+      where: { groceryListItemId: { in: involved } },
+      select: { id: true, groceryListItemId: true, mealId: true, dishId: true },
+    });
+    const srcByItem = new Map<string, typeof srcRows>();
+    for (const r of srcRows) {
+      const held = srcByItem.get(r.groceryListItemId);
+      if (held) held.push(r);
+      else srcByItem.set(r.groceryListItemId, [r]);
+    }
+    // A keeper accumulates across successive absorbs into the same bucket.
+    const claimed = new Map<string, Set<string>>();
+    for (const m of gliPlan.merges) {
+      let held = claimed.get(m.keepId);
+      if (!held) {
+        held = new Set((srcByItem.get(m.keepId) ?? []).map((r) => `${r.mealId}|${r.dishId}`));
+        claimed.set(m.keepId, held);
+      }
+      for (const r of srcByItem.get(m.absorbId) ?? []) {
+        const pair = `${r.mealId}|${r.dishId}`;
+        if (held.has(pair)) { gliSourceDrop.push(r.id); continue; }
+        held.add(pair);
+        gliSourceMove.push({ id: r.id, groceryListItemId: m.keepId });
+      }
+    }
   }
 
   // UserPreferences.recurringGroceryItems — preserve the user's capitalization
@@ -680,6 +735,14 @@ async function main(): Promise<void> {
   console.log(`\n--- write plan (every write, counted) ---`);
   console.log(`  DishIngredient.ingredientId    : ${loserRefs.dishIngredient} row(s) across ${groups.length} updateMany`);
   console.log(`  GroceryListItem.ingredientId   : ${loserRefs.groceryListItemFk} row(s)`);
+  console.log(`    of which plain repoint (bucket free) : ${gliPlan.repointIds.length}`);
+  console.log(`    of which BUCKET MERGE (BUG-134)      : ${gliPlan.merges.length}`);
+  for (const m of gliPlan.merges) {
+    console.log(`       list ${m.groceryListId.slice(0, 8)} [${m.unit}] keep ${m.keepId.slice(0, 8)} <- absorb ${m.absorbId.slice(0, 8)}  qty -> ${m.mergedQuantity}`);
+  }
+  console.log(`    exempt, repointed unmerged           : ${gliPlan.exempt.length}`);
+  for (const e of gliPlan.exempt) console.log(`       ${e.id.slice(0, 8)} (${e.reason})`);
+  console.log(`  GroceryListItemSource          : ${gliSourceMove.length} moved, ${gliSourceDrop.length} dropped as duplicate-of-keeper`);
   console.log(`  RecipeInstructionStep.amountRefs: ${stepsToRewrite.reduce((a, s) => a + s.changed, 0)} ref(s) in ${stepsToRewrite.length} step(s)`);
   console.log(`  PrepStepCompletion             : ${pscUpdate.length} rekeyed, ${pscDelete.length} deleted as duplicate-of-survivor`);
   console.log(`  PrepWeekStructure.structureJson: ${pwsToRewrite.reduce((a, s) => a + s.hits, 0)} id(s) in ${pwsToRewrite.length} row(s)`);
@@ -719,10 +782,44 @@ async function main(): Promise<void> {
           where: { ingredientId: g.loser.id },
           data: { ingredientId: g.survivor.id },
         })).count;
-        gliFkUpdated += (await tx.groceryListItem.updateMany({
-          where: { ingredientId: g.loser.id },
-          data: { ingredientId: g.survivor.id },
+      }
+
+      // BUG-134 — GroceryListItem repoint, bucket-aware. The `in: repointIds`
+      // scope is what makes this safe: the absorbed rows are NOT in that list,
+      // so they are never moved onto the survivor id, only drained and deleted.
+      // Ordering is load-bearing: sources move BEFORE the absorbed row is
+      // deleted, because GroceryListItemSource cascades on item delete.
+      if (gliPlan.repointIds.length > 0) {
+        for (const g of groups) {
+          gliFkUpdated += (await tx.groceryListItem.updateMany({
+            where: { ingredientId: g.loser.id, id: { in: gliPlan.repointIds } },
+            data: { ingredientId: g.survivor.id },
+          })).count;
+        }
+      }
+      let gliMerged = 0, gliSrcMoved = 0, gliSrcDropped = 0;
+      for (const s of gliSourceMove) {
+        await tx.groceryListItemSource.update({
+          where: { id: s.id },
+          data: { groceryListItemId: s.groceryListItemId },
+        });
+        gliSrcMoved++;
+      }
+      if (gliSourceDrop.length > 0) {
+        gliSrcDropped = (await tx.groceryListItemSource.deleteMany({
+          where: { id: { in: gliSourceDrop } },
         })).count;
+      }
+      for (const m of gliPlan.merges) {
+        // SUM, not max: both rows carry real sources representing real need, and
+        // the consolidator would have summed them had they bucketed together
+        // originally. A max under-orders, the ruled-worst failure here.
+        await tx.groceryListItem.update({
+          where: { id: m.keepId },
+          data: { quantity: m.mergedQuantity },
+        });
+        await tx.groceryListItem.delete({ where: { id: m.absorbId } });
+        gliMerged++;
       }
 
       for (const s of stepsToRewrite) {
@@ -816,7 +913,10 @@ async function main(): Promise<void> {
         await tx.ingredientAlias.create({ data: a });
       }
 
-      return { diUpdated, gliFkUpdated, nutritionWritten, packWritten, conversionWritten };
+      return {
+        diUpdated, gliFkUpdated, nutritionWritten, packWritten, conversionWritten,
+        gliMerged, gliSrcMoved, gliSrcDropped,
+      };
     },
     { timeout: 180_000, maxWait: 30_000 },
   );
@@ -827,6 +927,44 @@ async function main(): Promise<void> {
   console.log(`  survivor nutrition writes             : ${result.nutritionWritten}`);
   console.log(`  survivor pack writes                  : ${result.packWritten}`);
   console.log(`  survivor conversionRef adoptions      : ${result.conversionWritten}`);
+  console.log(`  BUG-134 bucket merges applied         : ${result.gliMerged}`);
+  console.log(`  sources moved / dropped as duplicate  : ${result.gliSrcMoved} / ${result.gliSrcDropped}`);
+
+  // ── BUG-134 POST-APPLY ASSERTION (D-WS9-183: this replaces the DB constraint)
+  // The guard above fixes THIS script. Nothing in the schema will catch the next
+  // one — `(groceryListId, ingredientId, unit)` is legitimately non-unique in the
+  // domain (user Extras and recurring items are separate rows the user added on
+  // purpose, ruled), so no unique index can exist to catch it. This assertion is
+  // what watches the carrier, and BUG-137's fold runs through this same script.
+  //
+  // SCOPE: generated rows only. A bucket holding a user-added row is LEGAL and
+  // must not fire a false alarm forever. Soft-deleted rows are excluded for the
+  // same reason the planner exempts them — they keep their id for restore.
+  const dupBuckets = await prisma.$queryRaw<
+    Array<{ groceryListId: string; ingredientId: string; unit: string; n: bigint; ids: string[] }>
+  >`
+    SELECT "groceryListId", "ingredientId", unit, COUNT(*) AS n, ARRAY_AGG(id) AS ids
+    FROM grocery_list_items
+    WHERE "deletedAt" IS NULL AND "ingredientId" IS NOT NULL AND "isUserAdded" = false
+    GROUP BY "groceryListId", "ingredientId", unit
+    HAVING COUNT(*) > 1
+  `;
+  console.log(`\n--- BUG-134 duplicate-bucket assertion ---`);
+  if (dupBuckets.length === 0) {
+    // Reported explicitly: a silent pass is indistinguishable from an assertion
+    // that never ran.
+    console.log(`  PASS — 0 generated (list, ingredient, unit) buckets hold >1 row.`);
+  } else {
+    console.log(`  FAIL — ${dupBuckets.length} generated bucket(s) hold more than one row:`);
+    for (const b of dupBuckets) {
+      console.log(`     list ${b.groceryListId} ingredient ${b.ingredientId} [${b.unit}] x${Number(b.n)}  rows: ${b.ids.join(", ")}`);
+    }
+    console.log(`\n  ABORT BEFORE DELETE: the repoint created or left duplicate buckets.`);
+    console.log(`  The carrier rewrites are COMMITTED; the loser rows are NOT deleted, so`);
+    console.log(`  nothing is orphaned and the merge can resume once this is fixed.\n`);
+    process.exitCode = 1;
+    return;
+  }
 
   // ── THE GATE. Re-scan from scratch; the delete only happens at zero. ──────
   // GroceryListItem's FK is ON DELETE SET NULL — it will NOT stop a bad delete,

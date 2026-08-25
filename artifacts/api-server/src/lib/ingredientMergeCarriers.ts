@@ -218,3 +218,138 @@ export function rewriteRecurringItems(
   });
   return hits > 0 ? { items: next, hits } : null;
 }
+
+// ── carrier 2 (BUG-134): GroceryListItem.ingredientId BUCKET COLLISION ───────
+//
+// The repoint at ws9-bug096-ingredient-merge.ts was a bare updateMany from
+// loser id to survivor id with NO check on the DESTINATION. A grocery list
+// already holding a survivor-side row AND a loser-side row in the same unit
+// therefore ended up with TWO rows for one ingredient the moment BUG-096 ran —
+// 8 groups across 6 lists, measured. Nothing in Postgres objects: unlike
+// PrepStepCompletion (@@unique([planId, stepKey])) and IngredientAlias
+// (@unique aliasKey), GroceryListItem carries only a PK on `id` and two FKs,
+// so the two carriers that DID get collision handling in that script got it
+// because the database forced the issue, and this one did not.
+//
+// WHY A PLANNER AND NOT A CONSTRAINT: `(groceryListId, ingredientId, unit)` is
+// legitimately non-unique in the domain — user "Extras" and recurring items are
+// deliberately separate rows the user added on purpose (ruled), so a unique
+// index would reject a legal action. D-WS9-183.
+//
+// EXEMPTIONS, both of which repoint UNMERGED:
+//   • isUserAdded — the user's own row. Never absorbed, never absorbed INTO;
+//     it does not occupy a bucket either, so it cannot deflect a real merge.
+//   • deletedAt — a soft-deleted row keeps its id for restore (D-WS6-082).
+//     Merging it away would destroy the restore target; merging INTO it would
+//     resurrect need the user deleted.
+//
+// The pack fields are NOT recomputed here and must not be: the occupant keeps
+// its own stored pack, so a survivor-side occupant contributes the survivor's
+// pack by construction. Re-deriving packs is BUG-137's separate backfill.
+
+/** The subset of a GroceryListItem this planner reads. */
+export interface GroceryRowLike {
+  id: string;
+  groceryListId: string;
+  ingredientId: string;
+  unit: string;
+  quantity: number;
+  isUserAdded: boolean;
+  deletedAt: Date | null;
+}
+
+/** One absorb: `absorbId`'s need and sources move onto `keepId`, then it dies. */
+export interface GroceryBucketMerge {
+  keepId: string;
+  absorbId: string;
+  /**
+   * The RUNNING total for the bucket after this absorb — not just the two
+   * rows. Three rows landing in one bucket emit two merges whose quantities
+   * are (a+b) then (a+b+c); applying them IN ORDER leaves the correct total.
+   */
+  mergedQuantity: number;
+  groceryListId: string;
+  /** The DESTINATION (survivor) ingredient id. */
+  ingredientId: string;
+  unit: string;
+}
+
+export interface GroceryRepointPlan {
+  /** Loser-side rows whose destination bucket is free — plain repoint. */
+  repointIds: string[];
+  /** Loser-side rows whose destination bucket is taken — merge instead. */
+  merges: GroceryBucketMerge[];
+  /** Repointed without merging, deliberately. */
+  exempt: Array<{ id: string; reason: "user-added" | "soft-deleted" }>;
+}
+
+function bucketKey(listId: string, ingredientId: string, unit: string): string {
+  return `${listId}|${ingredientId}|${unit}`;
+}
+
+/**
+ * Decide, for every loser-side grocery row, whether repointing it to the
+ * survivor would land in a free bucket or an occupied one.
+ *
+ * `rows` must contain BOTH sides — loser-side rows (the ones being moved) and
+ * survivor-side rows (the ones that may already hold the destination bucket).
+ * A row is loser-side iff its `ingredientId` is a key of `survivorByLoserId`.
+ *
+ * Deterministic: loser rows are processed in `id` order, so the same input
+ * always produces the same keep/absorb assignment.
+ */
+export function planGroceryBucketMerges(
+  rows: readonly GroceryRowLike[],
+  survivorByLoserId: ReadonlyMap<string, string>,
+): GroceryRepointPlan {
+  const plan: GroceryRepointPlan = { repointIds: [], merges: [], exempt: [] };
+  // Who currently holds each destination bucket, and at what running total.
+  const occupancy = new Map<string, { id: string; quantity: number }>();
+
+  // Seed with the rows that are NOT moving. Only mergeable rows occupy: an
+  // exempt row must not be able to deflect a merge it can never participate in.
+  for (const r of rows) {
+    if (survivorByLoserId.has(r.ingredientId)) continue;
+    if (r.isUserAdded || r.deletedAt !== null) continue;
+    const key = bucketKey(r.groceryListId, r.ingredientId, r.unit);
+    if (!occupancy.has(key)) occupancy.set(key, { id: r.id, quantity: r.quantity });
+  }
+
+  const movers = rows
+    .filter((r) => survivorByLoserId.has(r.ingredientId))
+    .slice()
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+  for (const r of movers) {
+    const destIngredientId = survivorByLoserId.get(r.ingredientId)!;
+    if (r.isUserAdded) {
+      plan.exempt.push({ id: r.id, reason: "user-added" });
+      plan.repointIds.push(r.id);
+      continue;
+    }
+    if (r.deletedAt !== null) {
+      plan.exempt.push({ id: r.id, reason: "soft-deleted" });
+      plan.repointIds.push(r.id);
+      continue;
+    }
+    const key = bucketKey(r.groceryListId, destIngredientId, r.unit);
+    const occupant = occupancy.get(key);
+    if (!occupant) {
+      occupancy.set(key, { id: r.id, quantity: r.quantity });
+      plan.repointIds.push(r.id);
+      continue;
+    }
+    const mergedQuantity = occupant.quantity + r.quantity;
+    plan.merges.push({
+      keepId: occupant.id,
+      absorbId: r.id,
+      mergedQuantity,
+      groceryListId: r.groceryListId,
+      ingredientId: destIngredientId,
+      unit: r.unit,
+    });
+    occupancy.set(key, { id: occupant.id, quantity: mergedQuantity });
+  }
+
+  return plan;
+}
