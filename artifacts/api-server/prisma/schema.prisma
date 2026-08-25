@@ -440,10 +440,15 @@ model Ingredient {
 // rather than a coin flip at read time.
 //
 // PRECEDENCE (ruled): a canonical name ALWAYS beats an alias. So an aliasKey
-// that also exists as some row's canonicalName is legal and deliberate — 20
-// such pairs exist today (alias "apple" on row "apples", etc.). This table
-// enforces only "no alias string owned by two rows", which is the invariant
-// the resolver's determinism actually rests on.
+// that also exists as some row's canonicalName is legal and deliberate — 16
+// such pairs exist today: alias "salt" is owned by row "kosher salt" while a
+// separate row "salt" also exists, and alias "egg" is owned by "large eggs"
+// beside a row "egg". This table enforces only "no alias string owned by two
+// rows", which is the invariant the resolver's determinism actually rests on.
+//
+// ⚠️ Both numbers here were wrong until BUG-135 measured them: the count read
+// 20, and the worked example read alias "apple" on row "apples" — a pair that
+// does not exist in the catalog at all ("apples" was folded away by BUG-096).
 //
 // Cascade on ingredient delete so a merged-away loser cannot leave a dangling
 // alias behind; the merge moves the loser's aliases onto the survivor first.

@@ -467,7 +467,8 @@ const HOUSEHOLD_BASIC_INGREDIENTS: Array<{
   // eggs → egg and writes aliasKey "eggs" onto the surviving "egg" row; leaving
   // it here too would be two rows claiming one alias, i.e. P2002 at seed time.
   // "egg" stays: it is a surviving canonical row, and canonical-beats-alias
-  // makes that overlap legal and deliberate (20 such pairs exist).
+  // makes that overlap legal and deliberate (16 such pairs exist — measured
+  // 2026-08-25 for BUG-135; the "20" this line used to carry was stale).
   { canonicalName: "large eggs", displayName: "Large eggs", category: "Protein", defaultUnit: "dozen", aliases: ["egg", "dozen eggs"] },
   { canonicalName: "bacon", displayName: "Bacon", category: "Protein", defaultUnit: "lb", aliases: ["thick-cut bacon", "bacon strips"] },
   { canonicalName: "ground turkey", displayName: "Ground turkey", category: "Protein", defaultUnit: "lb", aliases: ["turkey", "ground turkey breast"] },

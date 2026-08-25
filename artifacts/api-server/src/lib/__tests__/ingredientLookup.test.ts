@@ -293,3 +293,118 @@ describe("lookupIngredientsByName — batch", () => {
     assert.ok(!calls.some((c) => c.startsWith("ingredientAlias.")));
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WS9 BUG-135 — the shadowing-pair resolver guard.
+//
+// ⚠️ THE ASSERTION THIS BLOCK DELIBERATELY DOES NOT MAKE: "no aliasKey may
+// equal any canonicalName". That is the INVERSE of a standing ruling. Both
+// ingredientLookup.ts and schema.prisma declare such pairs legal and
+// deliberate, and 16 of them exist in the live catalog right now — a test
+// asserting none would be red on day one, by design.
+//
+// What actually protects callers is PRECEDENCE: when an aliasKey collides with
+// some other row's canonicalName, the canonical row wins, unconditionally. So
+// that is what is pinned here, and it is pinned the strong way — by asserting
+// the alias table is NEVER CONSULTED, not merely that the returned id happens
+// to be right. An implementation that read both and preferred canonical would
+// pass an id-only assertion while doing twice the queries and being one
+// refactor away from a coin flip.
+//
+// ⚠️ THE DRIFT GUARD ("this set is exactly these 16") IS NOT HERE, and cannot
+// be: measured, ZERO of the 16 shadowed canonical rows exist in prisma/seed.ts
+// — the aliases come from the seed, the rows they shadow were minted by AI dish
+// generation. A fixture holds only one half of every live pair. That guard has
+// to read the database. Logged as D-WS9-187.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("BUG-135: a shadowing alias never beats a canonical row", () => {
+  /**
+   * The live shape, in miniature: "salt" is an ALIAS on "kosher salt" AND the
+   * canonicalName of its own row. Same shape as egg/large eggs, lettuce/romaine
+   * lettuce, sugar/granulated sugar — 16 pairs in the catalog today.
+   */
+  function shadowedCatalog() {
+    return makeCatalog(
+      [
+        { id: "ing-kosher-salt", canonicalName: "kosher salt" },
+        { id: "ing-salt", canonicalName: "salt" },
+        { id: "ing-large-eggs", canonicalName: "large eggs" },
+        { id: "ing-egg", canonicalName: "egg" },
+      ],
+      [
+        ["salt", "kosher salt"], // alias "salt" -> kosher salt, shadowing row "salt"
+        ["egg", "large eggs"], // alias "egg"  -> large eggs, shadowing row "egg"
+      ],
+    );
+  }
+
+  it("guard B1 — the shadowed CANONICAL row wins, and the alias table is never read", async () => {
+    const { prisma, calls } = shadowedCatalog();
+    const hit = await lookupIngredientByName(prisma, "salt");
+    assert.equal(hit?.id, "ing-salt"); // NOT ing-kosher-salt
+    assert.equal(hit?.canonicalName, "salt");
+    assert.equal(hit?.matchedVia, "canonical");
+    // The load-bearing half: precedence is structural (return before the alias
+    // step), not a preference applied after reading both.
+    assert.ok(
+      !calls.some((c) => c.startsWith("ingredientAlias.")),
+      `alias table was consulted: ${calls.join(", ")}`,
+    );
+  });
+
+  it("guard B2 — the same, for the second live shape (egg / large eggs)", async () => {
+    const { prisma, calls } = shadowedCatalog();
+    const hit = await lookupIngredientByName(prisma, "egg");
+    assert.equal(hit?.id, "ing-egg");
+    assert.equal(hit?.matchedVia, "canonical");
+    assert.ok(!calls.some((c) => c.startsWith("ingredientAlias.")));
+  });
+
+  it("guard B3 — the alias STILL resolves for a name that is nobody's canonical", async () => {
+    // Precedence must not be implemented by disabling aliases. "kosher salt"
+    // resolves canonically; a non-canonical alias must still work.
+    const { prisma } = makeCatalog(
+      [{ id: "ing-bacon", canonicalName: "bacon" }],
+      [["bacon strips", "bacon"]],
+    );
+    const hit = await lookupIngredientByName(prisma, "bacon strips");
+    assert.equal(hit?.id, "ing-bacon");
+    assert.equal(hit?.matchedVia, "alias");
+  });
+
+  it("guard B4 — the BATCH path obeys the same precedence", async () => {
+    // lookupIngredientsByName resolves canonical and alias in two separate
+    // queries and merges them. A shadowing key must take the canonical row from
+    // the first, and must not be handed to the alias query at all.
+    const { prisma, calls } = shadowedCatalog();
+    const out = await lookupIngredientsByName(prisma, [
+      { primaryKey: "salt", rawName: "salt" },
+      { primaryKey: "egg", rawName: "egg" },
+    ]);
+    assert.equal(out.get("salt")?.id, "ing-salt");
+    assert.equal(out.get("egg")?.id, "ing-egg");
+    assert.equal(out.get("salt")?.matchedVia, "canonical");
+    // Both keys hit canonically, so the alias query is skipped outright.
+    assert.ok(
+      !calls.some((c) => c.startsWith("ingredientAlias.")),
+      `alias table was consulted: ${calls.join(", ")}`,
+    );
+  });
+
+  it("guard B5 — a shadowing pair is LEGAL: seeding one must not raise", () => {
+    // The inverse assertion, made explicit so nobody re-derives it as a bug.
+    // Two rows claiming ONE alias is the P2002 this table exists to force; an
+    // alias that equals a DIFFERENT row's canonicalName is neither, and the
+    // ruling says so. If this ever throws, someone has confused the two.
+    assert.doesNotThrow(() => {
+      const { seedAlias } = makeCatalog(
+        [
+          { id: "ing-granulated-sugar", canonicalName: "granulated sugar" },
+          { id: "ing-sugar", canonicalName: "sugar" },
+        ],
+        [],
+      );
+      seedAlias("sugar", "granulated sugar");
+    });
+  });
+});

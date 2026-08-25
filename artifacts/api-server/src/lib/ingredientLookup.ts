@@ -83,9 +83,16 @@ export interface IngredientNameMatch {
  * @returns the match, or null. Callers decide what a null means (create /
  *          null FK / throw) — this helper never creates and never throws.
  *
- * PRECEDENCE (ruled): canonical beats alias, unconditionally. 20 alias strings
- * are also some other row's canonicalName; without this rule each one would be
- * an ambiguity error on a pair that is not ambiguous at all.
+ * PRECEDENCE (ruled): canonical beats alias, unconditionally. 16 alias strings
+ * are also some other row's canonicalName ("salt" is an alias on "kosher salt"
+ * AND its own row); without this rule each one would be an ambiguity error on a
+ * pair that is not ambiguous at all. Guarded by the BUG-135 block in
+ * __tests__/ingredientLookup.test.ts, which pins that the alias table is never
+ * even consulted for such a name.
+ *
+ * ⚠️ The count was documented as 20 in three places and measured at 16
+ * (BUG-135, 2026-08-25 — all three corrected together). It is not load-bearing
+ * for any code path; if it drifts again, re-measure rather than trusting it.
  */
 export async function lookupIngredientByName(
   db: Db,
