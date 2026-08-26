@@ -10,7 +10,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 
 import { Chip } from "@/components/Chip";
-import { COMMON_RECURRING_ITEMS } from "@/lib/domain";
+import { recurringChipRow } from "@/lib/domain";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 import { pickerStyles } from "./shared";
@@ -72,8 +72,15 @@ export function RecurringItemsPicker({
       )}
 
       <Text style={s.subLabel}>{commonItemsLabel}</Text>
+      {/* WS9 BUG-152 — the chip row now carries the user's CUSTOM items too, not
+          just the eight common ones. Adding "lime" persisted fine and showed
+          nothing back: the new entry rendered as a row at the TOP of the
+          section while the user was looking at the input at the BOTTOM, and the
+          only other confirmation was an 800ms-debounced toast. This row sits
+          directly above the input, so the added chip lands where the tap did.
+          Composition is a pure, tested helper (recurringChipRow). */}
       <View style={pickerStyles.chipRow}>
-        {COMMON_RECURRING_ITEMS.map((item) => (
+        {recurringChipRow(value).map((item) => (
           <Chip
             key={item}
             label={item}

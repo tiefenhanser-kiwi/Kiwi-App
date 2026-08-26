@@ -360,6 +360,40 @@ export const COMMON_RECURRING_ITEMS = [
   "Pet treats",
 ] as const;
 
+/**
+ * WS9 BUG-152 — the chip row for the recurring-items picker: the eight common
+ * items, then any CUSTOM entries the user has added.
+ *
+ * WHY THIS EXISTS. Adding a custom item ("lime") persisted correctly and gave
+ * the user nothing back. The mechanism is NOT a missing render and NOT a stale
+ * query — the picker's `value` is a local `useState` buffer in preferences.tsx
+ * and updates synchronously. The item DID render, as a row in the list at the
+ * TOP of the section, while the user was looking at the input at the BOTTOM of
+ * it. The only confirmation was an 800ms-debounced toast. Feedback existed, but
+ * nowhere near the action.
+ *
+ * A common item selected from the chips ALREADY renders twice — as a selected
+ * chip and as a removable row. So a custom item appearing as a chip is not new
+ * duplication; it is the same treatment, and its absence was the inconsistency.
+ * The chip row sits directly above the input, so this puts the confirmation
+ * where the tap happened.
+ *
+ * Pure + order-stable: commons keep their authored order, customs follow in
+ * insertion order. De-duplicated, so a custom entry that later matches a common
+ * one cannot render twice in the row.
+ */
+export function recurringChipRow(value: readonly string[]): string[] {
+  const common = COMMON_RECURRING_ITEMS as readonly string[];
+  const seen = new Set<string>(common);
+  const custom: string[] = [];
+  for (const item of value) {
+    if (seen.has(item)) continue;
+    seen.add(item);
+    custom.push(item);
+  }
+  return [...common, ...custom];
+}
+
 /** PRD §3.4 — cooking skill levels (canonical server values). */
 export const COOKING_SKILL_LEVELS = [
   "beginner",
