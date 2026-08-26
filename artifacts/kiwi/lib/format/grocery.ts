@@ -586,7 +586,26 @@ export function composePackName(
       if (q === 1 && isPluralWord(lastWord(residue))) {
         return `1 ${name}`;
       }
-      return `${q} ${residue}`;
+      // WS9 BUG-149 — the MIRROR of the line above, and it shipped for the same
+      // reason Root D's own defect did: the guard was written for one count and
+      // the opposite count was never tried. The comment above assumes the
+      // stored residue is "authored and correctly pluralized", which holds for
+      // "4 roma tomatoes" and fails flat for a pack authored SINGULAR: "1
+      // apple" against a need of 2 printed "2 apple" (live, list 93a03e23).
+      // PRE-EXISTING, not a BUG-144 regression — verified byte-identical on the
+      // pre-BUG-144 commit; BUG-144 only ever touched the two branches that do
+      // NOT reuse the residue.
+      //
+      // ⚠️ NO `q > 1` AND NO `!isPluralWord(residue)` GUARD, and both omissions
+      // are mutation-proved rather than assumed. The first draft carried both;
+      // deleting either left the suite fully green, because
+      // pluralizeIngredientName ALREADY declines in exactly those two cases —
+      // it no-ops at quantity <= 1, and pluralizeNoun no-ops on a word
+      // isPluralWord already calls plural. Guarding here restated a condition
+      // the callee enforces, which reads as protection while pinning nothing.
+      // The one thing that IS load-bearing is routing the residue through the
+      // pluraliser at all; Break K (reverting to a bare `residue`) is red.
+      return `${q} ${pluralizeIngredientName(residue, q)}`;
     }
     // WS9 BUG-144 — the branch Root D did not cover. Here the residue does NOT
     // name the item, so there is no authored-singular fallback and the NAME

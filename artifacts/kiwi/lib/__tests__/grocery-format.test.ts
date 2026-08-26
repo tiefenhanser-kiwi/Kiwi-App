@@ -716,3 +716,86 @@ describe("BUG-144: the order line agrees with a count of 1 on BOTH branches", ()
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WS9 BUG-149 — the plural direction on the residue-reuse branch.
+//
+// Root D fixed a count of 1 against a PLURAL residue ("2 lemons" -> "1 lemons").
+// Its mirror was never tried: a count of 2+ against a SINGULAR residue.
+// "1 apple" against a need of 2 printed "2 apple" (live, list 93a03e23).
+//
+// PROVENANCE (verified, not assumed): PRE-EXISTING. Running the pre-BUG-144
+// module (commit 2e12b41~1) on the same inputs returns "2 apple" byte-identically,
+// so this is not a BUG-144 regression — BUG-144 only touched the two branches
+// that do NOT reuse the stored residue.
+//
+// ⚠️ EVERY GUARD BELOW HAS A CASE AT EXACTLY 1 *AND* EXACTLY 2. BUG-144's own
+// history is the argument: all 25 of Root D's guards used counts >= 2, which is
+// how "1 lemons" shipped green — and then the mirror shipped through the fix
+// for want of the opposite case. One count is never enough on this branch.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("BUG-149: a SINGULAR pack residue pluralises above a count of 1", () => {
+  it("guard P1 — the live defect: '1 apple' at 2 is '2 apples', at 1 is '1 apple'", () => {
+    assert.equal(composePackName("apple", "each", "1 apple", "2", "each"), "2 apples");
+    assert.equal(composePackName("apple", "each", "1 apple", "1", "each"), "1 apple");
+    assert.equal(composePackName("apple", "each", "1 apple", "3", "each"), "3 apples");
+    // And explicitly NOT the shipped defect.
+    assert.notEqual(composePackName("apple", "each", "1 apple", "2", "each"), "2 apple");
+  });
+
+  it("guard P2 — the other live singular-residue rows, at 1 and at 2", () => {
+    assert.equal(composePackName("shallot", "each", "1 shallot", "1", "each"), "1 shallot");
+    assert.equal(composePackName("shallot", "each", "1 shallot", "2", "each"), "2 shallots");
+    assert.equal(
+      composePackName("yellow bell pepper", "each", "1 yellow bell pepper", "1", "each"),
+      "1 yellow bell pepper",
+    );
+    assert.equal(
+      composePackName("yellow bell pepper", "each", "1 yellow bell pepper", "2", "each"),
+      "2 yellow bell peppers",
+    );
+    assert.equal(composePackName("lime", "each", "1 lime", "1", "each"), "1 lime");
+    assert.equal(composePackName("lime", "each", "1 lime", "2", "each"), "2 limes");
+  });
+
+  it("guard P3 — a PLURAL residue is untouched in BOTH directions (Root D intact)", () => {
+    // The branch must not double-pluralise what is already plural, and Root D's
+    // count-of-1 fallback must still fire.
+    assert.equal(composePackName("Lemon", "each", "2 lemons", "1", "each"), "1 Lemon");
+    assert.equal(composePackName("Lemon", "each", "2 lemons", "2", "each"), "2 lemons");
+    assert.equal(composePackName("Lemon", "each", "2 lemons", "5", "each"), "5 lemons");
+    assert.equal(composePackName("roma tomatoes", "each", "4 roma tomatoes", "1", "each"), "1 roma tomatoes");
+    assert.equal(composePackName("roma tomatoes", "each", "4 roma tomatoes", "2", "each"), "2 roma tomatoes");
+  });
+
+  it("guard P4 — irregular and invariant residues, at 1 and at 2", () => {
+    // The residue is pluralised by the SAME helper the name uses, so the
+    // irregulars and the mass nouns behave identically on both halves.
+    // ⚠️ The name must MATCH the residue or this branch never runs — the first
+    // draft of this guard used name "bay leaf" against residue "leaf", which
+    // fails residueNamesItem and silently tested the OTHER branch instead.
+    assert.equal(composePackName("leaf", "each", "1 leaf", "1", "each"), "1 leaf");
+    assert.equal(composePackName("leaf", "each", "1 leaf", "2", "each"), "2 leaves");
+    assert.equal(composePackName("squash", "each", "1 squash", "1", "each"), "1 squash");
+    assert.equal(composePackName("squash", "each", "1 squash", "2", "each"), "2 squashes");
+    // "corn" is invariant — it must NOT gain an "s" at 2.
+    assert.equal(composePackName("corn", "each", "1 corn", "1", "each"), "1 corn");
+    assert.equal(composePackName("corn", "each", "1 corn", "2", "each"), "2 corn");
+  });
+
+  it("guard P5 — a fractional need still ceils, then agrees", () => {
+    // roundNeedQuantity leaves counts fractional now (Root B), so the ORDER
+    // line is where the ceil happens — and the ceiled count drives the plural.
+    assert.equal(composePackName("apple", "each", "1 apple", "0.5", "each"), "1 apple");
+    assert.equal(composePackName("apple", "each", "1 apple", "1.25", "each"), "2 apples");
+  });
+
+  it("guard P6 — the other branches are untouched by this change", () => {
+    // Residue does NOT name the item -> countedName path (BUG-144), and the
+    // no-pack path. Both at 1 and at 2, so a regression on either shows here.
+    assert.equal(composePackName("garlic cloves", "each", "1 head of garlic", "1", "each"), "1 garlic clove");
+    assert.equal(composePackName("garlic cloves", "each", "1 head of garlic", "2", "each"), "2 garlic cloves");
+    assert.equal(composePackName("Carrots", null, null, "1", "each"), "1 Carrot");
+    assert.equal(composePackName("Carrots", null, null, "2", "each"), "2 Carrots");
+  });
+});

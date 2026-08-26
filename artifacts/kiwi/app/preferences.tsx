@@ -318,7 +318,19 @@ export default function Preferences() {
               update("dietaryNotes", v.length > 0 ? v : undefined)
             }
             placeholder="e.g., 'no cilantro', 'lower sodium'"
-            placeholderTextColor={Colors.neutral[600]}
+            // WS9 BUG-154 — neutral[600] -> neutral[700]. An outside tester did
+            // not see this field at all and reported the feature as MISSING; a
+            // feature that exists and is invisible reads as one that does not.
+            // neutral[600] is #8A8474, which is 3.7278:1 on the white card —
+            // it clears 3:1 for non-text but FAILS 4.5:1 AA for normal text.
+            // neutral[700] (#6B5E4D, the scale's own "secondary text") is
+            // 6.2999:1: comfortably AA, and still well short of the neutral[900]
+            // ink, which is the "a bit darker, not super standout" Hans asked
+            // for. neutral[800] would have been 10.2697:1 — too loud.
+            // ⚠️ SCOPED TO THIS FIELD ON PURPOSE. neutral[600] is the LOCKED
+            // muted-text token and ~20 other placeholders across the app read
+            // it, so moving the token itself is a separate, wider decision.
+            placeholderTextColor={Colors.neutral[700]}
             returnKeyType="done"
             blurOnSubmit
             onSubmitEditing={Keyboard.dismiss}
