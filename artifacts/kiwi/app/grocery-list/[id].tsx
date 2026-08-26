@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Keyboard,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +17,7 @@ import { Button } from "@/components/Button";
 import { ClarifySheetView } from "@/components/ClarifySheetView";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { focusAddItemInput } from "@/lib/groceryAddAnchor";
 import { TypeaheadList } from "@/components/TypeaheadList";
 import { useApp } from "@/contexts/AppContext";
 import {
@@ -100,6 +102,11 @@ export default function GroceryListDetail() {
       return "loading";
     },
   );
+  // WS9 BUG-140 — the ONE add surface, and the scroller it lives in. The
+  // per-section "+ Add item" controls anchor to these instead of owning a
+  // second add path (see lib/groceryAddAnchor.ts).
+  const addInputRef = useRef<TextInput | null>(null);
+  const scrollRef = useRef<ScrollView | null>(null);
   const [addItemInput, setAddItemInput] = useState("");
   // 6c-6-C — debounced typeahead state. debouncedQuery trails the raw
   // input by 250ms to match the plans.tsx debounce convention; the
@@ -773,6 +780,7 @@ export default function GroceryListDetail() {
         </View>
       )}
       <KeyboardAwareScrollViewCompat
+        ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -842,6 +850,7 @@ export default function GroceryListDetail() {
         <View style={s.typeaheadWrap}>
           <View style={s.addItemRow}>
             <TextInput
+              ref={addInputRef}
               value={addItemInput}
               onChangeText={setAddItemInput}
               placeholder="Add an item…"
@@ -924,9 +933,19 @@ export default function GroceryListDetail() {
               <View key={section.key} style={s.section}>
                 <View style={s.sectionHeaderRow}>
                   <Text style={s.sectionHeader}>{section.label}</Text>
-                  <Pressable onPress={() => {}} hitSlop={6}>
-                    {/* WS5: tap "+ Add item" focuses the top input via
-                        natural tab order; WS6 will pre-target the section. */}
+                  {/* WS9 BUG-140 — this was `onPress={() => {}}`, a literal
+                      no-op, under a comment claiming it focused the top input
+                      "via natural tab order". React Native has no tab order:
+                      the comment described a web mechanism that never existed
+                      here, which is exactly why a dead control survived review.
+                      It ANCHORS to the single top add surface rather than
+                      owning a second add path (Hans, ruled). */}
+                  <Pressable
+                    onPress={() =>
+                      focusAddItemInput(addInputRef.current, scrollRef.current)
+                    }
+                    hitSlop={6}
+                  >
                     <Text style={s.addItemInline}>+ Add item</Text>
                   </Pressable>
                 </View>
