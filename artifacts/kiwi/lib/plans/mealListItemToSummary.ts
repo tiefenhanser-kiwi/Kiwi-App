@@ -38,6 +38,10 @@ export function mealListItemToSummary(
   return {
     id: m.id,
     title: m.title,
+    // WS9 BUG-153 — carry the sub-text the wire already sends. MealListItemSchema
+    // has had `description` since D-WS9-124; this adapter was the one place it
+    // was dropped, which is why AddMealsSheet/SwapMealSheet rendered bare titles.
+    description: m.description ?? undefined,
     cuisineType: m.cuisine.length > 0 ? m.cuisine : undefined,
     difficulty: "easy",
     estimatedTimeMinutes: m.minutes,

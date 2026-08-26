@@ -192,6 +192,16 @@ function MealRow({
       <View style={[s.thumb, !meal.imageUrl && s.thumbFallback]} />
       <View style={{ flex: 1 }}>
         <DisplayTitle source={meal} variant="row" style={s.mealTitle} />
+        {/* WS9 BUG-153 — the one-line "what's on the plate" sub-text. Pattern
+            reused verbatim from MealRow.tsx:81-85: rendered ONLY when present,
+            no empty gap, no placeholder. ⚠️ Do NOT add a fallback — 61% of live
+            meals carry no description because the wizard writer does not
+            populate it (BUG-156), and a fallback would hide that on device. */}
+        {meal.description ? (
+          <Text style={s.mealDescription} numberOfLines={1} ellipsizeMode="tail">
+            {meal.description}
+          </Text>
+        ) : null}
         <Text style={s.mealMeta} numberOfLines={1} ellipsizeMode="tail">
           {metaParts.join(" · ")}
         </Text>
@@ -326,6 +336,18 @@ const s = StyleSheet.create({
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.serif[600],
+  },
+  // WS9 BUG-153 — mirrors MealRow.tsx's `description` style exactly.
+  // ⚠️ BUG-157: neutral[600] is #8A8474 = 3.7278:1 on the white card, BELOW the
+  // 4.5:1 AA threshold for normal text. Used here deliberately so this sub-text
+  // matches MealRow rather than fragmenting the token while the shared-token
+  // question is ruled. When BUG-157 sweeps neutral[600] for body text, THIS IS
+  // ONE OF THE SITES TO MOVE.
+  mealDescription: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontFamily: Typography.face.sans[400],
+    marginTop: 2,
   },
   mealMeta: {
     fontSize: Typography.fontSize.xs,

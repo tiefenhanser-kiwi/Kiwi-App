@@ -102,3 +102,36 @@ test("mealListItemToSummary: cook-stat fields stay undefined (D-WS7-048)", () =>
   assert.equal(result.lastCookedAt, undefined);
   assert.equal(result.createdAt, undefined);
 });
+
+// ── WS9 BUG-153 — the sub-text this adapter used to drop ────────────────────
+//
+// MealListItemSchema has carried `description` since D-WS9-124; this adapter
+// was the single place it fell on the floor, which is why the picker sheets
+// rendered a bare title while the wire was sending the line all along.
+//
+// ⚠️ The empty case is asserted as hard as the present one. 61% of live meals
+// carry no description because the wizard writer does not populate it
+// (BUG-156), and the render must show NOTHING for those — no placeholder, no
+// fallback — so that gap stays visible on device instead of being papered over.
+
+test("mealListItemToSummary: carries `description` through (BUG-153)", () => {
+  const result = mealListItemToSummary(
+    makeItem({ description: "Marinated grilled steak folded in flour tortillas." }),
+    "my_meals",
+  );
+  assert.equal(
+    result.description,
+    "Marinated grilled steak folded in flour tortillas.",
+  );
+});
+
+test("mealListItemToSummary: a null description becomes undefined, never a fallback string", () => {
+  const nulled = mealListItemToSummary(makeItem({ description: null }), "my_meals");
+  assert.equal(nulled.description, undefined);
+  // Absent on the wire (pre-redeploy server) behaves identically.
+  const absent = mealListItemToSummary(makeItem({ description: undefined }), "my_meals");
+  assert.equal(absent.description, undefined);
+  // Explicitly NOT a placeholder — the row must render nothing at all.
+  assert.notEqual(nulled.description, "");
+  assert.notEqual(nulled.description, "No description available");
+});

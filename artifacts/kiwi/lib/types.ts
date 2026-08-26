@@ -268,6 +268,11 @@ export interface ReviewPlanMealRow {
    *  driven badging can read row.cuisine instead of an extra meal-detail fetch.
    *  Undefined when the meal carries no cuisine. */
   cuisine?: string;
+  /** WS9 BUG-153 — one-line "what's on the plate" sub-text, rendered above the
+   *  meta line. Undefined when the meal carries none; the row renders NOTHING
+   *  in that case rather than a placeholder, so the BUG-156 writer gap stays
+   *  visible on device instead of being papered over. */
+  description?: string;
   /** "Easy · 30 min · serves 4" */
   metaLine: string;
   /** Per-serving display values for the row's macros line. */
@@ -477,6 +482,13 @@ export interface MealSummary {
   // WS9 3f-4d Part 1c (D-WS9-123) — short display name; resolveDisplayTitle reads
   // it for render + A–Z sort (BUG-067). Optional: picker DTOs populate it in Part 2.
   displayTitle?: string | null;
+  /** WS9 BUG-153 — the one-line "what's on the plate" sub-text. The wire has
+   *  carried it since D-WS9-124 (MealListItemSchema.description); only this
+   *  legacy shape dropped it, which is why the picker sheets rendered a bare
+   *  title. Optional + nullable: absent from optimistic/builder-constructed
+   *  summaries, and NULL on 61% of live meals (BUG-156 — the wizard writer does
+   *  not populate it). Render nothing when empty; never substitute a fallback. */
+  description?: string | null;
   cuisineType?: string;
   difficulty: "easy" | "medium" | "hard";
   estimatedTimeMinutes: number;

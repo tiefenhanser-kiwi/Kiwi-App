@@ -81,6 +81,8 @@ function itemToRow(
     // C4 Ruling 4 — widen ReviewPlanMealRow with cuisine so sites #2 and #3
     // can read row.cuisine directly instead of an extra getMealById lookup.
     // Server `cuisine` is always a string ("" when none — see MealListItemSchema).
+    // WS9 BUG-153 — one-line sub-text for the plan-review row.
+    description: meal.description ?? undefined,
     cuisine: meal.cuisine.length > 0 ? meal.cuisine : undefined,
     metaLine: formatMealDetailMetaLine(meal, effectiveServings),
     caloriesPerServing: meal.calories,
