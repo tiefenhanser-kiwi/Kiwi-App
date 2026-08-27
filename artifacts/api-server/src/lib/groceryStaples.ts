@@ -8,14 +8,18 @@
 export const UNIVERSAL_STAPLES = [
   { canonicalName: "salt", defaultSection: "pantry", defaultUnit: "container" },
   { canonicalName: "black pepper", defaultSection: "pantry", defaultUnit: "container" },
-  // WS7-5d Block 5 Fix 1: "water" as a staple. Exact-match (UNIVERSAL_STAPLE_KEYS
-  // in groceryList.ts) catches the canonical "water" the wizard AI emits for
-  // "1/2 cup water". Variants like "tap water" / "filtered water" are NOT
-  // caught — same as "salt" doesn't catch "sea salt"; that's the existing
-  // exact-match staple model, not a new path. defaultSection "pantry" is a
-  // placeholder for the dimmed default-staple row; the user opts in only if
-  // they actually want bottled water on the trip.
-  { canonicalName: "water", defaultSection: "pantry", defaultUnit: "bottle" },
+  // WS9 BUG-169 — "water" REMOVED from this list (it was added by WS7-5d Block 5
+  // Fix 1 on 2026-06-03). That fix had the right intent — "a recipe's '1/2 cup
+  // water' must not render as a buyable bottle" — but the wrong mechanism: a
+  // universal staple is still a ROW, just a dimmed one. It was never an
+  // exclusion, so nothing regressed; BUG-125's order line simply made the
+  // long-standing row conspicuous by printing "1 bottle (16.9 oz)" next to it.
+  //
+  // Water is now in NEVER_ORDER_CANONICALS below and is dropped outright.
+  // Deleted here rather than left alongside the exclusion: two mechanisms for
+  // one concern drift, and the staple entry would have been dead weight that
+  // still reserved a flag, a section and a default unit for a row that can no
+  // longer exist.
   { canonicalName: "butter", defaultSection: "dairy_eggs", defaultUnit: "stick" },
   { canonicalName: "olive oil", defaultSection: "pantry", defaultUnit: "bottle" },
   { canonicalName: "vegetable oil", defaultSection: "pantry", defaultUnit: "bottle" },
@@ -31,6 +35,59 @@ export const UNIVERSAL_STAPLES = [
 ] as const;
 
 export type UniversalStaple = (typeof UNIVERSAL_STAPLES)[number];
+
+// WS9 BUG-169 — never-order canonicals.
+//
+// Hans's ruling: "we shouldn't tell someone to order water. I can't think of a
+// need to order water for groceries for a meal." A recipe's water comes out of
+// the tap; it is an instruction, not a purchase, so the row should not exist at
+// all rather than exist and be dimmed.
+//
+// EXACT-STRING, never substring — the same discipline STAPLE_VARIANT_TO_BASE
+// uses. The catalog holds 17 rows whose canonicalName contains "water", and a
+// substring rule gets 5 of them wrong. Classified in full:
+//
+//   EXCLUDE (8, below)   water · warm water · cold water · ice water ·
+//                        ice-cold water · boiling water · pasta cooking water ·
+//                        reserved pasta cooking water
+//   KEEP, purchasable (3) rose water · kewra water · cold sparkling water
+//                        — none of these come out of a tap; you buy a bottle.
+//   KEEP, not a match (6) canned tuna in water · canned albacore tuna in water ·
+//                        canned solid white albacore tuna in water ·
+//                        solid white albacore tuna in water · seedless
+//                        watermelon · watercress
+//
+// KNOWN LIMITATION, accepted: an authored list goes stale. Nothing stops a
+// future recipe emitting "lukewarm water" or "filtered water", and it would
+// render fully buyable with no signal. The durable never-order CLASS (and the
+// judgement that separates tap water from bottled sparkling water) belongs to
+// the ingredient-relationship program, D-WS9-189. Do not grow a pattern-matcher
+// here to cover it — that is how this file accumulated its current shape.
+const NEVER_ORDER_CANONICALS: ReadonlySet<string> = new Set([
+  "water",
+  "warm water",
+  "cold water",
+  "ice water",
+  "ice-cold water",
+  "boiling water",
+  "pasta cooking water",
+  "reserved pasta cooking water",
+]);
+
+/**
+ * True when a PLAN-DERIVED ingredient must never reach the grocery list at all.
+ * Input MUST already be normalizeIngredientName()-normalized, the same contract
+ * baseStapleName has.
+ *
+ * SCOPE: the consolidator applies this to dish-derived ingredients only. A user
+ * who types "water" into their recurring groceries, or adds it to a list by
+ * hand, is stating an explicit intent to buy it — that is not this rule's
+ * business, and silently dropping it would be a worse bug than the one being
+ * fixed.
+ */
+export function isNeverOrdered(normalized: string): boolean {
+  return NEVER_ORDER_CANONICALS.has(normalized);
+}
 
 // WS7-8b B1 (BUG-025-5) — variant→base staple normalization.
 // The staple flag is an exact-string membership test against

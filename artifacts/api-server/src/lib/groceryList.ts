@@ -11,7 +11,7 @@ import type { PrismaClient, StoreSection } from "@prisma/client";
 
 import { normalizeIngredientName } from "./groceryNormalization";
 import { lookupIngredientByName } from "./ingredientLookup";
-import { baseStapleName, UNIVERSAL_STAPLES } from "./groceryStaples";
+import { baseStapleName, isNeverOrdered, UNIVERSAL_STAPLES } from "./groceryStaples";
 import { lookupConversion, lookupPurchaseDefault } from "./ingredientConversions";
 import { mergeConvertibleGroups } from "./groceryMerge";
 import { roundNeedQuantity } from "./needQuantity";
@@ -395,6 +395,12 @@ export async function consolidatePlanIngredients(
       for (const eff of effective) {
         const ing = eff.ingredient;
         const canonical = ing?.canonicalName ?? eff.canonicalFallback;
+        // WS9 BUG-169 — drop never-order ingredients before they become a
+        // bucket. Skipping HERE (rather than filtering a built list later) means
+        // the row never exists at any downstream layer: no bucket, no sources,
+        // no staple flag, no AI-subset entry, no order line. A recipe's water is
+        // an instruction, not a purchase.
+        if (isNeverOrdered(normalizeIngredientName(canonical))) continue;
         const display = ing?.displayName ?? canonical;
         const unit = eff.unit;
         const prepRaw = eff.preparationNote;

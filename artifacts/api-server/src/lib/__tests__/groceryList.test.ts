@@ -785,11 +785,18 @@ describe("consolidatePlanIngredients — staple flags", () => {
     assert.equal(out[0].isUserPantryStaple, true);
   });
 
-  it("WS7-5d Block 5 Fix 1: flags 'water' as a universal staple (recipe 'water' does not become a buyable bottle)", async () => {
-    // Device-test surfaced "water" rendering as a buyable grocery row when a
-    // recipe called for "1/2 cup water". Staple-flagging routes it to the
-    // dimmed default-staple state in the UI (same as salt/pepper) — the user
-    // can still opt in if they actually want bottled water on the trip.
+  // ⚠️ SUPERSEDED RULING — this test was INVERTED, not fixed. As written in
+  // WS7-5d Block 5 Fix 1 (2026-06-03) it asserted `isUniversalStaple === true`
+  // for water, and it was correct for the ruling in force then: staple-flag it
+  // so it renders dimmed, and let the user opt in "if they actually want
+  // bottled water on the trip".
+  //
+  // Hans has since ruled that opt-in away entirely (BUG-169): "we shouldn't
+  // tell someone to order water. I can't think of a need to order water for
+  // groceries for a meal." A dimmed row is still a row, so the old assertion
+  // now pins behaviour the product no longer wants. Changed because the RULING
+  // changed — not because the test was wrong when it was written.
+  it("BUG-169 (supersedes WS7-5d Block 5 Fix 1): a recipe's 'water' produces NO row at all", async () => {
     const prisma = makePrisma({
       items: [
         {
@@ -812,9 +819,12 @@ describe("consolidatePlanIngredients — staple flags", () => {
       planId: TEST_PLAN,
       userId: TEST_USER,
     });
-    const water = findItem(out, "water");
-    assert.ok(water, "water entry should exist on the consolidated list");
-    assert.equal(water!.isUniversalStaple, true);
+    assert.equal(
+      findItem(out, "water"),
+      undefined,
+      "water must not reach the consolidated list at all — not even dimmed",
+    );
+    assert.equal(out.length, 0, "the dish contributed nothing else");
   });
 });
 
@@ -1849,5 +1859,178 @@ describe("consolidatePlanIngredients — BUG-164 recurring bucket key", () => {
       bucketKeyOf(towels.canonicalName, towels.unit),
       "paper towels|each",
     );
+  });
+});
+
+// ── WS9 BUG-169 — water is never ordered ──────────────────────────────────
+//
+// Hans: "we shouldn't tell someone to order water. I can't think of a need to
+// order water for groceries for a meal."
+//
+// The June 2026 attempt (WS7-5d Block 5) added "water" to UNIVERSAL_STAPLES,
+// which dims a row but still emits one. BUG-125's order line then printed
+// "1 bottle (16.9 oz)" beside it — a ~7.6x under-order against the observed
+// 4-quart need, though that half is moot once the row is gone.
+//
+// The rule is EXACT-STRING. The catalog holds 17 rows whose canonicalName
+// contains "water" and a substring rule gets 5 of them wrong, so the
+// false-positive tests below matter more than the positive one.
+describe("consolidatePlanIngredients — BUG-169 never-order water", () => {
+  function planWith(ings: IngStub[]): PlanStub {
+    return {
+      items: [
+        {
+          id: "i1",
+          dishes: [
+            { id: "d1", title: "Pasta", servingsDefault: 4, ingredients: ings },
+          ],
+        },
+      ],
+    };
+  }
+
+  it("drops a recipe's water entirely — no row, not a dimmed one", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma(
+        planWith([
+          { name: "water", quantity: 4, unit: "quart", category: "Pantry" },
+          { name: "spaghetti", quantity: 1, unit: "lb", category: "Pantry" },
+        ]),
+      ),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+
+    assert.equal(findItem(out, "water"), undefined, "water must not be a row");
+    // The row is GONE, not merely flagged — a staple is still a line on the list.
+    assert.ok(
+      !out.some((i) => i.isUniversalStaple && i.canonicalName === "water"),
+      "water must not survive as a dimmed staple either",
+    );
+    // The rest of the dish is untouched.
+    assert.equal(out.length, 1);
+    assert.equal(out[0].canonicalName, "spaghetti");
+  });
+
+  it("drops the recipe-water variants too, including warm water", async () => {
+    // "warm water" is its OWN catalog row and was never staple-flagged, so
+    // before this fix it rendered as a fully buyable line with no dimming —
+    // worse than the row that prompted the bug.
+    const variants = [
+      "warm water",
+      "cold water",
+      "ice water",
+      "ice-cold water",
+      "boiling water",
+      "pasta cooking water",
+      "reserved pasta cooking water",
+    ];
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma(
+        planWith([
+          ...variants.map((name) => ({
+            name,
+            quantity: 1,
+            unit: "cup",
+            category: "Pantry",
+          })),
+          { name: "spaghetti", quantity: 1, unit: "lb", category: "Pantry" },
+        ]),
+      ),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+
+    for (const v of variants) {
+      assert.equal(findItem(out, v), undefined, `${v} must not be a row`);
+    }
+    assert.equal(out.length, 1, "only the spaghetti survives");
+  });
+
+  it("KEEPS water-named products a shopper actually buys", async () => {
+    // The false-positive guard, and the reason the rule is exact-string. A
+    // substring match on "water" would silently delete all three of these.
+    const keep = ["rose water", "kewra water", "cold sparkling water"];
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma(
+        planWith(
+          keep.map((name) => ({
+            name,
+            quantity: 1,
+            unit: "cup",
+            category: "Pantry",
+          })),
+        ),
+      ),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+
+    assert.equal(out.length, 3);
+    for (const k of keep) {
+      assert.ok(findItem(out, k), `${k} is purchasable and must survive`);
+    }
+  });
+
+  it("KEEPS foods that merely contain the word", async () => {
+    const keep = [
+      "watercress",
+      "seedless watermelon",
+      "canned tuna in water",
+      "solid white albacore tuna in water",
+    ];
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma(
+        planWith(
+          keep.map((name) => ({
+            name,
+            quantity: 1,
+            unit: "each",
+            category: "Produce",
+          })),
+        ),
+      ),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+
+    assert.equal(out.length, 4);
+    for (const k of keep) assert.ok(findItem(out, k), `${k} must survive`);
+  });
+
+  it("a RECURRING 'water' the user asked for is still appended", async () => {
+    // Scope decision: the rule governs PLAN-DERIVED ingredients. A user who
+    // types water into their recurring groceries has stated an explicit intent
+    // to buy it, and silently dropping that would be a worse bug than the one
+    // being fixed.
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma({
+        items: [
+          {
+            id: "i1",
+            dishes: [
+              {
+                id: "d1",
+                title: "Pasta",
+                servingsDefault: 4,
+                ingredients: [
+                  { name: "water", quantity: 4, unit: "quart", category: "Pantry" },
+                ],
+              },
+            ],
+          },
+        ],
+        recurringItems: ["water"],
+      }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+
+    const water = findItem(out, "water");
+    assert.ok(water, "the user's recurring water survives");
+    assert.equal(water.isRecurringItem, true);
+    // ...and it is the SYNTHETIC recurring entry, not the dish's 4 quarts.
+    assert.equal(water.sources.length, 0);
+    assert.notEqual(water.quantity, 4);
   });
 });
