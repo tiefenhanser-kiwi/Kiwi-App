@@ -168,3 +168,35 @@ test("draft presents as unsaved: no id, inactive, undated, not prepped, no notes
   assert.equal(rp.prepStatus, "not_prepped");
   assert.deepEqual(rp.optimizationNotes, []);
 });
+
+// ── WS9 BUG-163 — the draft carries the meal's headnote to the review screen ──
+//
+// ReviewPlanMealRow.description has existed since BUG-153 and the SAVED path
+// fills it (reviewPlanAdapter). The wizard draft path did not: the mobile
+// expand schema never declared `description`, so this adapter had nothing to
+// read and the pre-save review screen showed no sub-text for a meal that would
+// show one moments after saving. Server side was complete end to end; this is
+// wire + adapter only.
+test("BUG-163: a draft meal's description reaches the review row", () => {
+  const rp = wizardExpandedPlanToReviewPlan(
+    plan({
+      meals: [
+        meal({
+          title: "Red Chile Beef Enchiladas",
+          description: "Braised short rib rolled in corn tortillas under a dark chile sauce.",
+        }),
+      ],
+    }),
+  );
+  assert.equal(
+    rp.unscheduledMeals[0].description,
+    "Braised short rib rolled in corn tortillas under a dark chile sauce.",
+  );
+});
+
+test("BUG-163: a meal with no description leaves the row's sub-text undefined", () => {
+  // BUG-153's contract: the row renders NOTHING rather than a placeholder, so
+  // the writer gap stays visible on device instead of being papered over.
+  const rp = wizardExpandedPlanToReviewPlan(plan({ meals: [meal()] }));
+  assert.equal(rp.unscheduledMeals[0].description, undefined);
+});

@@ -30,6 +30,7 @@ import {
   type SectionKey,
 } from "../lib/ai/schemas/grocery";
 import {
+  bucketKeyOf,
   consolidatePlanIngredients as productionConsolidatePlanIngredients,
   GroceryConsolidationForbiddenError,
   GroceryConsolidationNotFoundError,
@@ -248,18 +249,21 @@ export function createGroceryListsRouter(
           ),
         );
 
-        // WS7-7-A Block 1: provenance join map. The consolidator's per-line
-        // (mealId, dishId) source pairs are dropped at the consolidator→final
-        // -pass boundary (GenerateListOutputItem has no source channel), so
-        // re-join `consolidated` to `final.items` by the consolidator's bucket
-        // key (normalizedCanonical, unit) — the only key surviving the AI pass.
-        // Deterministic rows (the majority) join 1:1; AI-merged/renamed tail
-        // rows that no longer match get NO source rows, which Block 4 reads
-        // conservatively as "always re-resolve". This stays a pure persist-time
-        // join — no changes to the AI helper.
+        // WS7-7-A Block 1: provenance join map, keyed by the consolidator's
+        // bucket key.
+        //
+        // BUG-165 — the final pass now TELLS us which buckets each row stands
+        // for (GenerateListOutputItem.sourceKeys), instead of this join having
+        // to re-derive it from (canonicalName, unit). That inference was 1:1 and
+        // correct for deterministic rows but lossy for an AI merge: a merged row
+        // matches exactly ONE of its parts' buckets, so the other part's source
+        // rows were dropped — the merged salt row kept 8 of its 9 sources, and
+        // which 8 depended on which unit the model happened to emit.
+        // `sourceKeys` is unioned below; the old key is kept as the fallback for
+        // any row that somehow carries none.
         const sourcesByKey = new Map<string, typeof consolidated[number]["sources"]>();
         for (const c of consolidated) {
-          sourcesByKey.set(`${normalizeIngredientName(c.canonicalName)}|${c.unit}`, c.sources);
+          sourcesByKey.set(bucketKeyOf(c.canonicalName, c.unit), c.sources);
         }
 
         // 6. Persist GroceryList + items (+ provenance) atomically. Item ids are
@@ -307,10 +311,21 @@ export function createGroceryListsRouter(
           // Build source rows by joining each final item back to its
           // consolidated source set via the bucket key. No match → no rows.
           const sourceRows = final.items.flatMap((item, idx) => {
-            const sources =
-              sourcesByKey.get(
-                `${normalizeIngredientName(item.canonicalName)}|${item.unit}`,
-              ) ?? [];
+            const keys =
+              item.sourceKeys && item.sourceKeys.length > 0
+                ? item.sourceKeys
+                : [bucketKeyOf(item.canonicalName, item.unit)];
+            // Union across every bucket the row absorbed, deduped on the
+            // (mealId, dishId) pair — the same identity the consolidator uses.
+            const seen = new Set<string>();
+            const sources = keys
+              .flatMap((k) => sourcesByKey.get(k) ?? [])
+              .filter((s) => {
+                const id = `${s.mealId}|${s.dishId}`;
+                if (seen.has(id)) return false;
+                seen.add(id);
+                return true;
+              });
             return sources.map((s) => ({
               groceryListItemId: items[idx].id,
               mealId: s.mealId,

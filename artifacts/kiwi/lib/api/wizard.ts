@@ -121,6 +121,14 @@ const WizardExpandEnrichedDishSchema = z
 const WizardExpandEnrichedMealSchema = z
   .object({
     title: z.string(),
+    // WS9 BUG-163 — the one-line headnote (server: WizardExpandMealDetailsSchema
+    // .description, ≤200 chars, persisted to Meal.description). The server has
+    // emitted this end to end for a while; mobile simply never declared it, so
+    // the pre-save draft-review screen could not show a sub-text the SAVED meal
+    // shows moments later. Optional, matching the server: the wizard
+    // candidate.expand path does not author a headnote, and BUG-153's row
+    // renders nothing rather than a placeholder when it is absent.
+    description: z.string().optional(),
     cuisineType: z.string(),
     estimatedTimeMinutes: z.number(),
     difficulty: z.enum(["easy", "medium", "fancy"]),

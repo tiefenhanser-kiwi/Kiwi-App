@@ -122,7 +122,14 @@ const UNIVERSAL_STAPLE_KEYS = new Set(
 // the wizard write path. The wizard's lowercase+trim should already make
 // this a no-op in practice; the extra normalization costs nothing and lets
 // the bucket survive any future drift.
-function bucketKeyOf(canonical: string, unit: string): string {
+//
+// EXPORTED (BUG-165): this key is also the provenance join key. The
+// consolidator's per-line (mealId, dishId) source pairs do not fit through
+// GenerateListOutputItem, so both persist sites (routes/groceryLists.ts and
+// groceryReconcile.ts) re-join `consolidated` to the final items by this exact
+// string. That formula used to be hand-inlined at four call sites; it is one
+// exported function now so the consolidator and the join can never drift.
+export function bucketKeyOf(canonical: string, unit: string): string {
   return `${normalizeIngredientName(canonical)}|${unit}`;
 }
 
@@ -495,7 +502,22 @@ export async function consolidatePlanIngredients(
     }
     if (matched) continue;
 
-    const key = bucketKeyOf(norm, "each");
+    // BUG-164 — key the synthetic bucket by the unit it ACTUALLY carries.
+    //
+    // The bucket map is keyed (normalizedCanonical, unit) everywhere else, and
+    // BUG-025-3 gave this entry a real purchase unit ("bananas" → 1 bunch,
+    // "egg" → 1 dozen) while leaving the key hard-wired to "each". The map then
+    // held an entry filed under a unit it does not have — `bucketKeyOf(norm,
+    // "each")` for a row whose unit is "dozen" — and, because this same string
+    // is the provenance join key (see bucketKeyOf), a key that disagrees with
+    // the row is a latent mis-join, not just untidiness.
+    //
+    // SCOPE: mechanical only. Whether a recurring "milk" SHOULD absorb the
+    // plan's "whole milk 3 tbsp" need is D-WS9-188 and is unruled, so the
+    // match-or-append name test above is deliberately left exactly as it was.
+    const def = lookupPurchaseDefault(norm);
+    const syntheticUnit = def ? def.purchaseUnit : "each";
+    const key = bucketKeyOf(norm, syntheticUnit);
     if (buckets.has(key)) {
       // Already added a synthetic bucket for an earlier identical recurring entry.
       const existing = buckets.get(key)!;
@@ -506,10 +528,8 @@ export async function consolidatePlanIngredients(
     // purchasable representation per PRD §12.8 [LOCKED]. Consult the shared
     // purchase-pack defaults (bananas → "1 bunch", garlic → "1 head"); when
     // the item isn't in the table, fall back to the prior each/1/null shape
-    // so genuinely unknown recurring items still render sanely. The bucket
-    // key stays ("each") above — this only changes the entry's unit/purchase
-    // representation, not grouping.
-    const def = lookupPurchaseDefault(norm);
+    // so genuinely unknown recurring items still render sanely. `def` is
+    // resolved above, because BUG-164 makes the bucket key depend on it.
     const synthetic: ConsolidatedItem = {
       ingredientId: null,
       canonicalName: norm,

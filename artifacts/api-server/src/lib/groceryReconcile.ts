@@ -57,6 +57,7 @@ import type { PrismaClient, Prisma, StoreSection } from "@prisma/client";
 
 import type { SectionKey } from "./ai/schemas/grocery";
 import {
+  bucketKeyOf,
   consolidatePlanIngredients as productionConsolidatePlanIngredients,
   type ConsolidatedItem,
 } from "./groceryList";
@@ -369,15 +370,13 @@ export async function reconcileGroceryListIfStale(
     );
 
     // Re-join final items back to their consolidated sources by bucket key —
-    // identical to the generate route's persist-time join. AI-merged/renamed
-    // rows that no longer match get no source rows (conservatively re-resolved
-    // on the next stale read, same as generation).
+    // identical to the generate route's persist-time join. BUG-165: the final
+    // pass now declares the buckets each row stands for (sourceKeys), so an
+    // AI-merged row keeps ALL its parts' provenance instead of only the part
+    // whose unit the model happened to echo.
     const sourcesByKey = new Map<string, ConsolidatedItem["sources"]>();
     for (const c of resolutionSubset) {
-      sourcesByKey.set(
-        `${normalizeIngredientName(c.canonicalName)}|${c.unit}`,
-        c.sources,
-      );
+      sourcesByKey.set(bucketKeyOf(c.canonicalName, c.unit), c.sources);
     }
 
     const ids = final.items.map(() => randomUUID());
@@ -406,10 +405,19 @@ export async function reconcileGroceryListIfStale(
       purchaseDisplay: item.purchaseDisplay ?? null,
     }));
     newSources = final.items.flatMap((item, idx) => {
-      const sources =
-        sourcesByKey.get(
-          `${normalizeIngredientName(item.canonicalName)}|${item.unit}`,
-        ) ?? [];
+      const keys =
+        item.sourceKeys && item.sourceKeys.length > 0
+          ? item.sourceKeys
+          : [bucketKeyOf(item.canonicalName, item.unit)];
+      const seen = new Set<string>();
+      const sources = keys
+        .flatMap((k) => sourcesByKey.get(k) ?? [])
+        .filter((s) => {
+          const id = `${s.mealId}|${s.dishId}`;
+          if (seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
       return sources.map((s) => ({
         groceryListItemId: ids[idx],
         mealId: s.mealId,

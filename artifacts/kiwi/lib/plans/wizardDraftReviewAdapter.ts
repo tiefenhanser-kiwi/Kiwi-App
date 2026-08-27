@@ -67,6 +67,10 @@ function mealToRow(
     title: meal.title,
     thumbnailUrl: undefined,
     cuisine: meal.cuisineType.length > 0 ? meal.cuisineType : undefined,
+    // WS9 BUG-163 — same shape reviewPlanAdapter uses for a SAVED plan
+    // (`meal.description ?? undefined`), so a draft and the plan it becomes
+    // render the identical sub-text instead of the row appearing only after save.
+    description: meal.description ?? undefined,
     metaLine: `${capitalize(meal.difficulty)} · ${meal.estimatedTimeMinutes} min · serves ${meal.servings}`,
     caloriesPerServing: macros.calories,
     proteinGPerServing: macros.proteinG,

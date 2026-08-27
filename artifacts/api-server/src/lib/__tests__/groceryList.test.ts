@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import type { PrismaClient } from "@prisma/client";
 
 import {
+  bucketKeyOf,
   consolidatePlanIngredients,
   GroceryConsolidationForbiddenError,
   GroceryConsolidationNotFoundError,
@@ -1779,5 +1780,74 @@ describe("consolidatePlanIngredients — BUG-096 alias resolution", () => {
     const saffron = findItem(out, "dragonfruit");
     assert.ok(saffron, "the unknown ingredient is still bucketed under its own name");
     assert.equal(saffron.ingredientId, null);
+  });
+});
+
+// ── BUG-164 — the synthetic recurring bucket is keyed by the unit it carries ──
+//
+// The bucket map is keyed (normalizedCanonical, unit) everywhere, and that same
+// string is the provenance join key at persist (bucketKeyOf). BUG-025-3 gave the
+// synthetic recurring entry a real purchase unit — bananas → 1 bunch, egg →
+// 1 dozen — while leaving its key hard-wired to "each", so the map held rows
+// filed under a unit they do not have.
+//
+// SCOPE: this pins the mechanical key/unit agreement only. Whether a recurring
+// "milk" SHOULD absorb a plan's "whole milk 3 tbsp" need is D-WS9-188 and is
+// unruled; the match-or-append name test is deliberately unchanged.
+// ⚠️ HONESTY NOTE — these are REGRESSION guards, not a proof of the BUG-164
+// change. The key/unit fix is BEHAVIOUR-NEUTRAL and cannot be turned red from
+// outside this module, by construction: `buckets.has(norm|"each")` is only
+// reached after the unit-agnostic name loop above found no match, and any
+// bucket sitting at `norm|<anything>` necessarily has a canonicalName that
+// normalizes to `norm`, so that loop would have matched it and `continue`d.
+// Reverting the fix and re-running the consolidator over all 7 live plans
+// produced byte-identical output for all 482 rows.
+//
+// An earlier version of this block asserted
+//   bucketKeyOf(row.canonicalName, row.unit) === "bananas|bunch"
+// which is a TAUTOLOGY — it recomputes the key from the row's own fields and
+// stays green with the fix reverted. It is removed rather than left to look
+// like coverage it never had. What follows pins the surrounding behaviour the
+// fix must not disturb.
+describe("consolidatePlanIngredients — BUG-164 recurring bucket key", () => {
+  it("files the synthetic entry under a key that agrees with its unit", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma({ items: [], recurringItems: ["bananas"] }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const bananas = findItem(out, "bananas")!;
+    // The purchase-default table yields "1 bunch" for bananas — an independent
+    // literal, not read back off the row.
+    assert.equal(bananas.unit, "bunch");
+    assert.equal(bananas.quantity, 1);
+    // The key the map used is not observable from out here; see the note above.
+    assert.equal(bucketKeyOf("bananas", "bunch"), "bananas|bunch");
+  });
+
+  it("still dedupes two spellings of the same recurring item to ONE row", async () => {
+    // The dedup that the key guards must survive the key changing.
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma({ items: [], recurringItems: ["bananas", "Bananas", " bananas "] }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const all = out.filter((i) => i.canonicalName === "bananas");
+    assert.equal(all.length, 1, "three spellings, one row");
+    assert.equal(all[0].isRecurringItem, true);
+  });
+
+  it("a recurring item with no purchase default still keys and renders as 'each'", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: makePrisma({ items: [], recurringItems: ["paper towels"] }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const towels = findItem(out, "paper towels")!;
+    assert.equal(towels.unit, "each");
+    assert.equal(
+      bucketKeyOf(towels.canonicalName, towels.unit),
+      "paper towels|each",
+    );
   });
 });

@@ -1742,3 +1742,234 @@ describe("BUG-095 — generateFinalGroceryList output→source matching", () => 
     assert.deepEqual(hit["unmatchedNames"], ["bananas"]);
   });
 });
+
+// ── BUG-142 — quantity conservation across the AI merge ──────────────────
+//
+// partitionForAI rule 3 hands Sonnet every set of rows sharing a canonical name
+// but differing in unit, PRECISELY because the deterministic table could not
+// reconcile them, and asks for free-form cross-unit arithmetic. The only guards
+// were counts, and a count cannot tell 10.75 tsp from 13.75 tsp.
+//
+// Six live generations on byte-identical input produced three different salt
+// totals; the two wrong ones are reproduced verbatim below. The rule now: for a
+// canonical the model was handed more than one row of, what it returns must
+// equal what it was given — or the merge is REFUSED and the consolidated rows
+// ship unmerged. Never repaired, never split the difference.
+describe("BUG-142 — AI-merge quantity conservation", () => {
+  // Two units of one canonical → partitionForAI rule 3 → both reach the AI.
+  function saltPair(): ConsolidatedItem[] {
+    const tsp = makeItem({
+      canonicalName: "kosher salt",
+      displayName: "kosher salt",
+      quantity: 7.75,
+      unit: "teaspoon",
+      sectionKey: "pantry",
+      conversionRef: null,
+    });
+    tsp.sources = Array.from({ length: 8 }, (_, i) => ({
+      mealId: `m-${i}`,
+      dishId: `d-${i}`,
+      servings: 4,
+      ingredientSignature: `sig-${i}`,
+    }));
+    const tbsp = makeItem({
+      canonicalName: "kosher salt",
+      displayName: "kosher salt",
+      quantity: 1,
+      unit: "tablespoon",
+      sectionKey: "pantry",
+      conversionRef: null,
+    });
+    tbsp.sources = [
+      { mealId: "m-rig", dishId: "d-rig", servings: 4, ingredientSignature: "sig-rig" },
+    ];
+    return [tsp, tbsp];
+  }
+
+  function saltOut(quantity: number, unit: string): Record<string, unknown> {
+    return {
+      canonicalName: "kosher salt",
+      displayName: "Kosher salt",
+      quantity,
+      unit,
+      sectionKey: "pantry",
+      isUniversalStaple: true,
+      isUserPantryStaple: false,
+      isRecurringItem: false,
+      notes: null,
+      isAmbiguous: false,
+      wasAiInferred: false,
+    };
+  }
+
+  function petItem(quantity: number, unit: string): ConsolidatedItem {
+    return makeItem({
+      canonicalName: "pet treats",
+      displayName: "pet treats",
+      quantity,
+      unit,
+      sectionKey: "extras",
+      conversionRef: null,
+    });
+  }
+
+  function petOut(
+    quantity: number,
+    unit: string,
+    displayName: string,
+  ): Record<string, unknown> {
+    return {
+      canonicalName: "pet treats",
+      displayName,
+      quantity,
+      unit,
+      sectionKey: "extras",
+      isUniversalStaple: false,
+      isUserPantryStaple: false,
+      isRecurringItem: false,
+      notes: null,
+      isAmbiguous: false,
+      wasAiInferred: true,
+    };
+  }
+
+  async function run(outs: Record<string, unknown>[], items: ConsolidatedItem[]) {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([{ content: [textBlock({ items: outs })] }]);
+    const { prisma } = makeStubPrisma();
+    return generateFinalGroceryList("Plan", items, ["pantry", "extras"], {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+  }
+
+  it("REFUSES an OVER-count merge: the merged total emitted alongside a part it already contains", async () => {
+    // Live list fe29467b: 10.75 tsp AND a surviving 1 tbsp = 13.75 tsp ordered
+    // for a 10.75 tsp need. +28%, and every guard that existed passed it.
+    const result = await run(
+      [saltOut(10.75, "teaspoon"), saltOut(1, "tablespoon")],
+      saltPair(),
+    );
+
+    assert.equal(result.items.length, 2, "the merge is refused, not repaired");
+    // The rows come back as the CONSOLIDATOR had them — not as the model
+    // rewrote them. 7.75 tsp + 1 tbsp = 10.75 tsp of salt, ordered once.
+    const tsp = result.items.find((r) => r.unit === "teaspoon");
+    const tbsp = result.items.find((r) => r.unit === "tablespoon");
+    assert.equal(tsp?.quantity, 7.75);
+    assert.equal(tbsp?.quantity, 1);
+    // Total ordered, in teaspoons, is the need — not 13.75.
+    assert.equal(tsp!.quantity + tbsp!.quantity * 3, 10.75);
+  });
+
+  it("REFUSES an UNDER-count merge: a part silently shrunk", async () => {
+    // Live list 858a5636: 7.75 tsp + 0.875 tbsp = 10.375 tsp for a 10.75 need.
+    // The defect has now appeared in BOTH directions, so both are pinned.
+    const result = await run(
+      [saltOut(7.75, "teaspoon"), saltOut(0.875, "tablespoon")],
+      saltPair(),
+    );
+
+    assert.equal(result.items.length, 2);
+    const tbsp = result.items.find((r) => r.unit === "tablespoon");
+    assert.equal(tbsp?.quantity, 1, "the shrunk part is restored, not accepted");
+    const tsp = result.items.find((r) => r.unit === "teaspoon");
+    assert.equal(tsp!.quantity + tbsp!.quantity * 3, 10.75);
+  });
+
+  it("ACCEPTS a conserving merge and carries BOTH parts' provenance (BUG-165)", async () => {
+    const result = await run([saltOut(10.75, "teaspoon")], saltPair());
+
+    assert.equal(result.items.length, 1, "a correct merge is still a merge");
+    assert.equal(result.items[0].quantity, 10.75);
+    // BUG-165 — the dropped sibling's sources are NOT dropped with it. The row
+    // declares both consolidator buckets, so the persist join attaches all nine
+    // dishes rather than the eight that happen to share the surviving unit.
+    assert.deepEqual(
+      [...(result.items[0].sourceKeys ?? [])].sort(),
+      ["kosher salt|tablespoon", "kosher salt|teaspoon"],
+    );
+  });
+
+  it("REFUSES a merge it cannot express in a common unit rather than trusting it", async () => {
+    // "pet treats" has no conversion data at all, so no common unit exists and
+    // the arithmetic is uncheckable. Uncheckable must mean refused.
+    const result = await run(
+      [petOut(3, "bag", "Pet treats")],
+      [petItem(1, "bag"), petItem(2, "box")],
+    );
+
+    assert.equal(result.items.length, 2);
+    assert.deepEqual(
+      result.items.map((r) => `${r.quantity} ${r.unit}`).sort(),
+      ["1 bag", "2 box"],
+    );
+  });
+
+  it("does NOT refuse an unconvertible pair the model sensibly left alone", async () => {
+    // Same unconvertible pair, returned unchanged. No arithmetic happened, so
+    // there is nothing to conserve — the AI's section/name polish must survive
+    // rather than being discarded by an over-eager guard.
+    const result = await run(
+      [petOut(1, "bag", "Pet treats (polished)"), petOut(2, "box", "Pet treats (polished)")],
+      [petItem(1, "bag"), petItem(2, "box")],
+    );
+
+    assert.equal(result.items.length, 2);
+    assert.ok(
+      result.items.every((r) => r.displayName === "Pet treats (polished)"),
+      "the AI's polish is kept when it changed no quantity",
+    );
+  });
+
+  it("fires when EVERY part was consumed — no dropped sibling to signal the problem", async () => {
+    // The subtle shape, and the reason the guard checks the whole group rather
+    // than only groups with an unconsumed leftover.
+    //
+    // Two salt rows plus an unrelated row, so the subset is 3 and the model may
+    // legally return 3 — the local no-add count guard is satisfied. The model
+    // returns two salt rows, so BOTH salt entries are popped and NOTHING is
+    // left over: a check that only looked for dropped siblings would see a
+    // clean 1:1 match and pass. But the salt total went 10.75 → 15.75 tsp.
+    const items = [...saltPair(), makeItem({
+      canonicalName: "paper towels",
+      displayName: "paper towels",
+      quantity: 1,
+      unit: "each",
+      sectionKey: "extras",
+      conversionRef: null,
+    })];
+    const result = await run(
+      [
+        saltOut(10.75, "teaspoon"),
+        saltOut(5, "teaspoon"),
+        {
+          canonicalName: "paper towels",
+          displayName: "Paper towels",
+          quantity: 1,
+          unit: "each",
+          sectionKey: "extras",
+          isUniversalStaple: false,
+          isUserPantryStaple: false,
+          isRecurringItem: false,
+          notes: null,
+          isAmbiguous: false,
+          wasAiInferred: false,
+        },
+      ],
+      items,
+    );
+
+    // Salt is refused back to its two consolidated rows; the unrelated row is
+    // untouched — refusal is scoped to the canonical that failed, not the list.
+    const salt = result.items.filter((r) => r.canonicalName === "kosher salt");
+    assert.equal(salt.length, 2);
+    assert.equal(
+      salt.reduce((n, r) => n + r.quantity * (r.unit === "tablespoon" ? 3 : 1), 0),
+      10.75,
+    );
+    assert.ok(result.items.some((r) => r.displayName === "Paper towels"));
+  });
+});

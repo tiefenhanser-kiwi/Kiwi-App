@@ -20,12 +20,14 @@
 // inflates.
 
 import { normalizeIngredientName } from "./groceryNormalization";
+import { baseStapleName } from "./groceryStaples";
 import type { ConsolidatedItem, GrocerySource } from "./groceryList";
 import {
   convertToGrams,
   gramsToUnit,
   isVolumeUnit,
   isWeightUnit,
+  lookupConversion,
   normalizeUnit,
   resolveConversion,
   type IngredientConversion,
@@ -82,9 +84,33 @@ function foldMetadata(base: ConsolidatedItem, member: ConsolidatedItem): void {
 
 // Resolve the conversion for a group — prefer a member carrying a persisted
 // conversionRef, else the code-table fallback by canonical name.
+//
+// BUG-142 — LAST RESORT: the BASE STAPLE's code-table row. A named staple
+// variant ("kosher salt", "extra-virgin olive oil") is its own catalog row with
+// its own canonicalName, and 9 of the 1,570 catalog rows carry conversionRef
+// NULL with no code-table entry of their own. Density is a property of the
+// SUBSTANCE, not of the shopper-facing name: kosher salt is salt, so base
+// salt's gramsPerCup: 273 is the right factor for it.
+//
+// Without this, grouping by baseStapleName alone changes NOTHING for the case
+// that motivated it — every member of a {kosher salt tsp, kosher salt tbsp}
+// group still resolves against "kosher salt" and still misses, mergeGroup still
+// returns null, and the pair still partners into the AI subset for free-form
+// cross-unit arithmetic. The grouping key and this fallback are one fix.
+//
+// Deliberately narrow: it consults STAPLE_VARIANT_TO_BASE (an EXACT-string map
+// of the three families the staples list supports), never a substring or stem.
+// "garlic salt" and "celery salt" are absent from that map and are therefore
+// never handed salt's density.
 function groupConversion(group: ConsolidatedItem[]): IngredientConversion | null {
   for (const it of group) {
     const c = resolveConversion(it.canonicalName, it.conversionRef);
+    if (c) return c;
+  }
+  for (const it of group) {
+    const base = baseStapleName(normalizeIngredientName(it.canonicalName));
+    if (base === normalizeIngredientName(it.canonicalName)) continue;
+    const c = lookupConversion(base);
     if (c) return c;
   }
   return null;
@@ -147,11 +173,22 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
 export function mergeConvertibleGroups(
   items: ConsolidatedItem[],
 ): ConsolidatedItem[] {
-  // Group by normalized canonical, preserving first-seen order.
+  // Group by BASE STAPLE name, preserving first-seen order.
+  //
+  // BUG-142 — was `normalizeIngredientName(it.canonicalName)` (the raw
+  // canonical). A staple variant is its own catalog row, so "kosher salt" never
+  // shared a group with "salt" and never reached base salt's conversion data.
+  //
+  // baseStapleName is an EXACT-string lookup over 26 known variants of three
+  // families (salt / black pepper / olive oil) and is the identity function for
+  // everything else, so this widens grouping for 9 of 1,570 catalog rows and
+  // leaves the other 1,561 keyed exactly as before. mergeGroup still refuses any
+  // group the conversion table can't reconcile, so a widened group that isn't
+  // genuinely convertible passes through untouched rather than merging wrongly.
   const groups = new Map<string, ConsolidatedItem[]>();
   const order: string[] = [];
   for (const it of items) {
-    const key = normalizeIngredientName(it.canonicalName);
+    const key = baseStapleName(normalizeIngredientName(it.canonicalName));
     let g = groups.get(key);
     if (!g) {
       g = [];

@@ -41,10 +41,14 @@ import {
   type PurchaseSizeResult,
   type SectionKey,
 } from "./ai/schemas/grocery";
-import type { ConsolidatedItem } from "./groceryList";
+import { bucketKeyOf, type ConsolidatedItem } from "./groceryList";
 import { normalizeIngredientName } from "./groceryNormalization";
+import { baseStapleName } from "./groceryStaples";
 import { logger } from "./logger";
 import {
+  convertToGrams,
+  lookupConversion,
+  normalizeUnit,
   resolveConversion,
   scalePurchaseForSubUnit,
 } from "./ingredientConversions";
@@ -313,11 +317,65 @@ function resolvePurchaseFields(item: ConsolidatedItem): {
   };
 }
 
+// BUG-142 — quantity conservation across an AI merge.
+//
+// A conserving comparison needs ONE common unit. Grams is the only basis the
+// conversion table can express both a weight and a volume in, so the check runs
+// there. Every quantity in the group must convert, or the group is not
+// checkable and the merge is refused — never assumed sound.
+//
+// The conversion is resolved once for the whole group, exactly as
+// groceryMerge.groupConversion does it (persisted conversionRef, then the code
+// table, then the BASE STAPLE's code-table row), so the deterministic merge and
+// this guard agree about what is convertible instead of disagreeing at the
+// boundary.
+function conversionForGroup(
+  items: ConsolidatedItem[],
+): ReturnType<typeof resolveConversion> {
+  for (const it of items) {
+    const c = resolveConversion(it.canonicalName, it.conversionRef);
+    if (c) return c;
+  }
+  for (const it of items) {
+    const norm = normalizeIngredientName(it.canonicalName);
+    const base = baseStapleName(norm);
+    if (base === norm) continue;
+    const c = lookupConversion(base);
+    if (c) return c;
+  }
+  return null;
+}
+
+// Sum (quantity, unit) pairs in grams. Returns null the moment any one of them
+// is not convertible — a partial sum would silently compare unlike totals.
+function totalGrams(
+  parts: { quantity: number; unit: string }[],
+  conv: ReturnType<typeof resolveConversion>,
+): number | null {
+  let g = 0;
+  for (const p of parts) {
+    const one = convertToGrams(p.quantity, p.unit, conv);
+    if (one === null) return null;
+    g += one;
+  }
+  return g;
+}
+
+// Relative tolerance for the conservation comparison. Generous enough to absorb
+// float noise and a model writing 1/3 as 0.333, tight enough to catch both
+// defects actually observed on the salt case: +28% (a merged total emitted
+// ALONGSIDE the part it already contained) and -3.5% (a part silently shrunk
+// from 1 tbsp to 0.875 tbsp). Anything looser than a ladder step is not worth
+// refusing over; anything at or above this is a real shopping error.
+const CONSERVATION_REL_TOLERANCE = 0.005;
+
 function buildDeterministicOutputItem(
   item: ConsolidatedItem,
 ): GenerateListOutputItem {
   const pack = resolvePurchaseFields(item);
   return {
+    // BUG-165 — a deterministic row stands for exactly its own bucket.
+    sourceKeys: [bucketKeyOf(item.canonicalName, item.unit)],
     canonicalName: item.canonicalName,
     // Raw ingredient name — the pack is NO LONGER baked in (commit 3). The
     // client renders "{purchaseDisplay} {name} ({need})" as one line.
@@ -346,10 +404,12 @@ function buildDeterministicOutputItem(
  *   - When the AI subset is empty, the Sonnet call is skipped entirely.
  *   - Local no-add guard: throws GroceryListAIError if Sonnet returns more
  *     items than its (sub)input.
- *   - Global no-add guard: throws GroceryListAIError if the merged output
- *     count exceeds the original input count (defense-in-depth — the local
- *     guard plus the 1:1 deterministic outputs make this unreachable in
- *     practice, but the check is cheap).
+ *   - BUG-142 conservation guard: for any canonical the AI was handed more than
+ *     one row of, the total quantity it returns must equal the total it was
+ *     given, compared in grams. A group that does not conserve — or that cannot
+ *     be expressed in a common unit — is shipped UNMERGED from the consolidated
+ *     rows. The merge is refused, never repaired. (This REPLACED the former
+ *     global count guard, which policed item count twice and quantity never.)
  *   - Sonnet outputs are placed back at the original positions of their
  *     subset entries when count matches subset size; when Sonnet merges
  *     (rule 2), later outputs reuse the i-th subset slot's index so the
@@ -457,9 +517,114 @@ export async function generateFinalGroceryList(
   // pack fields and a leftover index — never a neighbour's pack. It is logged,
   // because a model that stops echoing canonicalName would otherwise silently
   // strip every pack from the list.
+  // ── BUG-142 — QUANTITY CONSERVATION over the AI's cross-unit arithmetic ──
+  //
+  // Rule 3 of partitionForAI hands Sonnet every set of rows sharing a canonical
+  // name but differing in unit, precisely BECAUSE the deterministic table could
+  // not reconcile them, and asks it to do the conversion free-form. Nothing
+  // downstream checked the arithmetic: the guards were both COUNTS, and a count
+  // cannot tell 10.75 tsp from 13.75 tsp. Six generations over byte-identical
+  // input produced 10.75 tsp (correct), 10.75 tsp + a surviving 1 tbsp (+28%,
+  // a shopper buys a third more salt than the plan needs) and 7.75 tsp +
+  // 0.875 tbsp (-3.5%). All three passed every guard that existed.
+  //
+  // So: for every canonical the AI was handed MORE THAN ONE row of — exactly
+  // the rule-3 partner set, the only population where cross-unit arithmetic
+  // happens — the total it gives back must equal the total it was given.
+  //
+  // FAILURE MODE IS REFUSAL, NEVER REPAIR. A group that does not conserve, or
+  // that cannot be expressed in a common unit at all, is rebuilt from the
+  // consolidated rows and shipped UNMERGED — the AI's merge for that canonical
+  // is discarded whole. Two ugly rows beat a silent 28% over-order, and the
+  // model's arithmetic is never trusted, corrected, or split the difference
+  // with. Single-row canonicals are untouched: there is no sum to conserve, and
+  // policing them would refuse the ordinary unit refinement the pass exists for.
+  const entriesByName = new Map<string, PartitionedItem[]>();
+  for (const entry of aiSubset) {
+    const key = normalizeIngredientName(entry.item.canonicalName);
+    const q = entriesByName.get(key);
+    if (q) q.push(entry);
+    else entriesByName.set(key, [entry]);
+  }
+  const outputIdxByName = new Map<string, number[]>();
+  for (let i = 0; i < result.data.items.length; i++) {
+    const key = normalizeIngredientName(result.data.items[i].canonicalName);
+    const a = outputIdxByName.get(key);
+    if (a) a.push(i);
+    else outputIdxByName.set(key, [i]);
+  }
+
+  // Outputs are attributed to a group by their OWN canonicalName, not by which
+  // entry they popped. A model that emits THREE salt rows for two inputs leaves
+  // the third unmatched, and attributing by match would let that phantom row's
+  // quantity escape the sum entirely — the over-order shape, undetected.
+  const refusedNames = new Set<string>();
+  for (const [name, entries] of entriesByName) {
+    if (entries.length < 2) continue;
+    const outIdx = outputIdxByName.get(name) ?? [];
+    const inParts = entries.map((e) => ({
+      quantity: e.item.quantity,
+      unit: e.item.unit,
+    }));
+    const outParts = outIdx.map((i) => ({
+      quantity: result.data.items[i].quantity,
+      unit: result.data.items[i].unit,
+    }));
+
+    // Untouched passthrough — same rows back, same units, same quantities. No
+    // arithmetic was done, so there is nothing to conserve and no conversion is
+    // needed. Without this an un-convertible pair the model sensibly left alone
+    // would be refused, discarding its section/name polish for no benefit.
+    const shape = (p: { quantity: number; unit: string }[]) =>
+      p
+        .map((x) => `${x.quantity}|${normalizeUnit(x.unit)}`)
+        .sort()
+        .join(",");
+    if (outParts.length === inParts.length && shape(outParts) === shape(inParts)) {
+      continue;
+    }
+
+    const conv = conversionForGroup(entries.map((e) => e.item));
+    const need = totalGrams(inParts, conv);
+    const got = totalGrams(outParts, conv);
+    if (
+      need === null ||
+      got === null ||
+      !(need > 0) ||
+      Math.abs(got - need) > need * CONSERVATION_REL_TOLERANCE
+    ) {
+      refusedNames.add(name);
+      logger.warn(
+        {
+          event: "grocery_ai_merge_refused",
+          userId: opts.userId,
+          canonicalName: name,
+          inputRows: inParts.length,
+          outputRows: outParts.length,
+          neededGrams: need,
+          returnedGrams: got,
+          reason:
+            need === null || got === null
+              ? "not_convertible_to_common_unit"
+              : "quantity_not_conserved",
+        },
+        "grocery.generate_list merge did not conserve quantity; shipping the consolidated rows unmerged",
+      );
+    }
+  }
+
+  const isRefused = (out: GenerateListOutputItem) =>
+    refusedNames.has(normalizeIngredientName(out.canonicalName));
+  // Output slots that survive refusal. A refused group's AI rows are discarded
+  // whole and replaced by deterministic rebuilds below.
+  const survivingOut = result.data.items
+    .map((_, i) => i)
+    .filter((i) => !isRefused(result.data.items[i]));
+
   const queueByName = new Map<string, PartitionedItem[]>();
   for (const entry of aiSubset) {
     const key = normalizeIngredientName(entry.item.canonicalName);
+    if (refusedNames.has(key)) continue; // rebuilt deterministically, not poppable
     const q = queueByName.get(key);
     if (q) q.push(entry);
     else queueByName.set(key, [entry]);
@@ -467,19 +632,58 @@ export async function generateFinalGroceryList(
   // Leftover index pool for unmatched outputs, ascending. Populated after the
   // matching pass so it only contains indices no matched row claimed.
   const claimed = new Set<number>();
-  const matches: (PartitionedItem | null)[] = result.data.items.map((out) => {
-    const q = queueByName.get(normalizeIngredientName(out.canonicalName));
+  const matches = new Map<number, PartitionedItem | null>();
+  for (const i of survivingOut) {
+    const q = queueByName.get(
+      normalizeIngredientName(result.data.items[i].canonicalName),
+    );
     const entry = q && q.length > 0 ? q.shift()! : null;
     if (entry) claimed.add(entry.index);
-    return entry ?? null;
-  });
+    matches.set(i, entry ?? null);
+  }
+
+  // BUG-165 — every entry the matching pass did NOT pop was absorbed by a
+  // merge. Its GroceryListItemSource rows are still owed: the plan really does
+  // need that dish's salt, whichever row ends up carrying it. Hand its bucket
+  // key to the first surviving output for the same canonical — the row the
+  // merge collapsed into — so provenance follows the quantity instead of being
+  // re-guessed at persist time from a (canonicalName, unit) join that can only
+  // ever match one of the parts.
+  //
+  // This is STRUCTURAL, not detection: a sibling is either absorbed here with
+  // its key carried, or its whole group was refused above and it is rebuilt
+  // below as its own row with its own key. There is no third path, so there is
+  // no path on which a still-needed source set is dropped.
+  const absorbedKeys = new Map<number, string[]>();
+  for (const [name, q] of queueByName) {
+    if (q.length === 0) continue;
+    const host = survivingOut.find(
+      (i) => normalizeIngredientName(result.data.items[i].canonicalName) === name,
+    );
+    if (host === undefined) continue;
+    const keys = absorbedKeys.get(host) ?? [];
+    for (const e of q) {
+      keys.push(bucketKeyOf(e.item.canonicalName, e.item.unit));
+      claimed.add(e.index);
+    }
+    absorbedKeys.set(host, keys);
+  }
+
   const leftoverIndices = aiSubset
     .map((e) => e.index)
     .filter((idx) => !claimed.has(idx))
+    .filter(
+      (idx) =>
+        !refusedNames.has(
+          normalizeIngredientName(
+            aiSubset.find((e) => e.index === idx)!.item.canonicalName,
+          ),
+        ),
+    )
     .sort((a, b) => a - b);
-  const unmatchedNames = result.data.items
-    .filter((_, i) => matches[i] === null)
-    .map((o) => o.canonicalName);
+  const unmatchedNames = survivingOut
+    .filter((i) => matches.get(i) === null)
+    .map((i) => result.data.items[i].canonicalName);
   if (unmatchedNames.length > 0) {
     logger.warn(
       {
@@ -494,7 +698,7 @@ export async function generateFinalGroceryList(
     );
   }
 
-  for (let i = 0; i < result.data.items.length; i++) {
+  for (const i of survivingOut) {
     const out = result.data.items[i];
     // WS7-8b B2 — the AI subset carries the same-canonical/different-unit rows
     // the deterministic table couldn't merge (BUG-031 tail). Two fixes here:
@@ -508,7 +712,7 @@ export async function generateFinalGroceryList(
     //       name. displayName stays the AI's shopper-friendly name.
     // BUG-095 — identity match, not `aiSubset[i]`. Null src means the model
     // emitted a name no input row carried: null pack, leftover slot.
-    const match = matches[i];
+    const match = matches.get(i) ?? null;
     const src = match?.item;
     const pack = src
       ? resolvePurchaseFields({ ...src, quantity: out.quantity, unit: out.unit })
@@ -519,19 +723,48 @@ export async function generateFinalGroceryList(
         ...out,
         quantity: roundNeedQuantity(out.quantity, out.unit),
         ...pack,
+        // BUG-165 — the row's own bucket plus every sibling it absorbed. An
+        // output that matched nothing represents no consolidated bucket and so
+        // claims no provenance, rather than inheriting a neighbour's.
+        sourceKeys: [
+          ...(src ? [bucketKeyOf(src.canonicalName, src.unit)] : []),
+          ...(absorbedKeys.get(i) ?? []),
+        ],
       },
     });
   }
 
-  // Global no-add guard — defense-in-depth. Deterministic outputs are 1:1
-  // and the local guard caps AI output at aiSubset.length, so this is
-  // unreachable in practice; cheap to keep honest.
-  if (placed.length > items.length) {
-    throw new GroceryListAIError(
-      `Final list had ${placed.length} items but input had ${items.length}; item count must not increase.`,
-    );
+  // BUG-142 — rebuild every refused group from the consolidated rows. These go
+  // back at their ORIGINAL indices carrying their original quantity, unit and
+  // bucket key, so the list shows the un-merged parts and each part keeps its
+  // own provenance. This is the refusal path in full: no AI row for these
+  // canonicals survives, and nothing is silently corrected.
+  for (const entry of aiSubset) {
+    if (!refusedNames.has(normalizeIngredientName(entry.item.canonicalName))) {
+      continue;
+    }
+    placed.push({
+      index: entry.index,
+      out: buildDeterministicOutputItem(entry.item),
+    });
   }
 
+  // BUG-142 — the global `placed.length > items.length` count guard was REMOVED
+  // here; the conservation check above replaces it.
+  //
+  // It was a second guard on the SAME concern as the local no-add check (item
+  // count must not increase), and its own comment conceded it was "unreachable
+  // in practice". Two guards on one concern drift, and this pair drifted in the
+  // worst direction: between them they policed COUNT twice and QUANTITY never,
+  // which is exactly how a 13.75-tsp order for a 10.75-tsp need passed. A count
+  // is not a conservation law — merging two rows into one and merging them into
+  // one WRONG one produce identical counts.
+  //
+  // It is also now actively wrong: refusing a merge legitimately restores rows,
+  // so a list that correctly declines to merge could trip a count ceiling and
+  // fail the whole generation — the guard would turn a safe outcome into an
+  // outage. The local no-add guard above still caps what the model may invent,
+  // which is a genuinely different failure and stays.
   placed.sort((a, b) => a.index - b.index);
   return { items: placed.map((p) => p.out) };
 }

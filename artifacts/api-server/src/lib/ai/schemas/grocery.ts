@@ -215,6 +215,20 @@ export const GenerateListOutputItemSchema = z
     purchaseUnit: z.string().nullable().optional(),
     purchaseQuantity: z.number().nullable().optional(),
     purchaseDisplay: z.string().nullable().optional(),
+    // BUG-165 — the consolidator bucket keys (see bucketKeyOf) this output row
+    // stands for. Same contract as the purchase pack above: the AI does not
+    // author it; generateFinalGroceryList OVERWRITES it on every returned item
+    // after the AI pass, so a model that emits the field cannot influence
+    // provenance. Optional so raw AI output still validates.
+    //
+    // Why it exists: GenerateListOutputItem was the only channel between the
+    // consolidator and persistence, and it carried no source information, so
+    // both persist sites re-derived provenance by joining on (canonicalName,
+    // unit). That join is 1:1 for deterministic rows but LOSSY for an AI merge
+    // — a merged row matches exactly one of its parts' buckets and the other
+    // part's GroceryListItemSource rows are silently dropped. Carrying the key
+    // set makes the merge's provenance explicit instead of inferred.
+    sourceKeys: z.array(z.string()).optional(),
   })
   .refine(
     (it) =>
