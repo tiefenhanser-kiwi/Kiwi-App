@@ -143,3 +143,55 @@ const STAPLE_VARIANT_TO_BASE: Record<string, string> = {
 export function baseStapleName(normalized: string): string {
   return STAPLE_VARIANT_TO_BASE[normalized] ?? normalized;
 }
+
+// WS9 BUG-170 / BUG-168 — variant→base folding for MERGE GROUPING only.
+//
+// STAPLE_VARIANT_TO_BASE above answers "do I already have this in the pantry?"
+// and every entry belongs there: kosher salt IS a pantry staple and must render
+// greyed, not land on the buy-list (BUG-025-5, PRD §2.2 + §12.7 [LOCKED]).
+//
+// This map answers a DIFFERENT question — "is this literally the same thing to
+// buy?" — and the answers diverge. Hans (device item 8): "salts are super
+// different so keeping them separate is probably needed and best… iodized salt
+// is NOT kosher is NOT flaky sea salt." And on pepper: "peppercorns as an
+// ingredient are different than black pepper (ground)… the big thing to avoid
+// here is needing 1 tsp ground black pepper and telling a user to buy
+// peppercorns they need to grind."
+//
+// So this map is the staple map MINUS the rows that are distinct PRODUCTS:
+//   dropped — all 10 salts (grain size is the product) and `black peppercorns`
+//             (whole; you would have to grind them). BUG-168.
+//   kept    — the 6 ground-black-pepper spellings, which are one container of
+//             the same thing, and all 5 olive-oil entries, where
+//             "extra virgin" / "extra-virgin" / "evoo" are the same bottle.
+//
+// ⚠️ This does NOT weaken BUG-142. Two rows of the SAME variant — kosher salt
+// in teaspoons and kosher salt in tablespoons — share a raw canonical name and
+// so still group together without any folding at all; groupConversion's
+// separate base-staple fallback still lends them base salt's density. That pair
+// merging was the actual bug. Folding kosher INTO flaky sea salt never was.
+const MERGE_GROUP_VARIANT_TO_BASE: Record<string, string> = {
+  // black pepper — ground forms only; `black peppercorns` is deliberately absent
+  "cracked black pepper": "black pepper",
+  "ground black pepper": "black pepper",
+  "freshly ground black pepper": "black pepper",
+  "fresh ground black pepper": "black pepper",
+  "cracked pepper": "black pepper",
+  "ground pepper": "black pepper",
+  // olive oil
+  "extra-virgin olive oil": "olive oil",
+  "extra virgin olive oil": "olive oil",
+  "virgin olive oil": "olive oil",
+  "light olive oil": "olive oil",
+  evoo: "olive oil",
+};
+
+/**
+ * Fold a normalized name to the name it should GROUP under when deciding
+ * whether two grocery rows are the same purchase. Identity for anything not
+ * listed — including every salt, which is why two different salts stay two
+ * rows. Same normalized-input contract as {@link baseStapleName}.
+ */
+export function mergeGroupBaseName(normalized: string): string {
+  return MERGE_GROUP_VARIANT_TO_BASE[normalized] ?? normalized;
+}

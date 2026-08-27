@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { mergeConvertibleGroups } from "../groceryMerge";
+import { baseStapleName, mergeGroupBaseName } from "../groceryStaples";
 import { roundNeedQuantity } from "../needQuantity";
 import type { ConsolidatedItem } from "../groceryList";
 
@@ -150,21 +151,78 @@ describe("BUG-142 — staple-variant merge via the base staple's conversion", ()
     assert.equal(out[0].canonicalName, "kosher salt");
   });
 
-  it("groups TWO DIFFERENT variants of one base staple into a single mergeable group", () => {
-    // This is what the GROUPING KEY buys, and it is separable from the
-    // conversion fallback: "sea salt" and "kosher salt" are distinct canonicals,
-    // so under the old raw-canonical key they were two groups of one and
-    // mergeGroup was never even called, no matter what conversion data existed.
-    // Keyed by base staple they are one group, and base salt's density
-    // reconciles them.
+  // ⚠️ SUPERSEDED RULING — this test was INVERTED, not fixed.
+  //
+  // As written for BUG-142 it asserted the opposite: that "sea salt 1 tsp" and
+  // "kosher salt 1 tbsp" merge into ONE 4-tsp row. That was a correct test of
+  // the code as shipped, and it passed. Hans has since ruled the behaviour
+  // itself wrong (BUG-170, device item 8): "salts are super different so
+  // keeping them separate is probably needed and best… iodized salt is NOT
+  // kosher is NOT flaky sea salt."
+  //
+  // Changed because the RULING changed — not because the assertion was wrong
+  // when it was written.
+  it("keeps TWO DIFFERENT salts as two rows — they are different products", () => {
     const out = mergeConvertibleGroups([
       item({ canonicalName: "sea salt", quantity: 1, unit: "teaspoon" }),
       item({ canonicalName: "kosher salt", quantity: 1, unit: "tablespoon" }),
     ]);
-    assert.equal(out.length, 1, "one base staple → one group → one row");
-    assert.equal(out[0].unit, "teaspoon");
-    // 1 tsp + 1 tbsp = 1 + 3 = 4 tsp. Literal, not derived from gramsPerCup.
-    assert.ok(Math.abs(out[0].quantity - 4) < 1e-9);
+    assert.equal(out.length, 2, "two salts → two rows");
+    // Each keeps its own name and its own quantity — nothing was folded.
+    const sea = out.find((i) => i.canonicalName === "sea salt")!;
+    const kosher = out.find((i) => i.canonicalName === "kosher salt")!;
+    assert.equal(sea.quantity, 1);
+    assert.equal(sea.unit, "teaspoon");
+    assert.equal(kosher.quantity, 1);
+    assert.equal(kosher.unit, "tablespoon");
+  });
+
+  it("BUG-168: whole peppercorns never fold into ground black pepper", () => {
+    // Hans: "the big thing to avoid here is needing 1 tsp ground black pepper
+    // and telling a user to buy peppercorns they need to grind."
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "ground black pepper", quantity: 1, unit: "teaspoon" }),
+      item({ canonicalName: "black peppercorns", quantity: 1, unit: "tablespoon" }),
+    ]);
+    assert.equal(out.length, 2, "ground and whole are different purchases");
+    assert.ok(out.some((i) => i.canonicalName === "black peppercorns"));
+  });
+
+  it("still folds the GROUND black-pepper spellings onto one grouping key", () => {
+    // ⚠️ Asserted on the KEY, not on a merged row, and that is deliberate.
+    // `black pepper` carries NO gramsPerCup in the conversion table (unlike
+    // olive oil's 216), so mergeGroup cannot reconcile tsp against tbsp for it
+    // and refuses — these two spellings share a group but still emit two rows
+    // today. An earlier draft of this test asserted `out.length === 1` and
+    // failed for exactly that reason; it was the assertion that was wrong, not
+    // the code.
+    //
+    // So what is pinned here is the half that IS true and IS load-bearing: the
+    // ground spellings are one purchase and fold together, while peppercorns
+    // and every salt do not. If black pepper ever gains a density, the merge
+    // follows from this without another change.
+    assert.equal(mergeGroupBaseName("freshly ground black pepper"), "black pepper");
+    assert.equal(mergeGroupBaseName("cracked black pepper"), "black pepper");
+    assert.equal(mergeGroupBaseName("ground pepper"), "black pepper");
+    // …and the two classes Hans ruled distinct are the identity function.
+    assert.equal(mergeGroupBaseName("black peppercorns"), "black peppercorns");
+    assert.equal(mergeGroupBaseName("kosher salt"), "kosher salt");
+    assert.equal(mergeGroupBaseName("flaky sea salt"), "flaky sea salt");
+    // The pantry-staple map is UNCHANGED — kosher salt must still render greyed
+    // (BUG-025-5, PRD §2.2 + §12.7 [LOCKED]). Two maps, two questions.
+    assert.equal(baseStapleName("kosher salt"), "salt");
+    assert.equal(baseStapleName("black peppercorns"), "black pepper");
+  });
+
+  it("still folds the olive-oil family — extra virgin / extra-virgin / evoo are one bottle", () => {
+    // This is what the GROUPING KEY still buys, and it is separable from the
+    // conversion fallback: these are distinct canonicals, so without folding
+    // they would be two groups of one and mergeGroup would never be called.
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "extra virgin olive oil", quantity: 1, unit: "tablespoon" }),
+      item({ canonicalName: "extra-virgin olive oil", quantity: 1, unit: "cup" }),
+    ]);
+    assert.equal(out.length, 1, "one bottle → one group → one row");
     assert.equal(out[0].sources.length, 2);
   });
 

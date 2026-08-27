@@ -20,7 +20,7 @@
 // inflates.
 
 import { normalizeIngredientName } from "./groceryNormalization";
-import { baseStapleName } from "./groceryStaples";
+import { baseStapleName, mergeGroupBaseName } from "./groceryStaples";
 import type { ConsolidatedItem, GrocerySource } from "./groceryList";
 import {
   convertToGrams,
@@ -175,20 +175,29 @@ export function mergeConvertibleGroups(
 ): ConsolidatedItem[] {
   // Group by BASE STAPLE name, preserving first-seen order.
   //
-  // BUG-142 — was `normalizeIngredientName(it.canonicalName)` (the raw
-  // canonical). A staple variant is its own catalog row, so "kosher salt" never
-  // shared a group with "salt" and never reached base salt's conversion data.
+  // BUG-142, NARROWED by BUG-170 — group by mergeGroupBaseName, not
+  // baseStapleName.
   //
-  // baseStapleName is an EXACT-string lookup over 26 known variants of three
-  // families (salt / black pepper / olive oil) and is the identity function for
-  // everything else, so this widens grouping for 9 of 1,570 catalog rows and
-  // leaves the other 1,561 keyed exactly as before. mergeGroup still refuses any
-  // group the conversion table can't reconcile, so a widened group that isn't
-  // genuinely convertible passes through untouched rather than merging wrongly.
+  // BUG-142 keyed this on baseStapleName (the PANTRY-STAPLE map). That folded
+  // every salt onto "salt", so kosher salt and flaky sea salt became one row.
+  // Hans ruled that out: "iodized salt is NOT kosher is NOT flaky sea salt."
+  // mergeGroupBaseName is the same idea restricted to rows that are genuinely
+  // one purchase — the ground-pepper spellings and the olive-oil family — and
+  // is the identity function for every salt and for `black peppercorns`.
+  //
+  // ⚠️ BUG-142's fix is NOT weakened. Its actual case is ONE variant reached in
+  // TWO units (kosher salt 7.75 tsp + kosher salt 1 tbsp = 10.75 tsp). Those
+  // share a raw canonical name, so they group together with no folding at all,
+  // and groupConversion's base-staple fallback above — which still uses
+  // baseStapleName and is deliberately untouched — still lends them base salt's
+  // gramsPerCup. Only CROSS-variant folding is withdrawn.
+  //
+  // mergeGroup still refuses any group the conversion table can't reconcile, so
+  // a folded group that isn't genuinely convertible passes through untouched.
   const groups = new Map<string, ConsolidatedItem[]>();
   const order: string[] = [];
   for (const it of items) {
-    const key = baseStapleName(normalizeIngredientName(it.canonicalName));
+    const key = mergeGroupBaseName(normalizeIngredientName(it.canonicalName));
     let g = groups.get(key);
     if (!g) {
       g = [];
