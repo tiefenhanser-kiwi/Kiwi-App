@@ -55,6 +55,11 @@ export async function composeStoreMealDetails(
     select: {
       id: true,
       title: true,
+      // WS9 BUG-163 — the meal's one-line headnote. A store-composed slot is
+      // built field-by-field from this select, so a column omitted here is a
+      // field the draft payload can never carry, no matter what the wizard
+      // schema or the mobile adapter declare downstream.
+      description: true,
       cuisineType: true,
       difficulty: true,
       estimatedTimeMinutes: true,
@@ -147,6 +152,17 @@ export async function composeStoreMealDetails(
     status: "ok",
     meal: {
       title: meal.title,
+      // WS9 BUG-163 — Draft Review renders BEFORE save, from this payload, not
+      // from the saved Meal row. The live-expansion path spreads the AI's meal
+      // object and so kept `description`; this store-composed path rebuilt the
+      // meal field-by-field and silently dropped it. On one observed draft that
+      // is exactly what the user saw: 4 store-composed slots with no sub-text
+      // and the single live slot with one.
+      //
+      // `?? undefined` (not `?? null`): the schema field is `.optional()`, and
+      // BUG-153's row renders NOTHING rather than a placeholder when it is
+      // absent, so an unauthored headnote must be missing, not empty.
+      description: meal.description ?? undefined,
       cuisineType: meal.cuisineType ?? CUISINE_FALLBACK,
       estimatedTimeMinutes: meal.estimatedTimeMinutes,
       difficulty: meal.difficulty,

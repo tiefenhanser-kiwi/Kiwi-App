@@ -729,6 +729,10 @@ function storeMealGraph(id: string) {
   return {
     id,
     title: `Store ${id}`,
+    // WS9 BUG-163 — the pool meal HAS a headnote (1,140 of 1,188 live public
+    // meals do). The question the tests below ask is whether composition
+    // carries it into the draft payload Draft Review renders from.
+    description: `Headnote for ${id}`,
     cuisineType: "italian",
     difficulty: "easy",
     estimatedTimeMinutes: 30,
@@ -1009,5 +1013,88 @@ describe("expandCandidate — BUG-128 merged-away names still ground", () => {
     assert.ok(ing, "an unresolved ingredient is still sent to the estimator");
     assert.equal(ing.ingredientId, undefined);
     assert.equal(ing.nutritionRefPer100g, undefined);
+  });
+});
+
+// ── WS9 BUG-163 — the draft payload carries the meal's headnote ────────────
+//
+// Draft Review (app/plan/[id].tsx in draft mode) renders BEFORE save, from the
+// expand payload handed to it as a route param — NOT from the saved Meal row.
+// The live-expansion path spreads the AI's meal object and so kept
+// `description`; composeStoreMealDetails rebuilt the meal FIELD BY FIELD and
+// dropped it, in two places at once (the Prisma select and the return object).
+//
+// Observed on a real draft: 4 store-composed slots with no sub-text, and the
+// one live slot with one. The discriminator was store-composition, nothing else.
+//
+// TWO tests because the fix has two halves and the stub prisma below ignores
+// `select` — an assertion on the composed output alone would stay GREEN with
+// the select half reverted, which is no guard at all.
+describe("BUG-163 — store-composed slots carry description into the draft payload", () => {
+  it("composes the pool meal's headnote onto the store slot", async () => {
+    const req = makeRequest(["A", "B"]); // slot 0 store, slot 1 live
+    req.candidate.storeSlots = [{ slotIndex: 0, storeMealId: "store-1" }];
+    const { fn } = makeRunAICallStub((mealTitle) =>
+      successResult([makeMeal(mealTitle)]),
+    );
+
+    const result = await expandCandidate({
+      prisma: storePrisma,
+      userId: "u1",
+      request: req,
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    // The store slot must carry the headnote the pool row holds. Literal, not
+    // read back off the fixture object the code also reads.
+    assert.equal(result.expanded.meals[0].description, "Headnote for store-1");
+    // And it is genuinely the STORE slot that gained it.
+    assert.equal(result.expanded.meals[0].sourceStoreMealId, "store-1");
+  });
+
+  it("REQUESTS description in the pool query — the other half of the fix", async () => {
+    // storePrisma's meal.findUnique ignores `select` and returns the whole
+    // graph, so the test above passes even with `description: true` removed
+    // from the select. Against a real Prisma client that omission returns a row
+    // with no `description` at all. Capture the query shape and pin it.
+    const seen: { select?: Record<string, unknown> }[] = [];
+    const capturingPrisma = {
+      userPreferences: { findUnique: async () => null },
+      meal: {
+        findUnique: async (args: {
+          where: { id: string };
+          select?: Record<string, unknown>;
+        }) => {
+          seen.push({ select: args.select });
+          return storeMealGraph(args.where.id);
+        },
+      },
+      ingredient: { findMany: async () => [] },
+      ingredientAlias: { findMany: async () => [] },
+    } as unknown as PrismaClient;
+
+    const req = makeRequest(["A", "B"]);
+    req.candidate.storeSlots = [{ slotIndex: 0, storeMealId: "store-1" }];
+    const { fn } = makeRunAICallStub((mealTitle) =>
+      successResult([makeMeal(mealTitle)]),
+    );
+
+    await expandCandidate({
+      prisma: capturingPrisma,
+      userId: "u1",
+      request: req,
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+
+    assert.equal(seen.length, 1, "the store slot reads the pool meal once");
+    assert.equal(
+      seen[0].select?.description,
+      true,
+      "composeStoreMealDetails must SELECT description — a column left out of the select can never reach the payload",
+    );
   });
 });
