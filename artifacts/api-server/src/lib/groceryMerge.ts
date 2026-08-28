@@ -24,12 +24,14 @@ import { baseStapleName, mergeGroupBaseName } from "./groceryStaples";
 import type { ConsolidatedItem, GrocerySource } from "./groceryList";
 import {
   convertToGrams,
+  convertWithinDimension,
   gramsToUnit,
   isVolumeUnit,
   isWeightUnit,
   lookupConversion,
   normalizeUnit,
   resolveConversion,
+  unitDimension,
   type IngredientConversion,
 } from "./ingredientConversions";
 
@@ -122,6 +124,40 @@ function groupConversion(group: ConsolidatedItem[]): IngredientConversion | null
 function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
   const conv = groupConversion(group);
   const units = group.map((g) => g.unit);
+
+  // ── WS9 BUG-176: same dimension → NO density needed ──
+  //
+  // Runs BEFORE the grams path deliberately. Within one dimension the density
+  // cancels, so where the grams path can also run this returns the identical
+  // number; where it cannot — an ingredient with no gramsPerCup reached in
+  // tbsp and tsp — this still answers instead of shipping two rows for one
+  // bottle. That refusal was BUG-176: hot sauce, ketchup and cilantro on live
+  // lists, all of them arithmetic no ingredient data is needed for.
+  //
+  // ⚠️ THE GUARD IS `unitDimension` AGREEING ACROSS EVERY MEMBER, and it is
+  // load-bearing. A cross-dimension group (each + cup, pinch + tsp, bunch +
+  // cup) has at least one member whose dimension is null, falls straight
+  // through to the grams path, and is refused there exactly as before — the
+  // BUG-142 conservation guard keeps every case it was built for.
+  const dim = unitDimension(units[0]);
+  if (dim !== null && units.every((u) => unitDimension(u) === dim)) {
+    const target = pickMeasuredTarget(units);
+    let total = 0;
+    let convertible = true;
+    for (const it of group) {
+      const q = convertWithinDimension(it.quantity, it.unit, target);
+      if (q === null) {
+        convertible = false;
+        break;
+      }
+      total += q;
+    }
+    if (convertible && total > 0) {
+      const base = { ...group[0], unit: target, quantity: total };
+      for (let i = 1; i < group.length; i++) foldMetadata(base, group[i]);
+      return base;
+    }
+  }
 
   // ── measured↔measured via grams ──
   if (units.every(isMeasured)) {

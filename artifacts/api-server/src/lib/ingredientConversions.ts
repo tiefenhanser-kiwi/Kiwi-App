@@ -285,6 +285,57 @@ export function gramsToUnit(
   return null;
 }
 
+// ── WS9 BUG-176 — same-dimension conversion, WITHOUT a density ─────────────
+//
+// convertToGrams is the only cross-unit path this module offered, and it routes
+// EVERYTHING through grams. For a volume unit that requires gramsPerCup, so
+// `1 tablespoon + 1 teaspoon` of an ingredient carrying no density row declines
+// — even though 1 tbsp = 3 tsp is fixed kitchen math that needs no ingredient
+// data at all. The pair then partnered into the AI subset for free-form
+// arithmetic, and the BUG-142 conservation guard refused it on the same missing
+// grams. Two rows for one bottle of hot sauce, twice on live lists.
+//
+// Within ONE dimension the density cancels: (q · cupsFrom · gpc) / (cupsTo ·
+// gpc) = q · cupsFrom / cupsTo. So this returns exactly what the grams path
+// returns whenever the grams path CAN run, and an answer where it cannot.
+//
+// ⚠️ It does NOT loosen anything. Volume↔weight still needs gramsPerCup and
+// still goes through convertToGrams; count units are in neither table, so
+// `each` + `cup`, `pinch` + `tsp` and `bunch` + `cup` return null here exactly
+// as before and still reach the conservation guard that was built for them.
+export type UnitDimension = "volume" | "weight";
+
+/**
+ * The dimension a unit measures, or null when this module carries no factor for
+ * it (count units, `bunch`, `pinch`, `to taste`). Two units convert without any
+ * per-ingredient data if and only if they share a non-null dimension.
+ */
+export function unitDimension(unit: string): UnitDimension | null {
+  const u = normalizeUnit(unit);
+  if (u in VOLUME_UNIT_TO_CUPS) return "volume";
+  if (u in WEIGHT_UNIT_TO_GRAMS) return "weight";
+  return null;
+}
+
+/**
+ * Convert (qty, fromUnit) → toUnit using only the fixed ratios in this module.
+ * Returns null unless BOTH units share one dimension — a cross-dimension pair
+ * genuinely needs a density and must go through convertToGrams instead.
+ */
+export function convertWithinDimension(
+  qty: number,
+  fromUnit: string,
+  toUnit: string,
+): number | null {
+  if (!(qty >= 0)) return null;
+  const from = normalizeUnit(fromUnit);
+  const to = normalizeUnit(toUnit);
+  const dim = unitDimension(from);
+  if (dim === null || dim !== unitDimension(to)) return null;
+  const table = dim === "volume" ? VOLUME_UNIT_TO_CUPS : WEIGHT_UNIT_TO_GRAMS;
+  return (qty * table[from]) / table[to];
+}
+
 // ── curated core (source:'curated') ────────────────────────────────────────
 // Absorbs the former ingredientPurchaseDefaults rows verbatim (purchase packs)
 // and layers density (gramsPerCup) / count (gramsPerEach) / subUnit onto the

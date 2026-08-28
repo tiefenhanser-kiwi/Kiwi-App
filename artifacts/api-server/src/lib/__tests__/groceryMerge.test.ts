@@ -63,13 +63,34 @@ describe("mergeConvertibleGroups — measured merge", () => {
     assert.notEqual(mergeThenRound, roundThenMerge); // 4.5 ≠ 4.875 — the bug we avoid
   });
 
-  it("aborts (keeps rows separate) when a volume unit has no density", () => {
-    // A canonical with no code-table entry → convertToGrams returns null for cup.
+  // WS9 BUG-176 — REWRITTEN, not deleted. This used to assert that
+  // `mystery 1 cup + 3 tbsp` stays TWO rows because convertToGrams returns null
+  // for a volume unit with no density. That abort was the defect: cup and tbsp
+  // are one dimension and 1 cup = 16 tbsp needs no ingredient data at all, so
+  // the pair now merges (see groceryMergeSameDimension.test.ts). What this test
+  // was really for — the table refusing a group it genuinely cannot reconcile —
+  // is unchanged and is pinned here at the boundary that still exists: ACROSS
+  // dimensions, where a density is genuinely required and absent.
+  it("aborts (keeps rows separate) when a CROSS-dimension pair has no density", () => {
+    // A canonical with no code-table entry → weight↔volume needs gramsPerCup
+    // and there is none, so convertToGrams returns null and the group stands.
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "mystery", quantity: 1, unit: "cup" }),
+      item({ canonicalName: "mystery", quantity: 3, unit: "oz" }),
+    ]);
+    assert.equal(out.length, 2);
+  });
+
+  it("merges a SAME-dimension pair that has no density (BUG-176)", () => {
+    // The counterpart of the above, kept beside it so the boundary is legible:
+    // 1 cup + 3 tbsp = 1.1875 cup, arithmetic no ingredient data is needed for.
     const out = mergeConvertibleGroups([
       item({ canonicalName: "mystery", quantity: 1, unit: "cup" }),
       item({ canonicalName: "mystery", quantity: 3, unit: "tbsp" }),
     ]);
-    assert.equal(out.length, 2);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].unit, "cup");
+    assert.equal(out[0].quantity, 1.1875);
   });
 });
 
@@ -240,15 +261,33 @@ describe("BUG-142 — staple-variant merge via the base staple's conversion", ()
     assert.equal(out[1].unit, "pinch");
   });
 
+  // WS9 BUG-176 — ASSERTION REWRITTEN, rule unchanged. The pair used to be
+  // `garlic salt` in tsp + tbsp, and "two rows out" stood in for "it inherited
+  // no density". That proxy no longer holds: tsp and tbsp are one dimension and
+  // now merge with no density whatsoever, so a merge here proves nothing about
+  // what conversion was resolved. The pair is now CROSS-dimension, where the
+  // density is the only thing that could merge it — so the refusal tests the
+  // actual claim instead of a side effect of it.
   it("does not hand salt's density to a seasoning that merely contains the word", () => {
     // STAPLE_VARIANT_TO_BASE is an EXACT-string map. "garlic salt" is absent
-    // from it, so it must not inherit base salt's gramsPerCup and must not
-    // group with "kosher salt".
+    // from it, so it must not inherit base salt's gramsPerCup. With that
+    // density it would merge oz into cup; without it, it cannot.
     const out = mergeConvertibleGroups([
-      item({ canonicalName: "garlic salt", quantity: 2, unit: "teaspoon" }),
-      item({ canonicalName: "garlic salt", quantity: 1, unit: "tablespoon" }),
+      item({ canonicalName: "garlic salt", quantity: 2, unit: "ounce" }),
+      item({ canonicalName: "garlic salt", quantity: 1, unit: "cup" }),
     ]);
-    assert.equal(out.length, 2, "no conversion data → left for the AI path");
+    assert.equal(out.length, 2, "no density inherited → nothing can merge these");
+  });
+
+  it("DOES merge base salt across the same pair, proving the density is the difference", () => {
+    // The control. "salt" has gramsPerCup in the code table, so the identical
+    // cross-dimension shape merges — which is what makes the refusal above a
+    // statement about garlic salt and not about the units.
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "salt", quantity: 2, unit: "ounce" }),
+      item({ canonicalName: "salt", quantity: 1, unit: "cup" }),
+    ]);
+    assert.equal(out.length, 1, "base salt HAS a density, so this one merges");
   });
 
   it("leaves the 1,561 non-variant canonicals grouped exactly as before", () => {

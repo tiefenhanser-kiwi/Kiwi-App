@@ -1887,9 +1887,14 @@ describe("BUG-142 — AI-merge quantity conservation", () => {
     // BUG-165 — the dropped sibling's sources are NOT dropped with it. The row
     // declares both consolidator buckets, so the persist join attaches all nine
     // dishes rather than the eight that happen to share the surviving unit.
+    // WS9 BUG-174 — the key's unit half is the CANONICAL token now, so the
+    // literals are `tbsp`/`tsp` rather than the raw spellings. The join itself
+    // is unchanged: producer and consumer both go through bucketKeyOf, so the
+    // two sides cannot disagree. Only the string these buckets are named by
+    // moved, and this assertion is what pins that it moved on BOTH sides.
     assert.deepEqual(
       [...(result.items[0].sourceKeys ?? [])].sort(),
-      ["kosher salt|tablespoon", "kosher salt|teaspoon"],
+      ["kosher salt|tbsp", "kosher salt|tsp"],
     );
   });
 
