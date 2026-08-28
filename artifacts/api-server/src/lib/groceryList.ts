@@ -12,7 +12,11 @@ import type { PrismaClient, StoreSection } from "@prisma/client";
 import { normalizeIngredientName } from "./groceryNormalization";
 import { lookupIngredientByName } from "./ingredientLookup";
 import { baseStapleName, isNeverOrdered, UNIVERSAL_STAPLES } from "./groceryStaples";
-import { lookupConversion, lookupPurchaseDefault } from "./ingredientConversions";
+import {
+  canonicalUnitToken,
+  lookupConversion,
+  lookupPurchaseDefault,
+} from "./ingredientConversions";
 import { mergeConvertibleGroups } from "./groceryMerge";
 import { roundNeedQuantity } from "./needQuantity";
 
@@ -129,8 +133,22 @@ const UNIVERSAL_STAPLE_KEYS = new Set(
 // groceryReconcile.ts) re-join `consolidated` to the final items by this exact
 // string. That formula used to be hand-inlined at four call sites; it is one
 // exported function now so the consolidator and the join can never drift.
+//
+// WS9 BUG-174 — the UNIT half is canonicalized too, and only now. The name half
+// has been normalized since 6c-4; the unit half stayed the raw string, so `tsp`
+// and `teaspoon` — the same unit, 11,202 live dish-ingredient rows between them
+// — keyed two buckets and shipped two shopping rows for one ingredient.
+// canonicalUnitToken reads that equivalence out of the factor tables that
+// already spell both (ingredientConversions); it adds no alias data.
+//
+// ⚠️ INSIDE THE KEY ONLY. The bucket's `unit` field keeps the raw first-seen
+// spelling. bucketKeyOf is never persisted — no column holds it, and both join
+// sites build and consume it within one request — but GroceryListItem.unit IS,
+// and groceryReconcile.matchKey compares a STORED unit against a freshly
+// consolidated one. Rewriting the unit here would make every stored `teaspoon`
+// row reconcile as delete+add. The key changes; the data does not.
 export function bucketKeyOf(canonical: string, unit: string): string {
-  return `${normalizeIngredientName(canonical)}|${unit}`;
+  return `${normalizeIngredientName(canonical)}|${canonicalUnitToken(unit)}`;
 }
 
 // WS7-8b B1 (BUG-025-2) NEED-quantity round-up (PRD §2.8 [LOCKED]) moved to

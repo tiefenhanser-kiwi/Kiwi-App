@@ -132,6 +132,77 @@ export function isCountUnit(unit: string): boolean {
   return COUNT_UNITS.has(normalizeUnit(unit));
 }
 
+// ── WS9 BUG-174 — canonical unit token ─────────────────────────────────────
+//
+// normalizeUnit above is `trim().toLowerCase()` and NOTHING ELSE, so `tsp` and
+// `teaspoon` are two different strings everywhere a unit is used as a key. The
+// grocery bucket key (bucketKeyOf) is one of those places, which is how one
+// ingredient reached in two spellings of ONE unit becomes two shopping rows.
+//
+// ⚠️ THIS IS A READER OVER THE TABLES ABOVE, NOT A FIFTH ALIAS MAP. This module
+// already spells every alias — `tsp` and `teaspoon` are both literally `1 / 48`
+// in VOLUME_UNIT_TO_CUPS — so the equivalence is already stated; nothing read
+// it. Two keys of the same table sharing a factor ARE the same unit, and that
+// shared number is the proof. No spelling is added here, and adding one to this
+// module means adding it to the factor table where it belongs.
+//
+// SCOPE — volume + weight ONLY, deliberately. COUNT_UNITS is a SET with no
+// factor, so it offers no proof that two of its members are one unit: `whole`,
+// `piece` and `ct` sit in it because they all resolve grams via gramsPerEach,
+// which is a statement about density lookup, not about the words being
+// spellings of each other. Collapsing them would also need an arbitrary elected
+// representative for a class that has no natural one. `each` therefore stays
+// `each`, and a bucket keyed on it is unchanged.
+//
+// KNOWN GAP, deliberate: a spelling family in NO factor table is untouched —
+// clove/cloves (977 live dish-ingredient rows), can/cans (89), stalk/stalks
+// (30), inch/inches (26). Covering them means putting them in a factor table,
+// which is a data decision, not this one.
+//
+// REPRESENTATIVE: shortest key in the class, ties broken lexicographically.
+// Deterministic and independent of the tables' declaration order, and it elects
+// the token a cook would write (cup / tbsp / tsp / fl oz / oz / lb / g / ml).
+// Nothing DISPLAYS this token — it is a Map key and an in-request join key
+// (bucketKeyOf is never persisted), so the election only has to be stable
+// WITHIN one run, not across releases.
+function electCanonicalTokens(table: Record<string, number>): Map<string, string> {
+  const byFactor = new Map<number, string[]>();
+  for (const key of Object.keys(table)) {
+    const list = byFactor.get(table[key]);
+    if (list) list.push(key);
+    else byFactor.set(table[key], [key]);
+  }
+  const out = new Map<string, string>();
+  for (const keys of byFactor.values()) {
+    const rep = keys.reduce((a, b) =>
+      b.length < a.length || (b.length === a.length && b < a) ? b : a,
+    );
+    for (const k of keys) out.set(k, rep);
+  }
+  return out;
+}
+
+const UNIT_CANONICAL_TOKEN: ReadonlyMap<string, string> = new Map([
+  ...electCanonicalTokens(VOLUME_UNIT_TO_CUPS),
+  ...electCanonicalTokens(WEIGHT_UNIT_TO_GRAMS),
+]);
+
+/**
+ * Fold a unit to the one token that stands for every spelling of it, so two
+ * spellings of ONE unit key the same bucket. Identity for anything this module
+ * carries no factor for — an unknown unit buckets alone and is never
+ * force-merged with something it might not be.
+ *
+ * ⚠️ This is for KEYS ONLY. It must never be written back onto an item's
+ * `unit`: GroceryListItem.unit is persisted and groceryReconcile's matchKey
+ * compares a stored unit against a freshly consolidated one, so rewriting the
+ * unit would make every stored `teaspoon` row reconcile as delete+add.
+ */
+export function canonicalUnitToken(unit: string): string {
+  const u = normalizeUnit(unit);
+  return UNIT_CANONICAL_TOKEN.get(u) ?? u;
+}
+
 /**
  * True when converting this unit to grams REQUIRES a per-ingredient factor
  * (density for volume, grams-per-each for count) — i.e. a table/AI lookup can
