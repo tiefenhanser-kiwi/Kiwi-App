@@ -29,6 +29,7 @@ import {
   isVolumeUnit,
   isWeightUnit,
   lookupConversion,
+  canonicalUnitToken,
   normalizeUnit,
   resolveConversion,
   unitDimension,
@@ -177,9 +178,14 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
 
   // ── sub-unit count (head↔clove) ──
   if (conv?.subUnit) {
-    const parent = normalizeUnit(conv.subUnit.parent);
+    // WS9 BUG-174 follow-through (BUG-137) — compare on the CANONICAL token,
+    // not normalizeUnit. normalizeUnit is trim+lowercase, so a recipe writing
+    // `cloves` and another writing `clove` put TWO entries in childSet, the
+    // size check below failed, and a garlic group the table can obviously
+    // reconcile was refused. `head + clove + cloves` shipped as three rows.
+    const parent = canonicalUnitToken(conv.subUnit.parent);
     const others = units
-      .map(normalizeUnit)
+      .map(canonicalUnitToken)
       .filter((u) => u !== parent);
     const childSet = new Set(others);
     // Mergeable only when the non-parent units are a SINGLE child unit
@@ -188,10 +194,17 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
       const child = [...childSet][0];
       let totalChild = 0;
       for (const it of group) {
-        const u = normalizeUnit(it.unit);
+        const u = canonicalUnitToken(it.unit);
         totalChild += u === parent ? it.quantity * conv.subUnit.perParent : it.quantity;
       }
-      const base = { ...group[0], unit: child, quantity: totalChild };
+      // The canonical token decided WHICH rows sum together; the row keeps a
+      // spelling that actually occurs in the data. canonicalUnitToken is for
+      // keys and comparisons — writing it onto `unit` would change a stored
+      // `cloves` row into `clove` and make groceryReconcile.matchKey see a
+      // delete+add on the first pass after deploy.
+      const childUnit =
+        group.find((g) => canonicalUnitToken(g.unit) === child)?.unit ?? child;
+      const base = { ...group[0], unit: childUnit, quantity: totalChild };
       for (let i = 1; i < group.length; i++) foldMetadata(base, group[i]);
       return base;
     }
@@ -246,6 +259,11 @@ export function mergeConvertibleGroups(
   const out: ConsolidatedItem[] = [];
   for (const key of order) {
     const group = groups.get(key)!;
+    // ⚠️ normalizeUnit, DELIBERATELY NOT canonicalUnitToken. This asks "do the
+    // rows disagree about their unit STRING, so is there anything to reconcile?"
+    // — not "are they the same unit?". Canonicalizing here would collapse
+    // {clove, cloves} to one entry, take the early-out below, and ship the two
+    // rows unmerged: the exact fold this block exists to close.
     const distinctUnits = new Set(group.map((g) => normalizeUnit(g.unit)));
     if (group.length < 2 || distinctUnits.size < 2) {
       out.push(...group);

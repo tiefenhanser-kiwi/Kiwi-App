@@ -187,6 +187,48 @@ const UNIT_CANONICAL_TOKEN: ReadonlyMap<string, string> = new Map([
   ...electCanonicalTokens(WEIGHT_UNIT_TO_GRAMS),
 ]);
 
+// ── WS9 BUG-174 follow-through — COUNT-unit spelling aliases ────────────────
+//
+// The election above derives its equivalences from a shared FACTOR, which is
+// why it reaches volume and weight and stops there. Count units have no factor
+// to share — COUNT_UNITS is a bare Set — so a spelling pair like clove/cloves
+// is invisible to it, and BUG-137's garlic fold stayed blocked: mergeGroup's
+// sub-unit path saw {clove, cloves} as TWO children and refused a group it can
+// obviously reconcile.
+//
+// ⚠️ THIS IS NOT THE "FIFTH MAP". That rule forbade DUPLICATING alias data the
+// factor tables already hold. For count units no such data exists anywhere in
+// the project — this is the missing piece, not a copy of one.
+//
+// ⚠️ AND IT IS NOT A SINGULARISING NORMALIZER. It must never become one.
+// ws9-bug096-ingredient-merge.ts:16-20 records that a general write-path
+// singulariser was measured and REFUTED: 468 collateral renames against 67 real
+// merges, molasses→molass, couscous→couscou. This module's own data reproduces
+// the same trap — `inches` and `inch` are BOTH live, but strip-the-s yields
+// `inche` and pairs nothing. That is precisely why the four rows below are
+// written out by hand rather than computed.
+//
+// SCOPE: the four families where BOTH spellings are live in dish_ingredients,
+// with their row counts at the time of writing:
+//   cloves(16) → clove(961) · cans(1) → can(88) · stalks(1) → stalk(29) ·
+//   inches(1) → inch(25)
+// A mechanical scan for "plural whose singular is also live" returns exactly
+// these four plus cups/cup, and cups is already folded by the volume table.
+// No fifth family is added on speculation: `heads`, `sprigs`, `leaves`,
+// `bunches` and `slices` have ZERO live rows, so folding them would be
+// inventing data, which is the failure this map exists to avoid.
+//
+// UNITS ONLY. `cloves` is also a real INGREDIENT — the catalog carries
+// `cloves`, `ground cloves` and `whole cloves`, the spice, measured in
+// teaspoons. This map is consulted with a UNIT string and never with a name,
+// so the spice is untouched; there is a test that says so.
+const COUNT_UNIT_ALIASES: Record<string, string> = {
+  cloves: "clove",
+  cans: "can",
+  stalks: "stalk",
+  inches: "inch",
+};
+
 /**
  * Fold a unit to the one token that stands for every spelling of it, so two
  * spellings of ONE unit key the same bucket. Identity for anything this module
@@ -200,7 +242,8 @@ const UNIT_CANONICAL_TOKEN: ReadonlyMap<string, string> = new Map([
  */
 export function canonicalUnitToken(unit: string): string {
   const u = normalizeUnit(unit);
-  return UNIT_CANONICAL_TOKEN.get(u) ?? u;
+  // Factor-derived first, then the hand-written count aliases, then identity.
+  return UNIT_CANONICAL_TOKEN.get(u) ?? COUNT_UNIT_ALIASES[u] ?? u;
 }
 
 /**

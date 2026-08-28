@@ -107,13 +107,32 @@ describe("canonicalUnitToken — spelling families fold, magnitudes do not", () 
     assert.notEqual(canonicalUnitToken("piece"), canonicalUnitToken("each"));
   });
 
-  it("does NOT fold sub-unit child spellings — clove/cloves stay apart", () => {
-    // KNOWN GAP, deliberate: neither spelling is in a factor table, so this
-    // fold is out of reach without adding alias data. BUG-137's garlic case is
-    // NOT closed by BUG-174.
+  it("folds the four count families, which no factor table could reach", () => {
+    // The gap this file used to document as open. Count units share no factor,
+    // so the election above cannot see them; COUNT_UNIT_ALIASES is the hand-
+    // written piece that closes it. Written out as literals, one per family.
+    assert.equal(canonicalUnitToken("cloves"), "clove");
     assert.equal(canonicalUnitToken("clove"), "clove");
-    assert.equal(canonicalUnitToken("cloves"), "cloves");
-    assert.notEqual(canonicalUnitToken("clove"), canonicalUnitToken("cloves"));
+    assert.equal(canonicalUnitToken("cans"), "can");
+    assert.equal(canonicalUnitToken("can"), "can");
+    assert.equal(canonicalUnitToken("stalks"), "stalk");
+    assert.equal(canonicalUnitToken("stalk"), "stalk");
+    assert.equal(canonicalUnitToken("inches"), "inch");
+    assert.equal(canonicalUnitToken("inch"), "inch");
+  });
+
+  it("folds NOTHING beyond those four — no speculative plural rule", () => {
+    // These plurals have ZERO live rows. A strip-the-s normalizer would fold
+    // them anyway; this map must not, because that would be inventing data.
+    // (ws9-bug096-ingredient-merge.ts:16-20 — a general singulariser was
+    // measured and refuted: molasses→molass, couscous→couscou.)
+    for (const u of ["heads", "sprigs", "leaves", "bunches", "slices", "pinches"]) {
+      assert.equal(canonicalUnitToken(u), u, u + " must not be folded");
+    }
+    // And the trap in this module's own data: inch/inches are both live, but
+    // strip-the-s yields "inche" and pairs nothing. Hand-written, so it works.
+    assert.equal(canonicalUnitToken("inches"), "inch");
+    assert.notEqual(canonicalUnitToken("inches"), "inche");
   });
 });
 
