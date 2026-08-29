@@ -670,7 +670,13 @@ describe("consolidatePlanIngredients — section mapping", () => {
 });
 
 describe("consolidatePlanIngredients — staple flags", () => {
-  it("flags all 14 universal staples regardless of input casing", async () => {
+  // WS9 BUG-182 grew this list from 14 to 19 entries, and BUG-181 means the
+  // output is no longer one row per entry: the three olive-oil spellings fold
+  // to one row and the three ground-pepper spellings fold to another, so 19
+  // inputs consolidate to 15 rows. The assertion below counts DISTINCT MERGE
+  // GROUPS rather than list length for that reason — a hand-written 15, not a
+  // second read of the map.
+  it("flags every universal staple regardless of input casing", async () => {
     // Variants: lowercase, uppercase, title case — name-matching should be case-insensitive.
     const variants = ["lower", "upper", "title"] as const;
     for (const variant of variants) {
@@ -709,7 +715,7 @@ describe("consolidatePlanIngredients — staple flags", () => {
         planId: TEST_PLAN,
         userId: TEST_USER,
       });
-      assert.equal(out.length, UNIVERSAL_STAPLES.length, `variant=${variant} length`);
+      assert.equal(out.length, 15, `variant=${variant} length`);
       for (const item of out) {
         assert.equal(item.isUniversalStaple, true, `variant=${variant} ${item.canonicalName}`);
       }
@@ -1591,21 +1597,55 @@ describe("consolidatePlanIngredients — BUG-025-5 staple variants", () => {
     return out[0].isUniversalStaple;
   };
 
-  it("salt / pepper / oil variants match the base staple (render greyed)", async () => {
+  // WS9 BUG-182 — THIS TEST WAS INVERTED, NOT FIXED. As written it asserted
+  // that every entry in STAPLE_VARIANT_TO_BASE inherits its base's staple flag,
+  // and it was a correct test of the code as shipped: it passed. It changed
+  // because the RULING changed, not because it was wrong.
+  //
+  // Hans's rule is now explicit membership: a staple flag is held in an
+  // ingredient's own right or not at all, never inherited through a name fold.
+  // So the list below splits in two, and both halves are hand-written literals —
+  // nothing here reads UNIVERSAL_STAPLES or STAPLE_VARIANT_TO_BASE.
+  it("named variants that ARE staples in their own right still render greyed", async () => {
+    // Present in UNIVERSAL_STAPLES by name. `kosher salt` is the load-bearing
+    // one: 3,116 dish references, and PRD §2.2 + §12.7 [LOCKED] require it to
+    // render greyed rather than land on the buy-list.
     for (const v of [
+      "salt",
       "kosher salt",
+      "black pepper",
+      "ground black pepper",
+      "freshly ground black pepper",
+      "olive oil",
+      "extra-virgin olive oil",
+      "extra virgin olive oil",
+    ]) {
+      assert.equal(await stapleFlag(v), true, `${v} should be flagged a universal staple`);
+    }
+  });
+
+  it("variants that are NOT staples in their own right no longer inherit one", async () => {
+    // The BUG-182 complaint and its neighbours. Each of these folds to a staple
+    // under STAPLE_VARIANT_TO_BASE and used to be flagged because of it. None is
+    // in UNIVERSAL_STAPLES, so none is a staple now — no judgement about what
+    // counts as "specialty" was needed to get here.
+    for (const v of [
+      "flaky sea salt", // Hans added this by hand; he does not own it
+      "flaky salt",
       "sea salt",
       "table salt",
       "coarse sea salt",
-      "flaky salt",
+      "fine sea salt",
+      "fine salt",
+      "black peppercorns", // whole, not ground — distinct product (BUG-168)
       "cracked black pepper",
-      "ground black pepper",
-      "freshly ground black pepper",
-      "extra-virgin olive oil",
-      "extra virgin olive oil",
+      "cracked pepper",
+      "ground pepper",
       "light olive oil",
+      "virgin olive oil",
+      "evoo",
     ]) {
-      assert.equal(await stapleFlag(v), true, `${v} should be flagged a universal staple`);
+      assert.equal(await stapleFlag(v), false, `${v} must NOT inherit a staple flag`);
     }
   });
 

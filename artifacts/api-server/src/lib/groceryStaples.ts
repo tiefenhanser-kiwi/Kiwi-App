@@ -5,9 +5,48 @@
 // remain excluded because they're per-household variable. defaultSection
 // values match the StoreSection enum (PRD §12.4 / schema).
 
+// WS9 BUG-182 — THIS LIST IS NOW THE WHOLE TEST. The two isUniversalStaple
+// call sites in groceryList.ts used to fold a name through STAPLE_VARIANT_TO_BASE
+// before checking membership here, so `flaky sea salt` inherited `salt`'s flag
+// and rendered as a pantry staple the shopper already owns. Hans added it by
+// hand precisely because he does not own it.
+//
+// The rule Hans set: a staple flag is set on the SPECIFIC ingredient or not at
+// all, never inherited through a name fold. So the fold is gone from those two
+// sites and the variants that genuinely ARE staples are listed here BY NAME.
+//
+// ⚠️ THIS IS WHY THE OBVIOUS FIX WAS WRONG. Simply deleting the fold would have
+// stripped `kosher salt` — 3,116 dish references, the most-used salt in the
+// catalog — of a flag that PRD §2.2 + §12.7 mark [LOCKED], and commit 77dab10
+// kept the fold at these exact sites specifically to honour that. Explicit
+// membership keeps the locked rule AND fixes the complaint, at the cost of one
+// list nobody has to be clever about.
+//
+// The five additions are exactly the inheriting rows that should stay greyed,
+// and every one has a catalog row today. Deliberately NOT added, which is the
+// bug fixed and falls out with no judgement about what counts as "specialty":
+//   flaky sea salt (68 refs) · fine sea salt (24) · fine salt (3)
+//     — grain size is the product; Hans: "iodized salt is NOT kosher is NOT
+//       flaky sea salt", and you do not already own the one you bought for
+//       finishing.
+//   black peppercorns (12 refs)
+//     — whole, not ground. Same August 27 ruling that kept it out of the merge
+//       map: you would have to grind them, so it is a distinct product.
+//
+// ⚠️ STAPLE_VARIANT_TO_BASE IS NOT DELETED and is not dead. Its other three
+// consumers are untouched: groupConversion's density fallback (BUG-142),
+// groceryListAI's conservation guard, and — via the separate
+// MERGE_GROUP_VARIANT_TO_BASE — merge grouping. Only these two flag sites
+// stopped consulting it.
+//
+// Adding a name here that has no catalog row is a silent no-op; keep this list
+// answerable against `ingredients.canonicalName`.
 export const UNIVERSAL_STAPLES = [
   { canonicalName: "salt", defaultSection: "pantry", defaultUnit: "container" },
+  { canonicalName: "kosher salt", defaultSection: "pantry", defaultUnit: "container" },
   { canonicalName: "black pepper", defaultSection: "pantry", defaultUnit: "container" },
+  { canonicalName: "ground black pepper", defaultSection: "pantry", defaultUnit: "container" },
+  { canonicalName: "freshly ground black pepper", defaultSection: "pantry", defaultUnit: "container" },
   // WS9 BUG-169 — "water" REMOVED from this list (it was added by WS7-5d Block 5
   // Fix 1 on 2026-06-03). That fix had the right intent — "a recipe's '1/2 cup
   // water' must not render as a buyable bottle" — but the wrong mechanism: a
@@ -22,6 +61,8 @@ export const UNIVERSAL_STAPLES = [
   // longer exist.
   { canonicalName: "butter", defaultSection: "dairy_eggs", defaultUnit: "stick" },
   { canonicalName: "olive oil", defaultSection: "pantry", defaultUnit: "bottle" },
+  { canonicalName: "extra-virgin olive oil", defaultSection: "pantry", defaultUnit: "bottle" },
+  { canonicalName: "extra virgin olive oil", defaultSection: "pantry", defaultUnit: "bottle" },
   { canonicalName: "vegetable oil", defaultSection: "pantry", defaultUnit: "bottle" },
   { canonicalName: "sugar", defaultSection: "pantry", defaultUnit: "bag" },
   { canonicalName: "all-purpose flour", defaultSection: "pantry", defaultUnit: "bag" },

@@ -11,7 +11,11 @@ import type { PrismaClient, StoreSection } from "@prisma/client";
 
 import { normalizeIngredientName } from "./groceryNormalization";
 import { lookupIngredientByName } from "./ingredientLookup";
-import { baseStapleName, isNeverOrdered, UNIVERSAL_STAPLES } from "./groceryStaples";
+// WS9 BUG-182 — baseStapleName is no longer imported here. Its two consumers in
+// this file were the isUniversalStaple flag sites, and both now test explicit
+// membership instead of folding. The function itself is untouched and still
+// serves groupConversion (BUG-142) and groceryListAI's conservation guard.
+import { isNeverOrdered, UNIVERSAL_STAPLES } from "./groceryStaples";
 import {
   canonicalUnitToken,
   lookupConversion,
@@ -434,8 +438,12 @@ export async function consolidatePlanIngredients(
             quantity: 0,
             unit,
             sectionKey: sectionForCategory(ing?.category),
+            // WS9 BUG-182 — EXPLICIT MEMBERSHIP, NO INHERITANCE. The test is
+            // the normalised canonical name itself; the baseStapleName fold is
+            // gone from here. A staple flag is now held in an ingredient's own
+            // right or not at all. See UNIVERSAL_STAPLES for why.
             isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(
-              baseStapleName(normalizeIngredientName(canonical)),
+              normalizeIngredientName(canonical),
             ),
             isUserPantryStaple: false, // filled below from user.pantryStaples
             isRecurringItem: false, // filled below from preferences.recurringGroceryItems
@@ -561,7 +569,9 @@ export async function consolidatePlanIngredients(
       quantity: def ? def.purchaseQuantity : 1,
       unit: def ? def.purchaseUnit : "each",
       sectionKey: "extras",
-      isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(baseStapleName(norm)),
+      // WS9 BUG-182 — explicit membership, no inheritance (see the bucket
+      // site above and UNIVERSAL_STAPLES).
+      isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(norm),
       isUserPantryStaple: userPantryKeys.has(norm),
       isRecurringItem: true,
       sources: [],
