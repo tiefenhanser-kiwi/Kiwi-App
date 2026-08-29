@@ -43,6 +43,14 @@ const RETIRED_KEYS: readonly string[] = [
   "grocery.ambiguous_item_flag",
   // WS7-8a B2 — replaced by prep.narrate_steps (BLENDED: code does the math).
   "prep.aggregation_logic",
+  // WS9 BUG-185 — never implemented. Seeded in 6a-3 as a placeholder body
+  // ("[PLACEHOLDER for wizard.optimization_notes — replace via 6a-3+
+  // sub-phase]") and never given one. Nothing has ever called it: the
+  // why-this-works bullets are the `whyBullets` field of the three plan
+  // generators, which is where BUG-179 fixed the cleanup claim. It survived
+  // only because a placeholder row looks like a real row in the prompts table,
+  // and it made the BUG-179 search briefly point at the wrong prompt.
+  "wizard.optimization_notes",
 ];
 
 const placeholder = (key: string): string =>
@@ -1939,14 +1947,6 @@ const PROMPTS: PromptSeed[] = [
     defaultModel: MODEL_SONNET,
     defaultMode: "tool",
     body: placeholder("wizard.cook_now.generate"),
-  },
-  {
-    key: "wizard.optimization_notes",
-    description: "Generate the why-this-works bullets for a plan candidate.",
-    variables: [],
-    defaultModel: MODEL_HAIKU,
-    defaultMode: "text",
-    body: placeholder("wizard.optimization_notes"),
   },
   {
     key: "import.url.parse_fallback",

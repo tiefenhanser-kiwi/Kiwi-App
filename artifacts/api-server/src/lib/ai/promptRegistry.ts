@@ -164,17 +164,10 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
         "Generate a fresh recipe when no catalog match exists for Cook Now.",
     },
   ],
-  // PRD §15.4.2 — wizard reasoning sidecar
-  [
-    "wizard.optimization_notes",
-    {
-      body: placeholder("wizard.optimization_notes"),
-      defaultModel: MODEL_HAIKU,
-      defaultMode: "text",
-      toolDescription:
-        "Generate the why-this-works bullets for a plan candidate.",
-    },
-  ],
+  // WS9 BUG-185 — wizard.optimization_notes removed. PRD §15.4.2 described a
+  // reasoning sidecar that was never built; the key carried a placeholder body
+  // and had no caller. Retired via RETIRED_KEYS in the seed, which hard-deletes
+  // the row and cascades its versions.
   // 6c-1 — Reformat-for-Kiwi pass and import paths
   [
     "import.url.parse_fallback",
