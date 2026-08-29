@@ -48,6 +48,45 @@ const RETIRED_KEYS: readonly string[] = [
 const placeholder = (key: string): string =>
   `[PLACEHOLDER for ${key} — replace via 6a-3+ sub-phase]`;
 
+// WS9 BUG-179 — the shared cleanup/effort claim rules, used by all three plan
+// generators (build-plans, Tell Kiwi, Surprise-me) so the rule lives in ONE
+// place and cannot drift between them.
+//
+// Hans, on a live plan that said "Meals 1 and 3 both use the sheet pan — same
+// pan, similar oven temp, so cleanup is cut in half on those nights": that is
+// false. Two sheet-pan dinners on two different nights are two preheats and two
+// washes. You wash the pan in between.
+//
+// The false claim was not an accident of generation — it was TAUGHT. The
+// directed prompt carried "Salmon Tuesday + roasted veggies Wednesday — same
+// sheet pan, half the cleanup" as a STRONG example: two dishes, two nights,
+// shared equipment, halved-cleanup claim. That example is replaced here, not
+// softened.
+//
+// ⚠️ THE CLAIM IS NOT BANNED. Hans: "I don't want to prevent it from saying
+// 'grill every night this week, keep the dishes to a minimum'." A method being
+// inherently low-dish is a real per-night property and stays sayable. What is
+// wrong is spreading one night's saving across nights that do not share it.
+//
+// ⚠️ SECOND RULE, separate from the first: claim the DISH COUNT, never the
+// total effort. Hans: "a charcoal grill is more work than cleaning a plan." Few
+// dishes does not mean an easy night.
+const CLEANUP_CLAIM_RULES = `## Cleanup and effort claims — what is true, and what only sounds true
+
+A cleanup saving is only real when the two things actually share the work.
+
+Allowed:
+- Two dishes cooked the SAME NIGHT at one oven temperature — one preheat, one pan, one wash.
+- A method that is inherently low-cleanup, stated as a per-night property: "half your week is a one-pan night", "grill every night this week and keep the dishes to a minimum".
+- Prep genuinely done once and used across several nights.
+- Ingredients shared across meals — buy once, less waste.
+
+Not allowed:
+- The same equipment used on DIFFERENT nights. You wash it in between; nothing is saved.
+- The same oven temperature on DIFFERENT nights. Those are separate preheats.
+
+And never equate few dishes with an easy night. A charcoal grill is more work than washing a sheet pan, so claim the dish count, not the total effort — say "one pan", never "half the work".`;
+
 // D-WS9-038 / BUG-039 (Fix 3) — the shared catalog-compose instruction, used by
 // build-plans, Surprise-me, and Tell Kiwi so all three prefer the shelf the same
 // way. Strengthened from the timid B-1 wording: shelf-usage is the DEFAULT when
@@ -202,8 +241,10 @@ If for some reason the constraints are too tight to produce 3 distinct candidate
 
 Each candidate's \`whyBullets\` should highlight a CONCRETE optimization the plan captures, not a vague quality. Strong examples:
 - "The cilantro from your tacos gets used up in the paired curry — no half-bunch wasted"
-- "Salmon Tuesday + roasted veggies Wednesday — same sheet pan, half the cleanup"
+- "Three of the five nights are one-pan dinners — dinner and its sides share a sheet pan"
 - "All 5 meals fit your no-Instant-Pot kitchen"
+
+${CLEANUP_CLAIM_RULES}
 
 When you choose meals to fill gaps (the meals the user did not name), favor choices that use up partial perishables and small-quantity pantry items across the plan — the rest of a bunch of herbs, the leftover of a can where one recipe needs a spoonful. Do NOT collapse the fill meals onto one protein just to force overlap; variety across proteins and cuisines matters more than overlap. Sensible bulk buys are still fine (one pack of chicken thighs across two meals) — just don't bend the whole plan toward one ingredient. The user's explicitly named meals are fixed; this applies only to the meals you add.
 
@@ -259,7 +300,9 @@ Generate the candidates now. Return ONLY the tool_use call.`;
 // same hidden/planning/preferences context as the directed generate; this
 // prompt always produces 3 distinct CROWD-PLEASER candidates from model
 // knowledge, strictly inside the user's stored hard constraints. Sonnet, tool.
-const WIZARD_SURPRISE_GENERATE_BODY = `You are Kiwi's meal-planning AI. The user tapped "Surprise me" — they gave NO specific request. Your job is to generate plans of popular, mainstream, crowd-pleaser meals that most households love, tailored to this user's stored preferences.
+// WS9 BUG-179 — exported so cleanupClaimRules.test.ts can assert against the
+// REAL body. Its two siblings were already exported for the same reason.
+export const WIZARD_SURPRISE_GENERATE_BODY = `You are Kiwi's meal-planning AI. The user tapped "Surprise me" — they gave NO specific request. Your job is to generate plans of popular, mainstream, crowd-pleaser meals that most households love, tailored to this user's stored preferences.
 
 Your sole deliverable is the structured tool_use response. Do not narrate, summarize, or add commentary. The JSON is the entire response. Never break character with chatbot phrases.
 
@@ -297,7 +340,9 @@ If the constraints are too tight to produce 3 distinct candidates, return 1-2 an
 
 # whyBullets, macros, tone
 
-\`whyBullets\` highlight a CONCRETE reason the plan works (a crossover ingredient, a shared sheet pan, a fits-your-kitchen note) — never "saves time" or "healthy and delicious". \`dailyMacros\` is the per-day average, whole numbers. Titles sound like a friend recommending dinner. Plan-level titles are specific to the plan's real through-line and vary run to run. Treat every entry in \`planningContext.recentPlanNames\` as a HARD exclusion, not a soft nudge: the user has already seen those plans — including any shown earlier in THIS session — and tapped "Surprise Me again" precisely to get something different, so never return one of them again. Likewise avoid rebuilding the dinners listed in \`planningContext.recentMeals\`: a fresh title over the same meals is still a repeat.
+\`whyBullets\` highlight a CONCRETE reason the plan works (a crossover ingredient, a one-pan night, a fits-your-kitchen note) — never "saves time" or "healthy and delicious". \`dailyMacros\` is the per-day average, whole numbers. Titles sound like a friend recommending dinner. Plan-level titles are specific to the plan's real through-line and vary run to run. Treat every entry in \`planningContext.recentPlanNames\` as a HARD exclusion, not a soft nudge: the user has already seen those plans — including any shown earlier in THIS session — and tapped "Surprise Me again" precisely to get something different, so never return one of them again. Likewise avoid rebuilding the dinners listed in \`planningContext.recentMeals\`: a fresh title over the same meals is still a repeat.
+
+${CLEANUP_CLAIM_RULES}
 
 ${CATALOG_SHELF_SECTION}
 
@@ -850,6 +895,8 @@ Weak examples to avoid:
 - "Saves you time" (vague, time-saved claims are forbidden)
 - "Healthy and delicious" (says nothing)
 - "Variety pack" (says nothing)
+
+${CLEANUP_CLAIM_RULES}
 
 Optimize each plan to MINIMIZE FOOD WASTE, not to maximize ingredient overlap. The goal is that perishables and small-quantity items get fully used up across the week — the half-bunch of herbs, the rest of the bunch of scallions, the leftover of a 7-oz can where one recipe needs 1 Tbsp. Plan meals so these partial amounts are consumed rather than thrown out.
 
