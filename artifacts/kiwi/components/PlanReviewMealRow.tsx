@@ -256,10 +256,33 @@ export function PlanReviewMealRow({
               planItemId: row.planItemId,
               mealId: row.mealId,
             });
-            // TODO(3f): repoint to the D-WS9-004 plan-scoped ingredient editor
-            // ("just this time", MealPlanItem-level). Until 3f lands it, Edit
-            // opens Meal Detail — the existing edit path (same as card-body tap).
-            navigateToDetail();
+            // WS9 BUG-180 — Edit reaches the meal EDIT surface. It used to call
+            // navigateToDetail(), i.e. the identical push a card-body tap makes,
+            // so the button labelled Edit opened a read view and duplicated the
+            // control next to it.
+            //
+            // meal-builder in PLAN CONTEXT is that surface, and it already
+            // exists: passing mealId + planId + planItemId sets
+            // isEditFromPlanContext, which drives the PRD §2.5 edit-from-plan
+            // vs. global-save prompt. This is the same push meal/[id].tsx's own
+            // onEdit makes; the two edit affordances now agree.
+            //
+            // ⚠️ The param is `mealId`, NOT `id`. meal/[id].tsx reads `id` from
+            // its route; meal-builder reads `mealId` from useLocalSearchParams,
+            // and an `id` here would silently land in fresh-create mode.
+            //
+            // TODO(3f): D-WS9-004's plan-scoped ingredient editor ("just this
+            // time", MealPlanItem-level) is still 3f's work. When it lands it
+            // replaces this destination; until then Edit correctly opens the
+            // meal editor rather than the meal viewer.
+            router.push({
+              pathname: "/meal-builder",
+              params: {
+                mealId: row.mealId,
+                planId,
+                planItemId: row.planItemId,
+              },
+            });
           }}
           style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
         >

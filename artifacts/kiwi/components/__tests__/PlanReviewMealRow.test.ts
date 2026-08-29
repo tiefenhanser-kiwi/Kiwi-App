@@ -1,7 +1,7 @@
 // WS9 L2b — PlanReviewMealRow R2 action-collapse tests (D-WS9-018).
 // The row went from 5 inline actions (View · Change Meal · Change Recipe ·
 // Find Similar · Compost) to 4 + card-body View:
-//   Edit → Meal Detail (existing edit path; 3f repoints to the ingredient editor)
+//   Edit → /meal-builder in plan context (BUG-180; 3f repoints to D-WS9-004)
 //   Swap for Different Meal → onChangeMeal (3d repoints to the merged swap sheet)
 //   Swap for Similar Meal   → onFindSimilar (3d repoints to the merged swap sheet)
 //   Remove from plan        → onCompost (still a soft-delete)
@@ -160,7 +160,12 @@ test("PlanReviewMealRow: renders exactly the 4 R2 actions, and Change Recipe is 
   renderer.unmount();
 });
 
-test("PlanReviewMealRow: Edit opens Meal Detail (existing edit path, 3f repoints later)", async () => {
+// WS9 BUG-180 — INVERTED, not deleted. This test asserted `/meal/[id]`, which
+// was a correct test of the code as shipped: Edit really did open Meal Detail.
+// It changes because that was the bug — a button labelled Edit opened a READ
+// view, and the identical push a card-body tap already makes, so the control
+// duplicated its neighbour instead of doing anything.
+test("PlanReviewMealRow: Edit opens the meal EDIT surface in plan context", async () => {
   const { renderer, tree } = await render();
   const btn = findPressableByText(tree, "Edit");
   assert.ok(btn, "Edit action not found");
@@ -168,9 +173,37 @@ test("PlanReviewMealRow: Edit opens Meal Detail (existing edit path, 3f repoints
     (btn!.props!.onPress as () => void)();
   });
   assert.equal(pushedRoutes.length, 1);
-  assert.equal(pushedRoutes[0].pathname, "/meal/[id]");
-  assert.equal(pushedRoutes[0].params.id, "meal-1");
+  assert.equal(pushedRoutes[0].pathname, "/meal-builder");
+  // `mealId`, NOT `id`. meal-builder reads mealId from useLocalSearchParams; an
+  // `id` param lands it in fresh-create mode with no meal loaded.
+  assert.equal(pushedRoutes[0].params.mealId, "meal-1");
+  assert.equal(pushedRoutes[0].params.id, undefined, "must not send `id`");
+  // All three together are what set isEditFromPlanContext, which drives the
+  // PRD §2.5 edit-from-plan vs. global-save prompt. Any one missing and the
+  // builder takes the library-edit path instead.
+  assert.equal(pushedRoutes[0].params.planId, "plan-1");
   assert.equal(pushedRoutes[0].params.planItemId, "pi-1");
+  renderer.unmount();
+});
+
+test("PlanReviewMealRow: Edit and the card-body tap now go to DIFFERENT surfaces", async () => {
+  // The defect in one assertion: before BUG-180 these produced identical
+  // pushes. Edit edits; tapping the card views.
+  const { renderer, tree } = await render();
+  const editBtn = findPressableByText(tree, "Edit");
+  await act(async () => {
+    (editBtn!.props!.onPress as () => void)();
+  });
+  const editPush = pushedRoutes[0];
+  const title = findPressableByText(tree, "Lemon Herb Salmon");
+  assert.ok(title, "card-body pressable not found");
+  await act(async () => {
+    (title!.props!.onPress as () => void)();
+  });
+  const tapPush = pushedRoutes[1];
+  assert.equal(editPush.pathname, "/meal-builder");
+  assert.equal(tapPush.pathname, "/meal/[id]");
+  assert.notEqual(editPush.pathname, tapPush.pathname);
   renderer.unmount();
 });
 
