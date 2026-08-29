@@ -126,6 +126,44 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
   const conv = groupConversion(group);
   const units = group.map((g) => g.unit);
 
+  // ── WS9 BUG-181: same NAME-GROUP, same UNIT → exact sum, no factor ──
+  //
+  // Runs FIRST, before any path that consults a conversion. Same unit means the
+  // sum is arithmetic: no density, no sub-unit ratio, no dimension check, and
+  // therefore nothing to refuse. The conservation invariant BUG-142 protects is
+  // not weakened here, it is trivially satisfied — 3 tbsp + 5 tbsp + 5 tbsp is
+  // 13 tbsp under every conversion table there could ever be.
+  //
+  // ⚠️ WHY THIS IS SAFE, AND IT IS THE WHOLE ARGUMENT: `bucketKeyOf` already
+  // keys on (normalizedCanonical, canonicalUnitToken), so two rows sharing a
+  // canonical name AND a unit token are ONE bucket and can never both reach
+  // here. A same-unit multiple inside a group can therefore only exist because
+  // MERGE_GROUP_VARIANT_TO_BASE folded two DIFFERENT canonical names together.
+  // This branch reaches exactly the 11 folded family members (5 olive-oil
+  // spellings, 6 ground-black-pepper spellings) and nothing else in the catalog.
+  //
+  // BUG-181 was three olive oil rows — "olive oil" 3 tbsp, "extra virgin olive
+  // oil" 5 tbsp, "extra-virgin olive oil" 5 tbsp — reaching ONE merge group and
+  // being shipped as three bottles. The fold was already correct; the group was
+  // refused downstream because every member carried the same unit, which the
+  // cross-unit paths below read as "nothing to reconcile".
+  //
+  // The comparison is canonicalUnitToken, not normalizeUnit: {tablespoon, tbsp}
+  // across two folded names is one unit reached by two spellings and must sum.
+  // The row keeps group[0].unit — a spelling that actually occurs in the data —
+  // for the same reason BUG-174 gives: writing a canonical token onto `unit`
+  // would make groceryReconcile.matchKey see a delete+add on the next pass.
+  const unitTokens = new Set(units.map(canonicalUnitToken));
+  if (unitTokens.size === 1) {
+    let total = 0;
+    for (const it of group) total += it.quantity;
+    if (total > 0) {
+      const base = { ...group[0], quantity: total };
+      for (let i = 1; i < group.length; i++) foldMetadata(base, group[i]);
+      return base;
+    }
+  }
+
   // ── WS9 BUG-176: same dimension → NO density needed ──
   //
   // Runs BEFORE the grams path deliberately. Within one dimension the density
@@ -259,13 +297,20 @@ export function mergeConvertibleGroups(
   const out: ConsolidatedItem[] = [];
   for (const key of order) {
     const group = groups.get(key)!;
-    // ⚠️ normalizeUnit, DELIBERATELY NOT canonicalUnitToken. This asks "do the
-    // rows disagree about their unit STRING, so is there anything to reconcile?"
-    // — not "are they the same unit?". Canonicalizing here would collapse
-    // {clove, cloves} to one entry, take the early-out below, and ship the two
-    // rows unmerged: the exact fold this block exists to close.
-    const distinctUnits = new Set(group.map((g) => normalizeUnit(g.unit)));
-    if (group.length < 2 || distinctUnits.size < 2) {
+    // WS9 BUG-181 — the DISTINCT-UNIT PRECONDITION IS GONE. It used to read
+    // `group.length < 2 || distinctUnits.size < 2`, which made this helper a
+    // CROSS-unit reconciler only: a group whose members all carried the same
+    // unit took this early-out and shipped unmerged. That is precisely how
+    // three olive oil rows, all in tablespoons, reached one merge group and
+    // still printed three bottles — and it made
+    // MERGE_GROUP_VARIANT_TO_BASE dead for the commonest case it exists for.
+    //
+    // Only the arity test survives. A one-member group has nothing to merge;
+    // every group of two or more is now offered to mergeGroup, which decides
+    // on its own terms and still returns null for anything it cannot
+    // reconcile. Nothing became less conservative: the same-unit branch is
+    // exact arithmetic, and every cross-unit path below is unchanged.
+    if (group.length < 2) {
       out.push(...group);
       continue;
     }

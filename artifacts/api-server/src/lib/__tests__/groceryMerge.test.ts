@@ -299,3 +299,98 @@ describe("BUG-142 — staple-variant merge via the base staple's conversion", ()
     assert.equal(out.length, 2);
   });
 });
+
+// ── WS9 BUG-181 — same name-group, same unit ────────────────────────────────
+// The defect: MERGE_GROUP_VARIANT_TO_BASE folded the olive-oil spellings into
+// one group correctly, and mergeConvertibleGroups then refused the group
+// because every member carried the same unit. Three tablespoon rows shipped as
+// three bottles. Every expected value below is a hand-written literal; nothing
+// reads MERGE_GROUP_VARIANT_TO_BASE or any conversion table.
+describe("mergeConvertibleGroups — same-unit fold (BUG-181)", () => {
+  it("merges the three olive oil spellings, all in tablespoons, into ONE 13-tbsp row", () => {
+    // The live defect, verbatim from Hans's plan export d0d1bea8:
+    //   olive oil              3 tablespoon  (Spicy Arrabbiata)
+    //   extra virgin olive oil 5 tablespoon  (Salmon | Cherry Tomatoes | Garlic Spinach)
+    //   extra-virgin olive oil 5 tablespoon  (Sheet-Pan Chicken | Smashed Potatoes)
+    // 13 tablespoons of one product, ordered as three bottles.
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "olive oil", quantity: 3, unit: "tablespoon" }),
+      item({ canonicalName: "extra virgin olive oil", quantity: 5, unit: "tablespoon" }),
+      item({ canonicalName: "extra-virgin olive oil", quantity: 5, unit: "tablespoon" }),
+    ]);
+    assert.equal(out.length, 1, "three spellings of one bottle must be one row");
+    assert.equal(out[0].quantity, 13, "3 + 5 + 5 = 13, exactly");
+    assert.equal(out[0].unit, "tablespoon", "keeps a spelling that occurs in the data");
+    // Provenance from all three rows must survive onto the survivor.
+    assert.equal(out[0].sources.length, 3);
+  });
+
+  it("merges the ground-black-pepper spellings the same way", () => {
+    // The other folded family. `black pepper` carries no gramsPerCup, so this
+    // could only ever merge through the same-unit path — which is the point.
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "black pepper", quantity: 2, unit: "teaspoon" }),
+      item({ canonicalName: "ground black pepper", quantity: 1.5, unit: "teaspoon" }),
+      item({ canonicalName: "freshly ground black pepper", quantity: 0.5, unit: "teaspoon" }),
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].quantity, 4, "2 + 1.5 + 0.5 = 4");
+  });
+
+  it("sums across two SPELLINGS of one unit (tablespoon + tbsp)", () => {
+    // canonicalUnitToken, not normalizeUnit: these are one unit reached twice.
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "olive oil", quantity: 2, unit: "tablespoon" }),
+      item({ canonicalName: "extra-virgin olive oil", quantity: 3, unit: "tbsp" }),
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].quantity, 5, "2 + 3 = 5 tablespoons");
+  });
+
+  it("consults NO conversion factor — an ingredient with no density still sums", () => {
+    // `black peppercorns` has no gramsPerCup and is deliberately absent from
+    // the merge map, so it groups under its own name; two rows of it in one
+    // unit must still sum without any table being reachable.
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "black peppercorns", quantity: 1, unit: "teaspoon" }),
+      item({ canonicalName: "black peppercorns", quantity: 2, unit: "teaspoon" }),
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].quantity, 3);
+  });
+
+  it("does NOT merge two salts in the same unit — the fold is what licenses this", () => {
+    // The negative that proves the change rides on MERGE_GROUP_VARIANT_TO_BASE
+    // and not on "same unit" alone. BUG-170/168: iodized is not kosher is not
+    // flaky sea salt, so these group separately and must stay two rows even
+    // though both are teaspoons.
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "kosher salt", quantity: 2, unit: "teaspoon" }),
+      item({ canonicalName: "flaky sea salt", quantity: 1, unit: "teaspoon" }),
+    ]);
+    assert.equal(out.length, 2, "different salts are different products");
+  });
+
+  it("merges a DIMENSIONLESS same-unit pair — the case only this branch can serve", () => {
+    // THE DISCRIMINATING TEST. `pinch` has no dimension and is neither a weight
+    // nor a volume unit, so BUG-176's same-dimension path refuses it, the grams
+    // path never runs (isMeasured is false), and there is no subUnit parent.
+    // Every other route to a merge is closed; only the same-unit branch can
+    // answer. Without it these two folded pepper spellings ship as two rows.
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "black pepper", quantity: 1, unit: "pinch" }),
+      item({ canonicalName: "ground black pepper", quantity: 2, unit: "pinch" }),
+    ]);
+    assert.equal(out.length, 1, "one pepper container, not two");
+    assert.equal(out[0].quantity, 3, "1 + 2 = 3 pinches");
+    assert.equal(out[0].unit, "pinch");
+  });
+
+  it("does NOT merge two unrelated canonicals that happen to share a unit", () => {
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "yellow onion", quantity: 2, unit: "each" }),
+      item({ canonicalName: "white onion", quantity: 3, unit: "each" }),
+    ]);
+    assert.equal(out.length, 2);
+  });
+});
