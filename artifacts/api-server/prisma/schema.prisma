@@ -389,6 +389,45 @@ model PantryStaple {
   @@map("pantry_staples")
 }
 
+// WS9 D-WS9-189 Block A1 — the three ingredient relationships.
+//
+// Hans sorted the catalog's fragmentation into three kinds without naming them,
+// and the whole failure of today's approach is that ONE mechanism serves all
+// three by inferring intent from names: STAPLE_VARIANT_TO_BASE correctly folds
+// `extra virgin olive oil` -> `olive oil` (synonym) while wrongly folding
+// `flaky sea salt` -> `salt` (distinct) — in the same map, indistinguishable to
+// the code. Naming the relationship makes each future instance a DATA ROW
+// rather than a bug.
+//
+//   synonym   same purchase, different names ("granulated" / "white" sugar)
+//   component different ingredients, ONE thing you buy (lime -> lime juice;
+//             pepperoncini -> its brine, out of one jar)
+//   distinct  different products sharing a word (iodized salt is NOT kosher is
+//             NOT flaky sea salt; peppercorns are not ground black pepper)
+enum IngredientRelationLabel {
+  synonym
+  component
+  distinct
+}
+
+// Judge confidence. DELIBERATELY AN ENUM, NOT A FLOAT: a model asked for 0..1
+// emits false precision (0.87 vs 0.85 carries no information), and the only
+// decision this field drives is binary — auto-accept, or surface to Hans.
+// Three buckets is the whole resolution that decision needs.
+enum IngredientRelationConfidence {
+  high
+  medium
+  low
+}
+
+// Who authored the row. `human` is never overwritten by `ai_judge` — see
+// reviewedByHuman on IngredientRelation.
+enum IngredientRelationSource {
+  ai_judge
+  human
+  seed
+}
+
 model Ingredient {
   id                  String   @id @default(uuid())
   canonicalName       String   @unique
@@ -420,6 +459,11 @@ model Ingredient {
   dishIngredients DishIngredient[]
   groceryItems    GroceryListItem[]
   aliasRows       IngredientAlias[]
+  // WS9 D-WS9-189 A1 — ROW->ROW relationships. Deliberately separate from
+  // aliasRows above, which is STRING->ROW; the two are never consulted
+  // together (D-WS9-193).
+  relationsFrom   IngredientRelation[] @relation("IngredientRelationFrom")
+  relationsTo     IngredientRelation[] @relation("IngredientRelationTo")
 
   @@map("ingredients")
 }
@@ -464,6 +508,111 @@ model IngredientAlias {
 
   @@index([ingredientId])
   @@map("ingredient_aliases")
+}
+
+// WS9 D-WS9-189 Block A1 — the ingredient-relationship substrate.
+//
+// D-WS9-193 — THIS TABLE AND `ingredient_aliases` NEVER CONSULT EACH OTHER.
+// They answer different questions at different stages:
+//   IngredientAlias    maps a STRING -> a ROW, at name resolution
+//                      (ingredientLookup.ts:119 / :159, ingredientSearch.ts:58 / :73)
+//   IngredientRelation maps a ROW    -> a ROW, at consolidation
+// A synonym verdict writes HERE and only here; it never mints an alias row.
+//
+// D-WS9-195 (context — Block B builds it, not A1): pooling runs as its own pass
+// inside consolidatePlanIngredients, between the recurring match-or-append and
+// mergeConvertibleGroups — never as a branch inside mergeGroup, whose contract
+// is conservation and which pooling deliberately violates. This table is shaped
+// so that pass can read it without further joins.
+//
+// WHY `distinct` IS STORED RATHER THAN OMITTED: an absent row and a
+// judged-different row are indistinguishable, so every future pass would
+// re-judge the same pairs forever and re-pay for them. A recorded "these are
+// deliberately different" is what makes the decision durable — and it is the
+// row Hans's ruling ("iodized salt is NOT kosher is NOT flaky sea salt") lives
+// in.
+model IngredientRelation {
+  id               String @id @default(uuid())
+  fromIngredientId String
+  toIngredientId   String
+
+  label IngredientRelationLabel
+
+  // DIRECTIONALITY, and it differs by label:
+  //   component — DIRECTED, and the direction is load-bearing: `from` is the
+  //               thing you BUY (lime), `to` is the thing the recipe CALLS FOR
+  //               (lime juice). Reversing it inverts the arithmetic.
+  //   synonym /  SYMMETRIC. Stored in canonical order (from.canonicalName <
+  //   distinct    to.canonicalName, ordinal compare) so one pair is one row and
+  //               `--apply` stays idempotent. Readers sort the pair the same
+  //               way rather than querying both directions.
+
+  // ── D-WS9-194: every component edge carries its magnitude ────────────────
+  // A label alone says the edge EXISTS and nothing about the arithmetic, and
+  // Block B cannot compute a pool from that. Neither field is derivable from
+  // anything already stored: `conversionRef.gramsPerCup` relates volume to mass
+  // and says nothing about how much of a lemon is juice.
+  //
+  // yieldQuantity / yieldUnit — how much `to` one unit of `from` yields:
+  //   lemon -> lemon juice : 3, "tbsp"   (~2-3 tbsp of juice per lemon)
+  //   lemon -> lemon zest  : 1, "tbsp"   (~1 tbsp of zest per lemon)
+  // Required (non-null) on `component`; null on synonym / distinct.
+  yieldQuantity Float?
+  yieldUnit     String?
+
+  // coHarvestable — CAN THIS DERIVATION SHARE A PHYSICAL UNIT WITH THE OTHER
+  // co-harvestable derivations of the same `from`?
+  //
+  // ⚠️ LOAD-BEARING, and the reason the pool takes `max` per dimension rather
+  // than `sum`. One lemon yields juice AND zest, so the need is
+  // max(lemons_for_juice, lemons_for_zest) — not their sum. But juice and
+  // WEDGES do not share: a wedge is the fruit, so those add.
+  //
+  // The per-edge encoding: true  = drawn from the shared pool, so it joins a
+  //                                max() across the co-harvestable edges
+  //                        false = consumes the unit exclusively, so it adds
+  // Lime's pool is therefore max(juice, zest) + wedges. Without this field the
+  // pool systematically over- or under-buys. Required on `component`, null
+  // otherwise.
+  coHarvestable Boolean?
+
+  // ── provenance ───────────────────────────────────────────────────────────
+  source     IngredientRelationSource
+  confidence IngredientRelationConfidence
+  // Judge model id + prompt version, so a verdict is attributable to the
+  // instrument that produced it. D-WS9-197 exists because a verdict taken under
+  // a defective rubric is not a verdict; a re-run under a fixed rubric has to
+  // be able to find the rows the old one wrote.
+  judgeModel    String?
+  promptVersion String?
+  // The judge's one-line reason. Kept because the CSV Hans reviews is only
+  // legible with it, and because a wrong row stays diagnosable later.
+  rationale String?
+  // The batch this pair was judged in (D-WS9-197 half 1). Null for human/seed.
+  familyKey String?
+  // D-WS9-197 half 2 — the structural guard fired on this pair: analogous pairs
+  // received divergent labels, or a synonym chain contradicts a distinct.
+  contradictionFlag Boolean @default(false)
+
+  // ⚠️ THE OVERWRITE GUARD. `--apply` upserts, and an upsert that clobbers a
+  // human decision with an AI verdict silently destroys the only rows anyone
+  // actually vetted. True => --apply skips the row entirely.
+  reviewedByHuman Boolean   @default(false)
+  reviewedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  from Ingredient @relation("IngredientRelationFrom", fields: [fromIngredientId], references: [id], onDelete: Cascade)
+  to   Ingredient @relation("IngredientRelationTo", fields: [toIngredientId], references: [id], onDelete: Cascade)
+
+  // One row per ordered pair. With canonical ordering on the symmetric labels
+  // this makes a re-run a no-op rather than a duplicate.
+  @@unique([fromIngredientId, toIngredientId])
+  @@index([fromIngredientId])
+  @@index([toIngredientId])
+  @@index([label])
+  @@map("ingredient_relations")
 }
 
 model Dish {
