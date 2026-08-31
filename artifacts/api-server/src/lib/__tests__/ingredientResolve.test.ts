@@ -467,3 +467,60 @@ describe("resolveIngredients — alias awareness (BUG-096)", () => {
     assert.equal(captured.length, 2);
   });
 });
+
+// ── WS9 BUG-191 ─────────────────────────────────────────────────────────────
+//
+// Each cluster below is a case that FAILED before BUG-191 and is the direct
+// cause of a BUG-186 mis-filed aisle. See ingredientResolve.ts for the rules.
+describe("inferCategory — BUG-191 cheeses without a 'cheese' token", () => {
+  it("routes Italian/Spanish/Indian cheese names to Dairy, not the Pantry fallback", () => {
+    // Was "Pantry" (INGREDIENT_CATEGORY_FALLBACK — matched no rule at all).
+    assert.equal(inferCategory("parmigiano-reggiano"), "Dairy");
+    assert.equal(inferCategory("pecorino romano"), "Dairy");
+    assert.equal(inferCategory("queso fresco"), "Dairy");
+    assert.equal(inferCategory("paneer"), "Dairy");
+    assert.equal(inferCategory("fontina"), "Dairy");
+    assert.equal(inferCategory("gorgonzola dolce"), "Dairy");
+    assert.equal(inferCategory("cotija cheese"), "Dairy");
+    assert.equal(inferCategory("shaved parmigiano-reggiano"), "Dairy");
+  });
+
+  it("does not sweep in non-cheese names that merely look similar", () => {
+    assert.equal(inferCategory("roma tomatoes"), "Produce");
+    assert.equal(inferCategory("romaine lettuce"), "Produce");
+  });
+});
+
+describe("inferCategory — BUG-191 egg PASTA is Pantry, not Dairy", () => {
+  it("beats the bare 'egg' Dairy keyword on every spelling", () => {
+    // All four were "Dairy" — the collision that mis-filed them (BUG-186).
+    assert.equal(inferCategory("wide egg noodles"), "Pantry");
+    assert.equal(inferCategory("egg noodles"), "Pantry");
+    assert.equal(inferCategory("fresh chow mein egg noodles"), "Pantry");
+    assert.equal(inferCategory("fresh lo mein egg noodles"), "Pantry");
+  });
+
+  it("leaves real eggs in Dairy", () => {
+    assert.equal(inferCategory("large eggs"), "Dairy");
+    assert.equal(inferCategory("egg"), "Dairy");
+    assert.equal(inferCategory("egg yolks"), "Dairy");
+    assert.equal(inferCategory("hard-boiled eggs"), "Dairy");
+  });
+
+  it("leaves egg-free noodles on their existing Pantry fallback", () => {
+    assert.equal(inferCategory("fresh lo mein noodles"), "Pantry");
+  });
+});
+
+describe("inferCategory — BUG-191 tofu routes to Dairy", () => {
+  it("moves tofu out of Protein per the BUG-186 ruling", () => {
+    assert.equal(inferCategory("extra-firm tofu"), "Dairy");
+    assert.equal(inferCategory("firm tofu"), "Dairy");
+    assert.equal(inferCategory("silken tofu"), "Dairy");
+  });
+
+  it("leaves the un-ruled plant proteins in Protein", () => {
+    assert.equal(inferCategory("tempeh"), "Protein");
+    assert.equal(inferCategory("seitan"), "Protein");
+  });
+});

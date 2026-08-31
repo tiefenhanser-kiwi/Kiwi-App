@@ -148,6 +148,19 @@ const CATEGORY_RULES: CategoryRule[] = [
     keywords: ["tortilla", "dough"],
   },
   {
+    // WS9 BUG-191 — EGG PASTA IS PASTA, NOT DAIRY. The Dairy rule's bare "egg"
+    // keyword matches "wide egg noodles" (\begg(?:es|s)?\b), which is how four
+    // dry-pasta rows were filed to the dairy aisle (BUG-186). Their sibling
+    // `fresh lo mein noodles` carries no "egg" token, fell through to the
+    // Pantry fallback, and was always correct — the collision was the whole
+    // defect. Placed BEFORE Dairy so the specific multi-token name wins,
+    // matching the BUG-017 precedent above. Multi-token keys use substring
+    // matching, so "egg noodle" covers every plural and prefixed spelling
+    // ("wide egg noodles", "fresh lo mein egg noodles", …).
+    category: "Pantry",
+    keywords: ["egg noodle", "egg pasta"],
+  },
+  {
     category: "Produce",
     keywords: [
       "onion", "garlic", "tomato", "lettuce", "spinach", "kale", "arugula",
@@ -178,7 +191,12 @@ const CATEGORY_RULES: CategoryRule[] = [
       "fish", "salmon", "tuna", "cod", "tilapia", "trout", "halibut",
       "shrimp", "prawn", "crab", "lobster", "scallop", "squid", "calamari",
       "anchovy", "sardine", "mackerel",
-      "tofu", "tempeh", "seitan",
+      // WS9 BUG-191 — "tofu" MOVED to the Dairy rule below. Hans's BUG-186
+      // ruling puts refrigerated tofu beside the eggs in dairy_eggs; leaving it
+      // here (Protein is evaluated first) would author every future tofu row
+      // straight back into the wrong aisle. tempeh/seitan are NOT ruled and
+      // stay Protein.
+      "tempeh", "seitan",
       "ground beef", "ground turkey", "ground pork", "ground chicken",
       "chicken breast", "chicken thigh", "chicken wing", "chicken leg",
       "steak", "ribeye", "sirloin", "filet", "pork chop", "ribs", "brisket",
@@ -193,6 +211,17 @@ const CATEGORY_RULES: CategoryRule[] = [
       "goat cheese", "cream cheese", "cottage cheese", "brie", "blue cheese",
       "swiss", "gouda", "provolone", "havarti", "manchego",
       "ghee", "egg", "eggs", "egg yolk", "egg white",
+      // WS9 BUG-191 — cheeses whose names carry no "cheese" token. Without
+      // these, `parmigiano-reggiano`, `pecorino romano`, `queso fresco`,
+      // `paneer`, `fontina` and `gorgonzola dolce` matched NO rule and fell to
+      // INGREDIENT_CATEGORY_FALLBACK ("Pantry") — that is exactly how 13 rows
+      // were filed to the pantry aisle (BUG-186). "parmesan" was already here,
+      // which is why "parmesan cheese" was always correct and its Italian name
+      // was not.
+      "parmigiano", "pecorino", "romano", "queso", "paneer", "fontina",
+      "gorgonzola", "cotija",
+      // WS9 BUG-191 — tofu moved here from the Protein rule (see above).
+      "tofu",
     ],
   },
   {
