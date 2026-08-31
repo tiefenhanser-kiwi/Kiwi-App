@@ -86,14 +86,69 @@ A cleanup saving is only real when the two things actually share the work.
 Allowed:
 - Two dishes cooked the SAME NIGHT at one oven temperature — one preheat, one pan, one wash.
 - A method that is inherently low-cleanup, stated as a per-night property: "half your week is a one-pan night", "grill every night this week and keep the dishes to a minimum".
-- Prep genuinely done once and used across several nights.
-- Ingredients shared across meals — buy once, less waste.
 
 Not allowed:
 - The same equipment used on DIFFERENT nights. You wash it in between; nothing is saved.
 - The same oven temperature on DIFFERENT nights. Those are separate preheats.
 
 And never equate few dishes with an easy night. A charcoal grill is more work than washing a sheet pan, so claim the dish count, not the total effort — say "one pan", never "half the work".`;
+
+// WS9 BUG-190 — what a whyBullet may claim. Shared by all three plan generators
+// for the same reason CLEANUP_CLAIM_RULES is shared: one rule, in one place, so
+// it cannot drift between them.
+//
+// Hans, reading a live plan on device: "the advantages it's saying aren't
+// applicable or real." The bullets offered "asparagus in two meals" as a saving
+// and "3 vegetables can be bought in one farmer's market trip" as an advantage.
+// Neither is one. CO-OCCURRENCE IS NOT AN ADVANTAGE: an ingredient appearing in
+// two meals saves nothing unless both draw on ONE purchased pack.
+//
+// The cause is structural, not a wording slip. whyBullets are authored at
+// CANDIDATE time, where the input carries preferences plus a shelf of meal
+// TITLES, macros and times — and no ingredient data at all (the meals do not
+// exist yet; the model is inventing their titles). The old bodies taught
+// quantity-grounded examples ("One bunch of cilantro covers both the tacos and
+// the curry") that this stage has no way to ground, so the model degraded them
+// into co-occurrence claims. Teach a claim type the data cannot support and you
+// get an invented claim every time — so those examples are REPLACED, not
+// softened, exactly as BUG-179 replaced the sheet-pan one.
+//
+// Sharing/waste claims are therefore BANNED at this stage. What is honest here
+// is preference fit — the user's own words first — plus the plan properties the
+// input really holds (titles, cuisines, macros, times, equipment). Quantity-
+// grounded sharing and the prep-ahead time bonus are assigned to the D-WS9-191
+// plan-flow redesign, which owns a surface where ingredient and prep data exist.
+//
+// Two Allowed bullets were removed from CLEANUP_CLAIM_RULES above for the same
+// reason ("Ingredients shared across meals — buy once, less waste" and "Prep
+// genuinely done once and used across several nights"): both authorize exactly
+// the claim banned here, and neither is groundable at this stage. Removing an
+// allowance only tightens the BUG-179 guard; its prohibitions are unchanged.
+const WHY_BULLETS_RULES = `# whyBullets — what you may claim, and what you may not
+
+\`whyBullets\` tell the user why THIS plan fits THEM. Write 2-3. Every bullet must be checkable against the input you were handed: if you cannot point at the field that makes it true, do not write it.
+
+**You may not claim anything about ingredients being shared, used up, stretched, or bought once.** You have no ingredient data here. The meals do not exist yet — you are choosing titles — and the shelf gives you titles, cuisines, macros and times, never quantities and never pack sizes. So "the cilantro carries across both nights", "asparagus in two meals", "one pack of chicken covers Monday and Thursday", and "less waste this week" are invented, however plausible they sound. Two meals containing the same ingredient is CO-OCCURRENCE, not a saving: a saving needs two meals drawing on ONE purchased pack, and packs are invisible to you. This holds even when you chose the meals with waste in mind — that shapes what you pick, it is not something you may say.
+
+**Lead with what the user told you, in their own words.** Free text is the strongest material you have. Reflect it closely enough that they recognize themselves in it:
+- "No mushrooms anywhere — you said they're a hard no in your house"
+- "Every night stays one-pot, since you're cooking with a toddler underfoot"
+
+Then structured fit, when it is actually true of this plan:
+- The cook-time cap they set (\`preferencesContext.maxCookTimeMinutes\`) — claim that you AIMED at it, never that you verified it; you are choosing titles here, not timing recipes: "Chosen to come together in about 30 minutes, the cap you set"
+- Pacing — "Four easy nights, and one Saturday worth cooking for"
+- Eating style or allergy honored — "All five are gluten-free, no substitutions needed"
+- Kitchen fit — "All 5 meals fit your no-Instant-Pot kitchen"
+- What the plan simply IS — "Sheet-pan and one-pot meals minimize cleanup midweek"
+
+**Fewer honest bullets beat padded ones.** If only one thing is genuinely worth saying, write ONE bullet and stop. Never invent a second to reach a count.
+
+Never write filler that would be true of any plan, or a non-advantage dressed as one:
+- "Saves you time" (vague, and time-saved claims are forbidden)
+- "Healthy and delicious" (says nothing)
+- "Variety pack" (says nothing)
+- "Three vegetables you can grab in one farmer's market trip" (every plan is one trip — not an advantage)
+- "Asparagus features in two meals" (co-occurrence, not a saving)`;
 
 // D-WS9-038 / BUG-039 (Fix 3) — the shared catalog-compose instruction, used by
 // build-plans, Surprise-me, and Tell Kiwi so all three prefer the shelf the same
@@ -245,23 +300,17 @@ For partial: the explicit meals are LOCKED in every candidate, so differentiate 
 
 If for some reason the constraints are too tight to produce 3 distinct candidates (vague or partial), return 1-2 candidates and set \`cannotGenerateMore: true\` with a one-sentence \`reason\`. Do not pad with weak third options.
 
-# Optimization principles
-
-Each candidate's \`whyBullets\` should highlight a CONCRETE optimization the plan captures, not a vague quality. Strong examples:
-- "The cilantro from your tacos gets used up in the paired curry — no half-bunch wasted"
-- "Three of the five nights are one-pan dinners — dinner and its sides share a sheet pan"
-- "All 5 meals fit your no-Instant-Pot kitchen"
+${WHY_BULLETS_RULES}
 
 ${CLEANUP_CLAIM_RULES}
 
+# Menu composition — waste (this shapes what you PICK, never what you SAY)
+
 When you choose meals to fill gaps (the meals the user did not name), favor choices that use up partial perishables and small-quantity pantry items across the plan — the rest of a bunch of herbs, the leftover of a can where one recipe needs a spoonful. Do NOT collapse the fill meals onto one protein just to force overlap; variety across proteins and cuisines matters more than overlap. Sensible bulk buys are still fine (one pack of chicken thighs across two meals) — just don't bend the whole plan toward one ingredient. The user's explicitly named meals are fixed; this applies only to the meals you add.
 
-Weak examples to avoid:
-- "Saves you time" (vague, time-saved claims are forbidden)
-- "Healthy and delicious" (says nothing)
-- "Variety pack" (says nothing)
+None of this belongs in \`whyBullets\`. It guides which meals you choose; you hold no quantities here, so any claim about it would be invented — see the whyBullets rules above.
 
-For \`fully_specified\` and \`overflow\`, the whyBullets should ACKNOWLEDGE the user's input ("Here's your plan — exactly as you described, with sides paired up.") and call out the optimization the AI added (which sides, which prep cross-overs, etc.).
+For \`fully_specified\` and \`overflow\`, one bullet should ACKNOWLEDGE the user's input ("Here's your plan — exactly as you described.") and the rest follow the whyBullets rules above: what you added and why it suits THEM (the sides you paired on, the cap you kept to), never a sharing or prep-crossover claim.
 
 # Recent history — vary the rotation
 
@@ -295,7 +344,7 @@ ${CATALOG_SHELF_SECTION}
 
 # Input
 
-The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`userInput\` is the user's original free-text. \`hiddenContext\` is server-injected from the user's profile. \`planningContext\` (also server-injected) carries the current date, season, upcoming events, and recent plan names; the user's recent meal rotation arrives under the separate top-level \`recentRotation\` key — see the sections above for how to use them. \`planDurationDays\`, \`householdSize\`, etc. shape the plan.
+The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`userInput\` is the user's original free-text. \`hiddenContext\` is server-injected from the user's profile. \`planningContext\` (also server-injected) carries the current date, season, upcoming events, and recent plan names; the user's recent meal rotation arrives under the separate top-level \`recentRotation\` key — see the sections above for how to use them. \`planDurationDays\`, \`householdSize\`, etc. shape the plan. The words the user typed themselves are \`userInput\`, \`dietaryNotes\`, and \`hiddenContext.pickyAvoidances\` — the strongest material for \`whyBullets\`.
 
 \`\`\`json
 {{generateInput}}
@@ -346,9 +395,11 @@ Three candidates that all feel the same is failure. Vary by cuisine emphasis, pr
 
 If the constraints are too tight to produce 3 distinct candidates, return 1-2 and set \`cannotGenerateMore: true\` with a one-sentence \`reason\`. Do not pad with weak options.
 
-# whyBullets, macros, tone
+${WHY_BULLETS_RULES}
 
-\`whyBullets\` highlight a CONCRETE reason the plan works (a crossover ingredient, a one-pan night, a fits-your-kitchen note) — never "saves time" or "healthy and delicious". \`dailyMacros\` is the per-day average, whole numbers. Titles sound like a friend recommending dinner. Plan-level titles are specific to the plan's real through-line and vary run to run. Treat every entry in \`planningContext.recentPlanNames\` as a HARD exclusion, not a soft nudge: the user has already seen those plans — including any shown earlier in THIS session — and tapped "Surprise Me again" precisely to get something different, so never return one of them again. Likewise avoid rebuilding the dinners listed in \`planningContext.recentMeals\`: a fresh title over the same meals is still a repeat.
+# Macros and tone
+
+\`dailyMacros\` is the per-day average, whole numbers. Titles sound like a friend recommending dinner. Plan-level titles are specific to the plan's real through-line and vary run to run. Treat every entry in \`planningContext.recentPlanNames\` as a HARD exclusion, not a soft nudge: the user has already seen those plans — including any shown earlier in THIS session — and tapped "Surprise Me again" precisely to get something different, so never return one of them again. Likewise avoid rebuilding the dinners listed in \`planningContext.recentMeals\`: a fresh title over the same meals is still a repeat.
 
 ${CLEANUP_CLAIM_RULES}
 
@@ -356,7 +407,7 @@ ${CATALOG_SHELF_SECTION}
 
 # Input
 
-Server-injected context arrives below. There is no user free-text.
+Server-injected context arrives below. The user made no request this time, but they have still written things down: \`dietaryNotes\` and \`hiddenContext.pickyAvoidances\` are their own words, carried from their profile, and they are the strongest material for \`whyBullets\`.
 
 \`\`\`json
 {{generateInput}}
@@ -892,25 +943,19 @@ Apply these as biases — they shape the menu but do not override hard constrain
 - If \`wantsLeftovers: false\`, target servings = householdSize exactly.
 - Servings live inside the recipe data the app stores; you don't return them per-meal here, but assume them when reasoning about ingredient quantities.
 
-# Optimization principles (encoded in whyBullets and optimizationNotes-style content)
-
-Each plan's \`whyBullets\` should highlight a CONCRETE optimization the plan captures, not a vague quality. Strong examples:
-- "One bunch of cilantro covers both the tacos and the curry — no half-bunch left to rot"
-- "The half-can of chipotle from Monday's chili gets used up in Thursday's marinade"
-- "Sheet-pan and one-pot meals minimize cleanup midweek"
-
-Weak examples to avoid:
-- "Saves you time" (vague, time-saved claims are forbidden)
-- "Healthy and delicious" (says nothing)
-- "Variety pack" (says nothing)
+${WHY_BULLETS_RULES}
 
 ${CLEANUP_CLAIM_RULES}
+
+# Menu composition — waste (this shapes what you PICK, never what you SAY)
 
 Optimize each plan to MINIMIZE FOOD WASTE, not to maximize ingredient overlap. The goal is that perishables and small-quantity items get fully used up across the week — the half-bunch of herbs, the rest of the bunch of scallions, the leftover of a 7-oz can where one recipe needs 1 Tbsp. Plan meals so these partial amounts are consumed rather than thrown out.
 
 This is NOT a license to repeat the same protein or dish to force overlap. Making four nights chicken so the chicken "overlaps" is the wrong move — it produces a monotonous week and defeats the point. The right move is variety across proteins and cuisines, with the SUPPORTING ingredients (produce, herbs, pantry partials, sauces) chosen so little goes to waste.
 
 Sensible bulk buys are still fine: one 3-lb pack of chicken thighs split across 2-3 meals is good economy. The line is — bulk-buy a shared staple when it fits naturally, but never bend the whole menu toward one ingredient just to overlap.
+
+None of this belongs in \`whyBullets\`. It guides which meals you choose; you hold no quantities here, so any claim about it would be invented — see the whyBullets rules above.
 
 # Recent history — vary the rotation
 
@@ -967,7 +1012,7 @@ ${CATALOG_SHELF_SECTION}
 
 # Wizard input
 
-The user's full \`WizardInput\` arrives as a JSON object below. Use every field. Hidden context fields (\`hiddenContext.equipment\`, \`hiddenContext.spiceTolerance\`, \`hiddenContext.pantryStaples\`) are server-injected from the user's profile — treat them with equal weight as the user-supplied fields. The user's recent meal rotation arrives under the top-level \`recentRotation\` key; current-date/season/event context and recent plan names arrive under \`planningContext\` (see the sections above).
+The user's full \`WizardInput\` arrives as a JSON object below. Use every field. The words the user typed themselves are \`additionalNotes\`, \`dietaryNotes\`, and \`hiddenContext.pickyAvoidances\` — the strongest material for \`whyBullets\`. Hidden context fields (\`hiddenContext.equipment\`, \`hiddenContext.spiceTolerance\`, \`hiddenContext.pantryStaples\`) are server-injected from the user's profile — treat them with equal weight as the user-supplied fields. The user's recent meal rotation arrives under the top-level \`recentRotation\` key; current-date/season/event context and recent plan names arrive under \`planningContext\` (see the sections above).
 
 \`\`\`json
 {{wizardInput}}
