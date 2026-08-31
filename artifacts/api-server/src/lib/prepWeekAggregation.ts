@@ -15,13 +15,18 @@
 
 import type { DishRole, PrismaClient } from "@prisma/client";
 
+import { resolvePrepCategory } from "./prepCategoryOverride";
+
 // ── enriched loader output (engine-ready, pre-scaling) ──────────────────────
 
 export interface PrepLoadedIngredient {
   ingredientId: string;
   ingredientName: string;
-  // Ingredient.category — always present (required column). Drives phase +
-  // prep-worthy classification in the engine.
+  // The category the PREP pipeline sees. Normally Ingredient.category (always
+  // present — required column); for the BUG-186 override set it is the pinned
+  // token instead. Drives phase, blend eligibility AND prep-worthy
+  // classification in the engine — all three, which is why the override lands
+  // here rather than on any one of them.
   category: string;
   // RAW dish-ingredient quantity (NOT servings-scaled). The adapter scales.
   quantity: number;
@@ -167,7 +172,13 @@ export async function loadPrepWeekInput(
           (di) => ({
             ingredientId: di.ingredient.id,
             ingredientName: di.ingredient.displayName,
-            category: di.ingredient.category,
+            // WS9 BUG-186 — the PREP pipeline's view of category, which the
+            // aisle fix must not disturb. Identity for every row without an
+            // override entry. See prepCategoryOverride.ts for the rulings.
+            category: resolvePrepCategory(
+              di.ingredient.displayName,
+              di.ingredient.category,
+            ),
             quantity: di.quantity,
             unit: di.unit,
             preparationNote: di.preparationNote ?? null,
