@@ -60,7 +60,10 @@ describe("normalizeUsdaQuery", () => {
     assert.equal(normalizeUsdaQuery("orzo", "Pantry").normalized, "pasta");
     assert.equal(normalizeUsdaQuery("linguine", "Pantry").normalized, "pasta");
     assert.equal(normalizeUsdaQuery("rigatoni", "Pantry").normalized, "pasta");
-    assert.equal(normalizeUsdaQuery("parmigiano-reggiano", "Pantry").normalized, "parmesan");
+    // WS9 BUG-186 — parmigiano-reggiano is a Dairy row now (it was mis-filed
+    // Pantry, which is the bug). The fixture carries the corrected category so
+    // the case stays truthful about the catalog.
+    assert.equal(normalizeUsdaQuery("parmigiano-reggiano", "Dairy").normalized, "parmesan");
     assert.equal(normalizeUsdaQuery("panko breadcrumbs", "Pantry").normalized, "bread crumbs");
   });
 

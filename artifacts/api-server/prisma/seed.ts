@@ -469,7 +469,12 @@ const HOUSEHOLD_BASIC_INGREDIENTS: Array<{
   // "egg" stays: it is a surviving canonical row, and canonical-beats-alias
   // makes that overlap legal and deliberate (16 such pairs exist — measured
   // 2026-08-25 for BUG-135; the "20" this line used to carry was stale).
-  { canonicalName: "large eggs", displayName: "Large eggs", category: "Protein", defaultUnit: "dozen", aliases: ["egg", "dozen eggs"] },
+  // WS9 BUG-186 — "Dairy", not "Protein". Eggs belong in the dairy_eggs aisle,
+  // and the twelve other egg rows were already Dairy. This literal is
+  // load-bearing: the HOUSEHOLD_BASIC_INGREDIENTS upsert below writes
+  // `update: { category }`, so a stale value here silently reverts the fix on
+  // the next `pnpm prisma:seed`.
+  { canonicalName: "large eggs", displayName: "Large eggs", category: "Dairy", defaultUnit: "dozen", aliases: ["egg", "dozen eggs"] },
   { canonicalName: "bacon", displayName: "Bacon", category: "Protein", defaultUnit: "lb", aliases: ["thick-cut bacon", "bacon strips"] },
   { canonicalName: "ground turkey", displayName: "Ground turkey", category: "Protein", defaultUnit: "lb", aliases: ["turkey", "ground turkey breast"] },
   { canonicalName: "chicken thighs", displayName: "Chicken thighs", category: "Protein", defaultUnit: "lb", aliases: ["boneless skinless chicken thighs", "chicken thigh"] },
