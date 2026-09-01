@@ -45,11 +45,17 @@ import { formatDetectorReport, runDetectors } from "./ws9-d189-a1/contradiction"
 
 const OUTPUT_DIR = join(dirname(fileURLToPath(import.meta.url)), "output");
 
-// A family batch bigger than this is split. Chosen so the whole batch plus the
-// rubric stays comfortably inside one high-effort call and the model can hold
-// every pair in view while checking its own consistency. Splits are LOGGED —
-// a split family loses the intra-call consistency guarantee, and a cap that
-// quietly truncates coverage reads as "covered everything" when it did not.
+// A family batch bigger than this is split. Splits are LOGGED — a split family
+// loses the intra-call consistency guarantee, and a cap that quietly truncates
+// coverage reads as "covered everything" when it did not.
+//
+// ⚠️ 40 WAS AN UNFORCED GUESS AND THE MEASUREMENT SAYS SO. It was picked to fit
+// a hardcoded max_tokens of 16,000, not any ceiling the model has. Measured
+// against claude-opus-5: tomato's whole 224-pair family is 8,720 INPUT tokens
+// against a 1M context window, and all 2,253 pairs in one call would be 65,562
+// (6.6% of context). The binding constraint was only ever OUTPUT tokens, which
+// judge.ts now sizes from the batch and streams. `--no-cap` removes the cap
+// entirely, which is what Part 2 measures.
 const MAX_PAIRS_PER_BATCH = 40;
 
 // Concurrent judge calls. Same lever as BUG-032's JUDGE_CONCURRENCY, kept low
@@ -59,7 +65,9 @@ const JUDGE_CONCURRENCY = 4;
 // Size of the marked spot-check sample drawn from the AUTO-ACCEPTED verdicts.
 // ⚠️ WITHOUT THIS, "the judge approved it" IS AN UNFALSIFIABLE CLAIM. It is the
 // only part of the CSV that validates the judge rather than the catalog.
-const SPOTCHECK_SIZE = 30;
+// Raised 30 -> 60: chat-Claude now pre-triages the sheet, so the sample is read
+// by something that can actually work through 60 rows.
+const SPOTCHECK_SIZE = 60;
 
 // ── the pilot sample ───────────────────────────────────────────────────────
 // Families the pilot MUST cover, because each is a place the rubric is known to
@@ -362,6 +370,9 @@ async function main(): Promise<void> {
   const wantDryRun = argv.includes("--dry-run");
   const wantApply = argv.includes("--apply");
   const pilotOnly = argv.includes("--pilot");
+  // Part 2: judge each family WHOLE, one call, no cap.
+  const noCap = argv.includes("--no-cap");
+  const runTag = (argv.find((a) => a.startsWith("--tag=")) ?? "--tag=").slice("--tag=".length);
 
   if (wantFixture) {
     process.exitCode = runFixture();
@@ -425,7 +436,7 @@ async function main(): Promise<void> {
       console.log(`  pairs in sample: ${scoped.length} of ${pairs.length} (${((scoped.length / pairs.length) * 100).toFixed(1)}%)`);
     }
 
-    const batches = batchByFamily(scoped, MAX_PAIRS_PER_BATCH);
+    const batches = batchByFamily(scoped, noCap ? Number.MAX_SAFE_INTEGER : MAX_PAIRS_PER_BATCH);
     const splits = batches.filter((b) => b.split);
     console.log(`\n=== DRY-RUN — judging ${scoped.length} pairs in ${batches.length} calls ===`);
     console.log(`  model: ${JUDGE_MODEL}  prompt: ${PROMPT_VERSION}`);
@@ -529,7 +540,7 @@ async function main(): Promise<void> {
     const stamp = timestamp();
     const jsonPath = join(
       OUTPUT_DIR,
-      `ws9-d189-a1-verdicts-${pilotOnly ? "pilot" : "full"}-${stamp}.json`,
+      `ws9-d189-a1-verdicts-${runTag || (pilotOnly ? "pilot" : "full")}-${stamp}.json`,
     );
     writeFileSync(
       jsonPath,
@@ -559,7 +570,7 @@ async function main(): Promise<void> {
 
     const csvPath = join(
       OUTPUT_DIR,
-      `ws9-d189-a1-relations-${pilotOnly ? "pilot" : "full"}-${stamp}.csv`,
+      `ws9-d189-a1-relations-${runTag || (pilotOnly ? "pilot" : "full")}-${stamp}.csv`,
     );
     const csv = [
       encodeCsvRow([...CSV_HEADER]),

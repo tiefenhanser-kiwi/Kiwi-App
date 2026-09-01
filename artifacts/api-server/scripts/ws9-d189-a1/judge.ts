@@ -202,6 +202,31 @@ function sleep(ms: number): Promise<void> {
  * the human residue rather than dropping it. A silently missing pair would read
  * as "covered" when it was not.
  */
+/**
+ * Output tokens observed per pair on the A1 pilot: 101,952 output tokens across
+ * 660 pairs, thinking included. Used to size max_tokens from the batch size
+ * rather than from a guess.
+ *
+ * ⚠️ THIS IS THE REAL CONSTRAINT, and the A1 batch cap of 40 was set without
+ * measuring it. Input is not close to binding: tomato's whole 224-pair family
+ * is 8,720 input tokens against a 1M context window, and ALL 2,253 pairs in one
+ * call would be 65,562 (6.6% of context). What actually bound the batch was
+ * A1's hardcoded max_tokens of 16,000 — 224 pairs need ~34,500 output tokens
+ * and would have truncated. 40 was chosen to fit that number, not any ceiling
+ * the model has.
+ */
+const OUTPUT_TOKENS_PER_PAIR = 155;
+const MIN_MAX_TOKENS = 16_000;
+// claude-opus-5 caps output at 128K.
+const MODEL_MAX_TOKENS = 128_000;
+// Above roughly this, a non-streaming request risks an SDK HTTP timeout.
+const STREAM_ABOVE = 16_000;
+
+export function maxTokensFor(pairCount: number): number {
+  const need = Math.ceil(pairCount * OUTPUT_TOKENS_PER_PAIR * 1.8);
+  return Math.min(MODEL_MAX_TOKENS, Math.max(MIN_MAX_TOKENS, need));
+}
+
 export async function judgeBatch(
   client: Anthropic,
   familyKey: string,
@@ -209,25 +234,44 @@ export async function judgeBatch(
   usage: Usage,
 ): Promise<Verdict[]> {
   const prompt = buildBatchPrompt(familyKey, pairs);
+  const maxTokens = maxTokensFor(pairs.length);
 
   for (let attempt = 0; attempt <= RETRIES; attempt++) {
     try {
-      const message = await client.messages.create({
+      const request = {
         model: JUDGE_MODEL,
         // Thinking is ON BY DEFAULT on claude-opus-5, and max_tokens caps
-        // thinking PLUS response text. A budget sized to the JSON alone
-        // truncates mid-answer, so this is deliberately generous.
-        max_tokens: 16000,
+        // thinking PLUS response text — a budget sized to the JSON alone
+        // truncates mid-answer. Sized from the batch, not hardcoded.
+        max_tokens: maxTokens,
         output_config: {
-          effort: "high",
-          format: { type: "json_schema", schema: RESPONSE_SCHEMA as unknown as Record<string, unknown> },
+          effort: "high" as const,
+          format: {
+            type: "json_schema" as const,
+            schema: RESPONSE_SCHEMA as unknown as Record<string, unknown>,
+          },
         },
-        messages: [{ role: "user", content: prompt }],
-      });
+        messages: [{ role: "user" as const, content: prompt }],
+      };
+
+      // Streaming is mandatory above ~16K max_tokens or the request can die on
+      // an HTTP timeout before the model finishes thinking.
+      const message =
+        maxTokens > STREAM_ABOVE
+          ? await client.messages.stream(request).finalMessage()
+          : await client.messages.create(request);
 
       usage.calls += 1;
       usage.inputTokens += message.usage.input_tokens;
       usage.outputTokens += message.usage.output_tokens;
+
+      if (message.stop_reason === "max_tokens") {
+        // A truncated batch would silently lose its tail to UNSURE, which reads
+        // as "the judge was uncertain" when the truth is "we cut it off".
+        throw new Error(
+          `batch truncated at max_tokens=${maxTokens} for ${pairs.length} pairs — raise OUTPUT_TOKENS_PER_PAIR`,
+        );
+      }
 
       if (message.stop_reason === "refusal") {
         throw new Error("judge refused");
