@@ -369,6 +369,40 @@ async function main(): Promise<void> {
     ...stillUnsure.map((i) => rowFor(i, "TO_HUMAN")),
     ...spotcheckIdx.map((i) => rowFor(i, "SPOTCHECK")),
   ].join("\n");
+  // 🔴 PERSIST EVERY RESOLUTION. The previous run resolved 707 pairs and
+  // overturned 78 of them, and NONE of that reached a file — only the 4
+  // STILL_UNSURE rows and the spot-check made it into the CSV. The state that
+  // would actually be written to the database existed nowhere and could not be
+  // audited by anyone. For a one-time backfill that is the only state that
+  // matters.
+  const arbJsonPath = join(OUTPUT_DIR, `ws9-d189-a1-arbiter-${timestamp()}.json`);
+  writeFileSync(
+    arbJsonPath,
+    JSON.stringify(
+      {
+        source: path,
+        promptVersion: ARBITER_PROMPT_VERSION,
+        usage,
+        wallMs,
+        resolutions: [...resolved.entries()].map(([idx, v]) => ({
+          aId: judged[idx]!.pair.a.id,
+          bId: judged[idx]!.pair.b.id,
+          a: judged[idx]!.pair.a.canonicalName,
+          b: judged[idx]!.pair.b.canonicalName,
+          family: judged[idx]!.familyKey,
+          wasResidue: residueTargets.includes(idx),
+          firstLabel: judged[idx]!.verdict.label,
+          firstConfidence: judged[idx]!.verdict.confidence,
+          verdict: v,
+        })),
+      },
+      null,
+      1,
+    ),
+    "utf8",
+  );
+  console.log(`\n  arbiter verdicts: ${arbJsonPath}  (all ${resolved.size} resolutions, auditable)`);
+
   const csvPath = join(OUTPUT_DIR, `ws9-d189-a1-arbitrated-${timestamp()}.csv`);
   writeFileSync(csvPath, `${csv}\n`, "utf8");
   console.log(`\n  SHEET (STILL_UNSURE + spot-check): ${csvPath}`);

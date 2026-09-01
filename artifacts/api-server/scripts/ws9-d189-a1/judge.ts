@@ -34,7 +34,7 @@ export const JUDGE_MODEL = "claude-opus-5";
 // Bump this when the rubric text below changes. It is stamped on every row, so
 // a future re-run under a revised rubric can find what the old one wrote —
 // which is the whole lesson of D-WS9-197.
-export const PROMPT_VERSION = "d189-a1-v2-subsumes";
+export const PROMPT_VERSION = "d189-a1-v3-sibling-tiers";
 
 // $ per million tokens for claude-opus-5.
 export const PRICE_INPUT_PER_MTOK = 5;
@@ -151,6 +151,28 @@ Only a bare, unqualified generic subsumes. If BOTH names carry a qualifier, the 
                                               axis, so it subsumes anything qualified on any axis.
   bell peppers ~ red bell pepper           -> SUBSUMES.
 Ask yourself: WHICH AXIS does each qualifier fix? Same axis, one bare -> SUBSUMES. Different axes -> DISTINCT. Do not treat a size word as though it were another colour.
+
+🔴 AN UNQUALIFIED NAME IS NOT AUTOMATICALLY THE GENERIC, AND THIS IS THE MOST COMMON WAY SUBSUMES GOES WRONG. A bare name subsumes ONLY when the qualified variants EXHAUST it. Where the bare name instead denotes a STANDARD OR DEFAULT variety, it is a SIBLING of the qualified names, not their parent — so it is DISTINCT from them (or SYNONYM with whichever one names that same standard).
+
+  Worked example — flour tortillas are three SIBLING SIZES, not a parent and two children:
+    small flour tortillas   = taquito size
+    flour tortillas         = ALL-PURPOSE: regular tacos and small burritos. This is A SIZE.
+    large flour tortillas   = burrito size
+  So:
+    flour tortillas ~ small flour tortillas   -> DISTINCT   (siblings, not parent/child)
+    flour tortillas ~ large flour tortillas   -> DISTINCT
+    large flour tortillas ~ large flour tortillas (10-inch)  -> SUBSUMES. Subsumption WITHIN a
+        tier is still real: "large" leaves the exact inches open and 10-inch fills it.
+
+  The same shape, all DISTINCT rather than SUBSUMES:
+    egg yolks ~ large egg yolks     ("large" is the default US egg grade, so "egg yolks" already
+                                     means large ones — a sibling, not a parent)
+    corn tortillas ~ small corn tortillas
+    yellow onion ~ medium yellow onion
+
+  THE TEST: if a shopper asked for the bare name, would they be happy with ANY of the qualified
+  variants? If yes, it is SUBSUMES. If the bare name would get them one PARTICULAR variant —
+  the standard one — then it names that variant and is DISTINCT from the others.
 
 THE TEST THAT SEPARATES THEM. Ask: a shopper holding one of these, who needs the other —
   needs nothing more                      -> SYNONYM
@@ -333,30 +355,31 @@ export async function judgeBatch(
         const v = coerceVerdict(raw, pairs.length);
         if (v && !byIndex.has(v.pairIndex)) byIndex.set(v.pairIndex, v);
       }
-      return pairs.map(
-        (_, i) =>
-          byIndex.get(i) ?? {
-            pairIndex: i,
-            label: "UNSURE" as const,
-            confidence: "low" as const,
-            reason: "judge returned no verdict for this pair",
-            yieldQuantity: null,
-            yieldUnit: null,
-            coHarvestable: null,
-          },
-      );
+      // A pair the model skipped is a malformed response, not an uncertain
+      // verdict — same rule as the retry path above.
+      const missing = pairs.map((_, i) => i).filter((i) => !byIndex.has(i));
+      if (missing.length > 0) {
+        throw new Error(
+          `judge batch "${familyKey}" returned no verdict for ${missing.length} of ${pairs.length} pairs`,
+        );
+      }
+      return pairs.map((_, i) => byIndex.get(i)!);
     } catch (err) {
       if (attempt === RETRIES) {
-        const reason = `judge call failed: ${err instanceof Error ? err.message : String(err)}`;
-        return pairs.map((_, i) => ({
-          pairIndex: i,
-          label: "UNSURE" as const,
-          confidence: "low" as const,
-          reason,
-          yieldQuantity: null,
-          yieldUnit: null,
-          coHarvestable: null,
-        }));
+        // 🔴 RAISE. DO NOT DEGRADE TO UNSURE.
+        //
+        // This path used to return UNSURE for every pair in the batch, and it
+        // cost us twice: a max_tokens truncation once, and a 529
+        // `overloaded_error` that turned the whole 115-pair `cheese` family into
+        // "the judge was uncertain". It was not uncertain — it was never asked.
+        //
+        // A transient API failure and a considered "I cannot tell" are different
+        // facts, and a reviewer reading the sheet cannot distinguish them once
+        // both render as UNSURE. `UNSURE` must mean the judge said UNSURE.
+        throw new Error(
+          `judge batch "${familyKey}" (${pairs.length} pairs) failed after ${RETRIES + 1} attempts: ` +
+            `${err instanceof Error ? err.message : String(err)}`,
+        );
       }
       // ⚠️ 800ms linear backoff was too short for a 529. The full run lost the
       // whole 115-pair `cheese` family to `overloaded_error` after exhausting

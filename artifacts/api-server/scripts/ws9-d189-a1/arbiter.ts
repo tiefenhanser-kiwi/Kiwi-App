@@ -21,7 +21,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Confidence, Label, Usage } from "./judge";
 import { JUDGE_MODEL, maxTokensFor } from "./judge";
 
-export const ARBITER_PROMPT_VERSION = "d189-a1-arb-v2-subsumes";
+export const ARBITER_PROMPT_VERSION = "d189-a1-arb-v3-sibling-tiers";
 
 export type ArbiterLabel = Label | "STILL_UNSURE";
 
@@ -118,9 +118,14 @@ The four labels match the first pass:
               🔴 TWO SPECIFICS NEVER SUBSUME EACH OTHER — they are DISTINCT. And two names
               qualified on DIFFERENT axes (size vs colour vs cut) do not subsume either way:
               "large bell peppers" ~ "red bell pepper" is DISTINCT.
-              🔴 A qualifier that merely names the DEFAULT variety is still SUBSUMES, not
-              SYNONYM: "cardamom pods" ~ "green cardamom pods" is SUBSUMES, because black
-              cardamom exists and the bare name does not exclude it.
+              🔴 AN UNQUALIFIED NAME IS NOT AUTOMATICALLY THE GENERIC. A bare name subsumes
+              only when the qualified variants EXHAUST it. Where the bare name denotes a
+              STANDARD OR DEFAULT variety it is a SIBLING of the qualified names, not their
+              parent: "flour tortillas" is the all-purpose SIZE between small and large, so
+              "flour tortillas" ~ "small flour tortillas" is DISTINCT. Likewise
+              "egg yolks" ~ "large egg yolks" (large is the default US grade).
+              Subsumption WITHIN a tier survives: "large flour tortillas" ~
+              "large flour tortillas (10-inch)" is SUBSUMES.
               SUBSUMES carries NO magnitude — leave yieldQuantity/yieldUnit/coHarvestable null.
 
 WHAT YOU HAVE THAT THE FIRST PASS DID NOT. Below the disputed pairs you are given the first pass's answers for the WHOLE family. Use them. Most disputes are resolvable by reading across: if the family already settled "lime ~ lime juice" as COMPONENT at high confidence, then "lemon ~ lemon juice" is COMPONENT, and the dispute is over. Where a contradiction is quoted, the point is that two answers cannot both stand — decide which is right and answer accordingly, even if that means overturning the first pass.

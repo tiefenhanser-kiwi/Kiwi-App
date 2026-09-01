@@ -184,6 +184,44 @@ export function stripTransformSuffix(canonicalName: string): string | null {
   return canonicalName.slice(0, comma).trim();
 }
 
+// §3 — REDUNDANT PROVENANCE QUALIFIERS.
+//
+// Hans's reasoning: purchase is the PREMISE of a grocery list, so "store-bought"
+// carries zero information. "store-bought naan" and "naan" name the same thing
+// to buy, and the qualifier only exists because a recipe wanted to tell a cook
+// they need not make it themselves.
+//
+// Stripped at normalisation exactly as prep-transform is. Two outcomes, and they
+// are reported separately because they are different facts:
+//   DEDUP    — the stripped name already exists as its own catalog row, so the
+//              qualified row collapses into it and disappears.
+//   SHORTEN  — no such row exists, so the entity survives under its shortened
+//              name and simply stops carrying a meaningless qualifier.
+const PROVENANCE_QUALIFIERS = [
+  "store-bought",
+  "store bought",
+  "shop-bought",
+  "shop bought",
+  "storebought",
+  "purchased",
+];
+
+/** Remove a provenance qualifier, or return null when there is none. */
+export function stripProvenance(canonicalName: string): string | null {
+  let out = canonicalName;
+  let hit = false;
+  for (const q of PROVENANCE_QUALIFIERS) {
+    const rx = new RegExp(`(^|\\s)${q.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}(\\s|$)`, "gi");
+    if (rx.test(out)) {
+      hit = true;
+      out = out.replace(rx, "$1$2");
+    }
+  }
+  if (!hit) return null;
+  const cleaned = out.replace(/\s+/g, " ").trim();
+  return cleaned.length > 0 && cleaned !== canonicalName ? cleaned : null;
+}
+
 export type ModifierClass = "prep" | "descriptor" | "color" | "other";
 
 /**
@@ -392,11 +430,20 @@ export interface CollapsedRow {
   intoName: string;
 }
 
+export interface RenamedRow {
+  from: NormalizedRow;
+  toName: string;
+}
+
 export interface UniverseExclusions {
   /** §2a — transform-prep rows folded into their base. */
   collapsed: CollapsedRow[];
   /** §2a — "A or B" substitution phrases, never a valid relation endpoint. */
   disjunctions: NormalizedRow[];
+  /** §3 — provenance-qualified rows that DEDUP onto an existing catalog row. */
+  provenanceDeduped: CollapsedRow[];
+  /** §3 — provenance-qualified rows with no existing base; merely SHORTENED. */
+  provenanceShortened: RenamedRow[];
 }
 
 export function buildPairUniverse(rows: CatalogRow[]): {
@@ -448,9 +495,34 @@ export function buildPairUniverse(rows: CatalogRow[]): {
   const disjunctions = all.filter((r) => r.isDisjunction);
   const disjunctionIds = new Set(disjunctions.map((r) => r.id));
 
-  const normalized = all.filter(
-    (r) => !collapsedIds.has(r.id) && !disjunctionIds.has(r.id),
-  );
+  // §3 — strip provenance qualifiers. A row whose stripped name already exists
+  // is a DEDUP and leaves the universe; one with no existing base is merely
+  // SHORTENED and stays, under its cleaner name.
+  const provenanceDeduped: CollapsedRow[] = [];
+  const provenanceShortened: RenamedRow[] = [];
+  const renamedTo = new Map<string, string>();
+  for (const row of all) {
+    if (collapsedIds.has(row.id) || disjunctionIds.has(row.id)) continue;
+    const stripped = stripProvenance(row.canonicalName);
+    if (!stripped) continue;
+    const target = lookupBase(stripped);
+    if (target && target.id !== row.id) {
+      provenanceDeduped.push({ from: row, intoId: target.id, intoName: target.canonicalName });
+      collapsedIds.add(row.id);
+    } else {
+      provenanceShortened.push({ from: row, toName: stripped });
+      renamedTo.set(row.id, stripped);
+    }
+  }
+
+  const normalized = all
+    .filter((r) => !collapsedIds.has(r.id) && !disjunctionIds.has(r.id))
+    .map((r) => {
+      const newName = renamedTo.get(r.id);
+      // Re-normalise under the shortened name so tokens/core/head all agree
+      // with what a reviewer will see in the sheet.
+      return newName ? normalizeRow({ ...r, canonicalName: newName }) : r;
+    });
   const pairs: Pair[] = [];
 
   for (let i = 0; i < normalized.length; i++) {
@@ -473,7 +545,11 @@ export function buildPairUniverse(rows: CatalogRow[]): {
     }
   }
 
-  return { normalized, pairs, exclusions: { collapsed, disjunctions } };
+  return {
+    normalized,
+    pairs,
+    exclusions: { collapsed, disjunctions, provenanceDeduped, provenanceShortened },
+  };
 }
 
 /**
