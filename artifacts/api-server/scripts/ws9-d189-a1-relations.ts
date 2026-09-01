@@ -112,6 +112,21 @@ interface Row {
   contradictionDetail: string;
 }
 
+// §27.2 REUSE — this is the BUG-096 review convention, not a new one. Hans has
+// personally completed a sheet in this exact shape
+// (bug096-nutrition-20260821-1408.csv -> ...-REVIEWED.csv), overturning the
+// machine on 6 of 23 rows. Same columns, same rows, same order; the reviewer
+// adds NOTHING and edits IN PLACE:
+//
+//   `label`        overwritten with the correct label
+//   `generic_is`   overwritten where the label is SUBSUMES
+//   `judge_reason` rewritten as `reviewed YYYY-MM-DD: <why>`
+//
+// 🔴 THE `reviewed ` PREFIX ON judge_reason IS THE HUMAN-REVIEWED MARKER, and it
+// is what --apply honours: a row carrying it is never overwritten by an AI
+// verdict, on this run or any future one. There are deliberately no
+// hans_verdict / hans_notes columns — a second convention for a job that
+// already has one is how two conventions drift apart.
 const CSV_HEADER = [
   "row_kind",
   "reason",
@@ -129,8 +144,6 @@ const CSV_HEADER = [
   "signature",
   "straddles_processing",
   "contradiction_detail",
-  "hans_verdict",
-  "hans_notes",
 ] as const;
 
 function toCsvRow(r: Row): string {
@@ -166,8 +179,6 @@ function toCsvRow(r: Row): string {
     pair.signature,
     String(pair.straddlesProcessing),
     r.contradictionDetail,
-    "",
-    "",
   ]);
 }
 

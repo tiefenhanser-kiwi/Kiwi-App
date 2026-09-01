@@ -1,0 +1,7 @@
+row_kind,reason,family,name_a,name_b,label,confidence,base_is,generic_is,yield_qty,yield_unit,co_harvestable,judge_reason,signature,straddles_processing,contradiction_detail
+RESIDUE,contradiction_flagged,allium,chives,dried chives,DISTINCT,medium,,,,,,Bare 'chives' means the fresh herb; dried chives are a spice-jar product. Same as fresh basil vs dried basil.,dried,true,"same base, prep difference, received DISTINCT + SYNONYM — chives ~ dried chives [dried] => DISTINCT; chives ~ fresh chives [fresh] => SYNONYM"
+RESIDUE,contradiction_flagged,allium,chives,fresh chives,SAME_THING,high,,,,,,reviewed 2026-09-01: typo label,fresh,true,"same base, prep difference, received DISTINCT + SYNONYM — chives ~ dried chives [dried] => DISTINCT; chives ~ fresh chives [fresh] => SYNONYM"
+RESIDUE,confidence_medium,allium,chives,garlic chives,SUBSUMES,medium,,,,,,reviewed 2026-09-01: cleared the direction by accident,garlic,false,
+RESIDUE,confidence_medium,allium,crispy fried onions,fried onions,SYNONYM,medium,,,,,,Crispy fried onions and fried onions name the same fried-onion topping product.,crispy,false,
+RESIDUE,confidence_medium,allium,crispy fried onions,onion,DISTINCT,medium,,,,,,Fried onions are a prepared/packaged product requiring frying (and oil); buying raw onions does not give you them.,crispy|fried,false,
+RESIDUE,confidence_medium,allium,diced white onion,onion,SUBSUMES,medium,,onion,,,,'Onion' is the bare generic; diced white onion is a specific colour (and prep) of it. Second name is the generic.,diced|white,false,

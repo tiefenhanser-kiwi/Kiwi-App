@@ -236,7 +236,7 @@ function coerceVerdict(raw: unknown, pairCount: number): Verdict | null {
   };
 }
 
-const RETRIES = 2;
+const RETRIES = 4;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -358,7 +358,12 @@ export async function judgeBatch(
           coHarvestable: null,
         }));
       }
-      await sleep(800 * (attempt + 1));
+      // ⚠️ 800ms linear backoff was too short for a 529. The full run lost the
+      // whole 115-pair `cheese` family to `overloaded_error` after exhausting
+      // retries — correctly routed to UNSURE rather than dropped, but a family
+      // nobody judged. Exponential from 5s gives an overloaded API time to
+      // recover instead of hammering it three times in 2.4 seconds.
+      await sleep(5000 * 2 ** attempt);
     }
   }
   /* c8 ignore next */

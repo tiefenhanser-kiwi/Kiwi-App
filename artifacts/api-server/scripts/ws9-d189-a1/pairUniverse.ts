@@ -122,6 +122,68 @@ const PROCESSING_MODIFIERS = new Set([
   "instant", "fresh",
 ]);
 
+// ── §2a: normalise out what should never have been judged ──────────────────
+//
+// 🔴 FIX THE INPUT, NOT THE RUBRIC. 326 of the 543 pairs in the four measured
+// families (60%) involved a name that is not a distinct product at all. No
+// rubric change competes with simply not asking.
+//
+// A TRANSFORM-PREP SUFFIX collapses to its base. `yellow onion, diced` IS
+// `yellow onion` — per the A2 discriminator nothing is discarded, so it is the
+// same purchase, and judging it as a separate entity invents a question.
+//
+// ⚠️ COMMA SUFFIX ONLY, AND THAT IS THE WHOLE DISCRIMINATOR. `shredded
+// mozzarella cheese` (adjective PREFIX) is a different bag off a different
+// shelf; `iceberg lettuce, shredded` (comma SUFFIX) is a knife instruction the
+// recipe wrote down. Prefix qualifiers still go to the judge.
+//
+// ⚠️ DISCARD-PREP IS NOT COLLAPSED. `leeks, white and light green parts only`
+// is a genuine COMPONENT carrying a yield — you buy a whole leek and bin half.
+// The vocabulary below deliberately excludes `peeled`, `seeded`, `stemmed`,
+// `trimmed`, `deveined` and `parts`, so anything carrying them stays a question
+// for the judge. Where the call is ambiguous the rule declines to collapse:
+// a false flag costs one line of a review sheet, a false collapse is a wrong
+// catalog forever.
+const TRANSFORM_SUFFIX_WORDS = new Set([
+  // knife work — discards nothing
+  "chopped", "sliced", "diced", "minced", "grated", "shredded", "halved",
+  "quartered", "cubed", "cut", "torn", "crushed", "mashed", "smashed",
+  // adverbs and shapes those take
+  "roughly", "finely", "coarsely", "thinly", "thickly", "lengthwise",
+  "crosswise", "into", "pieces", "rounds", "cubes", "wedges", "strips",
+  "matchsticks", "half", "halves",
+  // handling that changes nothing about the purchase
+  "packed", "drained", "rinsed", "softened", "melted", "room", "temperature",
+  "at", "divided", "separated",
+  // usage notes — not a product difference at all
+  "for", "serving", "serve", "to", "garnish", "garnishing", "topping",
+  // connectors
+  "and", "or",
+]);
+
+/**
+ * Strip one trailing transform-prep suffix, or return null when the suffix is
+ * not purely transform. Numbers, fractions and measurement words are permitted
+ * inside a suffix ("cut into 3/4-inch cubes") because they only ever describe
+ * the shape of the knife work.
+ */
+export function stripTransformSuffix(canonicalName: string): string | null {
+  const comma = canonicalName.lastIndexOf(",");
+  if (comma <= 0) return null;
+  const suffix = canonicalName.slice(comma + 1).trim().toLowerCase();
+  if (suffix.length === 0) return null;
+  const words = suffix
+    .replace(/[0-9]+([./⁄][0-9]+)?/g, " ")
+    .replace(/[½¼¾⅓⅔⅛]/g, " ")
+    .replace(/\b(inch|inches|cm|mm)\b/g, " ")
+    .replace(/[^a-z\s-]/g, " ")
+    .split(/[\s-]+/)
+    .filter((w) => w.length > 0);
+  if (words.length === 0) return null;
+  if (!words.every((w) => TRANSFORM_SUFFIX_WORDS.has(w))) return null;
+  return canonicalName.slice(0, comma).trim();
+}
+
 export type ModifierClass = "prep" | "descriptor" | "color" | "other";
 
 /**
@@ -322,11 +384,73 @@ export function pairFamily(a: NormalizedRow, b: NormalizedRow): string {
  * not worth an index. Straightforwardness beats cleverness here because the
  * count this produces is a number Hans makes a spend decision against.
  */
+export interface CollapsedRow {
+  /** The row that was normalised away. */
+  from: NormalizedRow;
+  /** The catalog row it collapses into. */
+  intoId: string;
+  intoName: string;
+}
+
+export interface UniverseExclusions {
+  /** §2a — transform-prep rows folded into their base. */
+  collapsed: CollapsedRow[];
+  /** §2a — "A or B" substitution phrases, never a valid relation endpoint. */
+  disjunctions: NormalizedRow[];
+}
+
 export function buildPairUniverse(rows: CatalogRow[]): {
   normalized: NormalizedRow[];
   pairs: Pair[];
+  exclusions: UniverseExclusions;
 } {
-  const normalized = rows.map(normalizeRow);
+  const all = rows.map(normalizeRow);
+  const byName = new Map(all.map((r) => [r.canonicalName.toLowerCase(), r]));
+  // Secondary match on the normalised token sequence, so a base that differs
+  // only in pluralisation still counts: `beefsteak tomatoes, thinly sliced`
+  // has no exact `beefsteak tomatoes` row, but `beefsteak tomato` is plainly
+  // the same product. Exact match wins; this is the fallback.
+  const byTokenKey = new Map<string, NormalizedRow>();
+  for (const r of all) {
+    const key = r.tokens.join(" ");
+    if (key.length > 0 && !byTokenKey.has(key)) byTokenKey.set(key, r);
+  }
+  const lookupBase = (name: string): NormalizedRow | undefined =>
+    byName.get(name.toLowerCase()) ?? byTokenKey.get(tokenize(name).join(" "));
+
+  // §2a — fold transform-prep rows into their base, where the base exists as a
+  // catalog row. A suffix with no base row to fold into stays in the universe:
+  // there is nothing to collapse it to, so it is still a question.
+  const collapsed: CollapsedRow[] = [];
+  const collapsedIds = new Set<string>();
+  for (const row of all) {
+    let base = stripTransformSuffix(row.canonicalName);
+    // Repeat, so "yellow onions, peeled, thinly sliced" reduces all the way.
+    let target = base ? lookupBase(base) : undefined;
+    while (base && !target) {
+      const next = stripTransformSuffix(base);
+      if (!next) break;
+      base = next;
+      target = lookupBase(base);
+    }
+    if (target && target.id !== row.id) {
+      collapsed.push({ from: row, intoId: target.id, intoName: target.canonicalName });
+      collapsedIds.add(row.id);
+    }
+  }
+
+  // 🔴 §2a — a disjunction row is not a valid endpoint for ANY relation, not
+  // just SYNONYM. `lard or unsalted butter` is not a purchasable thing; it is a
+  // recipe's substitution phrase that became a canonical name, and it is the
+  // sole cause of the lard/avocado-oil over-merge. Removed from the universe
+  // outright rather than filtered at the auto-accept gate, so it can never
+  // become an endpoint under any label.
+  const disjunctions = all.filter((r) => r.isDisjunction);
+  const disjunctionIds = new Set(disjunctions.map((r) => r.id));
+
+  const normalized = all.filter(
+    (r) => !collapsedIds.has(r.id) && !disjunctionIds.has(r.id),
+  );
   const pairs: Pair[] = [];
 
   for (let i = 0; i < normalized.length; i++) {
@@ -349,7 +473,7 @@ export function buildPairUniverse(rows: CatalogRow[]): {
     }
   }
 
-  return { normalized, pairs };
+  return { normalized, pairs, exclusions: { collapsed, disjunctions } };
 }
 
 /**

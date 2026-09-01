@@ -234,6 +234,44 @@ async function main(): Promise<void> {
     `  so the reported confidence_* counts are "and not flagged" and understate the true low-confidence population by that much.`,
   );
 
+  // ── SYNONYM transitive-closure classes, size >= 3 ─────────────────────
+  // ⚠️ THE EXHAUSTIVE OVER-MERGE CHECK, and the one thing a 60-row spot check
+  // cannot do. `lard ~ avocado oil` was found here, not in a sample: no single
+  // verdict was wrong, the CLOSURE was. Printed largest-first so the worst
+  // offenders are the first thing a reviewer sees.
+  //
+  // 🔴 Computed HERE as a diagnostic only — D-WS9-201 forbids the READER from
+  // ever folding transitively.
+  {
+    const parent = new Map<string, string>();
+    const find = (x: string): string => {
+      if (!parent.has(x)) parent.set(x, x);
+      let root = x;
+      while (parent.get(root) !== root) root = parent.get(root)!;
+      return root;
+    };
+    const nameOf = new Map<string, string>();
+    for (const j of judged) {
+      nameOf.set(j.pair.a.id, j.pair.a.canonicalName);
+      nameOf.set(j.pair.b.id, j.pair.b.canonicalName);
+      if (j.verdict.label === "SYNONYM") {
+        const ra = find(j.pair.a.id);
+        const rb = find(j.pair.b.id);
+        if (ra !== rb) parent.set(ra, rb);
+      }
+    }
+    const cls = new Map<string, string[]>();
+    for (const id of parent.keys()) {
+      const r = find(id);
+      if (!cls.has(r)) cls.set(r, []);
+      cls.get(r)!.push(nameOf.get(id)!);
+    }
+    const big = [...cls.values()].filter((c) => c.length >= 3).sort((a, b) => b.length - a.length);
+    console.log(`\n=== SYNONYM TRANSITIVE-CLOSURE CLASSES, size >= 3 (${big.length}) ===`);
+    for (const c of big) console.log(`  [${c.length}] ${c.sort().join(" | ")}`);
+    if (big.length === 0) console.log("  (none)");
+  }
+
   // ── Q2 ──────────────────────────────────────────────────────────────────
   if (process.argv.includes("--universe")) {
     console.log(`\n=== Q2 — what sits just OUTSIDE the universe ===`);
