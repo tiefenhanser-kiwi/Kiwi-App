@@ -147,6 +147,12 @@ async function main(): Promise<void> {
   // Agreement that survives blinding is agreement; agreement that collapses
   // under it was never a second opinion.
   const blind = argv.includes("--blind");
+  // Phase 4a — the blind test previously covered the WRONG POPULATION. 60/60
+  // was measured on AUTO-ACCEPTED rows, but the claim carrying the projection
+  // is that the arbiter RESOLVES residue. Those 120 resolutions were made with
+  // the first-pass label visible. --residue-sample=N blind-tests them instead.
+  const sampleArg = argv.find((a) => a.startsWith("--residue-sample="));
+  const residueSample = sampleArg ? Number(sampleArg.slice("--residue-sample=".length)) : 0;
 
   const dump = JSON.parse(readFileSync(path, "utf8")) as { judged: DumpRow[] };
   const judged = rehydrate(dump.judged);
@@ -180,11 +186,21 @@ async function main(): Promise<void> {
         .slice(0, 60)
     : [];
 
-  const targets = [...residueIdx, ...spotcheckIdx];
+  const residueTargets =
+    residueSample > 0
+      ? [...residueIdx]
+          .sort(
+            (x, y) =>
+              stableHash(`${judged[x]!.pair.a.canonicalName}~${judged[x]!.pair.b.canonicalName}`) -
+              stableHash(`${judged[y]!.pair.a.canonicalName}~${judged[y]!.pair.b.canonicalName}`),
+          )
+          .slice(0, residueSample)
+      : residueIdx;
+  const targets = [...residueTargets, ...spotcheckIdx];
   console.log(`\n=== ARBITER PASS — ${ARBITER_PROMPT_VERSION} ===`);
   console.log(`  source:            ${path}`);
   console.log(`  first-pass pairs:  ${judged.length}`);
-  console.log(`  residue to settle: ${residueIdx.length}`);
+  console.log(`  residue to settle: ${residueTargets.length}`);
   if (auditAccepted) console.log(`  + auto-accepted rows re-asked (agreement audit): ${spotcheckIdx.length}`);
 
   const byFamily = new Map<string, number[]>();
@@ -232,20 +248,20 @@ async function main(): Promise<void> {
   const wallMs = Date.now() - startedAt;
 
   // ── measurements ────────────────────────────────────────────────────────
-  const resolvedResidue = residueIdx.filter((i) => resolved.get(i)!.label !== "STILL_UNSURE");
-  const stillUnsure = residueIdx.filter((i) => resolved.get(i)!.label === "STILL_UNSURE");
-  const changed = residueIdx.filter((i) => {
+  const resolvedResidue = residueTargets.filter((i) => resolved.get(i)!.label !== "STILL_UNSURE");
+  const stillUnsure = residueTargets.filter((i) => resolved.get(i)!.label === "STILL_UNSURE");
+  const changed = residueTargets.filter((i) => {
     const v = resolved.get(i)!;
     return v.label !== "STILL_UNSURE" && v.label !== judged[i]!.verdict.label;
   });
 
   console.log(`\n=== ARBITER RESULTS ===`);
-  console.log(`  residue in:        ${residueIdx.length}`);
+  console.log(`  residue in:        ${residueTargets.length}`);
   console.log(
-    `  RESOLVED:          ${resolvedResidue.length}  (${((resolvedResidue.length / Math.max(1, residueIdx.length)) * 100).toFixed(1)}%)`,
+    `  RESOLVED:          ${resolvedResidue.length}  (${((resolvedResidue.length / Math.max(1, residueTargets.length)) * 100).toFixed(1)}%)`,
   );
   console.log(
-    `  STILL_UNSURE:      ${stillUnsure.length}  (${((stillUnsure.length / Math.max(1, residueIdx.length)) * 100).toFixed(1)}%)  <- these reach a human`,
+    `  STILL_UNSURE:      ${stillUnsure.length}  (${((stillUnsure.length / Math.max(1, residueTargets.length)) * 100).toFixed(1)}%)  <- these reach a human`,
   );
   console.log(`  overturned first pass: ${changed.length}`);
 

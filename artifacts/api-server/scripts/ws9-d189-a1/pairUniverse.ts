@@ -28,6 +28,8 @@ export interface CatalogRow {
 }
 
 export interface NormalizedRow extends CatalogRow {
+  /** A1 — "A or B" substitution phrase, so never a valid SYNONYM endpoint. */
+  isDisjunction: boolean;
   /** Singularized, stopword-stripped tokens, in order. */
   tokens: string[];
   tokenSet: Set<string>;
@@ -137,6 +139,43 @@ export function modifierClassOf(token: string): ModifierClass {
   return "other";
 }
 
+// ── A1: substitution phrases are not products ──────────────────────────────
+//
+// 🔴 AN "A or B" ROW IS NEVER A VALID SYNONYM ENDPOINT, and the A1 pilot proved
+// why by measurement. The 23-member neutral-oil synonym class contained `lard`
+// and `avocado oil` ONLY because these rows exist as catalog ingredients:
+// `lard or neutral oil`, `lard or unsalted butter`, and ten
+// `neutral oil (such as X or Y)` variants. Remove those bridge rows and the
+// class collapses to 9 — which is entirely correct, and is exactly the
+// fragmentation this program exists to fix. The 23 was a bridging artifact.
+//
+// ⚠️ `lard or unsalted butter` is the proof: it is not a purchasable thing at
+// all. It is a recipe's substitution phrase that became a canonical name, and
+// transitively it makes BUTTER a vegetable oil.
+//
+// These rows still take part in the universe — they can legitimately be
+// DISTINCT or SUBSUMES against something — but a SYNONYM verdict on one is
+// rejected downstream, because folding a disjunction into either of its
+// branches asserts something the name does not say.
+//
+// NOT DELETED. 73 catalog rows match, carrying 277 dish references; the blast
+// radius of removing them is unmeasured and the hygiene pass is a separate
+// decision.
+const DISJUNCTION_PATTERNS: readonly RegExp[] = [
+  /\bor\b/i, // "chicken or vegetable broth", "fresh or frozen corn kernels"
+  /\bsuch as\b/i, // "dry red wine (such as burgundy or pinot noir)"
+  // A slash BETWEEN WORDS only. ⚠️ Not a bare /: `80/20 ground beef` and
+  // `beef chuck, cut into 3/4-inch cubes` are ratios and fractions, not
+  // disjunctions, and excluding them would be a false positive that silently
+  // shrinks the universe.
+  /[a-z]\s*\/\s*[a-z]/i,
+];
+
+/** True when a canonical name is a substitution phrase rather than a product. */
+export function isDisjunctionName(canonicalName: string): boolean {
+  return DISJUNCTION_PATTERNS.some((rx) => rx.test(canonicalName));
+}
+
 export function tokenize(name: string): string[] {
   return name
     .toLowerCase()
@@ -170,6 +209,7 @@ export function normalizeRow(row: CatalogRow): NormalizedRow {
   const core = [...new Set(tokens.filter((t) => !MODIFIERS.has(t)))].sort().join(" ");
   return {
     ...row,
+    isDisjunction: isDisjunctionName(row.canonicalName),
     tokens,
     tokenSet: new Set(tokens),
     core,

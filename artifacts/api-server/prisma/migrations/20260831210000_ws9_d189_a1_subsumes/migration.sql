@@ -1,0 +1,12 @@
+-- WS9 D-WS9-202 — add the `subsumes` label.
+--
+-- A GENERIC name covers a SPECIFIC one: `bell peppers` subsumes
+-- `red bell pepper`. Directed, and the direction is the whole content of the
+-- relation — the reverse row asserts that any bell pepper satisfies a demand
+-- for a red one, which is false.
+--
+-- No column changes: `ingredient_relations` has been directed since it was
+-- created (from/to with a unique on the ordered pair), so the enum value is the
+-- entire migration. yieldQuantity / yieldUnit / coHarvestable stay NULL on
+-- these rows by design — `subsumes` is satisfiability, not yield.
+ALTER TYPE "IngredientRelationLabel" ADD VALUE 'subsumes';

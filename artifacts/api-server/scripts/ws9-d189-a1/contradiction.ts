@@ -11,7 +11,7 @@
 // the CLI feeds this module a hand-built contradictory verdict set and requires
 // it to go red; the real run is only trusted afterwards.
 //
-// THREE DETECTORS, because there are three ways the labels can be incoherent:
+// FOUR DETECTORS, because there are four ways the labels can be incoherent:
 //
 //   1. SIGNATURE DIVERGENCE — the D-WS9-197 case exactly. Two pairs whose token
 //      difference is identical received different labels. `lime ~ lime juice`
@@ -42,11 +42,25 @@
 //      and detector 2 misses it because no synonym chain closes. Without this
 //      the guard has a hole the pilot walked straight into.
 //
+//   4. SUBSUMES ASYMMETRY (D-WS9-202) — `subsumes` is DIRECTED, so it has
+//      failure modes the symmetric labels cannot have: the same pair claimed in
+//      BOTH directions (each name generic over the other), or two SPECIFICS
+//      claimed to subsume one another when Hans's rule is that two specifics
+//      are always DISTINCT. Both are checkable structurally, no model involved.
+//
 // A signature group that legitimately splits still gets flagged, and that is
 // correct rather than a false positive: `[whole]` covers both
 // `canned diced tomatoes ~ canned whole peeled tomatoes` (distinct) and
 // `black peppercorns ~ whole black peppercorns` (synonym), which is the exact
 // class where the answer needs a human. Surfacing them is the point.
+// 🔴 D-WS9-201 — THIS FILE CLOSES SYNONYM EDGES TRANSITIVELY AND THE READER
+// MUST NOT. The asymmetry is deliberate and load-bearing, not an oversight to
+// reconcile: closure HERE finds the over-merge (it is what surfaced the 23-row
+// lard/avocado-oil class), while closure in the reader would SHIP it. A guard
+// may reason more aggressively than a consumer acts. See the matching note on
+// `model IngredientRelation` in prisma/schema.prisma. A future pass that
+// "fixes" the inconsistency by making the reader transitive is the regression
+// this comment exists to prevent.
 
 import { modifierClassOf } from "./pairUniverse";
 import type { JudgedPair } from "./judge";
@@ -54,7 +68,8 @@ import type { JudgedPair } from "./judge";
 export type ContradictionKind =
   | "signature_divergence"
   | "transitivity_conflict"
-  | "same_base_divergence";
+  | "same_base_divergence"
+  | "subsumes_asymmetry";
 
 export interface Contradiction {
   kind: ContradictionKind;
@@ -64,7 +79,7 @@ export interface Contradiction {
 }
 
 /** Only decided labels participate; UNSURE already routes to the human. */
-const DECIDED = new Set(["SYNONYM", "COMPONENT", "DISTINCT"]);
+const DECIDED = new Set(["SYNONYM", "COMPONENT", "DISTINCT", "SUBSUMES"]);
 
 function pairKey(j: JudgedPair): string {
   return `${j.pair.a.canonicalName} ~ ${j.pair.b.canonicalName}`;
@@ -208,6 +223,76 @@ export function detectSameBaseDivergence(judged: JudgedPair[]): Contradiction[] 
   return out;
 }
 
+/**
+ * Detector 4 — SUBSUMES is directed, so its failure modes are directional.
+ *
+ * Two checks, both structural:
+ *
+ *  (a) BOTH-DIRECTIONS. The same unordered pair carries SUBSUMES with
+ *      `genericIsA` pointing each way — every bell pepper is a red bell pepper
+ *      AND every red bell pepper is a bell pepper. If both held they would be
+ *      SYNONYM, so asserting both is asserting neither.
+ *
+ *  (b) TWO SPECIFICS. Hans's rule: two qualified names never subsume each
+ *      other, they are DISTINCT — "if it's 1 red bell pepper and 1 yellow bell
+ *      pepper will those show as two lines? that's what I want." The generic
+ *      side of a SUBSUMES edge must be the BARE one, so a SUBSUMES whose
+ *      declared generic carries more qualifier tokens than the specific is
+ *      backwards or wrong.
+ *
+ * Qualifier count is approximated by token length, which is crude and
+ * deliberately so: it only has to catch "the generic is not the shorter name",
+ * and a miss costs a flag that never fires, not a wrong row.
+ */
+export function detectSubsumesAsymmetry(judged: JudgedPair[]): Contradiction[] {
+  const out: Contradiction[] = [];
+  const byUnordered = new Map<string, number[]>();
+
+  judged.forEach((j, i) => {
+    if (j.verdict.label !== "SUBSUMES") return;
+    const key = [j.pair.a.id, j.pair.b.id].sort().join("::");
+    const bucket = byUnordered.get(key);
+    if (bucket) bucket.push(i);
+    else byUnordered.set(key, [i]);
+
+    // (b) the declared generic must be the less-qualified name.
+    if (typeof j.verdict.genericIsA === "boolean") {
+      const generic = j.verdict.genericIsA ? j.pair.a : j.pair.b;
+      const specific = j.verdict.genericIsA ? j.pair.b : j.pair.a;
+      if (generic.tokens.length >= specific.tokens.length) {
+        out.push({
+          kind: "subsumes_asymmetry",
+          index: i,
+          detail:
+            `SUBSUMES declares "${generic.canonicalName}" generic over ` +
+            `"${specific.canonicalName}", but the declared generic is not the less-qualified name — ` +
+            `two specifics are DISTINCT, never SUBSUMES (D-WS9-202)`,
+        });
+      }
+    }
+  });
+
+  // (a) same pair, both directions.
+  for (const indices of byUnordered.values()) {
+    if (indices.length < 2) continue;
+    const directions = new Set(
+      indices.map((i) => {
+        const j = judged[i]!;
+        return j.verdict.genericIsA ? j.pair.a.id : j.pair.b.id;
+      }),
+    );
+    if (directions.size < 2) continue;
+    for (const i of indices) {
+      out.push({
+        kind: "subsumes_asymmetry",
+        index: i,
+        detail: `${pairKey(judged[i]!)} is claimed SUBSUMES in BOTH directions — each name generic over the other`,
+      });
+    }
+  }
+  return out;
+}
+
 export interface DetectorReport {
   contradictions: Contradiction[];
   /** judged-array indices carrying at least one contradiction. */
@@ -215,19 +300,22 @@ export interface DetectorReport {
   bySignature: number;
   byTransitivity: number;
   bySameBase: number;
+  bySubsumes: number;
 }
 
 export function runDetectors(judged: JudgedPair[]): DetectorReport {
   const signature = detectSignatureDivergence(judged);
   const transitivity = detectTransitivityConflicts(judged);
   const sameBase = detectSameBaseDivergence(judged);
-  const contradictions = [...signature, ...transitivity, ...sameBase];
+  const subsumes = detectSubsumesAsymmetry(judged);
+  const contradictions = [...signature, ...transitivity, ...sameBase, ...subsumes];
   return {
     contradictions,
     flagged: new Set(contradictions.map((c) => c.index)),
     bySignature: signature.length,
     byTransitivity: transitivity.length,
     bySameBase: sameBase.length,
+    bySubsumes: subsumes.length,
   };
 }
 
@@ -241,6 +329,7 @@ export function formatDetectorReport(report: DetectorReport, judged: JudgedPair[
     `    signature divergence:  ${report.bySignature}`,
     `    transitivity conflict: ${report.byTransitivity}`,
     `    same-base divergence:  ${report.bySameBase}`,
+    `    subsumes asymmetry:    ${report.bySubsumes}`,
   ];
   const seen = new Set<string>();
   for (const c of report.contradictions) {

@@ -404,10 +404,14 @@ model PantryStaple {
 //             pepperoncini -> its brine, out of one jar)
 //   distinct  different products sharing a word (iodized salt is NOT kosher is
 //             NOT flaky sea salt; peppercorns are not ground black pepper)
+//   subsumes  D-WS9-202 — a GENERIC name covers a SPECIFIC one. `bell peppers`
+//             subsumes `red bell pepper`: a shopper who needs "bell peppers"
+//             is satisfied by red ones, but not the reverse.
 enum IngredientRelationLabel {
   synonym
   component
   distinct
+  subsumes
 }
 
 // Judge confidence. DELIBERATELY AN ENUM, NOT A FLOAT: a model asked for 0..1
@@ -519,6 +523,24 @@ model IngredientAlias {
 //   IngredientRelation maps a ROW    -> a ROW, at consolidation
 // A synonym verdict writes HERE and only here; it never mints an alias row.
 //
+// 🔴 D-WS9-201 — THE READER TAKES DIRECT EDGES ONLY. NO TRANSITIVE CLOSURE.
+// EVER. Two rows fold only if a stored relation says THOSE TWO are synonym.
+//
+// WHY, measured: under closure the A1 pilot's largest synonym class reached 23
+// rows and swept `lard` and `avocado oil` into the neutral-oil blob; a second
+// chained `crushed tomatoes` to `whole peeled tomatoes`. ⚠️ NO SINGLE VERDICT
+// HAS TO BE WRONG FOR THIS — `lard ~ shortening ~ neutral oil ~ avocado oil` is
+// a chain of individually defensible edges whose closure is indefensible. A
+// human reviews edges; nobody reviews the chain. And it is safety-adjacent, not
+// cosmetic: that closure misrepresents a vegetarian, kosher or halal user's
+// list.
+//
+// ⚠️ THE CONTRADICTION DETECTOR DOES CLOSE TRANSITIVELY, AND THAT ASYMMETRY IS
+// DELIBERATE — see scripts/ws9-d189-a1/contradiction.ts. A guard may reason
+// more aggressively than a consumer acts: closure there FINDS the over-merge,
+// closure here WOULD SHIP it. A future pass will read the two as inconsistent
+// and "fix" it by making the reader transitive. That is the regression.
+//
 // D-WS9-195 (context — Block B builds it, not A1): pooling runs as its own pass
 // inside consolidatePlanIngredients, between the recurring match-or-append and
 // mergeConvertibleGroups — never as a branch inside mergeGroup, whose contract
@@ -538,10 +560,16 @@ model IngredientRelation {
 
   label IngredientRelationLabel
 
-  // DIRECTIONALITY, and it differs by label:
+  // DIRECTIONALITY, and it differs by label. The table has ALWAYS been directed
+  // — `from`/`to` with a unique on the ORDERED pair — so `subsumes` needed no
+  // migration beyond the enum value.
   //   component — DIRECTED, and the direction is load-bearing: `from` is the
   //               thing you BUY (lime), `to` is the thing the recipe CALLS FOR
   //               (lime juice). Reversing it inverts the arithmetic.
+  //   subsumes  — DIRECTED. `from` is the GENERIC, `to` is the SPECIFIC:
+  //               `bell peppers` subsumes `red bell pepper`. Reversing it
+  //               asserts that any bell pepper satisfies a demand for a red
+  //               one, which is false, so the reverse row must never exist.
   //   synonym /  SYMMETRIC. Stored in canonical order (from.canonicalName <
   //   distinct    to.canonicalName, ordinal compare) so one pair is one row and
   //               `--apply` stays idempotent. Readers sort the pair the same
@@ -557,6 +585,13 @@ model IngredientRelation {
   //   lemon -> lemon juice : 3, "tbsp"   (~2-3 tbsp of juice per lemon)
   //   lemon -> lemon zest  : 1, "tbsp"   (~1 tbsp of zest per lemon)
   // Required (non-null) on `component`; null on synonym / distinct.
+  //
+  // ⚠️ AND NULL ON `subsumes`, DELIBERATELY — DO NOT BACKFILL THEM. `subsumes`
+  // is a SATISFIABILITY relation, not a yield relation: it says a demand for
+  // the generic is met by the specific, and there is no quantity to carry.
+  // "How much red bell pepper does one bell pepper yield" is not a question
+  // with an answer — they are the same object under two names, one narrower.
+  // A number here would be arithmetic Block B would then use.
   yieldQuantity Float?
   yieldUnit     String?
 

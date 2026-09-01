@@ -34,13 +34,13 @@ export const JUDGE_MODEL = "claude-opus-5";
 // Bump this when the rubric text below changes. It is stamped on every row, so
 // a future re-run under a revised rubric can find what the old one wrote —
 // which is the whole lesson of D-WS9-197.
-export const PROMPT_VERSION = "d189-a1-v1";
+export const PROMPT_VERSION = "d189-a1-v2-subsumes";
 
 // $ per million tokens for claude-opus-5.
 export const PRICE_INPUT_PER_MTOK = 5;
 export const PRICE_OUTPUT_PER_MTOK = 25;
 
-export type Label = "SYNONYM" | "COMPONENT" | "DISTINCT" | "UNSURE";
+export type Label = "SYNONYM" | "COMPONENT" | "DISTINCT" | "SUBSUMES" | "UNSURE";
 export type Confidence = "high" | "medium" | "low";
 
 export interface Verdict {
@@ -50,6 +50,8 @@ export interface Verdict {
   reason: string;
   /** COMPONENT only: which endpoint is the thing you BUY. */
   baseIsA?: boolean;
+  /** SUBSUMES only: which endpoint is the GENERIC. Direction is the relation. */
+  genericIsA?: boolean | null;
   yieldQuantity?: number | null;
   yieldUnit?: string | null;
   coHarvestable?: boolean | null;
@@ -79,10 +81,11 @@ const RESPONSE_SCHEMA = {
         additionalProperties: false,
         properties: {
           pairIndex: { type: "integer" },
-          label: { type: "string", enum: ["SYNONYM", "COMPONENT", "DISTINCT", "UNSURE"] },
+          label: { type: "string", enum: ["SYNONYM", "COMPONENT", "DISTINCT", "SUBSUMES", "UNSURE"] },
           confidence: { type: "string", enum: ["high", "medium", "low"] },
           reason: { type: "string" },
           baseIsA: { type: ["boolean", "null"] },
+          genericIsA: { type: ["boolean", "null"] },
           yieldQuantity: { type: ["number", "null"] },
           yieldUnit: { type: ["string", "null"] },
           coHarvestable: { type: ["boolean", "null"] },
@@ -93,6 +96,7 @@ const RESPONSE_SCHEMA = {
           "confidence",
           "reason",
           "baseIsA",
+          "genericIsA",
           "yieldQuantity",
           "yieldUnit",
           "coHarvestable",
@@ -105,7 +109,7 @@ const RESPONSE_SCHEMA = {
 
 // The rubric. Every calibration example below is a ruling Hans has already
 // made, or the exact pair D-WS9-197 was opened against.
-const RUBRIC = `You are building a durable table of relationships between ingredients in a recipe app's catalog. Each pair below is two rows from that catalog. Label every pair with exactly one of SYNONYM, COMPONENT, or DISTINCT.
+const RUBRIC = `You are building a durable table of relationships between ingredients in a recipe app's catalog. Each pair below is two rows from that catalog. Label every pair with exactly one of SYNONYM, COMPONENT, DISTINCT, or SUBSUMES.
 
 SYNONYM — the same purchase under two names. One trip to the shelf, one product, and a shopper handed either name buys the identical thing.
   granulated sugar ~ white sugar        (the same bag)
@@ -126,11 +130,49 @@ DISTINCT — different products that happen to share a word. A shopper who bough
   fresh basil ~ dried basil: DISTINCT.
   red onion ~ yellow onion: DISTINCT.
 
+SUBSUMES — one name is GENERIC and the other is a SPECIFIC kind of it. A shopper who needs the generic is satisfied by the specific; a shopper who needs the specific is NOT satisfied by just any of the generic.
+  bell peppers ~ red bell pepper        SUBSUMES  (generic = "bell peppers")
+  onion ~ yellow onion                  SUBSUMES  (generic = "onion")
+  chili powder ~ ancho chili powder     SUBSUMES  (generic = "chili powder")
+
+🔴 SUBSUMES IS DIRECTED AND THE DIRECTION IS THE WHOLE POINT. Set genericIsA: true if the FIRST name is the generic one, false if the SECOND is. The reverse claim — that any bell pepper satisfies a demand for a RED bell pepper — is false, so a direction you set backwards is not a small error, it is the opposite assertion.
+
+🔴 TWO SPECIFICS NEVER SUBSUME EACH OTHER. They are DISTINCT.
+  red bell pepper ~ yellow bell pepper   -> DISTINCT. Two peppers, two lines, two purchases.
+  red onion ~ yellow onion               -> DISTINCT.
+Only a bare, unqualified generic subsumes. If BOTH names carry a qualifier, the answer is DISTINCT (or SYNONYM if the qualifiers mean the same thing).
+
+🔴 QUALIFIER AXES ARE INDEPENDENT, AND THIS IS THE CASE MOST OFTEN GOT WRONG. A name can be specified on one axis (colour, size, cut, variety, origin) while unspecified on another. Two names specified on DIFFERENT axes do not subsume each other in either direction — neither one covers the other — so they are DISTINCT.
+  large bell peppers ~ red bell pepper     -> DISTINCT. "large" fixes SIZE and leaves colour open;
+                                              "red" fixes COLOUR and leaves size open. Neither
+                                              contains the other.
+  large bell peppers ~ green bell pepper   -> DISTINCT. Same reason.
+  bell peppers ~ large bell peppers        -> SUBSUMES. The bare generic is unspecified on EVERY
+                                              axis, so it subsumes anything qualified on any axis.
+  bell peppers ~ red bell pepper           -> SUBSUMES.
+Ask yourself: WHICH AXIS does each qualifier fix? Same axis, one bare -> SUBSUMES. Different axes -> DISTINCT. Do not treat a size word as though it were another colour.
+
 THE TEST THAT SEPARATES THEM. Ask: a shopper holding one of these, who needs the other —
   needs nothing more                      -> SYNONYM
   needs nothing more, but must do work to
   extract it from what they already hold  -> COMPONENT
+  is satisfied only in ONE direction,
+  because one name is broader             -> SUBSUMES
   must buy something else                 -> DISTINCT
+
+🔴 A PREPARATION QUALIFIER ("…, halved", "…, diced", "…, white parts only"): DOES IT DISCARD PART OF THE PURCHASE, OR MERELY TRANSFORM IT? This is the single most common source of inconsistent answers, so decide it by the rule and not by feel.
+  TRANSFORMS — halved, chopped, sliced, diced, minced, thinly sliced, grated, crushed, torn,
+    cubed, quartered. Nothing is thrown away; the whole purchase is still used, in a different
+    shape. -> SYNONYM.
+      roma tomatoes ~ roma tomatoes, halved            -> SYNONYM
+      fresh tomatoes ~ fresh tomatoes, roughly chopped -> SYNONYM
+      yellow onion ~ yellow onion, diced               -> SYNONYM
+  DISCARDS — "white and light green parts only", "leaves only", "stems removed", "florets",
+    "trimmed", "peeled and seeded". You buy MORE than the recipe uses; part of the purchase is
+    waste. -> COMPONENT, with a yield magnitude for the part you actually use.
+      leeks ~ leeks, white and light green parts only  -> COMPONENT (a leek yields roughly half)
+      broccoli ~ broccoli florets                      -> COMPONENT
+Ask: after the prep, is any of what I bought in the bin? No -> SYNONYM. Yes -> COMPONENT.
 
 ⚠️ JUDGE THE WHOLE FAMILY CONSISTENTLY. Every pair below is from ONE food family, and they are given to you together for exactly one reason: analogous pairs must receive analogous labels. If you call "lime ~ lime juice" COMPONENT, then "lemon ~ lemon juice" is COMPONENT too — the fruits differ, the relationship does not. Before you answer, scan your own labels for two pairs that differ only in which specific ingredient they name and check that you gave them the same label. A structural check downstream will catch it if you do not, and every pair it catches costs a human a decision.
 
@@ -149,6 +191,9 @@ FOR EVERY COMPONENT PAIR YOU MUST ALSO GIVE THE ARITHMETIC. A label alone says t
             lemon -> lemon zest  = 1 tbsp, coHarvestable true.
             garlic head -> garlic clove = 10 clove, coHarvestable false.
 For SYNONYM and DISTINCT pairs, set baseIsA, yieldQuantity, yieldUnit and coHarvestable all to null.
+
+FOR SUBSUMES, set genericIsA and leave baseIsA, yieldQuantity, yieldUnit and coHarvestable null. SUBSUMES carries NO magnitude — it says a demand for the generic is met by the specific, and there is no quantity in that. "How much red bell pepper does one bell pepper yield" is not a question with an answer.
+For every OTHER label, set genericIsA to null.
 
 CONFIDENCE. "high" means you would stake the row on it. "medium" means the answer is probably right but the pair has a wrinkle. "low" means you are guessing. Use UNSURE as the label (with any confidence) only when the two names are too vague to judge at all — not when the answer is merely hard. Be honest: a low-confidence answer is routed to a human, which is the correct outcome, while a wrong high-confidence answer is written to the database and never re-examined.
 
@@ -175,7 +220,7 @@ function coerceVerdict(raw: unknown, pairCount: number): Verdict | null {
   return {
     pairIndex: idx,
     label:
-      label === "SYNONYM" || label === "COMPONENT" || label === "DISTINCT"
+      label === "SYNONYM" || label === "COMPONENT" || label === "DISTINCT" || label === "SUBSUMES"
         ? (label as Label)
         : "UNSURE",
     confidence:
@@ -184,6 +229,7 @@ function coerceVerdict(raw: unknown, pairCount: number): Verdict | null {
         : "low",
     reason: typeof o.reason === "string" ? o.reason : "",
     baseIsA: typeof o.baseIsA === "boolean" ? o.baseIsA : undefined,
+    genericIsA: typeof o.genericIsA === "boolean" ? o.genericIsA : null,
     yieldQuantity: typeof o.yieldQuantity === "number" ? o.yieldQuantity : null,
     yieldUnit: typeof o.yieldUnit === "string" && o.yieldUnit.length > 0 ? o.yieldUnit : null,
     coHarvestable: typeof o.coHarvestable === "boolean" ? o.coHarvestable : null,

@@ -121,6 +121,7 @@ const CSV_HEADER = [
   "label",
   "confidence",
   "base_is",
+  "generic_is",
   "yield_qty",
   "yield_unit",
   "co_harvestable",
@@ -140,6 +141,12 @@ function toCsvRow(r: Row): string {
         ? pair.a.canonicalName
         : pair.b.canonicalName
       : "";
+  const genericIs =
+    verdict.label === "SUBSUMES" && typeof verdict.genericIsA === "boolean"
+      ? verdict.genericIsA
+        ? pair.a.canonicalName
+        : pair.b.canonicalName
+      : "";
   return encodeCsvRow([
     r.kind,
     r.reason,
@@ -149,6 +156,7 @@ function toCsvRow(r: Row): string {
     verdict.label,
     verdict.confidence,
     baseIs,
+    genericIs,
     verdict.yieldQuantity ?? "",
     verdict.yieldUnit ?? "",
     verdict.coHarvestable === null || verdict.coHarvestable === undefined
@@ -181,7 +189,21 @@ function timestamp(): string {
 function isAutoAcceptable(j: JudgedPair, flagged: boolean): { ok: boolean; reason: string } {
   if (flagged) return { ok: false, reason: "contradiction_flagged" };
   if (j.verdict.label === "UNSURE") return { ok: false, reason: "unsure" };
+  // A1 — a SYNONYM verdict with a substitution phrase ("lard or neutral oil")
+  // on either side is rejected regardless of confidence. Folding a disjunction
+  // into one of its branches is how BUTTER became a vegetable oil.
+  if (
+    j.verdict.label === "SYNONYM" &&
+    (j.pair.a.isDisjunction || j.pair.b.isDisjunction)
+  ) {
+    return { ok: false, reason: "synonym_on_disjunction_row" };
+  }
   if (j.verdict.confidence !== "high") return { ok: false, reason: `confidence_${j.verdict.confidence}` };
+  // SUBSUMES is directed and the direction IS the assertion, so a verdict that
+  // does not say which side is generic is not usable.
+  if (j.verdict.label === "SUBSUMES" && typeof j.verdict.genericIsA !== "boolean") {
+    return { ok: false, reason: "subsumes_missing_direction" };
+  }
   if (j.verdict.label === "COMPONENT") {
     const hasMagnitude =
       typeof j.verdict.yieldQuantity === "number" &&
@@ -254,6 +276,20 @@ function fakeRow(id: string, canonicalName: string): NormalizedRow {
   } as any;
 }
 
+/** A SUBSUMES verdict with an explicit direction, for the D-WS9-202 fixture. */
+function subsumesVerdict(genericIsA: boolean): Verdict {
+  return {
+    pairIndex: 0,
+    label: "SUBSUMES",
+    confidence: "high",
+    reason: "fixture",
+    genericIsA,
+    yieldQuantity: null,
+    yieldUnit: null,
+    coHarvestable: null,
+  };
+}
+
 function fixturePair(aName: string, bName: string, signature: string, family: string): Pair {
   return {
     a: fakeRow(`fx-${aName}`, aName),
@@ -304,6 +340,31 @@ function buildContradictoryFixture(): JudgedPair[] {
     // labels. Taken from the pilot, where the judge produced exactly this.
     mk(fixturePair("onion", "white onion", "white", "allium"), "DISTINCT"),
     mk(fixturePair("onion", "yellow onion", "yellow", "allium"), "SYNONYM"),
+    // Detector 4a (D-WS9-202): the SAME pair claimed SUBSUMES in BOTH
+    // directions — "bell peppers" generic over "red bell pepper" AND the
+    // reverse. If both held they would be SYNONYM, so asserting both asserts
+    // neither.
+    {
+      pair: fixturePair("bell peppers", "red bell pepper", "red", "pepper_corn"),
+      familyKey: "pepper_corn",
+      batchSplit: false,
+      verdict: subsumesVerdict(true),
+    },
+    {
+      pair: fixturePair("bell peppers", "red bell pepper", "red", "pepper_corn"),
+      familyKey: "pepper_corn",
+      batchSplit: false,
+      verdict: subsumesVerdict(false),
+    },
+    // Detector 4b: TWO SPECIFICS claimed to subsume each other. Hans's rule is
+    // that these are DISTINCT — "1 red bell pepper and 1 yellow bell pepper…
+    // two lines. that's what I want."
+    {
+      pair: fixturePair("red bell pepper", "yellow bell pepper", "red|yellow", "pepper_corn"),
+      familyKey: "pepper_corn",
+      batchSplit: false,
+      verdict: subsumesVerdict(true),
+    },
   ];
 }
 
@@ -335,12 +396,27 @@ function buildCoherentFixture(): JudgedPair[] {
     // unscoped signature detector flags this against `onion ~ white onion`
     // above; a scoped one must not, because the two are not analogous.
     mk(fixturePair("sugar", "white sugar", "white", "sugar"), "SYNONYM"),
+    // The SUBSUMES control, stated CORRECTLY: bare generic on the left, one
+    // direction only, and the two specifics DISTINCT rather than subsuming.
+    {
+      pair: fixturePair("bell peppers", "red bell pepper", "red", "pepper_corn"),
+      familyKey: "pepper_corn",
+      batchSplit: false,
+      verdict: subsumesVerdict(true),
+    },
+    {
+      pair: fixturePair("bell peppers", "yellow bell pepper", "yellow", "pepper_corn"),
+      familyKey: "pepper_corn",
+      batchSplit: false,
+      verdict: subsumesVerdict(true),
+    },
+    mk(fixturePair("red bell pepper", "yellow bell pepper", "red|yellow", "pepper_corn"), "DISTINCT"),
   ];
 }
 
 function runFixture(): number {
   console.log(`\n=== §27.4 — PROVING THE GUARD ===`);
-  console.log(`\n--- 1. deliberately contradictory fixture (MUST go RED on all three) ---`);
+  console.log(`\n--- 1. deliberately contradictory fixture (MUST go RED on all four) ---`);
   const bad = buildContradictoryFixture();
   const badReport = runDetectors(bad);
   console.log(formatDetectorReport(badReport, bad));
@@ -351,10 +427,13 @@ function runFixture(): number {
   console.log(formatDetectorReport(goodReport, good));
 
   const redOk =
-    badReport.bySignature > 0 && badReport.byTransitivity > 0 && badReport.bySameBase > 0;
+    badReport.bySignature > 0 &&
+    badReport.byTransitivity > 0 &&
+    badReport.bySameBase > 0 &&
+    badReport.bySubsumes > 0;
   const greenOk = goodReport.contradictions.length === 0;
   console.log(
-    `\n  RESULT: contradictory fixture ${redOk ? "RED ✓ (all 3 detectors)" : "DID NOT GO RED ✗"} · coherent control ${
+    `\n  RESULT: contradictory fixture ${redOk ? "RED ✓ (all 4 detectors)" : "DID NOT GO RED ✗"} · coherent control ${
       greenOk ? "green ✓" : "FALSE POSITIVE ✗"
     }`,
   );
