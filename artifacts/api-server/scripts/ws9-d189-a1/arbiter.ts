@@ -21,7 +21,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Confidence, Label, Usage } from "./judge";
 import { JUDGE_MODEL, maxTokensFor } from "./judge";
 
-export const ARBITER_PROMPT_VERSION = "d189-a1-arb-v1";
+export const ARBITER_PROMPT_VERSION = "d189-a1-arb-v2-subsumes";
 
 export type ArbiterLabel = Label | "STILL_UNSURE";
 
@@ -52,6 +52,7 @@ export interface ArbiterVerdict {
   confidence: Confidence;
   reason: string;
   baseIsA?: boolean | null;
+  genericIsA?: boolean | null;
   yieldQuantity?: number | null;
   yieldUnit?: string | null;
   coHarvestable?: boolean | null;
@@ -70,11 +71,12 @@ const ARBITER_SCHEMA = {
           pairIndex: { type: "integer" },
           label: {
             type: "string",
-            enum: ["SYNONYM", "COMPONENT", "DISTINCT", "STILL_UNSURE"],
+            enum: ["SYNONYM", "COMPONENT", "DISTINCT", "SUBSUMES", "STILL_UNSURE"],
           },
           confidence: { type: "string", enum: ["high", "medium", "low"] },
           reason: { type: "string" },
           baseIsA: { type: ["boolean", "null"] },
+          genericIsA: { type: ["boolean", "null"] },
           yieldQuantity: { type: ["number", "null"] },
           yieldUnit: { type: ["string", "null"] },
           coHarvestable: { type: ["boolean", "null"] },
@@ -85,6 +87,7 @@ const ARBITER_SCHEMA = {
           "confidence",
           "reason",
           "baseIsA",
+          "genericIsA",
           "yieldQuantity",
           "yieldUnit",
           "coHarvestable",
@@ -99,7 +102,7 @@ const ARBITER_RUBRIC = `You are the second and final automated pass over a table
 
 Your job is to settle them, so that a human only ever sees what genuinely cannot be settled.
 
-The three labels are unchanged:
+The four labels match the first pass:
   SYNONYM   — the same purchase under two names. One product, one trip to the shelf.
   COMPONENT — different ingredients, ONE thing you buy; one is derived from the other
               (lime -> lime juice, garlic head -> garlic clove, pepperoncini -> its brine).
@@ -107,6 +110,18 @@ The three labels are unchanged:
               Grain size, processing state and packaging are all product differences:
               kosher salt is not flaky sea salt, peppercorns are not ground pepper,
               canned diced tomatoes are not canned whole peeled tomatoes.
+  SUBSUMES  — one name is GENERIC and the other a SPECIFIC kind of it. A shopper needing
+              the generic is satisfied by the specific, but not the reverse.
+              bell peppers ~ red bell pepper   (generic = "bell peppers")
+              onion ~ yellow onion             (generic = "onion")
+              Set genericIsA: true if the FIRST name is the generic, false if the SECOND.
+              🔴 TWO SPECIFICS NEVER SUBSUME EACH OTHER — they are DISTINCT. And two names
+              qualified on DIFFERENT axes (size vs colour vs cut) do not subsume either way:
+              "large bell peppers" ~ "red bell pepper" is DISTINCT.
+              🔴 A qualifier that merely names the DEFAULT variety is still SUBSUMES, not
+              SYNONYM: "cardamom pods" ~ "green cardamom pods" is SUBSUMES, because black
+              cardamom exists and the bare name does not exclude it.
+              SUBSUMES carries NO magnitude — leave yieldQuantity/yieldUnit/coHarvestable null.
 
 WHAT YOU HAVE THAT THE FIRST PASS DID NOT. Below the disputed pairs you are given the first pass's answers for the WHOLE family. Use them. Most disputes are resolvable by reading across: if the family already settled "lime ~ lime juice" as COMPONENT at high confidence, then "lemon ~ lemon juice" is COMPONENT, and the dispute is over. Where a contradiction is quoted, the point is that two answers cannot both stand — decide which is right and answer accordingly, even if that means overturning the first pass.
 
@@ -151,12 +166,13 @@ function coerce(raw: unknown, count: number): ArbiterVerdict | null {
   return {
     pairIndex: idx,
     label:
-      label === "SYNONYM" || label === "COMPONENT" || label === "DISTINCT"
+      label === "SYNONYM" || label === "COMPONENT" || label === "DISTINCT" || label === "SUBSUMES"
         ? (label as ArbiterLabel)
         : "STILL_UNSURE",
     confidence: conf === "high" || conf === "medium" || conf === "low" ? (conf as Confidence) : "low",
     reason: typeof o.reason === "string" ? o.reason : "",
     baseIsA: typeof o.baseIsA === "boolean" ? o.baseIsA : null,
+    genericIsA: typeof o.genericIsA === "boolean" ? o.genericIsA : null,
     yieldQuantity: typeof o.yieldQuantity === "number" ? o.yieldQuantity : null,
     yieldUnit: typeof o.yieldUnit === "string" && o.yieldUnit.length > 0 ? o.yieldUnit : null,
     coHarvestable: typeof o.coHarvestable === "boolean" ? o.coHarvestable : null,
@@ -219,6 +235,8 @@ export async function arbitrateBatch(
             confidence: "low" as const,
             reason: "arbiter returned no verdict for this pair",
             baseIsA: null,
+          genericIsA: null,
+            genericIsA: null,
             yieldQuantity: null,
             yieldUnit: null,
             coHarvestable: null,
@@ -233,6 +251,7 @@ export async function arbitrateBatch(
           confidence: "low" as const,
           reason,
           baseIsA: null,
+          genericIsA: null,
           yieldQuantity: null,
           yieldUnit: null,
           coHarvestable: null,

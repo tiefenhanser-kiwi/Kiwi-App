@@ -215,7 +215,20 @@ async function main(): Promise<void> {
   const resolved = new Map<number, ArbiterVerdict>();
   const startedAt = Date.now();
 
-  for (const [family, indices] of [...byFamily].sort((a, b) => a[0].localeCompare(b[0]))) {
+  // Bounded concurrency, same lever as the judge's. The full run spans ~120
+  // families; sequentially that is hours of wall clock for no reason, and the
+  // arbiter's calls are independent by construction — each one sees only its
+  // own family's context.
+  const ARBITER_CONCURRENCY = 4;
+  const families = [...byFamily].sort((a, b) => a[0].localeCompare(b[0]));
+  let nextFamily = 0;
+  let doneFamilies = 0;
+
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const n = nextFamily++;
+      if (n >= families.length) return;
+      const [family, indices] = families[n]!;
     const disputed: DisputedPair[] = indices.map((i) => {
       const j = judged[i]!;
       return {
@@ -241,10 +254,17 @@ async function main(): Promise<void> {
         confidence: j.verdict.confidence,
       }));
 
-    const verdicts = await arbitrateBatch(client, family, disputed, context, usage);
-    indices.forEach((globalIdx, k) => resolved.set(globalIdx, verdicts[k]!));
-    console.log(`  [${family}] ${indices.length} pairs · $${costUsd(usage).toFixed(2)} so far`);
-  }
+      const verdicts = await arbitrateBatch(client, family, disputed, context, usage);
+      indices.forEach((globalIdx, k) => resolved.set(globalIdx, verdicts[k]!));
+      doneFamilies += 1;
+      console.log(
+        `  [${doneFamilies}/${families.length}] ${family} — ${indices.length} pairs · $${costUsd(usage).toFixed(2)} so far`,
+      );
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(ARBITER_CONCURRENCY, families.length) }, worker),
+  );
   const wallMs = Date.now() - startedAt;
 
   // ── measurements ────────────────────────────────────────────────────────
