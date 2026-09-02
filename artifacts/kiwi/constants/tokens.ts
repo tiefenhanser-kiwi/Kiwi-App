@@ -105,6 +105,13 @@ export const Palette = {
   text: {
     primary:     Colors.neutral[900],
     secondary:   Colors.neutral[700],
+    // ⚠️ WS9 BUG-157 — PRESERVED, and currently READ BY NOTHING in the app (two
+    // differently shaped searches, one not respecting .gitignore: 13 hits, zero
+    // production reads; its last consumer, ErrorFallback, moved to .secondary).
+    // It is the QUIET TIER — 3.4886:1 on paper, 3.7278:1 on card, both BELOW the
+    // 4.5:1 text bar and kept deliberately for section labels, Cook Mode's
+    // dimmed next-step preview and ornamental muted UI. NEVER point body text at
+    // it; use Colors.neutral[700] (5.8956 / 6.2999) or .text.secondary for prose.
     muted:       Colors.neutral[600],
     // WS9 BUG-157 — WAS '#A89A7A', which measured 2.5967:1 on paper / 2.7748:1
     // on the white card: BELOW even the 3:1 NON-text floor, and WORSE than the
