@@ -120,6 +120,60 @@ export const TRIAGE_C3: TriageRuling[] = [
 ];
 
 // ── C-4 — Hans-ruled, 3 rows ──────────────────────────────────────────────
+// ── Corrections, September 1 2026 ──────────────────────────────────────────
+//
+// The onion family: `onion` already SUBSUMES `large yellow onion`, so calling
+// `yellow onion` DISTINCT from it denies the hierarchy at the middle level
+// while asserting it end to end. Bare `yellow onion` is a WILDCARD on size, not
+// the name of one standard bulb — which makes onion identical to shrimp,
+// carrots and zucchini, all already accepted.
+//
+// ⚠️ This retires the two-branch "default variety" rule. It was written from
+// the premise that a bare name denotes a standard size, and the control shows
+// the premise is false for produce.
+export const TRIAGE_ONION: TriageRuling[] = [
+  {
+    a: "yellow onion",
+    b: "medium yellow onion",
+    label: "SUBSUMES",
+    genericIs: "yellow onion",
+    why:
+      "bare 'yellow onion' is a wildcard on size, not the name of one standard bulb; `onion` already " +
+      "subsumes `large yellow onion`, so the middle level must subsume too",
+  },
+  {
+    a: "large yellow onion",
+    b: "yellow onion",
+    label: "SUBSUMES",
+    genericIs: "yellow onion",
+    why:
+      "same hierarchy: onion > yellow onion > large yellow onion, consistent with shrimp, carrots and " +
+      "zucchini",
+  },
+];
+
+// The three butcher-cut pork chop rows. A butcher's thick cut is a separate
+// pack, so `thick-cut` behaves here as it does for bacon. The four asparagus
+// rows are deliberately NOT included: spear thickness is a natural size grade
+// on a loose product, not a separate SKU.
+const PORK_THICK_WHY =
+  "a butcher's thick cut is a separate pack, so 'thick-cut' is a default-variety marker here, not a size grade";
+export const TRIAGE_PORK: TriageRuling[] = [
+  { a: "bone-in pork chops", b: "bone-in thick-cut pork chops", label: "DISTINCT", why: PORK_THICK_WHY },
+  {
+    a: "bone-in pork chops, about 1 inch thick",
+    b: "bone-in thick-cut pork chops",
+    label: "DISTINCT",
+    why: PORK_THICK_WHY,
+  },
+  {
+    a: "bone-in pork chops, about 1-inch thick",
+    b: "bone-in thick-cut pork chops",
+    label: "DISTINCT",
+    why: PORK_THICK_WHY,
+  },
+];
+
 export const TRIAGE_C4: TriageRuling[] = [
   {
     a: "pizza dough",
@@ -139,8 +193,12 @@ export const TRIAGE_C4: TriageRuling[] = [
   {
     a: "flour tortillas (10-inch)",
     b: "large flour tortillas",
-    label: "SYNONYM",
-    why: "Hans's size ruling: 'large' is burrito size and 10-inch is burrito size, so these name one purchase",
+    label: "SUBSUMES",
+    genericIs: "large flour tortillas",
+    why:
+      "Hans ruled large = burrito size, and burritos come in 10-inch AND 12-inch, so large names a RANGE. " +
+      "The earlier SYNONYM was chat-Claude applying the ruling too tightly, not the ruling itself; the two " +
+      "within-tier SUBSUMES rows stand unchanged",
   },
 ];
 
@@ -169,6 +227,8 @@ export function isGarlicWithin(a: string, b: string): boolean {
 
 export const ALL_TRIAGE: TriageRuling[] = [
   ...TRIAGE_B,
+  ...TRIAGE_ONION,
+  ...TRIAGE_PORK,
   ...TRIAGE_C2,
   ...TRIAGE_C3,
   ...TRIAGE_C4,

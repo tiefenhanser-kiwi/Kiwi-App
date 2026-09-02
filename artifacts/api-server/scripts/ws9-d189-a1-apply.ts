@@ -7,8 +7,8 @@
 // Run (from artifacts/api-server):
 //   node --env-file=.env --import tsx scripts/ws9-d189-a1-apply.ts --dry-run <sheet.csv>
 //
-// 🔴 --apply IS STILL GATED. Without --dry-run this exits 1 and writes nothing.
-// Block A1 commits no relation rows; the write is a separate, explicit decision.
+// GO-AHEAD, September 1 2026: the write is authorised. `--dry-run` plans;
+// without it, rows land. Idempotent, and human-reviewed rows are never touched.
 //
 // THE REVIEW CONVENTION IT HONOURS (BUG-096, which Hans has completed by hand):
 // the reviewer edits IN PLACE — overwrites `label`, overwrites `generic_is`
@@ -29,6 +29,8 @@ import { readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 
 import { parseCsv } from "./ws7-8b-usda-backfill";
+import { JUDGE_MODEL, PROMPT_VERSION } from "./ws9-d189-a1/judge";
+import { stripProvenance } from "./ws9-d189-a1/pairUniverse";
 
 const VALID_LABELS = new Set(["SYNONYM", "COMPONENT", "DISTINCT", "SUBSUMES"]);
 const HUMAN_MARKER = /^reviewed\s/i;
@@ -46,6 +48,7 @@ interface SheetRow {
   yieldUnit: string;
   coHarvestable: string;
   judgeReason: string;
+  family: string;
 }
 
 interface Problem {
@@ -144,15 +147,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (!dryRun) {
-    console.error(
-      "\n🔴 --apply is GATED. Block A1 commits NO relation rows to the database.\n" +
-        "   Re-run with --dry-run to see the plan. Writing requires an explicit\n" +
-        "   written GO-AHEAD, which this block does not have.\n",
-    );
-    process.exitCode = 1;
-    return;
-  }
+  // GO-AHEAD, September 1 2026: the write is authorised. `--dry-run` still
+  // plans without writing; without it, rows land.
 
   const text = readFileSync(sheetPath, "utf8");
   const parsed = parseCsv(text);
@@ -175,6 +171,7 @@ async function main(): Promise<void> {
     yieldUnit: col(header, row, "yield_unit"),
     coHarvestable: col(header, row, "co_harvestable"),
     judgeReason: col(header, row, "judge_reason"),
+    family: col(header, row, "family"),
   }));
 
   console.log(`\n=== APPLY (DRY RUN) — ${sheetPath} ===`);
@@ -204,6 +201,17 @@ async function main(): Promise<void> {
   try {
     const catalog = await prisma.ingredient.findMany({ select: { id: true, canonicalName: true } });
     const byName = new Map(catalog.map((c) => [c.canonicalName.toLowerCase(), c.id]));
+    // §3 SHORTENED NAMES MUST STILL RESOLVE. The universe strips redundant
+    // provenance qualifiers, so `store-bought naan` is judged as `naan` — but
+    // the CATALOG still holds the long name, and a plain lookup misses it.
+    // Without this, 4 relations would be silently skipped at write time, which
+    // is exactly the quiet loss this pipeline keeps being corrected for.
+    for (const c of catalog) {
+      const stripped = stripProvenance(c.canonicalName);
+      if (stripped && !byName.has(stripped.toLowerCase())) {
+        byName.set(stripped.toLowerCase(), c.id);
+      }
+    }
     const unresolved = rows.filter(
       (r) => !byName.has(r.nameA.toLowerCase()) || !byName.has(r.nameB.toLowerCase()),
     );
@@ -236,7 +244,142 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(`\n  DRY RUN — nothing written.`);
+    if (dryRun) {
+      console.log(`\n  DRY RUN — nothing written.`);
+      return;
+    }
+
+    // ── the write ───────────────────────────────────────────────────────────
+    //
+    // 🔴 IDEMPOTENT, AND IT HAS TO STAY THAT WAY FOR MORE THAN ONE RUN. Hans:
+    // "I'll probably run the process again closer to the holidays for Paleo,
+    // Keto, Whole30". So this is authored once and EXTENDED, not a one-shot
+    // backfill, and every future run must leave settled rows alone:
+    //
+    //   · upsert keyed on the ORDERED pair, so a re-run updates rather than
+    //     duplicates (the @@unique([fromIngredientId, toIngredientId]));
+    //   · a stored row with reviewedByHuman = true is SKIPPED ENTIRELY, so a
+    //     later AI verdict can never overwrite a human decision. Re-judging
+    //     settled rows would re-open decisions someone already made.
+    const stats = {
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      skippedHuman: 0,
+      skippedUnresolved: unresolved.length,
+      byLabel: new Map<string, number>(),
+      byProvenance: new Map<string, number>(),
+    };
+
+    const existingRows = await prisma.ingredientRelation.findMany({
+      select: {
+        fromIngredientId: true,
+        toIngredientId: true,
+        reviewedByHuman: true,
+        label: true,
+        yieldQuantity: true,
+        yieldUnit: true,
+        coHarvestable: true,
+        confidence: true,
+        rationale: true,
+      },
+    });
+    const existingByPair = new Map(
+      existingRows.map((r) => [`${r.fromIngredientId}::${r.toIngredientId}`, r]),
+    );
+
+    for (const r of rows) {
+      const aId = byName.get(r.nameA.toLowerCase());
+      const bId = byName.get(r.nameB.toLowerCase());
+      if (!aId || !bId) continue;
+
+      const label = r.label.toUpperCase() as
+        | "SYNONYM"
+        | "COMPONENT"
+        | "DISTINCT"
+        | "SUBSUMES";
+      const reviewed = HUMAN_MARKER.test(r.judgeReason);
+
+      // Direction. COMPONENT points base -> derived; SUBSUMES points generic ->
+      // specific; the symmetric labels are stored in canonical name order so one
+      // pair is always one row.
+      let fromId = aId;
+      let toId = bId;
+      if (label === "COMPONENT" && r.baseIs.length > 0) {
+        [fromId, toId] = r.baseIs === r.nameA ? [aId, bId] : [bId, aId];
+      } else if (label === "SUBSUMES" && r.genericIs.length > 0) {
+        [fromId, toId] = r.genericIs === r.nameA ? [aId, bId] : [bId, aId];
+      } else if (r.nameA.localeCompare(r.nameB) > 0) {
+        [fromId, toId] = [bId, aId];
+      }
+
+      const prior =
+        existingByPair.get(`${fromId}::${toId}`) ?? existingByPair.get(`${toId}::${fromId}`);
+      if (prior?.reviewedByHuman && !reviewed) {
+        stats.skippedHuman += 1;
+        continue;
+      }
+
+      const data = {
+        label: label.toLowerCase() as "synonym" | "component" | "distinct" | "subsumes",
+        yieldQuantity: label === "COMPONENT" ? Number(r.yieldQty) : null,
+        yieldUnit: label === "COMPONENT" ? r.yieldUnit : null,
+        coHarvestable: label === "COMPONENT" ? r.coHarvestable === "true" : null,
+        source: (reviewed ? "human" : "ai_judge") as "human" | "ai_judge",
+        confidence: (r.confidence === "high" || r.confidence === "medium" || r.confidence === "low"
+          ? r.confidence
+          : "medium") as "high" | "medium" | "low",
+        judgeModel: reviewed ? null : JUDGE_MODEL,
+        promptVersion: reviewed ? null : PROMPT_VERSION,
+        rationale: r.judgeReason,
+        familyKey: r.family || null,
+        reviewedByHuman: reviewed,
+        reviewedAt: reviewed ? new Date() : null,
+      };
+
+      // A row already holding these exact values is left alone entirely, so a
+      // re-run genuinely writes NOTHING rather than rewriting every row with
+      // itself. This matters because the pipeline is now periodic, not one-shot.
+      if (
+        prior &&
+        prior.label === data.label &&
+        prior.yieldQuantity === data.yieldQuantity &&
+        prior.yieldUnit === data.yieldUnit &&
+        prior.coHarvestable === data.coHarvestable &&
+        prior.confidence === data.confidence &&
+        prior.rationale === data.rationale
+      ) {
+        stats.unchanged += 1;
+        continue;
+      }
+
+      const wasThere = Boolean(prior);
+      await prisma.ingredientRelation.upsert({
+        where: { fromIngredientId_toIngredientId: { fromIngredientId: fromId, toIngredientId: toId } },
+        create: { fromIngredientId: fromId, toIngredientId: toId, ...data },
+        update: data,
+      });
+      if (wasThere) stats.updated += 1;
+      else stats.created += 1;
+      stats.byLabel.set(label, (stats.byLabel.get(label) ?? 0) + 1);
+      const prov = reviewed ? "human-reviewed" : "ai";
+      stats.byProvenance.set(prov, (stats.byProvenance.get(prov) ?? 0) + 1);
+    }
+
+    const finalCount = await prisma.ingredientRelation.count();
+    const humanCount = await prisma.ingredientRelation.count({ where: { reviewedByHuman: true } });
+    console.log(`\n=== WRITTEN ===`);
+    console.log(`  created: ${stats.created}  ·  updated: ${stats.updated}  ·  unchanged (left alone): ${stats.unchanged}`);
+    console.log(`  skipped (stored row is human-reviewed, AI verdict refused): ${stats.skippedHuman}`);
+    console.log(`  skipped (endpoint not in catalog): ${stats.skippedUnresolved}`);
+    console.log(
+      `  by label: ${[...stats.byLabel].sort().map(([k, v]) => `${k}:${v}`).join("  ")}`,
+    );
+    console.log(
+      `  by provenance: ${[...stats.byProvenance].sort().map(([k, v]) => `${k}:${v}`).join("  ")}`,
+    );
+    console.log(`\n  ingredient_relations total:  ${finalCount}`);
+    console.log(`  reviewedByHuman = true:      ${humanCount}`);
   } finally {
     await prisma.$disconnect();
   }

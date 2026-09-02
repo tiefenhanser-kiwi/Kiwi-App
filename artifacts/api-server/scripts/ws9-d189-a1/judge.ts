@@ -174,12 +174,12 @@ Ask yourself: WHICH AXIS does each qualifier fix? Same axis, one bare -> SUBSUME
   variants? If yes, it is SUBSUMES. If the bare name would get them one PARTICULAR variant —
   the standard one — then it names that variant and is DISTINCT from the others.
 
-  ⚠️ THAT RULE HAS TWO BRANCHES AND YOU MUST NOT COLLAPSE THEM. When the bare name denotes the
-  standard variety, it is DISTINCT from the OTHER variants but SYNONYM with the one that names
-  that same standard:
-    yellow onion ~ medium yellow onion  -> SYNONYM   (bare 'yellow onion' IS the medium bulb)
-    yellow onion ~ large yellow onion   -> DISTINCT  (a different size off the shelf)
-  Answering DISTINCT to both would say the standard variety differs from itself.
+  ⚠️ WHEN IN DOUBT, PREFER SUBSUMES FOR PRODUCE AND OTHER LOOSE GOODS. A bare produce name is
+  almost always a wildcard on size, not the name of one standard size:
+    yellow onion ~ medium yellow onion  -> SUBSUMES  (generic = "yellow onion")
+    yellow onion ~ large yellow onion   -> SUBSUMES  (generic = "yellow onion")
+  The hierarchy has to stay coherent: "onion" already subsumes "large yellow onion", so denying
+  it at the middle level while asserting it end to end is incoherent.
 
 🔴 "THICK-CUT" AND "THIN-CUT" ARE DEFAULT-VARIETY MARKERS, NOT SIZE GRADES. Regular and thick-cut
 are separate SKUs at separate prices, so the bare name does NOT subsume the cut-qualified one:
@@ -191,8 +191,8 @@ genuine size grade: shrimp counts, pork-chop thickness specs and asparagus spear
 size axes and DO subsume.)
 
 🔴 A PREFIX PREP WORD IS A PURCHASED PREPARED PRODUCT; A COMMA-SUFFIX PREP WORD IS AN INSTRUCTION.
-  shredded carrots     = a bag you buy         -> DISTINCT from `carrots`
-  carrots, shredded    = something you do      -> the same purchase as `carrots`
+  shredded carrots     = a bag you buy         -> DISTINCT from "carrots"
+  carrots, shredded    = something you do      -> the same purchase as "carrots"
 So a prefix-prep name is never generic over the whole vegetable, and never a synonym of it.
 This covers every convenience product in the catalog: shredded cheese, pre-diced onion, jarred
 minced garlic, pre-cut vegetables.
