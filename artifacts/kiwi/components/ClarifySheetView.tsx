@@ -145,7 +145,7 @@ export function ClarifySheetView({
                     value={otherText}
                     onChangeText={onChangeOtherText}
                     placeholder="Type what you want"
-                    placeholderTextColor={Colors.neutral[600]}
+                    placeholderTextColor={Palette.text.placeholder}
                     style={s.clarifyOtherInput}
                     autoFocus
                     returnKeyType="done"
@@ -217,7 +217,7 @@ const s = StyleSheet.create({
   },
   clarifyProgress: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[500],
     fontWeight: Typography.fontWeight.medium,
   },
@@ -281,7 +281,7 @@ const s = StyleSheet.create({
   },
   clarifySecondaryAction: {
     fontSize: Typography.fontSize.md,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[500],
     fontWeight: Typography.fontWeight.medium,
   },

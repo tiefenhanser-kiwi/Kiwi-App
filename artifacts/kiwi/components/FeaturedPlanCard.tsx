@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   },
   meta: {
     fontSize: Typography.fontSize.xxs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     // Explicit, so the reserved slot and the rendered line are the same number.
     lineHeight: RAIL_META_LINE_HEIGHT,

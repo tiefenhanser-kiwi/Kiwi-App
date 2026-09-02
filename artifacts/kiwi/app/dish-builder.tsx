@@ -623,7 +623,7 @@ export default function DishBuilderScreen() {
                 value={form.name}
                 onChangeText={(v) => update("name", v)}
                 placeholder="What's the dish called?"
-                placeholderTextColor={Colors.neutral[600]}
+                placeholderTextColor={Palette.text.placeholder}
                 returnKeyType="done"
                 blurOnSubmit
                 onSubmitEditing={Keyboard.dismiss}
@@ -778,7 +778,7 @@ export default function DishBuilderScreen() {
                           updateIngredient(ing.uid, { quantity: v })
                         }
                         placeholder="Qty"
-                        placeholderTextColor={Colors.neutral[600]}
+                        placeholderTextColor={Palette.text.placeholder}
                         autoCapitalize="none"
                         returnKeyType="done"
                         blurOnSubmit
@@ -795,7 +795,7 @@ export default function DishBuilderScreen() {
                           updateIngredient(ing.uid, { unit: v })
                         }
                         placeholder="unit"
-                        placeholderTextColor={Colors.neutral[600]}
+                        placeholderTextColor={Palette.text.placeholder}
                         returnKeyType="done"
                         blurOnSubmit
                         style={[s.input, s.unitInput]}
@@ -806,7 +806,7 @@ export default function DishBuilderScreen() {
                           updateIngredient(ing.uid, { name: v })
                         }
                         placeholder="ingredient"
-                        placeholderTextColor={Colors.neutral[600]}
+                        placeholderTextColor={Palette.text.placeholder}
                         returnKeyType="done"
                         blurOnSubmit
                         style={[s.input, { flex: 1 }]}
@@ -933,7 +933,7 @@ export default function DishBuilderScreen() {
               value={form.notes}
               onChangeText={(v) => update("notes", v)}
               placeholder="Anything else worth remembering"
-              placeholderTextColor={Colors.neutral[600]}
+              placeholderTextColor={Palette.text.placeholder}
               multiline
               returnKeyType="default"
               blurOnSubmit
@@ -1047,7 +1047,7 @@ function StepEditor({
           value={step.text}
           onChangeText={(v) => onChange({ text: v })}
           placeholder="Describe this step…"
-          placeholderTextColor={Colors.neutral[600]}
+          placeholderTextColor={Palette.text.placeholder}
           multiline
           returnKeyType="default"
           blurOnSubmit
@@ -1063,7 +1063,7 @@ function StepEditor({
               onChange({ estimatedMinutes: Number.isFinite(n) ? n : 0 });
             }}
             placeholder="min"
-            placeholderTextColor={Colors.neutral[600]}
+            placeholderTextColor={Palette.text.placeholder}
             keyboardType="number-pad"
             returnKeyType="done"
             blurOnSubmit

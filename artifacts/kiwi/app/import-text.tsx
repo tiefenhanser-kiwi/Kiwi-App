@@ -107,7 +107,7 @@ export default function ImportTextScreen() {
             if (errorMessage) setErrorMessage(null);
           }}
           placeholder="Paste recipe text here..."
-          placeholderTextColor={Colors.neutral[600]}
+          placeholderTextColor={Palette.text.placeholder}
           style={[styles.textInput, overMax && styles.textInputInvalid]}
           multiline
           numberOfLines={10}

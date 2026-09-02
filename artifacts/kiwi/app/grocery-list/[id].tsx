@@ -854,7 +854,7 @@ export default function GroceryListDetail() {
               value={addItemInput}
               onChangeText={setAddItemInput}
               placeholder="Add an item…"
-              placeholderTextColor={Colors.neutral[600]}
+              placeholderTextColor={Palette.text.placeholder}
               style={s.addItemInput}
               returnKeyType="done"
               // Keep keyboard up after Done so the user can add several
@@ -1149,12 +1149,21 @@ function GroceryRow({
   // the parenthetical is built from, so the two halves cannot drift; and
   // because it is computed HERE, an inline need edit moves the order line
   // immediately (the PATCH does not recompute the stored pack).
+  // WS9 BUG-171 — the staple flag rides along so the ORDER half collapses to the
+  // bare name for a pantry staple ("Kosher salt · Pantry Staple · (11 teaspoon)",
+  // not "1 container (26 oz) Kosher salt"). The decision lives in composePackName,
+  // NOT in a ternary here: app/** is outside the test glob (D-WS9-164), so an
+  // inline version would be permanently unguardable, while the lib version lands
+  // under the existing composePackName assertions in lib/__tests__.
+  // isUniversalStaple, not isDefaultStaple — both staple states, so the line does
+  // not change shape when a staple is opted in.
   const packName = composePackName(
     item.userResolvedTo ?? item.name,
     item.purchaseUnit,
     item.purchaseDisplay,
     item.quantityAmount,
     item.quantityUnit,
+    item.isUniversalStaple,
   );
   const needText = displayQty ? String(displayQty) : "";
 
@@ -1197,7 +1206,7 @@ function GroceryRow({
               s.itemName,
               showStrikethrough && {
                 textDecorationLine: "line-through",
-                color: Colors.neutral[600],
+                color: Colors.neutral[700],
               },
               isDefaultStaple && { color: Colors.neutral[700] },
             ]}
@@ -1231,7 +1240,7 @@ function GroceryRow({
               value={editAmount}
               onChangeText={onEditAmount}
               placeholder="Qty"
-              placeholderTextColor={Colors.neutral[600]}
+              placeholderTextColor={Palette.text.placeholder}
               style={[s.qtyInput, editAmountInvalid && s.qtyInputInvalid]}
               autoCapitalize="none"
               returnKeyType="done"
@@ -1243,7 +1252,7 @@ function GroceryRow({
               value={editUnit}
               onChangeText={onEditUnit}
               placeholder="Unit"
-              placeholderTextColor={Colors.neutral[600]}
+              placeholderTextColor={Palette.text.placeholder}
               style={s.unitInput}
               autoCapitalize="none"
               returnKeyType="done"
@@ -1263,7 +1272,7 @@ function GroceryRow({
             <Text
               style={[
                 s.qty,
-                (isDefaultStaple || item.isCompleted) && { color: Colors.neutral[600] },
+                (isDefaultStaple || item.isCompleted) && { color: Colors.neutral[700] },
               ]}
             >
               ({needText})
@@ -1410,7 +1419,7 @@ const s = StyleSheet.create({
   },
   candidateSection: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     textTransform: "uppercase",
     letterSpacing: 0.4,
@@ -1483,7 +1492,7 @@ const s = StyleSheet.create({
   },
   progressCount: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   progressTrack: {
@@ -1584,7 +1593,7 @@ const s = StyleSheet.create({
   },
   provenance: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
     width: "100%",
@@ -1688,7 +1697,7 @@ const s = StyleSheet.create({
   },
   unmarkLink: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     textDecorationLine: "underline",
     marginTop: Spacing[1],

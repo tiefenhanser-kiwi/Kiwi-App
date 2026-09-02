@@ -280,7 +280,7 @@ export default function TellKiwi() {
                 update("description", v.slice(0, DESCRIPTION_MAX))
               }
               placeholder={PLACEHOLDER}
-              placeholderTextColor={Colors.neutral[600]}
+              placeholderTextColor={Palette.text.placeholder}
               multiline
               maxLength={DESCRIPTION_MAX}
               returnKeyType="default"
@@ -396,7 +396,7 @@ export default function TellKiwi() {
                 value={form.dietaryNotes}
                 onChangeText={(v) => update("dietaryNotes", v)}
                 placeholder="e.g., 'no shellfish', 'low sodium'"
-                placeholderTextColor={Colors.neutral[600]}
+                placeholderTextColor={Palette.text.placeholder}
                 returnKeyType="done"
                 blurOnSubmit
                 onSubmitEditing={Keyboard.dismiss}

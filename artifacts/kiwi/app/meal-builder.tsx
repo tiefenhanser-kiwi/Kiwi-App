@@ -1347,7 +1347,7 @@ function MetaFields(p: MetaFieldsProps) {
           value={p.mealName}
           onChangeText={p.setMealName}
           placeholder="Meal name (e.g., Salmon Teriyaki)"
-          placeholderTextColor={Colors.neutral[600]}
+          placeholderTextColor={Palette.text.placeholder}
           style={[s.textInput, p.nameError && s.inputInvalid]}
           returnKeyType="done"
           blurOnSubmit
@@ -1440,7 +1440,7 @@ function MetaFields(p: MetaFieldsProps) {
               }
               keyboardType="number-pad"
               placeholder="30"
-              placeholderTextColor={Colors.neutral[600]}
+              placeholderTextColor={Palette.text.placeholder}
               style={[s.textInput, { flex: 1 }]}
               returnKeyType="done"
               blurOnSubmit
@@ -1563,7 +1563,7 @@ function ManualEditor(p: ManualEditorProps) {
                 value={dish.name}
                 onChangeText={(v) => p.updateDishName(dish.uid, v)}
                 placeholder="Dish name (optional)"
-                placeholderTextColor={Colors.neutral[600]}
+                placeholderTextColor={Palette.text.placeholder}
                 style={[s.textInput, { flex: 1 }]}
                 returnKeyType="done"
                 blurOnSubmit
@@ -1601,7 +1601,7 @@ function ManualEditor(p: ManualEditorProps) {
                           p.updateIngredient(dish.uid, ing.uid, { quantity: v })
                         }
                         placeholder="Qty"
-                        placeholderTextColor={Colors.neutral[600]}
+                        placeholderTextColor={Palette.text.placeholder}
                         style={[
                           s.textInput,
                           s.ingQty,
@@ -1619,7 +1619,7 @@ function ManualEditor(p: ManualEditorProps) {
                           p.updateIngredient(dish.uid, ing.uid, { unit: v })
                         }
                         placeholder="Unit"
-                        placeholderTextColor={Colors.neutral[600]}
+                        placeholderTextColor={Palette.text.placeholder}
                         style={[s.textInput, s.ingUnit]}
                         autoCapitalize="none"
                         returnKeyType="done"
@@ -1632,7 +1632,7 @@ function ManualEditor(p: ManualEditorProps) {
                           p.updateIngredient(dish.uid, ing.uid, { name: v })
                         }
                         placeholder="Ingredient"
-                        placeholderTextColor={Colors.neutral[600]}
+                        placeholderTextColor={Palette.text.placeholder}
                         style={[s.textInput, { flex: 1 }]}
                         returnKeyType="done"
                         blurOnSubmit
@@ -1728,7 +1728,7 @@ function ManualEditor(p: ManualEditorProps) {
           value={p.notes}
           onChangeText={p.setNotes}
           placeholder="Add any notes about this meal..."
-          placeholderTextColor={Colors.neutral[600]}
+          placeholderTextColor={Palette.text.placeholder}
           style={[s.textInput, s.notesInput]}
           multiline
           returnKeyType="default"
@@ -1827,7 +1827,7 @@ function PerDishSteps(p: PerDishStepsProps) {
                       p.updateStep(dishUid, step.uid, { text: v })
                     }
                     placeholder="Step description"
-                    placeholderTextColor={Colors.neutral[600]}
+                    placeholderTextColor={Palette.text.placeholder}
                     style={[s.textInput, s.stepTextInput]}
                     multiline
                     returnKeyType="default"
@@ -1842,7 +1842,7 @@ function PerDishSteps(p: PerDishStepsProps) {
                         })
                       }
                       placeholder="0"
-                      placeholderTextColor={Colors.neutral[600]}
+                      placeholderTextColor={Palette.text.placeholder}
                       style={[s.textInput, { width: 56 }]}
                       keyboardType="number-pad"
                       returnKeyType="done"
@@ -2144,7 +2144,7 @@ const s = StyleSheet.create({
   },
   stepsEmptyText: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
     textAlign: "center",
@@ -2487,13 +2487,13 @@ const s = StyleSheet.create({
   },
   dishPickerMacros: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   dishPickerUse: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
 });

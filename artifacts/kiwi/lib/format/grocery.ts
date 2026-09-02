@@ -532,7 +532,32 @@ export function composePackName(
   purchaseDisplay: string | null | undefined,
   needAmount?: string | number | null,
   needUnit?: string | null,
+  isPantryStaple?: boolean,
 ): string {
+  // ── WS9 BUG-171 — a pantry staple states the NEED, never a pack ──────────
+  // Ruled (Hans, Aug 27 2026), Option A: "Kosher salt · Pantry Staple ·
+  // (11 teaspoon)", with no "1 container (26 oz)". Rationale, which generalises
+  // past this fix: users buy staples in bulk or a little at a time, so pack size
+  // is THEIR purchasing decision. The list's job for a staple is to say what the
+  // week needs; the need parenthetical (rendered as its own sibling at the call
+  // site) carries that, so the order half collapses to the bare name.
+  //
+  // ⚠️ FIRST, above every pack rule: a staple takes no pack branch at all, so
+  // no scaling, elide or plural decision below can reintroduce one.
+  //
+  // ⚠️ Applies to BOTH staple states, opted-in and not. Opting in means "I'll
+  // check my pantry", not "now sell me a container" — and gating on the
+  // opted-in flag alone would make the line change shape on tap.
+  //
+  // ⚠️ This does NOT close BUG-147. Stock, broth and milk are not staples: they
+  // still render packs and still under-order a volume need against a container
+  // pack. That class survives, it merely stops being visible on staples.
+  //
+  // The name is returned untouched. A legacy row whose NAME has a pack baked in
+  // ("1 head Garlic") still shows it — that is a stored-data shape, the same one
+  // NAME_LEADS_WITH_NUMBER concedes to in Rule 3, not a composition this makes.
+  if (isPantryStaple) return name;
+
   const need = resolveNeed(needAmount);
   const nUnit = (needUnit ?? "").trim().toLowerCase();
   const pUnit = (purchaseUnit ?? "").trim().toLowerCase();
@@ -654,6 +679,7 @@ export function composeGroceryLine(
   needText: string,
   needAmount?: string | number | null,
   needUnit?: string | null,
+  isPantryStaple?: boolean,
 ): string {
   const packName = composePackName(
     name,
@@ -661,6 +687,7 @@ export function composeGroceryLine(
     purchaseDisplay,
     needAmount,
     needUnit,
+    isPantryStaple,
   );
   const need = needText.trim();
   return need ? `${packName} (${need})` : packName;

@@ -75,6 +75,10 @@ test("D-WS9-124: MealRow renders description as a one-line sub-text when present
     (n) => typeof n.props?.children === "string" && n.props.children === DESCRIPTION,
   )[0];
   assert.ok(descNode, "description sub-text node found");
+  // ⚠️ WS9 BUG-158 — ONE line here is deliberate, and this assertion is now
+  // load-bearing for a second reason: PlanReviewMealRow and AddMealsSheet reused
+  // this pattern and were ruled to TWO lines. That divergence is intended. Do
+  // not "harmonise" this to 2 to match them — both sides are pinned on purpose.
   assert.equal(descNode.props.numberOfLines, 1, "description clamps to one line");
 
   renderer.unmount();

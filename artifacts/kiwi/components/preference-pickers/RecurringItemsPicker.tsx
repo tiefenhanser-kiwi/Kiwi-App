@@ -95,7 +95,7 @@ export function RecurringItemsPicker({
           value={draft}
           onChangeText={setDraft}
           placeholder="Add custom item..."
-          placeholderTextColor={Colors.neutral[600]}
+          placeholderTextColor={Palette.text.placeholder}
           returnKeyType="done"
           blurOnSubmit
           onSubmitEditing={handleAddDraft}

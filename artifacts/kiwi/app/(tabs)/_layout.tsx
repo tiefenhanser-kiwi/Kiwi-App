@@ -13,7 +13,14 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors.sage[700],
-        tabBarInactiveTintColor: Colors.neutral[600],
+        // WS9 BUG-157 — a DUAL site: this one value tints the tab ICON (non-text,
+        // 3:1 floor) AND the tab LABEL (text, 4.5:1). On the bar's own
+        // neutral[200] #F1EADC surface, neutral[600] measured 3.1141:1 — the icon
+        // cleared, the label did not, and this bar is on every screen.
+        // Active is sage[700] (green) against a warm brown, so active/inactive
+        // is carried by HUE, not by value alone: darkening the inactive tint
+        // cannot flatten the affordance. 3.1141 -> 5.2627; active stays 7.1949.
+        tabBarInactiveTintColor: Colors.neutral[700],
         tabBarStyle: {
           backgroundColor: Colors.neutral[200],
           borderTopColor: Colors.neutral[400],

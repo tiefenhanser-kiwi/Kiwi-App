@@ -435,6 +435,9 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[600],
     marginBottom: Spacing[1],
   },
+  // WS9 BUG-157 — STAYS at neutral[600]. Italic-serif dish attribution sitting
+  // inside Cook Mode's dimmed tier, which the ruling protects; ambiguous, so
+  // left rather than guessed in the darkening direction.
   dishTag: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[600],
@@ -471,7 +474,7 @@ const s = StyleSheet.create({
   },
   stepMeta: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: Spacing[2],
   },

@@ -512,7 +512,7 @@ const s = StyleSheet.create({
   footerLoading: { paddingVertical: Spacing[3], alignItems: "center" },
   loadingText: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     textAlign: "center",
     paddingVertical: Spacing[4],

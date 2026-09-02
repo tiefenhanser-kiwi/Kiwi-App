@@ -337,7 +337,7 @@ const s = StyleSheet.create({
 
   phaseIndicator: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
     textAlign: "center",
@@ -409,7 +409,7 @@ const s = StyleSheet.create({
   },
   stepMeta: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   optionalTag: {
@@ -471,6 +471,8 @@ const s = StyleSheet.create({
     padding: Spacing[3],
     gap: Spacing[1],
   },
+  // WS9 BUG-157 — STAYS at neutral[600]. Uppercase letterspaced micro-heading:
+  // the same eyebrow shape as ActivePlanStrip.eyebrow, so the same call.
   whereHeading: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[600],
@@ -495,7 +497,7 @@ const s = StyleSheet.create({
 
   emptyPhase: {
     fontSize: Typography.fontSize.md,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     textAlign: "center",
     paddingVertical: Spacing[6],
@@ -503,7 +505,7 @@ const s = StyleSheet.create({
 
   footerNote: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.serifItalic[400],
     fontStyle: "italic",
     textAlign: "center",

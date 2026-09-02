@@ -88,7 +88,7 @@ export default function DeactivateAccount() {
             value={input}
             onChangeText={setInput}
             placeholder={CONFIRM_PHRASE}
-            placeholderTextColor={Colors.neutral[600]}
+            placeholderTextColor={Palette.text.placeholder}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="done"

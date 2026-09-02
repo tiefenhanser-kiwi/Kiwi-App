@@ -905,13 +905,13 @@ const s = StyleSheet.create({
   },
   mealMacros: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   useCount: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
 });

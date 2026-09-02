@@ -53,7 +53,13 @@ interface Props {
 const TONE_STYLE: Record<PillTone, { bg: string; fg: string }> = {
   sage: { bg: Colors.sage[100], fg: Colors.sage[700] },
   gold: { bg: Colors.gold.background, fg: Colors.gold.text },
-  neutral: { bg: Colors.neutral[200], fg: Colors.neutral[600] },
+  // WS9 BUG-157 — a DUAL site: `fg` colours the chip's <Text> (4.5:1) at :245
+  // and :335 AND a Feather icon (3:1) at :241/:243. neutral[600] on this tone's
+  // own neutral[200] fill measured 3.1141:1 — icon clear, text not.
+  // Unlike an active/inactive pair, each tone here carries its OWN fill, so the
+  // three tones stay distinguishable by hue+fill regardless of this value:
+  // darkening flattens nothing. 3.1141 -> 5.2627.
+  neutral: { bg: Colors.neutral[200], fg: Colors.neutral[700] },
 };
 
 const SAGE_SURFACE = Colors.sage[600]; // #5C7350 — locked "Prep the week" lane.
@@ -375,7 +381,7 @@ const s = StyleSheet.create({
   },
   subtitle: {
     fontSize: Typography.fontSize.md,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontStyle: "italic",
     fontFamily: Typography.face.serifItalic[400],
     marginTop: Spacing[1],
@@ -436,7 +442,7 @@ const s = StyleSheet.create({
   // "Cook a meal" text prompt over the meal list (replaces the old CTA card).
   cookPrompt: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: Spacing[1],
     marginBottom: Spacing[2],
@@ -493,6 +499,8 @@ const s = StyleSheet.create({
   },
 
   // this week's meals
+  // WS9 BUG-157 — STAYS at neutral[600]. A section label, named as such: the
+  // exact quiet tier the ruling preserves.
   sectionLabel: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[600],

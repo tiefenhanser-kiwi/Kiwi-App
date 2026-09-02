@@ -746,7 +746,7 @@ const s = StyleSheet.create({
   },
   heroQuickStats: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   // WS9 3f-1 — display-only tag chips. A near-neutral paper pill (not the
@@ -921,7 +921,7 @@ const s = StyleSheet.create({
   },
   stepMeta: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   heartBtn: {

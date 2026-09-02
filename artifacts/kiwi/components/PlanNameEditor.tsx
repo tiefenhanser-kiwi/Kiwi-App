@@ -44,7 +44,7 @@ export function PlanNameEditor({ currentName, onSave }: PlanNameEditorProps) {
           maxLength={60}
           style={s.input}
           placeholder="Plan name"
-          placeholderTextColor={Colors.neutral[600]}
+          placeholderTextColor={Palette.text.placeholder}
         />
       </View>
     );

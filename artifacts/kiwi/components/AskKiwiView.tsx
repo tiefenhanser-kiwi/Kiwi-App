@@ -73,7 +73,7 @@ export function AskKiwiView({
         value={text}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={Colors.neutral[600]}
+        placeholderTextColor={Palette.text.placeholder}
         style={s.textInput}
         multiline
         numberOfLines={6}

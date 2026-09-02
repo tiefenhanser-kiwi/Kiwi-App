@@ -22,7 +22,11 @@ const palette = {
   background: Palette.background.app,
   card: Palette.background.card,
   foreground: Palette.text.primary,
-  mutedForeground: Palette.text.muted,
+  // WS9 BUG-157 — was Palette.text.muted (neutral[600], 3.7278:1 on the card).
+  // Its only reader is the error MESSAGE at :89 — the prose telling a user what
+  // broke and what to do, which is body text, not the quiet tier. Repointed at
+  // text.secondary rather than re-valuing text.muted, which the ruling keeps.
+  mutedForeground: Palette.text.secondary,
   border: Palette.border.default,
   primary: Palette.button.primary.background,
   primaryForeground: Palette.button.primary.text,

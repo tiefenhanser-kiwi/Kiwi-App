@@ -382,6 +382,9 @@ const styles = StyleSheet.create({
   textCol: {
     flex: 1,
   },
+  // WS9 BUG-157 — STAYS at neutral[600]. 10px uppercase letterspaced "Tonight" /
+  // "This week": a structural eyebrow, the quiet tier the A1 hierarchy locked,
+  // not prose read to make a decision. Ambiguous-conservative: not darkened.
   eyebrow: {
     fontSize: Typography.fontSize.xxs,
     color: Colors.neutral[600],
@@ -400,13 +403,13 @@ const styles = StyleSheet.create({
   },
   meta: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   provenance: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 1,
   },

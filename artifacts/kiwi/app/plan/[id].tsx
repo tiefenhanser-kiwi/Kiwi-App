@@ -1365,7 +1365,7 @@ export default function PlanReviewScreen() {
               value={breakfastDraft}
               onChangeText={setBreakfastDraft}
               placeholder="Try: eggs, yogurt, oatmeal, fresh fruit"
-              placeholderTextColor={Colors.neutral[600]}
+              placeholderTextColor={Palette.text.placeholder}
               style={s.collapseInput}
               multiline
               returnKeyType="done"
@@ -1401,7 +1401,7 @@ export default function PlanReviewScreen() {
               value={lunchDraft}
               onChangeText={setLunchDraft}
               placeholder="Try: leftovers, sandwiches, salads"
-              placeholderTextColor={Colors.neutral[600]}
+              placeholderTextColor={Palette.text.placeholder}
               style={s.collapseInput}
               multiline
               returnKeyType="done"
@@ -1808,7 +1808,7 @@ const s = StyleSheet.create({
   actionCol: { flex: 1 },
   compostedNote: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   // BUG-092 — the demoted Compost affordance. Follows the app's existing
@@ -1984,6 +1984,9 @@ const s = StyleSheet.create({
     marginTop: Spacing[4],
     marginBottom: Spacing[2],
   },
+  // WS9 BUG-157 — STAYS at neutral[600]: this style has NO consumer (grep for
+  // s.placeholder in this file returns nothing). Left rather than edited, so the
+  // sweep's diff carries no dead code.
   placeholder: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[600],

@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   actions: { gap: Spacing[3] },
   legalLine: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     textAlign: "center",
     marginTop: Spacing[1],
     lineHeight: 16,

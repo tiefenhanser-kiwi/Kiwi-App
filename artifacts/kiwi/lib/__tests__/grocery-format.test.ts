@@ -799,3 +799,96 @@ describe("BUG-149: a SINGULAR pack residue pluralises above a count of 1", () =>
     assert.equal(composePackName("Carrots", null, null, "2", "each"), "2 Carrots");
   });
 });
+
+// ── WS9 BUG-171 — a pantry staple shows the NEED, not a pack ─────────────────
+// Ruled (Hans, Aug 27 2026) Option A. Pack size for a staple is the user's
+// purchasing decision — bulk or a little at a time — so the list states the
+// week's need and stops selling a container.
+describe("BUG-171: a pantry staple collapses the order half to the bare name", () => {
+  it("the ruling's own example: kosher salt shows no container", () => {
+    // The pack the catalog holds for salt, and the need for a real week.
+    // Expected value written out as the line the USER reads, not derived from
+    // the arguments — "Kosher salt" is what the row must say, full stop.
+    assert.equal(
+      composePackName("Kosher salt", "container", "1 container (26 oz)", "11", "teaspoon", true),
+      "Kosher salt",
+    );
+    // …and the whole two-part line, need parenthetical included.
+    assert.equal(
+      composeGroceryLine(
+        "Kosher salt",
+        "container",
+        "1 container (26 oz)",
+        "11 teaspoon",
+        "11",
+        "teaspoon",
+        true,
+      ),
+      "Kosher salt (11 teaspoon)",
+    );
+  });
+
+  it("the SAME row without the flag still composes the pack", () => {
+    // The control. If this ever equals the staple output, the flag is inert and
+    // the test above proves nothing.
+    const asStaple = composePackName("Kosher salt", "container", "1 container (26 oz)", "11", "teaspoon", true);
+    const asNormal = composePackName("Kosher salt", "container", "1 container (26 oz)", "11", "teaspoon", false);
+    assert.equal(asNormal, "1 container (26 oz) Kosher salt");
+    assert.notEqual(asStaple, asNormal, "the staple flag must change the output");
+  });
+
+  it("applies to BOTH staple states — the flag is not the opted-in flag", () => {
+    // The screen passes item.isUniversalStaple, which is true opted-in and not,
+    // so the line does not change shape on tap. Nothing in the lib can tell the
+    // two apart, and that is the point: one branch, one output.
+    for (const need of ["11", "1", "900"]) {
+      assert.equal(
+        composePackName("Kosher salt", "container", "1 container (26 oz)", need, "teaspoon", true),
+        "Kosher salt",
+      );
+    }
+  });
+
+  it("takes no pack branch at all — every rule below it is skipped", () => {
+    // Rule 1 (count pack + count need, the elide/plural path) …
+    assert.equal(composePackName("Lemon", "each", "2 lemons", "5", "each", true), "Lemon");
+    assert.equal(composePackName("roma tomatoes", "each", "4 roma tomatoes", "9", "each", true), "roma tomatoes");
+    // Rule 2 (real container, scaled to cover the need) …
+    assert.equal(composePackName("olive oil", "bottle", "1 bottle", "400", "tablespoon", true), "olive oil");
+    // Rule 3 (no pack at all) — no count is prepended either.
+    assert.equal(composePackName("Carrots", null, null, "3", "each", true), "Carrots");
+    assert.equal(composePackName("black pepper", null, null, null, null, true), "black pepper");
+  });
+
+  it("a non-staple is byte-identical to the pre-BUG-171 output", () => {
+    // Omitting the flag must degrade to the old behaviour exactly, so the ~110
+    // assertions above this block are still testing what they were written for.
+    // Spot-checked across all three rules, undefined and false both.
+    const cases: Array<[string, string]> = [
+      [composePackName("parmesan", "wedge", "1 wedge (6 oz)"), "1 wedge (6 oz) parmesan"],
+      [composePackName("Lemon", "each", "2 lemons", "5", "each"), "5 lemons"],
+      [composePackName("garlic", "head", "3 heads", "30", "clove"), "3 heads garlic"],
+      [composePackName("saffron", null, null), "saffron"],
+      [composePackName("Lemon", "each", "2 lemons", "5", "each", false), "5 lemons"],
+      [composePackName("Lemon", "each", "2 lemons", "5", "each", undefined), "5 lemons"],
+    ];
+    for (const [actual, expected] of cases) assert.equal(actual, expected);
+  });
+
+  it("does NOT close BUG-147 — a non-staple container still under-orders", () => {
+    // Stock, broth and milk are not staples. They keep rendering packs, and the
+    // volume-need-against-container class survives; it merely stops being
+    // visible on staples. Pinned so a future reader does not assume otherwise.
+    //
+    // ⚠️ THIS PINS A DEFECT, DELIBERATELY. A 6-cup need is 48 oz and does not
+    // fit one 32 oz container, but the cup->oz relation is not available to
+    // packsToCoverNeed for this pair, so the pack does not scale and the line
+    // under-orders. That IS BUG-147. If this assertion ever goes red because
+    // the output became "2 containers (32 oz) chicken stock", BUG-147 was
+    // fixed elsewhere — update this expectation, do not restore the old one.
+    assert.equal(
+      composePackName("chicken stock", "container", "1 container (32 oz)", "6", "cup", false),
+      "1 container (32 oz) chicken stock",
+    );
+  });
+});

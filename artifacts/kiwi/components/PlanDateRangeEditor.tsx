@@ -448,7 +448,7 @@ const s = StyleSheet.create({
   },
   fieldHint: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   stepperRow: {

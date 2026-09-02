@@ -218,7 +218,7 @@ export default function PlansTab() {
               value={query}
               onChangeText={setQuery}
               placeholder="Search plans…"
-              placeholderTextColor={Colors.neutral[600]}
+              placeholderTextColor={Palette.text.placeholder}
               style={s.searchInput}
             />
           </View>
@@ -362,7 +362,7 @@ const s = StyleSheet.create({
   },
   loadingText: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     textAlign: "center",
     paddingVertical: Spacing[4],

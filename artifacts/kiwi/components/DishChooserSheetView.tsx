@@ -320,7 +320,7 @@ export function DishChooserHeader({
             value={simpleDishName}
             onChangeText={setSimpleDishName}
             placeholder="What is it? (e.g., Bag of Lay's Classic Chips, Leftover pizza, Trader Joe's gnocchi)"
-            placeholderTextColor={Colors.neutral[600]}
+            placeholderTextColor={Palette.text.placeholder}
             style={s.simpleDishInput}
             returnKeyType="done"
             blurOnSubmit
@@ -541,13 +541,13 @@ const s = StyleSheet.create({
   },
   dishMacros: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   useCount: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   askSection: {

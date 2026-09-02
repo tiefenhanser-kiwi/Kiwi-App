@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   body: { gap: Spacing[3] },
   stepIndicator: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[500],
     fontWeight: Typography.fontWeight.medium,
     textTransform: "uppercase",
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
   buttonLoading: { alignItems: "center", padding: Spacing[3] },
   trustSignal: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     textAlign: "center",
     marginTop: -Spacing[1],
     fontFamily: Typography.face.sans[400],

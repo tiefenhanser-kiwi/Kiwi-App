@@ -142,7 +142,7 @@ const s = StyleSheet.create({
   },
   emptyText: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
   },

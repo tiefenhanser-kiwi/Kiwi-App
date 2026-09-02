@@ -218,7 +218,7 @@ export default function OnboardingPrefs() {
             value={form.dietaryNotes}
             onChangeText={(v) => update("dietaryNotes", v)}
             placeholder="e.g., 'no cilantro', 'lower sodium'"
-            placeholderTextColor={Colors.neutral[600]}
+            placeholderTextColor={Palette.text.placeholder}
             returnKeyType="done"
             blurOnSubmit
             onSubmitEditing={Keyboard.dismiss}
@@ -325,7 +325,7 @@ const s = StyleSheet.create({
   },
   optional: {
     fontWeight: Typography.fontWeight.regular,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   chipRow: {
@@ -335,7 +335,7 @@ const s = StyleSheet.create({
   },
   helpText: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: Spacing[1],
   },

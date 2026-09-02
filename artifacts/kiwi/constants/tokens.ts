@@ -106,7 +106,27 @@ export const Palette = {
     primary:     Colors.neutral[900],
     secondary:   Colors.neutral[700],
     muted:       Colors.neutral[600],
-    placeholder: '#A89A7A',
+    // WS9 BUG-157 — WAS '#A89A7A', which measured 2.5967:1 on paper / 2.7748:1
+    // on the white card: BELOW even the 3:1 NON-text floor, and WORSE than the
+    // neutral[600] (3.4886 / 3.7278) it was nominally the softer alternative to.
+    // ⚠️ REPOINTING THE PLACEHOLDER SITES AT THE OLD VALUE WOULD HAVE MADE THE
+    // BUG WORSE WHILE LOOKING LIKE THE FIX. The token needed a new VALUE, not a
+    // rename. (It had zero readers when this was written — two differently
+    // shaped searches, one not respecting .gitignore, found 5 hits and none of
+    // them a read: 2 unrelated StyleSheet keys, 1 prop type, this line, and
+    // ImageTreatment.placeholder, which is a different token.)
+    //
+    // #776D5D is t=0.6 on the neutral[600] -> neutral[700] line, so it stays on
+    // the warm ramp and invents no hue. Measured against the four surfaces
+    // placeholders actually sit on: card #ffffff 5.0849 · neutral[50] #FDFAF4
+    // 4.8808 · paper #FBF7EF 4.7586 · sage[50] #f1f4ec 4.5744. sage[50] is the
+    // binding constraint (profile.tsx editInput); #7B7161 was rejected there at
+    // 4.3163 — it rounds to "4.32" and is under the bar at any precision.
+    //
+    // ⚠️ IT DOES NOT CLEAR 4.5 ON THE DARKER SURFACES — neutral[200] 4.2477,
+    // gold.background 4.1878, sage[100] 4.0875. A placeholder introduced on one
+    // of those needs neutral[700] (5.06–5.26), not this token.
+    placeholder: '#776D5D',
     inverse:     '#FBF7EF',
     link:        Colors.terracotta[400],
     danger:      Colors.terracotta[600],
@@ -126,7 +146,12 @@ export const Palette = {
     // LOCKED A1: terracotta is the primary CTA.
     primary: {
       background: Colors.terracotta[400],
-      text:       '#FBF7EF',
+      // WS9 BUG-106 — WAS '#FBF7EF' (paper). On terracotta[400] #C24F25 that
+      // measured 4.4273:1 — 0.0727 UNDER AA, on the app's shared primary CTA.
+      // ⚠️ At two decimals it prints "4.43" and still reads as a near-miss; it
+      // is a miss. Fixed by moving the TEXT to pure white (4.7308) rather than
+      // by re-valuing terracotta[400], which is a LOCKED A1 accent.
+      text:       '#FFFFFF',
       hover:      Colors.terracotta[500],
     },
     secondary: {
@@ -181,7 +206,12 @@ export const Palette = {
     },
     selected: {
       background: Colors.terracotta[400],
-      text:       '#FBF7EF',
+      // WS9 BUG-106 — the SAME pair as button.primary above (paper on
+      // terracotta[400] = 4.4273:1), found by measuring every '#FBF7EF' in this
+      // file against its own surface rather than only the one the bug named.
+      // Moved with it: leaving the identical defect on the identical surface
+      // would ship half a fix. 4.7308 after.
+      text:       '#FFFFFF',
       border:     Colors.terracotta[400],
     },
     onSage: {
@@ -365,7 +395,12 @@ export const Components = {
   tellKiwi: {
     surface:           Colors.sage[600],
     inputBackground:   '#FBF7EF',
-    inputPlaceholder:  Colors.neutral[600],
+    // WS9 BUG-157 — WAS Colors.neutral[600] directly. That made this file hold
+    // TWO different answers to one question: Palette.text.placeholder said one
+    // thing, this said another, and neither cleared AA. Now there is one
+    // placeholder token and this is a pointer at it. On this card's own input
+    // surface (inputBackground '#FBF7EF', paper) #776D5D measures 4.7586:1.
+    inputPlaceholder:  Palette.text.placeholder,
     inputRadius:       Radius.full,
     // WS9-2 2e (D-WS9-162) — the circular send affordance at the input's right
     // edge. ⚠️ THIS IS THE CARD'S ONLY TERRACOTTA FILL. Nothing else on the

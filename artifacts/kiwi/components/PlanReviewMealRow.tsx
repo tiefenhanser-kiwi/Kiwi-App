@@ -180,8 +180,16 @@ export function PlanReviewMealRow({
               ("no description available", first line of the steps, …) — 61% of
               live meals have none because the wizard writer does not populate
               it (BUG-156), and a fallback would hide that on device. */}
+          {/* WS9 BUG-158 — TWO lines here, and that is a DELIBERATE DIVERGENCE
+              from MealRow.tsx:82, which stays at one. Reusing MealRow's
+              structure and token was right and still holds; line count is a
+              per-surface decision, not part of the shared pattern. At one line
+              a description clipped mid-word ("…sliced thin in warm tortill…")
+              on a row whose job is helping you pick the meal. Noted here rather
+              than forking the component. ⚠️ Do NOT "restore" this to 1 for
+              consistency with MealRow — the divergence is the ruling. */}
           {row.description ? (
-            <Text style={styles.description} numberOfLines={1}>
+            <Text style={styles.description} numberOfLines={2}>
               {row.description}
             </Text>
           ) : null}
@@ -378,14 +386,14 @@ const styles = StyleSheet.create({
     fontFamily: Typography.face.serif[600],
   },
   // WS9 BUG-153 — mirrors MealRow.tsx's `description` style exactly.
-  // ⚠️ BUG-157: neutral[600] is #8A8474 = 3.7278:1 on the white card, BELOW the
-  // 4.5:1 AA threshold for normal text. It is used here deliberately anyway, so
-  // this sub-text matches MealRow rather than fragmenting the token while the
-  // shared-token question is being ruled. When BUG-157 sweeps neutral[600] for
-  // body text, THIS IS ONE OF THE SITES TO MOVE.
+  // ✅ BUG-157 SWEPT IT. This comment used to read "neutral[600] is #8A8474 =
+  // 3.7278:1 on the white card, BELOW the 4.5:1 AA threshold … THIS IS ONE OF
+  // THE SITES TO MOVE." It moved: neutral[700] #6B5E4D = 6.2999:1 on the card.
+  // MealRow.tsx's `description` moved with it, so the two are still identical
+  // and the mirror above still holds.
   description: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   metaLine: {
@@ -395,7 +403,7 @@ const styles = StyleSheet.create({
   },
   macros: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   cookNowBtn: {

@@ -197,8 +197,16 @@ function MealRow({
             no empty gap, no placeholder. ⚠️ Do NOT add a fallback — 61% of live
             meals carry no description because the wizard writer does not
             populate it (BUG-156), and a fallback would hide that on device. */}
+        {/* WS9 BUG-158 — TWO lines here, and that is a DELIBERATE DIVERGENCE
+            from MealRow.tsx:82, which stays at one. Reusing MealRow's structure
+            and token was right and still holds; line count is a per-surface
+            decision, not part of the shared pattern. At one line a description
+            clipped mid-word on a row whose job is helping you pick the meal.
+            Noted here rather than forking the component. ⚠️ Do NOT "restore"
+            this to 1 for consistency with MealRow — the divergence is the
+            ruling. `mealMeta` below stays at 1: it is metadata, not prose. */}
         {meal.description ? (
-          <Text style={s.mealDescription} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={s.mealDescription} numberOfLines={2} ellipsizeMode="tail">
             {meal.description}
           </Text>
         ) : null}
@@ -338,14 +346,14 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.serif[600],
   },
   // WS9 BUG-153 — mirrors MealRow.tsx's `description` style exactly.
-  // ⚠️ BUG-157: neutral[600] is #8A8474 = 3.7278:1 on the white card, BELOW the
-  // 4.5:1 AA threshold for normal text. Used here deliberately so this sub-text
-  // matches MealRow rather than fragmenting the token while the shared-token
-  // question is ruled. When BUG-157 sweeps neutral[600] for body text, THIS IS
-  // ONE OF THE SITES TO MOVE.
+  // ✅ BUG-157 SWEPT IT. This comment used to read "neutral[600] is #8A8474 =
+  // 3.7278:1 on the white card, BELOW the 4.5:1 AA threshold … THIS IS ONE OF
+  // THE SITES TO MOVE." It moved: neutral[700] #6B5E4D = 6.2999:1 on the card.
+  // MealRow.tsx's `description` moved with it, so the two are still identical
+  // and the mirror above still holds.
   mealDescription: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
@@ -357,13 +365,13 @@ const s = StyleSheet.create({
   },
   mealMacros: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
   useCount: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   askSection: {

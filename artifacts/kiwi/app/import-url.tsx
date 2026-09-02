@@ -134,7 +134,7 @@ export default function ImportUrlScreen() {
             if (errorMessage) setErrorMessage(null);
           }}
           placeholder="https://www.allrecipes.com/recipe/..."
-          placeholderTextColor={Colors.neutral[600]}
+          placeholderTextColor={Palette.text.placeholder}
           style={[styles.urlInput, errorMessage && styles.urlInputInvalid]}
           autoCapitalize="none"
           autoCorrect={false}

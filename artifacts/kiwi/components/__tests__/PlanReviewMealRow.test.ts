@@ -513,3 +513,43 @@ test("BUG-104: the day-pill console log is RETAINED (Hans is using it on device)
     "both raw tap events must still be logged even though only one assignment fires",
   );
 });
+
+// ── WS9 BUG-158 — the description wraps to two lines ────────────────────────
+// At one line a description clipped mid-word ("…sliced thin in warm tortill…")
+// on the row a user reads to decide whether to keep the meal in the plan.
+//
+// ⚠️ DELIBERATE DIVERGENCE from MealRow.tsx, which stays at one line. Reusing
+// MealRow's structure and token (BUG-153) was right and still holds; line count
+// is a per-surface decision, not part of the shared pattern. MealRow.test.ts
+// pins the other half so neither side can drift without a red test.
+test("BUG-158: the meal description renders on up to TWO lines", async () => {
+  const DESCRIPTION =
+    "Grilled marinated skirt steak sliced thin in warm tortillas with charred " +
+    "onions, salsa verde and a squeeze of lime";
+  const { renderer } = await render({
+    row: { ...ROW, description: DESCRIPTION },
+  });
+  // Located by its TEXT, so the assertion does not lean on the same StyleSheet
+  // the component reads.
+  const node = renderer.root.findAll(
+    (n) => typeof n.props?.children === "string" && n.props.children === DESCRIPTION,
+  )[0];
+  assert.ok(node, "description node found");
+  assert.equal(
+    node.props.numberOfLines,
+    2,
+    "BUG-158: one line truncated this mid-word",
+  );
+  renderer.unmount();
+});
+
+test("BUG-153 still holds: no description means no node, not an empty line", async () => {
+  // The control for the test above. Guards the BUG-153 contract at the same
+  // time: 61% of live meals carry none, and a placeholder would hide that.
+  const { renderer } = await render({ row: { ...ROW, description: undefined } });
+  const nodes = renderer.root.findAll(
+    (n) => n.props?.numberOfLines === 2 && typeof n.props?.children === "string",
+  );
+  assert.equal(nodes.length, 0, "no description => no two-line node at all");
+  renderer.unmount();
+});

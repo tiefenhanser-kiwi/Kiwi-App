@@ -322,7 +322,7 @@ const s = StyleSheet.create({
   },
   muted: {
     fontSize: Typography.fontSize.md,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },

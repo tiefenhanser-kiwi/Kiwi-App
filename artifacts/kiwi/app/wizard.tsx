@@ -351,7 +351,7 @@ export default function Wizard() {
                 value={form.dietaryNotes}
                 onChangeText={(v) => update("dietaryNotes", v)}
                 placeholder="e.g., 'no cilantro', 'lower sodium'"
-                placeholderTextColor={Colors.neutral[600]}
+                placeholderTextColor={Palette.text.placeholder}
                 returnKeyType="done"
                 blurOnSubmit
                 onSubmitEditing={Keyboard.dismiss}
@@ -441,7 +441,7 @@ export default function Wizard() {
             value={form.additionalNotes}
             onChangeText={(v) => update("additionalNotes", v)}
             placeholder="e.g., a comforting week, planning to entertain Saturday, lots of veggies"
-            placeholderTextColor={Colors.neutral[600]}
+            placeholderTextColor={Palette.text.placeholder}
             multiline
             returnKeyType="done"
             blurOnSubmit

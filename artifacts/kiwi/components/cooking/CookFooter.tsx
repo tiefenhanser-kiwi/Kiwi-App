@@ -97,6 +97,9 @@ const s = StyleSheet.create({
     color: Palette.cookMode.nextPreview,
     fontFamily: Typography.face.sans[400],
   },
+  // WS9 BUG-157 — STAYS at neutral[600]. Sits immediately beside nextPreview,
+  // which the ruling names as staying; darkening one and not the other would
+  // split this footer into two greys. A design consequence, not a contrast one.
   remaining: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[600],

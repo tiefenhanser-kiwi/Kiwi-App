@@ -79,7 +79,7 @@ export default function GroceriesTab() {
               value={query}
               onChangeText={setQuery}
               placeholder="Search lists…"
-              placeholderTextColor={Colors.neutral[600]}
+              placeholderTextColor={Palette.text.placeholder}
               style={styles.searchInput}
             />
           </View>
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     textAlign: "center",
     paddingVertical: Spacing[4],
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   },
   metaLine: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   planLink: {

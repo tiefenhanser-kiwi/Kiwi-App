@@ -262,7 +262,7 @@ const s = StyleSheet.create({
   },
   heroMeta: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   heroMacros: {
@@ -328,7 +328,7 @@ const s = StyleSheet.create({
   },
   stepMeta: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
 });

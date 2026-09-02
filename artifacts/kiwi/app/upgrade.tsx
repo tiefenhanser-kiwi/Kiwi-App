@@ -85,7 +85,7 @@ const s = StyleSheet.create({
   },
   bodyMuted: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     textAlign: "center",
     lineHeight: 20,
     fontFamily: Typography.face.sans[400],

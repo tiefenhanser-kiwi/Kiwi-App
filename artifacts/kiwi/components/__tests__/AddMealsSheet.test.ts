@@ -40,10 +40,30 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function renderSheet(opts: {
   planId?: string;
   onPick?: (m: unknown) => void;
+  /** WS9 BUG-158 — seed the meals query so the LIST branch renders. The tests
+   *  above this one inspect only the create options, which render regardless;
+   *  a row-level assertion needs the query resolved, and there is no network
+   *  under the node harness. Priming the cache is how the list gets rendered. */
+  seedMeals?: unknown[];
 }): Promise<TestRenderer.ReactTestRenderer> {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: {
+      queries: opts.seedMeals
+        ? // ⚠️ Seeded data alone is NOT enough: the query still refetches on
+          // mount, the real queryFn has no network here, and the sheet renders
+          // its "Couldn't load meals" branch over the top. staleTime keeps the
+          // seed fresh so no refetch is scheduled.
+          { retry: false, staleTime: Infinity, refetchOnMount: false }
+        : { retry: false },
+    },
   });
+  if (opts.seedMeals) {
+    // Key mirrors useMeals([activeFilter]) with the sheet's default filter.
+    client.setQueryData(["meals", "list", ["my_meals"]], {
+      meals: opts.seedMeals,
+      nextCursor: null,
+    });
+  }
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
@@ -139,4 +159,49 @@ test("AddMealsSheet: tapping Ask Kiwi routes to /ask-kiwi with the plan id, no A
   renderer.unmount();
   __setAlertHandler(null);
   __resetRouterForTests();
+});
+
+// ── WS9 BUG-158 — the description wraps to two lines ────────────────────────
+// A one-line description clipped mid-word ("…sliced thin in warm tortill…") on
+// a row whose entire job is helping you choose the meal.
+//
+// ⚠️ This DELIBERATELY DIVERGES from MealRow.tsx, which stays at one line.
+// Reusing MealRow's structure and token was right; line count is a per-surface
+// decision. MealRow.test.ts pins the other half of that divergence.
+test("BUG-158: the meal description renders on up to TWO lines", async () => {
+  __resetRouterForTests();
+  const DESCRIPTION =
+    "Grilled marinated skirt steak sliced thin in warm tortillas with charred " +
+    "onions, salsa verde and a squeeze of lime";
+  const renderer = await renderSheet({
+    seedMeals: [
+      {
+        id: "m-1",
+        title: "Carne Asada Tacos",
+        description: DESCRIPTION,
+        cuisine: "Mexican",
+        minutes: 30,
+        servings: 4,
+        calories: 620,
+        protein: 38,
+        carbs: 44,
+        fat: 28,
+        tags: [],
+        image: null,
+      },
+    ],
+  });
+
+  // Located by its TEXT, not by walking to a style key — so the assertion does
+  // not depend on the same StyleSheet the component reads.
+  const node = renderer.root.findAll(
+    (n) => n.props?.children === DESCRIPTION,
+  )[0];
+  assert.ok(node, "description node found — the seeded list rendered");
+  assert.equal(
+    node.props.numberOfLines,
+    2,
+    "BUG-158: one line truncated this mid-word",
+  );
+  renderer.unmount();
 });

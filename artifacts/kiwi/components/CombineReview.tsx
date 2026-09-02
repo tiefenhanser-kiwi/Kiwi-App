@@ -60,7 +60,7 @@ export function CombineReview({
           value={mealName}
           onChangeText={setMealName}
           placeholder="Meal name (e.g., Salmon Teriyaki)"
-          placeholderTextColor={Colors.neutral[600]}
+          placeholderTextColor={Palette.text.placeholder}
           style={[s.textInput, nameError && s.inputInvalid]}
           returnKeyType="done"
           blurOnSubmit

@@ -511,7 +511,7 @@ function EditableRow({
           keyboardType={keyboardType ?? "default"}
           autoCapitalize={autoCapitalize ?? "sentences"}
           placeholder={placeholder}
-          placeholderTextColor={Colors.neutral[600]}
+          placeholderTextColor={Palette.text.placeholder}
           style={s.editInput}
         />
       ) : (
@@ -577,7 +577,7 @@ function PasswordField({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={Colors.neutral[600]}
+        placeholderTextColor={Palette.text.placeholder}
         secureTextEntry
         autoCapitalize="none"
         autoCorrect={false}
@@ -658,7 +658,7 @@ const s = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   fieldRight: {
@@ -676,7 +676,7 @@ const s = StyleSheet.create({
     maxWidth: 220,
   },
   fieldValueMuted: {
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontStyle: "italic",
   },
   editInput: {
@@ -721,7 +721,7 @@ const s = StyleSheet.create({
   },
   pwLabel: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   pwInput: {
@@ -753,7 +753,7 @@ const s = StyleSheet.create({
   },
   navCardSubtitle: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
@@ -778,7 +778,7 @@ const s = StyleSheet.create({
   },
   devHint: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginBottom: Spacing[2],
     fontStyle: "italic",
