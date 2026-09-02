@@ -46,6 +46,17 @@ const SURVIVOR = "light soy sauce";
 /** The plan says 2. A different number means the world moved; stop. */
 const EXPECTED_DISH_REFS = 2;
 
+/**
+ * The rationale stamped on the row that survives the label conflict. Carries
+ * the `reviewed ` marker, so no future authoring run re-judges it.
+ */
+const CONFLICT_RATIONALE =
+  "reviewed 2026-09-02: DISTINCT. Hans: \"maybe we bought light soy for some reason and I'd use it " +
+  "because we have it, but I prefer actual real full octane soy sauce over the light stuff most of the " +
+  "time.\" Substitutability in a pinch is not subsumption — the specific must genuinely SATISFY the " +
+  "generic need, not merely be usable instead of it. Supersedes an AI SUBSUMES verdict on the same pair, " +
+  "which was only visible once `thin soy sauce` merged into `light soy sauce`.";
+
 const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
@@ -149,6 +160,8 @@ async function main(): Promise<void> {
   // Re-point each loser relation onto the survivor; detect duplicates and,
   // among duplicates, LABEL DISAGREEMENT — which is a stop, not a pick.
   const plan: Array<{ rel: (typeof loserRels)[number]; action: "repoint" | "drop"; note: string }> = [];
+  // Survivor-side rows the conflict rule says to delete.
+  const dropSurvivorRelIds: string[] = [];
   for (const r of loserRels) {
     const from = r.fromIngredientId === loser.id ? survivor.id : r.fromIngredientId;
     const to = r.toIngredientId === loser.id ? survivor.id : r.toIngredientId;
@@ -166,8 +179,46 @@ async function main(): Promise<void> {
       continue;
     }
     if (dup.label !== r.label) {
+      // ── the disagreement rule, ruled 2026-09-02 ──────────────────────────
+      //
+      // A HUMAN VERDICT BEATS AN AI ONE. Not a special case for soy sauce: it
+      // is the same rule `--apply` already enforces when it refuses to let an
+      // AI verdict overwrite a reviewedByHuman row. A merge is just another way
+      // for the two to meet.
+      //
+      // Here: `soy sauce ~ thin soy sauce` = DISTINCT carries Hans's ruling,
+      // while `soy sauce ~ light soy sauce` = SUBSUMES is an AI verdict on what
+      // turns out to be the same pair. Hans: "maybe we bought light soy for
+      // some reason and I'd use it because we have it, but I prefer actual real
+      // full octane soy sauce over the light stuff most of the time."
+      //
+      // ⚠️ SUBSTITUTABILITY IN A PINCH IS NOT SUBSUMPTION. "I'd use it because
+      // we have it" is a judgment made at the shelf with the pantry in view; it
+      // does not say that buying the specific discharges the generic need.
+      //
+      // If NEITHER side or BOTH sides are human, there is nothing to prefer and
+      // it stays a stop.
+      if (r.reviewedByHuman && !dup.reviewedByHuman) {
+        plan.push({
+          rel: r,
+          action: "repoint",
+          note: `label conflict resolved: loser's row is human-reviewed and the survivor's ${dup.label} is an AI verdict — the AI row is dropped`,
+        });
+        dropSurvivorRelIds.push(dup.id);
+        continue;
+      }
+      if (!r.reviewedByHuman && dup.reviewedByHuman) {
+        plan.push({
+          rel: r,
+          action: "drop",
+          note: `label conflict resolved: the survivor's row is human-reviewed and this one is an AI verdict`,
+        });
+        continue;
+      }
       stop.push(
-        `relation labels DISAGREE for the same pair after re-pointing: survivor says ${dup.label}, loser says ${r.label} — ${show(r)}`,
+        `relation labels DISAGREE for the same pair after re-pointing and NEITHER side is decisive ` +
+          `(loser human=${r.reviewedByHuman}, survivor human=${dup.reviewedByHuman}): ` +
+          `survivor says ${dup.label}, loser says ${r.label} — ${show(r)}`,
       );
       continue;
     }
@@ -175,6 +226,17 @@ async function main(): Promise<void> {
   }
   console.log(`\n  relation plan:`);
   for (const p of plan) console.log(`    ${p.action.toUpperCase().padEnd(8)} ${show(p.rel)}  — ${p.note}`);
+  // Survivor-side rows deleted by the conflict rule. Printed separately because
+  // a plan that shows only what it re-points, while silently deleting on the
+  // other side, is not a reviewable plan.
+  for (const id of dropSurvivorRelIds) {
+    const r = survivorRels.find((x) => x.id === id)!;
+    console.log(`    DROP     ${show(r)}  — survivor-side AI row loses to the human verdict`);
+  }
+  console.log(
+    `    (relation rows: ${plan.filter((p) => p.action === "repoint").length} re-pointed, ` +
+      `${plan.filter((p) => p.action === "drop").length + dropSurvivorRelIds.length} deleted)`,
+  );
 
   // ── data the survivor would lose ────────────────────────────────────────
   const dataFields: Array<[string, unknown, unknown]> = [
@@ -259,15 +321,30 @@ async function main(): Promise<void> {
         data: { amountRefs: rewritten.refs as Prisma.InputJsonValue },
       });
     }
+    if (dropSurvivorRelIds.length > 0) {
+      await tx.ingredientRelation.deleteMany({ where: { id: { in: dropSurvivorRelIds } } });
+    }
     for (const p of plan) {
       if (p.action === "drop") {
         await tx.ingredientRelation.delete({ where: { id: p.rel.id } });
       } else {
+        // A row that won a label conflict is re-stamped with the ruling that
+        // settled it, so the rationale explains the surviving label rather than
+        // the one it was originally written about.
+        const wonConflict = p.note.startsWith("label conflict resolved");
         await tx.ingredientRelation.update({
           where: { id: p.rel.id },
           data: {
             fromIngredientId: p.rel.fromIngredientId === loser.id ? survivor.id : p.rel.fromIngredientId,
             toIngredientId: p.rel.toIngredientId === loser.id ? survivor.id : p.rel.toIngredientId,
+            ...(wonConflict
+              ? {
+                  reviewedByHuman: true,
+                  reviewedAt: new Date(),
+                  source: "human" as const,
+                  rationale: CONFLICT_RATIONALE,
+                }
+              : {}),
           },
         });
       }

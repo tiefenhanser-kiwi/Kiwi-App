@@ -34,7 +34,7 @@ export const JUDGE_MODEL = "claude-opus-5";
 // Bump this when the rubric text below changes. It is stamped on every row, so
 // a future re-run under a revised rubric can find what the old one wrote —
 // which is the whole lesson of D-WS9-197.
-export const PROMPT_VERSION = "d189-a1-v4-triage";
+export const PROMPT_VERSION = "d189-a1-v5-satisfy-not-substitute";
 
 // $ per million tokens for claude-opus-5.
 export const PRICE_INPUT_PER_MTOK = 5;
@@ -134,6 +134,16 @@ SUBSUMES — one name is GENERIC and the other is a SPECIFIC kind of it. A shopp
   bell peppers ~ red bell pepper        SUBSUMES  (generic = "bell peppers")
   onion ~ yellow onion                  SUBSUMES  (generic = "onion")
   chili powder ~ ancho chili powder     SUBSUMES  (generic = "chili powder")
+
+🔴 THE SPECIFIC MUST GENUINELY SATISFY THE GENERIC NEED, NOT MERELY BE USABLE INSTEAD OF IT.
+SUBSTITUTABILITY IN A PINCH IS NOT SUBSUMPTION. Ask whether BUYING the specific discharges the
+generic requirement — not whether a cook standing in their kitchen would make do with it.
+  soy sauce ~ light soy sauce  -> DISTINCT, not SUBSUMES.
+    Hans: "maybe we bought light soy for some reason and I'd use it because we have it, but I
+    prefer actual real full octane soy sauce over the light stuff most of the time."
+    That is a judgment made at the shelf with the pantry in view. Someone who needs soy sauce and
+    buys light soy sauce has bought the wrong thing.
+If the answer is "they'd cope", it is DISTINCT. SUBSUMES is for when the demand is actually met.
 
 🔴 SUBSUMES IS DIRECTED AND THE DIRECTION IS THE WHOLE POINT. Set genericIsA: true if the FIRST name is the generic one, false if the SECOND is. The reverse claim — that any bell pepper satisfies a demand for a RED bell pepper — is false, so a direction you set backwards is not a small error, it is the opposite assertion.
 
