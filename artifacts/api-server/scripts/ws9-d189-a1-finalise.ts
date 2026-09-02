@@ -26,6 +26,14 @@ import { PrismaClient } from "@prisma/client";
 import { encodeCsvRow } from "./ws7-8b-usda-backfill";
 import { buildPairUniverse, type CatalogRow } from "./ws9-d189-a1/pairUniverse";
 import { runDetectors } from "./ws9-d189-a1/contradiction";
+import {
+  ALL_TRIAGE,
+  C1_ACCEPT_WHY,
+  GARLIC_HEAD_GROUP,
+  GARLIC_YIELD,
+  isGarlicCrossing,
+  isGarlicWithin,
+} from "./ws9-d189-a1/triage";
 import type { JudgedPair, Verdict } from "./ws9-d189-a1/judge";
 import type { NormalizedRow } from "./ws9-d189-a1/pairUniverse";
 
@@ -322,6 +330,69 @@ async function main(): Promise<void> {
       });
     }
 
+    // ── chat-Claude's triage (D-WS9-203), applied ──────────────────────────
+    const triageApplied = { explicit: 0, garlic: 0, c1Accepted: 0 };
+    const norm = (s: string): string => s.trim().toLowerCase();
+    const findRow = (a: string, b: string): FinalRow | undefined =>
+      rows.find(
+        (r) =>
+          (norm(r.a) === norm(a) && norm(r.b) === norm(b)) ||
+          (norm(r.a) === norm(b) && norm(r.b) === norm(a)),
+      );
+
+    for (const t of ALL_TRIAGE) {
+      const row = findRow(t.a, t.b);
+      if (!row) {
+        console.log(`  ⚠️ triage ruling has no matching row: "${t.a}" ~ "${t.b}"`);
+        continue;
+      }
+      triageApplied.explicit += 1;
+      row.label = t.label;
+      row.confidence = "high";
+      row.provenance = "human-reviewed";
+      row.reason = `reviewed ${REVIEW_DATE}: ${t.why}`;
+      row.needsReview = "AUTO";
+      row.genericIs = t.label === "SUBSUMES" ? (t.genericIs ?? "") : "";
+      if (t.label !== "COMPONENT") {
+        row.baseIs = "";
+        row.yieldQty = "";
+        row.yieldUnit = "";
+        row.coHarvestable = "";
+      }
+    }
+
+    // A — garlic, applied as a rule over the two groups rather than row by row.
+    for (const row of rows) {
+      if (isGarlicCrossing(row.a, row.b)) {
+        if (row.provenance === "human-reviewed" && row.label === "COMPONENT") continue;
+        triageApplied.garlic += 1;
+        // Direction: the HEAD is what you buy.
+        const headSide = GARLIC_HEAD_GROUP.includes(row.a) ? row.a : row.b;
+        row.label = "COMPONENT";
+        row.confidence = "high";
+        row.provenance = "human-reviewed";
+        row.baseIs = headSide;
+        row.genericIs = "";
+        row.yieldQty = String(GARLIC_YIELD.qty);
+        row.yieldUnit = GARLIC_YIELD.unit;
+        row.coHarvestable = String(GARLIC_YIELD.coHarvestable);
+        row.reason = `reviewed ${REVIEW_DATE}: crosses the clove/head boundary — a recipe's garlic means cloves, the purchase is a head (D-WS9-194)`;
+        row.needsReview = "AUTO";
+      } else if (isGarlicWithin(row.a, row.b) && row.needsReview === "contradicts_human_ruling") {
+        // Within-group edges were correct all along; the flag over-reached.
+        row.needsReview = "AUTO";
+      }
+    }
+
+    // C-1 — anything still carrying size_qualified_subsumes was accepted.
+    for (const row of rows) {
+      if (row.needsReview !== "size_qualified_subsumes") continue;
+      triageApplied.c1Accepted += 1;
+      row.provenance = "human-reviewed";
+      row.reason = `reviewed ${REVIEW_DATE}: ${C1_ACCEPT_WHY}`;
+      row.needsReview = "AUTO";
+    }
+
     // ── seeded rulings must not be silently contradicted ───────────────────
     //
     // 🔴 SEEDING A HUMAN RULING DOES NOT UPDATE THE AI's OTHER EDGES, and the
@@ -349,19 +420,49 @@ async function main(): Promise<void> {
         const rb = find(r.b);
         if (ra !== rb) parent.set(ra, rb);
       }
-      const conflicted = new Set<string>();
+      // §E — NAME THE CROSSING EDGE, NOT THE WHOLE CLASS.
+      //
+      // The first version flagged every synonym edge in a conflicted class:
+      // six garlic rows reached a human when exactly one was wrong. Flag
+      // instead the edges on a shortest synonym path between the ruled
+      // endpoints — those are the edges that actually create the contradiction,
+      // and for garlic that is precisely `garlic ~ whole garlic head`.
+      const adj = new Map<string, Array<{ to: string; row: FinalRow }>>();
       for (const r of rows) {
-        if (r.provenance !== "human-reviewed" || r.label === "SYNONYM") continue;
-        if (!parent.has(r.a) || !parent.has(r.b)) continue;
-        if (find(r.a) === find(r.b)) conflicted.add(find(r.a));
+        if (r.label !== "SYNONYM") continue;
+        if (!adj.has(r.a)) adj.set(r.a, []);
+        if (!adj.has(r.b)) adj.set(r.b, []);
+        adj.get(r.a)!.push({ to: r.b, row: r });
+        adj.get(r.b)!.push({ to: r.a, row: r });
       }
       let flagged = 0;
-      for (const r of rows) {
-        if (r.label !== "SYNONYM" || r.provenance === "human-reviewed") continue;
-        if (!parent.has(r.a)) continue;
-        if (!conflicted.has(find(r.a))) continue;
-        r.needsReview = "contradicts_human_ruling";
-        flagged += 1;
+      for (const ruled of rows) {
+        if (ruled.provenance !== "human-reviewed" || ruled.label === "SYNONYM") continue;
+        if (!adj.has(ruled.a) || !adj.has(ruled.b)) continue;
+        // BFS from a to b over synonym edges.
+        const prev = new Map<string, { from: string; row: FinalRow }>();
+        const seen = new Set<string>([ruled.a]);
+        const queue: string[] = [ruled.a];
+        while (queue.length > 0) {
+          const cur = queue.shift()!;
+          if (cur === ruled.b) break;
+          for (const e of adj.get(cur) ?? []) {
+            if (seen.has(e.to)) continue;
+            seen.add(e.to);
+            prev.set(e.to, { from: cur, row: e.row });
+            queue.push(e.to);
+          }
+        }
+        if (!seen.has(ruled.b)) continue;
+        for (let node = ruled.b; node !== ruled.a; ) {
+          const step = prev.get(node);
+          if (!step) break;
+          if (step.row.needsReview !== "contradicts_human_ruling") {
+            step.row.needsReview = "contradicts_human_ruling";
+            flagged += 1;
+          }
+          node = step.from;
+        }
       }
       if (flagged > 0) {
         console.log(
@@ -429,6 +530,7 @@ async function main(): Promise<void> {
     console.log(`  rows: ${rows.length}`);
     console.log(`  labels:     ${[...byLabel].sort().map(([k, v]) => `${k}:${v}`).join("  ")}`);
     console.log(`  provenance: ${[...byProv].sort().map(([k, v]) => `${k}:${v}`).join("  ")}`);
+    console.log(`  triage applied: explicit ${triageApplied.explicit} · garlic ${triageApplied.garlic} · C-1 accepted ${triageApplied.c1Accepted}`);
     console.log(`  changed under §3/§4/§5: arbiter overrides ${changed.arbiterOverride} · rule-authored ${changed.ruleAuthored} · Hans ${changed.hans} · garlic ${changed.garlic}`);
     console.log(`\n  🔴 ROWS A HUMAN MUST READ: ${toRead.length}`);
     console.log(`     ${[...byReason].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join("  ")}`);

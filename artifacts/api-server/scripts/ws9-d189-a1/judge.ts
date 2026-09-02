@@ -34,7 +34,7 @@ export const JUDGE_MODEL = "claude-opus-5";
 // Bump this when the rubric text below changes. It is stamped on every row, so
 // a future re-run under a revised rubric can find what the old one wrote —
 // which is the whole lesson of D-WS9-197.
-export const PROMPT_VERSION = "d189-a1-v3-sibling-tiers";
+export const PROMPT_VERSION = "d189-a1-v4-triage";
 
 // $ per million tokens for claude-opus-5.
 export const PRICE_INPUT_PER_MTOK = 5;
@@ -173,6 +173,29 @@ Ask yourself: WHICH AXIS does each qualifier fix? Same axis, one bare -> SUBSUME
   THE TEST: if a shopper asked for the bare name, would they be happy with ANY of the qualified
   variants? If yes, it is SUBSUMES. If the bare name would get them one PARTICULAR variant —
   the standard one — then it names that variant and is DISTINCT from the others.
+
+  ⚠️ THAT RULE HAS TWO BRANCHES AND YOU MUST NOT COLLAPSE THEM. When the bare name denotes the
+  standard variety, it is DISTINCT from the OTHER variants but SYNONYM with the one that names
+  that same standard:
+    yellow onion ~ medium yellow onion  -> SYNONYM   (bare 'yellow onion' IS the medium bulb)
+    yellow onion ~ large yellow onion   -> DISTINCT  (a different size off the shelf)
+  Answering DISTINCT to both would say the standard variety differs from itself.
+
+🔴 "THICK-CUT" AND "THIN-CUT" ARE DEFAULT-VARIETY MARKERS, NOT SIZE GRADES. Regular and thick-cut
+are separate SKUs at separate prices, so the bare name does NOT subsume the cut-qualified one:
+  bacon ~ thick-cut bacon                       -> DISTINCT
+  sandwich bread ~ thick-cut white sandwich bread -> DISTINCT
+  tortilla chips ~ thick-cut corn tortilla chips  -> DISTINCT
+A shopper holding regular bacon has not satisfied a recipe that wants thick-cut. (Contrast a
+genuine size grade: shrimp counts, pork-chop thickness specs and asparagus spear thickness ARE
+size axes and DO subsume.)
+
+🔴 A PREFIX PREP WORD IS A PURCHASED PREPARED PRODUCT; A COMMA-SUFFIX PREP WORD IS AN INSTRUCTION.
+  shredded carrots     = a bag you buy         -> DISTINCT from `carrots`
+  carrots, shredded    = something you do      -> the same purchase as `carrots`
+So a prefix-prep name is never generic over the whole vegetable, and never a synonym of it.
+This covers every convenience product in the catalog: shredded cheese, pre-diced onion, jarred
+minced garlic, pre-cut vegetables.
 
 THE TEST THAT SEPARATES THEM. Ask: a shopper holding one of these, who needs the other —
   needs nothing more                      -> SYNONYM
