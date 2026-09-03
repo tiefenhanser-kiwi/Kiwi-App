@@ -10,7 +10,6 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { buildDevTestPlan } from "@/lib/dev/devPlanFixture";
 import { loadJSON, removeKey, saveJSON } from "@/lib/storage";
 import {
   addGroceryListItem,
@@ -343,15 +342,6 @@ interface AppState {
   /** Step 3 partial form state — null until first save. */
   onboardingStep3Draft: Step3Draft | null;
   setOnboardingStep3Draft: (draft: Step3Draft) => void;
-  // ─────────────────────────────────────────────────────────────────
-  // DEV-ONLY scaffolding (WS6 6b-1.6). Removed at WS7-CLOSE.
-  // Exposed unconditionally on the context; gated at the call site
-  // (Profile screen wraps in __DEV__).
-  // ─────────────────────────────────────────────────────────────────
-  /** Inject the demo plan as currentPlan so Hans can reach Plan Review. */
-  injectDevTestPlan: () => Promise<void>;
-  /** Wipe AsyncStorage and reset all in-memory state to defaults. */
-  resetAllDevState: () => Promise<void>;
 }
 
 const AppCtx = createContext<AppState | null>(null);
@@ -1225,49 +1215,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await saveJSON("onboardingComplete", v);
   }, []);
 
-  // ─────────────────────────────────────────────────────────────────
-  // DEV-ONLY scaffolding (WS6 6b-1.6). Removed at WS7-CLOSE.
-  // ─────────────────────────────────────────────────────────────────
-
-  const injectDevTestPlan = useCallback(async (): Promise<void> => {
-    try {
-      const plan = buildDevTestPlan();
-      // Replace any same-id entry — re-tap is idempotent.
-      const updated = [plan, ...plans.filter((p) => p.id !== plan.id)];
-      setPlans(updated);
-      setCurrentPlanIdState(plan.id);
-      await Promise.all([
-        saveJSON("plans", updated),
-        saveJSON("currentPlanId", plan.id),
-      ]);
-      // Diagnostic — confirms the injection ran end-to-end. Remove once
-      // the affordance is proven working in Hans's workflow.
-      console.log(
-        "[devInjector] plans now:",
-        updated.length,
-        "currentPlanId:",
-        plan.id,
-      );
-    } catch (err) {
-      console.warn("[devInjector] inject failed:", err);
-    }
-  }, [plans]);
-
-  const resetAllDevState = useCallback(async (): Promise<void> => {
-    // Wipes everything across all prefixes (kiwi:* + auth + anything else).
-    await AsyncStorage.clear();
-    setPrefsState(DEFAULT_PREFS);
-    setPlans([]);
-    setCurrentPlanIdState(null);
-    setGroceries([]);
-    // Favorites live in React Query now — drop the cached query.
-    queryClient.removeQueries({ queryKey: ["me", "favorites"] });
-    setIsPremiumState(false);
-    setOnboardingCompleteState(false);
-    setOnboardingStep2DraftState(null);
-    setOnboardingStep3DraftState(null);
-  }, [queryClient]);
-
   const currentPlan = useMemo(
     () => plans.find((p) => p.id === currentPlanId) ?? null,
     [plans, currentPlanId],
@@ -1334,8 +1281,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setOnboardingStep2Draft,
     onboardingStep3Draft,
     setOnboardingStep3Draft,
-    injectDevTestPlan,
-    resetAllDevState,
   };
 
   // No JSX in this file — the test runner (`node --experimental-strip-types`)

@@ -58,7 +58,7 @@ test("D-WS9-127: MealRow renders the title on up to three lines", async () => {
 // WS9 3f-4d Part 1c (D-WS9-124) — the one-line "what's on the plate" sub-text.
 const DESCRIPTION = "Crispy tenders with a tangy honey-mustard and a green salad.";
 
-test("D-WS9-124: MealRow renders description as a one-line sub-text when present", async () => {
+test("D-WS9-124 + BUG-158: MealRow renders description as a TWO-line sub-text when present", async () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
@@ -75,11 +75,17 @@ test("D-WS9-124: MealRow renders description as a one-line sub-text when present
     (n) => typeof n.props?.children === "string" && n.props.children === DESCRIPTION,
   )[0];
   assert.ok(descNode, "description sub-text node found");
-  // ⚠️ WS9 BUG-158 — ONE line here is deliberate, and this assertion is now
-  // load-bearing for a second reason: PlanReviewMealRow and AddMealsSheet reused
-  // this pattern and were ruled to TWO lines. That divergence is intended. Do
-  // not "harmonise" this to 2 to match them — both sides are pinned on purpose.
-  assert.equal(descNode.props.numberOfLines, 1, "description clamps to one line");
+  // ⚠️ WS9 BUG-158 AMENDMENT (Sept 2) — TWO, was one. The previous comment here
+  // said one line was "deliberate" and warned against harmonising to 2; that
+  // recorded the ruling live at the time. Hans has since seen both on device and
+  // ruled two for My Recipes: "I think two lines in My Recipes is a good call,
+  // maybe 3, but it's a lot of text on the card." TWO, NOT THREE — he named
+  // three and declined it in the same sentence.
+  // D-WS9-124 was read in canon before this changed: it ruled the AUTHORING of
+  // `description` (char caps, prompts, wiring) and never a line count.
+  // All three description surfaces are now 2, so there is no divergence left to
+  // guard — but this stays pinned so a drift to 1 or 3 is red either way.
+  assert.equal(descNode.props.numberOfLines, 2, "description clamps to two lines");
 
   renderer.unmount();
 });

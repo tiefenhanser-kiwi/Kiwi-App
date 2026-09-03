@@ -15,6 +15,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { Colors, Palette, Components } from "@/constants/tokens";
+import { TONE_STYLE } from "@/components/PrepCookHubView";
 
 // ── WCAG 2.x relative luminance + contrast ratio, written from the spec ──────
 function channel(srgb8: number): number {
@@ -145,8 +146,16 @@ describe("BUG-157 — neutral[600] keeps its value and its role", () => {
     assert.equal(Palette.text.muted, "#8A8474");
   });
 
-  it("Cook Mode's dimmed next-step preview still reads it (ruled to stay)", () => {
-    assert.equal(Palette.cookMode.nextPreview, Colors.neutral[600]);
+  it("is NOT read by Cook Mode any more — BUG-199 reversed that", () => {
+    // ⚠️ This assertion used to read `assert.equal(Palette.cookMode.nextPreview,
+    // Colors.neutral[600])` with the note "ruled to stay". The Sept 2 device
+    // pass amended BUG-157's Aug 31 ruling: the quiet tier survives for section
+    // labels and small-caps eyebrows, and dies inside Cook Mode.
+    assert.notEqual(
+      Palette.cookMode.nextPreview,
+      Colors.neutral[600],
+      "the quiet tier no longer reaches Cook Mode",
+    );
   });
 
   it("the three text greys are pairwise distinct", () => {
@@ -196,5 +205,105 @@ describe("BUG-106 — primary CTA text on terracotta", () => {
 
   it("terracotta[400] is untouched — it is a LOCKED A1 accent", () => {
     assert.equal(Colors.terracotta[400], "#C24F25");
+  });
+});
+
+// ── BUG-199 A — Cook Mode leaves the quiet tier ─────────────────────────────
+// The Sept 2 device pass AMENDS BUG-157's Aug 31 ruling. Hans's reasoning
+// generalises: a quiet tier is a reading-room decision, and Cook Mode is not a
+// reading room — phone propped by a cutting board, wet hands, glare.
+describe("BUG-199 — the three Cook Mode greys clear AA", () => {
+  // The Cook Mode footer sits on neutral[100] paper; the step card is white.
+  const COOK_FOOTER_BG = "#FBF7EF";
+  const COOK_CARD_BG = "#ffffff";
+
+  it("Palette.cookMode.nextPreview is neutral[700] and clears AA on the footer", () => {
+    assert.equal(Palette.cookMode.nextPreview, "#6B5E4D");
+    const r = at4(ratio(Palette.cookMode.nextPreview, COOK_FOOTER_BG));
+    assert.equal(r, 5.8956);
+    assert.ok(r >= AA_TEXT);
+  });
+
+  it("records what it moved FROM, so the regression is legible", () => {
+    // #8A8474 on the footer. If someone reverts the token, the test above goes
+    // red against this number rather than against a vague "too low".
+    assert.equal(at4(ratio("#8A8474", COOK_FOOTER_BG)), 3.4886);
+    assert.ok(3.4886 < AA_TEXT);
+    assert.equal(at4(ratio("#8A8474", COOK_CARD_BG)), 3.7278);
+  });
+
+  it("the token has exactly one consumer, and re-valuing it was therefore safe", () => {
+    // Two differently shaped searches found CookFooter.tsx:97 and nothing else
+    // outside the definition, this file, and comments. Pinned as a tripwire: if
+    // a second Cook-Mode-external reader appears, the token's meaning has drifted
+    // and this note is the place that says so.
+    assert.equal(Palette.cookMode.nextPreview, Colors.neutral[700]);
+  });
+});
+
+// ── BUG-199 C — the hub's neutral tone chip ─────────────────────────────────
+// Hans, on device: "the chips are neutral that's slightly darker than the
+// neutral background." Both halves were wrong at once — the chip barely
+// separated from the page AND its text was the dimmer of the three tones.
+describe("BUG-199 — the PrepCookHub neutral chip separates from the page and carries its text", () => {
+  // ⚠️ CHIP_BG / CHIP_FG are read from the COMPONENT'S OWN MAP, not restated
+  // from tokens. An earlier draft of this block asserted the literals directly:
+  // reverting TONE_STYLE.neutral.bg to neutral[200] left all 26 tests GREEN,
+  // because nothing here touched the map. That break is why TONE_STYLE is
+  // exported. The expected VALUES below stay literals, so the assertion still
+  // cannot derive its expectation from the constant under test.
+  const HUB_PAGE = "#FBF7EF"; // Palette.background.app
+  const CHIP_BG = TONE_STYLE.neutral.bg;
+  const CHIP_FG = TONE_STYLE.neutral.fg;
+  const AA_NON_TEXT = 3.0;
+
+  it("the chip actually uses the values these ratios assume", () => {
+    assert.equal(Palette.background.app, HUB_PAGE);
+    assert.equal(CHIP_BG, "#E4DCCB", "TONE_STYLE.neutral.bg drifted");
+    assert.equal(CHIP_FG, "#4A3F30", "TONE_STYLE.neutral.fg drifted");
+  });
+
+  it("the sibling tones are the ones this block says they are", () => {
+    assert.equal(TONE_STYLE.sage.bg, "#e2e9d8");
+    assert.equal(TONE_STYLE.gold.bg, "#F6E8C8");
+  });
+
+  it("the chip fill separates from the page MORE than it used to", () => {
+    const before = at4(ratio("#F1EADC", HUB_PAGE)); // neutral[200], the old fill
+    const after = at4(ratio(CHIP_BG, HUB_PAGE));
+    assert.equal(before, 1.1203);
+    assert.equal(after, 1.2763);
+    assert.ok(after > before, "the fill must separate more, not less");
+  });
+
+  it("the chip text clears AA against the chip's own fill, by a wider margin", () => {
+    const before = at4(ratio("#6B5E4D", "#F1EADC")); // old fg on old bg
+    const after = at4(ratio(CHIP_FG, CHIP_BG));
+    assert.equal(before, 5.2627);
+    assert.equal(after, 7.5303);
+    assert.ok(after >= AA_TEXT);
+    assert.ok(after > before, "the text must get easier to read, not harder");
+  });
+
+  it("the chip's ICON half still clears the 3:1 non-text bar", () => {
+    // `fg` drives a Feather icon as well as the <Text>.
+    assert.ok(at4(ratio(CHIP_FG, CHIP_BG)) >= AA_NON_TEXT);
+  });
+
+  it("⚠️ the sage and gold tones are UNTOUCHED — the family must still read as one", () => {
+    // Their page separation (1.1642 / 1.1363) is no better than the neutral
+    // chip's WAS. They read fine anyway because they separate by HUE, which is
+    // the whole diagnosis: the neutral chip shares the page's hue and had
+    // nothing to separate with. Pinned so a later "consistency" pass does not
+    // darken these too.
+    assert.equal(at4(ratio("#e2e9d8", HUB_PAGE)), 1.1642); // sage[100]
+    assert.equal(at4(ratio("#F6E8C8", HUB_PAGE)), 1.1363); // gold.background
+  });
+
+  it("⚠️ FOUND, NOT FIXED: the gold chip's own text is 3.7593:1, under AA", () => {
+    // gold.text on gold.background. Out of BUG-199's scope — Hans device-
+    // confirmed the gold tone reads fine and only the neutral one was ruled.
+    // Recorded here so it is a known number rather than a future surprise.
+    assert.equal(at4(ratio(Colors.gold.text, Colors.gold.background)), 3.7593);
   });
 });

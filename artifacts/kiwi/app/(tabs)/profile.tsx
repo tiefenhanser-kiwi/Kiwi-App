@@ -53,8 +53,6 @@ export default function ProfileTab() {
     requestEmailChange,
     updateUserPhone,
     changePassword,
-    injectDevTestPlan,
-    resetAllDevState,
   } = useApp();
   const auth = useAuth();
 
@@ -208,36 +206,6 @@ export default function ProfileTab() {
 
   const handleAccountAndSubscription = () => {
     router.push("/manage-account");
-  };
-
-  const handleInjectDevPlan = async () => {
-    await injectDevTestPlan();
-    // Plans tab "This Week" card is the only AppContext-fed surface today.
-    // Home hero + Plans tab "Your plans" list both read from getTodaysMeal /
-    // getCurrentActivePlan / getPlansPayload stubs that return null/[]
-    // unconditionally — so directing Hans to those would mislead him.
-    // WS7 swaps those stubs and this Alert text becomes obsolete.
-    Alert.alert(
-      "Dev test plan injected",
-      "Open the Plans tab and tap 'Open' on the 'This Week' card at the top to reach Plan Review.",
-    );
-  };
-
-  const handleResetDevState = () => {
-    Alert.alert(
-      "Reset all local data?",
-      "This wipes AsyncStorage and resets all in-memory state. Force-quit Expo Go and re-launch for a clean session.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: () => {
-            void resetAllDevState();
-          },
-        },
-      ],
-    );
   };
 
   const handleLogout = async () => {
@@ -408,37 +376,6 @@ export default function ProfileTab() {
             Upgrade for unlimited Kitchen Wizard plans and AI-powered features
           </Text>
         </Pressable>
-
-        {/* Developer (DEV-ONLY, removed at WS7-CLOSE per WS6 6b-1.6) */}
-        {__DEV__ && (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Developer</Text>
-            <Text style={s.devHint}>
-              Throwaway scaffolding. Removed at WS7-CLOSE.
-            </Text>
-            <Pressable
-              onPress={handleInjectDevPlan}
-              style={({ pressed }) => [
-                s.devButton,
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Text style={s.devButtonText}>Inject dev test plan</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleResetDevState}
-              style={({ pressed }) => [
-                s.devButton,
-                s.devButtonDestructive,
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Text style={[s.devButtonText, s.devButtonTextDestructive]}>
-                Reset all dev state
-              </Text>
-            </Pressable>
-          </View>
-        )}
 
         {/* Section E: Log Out (standalone) */}
         <Pressable
@@ -775,35 +712,5 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: Spacing[2],
-  },
-  devHint: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
-    marginBottom: Spacing[2],
-    fontStyle: "italic",
-  },
-  devButton: {
-    paddingVertical: Spacing[2],
-    paddingHorizontal: Spacing[3],
-    borderWidth: 1,
-    borderColor: Colors.sage[600],
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.sage[50],
-    marginTop: Spacing[2],
-    alignItems: "center",
-  },
-  devButtonDestructive: {
-    borderColor: Colors.terracotta[600],
-    backgroundColor: Colors.terracotta[50],
-  },
-  devButtonText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.sage[700],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
-  },
-  devButtonTextDestructive: {
-    color: Colors.terracotta[700],
   },
 });

@@ -360,10 +360,24 @@ const styles = StyleSheet.create({
   titlePressable: {
     flex: 1,
   },
+  // ⚠️ WS9 BUG-197 — alignItems "center" -> "flex-start", and READ THE REPORT
+  // BEFORE ASSUMING THIS FIXED A CLIP. Two differently shaped searches over this
+  // component AND its only caller (app/plan/[id].tsx) found NO overflow:hidden,
+  // NO height, NO maxHeight on the card, this row, or textCol — the only fixed
+  // heights in the file are the 56px thumb and the 32px day pills, and neither
+  // caps the row. There is no clipping constraint in the code to remove.
+  //
+  // What WAS wrong: "center" cross-aligns a text column that now runs to a
+  // 3-line title plus a 2-line description against a 56px thumbnail, so the
+  // thumb floats at the vertical middle of a tall column and the text reads as
+  // mis-set. flex-start top-aligns them, which is the correct treatment for a
+  // growing column beside a fixed thumb. If Hans still sees the second line
+  // clipped after this, the cause is NOT in this file and the screenshot is
+  // needed — do not go on adding heights here hoping to hit it.
   bodyRow: {
     flexDirection: "row",
     gap: Spacing[3],
-    alignItems: "center",
+    alignItems: "flex-start",
     marginTop: Spacing[2],
   },
   thumb: {

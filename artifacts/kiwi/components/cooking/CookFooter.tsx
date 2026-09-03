@@ -97,12 +97,15 @@ const s = StyleSheet.create({
     color: Palette.cookMode.nextPreview,
     fontFamily: Typography.face.sans[400],
   },
-  // WS9 BUG-157 — STAYS at neutral[600]. Sits immediately beside nextPreview,
-  // which the ruling names as staying; darkening one and not the other would
-  // split this footer into two greys. A design consequence, not a contrast one.
+  // ⚠️ WS9 BUG-199 — MOVED to neutral[700]. This carried a BUG-157 STAY comment
+  // reading "STAYS at neutral[600] … sits beside nextPreview, which the ruling
+  // names as staying". THE SEPT 2 DEVICE PASS REVERSED THAT: Cook Mode leaves
+  // the quiet tier entirely. The pairing argument still holds and now points the
+  // other way — nextPreview moved, so this moves with it or the footer splits
+  // into two greys. 3.4886:1 -> 5.8956:1 on the footer's neutral[100].
   remaining: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   footerRow: { flexDirection: "row", gap: Spacing[2], marginTop: Spacing[1] },

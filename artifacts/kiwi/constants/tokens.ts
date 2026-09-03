@@ -109,9 +109,13 @@ export const Palette = {
     // differently shaped searches, one not respecting .gitignore: 13 hits, zero
     // production reads; its last consumer, ErrorFallback, moved to .secondary).
     // It is the QUIET TIER — 3.4886:1 on paper, 3.7278:1 on card, both BELOW the
-    // 4.5:1 text bar and kept deliberately for section labels, Cook Mode's
-    // dimmed next-step preview and ornamental muted UI. NEVER point body text at
-    // it; use Colors.neutral[700] (5.8956 / 6.2999) or .text.secondary for prose.
+    // 4.5:1 text bar and kept deliberately for section labels, small-caps
+    // eyebrows and ornamental muted UI. NEVER point body text at it; use
+    // Colors.neutral[700] (5.8956 / 6.2999) or .text.secondary for prose.
+    // ⚠️ WS9 BUG-199 — this comment used to name "Cook Mode's dimmed next-step
+    // preview" as a quiet-tier example. THE SEPT 2 DEVICE PASS REMOVED COOK MODE
+    // FROM THIS TIER ENTIRELY: a quiet tier is a reading-room decision and Cook
+    // Mode is not a reading room. Do not re-point any Cook Mode text here.
     muted:       Colors.neutral[600],
     // WS9 BUG-157 — WAS '#A89A7A', which measured 2.5967:1 on paper / 2.7748:1
     // on the white card: BELOW even the 3:1 NON-text floor, and WORSE than the
@@ -256,7 +260,17 @@ export const Palette = {
       color:      Colors.terracotta[400],
       fontWeight: '700' as const,
     },
-    nextPreview: Colors.neutral[600],
+    // ⚠️ WS9 BUG-199 — was Colors.neutral[600], and BUG-157 (Aug 31) explicitly
+    // NAMED this token as staying. THE SEPTEMBER 2 DEVICE PASS AMENDS THAT
+    // RULING: the quiet tier survives for section labels and small-caps
+    // eyebrows, and DIES INSIDE COOK MODE. Hans's reasoning generalises — a
+    // quiet tier is a reading-room decision, and Cook Mode is not a reading
+    // room: phone propped by a cutting board, wet hands, glare.
+    // 3.4886:1 -> 5.8956:1 on the footer's neutral[100] paper.
+    // Re-valuing the TOKEN (not the call site) is safe here: two differently
+    // shaped searches found exactly one consumer, CookFooter.tsx:97, and it is
+    // inside Cook Mode. Nothing outside Cook Mode reads this.
+    nextPreview: Colors.neutral[700],
   },
 } as const;
 

@@ -50,7 +50,13 @@ interface Props {
 }
 
 // tone → chip colors. Mirrors the prep-status vocabulary in the design spec.
-const TONE_STYLE: Record<PillTone, { bg: string; fg: string }> = {
+//
+// Exported ONLY so lib/__tests__/tokens-contrast.test.ts can assert the chip's
+// ACTUAL colours instead of re-stating the token values it already reads.
+// ⚠️ A guard that pins literals without touching this map stays GREEN when the
+// map changes — proved by a deliberate break during WS9 BUG-199, which reverted
+// `bg` here and left the whole suite passing.
+export const TONE_STYLE: Record<PillTone, { bg: string; fg: string }> = {
   sage: { bg: Colors.sage[100], fg: Colors.sage[700] },
   gold: { bg: Colors.gold.background, fg: Colors.gold.text },
   // WS9 BUG-157 — a DUAL site: `fg` colours the chip's <Text> (4.5:1) at :245
@@ -59,7 +65,19 @@ const TONE_STYLE: Record<PillTone, { bg: string; fg: string }> = {
   // Unlike an active/inactive pair, each tone here carries its OWN fill, so the
   // three tones stay distinguishable by hue+fill regardless of this value:
   // darkening flattens nothing. 3.1141 -> 5.2627.
-  neutral: { bg: Colors.neutral[200], fg: Colors.neutral[700] },
+  //
+  // ⚠️ WS9 BUG-199 — BOTH HALVES MOVED AGAIN. Hans, on device: "the chips are
+  // neutral that's slightly darker than the neutral background." Measured, he is
+  // exactly right and it was two defects at once:
+  //   chip fill vs the neutral[100] page   1.1203 -> 1.2763  (bg 200 -> 300)
+  //   chip text vs its own fill            5.2627 -> 7.5303  (fg 700 -> 800)
+  // ⚠️ THE DIAGNOSIS IS HUE, NOT LUMINANCE. sage (1.1642) and gold (1.1363) have
+  // the SAME weak luminance separation from the page and Hans confirmed both
+  // read fine — because they separate by HUE. This chip is the same warm neutral
+  // as the page, so it has nothing to separate with and needs the luminance step
+  // the hued tones get for free. That is why only this tone moves and the family
+  // still reads as one.
+  neutral: { bg: Colors.neutral[300], fg: Colors.neutral[800] },
 };
 
 const SAGE_SURFACE = Colors.sage[600]; // #5C7350 — locked "Prep the week" lane.

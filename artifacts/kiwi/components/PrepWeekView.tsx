@@ -407,22 +407,37 @@ const s = StyleSheet.create({
     gap: Spacing[2],
     flexWrap: "wrap",
   },
+  // ⚠️ WS9 BUG-199 — the StepCard's readable text goes UP ONE SCALE STEP, and
+  // this is a DELIBERATE DEVIATION from kiwi_prep_cook_design_spec.md, which is
+  // LOCKED. Hans ruled it explicitly after device testing: "the text is really
+  // small… it's a very soft page and a little hard to read." A locked spec that
+  // was never read at cutting-board distance loses to hardware.
+  // Scoped to THIS card's five readable styles and nothing else:
+  //   stepMeta         sm 12 -> base 14
+  //   optionalTag      xs 11 -> sm 12
+  //   stepInstructions md 15 -> lg 17  (lineHeight 24 -> 26)
+  //   whereRow         sm 12 -> base 14 (lineHeight 22 -> 24)
+  //   storageNote      sm 12 -> base 14
+  // NOT bumped: stepTitle (already lg, the card's largest), whereHeading (a
+  // BUG-157 quiet-tier eyebrow, device-confirmed fine), phaseIndicator,
+  // emptyPhase, combinesPillText, and every Cook Mode size — Hans said Cook
+  // Mode's sizing is fine. The spec file itself is NOT edited.
   stepMeta: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: Typography.fontSize.base,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
   },
   optionalTag: {
-    fontSize: Typography.fontSize.xs,
+    fontSize: Typography.fontSize.sm,
     color: Colors.sage[700],
     fontStyle: "italic",
     fontFamily: Typography.face.serifItalic[400],
   },
   stepInstructions: {
-    fontSize: Typography.fontSize.md,
+    fontSize: Typography.fontSize.lg,
     color: Colors.neutral[800],
     fontFamily: Typography.face.sans[400],
-    lineHeight: 24,
+    lineHeight: 26,
   },
 
   // checkbox (display-only this block)
@@ -482,14 +497,14 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   whereRow: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: Typography.fontSize.base,
     color: Colors.neutral[800],
     fontFamily: Typography.face.sans[400],
-    lineHeight: 22,
+    lineHeight: 24,
   },
 
   storageNote: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: Typography.fontSize.base,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     fontStyle: "italic",

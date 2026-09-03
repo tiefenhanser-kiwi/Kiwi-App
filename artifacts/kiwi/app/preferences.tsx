@@ -301,10 +301,13 @@ export default function Preferences() {
             onChange={(next) => update("eatingStyles", next)}
           />
 
-          <SubLabel style={{ marginTop: Spacing[4] }}>
-            Allergies & avoidances
-          </SubLabel>
+          {/* WS9 BUG-196 — the standalone <SubLabel>Allergies & avoidances</SubLabel>
+              that used to sit here is DELETED. It was a plain text heading with a
+              separate "More ⌄" expander beneath it; the expander now carries the
+              real label, so the section is one control instead of two elements.
+              The marginTop moves onto the picker to keep the section spacing. */}
           <AllergiesPicker
+            style={{ marginTop: Spacing[4] }}
             value={form.allergiesAndAvoidances}
             onChange={(next) => update("allergiesAndAvoidances", next)}
           />

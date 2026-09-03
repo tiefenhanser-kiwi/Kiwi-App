@@ -435,12 +435,14 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[600],
     marginBottom: Spacing[1],
   },
-  // WS9 BUG-157 — STAYS at neutral[600]. Italic-serif dish attribution sitting
-  // inside Cook Mode's dimmed tier, which the ruling protects; ambiguous, so
-  // left rather than guessed in the darkening direction.
+  // ⚠️ WS9 BUG-199 — MOVED to neutral[700]. This carried a BUG-157 STAY comment
+  // calling it "ambiguous, so left rather than guessed in the darkening
+  // direction". THE SEPT 2 DEVICE PASS RESOLVED THE AMBIGUITY: the quiet tier
+  // dies inside Cook Mode, so a dish attribution you read mid-cook is body text
+  // like everything else on this screen. 3.7278:1 -> 6.2999:1 on the card.
   dishTag: {
     fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[600],
+    color: Colors.neutral[700],
     fontStyle: "italic",
     fontFamily: Typography.face.serifItalic[400],
     marginBottom: Spacing[1],

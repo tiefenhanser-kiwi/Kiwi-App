@@ -76,10 +76,22 @@ export function MealRow({
         </View>
         <View style={styles.body}>
           <DisplayTitle source={meal} variant="row" style={styles.title} />
-          {/* WS9 3f-4d Part 1c (D-WS9-124) — one-line "what's on the plate"
-              sub-text. Omitted entirely when absent (no empty gap/placeholder). */}
+          {/* WS9 3f-4d Part 1c (D-WS9-124) — the "what's on the plate" sub-text.
+              Omitted entirely when absent (no empty gap/placeholder).
+              ⚠️ WS9 BUG-158 AMENDMENT (Sept 2) — TWO lines, was one. Last block
+              held this at one as a deliberate per-surface divergence while
+              PlanReviewMealRow and AddMealsSheet went to two. Hans has now seen
+              both side by side on device and ruled two here as well: "I think
+              two lines in My Recipes is a good call, maybe 3, but it's a lot of
+              text on the card." TWO, NOT THREE — he named three and declined it
+              in the same breath.
+              ⚠️ D-WS9-124 was checked in canon before this changed. It ruled the
+              AUTHORING of `description` (≤160-char instruction, 200-char schema,
+              wizard + Mode-A prompts, list-item wiring). It never ruled a line
+              count, and BUG-158's own entry calls line count "a per-surface
+              decision". No conflict. */}
           {meal.description ? (
-            <Text style={styles.description} numberOfLines={1}>
+            <Text style={styles.description} numberOfLines={2}>
               {meal.description}
             </Text>
           ) : null}
