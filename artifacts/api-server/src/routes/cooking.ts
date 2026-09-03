@@ -22,6 +22,7 @@ import {
   loadPrepWeekInput as productionLoadPrepWeekInput,
   PrepWeekEmptyPlanError,
   PrepWeekNotFoundError,
+  PrepWeekUnknownMealError,
   EMPTY_PLAN_COPY,
 } from "../lib/prepWeekAggregation";
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
@@ -165,6 +166,26 @@ export function createCookingRouter(
     keyFn: (req: Request) => `prepweek:${req.userId ?? "anonymous"}`,
   });
 
+  // WS9 — Prep Selected Meals. The request body is OPTIONAL: no body (or `{}`)
+  // is today's full-week behaviour, byte-unchanged. `mealIds` present switches
+  // the aggregation to just those plan meals.
+  //
+  // Shape is validated here; MEMBERSHIP ("is this id actually in the plan?") is
+  // validated in the loader, which is the only layer that has the plan loaded.
+  // Both reject with 400 — an unknown id is never silently dropped.
+  const PrepWeekBody = z
+    .object({
+      mealIds: z
+        .array(z.string().uuid())
+        .min(1, "mealIds must not be empty")
+        .max(50)
+        .refine((ids) => new Set(ids).size === ids.length, {
+          message: "mealIds must not contain duplicates",
+        })
+        .optional(),
+    })
+    .strict();
+
   router.post(
     "/plans/:planId/prep-week",
     requireAuth,
@@ -181,7 +202,24 @@ export function createCookingRouter(
         return res.status(400).json({ error: "invalid plan id" });
       }
 
-      // 1. Entitlement check. Stripe-phase swap-in lands here.
+      // 0. WS9 — optional meal subset. Parsed before the entitlement call so a
+      //    malformed body never spends a gate check. `req.body` is `{}` when the
+      //    caller sends nothing (express.json), and `undefined` if no json body
+      //    parser ran — both mean "full week".
+      const parsedBody = PrepWeekBody.safeParse(req.body ?? {});
+      if (!parsedBody.success) {
+        return res.status(400).json({
+          error: "invalid meal selection",
+          reason: "invalid_meal_selection",
+          details: parsedBody.error.flatten(),
+        });
+      }
+      const subsetMealIds = parsedBody.data.mealIds;
+      const isSubset = subsetMealIds !== undefined;
+
+      // 1. Entitlement check. Stripe-phase swap-in lands here. Identical for a
+      //    subset — the feature gate is the feature gate. So is the rate-limit
+      //    bucket above (same keyFn, same limiter instance).
       const ent = await subscriptionService.can(
         userId,
         "prep_the_week_orchestrated",
@@ -197,13 +235,26 @@ export function createCookingRouter(
       //    one query in the loader.
       let loadResult;
       try {
-        loadResult = await loadPrepWeekInput({ planId, userId, prisma });
+        loadResult = await loadPrepWeekInput({
+          planId,
+          userId,
+          prisma,
+          mealIds: subsetMealIds,
+        });
       } catch (err) {
         if (err instanceof PrepWeekNotFoundError) {
           return res.status(404).json({ error: "plan not found" });
         }
         if (err instanceof PrepWeekEmptyPlanError) {
           return res.status(400).json({ error: EMPTY_PLAN_COPY });
+        }
+        // WS9 — a named meal that isn't in this plan. 400, and it says WHICH.
+        if (err instanceof PrepWeekUnknownMealError) {
+          return res.status(400).json({
+            error: "Those meals aren't in this plan.",
+            reason: "unknown_meal_ids",
+            unknownMealIds: err.unknownMealIds,
+          });
         }
         logger.error(
           { event: "prep_week_load_failed", userId, planId, err },
@@ -215,12 +266,29 @@ export function createCookingRouter(
 
       // 3. Cache lookup. Hit + matching revisionId returns the stored
       //    structureJson without an AI call (no LLMCallLog row).
-      const cached = await prisma.prepWeekStructure.findUnique({
-        where: { planId },
-      });
+      //
+      // 🔴 WS9 — A SUBSET RUN BYPASSES THIS CACHE IN BOTH DIRECTIONS.
+      // `prepWeekStructure` is keyed on planId ALONE (`@@unique`/`@unique` on
+      // planId — schema.prisma:1183), so it can hold exactly ONE structure per
+      // plan and that slot means "the whole week".
+      //   • No READ: a warm full-week row does not answer a subset question. It
+      //     covers meals the caller excluded, so serving it would silently
+      //     return the whole week under a two-meal request.
+      //   • No WRITE (step 8): writing a two-meal structure into the plan's one
+      //     slot would make the NEXT full-week open serve a partial week that
+      //     looks entirely correct — right shape, right phases, right prose,
+      //     just missing meals. Nothing downstream could detect it. It would
+      //     also corrupt the prep-status rollup, which reads that same blob for
+      //     the narrator's skipSuggested flags (prepStepSet.ts).
+      // The bypass is a pair; neither half is safe alone. The cost is that
+      // every subset run is a live AI call — see the `subset` response flag.
+      const cached = isSubset
+        ? null
+        : await prisma.prepWeekStructure.findUnique({ where: { planId } });
       if (cached && cached.lastGeneratedFromPlanRevisionId === planRevisionId) {
         return res.json({
           cacheHit: true,
+          subset: false,
           result: cached.structureJson as unknown as PrepWeekResult,
           planRevisionId,
           generatedAt: cached.lastGeneratedAt.toISOString(),
@@ -357,47 +425,66 @@ export function createCookingRouter(
       // 8. Cache write. UPSERT keyed by planId — covers create (cache
       //    miss, no prior row) AND stale-update (revisionId moved) in
       //    one operation.
+      //
+      // 🔴 WS9 — SKIPPED ENTIRELY FOR A SUBSET (the write half of the step-3
+      //    bypass). This guard also protects the ORPHAN-PRUNE below, which is
+      //    the second, quieter data-loss path: the prune deletes every
+      //    PrepStepCompletion whose key is absent from the freshly assembled
+      //    step set. A subset's step set omits every meal the caller excluded,
+      //    so pruning against it would delete the user's checked prep steps for
+      //    the rest of the week. Prep-week completions are plan-scoped
+      //    (@@unique([planId, stepKey])) with plan-composition-independent keys,
+      //    so there is no subset-scoped prune to write instead — the correct
+      //    action is not to prune at all.
       const promptVersion = aiResult.metadata.promptVersion ?? 0;
       const structureJson = result as unknown as object;
-      try {
-        await prisma.prepWeekStructure.upsert({
-          where: { planId },
-          create: {
-            planId,
-            structureJson,
-            lastGeneratedFromPlanRevisionId: planRevisionId,
-            lastGeneratedAt: new Date(),
-            promptVersion,
-          },
-          update: {
-            structureJson,
-            lastGeneratedFromPlanRevisionId: planRevisionId,
-            lastGeneratedAt: new Date(),
-            promptVersion,
-          },
-        });
+      if (!isSubset) {
+        try {
+          await prisma.prepWeekStructure.upsert({
+            where: { planId },
+            create: {
+              planId,
+              structureJson,
+              lastGeneratedFromPlanRevisionId: planRevisionId,
+              lastGeneratedAt: new Date(),
+              promptVersion,
+            },
+            update: {
+              structureJson,
+              lastGeneratedFromPlanRevisionId: planRevisionId,
+              lastGeneratedAt: new Date(),
+              promptVersion,
+            },
+          });
 
-        // WS7-8a B3 — orphan-prune. structureJson is regenerated wholesale, so
-        // any PrepStepCompletion row whose stepKey is no longer in the fresh
-        // step set is stale (its step was dropped / re-keyed by the edit that
-        // bumped the revision). Prune to the new set — do NOT merge-forward
-        // blindly. Still-valid keys (same ingredient → same key) survive.
-        const keepKeys = [...stepKeysOfResult(result)];
-        await prisma.prepStepCompletion.deleteMany({
-          where: { planId, stepKey: { notIn: keepKeys } },
-        });
-      } catch (err) {
-        // Cache-write failures must not bubble up — the AI result is
-        // already in memory and the caller can still use it. Next call
-        // will retry the cache write.
-        logger.warn(
-          { event: "prep_week_cache_write_failed", userId, planId, err },
-          "Prep the Week cache write failed",
-        );
+          // WS7-8a B3 — orphan-prune. structureJson is regenerated wholesale, so
+          // any PrepStepCompletion row whose stepKey is no longer in the fresh
+          // step set is stale (its step was dropped / re-keyed by the edit that
+          // bumped the revision). Prune to the new set — do NOT merge-forward
+          // blindly. Still-valid keys (same ingredient → same key) survive.
+          const keepKeys = [...stepKeysOfResult(result)];
+          await prisma.prepStepCompletion.deleteMany({
+            where: { planId, stepKey: { notIn: keepKeys } },
+          });
+        } catch (err) {
+          // Cache-write failures must not bubble up — the AI result is
+          // already in memory and the caller can still use it. Next call
+          // will retry the cache write.
+          logger.warn(
+            { event: "prep_week_cache_write_failed", userId, planId, err },
+            "Prep the Week cache write failed",
+          );
+        }
       }
 
       return res.json({
         cacheHit: false,
+        // WS9 — `subset: true` marks a result that is NOT the canonical week and
+        // was never cached (neither read nor written). A client must never file
+        // it as the plan's prep structure. Always present on both branches so
+        // `envelope.subset` is a straight boolean, never an absence to reason
+        // about.
+        subset: isSubset,
         result,
         planRevisionId,
         generatedAt: new Date().toISOString(),

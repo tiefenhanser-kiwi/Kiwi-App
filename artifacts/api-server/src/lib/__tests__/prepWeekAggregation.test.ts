@@ -10,6 +10,7 @@ import {
   loadPrepWeekInput,
   PrepWeekEmptyPlanError,
   PrepWeekNotFoundError,
+  PrepWeekUnknownMealError,
 } from "../prepWeekAggregation";
 
 const USER_ID = "user-prep-week-test";
@@ -419,5 +420,116 @@ describe("loadPrepWeekInput — step text (WS7-8a B2b)", () => {
         assert.deepEqual(dish.stepTexts, []);
       }
     }
+  });
+});
+
+// ── WS9 Prep Selected Meals — the `mealIds` subset filter ───────────────────
+// The filter lives in the loader (not the route) so ONE code path feeds the
+// engine, the step plan, the narration input and the assembled result. These
+// tests pin the two things that path must guarantee: only the named meals get
+// through, and an id that isn't in the plan is REJECTED rather than dropped.
+
+describe("loadPrepWeekInput — mealIds subset (WS9)", () => {
+  it("passes only the named meals to the aggregation input", async () => {
+    const prisma = makePrismaStub([plan()]);
+    const { input } = await loadPrepWeekInput({
+      planId: PLAN_ID,
+      userId: USER_ID,
+      prisma,
+      mealIds: [MEAL_B],
+    });
+    // Read the LIVE result, not a restated literal: the ids actually present.
+    assert.deepEqual(
+      input.meals.map((m) => m.mealId),
+      [MEAL_B],
+    );
+    // And the excluded meal's ingredients are genuinely absent — MEAL_A is the
+    // only source of garlic in this fixture, so its absence proves the filter
+    // reached the ingredient level, not just the meal list.
+    const allIngredientIds = input.meals.flatMap((m) =>
+      m.dishes.flatMap((d) => d.ingredients.map((i) => i.ingredientId)),
+    );
+    assert.equal(allIngredientIds.includes(ING_GARLIC), false);
+    assert.equal(allIngredientIds.includes(ING_ONION), true);
+  });
+
+  it("selecting every meal reproduces the full-week input exactly", async () => {
+    const prisma = makePrismaStub([plan()]);
+    const full = await loadPrepWeekInput({
+      planId: PLAN_ID,
+      userId: USER_ID,
+      prisma,
+    });
+    const explicit = await loadPrepWeekInput({
+      planId: PLAN_ID,
+      userId: USER_ID,
+      prisma,
+      mealIds: [MEAL_A, MEAL_B],
+    });
+    assert.deepEqual(explicit.input, full.input);
+    assert.equal(explicit.planRevisionId, full.planRevisionId);
+  });
+
+  it("omitting mealIds is byte-identical to today's full-week behaviour", async () => {
+    const prisma = makePrismaStub([plan()]);
+    const { input } = await loadPrepWeekInput({
+      planId: PLAN_ID,
+      userId: USER_ID,
+      prisma,
+      mealIds: undefined,
+    });
+    assert.deepEqual(
+      input.meals.map((m) => m.mealId),
+      [MEAL_A, MEAL_B],
+    );
+  });
+
+  it("rejects an id that is not in the plan — and NAMES it", async () => {
+    const prisma = makePrismaStub([plan()]);
+    const foreign = "99999999-9999-4999-8999-999999999999";
+    await assert.rejects(
+      loadPrepWeekInput({
+        planId: PLAN_ID,
+        userId: USER_ID,
+        prisma,
+        mealIds: [MEAL_A, foreign],
+      }),
+      (err) => {
+        assert.ok(err instanceof PrepWeekUnknownMealError);
+        // Live read of the error's payload — the WHICH, not just the THAT.
+        assert.deepEqual(err.unknownMealIds, [foreign]);
+        return true;
+      },
+    );
+  });
+
+  it("a foreign id is never silently dropped down to the known ones", async () => {
+    const prisma = makePrismaStub([plan()]);
+    // If the loader narrowed instead of rejecting, this would resolve to a
+    // one-meal input. It must throw instead.
+    await assert.rejects(
+      loadPrepWeekInput({
+        planId: PLAN_ID,
+        userId: USER_ID,
+        prisma,
+        mealIds: ["99999999-9999-4999-8999-999999999999"],
+      }),
+      (err) => err instanceof PrepWeekUnknownMealError,
+    );
+  });
+
+  it("membership is checked against the plan, not against a non-owner's view", async () => {
+    // Ownership still wins: a non-owner gets 404-shaped NotFound, never a
+    // 400 that would confirm which meals the plan contains.
+    const prisma = makePrismaStub([plan({ userId: OTHER_USER_ID })]);
+    await assert.rejects(
+      loadPrepWeekInput({
+        planId: PLAN_ID,
+        userId: USER_ID,
+        prisma,
+        mealIds: ["99999999-9999-4999-8999-999999999999"],
+      }),
+      (err) => err instanceof PrepWeekNotFoundError,
+    );
   });
 });

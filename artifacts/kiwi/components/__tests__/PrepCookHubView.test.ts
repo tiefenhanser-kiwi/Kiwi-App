@@ -151,6 +151,10 @@ interface Handlers {
   onMakePlan?: () => void;
   onCookThisWeek?: (planId: string) => void;
   promotingPlanId?: string | null;
+  // WS9 Prep Selected Meals.
+  onPrepSelected?: () => void;
+  onToggleMealSelected?: (mealId: string) => void;
+  selectedMealIds?: ReadonlySet<string>;
 }
 
 function render(model: HubModel, handlers: Handlers = {}) {
@@ -164,6 +168,9 @@ function render(model: HubModel, handlers: Handlers = {}) {
         onMakePlan: handlers.onMakePlan ?? NOOP,
         onCookThisWeek: handlers.onCookThisWeek ?? NOOP,
         promotingPlanId: handlers.promotingPlanId ?? null,
+        onPrepSelected: handlers.onPrepSelected ?? NOOP,
+        onToggleMealSelected: handlers.onToggleMealSelected ?? NOOP,
+        selectedMealIds: handlers.selectedMealIds ?? new Set<string>(),
       }),
     );
   });
@@ -584,5 +591,183 @@ test("BUG-199 §2B: the Prep-the-Week CTA renders the primary fill + white label
     (style.borderWidth as number) > 0,
     "a borderColor with no borderWidth draws nothing",
   );
+  renderer.unmount();
+});
+
+// ── WS9 Prep Selected Meals — the Hub's second CTA + per-row selection ───────
+
+// Resolve a Pressable's lazy `style` prop into a flat object. Same mechanics the
+// BUG-199 §2B guard above documents: this harness passes `style` through as the
+// UNRESOLVED `({ pressed }) => [...]` function, so it must be invoked before
+// anything can be read off it.
+function resolvedStyle(node: RenderedNode): Record<string, unknown> {
+  const raw = (node as { props: { style?: unknown } }).props.style;
+  const out = typeof raw === "function" ? (raw as (s: unknown) => unknown)({ pressed: false }) : raw;
+  return Object.assign(
+    {},
+    ...[out].flat(Infinity).filter((x) => x && typeof x === "object"),
+  ) as Record<string, unknown>;
+}
+
+function findAllByRole(
+  node: RenderedNode | string | null,
+  role: string,
+  out: RenderedNode[] = [],
+): RenderedNode[] {
+  if (node == null || typeof node === "string") return out;
+  const props = (node.props ?? {}) as { accessibilityRole?: string };
+  if (props.accessibilityRole === role) out.push(node);
+  if (Array.isArray(node.children)) {
+    for (const c of node.children) findAllByRole(c, role, out);
+  }
+  return out;
+}
+
+function twoMealPlan() {
+  return plan({
+    items: [
+      item({ id: "pi1", mealId: "m1", meal: meal({ id: "m1", title: "Lemon Chicken" }) }),
+      item({ id: "pi2", mealId: "m2", meal: meal({ id: "m2", title: "Beef Tacos" }) }),
+    ],
+  });
+}
+
+test("WS9: the Prep Selected Meals CTA is DISABLED until a meal is ticked", () => {
+  const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
+  let pressed = 0;
+  const renderer = render(model, { onPrepSelected: () => { pressed++; } });
+  const cta = findPressableByText(
+    renderer.toJSON() as RenderedNode | null,
+    "Prep Selected Meals",
+  );
+  assert.ok(cta, "Prep Selected Meals CTA not found");
+  // Read the LIVE prop, and prove the disable actually suppresses the handler
+  // rather than merely dimming the button.
+  assert.equal((cta as { props: { disabled?: boolean } }).props.disabled, true);
+  act(() => {
+    (cta as { props: { onPress: () => void } }).props.onPress();
+  });
+  assert.equal(pressed, 0, "a disabled CTA must not fire a paid AI call");
+  renderer.unmount();
+});
+
+test("WS9: with a meal ticked the CTA enables and fires onPrepSelected", () => {
+  const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
+  let pressed = 0;
+  const renderer = render(model, {
+    selectedMealIds: new Set(["m2"]),
+    onPrepSelected: () => { pressed++; },
+  });
+  const cta = findPressableByText(
+    renderer.toJSON() as RenderedNode | null,
+    "Prep Selected Meals",
+  );
+  assert.ok(cta);
+  // Button forwards `disabled || loading`, so an enabled button reports
+  // `undefined` rather than `false` — assert "not disabled", then prove it by
+  // actually firing.
+  assert.notEqual((cta as { props: { disabled?: boolean } }).props.disabled, true);
+  act(() => {
+    (cta as { props: { onPress: () => void } }).props.onPress();
+  });
+  assert.equal(pressed, 1);
+  renderer.unmount();
+});
+
+test("WS9: the hint line counts the LIVE selection against the week", () => {
+  const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
+  const none = render(model, {});
+  assert.ok(
+    flat(none.toJSON() as RenderedNode | null).includes("Tick the meals below"),
+    "empty-selection hint missing",
+  );
+  none.unmount();
+
+  const one = render(model, { selectedMealIds: new Set(["m1"]) });
+  assert.ok(
+    flat(one.toJSON() as RenderedNode | null).includes("1 of 2 selected"),
+    "selection count must be derived from the model + the live set",
+  );
+  one.unmount();
+
+  const both = render(model, { selectedMealIds: new Set(["m1", "m2"]) });
+  assert.ok(
+    flat(both.toJSON() as RenderedNode | null).includes("2 of 2 selected"),
+  );
+  both.unmount();
+});
+
+test("WS9: a selected id that is not on this week's list cannot enable the CTA", () => {
+  // A stale tick left over from a plan edit must not arm a paid call for a meal
+  // the user can no longer see. The count is filtered through model.meals.
+  const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
+  const renderer = render(model, { selectedMealIds: new Set(["m-gone"]) });
+  const cta = findPressableByText(
+    renderer.toJSON() as RenderedNode | null,
+    "Prep Selected Meals",
+  );
+  assert.ok(cta);
+  assert.equal((cta as { props: { disabled?: boolean } }).props.disabled, true);
+  renderer.unmount();
+});
+
+test("WS9: ticking a row's checkbox selects that meal and does NOT launch Cook Mode", () => {
+  const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
+  const toggled: string[] = [];
+  const cooked: string[] = [];
+  const renderer = render(model, {
+    onToggleMealSelected: (id) => toggled.push(id),
+    onSelectMeal: (mealId) => cooked.push(mealId),
+  });
+  const boxes = findAllByRole(renderer.toJSON() as RenderedNode | null, "checkbox");
+  assert.equal(boxes.length, 2, "one tick per this-week meal row");
+  act(() => {
+    (boxes[1] as { props: { onPress: () => void } }).props.onPress();
+  });
+  // The row's own onPress (Cook Mode) must not have fired from the same gesture.
+  assert.deepEqual(toggled, ["m2"]);
+  assert.deepEqual(cooked, []);
+  renderer.unmount();
+});
+
+test("WS9: a ticked checkbox reports checked, an unticked one does not", () => {
+  const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
+  const renderer = render(model, { selectedMealIds: new Set(["m1"]) });
+  const boxes = findAllByRole(renderer.toJSON() as RenderedNode | null, "checkbox");
+  assert.equal(boxes.length, 2);
+  const checked = boxes.map(
+    (b) => (b.props as { accessibilityState?: { checked?: boolean } })
+      .accessibilityState?.checked,
+  );
+  assert.deepEqual(checked, [true, false]);
+  renderer.unmount();
+});
+
+// 🔴 THE HIERARCHY GUARD. Two identical CTAs stacked means neither is primary.
+// This reads BOTH buttons' RENDERED fills and asserts they route through
+// different Palette entries — it does not restate a hex against itself, and it
+// does not pass if the two buttons happen to share a variant.
+test("WS9: Prep the Week stays dominant — the subset CTA renders the SECONDARY treatment", () => {
+  const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
+  const renderer = render(model, { selectedMealIds: new Set(["m1"]) });
+  const tree = renderer.toJSON() as RenderedNode | null;
+
+  const primary = findPressableByText(tree, "Prep the Week");
+  const secondary = findPressableByText(tree, "Prep Selected Meals");
+  assert.ok(primary && secondary);
+
+  const pStyle = resolvedStyle(primary);
+  const sStyle = resolvedStyle(secondary);
+
+  assert.equal(pStyle.backgroundColor, Palette.button.primary.background);
+  assert.equal(sStyle.backgroundColor, Palette.button.secondary.background);
+  // The connection under test: the two CTAs are NOT the same treatment.
+  assert.notEqual(pStyle.backgroundColor, sStyle.backgroundColor);
+
+  // …and the subset CTA carries the secondary EDGE, not the sage lane's white
+  // ring. The ring exists only to give a terracotta fill a boundary against
+  // sage[600]; this button sits on the page, where it would be wrong.
+  assert.equal(sStyle.borderColor, Palette.button.secondary.border);
+  assert.notEqual(sStyle.borderColor, Palette.button.primary.text);
   renderer.unmount();
 });

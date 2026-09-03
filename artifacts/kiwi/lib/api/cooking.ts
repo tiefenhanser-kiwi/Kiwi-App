@@ -282,15 +282,30 @@ export type PrepWeekResult = z.infer<typeof PrepWeekResultSchema>;
 
 // The cache envelope around the result. `metadata` is optional (miss-only); its
 // `latencyMs` is the only field the server sends there.
+//
+// WS9 — `subset` marks a Prep Selected Meals result: NOT the canonical week,
+// and never cached server-side in either direction (cooking.ts step 3/step 8).
+// The server emits it on BOTH branches, so it is always a real boolean here;
+// `.default(false)` exists only so a mobile build pointed at a pre-WS9 server
+// degrades to "full week" instead of throwing ApiSchemaError and taking Prep
+// the Week down entirely.
 const PrepWeekEnvelopeSchema = z.object({
   cacheHit: z.boolean(),
+  subset: z.boolean().optional(),
   result: PrepWeekResultSchema,
   planRevisionId: z.number(),
   generatedAt: z.string(), // ISO-8601
   promptVersion: z.number(),
   metadata: z.object({ latencyMs: z.number() }).optional(),
 });
-export type PrepWeekEnvelope = z.infer<typeof PrepWeekEnvelopeSchema>;
+// `subset` is `.optional()` on the WIRE mirror (a pre-WS9 server omits it) but
+// NON-optional on the type consumers see: getPrepWeek normalises the absence to
+// `false` — "not a subset", which is what an old server's response actually is.
+// So no screen ever branches on `subset === undefined`.
+export type PrepWeekEnvelope = Omit<
+  z.infer<typeof PrepWeekEnvelopeSchema>,
+  "subset"
+> & { subset: boolean };
 
 /**
  * The result of a GENERATE attempt. A 402 (entitlement gate) is NOT a throw —
@@ -307,19 +322,34 @@ export type PrepWeekOutcome =
 
 /**
  * POST …/plans/:planId/prep-week — generate (or cache-hit) the Prep the Week
- * structure. Returns a {@link PrepWeekOutcome}: `ok` with the parsed envelope,
+ * structure. Pass `mealIds` to prep only those plan meals (WS9 Prep Selected
+ * Meals): the server aggregates over just that subset, bypasses its structure
+ * cache in both directions, and marks the envelope `subset: true`. ⚠️ A subset
+ * is therefore ALWAYS a live AI call — there is no cheap re-open.
+ *
+ * Returns a {@link PrepWeekOutcome}: `ok` with the parsed envelope,
  * or `upgrade_required` on a 402 (non-fatal). Propagates apiClient typed errors
  * for every other status: `ApiError` (404 missing/non-owned, 400 empty plan,
  * 502 AI/assembly failure, 429 rate limit), `UnauthenticatedError` (401),
  * `ApiSchemaError` on a response-shape mismatch.
  */
-export async function getPrepWeek(planId: string): Promise<PrepWeekOutcome> {
+export async function getPrepWeek(
+  planId: string,
+  mealIds?: string[],
+): Promise<PrepWeekOutcome> {
   try {
-    const envelope = await apiClient(
+    const wire = await apiClient(
       `/plans/${encodeURIComponent(planId)}/prep-week`,
-      { method: "POST", schema: PrepWeekEnvelopeSchema },
+      {
+        method: "POST",
+        schema: PrepWeekEnvelopeSchema,
+        // WS9 — omit the body entirely for a full week so the request is
+        // byte-identical to the pre-subset call. `{ mealIds }` switches the
+        // server to a subset run (400 on empty/duplicate/foreign ids).
+        ...(mealIds ? { body: { mealIds } } : {}),
+      },
     );
-    return { kind: "ok", envelope };
+    return { kind: "ok", envelope: { ...wire, subset: wire.subset ?? false } };
   } catch (err) {
     if (err instanceof UpgradeRequiredError) {
       return {

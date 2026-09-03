@@ -47,6 +47,21 @@ export default function PrepCook() {
   // success the Hub re-resolves and unmounts the empty state, so it's moot.
   const [promotingPlanId, setPromotingPlanId] = useState<string | null>(null);
 
+  // WS9 Prep Selected Meals — which this-week meals are ticked for a subset
+  // prep run. Screen-local and deliberately NOT persisted: a subset run is a
+  // live AI call with no server cache behind it, so a selection that survived a
+  // remount could quietly launch a second paid generation.
+  const [selectedMealIds, setSelectedMealIds] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
+  const toggleMealSelected = (mealId: string) =>
+    setSelectedMealIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(mealId)) next.delete(mealId);
+      else next.add(mealId);
+      return next;
+    });
+
   // Option A — explicit id wins; otherwise resolve "this week's" plan from the
   // server. usePlans(["my_plans"]) is the same canonical source Home uses.
   const explicitId = typeof params.id === "string" ? params.id : "";
@@ -102,6 +117,26 @@ export default function PrepCook() {
       params: { mode: "prep-week", planId: resolvedId },
     });
 
+  // WS9 — the subset launch. Same screen, same route, one extra param. Ids are
+  // ordered by the plan's own meal order (not tick order) so the same selection
+  // always produces the same URL and therefore the same React Query key — one
+  // AI call, not one per ordering. Guarded: an empty selection never navigates
+  // (the CTA is already disabled; this is the second lock on a paid call).
+  const goPrepSelected = () => {
+    const ordered = (planQuery.data?.items ?? [])
+      .map((it) => it.mealId)
+      .filter((id) => selectedMealIds.has(id));
+    if (ordered.length === 0) return;
+    router.push({
+      pathname: "/cook-session",
+      params: {
+        mode: "prep-week",
+        planId: resolvedId,
+        mealIds: ordered.join(","),
+      },
+    });
+  };
+
   const goMakePlan = () => router.push("/wizard");
 
   // ── State resolution ──────────────────────────────────────────────────────
@@ -130,6 +165,9 @@ export default function PrepCook() {
       <PrepCookHubView
         model={model}
         onPrepWeek={goPrepWeek}
+        onPrepSelected={goPrepSelected}
+        onToggleMealSelected={toggleMealSelected}
+        selectedMealIds={selectedMealIds}
         onSelectMeal={goCookSession}
         onMakePlan={goMakePlan}
         onCookThisWeek={onCookThisWeek}

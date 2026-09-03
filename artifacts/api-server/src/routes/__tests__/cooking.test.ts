@@ -18,6 +18,7 @@ import {
 import {
   PrepWeekEmptyPlanError,
   PrepWeekNotFoundError,
+  PrepWeekUnknownMealError,
   EMPTY_PLAN_COPY,
 } from "../../lib/prepWeekAggregation";
 import type { PrepWeekResult } from "../../lib/ai/schemas/prepWeek";
@@ -404,30 +405,54 @@ function makeCacheStub() {
 // consume. Each meal carries one diced produce onion (same ingredientId across
 // meals → the engine groups it into ONE produce step whose contributesToMealIds
 // is the union of all the meals).
+//
+// WS9 — the stub now honours `params.mealIds` the same way the real loader
+// does (reject an id outside the plan, otherwise filter to the named meals) and
+// RECORDS what the route handed it, so a route test can assert the subset
+// actually reached the loader instead of inferring it from the response.
 function makeLoaderStub(opts: {
   planRevisionId: number;
   mealIds: string[];
   throwOn?: "not_found" | "empty";
+  /** Filled in by the stub: every `mealIds` value the route passed, in order.
+   *  `undefined` entries are full-week calls. */
+  calls?: (string[] | undefined)[];
 }) {
-  return (async (params: { planId: string }) => {
+  return (async (params: { planId: string; mealIds?: string[] }) => {
+    opts.calls?.push(params.mealIds);
     if (opts.throwOn === "not_found") {
       throw new PrepWeekNotFoundError(params.planId);
     }
     if (opts.throwOn === "empty") {
       throw new PrepWeekEmptyPlanError(params.planId);
     }
+    const unknown = (params.mealIds ?? []).filter(
+      (id) => !opts.mealIds.includes(id),
+    );
+    if (unknown.length > 0) {
+      throw new PrepWeekUnknownMealError(params.planId, unknown);
+    }
+    const selected = params.mealIds
+      ? opts.mealIds.filter((id) => params.mealIds!.includes(id))
+      : opts.mealIds;
     return {
       input: {
         planId: params.planId,
         planName: "Test Plan",
-        meals: opts.mealIds.map((mealId, idx) => ({
+        // idx is the meal's position in the WHOLE plan, not in the selection —
+        // so a meal's dishId is the same whether it arrives via a full week or
+        // a subset, exactly as real dish identity behaves. That stability is
+        // what makes prep-step keys carry over between the two.
+        meals: selected.map((mealId) => ({
           mealId,
-          mealName: `Meal ${idx + 1}`,
+          mealName: `Meal ${opts.mealIds.indexOf(mealId) + 1}`,
           cuisine: null,
           servingsOverride: null,
           dishes: [
             {
-              dishId: `dddddddd-dddd-4ddd-8ddd-${String(idx).padStart(12, "0")}`,
+              dishId: `dddddddd-dddd-4ddd-8ddd-${String(
+                opts.mealIds.indexOf(mealId),
+              ).padStart(12, "0")}`,
               dishName: "Dish",
               baseServings: 4,
               authoredBaseServings: 4,
@@ -1282,6 +1307,455 @@ describe("prep-week completions — orphan-prune on regenerate (B3)", () => {
       // Prune ran once; orphan gone, valid onion key kept.
       assert.equal(cache.pruneCalls(), 1);
       assert.deepEqual(cache.completionKeys(PLAN_ID), [ONION_STEP_KEY]);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS9 — Prep Selected Meals (POST body `mealIds`) ─────────────────────────
+//
+// 🔴 The load-bearing assertion of this feature is the CACHE GUARD below.
+// `prepWeekStructure` is keyed on planId ALONE, so a subset run that wrote to
+// that row would replace the plan's whole-week structure with a partial one —
+// and the next full-week open would serve it looking entirely correct. The
+// bypass must hold in BOTH directions, and the proof must be about CONTENT
+// (a fingerprint of the stored blob), not about a row still existing.
+
+const MEAL_ID_Y = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+// Stable content fingerprint of the plan's stored structure row. Compares the
+// blob the next full-week reader would actually be served — including the
+// revision stamp and promptVersion, which a bad write would also move.
+function structureFingerprint(cache: ReturnType<typeof makeCacheStub>) {
+  const row = cache.rows.get(PLAN_ID);
+  if (!row) return "<no row>";
+  return JSON.stringify({
+    structureJson: row.structureJson,
+    lastGeneratedFromPlanRevisionId: row.lastGeneratedFromPlanRevisionId,
+    promptVersion: row.promptVersion,
+  });
+}
+
+function subsetPost(baseUrl: string, token: string, body: unknown) {
+  return fetch(`${baseUrl}/plans/${PLAN_ID}/prep-week`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+function attributedMealIds(result: PrepWeekResult): string[] {
+  return [
+    ...new Set(
+      result.phases.flatMap((p) =>
+        p.steps.flatMap((s) => s.contributesToMealIds),
+      ),
+    ),
+  ].sort();
+}
+
+describe("POST /api/plans/:planId/prep-week — subset run (WS9)", () => {
+  it("aggregates ONLY the named meals and flags the result uncached", async () => {
+    const cache = makeCacheStub();
+    const calls: (string[] | undefined)[] = [];
+    let aiCalls = 0;
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 3,
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+        calls,
+      }),
+      runAICall: makeAICallStub({
+        onCall: () => {
+          aiCalls++;
+        },
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await subsetPost(harness.baseUrl, signToken("u-subset"), {
+        mealIds: [MEAL_ID_Y],
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        cacheHit: boolean;
+        subset: boolean;
+        result: PrepWeekResult;
+      };
+      // The selection reached the LOADER — read back from what the stub saw.
+      assert.deepEqual(calls, [[MEAL_ID_Y]]);
+      // …and only that meal is attributed anywhere in the assembled result.
+      assert.deepEqual(attributedMealIds(body.result), [MEAL_ID_Y]);
+      // Flagged uncached so a client can't file it as the canonical week.
+      assert.equal(body.subset, true);
+      assert.equal(body.cacheHit, false);
+      assert.equal(aiCalls, 1);
+      // 🔴 And nothing was written to the plan's one structure slot.
+      assert.equal(cache.writeCount(), 0);
+      assert.equal(cache.rows.size, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("🔴 leaves the stored full-week row IDENTICAL across a subset run", async () => {
+    const cache = makeCacheStub();
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 7,
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+      }),
+      // A visibly DIFFERENT narration, so a leaked subset write could not be
+      // mistaken for a coincidentally-equal one.
+      runAICall: makeAICallStub({ estimatedMinutes: 11, promptVersion: 9 }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const token = signToken("u-guard");
+      // 1. Warm the cache with a real FULL-WEEK generation.
+      const full = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      assert.equal(full.status, 200);
+      const fullBody = (await full.json()) as { subset: boolean };
+      assert.equal(fullBody.subset, false);
+      assert.equal(cache.writeCount(), 1);
+
+      const before = structureFingerprint(cache);
+      // Sanity: the fingerprint is a real blob, not the empty sentinel — a
+      // "<no row>" === "<no row>" comparison would pass for the wrong reason.
+      assert.notEqual(before, "<no row>");
+      assert.ok(before.includes(MEAL_ID_X));
+      assert.ok(before.includes(MEAL_ID_Y));
+
+      // 2. Run a SUBSET over one of the two meals.
+      const sub = await subsetPost(harness.baseUrl, token, {
+        mealIds: [MEAL_ID_X],
+      });
+      assert.equal(sub.status, 200);
+      const subBody = (await sub.json()) as {
+        subset: boolean;
+        result: PrepWeekResult;
+      };
+      assert.equal(subBody.subset, true);
+      // The subset really did produce a NARROWER structure — otherwise this
+      // test would be comparing the full week against itself and prove nothing.
+      assert.deepEqual(attributedMealIds(subBody.result), [MEAL_ID_X]);
+
+      // 3. THE GUARD. Same content, not merely "a row still exists".
+      assert.equal(structureFingerprint(cache), before);
+      assert.equal(cache.writeCount(), 1); // still just the full-week write
+      assert.equal(cache.rows.size, 1);
+
+      // 4. And the next FULL-WEEK open is still served the whole week.
+      const again = await fetch(
+        `${harness.baseUrl}/plans/${PLAN_ID}/prep-week`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      );
+      const againBody = (await again.json()) as {
+        cacheHit: boolean;
+        subset: boolean;
+        result: PrepWeekResult;
+      };
+      assert.equal(againBody.cacheHit, true);
+      assert.equal(againBody.subset, false);
+      assert.deepEqual(
+        attributedMealIds(againBody.result),
+        [MEAL_ID_X, MEAL_ID_Y].sort(),
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("skips the cache READ — a warm, revision-matching cache still regenerates", async () => {
+    const cache = makeCacheStub();
+    const cached = happyPrepWeekResult();
+    cached.totalEstimatedMinutes = 99; // marker: "this came from the cache"
+    cache.rows.set(PLAN_ID, {
+      id: "row-warm",
+      planId: PLAN_ID,
+      structureJson: cached,
+      lastGeneratedFromPlanRevisionId: 5, // MATCHES the loader below
+      lastGeneratedAt: new Date("2026-05-10T12:00:00Z"),
+      promptVersion: 2,
+    });
+    let aiCalls = 0;
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 5,
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+      }),
+      runAICall: makeAICallStub({
+        onCall: () => {
+          aiCalls++;
+        },
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await subsetPost(harness.baseUrl, signToken("u-warm"), {
+        mealIds: [MEAL_ID_X],
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        cacheHit: boolean;
+        subset: boolean;
+        result: PrepWeekResult;
+      };
+      assert.equal(body.cacheHit, false);
+      assert.equal(body.subset, true);
+      // The AI ran even though the identical-revision cache was sitting right
+      // there — this is the read half of the bypass.
+      assert.equal(aiCalls, 1);
+      // And the served result is NOT the cached blob.
+      assert.notEqual(body.result.totalEstimatedMinutes, 99);
+      // The warm row is untouched.
+      assert.equal(cache.writeCount(), 0);
+      assert.equal(
+        (cache.rows.get(PLAN_ID) as { structureJson: PrepWeekResult })
+          .structureJson.totalEstimatedMinutes,
+        99,
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("never prunes prep-step completions belonging to meals outside the subset", async () => {
+    const cache = makeCacheStub();
+    // A completion for a step that a ONE-meal subset's step set cannot contain.
+    cache.seedCompletion(PLAN_ID, "produce#some-other-ingredient");
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 4,
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+      }),
+      runAICall: makeAICallStub({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await subsetPost(harness.baseUrl, signToken("u-prune"), {
+        mealIds: [MEAL_ID_X],
+      });
+      assert.equal(res.status, 200);
+      // The orphan-prune never ran…
+      assert.equal(cache.pruneCalls(), 0);
+      // …so the unrelated completion survives, read live from the store.
+      assert.deepEqual(cache.completionKeys(PLAN_ID), [
+        "produce#some-other-ingredient",
+      ]);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("POST /api/plans/:planId/prep-week — subset validation (WS9)", () => {
+  async function withHarness(
+    fn: (
+      baseUrl: string,
+      token: string,
+      calls: (string[] | undefined)[],
+    ) => Promise<void>,
+  ) {
+    const cache = makeCacheStub();
+    const calls: (string[] | undefined)[] = [];
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 1,
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+        calls,
+      }),
+      runAICall: makeAICallStub({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      await fn(harness.baseUrl, signToken("u-valid"), calls);
+    } finally {
+      await harness.close();
+    }
+  }
+
+  it("400s on an EMPTY mealIds array", async () => {
+    await withHarness(async (baseUrl, token, calls) => {
+      const res = await subsetPost(baseUrl, token, { mealIds: [] });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { reason?: string };
+      assert.equal(body.reason, "invalid_meal_selection");
+      // Rejected before the loader — an empty selection never becomes a
+      // full-week run by accident.
+      assert.deepEqual(calls, []);
+    });
+  });
+
+  it("400s on DUPLICATED ids", async () => {
+    await withHarness(async (baseUrl, token, calls) => {
+      const res = await subsetPost(baseUrl, token, {
+        mealIds: [MEAL_ID_X, MEAL_ID_X],
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { reason?: string };
+      assert.equal(body.reason, "invalid_meal_selection");
+      assert.deepEqual(calls, []);
+    });
+  });
+
+  it("400s on an id that is not in the plan, and names it", async () => {
+    await withHarness(async (baseUrl, token) => {
+      const foreign = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+      const res = await subsetPost(baseUrl, token, {
+        mealIds: [MEAL_ID_X, foreign],
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as {
+        reason?: string;
+        unknownMealIds?: string[];
+      };
+      assert.equal(body.reason, "unknown_meal_ids");
+      assert.deepEqual(body.unknownMealIds, [foreign]);
+    });
+  });
+
+  it("400s on a non-uuid id rather than passing it to the loader", async () => {
+    await withHarness(async (baseUrl, token, calls) => {
+      const res = await subsetPost(baseUrl, token, { mealIds: ["not-a-uuid"] });
+      assert.equal(res.status, 400);
+      assert.deepEqual(calls, []);
+    });
+  });
+
+  it("400s on an unknown body field (strict) rather than ignoring it", async () => {
+    await withHarness(async (baseUrl, token, calls) => {
+      const res = await subsetPost(baseUrl, token, { mealIDs: [MEAL_ID_X] });
+      assert.equal(res.status, 400);
+      assert.deepEqual(calls, []);
+    });
+  });
+});
+
+describe("POST /api/plans/:planId/prep-week — full week is unchanged (WS9)", () => {
+  it("no body ⇒ the loader is called with mealIds undefined, and the cache is written", async () => {
+    const cache = makeCacheStub();
+    const calls: (string[] | undefined)[] = [];
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 2,
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+        calls,
+      }),
+      runAICall: makeAICallStub({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken("u-full")}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { subset: boolean; cacheHit: boolean };
+      assert.deepEqual(calls, [undefined]);
+      assert.equal(body.subset, false);
+      assert.equal(body.cacheHit, false);
+      assert.equal(cache.writeCount(), 1);
+      assert.equal(cache.pruneCalls(), 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("an explicitly EMPTY json body {} is still a full week", async () => {
+    const cache = makeCacheStub();
+    const calls: (string[] | undefined)[] = [];
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 2,
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+        calls,
+      }),
+      runAICall: makeAICallStub({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await subsetPost(harness.baseUrl, signToken("u-empty"), {});
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { subset: boolean };
+      assert.deepEqual(calls, [undefined]);
+      assert.equal(body.subset, false);
+      assert.equal(cache.writeCount(), 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("selecting EVERY meal still bypasses the cache (a subset is a subset)", async () => {
+    const cache = makeCacheStub();
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 2,
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+      }),
+      runAICall: makeAICallStub({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await subsetPost(harness.baseUrl, signToken("u-all"), {
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { subset: boolean };
+      // Deliberate: the route does not try to detect "this happens to equal the
+      // whole plan" and promote it to a cached full-week run. That comparison
+      // would have to re-derive plan membership at the route layer, and getting
+      // it wrong writes a partial week into the canonical slot — the exact
+      // failure the bypass exists to prevent. Uncached is the safe answer.
+      assert.equal(body.subset, true);
+      assert.equal(cache.writeCount(), 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("the entitlement gate applies identically to a subset", async () => {
+    const cache = makeCacheStub();
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 2,
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+      }),
+      runAICall: makeAICallStub({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: {
+        can: async () => ({ allowed: false, reason: "Premium feature" }),
+      },
+    });
+    try {
+      const res = await subsetPost(harness.baseUrl, signToken("u-gate"), {
+        mealIds: [MEAL_ID_X],
+      });
+      assert.equal(res.status, 402);
     } finally {
       await harness.close();
     }

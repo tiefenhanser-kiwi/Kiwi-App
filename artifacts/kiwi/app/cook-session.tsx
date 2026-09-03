@@ -48,12 +48,21 @@ export default function CookSession() {
     planId?: string;
     planItemId?: string;
     mode?: string;
+    mealIds?: string;
   }>();
   const mealId = typeof params.mealId === "string" ? params.mealId : "";
   const dishId = typeof params.dishId === "string" ? params.dishId : "";
   const planId = typeof params.planId === "string" ? params.planId : "";
   const planItemId = typeof params.planItemId === "string" ? params.planItemId : "";
   const mode = typeof params.mode === "string" ? params.mode : "";
+  // WS9 Prep Selected Meals — the chosen plan meals ride the URL as a
+  // comma-joined list (expo-router params are strings). Empty/absent ⇒ full
+  // week, which keeps every existing `mode=prep-week` deep link unchanged.
+  const mealIds = useMemo(() => {
+    const raw = typeof params.mealIds === "string" ? params.mealIds : "";
+    const ids = raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+    return ids.length > 0 ? ids : undefined;
+  }, [params.mealIds]);
 
   // All hooks run every render (rules of hooks); empty ids leave queries disabled.
   const mealQuery = useMeal(mealId, planItemId || undefined);
@@ -165,6 +174,7 @@ export default function CookSession() {
     return (
       <PrepWeekScreen
         planId={planId}
+        mealIds={mealIds}
         onExit={() => router.back()}
         onSaveExit={() =>
           planId.length > 0

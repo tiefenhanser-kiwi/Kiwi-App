@@ -42,17 +42,30 @@ const TOAST_MS = 2500; // PRD §7.12 — 2-3s
 
 export function PrepWeekScreen({
   planId,
+  mealIds,
   onExit,
   onSaveExit,
 }: {
   planId: string;
+  /** WS9 Prep Selected Meals — when present, prep only these plan meals.
+   *  Undefined/empty is the unchanged full-week session. Completion writes are
+   *  identical either way: stepKeys are plan-scoped and derived from ingredient
+   *  / dish identity, not from which meals were in the run, so a step checked
+   *  in a subset session is the same row a full-week session would have
+   *  written. */
+  mealIds?: string[];
   /** Header back + the celebratory finish exit (router.back → the Hub). */
   onExit: () => void;
   /** BUG-020 — "Save & Exit": a quiet, write-free exit to this plan's Meal Plan
    *  Detail screen. Navigation target owned by the route. */
   onSaveExit: () => void;
 }) {
-  const prepQuery = usePrepWeek(planId);
+  const isSubset = !!mealIds && mealIds.length > 0;
+  // WS9 — a subset session is not "the week", and saying so on every one of the
+  // four states below would be a small lie the user has to reconcile against
+  // the two meals they actually picked.
+  const headerTitle = isSubset ? "Prep Selected Meals" : "Prep the Week";
+  const prepQuery = usePrepWeek(planId, true, mealIds);
   const planQuery = usePlan(planId);
   const completionsQuery = usePrepWeekCompletions(planId);
   const { toggle, completePhase } = usePrepStepToggle(planId);
@@ -227,7 +240,7 @@ export function PrepWeekScreen({
   if (planId.length === 0) {
     return (
       <View style={s.bg}>
-        <Header showBack title="Prep the Week" onBack={onExit} />
+        <Header showBack title={headerTitle} onBack={onExit} />
         <View style={s.center}>
           <Text style={s.errorText}>
             We couldn&apos;t find this week&apos;s plan. Make or pick a plan first.
@@ -242,7 +255,7 @@ export function PrepWeekScreen({
   if (prepQuery.isLoading || planQuery.isLoading || completionsQuery.isLoading) {
     return (
       <View style={s.bg}>
-        <Header showBack title="Prep the Week" onBack={onExit} />
+        <Header showBack title={headerTitle} onBack={onExit} />
         <View style={s.center}>
           <ActivityIndicator color={Colors.sage[700]} />
           <Text style={s.muted}>Kiwi is combining your week’s prep…</Text>
@@ -255,7 +268,7 @@ export function PrepWeekScreen({
   if (prepQuery.isError || !outcome) {
     return (
       <View style={s.bg}>
-        <Header showBack title="Prep the Week" onBack={onExit} />
+        <Header showBack title={headerTitle} onBack={onExit} />
         <View style={s.center}>
           <Text style={s.errorText}>
             We couldn&apos;t build your prep plan. Pull back and try again.
@@ -270,7 +283,7 @@ export function PrepWeekScreen({
   if (outcome.kind === "upgrade_required") {
     return (
       <View style={s.bg}>
-        <Header showBack title="Prep the Week" onBack={onExit} />
+        <Header showBack title={headerTitle} onBack={onExit} />
         <View style={s.center}>
           <View style={s.upgradeCard}>
             <Text style={s.upgradeHeading}>Prep the Week is a Premium feature</Text>

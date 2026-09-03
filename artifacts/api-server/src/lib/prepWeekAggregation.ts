@@ -94,10 +94,34 @@ export class PrepWeekEmptyPlanError extends Error {
   }
 }
 
+// WS9 — Prep Selected Meals. A subset request naming a mealId the plan does not
+// contain is REJECTED (route → 400), never silently narrowed: dropping an
+// unknown id would prep a different set of meals than the caller asked for and
+// return a result that looks entirely correct. Carries the offending ids so the
+// error names them.
+export class PrepWeekUnknownMealError extends Error {
+  readonly unknownMealIds: string[];
+  constructor(planId: string, unknownMealIds: string[]) {
+    super(
+      `plan ${planId} does not contain meal(s) ${unknownMealIds.join(", ")}`,
+    );
+    this.name = "PrepWeekUnknownMealError";
+    this.unknownMealIds = unknownMealIds;
+  }
+}
+
 export interface LoadPrepWeekInputParams {
   planId: string;
   userId: string;
   prisma: PrismaClient;
+  // WS9 — Prep Selected Meals. When present, the aggregation runs over ONLY
+  // these plan meals; absent (the default) is the unchanged full-week path.
+  // Filtering lives HERE rather than in the route so one code path serves both
+  // — the engine, the step plan, the narration input and the assembled result
+  // are all built from whatever `meals` this loader returns, and none of them
+  // needs to know a subset happened. Every id must belong to the plan
+  // (PrepWeekUnknownMealError otherwise).
+  mealIds?: string[];
   // D-WS9-049 A2.1 — the isPrepped/prepStatus derivation (loadPrepStepSet →
   // GET /plans/:id) only needs stepKey + contributesToMealIds, which come from
   // ingredients alone; it calls buildStepPlan WITHOUT step text. On that path
@@ -115,7 +139,7 @@ export interface LoadPrepWeekInputResult {
 export async function loadPrepWeekInput(
   params: LoadPrepWeekInputParams,
 ): Promise<LoadPrepWeekInputResult> {
-  const { planId, userId, prisma, includeStepTexts = true } = params;
+  const { planId, userId, prisma, includeStepTexts = true, mealIds } = params;
 
   // Minimal include shape mirroring planMacros.ts — items → meal → dishes
   // → dishIngredients → ingredient. No user-prefs branch (pantry / picky
@@ -154,6 +178,22 @@ export async function loadPrepWeekInput(
   if (!plan) throw new PrepWeekNotFoundError(planId);
   if (plan.userId !== userId) throw new PrepWeekNotFoundError(planId);
 
+  // WS9 — subset membership. Checked against the RAW plan items (before any
+  // no-dish / no-ingredient filtering below), because "belongs to this plan" is
+  // a fact about the plan's contents, not about whether that meal happens to
+  // yield prep steps. A selected meal that is in the plan but contributes
+  // nothing prep-worthy falls through to the empty-plan 400 further down, which
+  // is a different — and accurate — answer than "that meal isn't in this plan".
+  // Runs BEFORE the empty-plan check so a bad id is always named precisely.
+  const selectedMealIds = mealIds ? new Set(mealIds) : null;
+  if (selectedMealIds) {
+    const planMealIds = new Set(plan.items.map((i) => i.mealId));
+    const unknown = [...selectedMealIds].filter((id) => !planMealIds.has(id));
+    if (unknown.length > 0) {
+      throw new PrepWeekUnknownMealError(planId, unknown);
+    }
+  }
+
   if (plan.items.length === 0) throw new PrepWeekEmptyPlanError(planId);
 
   // Build the enriched per-meal payload. Quantities stay RAW; the adapter
@@ -163,6 +203,9 @@ export async function loadPrepWeekInput(
   const meals: PrepLoadedMeal[] = [];
   for (const item of plan.items) {
     const meal = item.meal;
+    // WS9 — the subset filter. The ONLY place a subset differs from a full
+    // week; everything downstream consumes `meals` and is untouched.
+    if (selectedMealIds && !selectedMealIds.has(item.mealId)) continue;
     if (meal.dishLinks.length === 0) continue;
 
     const dishes: PrepLoadedDish[] = meal.dishLinks

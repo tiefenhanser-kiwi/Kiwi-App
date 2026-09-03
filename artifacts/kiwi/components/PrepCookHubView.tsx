@@ -39,6 +39,12 @@ interface Props {
   model: HubModel;
   /** "Prep the Week" lane CTA — Week Prep (Block 4; temporary stub for now). */
   onPrepWeek: () => void;
+  /** WS9 Prep Selected Meals — launch Week Prep over `selectedMealIds` only. */
+  onPrepSelected: () => void;
+  /** WS9 — tick/untick one this-week meal for the subset prep run. */
+  onToggleMealSelected: (mealId: string) => void;
+  /** WS9 — currently ticked mealIds. Empty ⇒ the subset CTA is disabled. */
+  selectedMealIds: ReadonlySet<string>;
   /** A "This week's meals" row / today's-meal callout tap. */
   onSelectMeal: (mealId: string, planItemId: string) => void;
   /** Empty-state nudge: no plan this week → make one. */
@@ -86,6 +92,9 @@ const CREAM = Palette.text.inverse; // #FBF7EF
 export function PrepCookHubView({
   model,
   onPrepWeek,
+  onPrepSelected,
+  onToggleMealSelected,
+  selectedMealIds,
   onSelectMeal,
   onMakePlan,
   onCookThisWeek,
@@ -105,6 +114,9 @@ export function PrepCookHubView({
     <Hub
       model={model}
       onPrepWeek={onPrepWeek}
+      onPrepSelected={onPrepSelected}
+      onToggleMealSelected={onToggleMealSelected}
+      selectedMealIds={selectedMealIds}
       onSelectMeal={onSelectMeal}
     />
   );
@@ -225,14 +237,26 @@ function PromotePlanCard({
 function Hub({
   model,
   onPrepWeek,
+  onPrepSelected,
+  onToggleMealSelected,
+  selectedMealIds,
   onSelectMeal,
 }: {
   model: PrepCookHubModel;
   onPrepWeek: () => void;
+  onPrepSelected: () => void;
+  onToggleMealSelected: (mealId: string) => void;
+  selectedMealIds: ReadonlySet<string>;
   onSelectMeal: (mealId: string, planItemId: string) => void;
 }) {
   const { indicator } = model;
   const indicatorTone = TONE_STYLE[indicator.tone];
+  // Count DISTINCT selected mealIds that are actually on this week's list, so a
+  // stale selection left over from a plan edit can never enable the CTA for a
+  // meal the user can no longer see.
+  const selectedCount = model.meals.filter((m) =>
+    selectedMealIds.has(m.mealId),
+  ).length;
 
   return (
     <View style={s.bg}>
@@ -323,24 +347,86 @@ function Hub({
           </View>
         </View>
 
+        {/* WS9 — Prep Selected Meals. The subordinate half of a two-CTA pair.
+            §27.2: the SAME <Button> primitive as Prep the Week, one variant
+            down; nothing hand-rolled.
+
+            ⚠️ PLACEMENT IS DELIBERATE AND MEASURED — this sits on the PAGE
+            (neutral[100]), NOT inside the sage lane above it. The block spec
+            asked for it in the lane with the white ring, and the token values
+            refuse: `secondary` fills with neutral[0] #ffffff, which against the
+            lane's sage[600] #5C7350 measures 5.2197:1, while the primary
+            terracotta[400] fill against that same sage measures 1.1033:1. The
+            primary separates from its lane by HUE, not luminance — that is why
+            it needs the white ring at all. Dropping a white block beside it
+            would make the SECONDARY the loudest object in the lane and invert
+            the very hierarchy the spec demands ("Prep the Week must stay the
+            visually dominant action"). `ghost` is not an out either: its
+            neutral[900] label on sage[600] is 2.7401:1, under the 4.5:1 AA
+            floor. On the page the same secondary reads correctly — 1.0686:1
+            fill (quiet), neutral[400] edge for definition, 14.3029:1 label —
+            and needs no ring, since the ring exists only to give a terracotta
+            fill an edge against sage. */}
+        <View style={s.subsetBlock}>
+          <Button
+            label="Prep Selected Meals"
+            variant="secondary"
+            disabled={selectedCount === 0}
+            onPress={onPrepSelected}
+          />
+          <Text style={s.subsetHint}>
+            {selectedCount === 0
+              ? "Only cooking part of the week? Tick the meals below and prep just those."
+              : `${selectedCount} of ${model.meals.length} selected — Kiwi will build a prep plan for just these.`}
+          </Text>
+        </View>
+
         {/* Cook a meal — the lane is now a text prompt over this-week's meals;
             tapping a row launches Cook Mode (D-WS7-158). */}
         <Text style={s.laneTitle}>Cook a meal</Text>
         <Text style={s.cookPrompt}>
-          Pick a meal from your plan and cook.
+          Pick a meal from your plan and cook, or tick it to prep it.
         </Text>
         <View style={s.mealList}>
           {model.meals.map((row) => {
             const pillTone = TONE_STYLE[row.pill.tone];
+            const selected = selectedMealIds.has(row.mealId);
             return (
               <Pressable
                 key={row.planItemId}
                 onPress={() => onSelectMeal(row.mealId, row.planItemId)}
                 style={({ pressed }) => [
                   s.mealRow,
+                  selected && s.mealRowSelected,
                   pressed && { opacity: 0.9 },
                 ]}
               >
+                {/* WS9 — the prep-subset tick. Its OWN Pressable (with hitSlop)
+                    nested inside the row's, so tapping the box selects and
+                    tapping anywhere else still launches Cook Mode — the row's
+                    existing job, unchanged. §27.2: there is no shared Checkbox
+                    component in this app to reuse — PrepWeekView's StepCheckbox
+                    and grocery-list/[id].tsx each hand-roll their own — so this
+                    mirrors StepCheckbox's box/mark/sage-fill treatment (the
+                    nearest neighbour, and the one the user meets on the very
+                    next screen) rather than extracting a third abstraction in a
+                    block that owns neither of those files. */}
+                <Pressable
+                  onPress={() => onToggleMealSelected(row.mealId)}
+                  hitSlop={10}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected }}
+                  accessibilityLabel={
+                    selected
+                      ? `Remove ${resolveDisplayTitle(row)} from the prep selection`
+                      : `Add ${resolveDisplayTitle(row)} to the prep selection`
+                  }
+                  style={({ pressed }) => pressed && { opacity: 0.6 }}
+                >
+                  <View style={[s.selectBox, selected && s.selectBoxOn]}>
+                    {selected && <Text style={s.selectMark}>✓</Text>}
+                  </View>
+                </Pressable>
                 {row.thumbnailUrl ? (
                   <Image source={{ uri: row.thumbnailUrl }} style={s.thumb} />
                 ) : (
@@ -456,6 +542,20 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.serif[600],
   },
+  // WS9 — the Prep Selected Meals block. Sits on the page between the sage lane
+  // and the meal list: subordinate to the lane's primary CTA, adjacent to the
+  // rows whose ticks feed it. See the placement note at the render site.
+  subsetBlock: {
+    marginTop: Spacing[3],
+    marginBottom: Spacing[4],
+    gap: Spacing[2],
+  },
+  subsetHint: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    textAlign: "center",
+  },
   // "Cook a meal" text prompt over the meal list (replaces the old CTA card).
   cookPrompt: {
     fontSize: Typography.fontSize.sm,
@@ -549,6 +649,35 @@ const s = StyleSheet.create({
     borderColor: Palette.border.default,
     padding: Spacing[3],
     ...Shadow.card,
+  },
+  // WS9 — a selected row takes the sage edge, so the selection reads at a
+  // glance from the CTA above without having to scan four checkboxes. Border
+  // ONLY: a fill would fight the pill and the thumbnail for the row.
+  mealRowSelected: {
+    borderColor: Colors.sage[600],
+  },
+  // WS9 — prep-subset tick. Mirrors PrepWeekView's StepCheckbox (26px, Radius.md,
+  // 2px neutral[400] edge, sage[600] when on) so the control the user meets here
+  // is the same object they then check off on the Week Prep screen.
+  selectBox: {
+    width: 26,
+    height: 26,
+    borderRadius: Radius.md,
+    borderWidth: 2,
+    borderColor: Colors.neutral[400],
+    backgroundColor: Colors.neutral[0],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectBoxOn: {
+    backgroundColor: Colors.sage[600],
+    borderColor: Colors.sage[600],
+  },
+  selectMark: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[0],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[700],
   },
   thumb: {
     width: 48,

@@ -17,6 +17,7 @@ import {
   getPrepWeek,
 } from "../cooking";
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
+import { prepWeekQueryKey } from "@/hooks/usePrepWeek";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 
 const TOKEN_KEY = "kiwi_authToken";
@@ -495,4 +496,91 @@ test("getPrepWeek encodes the planId path segment", async () => {
     lastUrl?.includes("/plans/plan%2Fwith%20space/prep-week"),
     `unexpected url: ${lastUrl}`,
   );
+});
+
+// ── WS9 Prep Selected Meals — the `mealIds` request body + `subset` flag ─────
+
+test("getPrepWeek with mealIds POSTs them as the request body", async () => {
+  nextResponse = () => mockJson({ ...MISS_ENVELOPE, subset: true });
+  const out = await getPrepWeek("plan-1", [M1, M2]);
+
+  assert.equal(lastMethod, "POST");
+  assert.ok(
+    lastUrl?.endsWith("/plans/plan-1/prep-week"),
+    `unexpected url: ${lastUrl}`,
+  );
+  // Read the LIVE wire body, not a restatement of the argument.
+  assert.equal(lastBody, JSON.stringify({ mealIds: [M1, M2] }));
+  assert.equal(out.kind, "ok");
+  if (out.kind !== "ok") return;
+  assert.equal(out.envelope.subset, true);
+});
+
+test("getPrepWeek WITHOUT mealIds still sends no body at all (full week unchanged)", async () => {
+  nextResponse = () => mockJson(HIT_ENVELOPE);
+  await getPrepWeek("plan-1");
+  assert.equal(lastBody, null);
+});
+
+test("getPrepWeek treats an omitted `subset` as false, never undefined", async () => {
+  // A pre-WS9 server response: no `subset` key at all. The helper must
+  // normalise it so no screen ever branches on undefined.
+  nextResponse = () => mockJson(HIT_ENVELOPE);
+  const out = await getPrepWeek("plan-1");
+  assert.equal(out.kind, "ok");
+  if (out.kind !== "ok") return;
+  assert.equal(out.envelope.subset, false);
+  assert.equal(typeof out.envelope.subset, "boolean");
+});
+
+test("getPrepWeek carries subset:false through from a full-week server response", async () => {
+  nextResponse = () => mockJson({ ...HIT_ENVELOPE, subset: false });
+  const out = await getPrepWeek("plan-1");
+  assert.equal(out.kind, "ok");
+  if (out.kind !== "ok") return;
+  assert.equal(out.envelope.subset, false);
+});
+
+test("getPrepWeek rejects a non-boolean `subset` (§27 both-direction mirror)", async () => {
+  nextResponse = () => mockJson({ ...HIT_ENVELOPE, subset: "yes" });
+  await assert.rejects(getPrepWeek("plan-1"), ApiSchemaError);
+});
+
+// 🔴 The client-side twin of the server's planId-keyed cache trap. A subset
+// result landing under the full-week key ["cooking","prep-week",planId] — whose
+// staleTime is Infinity — would be served as the canonical week for the rest of
+// the session.
+test("prepWeekQueryKey: a subset NEVER collides with the full-week key", () => {
+  const full = prepWeekQueryKey("plan-1");
+  assert.deepEqual(full, ["cooking", "prep-week", "plan-1"]);
+
+  const subset = prepWeekQueryKey("plan-1", [M1]);
+  assert.notDeepEqual(subset, full);
+  // Stronger than "not equal": it must be strictly LONGER, so it can never be
+  // the full-week key however the ids are formatted.
+  assert.ok(subset.length > full.length);
+  assert.deepEqual(subset.slice(0, 3), full);
+});
+
+test("prepWeekQueryKey: selection ORDER does not fragment the cache", () => {
+  // Same two meals, opposite tick order → one key → one (paid) AI call.
+  assert.deepEqual(
+    prepWeekQueryKey("plan-1", [M1, M2]),
+    prepWeekQueryKey("plan-1", [M2, M1]),
+  );
+});
+
+test("prepWeekQueryKey: different selections are different keys", () => {
+  assert.notDeepEqual(
+    prepWeekQueryKey("plan-1", [M1]),
+    prepWeekQueryKey("plan-1", [M1, M2]),
+  );
+  assert.notDeepEqual(
+    prepWeekQueryKey("plan-1", [M1]),
+    prepWeekQueryKey("plan-2", [M1]),
+  );
+});
+
+test("prepWeekQueryKey: an empty selection falls back to the full-week key", () => {
+  assert.deepEqual(prepWeekQueryKey("plan-1", []), prepWeekQueryKey("plan-1"));
 });
