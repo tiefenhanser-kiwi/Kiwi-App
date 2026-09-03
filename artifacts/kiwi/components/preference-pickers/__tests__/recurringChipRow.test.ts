@@ -18,6 +18,11 @@
 // row that sits directly above the input.
 
 import assert from "node:assert/strict";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
+import { RecurringItemsPicker } from "../RecurringItemsPicker";
 import { describe, it } from "node:test";
 
 import { COMMON_RECURRING_ITEMS, recurringChipRow } from "@/lib/domain";
@@ -72,5 +77,74 @@ describe("BUG-152: a custom recurring item appears in the chip row", () => {
     const snapshot = [...value];
     recurringChipRow(value);
     assert.deepEqual(value, snapshot);
+  });
+});
+
+// ── WS9 (Sept 3) — the duplicate list is gone; chips are the only indicator ──
+// Hans, on device: "we're duplicating the list of items and the chips… I think
+// we can remove the list and stick with the chips as the only visual
+// indicators." The section used to render every selected item TWICE — a
+// removable list at the top and the chip row below — and he never saw the list.
+//
+// These are RENDER tests, deliberately: the helper tests above prove the chip
+// row COMPOSES correctly, but they could not have caught a second copy of the
+// same items rendered somewhere else in the component.
+describe("RecurringItemsPicker renders each item exactly once", () => {
+  function renderPicker(value: string[]) {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(RecurringItemsPicker, { value, onChange: () => {} }),
+      );
+    });
+    return renderer;
+  }
+
+  /** Every literal string rendered anywhere in the tree. */
+  function allText(renderer: TestRenderer.ReactTestRenderer): string[] {
+    const out: string[] = [];
+    const walk = (n: unknown): void => {
+      if (n == null) return;
+      if (typeof n === "string") { out.push(n); return; }
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const node = n as { children?: unknown };
+      if (Array.isArray(node.children)) node.children.forEach(walk);
+    };
+    walk(renderer.toJSON());
+    return out;
+  }
+
+  it("🔴 a selected item appears ONCE, not twice — the defect Hans reported", () => {
+    const renderer = renderPicker(["Milk", "lime"]);
+    const texts = allText(renderer);
+    for (const item of ["Milk", "lime"]) {
+      assert.equal(
+        texts.filter((t) => t === item).length,
+        1,
+        `"${item}" rendered ${texts.filter((t) => t === item).length}× — the ` +
+          "duplicate list is back",
+      );
+    }
+    renderer.unmount();
+  });
+
+  it("a CUSTOM item still renders — deleting the list stranded nothing", () => {
+    // The list was the only place a custom item appeared before BUG-152, and
+    // the only thing with an explicit remove control before this change. If the
+    // chip row ever stops carrying customs, an item could be selected and
+    // unreachable — which is the one outcome that would have made the deletion
+    // wrong.
+    const renderer = renderPicker(["lime"]);
+    assert.ok(allText(renderer).includes("lime"), "custom item has no chip");
+    renderer.unmount();
+  });
+
+  it("every common item renders whether selected or not", () => {
+    const renderer = renderPicker([]);
+    const texts = allText(renderer);
+    for (const item of COMMON_RECURRING_ITEMS) {
+      assert.ok(texts.includes(item), `common item "${item}" missing`);
+    }
+    renderer.unmount();
   });
 });

@@ -195,12 +195,12 @@ describe("BUG-106 — primary CTA text on terracotta", () => {
     assert.notEqual(Palette.button.primary.text, "#FBF7EF");
   });
 
-  it("the selected chip carries the same pair and the same fix", () => {
-    assert.equal(Palette.chip.selected.background, "#C24F25");
-    assert.equal(Palette.chip.selected.text, "#FFFFFF");
-    assert.ok(
-      at4(ratio(Palette.chip.selected.text, Palette.chip.selected.background)) >= AA_TEXT,
-    );
+  it("the selected chip has LEFT this pair — it is sage now, see below", () => {
+    // ⚠️ This used to assert chip.selected.background === "#C24F25", because
+    // BUG-106 fixed the chip and the primary button as one pair. The Sept 3
+    // ruling moved the chip off terracotta entirely, so that assertion is now
+    // the wrong claim rather than a failing one.
+    assert.notEqual(Palette.chip.selected.background, Colors.terracotta[400]);
   });
 
   it("terracotta[400] is untouched — it is a LOCKED A1 accent", () => {
@@ -347,5 +347,60 @@ describe("BUG-199 §2B — a primary button on a coloured surface needs a light 
     // CREAM, it is already imported" has a number to argue with.
     assert.equal(at4(ratio("#FBF7EF", SAGE_LANE)), 4.8848);
     assert.equal(at4(ratio("#FBF7EF", Palette.button.primary.background)), 4.4273);
+  });
+});
+
+// ── WS9 (Sept 3) — selected chips are SAGE, not terracotta ──────────────────
+// Hans: "B, for consistency." The reasoning is the colour system, not the
+// control: TERRACOTTA MEANS "THIS IS THE ACTION HERE" — it is the primary
+// button, and BUG-199 §2B moved the Prep the Week CTA onto it for that reason.
+// A chip records a CHOICE. Painting state and action the same colour undercut
+// every primary button in the app at once.
+describe("selected chips carry state in sage, leaving terracotta to actions", () => {
+  const SAGE_600 = "#5C7350";
+
+  it("the scale stop still holds the value these ratios assume", () => {
+    assert.equal(Colors.sage[600], SAGE_600);
+  });
+
+  it("background and border are sage[600]; the label stays white", () => {
+    // Read from the LIVE token, compared against literals — not literal-vs-
+    // literal, which is what the first BUG-199 C guard did while staying green
+    // under a verified mutation.
+    assert.equal(Palette.chip.selected.background, SAGE_600);
+    assert.equal(Palette.chip.selected.border, SAGE_600);
+    assert.equal(Palette.chip.selected.text, "#FFFFFF");
+  });
+
+  it("the label clears AA on the chip, and by more than terracotta did", () => {
+    const now = at4(ratio(Palette.chip.selected.text, Palette.chip.selected.background));
+    assert.equal(now, 5.2197);
+    assert.ok(now >= AA_TEXT);
+    // The value it replaced. This move improved contrast as well as semantics.
+    assert.equal(at4(ratio("#FFFFFF", "#C24F25")), 4.7308);
+    assert.ok(now > 4.7308);
+  });
+
+  it("🔴 selected state and the primary action are DIFFERENT colours", () => {
+    // This is the entire point of the change. If anyone ever harmonises the two
+    // back together, this goes red before anything reaches a device.
+    assert.notEqual(
+      Palette.chip.selected.background,
+      Palette.button.primary.background,
+      "a chip that records a choice must not look like a button you press",
+    );
+  });
+
+  it("the untouched chip variants stay untouched", () => {
+    assert.equal(Palette.chip.default.background, "#ffffff");
+    assert.equal(Palette.chip.default.text, Colors.neutral[900]);
+    assert.equal(Palette.chip.onSage.background, "transparent");
+    assert.equal(Palette.button.primary.background, Colors.terracotta[400]);
+  });
+
+  it("the chip fill separates from both surfaces chips sit on", () => {
+    // Non-text, 3:1 bar — the chip's own shape against paper and card.
+    assert.equal(at4(ratio(SAGE_600, "#FBF7EF")), 4.8848);
+    assert.equal(at4(ratio(SAGE_600, "#ffffff")), 5.2197);
   });
 });

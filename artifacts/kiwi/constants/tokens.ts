@@ -215,15 +215,26 @@ export const Palette = {
       text:       Colors.neutral[900],
       border:     Colors.neutral[400],
     },
+    // ⚠️ WS9 (Sept 3, Hans — "B, for consistency") — SELECTED IS SAGE, NOT
+    // TERRACOTTA, and the reason is the whole colour system rather than this
+    // one control: TERRACOTTA MEANS "THIS IS THE ACTION HERE". It is the
+    // primary button (Palette.button.primary), and BUG-199 §2B moved the Prep
+    // the Week CTA onto it for exactly that reason. A chip only RECORDS a
+    // choice — it is state, not an action — so painting it the same colour
+    // competed with every primary button in the app at once. Sage carries
+    // selected state; terracotta is reserved for buttons you press.
+    //
+    // White label on sage[600]: 5.2197:1. (The previous white-on-terracotta was
+    // 4.7308, so this is a contrast improvement as well as a semantic one.)
+    //
+    // ⚠️ DO NOT "HARMONISE" THIS BACK TO button.primary. A test asserts the two
+    // are different values precisely so that change goes red.
     selected: {
-      background: Colors.terracotta[400],
-      // WS9 BUG-106 — the SAME pair as button.primary above (paper on
-      // terracotta[400] = 4.4273:1), found by measuring every '#FBF7EF' in this
-      // file against its own surface rather than only the one the bug named.
-      // Moved with it: leaving the identical defect on the identical surface
-      // would ship half a fix. 4.7308 after.
+      background: Colors.sage[600],
+      // WS9 BUG-106 — WAS '#FBF7EF'. Kept as pure white through the sage move:
+      // 5.2197 on sage[600], and it is the same value button.primary.text uses.
       text:       '#FFFFFF',
-      border:     Colors.terracotta[400],
+      border:     Colors.sage[600],
     },
     onSage: {
       background: 'transparent',
