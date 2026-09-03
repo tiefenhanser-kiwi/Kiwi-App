@@ -307,3 +307,45 @@ describe("BUG-199 — the PrepCookHub neutral chip separates from the page and c
     assert.equal(at4(ratio(Colors.gold.text, Colors.gold.background)), 3.7593);
   });
 });
+
+// ── BUG-199 §2B — the Prep-the-Week CTA's ring ──────────────────────────────
+// The CTA became <Button variant="primary"> on the hub's sage[600] lane. Its
+// LABEL is fine; its SHAPE is not, and the ring is what fixes that.
+describe("BUG-199 §2B — a primary button on a coloured surface needs a light ring", () => {
+  const SAGE_LANE = "#5C7350"; // Colors.sage[600], the locked Prep lane surface
+
+  it("the lane token still holds the value these ratios assume", () => {
+    assert.equal(Colors.sage[600], SAGE_LANE);
+  });
+
+  it("the label clears AA on the fill — this half was never the problem", () => {
+    assert.equal(
+      at4(ratio(Palette.button.primary.text, Palette.button.primary.background)),
+      4.7308,
+    );
+  });
+
+  it("⚠️ the FILL does not separate from the lane, which is why a ring exists", () => {
+    // 1.1033 is not a text failure — it is the button's outline against the card
+    // it sits on, and it is red-on-green, the pair that collapses under
+    // red-green colour blindness. Without a ring the edge effectively vanishes.
+    const r = at4(ratio(Palette.button.primary.background, SAGE_LANE));
+    assert.equal(r, 1.1033);
+    assert.ok(r < 3.0, "if this ever clears 3:1 the ring may be reconsidered");
+  });
+
+  it("the ring carries the boundary by luminance, on BOTH sides", () => {
+    // Same value as the label (Palette.button.primary.text), so the edge and the
+    // type cannot drift apart.
+    assert.equal(at4(ratio(Palette.button.primary.text, SAGE_LANE)), 5.2197);
+    assert.equal(at4(ratio(Palette.button.primary.text, Palette.button.primary.background)), 4.7308);
+    assert.ok(at4(ratio(Palette.button.primary.text, SAGE_LANE)) >= 3.0);
+  });
+
+  it("the cream it replaced was the weaker candidate on both sides", () => {
+    // Palette.text.inverse #FBF7EF — 4.8848 / 4.4273. Recorded so "just use
+    // CREAM, it is already imported" has a number to argue with.
+    assert.equal(at4(ratio("#FBF7EF", SAGE_LANE)), 4.8848);
+    assert.equal(at4(ratio("#FBF7EF", Palette.button.primary.background)), 4.4273);
+  });
+});

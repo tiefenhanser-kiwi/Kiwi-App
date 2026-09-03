@@ -514,18 +514,23 @@ test("BUG-104: the day-pill console log is RETAINED (Hans is using it on device)
   );
 });
 
-// ── WS9 BUG-158 — the description wraps to two lines ────────────────────────
-// At one line a description clipped mid-word ("…sliced thin in warm tortill…")
-// on the row a user reads to decide whether to keep the meal in the plan.
+// ── WS9 BUG-197 — the description runs to THREE lines on plan review ────────
+// The count went 1 (clipped mid-word) → 2 (BUG-158) → 3 (BUG-197). Hans, on
+// device: "the cards should get bigger to accommodate a third line. we need to
+// be able to see it all." Catalog descriptions run a median 149 chars, roughly
+// 3.7 lines at this width, so two showed about half of one.
 //
-// ⚠️ DELIBERATE DIVERGENCE from MealRow.tsx, which stays at one line. Reusing
-// MealRow's structure and token (BUG-153) was right and still holds; line count
-// is a per-surface decision, not part of the shared pattern. MealRow.test.ts
-// pins the other half so neither side can drift without a red test.
-test("BUG-158: the meal description renders on up to TWO lines", async () => {
-  const DESCRIPTION =
-    "Grilled marinated skirt steak sliced thin in warm tortillas with charred " +
-    "onions, salsa verde and a squeeze of lime";
+// ⚠️ PER-SURFACE, NOT A PATTERN. AddMealsSheet and MealRow both stay at 2 —
+// MealRow because Hans ruled two and declined three in the same sentence. Their
+// own tests pin them, so a "harmonising" sweep in either direction goes red.
+//
+// ⚠️ EXACT, not a floor. Asserting >= 2 would have stayed green through the
+// whole 1→2→3 history and pinned nothing.
+const DESCRIPTION =
+  "Grilled marinated skirt steak sliced thin in warm tortillas with charred " +
+  "onions, salsa verde and a squeeze of lime";
+
+test("BUG-197: the meal description renders on up to THREE lines", async () => {
   const { renderer } = await render({
     row: { ...ROW, description: DESCRIPTION },
   });
@@ -537,8 +542,8 @@ test("BUG-158: the meal description renders on up to TWO lines", async () => {
   assert.ok(node, "description node found");
   assert.equal(
     node.props.numberOfLines,
-    2,
-    "BUG-158: one line truncated this mid-word",
+    3,
+    "BUG-197: two lines showed about half a median-length description",
   );
   renderer.unmount();
 });
@@ -547,9 +552,13 @@ test("BUG-153 still holds: no description means no node, not an empty line", asy
   // The control for the test above. Guards the BUG-153 contract at the same
   // time: 61% of live meals carry none, and a placeholder would hide that.
   const { renderer } = await render({ row: { ...ROW, description: undefined } });
+  // ⚠️ Keyed on the description STRING, not on numberOfLines. An earlier draft
+  // counted nodes with numberOfLines === 3 and found 2 — because BUG-197 raised
+  // the description to 3 and the TITLE already allowed 3 (D-WS9-127), so the
+  // count stopped discriminating between them the moment the two agreed.
   const nodes = renderer.root.findAll(
-    (n) => n.props?.numberOfLines === 2 && typeof n.props?.children === "string",
+    (n) => typeof n.props?.children === "string" && n.props.children === DESCRIPTION,
   );
-  assert.equal(nodes.length, 0, "no description => no two-line node at all");
+  assert.equal(nodes.length, 0, "no description => no description node at all");
   renderer.unmount();
 });

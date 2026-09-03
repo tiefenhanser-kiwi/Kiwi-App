@@ -18,6 +18,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
 import { PrepCookHubView } from "../PrepCookHubView";
+import { Palette } from "@/constants/tokens";
 import {
   buildPrepCookHubModel,
   type HubModel,
@@ -292,14 +293,28 @@ test("Hub: a fully prepped week disables the Prep-the-Week CTA and shows the bad
   assert.ok(texts.includes("Prepped ✓"), "expected prepped badge");
   assert.ok(texts.includes("Week is prepped"), "expected disabled CTA copy");
 
-  // The disabled CTA is a non-pressable view: tapping anything labelled
-  // "Week is prepped" must not invoke onPrepWeek.
+  // ⚠️ WS9 BUG-199 §2B — this used to assert the CTA was NOT a Pressable at all,
+  // because the disabled state rendered a plain <View>. The CTA is now
+  // <Button variant="primary" disabled>, which renders a real Pressable carrying
+  // RN's `disabled` prop — so the old assertion pinned an IMPLEMENTATION (View
+  // vs disabled Pressable) rather than the behaviour it was written to protect.
+  //
+  // Rewritten to assert the behaviour directly, which is a STRONGER guard: it
+  // now actually fires the handler. The old shape checked `prepped === 0`
+  // without ever pressing anything, so it would have passed even if the button
+  // were fully live.
   const cta = findPressableByText(
     renderer.toJSON() as RenderedNode | null,
     "Week is prepped",
   );
-  assert.equal(cta, null, "disabled Prep-the-Week should not be pressable");
-  assert.equal(prepped, 0);
+  assert.ok(cta, "the disabled CTA still renders (as a disabled Button)");
+  assert.equal(
+    (cta as { props?: { disabled?: boolean } }).props?.disabled,
+    true,
+    "the disabled CTA must carry RN's disabled prop, not just look dimmed",
+  );
+  (cta as { props: { onPress: () => void } }).props.onPress();
+  assert.equal(prepped, 0, "pressing a prepped week must not fire onPrepWeek");
   renderer.unmount();
 });
 
@@ -510,5 +525,64 @@ test("Empty state — promoting: the in-flight card shows a spinner and the othe
     (disabled!.props!.onPress as () => void)();
   });
   assert.deepEqual(promoted, [], "disabled card should not fire onCookThisWeek");
+  renderer.unmount();
+});
+
+// ── WS9 BUG-199 §2B — the Prep-the-Week CTA is the app's PRIMARY treatment ───
+// Hans: "I was asking for the primary CTA to get the same terracotta with white
+// text treatment that was just applied elsewhere." It was a cream-filled block
+// with a muted-sage label — the secondary/ghost look.
+//
+// ⚠️ THIS READS THE RENDERED STYLE, NOT A LITERAL RESTATED FROM TOKENS. A guard
+// that asserts "#C24F25" === "#C24F25" stays green while the component points
+// somewhere else entirely — that exact shape shipped and stayed green under a
+// verified mutation earlier in BUG-199. The expected values below come from
+// Palette.button.primary (what the primitive uses); the CONNECTION being tested
+// is that this CTA actually routes through it.
+test("BUG-199 §2B: the Prep-the-Week CTA renders the primary fill + white label", () => {
+  const model = buildPrepCookHubModel(
+    plan({ items: [item({ id: "a", isPrepped: false })] }),
+    "Sunday",
+  );
+  const renderer = render(model, { onPrepWeek: () => {} });
+  const cta = findPressableByText(
+    renderer.toJSON() as RenderedNode | null,
+    "Prep the Week",
+  );
+  assert.ok(cta, "Prep the Week CTA not found");
+
+  // ⚠️ This harness's Pressable passes `style` through UNRESOLVED — it stays the
+  // `({ pressed }) => [...]` function rather than a flattened array — so it has
+  // to be invoked before anything can be read off it. Reading `props.style`
+  // directly yields a function and every lookup on it is `undefined`, which
+  // reads exactly like "the style is missing" rather than "the style is lazy".
+  const raw = (cta as { props: { style: unknown } }).props.style;
+  const resolved = typeof raw === "function" ? raw({ pressed: false }) : raw;
+  const style = Object.assign(
+    {},
+    ...[resolved].flat(Infinity).filter((x) => x && typeof x === "object"),
+  ) as Record<string, unknown>;
+
+  assert.equal(
+    style.backgroundColor,
+    Palette.button.primary.background,
+    "the CTA must carry the primary terracotta fill, not a cream one",
+  );
+
+  // ⚠️ The RING. The terracotta fill measures 1.1033:1 against this lane's
+  // sage[600] surface — the LABEL reads fine (4.7308) but the button's SHAPE has
+  // no luminance step against the card, and terracotta-on-sage is red-on-green,
+  // the pair that collapses under red-green colour blindness. The white ring
+  // carries the boundary by luminance instead: 5.2197 vs the lane, 4.7308 vs the
+  // fill. Deleting it leaves a button whose edge only some users can see.
+  assert.equal(
+    style.borderColor,
+    Palette.button.primary.text,
+    "the CTA needs a light ring — its fill does not separate from the sage lane",
+  );
+  assert.ok(
+    (style.borderWidth as number) > 0,
+    "a borderColor with no borderWidth draws nothing",
+  );
   renderer.unmount();
 });

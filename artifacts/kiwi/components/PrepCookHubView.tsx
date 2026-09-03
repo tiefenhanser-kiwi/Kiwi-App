@@ -306,21 +306,20 @@ function Hub({
             <Text style={s.prepLaneBody}>
               Knock out chopping, marinades and make-ahead steps in one go.
             </Text>
-            {model.prepWeekDisabled ? (
-              <View style={[s.creamCta, s.creamCtaDisabled]}>
-                <Text style={s.creamCtaText}>Week is prepped</Text>
-              </View>
-            ) : (
-              <Pressable
-                onPress={onPrepWeek}
-                style={({ pressed }) => [
-                  s.creamCta,
-                  pressed && { opacity: 0.9 },
-                ]}
-              >
-                <Text style={s.creamCtaText}>Prep the Week</Text>
-              </Pressable>
-            )}
+            {/* WS9 BUG-199 §2B — the app's PRIMARY treatment, not a hand-rolled
+                Pressable. Was a cream-filled block with a muted-sage label,
+                which is the secondary/ghost look; Hans asked for "the same
+                terracotta with white text treatment that was just applied
+                elsewhere". §27.2: this is <Button variant="primary">, the same
+                primitive every other CTA uses, so the terracotta and the white
+                come from Palette.button.primary and cannot drift from it. */}
+            <Button
+              label={model.prepWeekDisabled ? "Week is prepped" : "Prep the Week"}
+              variant="primary"
+              disabled={model.prepWeekDisabled}
+              onPress={onPrepWeek}
+              style={s.prepCtaOnSage}
+            />
           </View>
         </View>
 
@@ -501,19 +500,32 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
   },
-  creamCta: {
-    backgroundColor: CREAM,
-    borderRadius: Radius.lg,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  creamCtaDisabled: { opacity: 0.55 },
-  creamCtaText: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.sage[700],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
+  // WS9 BUG-199 §2B — replaces creamCta / creamCtaDisabled / creamCtaText, which
+  // hand-rolled a button. The fill, the label colour, the radius, the padding and
+  // the disabled opacity now all come from <Button variant="primary">.
+  //
+  // ⚠️ THIS RING IS LOAD-BEARING, NOT DECORATION. The primary fill is
+  // terracotta[400] #C24F25 and this lane is sage[600] #5C7350: the button's own
+  // boundary measures 1.1033:1 against the card it sits on. That is not a text
+  // failure — the white label is 4.7308:1 and reads fine — it is a SHAPE failure:
+  // red-on-green with no luminance step, which is precisely the pair that
+  // collapses under red-green colour blindness. Without a ring the button's edge
+  // would vanish for those users and only the floating white text would mark it.
+  //
+  // #FFFFFF is `Palette.button.primary.text` — the label and the edge are ONE
+  // value, so the boundary cannot drift from the type. It reads on both sides:
+  //   ring vs the sage lane       5.2197
+  //   ring vs the terracotta fill 4.7308
+  // Same principle the A1 tokens already apply to Cook Mode quantities, where
+  // weight backs up colour "so the emphasis survives colorblindness and
+  // bright-kitchen glare". Do not delete this to "clean up" the button.
+  //
+  // It rides `style` (a ViewStyle) rather than a new Button VARIANT because the
+  // ring is specific to a primary sitting on a COLOURED surface — every other
+  // primary in the app is on paper or a white card, where it would be noise.
+  prepCtaOnSage: {
+    borderWidth: 1,
+    borderColor: Palette.button.primary.text,
   },
 
   // this week's meals

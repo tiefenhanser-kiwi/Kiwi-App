@@ -180,16 +180,26 @@ export function PlanReviewMealRow({
               ("no description available", first line of the steps, …) — 61% of
               live meals have none because the wizard writer does not populate
               it (BUG-156), and a fallback would hide that on device. */}
-          {/* WS9 BUG-158 — TWO lines here, and that is a DELIBERATE DIVERGENCE
-              from MealRow.tsx:82, which stays at one. Reusing MealRow's
-              structure and token was right and still holds; line count is a
-              per-surface decision, not part of the shared pattern. At one line
-              a description clipped mid-word ("…sliced thin in warm tortill…")
-              on a row whose job is helping you pick the meal. Noted here rather
-              than forking the component. ⚠️ Do NOT "restore" this to 1 for
-              consistency with MealRow — the divergence is the ruling. */}
+          {/* WS9 BUG-158 → BUG-197 — THREE lines here, and the count is a
+              per-surface decision, not a shared pattern. Line count went 1 → 2
+              (BUG-158) → 3 (BUG-197, Hans on device: "the cards should get
+              bigger to accommodate a third line. we need to be able to see it
+              all").
+              ⚠️ THIS IS NOT A CLIP FIX AND THERE WAS NEVER A CLIP — two searches
+              over this file and its only caller found no overflow:hidden and no
+              height/maxHeight anywhere that could cap the row. The row always
+              grew to fit; it was simply told to render fewer lines than the text
+              needed. Do not go looking for a constraint to remove.
+              Why three and not two: catalog descriptions run a median 149 chars
+              (D-WS9-124), roughly 3.7 lines at this width — two lines showed
+              about half a description on the screen where you decide whether to
+              keep the meal.
+              ⚠️ THE OTHER TWO SURFACES STAY AT 2 AND MUST NOT BE HARMONISED:
+              AddMealsSheet (not raised by Hans) and MealRow / My Recipes, where
+              he ruled two and declined three in the same sentence — "maybe 3,
+              but it's a lot of text on the card". */}
           {row.description ? (
-            <Text style={styles.description} numberOfLines={2}>
+            <Text style={styles.description} numberOfLines={3}>
               {row.description}
             </Text>
           ) : null}
@@ -360,20 +370,22 @@ const styles = StyleSheet.create({
   titlePressable: {
     flex: 1,
   },
-  // ⚠️ WS9 BUG-197 — alignItems "center" -> "flex-start", and READ THE REPORT
-  // BEFORE ASSUMING THIS FIXED A CLIP. Two differently shaped searches over this
-  // component AND its only caller (app/plan/[id].tsx) found NO overflow:hidden,
-  // NO height, NO maxHeight on the card, this row, or textCol — the only fixed
-  // heights in the file are the 56px thumb and the 32px day pills, and neither
-  // caps the row. There is no clipping constraint in the code to remove.
+  // WS9 BUG-197 — alignItems "center" -> "flex-start".
   //
-  // What WAS wrong: "center" cross-aligns a text column that now runs to a
-  // 3-line title plus a 2-line description against a 56px thumbnail, so the
-  // thumb floats at the vertical middle of a tall column and the text reads as
-  // mis-set. flex-start top-aligns them, which is the correct treatment for a
-  // growing column beside a fixed thumb. If Hans still sees the second line
-  // clipped after this, the cause is NOT in this file and the screenshot is
-  // needed — do not go on adding heights here hoping to hit it.
+  // ⚠️ THERE IS NO CLIP IN THIS FILE AND THIS DOES NOT FIX ONE. Two differently
+  // shaped searches over this component AND its only caller (app/plan/[id].tsx)
+  // found NO overflow:hidden, NO height, NO maxHeight on the card, this row, or
+  // textCol — the only fixed heights are the 56px thumb and the 32px day pills,
+  // and neither caps the row. The row has always grown to fit its content; the
+  // description was simply capped at fewer lines than the text needed, which
+  // BUG-197 fixed by raising numberOfLines to 3.
+  //
+  // What "center" got wrong is separate and real: it cross-aligns a text column
+  // running to a 3-line title plus a 3-line description against a 56px
+  // thumbnail, so the thumb floats at the vertical middle of a tall column and
+  // the text reads as mis-set. flex-start top-aligns them, which is the correct
+  // treatment for a growing column beside a fixed thumb — and it matters more
+  // now that the column is taller.
   bodyRow: {
     flexDirection: "row",
     gap: Spacing[3],
