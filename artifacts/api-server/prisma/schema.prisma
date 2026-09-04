@@ -789,6 +789,23 @@ model Meal {
   // generated ingredients and STAMPS the array. A hard retrieval filter on
   // this column is deliberately DEFERRED — this is stamp-only for now.
   allergens            String[]        @default([])
+  // D-WS9-214 — stamp metadata. See the migration for the full rationale.
+  //
+  // allergensStampedAt: when this row was last evaluated against the vocabulary
+  // in lib/allergens.ts. NULL = never stamped. This is what the retrieval filter
+  // now tests instead of `allergens.isEmpty`, which let a verified-clean meal
+  // (derives to no tokens) look identical to an unknown one and cost 64 pool
+  // dinners their visibility to every allergic user. It also answers the
+  // question a sentinel value could not: not whether a row is clean, but which
+  // VOCABULARY it was clean under — so the next vocabulary change re-stamps the
+  // stale rows instead of all 1,578.
+  //
+  // allergenSources: token -> the ingredient displayNames that caused it.
+  // Written in the same UPDATE. Load-bearing for the option-(c) hybrid, where
+  // it records whether a token came from the word list or the model pass.
+  // DATA CAPTURE ONLY — authorizes no substitution work (D-WS9-204 stands).
+  allergensStampedAt   DateTime?
+  allergenSources      Json?
   // Plan-Gen Arc · Block 3 (D-WS9-045) — the catalog "dish family" key: a slug
   // of the TARGET DISH a batch_generated meal was generated against (e.g.
   // "classic-cheeseburger"). Dedup keys on THIS, not the generated title

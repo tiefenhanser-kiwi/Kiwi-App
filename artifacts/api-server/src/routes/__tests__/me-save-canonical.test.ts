@@ -143,6 +143,14 @@ function makeStub(opts: StubOpts = {}) {
         captured.mealCreates.push(args.data);
         return { id: `meal-${nextMealId++}` };
       },
+      // D-WS9-214 — materializeMeal now ends with stampAllergens. THIS is the
+      // path that makes URL import, image import, text paste and every meal
+      // builder mode stamp, so the save-canonical harness has to model its two
+      // reads. Distinguished only by `select`.
+      findUnique: async (args: { select?: Record<string, unknown> }) =>
+        args.select && "dishLinks" in args.select
+          ? { dishLinks: [] }
+          : { allergens: [], allergenSources: null, allergensStampedAt: null },
       update: async (args: {
         where: { id: string };
         data: Record<string, unknown>;
@@ -768,9 +776,16 @@ describe("WS7-6 Fix-Block 3: meal-row macros = Σ dish per-serving macros", () =
       });
       assert.equal(res.status, 201);
 
-      // One Meal.update must land — recomputeAndPersistMealMacros.
-      assert.equal(captured.mealUpdates.length, 1, "exactly one Meal.update after dish writes");
-      const update = captured.mealUpdates[0];
+      // ⚠️ D-WS9-214 — was `mealUpdates.length === 1`. materializeMeal now
+      // issues a SECOND Meal.update (the allergen stamp), so a raw count no
+      // longer identifies the macro write and, worse, would have to be bumped
+      // by anyone adding a third. This test is about the MACRO aggregation, so
+      // select the macro update by its content and assert on that.
+      const macroUpdates = captured.mealUpdates.filter(
+        (u) => "caloriesPerServing" in u.data,
+      );
+      assert.equal(macroUpdates.length, 1, "exactly one macro Meal.update after dish writes");
+      const update = macroUpdates[0];
       assert.equal(update.id, "meal-1");
       assert.equal(update.data.caloriesPerServing, 350, "Hans's 50+100+200 = 350");
       assert.equal(update.data.proteinGPerServing, 31);
@@ -807,8 +822,12 @@ describe("WS7-6 Fix-Block 3: meal-row macros = Σ dish per-serving macros", () =
         ],
       });
       assert.equal(res.status, 201);
-      assert.equal(captured.mealUpdates.length, 1);
-      assert.equal(captured.mealUpdates[0].data.caloriesPerServing, 0);
+      // D-WS9-214 — select the macro update by content; see the sibling test.
+      const macroUpdates = captured.mealUpdates.filter(
+        (u) => "caloriesPerServing" in u.data,
+      );
+      assert.equal(macroUpdates.length, 1);
+      assert.equal(macroUpdates[0].data.caloriesPerServing, 0);
     } finally {
       await harness.close();
     }

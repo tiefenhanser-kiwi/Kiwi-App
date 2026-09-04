@@ -43,6 +43,7 @@ import type { Prisma, SourceType } from "@prisma/client";
 import { type IngredientMention } from "./ingredientResolve";
 import { recomputeAndPersistMealMacros } from "./mealMacros";
 import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
+import { stampAllergens } from "./allergens";
 
 // ── payload shape ───────────────────────────────────────────────────────
 //
@@ -445,6 +446,24 @@ export async function materializeMeal(
   // create above set from payload.macros — the sum is the truth.
   await recomputeAndPersistMealMacros(tx, meal.id);
 
+  // D-WS9-214 — derive the allergen stamp from the graph just written.
+  //
+  // ⚠️ THIS IS THE LINE THAT MAKES IMPORT AND THE MEAL BUILDER STAMP. Every
+  // meal from a URL import, an image import, a text paste or Mode A/B/C of the
+  // builder lands here, via POST /me/meals. Before this, `allergens` came in at
+  // create time as `payload.allergens ?? []` — a PASSTHROUGH, not a derivation —
+  // and the only caller that ever filled it was the store-fill harness. Every
+  // user-created meal therefore took the `[]` branch and carried no stamp.
+  //
+  // Deriving from the PERSISTED GRAPH rather than from `payload.allergens` is
+  // deliberate even for the harness, which supplies correct tokens: the graph is
+  // what every other stamping path reads, so one meal cannot end up stamped
+  // against a different input than its neighbour. The two agree — the harness
+  // derives from the same names — so this is a no-op for it, and it collapses
+  // two sources of truth into one. `payload.allergens` survives only as the
+  // initial value on the create above, which this immediately reconciles.
+  await stampAllergens(tx, meal.id);
+
   return { mealId: meal.id, dishIds, linksCreated };
 }
 
@@ -817,6 +836,17 @@ export async function rematerializeMeal(
   // meal-row macros with the sum of the now-linked dishes' per-serving
   // values. Honors Hans's formula; ignores any payload.macros value.
   await recomputeAndPersistMealMacros(tx, mealId);
+
+  // D-WS9-214 — re-stamp after wipe-and-recreate.
+  //
+  // ⚠️ BEYOND THE LETTER OF THE BRIEF, AND FLAGGED AS SUCH. The ruling named the
+  // CREATE paths; this is the EDIT path. It is here because an edit is precisely
+  // what invalidates a stamp: a user adding cheese to a meal they imported makes
+  // the stored `dairy`-free stamp actively wrong, and a wrong stamp is worse
+  // than a missing one — the missing one fails closed, the wrong one serves the
+  // meal to the allergic user. Same argument, same seam, two lines below the
+  // macro recompute that already exists for the identical reason.
+  await stampAllergens(tx, mealId);
 
   return { mealId, dishIds, linksCreated };
 }

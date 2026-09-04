@@ -26,6 +26,7 @@ import { inferCategory, resolveIngredients } from "./ingredientResolve";
 import { recomputeAndPersistMealMacros } from "./mealMacros";
 import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
 import { forkMealForUser, publishMealToStore } from "./mealFork";
+import { stampAllergens } from "./allergens";
 import type { WizardSavePlan } from "./wizardSavePlan";
 
 // WS7-6 Block 2: inferCategory now lives in ingredientResolve.ts so the new
@@ -373,6 +374,25 @@ export async function materializeWizardDraft(
       // WS7-6 Fix-Block 3 (Bug 3): roll the per-dish per-serving macros up to
       // the meal row as a simple sum (Hans's ruling — see mealMacros.ts).
       await recomputeAndPersistMealMacros(tx, meal.id);
+
+      // D-WS9-214 — stamp the LIVE-BUILT meal, not just the pool copy.
+      //
+      // publishMealToStore below already stamps (via cloneMealInto), so the
+      // shared-pool copy has always been correct. The user-owned original
+      // created above never was: this is the single largest unstamped
+      // population in the database — 201 wizard meals, 100% unstamped, still
+      // growing as of 2026-09-01.
+      //
+      // Nothing allergen-filtered reads a user-owned meal TODAY (the one hard
+      // filter, store/allergenFilter.ts, runs only inside buildStoreShortlist,
+      // whose pool predicate is isPublic:true), so this is correctness-for-later
+      // rather than a live hole — stated plainly so nobody re-derives it. It is
+      // here because it is free and because the day a cookbook or swap surface
+      // starts filtering, the backfill would otherwise be discovered late.
+      //
+      // Placed next to the macro recompute for the same reason that one is
+      // here: both read the graph the loop above just wrote.
+      await stampAllergens(tx, meal.id);
       mealId = meal.id;
 
       // Write-back (D-WS7-201): publish a pool copy stamped live_writeback so a

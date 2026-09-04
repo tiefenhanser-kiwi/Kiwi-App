@@ -88,6 +88,21 @@ export function allergenWhereConditions(tokens: string[]): Prisma.MealWhereInput
   if (tokens.length === 0) return [];
   return [
     { NOT: { allergens: { hasSome: tokens } } },
-    { allergens: { isEmpty: false } },
+    // D-WS9-214 — was `{ allergens: { isEmpty: false } }`.
+    //
+    // The conservative rule is unchanged: unknown is still excluded. What
+    // changed is how "unknown" is spelled. An empty `allergens` array meant BOTH
+    // "we derived this meal and it contains none of the ten allergens" and "we
+    // never looked", so the safe reading of the second sense silently condemned
+    // the first: 64 verified-clean public dinners were invisible to every
+    // allergic user, among them a Coconut Chickpea Curry — precisely the meal a
+    // dairy-free user opens the app for.
+    //
+    // `allergensStampedAt` separates the two. NULL means never evaluated and is
+    // still excluded; non-NULL with an empty array means evaluated and clean,
+    // and is now admitted. Note this is strictly SAFER than what it replaces as
+    // well as more generous: a row whose stamp was cleared by a bad write used
+    // to look "clean and empty" and pass, and now reads as never-stamped.
+    { allergensStampedAt: { not: null } },
   ];
 }

@@ -17,6 +17,8 @@ interface CreateMealRecorder {
   mealDishLinkCreates: Array<{ data: Record<string, unknown> }>;
   dishIngredientCreates: Array<{ data: Record<string, unknown> }>;
   stepCreates: Array<{ data: Record<string, unknown> }>;
+  /** D-WS9-214 — the allergen stamp UPDATE this path now issues. */
+  mealStamps?: Array<Record<string, unknown>>;
 }
 
 function makeTx(opts: {
@@ -35,8 +37,21 @@ function makeTx(opts: {
 
   return {
     meal: {
-      findUnique: async () =>
-        opts.sourceMealExists !== false
+      // D-WS9-214 — createMealWithDishes now ends with stampAllergens, which
+      // issues its OWN two findUnique calls against the meal it just wrote. They
+      // are told apart from the source-meal read by their `select`, so the stub
+      // branches on it rather than returning the source shape to everything.
+      findUnique: async (args: { select?: Record<string, unknown> }) => {
+        if (args.select && "dishLinks" in args.select) {
+          // The new meal's graph. Empty is fine: these tests assert the row
+          // shape createMealWithDishes writes, not the allergen derivation
+          // (allergens.test.ts owns that).
+          return { dishLinks: [] };
+        }
+        if (args.select && "allergens" in args.select) {
+          return { allergens: [], allergenSources: null, allergensStampedAt: null };
+        }
+        return opts.sourceMealExists !== false
           ? {
               title: "Source Meal",
               description: "src desc",
@@ -48,11 +63,18 @@ function makeTx(opts: {
               difficulty: "medium",
               tags: ["a"],
             }
-          : null,
+          : null;
+      },
       create: async (args: { data: Record<string, unknown> }) => {
         recorder.mealCreates.push(args);
         mealCounter += 1;
         return { id: `new-meal-${mealCounter}` };
+      },
+      // The stamp write. Recorded rather than dropped so a test can assert the
+      // path stamps at all.
+      update: async (args: { data: Record<string, unknown> }) => {
+        recorder.mealStamps?.push(args.data);
+        return {};
       },
     },
     mealDishLink: {

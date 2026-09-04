@@ -244,6 +244,12 @@ function makeStubs(opts: {
       // the aggregated per-serving macros. No-op in this test — assertions
       // here focus on the Template-pair shape, not macro values.
       update: async () => ({}),
+      // D-WS9-214 — the live-built meal is now stamped right after the macro
+      // recompute, which needs its own two reads. Branch on `select`.
+      findUnique: async (args: { select?: Record<string, unknown> }) =>
+        args.select && "dishLinks" in args.select
+          ? { dishLinks: [] }
+          : { allergens: [], allergenSources: null, allergensStampedAt: null },
     },
     dish: {
       create: async (args: { data: Record<string, unknown> }) => {
@@ -892,7 +898,22 @@ function makeStoreStubs() {
     // No prefs row here → the store fork keeps the source's authored servings.
     userPreferences: { findUnique: async () => null },
     meal: {
-      findUnique: async (args: { where: { id: string } }) => sourceMealGraph(args.where.id),
+      // D-WS9-214 — this stub serves BOTH the fork path (which reads the source
+      // meal's full graph by id) and stampAllergens (which reads the new meal's
+      // dishLinks, then its stored stamp). Only the `select` tells them apart.
+      findUnique: async (args: {
+        where: { id: string };
+        select?: Record<string, unknown>;
+      }) => {
+        if (args.select && "allergens" in args.select) {
+          return { allergens: [], allergenSources: null, allergensStampedAt: null };
+        }
+        const graph = sourceMealGraph(args.where.id);
+        // A meal id the fork stub doesn't know is the just-created live meal;
+        // hand back an empty graph rather than null, which stampAllergens would
+        // read as "meal missing".
+        return graph ?? { dishLinks: [] };
+      },
       create: async (args: { data: Record<string, unknown> }) => {
         captured.mealCreates.push(args.data);
         return { id: `meal-${mealCounter++}` };

@@ -140,6 +140,15 @@ function makeStub(opts: StubOpts = {}) {
         where: { id: string };
         select?: Record<string, boolean>;
       }) => {
+        // D-WS9-214 — rematerializeMeal ends with stampAllergens, whose two
+        // reads are told apart from the route's own meal lookups by `select`.
+        // Answered explicitly rather than falling through to the meal row: that
+        // returned an object with no `dishLinks`, which stampAllergens correctly
+        // treats as a partial graph and warns about on every patch test.
+        if (args.select && "dishLinks" in args.select) return { dishLinks: [] };
+        if (args.select && "allergens" in args.select) {
+          return { allergens: [], allergenSources: null, allergensStampedAt: null };
+        }
         const m = meals.find((row) => row.id === args.where.id);
         return m ? { ...m } : null;
       },
@@ -631,15 +640,31 @@ describe("PATCH /me/meals/:id (dishes wipe-and-recreate)", () => {
       assert.equal(captured.linkDeleteMany.length, 1);
       assert.equal(captured.linkCreates.length, 1);
 
-      // Scalar update on the meal row also happened. WS7-6 Fix-Block 3
-      // adds a SECOND meal.update at the end of rematerializeMeal that
-      // writes the aggregated per-serving macros (sum of dish macros).
-      // First update = scalar patch; second = Block-3 macro aggregation.
-      assert.equal(captured.mealUpdates.length, 2);
-      assert.equal(captured.mealUpdates[0].data.title, "Patched");
-      // The second update writes per-serving macro fields; with default
-      // 0-macro dish rows in this stub it lands as 0 (honest aggregation).
-      assert.equal(captured.mealUpdates[1].data.caloriesPerServing, 0);
+      // Scalar update on the meal row also happened. rematerializeMeal appends
+      // its own writes after it: WS7-6 Fix-Block 3 added the macro aggregation,
+      // and D-WS9-214 added the allergen re-stamp (an edit is exactly what
+      // invalidates a stamp — a user adding cheese must not leave a stale
+      // dairy-free one behind).
+      //
+      // ⚠️ SELECTED BY CONTENT, NOT BY POSITION. This assertion has now been
+      // broken twice by a new write landing in the same array — the comment it
+      // replaces was itself the patch for the first time. Indexing
+      // `mealUpdates[1]` encodes "how many writes exist today", which is not
+      // what the test is about.
+      const scalarUpdate = captured.mealUpdates.find((u) => "title" in u.data);
+      const macroUpdate = captured.mealUpdates.find(
+        (u) => "caloriesPerServing" in u.data,
+      );
+      const stampUpdate = captured.mealUpdates.find(
+        (u) => "allergensStampedAt" in u.data,
+      );
+      assert.ok(scalarUpdate, "the scalar patch must land");
+      assert.equal(scalarUpdate.data.title, "Patched");
+      // The macro update writes per-serving fields; with default 0-macro dish
+      // rows in this stub it lands as 0 (honest aggregation).
+      assert.ok(macroUpdate, "the Block-3 macro aggregation must land");
+      assert.equal(macroUpdate.data.caloriesPerServing, 0);
+      assert.ok(stampUpdate, "the D-WS9-214 allergen re-stamp must land on edit");
 
       // New dish written.
       assert.equal(captured.dishCreates.length, 1);

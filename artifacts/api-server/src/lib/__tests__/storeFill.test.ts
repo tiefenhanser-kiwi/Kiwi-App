@@ -470,6 +470,13 @@ describe("materializeMeal via STORE_FILL_TARGET", () => {
       meal: {
         create: async ({ data }: { data: Record<string, unknown> }) => { createdMeals.push(data); return { id: "meal-1" }; },
         update: async () => ({}),
+        // D-WS9-214 — materializeMeal now ends with stampAllergens, which reads
+        // the persisted graph and then the stored stamp. Branch on `select`:
+        // the two reads are distinguishable only by it.
+        findUnique: async (args: { select?: Record<string, unknown> }) =>
+          args.select && "dishLinks" in args.select
+            ? { dishLinks: [] }
+            : { allergens: [], allergenSources: null, allergensStampedAt: null },
       },
       dish: { create: async () => ({ id: `dish-${dishSeq++}` }) },
       mealDishLink: { create: async () => ({}), findMany: async () => [] },
@@ -531,7 +538,15 @@ describe("materializeMeal via STORE_FILL_TARGET", () => {
     const createdDishes: Array<Record<string, unknown>> = [];
     let dishSeq = 0;
     const fakeTx = {
-      meal: { create: async () => ({ id: "meal-1" }), update: async () => ({}) },
+      meal: {
+        create: async () => ({ id: "meal-1" }),
+        update: async () => ({}),
+        // D-WS9-214 — see the sibling stub above.
+        findUnique: async (args: { select?: Record<string, unknown> }) =>
+          args.select && "dishLinks" in args.select
+            ? { dishLinks: [] }
+            : { allergens: [], allergenSources: null, allergensStampedAt: null },
+      },
       dish: { create: async ({ data }: { data: Record<string, unknown> }) => { createdDishes.push(data); return { id: `dish-${dishSeq++}` }; } },
       mealDishLink: { create: async () => ({}), findMany: async () => [] },
       dishIngredient: { create: async () => ({}) },

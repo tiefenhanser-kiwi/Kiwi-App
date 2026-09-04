@@ -22,7 +22,12 @@ export const DirectedInputSchema = z.object({
     .enum(["mostly_easy", "mixed", "one_fancy_night", "minimal_effort"])
     .optional(),
   eatingStyles: z.array(z.string()).default([]),
-  allergiesAndAvoidances: z.array(z.string()).default([]),
+  // BUG-201 / D-WS9-214 — OPTIONAL WITH NO DEFAULT. Same fix and same reason as
+  // WizardInputSchema (ai/schemas/wizard.ts): `.default([])` collapsed "the Tell
+  // Kiwi screen never loaded stored prefs" into "the user has no allergies", and
+  // the route then ran the shelf query with no allergen filter at all.
+  // resolveAllergenPreference must be able to see the absence.
+  allergiesAndAvoidances: z.array(z.string()).optional(),
   dietaryNotes: z.string().max(500).optional(),
   // Cookbook Phase B Block 4 (D-WS7-035) — per-run overrides. Optional, NO
   // default (see WizardInputSchema note): omitted means "use stored". The

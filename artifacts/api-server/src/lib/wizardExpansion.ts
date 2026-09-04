@@ -17,7 +17,10 @@ import { estimateDishMacros } from "./dishMacros";
 import { lookupIngredientsByName } from "./ingredientLookup";
 import { ingredientCanonicalKey, toEffectiveIngredient } from "./overrideResolver";
 import { logger } from "./logger";
-import { resolveEffectivePreferences } from "./wizardPreferences";
+import {
+  resolveAllergenPreference,
+  resolveEffectivePreferences,
+} from "./wizardPreferences";
 import { runAICall as productionRunAICall } from "./ai/runAICall";
 import { composeStoreMealDetails } from "./store/storeMealDetails";
 import {
@@ -117,11 +120,31 @@ export async function expandCandidate(
     maxCookTimeMinutes: ctx.maxCookTimeMinutes,
     maxCookTimeCoverage: ctx.maxCookTimeCoverage,
   });
+  // BUG-201 / D-WS9-214 — resolve the allergen list here too.
+  //
+  // 🔴 THIS IS THE HALF OF BUG-201 THAT MATTERS MOST, and it was not in the
+  // original report. Everything above resolves the three PREFERENCE fields
+  // server-side because "expand is where ingredients are AUTHORED" — and that
+  // argument applies with far more force to allergies than to sauce sourcing.
+  // Generate only picks meal titles; expand writes the ingredient list. A lost
+  // allergy at generate costs the user a bad suggestion; a lost allergy HERE
+  // puts the allergen in the recipe.
+  //
+  // Until now this file did not mention allergiesAndAvoidances at all: whatever
+  // the client echoed on candidateContext was the last word, and the schema's
+  // `.default([])` meant an omitted field arrived as a confident empty list.
+  const resolvedAllergens = await resolveAllergenPreference(
+    opts.prisma,
+    opts.userId,
+    ctx.allergiesAndAvoidances,
+    { route: "wizard.expand" },
+  );
   const serverCandidateContext: WizardExpandRequest["candidateContext"] = {
     ...ctx,
     saucePreference: resolved.saucePreference,
     maxCookTimeMinutes: resolved.maxCookTimeMinutes,
     maxCookTimeCoverage: resolved.maxCookTimeCoverage,
+    allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
   };
 
   // Plan-Gen Arc Block 2 (D-WS9-038) — store-slot compose. For a slot the AI

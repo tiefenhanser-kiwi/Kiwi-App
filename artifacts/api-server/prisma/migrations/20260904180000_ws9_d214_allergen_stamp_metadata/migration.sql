@@ -1,0 +1,83 @@
+-- WS9 D-WS9-214 — allergen stamp METADATA: when it was stamped, and by what.
+--
+-- Two columns, one migration, because they are written by the same UPDATE in
+-- stampAllergens() and neither is useful without the other.
+--
+-- ── allergensStampedAt ──────────────────────────────────────────────────────
+--
+-- The retrieval filter is conservative: with any declared allergy, a meal must
+-- carry a NON-EMPTY stamp or it is excluded (store/allergenFilter.ts). That
+-- rule cannot tell "derived to nothing, verified clean" from "never derived",
+-- so 64 genuinely allergen-free pool dinners are invisible to every allergic
+-- user — including a Coconut Chickpea Curry, exactly the meal a dairy-free user
+-- is looking for.
+--
+-- ⚠️ THE JUSTIFICATION IS VOCABULARY CHURN, NOT THAT AMBIGUITY. Measured
+-- 2026-09-04 across all 1,578 Meal rows: ZERO rows lack an ingredient graph, so
+-- every unstamped row is in fact verified-clean and the "unknown" case the
+-- conservative rule guards against does not exist in the data. A sentinel token
+-- (`["none"]`) would have unblocked those 64 for one line and no migration.
+--
+-- The column earns itself on the OTHER question. The vocabulary in
+-- lib/allergens.ts has now changed three times (D-WS9-211, D-WS9-214, and the
+-- re-scan inside D-WS9-214), and Hans's option (c) hybrid will change it a
+-- fourth time by adding model-derived tokens. A sentinel records THAT a row was
+-- clean. Only a timestamp records WHICH VOCABULARY it was clean under — which
+-- turns "re-stamp all 1,578 rows and hope" into "re-stamp exactly the rows
+-- stamped before <date>". That is the query, and it is why this is a column.
+--
+-- ── allergenSources ─────────────────────────────────────────────────────────
+--
+-- token -> the ingredient displayNames that caused it:
+--   {"wheat": ["store-bought pizza dough"], "dairy": ["fresh mozzarella"]}
+--
+-- Free to produce: deriveAllergensForMeal already iterates (name x token) and
+-- simply discarded the name half. Three things it buys:
+--   1. It makes the gap audit a QUERY. Every defect this block fixed —
+--      mayonnaise, pizza dough, brioche, teriyaki — was found by re-deriving
+--      1,192 meals in a throwaway script. With provenance stored, "which names
+--      produce which tokens, and which produce none" is a read.
+--   2. It makes an over-stamp answerable. "Why is this curry missing from my
+--      dairy-free shelf" becomes one row lookup instead of a re-derivation.
+--   3. ⚠️ It is LOAD-BEARING for the option-(c) hybrid, which is the reason it
+--      is not deferred. The hybrid unions a deterministic word list with a
+--      model pass, and the union is only auditable if each token records which
+--      mechanism produced it. This column is where that goes.
+--
+-- JSONB, not a normalized MealAllergenSource join table: nothing will ever
+-- query BY source ingredient across meals, the map is always read whole with
+-- its meal, and a join table turns one free write into N inserts inside the
+-- plan-activation transaction.
+--
+-- ⚠️ DATA CAPTURE ONLY. This authorizes no substitution mechanism. D-WS9-204's
+-- prohibition on expressing substitution through an IngredientRelation label is
+-- untouched and nothing here goes near it.
+--
+-- Both columns are NULLABLE with no default, so this migration is additive and
+-- every existing row stays valid.
+ALTER TABLE "meals"
+  ADD COLUMN "allergensStampedAt" TIMESTAMP(3),
+  ADD COLUMN "allergenSources"    JSONB;
+
+-- Backfill: every row that already carries a non-empty stamp was, by
+-- definition, stamped.
+--
+-- ⚠️ THIS BACKFILL IS NOT OPTIONAL AND MUST SHIP IN THE SAME MIGRATION. The
+-- filter clause changes from `allergens.isEmpty = false` to
+-- `allergensStampedAt IS NOT NULL` in the same commit. Add the columns without
+-- this UPDATE and every row reads NULL, so the new clause excludes the ENTIRE
+-- pool from every allergic user until the backfill script runs. With it, the
+-- moment this migration completes behaviour is byte-identical to today's, and
+-- the backfill script is then a pure improvement rather than a repair.
+--
+-- cardinality() rather than array_length(x, 1): array_length returns NULL for
+-- an empty array, which reads as a bug even when the comparison is correct.
+UPDATE "meals"
+  SET "allergensStampedAt" = NOW()
+  WHERE cardinality("allergens") > 0;
+
+-- The 64 verified-clean rows are deliberately NOT backfilled here: SQL cannot
+-- tell them from never-stamped rows without running the derivation. The
+-- D-WS9-214 backfill script stamps them, along with `allergenSources` for every
+-- row. Until it runs, they stay excluded — which is exactly today's behaviour,
+-- so this migration is safe to deploy on its own.

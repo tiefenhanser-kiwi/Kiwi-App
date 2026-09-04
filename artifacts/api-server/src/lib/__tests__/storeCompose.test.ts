@@ -15,6 +15,7 @@ import {
   buildStoreShortlist,
   reconcileStoreSlots,
 } from "../store/storeShortlist";
+import { allergenWhereConditions } from "../store/allergenFilter";
 import type { WizardPlanCandidate } from "../ai/schemas/wizard";
 
 // ── config (D-WS9-037 / D-WS9-075) ────────────────────────────────────────
@@ -184,10 +185,13 @@ describe("buildStoreShortlist", () => {
       allergiesAndAvoidances: ["Dairy-free"],
     });
     const where = whereArgs[0] as Record<string, unknown>;
-    assert.deepEqual(where.AND, [
-      { NOT: { allergens: { hasSome: ["dairy"] } } },
-      { allergens: { isEmpty: false } },
-    ]);
+    // ⚠️ Compared against the LIVE output of allergenWhereConditions, not a
+    // copy of it. This test's job is that buildStoreShortlist actually applies
+    // the filter; WHAT the filter says is allergenFilter's own contract, and it
+    // is pinned behaviourally in storeShortlistHelpers.test.ts. Restating the
+    // clause here (as this did before D-WS9-214) made the same rule editable in
+    // two places and turned a real semantic change into a spelling mismatch.
+    assert.deepEqual(where.AND, allergenWhereConditions(["dairy"]));
 
     const { prisma: p2, whereArgs: w2 } = stubPrisma([mealRow()]);
     await buildStoreShortlist(p2, BASE);

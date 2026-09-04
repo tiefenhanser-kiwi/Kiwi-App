@@ -13,6 +13,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { lookupIngredientByName } from "./ingredientLookup";
+import { stampAllergens } from "./allergens";
 
 export interface RecipeOverrideForCreate {
   titleOverride?: string;
@@ -177,6 +178,18 @@ export async function createMealWithDishes(
       });
     }
   }
+
+  // D-WS9-214 — stamp allergens from the graph this function just wrote.
+  //
+  // Placed LAST on purpose: stampAllergens reads the persisted DishIngredient
+  // rows, so it has to run after the dish loop above, not next to meal.create.
+  //
+  // This path (recipe-override promote, from plans.ts) previously set no
+  // `allergens` at all and took the schema default `[]`. Under Hans's ruling —
+  // "let's just have all the meals have all the data" — every path that mints a
+  // Meal stamps, whether or not the row is public. Free: pure string matching,
+  // no AI call, one UPDATE inside a transaction already writing dozens of rows.
+  await stampAllergens(tx, newMeal.id);
 
   return { mealId: newMeal.id };
 }

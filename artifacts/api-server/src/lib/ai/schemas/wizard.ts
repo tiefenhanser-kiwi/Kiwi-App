@@ -58,7 +58,16 @@ export const WizardInputSchema = z.object({
   wantsLeftovers: z.boolean().optional().default(false),
   cuisines: z.array(z.string()).default([]),
   eatingStyles: z.array(z.string()).default([]),
-  allergiesAndAvoidances: z.array(z.string()).default([]),
+  // BUG-201 / D-WS9-214 — OPTIONAL WITH NO DEFAULT, for exactly the reason the
+  // four per-run override fields below carry no default. `.default([])` made an
+  // ABSENT allergen field indistinguishable from a user who deliberately
+  // cleared their chips, and the route resolved both to "no allergies" — which
+  // returned no tokens from allergenTokensForUser, which made
+  // allergenWhereConditions return NO conditions, which ran the shelf query
+  // with the hard allergen filter switched off. Keep `.optional()`:
+  // resolveAllergenPreference (lib/wizardPreferences.ts) needs to SEE the
+  // absence to fall back to stored prefs, and a default erases it before it can.
+  allergiesAndAvoidances: z.array(z.string()).optional(),
   difficulty: z.enum(["easy", "medium", "fancy"]),
   weeklyPacing: z.enum([
     "mostly_easy",
@@ -163,7 +172,15 @@ export const WizardExpandCandidateContextSchema = z.object({
   planDurationDays: z.number().int().min(1).max(7),
   householdSize: z.number().int().min(1).max(30),
   wantsLeftovers: z.boolean(),
-  allergiesAndAvoidances: z.array(z.string()).default([]),
+  // BUG-201 / D-WS9-214 — see WizardInputSchema above.
+  //
+  // 🔴 EXPAND IS THE HALF THAT MATTERS MOST and it was not in the original bug
+  // report. Generate only picks meal TITLES; expand authors the actual
+  // INGREDIENT LISTS, so a lost allergy here is what puts wheat in the bowl.
+  // wizardExpansion.ts re-authors saucePreference / maxCookTime* from stored
+  // prefs but never referenced allergiesAndAvoidances at all, so a client echo
+  // of `[]` was the last word. It now resolves through the same helper.
+  allergiesAndAvoidances: z.array(z.string()).optional(),
   eatingStyles: z.array(z.string()).default([]),
   difficulty: z.enum(["easy", "medium", "fancy"]),
   // Cookbook Phase B Block 2 (D-WS7-197) — server-authoritative generation

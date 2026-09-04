@@ -24,6 +24,7 @@ import {
   lookupConversion,
   lookupPurchaseDefault,
 } from "../../src/lib/ingredientConversions";
+import { stampAllergens } from "../../src/lib/allergens";
 
 if (process.env.NODE_ENV === "production") {
   throw new Error(
@@ -902,6 +903,12 @@ async function seedMeal(userId: string, m: DevMeal): Promise<void> {
           isTimingSensitive: step.isTimingSensitive,
         })),
       });
+
+      // D-WS9-214 — stamp allergens from the graph this transaction wrote.
+      // These dev meals are seeded isPublic:true, so they are pool members and
+      // an unstamped one is excluded from every allergic user's shelf. Last in
+      // the transaction because it reads the dishIngredient rows above.
+      await stampAllergens(tx, m.mealId);
     },
     { timeout: 30_000 },
   );
@@ -1042,6 +1049,10 @@ async function seedMultiDishMeal(
           })),
         });
       }
+
+      // D-WS9-214 — see the single-dish seeder above. Same reason; this one
+      // spans several dishes, and stampAllergens reads the whole meal graph.
+      await stampAllergens(tx, m.mealId);
     },
     { timeout: 30_000 },
   );

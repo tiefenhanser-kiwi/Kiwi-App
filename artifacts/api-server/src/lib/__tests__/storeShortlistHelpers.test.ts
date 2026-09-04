@@ -107,12 +107,83 @@ describe("allergenFilter", () => {
     assert.deepEqual(allergenTokensForUser(["Mushrooms", "Strong cheese"]), []);
   });
 
-  it("builds the conservative WHERE conditions only when there are tokens", () => {
+  it("builds no conditions at all when the user has no mapped allergy", () => {
     assert.deepEqual(allergenWhereConditions([]), []);
-    assert.deepEqual(allergenWhereConditions(["dairy"]), [
-      { NOT: { allergens: { hasSome: ["dairy"] } } },
-      { allergens: { isEmpty: false } },
-    ]);
+  });
+
+  // ── D-WS9-214: verified-clean vs never-stamped ─────────────────────────────
+  //
+  // ⚠️ THESE ASSERT BEHAVIOUR, NOT THE CLAUSE LITERAL. The previous version of
+  // this test deepEqual'd the emitted objects, which pinned the spelling and
+  // nothing else — it would have stayed green through any rewrite that kept the
+  // same shape and gone red on a purely cosmetic one. What matters is which
+  // MEALS survive, so the conditions are evaluated against candidate rows.
+  //
+  // A deliberately tiny interpreter for the two clause shapes this function
+  // emits. If a future change emits a third shape it throws rather than
+  // silently passing everything, which is the failure mode that would make
+  // these tests worthless.
+  const admits = (
+    conditions: ReturnType<typeof allergenWhereConditions>,
+    meal: { allergens: string[]; allergensStampedAt: Date | null },
+  ): boolean =>
+    conditions.every((c) => {
+      const cond = c as Record<string, unknown>;
+      if (cond.NOT) {
+        const tokens = (cond.NOT as { allergens: { hasSome: string[] } }).allergens.hasSome;
+        return !meal.allergens.some((a) => tokens.includes(a));
+      }
+      if (cond.allergensStampedAt) return meal.allergensStampedAt !== null;
+      throw new Error(`unrecognized clause shape: ${JSON.stringify(c)}`);
+    });
+
+  const STAMPED = new Date("2026-09-04T00:00:00Z");
+
+  it("a stamped-but-EMPTY meal passes — verified clean is not unknown", () => {
+    // The 64 pool dinners this unblocks. Before D-WS9-214 the clause was
+    // `allergens.isEmpty === false`, which excluded them: derived, carrying no
+    // allergen, and invisible to every allergic user anyway. A Coconut Chickpea
+    // Curry was among them — the exact meal a dairy-free user opens the app for.
+    const conds = allergenWhereConditions(["dairy"]);
+    assert.equal(
+      admits(conds, { allergens: [], allergensStampedAt: STAMPED }),
+      true,
+      "a meal derived to no allergens must reach an allergic user",
+    );
+  });
+
+  it("a NEVER-stamped meal is still excluded — the conservative rule survives", () => {
+    const conds = allergenWhereConditions(["dairy"]);
+    assert.equal(
+      admits(conds, { allergens: [], allergensStampedAt: null }),
+      false,
+      "unknown is not safe; an unstamped meal must stay excluded",
+    );
+  });
+
+  it("a meal carrying the user's allergen is excluded even when stamped", () => {
+    const conds = allergenWhereConditions(["dairy"]);
+    assert.equal(admits(conds, { allergens: ["dairy"], allergensStampedAt: STAMPED }), false);
+    assert.equal(admits(conds, { allergens: ["wheat"], allergensStampedAt: STAMPED }), true);
+  });
+
+  it("is STRICTLY SAFER than the old clause on a cleared stamp", () => {
+    // A row whose allergens array was emptied by a bad write used to read as
+    // "clean and empty" and pass. With no timestamp it now reads as never
+    // stamped and fails closed.
+    const conds = allergenWhereConditions(["dairy"]);
+    assert.equal(admits(conds, { allergens: [], allergensStampedAt: null }), false);
+  });
+
+  it("Gluten-free excludes a barley meal AND a beer meal", () => {
+    // End-to-end through the mapping: the chip resolves to two tokens, and the
+    // D-WS9-214 `beer -> gluten` term is what makes the second one work.
+    const conds = allergenWhereConditions(allergenTokensForUser(["Gluten-free"]));
+    assert.equal(admits(conds, { allergens: ["gluten"], allergensStampedAt: STAMPED }), false);
+    assert.equal(admits(conds, { allergens: ["wheat"], allergensStampedAt: STAMPED }), false);
+    // …while Wheat-free admits the barley dish. The asymmetry is the point.
+    const wheatOnly = allergenWhereConditions(allergenTokensForUser(["Wheat-free"]));
+    assert.equal(admits(wheatOnly, { allergens: ["gluten"], allergensStampedAt: STAMPED }), true);
   });
 });
 

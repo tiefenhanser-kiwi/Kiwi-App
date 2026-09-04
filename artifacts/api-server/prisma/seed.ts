@@ -6,6 +6,7 @@
 import { PrismaClient } from "@prisma/client";
 
 import { normalizeAliasKey } from "../src/lib/ingredientLookup";
+import { stampAllergens } from "../src/lib/allergens";
 import { seedAIPrompts } from "./seeds/aiPrompts";
 import { seedSystemSettings } from "./seeds/systemSettings";
 
@@ -659,6 +660,13 @@ async function main() {
             phaseType: "cook",
           })),
         });
+
+        // D-WS9-214 — stamp allergens from the graph this transaction wrote.
+        // Curated seed meals are isPublic:true, i.e. they land straight in the
+        // shared pool, so an unstamped one is invisible to every allergic user
+        // from the moment it is seeded. Must run after the dishIngredient
+        // createMany above — it reads those rows.
+        await stampAllergens(tx, mealId);
 
         console.log(
           `seeded ${mealId}: ${recipe.ingredients.length} ingredients, ${recipe.steps.length} steps`,

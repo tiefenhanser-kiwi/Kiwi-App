@@ -14,8 +14,118 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { deriveAllergens, deriveAllergensFromNames, stampAllergens } from "../allergens";
+import {
+  deriveAllergens,
+  deriveAllergensFromNames,
+  deriveAllergensWithSources,
+  stampAllergens,
+} from "../allergens";
 import { publishMealToStore } from "../mealFork";
+
+// ── D-WS9-214: the PROCESSED-PRODUCT class ───────────────────────────────────
+//
+// Every defect below is one shape: an ingredient made OF an allergen whose name
+// contains no allergen word. The previous two rounds fixed words-in-the-name
+// (`parmigiano` contains no "cheese"; `rigatoni` contains no "pasta"). These
+// are not that — no amount of widening `egg` reaches `Mayonnaise` — which is
+// why they were invisible to three rounds of vocabulary work and why the
+// option-(c) model ceiling exists for the ones a word list cannot enumerate.
+//
+// ⚠️ Counts are MEASURED public dinners as of 2026-09-04, not estimates.
+describe("deriveAllergensFromNames — processed products (measured 2026-09-04)", () => {
+  it("mayonnaise stamps egg — 136 meals carried it with NO egg stamp", () => {
+    const out = deriveAllergensFromNames(["Mayonnaise", "green cabbage", "Carrots"]);
+    assert.ok(out.includes("egg"), "mayonnaise is egg");
+    // And it is NOT dairy. Ruled explicitly: mayonnaise is oil and yolk.
+    assert.ok(!out.includes("dairy"), "mayonnaise must not stamp dairy");
+    assert.deepEqual(out, ["egg"]);
+  });
+
+  it("bare 'mayo' stamps egg too — the catalog has 'Greek yogurt or mayo'", () => {
+    const out = deriveAllergensFromNames(["Greek yogurt or mayo"]);
+    // Both, from one name: the yogurt half is dairy and the mayo half is egg.
+    assert.deepEqual(out, ["dairy", "egg"]);
+  });
+
+  it("pizza dough stamps wheat — TWO PIZZAS WERE ON A LIVE GLUTEN-FREE SHELF", () => {
+    // `Margherita Pizza Night` and `Sausage, Pepper, and Onion Pizza` both
+    // reached a coeliac's shortlist: the vocabulary had `flour`, `bread` and
+    // every pasta shape, but never the word for raw dough.
+    assert.ok(deriveAllergensFromNames(["store-bought pizza dough"]).includes("wheat"));
+    assert.ok(deriveAllergensFromNames(["Pizza dough"]).includes("wheat"));
+    assert.ok(deriveAllergensFromNames(["refrigerated pie dough rounds"]).includes("wheat"));
+  });
+
+  it("brioche stamps egg AND dairy AND wheat — one ingredient, three allergens", () => {
+    // ⚠️ Not a duplication to tidy up. Brioche is enriched dough: butter and egg
+    // in a wheat bread. Egg and dairy are separate allergens and stay separate.
+    const out = deriveAllergensFromNames(["brioche burger buns"]);
+    assert.ok(out.includes("egg"), "brioche is egg");
+    assert.ok(out.includes("dairy"), "brioche is dairy");
+    assert.ok(out.includes("wheat"), "brioche is wheat");
+  });
+
+  it("beer stamps gluten and NOT wheat — barley, and the two chips differ", () => {
+    // A coeliac must not be served it; someone merely avoiding wheat may drink
+    // it. Folding beer into `wheat` would lose that distinction, which is the
+    // entire reason the two tokens exist.
+    const out = deriveAllergensFromNames(["lager beer"]);
+    assert.ok(out.includes("gluten"), "beer is gluten");
+    assert.ok(!out.includes("wheat"), "beer is barley, not wheat");
+    assert.ok(deriveAllergensFromNames(["Guinness stout"]).includes("gluten"));
+  });
+
+  it("kale and guanciale never stamp gluten — the raw-mode trap for beer words", () => {
+    // ⚠️ THIS TEST WAS ONCE VACUOUS AND THE BREAK-IT PASS IS WHAT CAUGHT IT.
+    // It was written believing \bale\b matches `guanciale` and `Kale`, so that
+    // adding `ale` to the gluten terms would turn it red. Adding `ale` left it
+    // GREEN: word mode anchors both ends and the preceding letter is a word
+    // character, so no boundary exists. The assertion was true for a reason
+    // unrelated to what it claimed to guard.
+    //
+    // It is kept, rewritten, because the danger is real one layer down: the
+    // `fish` token already uses `mode: "raw"`, so switching a token to raw
+    // substring matching is an established move in this file — and under raw
+    // mode a beer word list WOULD swallow all four of these real catalog names.
+    // That is what this now pins. Verified red by flipping `gluten` to
+    // `mode: "raw"`.
+    for (const n of ["guanciale", "Kale", "lacinato kale", "curly kale", "fresh lacinato kale"]) {
+      assert.ok(
+        !deriveAllergensFromNames([n]).includes("gluten"),
+        `${n} must not stamp gluten`,
+      );
+    }
+  });
+
+  it("root beer and ginger beer are sodas — the guard holds", () => {
+    assert.deepEqual(deriveAllergensFromNames(["root beer"]), []);
+    assert.deepEqual(deriveAllergensFromNames(["ginger beer"]), []);
+  });
+
+  it("teriyaki and hoisin stamp BOTH soy and wheat — they are soy sauce", () => {
+    // Not a new product-knowledge claim: `soy sauce -> wheat` already shipped.
+    // `Teriyaki sauce` previously derived NOTHING AT ALL.
+    assert.deepEqual(deriveAllergensFromNames(["Teriyaki sauce"]), ["soy", "wheat"]);
+    assert.deepEqual(deriveAllergensFromNames(["hoisin sauce"]), ["soy", "wheat"]);
+  });
+
+  it("the remaining measured gaps: cream soups, hummus, dashi, pesto, roti", () => {
+    assert.ok(deriveAllergensFromNames(["condensed cream of mushroom soup"]).includes("wheat"));
+    assert.ok(deriveAllergensFromNames(["store-bought hummus"]).includes("sesame"));
+    assert.ok(deriveAllergensFromNames(["dashi powder"]).includes("fish"));
+    assert.ok(deriveAllergensFromNames(["basil pesto"]).includes("tree_nut"));
+    assert.ok(deriveAllergensFromNames(["frozen roti paratha"]).includes("wheat"));
+    assert.ok(deriveAllergensFromNames(["au jus gravy mix"]).includes("wheat"));
+    assert.ok(deriveAllergensFromNames(["frozen potato and cheese pierogis"]).includes("wheat"));
+  });
+
+  it("the new terms did not break the old false-positive guards", () => {
+    // `dough` must not reach a gluten-free dough; `mayo` must not reach a vegan
+    // one. Both guards are removal-direction rules and worth pinning.
+    assert.ok(!deriveAllergensFromNames(["gluten-free pizza dough"]).includes("wheat"));
+    assert.ok(!deriveAllergensFromNames(["vegan mayonnaise"]).includes("egg"));
+  });
+});
 
 describe("deriveAllergensFromNames — substring false positives (measured 2026-09-04)", () => {
   it("eggplant does NOT stamp egg — 'eggplant'.includes('egg') was true (2 meals)", () => {
@@ -148,21 +258,40 @@ describe("deriveAllergens — payload adapter", () => {
 
 // ── the stamping paths ───────────────────────────────────────────────────────
 
+interface StampWrite {
+  id: string;
+  allergens: string[];
+  allergenSources: Record<string, string[]>;
+  allergensStampedAt: Date;
+}
+
 /** Minimal tx stub exposing only what stampAllergens touches. */
-function stampTxStub(names: string[], existing: string[] = []) {
-  const writes: { id: string; allergens: string[] }[] = [];
+function stampTxStub(
+  names: string[],
+  existing: string[] = [],
+  // D-WS9-214 — the stored METADATA, which the skip now also consults. Defaults
+  // to the pre-D-WS9-214 shape (no timestamp, no sources).
+  meta: { stampedAt?: Date | null; sources?: Record<string, string[]> | null } = {},
+) {
+  const writes: StampWrite[] = [];
   const tx = {
     meal: {
       findUnique: async (args: { select?: Record<string, unknown> }) => {
-        if (args.select && "allergens" in args.select) return { allergens: existing };
+        if (args.select && "allergens" in args.select) {
+          return {
+            allergens: existing,
+            allergenSources: meta.sources ?? null,
+            allergensStampedAt: meta.stampedAt ?? null,
+          };
+        }
         return {
           dishLinks: [
             { dish: { dishIngredients: names.map((n) => ({ ingredient: { displayName: n } })) } },
           ],
         };
       },
-      update: async (args: { where: { id: string }; data: { allergens: string[] } }) => {
-        writes.push({ id: args.where.id, allergens: args.data.allergens });
+      update: async (args: { where: { id: string }; data: Omit<StampWrite, "id"> }) => {
+        writes.push({ id: args.where.id, ...args.data });
         return {};
       },
     },
@@ -175,14 +304,82 @@ describe("stampAllergens — reads the persisted graph", () => {
     const { tx, writes } = stampTxStub(["dried spaghetti", "pecorino romano"]);
     const out = await stampAllergens(tx as never, "m1");
     assert.deepEqual(out, ["dairy", "wheat"]);
-    assert.deepEqual(writes, [{ id: "m1", allergens: ["dairy", "wheat"] }]);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].id, "m1");
+    assert.deepEqual(writes[0].allergens, ["dairy", "wheat"]);
   });
 
-  it("is idempotent — no UPDATE when the stamp is already correct", async () => {
-    const { tx, writes } = stampTxStub(["dried spaghetti"], ["wheat"]);
+  it("is idempotent — no UPDATE when the stamp AND its metadata are already correct", async () => {
+    // D-WS9-214 — the skip now requires all three to match. Reproducing the
+    // sources here from the real derivation rather than hand-writing the map is
+    // the point: a hand-written literal would still pass if the derivation
+    // stopped recording provenance.
+    const names = ["dried spaghetti"];
+    const { sources } = deriveAllergensWithSources(names);
+    const { tx, writes } = stampTxStub(names, ["wheat"], {
+      stampedAt: new Date("2026-09-04T00:00:00Z"),
+      sources,
+    });
     const out = await stampAllergens(tx as never, "m1");
     assert.deepEqual(out, ["wheat"]);
     assert.equal(writes.length, 0, "a correct stamp must issue no write");
+  });
+
+  it("re-stamps a row whose TOKENS are right but which has no stamp timestamp", async () => {
+    // The whole pre-D-WS9-214 catalog is in this state: correct tokens, NULL
+    // metadata. Skipping it would leave `allergensStampedAt` null forever, and
+    // the filter clause now excludes exactly those rows — so the "already
+    // correct, nothing to do" shortcut would have made every stamped meal in
+    // the pool invisible.
+    const { tx, writes } = stampTxStub(["dried spaghetti"], ["wheat"], { stampedAt: null });
+    await stampAllergens(tx as never, "m1");
+    assert.equal(writes.length, 1, "a null stampedAt must defeat the skip");
+    assert.ok(writes[0].allergensStampedAt instanceof Date);
+  });
+
+  it("force re-stamps an already-correct row, refreshing the timestamp", async () => {
+    // What the batch pass uses. Without it the timestamp means "when the stamp
+    // last CHANGED", so a row re-verified unchanged under a new vocabulary keeps
+    // its old date and a "re-stamp everything older than X" sweep never
+    // converges.
+    const names = ["dried spaghetti"];
+    const { sources } = deriveAllergensWithSources(names);
+    const old = new Date("2026-01-01T00:00:00Z");
+    const { tx, writes } = stampTxStub(names, ["wheat"], { stampedAt: old, sources });
+    await stampAllergens(tx as never, "m1", { force: true });
+    assert.equal(writes.length, 1, "force must write even when nothing changed");
+    assert.ok(
+      writes[0].allergensStampedAt.getTime() > old.getTime(),
+      "force must move the timestamp forward",
+    );
+  });
+
+  it("records PROVENANCE — which ingredient caused which token", async () => {
+    const { tx, writes } = stampTxStub([
+      "store-bought pizza dough",
+      "fresh mozzarella",
+      "Mayonnaise",
+    ]);
+    await stampAllergens(tx as never, "m1");
+    const src = writes[0].allergenSources;
+    // Read the live value; do not restate the map as a literal.
+    assert.deepEqual(Object.keys(src).sort(), writes[0].allergens);
+    assert.deepEqual(src.wheat, ["store-bought pizza dough"]);
+    assert.deepEqual(src.dairy, ["fresh mozzarella"]);
+    assert.deepEqual(src.egg, ["Mayonnaise"]);
+  });
+
+  it("provenance records EVERY cause of a token, not just the first", async () => {
+    // The token-only derivation may stop testing a token once anything has
+    // matched it. If deriveAllergensWithSources inherited that short-circuit,
+    // "which ingredients make this wheat" would answer with one of three.
+    const { sources, tokens } = deriveAllergensWithSources([
+      "dried spaghetti",
+      "store-bought pizza dough",
+      "panko breadcrumbs",
+    ]);
+    assert.deepEqual(tokens, ["wheat"]);
+    assert.equal(sources.wheat.length, 3, "all three causes must be recorded");
   });
 
   it("returns null for a missing meal", async () => {

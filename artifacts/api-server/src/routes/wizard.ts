@@ -71,6 +71,7 @@ import {
   type RecentRotation,
 } from "../lib/planningContext";
 import {
+  resolveAllergenPreference,
   resolveEffectivePreferences,
   type ResolvedPreferences,
 } from "../lib/wizardPreferences";
@@ -630,12 +631,27 @@ export function createWizardRouter(
           ...excludeMealTitles,
         ],
       };
+      // BUG-201 / D-WS9-214 — resolve the allergen list against stored prefs.
+      // `aiInput.allergiesAndAvoidances` is now `string[] | undefined`: absent
+      // means the wizard screen never hydrated, and MUST fall back to stored
+      // rather than being read as "no allergies". Resolved once and used for
+      // BOTH the prompt input below and the shelf retrieval — the two must never
+      // disagree about what the user is allergic to.
+      const resolvedAllergens = await resolveAllergenPreference(
+        prisma,
+        userId,
+        aiInput.allergiesAndAvoidances,
+        { route: "wizard.build_plans" },
+      );
+
       const wizardInput: WizardInput & {
         planningContext: Omit<PlanningContext, "recentMeals">;
         preferencesContext: PreferencesContext;
         recentRotation: RecentRotation;
       } = {
         ...aiInput,
+        // AFTER the spread on purpose — this overwrites the raw client field.
+        allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
         hiddenContext,
         planningContext: planningContextForPrompt,
         preferencesContext,
@@ -651,7 +667,11 @@ export function createWizardRouter(
       //     empty shelf (fully-live) rather than 500.
       const storeShortlist = await retrieveShelf(prisma, {
         cuisines: aiInput.cuisines ?? [],
-        allergiesAndAvoidances: aiInput.allergiesAndAvoidances ?? [],
+        // BUG-201 — the RESOLVED list, not `aiInput.… ?? []`. The old `?? []`
+        // is what turned an absent field into zero allergen tokens, which made
+        // allergenWhereConditions return no conditions at all and ran this
+        // query with the hard filter disabled.
+        allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
         difficulty: aiInput.difficulty,
         userId,
         excludeMealIds: hiddenContext?.recentMealIds,
@@ -997,6 +1017,18 @@ export function createWizardRouter(
       // 4. Inject hidden context from the user's profile.
       const hiddenContext = await buildHiddenContext(userId);
 
+      // BUG-201 / D-WS9-214 — resolve the allergen list once, HERE, before the
+      // first AI call. Tell Kiwi consumes it in three places (parse_intent,
+      // generate, and the shelf retrieval) and they must all see the same list:
+      // a parse step told the user has no allergies can classify the request in
+      // a way the later steps then faithfully honour.
+      const resolvedAllergens = await resolveAllergenPreference(
+        prisma,
+        userId,
+        directed.allergiesAndAvoidances,
+        { route: "wizard.tell_kiwi" },
+      );
+
       // 5. Step 1 — parse intent.
       const parseInput = {
         userInput: directed.description,
@@ -1004,7 +1036,7 @@ export function createWizardRouter(
         householdSize: directed.householdSize,
         wantsLeftovers: directed.wantsLeftovers,
         eatingStyles: directed.eatingStyles,
-        allergiesAndAvoidances: directed.allergiesAndAvoidances,
+        allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
         dietaryNotes: directed.dietaryNotes ?? "",
         // Hidden context is informational at parse time too — helps the
         // parser apply unclear-clarifications that respect dietary state.
@@ -1105,7 +1137,8 @@ export function createWizardRouter(
         cuisines: directed.cuisines,
         weeklyPacing: directed.weeklyPacing,
         eatingStyles: directed.eatingStyles,
-        allergiesAndAvoidances: directed.allergiesAndAvoidances,
+        // BUG-201 — resolved, not raw. See the resolution above.
+        allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
         dietaryNotes: directed.dietaryNotes ?? "",
         hiddenContext,
         planningContext: planningContextForPrompt,
@@ -1122,7 +1155,9 @@ export function createWizardRouter(
       });
       const storeShortlist = await retrieveShelf(prisma, {
         cuisines: directed.cuisines ?? [],
-        allergiesAndAvoidances: directed.allergiesAndAvoidances ?? [],
+        // BUG-201 — resolved, not `?? []`. See build-plans for why that
+        // fallback disabled the hard filter rather than tightening it.
+        allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
         difficulty: tkPrefs?.difficultyDefault ?? "easy",
         userId,
         excludeMealIds: hiddenContext?.recentMealIds,
