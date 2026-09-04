@@ -18,7 +18,13 @@ import { Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 // and because two surfaces need the identical cell (Plan Review's action panel
 // and Home's ActivePlanStrip panel). §27.2: extend the primitive, do not
 // hand-roll the same Pressable twice.
-type Variant = "primary" | "secondary" | "ghost" | "tint";
+// WS9 (Sept 4, D-WS9-207 Part 2) — `outlineOnSage` is likewise a VARIANT and
+// not a per-screen override, for the same reason `tint` is: the label has to go
+// CREAM, and Button derives its label colour from VARIANTS, which a ViewStyle
+// `style` prop cannot reach. It is the quiet half of the two-CTA pair inside
+// the Prep-the-Week lane. §27.2: extend the primitive, do not hand-roll the
+// same Pressable a third time.
+type Variant = "primary" | "secondary" | "ghost" | "tint" | "outlineOnSage";
 
 // WS9-2 2e (D-WS9-157) — size scale. The plan-review action panel needs one
 // cell (Compost) rendered visually SMALLER than its four peers, and the ruling
@@ -126,6 +132,11 @@ const VARIANTS: Record<
     bg: Palette.button.tint.background,
     text: Palette.button.tint.text,
     border: Palette.button.tint.border,
+  },
+  outlineOnSage: {
+    bg: Palette.button.outlineOnSage.background,
+    text: Palette.button.outlineOnSage.text,
+    border: Palette.button.outlineOnSage.border,
   },
 };
 

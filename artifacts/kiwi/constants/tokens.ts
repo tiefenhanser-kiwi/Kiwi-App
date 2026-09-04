@@ -176,6 +176,27 @@ export const Palette = {
       text:       '#F4F1E6',
       hover:      Colors.sage[700],
     },
+    // WS9 (Sept 4) — the quiet CTA for INSIDE a sage[600] lane. Transparent
+    // fill + cream edge + cream label, so it reads as a subordinate peer of the
+    // terracotta primary sitting above it in the same lane rather than
+    // competing with it.
+    //
+    // ⚠️ THIS IS WHY `secondary` COULD NOT BE USED THERE. secondary fills with
+    // neutral[0] #ffffff, which against sage[600] #5C7350 measures 5.2197:1 —
+    // LOUDER than the terracotta primary's own 1.1033:1 fill separation (the
+    // primary separates by HUE, which is why it needs its white ring at all).
+    // A white block beside it would make the SECONDARY the loudest object in
+    // the lane and invert the hierarchy. `ghost` is not an out either: its
+    // neutral[900] label on sage[600] is 2.7401:1, under the AA floor.
+    //
+    // Cream #FBF7EF on sage[600] is 4.8848:1 — AA for the label, and the same
+    // ink as the lane's own title, so the two read as one family.
+    outlineOnSage: {
+      background: 'transparent',
+      text:       '#FBF7EF',
+      border:     '#FBF7EF',
+      hover:      Colors.sage[500],
+    },
     ghost: {
       background: 'transparent',
       text:       Colors.neutral[900],

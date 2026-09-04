@@ -258,7 +258,17 @@ export function PrepWeekScreen({
         <Header showBack title={headerTitle} onBack={onExit} />
         <View style={s.center}>
           <ActivityIndicator color={Colors.sage[700]} />
-          <Text style={s.muted}>Kiwi is combining your week’s prep…</Text>
+          {/* WS9 (Sept 4, D-WS9-207 Part 2) — two versions, because the two runs
+              are not the same wait. MEASURED: a selected-meals subset ran 35-41s,
+              a full week 64-75s. One "about a minute" over both either
+              over-promises the full week or makes the subset feel slow for no
+              reason. The full-week string is UNCHANGED — it is the one already
+              on screen, and the subset is the new case. */}
+          <Text style={s.muted}>
+            {isSubset
+              ? "Kiwi is combining your selected meals… about 30 seconds"
+              : "Kiwi is combining your week’s prep… about a minute"}
+          </Text>
         </View>
       </View>
     );

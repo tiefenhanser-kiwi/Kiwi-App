@@ -18,7 +18,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
 import { PrepCookHubView } from "../PrepCookHubView";
-import { Palette } from "@/constants/tokens";
+import { Colors, Palette } from "@/constants/tokens";
 import {
   buildPrepCookHubModel,
   type HubModel,
@@ -609,6 +609,36 @@ function resolvedStyle(node: RenderedNode): Record<string, unknown> {
   ) as Record<string, unknown>;
 }
 
+// D-WS9-207 Part 2 — helpers for the rewritten hierarchy guard.
+function findAllByType(
+  node: RenderedNode | string | null,
+  type: string,
+  out: RenderedNode[] = [],
+): RenderedNode[] {
+  if (node == null || typeof node === "string") return out;
+  if (node.type === type) out.push(node);
+  if (Array.isArray(node.children)) {
+    for (const c of node.children) findAllByType(c, type, out);
+  }
+  return out;
+}
+
+/** The first node whose RESOLVED style paints the given background. */
+function findByBackground(
+  node: RenderedNode | string | null,
+  color: string,
+): RenderedNode | null {
+  if (node == null || typeof node === "string") return null;
+  if (resolvedStyle(node).backgroundColor === color) return node;
+  if (Array.isArray(node.children)) {
+    for (const c of node.children) {
+      const hit = findByBackground(c, color);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 function findAllByRole(
   node: RenderedNode | string | null,
   role: string,
@@ -730,6 +760,48 @@ test("WS9: ticking a row's checkbox selects that meal and does NOT launch Cook M
   renderer.unmount();
 });
 
+// D-WS9-207 Part 2 (Sept 4) — the tick now carries a label. It has to, because
+// the CTA it feeds moved up into the sage lane and no longer sits beside it.
+// The label must be INSIDE the checkbox's own Pressable: a caption outside it
+// would be a word you can tap and have nothing happen, on a row whose other tap
+// target launches Cook Mode.
+test("WS9: each tick carries a 'Prep This Meal' label INSIDE its own tap target", () => {
+  const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
+  const toggled: string[] = [];
+  const renderer = render(model, {
+    onToggleMealSelected: (id: string) => toggled.push(id),
+  });
+  const tree = renderer.toJSON() as RenderedNode | null;
+
+  // One label per meal row, not one for the screen.
+  const labels = gatherText(tree).filter((t) => t === "Prep This Meal");
+  assert.equal(
+    labels.length,
+    model.meals.length,
+    `expected one label per meal row (${model.meals.length}), got ${labels.length}`,
+  );
+
+  // ⚠️ Read from the CHECKBOX outward, not from the label inward:
+  // findPressableByText returns the OUTERMOST pressable containing the text,
+  // which on this row is the Cook-Mode row itself — it would pass even if the
+  // label sat outside the tick entirely. Each accessibilityRole="checkbox"
+  // target must contain the words.
+  const boxes = findAllByRole(tree, "checkbox");
+  assert.equal(boxes.length, model.meals.length, "one checkbox per meal row");
+  for (const box of boxes) {
+    assert.ok(
+      gatherText(box).includes("Prep This Meal"),
+      "a tick target does not contain its own label",
+    );
+  }
+  // …and pressing that target selects rather than opening Cook Mode.
+  act(() => {
+    ((boxes[0].props as { onPress: () => void }).onPress)();
+  });
+  assert.equal(toggled.length, 1, "pressing the tick toggled the selection");
+  renderer.unmount();
+});
+
 test("WS9: a ticked checkbox reports checked, an unticked one does not", () => {
   const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
   const renderer = render(model, { selectedMealIds: new Set(["m1"]) });
@@ -747,7 +819,14 @@ test("WS9: a ticked checkbox reports checked, an unticked one does not", () => {
 // This reads BOTH buttons' RENDERED fills and asserts they route through
 // different Palette entries — it does not restate a hex against itself, and it
 // does not pass if the two buttons happen to share a variant.
-test("WS9: Prep the Week stays dominant — the subset CTA renders the SECONDARY treatment", () => {
+//
+// ⚠️ REWRITTEN, D-WS9-207 Part 2 (Sept 4). The two CTAs are now in the SAME
+// lane, so "different position" is no longer available to carry the hierarchy
+// and the whole load falls on the weights. The guard therefore got stricter,
+// not looser: it pins that the subset CTA is UNFILLED (the lane shows through),
+// that it is neither of the two treatments explicitly ruled out — a white fill
+// or a white ring — and that both buttons really are inside the sage lane.
+test("WS9: Prep the Week stays dominant — filled primary over an UNFILLED peer, both in the sage lane", () => {
   const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
   const renderer = render(model, { selectedMealIds: new Set(["m1"]) });
   const tree = renderer.toJSON() as RenderedNode | null;
@@ -759,15 +838,39 @@ test("WS9: Prep the Week stays dominant — the subset CTA renders the SECONDARY
   const pStyle = resolvedStyle(primary);
   const sStyle = resolvedStyle(secondary);
 
+  // Weight 1: terracotta FILL.
   assert.equal(pStyle.backgroundColor, Palette.button.primary.background);
-  assert.equal(sStyle.backgroundColor, Palette.button.secondary.background);
-  // The connection under test: the two CTAs are NOT the same treatment.
+  // Weight 2: no fill at all, so the sage lane reads through it.
+  assert.equal(sStyle.backgroundColor, "transparent");
   assert.notEqual(pStyle.backgroundColor, sStyle.backgroundColor);
 
-  // …and the subset CTA carries the secondary EDGE, not the sage lane's white
-  // ring. The ring exists only to give a terracotta fill a boundary against
-  // sage[600]; this button sits on the page, where it would be wrong.
-  assert.equal(sStyle.borderColor, Palette.button.secondary.border);
+  // ⚠️ THE TWO TREATMENTS RULED OUT BY NAME. A white FILL would out-shout the
+  // terracotta (neutral[0] on sage[600] is 5.2197:1 against the primary fill's
+  // 1.1033:1 hue-only separation). A white RING is the PRIMARY's device, for
+  // giving a terracotta fill an edge against sage; on an unfilled button it
+  // would just read as a second ring of the same colour.
+  assert.notEqual(sStyle.backgroundColor, Palette.button.secondary.background);
   assert.notEqual(sStyle.borderColor, Palette.button.primary.text);
+  // Cream edge — the same ink as the lane's own title, 4.8817:1 on sage[600].
+  assert.equal(sStyle.borderColor, Palette.text.inverse);
+  assert.equal(sStyle.borderColor, "#FBF7EF");
+
+  // …and the label is cream too, not the neutral[900] a `ghost` would give
+  // (2.7401:1 on sage[600], under the AA floor).
+  const sLabel = findAllByType(secondary, "rn-text")[0];
+  assert.ok(sLabel, "the subset CTA renders a label");
+  assert.equal(resolvedStyle(sLabel).color, Palette.text.inverse);
+
+  // PLACEMENT: both CTAs are inside the sage[600] lane. Read by walking DOWN
+  // from the lane view rather than by trusting document order, so a button that
+  // drifts back onto the page goes red here.
+  const lane = findByBackground(tree, Colors.sage[600]);
+  assert.ok(lane, "the sage lane renders");
+  const laneText = flat(lane);
+  assert.ok(laneText.includes("Prep the Week"), "primary is in the lane");
+  assert.ok(
+    laneText.includes("Prep Selected Meals"),
+    "the subset CTA is NOT in the sage lane",
+  );
   renderer.unmount();
 });

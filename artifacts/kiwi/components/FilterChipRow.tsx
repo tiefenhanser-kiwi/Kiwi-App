@@ -77,9 +77,23 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     borderWidth: 1,
   },
+  // WS9 D-WS9-208 (Sept 4, Hans: "I like the other sage used in onboarding and
+  // preferences better") — sage[700] #3a5235 comes DOWN to sage[600] #5C7350,
+  // the value Palette.chip.selected already carries. A selected filter chip and
+  // a selected preference chip are the same object at two sizes; they were two
+  // greens.
+  //
+  // ⚠️ HARMONISED DOWNWARD, WHICH IS THE DIRECTION HANS PICKED. The white label
+  // goes 8.6128:1 -> 5.2197:1 against the new fill: still clear of the 4.5:1 AA
+  // floor for this 12px semibold label, and the same measurement Palette.chip
+  // already documents for its own selected state.
+  //
+  // NOT switched to <Chip>: that primitive is a different control — larger
+  // padding (Spacing[2] vs 6), fontSize.sm vs .xs, and a horizontal ScrollView
+  // is not its layout. This row shares the chip COLOUR, not the chip component.
   chipOn: {
-    backgroundColor: Colors.sage[700],
-    borderColor: Colors.sage[700],
+    backgroundColor: Colors.sage[600],
+    borderColor: Colors.sage[600],
   },
   chipOff: {
     backgroundColor: Palette.background.card,

@@ -344,41 +344,40 @@ function Hub({
               onPress={onPrepWeek}
               style={s.prepCtaOnSage}
             />
+
+            {/* WS9 (Sept 4, D-WS9-207 Part 2) — Prep Selected Meals now lives
+                INSIDE this lane, directly under Prep the Week.
+
+                ⚠️ THIS REVERSES A MEASURED PLACEMENT, DELIBERATELY AND ON
+                HANS'S CALL. The previous note here was right about the tokens
+                and wrong about the conclusion. `secondary` fills with
+                neutral[0] #ffffff, which against sage[600] #5C7350 measures
+                5.2197:1, while the terracotta primary's own fill separates
+                from that sage by only 1.1033:1 (by HUE, which is why it needs
+                its white ring). So a white-FILLED secondary here really would
+                have been the loudest object in the lane — but that argued
+                against the white FILL, not against the position. The
+                resolution is two WEIGHTS in one place, not two positions:
+                terracotta filled above, cream outlined below.
+
+                `outlineOnSage` (new Button variant): transparent fill, so the
+                lane shows through and nothing competes with the terracotta;
+                cream #FBF7EF edge and label at 4.8848:1 on sage[600], AA, and
+                the same ink as the lane's own title. No white fill and no
+                white ring — the ring exists only to give a terracotta fill a
+                boundary against sage, and an outlined button IS its boundary. */}
+            <Button
+              label="Prep Selected Meals"
+              variant="outlineOnSage"
+              disabled={selectedCount === 0}
+              onPress={onPrepSelected}
+            />
+            <Text style={s.subsetHint}>
+              {selectedCount === 0
+                ? "Only cooking part of the week? Tick the meals below and prep just those."
+                : `${selectedCount} of ${model.meals.length} selected — Kiwi will build a prep plan for just these.`}
+            </Text>
           </View>
-        </View>
-
-        {/* WS9 — Prep Selected Meals. The subordinate half of a two-CTA pair.
-            §27.2: the SAME <Button> primitive as Prep the Week, one variant
-            down; nothing hand-rolled.
-
-            ⚠️ PLACEMENT IS DELIBERATE AND MEASURED — this sits on the PAGE
-            (neutral[100]), NOT inside the sage lane above it. The block spec
-            asked for it in the lane with the white ring, and the token values
-            refuse: `secondary` fills with neutral[0] #ffffff, which against the
-            lane's sage[600] #5C7350 measures 5.2197:1, while the primary
-            terracotta[400] fill against that same sage measures 1.1033:1. The
-            primary separates from its lane by HUE, not luminance — that is why
-            it needs the white ring at all. Dropping a white block beside it
-            would make the SECONDARY the loudest object in the lane and invert
-            the very hierarchy the spec demands ("Prep the Week must stay the
-            visually dominant action"). `ghost` is not an out either: its
-            neutral[900] label on sage[600] is 2.7401:1, under the 4.5:1 AA
-            floor. On the page the same secondary reads correctly — 1.0686:1
-            fill (quiet), neutral[400] edge for definition, 14.3029:1 label —
-            and needs no ring, since the ring exists only to give a terracotta
-            fill an edge against sage. */}
-        <View style={s.subsetBlock}>
-          <Button
-            label="Prep Selected Meals"
-            variant="secondary"
-            disabled={selectedCount === 0}
-            onPress={onPrepSelected}
-          />
-          <Text style={s.subsetHint}>
-            {selectedCount === 0
-              ? "Only cooking part of the week? Tick the meals below and prep just those."
-              : `${selectedCount} of ${model.meals.length} selected — Kiwi will build a prep plan for just these.`}
-          </Text>
         </View>
 
         {/* Cook a meal — the lane is now a text prompt over this-week's meals;
@@ -423,8 +422,18 @@ function Hub({
                   }
                   style={({ pressed }) => pressed && { opacity: 0.6 }}
                 >
-                  <View style={[s.selectBox, selected && s.selectBoxOn]}>
-                    {selected && <Text style={s.selectMark}>✓</Text>}
+                  {/* WS9 (Sept 4, D-WS9-207 Part 2) — the box now says what it
+                      does. Prep Selected Meals moved up into the sage lane, so
+                      the CTA no longer sits next to the ticks that feed it and
+                      a bare unlabelled checkbox in a row whose main tap target
+                      launches Cook Mode reads as ambiguous. The label is inside
+                      the checkbox's OWN Pressable, so the words are part of the
+                      tick target rather than a caption you can miss. */}
+                  <View style={s.selectCell}>
+                    <View style={[s.selectBox, selected && s.selectBoxOn]}>
+                      {selected && <Text style={s.selectMark}>✓</Text>}
+                    </View>
+                    <Text style={s.selectCellLabel}>Prep This Meal</Text>
                   </View>
                 </Pressable>
                 {row.thumbnailUrl ? (
@@ -545,14 +554,22 @@ const s = StyleSheet.create({
   // WS9 — the Prep Selected Meals block. Sits on the page between the sage lane
   // and the meal list: subordinate to the lane's primary CTA, adjacent to the
   // rows whose ticks feed it. See the placement note at the render site.
-  subsetBlock: {
-    marginTop: Spacing[3],
-    marginBottom: Spacing[4],
-    gap: Spacing[2],
-  },
+  // WS9 (Sept 4) — `subsetBlock` is DELETED with the on-page position it
+  // created. The lane's own `gap: Spacing[2]` now spaces the two CTAs.
   subsetHint: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[700],
+    // ⚠️ WAS neutral[700] on the page. On sage[600] that is 1.2069:1 —
+    // effectively invisible, so this line HAD to be re-valued when the block
+    // moved into the lane.
+    //
+    // CREAM, not the lane's own onSageSub. Matching prepLaneBody above would
+    // have been the tidier-looking choice, but #D5DCCB on sage[600] measures
+    // 3.7107:1 — under the 4.5:1 AA floor for normal text, and this line
+    // reports the LIVE selection count, which is information the user has to
+    // read. Cream is 4.8848:1.
+    // ⚠️ prepLaneBody's existing onSageSub is left alone: it is shipped copy
+    // and re-valuing the lane's body treatment is a wider call than this item.
+    color: CREAM,
     fontFamily: Typography.face.sans[400],
     textAlign: "center",
   },
@@ -659,6 +676,20 @@ const s = StyleSheet.create({
   // WS9 — prep-subset tick. Mirrors PrepWeekView's StepCheckbox (26px, Radius.md,
   // 2px neutral[400] edge, sage[600] when on) so the control the user meets here
   // is the same object they then check off on the Week Prep screen.
+  // WS9 (Sept 4) — the tick + its "Prep This Meal" label, stacked. Fixed width
+  // so the label wraps to two lines under the box instead of stealing width
+  // from the meal title beside it.
+  selectCell: {
+    width: 52,
+    alignItems: "center",
+    gap: 2,
+  },
+  selectCellLabel: {
+    fontSize: Typography.fontSize.xxs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[500],
+    textAlign: "center",
+  },
   selectBox: {
     width: 26,
     height: 26,
