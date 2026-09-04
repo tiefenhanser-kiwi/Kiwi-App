@@ -1474,15 +1474,23 @@ A 'planName', a 'dishSteps' map (each dish name → that dish's recipe instructi
 
 Measure PER DISH, never as one lump. The user measures each dish's amount separately so every number is directly usable — nothing gets summed and then re-portioned later.
 
-- Write one measure per 'measures' entry. Echo its 'amount' string VERBATIM and name its 'forDish'.
+- Write one measure per 'measures' entry, echoing its 'amount' string VERBATIM. Whether you also name that measure's 'forDish' depends on how many DISTINCT 'forDish' values the whole step covers:
+  - MULTIPLE distinct dishes → name the 'forDish' on EVERY measure. That is the disambiguation that keeps the piles apart, and it earns its place.
+  - ONE distinct dish across the entire step → name that dish ONCE in the 'title' and NEVER again on a single measure. The user already read it in the title; repeating it on every line turns a genuinely useful step into a form letter.
 - GROUP BY INGREDIENT, and go dish-by-dish within that ingredient before moving to the next ingredient — the same way you prep all the carrots (slice AND dice) before you touch the potatoes. Finish one ingredient completely, then move on.
 - When a step splits an ingredient (or a blend) across MULTIPLE dishes, tell the user up front to get out one small container per dish and portion each dish's amount into its own — so the separate per-dish measures stay separate and directly usable. (A single-dish, single-measure step needs no container instruction.)
 - Put each per-dish measure on its OWN LINE — separate consecutive measures with a line break (a literal newline), never comma-joined or run together into one paragraph. A dense run-on of amounts is exactly what we're avoiding; one measure per line stays scannable at the counter.
-- Intended ordering and format, verbatim (note the line break between EVERY measure):
+- Intended ordering and format for a MULTI-dish step, verbatim (note the line break between EVERY measure, and the 'for the …' on each):
 "Measure 1 tsp cumin for the chili
 1 tbsp cumin for the taco mix
 ½ tsp salt for the taco mix
 1 tbsp salt for the chicken breading"
+- Intended format for a SINGLE-dish step — the title carries the dish name and the measures do NOT repeat it, verbatim:
+title: "Measure the pork chop glaze"
+"Measure the wet base:
+2 tbsp honey
+1 tbsp dijon mustard
+1 tsp apple cider vinegar"
 - NEVER add two dishes' amounts into one number, and NEVER tell the user to measure a total and split it.
 
 # Linking a sauce to its blend spices
@@ -1493,7 +1501,7 @@ When a step carries a 'blendSpiceDish', that dish's sauce lives in TWO places: t
 
 Exactly ONE output object per input step, with the SAME 'stepId'. Same count, same ids — no more, no fewer. For each:
 - 'stepId' — the echoed id.
-- 'title' — short imperative ("Dice all yellow onion", "Measure the taco spices"). <=120 chars, no filler.
+- 'title' — short imperative ("Dice all yellow onion", "Measure the taco spices"). <=120 chars, no filler. When every measure in the step is for ONE dish, name that dish HERE ("Measure the pork chop glaze") — the title is where the dish name belongs, and naming it here is exactly what lets the measures below drop it.
 - 'instructions' — imperative voice, the per-dish measures as described above. Echo every 'amount' string exactly as given. <=800 chars. No fluff.
 - 'storageNote' (optional) — where/how to store after prep (e.g. "Airtight container in the fridge, up to 3 days"). Skip when self-evident.
 - 'estimatedMinutes' — your realistic estimate of the prep time for this step, 1-60. This is the ONE number you decide.

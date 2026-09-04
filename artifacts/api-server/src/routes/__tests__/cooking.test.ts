@@ -21,7 +21,9 @@ import {
   PrepWeekUnknownMealError,
   EMPTY_PLAN_COPY,
 } from "../../lib/prepWeekAggregation";
+import type { PrepLoadedPlan } from "../../lib/prepWeekAggregation";
 import type { PrepWeekResult } from "../../lib/ai/schemas/prepWeek";
+import { prepCompositionFingerprint } from "../../lib/prepWeekFingerprint";
 import { createCookingRouter } from "../cooking";
 
 interface Harness {
@@ -221,6 +223,10 @@ describe("POST /api/meals/:mealId/cooking-sequence — rate limit", () => {
 
 const PLAN_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const MEAL_ID_X = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+// Declared here (not beside the subset-bypass block further down) because the
+// cache-invalidation suites above it need a second meal id too.
+const MEAL_ID_Y = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const MEAL_ID_Z = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 
 function happyPrepWeekResult(): PrepWeekResult {
   return {
@@ -410,9 +416,64 @@ function makeCacheStub() {
 // does (reject an id outside the plan, otherwise filter to the named meals) and
 // RECORDS what the route handed it, so a route test can assert the subset
 // actually reached the loader instead of inferring it from the response.
+// WS9 — the PrepLoadedPlan the loader stub returns, built as a standalone
+// function so an invalidation test can compute the SAME composition fingerprint
+// the route will compute and pre-seed a cache row with it. Keeping this in one
+// place is what makes "date-only edit → still a hit" a real assertion rather
+// than a restatement of the stub.
+// Typed as PrepLoadedPlan on purpose: the old inline stub was `as never`-cast
+// at the call site and so never typechecked — it had been missing `dishRole`
+// entirely. Naming the type here is what surfaced that.
+function buildStubInput(opts: {
+  planId: string;
+  mealIds: string[];
+  selected: string[];
+  servingsOverride?: number | null;
+}): PrepLoadedPlan {
+  return {
+    planId: opts.planId,
+    planName: "Test Plan",
+    // idx is the meal's position in the WHOLE plan, not in the selection —
+    // so a meal's dishId is the same whether it arrives via a full week or
+    // a subset, exactly as real dish identity behaves. That stability is
+    // what makes prep-step keys carry over between the two.
+    meals: opts.selected.map((mealId) => ({
+      mealId,
+      mealName: `Meal ${opts.mealIds.indexOf(mealId) + 1}`,
+      cuisine: null,
+      servingsOverride: opts.servingsOverride ?? null,
+      dishes: [
+        {
+          dishId: `dddddddd-dddd-4ddd-8ddd-${String(
+            opts.mealIds.indexOf(mealId),
+          ).padStart(12, "0")}`,
+          dishName: "Dish",
+          dishRole: "main",
+          baseServings: 4,
+          authoredBaseServings: 4,
+          stepTexts: [],
+          ingredients: [
+            {
+              ingredientId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              ingredientName: "yellow onion",
+              category: "Produce",
+              quantity: 1,
+              unit: "each",
+              preparationNote: "diced",
+            },
+          ],
+        },
+      ],
+    })),
+  };
+}
+
 function makeLoaderStub(opts: {
   planRevisionId: number;
   mealIds: string[];
+  /** WS9 — plan-item servingsOverride, so a servings change can be simulated
+   *  without touching the meal set. */
+  servingsOverride?: number | null;
   throwOn?: "not_found" | "empty";
   /** Filled in by the stub: every `mealIds` value the route passed, in order.
    *  `undefined` entries are full-week calls. */
@@ -436,44 +497,29 @@ function makeLoaderStub(opts: {
       ? opts.mealIds.filter((id) => params.mealIds!.includes(id))
       : opts.mealIds;
     return {
-      input: {
+      input: buildStubInput({
         planId: params.planId,
-        planName: "Test Plan",
-        // idx is the meal's position in the WHOLE plan, not in the selection —
-        // so a meal's dishId is the same whether it arrives via a full week or
-        // a subset, exactly as real dish identity behaves. That stability is
-        // what makes prep-step keys carry over between the two.
-        meals: selected.map((mealId) => ({
-          mealId,
-          mealName: `Meal ${opts.mealIds.indexOf(mealId) + 1}`,
-          cuisine: null,
-          servingsOverride: null,
-          dishes: [
-            {
-              dishId: `dddddddd-dddd-4ddd-8ddd-${String(
-                opts.mealIds.indexOf(mealId),
-              ).padStart(12, "0")}`,
-              dishName: "Dish",
-              baseServings: 4,
-              authoredBaseServings: 4,
-              stepTexts: [],
-              ingredients: [
-                {
-                  ingredientId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-                  ingredientName: "yellow onion",
-                  category: "Produce",
-                  quantity: 1,
-                  unit: "each",
-                  preparationNote: "diced",
-                },
-              ],
-            },
-          ],
-        })),
-      },
+        mealIds: opts.mealIds,
+        selected,
+        servingsOverride: opts.servingsOverride,
+      }),
       planRevisionId: opts.planRevisionId,
     };
   }) as never;
+}
+
+// WS9 — the descriptor stub for the prep-week cache gate. The route folds the
+// ACTIVE prompt version into the composition fingerprint, so a test that
+// pre-seeds a row must know which version the gate will use.
+const STUB_PROMPT_VERSION = 7;
+function makeDescriptorStub(version: number | null = STUB_PROMPT_VERSION) {
+  return (async () => ({
+    body: "stub body",
+    defaultModel: "claude-sonnet-4-6",
+    defaultMode: "tool" as const,
+    toolDescription: "stub",
+    version,
+  })) as never;
 }
 
 // Narration AI stub. The route now calls runAICall ONLY to narrate the
@@ -705,19 +751,31 @@ describe("POST /api/plans/:planId/prep-week — cache miss → AI → write", ()
 describe("POST /api/plans/:planId/prep-week — cache hit", () => {
   it("returns cacheHit=true and skips the AI call", async () => {
     const cache = makeCacheStub();
-    // Pre-seed the cache with a matching revisionId.
+    // Pre-seed the cache with a MATCHING composition fingerprint. WS9 — the gate
+    // is the fingerprint, not the revisionId; the revisionId below is
+    // deliberately left at a value the route no longer consults.
     const cached = happyPrepWeekResult();
     cache.rows.set(PLAN_ID, {
       id: "row-pre",
       planId: PLAN_ID,
       structureJson: cached,
+      compositionFingerprint: prepCompositionFingerprint(
+        buildStubInput({
+          planId: PLAN_ID,
+          mealIds: [MEAL_ID_X],
+          selected: [MEAL_ID_X],
+        }),
+      ),
       lastGeneratedFromPlanRevisionId: 5,
       lastGeneratedAt: new Date("2026-05-10T12:00:00Z"),
-      promptVersion: 2,
+      // Must equal the active version the descriptor stub reports — the gate's
+      // second half. A dedicated test below covers the mismatch case.
+      promptVersion: STUB_PROMPT_VERSION,
     });
     let aiCalls = 0;
     const harness = await spinUp({
       loadPrepWeekInput: makeLoaderStub({ planRevisionId: 5, mealIds: [MEAL_ID_X] }),
+      resolvePromptDescriptor: makeDescriptorStub(),
       runAICall: makeAICallStub({
         onCall: () => {
           aiCalls++;
@@ -742,7 +800,7 @@ describe("POST /api/plans/:planId/prep-week — cache hit", () => {
       };
       assert.equal(body.cacheHit, true);
       assert.equal(body.planRevisionId, 5);
-      assert.equal(body.promptVersion, 2);
+      assert.equal(body.promptVersion, STUB_PROMPT_VERSION);
       // AI not invoked.
       assert.equal(aiCalls, 0);
       // No new write — row only existed from pre-seed.
@@ -754,7 +812,7 @@ describe("POST /api/plans/:planId/prep-week — cache hit", () => {
 });
 
 describe("POST /api/plans/:planId/prep-week — stale cache", () => {
-  it("regenerates when revisionId moved and updates (not duplicates) the row", async () => {
+  it("regenerates when the composition changed and updates (not duplicates) the row", async () => {
     const cache = makeCacheStub();
     const oldResult = happyPrepWeekResult();
     oldResult.totalEstimatedMinutes = 99; // marker for "old"
@@ -762,6 +820,14 @@ describe("POST /api/plans/:planId/prep-week — stale cache", () => {
       id: "row-old",
       planId: PLAN_ID,
       structureJson: oldResult,
+      // A fingerprint for a DIFFERENT meal set than the loader will return.
+      compositionFingerprint: prepCompositionFingerprint(
+        buildStubInput({
+          planId: PLAN_ID,
+          mealIds: [MEAL_ID_Y],
+          selected: [MEAL_ID_Y],
+        }),
+      ),
       lastGeneratedFromPlanRevisionId: 2,
       lastGeneratedAt: new Date("2026-05-01T12:00:00Z"),
       promptVersion: 1,
@@ -769,6 +835,7 @@ describe("POST /api/plans/:planId/prep-week — stale cache", () => {
     let aiCalls = 0;
     const harness = await spinUp({
       loadPrepWeekInput: makeLoaderStub({ planRevisionId: 9, mealIds: [MEAL_ID_X] }),
+      resolvePromptDescriptor: makeDescriptorStub(),
       runAICall: makeAICallStub({
         onCall: () => {
           aiCalls++;
@@ -802,6 +869,321 @@ describe("POST /api/plans/:planId/prep-week — stale cache", () => {
       assert.ok(row);
       assert.equal(row.lastGeneratedFromPlanRevisionId, 9);
       assert.equal(row.promptVersion, 3);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS9 — composition-scoped cache invalidation ─────────────────────────────
+//
+// The gate used to be `lastGeneratedFromPlanRevisionId === plan.revisionId`.
+// `revisionId` bumps on ANY structural plan edit, and `loadPrepWeekInput` reads
+// no date field at all — so a date-range edit or a day assignment invalidated a
+// cache it could not possibly have affected, at ~73 s / ~$0.125 a regeneration.
+//
+// ⚠️ THE FAILURE DIRECTION THAT MATTERS is the opposite one: under-invalidating
+// serves a stale prep plan for a week whose meals have changed. That is worse
+// than the waste. So the four composition changes below are each asserted to
+// STILL invalidate, and each is written so that reverting the fix (or widening
+// it wrongly) breaks a named test rather than silently passing.
+//
+// Every case pre-seeds a row whose fingerprint matches the PRE-change plan and
+// then loads the POST-change plan, which is exactly the sequence a real edit
+// produces.
+describe("POST /api/plans/:planId/prep-week — invalidation is scoped to composition", () => {
+  // Seed a cache row fingerprinted for `before`, run the route against `after`,
+  // and report whether the AI was called (miss) or not (hit).
+  async function runTransition(opts: {
+    before: { mealIds: string[]; selected: string[]; servingsOverride?: number | null };
+    after: {
+      mealIds: string[];
+      servingsOverride?: number | null;
+      planRevisionId: number;
+    };
+    userTag: string;
+  }) {
+    const cache = makeCacheStub();
+    const stale = happyPrepWeekResult();
+    stale.totalEstimatedMinutes = 99; // marker: served only on a cache HIT
+    cache.rows.set(PLAN_ID, {
+      id: "row-pre",
+      planId: PLAN_ID,
+      structureJson: stale,
+      compositionFingerprint: prepCompositionFingerprint(
+        buildStubInput({
+          planId: PLAN_ID,
+          mealIds: opts.before.mealIds,
+          selected: opts.before.selected,
+          servingsOverride: opts.before.servingsOverride,
+        }),
+      ),
+      lastGeneratedFromPlanRevisionId: 1,
+      lastGeneratedAt: new Date("2026-09-03T01:04:06Z"),
+      promptVersion: STUB_PROMPT_VERSION,
+    });
+    let aiCalls = 0;
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: opts.after.planRevisionId,
+        mealIds: opts.after.mealIds,
+        servingsOverride: opts.after.servingsOverride,
+      }),
+      resolvePromptDescriptor: makeDescriptorStub(),
+      runAICall: makeAICallStub({
+        onCall: () => {
+          aiCalls++;
+        },
+        promptVersion: STUB_PROMPT_VERSION,
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken(opts.userTag)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        cacheHit: boolean;
+        result: PrepWeekResult;
+      };
+      return { aiCalls, body, cache };
+    } finally {
+      await harness.close();
+    }
+  }
+
+  // ── the one that must NOT invalidate ──────────────────────────────────────
+  it("a date-only edit does NOT invalidate — revisionId moved, composition did not", async () => {
+    // This is the exact 2026-09-03 sequence: plan_date_range_edited +
+    // plan_meal_assigned + plan_meal_unassigned bumped revisionId 1 → 6 without
+    // touching a single field the prep payload reads.
+    const { aiCalls, body } = await runTransition({
+      before: { mealIds: [MEAL_ID_X, MEAL_ID_Y], selected: [MEAL_ID_X, MEAL_ID_Y] },
+      after: { mealIds: [MEAL_ID_X, MEAL_ID_Y], planRevisionId: 6 },
+      userTag: "u-dateonly",
+    });
+    assert.equal(body.cacheHit, true, "date-only edit must still hit the cache");
+    assert.equal(aiCalls, 0, "no AI call may be spent on a date-only edit");
+    // The cached blob is what came back — proof it was served, not regenerated.
+    assert.equal(body.result.totalEstimatedMinutes, 99);
+  });
+
+  // ── the four that MUST invalidate ─────────────────────────────────────────
+  it("a meal ADD invalidates", async () => {
+    const { aiCalls, body } = await runTransition({
+      before: { mealIds: [MEAL_ID_X], selected: [MEAL_ID_X] },
+      after: { mealIds: [MEAL_ID_X, MEAL_ID_Y], planRevisionId: 1 },
+      userTag: "u-add",
+    });
+    assert.equal(body.cacheHit, false, "adding a meal must invalidate");
+    assert.equal(aiCalls, 1);
+    assert.notEqual(body.result.totalEstimatedMinutes, 99);
+  });
+
+  it("a meal SWAP invalidates — same meal COUNT, different meal", async () => {
+    // The count-blind case: a naive "did the number of meals change?" gate
+    // would serve a prep plan for the meal that is no longer in the week.
+    const { aiCalls, body } = await runTransition({
+      before: { mealIds: [MEAL_ID_X, MEAL_ID_Y], selected: [MEAL_ID_X, MEAL_ID_Y] },
+      after: { mealIds: [MEAL_ID_X, MEAL_ID_Z], planRevisionId: 1 },
+      userTag: "u-swap",
+    });
+    assert.equal(body.cacheHit, false, "swapping a meal must invalidate");
+    assert.equal(aiCalls, 1);
+    assert.notEqual(body.result.totalEstimatedMinutes, 99);
+  });
+
+  it("a meal REMOVAL invalidates", async () => {
+    const { aiCalls, body } = await runTransition({
+      before: { mealIds: [MEAL_ID_X, MEAL_ID_Y], selected: [MEAL_ID_X, MEAL_ID_Y] },
+      after: { mealIds: [MEAL_ID_X], planRevisionId: 1 },
+      userTag: "u-remove",
+    });
+    assert.equal(body.cacheHit, false, "removing a meal must invalidate");
+    assert.equal(aiCalls, 1);
+    assert.notEqual(body.result.totalEstimatedMinutes, 99);
+  });
+
+  it("a SERVINGS change invalidates — identical meal set, different quantities", async () => {
+    // The hardest of the four: the meal set is byte-identical. Only the
+    // plan-item servingsOverride moved, which rescales every quantity the
+    // narration prints. A meal-id-only fingerprint would wrongly hit here.
+    const { aiCalls, body } = await runTransition({
+      before: {
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+        selected: [MEAL_ID_X, MEAL_ID_Y],
+        servingsOverride: 4,
+      },
+      after: {
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+        servingsOverride: 8,
+        planRevisionId: 1,
+      },
+      userTag: "u-servings",
+    });
+    assert.equal(body.cacheHit, false, "a servings change must invalidate");
+    assert.equal(aiCalls, 1);
+    assert.notEqual(body.result.totalEstimatedMinutes, 99);
+  });
+
+  // ── the migration's null case ─────────────────────────────────────────────
+  it("a pre-fingerprint row (null) is a MISS, not a hit", async () => {
+    // Every row written before this shipped has compositionFingerprint = null.
+    // Treating null as "matches" would serve prose from an unknown composition
+    // and an unknown prompt version forever.
+    const cache = makeCacheStub();
+    const stale = happyPrepWeekResult();
+    stale.totalEstimatedMinutes = 99;
+    cache.rows.set(PLAN_ID, {
+      id: "row-legacy",
+      planId: PLAN_ID,
+      structureJson: stale,
+      compositionFingerprint: null,
+      lastGeneratedFromPlanRevisionId: 5,
+      lastGeneratedAt: new Date("2026-08-01T12:00:00Z"),
+      promptVersion: 6,
+    });
+    let aiCalls = 0;
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({ planRevisionId: 5, mealIds: [MEAL_ID_X] }),
+      resolvePromptDescriptor: makeDescriptorStub(),
+      runAICall: makeAICallStub({
+        onCall: () => {
+          aiCalls++;
+        },
+        promptVersion: STUB_PROMPT_VERSION,
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken("u-legacy")}` },
+      });
+      const body = (await res.json()) as { cacheHit: boolean };
+      assert.equal(body.cacheHit, false, "a null fingerprint must not hit");
+      assert.equal(aiCalls, 1);
+      // Self-healing: the regeneration stamps a real fingerprint.
+      assert.ok(cache.rows.get(PLAN_ID)?.compositionFingerprint);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── the prompt-version half of the gate ───────────────────────────────────
+  it("a prompt-version bump invalidates — same composition, new narrator", async () => {
+    // Before this, a prep.narrate_steps body change did NOT invalidate: every
+    // already-cached plan kept serving prose from the old version indefinitely.
+    // That is why the §3 prose fix needs this to land with it.
+    const cache = makeCacheStub();
+    const stale = happyPrepWeekResult();
+    stale.totalEstimatedMinutes = 99;
+    cache.rows.set(PLAN_ID, {
+      id: "row-oldprompt",
+      planId: PLAN_ID,
+      structureJson: stale,
+      // Identical composition, fingerprinted under the PREVIOUS prompt version.
+      compositionFingerprint: prepCompositionFingerprint(
+        buildStubInput({
+          planId: PLAN_ID,
+          mealIds: [MEAL_ID_X],
+          selected: [MEAL_ID_X],
+        }),
+      ),
+      lastGeneratedFromPlanRevisionId: 5,
+      lastGeneratedAt: new Date("2026-09-01T12:00:00Z"),
+      promptVersion: STUB_PROMPT_VERSION - 1,
+    });
+    let aiCalls = 0;
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({ planRevisionId: 5, mealIds: [MEAL_ID_X] }),
+      resolvePromptDescriptor: makeDescriptorStub(STUB_PROMPT_VERSION),
+      runAICall: makeAICallStub({
+        onCall: () => {
+          aiCalls++;
+        },
+        promptVersion: STUB_PROMPT_VERSION,
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken("u-promptbump")}` },
+      });
+      const body = (await res.json()) as { cacheHit: boolean };
+      assert.equal(
+        body.cacheHit,
+        false,
+        "a new prompt version must not serve prose the old one wrote",
+      );
+      assert.equal(aiCalls, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("an UNRESOLVABLE prompt version fails OPEN — composition still hits", async () => {
+    // resolvePromptDescriptorFromDb swallows a DB error and returns version
+    // null. If null were compared against the stored version, every request
+    // would miss and regenerate forever — a silent perpetual-miss bug of
+    // exactly the class this change removes. null must mean "don't know", and
+    // an unknown version must not invalidate.
+    const cache = makeCacheStub();
+    const stale = happyPrepWeekResult();
+    stale.totalEstimatedMinutes = 99;
+    cache.rows.set(PLAN_ID, {
+      id: "row-unknownver",
+      planId: PLAN_ID,
+      structureJson: stale,
+      compositionFingerprint: prepCompositionFingerprint(
+        buildStubInput({
+          planId: PLAN_ID,
+          mealIds: [MEAL_ID_X],
+          selected: [MEAL_ID_X],
+        }),
+      ),
+      lastGeneratedFromPlanRevisionId: 5,
+      lastGeneratedAt: new Date("2026-09-01T12:00:00Z"),
+      promptVersion: 3, // deliberately NOT the active version
+    });
+    let aiCalls = 0;
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({ planRevisionId: 5, mealIds: [MEAL_ID_X] }),
+      resolvePromptDescriptor: makeDescriptorStub(null), // lookup failed
+      runAICall: makeAICallStub({
+        onCall: () => {
+          aiCalls++;
+        },
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken("u-nover")}` },
+      });
+      const body = (await res.json()) as {
+        cacheHit: boolean;
+        result: PrepWeekResult;
+      };
+      assert.equal(
+        body.cacheHit,
+        true,
+        "an unknown prompt version must not force a regeneration",
+      );
+      assert.equal(aiCalls, 0);
+      assert.equal(body.result.totalEstimatedMinutes, 99);
     } finally {
       await harness.close();
     }
@@ -1322,7 +1704,6 @@ describe("prep-week completions — orphan-prune on regenerate (B3)", () => {
 // bypass must hold in BOTH directions, and the proof must be about CONTENT
 // (a fingerprint of the stored blob), not about a row still existing.
 
-const MEAL_ID_Y = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 // Stable content fingerprint of the plan's stored structure row. Compares the
 // blob the next full-week reader would actually be served — including the

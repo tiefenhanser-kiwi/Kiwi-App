@@ -26,6 +26,8 @@ import {
   EMPTY_PLAN_COPY,
 } from "../lib/prepWeekAggregation";
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
+import { resolvePromptDescriptorFromDb as productionResolvePromptDescriptor } from "../lib/ai/promptRegistry";
+import { prepCompositionFingerprint } from "../lib/prepWeekFingerprint";
 import {
   PrepWeekResultSchema,
   type PrepWeekResult,
@@ -75,6 +77,10 @@ export interface CookingRouterDeps {
   loadPrepWeekInput: typeof productionLoadPrepWeekInput;
   prisma: PrismaClient;
   runAICall: typeof productionRunAICall;
+  // WS9 — resolved for the prep-week cache gate, which folds the narrating
+  // prompt version into the composition fingerprint. Injectable so a route test
+  // can pin the version instead of driving it through the AIPrompt table.
+  resolvePromptDescriptor: typeof productionResolvePromptDescriptor;
   subscriptionService: SubscriptionService;
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
   // WS7-8a B3 — separate (more generous) bucket for the free checkbox
@@ -92,6 +98,8 @@ export function createCookingRouter(
     deps.loadPrepWeekInput ?? productionLoadPrepWeekInput;
   const prisma = deps.prisma ?? productionPrisma;
   const runAICall = deps.runAICall ?? productionRunAICall;
+  const resolvePromptDescriptor =
+    deps.resolvePromptDescriptor ?? productionResolvePromptDescriptor;
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
   // Per-user token-bucket, 12/min (editing-cadence tier). Shared between the
@@ -282,10 +290,44 @@ export function createCookingRouter(
       //     the narrator's skipSuggested flags (prepStepSet.ts).
       // The bypass is a pair; neither half is safe alone. The cost is that
       // every subset run is a live AI call — see the `subset` response flag.
+      //
+      // 🔴 WS9 — THE GATE IS THE COMPOSITION FINGERPRINT, NOT `revisionId`.
+      // `revisionId` bumps on ANY structural plan edit. `loadPrepWeekInput`
+      // reads no date field at all, so a date-range edit or a day assignment
+      // cannot change the prep structure — yet each one used to invalidate and
+      // cost a full regeneration of a byte-identical payload. The fingerprint
+      // hashes the loader's own output, so it moves only when the result would.
+      // A NULL stored fingerprint (any row written before this shipped) is a
+      // MISS: self-healing, one regeneration per plan, no backfill.
+      // See prepWeekFingerprint.ts for why a hash and not a second counter.
       const cached = isSubset
         ? null
         : await prisma.prepWeekStructure.findUnique({ where: { planId } });
-      if (cached && cached.lastGeneratedFromPlanRevisionId === planRevisionId) {
+      const compositionFingerprint = prepCompositionFingerprint(input);
+      // The second half of the gate: a prep.narrate_steps body change must not
+      // keep serving prose the previous version wrote. Resolved here rather
+      // than taken from the AI result because the READ gate needs it before any
+      // call happens (60 s in-memory TTL cache, so it is a map lookup on all but
+      // the first request per minute).
+      //
+      // ⚠️ FAILS OPEN. resolvePromptDescriptorFromDb swallows a DB error and
+      // returns version null; null means "don't know", and an unknown version
+      // must NOT invalidate. Comparing an unknown against the stored version
+      // would miss on every request and regenerate forever — the exact silent
+      // waste this whole change exists to remove. Composition still gates.
+      const activePromptVersion = (
+        await resolvePromptDescriptor("prep.narrate_steps", prisma)
+      ).version;
+      if (
+        cached &&
+        // `!= null` on purpose — catches BOTH the null Prisma returns for a
+        // pre-fingerprint row and an undefined from any caller that omits the
+        // column. `!== null` would let undefined through the guard.
+        cached.compositionFingerprint != null &&
+        cached.compositionFingerprint === compositionFingerprint &&
+        (activePromptVersion === null ||
+          cached.promptVersion === activePromptVersion)
+      ) {
         return res.json({
           cacheHit: true,
           subset: false,
@@ -440,17 +482,23 @@ export function createCookingRouter(
       const structureJson = result as unknown as object;
       if (!isSubset) {
         try {
+          // `promptVersion` here is the version that ACTUALLY narrated this
+          // prose (aiResult.metadata), which is what the read gate above
+          // compares against the then-active version. The fingerprint covers
+          // composition only, so it needs no version input.
           await prisma.prepWeekStructure.upsert({
             where: { planId },
             create: {
               planId,
               structureJson,
+              compositionFingerprint,
               lastGeneratedFromPlanRevisionId: planRevisionId,
               lastGeneratedAt: new Date(),
               promptVersion,
             },
             update: {
               structureJson,
+              compositionFingerprint,
               lastGeneratedFromPlanRevisionId: planRevisionId,
               lastGeneratedAt: new Date(),
               promptVersion,

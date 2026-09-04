@@ -1182,6 +1182,18 @@ model PrepWeekStructure {
   id                              String   @id @default(uuid())
   planId                          String   @unique
   structureJson                   Json
+  // WS9 — the cache gate. Was `lastGeneratedFromPlanRevisionId === plan.revisionId`,
+  // which invalidated on ANY structural plan edit — including date-range and
+  // day-assignment edits that `loadPrepWeekInput` cannot even see (it reads no date
+  // field at all), each costing a full ~73 s / ~$0.125 regeneration for an
+  // identical payload. This is a sha256 over the loader's own output plus the
+  // narrating promptVersion, so it tracks exactly what would change the result.
+  // See prepWeekFingerprint.ts for why a hash rather than a second counter.
+  // Nullable with NO backfill: every row written before this shipped has null,
+  // which the route treats as a miss — self-healing, one regeneration per plan.
+  compositionFingerprint          String?
+  // Retained as a diagnostic stamp (what the plan's revision was at generate
+  // time). NO LONGER GATES THE CACHE — see compositionFingerprint above.
   lastGeneratedFromPlanRevisionId Int
   lastGeneratedAt                 DateTime @default(now())
   promptVersion                   Int
