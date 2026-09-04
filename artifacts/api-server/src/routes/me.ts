@@ -184,6 +184,14 @@ const preferencesPatchSchema = z
     planLengthDefault: z.number().int().min(1).max(7).optional(),
     defaultRetailer: z.string().max(120).nullable().optional(),
     dietaryNotes: z.string().max(500).nullable().optional(),
+    // WS9 D-WS9-206 — free-text allergy terms (the ALLERGY half of the split;
+    // dietaryNotes is now the PREFERENCE half). ⚠️ This list is .strict() and
+    // 400s on an unknown key, and the mobile edit buffer is built by spreading
+    // the GET response (preferencesForm.toFormState) — so a column that ships
+    // on the wire but not in this list silently 400s EVERY preferences save.
+    // That is BUG-137 exactly. Added on both sides in one commit.
+    // Bounds mirror recurringGroceryItems, the nearest free-text array.
+    otherAllergies: z.array(z.string().max(80)).max(60).optional(),
     // Cookbook Phase B Block 1 — new preference fields. maxCookTimeMinutes
     // stays a permissive nullable int (the 30/45/60/null UI gate is Block 3);
     // the others are value-set-validated here since the DB stores plain int/String.
@@ -207,6 +215,12 @@ const DIETARY_STAMP_FIELDS = [
   "dietaryNotes",
   "eatingStyles",
   "pickyAvoidances",
+  // WS9 D-WS9-206 — otherAllergies is an allergy field by construction, so it
+  // belongs in this set for the same reason allergiesAndAvoidances does: a plan
+  // committed before the user added a term is dietarily stale. Adding it later
+  // (when the mobile field turns on) would have been a silent gap — a guest
+  // allergy typed in and no staleness note raised on the open plan.
+  "otherAllergies",
 ] as const;
 
 // WS9 3d Part 3c-2 (BUG-055) — the mobile preferences screen AUTO-SAVES the
@@ -220,6 +234,7 @@ const DIETARY_STAMP_FIELDS = [
 // list is not a dietary change.
 type StoredDietary = {
   allergiesAndAvoidances: string[];
+  otherAllergies: string[];
   eatingStyles: string[];
   pickyAvoidances: string[];
   dietaryNotes: string | null;
@@ -247,9 +262,11 @@ function dietaryFieldChanged(
   const storedArr =
     field === "allergiesAndAvoidances"
       ? stored.allergiesAndAvoidances
-      : field === "eatingStyles"
-        ? stored.eatingStyles
-        : stored.pickyAvoidances;
+      : field === "otherAllergies"
+        ? stored.otherAllergies
+        : field === "eatingStyles"
+          ? stored.eatingStyles
+          : stored.pickyAvoidances;
   const nextArr = Array.isArray(next) ? (next as string[]) : [];
   return !arraysEqualUnordered(nextArr, storedArr);
 }
@@ -854,6 +871,7 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       where: { userId: req.userId! },
       select: {
         allergiesAndAvoidances: true,
+        otherAllergies: true,
         eatingStyles: true,
         pickyAvoidances: true,
         dietaryNotes: true,
@@ -861,6 +879,7 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     });
     const storedDietary: StoredDietary = existing ?? {
       allergiesAndAvoidances: [],
+      otherAllergies: [],
       eatingStyles: [],
       pickyAvoidances: [],
       dietaryNotes: null,

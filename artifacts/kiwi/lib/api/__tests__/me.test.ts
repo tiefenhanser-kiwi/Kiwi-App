@@ -18,6 +18,10 @@ const VALID_PREFS = {
   defaultRetailer: "Instacart",
   cuisines: ["Italian", "Mexican"],
   allergiesAndAvoidances: [],
+  // WS9 D-WS9-206 — the new otherAllergies column. It is NOT nullable and has
+  // a [] server default, so it is always on the wire; a fixture without it is
+  // not a payload the server can produce.
+  otherAllergies: [],
   cookingEquipment: ["Oven", "Stove"],
   recurringGroceryItems: ["Milk"],
   eatingStyles: ["Healthy"],

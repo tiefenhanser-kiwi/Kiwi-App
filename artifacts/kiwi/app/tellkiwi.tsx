@@ -20,9 +20,8 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { LoadingShim } from "@/components/LoadingShim";
 import { Stepper } from "@/components/Stepper";
 import { WizardPreviousOptionsLink } from "@/components/WizardPreviousOptionsLink";
-import { AllergiesPicker } from "@/components/preference-pickers/AllergiesPicker";
+import { DietarySection } from "@/components/preference-pickers/DietarySection";
 import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
-import { EatingStylesPicker } from "@/components/preference-pickers/EatingStylesPicker";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   COOK_TIME_CAP_OPTIONS,
@@ -63,6 +62,11 @@ interface TellKiwiFormState {
   eatingStyles: string[];
   allergies: string[];
   dietaryNotes: string;
+  /** WS9 D-WS9-206 — free-text allergy terms. PER-RUN, exactly like
+   *  `allergies` and `dietaryNotes` beside it: hydrated from stored prefs so a
+   *  saved allergy is never silently dropped from a run, edited freely for
+   *  this plan, and NEVER written back to /me/preferences. */
+  otherAllergies: string[];
   // Cookbook Phase B Block 4 (D-WS7-035) — per-run generation-shaping prefs,
   // hydrated from stored UserPreferences, editable for THIS plan only.
   discoveryMealsPerWeek: number;
@@ -84,6 +88,7 @@ const INITIAL_FORM: TellKiwiFormState = {
   eatingStyles: [],
   allergies: [],
   dietaryNotes: "",
+  otherAllergies: [],
   discoveryMealsPerWeek: 0,
   saucePreference: "balanced",
   maxCookTimeMinutes: null,
@@ -107,6 +112,7 @@ function hydrateForm(
     eatingStyles: prefs.eatingStyles,
     allergies: prefs.allergiesAndAvoidances,
     dietaryNotes: prefs.dietaryNotes ?? "",
+    otherAllergies: prefs.otherAllergies,
     discoveryMealsPerWeek: prefs.discoveryMealsPerWeek,
     saucePreference: prefs.saucePreference,
     maxCookTimeMinutes: prefs.maxCookTimeMinutes,
@@ -372,36 +378,35 @@ export default function TellKiwi() {
                 ))}
               </View>
 
-              {/* Dietary restrictions */}
-              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
-                Eating styles
-              </Text>
-              <EatingStylesPicker
-                value={form.eatingStyles}
-                onChange={(next) => update("eatingStyles", next)}
-              />
+              {/* Dietary restrictions — WS9 D-WS9-206/207, the shared
+                  <DietarySection>. This screen and its near-clone sibling were
+                  ~110 structurally identical lines differing only in the
+                  placeholder text.
 
-              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
-                Allergies & avoidances
-              </Text>
-              <AllergiesPicker
-                value={form.allergies}
-                onChange={(next) => update("allergies", next)}
-              />
+                  ⚠️ THE "Allergies & avoidances" <Text> HEADING IS DELETED. It
+                  was a BUG-196 regression: that fix moved the heading into
+                  AllergiesPicker's own expander and deleted the orphan label in
+                  preferences.tsx only, so this screen printed it twice.
 
-              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
-                Anything else?
-              </Text>
-              <TextInput
-                value={form.dietaryNotes}
-                onChangeText={(v) => update("dietaryNotes", v)}
-                placeholder="e.g., 'no shellfish', 'low sodium'"
-                placeholderTextColor={Palette.text.placeholder}
-                returnKeyType="done"
-                blurOnSubmit
-                onSubmitEditing={Keyboard.dismiss}
-                style={s.input}
-              />
+                  ⚠️ NOTHING PERSISTS FROM HERE. The block sits inside the
+                  "Adjust..." card, under "Optional — changes apply to this plan
+                  only"; that framing and the card wrapper stay on the screen,
+                  which is exactly why the shared component owns no <Section>
+                  and no title of its own. */}
+              <View style={{ marginTop: Spacing[4] }}>
+                <DietarySection
+                  eatingStyles={form.eatingStyles}
+                  onEatingStylesChange={(next) => update("eatingStyles", next)}
+                  allergies={form.allergies}
+                  onAllergiesChange={(next) => update("allergies", next)}
+                  otherAllergies={form.otherAllergies}
+                  onOtherAllergiesChange={(next) =>
+                    update("otherAllergies", next)
+                  }
+                  dietaryNotes={form.dietaryNotes}
+                  onDietaryNotesChange={(v) => update("dietaryNotes", v)}
+                />
+              </View>
 
               {/* Discovery meals */}
               <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>

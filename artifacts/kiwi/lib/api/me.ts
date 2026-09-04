@@ -42,6 +42,11 @@ export const UserPreferencesSchema = z.object({
   // Multi-select arrays.
   cuisines: z.array(z.string()),
   allergiesAndAvoidances: z.array(z.string()),
+  // WS9 D-WS9-206 — free-text allergy terms. ⚠️ In BOTH the read schema here
+  // and the server PATCH .strict() allow-list (routes/me.ts). BUG-137: a key
+  // that enters the form via toFormState's spread but is absent from the
+  // allow-list 400s the whole PATCH, silently, with no TypeScript signal.
+  otherAllergies: z.array(z.string()),
   cookingEquipment: z.array(z.string()),
   recurringGroceryItems: z.array(z.string()),
   eatingStyles: z.array(z.string()),

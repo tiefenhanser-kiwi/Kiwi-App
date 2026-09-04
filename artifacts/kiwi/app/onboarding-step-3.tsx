@@ -132,6 +132,10 @@ export default function OnboardingStep3() {
       prefs.cuisines = onboardingStep2Draft.cuisines;
       prefs.eatingStyles = onboardingStep2Draft.eatingStyles;
       prefs.allergiesAndAvoidances = onboardingStep2Draft.allergiesAndAvoidances;
+      // WS9 D-WS9-206 — sent unconditionally (unlike dietaryNotes below): an
+      // empty array is the column default, so PATCHing [] is a no-op rather
+      // than a blank value written over something.
+      prefs.otherAllergies = onboardingStep2Draft.otherAllergies;
       prefs.cookingSkill = onboardingStep2Draft.cookingSkill;
       prefs.recurringGroceryItems = onboardingStep2Draft.recurringGroceryItems;
       prefs.householdSize = onboardingStep2Draft.householdSize;

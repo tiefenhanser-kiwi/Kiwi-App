@@ -1,19 +1,10 @@
-import React, { useState } from "react";
-import {
-  Keyboard,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { Feather } from "@expo/vector-icons";
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
 
-import { Chip } from "@/components/Chip";
 import { recurringChipRow } from "@/lib/domain";
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { Colors, Spacing, Typography } from "@/constants/tokens";
 
-import { pickerStyles } from "./shared";
+import { CustomChipInput } from "./shared";
 
 export interface RecurringItemsPickerProps {
   value: string[];
@@ -27,8 +18,6 @@ export function RecurringItemsPicker({
   onChange,
   commonItemsLabel = "Common items",
 }: RecurringItemsPickerProps) {
-  const [draft, setDraft] = useState("");
-
   // WS9 (Sept 3) — `remove` is DELETED with the duplicate list. Its only caller
   // was that list's X button, and `toggle` below already performs the identical
   // onChange for an item that is currently selected. Left in place it would
@@ -40,16 +29,8 @@ export function RecurringItemsPicker({
   };
 
   const add = (item: string) => {
-    const trimmed = item.trim();
-    if (!trimmed) return;
-    if (value.includes(trimmed)) return;
-    onChange([...value, trimmed]);
-  };
-
-  const handleAddDraft = () => {
-    add(draft);
-    setDraft("");
-    Keyboard.dismiss();
+    if (value.includes(item)) return;
+    onChange([...value, item]);
   };
 
   return (
@@ -74,48 +55,25 @@ export function RecurringItemsPicker({
           the chip row "so the added chip lands where the tap did", but left the
           old list above it, which is precisely the thing Hans could not see. */}
       <Text style={s.subLabel}>{commonItemsLabel}</Text>
-      {/* WS9 BUG-152 — the chip row now carries the user's CUSTOM items too, not
-          just the eight common ones. Adding "lime" persisted fine and showed
-          nothing back: the new entry rendered as a row at the TOP of the
-          section while the user was looking at the input at the BOTTOM, and the
-          only other confirmation was an 800ms-debounced toast. This row sits
-          directly above the input, so the added chip lands where the tap did.
-          Composition is a pure, tested helper (recurringChipRow). */}
-      <View style={pickerStyles.chipRow}>
-        {recurringChipRow(value).map((item) => (
-          <Chip
-            key={item}
-            label={item}
-            selected={value.includes(item)}
-            onPress={() => toggle(item)}
-          />
-        ))}
-      </View>
+      {/* WS9 D-WS9-206 — the chip row + add input are now the shared
+          <CustomChipInput> (preference-pickers/shared.tsx), lifted out of this
+          file so the new other-allergies field renders the same control rather
+          than a second copy of it. The JSX moved verbatim; `toggle` and `add`
+          stay here because the VALUE semantics are this picker's, not the
+          control's — `add` de-duplicates against `value`, and the chip row is
+          recurringChipRow(value) (commons + customs), which no other consumer
+          wants.
 
-      <View style={s.addRow}>
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          placeholder="Add custom item..."
-          placeholderTextColor={Palette.text.placeholder}
-          returnKeyType="done"
-          blurOnSubmit
-          onSubmitEditing={handleAddDraft}
-          style={s.input}
-        />
-        <Pressable
-          onPress={handleAddDraft}
-          disabled={!draft.trim()}
-          hitSlop={8}
-          style={({ pressed }) => [
-            s.addBtn,
-            !draft.trim() && { opacity: 0.4 },
-            pressed && draft.trim() && { opacity: 0.7 },
-          ]}
-        >
-          <Feather name="plus" size={20} color={Colors.neutral[0]} />
-        </Pressable>
-      </View>
+          BUG-152's guarantee is unchanged: the chip row still sits directly
+          above the input, so the added chip lands where the tap did. */}
+      <CustomChipInput
+        chips={recurringChipRow(value)}
+        value={value}
+        onToggle={toggle}
+        onAdd={add}
+        placeholder="Add custom item..."
+        addAccessibilityLabel="Add this recurring item"
+      />
     </View>
   );
 }
@@ -123,6 +81,8 @@ export function RecurringItemsPicker({
 const s = StyleSheet.create({
   // WS9 (Sept 3) — `list`, `row` and `rowText` are DELETED with the duplicate
   // list they styled.
+  // WS9 D-WS9-206 — `addRow`, `input` and `addBtn` moved to pickerStyles in
+  // shared.tsx with CustomChipInput. Values unchanged.
   subLabel: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[800],
@@ -140,31 +100,5 @@ const s = StyleSheet.create({
     // element's OUTER margin onto the picker; here the deleted element carried
     // no outer margin and the stale spacing is INTERNAL. Reusing that prop
     // would have added an unused API to solve a different problem.
-  },
-  addRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing[2],
-    marginTop: Spacing[3],
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: Colors.neutral[400],
-    backgroundColor: Palette.background.card,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    fontSize: Typography.fontSize.md,
-    color: Colors.neutral[900],
-    fontFamily: Typography.face.sans[400],
-  },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.sage[700],
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

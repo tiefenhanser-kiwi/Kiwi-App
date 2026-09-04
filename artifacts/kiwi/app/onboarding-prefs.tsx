@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
@@ -7,9 +7,8 @@ import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Stepper } from "@/components/Stepper";
-import { AllergiesPicker } from "@/components/preference-pickers/AllergiesPicker";
 import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
-import { EatingStylesPicker } from "@/components/preference-pickers/EatingStylesPicker";
+import { DietarySection } from "@/components/preference-pickers/DietarySection";
 import { RecurringItemsPicker } from "@/components/preference-pickers/RecurringItemsPicker";
 import { SkillLevelPicker } from "@/components/preference-pickers/SkillLevelPicker";
 import { useApp } from "@/contexts/AppContext";
@@ -39,6 +38,9 @@ type Step2FormState = {
   cookingSkill: "beginner" | "intermediate" | "advanced";
   recurringGroceryItems: string[];
   dietaryNotes: string;
+  // WS9 D-WS9-206 — the new other-allergies terms. Collected here and PATCHed
+  // by step 3 alongside the rest of the step-2 draft.
+  otherAllergies: string[];
 };
 
 export default function OnboardingPrefs() {
@@ -60,6 +62,7 @@ export default function OnboardingPrefs() {
         cookingSkill: onboardingStep2Draft.cookingSkill,
         recurringGroceryItems: onboardingStep2Draft.recurringGroceryItems,
         dietaryNotes: onboardingStep2Draft.dietaryNotes,
+        otherAllergies: onboardingStep2Draft.otherAllergies,
       };
     }
     return {
@@ -75,6 +78,7 @@ export default function OnboardingPrefs() {
       cookingSkill: "intermediate",
       recurringGroceryItems: [],
       dietaryNotes: "",
+      otherAllergies: [],
     };
   });
 
@@ -100,6 +104,7 @@ export default function OnboardingPrefs() {
       cookingSkill: form.cookingSkill,
       recurringGroceryItems: form.recurringGroceryItems,
       dietaryNotes: form.dietaryNotes,
+      otherAllergies: form.otherAllergies,
     });
     console.log("[onboarding-step-2] save", form);
     router.push("/onboarding-step-3");
@@ -196,33 +201,24 @@ export default function OnboardingPrefs() {
           />
         </Section>
 
+        {/* WS9 D-WS9-206/207 — shared <DietarySection>.
+            ⚠️ THE "Allergies & avoidances" <Text> HEADING IS DELETED HERE. It
+            was a BUG-196 regression: that fix moved the heading into
+            AllergiesPicker's own expander and deleted the orphan label in
+            preferences.tsx only, so this screen has been printing the heading
+            twice ever since — once as a stray <Text>, once as the "Allergies &
+            avoidances ⌄" control immediately below it.
+            The "(Optional)" badge goes too — see the note in DietarySection. */}
         <Section title="Dietary preferences">
-          <Text style={s.subLabel}>Eating styles</Text>
-          <EatingStylesPicker
-            value={form.eatingStyles}
-            onChange={(next) => update("eatingStyles", next)}
-          />
-
-          <Text style={[s.subLabel, { marginTop: Spacing[4] }]}>
-            Allergies & avoidances
-          </Text>
-          <AllergiesPicker
-            value={form.allergiesAndAvoidances}
-            onChange={(next) => update("allergiesAndAvoidances", next)}
-          />
-
-          <Text style={[s.subLabel, { marginTop: Spacing[4] }]}>
-            Anything else? <Text style={s.optional}>(Optional)</Text>
-          </Text>
-          <TextInput
-            value={form.dietaryNotes}
-            onChangeText={(v) => update("dietaryNotes", v)}
-            placeholder="e.g., 'no cilantro', 'lower sodium'"
-            placeholderTextColor={Palette.text.placeholder}
-            returnKeyType="done"
-            blurOnSubmit
-            onSubmitEditing={Keyboard.dismiss}
-            style={s.input}
+          <DietarySection
+            eatingStyles={form.eatingStyles}
+            onEatingStylesChange={(next) => update("eatingStyles", next)}
+            allergies={form.allergiesAndAvoidances}
+            onAllergiesChange={(next) => update("allergiesAndAvoidances", next)}
+            otherAllergies={form.otherAllergies}
+            onOtherAllergiesChange={(next) => update("otherAllergies", next)}
+            dietaryNotes={form.dietaryNotes}
+            onDietaryNotesChange={(v) => update("dietaryNotes", v)}
           />
         </Section>
 
@@ -323,11 +319,10 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[600],
     marginBottom: Spacing[2],
   },
-  optional: {
-    fontWeight: Typography.fontWeight.regular,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
-  },
+  // WS9 D-WS9-206 — `optional` and `input` are DELETED with the dietary block
+  // they styled. `optional` was the "(Optional)" badge, which existed on THIS
+  // screen and nowhere else; `input` was the "Anything else?" TextInput, now
+  // inside <DietarySection> at byte-identical values.
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -338,18 +333,6 @@ const s = StyleSheet.create({
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: Spacing[1],
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.neutral[400],
-    backgroundColor: Palette.background.card,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    fontSize: Typography.fontSize.md,
-    color: Colors.neutral[900],
-    fontFamily: Typography.face.sans[400],
-    textAlignVertical: "top",
   },
   footer: {
     marginTop: Spacing[4],

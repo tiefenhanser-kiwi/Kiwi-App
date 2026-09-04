@@ -122,6 +122,9 @@ export interface Step2Draft {
   cookingSkill: "beginner" | "intermediate" | "advanced";
   recurringGroceryItems: string[];
   dietaryNotes: string;
+  // WS9 D-WS9-206 — free-text allergy terms, the ALLERGY half of the split
+  // (dietaryNotes is now explicitly the PREFERENCE half).
+  otherAllergies: string[];
   // Cookbook Phase B Block 3 — cook-time cap collected in step 2.
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: "all" | "most";
@@ -182,6 +185,9 @@ export interface UserPreferencesData {
   defaultRetailer?: string;
   /** Free-text dietary notes (carries over from wizard's "Anything else?") */
   dietaryNotes?: string;
+  /** WS9 D-WS9-206 — free-text allergy terms. Non-null with a [] server
+   *  default, like every other String[] preference column. */
+  otherAllergies: string[];
 
   // Cookbook Phase B Block 1 — new stored prefs (storage + wire only; the
   // preferences UI that edits them lands in Block 3). Non-null with server

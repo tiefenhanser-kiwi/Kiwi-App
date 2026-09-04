@@ -324,6 +324,20 @@ model UserPreferences {
   planLengthDefault       Int             @default(7)
   defaultRetailer         String?
   dietaryNotes            String?
+  // WS9 D-WS9-206 — free-text allergy terms, the ALLERGY half of the split Hans
+  // ruled on Sept 3 ("'Anything else' could mean 'any other notes about what and
+  // how you like to eat?' or it could, being directly below allergies &
+  // avoidances, mean 'what other allergies and avoidances should Kiwi honor?'").
+  // dietaryNotes is now explicitly the PREFERENCE half; this is the allergy one.
+  // String[] not String?: the mobile field renders the terms as removable chips,
+  // so the list is the storage shape, matching allergiesAndAvoidances above.
+  // ⚠️ THE MOBILE FIELD DOES NOT RENDER YET (OTHER_ALLERGIES_FIELD_ENABLED is
+  // false). Retrieval filters on Meal.allergens and free text carries no
+  // canonical token, so nothing honours a term typed here — a label promising
+  // allergy enforcement must not ship before the mechanism does. The column,
+  // the PATCH allow-list and the read schema all exist so the flip is a UI
+  // change, not a migration.
+  otherAllergies          String[]        @default([])
   // Cookbook Phase B — new preference fields (Block 1: storage + wire only;
   // generation wiring is Block 2, mobile UI is Block 3). String-with-default
   // for the categorical prefs matches the newer cookingSkill/stovetopType

@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Keyboard,
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -14,10 +12,9 @@ import { Chip } from "@/components/Chip";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Stepper } from "@/components/Stepper";
-import { AllergiesPicker } from "@/components/preference-pickers/AllergiesPicker";
 import { BudgetLevelPicker } from "@/components/preference-pickers/BudgetLevelPicker";
 import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
-import { EatingStylesPicker } from "@/components/preference-pickers/EatingStylesPicker";
+import { DietarySection } from "@/components/preference-pickers/DietarySection";
 import { EquipmentPicker } from "@/components/preference-pickers/EquipmentPicker";
 import { HealthGoalsPicker } from "@/components/preference-pickers/HealthGoalsPicker";
 import { PickyEatersPicker } from "@/components/preference-pickers/PickyEatersPicker";
@@ -294,50 +291,28 @@ export default function Preferences() {
         </Section>
 
         {/* Section 3: Dietary */}
+        {/* WS9 D-WS9-206/207 — the eating-styles label, the allergies picker
+            and the "Anything else?" field are now <DietarySection>, shared with
+            onboarding-prefs, wizard and tellkiwi. BUG-196 (the doubled
+            allergies heading) and BUG-154 (the placeholder contrast) both
+            landed on THIS screen only; the other three drifted because the
+            chrome was hand-rolled per file. It is one component now.
+            ⚠️ The <Section> wrapper and its title stay HERE — wizard and
+            tellkiwi render this block with no title at all. */}
         <Section title="Dietary preferences">
-          <SubLabel>Eating styles</SubLabel>
-          <EatingStylesPicker
-            value={form.eatingStyles}
-            onChange={(next) => update("eatingStyles", next)}
-          />
-
-          {/* WS9 BUG-196 — the standalone <SubLabel>Allergies & avoidances</SubLabel>
-              that used to sit here is DELETED. It was a plain text heading with a
-              separate "More ⌄" expander beneath it; the expander now carries the
-              real label, so the section is one control instead of two elements.
-              The marginTop moves onto the picker to keep the section spacing. */}
-          <AllergiesPicker
-            style={{ marginTop: Spacing[4] }}
-            value={form.allergiesAndAvoidances}
-            onChange={(next) => update("allergiesAndAvoidances", next)}
-          />
-
-          <SubLabel style={{ marginTop: Spacing[4] }}>
-            Anything else?
-          </SubLabel>
-          <TextInput
-            value={form.dietaryNotes ?? ""}
-            onChangeText={(v) =>
+          <DietarySection
+            eatingStyles={form.eatingStyles}
+            onEatingStylesChange={(next) => update("eatingStyles", next)}
+            allergies={form.allergiesAndAvoidances}
+            onAllergiesChange={(next) => update("allergiesAndAvoidances", next)}
+            otherAllergies={form.otherAllergies}
+            onOtherAllergiesChange={(next) => update("otherAllergies", next)}
+            dietaryNotes={form.dietaryNotes ?? ""}
+            // The screen keeps its own blank-value mapping at the transport
+            // boundary: "" -> undefined, as before.
+            onDietaryNotesChange={(v) =>
               update("dietaryNotes", v.length > 0 ? v : undefined)
             }
-            placeholder="e.g., 'no cilantro', 'lower sodium'"
-            // WS9 BUG-154 — neutral[600] -> neutral[700]. An outside tester did
-            // not see this field at all and reported the feature as MISSING; a
-            // feature that exists and is invisible reads as one that does not.
-            // neutral[600] is #8A8474, which is 3.7278:1 on the white card —
-            // it clears 3:1 for non-text but FAILS 4.5:1 AA for normal text.
-            // neutral[700] (#6B5E4D, the scale's own "secondary text") is
-            // 6.2999:1: comfortably AA, and still well short of the neutral[900]
-            // ink, which is the "a bit darker, not super standout" Hans asked
-            // for. neutral[800] would have been 10.2697:1 — too loud.
-            // ⚠️ SCOPED TO THIS FIELD ON PURPOSE. neutral[600] is the LOCKED
-            // muted-text token and ~20 other placeholders across the app read
-            // it, so moving the token itself is a separate, wider decision.
-            placeholderTextColor={Colors.neutral[700]}
-            returnKeyType="done"
-            blurOnSubmit
-            onSubmitEditing={Keyboard.dismiss}
-            style={s.input}
           />
         </Section>
 

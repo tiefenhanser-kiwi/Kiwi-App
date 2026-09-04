@@ -1,0 +1,23 @@
+-- WS9 D-WS9-206 — split the ambiguous dietary free-text field in two.
+--
+-- Hans, Sept 3: "'Anything else' could mean 'any other notes about what and how
+-- you like to eat?' or it could, being directly below allergies & avoidances,
+-- mean 'what other allergies and avoidances should Kiwi honor?'"
+--
+-- `dietaryNotes` keeps its column and becomes explicitly the PREFERENCE half
+-- ("no cilantro, no veal, no soft cheese"). This is the ALLERGY half.
+--
+-- TEXT[] rather than TEXT: the mobile control renders the terms as removable
+-- chips, so a list is the storage shape — same as "allergiesAndAvoidances".
+--
+-- NOT NULL DEFAULT '{}', so every existing row is valid the moment this runs
+-- and no backfill is needed. An empty array reads as "no other allergies",
+-- which is the correct value for every user who has never seen the field.
+--
+-- ⚠️ THE FIELD DOES NOT RENDER YET. The mobile side ships it behind
+-- OTHER_ALLERGIES_FIELD_ENABLED = false: retrieval filters on Meal.allergens
+-- and free text has no canonical token, so nothing honours a term stored here.
+-- The column lands now so that turning the field on is a UI change rather than
+-- a migration on the critical path.
+ALTER TABLE "user_preferences"
+  ADD COLUMN "otherAllergies" TEXT[] NOT NULL DEFAULT '{}';
