@@ -24,6 +24,8 @@
 
 import { PrismaClient } from "@prisma/client";
 
+import { stampAllergens } from "../src/lib/allergens";
+
 const prisma = new PrismaClient();
 
 interface Flags {
@@ -107,6 +109,13 @@ async function run(flags: Flags): Promise<void> {
       });
       flippedMeals.push(`${before.id} (${before.title})`);
     }
+    // An in-place flip is a path INTO the shared pool, so it owes the pool the
+    // same allergen stamp a batch-generated meal carries. Retrieval excludes
+    // unstamped meals outright when a user declares an allergy, so promoting a
+    // meal without stamping publishes it invisible to exactly the users the
+    // filter protects. Unconditional (not only on flip): an already-public meal
+    // promoted here may predate stamping.
+    await stampAllergens(prisma, mealId);
   }
 
   // Upsert the Template + its items inside a transaction.

@@ -20,6 +20,8 @@
 import { Prisma } from "@prisma/client";
 import type { SourceType } from "@prisma/client";
 
+import { stampAllergens } from "./allergens";
+
 type Tx = Prisma.TransactionClient;
 
 // Target attributes for a clone: who owns it, whether it's pool-visible, and an
@@ -129,16 +131,29 @@ export async function forkMealForUser(
  * Provenance stamping is mandatory: a live gen must never enter the pool
  * unstamped / indistinguishable from a curated or batch_generated meal.
  * Returns the new pool meal id.
+ *
+ * ALLERGEN stamping is mandatory for the same reason, and was missing. This is
+ * the path that put 55 unstamped public dinners into the pool — 100% of the
+ * `live_writeback` population, and the only source still growing. Because the
+ * conservative retrieval rule excludes unstamped meals outright, every one of
+ * them was invisible to every allergic user: the write-back loop was dead for
+ * that group and getting deader.
+ *
+ * The stamp is derived from the CLONE's persisted ingredient graph, not copied
+ * from the source. Copying would propagate `[]` — the source is a live meal
+ * materialized through a path that supplies no allergens either.
  */
 export async function publishMealToStore(
   tx: Tx,
   sourceMealId: string,
 ): Promise<{ mealId: string }> {
-  return cloneMealInto(tx, sourceMealId, {
+  const created = await cloneMealInto(tx, sourceMealId, {
     userId: null,
     isPublic: true,
     sourceTypeOverride: "live_writeback",
   });
+  await stampAllergens(tx, created.mealId);
+  return created;
 }
 
 /**

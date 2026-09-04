@@ -35,6 +35,7 @@ import {
   type MaterializeMealPayload,
   type MaterializeTarget,
 } from "./mealMaterialize";
+import { deriveAllergens } from "./allergens";
 import { resolveIngredients } from "./ingredientResolve";
 import { TARGET_DISHES, type TargetDish } from "./storeFillDishes";
 import {
@@ -236,31 +237,15 @@ export function sanitizeMealSubstitutions(
   return dropped;
 }
 
-// ── allergen derivation (stamp-only; no retrieval filter here) ────────────────
-const ALLERGEN_TOKENS: Record<string, readonly string[]> = {
-  dairy: ["milk", "butter", "cheese", "cream", "yogurt", "parmesan", "mozzarella", "feta", "ricotta", "ghee", "paneer"],
-  egg: ["egg"],
-  peanut: ["peanut"],
-  tree_nut: ["almond", "walnut", "pecan", "cashew", "pistachio", "hazelnut", "macadamia", "pine nut"],
-  soy: ["soy", "tofu", "tempeh", "edamame", "miso", "tamari"],
-  wheat: ["wheat", "flour", "bread", "pasta", "noodle", "tortilla", "couscous", "cracker", "panko", "breadcrumb", "soy sauce"],
-  fish: ["fish", "salmon", "tuna", "cod", "tilapia", "trout", "halibut", "anchovy"],
-  shellfish: ["shrimp", "prawn", "crab", "lobster", "scallop", "clam", "mussel", "oyster"],
-  sesame: ["sesame", "tahini"],
-};
-
-export function deriveAllergens(meal: WizardExpandEnrichedMealDetails): string[] {
-  const found = new Set<string>();
-  for (const dish of meal.dishes) {
-    for (const ing of dish.ingredients) {
-      const n = ing.name.toLowerCase();
-      for (const [token, subs] of Object.entries(ALLERGEN_TOKENS)) {
-        if (subs.some((s) => n.includes(s))) found.add(token);
-      }
-    }
-  }
-  return [...found].sort();
-}
+// ── allergen derivation ──────────────────────────────────────────────────────
+// The vocabulary and the matching rules moved to lib/allergens.ts so that the
+// three OTHER paths into the shared pool — the live write-back (mealFork), the
+// seeds, and the in-place isPublic flip in scripts/promoteInstanceToTemplate.ts
+// — can stamp too. This harness was the only caller, which is why those meals
+// published unstamped and stayed invisible to every allergic user.
+// Imported (not just re-exported) because buildAndPersist below calls it, and a
+// bare `export ... from` would not create a local binding.
+export { deriveAllergens };
 
 // ── BUG-040 gate — re-validate every ingredient before write ─────────────────
 export interface Bug040Result {

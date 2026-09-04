@@ -1,21 +1,38 @@
 // Plan-Gen Arc · Block 4b-1 (D-WS9-075) — the catalog allergen HARD filter.
 //
 // Until now the shortlist filtered only isPublic/isArchived/mealType and did NOT
-// consult `Meal.allergens` (stamped by the store-fill harness, 9 canonical
-// tokens) — the AI never even saw allergen data and judged safety off tag prose.
+// consult `Meal.allergens` (10 canonical tokens — see lib/allergens.ts, which
+// owns the vocabulary and is called from every path into the shared pool)
+// — the AI never even saw allergen data and judged safety off tag prose.
 // This maps the user's fixed-list allergy labels (domain.ts ALLERGIES_AND_
 // AVOIDANCES) to those tokens and excludes any matching meal at retrieval.
 //
 // Conservative default (safety): when a user has ANY mapped allergy, a meal that
 // carries NO allergen stamp is EXCLUDED, not admitted — an unstamped meal is
-// unknown, and unknown ≠ safe. Coverage supports this: 61/1124 catalog meals are
-// unstamped and the worst-case residual pool (dairy) is still 228 meals, so the
-// conservative rule never empties the pool for a single allergy.
+// unknown, and unknown ≠ safe. The conservative rule never empties the pool for
+// a single allergy — worst case (dairy) still leaves a few hundred meals.
 //
-// ⚠️ Vocabulary residual (data limitation, NOT a filter bug — logged as launch-prep):
-// "Gluten-free" maps to the `wheat` token, but the stamp vocabulary has no barley
-// or rye token, so a coeliac user can still be served a barley/rye dish that
-// carries no wheat stamp. A re-stamp is out of scope for this block.
+// ⚠️ THE COVERAGE FIGURE THAT USED TO SIT HERE ("61/1124 unstamped") WAS STALE
+// AND THE STALENESS WAS THE POINT. By 2026-09-04 it was 129 of 1,192, because
+// only the batch harness ever stamped: the live write-back published 55 pool
+// meals with `allergens: []`, every one of them excluded from every allergic
+// user's shelf. Do not re-hardcode a coverage number here — it decays silently
+// and reads as reassurance. The stamping paths are the invariant; count from the
+// database when you need the figure.
+//
+// ✅ CLOSED (2026-09-04) — the gluten residual. "Gluten-free" used to map to the
+// `wheat` token alone, and the stamp vocabulary had no barley or rye, so a
+// coeliac could be served a barley/farro/rye dish carrying no wheat stamp
+// (measured: 3 such meals passed the filter). The stamp vocabulary now carries a
+// separate `gluten` token for the non-wheat gluten grains, and the mapping below
+// resolves "Gluten-free" to BOTH.
+//
+// ⚠️ WHY TWO TOKENS AND NOT A WIDER `wheat`. Gluten ⊋ wheat, and the two chips
+// are different questions. Someone avoiding WHEAT may eat barley; a coeliac may
+// not. Folding barley into `wheat` would exclude barley dishes from the
+// wheat-avoider too — a reach loss with no safety gain — and there would be no
+// way to express the difference. Two tokens make "Wheat-free" ⊂ "Gluten-free"
+// exactly, which is the real relationship.
 //
 // Free-text picky avoidances (pickyAvoidances, dietaryNotes) are NOT structured
 // allergens and are deliberately NOT fed to this hard filter — they remain soft
@@ -26,7 +43,9 @@ import type { Prisma } from "@prisma/client";
 // UI label (normalized: lowercased, non-alnum → single space) → stamp token(s).
 const LABEL_TO_TOKENS: Record<string, readonly string[]> = {
   "dairy free": ["dairy"],
-  "gluten free": ["wheat"], // residual: barley/rye not in the stamp vocab
+  // Gluten-free excludes BOTH; Wheat-free excludes `wheat` alone. That
+  // asymmetry is the point — see the header note.
+  "gluten free": ["wheat", "gluten"],
   "wheat free": ["wheat"],
   "egg free": ["egg"],
   "soy free": ["soy"],

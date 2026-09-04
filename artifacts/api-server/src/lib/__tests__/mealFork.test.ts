@@ -142,6 +142,7 @@ function makeTxStub(
 ) {
   const rec = {
     mealCreates: [] as Record<string, unknown>[],
+    mealUpdates: [] as Record<string, unknown>[],
     dishCreates: [] as Record<string, unknown>[],
     linkCreates: [] as Record<string, unknown>[],
     ingredientCreateMany: [] as Record<string, unknown>[][],
@@ -172,6 +173,16 @@ function makeTxStub(
       create: async (args: { data: Record<string, unknown> }) => {
         rec.mealCreates.push(args.data);
         return { id: "new-meal" };
+      },
+      // publishMealToStore now stamps the clone's allergens from its persisted
+      // graph (2026-09-04 — the write-back was publishing unstamped pool meals,
+      // which the conservative retrieval rule then hid from every allergic
+      // user). This stub returns `source` for every findUnique, so the stamp
+      // derives from the source graph; the write is recorded, not asserted here.
+      // The dedicated assertion lives in allergens.test.ts.
+      update: async (args: { data: Record<string, unknown> }) => {
+        rec.mealUpdates.push(args.data);
+        return {};
       },
     },
     dish: {

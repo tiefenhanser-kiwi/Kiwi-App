@@ -607,7 +607,6 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 # Respecting user hints
 
 - \`userHints.dietary\` may contain values like "vegetarian", "vegan", "gluten-free", "pescatarian", "keto", "low-carb". Adapt ingredient choices to fit — vegetarian means no meat / poultry / fish; vegan adds no dairy / eggs / honey; gluten-free means no wheat / barley / rye in any ingredient.
-- \`userHints.allergens\` may contain "shellfish", "nuts", "peanuts", "dairy", "eggs", "soy", "sesame", etc. Never include those ingredients. If the user's description itself names a hard conflict (e.g. "shrimp tacos" with "shellfish" allergen), produce the meal WITHOUT shrimp, substitute a comparable protein, and add a caveat noting the conflict.
 - \`userHints.cuisinesLiked\` is a soft preference. If the description is cuisine-ambiguous, lean toward the user's listed cuisines. If the description is explicit ("chicken piccata"), the description wins.
 
 # Edge cases
@@ -691,7 +690,6 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 # Respecting user hints
 
 - \`userHints.dietary\` may contain values like "vegetarian", "vegan", "gluten-free", "pescatarian", "keto", "low-carb". Adapt ingredient choices to fit — vegetarian means no meat / poultry / fish; vegan adds no dairy / eggs / honey; gluten-free means no wheat / barley / rye in any ingredient.
-- \`userHints.allergens\` may contain "shellfish", "nuts", "peanuts", "dairy", "eggs", "soy", "sesame", etc. Never include those ingredients. If the user's description itself names a hard conflict, produce the dish WITHOUT the allergen, substitute a comparable ingredient, and add a caveat noting the conflict.
 - \`userHints.cuisinesLiked\` is a soft preference. If the description is cuisine-ambiguous, lean toward the user's listed cuisines. If the description is explicit, the description wins.
 
 # Edge cases
@@ -757,7 +755,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 3. **Add what's needed to make the dish coherent.** Look at the dish title + cuisine and add any standard ingredients the user didn't name. Each addition gets addedByKiwi=true.
 4. **Cuisine guidance is strong.** The cuisine drives ingredient choices. Italian carbonara → guanciale or pancetta, pecorino romano, eggs, black pepper, spaghetti. Mexican tacos → cilantro, lime, fresh tomato, onion. Don't default to bland "American" substitutions unless the user typed them.
 5. **Scale to servings.** Quantities should match \`servings\` (e.g. carbonara for 4 → 1 lb spaghetti, 4 eggs, 4 oz guanciale, ½ cup pecorino, NOT a single-serving portion).
-6. **Respect dietary/allergen hints.** \`userHints.dietary\` (vegan, vegetarian, etc.) and \`userHints.allergens\` are guidance — avoid adding ingredients that violate them. If a user-typed ingredient conflicts (e.g. user typed "bacon" but dietary is "vegetarian"), keep what they typed (their dish, their call) but add a caveat noting the conflict.
+6. **Respect dietary hints.** \`userHints.dietary\` (vegan, vegetarian, etc.) is guidance — avoid adding ingredients that violate it. If a user-typed ingredient conflicts (e.g. user typed "bacon" but dietary is "vegetarian"), keep what they typed (their dish, their call) but add a caveat noting the conflict.
 7. **Don't pad.** A simple dish has a simple list. Aim for the natural ingredient count for the dish — typically 5-12 ingredients for a home-cooked dinner. Don't invent 18-ingredient lists for "Spaghetti Aglio e Olio".
 8. **Don't duplicate.** If the user typed "onion" and you also need "onion", echo it once with isUserProvided=true. Never emit two rows for the same ingredient.
 
@@ -1030,6 +1028,30 @@ Generate the candidates now. Return ONLY the tool_use call.`;
 // even for plans the user wouldn't keep. Steps moved to call #3
 // (wizard.candidate.finalize_steps) which runs only at save/activate.
 // Output here is the lighter details-stage shape (ingredients + macros).
+// 2026-09-04 — the allergy bullet under "Constraints carried from the original
+// candidate" REPLACES a rule that could never fire. It read: "no ingredient name
+// can match (case-insensitive substring) any avoided item". But
+// `allergiesAndAvoidances` holds the 11 CLOSED UI LABELS, so the test it
+// specified was "does 'butter' contain the substring 'Dairy-free'" — false for
+// every ingredient that has ever existed.
+//
+// ⚠️ NOT left inert-but-harmless, and not simply deleted. A rule that reads as a
+// guarantee while enforcing nothing is the layered-contradiction pattern
+// D-WS9-079 already names in this codebase — the next author would have trusted
+// it. Deleting outright would have dropped a correct intent (expand must not ADD
+// an allergen to a candidate). So it is restated to match what the field
+// actually holds: match the labels by MEANING, with the classes spelled out.
+//
+// The deterministic guard is the retrieval filter (store/allergenFilter.ts),
+// which excludes candidates before the model sees them. This bullet governs only
+// what expand may add afterwards.
+//
+// ⚠️ Deliberately NOT wired to UserPreferences.otherAllergies (the free-text
+// allergy field). That column exists but ships behind
+// OTHER_ALLERGIES_FIELD_ENABLED = false, and the wizard/tellKiwi generation
+// schemas do not carry it. Free text IS the right shape for a substring rule —
+// it holds real ingredient words — so this is where that wiring belongs once the
+// field is live.
 const WIZARD_CANDIDATE_EXPAND_BODY = `You are Kiwi's meal-planning AI. The user picked one of the candidate plans you previously generated. Your job now is to expand each meal in that candidate into a recipe details preview: a full ingredient list and serving metadata, so the user can decide whether this plan fits before committing. A second pass will compute per-serving macros from the ingredients you list — so the ingredients must be specific and quantified. Cooking steps are generated separately at save time; you do NOT produce steps in this response.
 
 Your sole deliverable is the structured tool_use response. Do not narrate, summarize, or add commentary. The JSON is the entire response. Never break character with chatbot phrases like "I'll expand..." or "Here are the meals..."
@@ -1097,7 +1119,7 @@ Cooking steps are generated by a separate, save-time call (\`wizard.candidate.fi
 The user's hard constraints (allergies, eating styles, equipment) already shaped the candidate's meal titles — do NOT introduce ingredients or techniques the candidate's tags imply the user rejected:
 - If the candidate's \`tags\` include "Vegetarian"/"Vegan"/"Pescatarian" — every dish must honor it.
 - If the candidate notes equipment limits ("no oven", "no Instant Pot") — do not use that equipment.
-- If \`candidateContext.allergiesAndAvoidances\` is non-empty, no ingredient name can match (case-insensitive substring) any avoided item.
+- If \`candidateContext.allergiesAndAvoidances\` is non-empty, treat each entry as the ALLERGEN CLASS its label names and exclude every ingredient in that class. The entries are fixed labels from a closed list — "Dairy-free", "Gluten-free", "Shellfish-free" — not ingredient words, so match them by meaning: "Dairy-free" excludes milk, butter, cheese, cream, yogurt and ghee; "Shellfish-free" excludes shrimp, crab, lobster, scallops, clams, mussels, squid and crawfish; "Gluten-free" excludes wheat, barley, rye, farro, spelt and any pasta or bread made from them.
 
 # Input
 

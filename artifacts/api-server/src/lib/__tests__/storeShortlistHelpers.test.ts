@@ -89,9 +89,18 @@ describe("allergenFilter", () => {
     );
   });
 
-  it("maps Gluten-free and Wheat-free both to the wheat token", () => {
-    assert.deepEqual(allergenTokensForUser(["Gluten-free"]), ["wheat"]);
+  // 2026-09-04 — this test previously asserted BOTH map to ["wheat"]. That was
+  // the defect, not the contract: gluten ⊋ wheat, so a barley or farro dish
+  // carrying no wheat stamp passed a Gluten-free filter (3 such meals measured
+  // in the live catalog). Wheat-free is now a strict SUBSET of Gluten-free.
+  it("maps Gluten-free to BOTH tokens and Wheat-free to wheat alone", () => {
+    assert.deepEqual(allergenTokensForUser(["Gluten-free"]).sort(), ["gluten", "wheat"]);
     assert.deepEqual(allergenTokensForUser(["Wheat-free"]), ["wheat"]);
+    // The asymmetry is the point: someone avoiding wheat may still eat barley.
+    const wheatOnly = allergenTokensForUser(["Wheat-free"]);
+    const gluten = allergenTokensForUser(["Gluten-free"]);
+    assert.ok(wheatOnly.every((t) => gluten.includes(t)), "Wheat-free ⊂ Gluten-free");
+    assert.ok(!wheatOnly.includes("gluten"), "Wheat-free must NOT exclude barley/rye");
   });
 
   it("drops free-text avoidances (not hard allergens)", () => {
