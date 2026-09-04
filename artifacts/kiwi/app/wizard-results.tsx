@@ -179,12 +179,19 @@ function buildCandidateContext(
   }
   // No input at all — should not happen given the entry-point guard above,
   // but supply a safe default rather than throwing inside a tap handler.
+  //
+  // ⚠️ WS9 BUG-201 — allergiesAndAvoidances / eatingStyles ARE OMITTED HERE,
+  // NOT SENT EMPTY. This branch fires when the screen has NO input at all, so
+  // by construction it knows nothing about the user's constraints — and `[]`
+  // is an assertion that they have none. That assertion reaches the expand
+  // prompt, which is where ingredients are authored: the safest-looking literal
+  // in the file was the one that could put an allergen on a plate. Omitting
+  // makes the server resolve from stored, which is the only honest answer a
+  // no-input fallback can give.
   return {
     planDurationDays: Math.max(1, Math.min(7, candidate.mealTitles.length || 5)),
     householdSize: 4,
     wantsLeftovers: false,
-    allergiesAndAvoidances: [],
-    eatingStyles: [],
     difficulty: "medium",
   };
 }

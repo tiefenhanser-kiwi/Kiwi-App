@@ -596,8 +596,11 @@ export interface TellKiwiInput {
     | "minimal_effort";
 
   // Dietary expansion (collapsed by default)
-  eatingStyles: string[];         // From EATING_STYLES catalog
-  allergiesAndAvoidances: string[]; // From ALLERGIES_AND_AVOIDANCES
+  // WS9 BUG-201 — OPTIONAL. Sent only once the screen has hydrated from stored
+  // preferences. Omitted = never loaded, server resolves from stored; present
+  // (including `[]`) = the user's real choice. See app/tellkiwi.tsx buildPayload.
+  eatingStyles?: string[];        // From EATING_STYLES catalog
+  allergiesAndAvoidances?: string[]; // From ALLERGIES_AND_AVOIDANCES
   dietaryNotes?: string;          // "no shellfish, low sodium"
 
   // Block 4 — the four generation-shaping per-run overrides. Sent only when
@@ -619,8 +622,11 @@ export interface WizardPreferencesInput {
 
   // Multi-select preferences (all optional, may be empty arrays)
   cuisines: string[];
-  eatingStyles: string[];
-  allergiesAndAvoidances: string[];
+  // WS9 BUG-201 — OPTIONAL. Sent only once the screen has hydrated from stored
+  // preferences. Omitted = never loaded, server resolves from stored; present
+  // (including `[]`) = the user's real choice. See app/wizard.tsx handleSubmit.
+  eatingStyles?: string[];
+  allergiesAndAvoidances?: string[];
 
   // Single-select
   difficulty: "easy" | "medium" | "fancy";

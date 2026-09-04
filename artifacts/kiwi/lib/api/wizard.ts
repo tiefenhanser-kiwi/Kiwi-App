@@ -176,8 +176,13 @@ export interface WizardExpandCandidateContext {
   planDurationDays: number;
   householdSize: number;
   wantsLeftovers: boolean;
-  allergiesAndAvoidances: string[];
-  eatingStyles: string[];
+  // WS9 BUG-201 — OPTIONAL. Omitted = "this flow never loaded the user's
+  // preferences, resolve from stored"; present (including `[]`) = "this is the
+  // user's actual choice, honour it exactly". The discriminator is whether the
+  // screen loaded, never whether the value is empty. See buildCandidateContext
+  // in app/wizard-results.tsx.
+  allergiesAndAvoidances?: string[];
+  eatingStyles?: string[];
   difficulty: "easy" | "medium" | "fancy";
   // Cookbook Phase B Block 4 (D-WS7-035) — per-run sauce + cook-time overrides
   // re-sent at expand so the server resolver (wizardExpansion.ts) can honor a

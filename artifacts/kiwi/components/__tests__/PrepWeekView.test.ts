@@ -187,15 +187,46 @@ function renderView(o: Overrides = {}) {
 
 // ── Header / subtitle / phase indicator ───────────────────────────────────────
 
-test("header: renders 'Prep the Week', the plan name, and the meals/min subtitle", () => {
+test("header: renders 'Prep the Week', the plan name, and the meal-count subtitle", () => {
   const texts = flat(renderView().toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Prep the Week"), `missing header: ${texts}`);
   assert.ok(texts.includes("Hearty Week"), `missing plan name: ${texts}`);
-  // "— 2 meals combined · ~16 min —". BUG-011 / D-WS7-184: kept-only total —
-  // produce 6 + proteins-trim 10 = 16; the 8-min demoted "Rub the steak" is
-  // excluded (and omitted from render).
+  // "— 2 meals combined —".
   assert.ok(texts.includes("2 meals combined"), `missing subtitle meals: ${texts}`);
-  assert.ok(texts.includes("16 min"), `missing subtitle minutes: ${texts}`);
+});
+
+// 🔴 D-WS9-213 §3.1 — THE SUMMED TOTAL IS GONE FROM THE HEADER. A real plan
+// read "over 2 hours" there; Hans: "I'd rather users go through thinking 'ha!
+// I can do that in under 5 minutes' than 'oh no, I don't have 2 hours to prep
+// today, this is too much, i quit'."
+//
+// The fixture's kept-only total is 16 (produce 6 + proteins-trim 10; the 8-min
+// skipSuggested "Rub the steak" is excluded — BUG-011 / D-WS7-184). That value
+// is still on the view-model, so this asserts it is not RENDERED in the
+// subtitle rather than that the model stopped computing it.
+test("D-WS9-213: the header carries NO summed total", () => {
+  const view = renderView().toJSON() as RenderedNode | null;
+  const texts = flat(view);
+  assert.equal(
+    buildPrepWeekModel(result(), { mealLabel: lookup }).totalEstimatedMinutes,
+    16,
+    "fixture drifted — the model no longer totals 16, so the check below is vacuous",
+  );
+  assert.ok(
+    !texts.includes("16 min"),
+    `the summed total is still on the glass: ${texts}`,
+  );
+  assert.ok(
+    !texts.includes("combined · "),
+    `the subtitle still carries a second clause: ${texts}`,
+  );
+
+  // ⚠️ POSITIVE CONTROL — ONLY THE SUM WENT. The per-step estimates and the
+  // footer's per-phase "~N min left" are the "I can do that in under 5 minutes"
+  // framing Hans is asking FOR; if this block ever deletes them too, these go
+  // red. (Phase 3 = Produce, one kept 6-min step.)
+  assert.ok(texts.includes("6 min"), `per-step estimate was removed too: ${texts}`);
+  assert.ok(texts.includes("min left"), `per-phase remaining was removed: ${texts}`);
 });
 
 test("phase indicator: shows 'Phase X of 4' for the current pointer", () => {

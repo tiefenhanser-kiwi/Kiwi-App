@@ -2096,3 +2096,50 @@ test("updateMeal propagates a 403 (foreign-owned meal) without touching caches",
     "meals-list cache stayed valid because the PATCH failed",
   );
 });
+
+// WS9 BUG-203 — the mutator half of the clear-to-empty guard.
+//
+// preferencesForm.test.ts pins that toPatchBody EMITS an explicit null. This
+// pins that the null survives the mutator + apiClient and lands in the real
+// serialized request body — which is where the bug actually lived: the value
+// was correct in the form, correct in the argument, and gone by the time
+// JSON.stringify was done with it.
+test("BUG-203: an explicit null clear reaches the PATCH body (not dropped by JSON.stringify)", async () => {
+  await mountAuthed();
+
+  let rawBody: string | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    const u = String(url);
+    if (
+      (init?.method ?? "GET").toUpperCase() === "PATCH" &&
+      u.endsWith("/me/preferences")
+    ) {
+      rawBody = init?.body ? String(init.body) : null;
+      return Promise.resolve(mockJson({ preferences: VALID_PREFS }));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.updateUserPreferences({
+      spiceTolerance: "hot",
+      dietaryNotes: null,
+      stovetopType: null,
+    } as unknown as Parameters<AppValue["updateUserPreferences"]>[0]);
+  });
+
+  assert.ok(rawBody, "PATCH /me/preferences received a body");
+  // Read the RAW string, not a re-parsed object: a dropped key and a null key
+  // both parse to `undefined` on lookup, so only the wire text distinguishes
+  // "sent null" from "never sent".
+  assert.match(String(rawBody), /"dietaryNotes":null/);
+  assert.match(String(rawBody), /"stovetopType":null/);
+
+  const parsed = JSON.parse(String(rawBody)) as Record<string, unknown>;
+  assert.ok("dietaryNotes" in parsed, "the clear was dropped from the body");
+  assert.equal(parsed.dietaryNotes, null);
+});

@@ -345,30 +345,38 @@ function Hub({
               style={s.prepCtaOnSage}
             />
 
-            {/* WS9 (Sept 4, D-WS9-207 Part 2) — Prep Selected Meals now lives
-                INSIDE this lane, directly under Prep the Week.
+            {/* WS9 D-WS9-215 (Sept 4) — Prep Selected Meals: CREAM FILL, GREY
+                LABEL, inside this lane, directly under Prep the Week.
 
-                ⚠️ THIS REVERSES A MEASURED PLACEMENT, DELIBERATELY AND ON
-                HANS'S CALL. The previous note here was right about the tokens
-                and wrong about the conclusion. `secondary` fills with
-                neutral[0] #ffffff, which against sage[600] #5C7350 measures
-                5.2197:1, while the terracotta primary's own fill separates
-                from that sage by only 1.1033:1 (by HUE, which is why it needs
-                its white ring). So a white-FILLED secondary here really would
-                have been the loudest object in the lane — but that argued
-                against the white FILL, not against the position. The
-                resolution is two WEIGHTS in one place, not two positions:
-                terracotta filled above, cream outlined below.
+                This control has been decided three ways; the history matters
+                because each ruling answered a different question.
+                  1. Outside the lane — a WHITE-filled secondary inside it
+                     would be the loudest object in the lane (measured).
+                  2. Inside as a cream OUTLINE — "two weights, not two
+                     positions".
+                  3. Hans, on the device: "Prep selected meals is sage, it
+                     doesn't look good. it should be cream/neutral with gray
+                     text." The outline was the wrong instrument: a transparent
+                     fill lets the sage lane through, so the button READ as
+                     sage. Filled, not outlined.
 
-                `outlineOnSage` (new Button variant): transparent fill, so the
-                lane shows through and nothing competes with the terracotta;
-                cream #FBF7EF edge and label at 4.8848:1 on sage[600], AA, and
-                the same ink as the lane's own title. No white fill and no
-                white ring — the ring exists only to give a terracotta fill a
-                boundary against sage, and an outlined button IS its boundary. */}
+                ⚠️ THE ORIGINAL OBJECTION WAS TO A WHITE FILL, AND IT STANDS —
+                but it is not what makes this safe. Cream #FBF7EF is 4.8848:1
+                against sage[600] and white #ffffff is 5.2197:1: only 6.4%
+                quieter. Cream does NOT dissolve the objection by luminance.
+                CHROMA does. terracotta[400] + #FFFFFF carries full warm chroma
+                and a 4.7308:1 label; cream + neutral[700] is achromatic and
+                reads as paper. That is the hierarchy, and it is why the
+                position is now fine.
+
+                Label neutral[700] #6B5E4D on cream = 5.8956:1, AA.
+                Disabled (the ARRIVAL state — nothing ticked) is a deliberate
+                variant treatment, not the blanket opacity dim: see the token
+                note. Fill recedes to #DBDDCF (3.7919:1 vs the lane); the label
+                stays readable at 4.5766:1. */}
             <Button
               label="Prep Selected Meals"
-              variant="outlineOnSage"
+              variant="creamOnSage"
               disabled={selectedCount === 0}
               onPress={onPrepSelected}
             />

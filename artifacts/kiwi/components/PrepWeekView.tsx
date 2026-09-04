@@ -229,11 +229,28 @@ export function PrepWeekView({
     <View style={s.bg}>
       <Header showBack title="Prep the Week" onBack={onExit} />
 
-      {/* Plan name + italic-dash subtitle ("— N meals combined · ~N min —"). */}
+      {/* Plan name + italic-dash subtitle ("— N meals combined —").
+
+          WS9 D-WS9-213 §3.1 — THE SUMMED TOTAL IS GONE. A real plan read "over
+          2 hours" here, and a number that size is a reason to quit before
+          starting: Hans, verbatim — "I'd rather users go through thinking 'ha!
+          I can do that in under 5 minutes' than 'oh no, I don't have 2 hours to
+          prep today, this is too much, i quit'."
+
+          ⚠️ ONLY THE SUM IS REMOVED. The per-step "N min" (StepCard) and the
+          footer's per-phase "~N min left" both STAY — the small numbers are the
+          "I can do that in under 5 minutes" framing Hans is asking FOR, and
+          only the aggregate produced the daunting one. The per-step estimates
+          are separately inflated (BUG-204); that is a narration-prompt fix in
+          another block and is deliberately NOT attempted here.
+
+          `vm.totalEstimatedMinutes` is left on the view-model: it is a tested
+          part of the buildPrepWeekModel contract (kept-steps-only summing,
+          skipSuggested exclusion) and deleting the field is a wider change than
+          removing this one display. */}
       <Text style={s.planName}>{planName}</Text>
       <Text style={s.subtitle}>
-        — {mealCount} {mealCount === 1 ? "meal" : "meals"} combined · ~
-        {vm.totalEstimatedMinutes} min —
+        — {mealCount} {mealCount === 1 ? "meal" : "meals"} combined —
       </Text>
 
       {/* Phase indicator + the 4-phase progress bar. */}

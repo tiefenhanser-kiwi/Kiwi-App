@@ -208,8 +208,18 @@ interface AppState {
   ) => Promise<void>;
   /** PRD §14.9.2 — update user preferences. PATCHes /me/preferences. Accepts
    *  a partial: onboarding-step-3 sends only the fields the user actually set
-   *  (WS7-2-E Bug 3), preferences.tsx sends the full edited form. */
-  updateUserPreferences: (prefs: Partial<UserPreferencesData>) => Promise<void>;
+   *  (WS7-2-E Bug 3), preferences.tsx sends the full edited form.
+   *
+   *  ⚠️ WS9 BUG-203 — the parameter is the WIRE type (`meAPI.UserPreferences`),
+   *  not the form type (`UserPreferencesData`). The form type declares the four
+   *  String? columns as `field?: string`, which CANNOT EXPRESS AN EXPLICIT
+   *  CLEAR — the only "empty" it has is `undefined`, and JSON.stringify drops
+   *  those, so an emptied field never left the device. The wire type declares
+   *  them `string | null`, so "the user cleared this" is sayable. See
+   *  lib/preferencesForm.ts toPatchBody. */
+  updateUserPreferences: (
+    prefs: Partial<meAPI.UserPreferences>,
+  ) => Promise<void>;
   /** D-WS7-025 — toggle marketing-consent flags on User. Optimistic: flips
    *  the auth cache immediately, rolls back + rethrows on API error. */
   updateMarketingConsent: (patch: {
@@ -913,7 +923,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateUserPreferences = async (
-    prefs: Partial<UserPreferencesData>,
+    prefs: Partial<meAPI.UserPreferences>,
   ): Promise<void> => {
     await meAPI.patchPreferences(prefs);
     // Invalidate so the next getPreferences read (Block C wires the screen)

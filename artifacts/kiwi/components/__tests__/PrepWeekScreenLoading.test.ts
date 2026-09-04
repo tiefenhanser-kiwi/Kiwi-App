@@ -82,37 +82,54 @@ function loadingText(mealIds?: string[]): string {
   }
 }
 
-test("full-week run: the loading copy is UNCHANGED and promises about a minute", () => {
+// D-WS9-213 §3.2 — the copy is Hans-canonical and transcribed here VERBATIM
+// from the ruling, independently of the source file. `.includes` against the
+// whole sentence is what makes "shorten it to fit the layout" go red: a
+// truncation that keeps the first clause still fails.
+const FULL_WEEK_COPY =
+  "This usually takes just over a minute — Kiwi is reading every meal, dish and ingredient in your plan to build one efficient prep session.";
+const SUBSET_COPY =
+  "This usually takes about 40 seconds — Kiwi is reading every meal, dish and ingredient in your selected meals to build one efficient prep session.";
+
+test("full-week run: the copy promises just over a minute, IN FULL", () => {
   const copy = loadingText();
-  // The string already on screen before this change — measured 64-75s.
+  // Measured 64-75s. The old "about a minute" under-promised its own numbers.
   assert.ok(
-    copy.includes("Kiwi is combining your week’s prep… about a minute"),
+    copy.includes(FULL_WEEK_COPY),
     `full-week loading copy not found in: ${copy}`,
   );
   assert.ok(
     !copy.includes("selected meals"),
     "the subset copy leaked into a full-week run",
   );
+  // ⚠️ THE OLD, UNTRUE ESTIMATES. Pinned by absence so a revert is visible.
+  assert.ok(!copy.includes("about a minute"), "the old estimate is back");
 });
 
-test("subset run: the copy names the SELECTION and the shorter measured wait", () => {
+test("subset run: the copy names the SELECTION and the shorter measured wait, IN FULL", () => {
   const copy = loadingText([M1]);
-  // Measured 35-41s.
+  // Measured 35-41s, device-confirmed at 41s. "about 30 seconds" was a promise
+  // the run could not keep.
+  assert.ok(copy.includes(SUBSET_COPY), `subset loading copy not found in: ${copy}`);
   assert.ok(
-    copy.includes(
-      "Kiwi is combining your selected meals… about 30 seconds",
-    ),
-    `subset loading copy not found in: ${copy}`,
-  );
-  assert.ok(
-    !copy.includes("about a minute"),
+    !copy.includes("just over a minute"),
     "the full-week estimate leaked into a subset run",
   );
+  assert.ok(!copy.includes("about 30 seconds"), "the old estimate is back");
+});
+
+test("the explanatory clause is present on BOTH runs — it is the copy's job, not decoration", () => {
+  // "Reading every meal, dish and ingredient" converts dead time into visible
+  // effort. A layout-driven trim would drop exactly this half of the sentence,
+  // so it is asserted on its own as well as inside the whole string.
+  const CLAUSE = "Kiwi is reading every meal, dish and ingredient in your";
+  assert.ok(loadingText().includes(CLAUSE), "full-week clause missing");
+  assert.ok(loadingText([M1]).includes(CLAUSE), "subset clause missing");
 });
 
 test("an EMPTY mealIds array is a full-week run, not a subset", () => {
   // isSubset is `!!mealIds && mealIds.length > 0` — an empty array must not
-  // promise 30 seconds for a full week's work.
+  // promise 40 seconds for a full week's work.
   const copy = loadingText([]);
-  assert.ok(copy.includes("about a minute"), `expected full-week copy: ${copy}`);
+  assert.ok(copy.includes(FULL_WEEK_COPY), `expected full-week copy: ${copy}`);
 });

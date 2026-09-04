@@ -37,7 +37,7 @@ import {
 import { getPreferences } from "@/lib/api/me";
 import { useDebouncedAutoSave } from "@/hooks/useDebouncedAutoSave";
 import type { UserPreferencesData } from "@/lib/types";
-import { toFormState } from "@/lib/preferencesForm";
+import { toFormState, toPatchBody } from "@/lib/preferencesForm";
 
 const HOUSEHOLD_MIN = 1;
 const HOUSEHOLD_MAX = 30;
@@ -87,10 +87,15 @@ export default function Preferences() {
   // needs no warning.
   const persistPreferences = useCallback(
     async (next: UserPreferencesData) => {
-      // wantsLeftovers is no longer user-set (D-WS7-190) — omit it from the
-      // PATCH rather than echo back the stored value (see also the server-only
-      // key peel in toFormState).
-      const { wantsLeftovers: _omitLeftovers, ...prefsToSave } = next;
+      // WS9 BUG-203 — the wantsLeftovers peel (D-WS7-190) AND the `undefined`
+      // -> `null` mapping for the four nullable columns now BOTH live in
+      // toPatchBody, next to toFormState's inbound mapping they mirror. That
+      // colocation is the point: the two directions used to sit in different
+      // files and only one of them handled empty, which is how clearing the
+      // "Anything else?" field silently did nothing while still toasting
+      // success. The body toPatchBody returns carries no `undefined` values at
+      // all, so no field can be dropped by JSON.stringify on the way out.
+      const prefsToSave = toPatchBody(next);
       try {
         await updateUserPreferences(prefsToSave);
         showToast({ message: "Preferences saved." });
@@ -308,11 +313,15 @@ export default function Preferences() {
             otherAllergies={form.otherAllergies}
             onOtherAllergiesChange={(next) => update("otherAllergies", next)}
             dietaryNotes={form.dietaryNotes ?? ""}
-            // The screen keeps its own blank-value mapping at the transport
-            // boundary: "" -> undefined, as before.
-            onDietaryNotesChange={(v) =>
-              update("dietaryNotes", v.length > 0 ? v : undefined)
-            }
+            // WS9 BUG-203 — WAS `v.length > 0 ? v : undefined`. That mapping is
+            // the bug's near half: an emptied field became `undefined`, and
+            // `undefined` is the one value JSON.stringify erases, so clearing
+            // the note produced a PATCH that did not mention it. The buffer now
+            // holds the empty string the user actually typed; toPatchBody turns
+            // it into an explicit `null` at the wire boundary, which the server
+            // accepts and stores. Empty stays SENDABLE — it is a choice, not an
+            // absence (the same distinction BUG-201 draws one layer up).
+            onDietaryNotesChange={(v) => update("dietaryNotes", v)}
           />
         </Section>
 

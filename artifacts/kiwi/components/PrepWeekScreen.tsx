@@ -258,16 +258,27 @@ export function PrepWeekScreen({
         <Header showBack title={headerTitle} onBack={onExit} />
         <View style={s.center}>
           <ActivityIndicator color={Colors.sage[700]} />
-          {/* WS9 (Sept 4, D-WS9-207 Part 2) — two versions, because the two runs
-              are not the same wait. MEASURED: a selected-meals subset ran 35-41s,
-              a full week 64-75s. One "about a minute" over both either
-              over-promises the full week or makes the subset feel slow for no
-              reason. The full-week string is UNCHANGED — it is the one already
-              on screen, and the subset is the new case. */}
+          {/* WS9 D-WS9-213 §3.2 — Hans-canonical copy, verbatim. Two versions,
+              because the two runs are not the same wait. MEASURED: a
+              selected-meals subset ran 35-41s (device-confirmed at 41s), a full
+              week 64-75s. One estimate over both either over-promises the full
+              week or makes the subset feel slow for no reason.
+
+              ⚠️ THE EXPLANATORY CLAUSE IS LOAD-BEARING, NOT FILLER. "Reading
+              every meal, dish and ingredient" converts dead time into visible
+              effort — it is the reason the wait reads as work rather than as a
+              hang. DO NOT SHORTEN IT TO FIT A LAYOUT. `s.muted` sets no
+              numberOfLines and `s.center` has no fixed height, so the sentence
+              wraps freely; if a future layout clips it, move the layout.
+
+              ⚠️ The previous pair ("about 30 seconds" / "about a minute") was
+              not true against the measurements it cited in its own comment —
+              30s under-promised a 35-41s subset and "about a minute"
+              under-promised a 64-75s week. Both estimates moved. */}
           <Text style={s.muted}>
             {isSubset
-              ? "Kiwi is combining your selected meals… about 30 seconds"
-              : "Kiwi is combining your week’s prep… about a minute"}
+              ? "This usually takes about 40 seconds — Kiwi is reading every meal, dish and ingredient in your selected meals to build one efficient prep session."
+              : "This usually takes just over a minute — Kiwi is reading every meal, dish and ingredient in your plan to build one efficient prep session."}
           </Text>
         </View>
       </View>

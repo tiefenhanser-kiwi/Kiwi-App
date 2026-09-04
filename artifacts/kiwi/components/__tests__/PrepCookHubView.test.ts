@@ -820,13 +820,14 @@ test("WS9: a ticked checkbox reports checked, an unticked one does not", () => {
 // different Palette entries — it does not restate a hex against itself, and it
 // does not pass if the two buttons happen to share a variant.
 //
-// ⚠️ REWRITTEN, D-WS9-207 Part 2 (Sept 4). The two CTAs are now in the SAME
-// lane, so "different position" is no longer available to carry the hierarchy
-// and the whole load falls on the weights. The guard therefore got stricter,
-// not looser: it pins that the subset CTA is UNFILLED (the lane shows through),
-// that it is neither of the two treatments explicitly ruled out — a white fill
-// or a white ring — and that both buttons really are inside the sage lane.
-test("WS9: Prep the Week stays dominant — filled primary over an UNFILLED peer, both in the sage lane", () => {
+// ⚠️ REWRITTEN AGAIN, D-WS9-215 (Sept 4). The previous version of this guard
+// asserted the subset CTA was UNFILLED — "the lane shows through it". That is
+// exactly the property Hans rejected on the device: a transparent fill over a
+// sage lane IS sage, so the button read as a sage button. The guard now pins
+// the opposite fill and, critically, pins that it is CREAM and not WHITE — the
+// original measured objection (a white fill out-shouts the terracotta) was
+// never withdrawn and still holds.
+test("WS9: Prep the Week stays dominant — filled terracotta primary over a CREAM-FILLED peer, both in the sage lane", () => {
   const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
   const renderer = render(model, { selectedMealIds: new Set(["m1"]) });
   const tree = renderer.toJSON() as RenderedNode | null;
@@ -840,26 +841,29 @@ test("WS9: Prep the Week stays dominant — filled primary over an UNFILLED peer
 
   // Weight 1: terracotta FILL.
   assert.equal(pStyle.backgroundColor, Palette.button.primary.background);
-  // Weight 2: no fill at all, so the sage lane reads through it.
-  assert.equal(sStyle.backgroundColor, "transparent");
+  // Weight 2: CREAM fill — filled, not outlined. Hans: "it should be
+  // cream/neutral with gray text."
+  assert.equal(sStyle.backgroundColor, Palette.button.creamOnSage.background);
+  assert.equal(sStyle.backgroundColor, "#FBF7EF");
   assert.notEqual(pStyle.backgroundColor, sStyle.backgroundColor);
 
-  // ⚠️ THE TWO TREATMENTS RULED OUT BY NAME. A white FILL would out-shout the
-  // terracotta (neutral[0] on sage[600] is 5.2197:1 against the primary fill's
-  // 1.1033:1 hue-only separation). A white RING is the PRIMARY's device, for
-  // giving a terracotta fill an edge against sage; on an unfilled button it
-  // would just read as a second ring of the same colour.
-  assert.notEqual(sStyle.backgroundColor, Palette.button.secondary.background);
-  assert.notEqual(sStyle.borderColor, Palette.button.primary.text);
-  // Cream edge — the same ink as the lane's own title, 4.8817:1 on sage[600].
-  assert.equal(sStyle.borderColor, Palette.text.inverse);
-  assert.equal(sStyle.borderColor, "#FBF7EF");
+  // ⚠️ NOT OUTLINED. The previous treatment; regressing to it reproduces the
+  // reported bug exactly, so it is pinned by name.
+  assert.notEqual(sStyle.backgroundColor, "transparent");
+  assert.equal(sStyle.borderWidth, 0);
 
-  // …and the label is cream too, not the neutral[900] a `ghost` would give
-  // (2.7401:1 on sage[600], under the AA floor).
+  // ⚠️ NOT WHITE. neutral[0] on sage[600] is 5.2197:1 versus cream's 4.8848:1;
+  // the objection to a white fill was never withdrawn.
+  assert.notEqual(sStyle.backgroundColor, Palette.button.secondary.background);
+  assert.notEqual(sStyle.backgroundColor, Colors.neutral[0]);
+
+  // …and the label is GREY on that cream, not the cream-on-sage the outline
+  // used and not the neutral[900] ink a `ghost` would give.
   const sLabel = findAllByType(secondary, "rn-text")[0];
   assert.ok(sLabel, "the subset CTA renders a label");
-  assert.equal(resolvedStyle(sLabel).color, Palette.text.inverse);
+  assert.equal(resolvedStyle(sLabel).color, Colors.neutral[700]);
+  assert.equal(resolvedStyle(sLabel).color, "#6B5E4D");
+  assert.notEqual(resolvedStyle(sLabel).color, Palette.text.inverse);
 
   // PLACEMENT: both CTAs are inside the sage[600] lane. Read by walking DOWN
   // from the lane view rather than by trusting document order, so a button that
@@ -871,6 +875,107 @@ test("WS9: Prep the Week stays dominant — filled primary over an UNFILLED peer
   assert.ok(
     laneText.includes("Prep Selected Meals"),
     "the subset CTA is NOT in the sage lane",
+  );
+  renderer.unmount();
+});
+
+// 🔴 THE CONTRAST GUARD. Grey-on-cream is the same family as two AA failures
+// already open on this app from greys that looked right (neutral[600] at
+// 3.4886:1 and onSageSub at 3.7107:1). This computes the WCAG 2.1 ratio from
+// the RENDERED colours — read off the mounted tree, not off the token file —
+// and compares to literals written independently from a separate calculator.
+//
+// ⚠️ FOUR DECIMALS, ALWAYS. A 2.9966 prints as "3.00" and reads as passing.
+function srgbToLinear(channel: number): number {
+  const s = channel / 255;
+  return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+}
+
+function relativeLuminance(hex: string): number {
+  const h = hex.replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) =>
+    srgbToLinear(parseInt(h.slice(i, i + 2), 16)),
+  );
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG 2.1 contrast ratio, rounded to 4dp. */
+function contrast(a: string, b: string): number {
+  const [la, lb] = [relativeLuminance(a), relativeLuminance(b)];
+  const [hi, lo] = la > lb ? [la, lb] : [lb, la];
+  return Number(((hi + 0.05) / (lo + 0.05)).toFixed(4));
+}
+
+test("WS9 D-WS9-215: the subset CTA's grey-on-cream clears AA, measured from the rendered colours", () => {
+  const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
+  const renderer = render(model, { selectedMealIds: new Set(["m1"]) });
+  const tree = renderer.toJSON() as RenderedNode | null;
+
+  const secondary = findPressableByText(tree, "Prep Selected Meals");
+  assert.ok(secondary);
+  const fill = resolvedStyle(secondary).backgroundColor as string;
+  const ink = resolvedStyle(findAllByType(secondary, "rn-text")[0])
+    .color as string;
+
+  // Sanity on the calculator itself against a value pinned elsewhere in the
+  // codebase: white on the terracotta primary is BUG-106's 4.7308.
+  assert.equal(contrast("#FFFFFF", "#C24F25"), 4.7308);
+
+  // THE MEASUREMENT. neutral[700] #6B5E4D on cream #FBF7EF.
+  assert.equal(contrast(ink, fill), 5.8956);
+  assert.ok(contrast(ink, fill) >= 4.5, "label is under the AA floor");
+
+  // ⚠️ THE GREY THAT LOOKS RIGHT AND IS NOT. neutral[600] on this same fill is
+  // an AA failure; pinned so "soften the label a shade" goes red here.
+  assert.equal(contrast(Colors.neutral[600], fill), 3.4886);
+  assert.ok(contrast(Colors.neutral[600], fill) < 4.5);
+
+  // The fill's own separation from the lane, and the white it is NOT.
+  assert.equal(contrast(fill, Colors.sage[600]), 4.8848);
+  assert.equal(contrast(Colors.neutral[0], Colors.sage[600]), 5.2197);
+  renderer.unmount();
+});
+
+// 🔴 THE DISABLED GUARD — and this is the state the user ARRIVES in, because
+// nothing is ticked yet. Hans: "the grey-out behavior works well, but it makes
+// the button look worse when it's not clickable."
+//
+// The blanket `opacity: 0.5` composited cream over sage into #ACB5A0, a murky
+// grey-green belonging to neither, and dragged the label to 2.6858:1. This pins
+// that the variant now expresses "off" in COLOUR and the dim is suppressed.
+test("WS9 D-WS9-215: the subset CTA's disabled state is a deliberate treatment, not the opacity dim", () => {
+  const model = buildPrepCookHubModel(twoMealPlan(), "Sunday");
+  // No selection — the arrival state, and the disabled one.
+  const renderer = render(model, { selectedMealIds: new Set<string>() });
+  const tree = renderer.toJSON() as RenderedNode | null;
+
+  const secondary = findPressableByText(tree, "Prep Selected Meals");
+  assert.ok(secondary);
+  const style = resolvedStyle(secondary);
+
+  // NOT the blanket dim. 0.5 here is the bug being fixed.
+  assert.notEqual(style.opacity, 0.5);
+  assert.equal(style.opacity, 1);
+
+  // The fill steps back instead — translucent cream, resolved by the device
+  // over the sage lane to #DBDDCF (3.7919:1 vs the lane, down from 4.8848:1).
+  assert.equal(style.backgroundColor, "rgba(251, 247, 239, 0.8)");
+  assert.equal(contrast("#DBDDCF", Colors.sage[600]), 3.7919);
+
+  // ⚠️ AND THE LABEL STAYS READABLE. The user reads this label to learn what
+  // ticking meals is FOR, so it keeps neutral[700] — 4.5766:1 on the resolved
+  // fill, still AA even though disabled text is exempt from 1.4.3. Muting it to
+  // neutral[600] was measured at 2.7081 and rejected.
+  const label = findAllByType(secondary, "rn-text")[0];
+  assert.equal(resolvedStyle(label).color, Colors.neutral[700]);
+  assert.equal(contrast(Colors.neutral[700], "#DBDDCF"), 4.5766);
+  assert.equal(contrast(Colors.neutral[600], "#DBDDCF"), 2.7081);
+
+  // The button really is disabled — the treatment describes a real state, not a
+  // decoration. Read the LIVE prop, same as the enable/disable guard above.
+  assert.equal(
+    (secondary as { props: { disabled?: boolean } }).props.disabled,
+    true,
   );
   renderer.unmount();
 });

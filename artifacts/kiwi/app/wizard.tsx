@@ -30,6 +30,7 @@ import {
 } from "@/lib/domain";
 import type { WizardPreferencesInput } from "@/lib/types";
 import { getPreferences, type UserPreferences } from "@/lib/api/me";
+import { buildWizardPayload } from "@/lib/wizard/perRunPayload";
 
 type Difficulty = WizardPreferencesInput["difficulty"];
 type WeeklyPacing = WizardPreferencesInput["weeklyPacing"];
@@ -179,28 +180,12 @@ export default function Wizard() {
 
   const handleSubmit = () => {
     Keyboard.dismiss();
-    const payload: WizardPreferencesInput = {
-      planDurationDays: form.planDurationDays,
-      householdSize: form.householdSize,
-      cuisines: form.cuisines,
-      eatingStyles: form.eatingStyles,
-      allergiesAndAvoidances: form.allergies,
-      difficulty: form.difficulty,
-      weeklyPacing: form.weeklyPacing,
-      dietaryNotes: form.dietaryNotes.trim() || undefined,
-      additionalNotes: form.additionalNotes.trim() || undefined,
-      // Only send the four per-run overrides once stored prefs have hydrated
-      // the controls. Sending pre-hydration defaults would override the user's
-      // real stored prefs with wizard defaults (D-WS7-035 resolver precedence).
-      ...(hydrated
-        ? {
-            discoveryMealsPerWeek: form.discoveryMealsPerWeek,
-            saucePreference: form.saucePreference,
-            maxCookTimeMinutes: form.maxCookTimeMinutes,
-            maxCookTimeCoverage: form.maxCookTimeCoverage,
-          }
-        : {}),
-    };
+    // WS9 BUG-201 — the payload AND its hydration gate now live in
+    // lib/wizard/perRunPayload.ts. app/** is outside the test glob (D-WS9-164)
+    // and this gate decides whether a stale `[]` allergy list reaches plan
+    // generation, so it is moved somewhere it can actually be pinned. The rule
+    // and the reasoning are documented there.
+    const payload: WizardPreferencesInput = buildWizardPayload(form, hydrated);
     console.log("[wizard] submit", payload);
     // WS6 6a-3 — payload travels to wizard-results as a JSON-encoded route
     // param; that screen calls POST /api/wizard/build-plans on mount.
@@ -360,6 +345,10 @@ export default function Wizard() {
                   }
                   dietaryNotes={form.dietaryNotes}
                   onDietaryNotesChange={(v) => update("dietaryNotes", v)}
+                  // WS9 BUG-201 — the screen renders past a prefs error by
+                  // design; this makes it SAY so instead of showing an empty
+                  // allergy list that means "you have none".
+                  prefsUnavailable={prefsQuery.isError}
                 />
               </View>
 

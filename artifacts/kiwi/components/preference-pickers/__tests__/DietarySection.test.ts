@@ -252,3 +252,80 @@ test("controlled: the rendered value is the prop, never internal state", () => {
   const { json } = render({ dietaryNotes: "lower sodium" });
   assert.equal(notesInput(json()).props.value, "lower sodium");
 });
+
+// ── 6. BUG-201: the screen must not lie when preferences failed to load ────
+//
+// The two per-run screens render past a prefs error by design ("hydration is an
+// assist, not a blocker"), so a failed read produces an allergies expander with
+// ZERO chips — indistinguishable from a user who set none. A user cannot
+// exercise an override whose starting state they cannot see.
+
+test("BUG-201: prefsUnavailable renders an explicit notice, and it names what still applies", () => {
+  const copy = texts(render({ prefsUnavailable: true }).json()).join(" ");
+  assert.ok(
+    copy.includes("couldn't load your saved preferences"),
+    `no hydration-failure notice rendered: ${copy}`,
+  );
+  // ⚠️ THE PROMISE THE NOTICE MAKES MUST BE ONE THE PAYLOAD KEEPS. The payload
+  // half omits the field so the server resolves from stored — which is exactly
+  // "your saved allergies still apply". If the notice ever says something the
+  // omit-on-unhydrated rule does not deliver, this pairing is where it shows.
+  assert.ok(copy.includes("saved allergies"), `notice does not name what survives: ${copy}`);
+  assert.ok(copy.includes("this plan only"), `notice does not scope the override: ${copy}`);
+});
+
+test("BUG-201: the notice is ABSENT by default — a healthy screen says nothing", () => {
+  // Defaulted off, because preferences.tsx and onboarding-prefs.tsx do not
+  // hydrate from a background read that can fail this way. A notice that
+  // rendered unconditionally would be its own lie.
+  const copy = texts(render().json()).join(" ");
+  assert.ok(
+    !copy.includes("couldn't load your saved preferences"),
+    `the failure notice rendered on a healthy screen: ${copy}`,
+  );
+  assert.ok(
+    !texts(render({ prefsUnavailable: false }).json())
+      .join(" ")
+      .includes("couldn't load"),
+  );
+});
+
+test("BUG-201: the notice's ink clears AA on its own surface", () => {
+  // 🔴 CONTRAST IS MEASURED. Colors.gold.text on Colors.gold.background — the
+  // obvious pairing — is 3.7593:1 and would have been an AA failure on a line
+  // the user MUST read to understand why their chips are empty.
+  // The deepest matching node — the <Text> itself, not an ancestor View that
+  // merely contains it (an ancestor carries no colour and the test would read
+  // `undefined` and fail for the wrong reason).
+  const matches = walk(render({ prefsUnavailable: true }).json()).filter(
+    (n) =>
+      n.props?.style !== undefined &&
+      texts(n).join(" ").includes("couldn't load your saved preferences"),
+  );
+  const notice = matches[matches.length - 1]!;
+  assert.ok(notice, "the notice node was not found");
+  const style = Object.assign(
+    {},
+    ...[notice.props.style].flat(Infinity).filter((x) => x && typeof x === "object"),
+  ) as Record<string, unknown>;
+
+  assert.equal(style.color, Colors.neutral[800]);
+  assert.equal(style.backgroundColor, Colors.gold.background);
+  assert.notEqual(style.color, Colors.gold.text);
+
+  const lum = (hex: string) => {
+    const h = hex.replace("#", "");
+    const [r, g, b] = [0, 2, 4]
+      .map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+      .map((s) => (s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (a: string, b: string) => {
+    const [la, lb] = [lum(a), lum(b)];
+    const [hi, lo] = la > lb ? [la, lb] : [lb, la];
+    return Number(((hi + 0.05) / (lo + 0.05)).toFixed(4));
+  };
+
+  assert.equal(ratio(style.color as string, style.backgroundColor as string), 8.4579);
+  assert.equal(ratio(Colors.gold.text, Colors.gold.background), 3.7593);
+});

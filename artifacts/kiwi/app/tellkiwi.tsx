@@ -33,6 +33,7 @@ import {
 import type { TellKiwiInput } from "@/lib/types";
 import { getPreferences, type UserPreferences } from "@/lib/api/me";
 import { useBuildFromText } from "@/hooks/useBuildFromText";
+import { buildTellKiwiPayload } from "@/lib/wizard/perRunPayload";
 
 type WeeklyPacing = NonNullable<TellKiwiInput["weeklyPacing"]>;
 type SaucePreference = NonNullable<TellKiwiInput["saucePreference"]>;
@@ -157,27 +158,13 @@ export default function TellKiwi() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const buildPayload = (): TellKiwiInput => ({
-    description: form.description.trim(),
-    planDurationDays: form.planDurationDays,
-    householdSize: form.householdSize,
-    cuisines: form.cuisines,
-    weeklyPacing: form.weeklyPacing,
-    eatingStyles: form.eatingStyles,
-    allergiesAndAvoidances: form.allergies,
-    dietaryNotes: form.dietaryNotes.trim() || undefined,
-    // Only send the four per-run overrides once stored prefs have hydrated the
-    // controls — otherwise wizard defaults would clobber stored prefs via the
-    // server resolver (D-WS7-035 precedence).
-    ...(hydrated
-      ? {
-          discoveryMealsPerWeek: form.discoveryMealsPerWeek,
-          saucePreference: form.saucePreference,
-          maxCookTimeMinutes: form.maxCookTimeMinutes,
-          maxCookTimeCoverage: form.maxCookTimeCoverage,
-        }
-      : {}),
-  });
+  // WS9 BUG-201 — the payload AND its hydration gate now live in
+  // lib/wizard/perRunPayload.ts, shared with wizard.tsx. app/** is outside the
+  // test glob (D-WS9-164) and this gate decides whether a stale `[]` allergy
+  // list reaches plan generation. The rule and the reasoning are documented
+  // there; both screens now build through one function, so they cannot drift.
+  const buildPayload = (): TellKiwiInput =>
+    buildTellKiwiPayload(form, hydrated);
 
   const handleSubmit = () => {
     Keyboard.dismiss();
@@ -405,6 +392,10 @@ export default function TellKiwi() {
                   }
                   dietaryNotes={form.dietaryNotes}
                   onDietaryNotesChange={(v) => update("dietaryNotes", v)}
+                  // WS9 BUG-201 — the screen renders past a prefs error by
+                  // design; this makes it SAY so instead of showing an empty
+                  // allergy list that means "you have none".
+                  prefsUnavailable={prefsQuery.isError}
                 />
               </View>
 

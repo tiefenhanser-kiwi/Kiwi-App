@@ -79,6 +79,22 @@ export interface DietarySectionProps {
   /** "" is the blank value on every screen — see the note on the handler. */
   dietaryNotes: string;
   onDietaryNotesChange: (next: string) => void;
+  /**
+   * WS9 BUG-201 — the screen's stored-preferences read FAILED, so these
+   * controls are showing their fallback state and not the user's saved values.
+   *
+   * ⚠️ THIS EXISTS BECAUSE A BLANK ALLERGIES EXPANDER IS A LIE. On the two
+   * per-run screens hydration is "an assist, not a blocker" (wizard.tsx:216) —
+   * a prefs error falls straight through to the form with `allergies: []`. The
+   * rendered result is indistinguishable from a user who set no allergies, and
+   * a user cannot override a starting state they cannot see. The payload half
+   * of the fix omits the field so the server resolves from stored; this is the
+   * half that stops the SCREEN from claiming the list is empty.
+   *
+   * Defaulted off: preferences.tsx and onboarding-prefs.tsx do not hydrate from
+   * a background read that can fail this way.
+   */
+  prefsUnavailable?: boolean;
 }
 
 export function DietarySection({
@@ -90,6 +106,7 @@ export function DietarySection({
   onOtherAllergiesChange,
   dietaryNotes,
   onDietaryNotesChange,
+  prefsUnavailable = false,
 }: DietarySectionProps) {
   const toggleOther = (item: string) => {
     onOtherAllergiesChange(
@@ -106,6 +123,19 @@ export function DietarySection({
 
   return (
     <View>
+      {/* WS9 BUG-201 — say it, don't imply it. One line, no icon, no retry
+          button: the read is a background assist and the user's real lever is
+          simply to type what they need for this plan. What the line must do is
+          stop the empty chip list from reading as "you have no allergies", and
+          promise that the saved ones are still enforced — which the payload
+          half of the fix makes true by omitting the field entirely. */}
+      {prefsUnavailable && (
+        <Text style={s.prefsUnavailable}>
+          We couldn&apos;t load your saved preferences, so these are blank —
+          Kiwi will still apply your saved allergies and eating styles to this
+          plan. Anything you add here applies on top, for this plan only.
+        </Text>
+      )}
       <Text style={s.subLabel}>Eating styles</Text>
       <EatingStylesPicker value={eatingStyles} onChange={onEatingStylesChange} />
 
@@ -163,12 +193,19 @@ export function DietarySection({
       <Text style={s.helpText}>Any other dietary preferences?</Text>
       <TextInput
         value={dietaryNotes}
-        // ⚠️ ONE BLANK-VALUE CONVENTION: "". The three screens previously
-        // disagreed (undefined / "" + omit-on-PATCH / undefined) and converged
-        // to the same stored state anyway, so nothing downstream depended on
-        // the difference. The component takes and emits a plain string; each
-        // screen maps "" to whatever its own transport wants at the boundary
-        // (preferences.tsx -> undefined, wizard/tellkiwi -> undefined on send).
+        // ⚠️ ONE BLANK-VALUE CONVENTION: "". The component takes and emits a
+        // plain string; each screen maps "" at its own transport boundary.
+        //
+        // ⚠️ THE CLAIM THAT USED TO BE HERE — that the screens' three blank
+        // conventions "converged to the same stored state anyway, so nothing
+        // downstream depended on the difference" — WAS FALSE, AND THE DEVICE
+        // PROVED IT (BUG-203). preferences.tsx mapped "" -> `undefined`,
+        // JSON.stringify dropped the key, and the server kept the old note
+        // while the screen toasted success. Convergence holds while a field is
+        // being SET and breaks the moment it is CLEARED. preferences.tsx now
+        // maps "" -> explicit `null` (lib/preferencesForm.ts toPatchBody); the
+        // two per-run screens still map "" -> `undefined` on send, which is
+        // correct THERE because they are not persisting anything.
         onChangeText={onDietaryNotesChange}
         placeholder={DIETARY_NOTES_PLACEHOLDER}
         placeholderTextColor={Colors.neutral[700]}
@@ -201,6 +238,24 @@ const s = StyleSheet.create({
   },
   otherAllergies: {
     marginTop: Spacing[3],
+  },
+  // WS9 BUG-201 — the hydration-failed notice. Gold is the app's caution
+  // surface; this is a caution, not an error (nothing the user did failed, and
+  // the plan will still be built correctly).
+  //
+  // ⚠️ INK IS neutral[800], NOT Colors.gold.text. #996E1B on gold.background
+  // #F6E8C8 measures 3.7593:1 — under the 4.5:1 AA floor, and this is a line
+  // the user MUST read to understand why their allergy chips look empty.
+  // neutral[800] #4A3F30 on the same surface is 8.4579:1.
+  prefsUnavailable: {
+    backgroundColor: Colors.gold.background,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    marginBottom: Spacing[3],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
   },
   input: {
     borderWidth: 1,

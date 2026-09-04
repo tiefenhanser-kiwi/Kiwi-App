@@ -176,26 +176,53 @@ export const Palette = {
       text:       '#F4F1E6',
       hover:      Colors.sage[700],
     },
-    // WS9 (Sept 4) — the quiet CTA for INSIDE a sage[600] lane. Transparent
-    // fill + cream edge + cream label, so it reads as a subordinate peer of the
-    // terracotta primary sitting above it in the same lane rather than
-    // competing with it.
+    // WS9 D-WS9-215 (Sept 4) — the quiet CTA for INSIDE a sage[600] lane:
+    // CREAM FILL, GREY LABEL. Hans on the device: "Prep selected meals is sage,
+    // it doesn't look good. it should be cream/neutral with gray text."
     //
-    // ⚠️ THIS IS WHY `secondary` COULD NOT BE USED THERE. secondary fills with
-    // neutral[0] #ffffff, which against sage[600] #5C7350 measures 5.2197:1 —
-    // LOUDER than the terracotta primary's own 1.1033:1 fill separation (the
-    // primary separates by HUE, which is why it needs its white ring at all).
-    // A white block beside it would make the SECONDARY the loudest object in
-    // the lane and invert the hierarchy. `ghost` is not an out either: its
-    // neutral[900] label on sage[600] is 2.7401:1, under the AA floor.
+    // ⚠️ WHY THE OUTLINE WAS THE WRONG INSTRUMENT. This slot previously held
+    // `outlineOnSage` — transparent fill, cream edge, cream label — chosen so
+    // "the lane shows through and nothing competes with the terracotta". That
+    // is exactly what went wrong: a transparent fill over sage[600] IS sage, so
+    // the button read as a sage button, not as a quiet one.
     //
-    // Cream #FBF7EF on sage[600] is 4.8848:1 — AA for the label, and the same
-    // ink as the lane's own title, so the two read as one family.
-    outlineOnSage: {
-      background: 'transparent',
-      text:       '#FBF7EF',
-      border:     '#FBF7EF',
-      hover:      Colors.sage[500],
+    // ⚠️ AND THE MEASUREMENT DOES NOT SUPPORT THE OLD HIERARCHY ARGUMENT. The
+    // rejected `secondary` fills white #ffffff, 5.2197:1 against sage[600];
+    // cream #FBF7EF is 4.8848:1. That is a 6.4% reduction — cream is NOT
+    // meaningfully quieter than white by luminance, and any claim that it is
+    // should be checked against these two numbers before it is repeated.
+    //
+    // What actually keeps this subordinate to the terracotta primary above it
+    // is CHROMA, not luminance. terracotta[400] #C24F25 separates from sage by
+    // only 1.1033:1 but carries full warm chroma and a #FFFFFF label at
+    // 4.7308:1 — maximum ink punch. Cream + neutral[700] is achromatic and
+    // reads as paper, not as an accent. Two weights by chroma, one position.
+    //
+    // Label: neutral[700] #6B5E4D on cream #FBF7EF = 5.8956:1, AA.
+    // ⚠️ neutral[600] #8A8474 is 3.4886:1 on this fill and MUST NOT be used —
+    // it is the same family as the two AA failures already open on this app.
+    creamOnSage: {
+      background: '#FBF7EF',
+      text:       Colors.neutral[700],
+      hover:      Colors.neutral[200],
+      // Deliberate DISABLED treatment — this variant opts out of Button's
+      // blanket `opacity: 0.5` dim. Hans: "the grey-out behavior works well,
+      // but it makes the button look worse when it's not clickable." The dim
+      // composited cream over sage into #ACB5A0 (a murky pale grey-green that
+      // is neither cream nor sage) and dragged the label to 2.6858:1.
+      //
+      // Instead the FILL recedes and the INK does not: rgba cream at 0.8 over
+      // sage[600] resolves to #DBDDCF — 3.7919:1 against the lane, down from
+      // the enabled 4.8848:1, so the block visibly steps back while staying in
+      // the cream family. The label stays neutral[700], 4.5766:1 on that fill —
+      // still AA even though disabled text is exempt from 1.4.3.
+      //
+      // ⚠️ THE DISABLED STATE IS THE ARRIVAL STATE (nothing ticked yet), so the
+      // user reads this label to learn what ticking meals is FOR. Muting the
+      // ink was measured and rejected: neutral[600] on #DBDDCF is 2.7081:1.
+      // Never make a disabled control's own name hard to read.
+      disabledBackground: 'rgba(251, 247, 239, 0.8)',
+      disabledText:       Colors.neutral[700],
     },
     ghost: {
       background: 'transparent',
