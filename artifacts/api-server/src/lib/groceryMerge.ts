@@ -21,6 +21,10 @@
 
 import { normalizeIngredientName } from "./groceryNormalization";
 import { baseStapleName, mergeGroupBaseName } from "./groceryStaples";
+import {
+  EMPTY_RELATION_INDEX,
+  type RelationIndex,
+} from "./ingredientRelations";
 import type { ConsolidatedItem, GrocerySource } from "./groceryList";
 import {
   convertToGrams,
@@ -122,9 +126,42 @@ function groupConversion(group: ConsolidatedItem[]): IngredientConversion | null
 // Attempt to merge a same-canonical group (≥2 distinct units) into ONE item
 // with a raw (un-rounded) summed quantity. Returns the merged item, or null when
 // the table can't convert the group (caller leaves it unmerged).
+// WS9 D-WS9-189 A2 — WHICH MEMBER SUPPLIES THE SURVIVING NAME.
+//
+// Every branch below used to spread `group[0]`, so the merged row kept whichever
+// member the consolidator happened to bucket FIRST. That was invisible while the
+// only cross-name folds were MERGE_GROUP_VARIANT_TO_BASE's 11 near-identical
+// entries. With the `synonym` reader a group can hold "yellow onion" beside
+// "yellow onions, thinly sliced", and first-seen is then a coin-flip over what
+// the SHOPPER READS.
+//
+// The rule is SHORTEST normalized name, ties broken alphabetically.
+//
+// ⚠️ NAMED SIDE BENEFIT, so nobody "fixes" it later: shortest-wins also steers
+// away from the legacy rows carrying the purchase pack baked into displayName
+// — "1 block (8 oz) parmesan cheese", "2 packages (8 buns per package) brioche
+// burger bun". Those are BUG-136 and they are exactly the long names this rule
+// avoids. ⚠️ IT DOES NOT FIX BUG-136: the rule only chooses among members that
+// are ALREADY folding together, so a baked-pack row that folds with nothing
+// keeps its name untouched.
+//
+// Only the NAME-bearing fields ride on this choice. `units` below is still read
+// in group order, so pickMeasuredTarget and the dimension probe select exactly
+// the unit they always did.
+function pickRepresentative(group: ConsolidatedItem[]): ConsolidatedItem {
+  return group.reduce((best, it) => {
+    const a = normalizeIngredientName(it.canonicalName);
+    const b = normalizeIngredientName(best.canonicalName);
+    if (a.length !== b.length) return a.length < b.length ? it : best;
+    return a < b ? it : best;
+  });
+}
+
 function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
   const conv = groupConversion(group);
   const units = group.map((g) => g.unit);
+  const rep = pickRepresentative(group);
+  const rest = group.filter((g) => g !== rep);
 
   // ── WS9 BUG-181: same NAME-GROUP, same UNIT → exact sum, no factor ──
   //
@@ -158,8 +195,8 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
     let total = 0;
     for (const it of group) total += it.quantity;
     if (total > 0) {
-      const base = { ...group[0], quantity: total };
-      for (let i = 1; i < group.length; i++) foldMetadata(base, group[i]);
+      const base = { ...rep, quantity: total };
+      for (const m of rest) foldMetadata(base, m);
       return base;
     }
   }
@@ -192,8 +229,8 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
       total += q;
     }
     if (convertible && total > 0) {
-      const base = { ...group[0], unit: target, quantity: total };
-      for (let i = 1; i < group.length; i++) foldMetadata(base, group[i]);
+      const base = { ...rep, unit: target, quantity: total };
+      for (const m of rest) foldMetadata(base, m);
       return base;
     }
   }
@@ -209,8 +246,8 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
     const target = pickMeasuredTarget(units);
     const qty = gramsToUnit(grams, target, conv);
     if (qty === null || !(qty > 0)) return null;
-    const base = { ...group[0], unit: target, quantity: qty };
-    for (let i = 1; i < group.length; i++) foldMetadata(base, group[i]);
+    const base = { ...rep, unit: target, quantity: qty };
+    for (const m of rest) foldMetadata(base, m);
     return base;
   }
 
@@ -242,8 +279,8 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
       // delete+add on the first pass after deploy.
       const childUnit =
         group.find((g) => canonicalUnitToken(g.unit) === child)?.unit ?? child;
-      const base = { ...group[0], unit: childUnit, quantity: totalChild };
-      for (let i = 1; i < group.length; i++) foldMetadata(base, group[i]);
+      const base = { ...rep, unit: childUnit, quantity: totalChild };
+      for (const m of rest) foldMetadata(base, m);
       return base;
     }
   }
@@ -259,6 +296,7 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
  */
 export function mergeConvertibleGroups(
   items: ConsolidatedItem[],
+  relations: RelationIndex = EMPTY_RELATION_INDEX,
 ): ConsolidatedItem[] {
   // Group by BASE STAPLE name, preserving first-seen order.
   //
@@ -281,10 +319,35 @@ export function mergeConvertibleGroups(
   //
   // mergeGroup still refuses any group the conversion table can't reconcile, so
   // a folded group that isn't genuinely convertible passes through untouched.
+  //
+  // ── WS9 D-WS9-189 A2 — THE SYNONYM READER LANDS HERE ──
+  //
+  // `relations.groupKey` is the COMPOSED key: the `synonym` fold FIRST, then
+  // mergeGroupBaseName, iterated to fixpoint. It defaults to
+  // EMPTY_RELATION_INDEX, whose groupKey is exactly the old expression
+  // `mergeGroupBaseName(normalizeIngredientName(...))` — so a caller that
+  // passes no index gets byte-identical behaviour and every pre-A2 test stays
+  // green for the right reason.
+  //
+  // ⚠️ COMPOSE, NOT REPLACE, AND THE HAND MAP KEEPS THE LAST WORD. Phase 0
+  // measured MERGE_GROUP_VARIANT_TO_BASE's coverage in `ingredient_relations`
+  // at 0/11: the 5 entries whose both endpoints are catalog rows all carry
+  // `subsumes` (a label this block does not read), and the other 6 have no
+  // catalog row at all, so no row->row edge can ever exist for them. The two
+  // mechanisms answer different questions with zero overlap — the same
+  // argument that split MERGE_GROUP_VARIANT_TO_BASE out of
+  // STAPLE_VARIANT_TO_BASE in BUG-170. Deleting the hand map here would
+  // REOPEN BUG-181 (three olive-oil rows shipped as three bottles) and
+  // BUG-168's kept half.
+  //
+  // ⚠️ WHEN THE `subsumes` READER SHIPS on the other track, those 5 entries
+  // become ITS territory and this map shrinks. Do not delete them before that
+  // reader exists. handMapSynonymCollisions() is the guard that fires if the
+  // zero-overlap measurement ever stops holding.
   const groups = new Map<string, ConsolidatedItem[]>();
   const order: string[] = [];
   for (const it of items) {
-    const key = mergeGroupBaseName(normalizeIngredientName(it.canonicalName));
+    const key = relations.groupKey(it.canonicalName);
     let g = groups.get(key);
     if (!g) {
       g = [];
@@ -316,7 +379,19 @@ export function mergeConvertibleGroups(
     }
     const merged = mergeGroup(group);
     if (merged) out.push(merged);
-    else out.push(...group); // table can't convert → leave for the AI path
+    // ⚠️ A REFUSED GROUP PASSES THROUGH UNMERGED — AND NOTHING ROUTES IT TO
+    // SONNET. This line used to read "table can't convert → leave for the AI
+    // path", which is FALSE and cost the next reader an hour. partitionForAI's
+    // rule 3 pairs rows sharing a canonical name with DIFFERENT units; a group
+    // refused here holds rows with DIFFERENT canonical names (that is the only
+    // reason they were grouped), so rule 3 never fires on them and they land on
+    // the deterministic side as two rows for one purchase.
+    //
+    // The claim was already wrong for MERGE_GROUP_VARIANT_TO_BASE's 11 entries;
+    // the A2 synonym reader widens the surface rather than creating it. Routing
+    // a refused cross-name group to Sonnet is a SEPARATE decision and is
+    // deliberately NOT taken here (D-WS9-189 A2 §5).
+    else out.push(...group);
   }
   return out;
 }

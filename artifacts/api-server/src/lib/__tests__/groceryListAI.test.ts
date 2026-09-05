@@ -15,6 +15,7 @@ import {
   generateFinalGroceryList,
   partitionForAI,
 } from "../groceryListAI";
+import { buildRelationIndex } from "../ingredientRelations";
 import { _resetClientCache } from "../ai/runAICall";
 import { _resetRegistryCaches } from "../ai/promptRegistry";
 import type {
@@ -677,6 +678,54 @@ describe("partitionForAI", () => {
       aiSubset.map((p) => p.index),
       [1],
     );
+  });
+
+  // ── WS9 D-WS9-189 A2 — rule 3 must ask the SAME "is this one ingredient?"
+  //    question the merge grouping asks ──
+  //
+  // If the synonym reader lands in mergeConvertibleGroups but NOT here, the two
+  // disagree: the merge treats two names as one ingredient while rule 3 still
+  // sees two, so a folded pair the conversion table refuses is never partnered
+  // into the AI subset either. These pin the agreement.
+  it("partners a SYNONYM-folded pair in different units into the AI subset", () => {
+    const idx = buildRelationIndex([
+      {
+        label: "synonym",
+        fromCanonicalName: "neutral oil",
+        toCanonicalName: "vegetable oil",
+        yieldQuantity: null,
+        yieldUnit: null,
+        coHarvestable: null,
+        confidence: "high",
+        reviewedByHuman: false,
+        fromDefaultUnit: "bottle",
+      },
+    ]);
+    const items = [
+      specificItem({ canonicalName: "neutral oil", unit: "tbsp" }),
+      specificItem({ canonicalName: "vegetable oil", unit: "cup" }),
+      specificItem({ canonicalName: "kale", unit: "bunch" }),
+    ];
+    // Without the index these are two unrelated canonicals in one unit each,
+    // so rule 3 does not fire and all three go deterministic.
+    const off = partitionForAI(items);
+    assert.equal(off.aiSubset.length, 0);
+    // With it, the two oils are ONE ingredient in TWO units — rule 3's case.
+    const on = partitionForAI(items, idx);
+    assert.equal(on.aiSubset.length, 2);
+    assert.equal(on.deterministic.length, 1);
+    assert.equal(on.deterministic[0].item.canonicalName, "kale");
+  });
+
+  it("normalizes the rule-3 key, so case variants stop being two keys", () => {
+    // Pre-existing: this site keyed on the RAW canonicalName while bucketKeyOf
+    // has normalized since 6c-4, so "Olive Oil" and "olive oil" were two keys.
+    const items = [
+      specificItem({ canonicalName: "Olive Oil", unit: "tbsp" }),
+      specificItem({ canonicalName: "olive oil", unit: "cup" }),
+    ];
+    const { aiSubset } = partitionForAI(items);
+    assert.equal(aiSubset.length, 2, "one ingredient in two units, two spellings");
   });
 });
 

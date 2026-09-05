@@ -22,6 +22,11 @@ import {
   lookupPurchaseDefault,
 } from "./ingredientConversions";
 import { mergeConvertibleGroups } from "./groceryMerge";
+import {
+  EMPTY_RELATION_INDEX,
+  poolComponentNeeds,
+  type RelationIndex,
+} from "./ingredientRelations";
 import { roundNeedQuantity } from "./needQuantity";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
@@ -74,6 +79,14 @@ export interface ConsolidateOptions {
   prisma: PrismaClient;
   planId: string;
   userId: string;
+  // WS9 D-WS9-189 A2 — the relation readers, OFF BY DEFAULT.
+  //
+  // This is the flag. Omitting it yields EMPTY_RELATION_INDEX, whose groupKey
+  // is exactly the pre-A2 expression and whose componentParents list is empty,
+  // so the consolidator behaves byte-identically to before this block. The A2
+  // dry run supplies a real index built from `ingredient_relations`; wiring the
+  // production route to load one is a separate, ruled step.
+  relations?: RelationIndex;
 }
 
 export class GroceryConsolidationNotFoundError extends Error {
@@ -327,7 +340,7 @@ function signatureOfEffective(effective: EffectiveDishIngredient[]): string {
 export async function consolidatePlanIngredients(
   opts: ConsolidateOptions,
 ): Promise<ConsolidatedItem[]> {
-  const { prisma, planId, userId } = opts;
+  const { prisma, planId, userId, relations = EMPTY_RELATION_INDEX } = opts;
 
   const plan = await prisma.mealPlanInstance.findUnique({
     where: { id: planId },
@@ -590,12 +603,23 @@ export async function consolidatePlanIngredients(
     .map((k) => buckets.get(k)!)
     .filter((x): x is ConsolidatedItem => !!x);
 
+  // WS9 D-WS9-189 A2 — COMPONENT POOLING, between the recurring match-or-append
+  // above and the merge below. Placed here and not inside mergeConvertibleGroups
+  // for a STRUCTURAL reason: mergeGroup's contract is CONSERVATION (BUG-142
+  // asserts it), and pooling deliberately violates conservation — one lemon
+  // satisfying both a juice need and a zest need destroys quantity by design.
+  //
+  // No-op unless `relations` was supplied: EMPTY_RELATION_INDEX carries no
+  // component parents and the pass returns its input.
+  const pooled = poolComponentNeeds(ordered, relations);
+
   // WS7-8b B2 (BUG-031) — density-aware merge of same-canonical/different-unit
   // rows (parmesan oz+½cup, garlic head+clove) using the conversion table.
   // Runs on RAW (un-rounded) quantities so the merged total is rounded exactly
   // once by the sweep below (merge-then-round-once — never round the parts then
-  // merge). Groups the table can't convert pass through and still reach the AI.
-  const merged = mergeConvertibleGroups(ordered);
+  // merge). A group the table can't convert passes through unmerged (and, see
+  // the note at that branch, is NOT routed to the AI).
+  const merged = mergeConvertibleGroups(pooled.items, relations);
 
   // WS7-8b B1 (BUG-025-2) — final need-quantity round-up sweep. Once, AFTER the
   // merge, so merged totals and single-unit rows round identically. Changes only

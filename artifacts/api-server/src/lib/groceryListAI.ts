@@ -29,6 +29,10 @@ import type { PrismaClient, StoreSection } from "@prisma/client";
 
 import { runAICall as productionRunAICall } from "./ai/runAICall";
 import {
+  EMPTY_RELATION_INDEX,
+  type RelationIndex,
+} from "./ingredientRelations";
+import {
   GenerateGroceryListResultSchema,
   ItemCategorizationInputSchema,
   ItemCategorizationResultSchema,
@@ -260,10 +264,27 @@ interface PartitionResult {
  * Everything else partitions to the deterministic side and gets its final
  * displayName via formatPackDisplay (Fix B) without any AI call.
  */
-export function partitionForAI(items: ConsolidatedItem[]): PartitionResult {
+export function partitionForAI(
+  items: ConsolidatedItem[],
+  relations: RelationIndex = EMPTY_RELATION_INDEX,
+): PartitionResult {
+  // ── WS9 D-WS9-189 A2 — THE SECOND LANDING POINT, AND THE ONE THAT BREAKS IF
+  //    IT IS SKIPPED ──
+  //
+  // Rule 3 asks "is this row the same ingredient as that one, reached in a
+  // different unit?" — the SAME question mergeConvertibleGroups' grouping key
+  // asks. Answering it with the raw canonicalName here while the merge answers
+  // it with the composed fold makes the two disagree about what is one
+  // ingredient. `relations.groupKey` is that same composed key (synonym fold,
+  // then mergeGroupBaseName, to fixpoint), so both sites agree by construction.
+  //
+  // Default EMPTY_RELATION_INDEX reproduces the prior behaviour EXCEPT that it
+  // now normalizes: groupKey runs normalizeIngredientName, which the raw
+  // `item.canonicalName` key did not, so "Olive Oil" and "olive oil" stop being
+  // two keys here. bucketKeyOf has normalized since 6c-4; this site never did.
   const unitsByCanonical = new Map<string, Set<string>>();
   for (const item of items) {
-    const c = item.canonicalName;
+    const c = relations.groupKey(item.canonicalName);
     let units = unitsByCanonical.get(c);
     if (!units) {
       units = new Set();
@@ -283,7 +304,7 @@ export function partitionForAI(items: ConsolidatedItem[]): PartitionResult {
     if (
       isVague(item) ||
       item.sectionKey === "extras" ||
-      sameCanonicalDifferentUnit.has(item.canonicalName)
+      sameCanonicalDifferentUnit.has(relations.groupKey(item.canonicalName))
     ) {
       aiSubset.push({ item, index: i });
     } else {

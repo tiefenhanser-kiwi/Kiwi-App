@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { mergeConvertibleGroups } from "../groceryMerge";
+import { buildRelationIndex } from "../ingredientRelations";
 import { baseStapleName, mergeGroupBaseName } from "../groceryStaples";
 import { roundNeedQuantity } from "../needQuantity";
 import type { ConsolidatedItem } from "../groceryList";
@@ -392,5 +393,84 @@ describe("mergeConvertibleGroups — same-unit fold (BUG-181)", () => {
       item({ canonicalName: "white onion", quantity: 3, unit: "each" }),
     ]);
     assert.equal(out.length, 2);
+  });
+});
+
+// -- WS9 D-WS9-189 A2 -- the synonym reader lands in the grouping key --------
+//
+// Two things are pinned here that no earlier test could reach, because before
+// A2 the only cross-name folds were MERGE_GROUP_VARIANT_TO_BASE's 11 entries
+// and every one of them has the short name as its base:
+//   1. a relation-driven fold happens at all, and
+//   2. WHICH member supplies the surviving name (shortest normalized, ties
+//      alphabetical) -- which is what the SHOPPER READS.
+describe("mergeConvertibleGroups -- relation-driven folding (D-WS9-189 A2)", () => {
+  it("does NOT fold two synonym-related rows without an index", () => {
+    // The negative that proves the fold rides on the index and not on anything
+    // already in the file. Default arg = EMPTY_RELATION_INDEX.
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "1 block (8 oz) parmesan cheese", quantity: 2, unit: "ounce" }),
+      item({ canonicalName: "parmesan cheese", quantity: 3, unit: "ounce" }),
+    ]);
+    assert.equal(out.length, 2);
+  });
+
+  it("folds them WITH an index, and the SHORT name survives", () => {
+    const idx = buildRelationIndex([
+      {
+        label: "synonym",
+        fromCanonicalName: "1 block (8 oz) parmesan cheese",
+        toCanonicalName: "parmesan cheese",
+        yieldQuantity: null,
+        yieldUnit: null,
+        coHarvestable: null,
+        confidence: "high",
+        reviewedByHuman: false,
+        fromDefaultUnit: "ounce",
+      },
+    ]);
+    // The LONG name is deliberately first, so a surviving `group[0]` spread
+    // would keep it. This is the expression that changes if the defect ships.
+    const out = mergeConvertibleGroups(
+      [
+        item({ canonicalName: "1 block (8 oz) parmesan cheese", quantity: 2, unit: "ounce" }),
+        item({ canonicalName: "parmesan cheese", quantity: 3, unit: "ounce" }),
+      ],
+      idx,
+    );
+    assert.equal(out.length, 1, "the synonym edge must fold these into one row");
+    assert.equal(out[0].quantity, 5, "2 + 3 = 5 ounces");
+    assert.equal(
+      out[0].canonicalName,
+      "parmesan cheese",
+      "shortest normalized name wins -- first-seen would have kept the baked-pack name",
+    );
+    assert.equal(out[0].displayName, "parmesan cheese");
+    assert.equal(out[0].sources.length, 2, "provenance from both rows survives");
+  });
+
+  it("breaks an equal-length tie alphabetically", () => {
+    const idx = buildRelationIndex([
+      {
+        label: "synonym",
+        fromCanonicalName: "bbbb cheese",
+        toCanonicalName: "aaaa cheese",
+        yieldQuantity: null,
+        yieldUnit: null,
+        coHarvestable: null,
+        confidence: "high",
+        reviewedByHuman: false,
+        fromDefaultUnit: "ounce",
+      },
+    ]);
+    const out = mergeConvertibleGroups(
+      [
+        item({ canonicalName: "bbbb cheese", quantity: 1, unit: "ounce" }),
+        item({ canonicalName: "aaaa cheese", quantity: 1, unit: "ounce" }),
+      ],
+      idx,
+    );
+    assert.equal(out.length, 1);
+    assert.equal(out[0].canonicalName, "aaaa cheese");
   });
 });
