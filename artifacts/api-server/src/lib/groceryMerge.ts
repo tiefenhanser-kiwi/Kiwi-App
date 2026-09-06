@@ -30,6 +30,7 @@ import {
   convertToGrams,
   convertWithinDimension,
   gramsToUnit,
+  isCountUnit,
   isVolumeUnit,
   isWeightUnit,
   lookupConversion,
@@ -157,6 +158,202 @@ function pickRepresentative(group: ConsolidatedItem[]): ConsolidatedItem {
   });
 }
 
+// ── WS9 BUG-209 — THE PACK IS NOT PART OF THE PRIZE FOR WINNING THE NAME ────
+//
+// `pickRepresentative` above decides what the shopper READS. Until this fix it
+// also decided what the shopper BUYS, because every branch of mergeGroup spread
+// `...rep` — so the merged row inherited the representative's purchaseUnit /
+// purchaseQuantity / purchaseDisplay, and the pack basis flipped whenever the
+// name contest flipped. Measured over all 53 live lists: 36 merge groups hold
+// members with DIFFERENT packs today, 48 once the synonym reader is wired, and
+// in 6 of them the shortest name is the one carrying a SIZELESS pack — the
+// catalog's `black pepper` row is literally `1 container`, and it beat a
+// sibling carrying `1 container (2.3 oz)` for no reason but being shorter.
+//
+// D-WS9-221 (Hans, September 6 2026): "pack is derived from sum of demand, for
+// sure … I'd rather say I need 8 oz cheese, buy 8 oz cheese. or I need cheese,
+// buy 8oz. not I need 8 oz buy cheese". The buy half must carry a concrete size.
+//
+// ⚠️ WHAT IS AND IS NOT IMPLEMENTED HERE. The ruling's second clause — "the
+// purchase pack would be the smallest normal size to retire the demand" —
+// presumes a SET of retail sizes per ingredient. Phase 0 measured that data:
+// it does not exist. 1,569 catalog rows, 486 carrying a scalar pack, 236 with a
+// conversionRef, and ZERO carrying an array of packs or sizes. One pack per
+// ingredient is all there is. So this ranks the packs the GROUP ALREADY HOLDS
+// against the group's SUMMED demand; it does not invent sizes and it is not the
+// retail-size catalog that clause needs.
+//
+// ⚠️ IT NEVER NULLS A PACK, AND THAT IS A SAFETY PROPERTY, NOT A STYLE CHOICE.
+// fillPurchaseSizesWithWriteBack treats a null pack as a cache MISS: it asks
+// Haiku to invent one and then WRITES IT BACK to Ingredient.purchaseUnit/
+// Quantity/Display for that row's ingredientId — the same three columns
+// consolidatePlanIngredients reads on the next generation. "Emit no pack rather
+// than a wrong one" would therefore not emit no pack; it would launder an AI
+// guess into the shared catalog under the representative's name. The candidate
+// set here is a SUBSET-preserving choice among packs that already exist, so a
+// merged row is a write-back miss only if it was one before this fix too.
+
+// The pack's own magnitude, for comparison against a demand. Two kinds, never
+// mixed: a MEASURED pack states grams ("1 container (2.3 oz)", "1 lb pack"),
+// a COUNT pack states items ("2 lemons", "4 jalapeños"). A pack whose size is
+// not stated at all ("1 container", "1 bunch") returns null — that is exactly
+// the shape D-WS9-221 rejects, and null ranks last.
+type PackMagnitude = { kind: "grams" | "count"; value: number };
+
+function packMagnitude(
+  purchaseDisplay: string,
+  conv: IngredientConversion | null,
+): PackMagnitude | null {
+  // A parenthetical size wins over the leading count: in "1 lb pack (4 sticks)"
+  // the leading "1 lb" is the real magnitude and "4 sticks" is a description,
+  // while in "1 container (2.3 oz)" the leading "1" is the count and the
+  // parenthetical is the magnitude. Try both, prefer whichever yields grams.
+  const paren = /\(\s*~?\s*([\d.]+)\s*([a-zA-Z]+)/.exec(purchaseDisplay);
+  const lead = /^\s*([\d.]+)\s+([a-zA-Z]+)/.exec(purchaseDisplay);
+  for (const m of [lead, paren]) {
+    if (!m) continue;
+    const amt = Number(m[1]);
+    if (!(amt > 0)) continue;
+    if (!isWeightUnit(m[2]) && !isVolumeUnit(m[2])) continue;
+    const g = convertToGrams(amt, m[2], conv);
+    if (g !== null && g > 0) return { kind: "grams", value: g };
+  }
+  // No measurable size. A pure count pack ("2 lemons") still states a concrete
+  // magnitude in the only unit that ingredient has.
+  if (lead && !paren) {
+    const n = Number(lead[1]);
+    if (n > 0 && !isWeightUnit(lead[2]) && !isVolumeUnit(lead[2])) {
+      return { kind: "count", value: n };
+    }
+  }
+  return null;
+}
+
+function demandMagnitude(
+  quantity: number,
+  unit: string,
+  conv: IngredientConversion | null,
+): PackMagnitude | null {
+  const g = convertToGrams(quantity, unit, conv);
+  if (g !== null && g > 0) return { kind: "grams", value: g };
+  if (isCountUnit(unit) && quantity > 0) return { kind: "count", value: quantity };
+  return null;
+}
+
+// How much of the product the shopper ends up holding if this pack is the
+// basis: whole packs, ceiled to cover the demand. Lower is a tighter buy.
+// Returns null when the two magnitudes are not the same kind — the criterion
+// then abstains rather than guessing.
+function totalBought(
+  pack: PackMagnitude | null,
+  demand: PackMagnitude | null,
+): number | null {
+  if (!pack || !demand || pack.kind !== demand.kind) return null;
+  return Math.ceil(demand.value / pack.value - 1e-9) * pack.value;
+}
+
+/**
+ * BUG-209 — choose the merged row's PURCHASE PACK from the group, by the pack's
+ * own properties and the group's SUMMED demand. Never by which name won.
+ *
+ * Ranked, first difference decides:
+ *   1. How well the pack states a size the DEMAND can be measured against
+ *      (see {@link sizeTier}).
+ *   2. The tighter buy: fewest whole packs × pack size to cover the summed
+ *      demand. (parmesan, need 9 oz: a 6 oz wedge buys 12 oz, an 8 oz block
+ *      buys 16 oz — the wedge wins, which "largest pack" would have got wrong.)
+ *   3. The smaller pack.
+ *   4. The more informative display — one carrying a parenthetical.
+ *   5. Lexicographic, so the outcome is DEFINED rather than incidental.
+ *
+ * Returns null when the group offers no choice to make (fewer than two members
+ * carry a complete pack, or they all carry the same one) — the caller then
+ * leaves whatever foldMetadata already settled on, untouched.
+ */
+function pickPackBasis(
+  group: ConsolidatedItem[],
+  quantity: number,
+  unit: string,
+  conv: IngredientConversion | null,
+): ConsolidatedItem | null {
+  const candidates = group.filter(
+    (g) =>
+      g.purchaseUnit !== null &&
+      g.purchaseQuantity !== null &&
+      g.purchaseDisplay !== null,
+  );
+  if (candidates.length < 2) return null;
+  const distinct = new Set(
+    candidates.map((c) => `${c.purchaseUnit} ${c.purchaseDisplay}`),
+  );
+  if (distinct.size < 2) return null;
+
+  const demand = demandMagnitude(quantity, unit, conv);
+  const mag = new Map<ConsolidatedItem, PackMagnitude | null>();
+  for (const c of candidates) mag.set(c, packMagnitude(c.purchaseDisplay!, conv));
+
+  return candidates.reduce((best, it) => (better(it, best) ? it : best));
+
+  // How useful this pack's stated size is, against THIS demand. Lower is better.
+  //
+  // ⚠️ THE COUNT TIER IS WHY THIS IS A LADDER AND NOT A BOOLEAN, and a
+  // deliberate break found it. "1 container" parses as a count of one — the
+  // leading number is a pack COUNT, not a size — so a plain "is it sized?"
+  // test called it sized and let it beat "1 lb bag", which is the exact
+  // sizeless shape D-WS9-221 rejects. A count only states a size when the
+  // DEMAND is a count too ("2 lemons" against a need of 3 each); against a
+  // measured need it says nothing, and grams — which is absolute — wins.
+  function sizeTier(m: PackMagnitude | null): number {
+    if (m === null) return 3;
+    if (demand !== null && m.kind === demand.kind) return 0; // comparable
+    if (m.kind === "grams") return 1; // an absolute size, just not this demand's
+    return 2; // a bare pack count
+  }
+
+  function better(a: ConsolidatedItem, b: ConsolidatedItem): boolean {
+    const ma = mag.get(a) ?? null;
+    const mb = mag.get(b) ?? null;
+    // 1. the better-stated size
+    const sa = sizeTier(ma);
+    const sb = sizeTier(mb);
+    if (sa !== sb) return sa < sb;
+    // 2. the tighter buy
+    const ta = totalBought(ma, demand);
+    const tb = totalBought(mb, demand);
+    if (ta !== null && tb !== null && Math.abs(ta - tb) > 1e-9) return ta < tb;
+    // 3. the smaller pack
+    if (ma && mb && ma.kind === mb.kind && Math.abs(ma.value - mb.value) > 1e-9) {
+      return ma.value < mb.value;
+    }
+    // 4. the more informative display
+    const pa = a.purchaseDisplay!.includes("(");
+    const pb = b.purchaseDisplay!.includes("(");
+    if (pa !== pb) return pa;
+    // 5. defined, not incidental
+    return a.purchaseDisplay! < b.purchaseDisplay!;
+  }
+}
+
+// Every merge branch ends the same way: fold the non-representative members in,
+// then settle the pack against the merged demand. Kept as one function so a
+// future branch cannot forget the second half (all four branches predate
+// BUG-209 and all four had the defect).
+function finishMerge(
+  base: ConsolidatedItem,
+  rest: ConsolidatedItem[],
+  group: ConsolidatedItem[],
+  conv: IngredientConversion | null,
+): ConsolidatedItem {
+  for (const m of rest) foldMetadata(base, m);
+  const basis = pickPackBasis(group, base.quantity, base.unit, conv);
+  if (basis) {
+    base.purchaseUnit = basis.purchaseUnit;
+    base.purchaseQuantity = basis.purchaseQuantity;
+    base.purchaseDisplay = basis.purchaseDisplay;
+  }
+  return base;
+}
+
 function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
   const conv = groupConversion(group);
   const units = group.map((g) => g.unit);
@@ -196,8 +393,7 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
     for (const it of group) total += it.quantity;
     if (total > 0) {
       const base = { ...rep, quantity: total };
-      for (const m of rest) foldMetadata(base, m);
-      return base;
+      return finishMerge(base, rest, group, conv);
     }
   }
 
@@ -230,8 +426,7 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
     }
     if (convertible && total > 0) {
       const base = { ...rep, unit: target, quantity: total };
-      for (const m of rest) foldMetadata(base, m);
-      return base;
+      return finishMerge(base, rest, group, conv);
     }
   }
 
@@ -247,8 +442,7 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
     const qty = gramsToUnit(grams, target, conv);
     if (qty === null || !(qty > 0)) return null;
     const base = { ...rep, unit: target, quantity: qty };
-    for (const m of rest) foldMetadata(base, m);
-    return base;
+    return finishMerge(base, rest, group, conv);
   }
 
   // ── sub-unit count (head↔clove) ──
@@ -280,8 +474,7 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
       const childUnit =
         group.find((g) => canonicalUnitToken(g.unit) === child)?.unit ?? child;
       const base = { ...rep, unit: childUnit, quantity: totalChild };
-      for (const m of rest) foldMetadata(base, m);
-      return base;
+      return finishMerge(base, rest, group, conv);
     }
   }
 

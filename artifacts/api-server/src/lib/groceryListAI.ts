@@ -71,6 +71,20 @@ export interface GroceryListAIOptions {
   // DI seam for tests. Production callers omit and runAICall builds its own
   // module-level Anthropic client from process.env.ANTHROPIC_API_KEY.
   client?: Pick<Anthropic, "messages">;
+  // WS9 D-WS9-189 A2b — the relation index, threaded to partitionForAI's rule 3.
+  //
+  // It rides on the OPTIONS BAG rather than a fourth positional argument
+  // because both production callers already build this object and pass it
+  // straight through, so a route that loads an index for the consolidator
+  // cannot forget to give the AI pass the same one. Omitting it yields
+  // EMPTY_RELATION_INDEX and the pre-A2b partition, byte for byte — which is
+  // what every existing test does, deliberately.
+  //
+  // ⚠️ IT MUST BE THE SAME INDEX consolidatePlanIngredients was given. Rule 3
+  // and mergeConvertibleGroups' grouping key ask the same question ("is this
+  // the same ingredient reached in a different unit?"); answering it with two
+  // different folds makes them disagree about what one ingredient is.
+  relations?: RelationIndex;
 }
 
 /**
@@ -445,7 +459,11 @@ export async function generateFinalGroceryList(
   knownSections: StoreSection[],
   opts: GroceryListAIOptions,
 ): Promise<GenerateGroceryListResult> {
-  const { deterministic, aiSubset } = partitionForAI(items);
+  // WS9 D-WS9-189 A2b — the wired index, or EMPTY when the caller supplies none.
+  const { deterministic, aiSubset } = partitionForAI(
+    items,
+    opts.relations ?? EMPTY_RELATION_INDEX,
+  );
 
   type Placed = { index: number; out: GenerateListOutputItem };
   const placed: Placed[] = deterministic.map(({ item, index }) => ({

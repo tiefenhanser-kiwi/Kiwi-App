@@ -42,6 +42,7 @@ import {
   GroceryListAIError,
 } from "../lib/groceryListAI";
 import { reconcileGroceryListIfStale } from "../lib/groceryReconcile";
+import { loadRelationIndex } from "../lib/relationIndexLoader";
 import { normalizeIngredientName } from "../lib/groceryNormalization";
 import { lookupIngredientByName } from "../lib/ingredientLookup";
 import {
@@ -212,6 +213,15 @@ export function createGroceryListsRouter(
           });
         }
 
+        // WS9 D-WS9-189 A2b — LOAD THE RELATION INDEX ONCE, USE IT EVERYWHERE.
+        //
+        // A2 built the synonym reader and left this route passing nothing, so
+        // the whole table was inert in production. One index is loaded here and
+        // handed to BOTH consumers below: the consolidator's merge key and
+        // partitionForAI's rule 3. Loading it twice, or wiring only one of
+        // them, would let the two disagree about what one ingredient is.
+        const relations = await loadRelationIndex(prisma);
+
         // 3. Block A: deterministic consolidation. May throw
         //    GroceryConsolidationNotFoundError if the plan vanished between
         //    the read above and the helper read (race) — surface as 404.
@@ -219,6 +229,7 @@ export function createGroceryListsRouter(
           prisma,
           planId,
           userId,
+          relations,
         });
 
         // 4. Block B: gap-fill (Haiku, write-back) + final AI pass (Sonnet).
@@ -232,7 +243,7 @@ export function createGroceryListsRouter(
           planTitle,
           withSizes,
           KNOWN_SECTIONS,
-          { prisma, userId },
+          { prisma, userId, relations },
         );
 
         // 5. Resolve canonical → ingredientId for every final-list item

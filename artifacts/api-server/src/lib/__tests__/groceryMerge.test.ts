@@ -474,3 +474,270 @@ describe("mergeConvertibleGroups -- relation-driven folding (D-WS9-189 A2)", () 
     assert.equal(out[0].canonicalName, "aaaa cheese");
   });
 });
+
+// ── WS9 BUG-209 (D-WS9-221) — THE NAME AND THE PACK ARE DECIDED SEPARATELY ──
+//
+// pickRepresentative decides what the shopper READS. Until A2b it also decided
+// what the shopper BUYS, because every merge branch spread `...rep`. The pack
+// must instead come from the group's packs measured against the group's SUMMED
+// demand. These are written so that in every one of them the name winner and
+// the pack winner are DIFFERENT rows — a test where they coincide cannot fail.
+describe("mergeConvertibleGroups -- BUG-209 pack basis (D-WS9-221)", () => {
+  // A synonym edge is the cheapest way to force two differently-named rows into
+  // one group without leaning on the hand map's specific contents.
+  function synonym(a: string, b: string, unit = "ounce") {
+    return buildRelationIndex([
+      {
+        label: "synonym" as const,
+        fromCanonicalName: a,
+        toCanonicalName: b,
+        yieldQuantity: null,
+        yieldUnit: null,
+        coHarvestable: null,
+        confidence: "high" as const,
+        reviewedByHuman: false,
+        fromDefaultUnit: unit,
+      },
+    ]);
+  }
+
+  it("a SIZED pack beats a sizeless one, even when the sizeless row wins the name", () => {
+    // The live shape, and the one Hans named: the catalog's `black pepper` row
+    // carries `1 container` with no size at all, and it is also the SHORTEST
+    // name, so it won both contests. D-WS9-221: "not I need 8 oz buy cheese".
+    const out = mergeConvertibleGroups(
+      [
+        item({
+          canonicalName: "black pepper",
+          quantity: 2.75,
+          unit: "teaspoon",
+          purchaseUnit: "container",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 container",
+        }),
+        item({
+          canonicalName: "freshly ground black pepper",
+          quantity: 0.25,
+          unit: "teaspoon",
+          purchaseUnit: "container",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 container (2.3 oz)",
+        }),
+      ],
+      synonym("black pepper", "freshly ground black pepper", "teaspoon"),
+    );
+    assert.equal(out.length, 1);
+    assert.equal(out[0].quantity, 3, "2.75 + 0.25 teaspoon");
+    // The NAME still comes from the shortest row — unchanged by this fix.
+    assert.equal(out[0].canonicalName, "black pepper");
+    // The PACK comes from the other row. This is the expression that changes
+    // if the defect ships: pre-fix it read "1 container".
+    assert.equal(out[0].purchaseDisplay, "1 container (2.3 oz)");
+  });
+
+  it("a sized pack with NO parenthetical still beats a sizeless one", () => {
+    // ⚠️ THIS TEST EXISTS BECAUSE THE ONE ABOVE STAYED GREEN UNDER A DELIBERATE
+    // BREAK. Deleting the sized-beats-sizeless rule did not fail it: "1 container
+    // (2.3 oz)" also wins on the later "prefer a parenthetical" tiebreak, so two
+    // criteria were covering one case and only one of them was under test.
+    //
+    // Here the sized pack states its size WITHOUT parentheses ("1 lb bag"), so
+    // the parenthetical rule abstains, the tighter-buy rule abstains (a sizeless
+    // pack has no magnitude to compare), and the lexicographic last resort
+    // actively prefers the WRONG one — "1 container" < "1 lb bag". The
+    // sized-beats-sizeless rule is the only thing that can produce this answer.
+    const out = mergeConvertibleGroups(
+      [
+        item({
+          canonicalName: "aaa",
+          quantity: 2,
+          unit: "ounce",
+          purchaseUnit: "container",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 container",
+        }),
+        item({
+          canonicalName: "bbbbbb",
+          quantity: 3,
+          unit: "ounce",
+          purchaseUnit: "bag",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 lb bag",
+        }),
+      ],
+      synonym("aaa", "bbbbbb"),
+    );
+    assert.equal(out.length, 1);
+    assert.equal(out[0].canonicalName, "aaa", "name: shortest, unchanged");
+    assert.equal(out[0].purchaseDisplay, "1 lb bag");
+    assert.equal(out[0].purchaseUnit, "bag");
+  });
+
+  it("picks the TIGHTER buy, not the largest pack and not the name winner", () => {
+    // Need 9 oz. A 6 oz wedge buys 12 oz; an 8 oz block buys 16 oz. The wedge
+    // is the right basis even though it is the SMALLER pack and neither pack
+    // covers the need alone — "buy the largest when none covers" gets this
+    // wrong, and so does "keep the representative's".
+    //
+    // "aaa" is deliberately the shorter name AND the wrong pack, so the name
+    // winner and the pack winner cannot be the same row.
+    const out = mergeConvertibleGroups(
+      [
+        item({
+          canonicalName: "aaa",
+          quantity: 5,
+          unit: "ounce",
+          purchaseUnit: "block",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 block (8 oz)",
+        }),
+        item({
+          canonicalName: "bbbbbb",
+          quantity: 4,
+          unit: "ounce",
+          purchaseUnit: "wedge",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 wedge (6 oz)",
+        }),
+      ],
+      synonym("aaa", "bbbbbb"),
+    );
+    assert.equal(out.length, 1);
+    assert.equal(out[0].quantity, 9);
+    assert.equal(out[0].canonicalName, "aaa", "name: shortest, unchanged");
+    assert.equal(out[0].purchaseUnit, "wedge");
+    assert.equal(out[0].purchaseDisplay, "1 wedge (6 oz)");
+  });
+
+  it("a BIGGER pack wins when it is the tighter buy", () => {
+    // ⚠️ THIS TEST EXISTS BECAUSE A DELIBERATE BREAK STAYED GREEN. Deleting the
+    // tighter-buy rule did not fail the parmesan or lemon cases above, because
+    // in both of those the tighter buy is ALSO the smaller pack, and the
+    // smaller-pack tiebreak below reaches the same answer. Two criteria, one
+    // outcome, one of them untested.
+    //
+    // Here they disagree. Need 10 oz: a 6 oz bag buys ceil(10/6) x 6 = 12 oz,
+    // a 10 oz box buys exactly 10. The BOX is right and it is the LARGER pack,
+    // so the smaller-pack rule actively prefers the wrong one. Only the
+    // tighter-buy rule produces this answer.
+    const out = mergeConvertibleGroups(
+      [
+        item({
+          canonicalName: "aaa",
+          quantity: 6,
+          unit: "ounce",
+          purchaseUnit: "bag",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 bag (6 oz)",
+        }),
+        item({
+          canonicalName: "bbbbbb",
+          quantity: 4,
+          unit: "ounce",
+          purchaseUnit: "box",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 box (10 oz)",
+        }),
+      ],
+      synonym("aaa", "bbbbbb"),
+    );
+    assert.equal(out.length, 1);
+    assert.equal(out[0].quantity, 10);
+    assert.equal(out[0].canonicalName, "aaa", "name: shortest, unchanged");
+    assert.equal(out[0].purchaseDisplay, "1 box (10 oz)");
+  });
+
+  it("counts too: three lemons buy as 1-lemon units, not 2-lemon units", () => {
+    // ceil(3/1)x1 = 3 lemons; ceil(3/2)x2 = 4. The count pack is compared the
+    // same way the measured one is.
+    const out = mergeConvertibleGroups(
+      [
+        item({
+          canonicalName: "lemon",
+          quantity: 2,
+          unit: "each",
+          purchaseUnit: "each",
+          purchaseQuantity: 2,
+          purchaseDisplay: "2 lemons",
+          conversionRef: null,
+        }),
+        item({
+          canonicalName: "fresh lemon",
+          quantity: 1,
+          unit: "each",
+          purchaseUnit: "each",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 lemon",
+          conversionRef: null,
+        }),
+      ],
+      synonym("lemon", "fresh lemon", "each"),
+    );
+    assert.equal(out.length, 1);
+    assert.equal(out[0].quantity, 3);
+    assert.equal(out[0].canonicalName, "lemon");
+    assert.equal(out[0].purchaseDisplay, "1 lemon");
+  });
+
+  // ⚠️ THE SAFETY PROPERTY, AND IT IS NOT COSMETIC.
+  // fillPurchaseSizesWithWriteBack treats a null pack as a cache MISS: it asks
+  // Haiku for one and WRITES IT BACK to Ingredient.purchaseUnit/Quantity/Display
+  // — the same columns consolidatePlanIngredients reads next time. A merged row
+  // that lost its pack would therefore not render "no pack"; it would launder an
+  // AI guess into the shared catalog under the representative's ingredientId.
+  it("NEVER nulls a pack the group already had (catalog write-back safety)", () => {
+    const out = mergeConvertibleGroups(
+      [
+        // The name winner has NO pack …
+        item({ canonicalName: "aaa", quantity: 2, unit: "ounce" }),
+        // … and the only pack in the group belongs to the loser.
+        item({
+          canonicalName: "bbbbbb",
+          quantity: 3,
+          unit: "ounce",
+          purchaseUnit: "bag",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 bag (12 oz)",
+        }),
+      ],
+      synonym("aaa", "bbbbbb"),
+    );
+    assert.equal(out.length, 1);
+    assert.equal(out[0].canonicalName, "aaa");
+    assert.notEqual(out[0].purchaseDisplay, null, "a merged row must not become a write-back miss");
+    assert.equal(out[0].purchaseDisplay, "1 bag (12 oz)");
+    assert.equal(out[0].purchaseUnit, "bag");
+  });
+
+  it("fabricates nothing when the group genuinely has no pack", () => {
+    // The control for the test above: null in, null out. If this ever returns a
+    // pack, something is inventing one.
+    const out = mergeConvertibleGroups(
+      [
+        item({ canonicalName: "aaa", quantity: 2, unit: "ounce" }),
+        item({ canonicalName: "bbbbbb", quantity: 3, unit: "ounce" }),
+      ],
+      synonym("aaa", "bbbbbb"),
+    );
+    assert.equal(out.length, 1);
+    assert.equal(out[0].purchaseDisplay, null);
+    assert.equal(out[0].purchaseUnit, null);
+    assert.equal(out[0].purchaseQuantity, null);
+  });
+
+  it("leaves a single-row group's pack untouched", () => {
+    // Nothing folds, so there is no choice to make and no basis to re-pick.
+    const out = mergeConvertibleGroups([
+      item({
+        canonicalName: "black pepper",
+        quantity: 2,
+        unit: "teaspoon",
+        purchaseUnit: "container",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 container",
+      }),
+    ]);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].purchaseDisplay, "1 container");
+  });
+});

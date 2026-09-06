@@ -67,6 +67,7 @@ import {
 } from "./groceryListAI";
 import { normalizeIngredientName } from "./groceryNormalization";
 import { lookupIngredientByName } from "./ingredientLookup";
+import { loadRelationIndex } from "./relationIndexLoader";
 
 // Mirrors the route's KNOWN_SECTIONS (same duplication note as
 // groceryLists.ts ↔ groceryList.ts: kept local to avoid widening a shared
@@ -222,10 +223,16 @@ export async function reconcileGroceryListIfStale(
 
   // 4. Live consolidation (deterministic, no AI). Its source pairs give the
   //    current plan-meal membership; partitioning its output drives re-resolve.
+  // WS9 D-WS9-189 A2b — one index, both consumers (see the generate route for
+  // the full note). Reconcile must fold identically to generate: a list that
+  // merged "fresh lime" into "lime" at generation and un-merged them on the
+  // next reconcile would churn a row the user is looking at.
+  const relations = await loadRelationIndex(prisma);
   const consolidated = await consolidatePlanIngredients({
     prisma,
     planId: list.mealPlanInstanceId,
     userId,
+    relations,
   });
 
   // 5. Meal sets, derived purely from provenance.
@@ -360,7 +367,7 @@ export async function reconcileGroceryListIfStale(
       planTitle,
       withSizes,
       KNOWN_SECTIONS,
-      { prisma, userId },
+      { prisma, userId, relations },
     );
 
     // Resolve canonical → ingredientId before the tx (immutable canonical rows;

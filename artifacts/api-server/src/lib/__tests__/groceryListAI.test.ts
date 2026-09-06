@@ -2027,3 +2027,117 @@ describe("BUG-142 — AI-merge quantity conservation", () => {
     assert.ok(result.items.some((r) => r.displayName === "Paper towels"));
   });
 });
+
+// ── WS9 D-WS9-189 A2b — THE OPTIONS BAG ACTUALLY REACHES RULE 3 ─────────────
+//
+// partitionForAI has taken a RelationIndex since A2 and its own tests pin what
+// the index does to rule 3. What NOTHING pinned is the link in between:
+// generateFinalGroceryList is the only production caller, and until A2b it
+// invoked partitionForAI with one argument. An index loaded by the route and
+// handed to the consolidator would still have been dropped on the floor here.
+//
+// The assertion is the SONNET CALL ITSELF, not a partition return value: with
+// no index the two oils are two canonicals in one unit each, rule 3 does not
+// fire, and the helper skips the model entirely (callCount 0). With the index
+// they are ONE ingredient in TWO units and the model is called with both. A
+// regression that drops `opts.relations` turns the second case back into the
+// first, and callCount goes 1 -> 0.
+describe("generateFinalGroceryList -- relations threading (D-WS9-189 A2b)", () => {
+  const oilSynonym = buildRelationIndex([
+    {
+      label: "synonym",
+      fromCanonicalName: "neutral oil",
+      toCanonicalName: "vegetable oil",
+      yieldQuantity: null,
+      yieldUnit: null,
+      coHarvestable: null,
+      confidence: "high",
+      reviewedByHuman: false,
+      fromDefaultUnit: "bottle",
+    },
+  ]);
+
+  function oils(): ConsolidatedItem[] {
+    return [
+      makeItem({
+        canonicalName: "neutral oil",
+        displayName: "neutral oil",
+        quantity: 3,
+        unit: "tablespoon",
+        sectionKey: "pantry",
+        purchaseUnit: "bottle",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 bottle (51 oz)",
+      }),
+      makeItem({
+        canonicalName: "vegetable oil",
+        displayName: "vegetable oil",
+        quantity: 1,
+        unit: "cup",
+        sectionKey: "pantry",
+        purchaseUnit: "bottle",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 bottle (51 oz)",
+      }),
+    ];
+  }
+
+  it("WITHOUT relations: rule 3 does not fire and Sonnet is never called", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    // Nothing queued: any AI call throws "fake client exhausted".
+    const fake = makeFakeClient([]);
+    const { prisma } = makeStubPrisma();
+
+    const result = await generateFinalGroceryList("Plan", oils(), ["pantry", "extras"], {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(fake.callCount(), 0);
+    assert.equal(fake.lastUserMessage(), null);
+    assert.equal(result.items.length, 2);
+  });
+
+  it("WITH relations: the same two rows are handed to Sonnet as one ingredient", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const items = oils();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            items: items.map((i) => ({
+              canonicalName: i.canonicalName,
+              displayName: i.displayName,
+              quantity: i.quantity,
+              unit: i.unit,
+              sectionKey: i.sectionKey,
+              isUniversalStaple: false,
+              isUserPantryStaple: false,
+              isRecurringItem: false,
+              notes: null,
+              isAmbiguous: false,
+              wasAiInferred: true,
+            })),
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const result = await generateFinalGroceryList("Plan", items, ["pantry", "extras"], {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+      relations: oilSynonym,
+    });
+
+    assert.equal(fake.callCount(), 1, "the index must reach rule 3 through opts");
+    const sent = fake.lastUserMessage() ?? "";
+    assert.ok(sent.includes("neutral oil"), "Sonnet was handed the tbsp row");
+    assert.ok(sent.includes("vegetable oil"), "Sonnet was handed the cup row");
+    assert.equal(result.items.length, 2);
+  });
+});

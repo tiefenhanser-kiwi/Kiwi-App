@@ -97,6 +97,19 @@ interface ActivityRow {
   metadata: Record<string, unknown> | null;
 }
 
+// WS9 D-WS9-189 A2b — the `ingredient_relations` row shape loadRelationIndex
+// selects: the two joined names plus the from-row's defaultUnit.
+interface RelationFixture {
+  label: string;
+  yieldQuantity: number | null;
+  yieldUnit: string | null;
+  coHarvestable: boolean | null;
+  confidence: string;
+  reviewedByHuman: boolean;
+  from: { canonicalName: string; defaultUnit: string };
+  to: { canonicalName: string };
+}
+
 interface StubState {
   plans: PlanRow[];
   lists: ListRow[];
@@ -119,6 +132,11 @@ interface StubState {
   // (GroceryListItemSource.mealId → Meal.title). Empty by default (existing
   // GET seeds have no sources → the join is a no-op).
   meals: Map<string, string>;
+  // WS9 D-WS9-189 A2b — rows for `ingredient_relations`, read by
+  // loadRelationIndex at the top of the generate + reconcile paths. Empty by
+  // default, which yields EMPTY_RELATION_INDEX and the pre-A2b fold; a test
+  // that wants the reader ACTIVE seeds edges here.
+  relations: RelationFixture[];
   txCount: number;
   // BUG-116 (1) — the options object each $transaction was opened with, in
   // call order. Lets a test pin the reconcile batch's raised budget.
@@ -136,6 +154,7 @@ function makeState(): StubState {
     aliases: new Map(),
     ingredientDefaultUnits: new Map(),
     meals: new Map(),
+    relations: [],
     txCount: 0,
     txOptions: [] as Array<Record<string, unknown> | undefined>,
   };
@@ -410,6 +429,14 @@ function makeStubPrisma(state: StubState) {
       },
       findMany: async () => [],
     },
+    // WS9 D-WS9-189 A2b — loadRelationIndex reads this at the top of BOTH the
+    // generate route and reconcileGroceryListIfStale. Modelled here rather than
+    // stubbed away: the delegate exists in the real schema, and a route that
+    // silently swallowed a missing one would hide exactly the wiring failure
+    // A2 shipped.
+    ingredientRelation: {
+      findMany: async () => state.relations,
+    },
     ingredient: {
       findFirst: async ({
         where,
@@ -592,6 +619,9 @@ interface HarnessOpts {
     fill: { calls: number };
     finalPass: { calls: number };
   };
+  // WS9 D-WS9-189 A2b — capture the RelationIndex each seam was handed, so a
+  // test can assert the route loaded one and gave the SAME one to both.
+  relationSpy?: { consolidate: unknown; finalPass: unknown };
   // 6c-6 Block B — typeahead deps. Production wiring routes to
   // searchIngredientsByPrefix + categorizeGroceryItem; tests stub both.
   searchIngredients?: (
@@ -649,16 +679,23 @@ async function spinUp(opts: HarnessOpts = {}): Promise<Harness> {
   const router = createGroceryListsRouter({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     prisma: stubPrisma as any,
-    consolidatePlanIngredients: (async () => {
+    consolidatePlanIngredients: (async (args: { relations?: unknown }) => {
       if (opts.spies) opts.spies.consolidate.calls++;
+      if (opts.relationSpy) opts.relationSpy.consolidate = args?.relations;
       return consolidated;
     }) as never,
     fillPurchaseSizesWithWriteBack: (async () => {
       if (opts.spies) opts.spies.fill.calls++;
       return filled;
     }) as never,
-    generateFinalGroceryList: (async () => {
+    generateFinalGroceryList: (async (
+      _title: string,
+      _items: unknown,
+      _sections: unknown,
+      aiOpts: { relations?: unknown },
+    ) => {
       if (opts.spies) opts.spies.finalPass.calls++;
+      if (opts.relationSpy) opts.relationSpy.finalPass = aiOpts?.relations;
       if (opts.aiThrows) throw opts.aiThrows;
       return { items: finalItems };
     }) as never,
@@ -791,6 +828,75 @@ describe("POST /api/plans/:id/generate-grocery-list — happy path", () => {
     // sanity — title derives from template.title when titleOverride is null
     assert.equal(list.title, "Groceries: Family Dinners");
     assert.equal(harness.state.txCount, 1);
+  });
+});
+
+// ── WS9 D-WS9-189 A2b — THE ROUTE LOADS AN INDEX AND GIVES IT TO BOTH ───────
+//
+// A2 shipped the readers with `relations` as an OPTIONAL parameter and left
+// this route passing nothing, so the whole 1,870-row table was inert in
+// production while the commit reported "24 real merges across 20 lists" from a
+// dry-run harness. The defect was invisible precisely because the parameter has
+// a default: every existing test stayed green with the reader switched off.
+//
+// So this asserts the LIVE index, not that an argument was present. groupKey is
+// called on the object the route actually handed each seam.
+//
+// ⚠️ THE DIRECTION IS LOAD-BEARING. A synonym cluster keys on its SHORTEST
+// member, so the seeded edge folds "vegetable oil" -> "neutral oil"; asking for
+// groupKey("neutral oil") returns "neutral oil" under the seeded index AND
+// under EMPTY_RELATION_INDEX, and could never fail. The first draft asserted
+// exactly that and had to be caught by running it. Only the "vegetable oil"
+// side discriminates: EMPTY (or a dropped argument) answers "vegetable oil".
+describe("POST /api/plans/:id/generate-grocery-list — relation index wiring (D-WS9-189 A2b)", () => {
+  let harness: Harness;
+  const relationSpy: { consolidate: unknown; finalPass: unknown } = {
+    consolidate: undefined,
+    finalPass: undefined,
+  };
+
+  before(async () => {
+    harness = await spinUp({ relationSpy });
+    seedPlan(harness.state);
+    harness.state.relations.push({
+      label: "synonym",
+      yieldQuantity: null,
+      yieldUnit: null,
+      coHarvestable: null,
+      confidence: "high",
+      reviewedByHuman: false,
+      from: { canonicalName: "neutral oil", defaultUnit: "bottle" },
+      to: { canonicalName: "vegetable oil" },
+    });
+    const res = await fetch(
+      `${harness.baseUrl}/plans/plan-1/generate-grocery-list`,
+      { method: "POST", headers: { Authorization: `Bearer ${signToken(USER)}` } },
+    );
+    assert.equal(res.status, 200, "precondition: the generate route succeeded");
+  });
+  after(async () => {
+    await harness.close();
+  });
+
+  it("hands the consolidator an index built from ingredient_relations", () => {
+    const idx = relationSpy.consolidate as { groupKey(s: string): string } | undefined;
+    assert.ok(idx, "consolidatePlanIngredients was called without `relations`");
+    assert.equal(idx.groupKey("vegetable oil"), "neutral oil");
+  });
+
+  it("hands the AI pass the SAME index, not a second one and not none", () => {
+    const idx = relationSpy.finalPass as { groupKey(s: string): string } | undefined;
+    assert.ok(idx, "generateFinalGroceryList was called without `relations`");
+    assert.equal(idx.groupKey("vegetable oil"), "neutral oil");
+    // Object identity: the merge key and rule 3 must answer "is this one
+    // ingredient?" from one fold. Two separately-built indexes would pass the
+    // assertions above and still be a bug waiting for the table to change
+    // between the two loads.
+    assert.equal(
+      relationSpy.finalPass,
+      relationSpy.consolidate,
+      "one index, loaded once, given to both consumers",
+    );
   });
 });
 
