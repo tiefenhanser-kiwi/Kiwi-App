@@ -225,6 +225,37 @@ const MERGE_GROUP_VARIANT_TO_BASE: Record<string, string> = {
   "virgin olive oil": "olive oil",
   "light olive oil": "olive oil",
   evoo: "olive oil",
+  // ── WS9 BUG-200 / BUG-208 / BUG-211 (D-WS9-189 A3) — garlic is ONE purchase
+  //    reached by four names and two units ────────────────────────────────
+  //
+  // A head of garlic, a clove of garlic and "garlic" are the same thing in the
+  // basket. The catalog carries them as separate rows — `garlic` (defaultUnit
+  // cloves, and the ONLY row of all 1,569 carrying a subUnit ladder),
+  // `garlic head` / `head of garlic` / `whole garlic head` (each), and
+  // `garlic cloves` (each) — so a plan wanting 2 heads and 30 cloves shipped
+  // TWO lines: "2 heads head of garlic (2 heads)" beside "3 heads Garlic
+  // (30 cloves)". That is BUG-200, live on 8908a51a and 84ab7e43.
+  //
+  // ⚠️ THIS IS DELIBERATELY NOT THE COMPONENT POOL, AND THAT IS A RULING.
+  // `garlic head -> garlic` is an authored component edge and the pool fires on
+  // it. Measured in A3-prep: the pool reaches the SAME head count the ladder
+  // does (5 and 3 on the two live lists, matching D-WS9-220) and emits the
+  // worse line — "3 heads of garlic (3 each)" throws the clove need away where
+  // mergeGroup's subUnit branch keeps "(30 cloves)". Folding the names here
+  // routes the family into that branch, which sums head+clove exactly as
+  // D-WS9-220 describes: "if they need a head of garlic and 3 cloves, they
+  // should buy 2 heads". The pool's self-slot guard then makes the component
+  // edge inert, because parent and child now share one group key.
+  //
+  // ⚠️ NOT `black peppercorns`' case. Peppercorns are a distinct product you
+  // must grind. A clove is not a distinct product from a head; it is a
+  // subdivision of one, and the ladder already holds the ratio (10 per head,
+  // which is Hans's own number in D-WS9-220).
+  "garlic head": "garlic",
+  "head of garlic": "garlic",
+  "whole garlic head": "garlic",
+  "garlic cloves": "garlic",
+  "fresh garlic": "garlic",
 };
 
 /**

@@ -410,26 +410,57 @@ describe("D-WS9-189 A2 — the component basis gate (D-WS9-218)", () => {
   });
 
   it("is SINGLE-HOP: a parent that is itself a child is not followed", () => {
+    // WS9 D-WS9-189 A3 — this used to be written on the garlic chain. It no
+    // longer can be: the A3 hand map routes every garlic spelling to one group
+    // key, so both garlic edges are now self-slots and are dropped before this
+    // property can be observed on them. The PROPERTY is unchanged and is what
+    // is under test here, so it moved to a synthetic two-hop chain that no fold
+    // touches. The garlic behaviour has its own test below.
+    const idx = buildRelationIndex([
+      comp("crate", "melon", 6, "each", false, "each"),
+      comp("melon", "melon flesh", 4, "cup", false, "each"),
+    ]);
+    assert.equal(idx.admittedComponentCount, 2);
+    assert.deepEqual(idx.componentParents.map((p) => p.parent), ["crate", "melon"]);
+    // "melon flesh" pools onto "melon" — ONE hop. The pass must not then carry
+    // that melon on to "crate". If it ever followed the chain, a crate would
+    // appear in the output and items.length would change.
+    const pooled = poolComponentNeedsUngated([item("melon flesh", 8, "cup")], idx);
+    assert.equal(pooled.folds.length, 1);
+    assert.equal(pooled.folds[0].parent, "melon");
+    assert.deepEqual(
+      pooled.items.map((i) => `${i.quantity} ${i.unit} ${i.canonicalName}`),
+      ["2 each melon"],
+      "one hop only — a crate must never appear",
+    );
+  });
+
+  // ── WS9 D-WS9-189 A3 — the garlic ruling, encoded ────────────────────────
+  //
+  // §3: the subUnit ladder wins for garlic, and the component pool must not
+  // restate a row the ladder already handles. The hand map folds every garlic
+  // spelling to one group key, which turns `garlic head -> garlic` into a slot
+  // whose child IS its parent. buildRelationIndex drops those.
+  it("drops a component slot whose child folds onto its own parent", () => {
     const idx = buildRelationIndex([
       comp("garlic head", "garlic", 10, "clove", false, "head"),
-      comp("garlic", "garlic cloves", 10, "clove", false, "cloves"),
     ]);
-    // The second edge is declined on basis, so the chain is severed at depth 1.
-    assert.equal(idx.admittedComponentCount, 1);
-    assert.deepEqual(
-      idx.componentParents.map((p) => p.parent),
-      ["garlic head"],
-    );
+    // The edge is admitted — it is a real, high-confidence component edge —
+    // but it yields NO slot, because both endpoints key to "garlic".
+    assert.equal(idx.groupKey("garlic head"), idx.groupKey("garlic"));
+    assert.deepEqual(idx.componentParents, [], "a parent may not list itself as a child");
+
+    // The consequence that matters: garlic rows pass through the pool
+    // untouched, so mergeGroup's subUnit branch is the only thing that acts on
+    // them. If the self-slot ever came back, these two rows would be absorbed
+    // and replaced by a pooled parent, which is the regression D-WS9-189 A2
+    // measured on 40 of 42 lists.
     const pooled = poolComponentNeedsUngated(
-      [item("garlic cloves", 6, "clove")],
+      [item("garlic", 30, "clove"), item("head of garlic", 2, "head")],
       idx,
     );
-    // "garlic cloves" is a child of "garlic", which is NOT an admitted parent,
-    // so nothing pools. If the pass ever followed the chain this would be 1
-    // garlic head and an empty absorbed list would become non-empty.
     assert.equal(pooled.folds.length, 0);
-    assert.equal(pooled.items.length, 1);
-    assert.equal(pooled.items[0].canonicalName, "garlic cloves");
+    assert.equal(pooled.items.length, 2);
   });
 });
 
@@ -555,13 +586,17 @@ describe("D-WS9-189 A2 -- the component pass is HELD and mutates nothing", () =>
     comp("lime", "lime wedges", 6, "each", false),
   ];
 
-  it("declares itself held", () => {
-    // The live value is the flag; the literal is `false`. If A3 flips it, this
-    // test is the first thing that says so.
-    assert.equal(COMPONENT_POOLING_ENABLED, false);
+  // WS9 D-WS9-189 A3 — this block used to assert the gate was SHUT. A3 opens
+  // it, so the assertions are INVERTED rather than deleted: the flag is read
+  // live and compared to `true`, and the SHIPPED entry point must now actually
+  // pool. That is strictly stronger than the old pair — "returns its input
+  // unchanged" also passes for a pass that is simply broken, whereas this
+  // fails unless the arithmetic runs and lands on the right number.
+  it("declares itself LIVE", () => {
+    assert.equal(COMPONENT_POOLING_ENABLED, true);
   });
 
-  it("returns every row unchanged through the SHIPPED entry point", () => {
+  it("pools through the SHIPPED entry point, not just the ungated one", () => {
     const idx = buildRelationIndex(limeRows);
     const input = [
       item("lime juice", 4, "tbsp"),
@@ -569,40 +604,125 @@ describe("D-WS9-189 A2 -- the component pass is HELD and mutates nothing", () =>
       item("lime wedges", 6, "each"),
       item("lime", 2, "each"),
     ];
-    const snapshot = input.map((i) => ({ ...i }));
     const out = poolComponentNeeds(input, idx);
-
-    // No row added, none removed, none renamed, none re-quantified.
-    assert.equal(out.items.length, snapshot.length, "the pass added or removed a row");
-    assert.deepEqual(
-      out.items.map((i) => ({ ...i })),
-      snapshot,
-      "the pass changed a row while held",
-    );
-    // And nothing was mutated IN PLACE either -- the pass tops up an existing
-    // parent by mutating it, so a caller holding the original refs must be safe.
-    assert.deepEqual(input.map((i) => ({ ...i })), snapshot, "the pass mutated its input in place");
-    assert.equal(out.folds.length, 0, "the pass reported a fold while held");
-    assert.equal(out.declines.length, 0);
-  });
-
-  it("PROVES the fixture would change rows if the gate were open", () => {
-    // THE DISCRIMINATING HALF. Without this, the test above would pass equally
-    // well against a fixture that pools nothing -- a tautology. The ungated
-    // function is the same code the gate guards.
-    const idx = buildRelationIndex(limeRows);
-    const input = [
-      item("lime juice", 4, "tbsp"),
-      item("lime zest", 2, "tsp"),
-      item("lime wedges", 6, "each"),
-      item("lime", 2, "each"),
-    ];
-    const out = poolComponentNeedsUngated(input, idx);
-    assert.equal(out.folds.length, 1, "fixture must pool when ungated");
-    assert.equal(out.items.length, 1, "fixture must collapse 4 rows to 1 when ungated");
+    assert.equal(out.folds.length, 1, "the gate must route to the real pass");
+    assert.equal(out.items.length, 1, "4 rows collapse to 1");
     assert.equal(out.items[0].canonicalName, "lime");
     // max(2 limes for juice, 1 for zest) + 1 for wedges = 3, on top of the 2
     // the recipe already wants whole.
     assert.equal(out.items[0].quantity, 5);
+  });
+
+  // ── WS9 BUG-207 — the appended parent must not wear a child's identity ────
+  it("appends a parent row carrying NO child pack and NO child ingredientId", () => {
+    const idx = buildRelationIndex([comp("orange", "orange juice", 0.25, "cup", true)]);
+    // The only row on the list is the CHILD, and it carries a bottle. Before
+    // the fix the appended parent spread this row wholesale and the shopper
+    // read "1 bottle (64 oz) orange (1 each)".
+    const child = {
+      canonicalName: "orange juice",
+      displayName: "orange juice",
+      quantity: 3,
+      unit: "tablespoon",
+      ingredientId: "ing-orange-juice",
+      purchaseUnit: "bottle",
+      purchaseQuantity: 1,
+      purchaseDisplay: "1 bottle (64 oz)",
+      conversionRef: null,
+    };
+    const out = poolComponentNeeds([child], idx);
+    assert.equal(out.items.length, 1);
+    const parent = out.items[0];
+    assert.equal(parent.canonicalName, "orange");
+    assert.notEqual(parent.purchaseDisplay, "1 bottle (64 oz)", "the parent wore the child's pack");
+    // ⚠️ THE DURABLE HALF. A null pack on a row that still carries an
+    // ingredientId is a fillPurchaseSizesWithWriteBack cache MISS, and that
+    // helper writes Haiku's guess onto Ingredient.purchaseUnit/Quantity/Display
+    // for that id — here, onto ORANGE JUICE's catalog row. The write-back skips
+    // rows whose ingredientId is null, so this is the field that decides
+    // whether a bad pack outlives the list.
+    assert.equal(parent.ingredientId, null, "the parent inherited the child's catalog identity");
+  });
+
+  // ── WS9 BUG-208 — decline, never a twin ──────────────────────────────────
+  it("declines when a parent row exists in a unit the basis cannot reach", () => {
+    const idx = buildRelationIndex([comp("cilantro", "fresh cilantro stems", 0.75, "cup", true, "bunch")]);
+    // The live shape from bd29f91a: a `cilantro` row authored in CUPS against a
+    // basis of `bunch`. The top-up matched nothing and the pass appended, so
+    // the shopper read two rows both called "fresh cilantro".
+    const rows = [
+      item("cilantro", 1.3333, "cup"),
+      item("fresh cilantro stems", 0.25, "cup"),
+    ];
+    const out = poolComponentNeeds(rows, idx);
+    assert.equal(out.folds.length, 0, "it must not pool into a second row");
+    assert.equal(out.items.length, 2, "both rows pass through untouched");
+    assert.equal(out.declines.length, 1);
+    assert.match(out.declines[0].reason, /does not reconcile with the basis unit/);
+    // The property in the shopper's terms: no name appears twice.
+    assert.equal(new Set(out.items.map((i) => i.canonicalName)).size, out.items.length);
+  });
+
+  it("still tops up a parent row whose unit DOES match the basis", () => {
+    // The control for the decline above. If this ever declines too, the guard
+    // has stopped discriminating and is refusing everything.
+    const idx = buildRelationIndex([comp("cilantro", "fresh cilantro stems", 0.75, "cup", true, "bunch")]);
+    const out = poolComponentNeeds(
+      [item("cilantro", 1, "bunch"), item("fresh cilantro stems", 0.75, "cup")],
+      idx,
+    );
+    assert.equal(out.folds.length, 1);
+    assert.equal(out.items.length, 1);
+    assert.equal(out.items[0].quantity, 2, "1 bunch already wanted + 1 bunch of stems");
+  });
+
+  // ── WS9 D-WS9-189 A3 — the density that already existed, now threaded ────
+  it("converts a WEIGHT demand onto a VOLUME yield when the density is there", () => {
+    const idx = buildRelationIndex([comp("broccoli", "broccoli florets", 4, "cup", true, "head")]);
+    const florets = {
+      canonicalName: "broccoli florets",
+      displayName: "broccoli florets",
+      quantity: 1.25,
+      unit: "pound",
+      // The live catalog value on `broccoli florets`.
+      conversionRef: { gramsPerCup: 71, source: "usda_derived" },
+    };
+    const out = poolComponentNeeds([florets], idx);
+    // 1.25 lb = 567.0 g; / 71 g per cup = 7.99 cups; / 4 cups per head = 2.0 heads.
+    assert.equal(out.declines.length, 0, "it declined a conversion the data supports");
+    assert.equal(out.items.length, 1);
+    assert.equal(out.items[0].canonicalName, "broccoli");
+    assert.equal(out.items[0].quantity, 2);
+  });
+
+  it("still REFUSES when no density exists, rather than guessing", () => {
+    // `fresh basil leaves` carries conversionRef null in the live catalog, and
+    // "16 each" of leaves cannot become cups without a grams-per-leaf nobody
+    // has. Inventing one is the failure mode A1 shipped; declining is correct.
+    const idx = buildRelationIndex([comp("fresh basil", "fresh basil leaves", 2, "cup", true, "bunch")]);
+    const out = poolComponentNeeds([item("fresh basil leaves", 16, "each")], idx);
+    assert.equal(out.folds.length, 0);
+    assert.equal(out.declines.length, 1);
+    assert.match(out.declines[0].reason, /does not convert to yield unit/);
+    assert.equal(out.items.length, 1);
+  });
+
+  it("gated and ungated agree, so the flag is the only difference", () => {
+    // The control. If these ever diverge, the gate is doing something other
+    // than gating.
+    const idx = buildRelationIndex(limeRows);
+    const mk = () => [
+      item("lime juice", 4, "tbsp"),
+      item("lime zest", 2, "tsp"),
+      item("lime wedges", 6, "each"),
+      item("lime", 2, "each"),
+    ];
+    const gated = poolComponentNeeds(mk(), idx);
+    const ungated = poolComponentNeedsUngated(mk(), idx);
+    assert.deepEqual(
+      gated.items.map((i) => ({ ...i })),
+      ungated.items.map((i) => ({ ...i })),
+    );
+    assert.equal(gated.folds.length, ungated.folds.length);
   });
 });

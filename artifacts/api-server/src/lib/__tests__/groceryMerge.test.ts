@@ -725,6 +725,50 @@ describe("mergeConvertibleGroups -- BUG-209 pack basis (D-WS9-221)", () => {
     assert.equal(out[0].purchaseQuantity, null);
   });
 
+  it("BUG-200/208/211 — head, clove and each become ONE garlic row", () => {
+    // D-WS9-220, Hans: "if they need a head of garlic and 3 cloves, they should
+    // buy 2 heads." The catalog splits that demand across three names and two
+    // units, so it used to ship as three lines — one of them "11 garlic cloves
+    // (1 head of garlic)", a pack covering 10 of the 11 cloves it names.
+    //
+    // Every quantity here is a live one: 2 heads + 30 cloves is list 8908a51a,
+    // and `garlic cloves` arriving in "each" is list bd29f91a.
+    const garlicRef = { subUnit: { parent: "head", perParent: 10 }, purchaseUnit: "head", purchaseQuantity: 1, purchaseDisplay: "1 head", source: "curated" };
+    const out = mergeConvertibleGroups([
+      item({ canonicalName: "head of garlic", quantity: 2, unit: "head", conversionRef: garlicRef, purchaseUnit: "each", purchaseQuantity: 2, purchaseDisplay: "2 heads" }),
+      item({ canonicalName: "garlic", quantity: 30, unit: "clove", conversionRef: garlicRef, purchaseUnit: "head", purchaseQuantity: 1, purchaseDisplay: "1 head" }),
+      item({ canonicalName: "garlic cloves", quantity: 11, unit: "each", conversionRef: garlicRef, purchaseUnit: "each", purchaseQuantity: 1, purchaseDisplay: "1 head of garlic" }),
+    ]);
+    assert.equal(out.length, 1, "BUG-200: one garlic row, not three");
+    // 2 heads x 10 + 30 + 11 = 61 cloves. The `each` row counts as cloves
+    // (BUG-211); before the fix childSet was {clove, each} and the whole group
+    // was refused.
+    assert.equal(out[0].quantity, 61);
+    assert.equal(out[0].unit, "clove", "the merged row states the CLOVE need, not a head count");
+    assert.equal(out[0].canonicalName, "garlic", "shortest name across the folded family");
+  });
+
+  it("a head-only garlic demand still merges, and a mixed child still refuses", () => {
+    // Two controls for the widening above. First: no `each` row at all — the
+    // pre-existing head+clove case must be untouched.
+    const garlicRef = { subUnit: { parent: "head", perParent: 10 }, source: "curated" };
+    const headClove = mergeConvertibleGroups([
+      item({ canonicalName: "head of garlic", quantity: 2, unit: "head", conversionRef: garlicRef }),
+      item({ canonicalName: "garlic", quantity: 9, unit: "clove", conversionRef: garlicRef }),
+    ]);
+    assert.equal(headClove.length, 1);
+    assert.equal(headClove[0].quantity, 29, "2 heads x 10 + 9 cloves");
+
+    // Second: TWO named children (clove and slice) is a genuinely mixed group
+    // and must still be refused — the widening folds a bare count onto ONE
+    // named child, it does not make every unit summable.
+    const mixed = mergeConvertibleGroups([
+      item({ canonicalName: "garlic", quantity: 4, unit: "clove", conversionRef: garlicRef }),
+      item({ canonicalName: "garlic cloves", quantity: 3, unit: "slice", conversionRef: garlicRef }),
+    ]);
+    assert.equal(mixed.length, 2, "clove + slice cannot be summed and must pass through");
+  });
+
   it("leaves a single-row group's pack untouched", () => {
     // Nothing folds, so there is no choice to make and no basis to re-pick.
     const out = mergeConvertibleGroups([

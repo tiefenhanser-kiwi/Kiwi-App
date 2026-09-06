@@ -456,7 +456,28 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
     const others = units
       .map(canonicalUnitToken)
       .filter((u) => u !== parent);
-    const childSet = new Set(others);
+    // ── WS9 BUG-211 (D-WS9-189 A3) — A BARE COUNT IS THE CHILD, NOT A THIRD
+    //    UNIT ──
+    //
+    // The catalog authors `garlic cloves` with defaultUnit "each" and `garlic`
+    // with "cloves", so a plan drawing on both arrives here as {clove, each}.
+    // childSet then had size 2, this branch refused, and the group shipped as
+    // two rows — one of them "11 garlic cloves (1 head of garlic)", a pack that
+    // covers 10 of the 11 cloves it names, because the ladder never ran and the
+    // pack came from the Haiku gap-fill instead.
+    //
+    // "each" against an ingredient whose subUnit child is a clove MEANS a
+    // clove. Fold the bare count onto the named child when there is exactly one
+    // named child to fold it onto; a genuinely mixed group (clove + slice)
+    // still has two named children and is still refused.
+    //
+    // ⚠️ SCOPE, MEASURED: exactly ONE ingredient in the 1,569-row catalog
+    // carries a subUnit ladder — `garlic`. This branch cannot reach anything
+    // else, so the widening is a garlic fix wearing general syntax, not a
+    // general rule that happens to fix garlic.
+    const named = new Set(others.filter((u) => !isCountUnit(u)));
+    const childSet =
+      named.size === 1 ? named : new Set(others);
     // Mergeable only when the non-parent units are a SINGLE child unit
     // (e.g. all "clove"); mixed children (clove + slice) can't be summed.
     if (childSet.size === 1) {
