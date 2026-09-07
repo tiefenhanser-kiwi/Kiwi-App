@@ -742,14 +742,19 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             expiresIn: EMAIL_CHANGE_EXPIRY,
             extra: { newEmail },
           });
+          // BUG-219 — same exposure as the password-reset line in auth.ts: the
+          // live email-change token and its `kiwi://verify-email?token=…` deep
+          // link used to be logged at `info`, which is a retained, indexed,
+          // widely-readable sink the moment this runs on Cloud Run rather than
+          // a laptop. `newEmail` goes too — an address is PII, and a retained
+          // log is the wrong place for it even though it is not a credential.
+          //
+          // The mint STAYS, for the same reason as auth.ts: BUG-224 (no email
+          // provider) is why there is nothing to deliver it with yet.
+          void verifyTokenStr;
           logger.info(
-            {
-              userId: currentUser.id,
-              newEmail,
-              verifyToken: verifyTokenStr,
-              verifyUrl: `kiwi://verify-email?token=${verifyTokenStr}`,
-            },
-            "Email change requested — would email this URL to newEmail",
+            { event: "email_change_requested", userId: currentUser.id },
+            "Email change requested — no delivery channel yet (BUG-224)",
           );
         }
         return res.json({ success: true });

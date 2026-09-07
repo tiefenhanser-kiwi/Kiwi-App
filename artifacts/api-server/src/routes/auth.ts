@@ -257,13 +257,22 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           purpose: "password_reset",
           expiresIn: PASSWORD_RESET_EXPIRY,
         });
+        // BUG-219 — the live token and its `kiwi://reset-password?token=…`
+        // deep link used to be logged here at `info`. Nothing about the code
+        // was wrong on a laptop, where that is a scrollback buffer. On Cloud
+        // Run the same line lands in Cloud Logging: durable, indexed, retained,
+        // and readable by anyone holding `roles/logging.viewer` on the project.
+        // A live account-takeover credential does not go in a log sink, and
+        // `logger.info` fires regardless of NODE_ENV.
+        //
+        // The mint below STAYS. BUG-224 — there is no email provider anywhere
+        // in the server — is the only reason there is nothing to hand it to,
+        // and this is the call site that will send the mail once Resend lands.
+        // At that point the reason for any log line here disappears entirely.
+        void resetToken;
         logger.info(
-          {
-            userId: user.id,
-            resetToken,
-            resetUrl: `kiwi://reset-password?token=${resetToken}`,
-          },
-          "Password reset requested — would email this token to the user",
+          { event: "password_reset_requested", userId: user.id },
+          "Password reset requested — no delivery channel yet (BUG-224)",
         );
       }
       return res.json({ success: true });

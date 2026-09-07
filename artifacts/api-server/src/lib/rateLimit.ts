@@ -28,11 +28,22 @@ export function __clearRateLimitStoreForTests(): void {
 }
 
 function clientIp(req: Request): string {
-  // Only trust the TCP peer address — never `x-forwarded-for`, which any
-  // attacker can spoof to rotate identities and bypass the bucket. On a
-  // proxied host this collapses to a global limit, which is the safe default
-  // until the app explicitly configures `trust proxy` against known hops.
-  return req.socket.remoteAddress || "unknown";
+  // BUG-223 — `req.ip` is the address Express DERIVES from the app's
+  // `trust proxy` setting, which app.ts drives from TRUST_PROXY_HOPS and which
+  // DEFAULTS TO 0. At 0, Express ignores `x-forwarded-for` entirely and req.ip
+  // is the socket peer — measured byte-identical to the previous line, so this
+  // is a no-op until a deploy vouches for a hop count.
+  //
+  // This is NOT "start trusting x-forwarded-for". The header is still refused
+  // for every hop the deploy has not named, because any caller can spoof it to
+  // rotate identities and walk around the bucket — the original reasoning here
+  // was correct and is preserved. The only thing that moved is that the number
+  // of trusted hops became configuration instead of a hard-coded zero, because
+  // behind a proxy the raw peer address collapses to one value for everyone.
+  //
+  // Fallbacks are ordered so a missing req.ip (no Express app in the chain)
+  // degrades to the old behaviour rather than to a single shared "unknown".
+  return req.ip || req.socket.remoteAddress || "unknown";
 }
 
 export function rateLimit(opts: Options) {

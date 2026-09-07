@@ -58,6 +58,7 @@ import {
 import { logger } from "../lib/logger";
 import { resolveThisWeekWinnerId } from "../lib/planDates";
 import { prisma as productionPrisma } from "../lib/prisma";
+import { rateLimit } from "../lib/rateLimit";
 import { requireAuth } from "../middleware/auth";
 
 export interface GroceryListsRouterDeps {
@@ -70,6 +71,10 @@ export interface GroceryListsRouterDeps {
   categorizeItem: typeof productionCategorizeGroceryItem;
   searchIngredients: typeof productionSearchIngredientsByPrefix;
   prisma: PrismaClient;
+  // BUG-222 — test seam for the generate limiter, same shape as wizard.ts and
+  // cooking.ts, so a guard can drain the bucket without waiting on a real
+  // refill window.
+  generateLimiterOpts?: { capacity: number; refillPerSec: number };
 }
 
 const KNOWN_SECTIONS: StoreSection[] = [
@@ -164,9 +169,42 @@ export function createGroceryListsRouter(
 
   const router: IRouter = Router();
 
+  // BUG-222 — until this landed, groceryLists.ts was the ONLY route file in the
+  // server that never imported rateLimit, and generate-grocery-list was the only
+  // AI route with no limiter at all. It is also the most expensive request the
+  // server serves: multi-call and Sonnet-inclusive. The 409-on-existing-list
+  // guard is not a brake, because PATCH /grocery-lists/:id sets status freely —
+  // so generate → archive → generate loops unmetered.
+  //
+  // SIZING, against the existing ladder (all per-minute burst):
+  //   mutationLimiter (plans.ts)  60  — cheap DB writes
+  //   assist/recalc/prepWeek      12  — mid-tier AI
+  //   wizardLimiter                8  — the tightest existing AI tier
+  //   THIS                         4  — tighter still, and refilling 5× slower
+  //
+  // 4 burst covers the real flow with room to spare: a user generates a list
+  // for a plan, edits the plan, archives and regenerates — twice over, back to
+  // back. Sustained 4 per 5 minutes (~48/hour) is a ceiling, not a throttle on
+  // anything a person actually does.
+  //
+  // ⚠️ KEYED ON userId, NOT ip — deliberately, and it matters beyond tidiness.
+  // Per BUG-223 the default IP key collapses to a single bucket behind Cloud
+  // Run's front end, which on THIS route would mean one user's regenerate
+  // exhausting everyone's. A per-user key is immune to that whatever the
+  // trust-proxy setting turns out to be.
+  //
+  // ⚠️ THIS IS THE CHEAP HALF ONLY. The gate on AI spend is signup, and signup
+  // is free, instant and unverified. Email verification / CAPTCHA and a
+  // per-user AI spend ceiling are product decisions and are NOT in this block.
+  const generateLimiter = rateLimit({
+    ...(deps.generateLimiterOpts ?? { capacity: 4, refillPerSec: 4 / 300 }),
+    keyFn: (req) => `grocerygen:${req.userId ?? "anonymous"}`,
+  });
+
   router.post(
     "/plans/:id/generate-grocery-list",
     requireAuth,
+    generateLimiter,
     async (req, res) => {
       const userId = req.userId;
       if (!userId) {

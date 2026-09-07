@@ -677,6 +677,12 @@ async function spinUp(opts: HarnessOpts = {}): Promise<Harness> {
   const categorizeItemImpl = opts.categorizeItem ?? defaultCategorizeItem;
 
   const router = createGroceryListsRouter({
+    // BUG-222 — these harnesses exercise generate BEHAVIOUR, not metering, and
+    // they fire many generates in a row for one user. Production ships 4 burst
+    // / 4-per-5-min; hand these a bucket that never empties so a limiter doing
+    // its job cannot masquerade as a broken assertion. The limiter itself is
+    // guarded in bug222GenerateLimiter.test.ts.
+    generateLimiterOpts: { capacity: 1_000_000, refillPerSec: 0 },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     prisma: stubPrisma as any,
     consolidatePlanIngredients: (async (args: { relations?: unknown }) => {
@@ -2388,6 +2394,12 @@ async function glSpinUp(
   plans: GLPlanFix[] = [],
 ): Promise<Harness> {
   const router = createGroceryListsRouter({
+    // BUG-222 — these harnesses exercise generate BEHAVIOUR, not metering, and
+    // they fire many generates in a row for one user. Production ships 4 burst
+    // / 4-per-5-min; hand these a bucket that never empties so a limiter doing
+    // its job cannot masquerade as a broken assertion. The limiter itself is
+    // guarded in bug222GenerateLimiter.test.ts.
+    generateLimiterOpts: { capacity: 1_000_000, refillPerSec: 0 },
     prisma: makeGLStub(lists, plans) as never,
   });
   const app: Express = express();
@@ -3610,6 +3622,12 @@ async function spinUpReconcile(opts: {
   const spies: ReconSpies = { consolidate: 0, fill: 0, finalPass: 0 };
 
   const router = createGroceryListsRouter({
+    // BUG-222 — these harnesses exercise generate BEHAVIOUR, not metering, and
+    // they fire many generates in a row for one user. Production ships 4 burst
+    // / 4-per-5-min; hand these a bucket that never empties so a limiter doing
+    // its job cannot masquerade as a broken assertion. The limiter itself is
+    // guarded in bug222GenerateLimiter.test.ts.
+    generateLimiterOpts: { capacity: 1_000_000, refillPerSec: 0 },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     prisma: stubPrisma as any,
     consolidatePlanIngredients: (async () => {

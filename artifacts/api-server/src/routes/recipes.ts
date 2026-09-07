@@ -270,11 +270,23 @@ export function createRecipesRouter(
   // POST /recipes/import-image — WS6 6c-2
   // ─────────────────────────────────────────────────────────────────
 
+  // BUG-220 — ORDER IS THE FIX. This used to read
+  // `imageBodyParser, requireAuth, importLimiter`, which buffered up to 35 MiB
+  // of JSON into the heap BEFORE anything checked who the caller was. Measured:
+  // 34,000,018 bytes with no credentials → 401, 760 ms, +193.7 MB RSS. Against
+  // Cloud Run's 512 MiB default instance that is three concurrent anonymous
+  // requests to an OOM, for free and with no account — and the limiter that
+  // would have stopped it sat two positions downstream of the damage.
+  //
+  // requireAuth reads only headers and importLimiter reads only method/path/ip,
+  // so neither needs a parsed body; the parser is free to run last. Keep it
+  // last. (app.ts deliberately skips its 100 KB default parser for this exact
+  // path, so this is the only parser that ever runs here.)
   router.post(
     "/recipes/import-image",
-    imageBodyParser,
     requireAuth,
     importLimiter,
+    imageBodyParser,
     async (req, res) => {
       const parsed = ImportImageRequestSchema.safeParse(req.body);
       if (!parsed.success) {

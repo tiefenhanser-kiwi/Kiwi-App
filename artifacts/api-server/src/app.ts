@@ -8,6 +8,49 @@ import { errorHandler } from "./middleware/errorHandler";
 
 const app: Express = express();
 
+// BUG-223 — HOW MANY PROXY HOPS DO WE VOUCH FOR? CONFIGURATION, NOT A CONSTANT.
+//
+// The rate limiter keys on the client address. Until now that was the raw TCP
+// peer, and rateLimit.ts documented its own failure: "on a proxied host this
+// collapses to a global limit". Behind Cloud Run's front end every request
+// arrives from Google, so that is ONE VALUE FOR THE ENTIRE INTERNET —
+// authLimiter's 10/min becomes a global 10/min and the first ten people to
+// open the beta lock everyone else out for six minutes.
+//
+// The old code refused to read x-forwarded-for AT ALL, and that reasoning was
+// right: any caller can spoof the header to rotate identities and walk around
+// the bucket. It stays right for every hop the deploy has not vouched for.
+// What changes here is only that the number of vouched-for hops is settable.
+//
+// ⚠️ DEFAULT 0 = TRUST NOTHING = EXACTLY TODAY'S BEHAVIOUR. Measured: with
+// `trust proxy` at 0, req.ip is the socket peer and a spoofed
+// x-forwarded-for is ignored — byte-identical to leaving the setting unset.
+// So this change is a NO-OP until a deploy sets TRUST_PROXY_HOPS, which is
+// what makes it safe to land ahead of the infrastructure.
+//
+// ⚠️ SET THE HOP COUNT, NEVER `true`. `true` trusts the whole chain and hands
+// a spoofer back the very hole the original comment closed. On Cloud Run the
+// value is 1: exactly one hop, Google's front end. Measured: at 1, req.ip is
+// the LAST entry in the chain (the hop nearest the app), which is the address
+// that front end reports and the only one it cannot be tricked about.
+export function parseTrustProxyHops(raw: string | undefined): number {
+  if (raw == null || raw.trim() === "") return 0;
+  const n = Number(raw);
+  // Anything that is not a non-negative integer falls back to the safe value.
+  // A typo in a deploy variable must not silently widen who we trust.
+  if (!Number.isInteger(n) || n < 0) return 0;
+  return n;
+}
+
+const trustProxyHops = parseTrustProxyHops(process.env["TRUST_PROXY_HOPS"]);
+if (process.env["TRUST_PROXY_HOPS"] && trustProxyHops === 0) {
+  logger.warn(
+    { event: "trust_proxy_hops_invalid", raw: process.env["TRUST_PROXY_HOPS"] },
+    "TRUST_PROXY_HOPS is not a non-negative integer — falling back to 0 (trust nothing)",
+  );
+}
+app.set("trust proxy", trustProxyHops);
+
 app.use(
   pinoHttp({
     logger,
