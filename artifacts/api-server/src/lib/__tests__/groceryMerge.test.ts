@@ -8,6 +8,12 @@ import assert from "node:assert/strict";
 import { mergeConvertibleGroups } from "../groceryMerge";
 import { buildRelationIndex } from "../ingredientRelations";
 import { baseStapleName, mergeGroupBaseName } from "../groceryStaples";
+// BUG-215 — the live resolver pair the grocery pack path runs, asserted
+// directly rather than restated.
+import {
+  resolveConversion,
+  scalePurchaseForSubUnit,
+} from "../ingredientConversions";
 import { roundNeedQuantity } from "../needQuantity";
 import type { ConsolidatedItem } from "../groceryList";
 
@@ -178,7 +184,7 @@ describe("BUG-142 — staple-variant merge via the base staple's conversion", ()
   // As written for BUG-142 it asserted the opposite: that "sea salt 1 tsp" and
   // "kosher salt 1 tbsp" merge into ONE 4-tsp row. That was a correct test of
   // the code as shipped, and it passed. Hans has since ruled the behaviour
-  // itself wrong (BUG-170, device item 8): "salts are super different so
+  // itself wrong (BUG-172, device item 8): "salts are super different so
   // keeping them separate is probably needed and best… iodized salt is NOT
   // kosher is NOT flaky sea salt."
   //
@@ -362,7 +368,7 @@ describe("mergeConvertibleGroups — same-unit fold (BUG-181)", () => {
 
   it("does NOT merge two salts in the same unit — the fold is what licenses this", () => {
     // The negative that proves the change rides on MERGE_GROUP_VARIANT_TO_BASE
-    // and not on "same unit" alone. BUG-170/168: iodized is not kosher is not
+    // and not on "same unit" alone. BUG-172/168: iodized is not kosher is not
     // flaky sea salt, so these group separately and must stay two rows even
     // though both are teaspoons.
     const out = mergeConvertibleGroups([
@@ -783,5 +789,108 @@ describe("mergeConvertibleGroups -- BUG-209 pack basis (D-WS9-221)", () => {
     ]);
     assert.equal(out.length, 1);
     assert.equal(out[0].purchaseDisplay, "1 container");
+  });
+});
+
+// ── WS9 BUG-215 — the sub-unit ladder survives the name contest ─────────
+//
+// pickRepresentative ranks members by NAME LENGTH (shortest, ties
+// alphabetical) and never looks at a conversion, while every merge branch
+// builds the merged row as `{ ...rep }`. So the ladder rode on the name
+// contest exactly as the PACK did before BUG-209 severed that.
+//
+// Today's catalog hides it TWICE OVER, and the second cover is why the fixture
+// below looks the way it does:
+//   1. Of the five names folding to `garlic`, the one carrying the ladder
+//      ("garlic", 6 chars) is also the SHORTEST, so it wins whenever present.
+//   2. When the winner's own conversionRef is NULL, foldMetadata already copies
+//      the first non-null member ref onto it — so the ladder arrives anyway.
+// Neither is a rule about ladders; (1) is a coincidence of naming and (2) fires
+// only on a null. The hole they leave is a winner carrying a conversionRef that
+// has NO subUnit — an ordinary shape, since 236 catalog rows carry a
+// conversionRef and exactly ONE of them has a ladder. foldMetadata skips it
+// (non-null), and pre-fix the group's ladder is dropped on the floor.
+//
+// A first draft of this fixture gave the winner a null ref and passed against a
+// deliberately broken source (§27.5). That version proved foldMetadata worked.
+
+describe("BUG-215 — the merged row carries the GROUP's sub-unit ladder", () => {
+  const GARLIC_LADDER = {
+    subUnit: { parent: "head", perParent: 10 },
+    purchaseUnit: "head",
+    purchaseQuantity: 1,
+    purchaseDisplay: "1 head",
+    gramsPerEach: 45,
+    source: "curated",
+  };
+
+  it("16 cloves resolve to 2 heads when a NON-ladder member wins the name", () => {
+    const out = mergeConvertibleGroups([
+      // Longer name, carries the ladder. Loses the name contest.
+      item({
+        canonicalName: "garlic cloves",
+        quantity: 10,
+        unit: "clove",
+        conversionRef: GARLIC_LADDER,
+      }),
+      // Shorter name, so it wins the contest. It HAS a conversionRef — density
+      // only, no ladder — which is what keeps foldMetadata's null-fill from
+      // quietly supplying one. The curated table has exactly one garlic key, so
+      // lookupConversion misses it too.
+      item({
+        canonicalName: "garlic head",
+        quantity: 6,
+        unit: "clove",
+        conversionRef: { gramsPerEach: 45, source: "curated" },
+      }),
+    ]);
+
+    assert.equal(out.length, 1, "the fold key `garlic` groups both");
+    const merged = out[0];
+    assert.equal(merged.canonicalName, "garlic head", "the shortest name still wins");
+    assert.equal(merged.quantity, 16);
+
+    // The assertion runs the LIVE resolver over the merged row exactly as
+    // resolvePurchaseFields does — not a re-declared ladder. Pre-fix the row
+    // carries `garlic head`'s null conversionRef, scalePurchaseForSubUnit
+    // returns null, and a 16-clove need buys one head.
+    const conv = resolveConversion(merged.canonicalName, merged.conversionRef);
+    const scaled = scalePurchaseForSubUnit(conv, merged.quantity, merged.unit);
+    assert.ok(scaled, "the ladder resolves off the merged row");
+    assert.equal(scaled!.purchaseQuantity, 2);
+    assert.equal(scaled!.purchaseDisplay, "2 heads");
+  });
+
+  // ORDER IS THE POINT HERE, and the first draft of this test got it wrong.
+  // groupConversion returns the FIRST member that resolves, in group order —
+  // not the winner's. Listing the winner first makes the group conversion and
+  // the winner's own conversion the same object, and the assertion becomes
+  // 4 === 4 by construction (it survived a deliberate break, §27.5). The
+  // non-winner has to come FIRST for the two to differ.
+  it("a member's OWN ladder is never overwritten by the group's", () => {
+    const out = mergeConvertibleGroups([
+      // First in group order, so this is what groupConversion returns: 10.
+      item({
+        canonicalName: "garlic cloves",
+        quantity: 10,
+        unit: "clove",
+        conversionRef: GARLIC_LADDER,
+      }),
+      // Shortest name, so it wins — and it carries its OWN ladder, 4 per head.
+      item({
+        canonicalName: "garlic",
+        quantity: 6,
+        unit: "clove",
+        conversionRef: { ...GARLIC_LADDER, subUnit: { parent: "head", perParent: 4 } },
+      }),
+    ]);
+
+    assert.equal(out.length, 1);
+    assert.equal(out[0].canonicalName, "garlic");
+    const conv = resolveConversion(out[0].canonicalName, out[0].conversionRef);
+    // 16 cloves at the WINNER's 4 per head = 4 heads. If the group's ladder had
+    // overwritten the row's own, 16 at 10 per head would read 2.
+    const scaled = scalePurchaseForSubUnit(conv, out[0].quantity, out[0].unit);
+    assert.equal(scaled!.purchaseQuantity, 4);
   });
 });

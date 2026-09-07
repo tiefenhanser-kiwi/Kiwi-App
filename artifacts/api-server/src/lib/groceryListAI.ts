@@ -55,6 +55,8 @@ import {
   normalizeUnit,
   resolveConversion,
   scalePurchaseForSubUnit,
+  withGroupLadder,
+  type IngredientConversion,
 } from "./ingredientConversions";
 import { roundNeedQuantity } from "./needQuantity";
 
@@ -331,12 +333,26 @@ export function partitionForAI(
 // WS7-8b B2 commit 3 — resolve the persisted pack for an item, applying
 // head↔clove scaling (BUG-025-1: need 30 cloves → "3 heads", not "1 head").
 // Returns the pack as DATA; the client composes the two-part line at render.
-function resolvePurchaseFields(item: ConsolidatedItem): {
+//
+// WS9 BUG-215 — `groupConv` is the conversion of the FOLD GROUP this row was
+// merged out of, or null when the row stands alone. It supplies the sub-unit
+// ladder when the row's own conversion has none (withGroupLadder); it can never
+// override one the row already carries, and it touches nothing but the ladder.
+// The deterministic path needs no argument here: mergeConvertibleGroups already
+// wrote the group's ladder onto the merged row's conversionRef, because by this
+// point its group no longer exists.
+function resolvePurchaseFields(
+  item: ConsolidatedItem,
+  groupConv: IngredientConversion | null = null,
+): {
   purchaseUnit: string | null;
   purchaseQuantity: number | null;
   purchaseDisplay: string | null;
 } {
-  const conv = resolveConversion(item.canonicalName, item.conversionRef);
+  const conv = withGroupLadder(
+    resolveConversion(item.canonicalName, item.conversionRef),
+    groupConv,
+  );
   const scaled = scalePurchaseForSubUnit(conv, item.quantity, item.unit);
   if (scaled && conv?.subUnit) {
     return {
@@ -460,10 +476,11 @@ export async function generateFinalGroceryList(
   opts: GroceryListAIOptions,
 ): Promise<GenerateGroceryListResult> {
   // WS9 D-WS9-189 A2b — the wired index, or EMPTY when the caller supplies none.
-  const { deterministic, aiSubset } = partitionForAI(
-    items,
-    opts.relations ?? EMPTY_RELATION_INDEX,
-  );
+  // Hoisted to a const (BUG-215): the AI-merge landing below needs the SAME
+  // groupKey partitionForAI ruled with, so a row's fold group is answered once
+  // and identically at both sites.
+  const relations = opts.relations ?? EMPTY_RELATION_INDEX;
+  const { deterministic, aiSubset } = partitionForAI(items, relations);
 
   type Placed = { index: number; out: GenerateListOutputItem };
   const placed: Placed[] = deterministic.map(({ item, index }) => ({
@@ -507,6 +524,27 @@ export async function generateFinalGroceryList(
       prisma: opts.prisma,
       userId: opts.userId,
       client: opts.client,
+      // ── WS9 BUG-214 — temp 0, THE SAME RULE D-WS9-053 §2.0 ALREADY APPLIED
+      //    ONE CALL SITE OVER ──
+      //
+      // This call omitted `temperature`, so it drew at runAICall's 0.7 default.
+      // Its output is PERSISTED — the rows below become GroceryListItem rows,
+      // and every row this pass leaves without a pack is a cache MISS that
+      // fillPurchaseSizesWithWriteBack then asks Haiku to invent and WRITES
+      // BACK to the shared Ingredient row (BUG-124). A sampled draw here does
+      // not just vary what one shopper reads; it varies what the catalog
+      // learns.
+      //
+      // Measured: lists 3346e106 (65 rows) and cb5c8f6e (63 rows) — same 4
+      // meals, same 91 mentions, same commit, five minutes apart. The
+      // deterministic consolidator returns 65 for both, so the two-row
+      // divergence is this Sonnet pass and nothing else.
+      //
+      // D-WS9-053 §2.0 pinned gap_fill_purchase_size for exactly this reason
+      // and §1 pinned nutrition.gap_fill_conversion before it. Merging and
+      // sectioning a grocery list is a reconciliation, not prose. (The global
+      // runAICall default stays 0.7 for prose.)
+      temperature: 0,
     },
   );
   if (!result.success) {
@@ -753,8 +791,43 @@ export async function generateFinalGroceryList(
     // emitted a name no input row carried: null pack, leftover slot.
     const match = matches.get(i) ?? null;
     const src = match?.item;
+    // ── WS9 BUG-215 — the merged line's LADDER comes from its FOLD GROUP, not
+    //    from the one source whose name the model happened to echo ──
+    //
+    // `src` is the single entry BUG-095's queue-per-name popped. The rest of
+    // the fold group is still sitting in aiSubset, and one of them may be the
+    // only member carrying a subUnit: the `garlic` fold key holds `garlic`
+    // (ladder), `garlic cloves` and `garlic head` (neither). When Sonnet
+    // collapses them and echoes `garlic cloves`, this line resolves no ladder
+    // and a 16-clove need prints "1 head of garlic" — buy 1, need 2.
+    //
+    // The group is `relations.groupKey`, the SAME key partitionForAI's rule 3
+    // used to route these rows here together and the same one
+    // mergeConvertibleGroups groups on. Deliberately NOT the raw-name queue:
+    // `queueByName` and `absorbedKeys` key on the unfolded canonicalName, so
+    // they cannot see a cross-name fold at all — which is exactly the case that
+    // loses the ladder. A same-name group is unaffected either way: its members
+    // share one Ingredient row and therefore one conversionRef.
+    //
+    // Reads only the ladder (withGroupLadder), so a row that already has one is
+    // untouched and every ingredient without one — all 1,568 of them — resolves
+    // exactly as before.
+    const groupConv = src
+      ? conversionForGroup(
+          aiSubset
+            .filter(
+              (e) =>
+                relations.groupKey(e.item.canonicalName) ===
+                relations.groupKey(src.canonicalName),
+            )
+            .map((e) => e.item),
+        )
+      : null;
     const pack = src
-      ? resolvePurchaseFields({ ...src, quantity: out.quantity, unit: out.unit })
+      ? resolvePurchaseFields(
+          { ...src, quantity: out.quantity, unit: out.unit },
+          groupConv,
+        )
       : { purchaseUnit: null, purchaseQuantity: null, purchaseDisplay: null };
     placed.push({
       index: match ? match.index : (leftoverIndices.shift() ?? items.length + i),

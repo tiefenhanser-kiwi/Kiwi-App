@@ -892,3 +892,34 @@ describe("BUG-171: a pantry staple collapses the order half to the bare name", (
     );
   });
 });
+
+// ── WS9 BUG-216 — a pack sized in "count" is sized in "each" ────────────
+//
+// packSizeHint reads "1 package (12 count)" as {12, "count"}; the need says
+// "each". Without the alias the two never match, packsToCoverNeed falls to its
+// out-of-scope branch and returns null, and the stored pack prints verbatim:
+// corn tortillas, need 36 each, "1 package" on the shelf when the answer is 3.
+describe("BUG-216 — `count` is an alias for `each`", () => {
+  it("36 each against a 12-count package orders 3 packages", () => {
+    assert.equal(
+      composePackName("corn tortillas", "package", "1 package (12 count)", "36", "each"),
+      "3 packages (12 count) corn tortillas",
+    );
+  });
+
+  it("one package still covers a need of 12 or less (no spurious scaling)", () => {
+    assert.equal(
+      composePackName("corn tortillas", "package", "1 package (12 count)", "12", "each"),
+      "1 package (12 count) corn tortillas",
+    );
+  });
+
+  it("the alias reads through normalizeUnitToken on the NEED side too", () => {
+    // A need authored as "count" against an each-sized pack is the same
+    // question asked from the other end.
+    assert.equal(
+      composePackName("corn tortillas", "package", "1 package (12 each)", "36", "count"),
+      "3 packages (12 each) corn tortillas",
+    );
+  });
+});

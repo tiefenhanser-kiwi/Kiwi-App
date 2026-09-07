@@ -144,11 +144,16 @@ interface FakeClient {
   client: Pick<Anthropic, "messages">;
   callCount: () => number;
   lastUserMessage: () => string | null;
+  // WS9 BUG-214 — the params the LIVE call site actually reached the SDK with.
+  // Recorded rather than re-declared beside the assertion: a test that states
+  // `temperature: 0` on both sides of an equality proves only that 0 === 0.
+  lastParams: () => Anthropic.MessageCreateParams | null;
 }
 
 function makeFakeClient(responses: QueuedResponse[]): FakeClient {
   let calls = 0;
   let lastUserMessage: string | null = null;
+  let lastParams: Anthropic.MessageCreateParams | null = null;
   const queue = [...responses];
   const client = {
     messages: {
@@ -156,6 +161,7 @@ function makeFakeClient(responses: QueuedResponse[]): FakeClient {
         params: Anthropic.MessageCreateParams,
       ): Promise<Anthropic.Message> => {
         calls++;
+        lastParams = params;
         const first = params.messages[0];
         if (first && typeof first.content === "string") {
           lastUserMessage = first.content;
@@ -193,6 +199,7 @@ function makeFakeClient(responses: QueuedResponse[]): FakeClient {
     client,
     callCount: () => calls,
     lastUserMessage: () => lastUserMessage,
+    lastParams: () => lastParams,
   };
 }
 
@@ -2139,5 +2146,171 @@ describe("generateFinalGroceryList -- relations threading (D-WS9-189 A2b)", () =
     assert.ok(sent.includes("neutral oil"), "Sonnet was handed the tbsp row");
     assert.ok(sent.includes("vegetable oil"), "Sonnet was handed the cup row");
     assert.equal(result.items.length, 2);
+  });
+});
+
+// ── WS9 BUG-214 — grocery.generate_list must draw at temperature 0 ──────
+
+describe("BUG-214 — generate_list is pinned to temperature 0", () => {
+  function aiItem(overrides: Partial<ConsolidatedItem> = {}): ConsolidatedItem {
+    return makeItem({ sectionKey: "extras", ...overrides });
+  }
+
+  it("hands the SDK temperature 0, read off the live call", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            items: [
+              {
+                canonicalName: "bread",
+                displayName: "bread",
+                quantity: 1,
+                unit: "loaf",
+                sectionKey: "extras",
+                isUniversalStaple: false,
+                isUserPantryStaple: false,
+                isRecurringItem: false,
+                notes: null,
+                isAmbiguous: false,
+                wasAiInferred: false,
+              },
+            ],
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    await generateFinalGroceryList(
+      "Plan",
+      [aiItem({ canonicalName: "bread", displayName: "bread", quantity: 1, unit: "loaf" })],
+      ["extras"],
+      { prisma, userId: TEST_USER_ID, client: fake.client },
+    );
+
+    assert.equal(fake.callCount(), 1, "the Sonnet pass must actually have run");
+    // Read off the params the call site produced — NOT a constant restated
+    // here. Deleting `temperature: 0` from groceryListAI.ts makes runAICall
+    // fall through to its 0.7 default and this reads 0.7.
+    assert.equal(fake.lastParams()?.temperature, 0);
+  });
+
+  it("gap_fill_purchase_size stays pinned too (D-WS9-053 §2.0, unchanged)", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            purchaseUnit: "lb",
+            purchaseQuantity: 1,
+            purchaseDisplay: "1 lb",
+            confidence: "high",
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    await gapFillPurchaseSize(
+      { canonicalName: "chicken breast", requestedQuantity: 1, requestedUnit: "lb" },
+      { prisma, userId: TEST_USER_ID, client: fake.client },
+    );
+
+    assert.equal(fake.lastParams()?.temperature, 0);
+  });
+});
+
+// ── WS9 BUG-215 — the AI-merged line lands on the FOLD GROUP's ladder ───
+//
+// The measured shape, list cb5c8f6e: `garlic` (the one catalog row of 1,569
+// carrying subUnit {head, 10}) and `garlic cloves` (none) share the merge fold
+// key `garlic`, so partitionForAI rule 3 routes BOTH to Sonnet. Sonnet collapses
+// them and echoes `garlic cloves`, so BUG-095's queue-per-name pops the
+// NON-LADDER source and the pack resolves off that row alone: "1 head of garlic"
+// against a 16-clove need. Buy 1, need 2.
+//
+// No AI call — the model's output is a fixture.
+
+describe("BUG-215 — AI-merge landing keeps the sub-unit ladder", () => {
+  function garlicItem(overrides: Partial<ConsolidatedItem>): ConsolidatedItem {
+    return makeItem({ sectionKey: "produce", ...overrides });
+  }
+
+  it("16 cloves resolve to 2 heads even when the merged line lands on `garlic cloves`", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            items: [
+              {
+                // Sonnet merged the two rows and kept the LONGER name — which
+                // is the row that carries no ladder.
+                canonicalName: "garlic cloves",
+                displayName: "garlic cloves",
+                quantity: 16,
+                unit: "clove",
+                sectionKey: "produce",
+                isUniversalStaple: false,
+                isUserPantryStaple: false,
+                isRecurringItem: false,
+                notes: null,
+                isAmbiguous: false,
+                wasAiInferred: false,
+              },
+            ],
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      // The ladder row. conversionRef is null on purpose: `garlic` resolves its
+      // ladder from the CURATED table by name, exactly as the catalog row does.
+      garlicItem({
+        ingredientId: "ing-garlic",
+        canonicalName: "garlic",
+        displayName: "garlic",
+        quantity: 6,
+        unit: "clove",
+        purchaseUnit: "head",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 head",
+      }),
+      // The row Sonnet's output names. No ladder by either route:
+      // lookupConversion("garlic cloves") misses — the curated table has one
+      // garlic key — and its conversionRef is null.
+      garlicItem({
+        ingredientId: "ing-garlic-cloves",
+        canonicalName: "garlic cloves",
+        displayName: "garlic cloves",
+        quantity: 10,
+        unit: "each",
+        purchaseUnit: "head",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 head of garlic",
+      }),
+    ];
+
+    const result = await generateFinalGroceryList("Plan", items, ["produce", "extras"], {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(fake.callCount(), 1, "both rows must have reached the AI subset");
+    const line = result.items.find((r) => r.canonicalName === "garlic cloves");
+    assert.ok(line, "the merged line is present");
+    // Live resolver output, not a restated literal: scalePurchaseForSubUnit
+    // ceil(16 / 10) = 2. Pre-fix this reads the stored "1 head of garlic".
+    assert.equal(line!.purchaseQuantity, 2);
+    assert.equal(line!.purchaseDisplay, "2 heads");
+    assert.equal(line!.purchaseUnit, "head");
   });
 });

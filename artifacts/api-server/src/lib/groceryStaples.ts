@@ -131,13 +131,23 @@ export function isNeverOrdered(normalized: string): boolean {
 }
 
 // WS7-8b B1 (BUG-025-5) — variant→base staple normalization.
-// The staple flag is an exact-string membership test against
-// UNIVERSAL_STAPLE_KEYS (groceryList.ts), so common named variants
-// ("kosher salt", "cracked black pepper", "extra-virgin olive oil") miss the
-// base staple and leak onto the buy-list instead of rendering greyed
-// (PRD §2.2 + §12.7 [LOCKED] — a universal staple must render greyed).
-// Map the known variants of the three families the staples list supports
-// (salt / black pepper / olive oil) to their base BEFORE the membership check.
+//
+// ⚠️ WHAT THIS MAP DOES TODAY IS NOT WHAT IT WAS BUILT FOR, and the sentence
+// that used to stand here ("map the known variants … to their base BEFORE the
+// membership check") has been false since WS9 BUG-182. The staple flag WAS an
+// exact-string membership test against UNIVERSAL_STAPLE_KEYS with this fold in
+// front of it, so "kosher salt" inherited "salt"'s flag — and so did `flaky sea
+// salt`, which is the bug Hans reported. BUG-182 removed the fold from BOTH
+// isUniversalStaple call sites: a staple flag is now set on the SPECIFIC
+// ingredient, listed by name in UNIVERSAL_STAPLES, or not at all. See the
+// ruling at the top of this file.
+//
+// TWO CONSUMERS REMAIN AND BOTH ASK A DENSITY QUESTION, NOT A STAPLE ONE:
+// groceryMerge.groupConversion and groceryListAI.conversionForGroup each fall
+// back to the BASE staple's curated conversion row when a variant resolves to
+// no conversion of its own, so a group of unlike salts can still be summed in
+// grams (BUG-142). Nothing here decides what renders greyed any more, and
+// adding a row to it does not make anything a staple.
 //
 // EXACT-STRING keys (not substring): a seasoning that merely CONTAINS a staple
 // word — "garlic salt", "celery salt", "onion salt", "seasoned salt",
@@ -185,7 +195,7 @@ export function baseStapleName(normalized: string): string {
   return STAPLE_VARIANT_TO_BASE[normalized] ?? normalized;
 }
 
-// WS9 BUG-170 / BUG-168 — variant→base folding for MERGE GROUPING only.
+// WS9 BUG-172 / BUG-168 — variant→base folding for MERGE GROUPING only.
 //
 // STAPLE_VARIANT_TO_BASE above answers "do I already have this in the pantry?"
 // and every entry belongs there: kosher salt IS a pantry staple and must render

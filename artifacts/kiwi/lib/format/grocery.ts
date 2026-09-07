@@ -387,6 +387,16 @@ const UNIT_ALIASES: Record<string, string> = {
   packages: "package", packets: "packet", cartons: "carton", loaves: "loaf",
   blocks: "block", wedges: "wedge", pints: "pint", quarts: "quart",
   gallons: "gallon", sticks: "stick", ears: "ear", slices: "slice",
+  // WS9 BUG-216 — "count" is how a PACK states a countable size; "each" is how
+  // a NEED states one. Without this row the two never meet: packSizeHint reads
+  // "1 package (12 count)" as {12, "count"}, rule 3 compares it against a need
+  // unit of "each", they differ, packsToCoverNeed returns null and the stored
+  // pack prints verbatim — corn tortillas, need 36 each, "1 package" on the
+  // shelf-side of the line when the answer is 3.
+  //
+  // Same class as `fl oz: "oz"` above and not the plural-folding the rest of
+  // this table does: two spellings the live data genuinely uses for one unit.
+  count: "each",
 };
 
 function normalizeUnitToken(unit: string | null | undefined): string {

@@ -38,6 +38,7 @@ import {
   normalizeUnit,
   resolveConversion,
   unitDimension,
+  withGroupLadder,
   type IngredientConversion,
 } from "./ingredientConversions";
 
@@ -351,6 +352,31 @@ function finishMerge(
     base.purchaseQuantity = basis.purchaseQuantity;
     base.purchaseDisplay = basis.purchaseDisplay;
   }
+  // ── WS9 BUG-215 — the LADDER is not part of the prize for winning the name
+  //    either ──
+  //
+  // Every branch above builds `base` as `{ ...rep }`, so the merged row keeps
+  // the REPRESENTATIVE's conversionRef — chosen by pickRepresentative on name
+  // length alone, which never looks at a conversion. `conv` right here is the
+  // GROUP's conversion (groupConversion: any member that resolves, then the
+  // base-staple fallback) and it is the one the merge arithmetic above was
+  // actually done with, so the merged row disagreeing with it is incoherent
+  // regardless of the pack it costs.
+  //
+  // Concretely: the `garlic` fold key holds `garlic` (ladder), `garlic cloves`
+  // and `garlic head` (neither). Whenever the ladder row is not the shortest
+  // name present, resolvePurchaseFields downstream resolves no subUnit and a
+  // 16-clove need prints "1 head of garlic".
+  //
+  // Written onto the row rather than passed alongside because the group is GONE
+  // by the time the pack is resolved — buildDeterministicOutputItem sees one
+  // merged ConsolidatedItem and nothing else. conversionRef is read-only
+  // pipeline input (GenerateListOutputItem does not carry it and nothing writes
+  // it back to Ingredient), so this is in-memory for the length of one
+  // generation.
+  const own = resolveConversion(base.canonicalName, base.conversionRef);
+  const withLadder = withGroupLadder(own, conv);
+  if (withLadder !== own) base.conversionRef = withLadder;
   return base;
 }
 

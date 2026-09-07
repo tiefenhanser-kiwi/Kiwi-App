@@ -593,3 +593,59 @@ export function resolveConversion(
 ): IngredientConversion | null {
   return parseConversionRef(conversionRef) ?? lookupConversion(canonicalName);
 }
+
+/**
+ * WS9 BUG-215 — THE SUB-UNIT LADDER TRAVELS WITH THE MERGE GROUP, NOT WITH THE
+ * ROW THAT WON THE NAME.
+ *
+ * A fold collapses several catalog rows into one line, and only ONE of them
+ * supplies the surviving row's `conversionRef`. Three rows share the `garlic`
+ * fold key and only one of them carries the ladder: `garlic` (e6753984) has
+ * `subUnit {parent: head, perParent: 10}`; `garlic cloves` (7835b896) and
+ * `garlic head` (1493c942) have none, and the curated code table has exactly
+ * one key — `garlic` — so a name-based fallback misses them too. When the
+ * ladder row supplies the payload, 25 cloves resolves to "3 heads". When a
+ * sibling does, `scalePurchaseForSubUnit` returns null and the stored pack
+ * prints verbatim: "1 head of garlic" against a 16-clove need. Buy one, need
+ * two.
+ *
+ * This is BUG-209's sentence one field further along. That fix severed the
+ * PACK from the name contest ("the pack is not part of the prize for winning
+ * the name"); the CONVERSION was still riding on it, via the `{ ...rep }`
+ * spread every merge branch ends with.
+ *
+ * ⚠️ ONLY THE LADDER TRAVELS, AND ONLY ONTO A ROW THAT HAS NONE. `own` wins
+ * outright whenever it carries a subUnit, and every non-ladder field — the
+ * densities the merge arithmetic already used — is left exactly as the row
+ * resolved it. A group conversion is reached by `groupConversion`'s
+ * first-member-that-resolves rule, which is deliberately not a merge of
+ * densities; widening this to those fields would silently re-base grams for
+ * every folded group in the catalog to fix a pack on one.
+ *
+ * ⚠️ `purchaseUnit` comes along because it is HALF THE LADDER, not as a pack
+ * choice: scalePurchaseForSubUnit fires only when `purchaseUnit` equals
+ * `subUnit.parent`, so a subUnit arriving without it is inert. It is read
+ * nowhere else on this path — the row's OWN purchaseUnit/Quantity/Display
+ * columns are what the shopper is shown, and BUG-209's pickPackBasis still
+ * settles those.
+ *
+ * ⚠️ MEASURED BLAST RADIUS: exactly ONE row in the 1,569-row catalog carries a
+ * subUnit ladder (BUG-211's Phase 0 count, unchanged by A3). `groupConv` has no
+ * subUnit for every other ingredient there is, so this returns `own`
+ * unmodified for all of them. It is a garlic fix wearing general syntax.
+ */
+export function withGroupLadder(
+  own: IngredientConversion | null,
+  groupConv: IngredientConversion | null | undefined,
+): IngredientConversion | null {
+  if (own?.subUnit) return own;
+  if (!groupConv?.subUnit) return own;
+  if (!own) return groupConv;
+  return {
+    ...own,
+    subUnit: groupConv.subUnit,
+    ...(groupConv.purchaseUnit !== undefined
+      ? { purchaseUnit: groupConv.purchaseUnit }
+      : {}),
+  };
+}
