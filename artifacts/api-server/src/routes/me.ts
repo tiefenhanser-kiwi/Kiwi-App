@@ -31,8 +31,9 @@ import {
   type EmailSender,
 } from "../lib/email/sendEmail";
 import { prisma as productionPrisma } from "../lib/prisma";
-import { requireAuth } from "../middleware/auth";
+import { createRequireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rateLimit";
+import { isIssuedBeforeEpoch, redeemPurposeToken } from "../lib/tokenRevocation";
 import { getTopRatedSettings } from "../lib/topRated";
 import {
   clampLimit,
@@ -581,6 +582,11 @@ export interface MeRouterDeps {
 
 export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
+  // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
+  // needs a Prisma client. Building it from the injected one (rather than
+  // importing the singleton) is what keeps this router's tests hermetic.
+  // Shadows the module import: every requireAuth call site below is unchanged.
+  const requireAuth = createRequireAuth({ prisma });
   const sendEmail = deps.sendEmail ?? productionSendEmail;
   const router: IRouter = Router();
 
@@ -693,11 +699,36 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         }
 
         const newHash = await hashPassword(newPassword);
+        const changedAt = new Date();
         await prisma.user.update({
           where: { id: user.id },
-          data: { passwordHash: newHash },
+          data: {
+            passwordHash: newHash,
+            // BUG-234 — the same gap as the reset path, and this is the one
+            // Hans actually exercised on device: changing your password while
+            // signed in left every other 30-day session JWT authenticating.
+            // Someone changing their password because they think another
+            // person has it gets the eviction they were asking for.
+            tokensValidFrom: changedAt,
+          },
         });
         logger.info({ userId: user.id }, "Password changed via /me/password");
+        // Deliberately evicts the CALLER's own session too. The alternative —
+        // exempting the current token — cannot be done honestly with a
+        // single per-user epoch, and the safe direction is the one where a
+        // user who suspects compromise ends up with every session dead rather
+        // than one quietly spared. The client re-authenticates with the
+        // password it was just given, which it already has in hand.
+        //
+        // ⚠️ This IS a device-visible behaviour change: the app will get a 401
+        // on its next call after a password change and must send the user to
+        // login. No client work is in this block's scope (§1 fences BUG-235
+        // and BUG-236 off), so it is called out rather than absorbed.
+        //
+        // The response body stays { success: true }: the client parses it with
+        // a non-strict z.object({success}) that would strip any added field,
+        // so announcing the eviction here would be an unconsumed contract
+        // change, not an interface.
         return res.json({ success: true });
       } catch (err) {
         logger.error({ err, userId: req.userId }, "PATCH /me/password failed");
@@ -810,14 +841,56 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       // Race: another account may have grabbed this address between
       // request and verify. The unique constraint on User.email also
       // protects us; we check first for a clearer error.
-      const conflict = await prisma.user.findUnique({
-        where: { email: newEmail },
-        select: { id: true },
-      });
+      //
+      // The acting user's revocation epoch is fetched alongside it rather than
+      // after it: two independent primary-key reads in one round-trip pair, so
+      // BUG-233's epoch clause costs no extra wall-clock here.
+      const [conflict, actor] = await Promise.all([
+        prisma.user.findUnique({
+          where: { email: newEmail },
+          select: { id: true },
+        }),
+        prisma.user.findUnique({
+          where: { id: payload.userId },
+          select: { tokensValidFrom: true },
+        }),
+      ]);
       if (conflict && conflict.id !== payload.userId) {
         return res.status(400).json({
           error: "email_taken",
           userFacingMessage: "That email is already registered to another account.",
+        });
+      }
+
+      // BUG-233 — a verification link minted before the account's last password
+      // change is stale. If someone reset this password because the account was
+      // taken, an email-change link the attacker had already requested must not
+      // still be able to move the address out from under them.
+      if (actor && isIssuedBeforeEpoch(payload.iat, actor.tokensValidFrom)) {
+        logger.warn(
+          { userId: payload.userId, reason: "before_epoch" },
+          "Email change token refused",
+        );
+        return res.status(400).json({
+          error: "invalid_token",
+          userFacingMessage: "This link is invalid or has expired.",
+        });
+      }
+
+      // BUG-233 — THE measured defect. This exact token returned 200 three
+      // times in a row against an op-counting probe, because nothing marked it
+      // spent and "spent" was not a state the system could represent. The
+      // ledger write below is that state, and it is atomic on the primary key,
+      // so a double-submit cannot redeem twice.
+      const redeemed = await redeemPurposeToken(prisma, payload, "email_change");
+      if (!redeemed.ok) {
+        logger.warn(
+          { userId: payload.userId, reason: redeemed.reason },
+          "Email change token refused",
+        );
+        return res.status(400).json({
+          error: "invalid_token",
+          userFacingMessage: "This link is invalid or has expired.",
         });
       }
 

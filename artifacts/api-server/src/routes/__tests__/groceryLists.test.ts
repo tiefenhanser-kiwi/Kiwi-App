@@ -16,6 +16,7 @@ import { GroceryListAIError } from "../../lib/groceryListAI";
 import type { ConsolidatedItem, GrocerySource } from "../../lib/groceryList";
 import { createGroceryListsRouter } from "../groceryLists";
 import type { GenerateGroceryListResult } from "../../lib/ai/schemas/grocery";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 // ── stubs ──────────────────────────────────────────────────────────────
 
@@ -684,7 +685,7 @@ async function spinUp(opts: HarnessOpts = {}): Promise<Harness> {
     // guarded in bug222GenerateLimiter.test.ts.
     generateLimiterOpts: { capacity: 1_000_000, refillPerSec: 0 },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    prisma: stubPrisma as any,
+    prisma: withSessionUser(stubPrisma) as any,
     consolidatePlanIngredients: (async (args: { relations?: unknown }) => {
       if (opts.spies) opts.spies.consolidate.calls++;
       if (opts.relationSpy) opts.relationSpy.consolidate = args?.relations;
@@ -2400,7 +2401,7 @@ async function glSpinUp(
     // its job cannot masquerade as a broken assertion. The limiter itself is
     // guarded in bug222GenerateLimiter.test.ts.
     generateLimiterOpts: { capacity: 1_000_000, refillPerSec: 0 },
-    prisma: makeGLStub(lists, plans) as never,
+    prisma: withSessionUser(makeGLStub(lists, plans)) as never,
   });
   const app: Express = express();
   app.use(express.json());
@@ -3629,7 +3630,7 @@ async function spinUpReconcile(opts: {
     // guarded in bug222GenerateLimiter.test.ts.
     generateLimiterOpts: { capacity: 1_000_000, refillPerSec: 0 },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    prisma: stubPrisma as any,
+    prisma: withSessionUser(stubPrisma) as any,
     consolidatePlanIngredients: (async () => {
       spies.consolidate++;
       return opts.current;

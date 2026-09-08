@@ -38,7 +38,7 @@ import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { subscriptionService as productionSubscriptionService, type SubscriptionService } from "../lib/subscriptionService";
-import { requireAuth } from "../middleware/auth";
+import { createRequireAuth } from "../middleware/auth";
 
 export interface BuilderRouterDeps {
   assistDishIngredients: typeof productionAssistDishIngredients;
@@ -63,6 +63,11 @@ export function createBuilderRouter(
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
   const prisma = deps.prisma ?? productionPrisma;
+  // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
+  // needs a Prisma client. Building it from the injected one (rather than
+  // importing the singleton) is what keeps this router's tests hermetic.
+  // Shadows the module import: every requireAuth call site below is unchanged.
+  const requireAuth = createRequireAuth({ prisma });
   const limiterOpts = deps.rateLimiterOpts ?? {
     capacity: 12,
     refillPerSec: 12 / 60,

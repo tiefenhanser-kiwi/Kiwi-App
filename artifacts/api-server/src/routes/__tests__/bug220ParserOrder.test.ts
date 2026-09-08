@@ -18,6 +18,7 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import { createRecipesRouter } from "../recipes";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 // Comfortably over the route's "35mb" ceiling.
 const OVERSIZED = JSON.stringify({ images: ["A".repeat(37 * 1024 * 1024)] });
@@ -28,7 +29,7 @@ async function spinUp(): Promise<{ baseUrl: string; close: () => Promise<void> }
   // parser for this exact path (ROUTE_SCOPED_JSON_PATHS), so the route-scoped
   // parser is the only one in play. Mirroring that is what makes this a test
   // of the route's own ordering.
-  app.use(createRecipesRouter({ prisma: {} as never }));
+  app.use(createRecipesRouter({ prisma: withSessionUser({}) as never }));
 
   const server: Server = await new Promise((resolve) => {
     const s = app.listen(0, "127.0.0.1", () => resolve(s));

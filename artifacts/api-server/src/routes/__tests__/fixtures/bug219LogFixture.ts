@@ -12,6 +12,7 @@ import type { Server } from "node:http";
 
 import { logger } from "../../../lib/logger";
 import { createAuthRouter } from "../../auth";
+import { makeUsedTokenLedger } from "./sessionUserStub";
 
 const mode = process.argv[2];
 
@@ -96,6 +97,10 @@ export async function runVerifyChange(): Promise<void> {
       findUnique: async () => null,
       update: async () => ({ id: "bug219-fixture-user", email: NEW_EMAIL }),
     },
+    // BUG-233 — the verify handler now spends the token before applying the
+    // change, so the fixture has to model the ledger or the handler 400s and
+    // this file's "did the log leak the address" question never gets asked.
+    usedToken: makeUsedTokenLedger(),
   } as unknown as never;
 
   const app = ex();

@@ -28,6 +28,7 @@ import {
 } from "../../lib/email/sendEmail";
 import { createAuthRouter } from "../auth";
 import { createMeRouter } from "../me";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 interface Recorder {
   calls: EmailMessage[];
@@ -57,7 +58,7 @@ async function spinUpAuth(sender: EmailSender) {
   } as unknown as never;
   const app: Express = express();
   app.use(express.json());
-  app.use(createAuthRouter({ prisma, sendEmail: sender }));
+  app.use(createAuthRouter({ prisma: withSessionUser(prisma), sendEmail: sender }));
   const server: Server = await new Promise((r) => {
     const s = app.listen(0, "127.0.0.1", () => r(s));
   });
@@ -78,7 +79,7 @@ async function spinUpMe(sender: EmailSender) {
   } as unknown as never;
   const app: Express = express();
   app.use(express.json());
-  app.use(createMeRouter({ prisma, sendEmail: sender }));
+  app.use(createMeRouter({ prisma: withSessionUser(prisma), sendEmail: sender }));
   const server: Server = await new Promise((r) => {
     const s = app.listen(0, "127.0.0.1", () => r(s));
   });
@@ -167,7 +168,7 @@ describe("BUG-224 — the email seam", () => {
     const prisma = { user: { findUnique: async () => null } } as unknown as never;
     const app: Express = express();
     app.use(express.json());
-    app.use(createAuthRouter({ prisma, sendEmail: rec.sender }));
+    app.use(createAuthRouter({ prisma: withSessionUser(prisma), sendEmail: rec.sender }));
     const server: Server = await new Promise((r) => {
       const s = app.listen(0, "127.0.0.1", () => r(s));
     });

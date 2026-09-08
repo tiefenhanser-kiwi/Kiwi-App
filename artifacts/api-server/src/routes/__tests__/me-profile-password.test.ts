@@ -10,6 +10,7 @@ import type { Server } from "node:http";
 import { hashPassword } from "../../lib/auth";
 import { signToken } from "../../lib/auth";
 import { createMeRouter } from "../me";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 interface Harness {
   baseUrl: string;
@@ -19,7 +20,7 @@ interface Harness {
 async function spinUp(prisma: unknown): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use(createMeRouter({ prisma: prisma as never }));
+  app.use(createMeRouter({ prisma: withSessionUser(prisma) as never }));
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {
       const addr = server.address();

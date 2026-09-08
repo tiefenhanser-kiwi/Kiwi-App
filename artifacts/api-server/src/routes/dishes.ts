@@ -17,7 +17,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
-import { requireAuth } from "../middleware/auth";
+import { createRequireAuth } from "../middleware/auth";
 import { toStepShape } from "./meals";
 
 export interface DishesRouterDeps {
@@ -28,6 +28,11 @@ export function createDishesRouter(
   deps: Partial<DishesRouterDeps> = {},
 ): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
+  // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
+  // needs a Prisma client. Building it from the injected one (rather than
+  // importing the singleton) is what keeps this router's tests hermetic.
+  // Shadows the module import: every requireAuth call site below is unchanged.
+  const requireAuth = createRequireAuth({ prisma });
   const router: IRouter = Router();
 
   // GET /dishes/:id — full dish detail.

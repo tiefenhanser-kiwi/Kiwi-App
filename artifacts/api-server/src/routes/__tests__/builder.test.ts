@@ -15,6 +15,7 @@ import type {
 } from "../../lib/kiwiAssist";
 import type { ParseMealFromTextResult } from "../../lib/mealBuilder";
 import type { ParseDishFromTextResult } from "../../lib/dishBuilder";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 import type {
   EntitlementResult,
   SubscriptionService,
@@ -244,7 +245,7 @@ async function spinUp(deps: {
 }): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use("/api", createBuilderRouter(deps));
+  app.use("/api", createBuilderRouter({ ...deps, prisma: withSessionUser(deps.prisma) as never }));
 
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {

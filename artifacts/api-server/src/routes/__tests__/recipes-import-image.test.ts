@@ -15,6 +15,7 @@ import express, { type Express } from "express";
 import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 // ── prisma stub installed BEFORE the router import ──────────────────────
 
@@ -45,7 +46,7 @@ const stubPrisma = {
     },
   },
 };
-(globalThis as { __prisma?: unknown }).__prisma = stubPrisma;
+(globalThis as { __prisma?: unknown }).__prisma = withSessionUser(stubPrisma);
 
 // Dynamic import — must run after globalThis.__prisma is set so the lib/prisma
 // singleton picks up our stub instead of constructing a real PrismaClient.

@@ -10,6 +10,7 @@ import jwt from "jsonwebtoken";
 
 import { signToken } from "../../lib/auth";
 import { createMeRouter } from "../me";
+import { makeUsedTokenLedger, withSessionUser } from "./fixtures/sessionUserStub";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error("JWT_SECRET required for tests");
@@ -27,7 +28,7 @@ interface UserRow {
 async function spinUp(prisma: unknown): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use(createMeRouter({ prisma: prisma as never }));
+  app.use(createMeRouter({ prisma: withSessionUser(prisma) as never }));
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {
       const addr = server.address();
@@ -73,6 +74,10 @@ function makeStubPrisma(initial: UserRow[]) {
         return rows[idx];
       },
     },
+    // BUG-233 — verify-change now spends the token through the ledger. This
+    // stub enforces jti uniqueness for real, so the single-use assertions in
+    // bug233SingleUseTokens.test.ts cannot pass by accident.
+    usedToken: makeUsedTokenLedger(),
     _rows: () => rows,
   };
 }

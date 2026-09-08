@@ -24,6 +24,7 @@ import type {
 } from "../../lib/ai/runAICall";
 import type { WizardPlanCandidatesResult } from "../../lib/ai/schemas/wizard";
 import type { ParsedIntent } from "../../lib/ai/schemas/tellKiwi";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 import type {
   EntitlementResult,
   SubscriptionService,
@@ -310,7 +311,7 @@ async function spinUp(deps: {
 }): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use("/api", createWizardRouter(deps));
+  app.use("/api", createWizardRouter({ ...deps, prisma: withSessionUser(deps.prisma) as never }));
 
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {

@@ -18,6 +18,7 @@ import type { Server } from "node:http";
 import { signToken } from "../../lib/auth";
 import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 import { createGroceryListsRouter } from "../groceryLists";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 const prisma = {
   mealPlanInstance: { findFirst: async () => null },
@@ -28,7 +29,7 @@ async function spinUp(capacity: number) {
   app.use(express.json());
   app.use(
     createGroceryListsRouter({
-      prisma,
+      prisma: withSessionUser(prisma) as never,
       generateLimiterOpts: { capacity, refillPerSec: 0 },
     }),
   );

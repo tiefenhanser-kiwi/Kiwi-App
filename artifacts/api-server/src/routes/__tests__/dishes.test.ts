@@ -9,6 +9,7 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import { createDishesRouter } from "../dishes";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 const USER_ID = "test-user-dishes";
 
@@ -122,7 +123,7 @@ interface Harness {
 async function spinUp(prisma: unknown): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use(createDishesRouter({ prisma: prisma as never }));
+  app.use(createDishesRouter({ prisma: withSessionUser(prisma) as never }));
 
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {

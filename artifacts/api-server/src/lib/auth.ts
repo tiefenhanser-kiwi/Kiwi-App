@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -20,6 +22,15 @@ export interface JwtPayload {
   purpose: TokenPurpose;
   iat: number;
   exp: number;
+  /**
+   * WS9A BUG-233 — the token's unique id, the handle the spent-token ledger
+   * is keyed by. Optional on read, not on write: every token minted from this
+   * commit forward carries one, but a token minted before it does not, and
+   * such a token is still inside its expiry window when this ships. Callers
+   * that redeem a purpose token MUST treat a missing `jti` as unredeemable
+   * rather than as "not yet spent" — see requireUnspent() in tokenRevocation.
+   */
+  jti?: string;
   [k: string]: unknown;
 }
 
@@ -53,8 +64,14 @@ export function signToken(
     ...(options.extra ?? {}),
   };
   // jsonwebtoken's expiresIn typing is loose; cast at the boundary.
+  // WS9A BUG-233 — `jwtid` becomes the `jti` claim. Minted for EVERY purpose,
+  // sessions included: it costs one uuid, it keeps one shape for every token
+  // this system issues, and it gives the session class a handle if server-side
+  // session revocation is ever wanted. Only the redeemable purposes consult
+  // the ledger today; a session token is evicted by the epoch, not by spending.
   return jwt.sign(claims, jwtSecret!, {
     expiresIn: expiresIn as jwt.SignOptions["expiresIn"],
+    jwtid: randomUUID(),
   });
 }
 

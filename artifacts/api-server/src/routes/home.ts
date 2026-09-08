@@ -16,7 +16,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
-import { requireAuth } from "../middleware/auth";
+import { createRequireAuth } from "../middleware/auth";
 import { MEAL_LIST_SELECT, toListShape } from "./meals";
 import { resolveRailPlans, toYmd } from "../lib/planQueries";
 import { resolveThisWeekWinnerId } from "../lib/planDates";
@@ -136,6 +136,11 @@ export function createHomeRouter(
   deps: Partial<HomeRouterDeps> = {},
 ): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
+  // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
+  // needs a Prisma client. Building it from the injected one (rather than
+  // importing the singleton) is what keeps this router's tests hermetic.
+  // Shadows the module import: every requireAuth call site below is unchanged.
+  const requireAuth = createRequireAuth({ prisma });
   const router: IRouter = Router();
 
   router.get("/home", requireAuth, async (req, res) => {

@@ -53,7 +53,7 @@ import {
   subscriptionService as productionSubscriptionService,
   type SubscriptionService,
 } from "../lib/subscriptionService";
-import { requireAuth } from "../middleware/auth";
+import { createRequireAuth } from "../middleware/auth";
 
 // UUID v1-v5 — same shape Zod uses; pre-validating in the route lets us
 // return 400 cleanly before we hit the DB.
@@ -97,6 +97,11 @@ export function createCookingRouter(
   const loadPrepWeekInput =
     deps.loadPrepWeekInput ?? productionLoadPrepWeekInput;
   const prisma = deps.prisma ?? productionPrisma;
+  // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
+  // needs a Prisma client. Building it from the injected one (rather than
+  // importing the singleton) is what keeps this router's tests hermetic.
+  // Shadows the module import: every requireAuth call site below is unchanged.
+  const requireAuth = createRequireAuth({ prisma });
   const runAICall = deps.runAICall ?? productionRunAICall;
   const resolvePromptDescriptor =
     deps.resolvePromptDescriptor ?? productionResolvePromptDescriptor;

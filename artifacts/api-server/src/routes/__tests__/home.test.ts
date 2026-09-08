@@ -12,6 +12,7 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import { createHomeRouter } from "../home";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 const USER_ID = "test-user-home";
 
@@ -266,7 +267,7 @@ interface Harness {
 async function spinUp(prisma: unknown): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use(createHomeRouter({ prisma: prisma as never }));
+  app.use(createHomeRouter({ prisma: withSessionUser(prisma) as never }));
 
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {

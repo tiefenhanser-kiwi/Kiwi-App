@@ -18,6 +18,7 @@ import {
 import { currentWeekRange, resolveThisWeekPlan } from "../../lib/planDates";
 import { toYmd } from "../../lib/planQueries";
 import { createPlansRouter } from "../plans";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 interface Harness {
   baseUrl: string;
@@ -27,7 +28,7 @@ interface Harness {
 async function spinUp(deps: Parameters<typeof createPlansRouter>[0]): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use("/api", createPlansRouter(deps));
+  app.use("/api", createPlansRouter({ ...deps, prisma: withSessionUser(deps?.prisma) as never }));
 
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {

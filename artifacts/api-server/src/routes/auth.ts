@@ -3,7 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
-import { requireAuth } from "../middleware/auth";
+import { createRequireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
 import {
   buildAppLink,
@@ -13,6 +13,7 @@ import {
 } from "../lib/email/sendEmail";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
+import { isIssuedBeforeEpoch, redeemPurposeToken } from "../lib/tokenRevocation";
 
 // Tight limiter for signup/login to slow brute-force attempts
 const authLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 }); // 10 burst, ~1/6s
@@ -122,6 +123,11 @@ export interface AuthRouterDeps {
 
 export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
+  // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
+  // needs a Prisma client. Building it from the injected one (rather than
+  // importing the singleton) is what keeps this router's tests hermetic.
+  // Shadows the module import: every requireAuth call site below is unchanged.
+  const requireAuth = createRequireAuth({ prisma });
   const sendEmail = deps.sendEmail ?? productionSendEmail;
   const router: IRouter = Router();
 
@@ -321,12 +327,61 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         return res.status(400).json({ error: "invalid or expired reset token" });
       }
 
+      // BUG-233, second clause — a reset link issued before the last password
+      // change is stale even though its signature and expiry are both fine.
+      // This is what makes "a completed reset invalidates every OTHER
+      // outstanding reset token" true: the older link verifies, gets here, and
+      // is refused because it predates the epoch the completed reset set.
+      if (isIssuedBeforeEpoch(payload.iat, user.tokensValidFrom)) {
+        logger.warn(
+          { userId: user.id, reason: "before_epoch" },
+          "Password reset token refused",
+        );
+        return res.status(400).json({ error: "invalid or expired reset token" });
+      }
+
+      // BUG-233 — spend the token BEFORE changing anything. This is the write
+      // that makes the link single-use, and it is atomic: two concurrent
+      // redemptions of one token race on the UsedToken primary key and exactly
+      // one wins. Doing it first means a loser never reaches the password
+      // write, so a double-submit cannot produce two resets.
+      const redeemed = await redeemPurposeToken(prisma, payload, "password_reset");
+      if (!redeemed.ok) {
+        logger.warn(
+          { userId: payload.userId, reason: redeemed.reason },
+          "Password reset token refused",
+        );
+        // Same opaque 400 as a bad signature. A distinct "already used" reply
+        // would tell an attacker holding a stolen link that it WAS valid and
+        // that someone beat them to it, which is an oracle worth denying.
+        return res.status(400).json({ error: "invalid or expired reset token" });
+      }
+
       const passwordHash = await hashPassword(newPassword);
+      const resetAt = new Date();
       await prisma.user.update({
         where: { id: user.id },
-        data: { passwordHash },
+        data: {
+          passwordHash,
+          // BUG-234 — the point of a reset, for a compromised account, is to
+          // evict the other person; before this the attacker's 30-day session
+          // JWT simply carried on. Bumping the epoch here does that, and in the
+          // same statement as the password write so the two cannot diverge.
+          //
+          // BUG-233's other clause rides along: every OTHER outstanding reset
+          // link for this user was issued before `resetAt` and dies with it.
+          // Those tokens are stateless and un-enumerable, so an epoch is the
+          // only mechanism that can reach them at all.
+          tokensValidFrom: resetAt,
+        },
       });
 
+      // The caller is NOT signed in by this route — it answers { success: true }
+      // and nothing else, exactly as it did at c38a596 — so there is no fresh
+      // session to preserve and no client change needed. The user logs in with
+      // the new password, which is also the only outcome that proves the reset
+      // took. Minting a session here would be a client-visible contract change
+      // and is out of this block's scope.
       logger.info({ userId: user.id }, "Password reset completed");
       return res.json({ success: true });
     } catch (err) {

@@ -20,6 +20,7 @@ import type { Server } from "node:http";
 import { signToken } from "../../lib/auth";
 import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 import { createMeRouter } from "../me";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 const USER_ID = "test-user-save-canonical";
 
@@ -224,7 +225,7 @@ interface Harness {
 async function spinUp(prisma: unknown): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use(createMeRouter({ prisma: prisma as never }));
+  app.use(createMeRouter({ prisma: withSessionUser(prisma) as never }));
 
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {

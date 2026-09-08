@@ -22,6 +22,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 // ── prisma stub installed BEFORE the app import ─────────────────────────
 
@@ -44,7 +45,7 @@ const stubPrisma = {
     },
   },
 };
-(globalThis as { __prisma?: unknown }).__prisma = stubPrisma;
+(globalThis as { __prisma?: unknown }).__prisma = withSessionUser(stubPrisma);
 
 // ── Anthropic fetch stub ────────────────────────────────────────────────
 

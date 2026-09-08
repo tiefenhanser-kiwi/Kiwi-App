@@ -75,7 +75,7 @@ import {
   resolveEffectivePreferences,
   type ResolvedPreferences,
 } from "../lib/wizardPreferences";
-import { requireAuth } from "../middleware/auth";
+import { createRequireAuth } from "../middleware/auth";
 
 // Cookbook Phase B Block 2 — the generation-shaping slice of the user's stored
 // UserPreferences, attached to the generate input as `preferencesContext`
@@ -255,6 +255,11 @@ export function createWizardRouter(
   const streamPlanCandidates =
     deps.streamPlanCandidates ?? productionStreamPlanCandidates;
   const prisma = deps.prisma ?? productionPrisma;
+  // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
+  // needs a Prisma client. Building it from the injected one (rather than
+  // importing the singleton) is what keeps this router's tests hermetic.
+  // Shadows the module import: every requireAuth call site below is unchanged.
+  const requireAuth = createRequireAuth({ prisma });
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
   const expandCandidate = deps.expandCandidate ?? productionExpandCandidate;

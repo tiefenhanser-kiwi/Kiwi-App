@@ -25,6 +25,7 @@ import type { PrepLoadedPlan } from "../../lib/prepWeekAggregation";
 import type { PrepWeekResult } from "../../lib/ai/schemas/prepWeek";
 import { prepCompositionFingerprint } from "../../lib/prepWeekFingerprint";
 import { createCookingRouter } from "../cooking";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 interface Harness {
   baseUrl: string;
@@ -36,7 +37,7 @@ async function spinUp(
 ): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use("/api", createCookingRouter(deps));
+  app.use("/api", createCookingRouter({ ...deps, prisma: withSessionUser(deps?.prisma) as never }));
 
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {

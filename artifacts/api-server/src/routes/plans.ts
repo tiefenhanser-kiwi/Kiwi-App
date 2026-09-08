@@ -28,7 +28,7 @@ import {
 } from "../lib/planMacros";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
-import { requireAuth } from "../middleware/auth";
+import { createRequireAuth } from "../middleware/auth";
 import {
   createMealWithDishes,
   IngredientResolutionError,
@@ -183,6 +183,11 @@ export function createPlansRouter(
   const planNeedsMacroEstimation =
     deps.planNeedsMacroEstimation ?? productionPlanNeedsMacroEstimation;
   const prisma = deps.prisma ?? productionPrisma;
+  // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
+  // needs a Prisma client. Building it from the injected one (rather than
+  // importing the singleton) is what keeps this router's tests hermetic.
+  // Shadows the module import: every requireAuth call site below is unchanged.
+  const requireAuth = createRequireAuth({ prisma });
   const loadPrepStepSet = deps.loadPrepStepSet ?? productionLoadPrepStepSet;
   // Same per-user token-bucket pattern + ceiling as meals.ts. Recalc
   // CAN fan out to N AI calls in the worst case, but real Plan Review

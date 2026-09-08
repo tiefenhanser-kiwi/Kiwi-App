@@ -246,6 +246,19 @@ model User {
   // plan activation metric (un-reconstructable after the fact). Nullable,
   // no backfill — the DB is wiped before launch; the first create flips it.
   firstPlanCreatedAt       DateTime?
+  // WS9A BUG-233 + BUG-234 — the token revocation epoch. NULL means "never
+  // revoked", which is every row that exists today, so behaviour is identical
+  // to c38a596 until something bumps it (D-WS9-230: no backfill).
+  //
+  // Bumped to now() by BOTH password paths: /auth/password-reset/confirm and
+  // PATCH /me/password. Any token whose `iat` predates this stamp is refused.
+  // That single stamp does two jobs on two different token classes:
+  //   · session tokens  -> BUG-234, the 30-day JWT stops authenticating.
+  //   · purpose tokens  -> BUG-233's second clause, every OTHER outstanding
+  //                        reset link dies with the reset that completed.
+  // It is NOT the single-use mechanism — an epoch cannot refuse a token minted
+  // after the last bump. That is what `UsedToken` below is for.
+  tokensValidFrom          DateTime?
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
 
@@ -1455,4 +1468,34 @@ model LLMCallLog {
   @@index([promptKey, createdAt])
   @@index([userId, createdAt])
   @@map("llm_call_logs")
+}
+
+// WS9A BUG-233 — the spent-token ledger.
+//
+// Purpose tokens (password_reset, email_change) were pure stateless JWTs: the
+// verifier checked signature, expiry and purpose, and nothing marked a token
+// used. The measured consequence was a single email-change token returning
+// 200 three times in a row. "Spent" was not a state the system could represent.
+//
+// One row per token actually redeemed, keyed by the `jti` claim minted in
+// lib/auth.ts. Presence of the row IS the "already used" answer, and the row
+// is written with a plain create so the unique PK makes the redeem atomic —
+// two concurrent redemptions of one token cannot both win.
+//
+// No relation to User on purpose: this is a short-lived ledger swept on
+// expiry, not user data, and a FK would add a constraint check to the write
+// path of every redemption for no benefit. Orphans are swept like anything else.
+model UsedToken {
+  jti       String   @id
+  userId    String
+  purpose   String
+  // When the underlying JWT stops verifying on its own. After this instant the
+  // row is dead weight — the signature check already refuses the token — so
+  // sweepExpiredUsedTokens() deletes it. Indexed for exactly that sweep.
+  expiresAt DateTime
+  usedAt    DateTime @default(now())
+
+  @@index([expiresAt])
+  @@index([userId])
+  @@map("used_tokens")
 }

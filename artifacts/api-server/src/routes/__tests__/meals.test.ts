@@ -12,6 +12,7 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import { createMealsRouter } from "../meals";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 import type {
   AICallFailure,
   AICallSuccess,
@@ -161,7 +162,7 @@ async function spinUp(deps: {
 }): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use("/api", createMealsRouter(deps));
+  app.use("/api", createMealsRouter({ ...deps, prisma: withSessionUser(deps.prisma) as never }));
 
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {
