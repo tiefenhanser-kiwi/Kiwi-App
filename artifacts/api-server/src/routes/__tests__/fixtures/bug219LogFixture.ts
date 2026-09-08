@@ -15,6 +15,9 @@ import { createAuthRouter } from "../../auth";
 
 const mode = process.argv[2];
 
+// The address the verify-change mode must NOT leak into the log.
+const NEW_EMAIL = "bug219-verify-leak@example.test";
+
 // Stub prisma — no database. The reset handler only needs findUnique to
 // return a user so it reaches the mint-and-log branch under test.
 const prisma = {
@@ -66,6 +69,7 @@ function runRedact(): void {
 
 async function main(): Promise<void> {
   if (mode === "handler") await runHandler();
+  else if (mode === "verify") await runVerifyChange();
   else if (mode === "redact") runRedact();
   else throw new Error(`unknown mode: ${mode}`);
   // Let the sync destination drain before the process goes away.
@@ -76,3 +80,41 @@ main().catch((err) => {
   process.stderr.write(`FIXTURE_ERROR ${String(err)}\n`);
   process.exit(1);
 });
+
+// ── verify-change mode (BUG-219 leftover) ───────────────────────────────
+// `fa1859c` took `newEmail` out of the email-change REQUEST log and left it in
+// the VERIFY handler. Hans ruled the field out of logs outright, so this drives
+// the verify handler and lets the parent assert no address reaches stdout.
+export async function runVerifyChange(): Promise<void> {
+  const { createMeRouter } = await import("../../me");
+  const { signToken } = await import("../../../lib/auth");
+  const expressMod = await import("express");
+  const ex = expressMod.default;
+
+  const prisma = {
+    user: {
+      findUnique: async () => null,
+      update: async () => ({ id: "bug219-fixture-user", email: NEW_EMAIL }),
+    },
+  } as unknown as never;
+
+  const app = ex();
+  app.use(ex.json());
+  app.use(createMeRouter({ prisma }));
+  const server = await new Promise<import("node:http").Server>((r) => {
+    const s = app.listen(0, "127.0.0.1", () => r(s));
+  });
+  const { port } = server.address() as { port: number };
+  const token = signToken("bug219-fixture-user", {
+    purpose: "email_change",
+    expiresIn: "1h",
+    extra: { newEmail: NEW_EMAIL },
+  });
+  const res = await fetch(`http://127.0.0.1:${port}/me/email/verify-change`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  process.stderr.write(`STATUS=${res.status}\n`);
+  await new Promise<void>((r) => server.close(() => r()));
+}

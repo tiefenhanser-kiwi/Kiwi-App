@@ -87,6 +87,31 @@ describe("BUG-219 — no account-takeover token reaches the log", () => {
     );
   });
 
+  it("the email-change VERIFY handler logs no address (the fa1859c leftover)", () => {
+    // `fa1859c` removed `newEmail` from the email-change REQUEST log and left
+    // it on the VERIFY line. Hans ruled the field out of logs outright — an
+    // address is PII and a retained sink is the wrong place for it, whichever
+    // handler writes it — so the same rule applies to the second site.
+    const { stdout } = runFixture("verify");
+
+    assert.ok(
+      stdout.includes("email_change_verified"),
+      `expected the verify log line to have been emitted; stdout was:\n${stdout}`,
+    );
+    assert.ok(
+      !stdout.includes("bug219-verify-leak@example.test"),
+      `the verify handler leaked an email address into the log; stdout was:\n${stdout}`,
+    );
+    assert.ok(
+      !stdout.includes("newEmail"),
+      `a "newEmail" field is still being passed to the logger; stdout was:\n${stdout}`,
+    );
+    assert.ok(
+      !stdout.includes("eyJ"),
+      `a JWT reached the log; stdout was:\n${stdout}`,
+    );
+  });
+
   it("pino's redact list censors every token field name, live", () => {
     const { stdout } = runFixture("redact");
 

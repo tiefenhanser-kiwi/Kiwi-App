@@ -5,6 +5,12 @@ import { z } from "zod";
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
 import { requireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
+import {
+  buildAppLink,
+  passwordResetMessage,
+  sendEmail as productionSendEmail,
+  type EmailSender,
+} from "../lib/email/sendEmail";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 
@@ -110,10 +116,13 @@ function toSubscriptionShape(s: {
 
 export interface AuthRouterDeps {
   prisma: PrismaClient;
+  /** BUG-224 — injected so tests record instead of sending. See lib/email. */
+  sendEmail: EmailSender;
 }
 
 export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
+  const sendEmail = deps.sendEmail ?? productionSendEmail;
   const router: IRouter = Router();
 
   // POST /auth/signup
@@ -265,14 +274,24 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         // A live account-takeover credential does not go in a log sink, and
         // `logger.info` fires regardless of NODE_ENV.
         //
-        // The mint below STAYS. BUG-224 — there is no email provider anywhere
-        // in the server — is the only reason there is nothing to hand it to,
-        // and this is the call site that will send the mail once Resend lands.
-        // At that point the reason for any log line here disappears entirely.
-        void resetToken;
+        // BUG-224 — this is that call site. With no RESEND_API_KEY the sender
+        // returns a typed no-op and the response below is unchanged, so the
+        // behaviour with no key is identical to what shipped in `fa1859c`.
+        //
+        // The result is deliberately NOT surfaced to the caller: this route
+        // answers `{ success: true }` unconditionally for anti-enumeration
+        // (§1.10), and leaking "we did/didn't send" would reintroduce exactly
+        // the oracle that design removes.
+        const link = buildAppLink("/reset-password", resetToken);
+        const result = await sendEmail(passwordResetMessage(normalizedEmail, link));
         logger.info(
-          { event: "password_reset_requested", userId: user.id },
-          "Password reset requested — no delivery channel yet (BUG-224)",
+          {
+            event: "password_reset_requested",
+            userId: user.id,
+            sent: result.sent,
+            ...(result.sent ? {} : { reason: result.reason }),
+          },
+          "Password reset requested",
         );
       }
       return res.json({ success: true });

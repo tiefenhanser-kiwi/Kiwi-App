@@ -24,6 +24,12 @@ import {
 } from "../lib/mealMaterialize";
 import { resolveIngredients } from "../lib/ingredientResolve";
 import { bumpPlanRevision } from "../lib/planRevision";
+import {
+  buildAppLink,
+  emailChangeMessage,
+  sendEmail as productionSendEmail,
+  type EmailSender,
+} from "../lib/email/sendEmail";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rateLimit";
@@ -569,10 +575,13 @@ const saveMutationLimiter = rateLimit({
 
 export interface MeRouterDeps {
   prisma: PrismaClient;
+  /** BUG-224 — injected so tests record instead of sending. See lib/email. */
+  sendEmail: EmailSender;
 }
 
 export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
+  const sendEmail = deps.sendEmail ?? productionSendEmail;
   const router: IRouter = Router();
 
   // PATCH /me/ui-state
@@ -749,12 +758,24 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           // a laptop. `newEmail` goes too — an address is PII, and a retained
           // log is the wrong place for it even though it is not a credential.
           //
-          // The mint STAYS, for the same reason as auth.ts: BUG-224 (no email
-          // provider) is why there is nothing to deliver it with yet.
-          void verifyTokenStr;
+          // BUG-224 — the verification now goes to the NEW address, which is
+          // the whole point: possession of that inbox is what proves the change.
+          // With no RESEND_API_KEY the sender returns a typed no-op and the
+          // response below is unchanged.
+          //
+          // As in auth.ts, the send result is NOT surfaced: this route answers
+          // 200 on every branch so an attacker cannot tell "address is free"
+          // from "address is taken".
+          const link = buildAppLink("/verify-email", verifyTokenStr);
+          const result = await sendEmail(emailChangeMessage(newEmail, link));
           logger.info(
-            { event: "email_change_requested", userId: currentUser.id },
-            "Email change requested — no delivery channel yet (BUG-224)",
+            {
+              event: "email_change_requested",
+              userId: currentUser.id,
+              sent: result.sent,
+              ...(result.sent ? {} : { reason: result.reason }),
+            },
+            "Email change requested",
           );
         }
         return res.json({ success: true });
@@ -804,7 +825,11 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         where: { id: payload.userId },
         data: { email: newEmail },
       });
-      logger.info({ userId: payload.userId, newEmail }, "Email change verified");
+      // BUG-219 leftover — `fa1859c` took `newEmail` out of the REQUEST log
+      // and left it here. Hans ruled the field out of logs outright; an address
+      // is PII and a retained sink is the wrong place for it, whichever handler
+      // writes it. The userId identifies the row for any audit that needs one.
+      logger.info({ event: "email_change_verified", userId: payload.userId }, "Email change verified");
       return res.json({ success: true, email: newEmail });
     } catch (err) {
       logger.error({ err, userId: payload.userId }, "POST /me/email/verify-change failed");

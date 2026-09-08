@@ -1,4 +1,5 @@
 import app from "./app";
+import { assertMailEnvComplete } from "./lib/email/sendEmail";
 import { logger } from "./lib/logger";
 import { prisma } from "./lib/prisma";
 
@@ -15,6 +16,18 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+// BUG-224 — refuse to start with a half-configured mailer. A RESEND_API_KEY
+// with no EMAIL_FROM or PUBLIC_APP_URL would send real mail carrying a link
+// to nowhere, on the one message whose job is to rescue a locked-out account.
+//
+// Deliberately HERE rather than at the email module import. That module is
+// pulled in by auth.ts and me.ts, so throwing on load would fail every test
+// touching either router over config those tests neither use nor need —
+// measured: it took down the whole 1,900-test suite the moment
+// RESEND_API_KEY appeared in .env without its two companions. This is the
+// boot path, and it already validates PORT immediately above.
+assertMailEnvComplete();
 
 // BUG-103 — warm the connection pool before the first request arrives.
 // lib/prisma.ts is a bare singleton with no boot-time connect, so Prisma
