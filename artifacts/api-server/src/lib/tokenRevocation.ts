@@ -31,14 +31,36 @@ const UNIQUE_VIOLATION = "P2002";
  * True when a token minted at `iatSeconds` was issued before the user's
  * revocation epoch and must therefore be refused.
  *
- * ⚠️ Second-granularity, and deliberately FAIL-CLOSED. A JWT `iat` is whole
- * seconds; `tokensValidFrom` is a millisecond timestamp. A token minted in the
- * same second as the bump therefore compares as issued at the TOP of that
- * second, i.e. before it, and is refused. The alternative — flooring the epoch
- * to its second so the same-second token survives — leaves a sub-second window
- * in which a token issued before a reset still authenticates, and this is the
- * mechanism whose entire job is evicting an attacker. A spurious re-login in a
- * one-second race is the cheaper error, so we take it.
+ * ⚠️ THE COMPARISON HAPPENS AT SECOND GRANULARITY, ON BOTH SIDES. A JWT `iat`
+ * is whole seconds; `tokensValidFrom` is TIMESTAMP(3), i.e. milliseconds. The
+ * epoch is floored to its second before comparing, so a token minted in the
+ * SAME second as the bump is ACCEPTED.
+ *
+ * The first cut of this function did the opposite — it compared `iat * 1000`
+ * against the raw millisecond epoch and refused the same-second token, on the
+ * argument that a spurious re-login in a one-second race was the cheaper error
+ * and that the race was not reachable anyway. Device acceptance proved that
+ * wrong at machine speed:
+ *
+ *     login -> PATCH /me/password 200 -> old token correctly 401
+ *           -> re-login IN THE SAME SECOND returns a valid 279-char token
+ *           -> that token is ALSO 401
+ *           -> the same login 5 s later returns 200
+ *
+ * The 5-second retry is what rules out a units bug: the arithmetic was right,
+ * the granularity was wrong. The re-login is not a rare race — a password
+ * change forces it, it happens microseconds later, and it lands inside the
+ * bump's own second essentially every time. Once BUG-235's reset client exists
+ * the same path fires on every reset too.
+ *
+ * The cost of flooring is a sub-second hole: a token minted in the same second
+ * as the bump survives it. For that to matter an attacker's session must be
+ * minted in the same wall-clock second as the victim's password change, which
+ * is not reachable, while the behaviour it replaces broke legitimate logins
+ * every time. Hans ruled the trade deliberately.
+ *
+ * A token that cannot be placed in time at all is still refused — that branch
+ * stays fail-closed and is unrelated to granularity.
  */
 export function isIssuedBeforeEpoch(
   iatSeconds: number | undefined,
@@ -51,7 +73,10 @@ export function isIssuedBeforeEpoch(
     // the token.
     return true;
   }
-  return iatSeconds * 1000 < epoch.getTime();
+  // Floor the epoch to the same resolution the token is stamped at, so "same
+  // second" compares equal and only STRICTLY earlier seconds are refused.
+  const epochSecond = Math.floor(epoch.getTime() / 1000);
+  return iatSeconds < epochSecond;
 }
 
 /** The narrow row the session guard reads. Two scalars, primary-key lookup. */

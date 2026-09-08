@@ -282,27 +282,122 @@ describe("BUG-234 — the epoch comparison itself", () => {
   });
 
   it("a token issued before the epoch is revoked, one issued after is not", () => {
-    const epoch = new Date("2026-09-08T12:00:00.000Z");
+    // 12:00:37, NOT a minute boundary. A boundary constant makes flooring to
+    // the second and flooring to the minute agree, so a guard built on one
+    // cannot detect a fix that floors too far — see the epoch below.
+    const epoch = new Date("2026-09-08T12:00:37.000Z");
     const epochSec = epoch.getTime() / 1000;
     assert.equal(isIssuedBeforeEpoch(epochSec - 1, epoch), true, "one second earlier: revoked");
     assert.equal(isIssuedBeforeEpoch(epochSec + 1, epoch), false, "one second later: kept");
   });
 
-  it("fails CLOSED on a same-second mint and on a missing iat", () => {
-    // A millisecond into the epoch's second, a token stamped with that whole
-    // second reads as issued at the top of it — before the bump. Refusing is
-    // the deliberate choice: the alternative leaves a sub-second window in
-    // which a pre-reset token still authenticates.
-    const epoch = new Date("2026-09-08T12:00:00.500Z");
-    assert.equal(
-      isIssuedBeforeEpoch(Math.floor(epoch.getTime() / 1000), epoch),
-      true,
-      "same-second token is refused, not admitted",
-    );
+  it("still fails closed on a token that cannot be placed in time", () => {
     assert.equal(
       isIssuedBeforeEpoch(undefined, new Date()),
       true,
       "a token we cannot place in time resolves against the token",
     );
+  });
+});
+
+// ── The same-second granularity defect, found by device acceptance ──────────
+//
+// The first cut of isIssuedBeforeEpoch compared `iat * 1000` against the raw
+// TIMESTAMP(3) epoch, so a token minted in the same second as a bump floored
+// below it and was refused. Measured on device at machine speed:
+//
+//   login -> PATCH /me/password 200 -> old token correctly 401
+//         -> re-login IN THE SAME SECOND yields a valid 279-char token
+//         -> that token is ALSO 401
+//         -> the same login 5 s later returns 200   <- rules out a units bug
+//
+// Both directions are guarded below, because a fix in either direction alone is
+// a different defect: floor too little and legitimate logins break, floor too
+// much and a genuinely stale token walks in.
+describe("BUG-234 — the epoch comparison is second-granular in BOTH directions", () => {
+  // 37 seconds past the minute, deliberately. An epoch on a minute boundary
+  // floors identically to the second and to the minute, which would let a
+  // too-wide floor pass both guards below; this constant separates them.
+  const epoch = new Date("2026-09-08T12:00:37.500Z");
+  const epochSecond = Math.floor(epoch.getTime() / 1000);
+
+  it("ACCEPTS a token minted in the SAME second as the bump (the device defect)", () => {
+    assert.equal(
+      isIssuedBeforeEpoch(epochSecond, epoch),
+      false,
+      "a token stamped with the bump's own second must authenticate; " +
+        "true here is the re-login 401 Hans measured on device",
+    );
+  });
+
+  it("REJECTS a token minted STRICTLY before the bump's second", () => {
+    assert.equal(
+      isIssuedBeforeEpoch(epochSecond - 1, epoch),
+      true,
+      "one second earlier is genuinely stale and must still be evicted; " +
+        "false here means the floor was widened past the defect it fixes",
+    );
+  });
+
+  it("end to end: a session minted in the bump's own second still authenticates", async () => {
+    // The device sequence, reproduced through the live routes. The re-login is
+    // not simulated with a hand-picked constant: the token is stamped with the
+    // second read back off the epoch the password change actually wrote, which
+    // is exactly what a login microseconds later would carry.
+    const { hashPassword } = await import("../../lib/auth");
+    const hash = await hashPassword(CURRENT_PASSWORD);
+    const { user, prisma } = makeState(hash);
+    const h = await spinUp(
+      (p) => createMeRouter({ prisma: p as never, sendEmail: silentSender }),
+      prisma,
+      (p) => createAuthRouter({ prisma: p as never, sendEmail: silentSender }),
+    );
+    try {
+      const changed = await fetch(`${h.baseUrl}/me/password`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${sessionTokenIssuedAgo(600)}`,
+        },
+        body: JSON.stringify({
+          currentPassword: CURRENT_PASSWORD,
+          newPassword: "aDifferentPassword123",
+        }),
+      });
+      assert.equal(changed.status, 200, "the password change must succeed");
+
+      const bumpedAt = user.tokensValidFrom;
+      assert.ok(bumpedAt, "the change must have stamped an epoch to test against");
+
+      // Non-vacuity: the epoch must carry sub-second precision, or this test
+      // is asserting against a value that was never the hard case. TIMESTAMP(3)
+      // in production; a JS Date here. A whole-second stamp would make the
+      // same-second comparison trivially safe and prove nothing.
+      const ms = bumpedAt.getTime() % 1000;
+
+      // A login landing in the SAME second the epoch was stamped.
+      const reLogin = jwt.sign(
+        {
+          userId: USER_ID,
+          purpose: "session",
+          iat: Math.floor(bumpedAt.getTime() / 1000),
+          exp: Math.floor(bumpedAt.getTime() / 1000) + 30 * 24 * 3600,
+          jti: `relogin-${Math.random()}`,
+        },
+        JWT_SECRET!,
+      );
+
+      const res = await fetch(`${h.baseUrl}/auth/me`, {
+        headers: { authorization: `Bearer ${reLogin}` },
+      });
+      assert.equal(
+        res.status,
+        200,
+        `a re-login in the bump's own second must authenticate (epoch ms=${ms}); ` +
+          "401 here is the defect device acceptance caught",
+      );
+    } finally {
+      await h.close();
+    }
   });
 });
