@@ -1176,6 +1176,25 @@ model GroceryListItem {
   purchaseUnit       String?
   purchaseQuantity   Float?
   purchaseDisplay    String?
+  // WS9 BUG-240 — the USER'S purchase decision, stored apart from the derived
+  // one above. Hans: the list is a shopping document, and once generated it
+  // belongs to the user, who edits what they will BUY while the need becomes
+  // read-only context.
+  //
+  // NULL means "not overridden" and that is the whole marker: the gap-fill
+  // write-back writes the three derived columns, so a value THERE proves
+  // nothing, while nothing but a user PATCH can ever populate these three. The
+  // value IS the marker, so it cannot drift from what it describes.
+  //
+  // Kept separate rather than overwriting the derived trio so a revert is a
+  // NULL rather than a re-derivation, and so a user who changes only the count
+  // keeps the derived label. Regeneration and reconcile-re-resolution both
+  // INSERT a new row, so an override dies on either with no code to maintain —
+  // which is exactly the ruling ("no reconciliation or storage of their
+  // override required if they regenerate a list").
+  purchaseUnitOverride     String?
+  purchaseQuantityOverride Float?
+  purchaseDisplayOverride  String?
 
   groceryList GroceryList             @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
   ingredient  Ingredient?             @relation(fields: [ingredientId], references: [id])

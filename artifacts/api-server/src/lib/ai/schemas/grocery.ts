@@ -126,6 +126,20 @@ export const UpdateGroceryListItemInputSchema = z
     displayName: z.string().min(1).max(140).optional(),
     userResolvedTo: z.string().min(1).max(120).nullable().optional(),
     acknowledgeAmbiguity: z.literal(true).optional(),
+    // WS9 BUG-240 — the user's purchase decision. These land on the *Override
+    // columns, never on the derived trio, so a later write-back cannot be
+    // mistaken for a user edit and a revert is expressible.
+    //
+    // `null` CLEARS that override (back to the derived value); absent leaves it
+    // alone. That asymmetry is why they are .nullable().optional() and not just
+    // .optional() — without the null case there is no way to undo one field.
+    //
+    // purchaseQuantity is the LEADING NUMBER of the row headline, and today
+    // that number is computed by the client's packsToCoverNeed rather than read
+    // from storage. This is the field that lets a user replace it.
+    purchaseUnit: z.string().min(1).max(40).nullable().optional(),
+    purchaseQuantity: z.number().positive().nullable().optional(),
+    purchaseDisplay: z.string().min(1).max(140).nullable().optional(),
   })
   .refine((b) => Object.keys(b).length > 0, {
     message: "at least one field must be provided",

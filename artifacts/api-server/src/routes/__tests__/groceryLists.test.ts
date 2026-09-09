@@ -76,6 +76,15 @@ interface ListItemRow {
   userResolvedTo?: string | null;
   deletedAt?: Date | null;
   notes: string | null;
+  // WS7-8b B2 — the DERIVED pack. Present on the stub so BUG-240's tests can
+  // assert that a user override does NOT overwrite it.
+  purchaseUnit?: string | null;
+  purchaseQuantity?: number | null;
+  purchaseDisplay?: string | null;
+  // WS9 BUG-240 — the USER'S pack. Null means not overridden.
+  purchaseUnitOverride?: string | null;
+  purchaseQuantityOverride?: number | null;
+  purchaseDisplayOverride?: string | null;
 }
 
 // WS7-7-A Block 1: provenance rows written alongside generation items.
@@ -3241,6 +3250,109 @@ describe("PATCH /api/grocery-lists/:id/items/:itemId", () => {
       assert.equal(read?.stapleOptedIn, true);
       // Classification flag is immutable via this route.
       assert.equal(read?.isUniversalStaple, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── WS9 BUG-240 — the purchase override ────────────────────────────────
+  //
+  // Hans ruled the grocery list is a shopping document: the user edits what
+  // they will BUY and the need becomes read-only context. The three fields
+  // below land on the *Override columns and MUST NOT touch the derived trio,
+  // because the derived values are what the app suggested and what a revert
+  // goes back to — and because the gap-fill write-back writes the derived
+  // columns, so a value there proves nothing about who set it.
+  it("purchase override round-trips and leaves the DERIVED pack untouched", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    // The derived pack the app worked out: 2 containers. The user wants 1.
+    seedB2Item(harness.state, {
+      purchaseUnit: "container",
+      purchaseQuantity: 2,
+      purchaseDisplay: "2 containers (5 oz each)",
+    });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({
+            purchaseQuantity: 1,
+            purchaseUnit: "container",
+            purchaseDisplay: "1 container (5 oz)",
+          }),
+        },
+      );
+      assert.equal(res.status, 200);
+      const read = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      // The user's decision is stored.
+      assert.equal(read?.purchaseQuantityOverride, 1);
+      assert.equal(read?.purchaseUnitOverride, "container");
+      assert.equal(read?.purchaseDisplayOverride, "1 container (5 oz)");
+      // THE LOAD-BEARING HALF: the app's own suggestion survives underneath,
+      // unchanged. Overwriting it would make a revert impossible without a
+      // re-derivation, which is the reconciliation the ruling excludes.
+      assert.equal(read?.purchaseQuantity, 2);
+      assert.equal(read?.purchaseDisplay, "2 containers (5 oz each)");
+      // And the NEED is not what was edited — it is read-only context.
+      assert.equal(read?.quantity, 1);
+      assert.equal(read?.unit, "each");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("null CLEARS one override and leaves the others alone (the undo case)", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state, {
+      purchaseUnit: "container",
+      purchaseQuantity: 2,
+      purchaseDisplay: "2 containers (5 oz each)",
+      purchaseUnitOverride: "jar",
+      purchaseQuantityOverride: 3,
+      purchaseDisplayOverride: "3 jars (5 oz)",
+    });
+    try {
+      // Absent fields must be left alone; an explicit null must clear. That
+      // asymmetry is the whole reason the schema is .nullable().optional() and
+      // not merely .optional().
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ purchaseQuantity: null }),
+        },
+      );
+      assert.equal(res.status, 200);
+      const read = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      assert.equal(read?.purchaseQuantityOverride, null, "cleared");
+      assert.equal(read?.purchaseUnitOverride, "jar", "untouched");
+      assert.equal(read?.purchaseDisplayOverride, "3 jars (5 oz)", "untouched");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("rejects a non-positive purchase quantity", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state);
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ purchaseQuantity: 0 }),
+        },
+      );
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { error: string };
+      assert.equal(body.error, "invalid_body");
     } finally {
       await harness.close();
     }

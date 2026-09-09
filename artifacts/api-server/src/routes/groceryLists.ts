@@ -1009,6 +1009,21 @@ export function createGroceryListsRouter(
         if (body.acknowledgeAmbiguity === true && body.userResolvedTo == null) {
           data.isAmbiguous = false;
         }
+        // WS9 BUG-240 — the purchase override. Deliberately mapped onto the
+        // *Override columns and NEVER onto purchaseUnit/Quantity/Display: the
+        // derived trio must keep flowing from generation and reconcile so the
+        // app's own suggestion survives underneath the user's choice, and so
+        // clearing an override restores it without a re-derivation.
+        //
+        // There is no client-settable "isUserSet" flag on purpose. The column
+        // being non-null IS the marker, so a client cannot write a value and
+        // forget to mark it.
+        if (body.purchaseUnit !== undefined)
+          data.purchaseUnitOverride = body.purchaseUnit;
+        if (body.purchaseQuantity !== undefined)
+          data.purchaseQuantityOverride = body.purchaseQuantity;
+        if (body.purchaseDisplay !== undefined)
+          data.purchaseDisplayOverride = body.purchaseDisplay;
 
         const updated = await prisma.groceryListItem.update({
           where: { id: itemId },
