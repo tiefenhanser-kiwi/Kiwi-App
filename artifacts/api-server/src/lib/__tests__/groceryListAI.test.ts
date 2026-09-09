@@ -2532,3 +2532,95 @@ describe("BUG-217 — cross-name fold conservation and membership", () => {
     assert.equal(bananas?.purchaseDisplay, null);
   });
 });
+
+// ── WS9 BUG-138 (server half) — a SOLO sub-unit row resolves its parent's
+//    ladder, so the client's Rule 1 never gets an "each" pack to discard ──
+//
+// BUG-215 gave the AI-MERGE landing its fold group's ladder. This is the half
+// it could not reach: a list whose only garlic-family row is `garlic cloves` has
+// ONE member in its fold group and ONE unit, so partitionForAI rule 3 cannot
+// fire and the row is built on the DETERMINISTIC path — where, before this fix,
+// no group ladder was passed at all.
+//
+// LIVE EVIDENCE, list cb5c8f6e (2026-09-07): `garlic cloves 16 clove`,
+// purchaseUnit "each", purchaseDisplay "1 head of garlic". Sixteen cloves, one
+// head. Three post-fold lists carry a row of this shape.
+describe("BUG-138 — the deterministic path resolves the FOLD GROUP's ladder", () => {
+  // conversionRef exactly as the live catalog carries it for `garlic cloves`
+  // (7835b896): a usda_derived density and NO subUnit. It is deliberately
+  // non-null — a null ref would let a fix that merely falls back to the curated
+  // table pass, and the live row is not null.
+  const LIVE_GARLIC_CLOVES_REF = {
+    source: "usda_derived",
+    confidence: "medium",
+    gramsPerCup: 136,
+  };
+
+  async function runSolo(item: ConsolidatedItem) {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([]);
+    const { prisma } = makeStubPrisma();
+    const result = await generateFinalGroceryList("Plan", [item], ["produce"], {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+    return { result, calls: fake.callCount() };
+  }
+
+  it("16 cloves alone resolve to 2 heads without ever reaching Sonnet", async () => {
+    const { result, calls } = await runSolo(
+      makeItem({
+        ingredientId: "ing-garlic-cloves",
+        canonicalName: "garlic cloves",
+        displayName: "garlic cloves",
+        quantity: 16,
+        unit: "clove",
+        sectionKey: "produce",
+        purchaseUnit: "each",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 head of garlic",
+        conversionRef: LIVE_GARLIC_CLOVES_REF,
+      }),
+    );
+    // THE STRUCTURAL PRECONDITION. If this row ever reached the AI subset the
+    // test would be exercising BUG-215's path instead, and would pass for the
+    // wrong reason.
+    assert.equal(calls, 0, "a solo row must NOT reach Sonnet — rule 3 cannot fire");
+    assert.equal(result.items.length, 1);
+    const line = result.items[0];
+    // Live resolver output, not a restated literal: scalePurchaseForSubUnit
+    // ceil(16 / 10) = 2. Pre-fix this read "1 head of garlic" at unit "each",
+    // which is what hands the client's Rule 1 a pack it is entitled to discard.
+    assert.equal(line.purchaseUnit, "head", "the pack unit must stop being a count");
+    assert.equal(line.purchaseQuantity, 2);
+    assert.equal(line.purchaseDisplay, "2 heads");
+    // The NEED is untouched — only the pack is re-derived.
+    assert.equal(line.quantity, 16);
+    assert.equal(line.unit, "clove");
+  });
+
+  it("a solo row whose fold group has NO ladder is left exactly as it was", async () => {
+    // The negative half, and the reason the blast radius is one family: exactly
+    // one of 1,573 catalog ingredients carries a subUnit. A row that folds to
+    // anything else must resolve byte-identically to before.
+    const { result } = await runSolo(
+      makeItem({
+        ingredientId: "ing-evoo",
+        canonicalName: "extra virgin olive oil", // folds to "olive oil" — no ladder
+        displayName: "extra virgin olive oil",
+        quantity: 3,
+        unit: "tablespoon",
+        sectionKey: "produce",
+        purchaseUnit: "bottle",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 bottle (17 oz)",
+      }),
+    );
+    const line = result.items[0];
+    assert.equal(line.purchaseUnit, "bottle");
+    assert.equal(line.purchaseQuantity, 1);
+    assert.equal(line.purchaseDisplay, "1 bottle (17 oz)");
+  });
+});

@@ -464,10 +464,22 @@ function totalInSubUnitChildren(
 // refusing over; anything at or above this is a real shopping error.
 const CONSERVATION_REL_TOLERANCE = 0.005;
 
+// WS9 BUG-138 — `groupConv` reaches the DETERMINISTIC path too, and that is
+// the half BUG-215 could not fix. BUG-215 gave the AI-merge landing its fold
+// group's ladder; a row that never enters the AI subset never sees one. A list
+// whose only garlic-family row is `garlic cloves` has ONE member in its fold
+// group and ONE unit, so partitionForAI rule 3 cannot fire, the row builds
+// here, and resolveConversion("garlic cloves") finds no ladder by either route
+// — the curated table keys on `garlic` and the catalog row's conversionRef is
+// usda_derived with no subUnit. The stored pack "1 head of garlic" then passes
+// through with purchaseUnit "each" and the client's Rule 1 (BUG-138) orders the
+// need instead of the pack: LIVE on list cb5c8f6e, 2026-09-07, "16 cloves"
+// against one head.
 function buildDeterministicOutputItem(
   item: ConsolidatedItem,
+  groupConv: IngredientConversion | null = null,
 ): GenerateListOutputItem {
-  const pack = resolvePurchaseFields(item);
+  const pack = resolvePurchaseFields(item, groupConv);
   return {
     // BUG-165 — a deterministic row stands for exactly its own bucket.
     sourceKeys: [bucketKeyOf(item.canonicalName, item.unit)],
@@ -526,10 +538,36 @@ export async function generateFinalGroceryList(
   const relations = opts.relations ?? EMPTY_RELATION_INDEX;
   const { deterministic, aiSubset } = partitionForAI(items, relations);
 
+  // ── WS9 BUG-138 — THE LADDER IS A PROPERTY OF THE FOLD GROUP, NOT OF THE
+  //    MEMBERS THAT HAPPEN TO BE ON THIS LIST ──
+  //
+  // conversionForGroup asks the rows in front of it. That works only when the
+  // ladder-bearing member is present: `garlic` beside `garlic cloves`. When
+  // the list carries the CHILD alone there is no member to ask, and the answer
+  // is nonetheless knowable — relations.groupKey folds `garlic cloves` to
+  // `garlic`, and the curated table's `garlic` row is where the head/clove
+  // ladder lives. Ask the KEY.
+  //
+  // ⚠️ MEASURED BLAST RADIUS, not assumed: exactly ONE of 1,573 catalog
+  // ingredients carries a subUnit ladder (`garlic`), so a row can only gain one
+  // here if its fold group is the garlic family. 43 live rows qualify, all of
+  // them garlic. This is a garlic fix wearing general syntax — the same shape
+  // groceryMerge's bare-count branch already documents — and it will widen on
+  // its own the day a second ingredient is authored a ladder.
+  //
+  // withGroupLadder can never OVERRIDE a ladder the row already carries and
+  // touches nothing else on the conversion, so every row without a folded key
+  // resolves exactly as before.
+  const groupLadder = (name: string): IngredientConversion | null => {
+    const key = relations.groupKey(name);
+    if (key === normalizeIngredientName(name)) return null; // no fold, no new answer
+    return lookupConversion(key) ?? null;
+  };
+
   type Placed = { index: number; out: GenerateListOutputItem };
   const placed: Placed[] = deterministic.map(({ item, index }) => ({
     index,
-    out: buildDeterministicOutputItem(item),
+    out: buildDeterministicOutputItem(item, groupLadder(item.canonicalName)),
   }));
 
   // Skip Sonnet entirely when nothing needs AI work.
@@ -953,7 +991,14 @@ export async function generateFinalGroceryList(
     // Reads only the ladder (withGroupLadder), so a row that already has one is
     // untouched and every ingredient without one — all 1,568 of them — resolves
     // exactly as before.
-    const groupConv = src
+    // WS9 BUG-138 — a group member's conversion is preferred, but only when it
+    // actually CARRIES a ladder. conversionForGroup returns the first member
+    // that resolves ANY conversion, which for a `garlic cloves`-only group is a
+    // usda_derived row with a density and no subUnit — truthy, ladder-less, and
+    // enough to shadow the group key. withGroupLadder reads nothing but
+    // `.subUnit` from this value, so falling through on that exact test is
+    // faithful to what it is used for.
+    const memberConv = src
       ? conversionForGroup(
           aiSubset
             .filter(
@@ -964,6 +1009,11 @@ export async function generateFinalGroceryList(
             .map((e) => e.item),
         )
       : null;
+    const groupConv = memberConv?.subUnit
+      ? memberConv
+      : src
+        ? groupLadder(src.canonicalName)
+        : null;
     const pack = src
       ? resolvePurchaseFields(
           { ...src, quantity: out.quantity, unit: out.unit },
@@ -996,7 +1046,10 @@ export async function generateFinalGroceryList(
     if (!refusedGroups.has(groupOf(entry.item.canonicalName))) continue;
     placed.push({
       index: entry.index,
-      out: buildDeterministicOutputItem(entry.item),
+      out: buildDeterministicOutputItem(
+        entry.item,
+        groupLadder(entry.item.canonicalName),
+      ),
     });
   }
 
@@ -1008,7 +1061,10 @@ export async function generateFinalGroceryList(
   for (const entry of orphans) {
     placed.push({
       index: entry.index,
-      out: buildDeterministicOutputItem(entry.item),
+      out: buildDeterministicOutputItem(
+        entry.item,
+        groupLadder(entry.item.canonicalName),
+      ),
     });
   }
 
