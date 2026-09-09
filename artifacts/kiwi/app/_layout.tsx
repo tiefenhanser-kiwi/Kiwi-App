@@ -75,7 +75,19 @@ function SessionGate() {
     // signed-out user belongs; redirecting from there would also throw a user
     // off the sign-in screen the moment a wrong password 401s.
     if (group === undefined || group === "(auth)") return;
-    router.replace("/(auth)/welcome");
+    // WS9 BUG-239 follow-up — SIGN-IN, not welcome. welcome.tsx renders no
+    // error text, so every message the teardown sets (an expired session, a
+    // password change) landed on a screen that cannot show it. sign-in
+    // renders auth.error and only clears it on submit.
+    //
+    // This is also now the ONLY navigator for a dead session. profile.tsx
+    // used to replace() itself right after endSession(), which raced: the
+    // replace ran before React had re-rendered AuthProvider, (auth)/_layout
+    // still read isAuthenticated true, bounced to "/", and index.tsx sent the
+    // still-non-null user back into (tabs). That is the "nothing happened"
+    // Hans saw. Keying on the SAME user that (auth)/_layout guards on means
+    // the two cannot disagree: when this fires, that guard is already false.
+    router.replace("/(auth)/sign-in");
   }, [user, isLoading, segments, router]);
 
   return null;

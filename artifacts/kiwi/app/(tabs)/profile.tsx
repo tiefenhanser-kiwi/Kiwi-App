@@ -215,10 +215,16 @@ export default function ProfileTab() {
       // Routed to sign-in, NOT welcome: welcome renders no error text at all,
       // so the confirmation would be invisible and this would still read as
       // "nothing happened", just one screen further on.
+      // WS9 BUG-239 follow-up — NO router call here. Navigating from this
+      // handler raced the teardown: replace() ran before AuthProvider had
+      // re-rendered, so (auth)/_layout still saw isAuthenticated true and
+      // bounced to "/", which sent the still-non-null user back to (tabs) —
+      // so the redirect looked like it had never fired. SessionGate owns this
+      // now and reacts to user going null, the same value (auth)/_layout
+      // guards on, so it cannot arrive too early.
       await auth.endSession(
         "Your password was changed. Please sign in with your new password.",
       );
-      router.replace("/(auth)/sign-in");
       return;
     } catch (err) {
       // The server returns a userFacingMessage on a wrong-current-password

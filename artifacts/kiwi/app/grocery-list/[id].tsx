@@ -869,14 +869,29 @@ export default function GroceryListDetail() {
         // the "tap on qty during keyboard dismiss is eaten" bug.
         keyboardShouldPersistTaps="handled"
       >
-        {/* WS9 BUG-240 ride-along — the tap-outside-to-exit surface. Carries
-            scrollContent's gap because it is now the contentContainer's only
-            child, so the spacing between sections is unchanged. */}
-        <Pressable
-          onPress={handleBackgroundTap}
-          accessible={false}
-          style={s.scrollBackdrop}
-        >
+        {/* WS9 BUG-240 ride-along, second cut — the tap-outside-to-exit surface.
+
+            It was a Pressable WRAPPING all of this, and that regressed the
+            next tap after an edit closed: the row showed press feedback and
+            then no-opped, and a slight scroll cleared it. That is a stale hit
+            rect, not a logic bug — RN measures a Pressable's bounds to decide
+            whether the touch ENDED inside it, the editor collapsing shifts
+            every row below it, and the parent cancelled the child's press.
+            A scroll forced the re-measure, which is exactly why scrolling
+            cleared it.
+
+            So it is no longer a parent. It is an absolutely-positioned SIBLING,
+            rendered FIRST so every real control paints on top of it and keeps
+            its own touches, and mounted ONLY while a row is being edited — so
+            once the editor closes there is nothing left to interfere with the
+            next tap at all. Out of flow, so scrollContent's gap is untouched. */}
+        {editingItemId !== null && (
+          <Pressable
+            onPress={handleBackgroundTap}
+            accessible={false}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         {unresolvedItems.length > 0 && (
           <View style={s.ambiguousBanner}>
             <View style={s.ambiguousIcon}>
@@ -1135,7 +1150,6 @@ export default function GroceryListDetail() {
             />
           </View>
         )}
-        </Pressable>
       </KeyboardAwareScrollViewCompat>
 
       {/* WS7-7-A B5 — reconcile notice. Reuses the undo-banner shape; sits a
@@ -1543,11 +1557,7 @@ function Tag({
 }
 
 const s = StyleSheet.create({
-  // WS9 BUG-240 ride-along — inherits the gap scrollContent used to apply
-  // directly to its children.
-  scrollBackdrop: {
-    gap: Spacing[3],
-  },
+
   scrollContent: {
     paddingHorizontal: Spacing[4],
     paddingTop: Spacing[4],

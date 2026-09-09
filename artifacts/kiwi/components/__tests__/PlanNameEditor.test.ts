@@ -294,3 +294,73 @@ test("BUG-238: the ref latch re-arms — two consecutive renames both save", () 
 
   assert.deepEqual(saved, ["Weeknight Speed", "Sunday Slow"]);
 });
+
+// WS9 BUG-238 — the DEVICE TIMING model, and the process lesson behind it.
+//
+// The test above invokes onSubmitEditing and onBlur back-to-back inside ONE
+// act(), so React cannot re-render between them. The device does not do that:
+// a server log of two renames showed four PATCHes, paired 207ms and 227ms
+// apart. A fifth of a second is a keyboard-dismiss animation, not two
+// dispatches in one tick — so a synchronous test cannot see whatever produces
+// it, and a guard whose timing model does not match the device is the same
+// class of defect as an assertion that reads the constant it is testing.
+//
+// ⚠️ THIS TEST DOES NOT REPRODUCE THAT DEVICE SYMPTOM. It was written to, and
+// it passes. That is a REPORTED RESULT, not a claim of coverage: it proves the
+// ref latch holds across a real gap AND across the prop change the optimistic
+// plan-cache write produces, which is what rules the latch OUT as the cause.
+// Whatever fires the second PATCH is not this guard. Do not read it as
+// "BUG-238 is device-clear".
+for (const optimisticSave of [false, true]) {
+  test(`BUG-238 device timing (optimistic onSave = ${optimisticSave}): submit, re-render, blur ~220ms later`, async () => {
+    const saved: string[] = [];
+    let name = "Spice It Up";
+    let tree!: TestRenderer.ReactTestRenderer;
+    const draw = () =>
+      act(() => {
+        const el = React.createElement(PlanNameEditor, {
+          currentName: name,
+          onSave: (n: string) => {
+            saved.push(n);
+            // The real onSave optimistically rewrites the plan cache, so
+            // `currentName` changes underneath the component. The original
+            // test's onSave never did, which hid a second variable.
+            if (optimisticSave) {
+              name = n;
+              draw();
+            }
+          },
+        });
+        if (!tree) tree = TestRenderer.create(el);
+        else tree.update(el);
+      });
+    draw();
+    const json = () => tree.toJSON() as unknown as Json;
+
+    act(() => {
+      (byType(json(), "rn-pressable")[0].props.onPress as () => void)();
+    });
+    act(() => {
+      (byType(json(), "rn-text-input")[0].props.onChangeText as (
+        t: string,
+      ) => void)("Weeknight Speed");
+    });
+
+    const live = byType(json(), "rn-text-input")[0];
+    const onSubmitEditing = live.props.onSubmitEditing as () => void;
+    const onBlur = live.props.onBlur as () => void;
+
+    act(() => {
+      onSubmitEditing();
+    });
+    // The gap the device actually produces. The handler below is the STALE
+    // one, captured from the render before the editor closed — which is
+    // exactly what a late native blur would be holding.
+    await new Promise((r) => setTimeout(r, 220));
+    act(() => {
+      onBlur();
+    });
+
+    assert.deepEqual(saved, ["Weeknight Speed"]);
+  });
+}
