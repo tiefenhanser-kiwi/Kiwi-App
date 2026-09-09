@@ -465,6 +465,22 @@ export default function GroceryListDetail() {
     setEditName(item.userResolvedTo ?? item.name);
   };
 
+  // WS9 BUG-240 ride-along (Hans): a tap anywhere outside a text box or an
+  // editable field should EXIT edit mode. Before this the only ways out were
+  // the Done control, "done" on the keyboard, or tapping another ROW — tapping
+  // the page background did nothing and the editor sat open.
+  //
+  // ⚠️ IT COMMITS, IT DOES NOT DISCARD. Tap-away already saved (via
+  // handleItemTap on a neighbouring row) and that behaviour is device-proven;
+  // this widens WHERE the tap counts, not what it does. Routing it through the
+  // same commitQuantityEdit is what keeps those two from drifting apart.
+  //
+  // The wrapper is a Pressable, so it only sees taps no child claimed: rows,
+  // inputs, chips, checkboxes and the X all still get their own touches.
+  const handleBackgroundTap = () => {
+    if (editingItemIdRef.current) commitQuantityEdit();
+  };
+
   const commitQuantityEdit = () => {
     const itemId = editingItemIdRef.current;
     if (!itemId) {
@@ -853,6 +869,14 @@ export default function GroceryListDetail() {
         // the "tap on qty during keyboard dismiss is eaten" bug.
         keyboardShouldPersistTaps="handled"
       >
+        {/* WS9 BUG-240 ride-along — the tap-outside-to-exit surface. Carries
+            scrollContent's gap because it is now the contentContainer's only
+            child, so the spacing between sections is unchanged. */}
+        <Pressable
+          onPress={handleBackgroundTap}
+          accessible={false}
+          style={s.scrollBackdrop}
+        >
         {unresolvedItems.length > 0 && (
           <View style={s.ambiguousBanner}>
             <View style={s.ambiguousIcon}>
@@ -1111,6 +1135,7 @@ export default function GroceryListDetail() {
             />
           </View>
         )}
+        </Pressable>
       </KeyboardAwareScrollViewCompat>
 
       {/* WS7-7-A B5 — reconcile notice. Reuses the undo-banner shape; sits a
@@ -1518,6 +1543,11 @@ function Tag({
 }
 
 const s = StyleSheet.create({
+  // WS9 BUG-240 ride-along — inherits the gap scrollContent used to apply
+  // directly to its children.
+  scrollBackdrop: {
+    gap: Spacing[3],
+  },
   scrollContent: {
     paddingHorizontal: Spacing[4],
     paddingTop: Spacing[4],
