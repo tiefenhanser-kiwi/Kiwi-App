@@ -50,7 +50,9 @@ import { normalizeIngredientName } from "./groceryNormalization";
 import { baseStapleName } from "./groceryStaples";
 import { logger } from "./logger";
 import {
+  canonicalUnitToken,
   convertToGrams,
+  isCountUnit,
   lookupConversion,
   normalizeUnit,
   resolveConversion,
@@ -412,6 +414,48 @@ function totalGrams(
   return g;
 }
 
+// WS9 BUG-217 — the conservation basis for a SUB-UNIT group.
+//
+// Grams is the only basis a weight and a volume share, but it cannot express a
+// head/clove group at all: a subUnit CHILD is deliberately not gram-convertible
+// (convertToGrams returns null for `clove` — grams-per-clove is BUG-025-4
+// territory) and `head` is not a count unit either. So the moment the guard
+// below started keying on the FOLD GROUP, every garlic group became "not
+// convertible to a common unit" and would have been refused wholesale —
+// including the correct merges BUG-215 ships today. That is a real cost paid
+// for no safety, because the group is perfectly checkable in child units.
+//
+// mergeGroup's own subUnit branch already sums exactly this shape: parent x
+// perParent, a named child as-is, and a BARE COUNT read as the child (BUG-211 —
+// the catalog authors `garlic cloves` with defaultUnit "each" while `garlic`
+// uses "cloves"). Summing the same way here makes the deterministic merge and
+// the guard agree about what is convertible instead of disagreeing at the
+// boundary — the same argument conversionForGroup makes one level up.
+//
+// A genuinely mixed group (clove + slice) has two named children and returns
+// null, exactly as mergeGroup refuses it.
+function totalInSubUnitChildren(
+  parts: { quantity: number; unit: string }[],
+  conv: ReturnType<typeof resolveConversion>,
+): number | null {
+  if (!conv?.subUnit) return null;
+  if (!(conv.subUnit.perParent > 0)) return null;
+  const parent = canonicalUnitToken(conv.subUnit.parent);
+  const others = parts
+    .map((p) => canonicalUnitToken(p.unit))
+    .filter((u) => u !== parent);
+  const named = new Set(others.filter((u) => !isCountUnit(u)));
+  const childSet = named.size === 1 ? named : new Set(others);
+  if (childSet.size > 1) return null;
+  let total = 0;
+  for (const p of parts) {
+    if (!(p.quantity >= 0)) return null;
+    const u = canonicalUnitToken(p.unit);
+    total += u === parent ? p.quantity * conv.subUnit.perParent : p.quantity;
+  }
+  return total;
+}
+
 // Relative tolerance for the conservation comparison. Generous enough to absorb
 // float noise and a model writing 1/3 as 0.333, tight enough to catch both
 // defects actually observed on the salt case: +28% (a merged total emitted
@@ -616,29 +660,59 @@ export async function generateFinalGroceryList(
   // model's arithmetic is never trusted, corrected, or split the difference
   // with. Single-row canonicals are untouched: there is no sum to conserve, and
   // policing them would refuse the ordinary unit refinement the pass exists for.
-  const entriesByName = new Map<string, PartitionedItem[]>();
+  // ── WS9 BUG-217 — CONSERVATION IS KEYED ON THE FOLD GROUP, NOT THE RAW NAME ──
+  //
+  // BUG-142's guard grouped by normalizeIngredientName(canonicalName): the key
+  // a row has BEFORE the fold. But rule 3 ROUTES rows into this subset by
+  // relations.groupKey — the key it has AFTER the fold. So a two-row cross-name
+  // fold (`garlic` 6 clove beside `garlic cloves` 10 each — one group by
+  // construction, via MERGE_GROUP_VARIANT_TO_BASE) put ONE entry under each raw
+  // key, both "groups" had length < 2, and the guard skipped the only case it
+  // exists for.
+  //
+  // MEASURED ON THAT PAIR BEFORE THE FIX: a plan needing 16 cloves shipped
+  // "1 head" — 10 — with no grocery_ai_merge_refused and no
+  // grocery_ai_output_unmatched. A 37.5% UNDER-ORDER, entirely silent.
+  //
+  // A GUARD SCOPED TO THE PRE-FOLD KEY CANNOT POLICE POST-FOLD BEHAVIOUR, and
+  // that is the transferable part. Every fold shipped since BUG-142 — the
+  // synonym reader, the component pool, this hand map — moves rows ACROSS
+  // names, and this is the second time the pre-fold key has bitten (BUG-215 was
+  // the first, on survivor IDENTITY rather than MEMBERSHIP). The key below is
+  // the SAME relations.groupKey partitionForAI ruled with, so the operation and
+  // its guard now answer "which rows are one ingredient?" identically instead
+  // of disagreeing at the boundary.
+  const groupOf = (raw: string) => relations.groupKey(raw);
+  const pushInto = (
+    m: Map<string, PartitionedItem[]>,
+    k: string,
+    e: PartitionedItem,
+  ) => {
+    const q = m.get(k);
+    if (q) q.push(e);
+    else m.set(k, [e]);
+  };
+
+  const entriesByGroup = new Map<string, PartitionedItem[]>();
   for (const entry of aiSubset) {
-    const key = normalizeIngredientName(entry.item.canonicalName);
-    const q = entriesByName.get(key);
-    if (q) q.push(entry);
-    else entriesByName.set(key, [entry]);
+    pushInto(entriesByGroup, groupOf(entry.item.canonicalName), entry);
   }
-  const outputIdxByName = new Map<string, number[]>();
+  const outputIdxByGroup = new Map<string, number[]>();
   for (let i = 0; i < result.data.items.length; i++) {
-    const key = normalizeIngredientName(result.data.items[i].canonicalName);
-    const a = outputIdxByName.get(key);
+    const key = groupOf(result.data.items[i].canonicalName);
+    const a = outputIdxByGroup.get(key);
     if (a) a.push(i);
-    else outputIdxByName.set(key, [i]);
+    else outputIdxByGroup.set(key, [i]);
   }
 
   // Outputs are attributed to a group by their OWN canonicalName, not by which
   // entry they popped. A model that emits THREE salt rows for two inputs leaves
   // the third unmatched, and attributing by match would let that phantom row's
   // quantity escape the sum entirely — the over-order shape, undetected.
-  const refusedNames = new Set<string>();
-  for (const [name, entries] of entriesByName) {
+  const refusedGroups = new Set<string>();
+  for (const [name, entries] of entriesByGroup) {
     if (entries.length < 2) continue;
-    const outIdx = outputIdxByName.get(name) ?? [];
+    const outIdx = outputIdxByGroup.get(name) ?? [];
     const inParts = entries.map((e) => ({
       quantity: e.item.quantity,
       unit: e.item.unit,
@@ -662,15 +736,24 @@ export async function generateFinalGroceryList(
     }
 
     const conv = conversionForGroup(entries.map((e) => e.item));
-    const need = totalGrams(inParts, conv);
-    const got = totalGrams(outParts, conv);
+    // ONE basis for both sides or neither. Grams first; if either side is not
+    // gram-expressible, BOTH fall back to the sub-unit child ladder, so a gram
+    // total is never compared against a clove count.
+    let need = totalGrams(inParts, conv);
+    let got = totalGrams(outParts, conv);
+    let basis = "grams";
+    if (need === null || got === null) {
+      need = totalInSubUnitChildren(inParts, conv);
+      got = totalInSubUnitChildren(outParts, conv);
+      basis = "sub_unit_children";
+    }
     if (
       need === null ||
       got === null ||
       !(need > 0) ||
       Math.abs(got - need) > need * CONSERVATION_REL_TOLERANCE
     ) {
-      refusedNames.add(name);
+      refusedGroups.add(name);
       logger.warn(
         {
           event: "grocery_ai_merge_refused",
@@ -680,6 +763,7 @@ export async function generateFinalGroceryList(
           outputRows: outParts.length,
           neededGrams: need,
           returnedGrams: got,
+          basis,
           reason:
             need === null || got === null
               ? "not_convertible_to_common_unit"
@@ -691,73 +775,130 @@ export async function generateFinalGroceryList(
   }
 
   const isRefused = (out: GenerateListOutputItem) =>
-    refusedNames.has(normalizeIngredientName(out.canonicalName));
+    refusedGroups.has(groupOf(out.canonicalName));
   // Output slots that survive refusal. A refused group's AI rows are discarded
   // whole and replaced by deterministic rebuilds below.
   const survivingOut = result.data.items
     .map((_, i) => i)
     .filter((i) => !isRefused(result.data.items[i]));
 
-  const queueByName = new Map<string, PartitionedItem[]>();
+  // ── WS9 BUG-217 — POP BY EXACT NAME FIRST, THEN ACROSS THE FOLD GROUP ──
+  //
+  // The raw-name queue is kept and tried FIRST, so a group the model echoed
+  // row-for-row still matches row-for-row: outputs named `garlic` and `garlic
+  // cloves` take their OWN sources, their own packs and their own indices,
+  // byte-identically to before. Only when the raw-name queue is exhausted does
+  // the pop reach across the fold — which is precisely the cross-name merge,
+  // the case that previously matched nothing.
+  //
+  // The cross-fold tie-break is the one the same-name merge already documents:
+  // LOWEST original index, so the merged row lands where the earlier of its
+  // parts was and inherits that source's pack basis. Both maps hold the SAME
+  // entry objects; `consumed` is what stops one being taken twice.
+  const byName = new Map<string, PartitionedItem[]>();
+  const byGroup = new Map<string, PartitionedItem[]>();
   for (const entry of aiSubset) {
-    const key = normalizeIngredientName(entry.item.canonicalName);
-    if (refusedNames.has(key)) continue; // rebuilt deterministically, not poppable
-    const q = queueByName.get(key);
-    if (q) q.push(entry);
-    else queueByName.set(key, [entry]);
+    // rebuilt deterministically below, not poppable
+    if (refusedGroups.has(groupOf(entry.item.canonicalName))) continue;
+    pushInto(byName, normalizeIngredientName(entry.item.canonicalName), entry);
+    pushInto(byGroup, groupOf(entry.item.canonicalName), entry);
   }
-  // Leftover index pool for unmatched outputs, ascending. Populated after the
-  // matching pass so it only contains indices no matched row claimed.
-  const claimed = new Set<number>();
+  const consumed = new Set<number>();
+  const popFor = (name: string): PartitionedItem | null => {
+    for (const q of [
+      byName.get(normalizeIngredientName(name)),
+      byGroup.get(groupOf(name)),
+    ]) {
+      if (!q) continue;
+      while (q.length > 0 && consumed.has(q[0].index)) q.shift();
+      if (q.length > 0) {
+        const e = q.shift()!;
+        consumed.add(e.index);
+        return e;
+      }
+    }
+    return null;
+  };
   const matches = new Map<number, PartitionedItem | null>();
   for (const i of survivingOut) {
-    const q = queueByName.get(
-      normalizeIngredientName(result.data.items[i].canonicalName),
-    );
-    const entry = q && q.length > 0 ? q.shift()! : null;
-    if (entry) claimed.add(entry.index);
-    matches.set(i, entry ?? null);
+    matches.set(i, popFor(result.data.items[i].canonicalName));
   }
 
   // BUG-165 — every entry the matching pass did NOT pop was absorbed by a
   // merge. Its GroceryListItemSource rows are still owed: the plan really does
   // need that dish's salt, whichever row ends up carrying it. Hand its bucket
-  // key to the first surviving output for the same canonical — the row the
-  // merge collapsed into — so provenance follows the quantity instead of being
+  // key to a surviving output for the same ingredient — the row the merge
+  // collapsed into — so provenance follows the quantity instead of being
   // re-guessed at persist time from a (canonicalName, unit) join that can only
   // ever match one of the parts.
   //
-  // This is STRUCTURAL, not detection: a sibling is either absorbed here with
-  // its key carried, or its whole group was refused above and it is rebuilt
-  // below as its own row with its own key. There is no third path, so there is
-  // no path on which a still-needed source set is dropped.
+  // ── WS9 BUG-217 — THE HOST IS FOUND BY FOLD GROUP, EXACT NAME PREFERRED ──
+  //
+  // The old loop matched hosts on the UNFOLDED name, so the sibling of a
+  // cross-name merge found no host at all, was never claimed, and left the list
+  // entirely — quantity and provenance both, with nothing raising a flag. That
+  // is the MEMBERSHIP half of BUG-217; the group-keyed conservation guard above
+  // is the DETECTION half. Neither alone is sufficient: the guard cannot see a
+  // group the model returned nothing for, and this loop cannot see arithmetic.
   const absorbedKeys = new Map<number, string[]>();
-  for (const [name, q] of queueByName) {
-    if (q.length === 0) continue;
-    const host = survivingOut.find(
-      (i) => normalizeIngredientName(result.data.items[i].canonicalName) === name,
-    );
+  for (const entry of aiSubset) {
+    if (consumed.has(entry.index)) continue;
+    if (refusedGroups.has(groupOf(entry.item.canonicalName))) continue;
+    const name = normalizeIngredientName(entry.item.canonicalName);
+    const group = groupOf(entry.item.canonicalName);
+    const host =
+      survivingOut.find(
+        (i) =>
+          normalizeIngredientName(result.data.items[i].canonicalName) === name,
+      ) ??
+      survivingOut.find(
+        (i) => groupOf(result.data.items[i].canonicalName) === group,
+      );
     if (host === undefined) continue;
     const keys = absorbedKeys.get(host) ?? [];
-    for (const e of q) {
-      keys.push(bucketKeyOf(e.item.canonicalName, e.item.unit));
-      claimed.add(e.index);
-    }
+    keys.push(bucketKeyOf(entry.item.canonicalName, entry.item.unit));
     absorbedKeys.set(host, keys);
+    consumed.add(entry.index);
   }
 
-  const leftoverIndices = aiSubset
-    .map((e) => e.index)
-    .filter((idx) => !claimed.has(idx))
-    .filter(
-      (idx) =>
-        !refusedNames.has(
-          normalizeIngredientName(
-            aiSubset.find((e) => e.index === idx)!.item.canonicalName,
-          ),
-        ),
-    )
-    .sort((a, b) => a - b);
+  // ── WS9 BUG-217 — THE BACKSTOP: NO SOURCE ROW MAY DISAPPEAR ──
+  //
+  // An entry reaches here only when the model returned NO surviving output in
+  // its whole fold group: it neither echoed the row nor merged it into
+  // anything. Before this, such an entry was silently dropped — not popped, no
+  // absorbing host, and the old `leftoverIndices` pool only ever donated its
+  // INDEX to some OTHER row, never re-emitted the row itself. Its quantity and
+  // its provenance left the list with nothing raising a flag.
+  //
+  // Deliberately STRUCTURAL rather than a third detector. The conservation
+  // guard catches a group whose arithmetic is wrong; this catches a group that
+  // was not returned at all, which no arithmetic can see. Together they close
+  // the set: every aiSubset entry is popped, absorbed, refused, or rebuilt here
+  // — there is no fifth path, and that is the invariant, not a heuristic.
+  //
+  // `leftoverIndices` is GONE with it. Its only remaining job was to hand a
+  // dropped row's slot to an output the model INVENTED, which is two wrongs
+  // making a plausible-looking list. An unmatched output is a phantom and now
+  // sorts to the end (items.length + i) rather than wearing a real row's
+  // position.
+  const orphans = aiSubset.filter(
+    (e) =>
+      !consumed.has(e.index) &&
+      !refusedGroups.has(groupOf(e.item.canonicalName)),
+  );
+  if (orphans.length > 0) {
+    logger.warn(
+      {
+        event: "grocery_ai_source_orphaned",
+        userId: opts.userId,
+        orphanedNames: orphans.map((e) => e.item.canonicalName),
+        orphanedCount: orphans.length,
+        aiOutputCount: result.data.items.length,
+        aiSubsetCount: aiSubset.length,
+      },
+      "grocery.generate_list returned no row in these input rows' fold group; rebuilding them deterministically so no need is dropped",
+    );
+  }
   const unmatchedNames = survivingOut
     .filter((i) => matches.get(i) === null)
     .map((i) => result.data.items[i].canonicalName);
@@ -830,7 +971,7 @@ export async function generateFinalGroceryList(
         )
       : { purchaseUnit: null, purchaseQuantity: null, purchaseDisplay: null };
     placed.push({
-      index: match ? match.index : (leftoverIndices.shift() ?? items.length + i),
+      index: match ? match.index : items.length + i,
       out: {
         ...out,
         quantity: roundNeedQuantity(out.quantity, out.unit),
@@ -852,9 +993,19 @@ export async function generateFinalGroceryList(
   // own provenance. This is the refusal path in full: no AI row for these
   // canonicals survives, and nothing is silently corrected.
   for (const entry of aiSubset) {
-    if (!refusedNames.has(normalizeIngredientName(entry.item.canonicalName))) {
-      continue;
-    }
+    if (!refusedGroups.has(groupOf(entry.item.canonicalName))) continue;
+    placed.push({
+      index: entry.index,
+      out: buildDeterministicOutputItem(entry.item),
+    });
+  }
+
+  // WS9 BUG-217 — the orphan rebuild, same shape as the refusal rebuild above
+  // and for the same reason: a row the AI did not return still has a need
+  // behind it. Back at its ORIGINAL index with its original quantity, unit and
+  // bucket key, so the shopper sees the un-merged part and its provenance
+  // survives to persist time.
+  for (const entry of orphans) {
     placed.push({
       index: entry.index,
       out: buildDeterministicOutputItem(entry.item),

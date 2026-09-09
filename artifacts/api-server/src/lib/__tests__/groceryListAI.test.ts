@@ -5,7 +5,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, StoreSection } from "@prisma/client";
 
 import {
   GroceryListAIError,
@@ -2312,5 +2312,223 @@ describe("BUG-215 — AI-merge landing keeps the sub-unit ladder", () => {
     assert.equal(line!.purchaseQuantity, 2);
     assert.equal(line!.purchaseDisplay, "2 heads");
     assert.equal(line!.purchaseUnit, "head");
+  });
+});
+
+// ── WS9 BUG-217 — a cross-name AI merge must not drop a source row ─────────
+//
+// partitionForAI rule 3 routes rows into the AI subset by relations.groupKey,
+// which FOLDS names: MERGE_GROUP_VARIANT_TO_BASE maps "garlic cloves" ->
+// "garlic", so those two rows are ONE group by construction — and that hand map
+// applies with EMPTY_RELATION_INDEX, i.e. for every user, with no relation data
+// loaded at all. BUG-142's conservation guard keyed on the RAW name, so each
+// side of that pair formed a one-member "group", the length < 2 test skipped
+// both, and the unechoed source was then unable to find a host in the
+// absorbedKeys loop because that loop ALSO matched on the raw name.
+//
+// Measured on this exact fixture before the fix: 2 rows in, 1 row out, a 16-
+// clove need shipped as "1 head" (10), sourceKeys carrying only the echoed
+// row's bucket, and NEITHER warn firing. A silent 37.5% under-order.
+describe("BUG-217 — cross-name fold conservation and membership", () => {
+  function garlicPair(): ConsolidatedItem[] {
+    return [
+      // Carries the head/clove ladder (curated table, by name).
+      makeItem({
+        ingredientId: "ing-garlic",
+        canonicalName: "garlic",
+        displayName: "garlic",
+        quantity: 6,
+        unit: "clove",
+        sectionKey: "produce",
+        purchaseUnit: "head",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 head",
+      }),
+      // Folds onto "garlic" via the hand map. No ladder of its own.
+      makeItem({
+        ingredientId: "ing-garlic-cloves",
+        canonicalName: "garlic cloves",
+        displayName: "garlic cloves",
+        quantity: 10,
+        unit: "each",
+        sectionKey: "produce",
+        purchaseUnit: "head",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 head of garlic",
+      }),
+    ];
+  }
+
+  function garlicOut(quantity: number, unit: string): Record<string, unknown> {
+    return {
+      canonicalName: "garlic cloves",
+      displayName: "garlic cloves",
+      quantity,
+      unit,
+      sectionKey: "produce",
+      isUniversalStaple: false,
+      isUserPantryStaple: false,
+      isRecurringItem: false,
+      notes: null,
+      isAmbiguous: false,
+      wasAiInferred: false,
+    };
+  }
+
+  async function runCapturingWarns(
+    outs: Record<string, unknown>[],
+    items: ConsolidatedItem[],
+    sections: StoreSection[] = ["produce", "extras"],
+  ) {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([{ content: [textBlock({ items: outs })] }]);
+    const { prisma } = makeStubPrisma();
+    const warns: Array<Record<string, unknown>> = [];
+    const realWarn = logger.warn.bind(logger);
+    (logger as unknown as { warn: (...a: unknown[]) => void }).warn = ((
+      obj: unknown,
+      ...rest: unknown[]
+    ) => {
+      if (obj && typeof obj === "object") warns.push(obj as Record<string, unknown>);
+      return realWarn(obj as never, ...(rest as [never]));
+    }) as never;
+    try {
+      const result = await generateFinalGroceryList("Plan", items, sections, {
+        prisma,
+        userId: TEST_USER_ID,
+        client: fake.client,
+      });
+      return { result, warns };
+    } finally {
+      (logger as unknown as { warn: unknown }).warn = realWarn;
+    }
+  }
+
+  it("REFUSES a cross-name fold that loses a source: 6 clove + 10 each returned as 10", async () => {
+    // The model echoes the merged line under ONE of the two names and keeps
+    // only THAT row's quantity. Need is 6 + 10 = 16 cloves; it returns 10.
+    const { result, warns } = await runCapturingWarns(
+      [garlicOut(10, "clove")],
+      garlicPair(),
+    );
+
+    const refusal = warns.find((w) => w["event"] === "grocery_ai_merge_refused");
+    assert.ok(refusal, "a cross-name fold that loses a source must be flagged");
+    // THE STRUCTURAL ASSERTION. Keyed on the raw name this group has ONE member
+    // per name and the guard never runs at all, so inputRows can only read 2 if
+    // conservation is being measured over the FOLD GROUP.
+    assert.equal(refusal["inputRows"], 2, "the guard must see a TWO-member group");
+    assert.equal(refusal["canonicalName"], "garlic", "grouped under the folded key");
+    assert.equal(refusal["reason"], "quantity_not_conserved");
+    // Both sides summed in child units, not grams: a clove is deliberately not
+    // gram-convertible, so a grams-only basis would have refused this group as
+    // "not_convertible" and refused the CORRECT merge below too.
+    assert.equal(refusal["basis"], "sub_unit_children");
+    assert.equal(refusal["neededGrams"], 16);
+    assert.equal(refusal["returnedGrams"], 10);
+
+    // Refusal ships the consolidated rows unmerged — the full 16-clove need
+    // survives, in two ugly rows, which is the ruled-correct direction.
+    assert.equal(result.items.length, 2, "both source rows ship");
+    const g = result.items.find((r) => r.canonicalName === "garlic");
+    const gc = result.items.find((r) => r.canonicalName === "garlic cloves");
+    assert.equal(g?.quantity, 6);
+    assert.equal(g?.unit, "clove");
+    assert.equal(gc?.quantity, 10);
+    assert.equal(gc?.unit, "each");
+  });
+
+  it("ACCEPTS a conserving cross-name fold and carries the ABSORBED source's provenance", async () => {
+    // Same pair, correct arithmetic: 6 + 10 = 16 cloves under one line.
+    const { result, warns } = await runCapturingWarns(
+      [garlicOut(16, "clove")],
+      garlicPair(),
+    );
+    assert.equal(
+      warns.filter((w) => w["event"] === "grocery_ai_merge_refused").length,
+      0,
+      "a conserving merge must not be refused",
+    );
+    // THE MEMBERSHIP ASSERTION, AND IT COMES FIRST ON PURPOSE. The unechoed
+    // `garlic` row was absorbed into this line, so its bucket must ride on it.
+    // Before the fix this array held only "garlic cloves|each" and the garlic
+    // dishes' provenance was gone from the list entirely.
+    //
+    // Asserted BEFORE the row count because the count is ALSO guarded by the
+    // orphan backstop: revert the absorption and the row reappears as a rebuilt
+    // orphan, so a length check alone would report "the merge stands" and never
+    // say a word about provenance — the claim this test exists for.
+    const line = result.items.find((r) => r.canonicalName === "garlic cloves");
+    assert.ok(line, "the merged line is present");
+    const keys = [...((line as unknown as { sourceKeys: string[] }).sourceKeys ?? [])].sort();
+    assert.deepEqual(keys, ["garlic cloves|each", "garlic|clove"]);
+    assert.equal(result.items.length, 1, "the merge stands: one line, not two");
+    assert.equal(line.quantity, 16);
+    // BUG-215 stays green through the re-key: the ladder still resolves.
+    assert.equal(line.purchaseDisplay, "2 heads");
+  });
+
+  it("REBUILDS a source whose fold group the model returned NOTHING for", async () => {
+    // Two unrelated ingredients reach the AI subset (both "extras"). The model
+    // returns one of them plus a name it invented, and never mentions shallot.
+    // Nothing about that is arithmetic, so no conservation guard can see it.
+    const items: ConsolidatedItem[] = [
+      makeItem({
+        canonicalName: "white onion",
+        displayName: "white onion",
+        quantity: 2,
+        unit: "each",
+        sectionKey: "extras",
+        purchaseUnit: "bag",
+        purchaseQuantity: 1,
+        purchaseDisplay: "ONION-PACK",
+      }),
+      makeItem({
+        canonicalName: "shallot",
+        displayName: "shallot",
+        quantity: 3,
+        unit: "each",
+        sectionKey: "extras",
+        purchaseUnit: "each",
+        purchaseQuantity: 3,
+        purchaseDisplay: "SHALLOT-PACK",
+      }),
+    ];
+    const out = (name: string) => ({
+      canonicalName: name,
+      displayName: name,
+      quantity: 2,
+      unit: "each",
+      sectionKey: "extras",
+      isUniversalStaple: false,
+      isUserPantryStaple: false,
+      isRecurringItem: false,
+      notes: null,
+      isAmbiguous: false,
+      wasAiInferred: false,
+    });
+    const { result, warns } = await runCapturingWarns(
+      [out("white onion"), out("bananas")],
+      items,
+      ["extras"],
+    );
+
+    const orphaned = warns.find((w) => w["event"] === "grocery_ai_source_orphaned");
+    assert.ok(orphaned, "a source with no output in its fold group must be logged");
+    assert.deepEqual(orphaned["orphanedNames"], ["shallot"]);
+
+    const shallot = result.items.find((r) => r.canonicalName === "shallot");
+    assert.ok(shallot, "the shallot row must still ship — its dishes still need it");
+    assert.equal(shallot.quantity, 3, "with its own quantity, not a neighbour's");
+    assert.equal(shallot.purchaseDisplay, "SHALLOT-PACK", "and its own pack");
+    assert.deepEqual(
+      (shallot as unknown as { sourceKeys: string[] }).sourceKeys,
+      ["shallot|each"],
+      "and its own provenance",
+    );
+    // The invented row still ships pack-null and is still logged, unchanged.
+    const bananas = result.items.find((r) => r.canonicalName === "bananas");
+    assert.equal(bananas?.purchaseDisplay, null);
   });
 });
