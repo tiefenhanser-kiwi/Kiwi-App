@@ -204,6 +204,22 @@ export default function ProfileTab() {
       setCurrentPw("");
       setNewPw("");
       setConfirmPw("");
+      // WS9 BUG-239 §1c — Hans: "I reset my password and nothing happened."
+      // The 401 bounce added earlier is REACTIVE: it needs a request to fail
+      // against, and this call returns 200, so the app sat on a token it
+      // already knew was dead until the user happened to touch something
+      // authenticated. BUG-234 bumps the revocation epoch server-side, so
+      // success here IS the notification that this token is void — act on
+      // what we already know instead of waiting to rediscover it.
+      //
+      // Routed to sign-in, NOT welcome: welcome renders no error text at all,
+      // so the confirmation would be invisible and this would still read as
+      // "nothing happened", just one screen further on.
+      await auth.endSession(
+        "Your password was changed. Please sign in with your new password.",
+      );
+      router.replace("/(auth)/sign-in");
+      return;
     } catch (err) {
       // The server returns a userFacingMessage on a wrong-current-password
       // 400 ("Current password is incorrect") — surface it when present.

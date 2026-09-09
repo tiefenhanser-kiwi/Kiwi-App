@@ -32,6 +32,7 @@ import {
   composePackName,
   formatNeedText,
   GROCERY_UNIT_OPTIONS,
+  normalizeUnitToken,
 } from "@/lib/format/grocery";
 import { parseQuantity } from "@/lib/quantity";
 import { getGroceryListById } from "@/lib/stubs";
@@ -1401,7 +1402,23 @@ function GroceryRow({
               contentContainerStyle={s.unitChipRow}
             >
               {GROCERY_UNIT_OPTIONS.map((u) => {
-                const active = editUnit.trim().toLowerCase() === u;
+                // WS9 BUG-117 follow-up (ruled: highlight-only). A row whose
+                // unit reads "ounce" highlighted NO chip, because a raw
+                // lowercase compare only matches a stored spelling that is
+                // already canonical — which on device meant "only highlighted
+                // on Each", the one unit whose stored form equals its label
+                // character-for-character. normalizeUnitToken folds the
+                // aliases, so "ounce" now lights the "oz" chip.
+                //
+                // This is a COMPARISON change and nothing else: no stored
+                // value is read back, rewritten or normalised, and the text
+                // box still shows exactly what the user typed. Whether the
+                // ROW should say "oz" where it says "ounce" is a data-side
+                // canonicalisation question and is deliberately not answered
+                // here. GROCERY_UNIT_OPTIONS entries are guaranteed canonical
+                // (lib/__tests__/grocery-format.test.ts), so the right-hand
+                // side needs no folding.
+                const active = normalizeUnitToken(editUnit) === u;
                 return (
                   <Pressable
                     key={u}

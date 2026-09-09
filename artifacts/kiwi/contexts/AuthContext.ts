@@ -30,6 +30,15 @@ interface AuthContextValue {
     lastName: string,
   ) => Promise<void>;
   logout: () => Promise<void>;
+  /** WS9 BUG-239 §1c — end THIS client's session because we already know the
+   *  token is dead, rather than waiting for the next request to discover it.
+   *  Used after a successful password change: BUG-234 bumps the server-side
+   *  revocation epoch, so the bearer token in hand is void the instant the
+   *  200 comes back. Same local teardown as logout() but with NO server call
+   *  (there is nothing to revoke, and POSTing with the dead token would 401
+   *  and cascade a misleading "your session expired"). `message` surfaces on
+   *  the sign-in screen. */
+  endSession: (message: string) => Promise<void>;
   clearError: () => void;
   setUiState: (updates: {
     lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
@@ -181,6 +190,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
   }, [token, queryClient]);
 
+  // WS9 BUG-239 §1c — see the interface note. Deliberately mirrors logout()
+  // minus logoutRequest(), including the uiState timer teardown: a pending
+  // debounced PATCH firing after this would 401 on the dead token, fire the
+  // cascade, and overwrite `message` with the generic expiry text.
+  const endSession = React.useCallback(
+    async (message: string) => {
+      if (uiStateTimerRef.current) {
+        clearTimeout(uiStateTimerRef.current);
+        uiStateTimerRef.current = null;
+      }
+      await queryClient.cancelQueries();
+      await clearToken();
+      queryClient.removeQueries({ queryKey: ["auth"] });
+      setToken(null);
+      setError(message);
+    },
+    [queryClient],
+  );
+
   const clearError = React.useCallback(() => {
     setError(null);
   }, []);
@@ -221,6 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     signup,
     logout,
+    endSession,
     clearError,
     setUiState,
   };

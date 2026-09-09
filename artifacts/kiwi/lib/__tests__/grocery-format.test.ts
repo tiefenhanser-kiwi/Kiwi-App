@@ -956,3 +956,48 @@ describe("GROCERY_UNIT_OPTIONS (grocery-row editor unit set)", () => {
     assert.ok(GROCERY_UNIT_OPTIONS.includes("each"));
   });
 });
+
+// WS9 BUG-117 follow-up — what the chip HIGHLIGHT depends on.
+//
+// The editor decides which chip is lit with `normalizeUnitToken(editUnit) === u`.
+// That only works if the spellings the live data actually carries fold onto a
+// label that is really in the strip. On device, before this, only "Each" ever
+// lit up — "each" is the one unit whose stored spelling equals its chip label
+// character-for-character, which is what proved the comparison was at fault
+// rather than the data.
+describe("unit-chip highlight folding (BUG-117 follow-up)", () => {
+  it("folds the spellings live rows carry onto a chip that exists", () => {
+    const typed = [
+      "ounce",
+      "ounces",
+      "OZ",
+      " oz ",
+      "pounds",
+      "lbs",
+      "teaspoons",
+      "tablespoon",
+      "grams",
+      "cups",
+      "count",
+      "cloves",
+      "containers",
+    ];
+    for (const raw of typed) {
+      const folded = normalizeUnitToken(raw);
+      assert.ok(
+        GROCERY_UNIT_OPTIONS.includes(folded),
+        `"${raw}" folded to "${folded}", which is not a chip in the strip`,
+      );
+    }
+  });
+
+  it("folds 'ounce' to the 'oz' chip specifically (the reported row)", () => {
+    assert.equal(normalizeUnitToken("ounce"), "oz");
+  });
+
+  it("still lights 'each' — the one that already worked must not regress", () => {
+    assert.equal(normalizeUnitToken("each"), "each");
+    // "count" is the pack-side spelling of the same unit (BUG-216).
+    assert.equal(normalizeUnitToken("count"), "each");
+  });
+});

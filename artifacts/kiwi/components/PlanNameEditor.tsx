@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
@@ -13,6 +13,15 @@ export interface PlanNameEditorProps {
 export function PlanNameEditor({ currentName, onSave }: PlanNameEditorProps) {
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(currentName);
+  // WS9 BUG-238 — synchronously-readable mirror of `editing`. See commit().
+  // Every write to `editing` must write this too, or the row becomes
+  // uneditable after its first rename.
+  const editingRef = useRef(false);
+
+  const startEditing = () => {
+    editingRef.current = true;
+    setEditing(true);
+  };
 
   // Keep draft in sync if upstream name changes while not editing
   // (e.g. plan switch, undo).
@@ -21,6 +30,23 @@ export function PlanNameEditor({ currentName, onSave }: PlanNameEditorProps) {
   }, [currentName, editing]);
 
   const commit = () => {
+    // WS9 BUG-238 — third instance of the same-tick double-fire family.
+    // onBlur AND onSubmitEditing both point here, and `blurOnSubmit` (default
+    // true) makes pressing "done" do both: two dispatches against the same
+    // element instance, before React re-renders.
+    //
+    // Unlike profile.tsx (BUG-236) and grocery-list (BUG-117), this handler
+    // had NO guard to repair — it saved twice outright.
+    //
+    // A ref latch rather than "make commit idempotent on an unchanged name":
+    // that alternative cannot work here. Its test would be
+    // `trimmed !== currentName`, and `currentName` is a PROP owned upstream —
+    // it has not updated by the time the second dispatch runs in the same
+    // tick, so the comparison is still true and it saves again. The value that
+    // test compares against is exactly the one that has not caught up yet.
+    if (!editingRef.current) return;
+    editingRef.current = false;
+
     const trimmed = draftName.trim();
     if (trimmed.length === 0) {
       setDraftName(currentName);
@@ -52,7 +78,7 @@ export function PlanNameEditor({ currentName, onSave }: PlanNameEditorProps) {
 
   return (
     <Pressable
-      onPress={() => setEditing(true)}
+      onPress={startEditing}
       style={({ pressed }) => [s.row, pressed && { opacity: 0.7 }]}
       hitSlop={6}
     >

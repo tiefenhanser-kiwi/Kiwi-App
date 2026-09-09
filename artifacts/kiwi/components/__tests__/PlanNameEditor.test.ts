@@ -213,3 +213,84 @@ test("§8.3.1: committing an UNCHANGED name does not fire a write", () => {
   });
   assert.deepEqual(saved, []);
 });
+
+// WS9 BUG-238 — the same-tick double-fire family, third instance.
+//
+// PlanNameEditor wires BOTH onBlur and onSubmitEditing to `commit`, with
+// `blurOnSubmit` at its default of true: pressing "done" submits AND blurs, so
+// one tap dispatches `commit` twice against the SAME element instance, before
+// React has re-rendered. Unlike profile.tsx (BUG-236) and grocery-list
+// (BUG-117) this handler had NO guard at all, so both calls saw the same
+// closure `draftName`/`currentName` and both called onSave.
+//
+// The existing tests above invoke onSubmitEditing OR onBlur, never both in
+// sequence, which is exactly the blind spot.
+test("§8.3.1 / BUG-238: 'done' fires onSubmitEditing AND onBlur — ONE rename, not two", () => {
+  const saved: string[] = [];
+  const { tree, json } = render({
+    currentName: "Spice It Up",
+    onSave: (n) => saved.push(n),
+  });
+  act(() => {
+    (byType(json(), "rn-pressable")[0].props.onPress as () => void)();
+  });
+  act(() => {
+    (
+      byType(tree.toJSON() as unknown as Json, "rn-text-input")[0].props
+        .onChangeText as (t: string) => void
+    )("Weeknight Speed");
+  });
+
+  // Both handlers come off the SAME live element, and both are invoked inside
+  // one act() so React cannot re-render between them — that is what "same
+  // tick" means on the device.
+  const live = byType(tree.toJSON() as unknown as Json, "rn-text-input")[0];
+  const onSubmitEditing = live.props.onSubmitEditing as () => void;
+  const onBlur = live.props.onBlur as () => void;
+  act(() => {
+    onSubmitEditing();
+    onBlur();
+  });
+
+  assert.deepEqual(
+    saved,
+    ["Weeknight Speed"],
+    "one tap on done must produce ONE rename",
+  );
+});
+
+// WS9 BUG-238 — the failure mode the ref latch itself can introduce. If any
+// write to `editing` forgets to write `editingRef`, the row commits once and
+// is then permanently uneditable. A single happy-path rename would not show it.
+test("BUG-238: the ref latch re-arms — two consecutive renames both save", () => {
+  const saved: string[] = [];
+  let name = "Spice It Up";
+  const { tree, json } = render({
+    currentName: name,
+    onSave: (n) => {
+      saved.push(n);
+      name = n;
+    },
+  });
+
+  for (const next of ["Weeknight Speed", "Sunday Slow"]) {
+    act(() => {
+      (byType(json(), "rn-pressable")[0].props.onPress as () => void)();
+    });
+    act(() => {
+      (
+        byType(tree.toJSON() as unknown as Json, "rn-text-input")[0].props
+          .onChangeText as (t: string) => void
+      )(next);
+    });
+    const live = byType(tree.toJSON() as unknown as Json, "rn-text-input")[0];
+    const onSubmitEditing = live.props.onSubmitEditing as () => void;
+    const onBlur = live.props.onBlur as () => void;
+    act(() => {
+      onSubmitEditing();
+      onBlur();
+    });
+  }
+
+  assert.deepEqual(saved, ["Weeknight Speed", "Sunday Slow"]);
+});
