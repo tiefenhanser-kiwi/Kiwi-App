@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -68,6 +68,11 @@ export default function ProfileTab() {
 
   const subscription = subscriptionInfoFromAuth(user?.subscription);
   const [editingField, setEditingField] = useState<EditableField | null>(null);
+  // BUG-236: the synchronously-readable mirror of `editingField`. State alone
+  // cannot guard `handleCommitEdit` — see the comment there. Every write to
+  // `editingField` must write this too, or a row becomes uneditable after its
+  // first commit.
+  const editingFieldRef = useRef<EditableField | null>(null);
   const [draftValue, setDraftValue] = useState("");
   const [fieldStatus, setFieldStatus] = useState<FieldStatus>(null);
 
@@ -88,22 +93,34 @@ export default function ProfileTab() {
 
   const handleStartEdit = (field: EditableField) => {
     setFieldStatus(null);
+    editingFieldRef.current = field;
     setEditingField(field);
     setDraftValue(fieldDisplay(field));
   };
 
   const handleCancelEdit = () => {
+    editingFieldRef.current = null;
     setEditingField(null);
     setDraftValue("");
   };
 
   const handleCommitEdit = async () => {
-    if (!editingField) return;
+    // BUG-236: EditableRow fires onCommit from BOTH onSubmitEditing and
+    // onBlur, and `blurOnSubmit` makes pressing "done" do both — so one tap
+    // calls this twice, milliseconds apart. The previous guard read
+    // `editingField`, a closure binding captured at render: `setEditingField`
+    // queues an update but cannot change that binding, so the second call saw
+    // the stale non-null value, passed the guard, and fired a second request
+    // concurrently with the first (two `email_change_requested` 5ms apart).
+    // Only a ref can be cleared synchronously, so only a ref can swallow the
+    // second call. Clear it before `Keyboard.dismiss()`, which itself blurs
+    // the input and can re-enter this handler.
+    const field = editingFieldRef.current;
+    if (!field) return;
+    editingFieldRef.current = null;
+
     Keyboard.dismiss();
-    const field = editingField;
     const trimmed = draftValue.trim();
-    // Clear the editing state up front: EditableRow fires onCommit on both
-    // submit and blur, so the second call must early-return on `!editingField`.
     setEditingField(null);
     setDraftValue("");
 
@@ -313,18 +330,24 @@ export default function ProfileTab() {
                 value={currentPw}
                 onChangeText={setCurrentPw}
                 placeholder="Current password"
+                autoComplete="password"
+                textContentType="password"
               />
               <PasswordField
                 label="New password"
                 value={newPw}
                 onChangeText={setNewPw}
                 placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+                autoComplete="new-password"
+                textContentType="newPassword"
               />
               <PasswordField
                 label="Confirm new password"
                 value={confirmPw}
                 onChangeText={setConfirmPw}
                 placeholder="Re-enter new password"
+                autoComplete="new-password"
+                textContentType="newPassword"
               />
               {pwStatus && (
                 <Text
@@ -496,16 +519,31 @@ function NavCard({
   );
 }
 
+/**
+ * BUG-237: both hints are REQUIRED props, not optional with a default, so a
+ * new secure field cannot be added here without stating what it holds.
+ *
+ * Without them react-native-web emits `autocomplete="on"` on an
+ * `<input type="password">` (its TextInput defaults the attribute — it is not
+ * omitted), which affirmatively invites the browser's password manager into
+ * all three fields at once. `textContentType` is the iOS spelling of the same
+ * intent. sign-in.tsx and sign-up.tsx already hint every credential field they
+ * own; these three were the only unhinted ones left in the client.
+ */
 function PasswordField({
   label,
   value,
   onChangeText,
   placeholder,
+  autoComplete,
+  textContentType,
 }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
   placeholder: string;
+  autoComplete: "password" | "new-password";
+  textContentType: "password" | "newPassword";
 }) {
   return (
     <View style={s.pwField}>
@@ -518,6 +556,8 @@ function PasswordField({
         secureTextEntry
         autoCapitalize="none"
         autoCorrect={false}
+        autoComplete={autoComplete}
+        textContentType={textContentType}
         style={s.pwInput}
       />
     </View>
