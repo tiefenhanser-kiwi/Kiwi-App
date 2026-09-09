@@ -465,22 +465,6 @@ export default function GroceryListDetail() {
     setEditName(item.userResolvedTo ?? item.name);
   };
 
-  // WS9 BUG-240 ride-along (Hans): a tap anywhere outside a text box or an
-  // editable field should EXIT edit mode. Before this the only ways out were
-  // the Done control, "done" on the keyboard, or tapping another ROW — tapping
-  // the page background did nothing and the editor sat open.
-  //
-  // ⚠️ IT COMMITS, IT DOES NOT DISCARD. Tap-away already saved (via
-  // handleItemTap on a neighbouring row) and that behaviour is device-proven;
-  // this widens WHERE the tap counts, not what it does. Routing it through the
-  // same commitQuantityEdit is what keeps those two from drifting apart.
-  //
-  // The wrapper is a Pressable, so it only sees taps no child claimed: rows,
-  // inputs, chips, checkboxes and the X all still get their own touches.
-  const handleBackgroundTap = () => {
-    if (editingItemIdRef.current) commitQuantityEdit();
-  };
-
   const commitQuantityEdit = () => {
     const itemId = editingItemIdRef.current;
     if (!itemId) {
@@ -869,29 +853,6 @@ export default function GroceryListDetail() {
         // the "tap on qty during keyboard dismiss is eaten" bug.
         keyboardShouldPersistTaps="handled"
       >
-        {/* WS9 BUG-240 ride-along, second cut — the tap-outside-to-exit surface.
-
-            It was a Pressable WRAPPING all of this, and that regressed the
-            next tap after an edit closed: the row showed press feedback and
-            then no-opped, and a slight scroll cleared it. That is a stale hit
-            rect, not a logic bug — RN measures a Pressable's bounds to decide
-            whether the touch ENDED inside it, the editor collapsing shifts
-            every row below it, and the parent cancelled the child's press.
-            A scroll forced the re-measure, which is exactly why scrolling
-            cleared it.
-
-            So it is no longer a parent. It is an absolutely-positioned SIBLING,
-            rendered FIRST so every real control paints on top of it and keeps
-            its own touches, and mounted ONLY while a row is being edited — so
-            once the editor closes there is nothing left to interfere with the
-            next tap at all. Out of flow, so scrollContent's gap is untouched. */}
-        {editingItemId !== null && (
-          <Pressable
-            onPress={handleBackgroundTap}
-            accessible={false}
-            style={StyleSheet.absoluteFill}
-          />
-        )}
         {unresolvedItems.length > 0 && (
           <View style={s.ambiguousBanner}>
             <View style={s.ambiguousIcon}>
