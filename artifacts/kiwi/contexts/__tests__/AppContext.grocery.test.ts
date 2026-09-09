@@ -300,6 +300,52 @@ test("updateGroceryItemQuantity PATCHes { quantity, unit }", async () => {
   assert.equal(result!.quantityUnit, "kg");
 });
 
+// ── updateGroceryItemDetails (BUG-117) ───────────────────────
+
+test("updateGroceryItemDetails PATCHes name + quantity + unit in ONE request", async () => {
+  await mountAuthed();
+  route("PATCH", "/grocery-lists/list-1/items/item-1", () =>
+    mockJson({
+      item: wireItem({ displayName: "roma tomato", quantity: 1, unit: "each" }),
+    }),
+  );
+
+  let result: { name?: string; quantityUnit?: string } | null = null;
+  await act(async () => {
+    result = await app!.updateGroceryItemDetails("list-1", "item-1", {
+      displayName: "roma tomato",
+      quantity: 1,
+      unit: "each",
+    });
+  });
+
+  // ONE request carrying all three — not a rename racing a quantity write.
+  assert.equal(captured?.method, "PATCH");
+  assert.deepEqual(captured?.body, {
+    displayName: "roma tomato",
+    quantity: 1,
+    unit: "each",
+  });
+  assert.equal(result!.name, "roma tomato");
+  assert.equal(result!.quantityUnit, "each");
+});
+
+test("updateGroceryItemDetails omits keys the caller did not pass", async () => {
+  await mountAuthed();
+  route("PATCH", "/grocery-lists/list-1/items/item-1", () =>
+    mockJson({ item: wireItem({ unit: "each" }) }),
+  );
+
+  await act(async () => {
+    await app!.updateGroceryItemDetails("list-1", "item-1", { unit: "each" });
+  });
+
+  // A unit-only edit must not restate the name. Sending displayName as an
+  // empty string would blank the row server-side, so the key must be ABSENT.
+  assert.deepEqual(captured?.body, { unit: "each" });
+  assert.ok(!("displayName" in (captured?.body as Record<string, unknown>)));
+});
+
 // ── markGroceryShoppingDone ─────────────────────────────────────────────────
 
 test("markGroceryShoppingDone PATCHes the list { status } both directions", async () => {

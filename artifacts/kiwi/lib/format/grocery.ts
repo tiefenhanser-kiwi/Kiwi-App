@@ -399,10 +399,50 @@ const UNIT_ALIASES: Record<string, string> = {
   count: "each",
 };
 
-function normalizeUnitToken(unit: string | null | undefined): string {
+export function normalizeUnitToken(unit: string | null | undefined): string {
   const s = (unit ?? "").trim().toLowerCase();
   return UNIT_ALIASES[s] ?? s;
 }
+
+/**
+ * WS9 BUG-117 — the unit set the grocery-row editor offers as one-tap chips.
+ *
+ * Hans's report: "the unit control offered `each` rather than a real unit
+ * set." The control was a bare free-text box, so `each` (the add-path default
+ * in performAdd) was simply whatever happened to be sitting in it.
+ *
+ * 🔴 INVARIANT: every entry must ALREADY be canonical — normalizeUnitToken(u)
+ * === u. Putting "lbs" or "pounds" in this list would write a non-canonical
+ * spelling into quantityUnit, and composePackName's rules compare NORMALIZED
+ * tokens: the row would then read differently from an identical one typed as
+ * "lb". lib/__tests__/grocery-format.test.ts guards this.
+ *
+ * Free text stays available in the editor — these are the fast path, not a
+ * whitelist. "each" leads because it is the count unit BUG-141 needs when a
+ * catalog row arrives packed by weight.
+ */
+export const GROCERY_UNIT_OPTIONS: readonly string[] = [
+  "each",
+  "lb",
+  "oz",
+  "g",
+  "kg",
+  "cup",
+  "tbsp",
+  "tsp",
+  "ml",
+  "l",
+  "bunch",
+  "clove",
+  "head",
+  "can",
+  "jar",
+  "bottle",
+  "bag",
+  "box",
+  "package",
+  "container",
+];
 
 // WS9 BUG-143 — weight unit → grams.
 //

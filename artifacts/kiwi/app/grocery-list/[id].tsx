@@ -28,7 +28,11 @@ import {
   type GroceryItemCandidate,
 } from "@/lib/api/grocery";
 import { GROCERY_SECTIONS } from "@/lib/domain";
-import { composePackName, formatNeedText } from "@/lib/format/grocery";
+import {
+  composePackName,
+  formatNeedText,
+  GROCERY_UNIT_OPTIONS,
+} from "@/lib/format/grocery";
 import { parseQuantity } from "@/lib/quantity";
 import { getGroceryListById } from "@/lib/stubs";
 import {
@@ -56,6 +60,20 @@ const UNDO_TIMEOUT_MS = 5000;
 // settles, clearing the spinner.
 const LOOKUP_CLIENT_TIMEOUT_MS = 4000;
 
+// WS9 BUG-141 (3) — the off-catalog ("Extras") lane, made reachable.
+//
+// performAdd(null, text) already existed, but the ONLY route to it was having
+// ZERO candidates: handleAddItem auto-picks candidates[0] whenever one is
+// present. Hans typed "roma tomato", got back exactly one row ("1 lb roma
+// tomatoes"), and had no way to add his own — the lane existed and was
+// unreachable. Extras are explicitly the user's own lane (D-WS9-183), so it
+// gets a visible, always-present control at the foot of the suggestions.
+type FreeTextRow = { __freeText: true };
+type TypeaheadRow = GroceryItemCandidate | FreeTextRow;
+const FREE_TEXT_ROW: FreeTextRow = { __freeText: true };
+const isFreeTextRow = (row: TypeaheadRow): row is FreeTextRow =>
+  "__freeText" in row;
+
 type RemovedItem = {
   item: GroceryListItem;
 };
@@ -67,7 +85,7 @@ export default function GroceryListDetail() {
   const {
     toggleGroceryItemCompleted,
     toggleGroceryStapleSelection,
-    updateGroceryItemQuantity,
+    updateGroceryItemDetails,
     addGroceryItem,
     removeGroceryItem,
     restoreGroceryItem,
@@ -131,6 +149,16 @@ export default function GroceryListDetail() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState("");
   const [editUnit, setEditUnit] = useState("");
+  // WS9 BUG-117 (3) — the NAME is editable now, not just amount + unit.
+  // List-local only (D-WS9-171): this never reaches the recipe or the
+  // Ingredient row, and a later reconcile sweep may overwrite it.
+  const [editName, setEditName] = useState("");
+  // WS9 BUG-117 (2), same defect family as BUG-236 on the profile screen:
+  // `editingItemId` is a closure binding, so a commit triggered twice in one
+  // tick (or a commit racing the next row's enter-edit) reads a stale value
+  // and the `if (!editingItemId) return` guard passes twice. Only a ref can be
+  // cleared synchronously. EVERY write to editingItemId state writes this too.
+  const editingItemIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!recentlyRemoved) return;
@@ -315,7 +343,7 @@ export default function GroceryListDetail() {
     // Tapping anywhere on the row while a quantity edit is open should
     // commit + exit edit (matches the ambient "tap-out to confirm"
     // expectation), not toggle the checkbox in the same gesture.
-    if (editingItemId) {
+    if (editingItemIdRef.current) {
       commitQuantityEdit();
       return;
     }
@@ -418,23 +446,45 @@ export default function GroceryListDetail() {
     // catch any reappearance once the prod sample size grows.
     console.log("[grocery-list] quantity tap", {
       itemId: item.id,
-      currentEditingId: editingItemId,
+      currentEditingId: editingItemIdRef.current,
     });
+    // WS9 BUG-117 (2) — Hans: "tapping away jumped straight into editing an
+    // adjacent row." The edit affordance calls this DIRECTLY, bypassing
+    // handleItemTap's commit-then-return, so the in-flight edit was abandoned
+    // unsaved and the cursor appeared to teleport. Commit the open row first.
+    // Read the ref, not the state: this runs in the same tick as the blur that
+    // an adjacent tap produces.
+    if (editingItemIdRef.current && editingItemIdRef.current !== item.id) {
+      commitQuantityEdit();
+    }
+    editingItemIdRef.current = item.id;
     setEditingItemId(item.id);
     setEditAmount(item.quantityAmount ?? "");
     setEditUnit(item.quantityUnit ?? "");
+    setEditName(item.userResolvedTo ?? item.name);
   };
 
   const commitQuantityEdit = () => {
-    if (!editingItemId) {
+    const itemId = editingItemIdRef.current;
+    if (!itemId) {
       console.log("[grocery-list] commit no-op (no active edit)");
       return;
     }
-    const itemId = editingItemId;
+    editingItemIdRef.current = null;
     const amt = editAmount.trim() || undefined;
     const unit = editUnit.trim() || undefined;
     // Snapshot the pre-edit values so a failed persist can revert cleanly.
     const prior = list?.items.find((it) => it.id === itemId);
+    // WS9 BUG-117 (3) — the name. The row RENDERS `userResolvedTo ?? name`, so
+    // the pre-edit display name is that same projection and an empty box means
+    // "leave it alone" rather than "blank the row".
+    const priorDisplayName = prior?.userResolvedTo ?? prior?.name;
+    const newName = editName.trim();
+    const nameChanged = newName.length > 0 && newName !== priorDisplayName;
+    // If the row carried a clarify projection (userResolvedTo), a rename has
+    // to move that too — otherwise the projection keeps winning at render and
+    // the user's own typing appears not to have taken.
+    const alsoMoveProjection = nameChanged && prior?.userResolvedTo != null;
     setList((prev) =>
       prev
         ? {
@@ -445,6 +495,10 @@ export default function GroceryListDetail() {
                     ...it,
                     quantityAmount: amt,
                     quantityUnit: unit,
+                    ...(nameChanged ? { name: newName } : null),
+                    ...(alsoMoveProjection
+                      ? { userResolvedTo: newName }
+                      : null),
                     // Keep legacy display string in sync so any consumer
                     // still reading `quantity` (summaries, exports) sees
                     // the edited value.
@@ -478,11 +532,19 @@ export default function GroceryListDetail() {
         : Number.isFinite(priorNum) && priorNum > 0
           ? priorNum
           : 1;
-    updateGroceryItemQuantity(listId, itemId, quantity, unit ?? "").catch(
+    updateGroceryItemDetails(listId, itemId, {
+      quantity,
+      unit: unit ?? "",
+      // Omitted entirely when unchanged — a quantity-only edit must not
+      // restate the name (see AppContext.grocery.test.ts).
+      ...(nameChanged ? { displayName: newName } : null),
+    }).catch(
       (err) => {
         console.warn("[grocery-list] quantity edit persist failed", err);
         if (prior) {
           applyItemPatch(itemId, {
+            name: prior.name,
+            userResolvedTo: prior.userResolvedTo,
             quantityAmount: prior.quantityAmount,
             quantityUnit: prior.quantityUnit,
             quantity: prior.quantity,
@@ -880,19 +942,46 @@ export default function GroceryListDetail() {
               <Text style={s.addItemBtnText}>Add</Text>
             </Pressable>
           </View>
-          <TypeaheadList<GroceryItemCandidate>
-            items={candidates}
+          <TypeaheadList<TypeaheadRow>
+            /* BUG-141 (3): the free-text row is APPENDED to the candidates, so
+               it is present whether the lookup returned three rows, one row or
+               none. It also supersedes TypeaheadList's emptyMessage ("press
+               Enter to add") — that told the user about a path instead of
+               giving them one, and it only appeared when there were no
+               candidates, which is the one case Hans did not hit. */
+            items={[...candidates, FREE_TEXT_ROW]}
             visible={typeaheadVisible}
             loading={candidatesLoading}
             keyExtractor={(c) =>
-              c.ingredientId ?? `ai-${c.canonicalName}-${c.sectionKey}`
+              isFreeTextRow(c)
+                ? "__free_text__"
+                : (c.ingredientId ?? `ai-${c.canonicalName}-${c.sectionKey}`)
             }
-            onSelect={handleCandidateSelect}
+            onSelect={(c) =>
+              isFreeTextRow(c)
+                ? performAdd(null, addItemInput)
+                : handleCandidateSelect(c)
+            }
             getAccessibilityLabel={(c) =>
-              `${c.displayName}, ${SECTION_LABELS[c.sectionKey] ?? c.sectionKey}`
+              isFreeTextRow(c)
+                ? `Add ${addItemInput.trim()} as typed, in Extras`
+                : `${c.displayName}, ${SECTION_LABELS[c.sectionKey] ?? c.sectionKey}`
             }
             style={s.typeaheadAnchored}
-            renderItem={(c) => (
+            renderItem={(c) =>
+              isFreeTextRow(c) ? (
+                <View style={s.candidateRow}>
+                  <Feather name="plus" size={14} color={Colors.sage[700]} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={s.freeTextName} numberOfLines={1}>
+                      Add “{addItemInput.trim()}” as typed
+                    </Text>
+                    <Text style={s.candidateSection} numberOfLines={1}>
+                      Extras · 1 each
+                    </Text>
+                  </View>
+                </View>
+              ) : (
               <View style={s.candidateRow}>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={s.candidateName} numberOfLines={1}>
@@ -910,7 +999,8 @@ export default function GroceryListDetail() {
                   </View>
                 ) : null}
               </View>
-            )}
+              )
+            }
           />
         </View>
 
@@ -958,8 +1048,10 @@ export default function GroceryListDetail() {
                       isEditing={editingItemId === item.id}
                       editAmount={editAmount}
                       editUnit={editUnit}
+                      editName={editName}
                       onEditAmount={setEditAmount}
                       onEditUnit={setEditUnit}
+                      onEditName={setEditName}
                       onEnterEdit={() => enterQuantityEdit(item)}
                       onCommitEdit={commitQuantityEdit}
                       onTap={() => handleItemTap(item)}
@@ -1081,8 +1173,10 @@ function GroceryRow({
   isEditing,
   editAmount,
   editUnit,
+  editName,
   onEditAmount,
   onEditUnit,
+  onEditName,
   onEnterEdit,
   onCommitEdit,
   onTap,
@@ -1093,8 +1187,10 @@ function GroceryRow({
   isEditing: boolean;
   editAmount: string;
   editUnit: string;
+  editName: string;
   onEditAmount: (v: string) => void;
   onEditUnit: (v: string) => void;
+  onEditName: (v: string) => void;
   onEnterEdit: () => void;
   onCommitEdit: () => void;
   onTap: () => void;
@@ -1235,30 +1331,92 @@ function GroceryRow({
         {isEditing ? (
           // Inline edit pair — mirrors meal-builder's ingredient row. Parent
           // owns state so swapping focus doesn't unmount the row mid-edit.
-          <View style={s.qtyEditWrap}>
+          <View style={s.editorWrap}>
+            {/* BUG-117 (3) — the NAME was not editable at all; only qty+unit
+                were. List-local rename (D-WS9-171). Empty = leave unchanged,
+                so a cleared box cannot blank the row. */}
             <TextInput
-              value={editAmount}
-              onChangeText={onEditAmount}
-              placeholder="Qty"
+              value={editName}
+              onChangeText={onEditName}
+              placeholder="Item name"
               placeholderTextColor={Palette.text.placeholder}
-              style={[s.qtyInput, editAmountInvalid && s.qtyInputInvalid]}
-              autoCapitalize="none"
-              returnKeyType="done"
-              blurOnSubmit
-              autoFocus
-              onSubmitEditing={onCommitEdit}
-            />
-            <TextInput
-              value={editUnit}
-              onChangeText={onEditUnit}
-              placeholder="Unit"
-              placeholderTextColor={Palette.text.placeholder}
-              style={s.unitInput}
+              style={s.nameInput}
               autoCapitalize="none"
               returnKeyType="done"
               blurOnSubmit
               onSubmitEditing={onCommitEdit}
             />
+            <View style={s.qtyEditWrap}>
+              <TextInput
+                value={editAmount}
+                onChangeText={onEditAmount}
+                placeholder="Qty"
+                placeholderTextColor={Palette.text.placeholder}
+                style={[s.qtyInput, editAmountInvalid && s.qtyInputInvalid]}
+                autoCapitalize="none"
+                returnKeyType="done"
+                blurOnSubmit
+                autoFocus
+                onSubmitEditing={onCommitEdit}
+              />
+              <TextInput
+                value={editUnit}
+                onChangeText={onEditUnit}
+                placeholder="Unit"
+                placeholderTextColor={Palette.text.placeholder}
+                style={s.unitInput}
+                autoCapitalize="none"
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={onCommitEdit}
+              />
+              {/* BUG-117 (2) — Hans: "the cursor could not be dismissed."
+                  There was NO explicit way out of the editor: no onBlur
+                  commit, no Done control, and tapping elsewhere either did
+                  nothing or jumped into the next row. This is the way out. */}
+              <Pressable
+                onPress={onCommitEdit}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Done editing item"
+                style={({ pressed }) => [s.doneBtn, pressed && { opacity: 0.8 }]}
+              >
+                <Feather name="check" size={16} color={Colors.neutral[0]} />
+              </Pressable>
+            </View>
+            {/* BUG-117 (3) + BUG-141 (2) — "the unit control offered `each`
+                rather than a real unit set." The box is still free text; these
+                are one-tap canonical units (guarded in
+                lib/__tests__/grocery-format.test.ts). "each" leads because it
+                is what a weight-packed catalog row needs to become a count. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={s.unitChipRow}
+            >
+              {GROCERY_UNIT_OPTIONS.map((u) => {
+                const active = editUnit.trim().toLowerCase() === u;
+                return (
+                  <Pressable
+                    key={u}
+                    onPress={() => onEditUnit(u)}
+                    hitSlop={4}
+                    style={({ pressed }) => [
+                      s.unitChip,
+                      active && s.unitChipActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <Text
+                      style={[s.unitChipText, active && s.unitChipTextActive]}
+                    >
+                      {u}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
         ) : needText ? (
           // The need parenthetical — the edit affordance. Default staples tap
@@ -1283,13 +1441,32 @@ function GroceryRow({
       {/* Default staples can't be removed — they just sit dimmed in the
           list. Opted-in staples + regular items expose the X. */}
       {!isDefaultStaple && !isEditing && (
-        <Pressable
-          onPress={onRemove}
-          hitSlop={8}
-          style={({ pressed }) => [s.removeBtn, pressed && { opacity: 0.6 }]}
-        >
-          <Feather name="x" size={16} color={Colors.neutral[500]} />
-        </Pressable>
+        <View style={s.rowControls}>
+          <Pressable
+            onPress={onRemove}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${item.name}`}
+            style={({ pressed }) => [s.removeBtn, pressed && { opacity: 0.6 }]}
+          >
+            <Feather name="x" size={16} color={Colors.neutral[500]} />
+          </Pressable>
+          {/* BUG-117 (1) — the edit affordance was UNDISCOVERABLE: the only
+              way in was tapping the "(need)" parenthetical, which looks like
+              text, and rows with no need had no way in at all. Hans asked for
+              a pencil beneath the X; this is it, and unlike the parenthetical
+              it is present on every editable row. The parenthetical still
+              works — this adds a visible control, it does not replace one. */}
+          <Pressable
+            onPress={onEnterEdit}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Edit ${item.name}`}
+            style={({ pressed }) => [s.editBtn, pressed && { opacity: 0.6 }]}
+          >
+            <Feather name="edit-2" size={14} color={Colors.neutral[500]} />
+          </Pressable>
+        </View>
       )}
     </View>
   );
@@ -1416,6 +1593,11 @@ const s = StyleSheet.create({
     color: Colors.neutral[900],
     fontFamily: Typography.face.sans[500],
     fontWeight: Typography.fontWeight.medium,
+  },
+  freeTextName: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[700],
   },
   candidateSection: {
     fontSize: Typography.fontSize.xs,
@@ -1641,6 +1823,71 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[900],
     fontFamily: Typography.face.sans[400],
+  },
+  // WS9 BUG-117 (1) — the X and the new pencil stack in one right-hand column.
+  rowControls: {
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: Spacing[1],
+  },
+  editBtn: {
+    width: 32,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: Spacing[1],
+    marginRight: -Spacing[1],
+  },
+  // WS9 BUG-117 (2)(3) — the row editor: name on its own line, then the
+  // qty/unit pair + Done, then the one-tap unit chips.
+  editorWrap: {
+    gap: Spacing[2],
+    paddingTop: Spacing[1],
+  },
+  nameInput: {
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.neutral[300],
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[2],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[900],
+    fontFamily: Typography.face.sans[400],
+  },
+  doneBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.sage[700],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unitChipRow: {
+    flexDirection: "row",
+    gap: Spacing[1],
+    paddingRight: Spacing[2],
+  },
+  unitChip: {
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[1],
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.neutral[300],
+    backgroundColor: Palette.background.card,
+  },
+  unitChipActive: {
+    borderColor: Colors.sage[700],
+    backgroundColor: Colors.sage[100],
+  },
+  unitChipText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+  },
+  unitChipTextActive: {
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[700],
   },
   removeBtn: {
     width: 32,

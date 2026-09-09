@@ -12,6 +12,8 @@ import {
   pluralizeNeedUnit,
   pluralizeIngredientName,
   singularizeIngredientName,
+  normalizeUnitToken,
+  GROCERY_UNIT_OPTIONS,
 } from "../format/grocery";
 
 describe("composePackName (pack + name, with count-produce elide)", () => {
@@ -921,5 +923,36 @@ describe("BUG-216 — `count` is an alias for `each`", () => {
       composePackName("corn tortillas", "package", "1 package (12 each)", "36", "count"),
       "3 packages (12 each) corn tortillas",
     );
+  });
+});
+
+// WS9 BUG-117 — the editor's unit chips.
+describe("GROCERY_UNIT_OPTIONS (grocery-row editor unit set)", () => {
+  it("offers only ALREADY-CANONICAL unit tokens", () => {
+    // A non-canonical entry ("lbs", "pounds", "count") would write a spelling
+    // that composePackName's normalized comparisons read as a different unit
+    // from the same thing typed as "lb"/"each" — two buckets for one unit,
+    // which is the BUG-141 defect-2 failure wearing a different hat.
+    for (const unit of GROCERY_UNIT_OPTIONS) {
+      assert.equal(
+        normalizeUnitToken(unit),
+        unit,
+        `"${unit}" is not canonical — normalizeUnitToken maps it to "${normalizeUnitToken(unit)}"`,
+      );
+    }
+  });
+
+  it("carries no duplicates", () => {
+    assert.equal(
+      new Set(GROCERY_UNIT_OPTIONS).size,
+      GROCERY_UNIT_OPTIONS.length,
+    );
+  });
+
+  it("includes the count unit a weight-packed catalog row needs (BUG-141)", () => {
+    // Hans added "1 lb roma tomatoes" wanting one tomato, while the same list
+    // already carried roma tomatoes in "each". The editor must be able to say
+    // "each" or the two adds stay in different buckets.
+    assert.ok(GROCERY_UNIT_OPTIONS.includes("each"));
   });
 });

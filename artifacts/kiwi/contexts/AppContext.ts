@@ -302,6 +302,16 @@ interface AppState {
     quantity: number,
     unit: string,
   ) => Promise<GroceryListItem>;
+  /** WS9 BUG-117 — the row editor now commits NAME, amount and unit together,
+   *  so they PATCH as ONE request instead of a rename racing a quantity write.
+   *  `displayName` is a LIST-LOCAL rename (D-WS9-171): it never propagates back
+   *  to the recipe or the Ingredient row, and a later reconcile sweep is
+   *  allowed to overwrite it. Returns the server row; throws on failure. */
+  updateGroceryItemDetails: (
+    listId: string,
+    itemId: string,
+    patch: { displayName?: string; quantity?: number; unit?: string },
+  ) => Promise<GroceryListItem>;
   /** PRD §12.5 — clarify-any-time (WS7-7-A B5). `resolution` non-null writes
    *  userResolvedTo (flips isAmbiguous→false, projection-rendered); `null` is
    *  "leave-as-is" → acknowledgeAmbiguity (clears the flag, no resolution
@@ -1125,6 +1135,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return item;
   };
 
+  // WS9 BUG-117 — one PATCH for the whole row edit (name + amount + unit).
+  // Keys the caller omits are left off the wire entirely, so an edit that
+  // changed only the unit does not restate the name.
+  const updateGroceryItemDetails = async (
+    listId: string,
+    itemId: string,
+    patch: { displayName?: string; quantity?: number; unit?: string },
+  ): Promise<GroceryListItem> => {
+    const item = await updateGroceryListItem(listId, itemId, patch);
+    void invalidateGroceryLists();
+    return item;
+  };
+
   // WS7-7-A B5 — clarify-any-time. Resolve (userResolvedTo) vs leave-as-is
   // (acknowledgeAmbiguity); both clear isAmbiguous server-side, differing only
   // in whether a resolution value is recorded for projection rendering.
@@ -1275,6 +1298,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toggleGroceryItemCompleted,
     toggleGroceryStapleSelection,
     updateGroceryItemQuantity,
+    updateGroceryItemDetails,
     resolveGroceryItemAmbiguity,
     addGroceryItem,
     removeGroceryItem,
