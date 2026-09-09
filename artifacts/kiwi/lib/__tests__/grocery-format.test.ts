@@ -574,15 +574,18 @@ describe("BUG-143: weight↔weight packs scale; nothing else starts scaling", ()
     );
   });
 
-  it("guard W7 — SCOPE: a weight need against a CONTAINER pack is still out of scope", () => {
-    // "1 package (12 oz)" against a 2 lb need is a real under-order, and it is
-    // deliberately NOT fixed here: the pack unit is `package`, not a weight, so
-    // relating them means trusting a size parsed out of authored display prose
-    // across a unit boundary. Widening to it would move rows outside the 35
-    // this block scoped. Pinned so the next person sees the choice was made.
+  it("guard W7 — WS9 BUG-147 CLOSED THIS: a weight need against a container pack now scales", () => {
+    // ⚠️ THIS GUARD USED TO ASSERT "1 package (12 oz) bacon" AND IT WAS RIGHT
+    // TO. It pinned a DEFERRAL, not a behaviour: its own note called the row
+    // "a real under-order... deliberately NOT fixed here", pinned "so the next
+    // person sees the choice was made". BUG-147 is that next person. Deciding
+    // the deferred question is what changes the assertion; the guard did its
+    // job by making the change deliberate instead of silent.
+    //
+    // 2 lb = 32 oz against a 12 oz package → 3 packages.
     assert.equal(
       composePackName("bacon", "package", "1 package (12 oz)", "2", "pound"),
-      "1 package (12 oz) bacon",
+      "3 packages (12 oz) bacon",
     );
   });
 
@@ -999,5 +1002,122 @@ describe("unit-chip highlight folding (BUG-117 follow-up)", () => {
     assert.equal(normalizeUnitToken("each"), "each");
     // "count" is the pack-side spelling of the same unit (BUG-216).
     assert.equal(normalizeUnitToken("count"), "each");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WS9 BUG-147 — a need must relate to a pack whenever the DATA can relate them,
+// not only when the two happen to be spelled identically.
+//
+// ⚠️ WHAT THE TICKET SAID AND WHAT THE CODE DID DISAGREED. The brief's two
+// headline rows — crushed tomatoes 28 oz against "1 can (14.5 oz)", spinach
+// 10 oz against "1 container (5 oz)" — ALREADY scaled correctly here (guard W8
+// pinned that path). The server passes the stored pack through unscaled, so a
+// measurement taken server-side sees an under-order that the client had already
+// fixed at render. What was genuinely broken were three narrower things:
+//
+//   1. SAME SYSTEM, DIFFERENT SPELLING. A need in `lb` against a hint in `oz`
+//      required an exact token match and fell through. (Old guard W7.)
+//   2. A TWO-WORD UNIT. "(16 fl oz)" parsed as the unit "fl" and related to
+//      nothing, so the row printed one container against any need.
+//   3. VOLUME, ENTIRELY. There was a weight table and no volume table, so
+//      quart/cup/litre packs never related to anything.
+//
+// The scope line is unchanged and load-bearing: weight↔weight and volume↔volume
+// need no per-ingredient data, weight↔volume needs a DENSITY, and the client is
+// never sent one. Guard V6 pins that it still refuses.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("BUG-147: same-system needs relate to the pack; cross-system still refuses", () => {
+  it("guard V1 — same system, different spelling: lb need vs an oz hint", () => {
+    // The old W7 row, from the other side: 2.5 lb against a 12 oz package.
+    assert.equal(
+      composePackName("bacon", "package", "1 package (12 oz)", "2.5", "pound"),
+      "4 packages (12 oz) bacon",
+    );
+  });
+
+  it("guard V2 — a TWO-WORD unit parses: '(16 fl oz)' is oz, not 'fl'", () => {
+    assert.equal(
+      composePackName("heavy cream", "container", "1 container (16 fl oz)", "24", "oz"),
+      "2 containers (16 fl oz) heavy cream",
+    );
+    // ⚠️ and the trailing "each" form must not be swallowed as the second word.
+    assert.equal(
+      composePackName("broth", "can", "1 can (14.5 oz each)", "28", "oz"),
+      "2 cans (14.5 oz each) broth",
+    );
+  });
+
+  it("guard V3 — volume↔volume through the hint: cups against a quart bottle", () => {
+    // 6 cups = 1419 ml against 946 ml → 2. A quart is four cups for stock and
+    // for milk alike, so this needs no per-ingredient data.
+    assert.equal(
+      composePackName("milk", "bottle", "1 bottle (1 quart)", "6", "cup"),
+      "2 bottles (1 quart) milk",
+    );
+    // BOUNDARY, and it is the one that matters: under one pack stays one pack.
+    assert.equal(
+      composePackName("milk", "bottle", "1 bottle (1 quart)", "3", "cup"),
+      "1 bottle (1 quart) milk",
+    );
+  });
+
+  it("guard V4 — the PACK UNIT itself is volumetric", () => {
+    assert.equal(
+      composePackName("buttermilk", "quart", "1 quart", "5", "cup"),
+      "2 quarts buttermilk",
+    );
+  });
+
+  it("guard V5 — the measurement leads the display: '1 lb block'", () => {
+    // purchaseUnit is "block"; the weight is in the display's LEADING token,
+    // which is the precedence the server's packMagnitude already reasons about.
+    assert.equal(
+      composePackName("cotija", "block", "1 lb block", "20", "oz"),
+      "2 lb block cotija",
+    );
+    // Below one pack it must not scale.
+    assert.equal(
+      composePackName("cotija", "block", "1 lb block", "8", "oz"),
+      "1 lb block cotija",
+    );
+  });
+
+  it("guard V6 — SCOPE: weight against VOLUME still refuses (needs a density)", () => {
+    // 8 oz is a weight, 500 ml is a volume. Relating them needs a per-ingredient
+    // density the client is never sent. An absurd need proves it is refusing
+    // rather than coincidentally landing on one pack.
+    assert.equal(
+      composePackName("olive oil", "bottle", "1 bottle (500 ml)", "8", "oz"),
+      "1 bottle (500 ml) olive oil",
+    );
+    assert.equal(
+      composePackName("olive oil", "bottle", "1 bottle (500 ml)", "400", "oz"),
+      "1 bottle (500 ml) olive oil",
+    );
+  });
+
+  it("guard V7 — SCOPE: a pack that states NO size still cannot be related", () => {
+    // "1 can" with no parenthetical and no measured leading token. Nothing in
+    // the row says how much a can holds, and nothing here invents it.
+    assert.equal(
+      composePackName("crushed tomatoes", "can", "1 can", "28", "oz"),
+      "1 can crushed tomatoes",
+    );
+  });
+
+  it("guard V8 — the count path is untouched: 'count' still folds to 'each'", () => {
+    // The DISPLAY is echoed verbatim — only its leading number is rewritten.
+    // It is the UNIT that folds (count → each), which is how a pack stating
+    // "12 count" meets a need stated in "each" (BUG-216).
+    assert.equal(
+      composePackName("corn tortillas", "package", "1 package (12 count)", "36", "each"),
+      "3 packages (12 count) corn tortillas",
+    );
+    // And the same row with the pack authored as "each" keeps that spelling.
+    assert.equal(
+      composePackName("corn tortillas", "package", "1 package (12 each)", "36", "count"),
+      "3 packages (12 each) corn tortillas",
+    );
   });
 });

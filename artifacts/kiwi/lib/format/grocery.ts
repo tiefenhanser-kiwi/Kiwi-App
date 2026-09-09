@@ -59,6 +59,8 @@ const COUNT_NOUN_PLURALS: Record<string, string> = {
   wrap: "wraps",
   roll: "rolls",
   pint: "pints",
+  quart: "quarts",
+  gallon: "gallons",
 };
 
 export function pluralizeNeedUnit(
@@ -476,6 +478,47 @@ const WEIGHT_UNIT_TO_GRAMS: Record<string, number> = {
   lb: 453.59237,
 };
 
+// WS9 BUG-147 — volume unit → millilitres. The exact counterpart of the weight
+// table above and it carries the same argument: a quart is four cups for stock
+// and for milk alike, so volume↔volume is the second (and last) cross-unit
+// conversion that needs NO per-ingredient data.
+//
+// ⚠️ IT DOES NOT CROSS THE SYSTEMS. Relating ml to grams needs a DENSITY, which
+// is per-ingredient and lives server-side. The server's own packMagnitude
+// (groceryMerge.ts) can do volume→grams only because it is handed an
+// IngredientConversion; the client is never sent one, so weight↔volume stays
+// correctly unrelatable here rather than being guessed at.
+//
+// Canonical tokens only — normalizeUnitToken runs first and has already folded
+// liters→l, cups→cup, tablespoon→tbsp, quarts→quart.
+const VOLUME_UNIT_TO_ML: Record<string, number> = {
+  ml: 1,
+  l: 1000,
+  tsp: 4.92892159375,
+  tbsp: 14.78676478125,
+  cup: 236.5882365,
+  pint: 473.176473,
+  quart: 946.352946,
+  gallon: 3785.411784,
+};
+
+/**
+ * How many `to` units make one `from` unit, when BOTH sit in the same measuring
+ * system. Null when they do not — different systems, or a unit in neither table
+ * (a "can" relates to an "oz" only through data the client does not hold).
+ * Identical units return 1 without consulting either table, so a count unit
+ * ("each", "clove") still relates to itself.
+ */
+function sameSystemRatio(from: string, to: string): number | null {
+  if (from.length > 0 && from === to) return 1;
+  for (const table of [WEIGHT_UNIT_TO_GRAMS, VOLUME_UNIT_TO_ML]) {
+    const f = table[from];
+    const t = table[to];
+    if (f !== undefined && t !== undefined) return f / t;
+  }
+  return null;
+}
+
 /**
  * The pack's own count, read off the front of `purchaseDisplay` ("1.5 lb pack"
  * → 1.5). Read from the display rather than threading `purchaseQuantity`
@@ -490,9 +533,56 @@ function packLeadingQuantity(purchaseDisplay: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** "1 can (14.5 oz)" → 14.5 oz per pack. Null when there is no size in parens. */
+/**
+ * The measured unit the display LEADS with, when it has one: "1 lb block" →
+ * "lb". Null when the leading noun is a container ("1 can (14.5 oz)" → "can"),
+ * which is the common case and is served by the parenthetical instead.
+ *
+ * WS9 BUG-147. The precedent is the server's own packMagnitude
+ * (groceryMerge.ts), which tries the leading token AND the parenthetical and
+ * keeps whichever yields a real magnitude. Read as a reference only — that
+ * function needs an IngredientConversion to do volume→grams and lives in the
+ * other package, so nothing is imported across the boundary.
+ *
+ * Only a MEASURED unit is returned. The leading count of a container pack is
+ * already handled by packLeadingQuantity, and returning "can" here would let
+ * a container masquerade as a measurement.
+ */
+function packLeadingMeasuredUnit(purchaseDisplay: string): string | null {
+  const m = /^\s*[\d.]+\s+([a-zA-Z]+)(?:\s+(?!each\b)([a-zA-Z]+))?/.exec(
+    purchaseDisplay,
+  );
+  if (!m) return null;
+  // Two-word form first ("16 fl oz"), then the single word. "1 lb block" must
+  // fall back: its second word is the CONTAINER noun, not part of the unit, and
+  // trying only the greedy form read "lb block" and matched nothing.
+  const candidates = m[2] ? [`${m[1]} ${m[2]}`, m[1]] : [m[1]];
+  for (const raw of candidates) {
+    const unit = normalizeUnitToken(raw);
+    if (
+      WEIGHT_UNIT_TO_GRAMS[unit] !== undefined ||
+      VOLUME_UNIT_TO_ML[unit] !== undefined
+    ) {
+      return unit;
+    }
+  }
+  return null;
+}
+
+/**
+ * "1 can (14.5 oz)" → 14.5 oz per pack. Null when there is no size in parens.
+ *
+ * WS9 BUG-147 — the unit may be TWO words. The single-word capture read
+ * "1 container (16 fl oz)" as the unit "fl", which normalises to nothing and
+ * left the row unrelatable, so it printed one container against any need. The
+ * optional second word is guarded against "each", so "(14.5 oz each)" still
+ * reads "oz" and lets the trailing (?:each)? consume the rest.
+ */
 function packSizeHint(purchaseDisplay: string): { amt: number; unit: string } | null {
-  const m = /\(\s*~?\s*([\d.]+)\s*([a-zA-Z]+)\s*(?:each)?\s*\)/.exec(purchaseDisplay);
+  const m =
+    /\(\s*~?\s*([\d.]+)\s*([a-zA-Z]+(?:\s+(?!each\b)[a-zA-Z]+)?)\s*(?:each)?\s*\)/.exec(
+      purchaseDisplay,
+    );
   if (!m) return null;
   const amt = parseFloat(m[1]);
   return Number.isFinite(amt) && amt > 0 ? { amt, unit: m[2] } : null;
@@ -528,18 +618,39 @@ function packsToCoverNeed(
   //    row is decided by that ordering today — every weight↔weight row's pack
   //    carries no parenthetical size — but the precedence should not depend on
   //    that staying true.)
-  const needGrams = WEIGHT_UNIT_TO_GRAMS[nu];
-  const packGrams = WEIGHT_UNIT_TO_GRAMS[pu];
-  if (needGrams !== undefined && packGrams !== undefined) {
+  //    WS9 BUG-147 widens this from weight-only to "the same measuring
+  //    system", so a pack unit that is itself volumetric ("1 quart") relates
+  //    to a need in cups on the same argument.
+  //    The pack unit may be a container noun while the DISPLAY states the
+  //    real measurement up front ("1 lb block", purchaseUnit "block"). Fall
+  //    back to that, so 20 oz of cotija against a 1 lb block is two blocks
+  //    rather than the one it printed before.
+  const measuredPackUnit =
+    sameSystemRatio(nu, pu) !== null
+      ? pu
+      : (packLeadingMeasuredUnit(purchaseDisplay) ?? pu);
+  const packRatio = sameSystemRatio(nu, measuredPackUnit);
+  if (packRatio !== null) {
     return Math.max(
       1,
-      Math.ceil((need * needGrams) / (packQuantity * packGrams) - PACK_EPSILON),
+      Math.ceil((need * packRatio) / packQuantity - PACK_EPSILON),
     );
   }
-  // 3. The display names a size in the need's own unit.
+  // 3. The display names a size the need can be measured against.
+  //    WS9 BUG-147 — this required the hint unit to EQUAL the need unit, so
+  //    "1 bottle (1 quart)" against a need in cups fell through to rule 4 and
+  //    printed one bottle however much the week wanted. Same-SYSTEM is the
+  //    right test, not same-spelling: a quart is four cups for every
+  //    ingredient, exactly as a pound is sixteen ounces.
   const hint = packSizeHint(purchaseDisplay);
-  if (hint && normalizeUnitToken(hint.unit) === nu) {
-    return Math.max(1, Math.ceil(need / (packQuantity * hint.amt) - PACK_EPSILON));
+  const hintRatio = hint
+    ? sameSystemRatio(nu, normalizeUnitToken(hint.unit))
+    : null;
+  if (hint && hintRatio !== null) {
+    return Math.max(
+      1,
+      Math.ceil((need * hintRatio) / (packQuantity * hint.amt) - PACK_EPSILON),
+    );
   }
   // 4. Needs a container→measure factor nothing supplies. Out of scope.
   return null;
