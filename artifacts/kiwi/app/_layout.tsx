@@ -16,7 +16,7 @@ import {
   Fraunces_700Bold_Italic,
 } from "@expo-google-fonts/fraunces";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -26,7 +26,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/contexts/AppContext";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/contexts/ToastProvider";
 import { Palette } from "@/constants/tokens";
 
@@ -44,6 +44,42 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * WS9 BUG-239 — the route reaction to a session that died mid-use.
+ *
+ * The 401 cascade was already complete on the state side: apiClient fires
+ * emitSessionExpired(), and AuthContext.s subscriber clears SecureStore and
+ * removes the ["auth"] queries. What was missing was ROUTING. app/index.tsx
+ * is the only auth gate in the app and it only evaluates at "/" — once the
+ * user has been redirected into (tabs) it is unmounted and never re-runs, and
+ * (tabs)/_layout.tsx has no guard of its own. So a dead token left every
+ * authenticated screen mounted and rendering against user === null: blank
+ * fields, and initialsFor("") giving the "?" avatar Hans saw.
+ *
+ * This is not only the password-change path. Session JWTs expire at 30 days,
+ * so every user reaches this state eventually without doing anything unusual;
+ * a password change is just the reliable way to trigger it on demand.
+ */
+function SessionGate() {
+  const { user, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Bootstrap has not resolved yet — "no user" is not yet meaningful.
+    if (isLoading || user) return;
+    const group = segments[0];
+    // undefined = "/" (index.tsx owns the cold-start decision itself, and
+    // bouncing it here would race its Redirect). "(auth)" = already where a
+    // signed-out user belongs; redirecting from there would also throw a user
+    // off the sign-in screen the moment a wrong password 401s.
+    if (group === undefined || group === "(auth)") return;
+    router.replace("/(auth)/welcome");
+  }, [user, isLoading, segments, router]);
+
+  return null;
+}
 
 function RootLayoutNav() {
   return (
@@ -112,6 +148,7 @@ export default function RootLayout() {
                       navigator so toasts survive route changes. */}
                   <ToastProvider>
                     <StatusBar style="dark" />
+                    <SessionGate />
                     <RootLayoutNav />
                   </ToastProvider>
                 </KeyboardProvider>

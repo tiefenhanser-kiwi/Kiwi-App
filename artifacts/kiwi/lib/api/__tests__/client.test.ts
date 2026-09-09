@@ -110,6 +110,23 @@ test("401 from server → UnauthenticatedError + cascade fires", async () => {
   assert.deepEqual(seen, ["expired"]);
 });
 
+test("WS9 BUG-239: 401 on an auth:false route → UnauthenticatedError, NO cascade", async () => {
+  // A wrong password at sign-in is not an expired session. /auth/login and
+  // /auth/signup both pass auth:false; firing the cascade for them clobbered
+  // the real "invalid credentials" error with "Your session expired".
+  nextResponse = () => mockResponse({ error: "invalid credentials" }, 401);
+
+  const seen: string[] = [];
+  subscribeSessionEvents((e) => seen.push(e));
+
+  await assert.rejects(
+    () => apiClient("/auth/login", { method: "POST", body: {}, auth: false }),
+    UnauthenticatedError,
+  );
+  await new Promise<void>((r) => queueMicrotask(r));
+  assert.deepEqual(seen, []);
+});
+
 test("402 from server → UpgradeRequiredError, NO cascade", async () => {
   nextResponse = () =>
     mockResponse(

@@ -201,7 +201,17 @@ export async function apiClient<T = unknown>(
     const details = { status: res.status, body: rawBody, userFacingMessage };
 
     if (res.status === 401) {
-      emitSessionExpired();
+      // WS9 BUG-239 — only an AUTHENTICATED request's 401 means "your session
+      // died". On an `auth: false` route (login, signup) a 401 is the endpoint
+      // rejecting the credentials in the body — a wrong password — and there
+      // is no session to expire. Firing the cascade there clears a token that
+      // was never sent and, worse, races AuthContext.login's own catch: the
+      // handler's setError("Your session expired. Please sign in again.")
+      // lands in a microtask AFTER login sets "Invalid email or password",
+      // so the user got told their session expired for a typo.
+      // The token gate above already made this distinction; the response path
+      // did not.
+      if (wantsAuth) emitSessionExpired();
       const err = new UnauthenticatedError(details);
       if (envelope) return { success: false, error: err };
       throw err;

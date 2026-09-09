@@ -1391,8 +1391,13 @@ function GroceryRow({
                 is what a weight-packed catalog row needs to become a count. */}
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={false}
+              // The strip DOES scroll (it always did — it is a real horizontal
+              // ScrollView), but suppressing the indicator left it looking
+              // like a list that simply clips "ml" at the right edge with no
+              // hint there is more. The indicator is the affordance.
+              showsHorizontalScrollIndicator
               keyboardShouldPersistTaps="handled"
+              style={s.unitChipScroll}
               contentContainerStyle={s.unitChipRow}
             >
               {GROCERY_UNIT_OPTIONS.map((u) => {
@@ -1863,10 +1868,25 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // WS9 BUG-239 block / BUG-117 follow-up — the chips rendered ~5x too tall
+  // (a tall empty box with the label at the top). This is the contentContainer
+  // of a row-direction flex container, and it did not declare alignItems, so
+  // it took the flex default of "stretch"; s.unitChip declares padding but no
+  // height, so every chip stretched to the full height of whatever the
+  // ScrollView resolved to. flex-start makes each chip hug its own text
+  // regardless of how tall the scroller gets.
   unitChipRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
     gap: Spacing[1],
     paddingRight: Spacing[2],
+  },
+  // A horizontal ScrollView has no intrinsic height and grows into whatever
+  // vertical space is going; flexGrow:0 + alignSelf keep the strip to its
+  // content so it cannot leave a tall void under the chips.
+  unitChipScroll: {
+    flexGrow: 0,
+    alignSelf: "stretch",
   },
   unitChip: {
     paddingHorizontal: Spacing[2],
