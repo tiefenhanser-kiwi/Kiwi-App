@@ -1,0 +1,31 @@
+-- WS9 D-WS9-235 — a meal carries TWO times, and both are derived from its steps.
+--
+-- Hans ruled: derive the meal's time from its steps with the scheduler's
+-- parallelism, and capture active (hands-on) as well as total (wall-clock).
+--
+-- ONE NEW COLUMN, not two. `estimatedTimeMinutes` keeps its name and its column
+-- and BECOMES the derived total: D-WS9-122 already defines it as wall-clock
+-- ("how long it takes from opening the fridge to being able to plate"), so a
+-- second "total" column would be two sources of truth for one number and every
+-- reader would have to know which to trust. What changes is who writes it — the
+-- steps, not the generator.
+--
+-- FORWARD-ONLY, no backfill here (D-WS9-230). The column is nullable with no
+-- default: every existing row reads NULL, NULL means "not yet derived", and no
+-- reader can mistake it for a measured zero. The 1,458 meals whose stored total
+-- is wrong stay wrong until scripts/d235-derive-meal-timing.ts is applied
+-- separately — a data write gets its own dry-run, its own hashes and its own
+-- approval, not a silent ride on a schema change.
+--
+-- ⚠️ NOT ADDED TO Dish: dishes already carry `estimatedTimeMinutes`, and their
+-- derived value is a serial sum of their own steps. A dish has no parallelism
+-- to report (`parallelGroup` is set on 0 of 25,564 steps), so a per-dish active
+-- figure would either equal the total or require the same predicate at a level
+-- that has no schedule. If a dish-level active time is ever wanted, it needs
+-- its own ruling.
+
+ALTER TABLE "meals" ADD COLUMN "activeTimeMinutes" INTEGER;
+
+-- No index. It is read as part of the meal row every consumer already loads,
+-- and nothing filters or sorts on it — active-time FILTERING is explicitly not
+-- MVP (D-WS9-235). Add one when a query needs it, not before.

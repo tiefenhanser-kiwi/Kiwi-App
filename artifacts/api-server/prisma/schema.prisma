@@ -788,7 +788,15 @@ model Meal {
   sourceType           SourceType      @default(manual)
   cuisineType          String?
   difficulty           DifficultyLevel @default(easy)
+  // WS9 D-WS9-235 — the DERIVED wall-clock total (D-WS9-122: "from opening the
+  // fridge to being able to plate"). Written from the steps by deriveMealTiming
+  // at every persistence path, NOT authored by the generator. Keeps its name and
+  // column: a second "total" field would be two sources of truth for one number.
   estimatedTimeMinutes Int             @default(30)
+  // WS9 D-WS9-235 — the DERIVED hands-on total. Null = not yet derived (every
+  // pre-migration row), never a measured zero. Active-time FILTERING is
+  // explicitly not MVP; this exists so the client can show it.
+  activeTimeMinutes    Int?
   imageUrl             String?
   servingsDefault      Int             @default(4)
   // WS7-8 BUG-003 — immutable authored-servings anchor. Set once at create
