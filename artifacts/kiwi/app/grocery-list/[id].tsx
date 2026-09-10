@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Keyboard,
   Pressable,
   ScrollView,
@@ -481,6 +482,38 @@ export default function GroceryListDetail() {
     setEditName(item.userResolvedTo ?? item.name);
   };
 
+  // WS9 BUG-117 — Android back exits EDIT MODE, not the screen.
+  //
+  // Hans, Sept 10: "I think we should just scrap what's in there and go with
+  // the keyboard exit or back swipe getting the user out of edit mode." Back
+  // is the gesture Android users already reach for to dismiss something, and
+  // unlike the three tap-outside attempts it needs no hit-testing and no
+  // overlay — so it cannot steal a press from a row underneath it.
+  //
+  // ⚠️ IT COMMITS, exactly as Done does. BUG-117 defect 2 was silent data
+  // loss; a dismissal that discards would reintroduce it by another door.
+  // Returning true CONSUMES the event, so the screen does not pop — the user
+  // asked to leave the editor, not the list.
+  //
+  // Subscribed only WHILE editing and removed on close, so back behaves
+  // normally everywhere else. BackHandler is inert on iOS, which is exactly
+  // the ruled outcome there: nothing new, the keyboard's done key stays, and
+  // the stack's swipe-back is deliberately not intercepted.
+  //
+  // The latest-ref is load-bearing: commitQuantityEdit closes over the edit
+  // state and is rebuilt on every keystroke, so listing it as a dep would
+  // resubscribe on every character. Reading it through a ref keeps ONE
+  // subscription per edit session while still running the current closure.
+  const commitRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (editingItemId === null) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      commitRef.current();
+      return true;
+    });
+    return () => sub.remove();
+  }, [editingItemId]);
+
   const commitQuantityEdit = () => {
     const itemId = editingItemIdRef.current;
     if (!itemId) {
@@ -574,6 +607,11 @@ export default function GroceryListDetail() {
       },
     );
   };
+
+  // Kept current every render — see the BackHandler note above. Assigned
+  // here rather than beside the ref because commitQuantityEdit is a const
+  // arrow declared below it, and enterQuantityEdit sits between the two.
+  commitRef.current = commitQuantityEdit;
 
   // 6c-6-C — optimistic-add core. Resolves quantity/unit from candidate
   // metadata (defaultUnit for lookup, parseSuggestedQuantity for AI),
