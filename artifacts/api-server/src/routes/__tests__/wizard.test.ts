@@ -71,6 +71,7 @@ interface StubPrismaOpts {
 function makeStubPrisma(opts: StubPrismaOpts = {}) {
   const llmCalls: unknown[] = [];
   const activities: { eventType: string; userId: string }[] = [];
+  const mealWheres: Record<string, unknown>[] = [];
   return {
     aIPrompt: { findUnique: async () => null },
     systemSetting: {
@@ -119,8 +120,14 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
       updateMany: async () => ({ count: 0 }),
     },
     meal: {
-      findMany: async () => opts.storeMeals ?? [],
+      // D-WS7-166 — the shelf `where` is captured so a route test can assert
+      // what the cap resolved to at the query (rows are still not filtered).
+      findMany: async (args: { where?: Record<string, unknown> }) => {
+        mealWheres.push(args?.where ?? {});
+        return opts.storeMeals ?? [];
+      },
     },
+    _mealWheres: () => mealWheres,
     // Block 4b-3 (D-WS9-072) — the generate routes now upsert the last-batch row
     // on success. Benign no-ops so a generate test that doesn't inject the
     // persist/read seams degrades cleanly.
@@ -1060,19 +1067,20 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
   // global keyed by (method, path, userId), so reusing TEST_USER_ID here would
   // drain the shared build-plans bucket and 429 later describes.
   const PREF_USER_ID = "test-user-wizard-precedence";
+  // Stored prefs deliberately DIFFER from the per-run body below.
+  const prefPrisma = makeStubPrisma({
+    preferences: {
+      discoveryMealsPerWeek: 0,
+      saucePreference: "balanced",
+      maxCookTimeMinutes: 60,
+      maxCookTimeCoverage: "most",
+    },
+  });
 
   before(async () => {
     harness = await spinUp({
       runAICall: ai.fn,
-      // Stored prefs deliberately DIFFER from the per-run body below.
-      prisma: makeStubPrisma({
-        preferences: {
-          discoveryMealsPerWeek: 0,
-          saucePreference: "balanced",
-          maxCookTimeMinutes: 60,
-          maxCookTimeCoverage: "most",
-        },
-      }),
+      prisma: prefPrisma,
       subscriptionService: makeSubscriptionService(true),
       rateLimiterOpts: { capacity: 100, refillPerSec: 100 },
     });
@@ -1188,6 +1196,69 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
       null,
       "explicit null cap override did not win over stored",
     );
+  });
+
+  // ── D-WS7-166 — the RESOLVED cap reaches the shelf query ──────────────────
+  //
+  // These read the `where` actually handed to meal.findMany, not the prompt
+  // bag: the prompt bag was already right (above); the shelf is where the cap
+  // was never applied.
+  it("D-WS7-166: an explicit per-run null over a stored 60 reaches the shelf as NO time term", async () => {
+    const token = signToken(PREF_USER_ID);
+    const n0 = prefPrisma._mealWheres().length;
+    const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...VALID_BODY, maxCookTimeMinutes: null }),
+    });
+    assert.equal(res.status, 200);
+    const wheres = prefPrisma._mealWheres().slice(n0);
+    assert.equal(wheres.length, 1, "one shelf query (no over-cap fetch without a cap)");
+    assert.equal("estimatedTimeMinutes" in wheres[0], false, "explicit null must mean no time term");
+    assert.equal("activeTimeMinutes" in wheres[0], false);
+  });
+
+  it("D-WS7-166: no override → the stored 60/'most' cap reaches the shelf as lte 60 + one over-cap fetch", async () => {
+    const token = signToken(PREF_USER_ID);
+    const n0 = prefPrisma._mealWheres().length;
+    const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(VALID_BODY),
+    });
+    assert.equal(res.status, 200);
+    const wheres = prefPrisma._mealWheres().slice(n0);
+    assert.equal(wheres.length, 2, "under-cap query + 'most' over-cap query");
+    assert.deepEqual(wheres[0].estimatedTimeMinutes, { lte: 60 });
+    assert.deepEqual(wheres[0].activeTimeMinutes, { not: null });
+    assert.deepEqual(wheres[1].estimatedTimeMinutes, { gt: 60 });
+  });
+
+  it("D-WS7-166: a per-run 30/'all' over stored 60/'most' reaches the shelf as lte 30 with no over-cap fetch", async () => {
+    const token = signToken(PREF_USER_ID);
+    const n0 = prefPrisma._mealWheres().length;
+    const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        ...VALID_BODY,
+        maxCookTimeMinutes: 30,
+        maxCookTimeCoverage: "all",
+      }),
+    });
+    assert.equal(res.status, 200);
+    const wheres = prefPrisma._mealWheres().slice(n0);
+    assert.equal(wheres.length, 1);
+    assert.deepEqual(wheres[0].estimatedTimeMinutes, { lte: 30 });
   });
 });
 

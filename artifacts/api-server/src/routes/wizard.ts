@@ -177,6 +177,14 @@ async function retrieveShelf(
     difficulty: string;
     userId: string;
     excludeMealIds?: string[];
+    // D-WS7-166 — the cook-time cap, from the D-WS7-198 RESOLVED bag (never the
+    // raw client field: an explicit per-run null means "no limit this plan" and
+    // must reach the shelf as no term, which only the resolver's presence check
+    // preserves). The shelf is the ONLY place the cap can bite for a catalog
+    // meal — catalog slots skip the expand AI (wizardExpansion.ts) and with it
+    // wizard.candidate.expand's cap instruction.
+    maxCookTimeMinutes: number | null;
+    maxCookTimeCoverage: string;
   },
 ): Promise<Awaited<ReturnType<typeof buildStoreShortlist>>> {
   try {
@@ -193,6 +201,8 @@ async function retrieveShelf(
       userId: opts.userId,
       rotationSalt,
       excludeMealIds: opts.excludeMealIds,
+      maxCookTimeMinutes: opts.maxCookTimeMinutes,
+      maxCookTimeCoverage: opts.maxCookTimeCoverage,
       config: resolveStoreComposeConfig(),
     });
   } catch (err) {
@@ -680,6 +690,9 @@ export function createWizardRouter(
         difficulty: aiInput.difficulty,
         userId,
         excludeMealIds: hiddenContext?.recentMealIds,
+        // D-WS7-166 — from the RESOLVED bag, same object the prompt reads.
+        maxCookTimeMinutes: preferencesContext.maxCookTimeMinutes,
+        maxCookTimeCoverage: preferencesContext.maxCookTimeCoverage,
       });
 
       // 5-STREAM. Progressive render (Latency Block, D-WS9-076). When the client
@@ -1166,6 +1179,9 @@ export function createWizardRouter(
         difficulty: tkPrefs?.difficultyDefault ?? "easy",
         userId,
         excludeMealIds: hiddenContext?.recentMealIds,
+        // D-WS7-166 — from the RESOLVED bag, same object the prompt reads.
+        maxCookTimeMinutes: preferencesContext.maxCookTimeMinutes,
+        maxCookTimeCoverage: preferencesContext.maxCookTimeCoverage,
       });
 
       const genResult = await runAICall(
@@ -1372,6 +1388,9 @@ export function createWizardRouter(
           difficulty: storedPrefs?.difficultyDefault ?? "easy",
           userId,
           excludeMealIds: hiddenContext?.recentMealIds,
+          // D-WS7-166 — from the RESOLVED bag, same object the prompt reads.
+          maxCookTimeMinutes: preferencesContext.maxCookTimeMinutes,
+          maxCookTimeCoverage: preferencesContext.maxCookTimeCoverage,
         });
 
         const genResult = await runAICall(

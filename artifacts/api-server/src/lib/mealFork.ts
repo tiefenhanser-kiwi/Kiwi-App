@@ -203,6 +203,10 @@ async function cloneMealInto(
       cuisineType: source.cuisineType,
       difficulty: source.difficulty,
       estimatedTimeMinutes: source.estimatedTimeMinutes,
+      // D-WS7-166 — the "was derived" marker travels with the number it marks.
+      // The clone copies every step verbatim, so the derivation holds for the
+      // copy; leaving this NULL would hide the fork from every capped shelf.
+      activeTimeMinutes: source.activeTimeMinutes,
       imageUrl: source.imageUrl,
       // Block 4a piece 1 (D-WS9-047) — household scale on the user fork; on the
       // publish-to-store branch servingsDefaultOverride is undefined → copy source.

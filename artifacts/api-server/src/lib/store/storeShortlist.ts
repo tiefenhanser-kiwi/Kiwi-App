@@ -91,6 +91,15 @@ export interface BuildStoreShortlistOptions {
   rotationSalt: number;
   /** Meal ids to exclude (recent history — avoid repeats). */
   excludeMealIds?: string[];
+  /**
+   * D-WS7-166 — the user's RESOLVED cook-time cap (D-WS7-198: per-run override
+   * else stored; an explicit null is "no limit this plan"). Absent or null →
+   * no time term at all. TOTAL time only — D-WS9-236 rules active time out of
+   * MVP filtering.
+   */
+  maxCookTimeMinutes?: number | null;
+  /** 'all' → every shelf row fits the cap. 'most' → plus exactly ONE over-cap row. */
+  maxCookTimeCoverage?: string;
   config: StoreComposeConfig;
 }
 
@@ -148,9 +157,11 @@ interface EnrichedRow {
 /**
  * Retrieve + select the shared-pool shortlist for a compose request (Block 4b-1,
  * D-WS9-075). Pipeline:
- *   1. HARD FILTERS in the DB: isPublic/dinner/not-archived, recent-exclude, and
- *      the allergen filter (exclude stamped matches; conservative unstamped
- *      exclusion when the user has any allergy).
+ *   1. HARD FILTERS in the DB: isPublic/dinner/not-archived, recent-exclude, the
+ *      allergen filter (exclude stamped matches; conservative unstamped
+ *      exclusion when the user has any allergy), and — when the user has a
+ *      cook-time cap — the derived total ≤ cap (D-WS7-166; 'most' adds one
+ *      over-cap row at step 4).
  *   2. DIVERSITY CAP: recover each meal's parent dish (dishFamilyKey → spine) and
  *      keep ONE seeded version per parent — so a 40-shelf is ~40 DISTINCT dinners,
  *      not six versions of a crowd-pleaser.
@@ -175,7 +186,7 @@ export async function buildStoreShortlist(
     allergenTokens,
   );
   const allowedLevels = allowedDifficultyLevels(opts.difficulty);
-  const where: Prisma.MealWhereInput = {
+  const baseWhere: Prisma.MealWhereInput = {
     isPublic: true,
     isArchived: false,
     mealType: "dinner",
@@ -187,22 +198,45 @@ export async function buildStoreShortlist(
     ...(andConditions.length > 0 ? { AND: andConditions } : {}),
   };
 
+  // D-WS7-166 — the cook-time cap as a SHELF predicate, the exact precedent the
+  // difficulty ceiling above set. BUG-245's ruling: the cap constrains SELECTION
+  // and the number shown stays the honest derived one; nothing here refuses or
+  // errors — a thin shelf composes live per slot, as an empty one always has.
+  //
+  // ⚠️ A CAPPED SHELF ADMITS ONLY DERIVED TIMES (`activeTimeMinutes` not null,
+  // D-WS9-235's "was derived" marker). A step-less meal's estimatedTimeMinutes
+  // is an authored claim, and filtering on claims is what BUG-245 exists to
+  // stop. Uncapped shelves keep those rows: no filter, no claim being relied on.
+  // Consequence: any write path that leaves activeTimeMinutes NULL hides its
+  // meal from every capped shelf — see stampMealTiming and the fork's copy.
+  const cap = opts.maxCookTimeMinutes ?? null;
+  const where: Prisma.MealWhereInput =
+    cap === null
+      ? baseWhere
+      : {
+          ...baseWhere,
+          estimatedTimeMinutes: { lte: cap },
+          activeTimeMinutes: { not: null },
+        };
+
+  const select = {
+    id: true,
+    title: true,
+    cuisineType: true,
+    difficulty: true,
+    estimatedTimeMinutes: true,
+    tags: true,
+    caloriesPerServing: true,
+    proteinGPerServing: true,
+    carbsGPerServing: true,
+    fatGPerServing: true,
+    dishFamilyKey: true,
+    allergens: true,
+  } as const;
+
   const rows = (await prisma.meal.findMany({
     where,
-    select: {
-      id: true,
-      title: true,
-      cuisineType: true,
-      difficulty: true,
-      estimatedTimeMinutes: true,
-      tags: true,
-      caloriesPerServing: true,
-      proteinGPerServing: true,
-      carbsGPerServing: true,
-      fatGPerServing: true,
-      dishFamilyKey: true,
-      allergens: true,
-    },
+    select,
     // Deterministic base order so seeded sampling is reproducible regardless of
     // the DB's physical row order (the sampling result depends on the order rng
     // draws are assigned to rows).
@@ -210,7 +244,26 @@ export async function buildStoreShortlist(
     take: POOL_FETCH_CAP,
   })) as StoreRow[];
 
-  if (rows.length === 0) {
+  // 'most' (D-WS7-166): the over-cap pool the one exception is drawn from. Same
+  // base predicate (difficulty ceiling, recent-exclude, allergens), same
+  // derived-only rule, the complementary time term. Fetched even when the
+  // under-cap pool is empty: one over-cap meal on an otherwise-empty shelf is
+  // still the one exception the user allowed.
+  const overCapRows: StoreRow[] =
+    cap !== null && opts.maxCookTimeCoverage === "most"
+      ? ((await prisma.meal.findMany({
+          where: {
+            ...baseWhere,
+            estimatedTimeMinutes: { gt: cap },
+            activeTimeMinutes: { not: null },
+          },
+          select,
+          orderBy: { id: "asc" },
+          take: POOL_FETCH_CAP,
+        })) as StoreRow[])
+      : [];
+
+  if (rows.length === 0 && overCapRows.length === 0) {
     return { forPrompt: [], aliasToId: new Map() };
   }
 
@@ -220,7 +273,7 @@ export async function buildStoreShortlist(
 
   // Enrich with parent + rank + cuisine match + difficulty distance. Sorted by id
   // above → stable.
-  const enriched: EnrichedRow[] = rows.map((row) => {
+  const enrich = (row: StoreRow): EnrichedRow => {
     const info = lookupDishFamily(row.dishFamilyKey);
     return {
       row,
@@ -229,7 +282,8 @@ export async function buildStoreShortlist(
       matches: cuisineMatches(row.cuisineType, userTokens),
       difficultyDistance: Math.abs(difficultyLevel(row.difficulty) - userLevel),
     };
-  });
+  };
+  const enriched: EnrichedRow[] = rows.map(enrich);
 
   // Sampling weight = popularity (rank) × difficulty affinity (leans toward the
   // user's actual skill level). Used both for the per-parent version pick (rank is
@@ -294,6 +348,21 @@ export async function buildStoreShortlist(
     }
   } else {
     selected = weightedSampleWithoutReplacement(reps, weightOf, size, rng);
+  }
+
+  // 'most' — append exactly ONE over-cap row, drawn by the same weighted sampler
+  // (so it leans popular and rotates with the rest of the shelf), from a parent
+  // not already on the shelf (the diversity cap holds across the seam). It is
+  // the 41st row, not one of the 40: the cap narrows what the user will accept,
+  // and taking a fitting meal off the shelf to make room for the exception
+  // would make the cap cost variety it was never asked to. No row flag and no
+  // prompt change — one over-cap meal on the shelf can be chosen at most once
+  // per plan, which is what 'most' means.
+  if (overCapRows.length > 0) {
+    const onShelf = new Set(selected.map((e) => e.parentKey));
+    const overPool = overCapRows.map(enrich).filter((e) => !onShelf.has(e.parentKey));
+    const [over] = weightedSampleWithoutReplacement(overPool, weightOf, 1, rng);
+    if (over) selected.push(over);
   }
 
   // Order popular-first (rank asc) for the prompt; stable id tiebreak.

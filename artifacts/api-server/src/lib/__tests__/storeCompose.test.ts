@@ -324,6 +324,134 @@ describe("buildStoreShortlist", () => {
   });
 });
 
+// ── D-WS7-166 — the cook-time cap as a shelf predicate ─────────────────────
+//
+// The plain stubPrisma above hands back the same rows for every query, which
+// proves nothing about a filter. These guards assert on the CAPTURED `where`
+// (the object actually passed to findMany), and the 'most' guard uses a stub
+// that honours the time term so the returned shelf can be counted too.
+
+describe("buildStoreShortlist — cook-time cap (D-WS7-166)", () => {
+  // A stub that applies the estimatedTimeMinutes term (lte / gt) and the
+  // derived-only term to the rows it returns — the two terms this block adds.
+  function timeAwareStub(rows: Array<Record<string, unknown>>) {
+    const whereArgs: Array<Record<string, unknown>> = [];
+    const prisma = {
+      meal: {
+        findMany: async (args: { where: Record<string, unknown> }) => {
+          whereArgs.push(args.where);
+          const t = args.where.estimatedTimeMinutes as
+            | { lte?: number; gt?: number }
+            | undefined;
+          const derivedOnly = args.where.activeTimeMinutes !== undefined;
+          return rows.filter((r) => {
+            const m = r.estimatedTimeMinutes as number;
+            if (t?.lte !== undefined && !(m <= t.lte)) return false;
+            if (t?.gt !== undefined && !(m > t.gt)) return false;
+            if (derivedOnly && r.activeTimeMinutes === null) return false;
+            return true;
+          });
+        },
+      },
+    } as unknown as PrismaClient;
+    return { prisma, whereArgs };
+  }
+
+  it("no cap → the where carries no time term and no derived-only term", async () => {
+    const { prisma, whereArgs } = timeAwareStub([mealRow()]);
+    await buildStoreShortlist(prisma, { ...BASE, maxCookTimeMinutes: null });
+    assert.equal(whereArgs.length, 1, "one query, no over-cap fetch");
+    assert.equal("estimatedTimeMinutes" in whereArgs[0], false);
+    assert.equal("activeTimeMinutes" in whereArgs[0], false);
+
+    // Absent entirely (the option not passed) is the same as null.
+    const { prisma: p2, whereArgs: w2 } = timeAwareStub([mealRow()]);
+    await buildStoreShortlist(p2, BASE);
+    assert.equal("estimatedTimeMinutes" in w2[0], false);
+  });
+
+  it("'all' 30 → estimatedTimeMinutes lte 30 AND activeTimeMinutes not null, one query", async () => {
+    const { prisma, whereArgs } = timeAwareStub([mealRow()]);
+    await buildStoreShortlist(prisma, {
+      ...BASE,
+      maxCookTimeMinutes: 30,
+      maxCookTimeCoverage: "all",
+    });
+    assert.equal(whereArgs.length, 1, "'all' must not fetch an over-cap pool");
+    assert.deepEqual(whereArgs[0].estimatedTimeMinutes, { lte: 30 });
+    assert.deepEqual(whereArgs[0].activeTimeMinutes, { not: null });
+    // The base predicate is still there — the cap is added to it, not in place of it.
+    assert.equal(whereArgs[0].isPublic, true);
+    assert.equal(whereArgs[0].mealType, "dinner");
+  });
+
+  it("'most' 30 with a non-empty over-cap pool → exactly ONE shelf row over 30, as the 41st", async () => {
+    // 45 under-cap rows (more than the 40-shelf) + 3 over-cap rows.
+    const rows = [
+      ...Array.from({ length: 45 }, (_, i) =>
+        mealRow({ id: `under-${String(i).padStart(2, "0")}`, estimatedTimeMinutes: 20 + (i % 10), activeTimeMinutes: 10 }),
+      ),
+      mealRow({ id: "over-a", estimatedTimeMinutes: 75, activeTimeMinutes: 20 }),
+      mealRow({ id: "over-b", estimatedTimeMinutes: 90, activeTimeMinutes: 25 }),
+      mealRow({ id: "over-c", estimatedTimeMinutes: 31, activeTimeMinutes: 15 }),
+    ];
+    const { prisma, whereArgs } = timeAwareStub(rows);
+    const out = await buildStoreShortlist(prisma, {
+      ...BASE,
+      maxCookTimeMinutes: 30,
+      maxCookTimeCoverage: "most",
+    });
+    assert.equal(whereArgs.length, 2, "under-cap query + over-cap query");
+    assert.deepEqual(whereArgs[0].estimatedTimeMinutes, { lte: 30 });
+    assert.deepEqual(whereArgs[1].estimatedTimeMinutes, { gt: 30 });
+    assert.deepEqual(whereArgs[1].activeTimeMinutes, { not: null });
+    // Same base predicate on the over-cap query.
+    assert.deepEqual(whereArgs[1].difficulty, whereArgs[0].difficulty);
+
+    const over = out.forPrompt.filter((m) => m.estimatedTimeMinutes > 30);
+    assert.equal(over.length, 1, `exactly one over-cap row, got ${over.length}`);
+    assert.equal(out.forPrompt.length, 41, "40 fitting rows + the one exception");
+    assert.equal(out.forPrompt.filter((m) => m.estimatedTimeMinutes <= 30).length, 40);
+    // The exception resolves to one of the over-cap ids, through the alias map.
+    const overAlias = over[0].id;
+    assert.ok(["over-a", "over-b", "over-c"].includes(out.aliasToId.get(overAlias)!));
+  });
+
+  it("'most' with an EMPTY over-cap pool → no exception row appended", async () => {
+    const rows = Array.from({ length: 5 }, (_, i) =>
+      mealRow({ id: `u${i}`, estimatedTimeMinutes: 25, activeTimeMinutes: 10 }),
+    );
+    const { prisma, whereArgs } = timeAwareStub(rows);
+    const out = await buildStoreShortlist(prisma, {
+      ...BASE,
+      maxCookTimeMinutes: 30,
+      maxCookTimeCoverage: "most",
+    });
+    assert.equal(whereArgs.length, 2);
+    assert.equal(out.forPrompt.length, 5);
+    assert.equal(out.forPrompt.every((m) => m.estimatedTimeMinutes <= 30), true);
+  });
+
+  it("a capped shelf drops a step-less meal (activeTimeMinutes null) even when its claim fits", async () => {
+    const rows = [
+      mealRow({ id: "derived", estimatedTimeMinutes: 25, activeTimeMinutes: 10 }),
+      mealRow({ id: "claimed", estimatedTimeMinutes: 25, activeTimeMinutes: null }),
+    ];
+    const { prisma } = timeAwareStub(rows);
+    const out = await buildStoreShortlist(prisma, {
+      ...BASE,
+      maxCookTimeMinutes: 30,
+      maxCookTimeCoverage: "all",
+    });
+    assert.deepEqual([...out.aliasToId.values()], ["derived"]);
+
+    // Uncapped, the same claim row is on the shelf — no filter, no claim relied on.
+    const { prisma: p2 } = timeAwareStub(rows);
+    const out2 = await buildStoreShortlist(p2, { ...BASE, maxCookTimeMinutes: null });
+    assert.deepEqual([...out2.aliasToId.values()].sort(), ["claimed", "derived"]);
+  });
+});
+
 // ── reconcile guard (D-WS9-038) — unchanged by Block 4b-1 ──────────────────
 
 function candidate(
