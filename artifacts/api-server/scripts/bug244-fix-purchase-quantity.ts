@@ -1,8 +1,16 @@
-// BUG-244 — the 14 Class-B rows store a pack COUNT in a column that means pack
+// BUG-244 — the 15 Class-B rows store a pack COUNT in a column that means pack
 // SIZE, so a one-can need ships two cans.
 //
 // Hans ruled September 9: "They're all individually purchaseable. no packs."
-// → all 14 get purchaseQuantity = 1. Nothing else in the catalog moves.
+// → all 15 get purchaseQuantity = 1. Nothing else in the catalog moves.
+//
+// THE DISCRIMINATOR IS "each", NOT "can". The word "each" in a purchaseDisplay
+// is what makes the parenthesised size PER-UNIT and the leading number a
+// MULTIPLIER — "3 jars (16 oz each)" is three jars of 16 oz, not one 48 oz jar.
+// "can" was a proxy for it and missed `chunky salsa` (purchaseUnit "jar"),
+// which is why the first census held 14. Widened here and re-verified: the
+// "each" form finds exactly these 15 across the 107 rows with
+// purchaseQuantity > 1, and no sixteenth.
 //
 // ── WHY THE IDS ARE FROZEN HERE RATHER THAN RE-QUERIED ────────────────────
 // Re-running the discriminator at apply time would let the SET drift between
@@ -16,10 +24,10 @@
 //   node --env-file=.env --import tsx scripts/bug244-fix-purchase-quantity.ts
 //   node --env-file=.env --import tsx scripts/bug244-fix-purchase-quantity.ts --apply
 //
-// Dry-run is the default and prints the before-hash of the 93 Class-A rows.
+// Dry-run is the default and prints the before-hash of the 92 Class-A rows.
 // --apply writes in ONE transaction and re-prints from a FRESH read plus the
-// after-hash. Verification is: after-hash === before-hash (the 93 untouched)
-// AND all 14 read 1.
+// after-hash. Verification is: after-hash === before-hash (the 92 untouched)
+// AND all 15 read 1.
 import { PrismaClient } from "@prisma/client";
 import crypto from "node:crypto";
 
@@ -39,6 +47,10 @@ const FROZEN: { id: string; name: string }[] = [
   { id: "bd2fece7-ba5f-4b4f-b110-85fcd7e7b62b", name: "canned refried beans" },
   { id: "230b457f-56c6-45b8-8e85-2a8514f53310", name: "canned white cannellini beans" },
   { id: "f3287ad9-32a4-4a9b-b701-0faa71228100", name: "chicken broth" },
+  // Ruled separately, September 10: "chunky salsa is purchased 1 jar at a time."
+  // The only member found by the "each" discriminator but NOT by "can" — which
+  // is why the census Hans first saw held 14 and this one holds 15.
+  { id: "22a31385-0229-4444-891b-13e01edfb0fe", name: "chunky salsa" },
   { id: "24646a9c-f8ea-476b-b3cc-c2373d93870a", name: "dark red kidney beans" },
   { id: "7e3ac570-a911-47cb-8e74-deba619258e5", name: "low-sodium chicken broth" },
   { id: "cf1cf761-d757-463e-bf8f-7ba69970204d", name: "mild red enchilada sauce" },
@@ -48,8 +60,8 @@ const FROZEN: { id: string; name: string }[] = [
 const FROZEN_IDS = FROZEN.map((f) => f.id);
 
 // The untouched set: everything ELSE that carries purchaseQuantity > 1. Defined
-// identically before and after, because the 14 fall out of `> 1` once written —
-// so the same query names the same 93 rows on both sides of the apply.
+// identically before and after, because the 15 fall out of `> 1` once written —
+// so the same query names the same 92 rows on both sides of the apply.
 async function classAHash(): Promise<{ hash: string; n: number }> {
   const rows = await prisma.ingredient.findMany({
     where: { purchaseQuantity: { gt: 1 }, id: { notIn: FROZEN_IDS } },
@@ -145,7 +157,7 @@ console.log(`${"".padEnd(104, "─")}`);
 const afterHash = await classAHash();
 console.log(`\nCLASS-A (untouched set) AFTER : n=${afterHash.n} sha256=${afterHash.hash}`);
 console.log(`\nVERIFICATION`);
-console.log(`  all 14 read 1                : ${allOne ? "YES" : "🔴 NO"}`);
+console.log(`  all ${FROZEN.length} read 1                : ${allOne ? "YES" : "🔴 NO"}`);
 console.log(`  Class-A hash unchanged       : ${afterHash.hash === beforeHash.hash ? "YES" : "🔴 NO"}`);
 console.log(`  Class-A row count unchanged  : ${afterHash.n === beforeHash.n ? `YES (${afterHash.n})` : `🔴 NO (${beforeHash.n} → ${afterHash.n})`}`);
 if (!allOne || afterHash.hash !== beforeHash.hash || afterHash.n !== beforeHash.n) {
