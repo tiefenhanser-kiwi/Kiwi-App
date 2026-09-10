@@ -46,7 +46,20 @@ export interface MealTiming {
  * no recorded intra-dish parallelism to honour.
  */
 export function deriveMealTiming(dishes: SchedulerDish[]): MealTiming {
-  const withSteps = dishes.filter((d) => d.steps.length > 0);
+  // CANONICAL DISH ORDER (D-WS9-235 follow-up). The scheduler's single-cook
+  // pass breaks ideal-start ties by ARRAY INDEX, so the same dishes handed over
+  // in a different order can schedule differently (measured: ±1 minute on
+  // five multi-dish meals, one 76 → 77). Every caller — the save-time stamp
+  // and the backfill — passes through here, so this is the one place the order
+  // is fixed: positionIndex ascending, then dishId ascending. Not the
+  // scheduler's concern: it owns overlap rules, not what order it is asked in.
+  const withSteps = dishes
+    .filter((d) => d.steps.length > 0)
+    .sort(
+      (a, b) =>
+        a.positionIndex - b.positionIndex ||
+        (a.dishId < b.dishId ? -1 : a.dishId > b.dishId ? 1 : 0),
+    );
   if (withSteps.length === 0) {
     return { totalMinutes: null, activeMinutes: null, dishTotals: new Map() };
   }

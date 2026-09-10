@@ -124,10 +124,14 @@ interface Plan { mealId: string; total: number; active: number; dishTotals: Map<
 const plans: Plan[] = [];
 const skipped: { id: string; title: string; why: string }[] = [];
 for (const m of meals) {
+  // No ordering here, on purpose: the REAL link positionIndex is passed through
+  // and deriveMealTiming applies the one canonical comparator (positionIndex,
+  // then dishId). Pre-sorting and re-indexing to 0..n here used to erase a
+  // positionIndex tie before the comparator could see it, leaving the tie to
+  // the DB's return order.
   const dishes: SchedulerDish[] = m.dishLinks
     .filter((dl) => byDish.has(dl.dishId))
-    .sort((a, b) => a.positionIndex - b.positionIndex)
-    .map((dl, i) => ({ dishId: dl.dishId, title: dl.dishId, positionIndex: i, steps: byDish.get(dl.dishId)! }));
+    .map((dl) => ({ dishId: dl.dishId, title: dl.dishId, positionIndex: dl.positionIndex, steps: byDish.get(dl.dishId)! }));
   const t = deriveMealTiming(dishes);
   if (t.totalMinutes === null || t.activeMinutes === null) {
     skipped.push({ id: m.id, title: m.title, why: m.dishLinks.length === 0 ? "no dishes" : "no steps on any dish" });

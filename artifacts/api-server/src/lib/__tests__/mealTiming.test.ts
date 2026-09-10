@@ -73,6 +73,31 @@ describe("deriveMealTiming (D-WS9-235)", () => {
     assert.equal(t.activeMinutes, 30);
     assert.equal(t.dishTotals.has("stepless"), false, "no total for a dish with no steps");
   });
+
+  it("canonical dish order: the derived total does not depend on the array order handed in", () => {
+    // Two 25-minute dishes → both ideal-start at 0, so the scheduler's
+    // single-cook pass breaks the tie by ARRAY INDEX. A: 5 attended + 20
+    // unattended. B: 5 attended + 20 attended. Handed A-first the total is 30;
+    // handed B-first, B's attended 20 holds the cook until 30 and A's
+    // unattended 20 cannot even be kicked off until then → 50. Without a
+    // canonical sort, the same meal derives to two different numbers.
+    const a = dish("a", [{ min: 5, phase: "prep" }, { min: 20, phase: "cook", sensitive: false }], 0);
+    const b = dish("b", [{ min: 5, phase: "prep" }, { min: 20, phase: "cook", sensitive: true }], 1);
+    const forward = deriveMealTiming([a, b]);
+    const reversed = deriveMealTiming([b, a]);
+    assert.equal(forward.totalMinutes, 30, "A-first schedule");
+    assert.equal(reversed.totalMinutes, forward.totalMinutes, "order-independent");
+    assert.equal(reversed.activeMinutes, forward.activeMinutes);
+  });
+
+  it("canonical dish order: a positionIndex tie is broken by dishId, not by array order", () => {
+    // Same fixture, both dishes at positionIndex 0. 'a' < 'b' so 'a' schedules
+    // first whichever way the array arrives.
+    const a = dish("a", [{ min: 5, phase: "prep" }, { min: 20, phase: "cook", sensitive: false }], 0);
+    const b = dish("b", [{ min: 5, phase: "prep" }, { min: 20, phase: "cook", sensitive: true }], 0);
+    assert.equal(deriveMealTiming([b, a]).totalMinutes, 30);
+    assert.equal(deriveMealTiming([a, b]).totalMinutes, 30);
+  });
 });
 
 // ── WS9 D-WS9-235 — DERIVE AT SAVE, end to end through materializeMeal ──────
