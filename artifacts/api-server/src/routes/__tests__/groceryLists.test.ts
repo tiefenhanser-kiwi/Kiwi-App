@@ -3074,6 +3074,12 @@ function seedB2Item(
     userResolvedTo: null,
     deletedAt: null,
     notes: null,
+    // WS9 BUG-240 — explicit nulls so a stub row is shaped like a REAL row: the
+    // columns exist and read null, they are not absent. Omitting them made a
+    // GET assertion compare undefined to null and fail for the wrong reason.
+    purchaseUnitOverride: null,
+    purchaseQuantityOverride: null,
+    purchaseDisplayOverride: null,
     ...overrides,
   };
   state.listItems.push(row);
@@ -3332,6 +3338,55 @@ describe("PATCH /api/grocery-lists/:id/items/:itemId", () => {
       assert.equal(read?.purchaseQuantityOverride, null, "cleared");
       assert.equal(read?.purchaseUnitOverride, "jar", "untouched");
       assert.equal(read?.purchaseDisplayOverride, "3 jars (5 oz)", "untouched");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── WS9 BUG-240 — THE READ SIDE ────────────────────────────────────────
+  //
+  // 1829a19 mapped the PATCH side and nobody checked the GET. The three columns
+  // are emitted today only because every item-returning route uses Prisma
+  // `include` / no `select` and then spreads the whole row — i.e. by accident of
+  // shape, not by decision. The mobile lane's editor reads these off the item,
+  // so a future hand-written projection would silently make its whole block
+  // inert with no test to say so.
+  //
+  // ⚠️ WHAT THIS GUARD DOES NOT COVER, stated so nobody trusts it further than
+  // it goes: the harness is a hand-rolled stub whose findFirst projects the
+  // full in-memory row and ignores `select`. So it catches an explicit
+  // projection in the ROUTE (the realistic regression — someone destructuring
+  // or re-shaping the item), but it CANNOT catch a `select:` added to the
+  // Prisma query itself. That regression is invisible to this suite.
+  it("GET detail EMITS the purchase overrides after a PATCH sets one", async () => {
+    const harness = await spinUp();
+    seedB2List(harness.state);
+    seedB2Item(harness.state, {
+      purchaseUnit: "container",
+      purchaseQuantity: 2,
+      purchaseDisplay: "2 containers (5 oz each)",
+    });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/grocery-lists/${B2_LIST}/items/${B2_ITEM}`,
+        {
+          method: "PATCH",
+          headers: bearer(B2_USER),
+          body: JSON.stringify({ purchaseQuantity: 3 }),
+        },
+      );
+      assert.equal(res.status, 200);
+      // The round trip the mobile lane is gated on: write via PATCH, read back
+      // via the SAME GET the list screen uses.
+      const read = await getItemViaDetail(harness.baseUrl, B2_LIST, B2_ITEM);
+      assert.equal(read?.purchaseQuantityOverride, 3, "the override must reach the client");
+      // And the derived value is still there underneath, so the client can show
+      // both "you chose 3" and what the app suggested.
+      assert.equal(read?.purchaseQuantity, 2, "the derived pack must survive");
+      assert.equal(read?.purchaseDisplay, "2 containers (5 oz each)");
+      // The untouched overrides read as null rather than being absent.
+      assert.equal(read?.purchaseUnitOverride, null);
+      assert.equal(read?.purchaseDisplayOverride, null);
     } finally {
       await harness.close();
     }
