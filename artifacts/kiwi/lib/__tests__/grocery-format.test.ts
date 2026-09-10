@@ -13,6 +13,8 @@ import {
   pluralizeIngredientName,
   singularizeIngredientName,
   normalizeUnitToken,
+  purchaseEditorPatch,
+  purchaseEditorSeed,
   GROCERY_UNIT_OPTIONS,
 } from "../format/grocery";
 
@@ -1287,6 +1289,155 @@ describe("BUG-240: a quantity-only override keeps the label's plural", () => {
         false, { quantity: 3, display: "big bunch" },
       ),
       "3 big bunches green onions",
+    );
+  });
+});
+
+// WS9 BUG-240 follow-up — a quantity-only edit changes the COUNT and the
+// PLURAL and nothing else.
+//
+// Hans, Sept 10, on device: "I changed 1 White Onion (1/2 each) to 2 in the
+// quantity, and it changed the row to 2 medium white onion white onion …
+// avocados … went from 2 avocados to 3 avocados ripe avocado."
+//
+// Two causes, both fixed, and both pinned:
+//   1. The composer's override branch built EVERY row as residue + name +
+//      elide (Rule 2's shape). A counted row whose residue does not name the
+//      item takes Rule 1, which prints the NAME and never the residue — so
+//      the derived and the overridden title disagreed on shape, not just on
+//      number. Ruled: the override title at a count EQUALS the derived title
+//      at that count.
+//   2. The editor sent every field on every commit, so the seeded label was
+//      persisted as purchaseDisplayOverride and rendered verbatim (guard g).
+//      purchaseEditorPatch sends only what differs from the seed.
+//
+// Fixtures are the live rows from Hans's lists (probe, Sept 10): name /
+// purchaseUnit / purchaseDisplay / need / needUnit as stored.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("BUG-240: a quantity-only override equals the derived title at that count", () => {
+  // [name, purchaseUnit, purchaseDisplay, needUnit, liveNeed, [title at 1, at 2, at 3]]
+  const ROWS: [string, string, string, string, number, [string, string, string]][] = [
+    // Rule 1, residue does NOT name the item → the NAME, counted.
+    ["White onion", "each", "1 medium white onion", "each", 0.5, ["1 White onion", "2 White onions", "3 White onions"]],
+    ["ripe avocado", "each", "3 avocados", "each", 2, ["1 ripe avocado", "2 ripe avocados", "3 ripe avocados"]],
+    // Rule 1, residue names the item → Root D at 1, the residue pluralised above.
+    ["Lemon", "each", "2 lemons", "each", 1.5, ["1 Lemon", "2 lemons", "3 lemons"]],
+    // Rule 2, a real container → the pack label agrees with the count.
+    ["bananas", "bunch", "1 bunch", "bunch", 1, ["1 bunch bananas", "2 bunches bananas", "3 bunches bananas"]],
+    ["Fresh thyme", "bunch", "1 bunch", "tablespoon", 1, ["1 bunch Fresh thyme", "2 bunches Fresh thyme", "3 bunches Fresh thyme"]],
+  ];
+
+  it("guard (h) — the DERIVED title at counts 1–3 (the literal expectations)", () => {
+    // Rule 1 rows reach a count through the need itself.
+    for (const [n, pu, pd, nu, , want] of ROWS.filter(([, pu]) => pu === "each")) {
+      for (const q of [1, 2, 3]) {
+        assert.equal(composePackName(n, pu, pd, q, nu), want[q - 1], `${n} derived at ${q}`);
+      }
+    }
+    // Rule 2 rows reach a count through the need only where the units relate
+    // (bananas: bunch/bunch). Thyme's need is a tablespoon against a bunch and
+    // stays at one pack whatever the need — its "derived at 2" is the scaled
+    // shape scalePackDisplay would give, which bananas demonstrates.
+    assert.equal(composePackName("bananas", "bunch", "1 bunch", 1, "bunch"), "1 bunch bananas");
+    assert.equal(composePackName("bananas", "bunch", "1 bunch", 2, "bunch"), "2 bunches bananas");
+    assert.equal(composePackName("bananas", "bunch", "1 bunch", 3, "bunch"), "3 bunches bananas");
+    assert.equal(composePackName("Fresh thyme", "bunch", "1 bunch", 1, "tablespoon"), "1 bunch Fresh thyme");
+    assert.equal(composePackName("Fresh thyme", "bunch", "1 bunch", 3, "tablespoon"), "1 bunch Fresh thyme");
+  });
+
+  it("guard (i) — a quantity-only override at 1–3 is that same literal, on every row", () => {
+    for (const [n, pu, pd, nu, liveNeed, want] of ROWS) {
+      // The need is what the live row carries (½ onion, 2 avocados, 1½ lemons,
+      // 1 bunch, 1 tablespoon) — the override count is what moves.
+      for (const q of [1, 2, 3]) {
+        assert.equal(
+          composePackName(n, pu, pd, liveNeed, nu, false, { quantity: q }),
+          want[q - 1],
+          `${n} quantity-only override at ${q}`,
+        );
+      }
+    }
+    // The two literal strings from the device, gone.
+    assert.notEqual(
+      composePackName("White onion", "each", "1 medium white onion", 0.5, "each", false, { quantity: 2 }),
+      "2 medium white onion White onion",
+    );
+    assert.notEqual(
+      composePackName("ripe avocado", "each", "3 avocados", 2, "each", false, { quantity: 3 }),
+      "3 avocados ripe avocado",
+    );
+  });
+
+  it("guard (j) — no pack: a count and a measure keep their derived shape", () => {
+    // Rule 3, count: the NAME counted, same as derived.
+    assert.equal(composePackName("Carrots", "each", null, 2, "each"), "2 Carrots");
+    assert.equal(composePackName("Carrots", "each", null, 2, "each", false, { quantity: 1 }), "1 Carrot");
+    assert.equal(composePackName("Carrots", "each", null, 2, "each", false, { quantity: 3 }), "3 Carrots");
+    // Rule 3, measure: the need's unit rides along, pluralised — not "3 flour".
+    assert.equal(composePackName("flour", null, null, 2, "cup"), "2 cup flour");
+    assert.equal(composePackName("flour", null, null, 2, "cup", false, { quantity: 3 }), "3 cup flour");
+    assert.equal(composePackName("bread", null, null, 1, "loaf"), "1 loaf bread");
+    assert.equal(composePackName("bread", null, null, 1, "loaf", false, { quantity: 2 }), "2 loaves bread");
+  });
+
+  it("guard (k) — a USER label still renders verbatim on these rows (guard g holds)", () => {
+    assert.equal(
+      composePackName("White onion", "each", "1 medium white onion", 0.5, "each", false, { quantity: 2, display: "large onions" }),
+      "2 large onions White onion",
+    );
+    assert.equal(
+      composePackName("Lemon", "each", "2 lemons", 1.5, "each", false, { quantity: 1, display: "lemons" }),
+      "1 lemons",
+    );
+  });
+});
+
+describe("BUG-240: purchaseEditorPatch sends only what differs from the seed", () => {
+  // The onion row's seed, as purchaseEditorSeed hands it to the editor.
+  const seedOf = () => {
+    const s = purchaseEditorSeed("each", "1 medium white onion", 0.5, "each", {
+      quantity: null,
+      display: null,
+    });
+    return { quantity: s.quantity, label: s.label, name: "White onion" };
+  };
+
+  it("guard (l) — the onion seed is what the device showed", () => {
+    assert.deepEqual(seedOf(), { quantity: "1", label: "medium white onion", name: "White onion" });
+  });
+
+  it("guard (m) — a quantity-only edit sends the quantity and NOTHING else", () => {
+    const seed = seedOf();
+    const patch = purchaseEditorPatch(seed, { ...seed, quantity: "2" });
+    assert.deepEqual(patch, { purchaseQuantity: 2 });
+    // The literal defect: the untouched label must NOT be on the wire.
+    assert.equal("purchaseDisplay" in patch, false);
+    assert.equal("displayName" in patch, false);
+  });
+
+  it("guard (n) — unchanged → key absent; emptied → null; changed → the value", () => {
+    const seed = seedOf();
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed }), {});
+    // Whitespace is not a change.
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed, label: "  medium white onion " }), {});
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed, label: "" }), { purchaseDisplay: null });
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed, label: "large onions" }), { purchaseDisplay: "large onions" });
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed, quantity: "" }), { purchaseQuantity: null });
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed, quantity: "1 1/2" }), { purchaseQuantity: 1.5 });
+    // A changed quantity that is not a positive number clears, as before.
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed, quantity: "abc" }), { purchaseQuantity: null });
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed, quantity: "0" }), { purchaseQuantity: null });
+  });
+
+  it("guard (o) — the name: changed → displayName; emptied → absent, never null", () => {
+    const seed = seedOf();
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed, name: "Sweet onion" }), { displayName: "Sweet onion" });
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed, name: "" }), {});
+    assert.deepEqual(purchaseEditorPatch(seed, { ...seed, name: "   " }), {});
+    // All three at once.
+    assert.deepEqual(
+      purchaseEditorPatch(seed, { quantity: "3", label: "", name: "Sweet onion" }),
+      { purchaseQuantity: 3, purchaseDisplay: null, displayName: "Sweet onion" },
     );
   });
 });

@@ -791,6 +791,132 @@ export function purchaseEditorSeed(
   return { quantity: formatPackAmount(quantity), label };
 }
 
+/** The purchase editor's three fields, as the strings the inputs hold. */
+export interface PurchaseEditorFields {
+  quantity: string;
+  label: string;
+  name: string;
+}
+
+/**
+ * The body of the item PATCH a purchase edit produces. Wire keys, not column
+ * names: the server maps `purchaseQuantity` / `purchaseDisplay` onto the
+ * *Override columns (groceryLists.ts). A key that is ABSENT leaves the column
+ * alone; `null` clears it; a value sets it.
+ */
+export interface PurchaseEditorPatch {
+  purchaseQuantity?: number | null;
+  purchaseDisplay?: string | null;
+  displayName?: string;
+}
+
+/**
+ * WS9 BUG-240 follow-up — what a purchase edit SENDS, decided field by field
+ * against what the editor SEEDED.
+ *
+ * The first cut sent every field on every commit, so a label the user never
+ * touched — the seeded residue, "medium white onion" — was persisted as
+ * `purchaseDisplayOverride`. A stored label renders verbatim (guard g: no
+ * elide, no plural), which is exactly right for a label the user typed and
+ * exactly wrong for one they were merely shown: every one of the 12 override
+ * rows live on Sept 10 carried its own seed as an override.
+ *
+ * So: a field UNCHANGED from its seed is not sent (the column keeps whatever
+ * it holds — nothing, or an override the user set earlier and was shown
+ * again). A field EMPTIED is sent as `null`, which clears the override. A
+ * field CHANGED is sent as its value. Comparison is on the trimmed strings
+ * the inputs hold, the same normalisation the seed applied.
+ *
+ * The quantity gets the same three-way treatment, for the same reason: an
+ * unchanged number is the derived one, and pinning it as an override would
+ * stop the row re-deriving when the need changes. A changed quantity that
+ * does not parse to a positive number is sent as `null` — the pre-existing
+ * rule (a nonsense number clears rather than persists).
+ *
+ * The name never sends `null`: the row renders `userResolvedTo ?? name`, and
+ * an empty box means "leave it alone", not "blank the row" (BUG-117 (3)).
+ */
+export function purchaseEditorPatch(
+  seed: PurchaseEditorFields,
+  edited: PurchaseEditorFields,
+): PurchaseEditorPatch {
+  const patch: PurchaseEditorPatch = {};
+  const qty = edited.quantity.trim();
+  if (qty !== seed.quantity.trim()) {
+    const parsed = qty.length > 0 ? parseQuantity(qty) : null;
+    patch.purchaseQuantity = parsed !== null && parsed > 0 ? parsed : null;
+  }
+  const label = edited.label.trim();
+  if (label !== seed.label.trim()) {
+    patch.purchaseDisplay = label.length > 0 ? label : null;
+  }
+  const name = edited.name.trim();
+  if (name.length > 0 && name !== seed.name.trim()) {
+    patch.displayName = name;
+  }
+  return patch;
+}
+
+/**
+ * The order line for a COUNTED row — the pack and the need are both counts
+ * (or there is no pack at all), so the line is a number and a noun. This is
+ * Rule 1's body, extracted so the quantity-only override can run it with
+ * the user's count in place of the need's: a quantity edit changes the
+ * number and the plural and NOTHING else, so the override title at a count
+ * must equal the derived title at that count.
+ *
+ * WS9 BUG-240 follow-up. The override branch used to build its line from the
+ * residue + name + elide, which is Rule 2's shape. Rule 1 does not print the
+ * residue when it fails to name the item — it prints the NAME, counted —
+ * and so "1 medium white onion" against "White onion" rendered "1 White
+ * onion" derived but "2 medium white onion White onion" overridden.
+ */
+function countedPackTitle(residue: string, name: string, q: number): string {
+  const count = formatPackAmount(q);
+  if (residueNamesItem(residue, name)) {
+    // WS9 Root D — at a count of exactly 1 the stored residue is still the
+    // pack's own plural ("2 lemons" -> "lemons"), so swapping the count in
+    // front of it reads "1 lemons". The ingredient NAME is authored singular
+    // in 22 of the 23 live rows, so prefer it. No stemmer: a name that is
+    // itself plural ("roma tomatoes") has no singular to fall back to and
+    // stays plural - one live row, accepted rather than stemmed.
+    // No `!isPluralWord(name)` guard here: mutation testing proved it dead.
+    // This branch only runs when the residue already NAMES the item, so the
+    // fallback IS the name — for a plural name ("roma tomatoes") both sides
+    // return the same string, and the extra condition could never change an
+    // output. Deleted rather than left as reassuring-looking dead code.
+    if (q === 1 && isPluralWord(lastWord(residue))) {
+      return `1 ${name}`;
+    }
+    // WS9 BUG-149 — the MIRROR of the line above, and it shipped for the same
+    // reason Root D's own defect did: the guard was written for one count and
+    // the opposite count was never tried. The comment above assumes the
+    // stored residue is "authored and correctly pluralized", which holds for
+    // "4 roma tomatoes" and fails flat for a pack authored SINGULAR: "1
+    // apple" against a need of 2 printed "2 apple" (live, list 93a03e23).
+    // PRE-EXISTING, not a BUG-144 regression — verified byte-identical on the
+    // pre-BUG-144 commit; BUG-144 only ever touched the two branches that do
+    // NOT reuse the residue.
+    //
+    // ⚠️ NO `q > 1` AND NO `!isPluralWord(residue)` GUARD, and both omissions
+    // are mutation-proved rather than assumed. The first draft carried both;
+    // deleting either left the suite fully green, because
+    // pluralizeIngredientName ALREADY declines in exactly those two cases —
+    // it no-ops at quantity <= 1, and pluralizeNoun no-ops on a word
+    // isPluralWord already calls plural. Guarding here restated a condition
+    // the callee enforces, which reads as protection while pinning nothing.
+    // The one thing that IS load-bearing is routing the residue through the
+    // pluraliser at all; Break K (reverting to a bare `residue`) is red.
+    return `${count} ${pluralizeIngredientName(residue, q)}`;
+  }
+  // WS9 BUG-144 — the branch Root D did not cover. Here the residue does NOT
+  // name the item (or there is no pack), so there is no authored-singular
+  // fallback and the NAME itself carries the plural ("garlic cloves" against
+  // "1 head of garlic"). countedName singularises it at exactly 1 and
+  // pluralises above it.
+  return `${count} ${countedName(name, q)}`;
+}
+
 export function composePackName(
   name: string,
   purchaseUnit: string | null | undefined,
@@ -864,21 +990,43 @@ export function composePackName(
       ? derivedPackDisplay(purchaseDisplay, need, nUnit, pUnit)
       : "";
     const qty = ovrQty ?? packLeadingQuantity(shown) ?? 1;
-    const label =
+    const userLabel =
       ovrLabel !== undefined && ovrLabel !== null && ovrLabel.trim().length > 0
         ? // The user's own string is NEVER touched — not pluralised, not
           // stripped, not rescaled.
           ovrLabel.trim()
-        : // Ruled Sept 10: a quantity-only override still has to READ right.
-          // The derived label agrees with the override count — grammar only,
-          // and none of the scaling path. Same stored string gives
-          // "1 container (5 oz)" and "3 containers (5 oz)".
-          agreePackLabel(packResidue(purchaseDisplay ?? ""), qty);
-    const head = `${formatPackAmount(qty)}${label ? ` ${label}` : ""}`;
+        : null;
+    if (userLabel === null) {
+      // ── Quantity-only: the DERIVED title at the user's count ─────────────
+      // WS9 BUG-240 follow-up. Ruled Sept 10: a quantity edit changes the
+      // number and the plural and nothing else — so the line takes the SAME
+      // shape the derived path would give at that count, per rule. Building
+      // it from residue + name + elide (Rule 2's shape) for every row was
+      // the bug: a counted row whose residue does not name the item prints
+      // the NAME, not the residue, and the old branch printed both —
+      // "2 medium white onion White onion", "3 avocados ripe avocado".
+      if (needIsCount && (pUnit === "each" || !purchaseDisplay)) {
+        // Rule 1 / Rule 3-count shape: a count and a noun.
+        return countedPackTitle(packResidue(purchaseDisplay ?? ""), name, qty);
+      }
+      if (!purchaseDisplay) {
+        // Rule 3-measure shape: the need's unit rides along, pluralised by the
+        // same helper — "2 cups flour" overridden to 3 is "3 cups flour",
+        // not "3 flour".
+        return `${formatPackAmount(qty)} ${pluralizeNeedUnit(nUnit, qty)} ${name}`;
+      }
+      // Rule 2 shape: a real container. The derived label agrees with the
+      // override count — grammar only, none of the scaling path. Same stored
+      // string gives "1 container (5 oz)" and "3 containers (5 oz)".
+      const residue = packResidue(purchaseDisplay);
+      const head = `${formatPackAmount(qty)} ${agreePackLabel(residue, qty)}`;
+      return residueNamesItem(residue, name) ? head : `${head} ${name}`;
+    }
+    const head = `${formatPackAmount(qty)} ${userLabel}`;
     // The presentation elide survives: a label that already names the item
     // ("roma tomatoes") would otherwise print the name twice. This is not a
     // scaling step — it is the same dedupe the derived path does.
-    return residueNamesItem(label, name) ? head : `${head} ${name}`;
+    return residueNamesItem(userLabel, name) ? head : `${head} ${name}`;
   }
 
   // ── Rule 3: no pack ──────────────────────────────────────────────────────
@@ -892,7 +1040,8 @@ export function composePackName(
       const q = Math.ceil(need - 1e-9);
       // BUG-144 — countedName, not pluralizeIngredientName: a name authored
       // plural ("Carrots") against a need of 1 read "1 Carrots" here too.
-      return `${q} ${countedName(name, q)}`;
+      // No residue to consider, so this is countedPackTitle's name branch.
+      return countedPackTitle("", name, q);
     }
     // A measured need carries its unit — a bare number would be meaningless.
     // The unit is pluralized by the SAME helper the parenthetical uses, so the
@@ -907,53 +1056,11 @@ export function composePackName(
   const packNamesItem = residueNamesItem(residue, name);
 
   // ── Rule 1: both units are the count unit → the pack is meaningless ──────
+  // The body lives in countedPackTitle (BUG-240 follow-up) so the quantity-only
+  // override can produce the same line at the user's count. Root D, BUG-149
+  // and BUG-144 are all in there, with their notes.
   if (pUnit === "each" && needIsCount && need !== null) {
-    const q = Math.ceil(need - 1e-9);
-    // Reuse the stored residue when it already names the item — it is authored
-    // and correctly pluralized ("roma tomatoes"), so no pluralizer is needed
-    // for this majority case. Only a mismatch ("4 ears" vs "ear of corn")
-    // falls through to pluralizing the name.
-    if (packNamesItem) {
-      // WS9 Root D — at a count of exactly 1 the stored residue is still the
-      // pack's own plural ("2 lemons" -> "lemons"), so swapping the count in
-      // front of it reads "1 lemons". The ingredient NAME is authored singular
-      // in 22 of the 23 live rows, so prefer it. No stemmer: a name that is
-      // itself plural ("roma tomatoes") has no singular to fall back to and
-      // stays plural - one live row, accepted rather than stemmed.
-      // No `!isPluralWord(name)` guard here: mutation testing proved it dead.
-      // This branch only runs when the residue already NAMES the item, so the
-      // fallback IS the name — for a plural name ("roma tomatoes") both sides
-      // return the same string, and the extra condition could never change an
-      // output. Deleted rather than left as reassuring-looking dead code.
-      if (q === 1 && isPluralWord(lastWord(residue))) {
-        return `1 ${name}`;
-      }
-      // WS9 BUG-149 — the MIRROR of the line above, and it shipped for the same
-      // reason Root D's own defect did: the guard was written for one count and
-      // the opposite count was never tried. The comment above assumes the
-      // stored residue is "authored and correctly pluralized", which holds for
-      // "4 roma tomatoes" and fails flat for a pack authored SINGULAR: "1
-      // apple" against a need of 2 printed "2 apple" (live, list 93a03e23).
-      // PRE-EXISTING, not a BUG-144 regression — verified byte-identical on the
-      // pre-BUG-144 commit; BUG-144 only ever touched the two branches that do
-      // NOT reuse the residue.
-      //
-      // ⚠️ NO `q > 1` AND NO `!isPluralWord(residue)` GUARD, and both omissions
-      // are mutation-proved rather than assumed. The first draft carried both;
-      // deleting either left the suite fully green, because
-      // pluralizeIngredientName ALREADY declines in exactly those two cases —
-      // it no-ops at quantity <= 1, and pluralizeNoun no-ops on a word
-      // isPluralWord already calls plural. Guarding here restated a condition
-      // the callee enforces, which reads as protection while pinning nothing.
-      // The one thing that IS load-bearing is routing the residue through the
-      // pluraliser at all; Break K (reverting to a bare `residue`) is red.
-      return `${q} ${pluralizeIngredientName(residue, q)}`;
-    }
-    // WS9 BUG-144 — the branch Root D did not cover. Here the residue does NOT
-    // name the item, so there is no authored-singular fallback and the NAME
-    // itself carries the plural ("garlic cloves" against "1 head of garlic").
-    // countedName singularises it at exactly 1 and pluralises above it.
-    return `${q} ${countedName(name, q)}`;
+    return countedPackTitle(residue, name, Math.ceil(need - 1e-9));
   }
 
   // ── Rule 2: the units differ → a real container, used as stored ──────────

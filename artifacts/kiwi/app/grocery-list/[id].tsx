@@ -32,7 +32,9 @@ import { GROCERY_SECTIONS } from "@/lib/domain";
 import {
   composePackName,
   formatNeedText,
+  purchaseEditorPatch,
   purchaseEditorSeed,
+  type PurchaseEditorFields,
 } from "@/lib/format/grocery";
 import { parseQuantity } from "@/lib/quantity";
 import { getGroceryListById } from "@/lib/stubs";
@@ -164,6 +166,16 @@ export default function GroceryListDetail() {
   // and the `if (!editingItemId) return` guard passes twice. Only a ref can be
   // cleared synchronously. EVERY write to editingItemId state writes this too.
   const editingItemIdRef = useRef<string | null>(null);
+  // WS9 BUG-240 follow-up — what the three fields were SEEDED with, so the
+  // commit can send only what the user changed (purchaseEditorPatch). The
+  // first cut sent every field, and an untouched label was persisted as an
+  // override — which renders verbatim and printed the item twice.
+  // ⚠️ A hook: stays ABOVE the early returns (e644c6c).
+  const editSeedRef = useRef<PurchaseEditorFields>({
+    quantity: "",
+    label: "",
+    name: "",
+  });
 
   // WS9 BUG-117 — Android back exits EDIT MODE, not the screen.
   //
@@ -509,9 +521,11 @@ export default function GroceryListDetail() {
         display: item.purchaseDisplayOverride,
       },
     );
+    const name = item.userResolvedTo ?? item.name;
+    editSeedRef.current = { quantity: seed.quantity, label: seed.label, name };
     setEditPurchaseQty(seed.quantity);
     setEditPurchaseLabel(seed.label);
-    setEditName(item.userResolvedTo ?? item.name);
+    setEditName(name);
   };
 
   const commitQuantityEdit = () => {
@@ -521,23 +535,25 @@ export default function GroceryListDetail() {
       return;
     }
     editingItemIdRef.current = null;
-    // Empty → null → the override is CLEARED and the row reverts to the
-    // derived pack. undefined would mean "leave it alone", which is not the
-    // same thing and is why these are normalised here rather than at the
-    // call site.
-    const qtyRaw = editPurchaseQty.trim();
-    const parsedQty = qtyRaw.length > 0 ? parseQuantity(qtyRaw) : null;
-    const nextQty = parsedQty !== null && parsedQty > 0 ? parsedQty : null;
-    const labelRaw = editPurchaseLabel.trim();
-    const nextLabel = labelRaw.length > 0 ? labelRaw : null;
+    // WS9 BUG-240 follow-up — ONLY what the user CHANGED goes on the wire,
+    // decided field by field against the seed (purchaseEditorPatch): unchanged
+    // → the key is absent and the column is left alone; emptied → null, the
+    // override is CLEARED and the row reverts to the derived pack; changed →
+    // the value. The first cut sent every field, so an untouched label was
+    // persisted as an override and rendered verbatim — "2 medium white onion
+    // White onion".
+    const patch = purchaseEditorPatch(editSeedRef.current, {
+      quantity: editPurchaseQty,
+      label: editPurchaseLabel,
+      name: editName,
+    });
     // Snapshot the pre-edit values so a failed persist can revert cleanly.
     const prior = list?.items.find((it) => it.id === itemId);
     // WS9 BUG-117 (3) — the name. The row RENDERS `userResolvedTo ?? name`, so
-    // the pre-edit display name is that same projection and an empty box means
-    // "leave it alone" rather than "blank the row".
-    const priorDisplayName = prior?.userResolvedTo ?? prior?.name;
-    const newName = editName.trim();
-    const nameChanged = newName.length > 0 && newName !== priorDisplayName;
+    // the seed is that same projection and an empty box means "leave it
+    // alone" rather than "blank the row" (the helper never sends null here).
+    const newName = patch.displayName;
+    const nameChanged = newName !== undefined;
     // If the row carried a clarify projection (userResolvedTo), a rename has
     // to move that too — otherwise the projection keeps winning at render and
     // the user's own typing appears not to have taken.
@@ -551,9 +567,21 @@ export default function GroceryListDetail() {
                 ? {
                     ...it,
                     // ⚠️ quantityAmount / quantityUnit are NOT touched. The
-                    // need is read-only now; only the purchase moves.
-                    purchaseQuantityOverride: nextQty ?? undefined,
-                    purchaseDisplayOverride: nextLabel ?? undefined,
+                    // need is read-only now; only the purchase moves. The
+                    // local row mirrors the wire exactly: an absent key keeps
+                    // what the row had.
+                    ...("purchaseQuantity" in patch
+                      ? {
+                          purchaseQuantityOverride:
+                            patch.purchaseQuantity ?? undefined,
+                        }
+                      : null),
+                    ...("purchaseDisplay" in patch
+                      ? {
+                          purchaseDisplayOverride:
+                            patch.purchaseDisplay ?? undefined,
+                        }
+                      : null),
                     ...(nameChanged ? { name: newName } : null),
                     ...(alsoMoveProjection
                       ? { userResolvedTo: newName }
@@ -583,13 +611,14 @@ export default function GroceryListDetail() {
     // purchaseUnitOverride is deliberately NOT written: the display string
     // is the truth, and a second field to keep in sync is a second field to
     // get out of sync.
-    updateGroceryItemDetails(listId, itemId, {
-      purchaseQuantity: nextQty,
-      purchaseDisplay: nextLabel,
-      // Omitted entirely when unchanged — a purchase edit must not restate
-      // the name (see AppContext.grocery.test.ts).
-      ...(nameChanged ? { displayName: newName } : null),
-    }).catch(
+    // Every key is omitted when unchanged — the name always was (a purchase
+    // edit must not restate it, see AppContext.grocery.test.ts), and the
+    // purchase fields now are too, for the same reason.
+    if (Object.keys(patch).length === 0) {
+      console.log("[grocery-list] commit no-op (nothing changed)");
+      return;
+    }
+    updateGroceryItemDetails(listId, itemId, patch).catch(
       (err) => {
         console.warn("[grocery-list] quantity edit persist failed", err);
         if (prior) {
