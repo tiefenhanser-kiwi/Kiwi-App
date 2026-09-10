@@ -70,6 +70,18 @@ export interface ScheduleResult {
   steps: ScheduledStep[];
   // Wall-clock minutes from cook-start (t=0) to the last finish (serve).
   totalEstimatedMinutes: number;
+  // WS9 D-WS9-235 — HANDS-ON minutes: the sum of every ATTENDED step, i.e. the
+  // time the cook is actually occupied. Unattended steps run in the background
+  // and are excluded, which is why this is normally far below
+  // totalEstimatedMinutes (a 55-minute bake costs 0 attended minutes).
+  //
+  // ⚠️ COMPUTED HERE, BESIDE isUnattended, ON PURPOSE. Hans's ruling is that
+  // the derived numbers use THIS module's parallelism rules — "we did a lot of
+  // work on this and what counts as parallel or not, so the rules are there".
+  // Any caller that summed attended minutes itself would be a second copy of
+  // the predicate, free to drift from the one the schedule is actually built
+  // from. Callers read this field; they never re-derive it.
+  activeEstimatedMinutes: number;
 }
 
 /**
@@ -147,7 +159,7 @@ export function scheduleCookingSequence(
   // Guard: no dishes / no steps -> empty schedule (caller handles empties).
   const nonEmpty = dishes.filter((d) => d.steps.length > 0);
   if (nonEmpty.length === 0) {
-    return { steps: [], totalEstimatedMinutes: 0 };
+    return { steps: [], totalEstimatedMinutes: 0, activeEstimatedMinutes: 0 };
   }
 
   // 1. Per-dish duration + anchor.
@@ -231,7 +243,17 @@ export function scheduleCookingSequence(
     return entry;
   });
 
-  return { steps, totalEstimatedMinutes: serveAnchor };
+  // WS9 D-WS9-235 — attended minutes, from the SAME `unattended` flag the
+  // schedule above was built from (set by isUnattended at window-build time).
+  // Summed rather than measured off the timeline because attended steps
+  // serialize by construction — cookBusyUntil advances by exactly this much —
+  // so the sum and the occupied-timeline length are the same number.
+  const activeEstimatedMinutes = work.reduce(
+    (sum, w) => (w.unattended ? sum : sum + w.step.estimatedMinutes),
+    0,
+  );
+
+  return { steps, totalEstimatedMinutes: serveAnchor, activeEstimatedMinutes };
 }
 
 /**

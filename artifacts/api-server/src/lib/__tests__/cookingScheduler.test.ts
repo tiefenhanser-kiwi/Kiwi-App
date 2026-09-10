@@ -319,12 +319,65 @@ describe("scheduleCookingSequence — cues + edge cases", () => {
     assert.deepEqual(scheduleCookingSequence([]), {
       steps: [],
       totalEstimatedMinutes: 0,
+      activeEstimatedMinutes: 0,
     });
     assert.deepEqual(
       scheduleCookingSequence([
         { dishId: "d", title: "Empty", positionIndex: 0, steps: [] },
       ]),
-      { steps: [], totalEstimatedMinutes: 0 },
+      { steps: [], totalEstimatedMinutes: 0, activeEstimatedMinutes: 0 },
+    );
+  });
+
+  // ── WS9 D-WS9-235 — active vs total, Hans's own acceptance example ──────
+  //
+  // "a 20-minute bake beside a 10-minute sauté derives to about 20 total, 10
+  // active — not 30." The bake is `cook` + NOT timing-sensitive, so it is
+  // unattended and the sauté overlaps it; the sauté is `cook` + timing-
+  // sensitive, so it holds the cook.
+  //
+  // The two numbers are asserted TOGETHER on purpose: a total of 20 alone would
+  // also be produced by treating both steps as unattended, and an active of 10
+  // alone by treating both as attended-but-parallel. Only the real predicate
+  // yields this PAIR.
+  it("D-WS9-235: a 20-min bake beside a 10-min sauté is 20 total, 10 active", () => {
+    const result = scheduleCookingSequence([
+      {
+        dishId: "bake",
+        title: "Baked Thing",
+        positionIndex: 0,
+        steps: [
+          {
+            stepIndex: 0,
+            estimatedMinutes: 20,
+            phaseType: "cook",
+            isTimingSensitive: false, // unattended bake
+          },
+        ],
+      },
+      {
+        dishId: "saute",
+        title: "Sautéed Thing",
+        positionIndex: 1,
+        steps: [
+          {
+            stepIndex: 0,
+            estimatedMinutes: 10,
+            phaseType: "cook",
+            isTimingSensitive: true, // watched sauté — holds the cook
+          },
+        ],
+      },
+    ]);
+    assert.equal(
+      result.totalEstimatedMinutes,
+      20,
+      "the sauté overlaps the unattended bake — 20, not 30",
+    );
+    assert.equal(
+      result.activeEstimatedMinutes,
+      10,
+      "only the watched sauté costs the cook's hands",
     );
   });
 
