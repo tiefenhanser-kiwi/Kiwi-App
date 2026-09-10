@@ -1439,7 +1439,58 @@ function GroceryRow({
           // (Hans: "as long as the user can edit the string to something that
           // looks right that's fine"). Emptying either clears that override
           // and the row reverts to the app's own derived suggestion.
+          //
+          // WS9 BUG-240 follow-up — ONE full-width row, in the order the
+          // title prints: quantity · label · name · ✓. Hans, Sept 10: "the
+          // UI looks funky, because the ingredient name is too narrow. I
+          // think the fields should all be on the same row."
+          //
+          // ⚠️ `width: "100%"` on editorWrap is the fix for the collapse, not
+          // a nicety. s.body is a WRAPPING ROW, so a child with no width
+          // shrink-wraps to its content — the editor used well under half
+          // the column and the label's flex:1 had no free space to take.
+          // s.provenance solves the identical problem the identical way.
+          //
+          // A pantry staple has no pack to override (composePackName ignores
+          // both overrides for a staple, BUG-171 / guard d), so it gets the
+          // name and the ✓ only — offering purchase controls that cannot
+          // render anything would be a lie.
+          //
+          // The ✓ STAYS: once the keyboard drops it is the only visible way
+          // out of edit mode. Dismissal, the done key, the back gesture and
+          // which row is editing are all unchanged from e644c6c.
           <View style={s.editorWrap}>
+            {!item.isUniversalStaple && (
+              <>
+                <TextInput
+                  value={editPurchaseQty}
+                  onChangeText={onEditPurchaseQty}
+                  placeholder="Qty"
+                  placeholderTextColor={Palette.text.placeholder}
+                  style={[s.editInput, s.qtyInput, purchaseQtyInvalid && s.qtyInputInvalid]}
+                  keyboardType="numeric"
+                  autoCapitalize="none"
+                  returnKeyType="done"
+                  blurOnSubmit
+                  autoFocus
+                  onSubmitEditing={onCommitEdit}
+                />
+                {/* The pack string, MINUS its leading number — that number is
+                    the field to the left. Free text on purpose: Hans wants the
+                    line to be able to say whatever makes it right in the aisle. */}
+                <TextInput
+                  value={editPurchaseLabel}
+                  onChangeText={onEditPurchaseLabel}
+                  placeholder="e.g. containers (5 oz)"
+                  placeholderTextColor={Palette.text.placeholder}
+                  style={[s.editInput, s.editInputFlex]}
+                  autoCapitalize="none"
+                  returnKeyType="done"
+                  blurOnSubmit
+                  onSubmitEditing={onCommitEdit}
+                />
+              </>
+            )}
             {/* The purchase NAME (list-local rename, D-WS9-171). Empty =
                 leave unchanged, so a cleared box cannot blank the row. */}
             <TextInput
@@ -1447,50 +1498,22 @@ function GroceryRow({
               onChangeText={onEditName}
               placeholder="Item name"
               placeholderTextColor={Palette.text.placeholder}
-              style={s.nameInput}
+              style={[s.editInput, s.editInputFlex]}
               autoCapitalize="none"
               returnKeyType="done"
               blurOnSubmit
+              autoFocus={item.isUniversalStaple}
               onSubmitEditing={onCommitEdit}
             />
-            <View style={s.qtyEditWrap}>
-              <TextInput
-                value={editPurchaseQty}
-                onChangeText={onEditPurchaseQty}
-                placeholder="Qty"
-                placeholderTextColor={Palette.text.placeholder}
-                style={[s.qtyInput, purchaseQtyInvalid && s.qtyInputInvalid]}
-                keyboardType="numeric"
-                autoCapitalize="none"
-                returnKeyType="done"
-                blurOnSubmit
-                autoFocus
-                onSubmitEditing={onCommitEdit}
-              />
-              {/* The pack string, MINUS its leading number — that number is
-                  the field to the left. Free text on purpose: Hans wants the
-                  line to be able to say whatever makes it right in the aisle. */}
-              <TextInput
-                value={editPurchaseLabel}
-                onChangeText={onEditPurchaseLabel}
-                placeholder="e.g. containers (5 oz)"
-                placeholderTextColor={Palette.text.placeholder}
-                style={s.packLabelInput}
-                autoCapitalize="none"
-                returnKeyType="done"
-                blurOnSubmit
-                onSubmitEditing={onCommitEdit}
-              />
-              <Pressable
-                onPress={onCommitEdit}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Done editing item"
-                style={({ pressed }) => [s.doneBtn, pressed && { opacity: 0.8 }]}
-              >
-                <Feather name="check" size={16} color={Colors.neutral[0]} />
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={onCommitEdit}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Done editing item"
+              style={({ pressed }) => [s.doneBtn, pressed && { opacity: 0.8 }]}
+            >
+              <Feather name="check" size={16} color={Colors.neutral[0]} />
+            </Pressable>
           </View>
         ) : needText ? (
           // The need parenthetical — the edit affordance. Default staples tap
@@ -1865,15 +1888,11 @@ const s = StyleSheet.create({
     paddingHorizontal: Spacing[1],
     borderRadius: Radius.sm,
   },
-  qtyEditWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing[1],
-  },
-  // Mirrors meal-builder's s.ingQty (width 56) + s.ingUnit (width 64)
-  // so the inline edit pair matches the meal editor exactly.
-  qtyInput: {
-    width: 56,
+  // WS9 BUG-240 follow-up — the ONE shared input style for the editor row.
+  // 44pt minimum touch height; single-line by default (TextInput without
+  // multiline scrolls horizontally rather than wrapping).
+  editInput: {
+    minHeight: 44,
     backgroundColor: Palette.background.card,
     borderRadius: Radius.md,
     borderWidth: 1,
@@ -1883,23 +1902,24 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[900],
     fontFamily: Typography.face.sans[400],
+  },
+  // The label and the name SHARE the width the fixed quantity and ✓ leave.
+  // minWidth: 0 is what lets a flex child shrink below its content — without
+  // it a long seeded label ("containers (5 oz)") pushes the name off the row.
+  editInputFlex: {
+    flex: 1,
+    minWidth: 0,
+  },
+  // The quantity: fixed, sized to three digits at fontSize.sm (12pt) plus
+  // 8pt padding a side and a 1pt border — "999" fits with room for the cursor.
+  qtyInput: {
+    width: 52,
+    flexGrow: 0,
+    flexShrink: 0,
+    textAlign: "center",
   },
   qtyInputInvalid: {
     borderColor: Colors.terracotta[400],
-  },
-  // WS9 BUG-240 — the pack label. Wide and flexible where the old unit box
-  // was a fixed 64pt: it holds strings like "containers (5 oz)", not "oz".
-  packLabelInput: {
-    flex: 1,
-    backgroundColor: Palette.background.card,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.neutral[300],
-    paddingHorizontal: Spacing[2],
-    paddingVertical: Spacing[2],
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[900],
-    fontFamily: Typography.face.sans[400],
   },
   // WS9 BUG-117 (1) — the X and the new pencil stack in one right-hand column.
   rowControls: {
@@ -1915,26 +1935,22 @@ const s = StyleSheet.create({
     marginLeft: Spacing[1],
     marginRight: -Spacing[1],
   },
-  // WS9 BUG-117 (2)(3) — the row editor: name on its own line, then the
-  // qty/unit pair + Done, then the one-tap unit chips.
+  // WS9 BUG-240 follow-up — the row editor: quantity · label · name · ✓ on
+  // ONE row spanning the whole text column. width: "100%" is load-bearing:
+  // s.body is a wrapping row, and a child without a width shrink-wraps to
+  // its content (the collapse Hans photographed). It also forces the editor
+  // onto its own line below the title and tags, exactly as provenance does.
   editorWrap: {
-    gap: Spacing[2],
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[1],
     paddingTop: Spacing[1],
   },
-  nameInput: {
-    backgroundColor: Palette.background.card,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.neutral[300],
-    paddingHorizontal: Spacing[2],
-    paddingVertical: Spacing[2],
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[900],
-    fontFamily: Typography.face.sans[400],
-  },
   doneBtn: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
+    flexShrink: 0,
     borderRadius: Radius.md,
     backgroundColor: Colors.sage[700],
     alignItems: "center",
