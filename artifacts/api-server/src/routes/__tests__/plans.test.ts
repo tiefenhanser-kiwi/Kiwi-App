@@ -6989,6 +6989,8 @@ function makeD4Stub(opts: {
     mealDishLink: {
       findFirst: async () => null,
       create: async () => ({ id: "mdl-d4" }),
+      // D-WS9-235 follow-up — stampMealTiming reads the persisted link order.
+      findMany: async () => [],
     },
     dish: {
       create: async (args: { data: Record<string, unknown> }) => {

@@ -89,6 +89,8 @@ function makeTx(opts: {
         recorder.mealDishLinkCreates.push(args);
         return { id: "mdl-1" };
       },
+      // D-WS9-235 follow-up — stampMealTiming reads the persisted link order.
+      findMany: async () => [],
     },
     dish: {
       create: async (args: { data: Record<string, unknown> }) => {
