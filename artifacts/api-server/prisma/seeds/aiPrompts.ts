@@ -289,14 +289,14 @@ Apply these as biases — they shape the menu but do not override hard constrain
 - \`hiddenContext.spiceTolerance\` → bias dishes within the user's heat tolerance. Never push hot dishes onto a \`mild\` user.
 - \`hiddenContext.budgetLevel\` → favor pantry-friendly proteins on \`budget\`; allow finer cuts on \`premium\`.
 - \`hiddenContext.recurringItems\` → staples the user always has on hand; prefer reusing them where natural.
-- \`preferencesContext.maxCookTimeMinutes\` (when set) → lean the meals YOU choose toward titles that plausibly cook within that many minutes. Soft bias only: you cannot verify exact cook time here, so prefer quicker-sounding dinners — it is not a hard ceiling, and an explicitly named meal is honored regardless. Cook time is independent of difficulty: a dish can be simple-but-slow or involved-but-fast, so don't treat the minute cap as a proxy for "not fancy."
+- \`preferencesContext.maxCookTimeMinutes\` (when set) → for the meals YOU choose, the shelf already honors it: a capped shelf is filtered on each meal's \`estimatedTimeMinutes\`, a start-to-plate time measured from that meal's steps, so every shelf meal fits the cap (under \`preferencesContext.maxCookTimeCoverage: "most"\`, at most one shelf row runs over it, and its \`estimatedTimeMinutes\` shows that). Trust a shelf meal's number. For titles you compose fresh, the cap is a soft bias: prefer dinners that plausibly cook within it. An explicitly named meal is honored regardless. Cook time is independent of difficulty: a dish can be simple-but-slow or involved-but-fast, so don't treat the minute cap as a proxy for "not fancy."
 - \`wantsLeftovers: true\` → target servings = householdSize + 1-2; \`false\` → exactly householdSize. Reflect this in ingredient quantities you'd reason about.
 
 # Distinctness (vague + partial only)
 
-For vague and partial scenarios, three candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing.
+For vague and partial scenarios, three candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing. And no meal YOU choose may appear in more than one candidate of THIS response — whether it is a shelf meal (same \`storeMealId\`) or one you compose fresh (same dinner under any title). Each candidate is a different set of dinners, not a reshuffle of the same ones. This is about the candidates you return together; meals from the user's earlier plans are the rotation section's concern, below.
 
-For partial: the explicit meals are LOCKED in every candidate, so differentiate via the OTHER meals. Example: user said "include tacos and pasta", planDurationDays=5 → every candidate has tacos + pasta, but the other 3 meals vary across candidates. Strong example: candidate 1 emphasizes Mediterranean, candidate 2 emphasizes high-protein, candidate 3 emphasizes one-pot weeknight comfort.
+For partial: the explicit meals are LOCKED in every candidate — they are the one exception to the rule above — so differentiate via the OTHER meals. Example: user said "include tacos and pasta", planDurationDays=5 → every candidate has tacos + pasta, but the other 3 meals vary across candidates and none of those 3 is reused in another candidate. Strong example: candidate 1 emphasizes Mediterranean, candidate 2 emphasizes high-protein, candidate 3 emphasizes one-pot weeknight comfort.
 
 If for some reason the constraints are too tight to produce 3 distinct candidates (vague or partial), return 1-2 candidates and set \`cannotGenerateMore: true\` with a one-sentence \`reason\`. Do not pad with weak third options.
 
@@ -355,7 +355,8 @@ Generate the candidates now. Return ONLY the tool_use call.`;
 // WS9 3c §7.6 — wizard.surprise.generate. The "Surprise me" path: zero user
 // input, so there is no parse step and no parsedIntent. The server injects the
 // same hidden/planning/preferences context as the directed generate; this
-// prompt always produces 3 distinct CROWD-PLEASER candidates from model
+// prompt produces ONE CROWD-PLEASER candidate (BUG-249 removed a stale
+// three-candidate distinctness paragraph on 2026-09-10) from model
 // knowledge, strictly inside the user's stored hard constraints. Sonnet, tool.
 // WS9 BUG-179 — exported so cleanupClaimRules.test.ts can assert against the
 // REAL body. Its two siblings were already exported for the same reason.
@@ -385,15 +386,9 @@ The surprise is meal CHOICE. It is NEVER a licence to break a constraint.
 - Lean toward the user's preferred \`cuisines\` when given, but keep the crowd-pleaser character. If none given, spread across mainstream American, Italian, Mexican, Asian, and Mediterranean dinners.
 - \`weeklyPacing\` shapes effort: \`mostly_easy\` / \`minimal_effort\` → weeknight-simple; \`one_fancy_night\` → one slightly nicer meal, the rest simple; \`mixed\` → a spread.
 - \`hiddenContext.spiceTolerance\` / \`budgetLevel\` / \`recurringItems\` → same weighting as the directed flow.
-- \`preferencesContext.maxCookTimeMinutes\` (when set) → prefer quicker-sounding dinners (soft bias, not a ceiling).
+- \`preferencesContext.maxCookTimeMinutes\` (when set) → a capped shelf is already filtered to it on a start-to-plate time measured from each meal's steps (under \`preferencesContext.maxCookTimeCoverage: "most"\`, at most one shelf row runs over it); for dinners you compose fresh, prefer ones that plausibly cook within it (soft bias).
 - \`wantsLeftovers: true\` → target servings = householdSize + 1-2; else exactly householdSize.
 - \`planningContext.recentMeals\` → steer AWAY from meals the user planned/cooked recently so the surprise feels fresh, not recycled. Season and \`upcomingEvents\` tilt choices gently; they never override a constraint.
-
-# Distinctness
-
-Three candidates that all feel the same is failure. Vary by cuisine emphasis, protein, and cooking style — e.g. one comfort-classic week, one lighter/fresher week, one globally-inspired week.
-
-If the constraints are too tight to produce 3 distinct candidates, return 1-2 and set \`cannotGenerateMore: true\` with a one-sentence \`reason\`. Do not pad with weak options.
 
 ${WHY_BULLETS_RULES}
 
@@ -909,7 +904,7 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 
 1 to 3 distinct candidate plans, each containing exactly \`planDurationDays\` dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the \`mealTitles\` array (one per dinner), per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}), and — when you build any slot from the store shelf (see "Composing from the store shelf" below) — a \`storeSlots\` array recording which slots you took from the shelf.
 
-Distinctness is mandatory: three candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing.
+Distinctness is mandatory: three candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing. And no meal may appear in more than one candidate of THIS response — whether it is a shelf meal (same \`storeMealId\`) or one you compose fresh (same dinner under any title). Each candidate is a different set of dinners, not a reshuffle of the same ones. This is about the candidates you return together; meals from the user's earlier plans are the rotation section's concern, below.
 
 If the constraints are too tight to produce 3 genuinely distinct candidates, return 1 or 2 candidates and set \`cannotGenerateMore: true\` with a one-sentence \`reason\` (e.g., "Vegan + nut-free + low-carb together limits options to one strong plan."). Do not pad with weak third options.
 
@@ -933,7 +928,7 @@ Apply these as biases — they shape the menu but do not override hard constrain
 - \`weeklyPacing = one_fancy\` → 1 fancier night, the rest (\`planDurationDays\` - 1) easy/medium.
 - \`weeklyPacing = mixed\` → balanced mix.
 - \`difficulty\` field is the user's overall ceiling — never exceed it across the plan.
-- \`preferencesContext.maxCookTimeMinutes\` (when set) → lean toward meal titles that plausibly cook within that many minutes. This is a soft title-selection bias only: you cannot verify exact cook time at this stage, so prefer quicker-sounding dinners over elaborate ones — do not treat it as a hard ceiling. Cook time is independent of \`difficulty\`/\`weeklyPacing\`: a dish can be simple-but-slow (a hands-off braise) or involved-but-fast, so weigh the minute cap on its own, not as a proxy for fanciness.
+- \`preferencesContext.maxCookTimeMinutes\` (when set) → the shelf already honors it: a capped shelf is filtered on each meal's \`estimatedTimeMinutes\`, a start-to-plate time measured from that meal's steps, so every shelf meal fits the cap (under \`preferencesContext.maxCookTimeCoverage: "most"\`, at most one shelf row runs over it, and its \`estimatedTimeMinutes\` shows that). Trust a shelf meal's number. For titles you compose fresh, the cap is a soft bias: prefer dinners that plausibly cook within it over elaborate ones. Cook time is independent of \`difficulty\`/\`weeklyPacing\`: a dish can be simple-but-slow (a hands-off braise) or involved-but-fast, so weigh the minute cap on its own, not as a proxy for fanciness.
 
 # Servings and household
 
