@@ -749,6 +749,14 @@ export interface GroceryListItem {
   purchaseUnit?: string;
   purchaseQuantity?: number;
   purchaseDisplay?: string;
+  /** WS9 BUG-240 — the USER-SET purchase, which OVERRIDES the derived trio
+   *  above. Present = the user set it, so the row is no longer derived and
+   *  BUG-147's pack scaling is bypassed for it (composePackName). Absent =
+   *  derived as before. Hans: "it's ok to have a disagreement in the UI
+   *  between the need and the purchase." */
+  purchaseUnitOverride?: string;
+  purchaseQuantityOverride?: number;
+  purchaseDisplayOverride?: string;
   /** WS9 3e Part 2.2 — distinct meal titles this item was sourced from
    *  (1-to-many). Empty for merged/renamed AI-tail rows and user-added items
    *  (~10.5% of plan-derived items) — render no provenance label in that case. */

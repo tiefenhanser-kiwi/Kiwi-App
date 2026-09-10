@@ -31,8 +31,7 @@ import { GROCERY_SECTIONS } from "@/lib/domain";
 import {
   composePackName,
   formatNeedText,
-  GROCERY_UNIT_OPTIONS,
-  normalizeUnitToken,
+  purchaseEditorSeed,
 } from "@/lib/format/grocery";
 import { parseQuantity } from "@/lib/quantity";
 import { getGroceryListById } from "@/lib/stubs";
@@ -148,8 +147,12 @@ export default function GroceryListDetail() {
   // amount + unit pattern; parent owns edit state so a focus-swap between
   // the two inputs doesn't unmount the row mid-edit).
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editAmount, setEditAmount] = useState("");
-  const [editUnit, setEditUnit] = useState("");
+  // WS9 BUG-240 — the PURCHASE, which is what the user controls now. Hans,
+  // Sept 10: "users shouldn't need to or have a reason to edit the needed
+  // quantities or units… just the purchase name and quantity." The need
+  // parenthetical is read-only text from here on.
+  const [editPurchaseQty, setEditPurchaseQty] = useState("");
+  const [editPurchaseLabel, setEditPurchaseLabel] = useState("");
   // WS9 BUG-117 (3) — the NAME is editable now, not just amount + unit.
   // List-local only (D-WS9-171): this never reaches the recipe or the
   // Ingredient row, and a later reconcile sweep may overwrite it.
@@ -460,8 +463,21 @@ export default function GroceryListDetail() {
     }
     editingItemIdRef.current = item.id;
     setEditingItemId(item.id);
-    setEditAmount(item.quantityAmount ?? "");
-    setEditUnit(item.quantityUnit ?? "");
+    // Seeded through purchaseEditorSeed so the user edits THE NUMBER THEY
+    // SEE: it runs the same derivation the row rendered with, then lets an
+    // existing override win. Writing a second seed here is how the two drift.
+    const seed = purchaseEditorSeed(
+      item.purchaseUnit,
+      item.purchaseDisplay,
+      item.quantityAmount,
+      item.quantityUnit,
+      {
+        quantity: item.purchaseQuantityOverride,
+        display: item.purchaseDisplayOverride,
+      },
+    );
+    setEditPurchaseQty(seed.quantity);
+    setEditPurchaseLabel(seed.label);
     setEditName(item.userResolvedTo ?? item.name);
   };
 
@@ -472,8 +488,15 @@ export default function GroceryListDetail() {
       return;
     }
     editingItemIdRef.current = null;
-    const amt = editAmount.trim() || undefined;
-    const unit = editUnit.trim() || undefined;
+    // Empty → null → the override is CLEARED and the row reverts to the
+    // derived pack. undefined would mean "leave it alone", which is not the
+    // same thing and is why these are normalised here rather than at the
+    // call site.
+    const qtyRaw = editPurchaseQty.trim();
+    const parsedQty = qtyRaw.length > 0 ? parseQuantity(qtyRaw) : null;
+    const nextQty = parsedQty !== null && parsedQty > 0 ? parsedQty : null;
+    const labelRaw = editPurchaseLabel.trim();
+    const nextLabel = labelRaw.length > 0 ? labelRaw : null;
     // Snapshot the pre-edit values so a failed persist can revert cleanly.
     const prior = list?.items.find((it) => it.id === itemId);
     // WS9 BUG-117 (3) — the name. The row RENDERS `userResolvedTo ?? name`, so
@@ -494,16 +517,14 @@ export default function GroceryListDetail() {
               it.id === itemId
                 ? {
                     ...it,
-                    quantityAmount: amt,
-                    quantityUnit: unit,
+                    // ⚠️ quantityAmount / quantityUnit are NOT touched. The
+                    // need is read-only now; only the purchase moves.
+                    purchaseQuantityOverride: nextQty ?? undefined,
+                    purchaseDisplayOverride: nextLabel ?? undefined,
                     ...(nameChanged ? { name: newName } : null),
                     ...(alsoMoveProjection
                       ? { userResolvedTo: newName }
                       : null),
-                    // Keep legacy display string in sync so any consumer
-                    // still reading `quantity` (summaries, exports) sees
-                    // the edited value.
-                    quantity: [amt, unit].filter(Boolean).join(" ") || it.quantity,
                   }
                 : it,
             ),
@@ -520,24 +541,20 @@ export default function GroceryListDetail() {
     setEditingItemId(null);
 
     if (isDemo) return;
-    // Persist (§12.9). The server stores quantity as a positive Float; when
-    // the amount is cleared/invalid we fall back to the prior numeric (or 1)
-    // so a unit-only edit still round-trips a valid quantity.
-    const parsed = amt ? parseQuantity(amt) : null;
-    const priorNum = prior?.quantityAmount
-      ? parseFloat(prior.quantityAmount)
-      : NaN;
-    const quantity =
-      parsed != null && parsed > 0
-        ? parsed
-        : Number.isFinite(priorNum) && priorNum > 0
-          ? priorNum
-          : 1;
+    // WS9 BUG-240 — ONE PATCH, carrying only what this editor owns.
+    // ⚠️ THE BODY KEYS ARE `purchaseQuantity` / `purchaseDisplay`, NOT the
+    // *Override column names: the server maps body → column deliberately
+    // (groceryLists.ts), and sending the column names is silently ignored.
+    // `quantity` and `unit` are never sent from this editor again — they are
+    // the NEED, and the need is not user-editable.
+    // purchaseUnitOverride is deliberately NOT written: the display string
+    // is the truth, and a second field to keep in sync is a second field to
+    // get out of sync.
     updateGroceryItemDetails(listId, itemId, {
-      quantity,
-      unit: unit ?? "",
-      // Omitted entirely when unchanged — a quantity-only edit must not
-      // restate the name (see AppContext.grocery.test.ts).
+      purchaseQuantity: nextQty,
+      purchaseDisplay: nextLabel,
+      // Omitted entirely when unchanged — a purchase edit must not restate
+      // the name (see AppContext.grocery.test.ts).
       ...(nameChanged ? { displayName: newName } : null),
     }).catch(
       (err) => {
@@ -546,13 +563,12 @@ export default function GroceryListDetail() {
           applyItemPatch(itemId, {
             name: prior.name,
             userResolvedTo: prior.userResolvedTo,
-            quantityAmount: prior.quantityAmount,
-            quantityUnit: prior.quantityUnit,
-            quantity: prior.quantity,
+            purchaseQuantityOverride: prior.purchaseQuantityOverride,
+            purchaseDisplayOverride: prior.purchaseDisplayOverride,
           });
         }
         Alert.alert(
-          "Couldn't update quantity",
+          "Couldn't update this item",
           "Something went wrong. Please try again.",
         );
       },
@@ -1047,11 +1063,11 @@ export default function GroceryListDetail() {
                       item={item}
                       stapleOptedIn={item.stapleOptedIn ?? false}
                       isEditing={editingItemId === item.id}
-                      editAmount={editAmount}
-                      editUnit={editUnit}
+                      editPurchaseQty={editPurchaseQty}
+                      editPurchaseLabel={editPurchaseLabel}
                       editName={editName}
-                      onEditAmount={setEditAmount}
-                      onEditUnit={setEditUnit}
+                      onEditPurchaseQty={setEditPurchaseQty}
+                      onEditPurchaseLabel={setEditPurchaseLabel}
                       onEditName={setEditName}
                       onEnterEdit={() => enterQuantityEdit(item)}
                       onCommitEdit={commitQuantityEdit}
@@ -1172,11 +1188,11 @@ function GroceryRow({
   item,
   stapleOptedIn,
   isEditing,
-  editAmount,
-  editUnit,
+  editPurchaseQty,
+  editPurchaseLabel,
   editName,
-  onEditAmount,
-  onEditUnit,
+  onEditPurchaseQty,
+  onEditPurchaseLabel,
   onEditName,
   onEnterEdit,
   onCommitEdit,
@@ -1186,11 +1202,11 @@ function GroceryRow({
   item: GroceryListItem;
   stapleOptedIn: boolean;
   isEditing: boolean;
-  editAmount: string;
-  editUnit: string;
+  editPurchaseQty: string;
+  editPurchaseLabel: string;
   editName: string;
-  onEditAmount: (v: string) => void;
-  onEditUnit: (v: string) => void;
+  onEditPurchaseQty: (v: string) => void;
+  onEditPurchaseLabel: (v: string) => void;
   onEditName: (v: string) => void;
   onEnterEdit: () => void;
   onCommitEdit: () => void;
@@ -1225,8 +1241,10 @@ function GroceryRow({
   // parseQuantity returns null for invalid; empty input is "valid" (
   // intentional clear), so guard on length first — same convention as
   // meal-builder's ingredient row.
-  const editAmountInvalid =
-    editAmount.trim().length > 0 && parseQuantity(editAmount) === null;
+  // BUG-240 — the PURCHASE quantity. Empty is valid (it clears the override).
+  const purchaseQtyInvalid =
+    editPurchaseQty.trim().length > 0 &&
+    parseQuantity(editPurchaseQty) === null;
 
   // WS5-5Q-fix-3 — row container is a plain View (was a Pressable). The
   // three tap targets (toggle area, qty, X) are now SIBLINGS, not
@@ -1261,6 +1279,12 @@ function GroceryRow({
     item.quantityAmount,
     item.quantityUnit,
     item.isUniversalStaple,
+    // WS9 BUG-240 — a user-set purchase stops this row being a derivation,
+    // so composePackName bypasses BUG-147's scaling for it.
+    {
+      quantity: item.purchaseQuantityOverride,
+      display: item.purchaseDisplayOverride,
+    },
   );
   const needText = displayQty ? String(displayQty) : "";
 
@@ -1330,12 +1354,27 @@ function GroceryRow({
         {item.isRecurringItem && <Tag label="Recurring" tone="sage" />}
         {item.isOptional && <Tag label="Optional" tone="muted" />}
         {isEditing ? (
-          // Inline edit pair — mirrors meal-builder's ingredient row. Parent
-          // owns state so swapping focus doesn't unmount the row mid-edit.
+          // WS9 BUG-240 — the PURCHASE editor.
+          //
+          // Hans, Sept 10: "users shouldn't need to or have a reason to edit
+          // the needed quantities or units. we have chips there to change the
+          // need and unit, and the name of the need, but those should be
+          // static… just the purchase name and quantity."
+          //
+          // ⚠️ WHAT LEFT, AND WHY IT IS NOT COMING BACK: the need-quantity
+          // input, the need-unit input and the whole unit-chip strip. They
+          // edited the NEED — how much the week's cooking requires — which is
+          // derived from the recipes and is not the user's to set. The
+          // "(10 oz)" parenthetical still renders below, as read-only text.
+          //
+          // What is here instead is the pack the user actually buys: its
+          // NUMBER and its LABEL, both free text, no validation on the label
+          // (Hans: "as long as the user can edit the string to something that
+          // looks right that's fine"). Emptying either clears that override
+          // and the row reverts to the app's own derived suggestion.
           <View style={s.editorWrap}>
-            {/* BUG-117 (3) — the NAME was not editable at all; only qty+unit
-                were. List-local rename (D-WS9-171). Empty = leave unchanged,
-                so a cleared box cannot blank the row. */}
+            {/* The purchase NAME (list-local rename, D-WS9-171). Empty =
+                leave unchanged, so a cleared box cannot blank the row. */}
             <TextInput
               value={editName}
               onChangeText={onEditName}
@@ -1349,32 +1388,32 @@ function GroceryRow({
             />
             <View style={s.qtyEditWrap}>
               <TextInput
-                value={editAmount}
-                onChangeText={onEditAmount}
+                value={editPurchaseQty}
+                onChangeText={onEditPurchaseQty}
                 placeholder="Qty"
                 placeholderTextColor={Palette.text.placeholder}
-                style={[s.qtyInput, editAmountInvalid && s.qtyInputInvalid]}
+                style={[s.qtyInput, purchaseQtyInvalid && s.qtyInputInvalid]}
+                keyboardType="numeric"
                 autoCapitalize="none"
                 returnKeyType="done"
                 blurOnSubmit
                 autoFocus
                 onSubmitEditing={onCommitEdit}
               />
+              {/* The pack string, MINUS its leading number — that number is
+                  the field to the left. Free text on purpose: Hans wants the
+                  line to be able to say whatever makes it right in the aisle. */}
               <TextInput
-                value={editUnit}
-                onChangeText={onEditUnit}
-                placeholder="Unit"
+                value={editPurchaseLabel}
+                onChangeText={onEditPurchaseLabel}
+                placeholder="e.g. containers (5 oz)"
                 placeholderTextColor={Palette.text.placeholder}
-                style={s.unitInput}
+                style={s.packLabelInput}
                 autoCapitalize="none"
                 returnKeyType="done"
                 blurOnSubmit
                 onSubmitEditing={onCommitEdit}
               />
-              {/* BUG-117 (2) — Hans: "the cursor could not be dismissed."
-                  There was NO explicit way out of the editor: no onBlur
-                  commit, no Done control, and tapping elsewhere either did
-                  nothing or jumped into the next row. This is the way out. */}
               <Pressable
                 onPress={onCommitEdit}
                 hitSlop={10}
@@ -1385,60 +1424,6 @@ function GroceryRow({
                 <Feather name="check" size={16} color={Colors.neutral[0]} />
               </Pressable>
             </View>
-            {/* BUG-117 (3) + BUG-141 (2) — "the unit control offered `each`
-                rather than a real unit set." The box is still free text; these
-                are one-tap canonical units (guarded in
-                lib/__tests__/grocery-format.test.ts). "each" leads because it
-                is what a weight-packed catalog row needs to become a count. */}
-            <ScrollView
-              horizontal
-              // The strip DOES scroll (it always did — it is a real horizontal
-              // ScrollView), but suppressing the indicator left it looking
-              // like a list that simply clips "ml" at the right edge with no
-              // hint there is more. The indicator is the affordance.
-              showsHorizontalScrollIndicator
-              keyboardShouldPersistTaps="handled"
-              style={s.unitChipScroll}
-              contentContainerStyle={s.unitChipRow}
-            >
-              {GROCERY_UNIT_OPTIONS.map((u) => {
-                // WS9 BUG-117 follow-up (ruled: highlight-only). A row whose
-                // unit reads "ounce" highlighted NO chip, because a raw
-                // lowercase compare only matches a stored spelling that is
-                // already canonical — which on device meant "only highlighted
-                // on Each", the one unit whose stored form equals its label
-                // character-for-character. normalizeUnitToken folds the
-                // aliases, so "ounce" now lights the "oz" chip.
-                //
-                // This is a COMPARISON change and nothing else: no stored
-                // value is read back, rewritten or normalised, and the text
-                // box still shows exactly what the user typed. Whether the
-                // ROW should say "oz" where it says "ounce" is a data-side
-                // canonicalisation question and is deliberately not answered
-                // here. GROCERY_UNIT_OPTIONS entries are guaranteed canonical
-                // (lib/__tests__/grocery-format.test.ts), so the right-hand
-                // side needs no folding.
-                const active = normalizeUnitToken(editUnit) === u;
-                return (
-                  <Pressable
-                    key={u}
-                    onPress={() => onEditUnit(u)}
-                    hitSlop={4}
-                    style={({ pressed }) => [
-                      s.unitChip,
-                      active && s.unitChipActive,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <Text
-                      style={[s.unitChipText, active && s.unitChipTextActive]}
-                    >
-                      {u}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
           </View>
         ) : needText ? (
           // The need parenthetical — the edit affordance. Default staples tap
@@ -1835,8 +1820,10 @@ const s = StyleSheet.create({
   qtyInputInvalid: {
     borderColor: Colors.terracotta[400],
   },
-  unitInput: {
-    width: 64,
+  // WS9 BUG-240 — the pack label. Wide and flexible where the old unit box
+  // was a fixed 64pt: it holds strings like "containers (5 oz)", not "oz".
+  packLabelInput: {
+    flex: 1,
     backgroundColor: Palette.background.card,
     borderRadius: Radius.md,
     borderWidth: 1,
@@ -1885,47 +1872,6 @@ const s = StyleSheet.create({
     backgroundColor: Colors.sage[700],
     alignItems: "center",
     justifyContent: "center",
-  },
-  // WS9 BUG-239 block / BUG-117 follow-up — the chips rendered ~5x too tall
-  // (a tall empty box with the label at the top). This is the contentContainer
-  // of a row-direction flex container, and it did not declare alignItems, so
-  // it took the flex default of "stretch"; s.unitChip declares padding but no
-  // height, so every chip stretched to the full height of whatever the
-  // ScrollView resolved to. flex-start makes each chip hug its own text
-  // regardless of how tall the scroller gets.
-  unitChipRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing[1],
-    paddingRight: Spacing[2],
-  },
-  // A horizontal ScrollView has no intrinsic height and grows into whatever
-  // vertical space is going; flexGrow:0 + alignSelf keep the strip to its
-  // content so it cannot leave a tall void under the chips.
-  unitChipScroll: {
-    flexGrow: 0,
-    alignSelf: "stretch",
-  },
-  unitChip: {
-    paddingHorizontal: Spacing[2],
-    paddingVertical: Spacing[1],
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: Colors.neutral[300],
-    backgroundColor: Palette.background.card,
-  },
-  unitChipActive: {
-    borderColor: Colors.sage[700],
-    backgroundColor: Colors.sage[100],
-  },
-  unitChipText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
-  },
-  unitChipTextActive: {
-    color: Colors.sage[700],
-    fontFamily: Typography.face.sans[700],
   },
   removeBtn: {
     width: 32,

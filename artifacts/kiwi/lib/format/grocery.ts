@@ -687,6 +687,78 @@ function scalePackDisplay(
 // values the parenthetical is built from, never a formatted string. Omitting
 // them yields the pre-BUG-125 behaviour verbatim, so a caller that has no need
 // in hand degrades to the old output rather than to a wrong number.
+/**
+ * WS9 BUG-240 — the USER-SET purchase. `quantity` is the leading number,
+ * `display` is the pack string WITHOUT it ("containers (5 oz)", "big bunch").
+ * Either may be set alone. Both absent = the row is derived, exactly as
+ * before.
+ */
+export interface PurchaseOverride {
+  quantity?: number | null;
+  display?: string | null;
+}
+
+/**
+ * The DERIVED pack string — the stored display, scaled by BUG-147's
+ * arithmetic to cover the need. Extracted so the override branch and Rule 2
+ * read the same number: a user who overrides only the LABEL must keep the
+ * quantity that was on screen, which is the scaled one, not the stored one.
+ */
+function derivedPackDisplay(
+  purchaseDisplay: string,
+  need: number | null,
+  nUnit: string,
+  pUnit: string,
+): string {
+  const packQuantity = packLeadingQuantity(purchaseDisplay);
+  const packs =
+    need !== null && packQuantity !== null
+      ? packsToCoverNeed(need, packQuantity, nUnit, pUnit, purchaseDisplay)
+      : null;
+  return packs !== null && packQuantity !== null
+    ? scalePackDisplay(purchaseDisplay, packs, packQuantity)
+    : purchaseDisplay;
+}
+
+/**
+ * WS9 BUG-240 — what the purchase editor's two fields start out holding.
+ *
+ * Exported so the SEED and the RENDER cannot drift: both go through
+ * derivedPackDisplay / packLeadingQuantity / packResidue, so the number the
+ * user is handed is the number they were looking at, and the label is the
+ * stored pack string minus its leading count using the SAME regex the
+ * renderer strips with — not a second one written to match.
+ *
+ * The asymmetry is deliberate and guard (a) pins it: `quantity` comes from the
+ * SCALED display (what is on screen), `label` from the STORED one (which has
+ * not been pluralised).
+ */
+export function purchaseEditorSeed(
+  purchaseUnit: string | null | undefined,
+  purchaseDisplay: string | null | undefined,
+  needAmount?: string | number | null,
+  needUnit?: string | null,
+  override?: PurchaseOverride,
+): { quantity: string; label: string } {
+  const need = resolveNeed(needAmount);
+  const nUnit = (needUnit ?? "").trim().toLowerCase();
+  const pUnit = (purchaseUnit ?? "").trim().toLowerCase();
+  const shown = purchaseDisplay
+    ? derivedPackDisplay(purchaseDisplay, need, nUnit, pUnit)
+    : "";
+  const ovrQty = override?.quantity;
+  const ovrLabel = override?.display;
+  const quantity =
+    ovrQty !== undefined && ovrQty !== null
+      ? ovrQty
+      : (packLeadingQuantity(shown) ?? 1);
+  const label =
+    ovrLabel !== undefined && ovrLabel !== null && ovrLabel.trim().length > 0
+      ? ovrLabel.trim()
+      : packResidue(purchaseDisplay ?? "");
+  return { quantity: formatPackAmount(quantity), label };
+}
+
 export function composePackName(
   name: string,
   purchaseUnit: string | null | undefined,
@@ -694,6 +766,7 @@ export function composePackName(
   needAmount?: string | number | null,
   needUnit?: string | null,
   isPantryStaple?: boolean,
+  override?: PurchaseOverride,
 ): string {
   // ── WS9 BUG-171 — a pantry staple states the NEED, never a pack ──────────
   // Ruled (Hans, Aug 27 2026), Option A: "Kosher salt · Pantry Staple ·
@@ -724,6 +797,51 @@ export function composePackName(
   const pUnit = (purchaseUnit ?? "").trim().toLowerCase();
   // A unitless need is a bare count, same as "each".
   const needIsCount = nUnit === "each" || nUnit === "";
+
+  // ── WS9 BUG-240 — a USER-SET purchase is NOT derived ─────────────────────
+  // Hans, Sept 10: "users shouldn't need to or have a reason to edit the
+  // needed quantities" — the need is read-only now and the PURCHASE is what
+  // the user controls. So when either override is present this row stops
+  // being a derivation: BUG-147's scaling is bypassed entirely, and the
+  // user's own string is rendered verbatim.
+  //
+  // ⚠️ NO pluralisation. scalePackDisplay does the number rewrite AND the
+  // count-noun plural in one step, and bypassing it bypasses both — so a
+  // quantity-only override can read "3 container". That is the ruled
+  // trade: Hans owns the string, and the app must not rewrite it under him.
+  //
+  // ⚠️ NO warning and NO colour when the purchase disagrees with the need.
+  // Hans: "it's ok to have a disagreement in the UI between the need and
+  // the purchase. a user can know they're buying a different ingredient."
+  //
+  // Staples are ABOVE this, so an overridden staple still renders name-only
+  // (BUG-171) — a staple has no pack to override.
+  const ovrQty = override?.quantity;
+  const ovrLabel = override?.display;
+  const hasOverride =
+    (ovrQty !== undefined && ovrQty !== null) ||
+    (ovrLabel !== undefined && ovrLabel !== null && ovrLabel.trim().length > 0);
+  if (hasOverride) {
+    // The two defaults come from DIFFERENT strings, and guard (a) is what
+    // proved it. A LABEL-only override must keep the quantity that was on
+    // SCREEN — the derived, scaled one — because the user changed the word and
+    // not the count. But a QUANTITY-only override must take its label from the
+    // STORED display, because the scaled one has already been pluralised:
+    // reusing it rendered "1 containers (5 oz)".
+    const shown = purchaseDisplay
+      ? derivedPackDisplay(purchaseDisplay, need, nUnit, pUnit)
+      : "";
+    const qty = ovrQty ?? packLeadingQuantity(shown) ?? 1;
+    const label =
+      ovrLabel !== undefined && ovrLabel !== null && ovrLabel.trim().length > 0
+        ? ovrLabel.trim()
+        : packResidue(purchaseDisplay ?? "");
+    const head = `${formatPackAmount(qty)}${label ? ` ${label}` : ""}`;
+    // The presentation elide survives: a label that already names the item
+    // ("roma tomatoes") would otherwise print the name twice. This is not a
+    // scaling step — it is the same dedupe the derived path does.
+    return residueNamesItem(label, name) ? head : `${head} ${name}`;
+  }
 
   // ── Rule 3: no pack ──────────────────────────────────────────────────────
   if (!purchaseDisplay) {
@@ -803,15 +921,7 @@ export function composePackName(
   // ── Rule 2: the units differ → a real container, used as stored ──────────
   // WS9 Root A — scale the container to cover the need. Returns the stored
   // display untouched whenever the need and the pack cannot be related.
-  const packQuantity = packLeadingQuantity(purchaseDisplay);
-  const packs =
-    need !== null && packQuantity !== null
-      ? packsToCoverNeed(need, packQuantity, nUnit, pUnit, purchaseDisplay)
-      : null;
-  const display =
-    packs !== null && packQuantity !== null
-      ? scalePackDisplay(purchaseDisplay, packs, packQuantity)
-      : purchaseDisplay;
+  const display = derivedPackDisplay(purchaseDisplay, need, nUnit, pUnit);
 
   if (packNamesItem) return display;
   // Pre-BUG-125 back-compat: with no need to decide with, an "each" pack whose

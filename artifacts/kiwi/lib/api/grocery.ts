@@ -115,6 +115,15 @@ const GroceryListItemWireSchema = z
     purchaseUnit: z.string().nullable().optional(),
     purchaseQuantity: z.number().nullable().optional(),
     purchaseDisplay: z.string().nullable().optional(),
+    // WS9 BUG-240 — the USER-SET purchase, stored server-side in separate
+    // *Override columns so the derived trio above keeps flowing from
+    // generation and reconcile underneath it. The column being non-null IS
+    // the marker; there is no isUserSet flag. The GET emits these via a
+    // Prisma `include`, and the schema is .passthrough(), so they were
+    // already arriving on the wire — normalizeListItem was dropping them.
+    purchaseUnitOverride: z.string().nullable().optional(),
+    purchaseQuantityOverride: z.number().nullable().optional(),
+    purchaseDisplayOverride: z.string().nullable().optional(),
     // WS9 3e Part 2.2 — per-item meal provenance ("from Meal A, Meal B").
     // Distinct titles across this item's sources (1-to-many). Optional (not
     // defaulted) so item-MUTATION responses that omit it — PATCH/DELETE/restore
@@ -189,6 +198,13 @@ function normalizeListItem(wire: GroceryListItemWire): GroceryListItem {
     purchaseUnit: wire.purchaseUnit ?? undefined,
     purchaseQuantity: wire.purchaseQuantity ?? undefined,
     purchaseDisplay: wire.purchaseDisplay ?? undefined,
+    // BUG-240 — null and undefined must stay DISTINGUISHABLE here: null is
+    // "the user cleared the override, use the derived value", undefined is
+    // "this row has none". Both render the derived pack, so ?? undefined is
+    // safe, but the PATCH direction relies on the caller sending null.
+    purchaseUnitOverride: wire.purchaseUnitOverride ?? undefined,
+    purchaseQuantityOverride: wire.purchaseQuantityOverride ?? undefined,
+    purchaseDisplayOverride: wire.purchaseDisplayOverride ?? undefined,
     // WS9 3e Part 2.2 — meal provenance (absent / empty → no label).
     mealNames:
       wire.mealNames && wire.mealNames.length > 0 ? wire.mealNames : undefined,
@@ -429,6 +445,13 @@ export interface UpdateGroceryListItemPatch {
   displayName?: string;
   userResolvedTo?: string | null;
   acknowledgeAmbiguity?: true;
+  /** WS9 BUG-240 — the purchase override. NOTE THE KEY NAMES: the body
+   *  carries `purchaseQuantity` / `purchaseDisplay`, and the SERVER maps
+   *  them onto its *Override columns (groceryLists.ts). Sending the column
+   *  names would be silently ignored. `null` clears the override and the
+   *  row reverts to the derived pack. */
+  purchaseQuantity?: number | null;
+  purchaseDisplay?: string | null;
 }
 
 const UpdateItemResponseSchema = z.object({ item: GroceryListItemWireSchema });

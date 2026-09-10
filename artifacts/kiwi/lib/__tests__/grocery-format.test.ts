@@ -1121,3 +1121,106 @@ describe("BUG-147: same-system needs relate to the pack; cross-system still refu
     );
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WS9 BUG-240 — the USER-SET purchase overrides the derived pack.
+//
+// Hans, Sept 10: "users shouldn't need to or have a reason to edit the needed
+// quantities or units… just the purchase name and quantity. and it's ok to
+// have a disagreement in the UI between the need and the purchase."
+//
+// So an overridden row is NOT a derivation: BUG-147's scaling is bypassed and
+// the user's string renders verbatim. The need parenthetical is untouched —
+// it is rendered by the caller as its own sibling and stays read-only.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("BUG-240: purchase override bypasses derivation", () => {
+  it("guard (a) — a quantity override beats BUG-147's scaling", () => {
+    // The DERIVED answer for a 10 oz need against a 5 oz container is 2.
+    assert.equal(
+      composePackName("fresh baby spinach", "container", "1 container (5 oz)", "10", "oz"),
+      "2 containers (5 oz) fresh baby spinach",
+    );
+    // The user says one. The app does not argue, and does not re-derive.
+    assert.equal(
+      composePackName(
+        "fresh baby spinach", "container", "1 container (5 oz)", "10", "oz",
+        false, { quantity: 1 },
+      ),
+      "1 container (5 oz) fresh baby spinach",
+    );
+  });
+
+  it("guard (b) — a label override renders VERBATIM: no plural, no scaling", () => {
+    assert.equal(
+      composePackName(
+        "green onions", "bunch", "1 bunch", "4", "bunch",
+        false, { display: "big bunch" },
+      ),
+      "4 big bunch green onions",
+    );
+    // Explicitly NOT pluralised to "big bunches" and NOT rescaled.
+    assert.notEqual(
+      composePackName(
+        "green onions", "bunch", "1 bunch", "4", "bunch",
+        false, { display: "big bunch" },
+      ),
+      "4 big bunches green onions",
+    );
+    // A LABEL-only override keeps the quantity that was ON SCREEN (the scaled
+    // one), not the stored "1" — the user changed the word, not the count.
+    assert.equal(
+      composePackName(
+        "crushed tomatoes", "can", "1 can (14.5 oz)", "28", "oz",
+        false, { display: "tins" },
+      ),
+      "2 tins crushed tomatoes",
+    );
+  });
+
+  it("guard (c) — NO override: byte-identical to the derived path today", () => {
+    // The fifteen BUG-147 shapes, as literal expected strings so a change to
+    // the derived path is caught here rather than passing by self-comparison.
+    const shapes: [string, string, string, string, string, string][] = [
+      ["black beans", "can", "1 can (15 oz)", "15", "oz", "1 can (15 oz) black beans"],
+      ["black beans", "can", "2 cans (15 oz)", "15", "oz", "2 cans (15 oz) black beans"],
+      ["crushed tomatoes", "can", "1 can (14.5 oz)", "28", "oz", "2 cans (14.5 oz) crushed tomatoes"],
+      ["fresh baby spinach", "container", "1 container (5 oz)", "10", "oz", "2 containers (5 oz) fresh baby spinach"],
+      ["chicken stock", "carton", "1 carton (32 oz)", "48", "oz", "2 cartons (32 oz) chicken stock"],
+      ["milk", "bottle", "1 bottle (1 quart)", "3", "cup", "1 bottle (1 quart) milk"],
+      ["milk", "bottle", "1 bottle (1 quart)", "6", "cup", "2 bottles (1 quart) milk"],
+      ["cotija", "block", "1 lb block", "20", "oz", "2 lb block cotija"],
+      ["cotija", "block", "1 lb block", "8", "oz", "1 lb block cotija"],
+      ["crushed tomatoes", "can", "1 can", "28", "oz", "1 can crushed tomatoes"],
+      ["heavy cream", "container", "1 container (16 fl oz)", "24", "oz", "2 containers (16 fl oz) heavy cream"],
+      ["bacon", "package", "1 package (12 oz)", "2", "pound", "3 packages (12 oz) bacon"],
+      ["buttermilk", "quart", "1 quart", "5", "cup", "2 quarts buttermilk"],
+      ["olive oil", "bottle", "1 bottle (500 ml)", "8", "oz", "1 bottle (500 ml) olive oil"],
+      ["corn tortillas", "package", "1 package (12 count)", "36", "each", "3 packages (12 count) corn tortillas"],
+    ];
+    for (const [n, pu, pd, amt, nu, expected] of shapes) {
+      assert.equal(composePackName(n, pu, pd, amt, nu), expected, `${pd} / ${amt} ${nu}`);
+      // An EMPTY override object must also change nothing — the branch is
+      // gated on a real value, not on the argument being present.
+      assert.equal(
+        composePackName(n, pu, pd, amt, nu, false, {}),
+        expected,
+        `${pd} / ${amt} ${nu} (empty override)`,
+      );
+      assert.equal(
+        composePackName(n, pu, pd, amt, nu, false, { quantity: null, display: null }),
+        expected,
+        `${pd} / ${amt} ${nu} (cleared override)`,
+      );
+    }
+  });
+
+  it("guard (d) — a pantry staple ignores both overrides: name only (BUG-171)", () => {
+    assert.equal(
+      composePackName(
+        "Kosher salt", "container", "1 container (26 oz)", "11", "teaspoon",
+        true, { quantity: 4, display: "giant box" },
+      ),
+      "Kosher salt",
+    );
+  });
+});

@@ -310,7 +310,16 @@ interface AppState {
   updateGroceryItemDetails: (
     listId: string,
     itemId: string,
-    patch: { displayName?: string; quantity?: number; unit?: string },
+    patch: {
+      displayName?: string;
+      quantity?: number;
+      unit?: string;
+      /** WS9 BUG-240 — the PURCHASE override. Body keys, not column
+       *  names: the server maps these onto purchaseQuantityOverride /
+       *  purchaseDisplayOverride. `null` clears the override. */
+      purchaseQuantity?: number | null;
+      purchaseDisplay?: string | null;
+    },
   ) => Promise<GroceryListItem>;
   /** PRD §12.5 — clarify-any-time (WS7-7-A B5). `resolution` non-null writes
    *  userResolvedTo (flips isAmbiguous→false, projection-rendered); `null` is
@@ -1141,7 +1150,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateGroceryItemDetails = async (
     listId: string,
     itemId: string,
-    patch: { displayName?: string; quantity?: number; unit?: string },
+    patch: {
+      displayName?: string;
+      quantity?: number;
+      unit?: string;
+      purchaseQuantity?: number | null;
+      purchaseDisplay?: string | null;
+    },
   ): Promise<GroceryListItem> => {
     const item = await updateGroceryListItem(listId, itemId, patch);
     void invalidateGroceryLists();
