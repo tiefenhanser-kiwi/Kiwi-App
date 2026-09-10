@@ -29,6 +29,7 @@ import {
   buildStoreShortlist,
   reconcileStoreSlots,
 } from "../lib/store/storeShortlist";
+import { logCandidateRepeatCheck } from "../lib/wizardRepeatCheck";
 import { resolveStoreComposeConfig } from "../lib/store/storeComposeConfig";
 import {
   DirectedInputSchema,
@@ -774,6 +775,17 @@ export function createWizardRouter(
             "Wizard plan generation (stream) failed",
           );
           await emitActivity(userId, "wizard_failure");
+          // BUG-249 — the stream ended early: check whatever was emitted (the
+          // client keeps those cards), so a repeat among them is still counted.
+          logCandidateRepeatCheck({
+            route: "wizard.build_plans",
+            path: "stream",
+            promptKey: "wizard.set_preferences.generate",
+            userId,
+            candidates: [...reconciledByIndex.entries()]
+              .sort((a, b) => a[0] - b[0])
+              .map(([, c]) => c),
+          });
           // Client falls back to the buffered endpoint on an error frame with
           // zero candidates; if some already streamed it keeps them + offers a
           // retry (client-owned fallback).
@@ -800,6 +812,16 @@ export function createWizardRouter(
         const reconciledCandidates = finalCandidates
           .map((_, i) => reconciledByIndex.get(i))
           .filter((c): c is WizardPlanCandidate => !!c);
+
+        // BUG-249 — the set is complete: every streamed candidate against the
+        // ones emitted before it, on the reconciled (real-id) wire objects.
+        logCandidateRepeatCheck({
+          route: "wizard.build_plans",
+          path: "stream",
+          promptKey: "wizard.set_preferences.generate",
+          userId,
+          candidates: reconciledCandidates,
+        });
 
         // BUG-049 instrumentation — post-reconcile counts from the shipped
         // objects + per-candidate drop warns (helper). storeSlotsMarked below
@@ -901,6 +923,14 @@ export function createWizardRouter(
       //    authoritative guard; this one keeps the wire honest.
       const trimmed = result.data.candidates.slice(0, candidateCount);
       const candidates = reconcileStoreSlots(trimmed, storeShortlist.aliasToId);
+      // BUG-249 — cross-candidate repeat check on the reconciled set.
+      logCandidateRepeatCheck({
+        route: "wizard.build_plans",
+        path: "buffered",
+        promptKey: "wizard.set_preferences.generate",
+        userId,
+        candidates,
+      });
       // BUG-049 instrumentation — post-reconcile counts + drop warns from the
       // reconciled objects this path ships (already the wire shape). trimmed is
       // the RAW input, so storeSlotsMarked below stays baseline-comparable.
@@ -1222,6 +1252,17 @@ export function createWizardRouter(
         genResult.data.candidates.slice(0, expected),
         storeShortlist.aliasToId,
       );
+      // BUG-249 — cross-candidate repeat check. A repeat that matches one of
+      // the user's named meals is exempted (PRD §6.5 Scenario C: named meals
+      // appear in every candidate by design).
+      logCandidateRepeatCheck({
+        route: "tellkiwi.build_from_text",
+        path: "buffered",
+        promptKey: "wizard.directed.generate",
+        userId,
+        candidates,
+        explicitMeals: parsedIntent.explicitMeals,
+      });
 
       // 9. Carry needsClarification through. For overflow the parser populates
       //    options with the dropped meals; mobile renders them as swap chips.
@@ -1424,6 +1465,16 @@ export function createWizardRouter(
           genResult.data.candidates.slice(0, SURPRISE_CANDIDATE_COUNT),
           storeShortlist.aliasToId,
         );
+        // BUG-249 — wired for symmetry with the other two buffered routes; at
+        // SURPRISE_CANDIDATE_COUNT = 1 the helper logs nothing (one plan has
+        // nothing to repeat against). Starts logging the day that count moves.
+        logCandidateRepeatCheck({
+          route: "wizard.surprise_me",
+          path: "buffered",
+          promptKey: "wizard.surprise.generate",
+          userId,
+          candidates,
+        });
 
         // Synthesize a `vague` parsedIntent so the mobile wizard-results screen
         // renders this through its existing Tell Kiwi branch without a new

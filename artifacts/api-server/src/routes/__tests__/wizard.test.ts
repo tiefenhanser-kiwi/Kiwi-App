@@ -637,6 +637,47 @@ describe("POST /api/wizard/build-plans — SSE streaming (D-WS9-076)", () => {
       await harness.close();
     }
   });
+
+  // BUG-249 — the streamed path is the LIVE one, and it emits each candidate as
+  // it validates, so the repeat check has to run over the set as emitted (at
+  // completion) rather than gate anything. This pins that a repeat between
+  // candidate 0 and candidate 2 is caught on the stream path with one line.
+  it("BUG-249: a meal repeated across streamed candidates 0 and 2 is caught in one repeat-check line", async () => {
+    const { logger } = await import("../../lib/logger");
+    const repeated = happyCandidates().candidates;
+    // Candidate 2's second slot copies candidate 0's first slot, title-for-title.
+    repeated[2] = {
+      ...repeated[2],
+      mealTitles: [repeated[2].mealTitles[0], repeated[0].mealTitles[0], ...repeated[2].mealTitles.slice(2)],
+    };
+    const stream = makeStreamFn(repeated);
+
+    const warns: Array<Record<string, unknown>> = [];
+    const realWarn = logger.warn.bind(logger);
+    (logger as unknown as { warn: unknown }).warn = ((obj: unknown, ...rest: unknown[]) => {
+      if (obj && typeof obj === "object") warns.push(obj as Record<string, unknown>);
+      return realWarn(obj as never, ...(rest as [never]));
+    }) as never;
+    let frames;
+    try {
+      ({ frames } = await streamOnce({ streamFn: stream.fn }));
+    } finally {
+      (logger as unknown as { warn: unknown }).warn = realWarn;
+    }
+
+    // The response is untouched: three candidate frames still ship.
+    assert.equal(frames.filter((f) => f.event === "candidate").length, 3);
+    const lines = warns.filter((w) => w.event === "wizard_candidate_repeat_check");
+    assert.equal(lines.length, 1, "exactly one repeat-check line per generation");
+    assert.equal(lines[0].path, "stream");
+    assert.equal(lines[0].route, "wizard.build_plans");
+    assert.equal(lines[0].candidateCount, 3);
+    assert.equal(lines[0].repeatCount, 1);
+    const titles = lines[0].repeatedTitles as Array<{ key: string; candidates: number[] }>;
+    assert.equal(titles.length, 1);
+    assert.equal(titles[0].key, "sheet pan harissa chicken");
+    assert.deepEqual(titles[0].candidates, [0, 2]);
+  });
 });
 
 // ── D-WS9-038 — build-plans store compose ────────────────────────────────
