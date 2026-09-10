@@ -7017,6 +7017,7 @@ function makeD4Stub(opts: {
       create: async () => ({ id: "di-d4" }),
     },
     recipeInstructionStep: {
+      findMany: async () => [], // D-WS9-235 stampMealTiming reads steps back
       create: async () => ({ id: "step-d4" }),
     },
     userActivity: {

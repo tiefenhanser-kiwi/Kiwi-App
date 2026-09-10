@@ -267,6 +267,7 @@ function makeStubs(opts: {
     },
     dishIngredient: { create: async () => ({}) },
     recipeInstructionStep: {
+      findMany: async () => [], // D-WS9-235 stampMealTiming reads steps back
       create: async (args: { data: CapturedStep }) => {
         captured.steps.push(args.data);
         return {};

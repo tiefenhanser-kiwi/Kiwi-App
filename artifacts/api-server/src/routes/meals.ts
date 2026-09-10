@@ -119,6 +119,10 @@ export const MEAL_LIST_SELECT = {
   description: true,
   cuisineType: true,
   estimatedTimeMinutes: true,
+  // WS9 D-WS9-235 — the derived hands-on figure. This select is an explicit
+  // field list, so omitting it here would silently keep it off the wire no
+  // matter what the schema says.
+  activeTimeMinutes: true,
   servingsDefault: true,
   authoredServingsDefault: true,
   caloriesPerServing: true,

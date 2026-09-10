@@ -14,6 +14,7 @@ import type { Prisma } from "@prisma/client";
 
 import { lookupIngredientByName } from "./ingredientLookup";
 import { stampAllergens } from "./allergens";
+import { stampMealTiming } from "./mealTiming";
 
 export interface RecipeOverrideForCreate {
   titleOverride?: string;
@@ -190,6 +191,11 @@ export async function createMealWithDishes(
   // Meal stamps, whether or not the row is public. Free: pure string matching,
   // no AI call, one UPDATE inside a transaction already writing dozens of rows.
   await stampAllergens(tx, newMeal.id);
+
+  // WS9 D-WS9-235 — RE-DERIVE, do not inherit. A promoted override can add,
+  // drop or retime steps, so the source meal's scalar describes a recipe this
+  // one no longer is. Same seam and same argument as stampAllergens above.
+  await stampMealTiming(tx, newMeal.id, newDishIds);
 
   return { mealId: newMeal.id };
 }

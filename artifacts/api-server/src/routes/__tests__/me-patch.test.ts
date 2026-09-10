@@ -277,6 +277,7 @@ function makeStub(opts: StubOpts = {}) {
       },
     },
     recipeInstructionStep: {
+      findMany: async () => [], // D-WS9-235 stampMealTiming reads steps back
       create: async (args: { data: Record<string, unknown> }) => {
         captured.stepCreates.push(args.data);
         return {};

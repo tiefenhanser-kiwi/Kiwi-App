@@ -13,10 +13,14 @@
 // numbers come straight off its result. This is a thin adapter: DB shapes in,
 // scheduler call, numbers out. If a future change needs different overlap
 // behaviour, it belongs in the scheduler with its tests, not here.
+import type { Prisma } from "@prisma/client";
+
 import {
   scheduleCookingSequence,
   type SchedulerDish,
+  type SchedulerPhase,
 } from "./cookingScheduler";
+import { logger } from "./logger";
 
 export interface MealTiming {
   /** Wall-clock start-to-plate, D-WS9-122's definition. Null when underivable. */
@@ -69,4 +73,86 @@ export function deriveMealTiming(dishes: SchedulerDish[]): MealTiming {
     activeMinutes: result.activeEstimatedMinutes,
     dishTotals,
   };
+}
+
+/**
+ * Derive a persisted meal's timing from its PERSISTED steps and stamp it onto
+ * the meal + its dishes, inside the caller's transaction.
+ *
+ * ⚠️ READS THE GRAPH BACK RATHER THAN THE PAYLOAD, for the reason stampAllergens
+ * gives two lines below its own call site: the graph is what every other reader
+ * sees, so a meal cannot end up stamped against a different input than its
+ * neighbour. It also means the backfill and this path derive from byte-identical
+ * shapes, so a meal re-saved tomorrow gets the number the backfill would give it.
+ *
+ * FAILS OPEN, NOT CLOSED. If no step is derivable the authored value is left
+ * exactly as it was and activeTimeMinutes stays null — a null the client can
+ * recognise as "not derived" rather than a zero it would render as a claim.
+ * That should not happen (every persistence path has steps by this point), so
+ * it is logged at warn rather than passed over in silence.
+ */
+export async function stampMealTiming(
+  tx: Prisma.TransactionClient,
+  mealId: string,
+  dishIds: string[],
+): Promise<MealTiming> {
+  const empty: MealTiming = { totalMinutes: null, activeMinutes: null, dishTotals: new Map() };
+  if (dishIds.length === 0) {
+    logger.warn({ event: "meal_timing_not_derived", mealId, reason: "no_dishes" },
+      "D-WS9-235: no dishes at stamp time; authored time left as-is");
+    return empty;
+  }
+
+  // Steps only. The dish TITLE is deliberately not read: SchedulerDish.title
+  // feeds composeCue's prose ("while the roast cooks"), and neither derived
+  // number depends on it. Reading it would add a round-trip and a second table
+  // dependency to buy a string this function discards.
+  const steps = await tx.recipeInstructionStep.findMany({
+    where: { ownerType: "dish", ownerId: { in: dishIds } },
+    select: { ownerId: true, stepIndex: true, estimatedMinutes: true, phaseType: true, isTimingSensitive: true },
+    orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
+  });
+  const byDish = new Map<string, SchedulerDish["steps"]>();
+  for (const s of steps) {
+    const list = byDish.get(s.ownerId) ?? [];
+    list.push({
+      stepIndex: s.stepIndex,
+      estimatedMinutes: s.estimatedMinutes,
+      phaseType: s.phaseType as SchedulerPhase,
+      isTimingSensitive: s.isTimingSensitive,
+    });
+    byDish.set(s.ownerId, list);
+  }
+  // dishIds order is the caller's positional order — the same order the meal's
+  // dishLinks carry, so positionIndex here matches what the scheduler sees at
+  // cook time.
+  const schedulerDishes: SchedulerDish[] = dishIds
+    .filter((id) => byDish.has(id))
+    .map((id, i) => ({
+      dishId: id,
+      title: id, // unused for timing — see above
+      positionIndex: i,
+      steps: byDish.get(id)!,
+    }));
+
+  const timing = deriveMealTiming(schedulerDishes);
+  if (timing.totalMinutes === null) {
+    logger.warn(
+      { event: "meal_timing_not_derived", mealId, dishCount: dishIds.length, stepCount: steps.length, reason: "no_steps" },
+      "D-WS9-235: no derivable steps at stamp time; authored time left as-is",
+    );
+    return empty;
+  }
+
+  await tx.meal.update({
+    where: { id: mealId },
+    data: {
+      estimatedTimeMinutes: timing.totalMinutes,
+      activeTimeMinutes: timing.activeMinutes,
+    },
+  });
+  for (const [dishId, total] of timing.dishTotals) {
+    await tx.dish.update({ where: { id: dishId }, data: { estimatedTimeMinutes: total } });
+  }
+  return timing;
 }

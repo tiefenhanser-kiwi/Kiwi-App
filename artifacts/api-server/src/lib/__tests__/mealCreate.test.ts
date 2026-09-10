@@ -132,6 +132,7 @@ function makeTx(opts: {
       },
     },
     recipeInstructionStep: {
+      findMany: async () => [], // D-WS9-235 stampMealTiming reads steps back
       create: async (args: { data: Record<string, unknown> }) => {
         recorder.stepCreates.push(args);
         return { id: "step-1" };

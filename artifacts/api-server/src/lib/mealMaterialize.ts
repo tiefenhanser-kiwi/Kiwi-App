@@ -44,6 +44,7 @@ import { type IngredientMention } from "./ingredientResolve";
 import { recomputeAndPersistMealMacros } from "./mealMacros";
 import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
 import { stampAllergens } from "./allergens";
+import { stampMealTiming } from "./mealTiming";
 
 // ── payload shape ───────────────────────────────────────────────────────
 //
@@ -288,7 +289,14 @@ export async function materializeMeal(
       servingsDefault: payload.servingsDefault ?? 4,
       // WS7-8 BUG-003 — anchor frozen == servingsDefault at create.
       authoredServingsDefault: payload.servingsDefault ?? 4,
-      estimatedTimeMinutes: payload.estimatedTimeMinutes ?? 30,
+      // WS9 D-WS9-235 — the `?? 30` invention is RETIRED. An absent number now
+      // falls to the column default and is overwritten moments later by
+      // stampMealTiming from the persisted steps; it never survives as a claim.
+      // BUG-245: that fabricated 30 is the number the meatloaf shipped with
+      // against a 58-minute bake.
+      ...(payload.estimatedTimeMinutes !== undefined
+        ? { estimatedTimeMinutes: payload.estimatedTimeMinutes }
+        : {}),
       difficulty: payload.difficulty ?? "easy",
       tags: payload.tags ?? [],
       isPublic: resolvedIsPublic,
@@ -464,6 +472,16 @@ export async function materializeMeal(
   // initial value on the create above, which this immediately reconciles.
   await stampAllergens(tx, meal.id);
 
+  // WS9 D-WS9-235 — the meal's time is DERIVED from the steps just written, with
+  // the scheduler's parallelism. Same seam and same argument as stampAllergens
+  // above: reconcile from the persisted graph once it exists, rather than trust
+  // a number the generator authored before the steps did.
+  //
+  // BUG-245 measured the alternative at 93.8% of meals under-claiming, median 20
+  // minutes. The `?? 30` on the create above is now only a placeholder for the
+  // instant between the meal row and this line.
+  await stampMealTiming(tx, meal.id, dishIds);
+
   return { mealId: meal.id, dishIds, linksCreated };
 }
 
@@ -519,7 +537,14 @@ export async function materializeDish(
       title: payload.title,
       description: payload.description ?? null,
       sourceType: payload.sourceType ?? "manual",
-      estimatedTimeMinutes: payload.estimatedTimeMinutes ?? 30,
+      // WS9 D-WS9-235 — the `?? 30` invention is RETIRED. An absent number now
+      // falls to the column default and is overwritten moments later by
+      // stampMealTiming from the persisted steps; it never survives as a claim.
+      // BUG-245: that fabricated 30 is the number the meatloaf shipped with
+      // against a 58-minute bake.
+      ...(payload.estimatedTimeMinutes !== undefined
+        ? { estimatedTimeMinutes: payload.estimatedTimeMinutes }
+        : {}),
       difficulty: payload.difficulty ?? "easy",
       servingsDefault: payload.servingsDefault ?? 4,
       // WS7-8 BUG-003 — anchor frozen == servingsDefault at create.
@@ -847,6 +872,11 @@ export async function rematerializeMeal(
   // meal to the allergic user. Same argument, same seam, two lines below the
   // macro recompute that already exists for the identical reason.
   await stampAllergens(tx, mealId);
+
+  // WS9 D-WS9-235 — re-derive after a wipe-and-recreate: an edit that changes a
+  // step's minutes, adds a dish or drops one must move the meal's time with it,
+  // or the scalar silently describes the pre-edit recipe.
+  await stampMealTiming(tx, mealId, dishIds);
 
   return { mealId, dishIds, linksCreated };
 }

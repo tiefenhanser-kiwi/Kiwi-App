@@ -482,6 +482,7 @@ describe("materializeMeal via STORE_FILL_TARGET", () => {
       mealDishLink: { create: async () => ({}), findMany: async () => [] },
       dishIngredient: { create: async () => ({}) },
       recipeInstructionStep: {
+      findMany: async () => [], // D-WS9-235 stampMealTiming reads steps back
         create: async ({ data }: { data: Record<string, unknown> }) => { createdSteps.push(data); return {}; },
       },
     };
@@ -551,6 +552,7 @@ describe("materializeMeal via STORE_FILL_TARGET", () => {
       mealDishLink: { create: async () => ({}), findMany: async () => [] },
       dishIngredient: { create: async () => ({}) },
       recipeInstructionStep: {
+      findMany: async () => [], // D-WS9-235 stampMealTiming reads steps back
         create: async ({ data }: { data: Record<string, unknown> }) => { createdSteps.push(data); return {}; },
       },
     };
