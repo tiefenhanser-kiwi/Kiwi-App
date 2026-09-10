@@ -504,6 +504,47 @@ describe("PATCH /me/meals/:id (scalar-only)", () => {
       await harness.close();
     }
   });
+
+  // D-WS9-235 follow-up — a user-typed time is a CLAIM. `activeTimeMinutes`
+  // non-null is the "derived" marker D-WS7-166's capped shelves key on, so the
+  // scalar path must clear it in the SAME update, or a patched meal keeps the
+  // marker over a number the scheduler never produced.
+  it("a scalar estimatedTimeMinutes patch clears the derived marker (activeTimeMinutes → null) in the same update", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        estimatedTimeMinutes: 25,
+      });
+      assert.equal(res.status, 200);
+      assert.equal(captured.mealUpdates.length, 1);
+      assert.equal(captured.mealUpdates[0].data.estimatedTimeMinutes, 25);
+      assert.ok(
+        "activeTimeMinutes" in captured.mealUpdates[0].data,
+        "the update must write activeTimeMinutes, not leave it untouched",
+      );
+      assert.equal(captured.mealUpdates[0].data.activeTimeMinutes, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a scalar patch that does NOT touch the time leaves the marker alone", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", { title: "Renamed" });
+      assert.equal(res.status, 200);
+      assert.equal(captured.mealUpdates.length, 1);
+      assert.ok(!("activeTimeMinutes" in captured.mealUpdates[0].data));
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 // ── PATCH /me/meals/:id — Block 5 apply-every-time (bumpPlanId) ──────────

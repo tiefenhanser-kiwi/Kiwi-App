@@ -1094,3 +1094,129 @@ describe("materializeWizardDraft — D-WS9-038 store fork + write-back", () => {
     );
   });
 });
+
+// ── WS9 D-WS9-235 follow-up — the LIVE slot derives its time at activation ──
+//
+// Before this, the build branch wrote `estimatedTimeMinutes: m.estimatedTimeMinutes`
+// (the expand call's claim) and never touched `activeTimeMinutes`, so every
+// wizard-activated live meal carried NULL — the "not derived" marker — and the
+// live_writeback pool copy inherited it through cloneMealInto. The stub here is
+// a tiny in-memory row store so the pool copy's create is asserted against the
+// row as it stood AFTER the stamp, not against the create payload.
+describe("materializeWizardDraft — D-WS9-235 live slot stamps a DERIVED time", () => {
+  function makeTimingStubs() {
+    const meals = new Map<string, Record<string, unknown>>();
+    const dishes = new Map<string, Record<string, unknown>>();
+    const links: Array<{ mealId: string; dishId: string; positionIndex: number; roleLabel: string }> = [];
+    const steps: Array<Record<string, unknown>> = [];
+    const mealCreates: Array<Record<string, unknown>> = [];
+    let seq = 0;
+
+    const prismaStub = {
+      mealPlanInstance: { findUnique: async () => ({ userId: USER_ID, isWizardDraft: true }) },
+      ingredientAlias: { findUnique: async () => null, findMany: async () => [] },
+      ingredient: {
+        findMany: async () => [],
+        upsert: async (args: { where: { canonicalName: string } }) => ({ id: `ing-${args.where.canonicalName}` }),
+      },
+    };
+    const txStub = {
+      userPreferences: { findUnique: async () => null },
+      meal: {
+        create: async (args: { data: Record<string, unknown> }) => {
+          const id = `meal-${seq++}`;
+          meals.set(id, { id, ...args.data });
+          mealCreates.push(args.data);
+          return { id };
+        },
+        update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+          meals.set(args.where.id, { ...meals.get(args.where.id)!, ...args.data });
+          return {};
+        },
+        findUnique: async (args: { where: { id: string }; select?: Record<string, unknown> }) => {
+          const row = meals.get(args.where.id)!;
+          if (args.select && "allergens" in args.select) {
+            return { allergens: [], allergenSources: null, allergensStampedAt: null };
+          }
+          const dishLinks = links
+            .filter((l) => l.mealId === row.id)
+            .map((l) => ({ ...l, dish: { ...dishes.get(l.dishId)!, dishIngredients: [] } }));
+          return { ...row, dishLinks };
+        },
+      },
+      dish: {
+        create: async (args: { data: Record<string, unknown> }) => {
+          const id = `dish-${seq++}`;
+          dishes.set(id, { id, displayTitle: null, description: null, imageUrl: null, tags: [], macroGroundedPct: null, substitutions: null, componentRegistry: null, componentSelections: null, ...args.data });
+          return { id };
+        },
+        update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+          dishes.set(args.where.id, { ...dishes.get(args.where.id)!, ...args.data });
+          return {};
+        },
+      },
+      mealDishLink: {
+        create: async (args: { data: { mealId: string; dishId: string; positionIndex: number; roleLabel: string } }) => {
+          links.push(args.data);
+          return {};
+        },
+        findMany: async (args: { where: { mealId: string; dishId?: { in: string[] } }; select?: Record<string, unknown> }) =>
+          links
+            .filter((l) => l.mealId === args.where.mealId && (!args.where.dishId || args.where.dishId.in.includes(l.dishId)))
+            // recomputeAndPersistMealMacros joins the dish; the timing stamp reads the bare link.
+            .map((l) => (args.select && "dish" in args.select ? { ...l, dish: { caloriesPerServing: 0, proteinGPerServing: 0, carbsGPerServing: 0, fatGPerServing: 0 } } : l)),
+      },
+      dishIngredient: { create: async () => ({}), createMany: async () => ({ count: 0 }) },
+      recipeInstructionStep: {
+        create: async (args: { data: Record<string, unknown> }) => {
+          steps.push({ requiresPreheat: false, requiresRest: false, requiresMarination: false, ...args.data });
+          return {};
+        },
+        createMany: async (args: { data: Record<string, unknown>[] }) => {
+          for (const d of args.data) steps.push(d);
+          return { count: args.data.length };
+        },
+        findMany: async (args: { where: { ownerType: string; ownerId: string | { in: string[] } } }) =>
+          steps.filter((s) => {
+            if (s.ownerType !== args.where.ownerType) return false;
+            const o = args.where.ownerId;
+            return typeof o === "string" ? s.ownerId === o : o.in.includes(s.ownerId as string);
+          }),
+      },
+      mealPlanItem: { create: async () => ({}) },
+      mealPlanTemplate: { findFirst: async () => null, create: async () => ({ id: "tpl-timing" }) },
+    };
+    return { prismaStub, txStub, meals, mealCreates };
+  }
+
+  it("the live meal's stored time is the DERIVED 38, not the claimed 35, and activeTimeMinutes is 8 — and the live_writeback copy inherits both", async () => {
+    const liveMeal = sampleExpanded().meals[0]; // claims 35; steps: 8 prep + 30 unattended cook
+    const savePlan: WizardSavePlan = {
+      candidateId: "c1",
+      title: "Timing Plan",
+      tags: [],
+      whyBullets: ["b"],
+      slots: [{ kind: "build", meal: liveMeal, writeBack: true }],
+    };
+    const { prismaStub, txStub, meals, mealCreates } = makeTimingStubs();
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan,
+    });
+
+    // Guard (a): the LIVE row, read back from the store after every update.
+    const live = [...meals.values()].find((m) => m.sourceType === "wizard")!;
+    assert.equal(live.estimatedTimeMinutes, 38, "8 prep + 30 cook, serial in one dish — the derived total");
+    assert.equal(live.activeTimeMinutes, 8, "only the prep is hands-on; the roast is unattended");
+
+    // The pool copy is created from the row AS STAMPED, so it carries both.
+    const pool = mealCreates.find((d) => d.sourceType === "live_writeback")!;
+    assert.ok(pool, "writeBack:true → one live_writeback create");
+    assert.equal(pool.estimatedTimeMinutes, 38);
+    assert.equal(pool.activeTimeMinutes, 8, "a NULL here hides the copy from every capped shelf");
+  });
+});

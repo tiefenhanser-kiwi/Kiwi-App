@@ -1495,8 +1495,17 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         if (body.mealType !== undefined) scalarUpdate.mealType = body.mealType;
         if (body.servingsDefault !== undefined)
           scalarUpdate.servingsDefault = body.servingsDefault;
-        if (body.estimatedTimeMinutes !== undefined)
+        if (body.estimatedTimeMinutes !== undefined) {
           scalarUpdate.estimatedTimeMinutes = body.estimatedTimeMinutes;
+          // D-WS9-235 follow-up — a user-typed time is a CLAIM, not a
+          // derivation. `activeTimeMinutes` non-null is the "derived" marker
+          // (D-WS7-166's capped shelves admit only marked rows), so a scalar
+          // time patch must clear it or the meal keeps the marker over a
+          // number the scheduler never produced. Same shape as the
+          // macroGroundedPct clear on the dish PATCH below. The user's number
+          // is kept as written; re-deriving here would silently drop the edit.
+          scalarUpdate.activeTimeMinutes = null;
+        }
         if (body.difficulty !== undefined)
           scalarUpdate.difficulty = body.difficulty;
         if (body.tags !== undefined) scalarUpdate.tags = body.tags;

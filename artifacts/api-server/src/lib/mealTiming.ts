@@ -136,15 +136,23 @@ export async function stampMealTiming(
     });
     byDish.set(s.ownerId, list);
   }
-  // dishIds order is the caller's positional order — the same order the meal's
-  // dishLinks carry, so positionIndex here matches what the scheduler sees at
-  // cook time.
+  // positionIndex comes from the PERSISTED link, not the caller's array order
+  // (D-WS9-235 follow-up). POST/PATCH /me/meals payloads carry a client-supplied
+  // positionIndex (0–20) that need not be array-ordered, and the backfill reads
+  // the link — so this is what keeps a meal re-saved tomorrow on the same
+  // number the backfill gave it. Array order is only the fallback for a dish
+  // whose link is missing (never on a real write; every caller links first).
+  const links = await tx.mealDishLink.findMany({
+    where: { mealId, dishId: { in: dishIds } },
+    select: { dishId: true, positionIndex: true },
+  });
+  const positionByDish = new Map(links.map((l) => [l.dishId, l.positionIndex]));
   const schedulerDishes: SchedulerDish[] = dishIds
     .filter((id) => byDish.has(id))
     .map((id, i) => ({
       dishId: id,
       title: id, // unused for timing — see above
-      positionIndex: i,
+      positionIndex: positionByDish.get(id) ?? i,
       steps: byDish.get(id)!,
     }));
 

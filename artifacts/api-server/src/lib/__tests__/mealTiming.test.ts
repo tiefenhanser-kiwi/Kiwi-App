@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { deriveMealTiming } from "../mealTiming";
+import { deriveMealTiming, stampMealTiming } from "../mealTiming";
 import { materializeMeal } from "../mealMaterialize";
 import type { SchedulerDish } from "../cookingScheduler";
 
@@ -193,5 +193,58 @@ describe("D-WS9-235 — materializeMeal stamps the DERIVED time", () => {
       dishUpdates.some((d) => d.estimatedTimeMinutes === 73),
       "the dish's own total is stamped too",
     );
+  });
+});
+
+// ── D-WS9-235 follow-up — stampMealTiming orders by the PERSISTED link ──────
+//
+// The caller's `dishIds` array is not the meal's order: POST/PATCH /me/meals
+// payloads carry a client-supplied positionIndex that need not be array-ordered,
+// and the backfill reads the link. The stamp must read the link too, or a meal
+// re-saved through the API can land on a different number than the backfill
+// gave it. Same tie-sensitive fixture as the deriveMealTiming order tests: A-first
+// schedules to 30, B-first to 50.
+describe("D-WS9-235 — stampMealTiming reads positionIndex from the link, not the array", () => {
+  it("dishIds handed B-first, links say A is position 0 → the A-first 30, not the B-first 50", async () => {
+    const stepsByOwner: Record<string, Array<{ stepIndex: number; estimatedMinutes: number; phaseType: string; isTimingSensitive: boolean }>> = {
+      a: [
+        { stepIndex: 0, estimatedMinutes: 5, phaseType: "prep", isTimingSensitive: false },
+        { stepIndex: 1, estimatedMinutes: 20, phaseType: "cook", isTimingSensitive: false },
+      ],
+      b: [
+        { stepIndex: 0, estimatedMinutes: 5, phaseType: "prep", isTimingSensitive: false },
+        { stepIndex: 1, estimatedMinutes: 20, phaseType: "cook", isTimingSensitive: true },
+      ],
+    };
+    const mealUpdates: Array<Record<string, unknown>> = [];
+    const fakeTx = {
+      meal: {
+        update: async ({ data }: { data: Record<string, unknown> }) => {
+          mealUpdates.push(data);
+          return {};
+        },
+      },
+      dish: { update: async () => ({}) },
+      mealDishLink: {
+        // The persisted order: a is the main at 0, b the side at 1 — the
+        // OPPOSITE of the array order the caller hands over below.
+        findMany: async () => [
+          { dishId: "b", positionIndex: 1 },
+          { dishId: "a", positionIndex: 0 },
+        ],
+      },
+      recipeInstructionStep: {
+        findMany: async ({ where }: { where: { ownerId: { in: string[] } } }) =>
+          where.ownerId.in.flatMap((id) => (stepsByOwner[id] ?? []).map((s) => ({ ownerId: id, ...s }))),
+      },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const timing = await stampMealTiming(fakeTx as any, "meal-1", ["b", "a"]);
+
+    assert.equal(timing.totalMinutes, 30, "A-first per the LINK order; array order (B-first) would give 50");
+    assert.equal(mealUpdates.length, 1);
+    assert.equal(mealUpdates[0].estimatedTimeMinutes, 30);
+    assert.equal(mealUpdates[0].activeTimeMinutes, 30, "5+5 prep attended, B's 20 attended cook; A's cook unattended");
   });
 });

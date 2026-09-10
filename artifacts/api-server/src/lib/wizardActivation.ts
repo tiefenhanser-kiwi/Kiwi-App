@@ -27,6 +27,7 @@ import { recomputeAndPersistMealMacros } from "./mealMacros";
 import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
 import { forkMealForUser, publishMealToStore } from "./mealFork";
 import { stampAllergens } from "./allergens";
+import { stampMealTiming } from "./mealTiming";
 import type { WizardSavePlan } from "./wizardSavePlan";
 
 // WS7-6 Block 2: inferCategory now lives in ingredientResolve.ts so the new
@@ -246,6 +247,10 @@ export async function materializeWizardDraft(
       });
       mealsCreated++;
 
+      // D-WS9-235 follow-up — the live meal's dish ids, in slot-payload order,
+      // for the timing stamp after the loop (see below).
+      const liveDishIds: string[] = [];
+
       for (let di = 0; di < m.dishes.length; di++) {
         const d = m.dishes[di];
 
@@ -288,6 +293,7 @@ export async function materializeWizardDraft(
           select: { id: true },
         });
         dishesCreated++;
+        liveDishIds.push(dish.id);
 
         await tx.mealDishLink.create({
           data: {
@@ -393,6 +399,19 @@ export async function materializeWizardDraft(
       // Placed next to the macro recompute for the same reason that one is
       // here: both read the graph the loop above just wrote.
       await stampAllergens(tx, meal.id);
+
+      // WS9 D-WS9-235 follow-up — DERIVE the live-built meal's time from the
+      // steps just written, with the scheduler's parallelism. Same seam and same
+      // argument as materializeMeal: `estimatedTimeMinutes: m.estimatedTimeMinutes`
+      // on the create above is the expand call's CLAIM, and until this line it
+      // survived as the stored value with `activeTimeMinutes` NULL — the "not
+      // derived" marker — so every wizard-activated live meal was hidden from
+      // capped shelves and shown with a claimed number on uncapped ones.
+      //
+      // Ordered BEFORE publishMealToStore: cloneMealInto copies both timing
+      // columns verbatim, so the live_writeback pool copy inherits the derived
+      // total and the non-null marker only if the original is stamped first.
+      await stampMealTiming(tx, meal.id, liveDishIds);
       mealId = meal.id;
 
       // Write-back (D-WS7-201): publish a pool copy stamped live_writeback so a
