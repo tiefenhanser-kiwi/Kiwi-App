@@ -1062,7 +1062,10 @@ For the candidate the user picked (input below), expand each meal in \`mealTitle
 - \`title\` — the meal title (keep verbatim from \`mealTitles\`; this is how Kiwi tracks the meal across the candidate / expanded / saved states).
 - \`description\` — a one-line, ≤160-char user-facing sub-text naming what's on the plate ("Seared short ribs over creamy mashed potatoes with roasted carrots"). Plain and appetizing — a real sentence, not a tagline, no puns, no byline.
 - \`cuisineType\` — short cuisine label ("Italian", "Mexican", "American", "Thai", "Mediterranean", etc.). Required.
-- \`estimatedTimeMinutes\` — integer total time in minutes including prep + cook. Required.
+- \`estimatedTimeMinutes\` — WALL-CLOCK minutes from opening the fridge to being able to plate, INCLUDING time the food cooks unattended. Required.
+  - A meal is never faster than its slowest single step. A meatloaf that bakes 55 minutes is a 75-minute meal even though your hands are busy for 15 of them — write 75, not 15 and not 30.
+  - Two dishes that cook at the same time overlap: a 20-minute bake beside a 10-minute sauté is about 20 minutes total, not 30.
+  - ⚠️ THIS NUMBER IS A PRE-FINALIZE ESTIMATE ONLY. It is shown on the candidate card while the user chooses. The moment the plan is saved, the app RECOMPUTES it from the generated steps and overwrites whatever you wrote. So an honest estimate helps the user choose; a flattering one is discarded and makes the card disagree with the saved meal.
 - \`difficulty\` — one of \`easy | medium | fancy\`. Required.
 - \`servings\` — integer servings the recipe makes (informed by the user's \`householdSize\` and \`wantsLeftovers\` from the original wizard input — those are echoed in \`candidateContext\` below).
 - \`dishes\` — array of one or more dishes that compose the meal. Most weeknight meals are a single dish (\`role: "main"\`); a fancier meal can include sides (\`role: "side"\`), sauces (\`role: "sauce"\`), or toppings (\`role: "topping"\`). A single-dish meal must itself be complete — a one-pot/one-pan dish carrying a protein AND a starch and/or vegetable (a soup, stew, chili, stir-fry, one-pot pasta, or hearty dinner salad), never a bare protein. Each dish has:
@@ -1073,13 +1076,15 @@ For the candidate the user picked (input below), expand each meal in \`mealTitle
 
 # Cook-time cap
 
-When \`candidateContext.maxCookTimeMinutes\` is set (non-null), treat it as a REAL ceiling on the \`estimatedTimeMinutes\` you author — here (unlike the earlier title-selection stage) the minute value is yours to set, so honor it:
+🔴 THE CAP CONSTRAINS WHICH RECIPES YOU PICK. IT DOES NOT CONSTRAIN THE NUMBER YOU WRITE DOWN. When \`candidateContext.maxCookTimeMinutes\` is set (non-null), choose recipes whose REAL start-to-plate time fits it. Never shorten a time to fit; the number must describe the recipe you actually chose.
 
-- \`candidateContext.maxCookTimeCoverage = "all"\` → the cap applies to EVERY meal, including the fanciest night. No exceptions.
-- \`candidateContext.maxCookTimeCoverage = "most"\` → at most ONE meal — the fanciest / most involved night — MAY exceed the cap as the allowed exception; every other meal must land within it. If no meal genuinely needs to run long, keep them all under the cap.
+- \`candidateContext.maxCookTimeCoverage = "all"\` → aim every meal at the cap, including the fanciest night.
+- \`candidateContext.maxCookTimeCoverage = "most"\` → at most ONE meal — the fanciest / most involved night — may run long; aim every other meal at the cap.
 - When \`maxCookTimeMinutes\` is null there is no cap — author realistic times as usual.
 
-The minute cap and a meal's \`difficulty\` are INDEPENDENT axes: a dish can be easy-but-slow (a hands-off braise that simmers an hour) or fancy-but-fast (a quick-seared, well-plated main). Do NOT treat "fancy" as "long," and do NOT assume staying under the cap forces a meal to be simple. Author \`estimatedTimeMinutes\` from the actual recipe, then keep it under the cap per the coverage rule above.
+🔴 IF NO RECIPE HONESTLY FITS, PICK THE CLOSEST ONE AND STATE ITS TRUE TIME. A 45-minute meal labelled 45 is a useful answer the user can plan around; the same meal labelled 30 is a broken promise they discover at dinner time. This is not a failure state and it is not an error — write the honest number and move on. Prefer genuinely quick cooking methods (sheet-pan, stir-fry, skillet, no-cook assembly) over long braises and roasts when the cap is tight; that is how you fit it, not by editing the estimate.
+
+The minute cap and a meal's \`difficulty\` are INDEPENDENT axes: do NOT treat "fancy" as "long," and do NOT assume staying under the cap forces a meal to be simple — a quick-seared, well-plated main is fancy AND fast. ⚠️ But note that unattended time COUNTS: a hands-off braise that simmers an hour is a long meal for this purpose even though the cook is free, because the user still cannot eat for an hour.
 
 # Ingredient rules
 
