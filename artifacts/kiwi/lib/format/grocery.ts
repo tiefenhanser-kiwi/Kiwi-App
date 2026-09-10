@@ -667,6 +667,38 @@ function formatPackAmount(n: number): string {
  * "1 can (14.5 oz)" ×4 → "4 cans (14.5 oz)". At one pack the stored string is
  * returned untouched, so the no-scaling case stays byte-identical.
  */
+/**
+ * Make a pack label's HEAD NOUN agree with a count: "container (5 oz)" at 3
+ * is "containers (5 oz)"; "cans (15 oz)" at 1 is "can (15 oz)". Only the
+ * first token moves — the parenthetical size and any qualifier after it are
+ * returned untouched.
+ *
+ * WS9 BUG-240 follow-up. This lived inline in scalePackDisplay, which does the
+ * number rewrite AND the plural in ONE operation. The override path needs the
+ * second without the first: overriding the purchase quantity bypasses
+ * BUG-147's arithmetic (a user-set pack is not derived) but must not bypass
+ * grammar, or a quantity-only override renders "3 container (5 oz)".
+ * EXTRACTED rather than duplicated, so the two call sites cannot disagree.
+ *
+ * Both directions come from the maps that already exist — pluralizeNeedUnit
+ * forward, singularizeNoun back (itself derived from COUNT_NOUN_PLURALS,
+ * BUG-144) — so no second pluraliser is introduced. Measure units pass
+ * through both ways, which is why "1 lb block" and "3 lb block" are both
+ * left alone.
+ *
+ * ⚠️ The singular branch is UNREACHABLE from scalePackDisplay: it returns
+ * early at packs <= 1, so its total is always >= 2. The extraction is
+ * therefore behaviour-preserving for the derived path — guard (c) pins it.
+ */
+function agreePackLabel(label: string, count: number): string {
+  const m = /^(\s*)(\S+)([\s\S]*)$/.exec(label);
+  if (!m) return label;
+  const [, lead, noun, rest] = m;
+  const agreed =
+    count === 1 ? singularizeNoun(noun) : pluralizeNeedUnit(noun, count);
+  return `${lead}${agreed}${rest}`;
+}
+
 function scalePackDisplay(
   purchaseDisplay: string,
   packs: number,
@@ -679,7 +711,7 @@ function scalePackDisplay(
   const total = packs * packQuantity;
   // The same count-noun map the need parenthetical uses, so the two halves of
   // the line cannot pluralize differently. Measure units pass through.
-  return `${lead}${formatPackAmount(total)}${gap}${pluralizeNeedUnit(noun, total)}${rest}`;
+  return `${lead}${formatPackAmount(total)}${gap}${agreePackLabel(noun + rest, total)}`;
 }
 
 // Pack + name, composed into the order half of the two-part line. `needAmount`
@@ -834,8 +866,14 @@ export function composePackName(
     const qty = ovrQty ?? packLeadingQuantity(shown) ?? 1;
     const label =
       ovrLabel !== undefined && ovrLabel !== null && ovrLabel.trim().length > 0
-        ? ovrLabel.trim()
-        : packResidue(purchaseDisplay ?? "");
+        ? // The user's own string is NEVER touched — not pluralised, not
+          // stripped, not rescaled.
+          ovrLabel.trim()
+        : // Ruled Sept 10: a quantity-only override still has to READ right.
+          // The derived label agrees with the override count — grammar only,
+          // and none of the scaling path. Same stored string gives
+          // "1 container (5 oz)" and "3 containers (5 oz)".
+          agreePackLabel(packResidue(purchaseDisplay ?? ""), qty);
     const head = `${formatPackAmount(qty)}${label ? ` ${label}` : ""}`;
     // The presentation elide survives: a label that already names the item
     // ("roma tomatoes") would otherwise print the name twice. This is not a

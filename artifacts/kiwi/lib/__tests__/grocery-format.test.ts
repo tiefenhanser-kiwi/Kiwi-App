@@ -1224,3 +1224,69 @@ describe("BUG-240: purchase override bypasses derivation", () => {
     );
   });
 });
+
+// WS9 BUG-240 follow-up — a quantity-only override still has to READ right.
+//
+// The first cut bypassed "every BUG-147 scaling step", and scalePackDisplay
+// does the number rewrite and the plural in ONE operation — so bypassing it
+// bypassed grammar too and rendered "3 container (5 oz)". Ruled Sept 10:
+// grammar is not scaling. The derived label agrees with the override count;
+// the USER'S label is never touched.
+describe("BUG-240: a quantity-only override keeps the label's plural", () => {
+  it("guard (e) — the derived label agrees with the override count", () => {
+    // Stored singular, overridden UP.
+    assert.equal(
+      composePackName(
+        "fresh baby spinach", "container", "1 container (5 oz)", "10", "oz",
+        false, { quantity: 3 },
+      ),
+      "3 containers (5 oz) fresh baby spinach",
+    );
+    // Stored PLURAL, overridden DOWN to one — the inverse direction, which the
+    // derived path can never reach (scalePackDisplay returns early at packs<=1).
+    assert.equal(
+      composePackName(
+        "fresh baby spinach", "container", "2 containers (5 oz)", "10", "oz",
+        false, { quantity: 1 },
+      ),
+      "1 container (5 oz) fresh baby spinach",
+    );
+  });
+
+  it("guard (f) — only the HEAD noun moves; the parenthetical is untouched", () => {
+    assert.equal(
+      composePackName(
+        "crushed tomatoes", "can", "1 can (14.5 oz)", "28", "oz",
+        false, { quantity: 4 },
+      ),
+      "4 cans (14.5 oz) crushed tomatoes",
+    );
+    // A MEASURE unit head passes through in both directions — "3 lbs block"
+    // would be worse than the bug (the same rule pluralizeNeedUnit enforces).
+    assert.equal(
+      composePackName("cotija", "block", "1 lb block", "20", "oz", false, { quantity: 3 }),
+      "3 lb block cotija",
+    );
+    assert.equal(
+      composePackName("cotija", "block", "1 lb block", "20", "oz", false, { quantity: 1 }),
+      "1 lb block cotija",
+    );
+  });
+
+  it("guard (g) — a USER label is never pluralised, at any count", () => {
+    assert.equal(
+      composePackName(
+        "green onions", "bunch", "1 bunch", "4", "bunch",
+        false, { quantity: 3, display: "big bunch" },
+      ),
+      "3 big bunch green onions",
+    );
+    assert.notEqual(
+      composePackName(
+        "green onions", "bunch", "1 bunch", "4", "bunch",
+        false, { quantity: 3, display: "big bunch" },
+      ),
+      "3 big bunches green onions",
+    );
+  });
+});
