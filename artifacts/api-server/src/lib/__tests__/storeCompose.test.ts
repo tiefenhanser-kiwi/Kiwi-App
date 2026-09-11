@@ -13,6 +13,7 @@ import {
 } from "../store/storeComposeConfig";
 import {
   buildStoreShortlist,
+  MOST_COVERAGE_OVERAGE_MINUTES,
   reconcileStoreSlots,
 } from "../store/storeShortlist";
 import { allergenWhereConditions } from "../store/allergenFilter";
@@ -386,13 +387,14 @@ describe("buildStoreShortlist — cook-time cap (D-WS7-166)", () => {
   });
 
   it("'most' 30 with a non-empty over-cap pool → exactly ONE shelf row over 30, as the 41st", async () => {
-    // 45 under-cap rows (more than the 40-shelf) + 3 over-cap rows.
+    // 45 under-cap rows (more than the 40-shelf) + 3 over-cap rows inside the
+    // (30, 50] window.
     const rows = [
       ...Array.from({ length: 45 }, (_, i) =>
         mealRow({ id: `under-${String(i).padStart(2, "0")}`, estimatedTimeMinutes: 20 + (i % 10), activeTimeMinutes: 10 }),
       ),
-      mealRow({ id: "over-a", estimatedTimeMinutes: 75, activeTimeMinutes: 20 }),
-      mealRow({ id: "over-b", estimatedTimeMinutes: 90, activeTimeMinutes: 25 }),
+      mealRow({ id: "over-a", estimatedTimeMinutes: 45, activeTimeMinutes: 20 }),
+      mealRow({ id: "over-b", estimatedTimeMinutes: 50, activeTimeMinutes: 25 }),
       mealRow({ id: "over-c", estimatedTimeMinutes: 31, activeTimeMinutes: 15 }),
     ];
     const { prisma, whereArgs } = timeAwareStub(rows);
@@ -403,7 +405,7 @@ describe("buildStoreShortlist — cook-time cap (D-WS7-166)", () => {
     });
     assert.equal(whereArgs.length, 2, "under-cap query + over-cap query");
     assert.deepEqual(whereArgs[0].estimatedTimeMinutes, { lte: 30 });
-    assert.deepEqual(whereArgs[1].estimatedTimeMinutes, { gt: 30 });
+    assert.deepEqual(whereArgs[1].estimatedTimeMinutes, { gt: 30, lte: 50 });
     assert.deepEqual(whereArgs[1].activeTimeMinutes, { not: null });
     // Same base predicate on the over-cap query.
     assert.deepEqual(whereArgs[1].difficulty, whereArgs[0].difficulty);
@@ -415,6 +417,62 @@ describe("buildStoreShortlist — cook-time cap (D-WS7-166)", () => {
     // The exception resolves to one of the over-cap ids, through the alias map.
     const overAlias = over[0].id;
     assert.ok(["over-a", "over-b", "over-c"].includes(out.aliasToId.get(overAlias)!));
+  });
+
+  it("'most' → the one exception runs at most MOST_COVERAGE_OVERAGE_MINUTES over the cap (Hans: 30 maxes at 50)", async () => {
+    assert.equal(MOST_COVERAGE_OVERAGE_MINUTES, 20, "30 → 50, 45 → 65, 60 → 80");
+    // Over-cap rows on both sides of the ceiling: only the ones inside
+    // (cap, cap+20] may be the exception; the 75/90-minute braises never are.
+    const rows = [
+      ...Array.from({ length: 5 }, (_, i) =>
+        mealRow({ id: `u${i}`, estimatedTimeMinutes: 25, activeTimeMinutes: 10 }),
+      ),
+      mealRow({ id: "far-a", estimatedTimeMinutes: 75, activeTimeMinutes: 20 }),
+      mealRow({ id: "far-b", estimatedTimeMinutes: 90, activeTimeMinutes: 25 }),
+      mealRow({ id: "edge", estimatedTimeMinutes: 50, activeTimeMinutes: 20 }),
+    ];
+    for (const cap of [30, 45, 60]) {
+      const { prisma, whereArgs } = timeAwareStub(rows);
+      const out = await buildStoreShortlist(prisma, {
+        ...BASE,
+        maxCookTimeMinutes: cap,
+        maxCookTimeCoverage: "most",
+      });
+      // The over-cap where carries BOTH bounds.
+      assert.deepEqual(
+        whereArgs[1].estimatedTimeMinutes,
+        { gt: cap, lte: cap + MOST_COVERAGE_OVERAGE_MINUTES },
+        `cap ${cap}: over-cap window must be (${cap}, ${cap + 20}]`,
+      );
+      const over = out.forPrompt.filter((m) => m.estimatedTimeMinutes > cap);
+      for (const m of over) {
+        assert.ok(
+          m.estimatedTimeMinutes <= cap + MOST_COVERAGE_OVERAGE_MINUTES,
+          `cap ${cap}: exception at ${m.estimatedTimeMinutes} is beyond ${cap + 20}`,
+        );
+      }
+    }
+    // Cap 30: only "edge" (50) is inside (30, 50] → it is the exception.
+    const { prisma } = timeAwareStub(rows);
+    const out30 = await buildStoreShortlist(prisma, {
+      ...BASE,
+      maxCookTimeMinutes: 30,
+      maxCookTimeCoverage: "most",
+    });
+    const over30 = out30.forPrompt.filter((m) => m.estimatedTimeMinutes > 30);
+    assert.equal(over30.length, 1);
+    assert.equal(out30.aliasToId.get(over30[0].id), "edge");
+    // Cap 60: the window slides to (60, 80] — "far-a" (75) is now the one
+    // exception, "far-b" (90) still never is.
+    const { prisma: p60 } = timeAwareStub(rows);
+    const out60 = await buildStoreShortlist(p60, {
+      ...BASE,
+      maxCookTimeMinutes: 60,
+      maxCookTimeCoverage: "most",
+    });
+    const over60 = out60.forPrompt.filter((m) => m.estimatedTimeMinutes > 60);
+    assert.equal(over60.length, 1);
+    assert.equal(out60.aliasToId.get(over60[0].id), "far-a");
   });
 
   it("'most' with an EMPTY over-cap pool → no exception row appended", async () => {

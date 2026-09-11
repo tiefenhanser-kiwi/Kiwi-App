@@ -98,10 +98,20 @@ export interface BuildStoreShortlistOptions {
    * MVP filtering.
    */
   maxCookTimeMinutes?: number | null;
-  /** 'all' → every shelf row fits the cap. 'most' → plus exactly ONE over-cap row. */
+  /**
+   * 'all' → every shelf row fits the cap. 'most' → plus exactly ONE over-cap
+   * row, itself at most MOST_COVERAGE_OVERAGE_MINUTES over the cap.
+   */
   maxCookTimeCoverage?: string;
   config: StoreComposeConfig;
 }
+
+// D-WS7-166 — how far over the cap the one 'most' exception may run. Hans's
+// ruling (September 11, 2026): "mostly only 30 minutes should max at 50
+// minutes." Generalised as a fixed overage rather than a ratio: 30 → 50,
+// 45 → 65, 60 → 80. A 'most' user accepted ONE longer dinner, not an unbounded
+// one — a 90-minute braise on a 30-minute shelf is not what "mostly" means.
+export const MOST_COVERAGE_OVERAGE_MINUTES = 20;
 
 // Difficulty tiers, ordered. The user's skill sets a HARD ceiling one tier above
 // their level (a beginner gets easy+medium, never fancy — a too-hard meal reads as
@@ -246,15 +256,19 @@ export async function buildStoreShortlist(
 
   // 'most' (D-WS7-166): the over-cap pool the one exception is drawn from. Same
   // base predicate (difficulty ceiling, recent-exclude, allergens), same
-  // derived-only rule, the complementary time term. Fetched even when the
-  // under-cap pool is empty: one over-cap meal on an otherwise-empty shelf is
-  // still the one exception the user allowed.
+  // derived-only rule, the time term bounded on BOTH sides — over the cap, and
+  // at most MOST_COVERAGE_OVERAGE_MINUTES past it (the window (cap, cap+20]).
+  // Fetched even when the under-cap pool is empty: one over-cap meal on an
+  // otherwise-empty shelf is still the one exception the user allowed.
   const overCapRows: StoreRow[] =
     cap !== null && opts.maxCookTimeCoverage === "most"
       ? ((await prisma.meal.findMany({
           where: {
             ...baseWhere,
-            estimatedTimeMinutes: { gt: cap },
+            estimatedTimeMinutes: {
+              gt: cap,
+              lte: cap + MOST_COVERAGE_OVERAGE_MINUTES,
+            },
             activeTimeMinutes: { not: null },
           },
           select,
