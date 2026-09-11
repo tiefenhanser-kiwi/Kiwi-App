@@ -16,6 +16,7 @@
 // one day).
 
 import { buildDayStrip } from "@/lib/domain";
+import { formatMealTime } from "@/lib/mealTimeLine";
 import type {
   WizardExpandedPlan,
   WizardExpandEnrichedMeal,
@@ -71,7 +72,8 @@ function mealToRow(
     // (`meal.description ?? undefined`), so a draft and the plan it becomes
     // render the identical sub-text instead of the row appearing only after save.
     description: meal.description ?? undefined,
-    metaLine: `${capitalize(meal.difficulty)} · ${meal.estimatedTimeMinutes} min · serves ${meal.servings}`,
+    // WS9 BUG-245 — a draft's time is an estimate (tilde); hands-on where sent.
+    metaLine: `${capitalize(meal.difficulty)} · ${formatMealTime(meal.estimatedTimeMinutes, meal.activeTimeMinutes, { estimate: true })} · serves ${meal.servings}`,
     caloriesPerServing: macros.calories,
     proteinGPerServing: macros.proteinG,
     carbsGPerServing: macros.carbsG,

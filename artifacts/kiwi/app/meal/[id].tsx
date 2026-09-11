@@ -35,6 +35,7 @@ import type { MealDetail, MealStep } from "@/lib/api/meals";
 import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
 import { buildCookSessionParams } from "@/lib/cooking/cookSession";
 import { formatMacro } from "@/lib/format/macros";
+import { formatMealTime } from "@/lib/mealTimeLine";
 import { formatQuantity } from "@/lib/format/quantity";
 import {
   clampServings,
@@ -471,7 +472,8 @@ function MealDetailContent({
   const quickStatsParts = [
     meal.cuisine,
     difficultyLabel,
-    `${meal.minutes} min`,
+    // WS9 BUG-245 — hands-on time beside the total where the server sends it.
+    formatMealTime(meal.minutes, meal.activeTimeMinutes),
     // WS7-7-A B5 (Issue C) — hero quick-stats track the live (possibly
     // overridden) servings, matching the stepper + ingredient scaling, not
     // the static server default `meal.servings`.

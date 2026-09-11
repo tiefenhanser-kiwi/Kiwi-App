@@ -361,3 +361,40 @@ test("mealDetailToRow: deep-link injection row carries cuisine + macros, empty d
   assert.ok(row.dayStrip.every((d) => !d.isAssigned));
   assert.ok(row.planItemId.startsWith("pi-"));
 });
+
+// ── WS9 BUG-245 (D-WS9-235) — saved plan: no estimate mark; hands-on where sent
+// Fixture: a SAVED plan item (MealDetail, minutes 45). The saved row never
+// tildes — the tilde is the wizardDraftReviewAdapter's mark alone.
+test("BUG-245: a saved plan's metaLine carries no estimate mark", () => {
+  const result = planDetailToReviewPlan(
+    makeDetail({
+      items: [makeItem({ meal: makeMeal({ minutes: 45 }) })],
+    }),
+  );
+  assert.equal(result.unscheduledMeals[0].metaLine.includes("~"), false);
+  assert.equal(result.unscheduledMeals[0].metaLine, "Easy · 45 min · serves 4");
+});
+
+// Fixture: activeTimeMinutes: 10 on the meal → "45 min · 10 min hands-on";
+// null / absent → today's line byte-identically.
+test("BUG-245: saved hands-on time renders only when the payload carries it", () => {
+  const sent = planDetailToReviewPlan(
+    makeDetail({
+      items: [makeItem({ meal: makeMeal({ minutes: 45, activeTimeMinutes: 10 }) })],
+    }),
+  );
+  assert.equal(
+    sent.unscheduledMeals[0].metaLine,
+    "Easy · 45 min · 10 min hands-on · serves 4",
+  );
+  const nulled = planDetailToReviewPlan(
+    makeDetail({
+      items: [makeItem({ meal: makeMeal({ minutes: 45, activeTimeMinutes: null }) })],
+    }),
+  );
+  assert.equal(nulled.unscheduledMeals[0].metaLine, "Easy · 45 min · serves 4");
+  const absent = planDetailToReviewPlan(
+    makeDetail({ items: [makeItem({ meal: makeMeal({ minutes: 45 }) })] }),
+  );
+  assert.equal(absent.unscheduledMeals[0].metaLine, "Easy · 45 min · serves 4");
+});

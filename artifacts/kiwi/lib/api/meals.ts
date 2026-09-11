@@ -178,6 +178,11 @@ export const MealListItemSchema = z.object({
   description: z.string().nullable().optional(),
   cuisine: z.string(),
   minutes: z.number(),
+  // WS9 BUG-245 (D-WS9-235) — hands-on minutes, nullable beside `minutes`.
+  // .optional() guards a server not yet emitting it; null = the meal has none
+  // stamped. Rendered ONLY via lib/mealTimeLine.ts formatMealTime; never
+  // computed here.
+  activeTimeMinutes: z.number().nullable().optional(),
   servings: z.number(),
   // WS7-8 BUG-003 — immutable authored-servings anchor; the Meal Detail and
   // Cook Mode ingredient scalers divide by THIS, not `servings`. Server always

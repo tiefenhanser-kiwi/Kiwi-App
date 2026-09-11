@@ -10,6 +10,7 @@
 import type { PlanDetail, PlanDetailItem } from "@/lib/api/plans";
 import type { MealDetail } from "@/lib/api/meals";
 import { buildDayStrip } from "@/lib/domain";
+import { formatMealTime } from "@/lib/mealTimeLine";
 import type { ReviewPlan, ReviewPlanMealRow } from "@/lib/types";
 
 import { toDayOfWeek } from "./dayOfWeek";
@@ -118,7 +119,8 @@ function formatMealDetailMetaLine(
   meal: MealDetail,
   servings: number = meal.servings,
 ): string {
-  return `${capitalize(meal.difficulty)} · ${meal.minutes} min · serves ${servings}`;
+  // WS9 BUG-245 — saved plan: no estimate mark; hands-on time where sent.
+  return `${capitalize(meal.difficulty)} · ${formatMealTime(meal.minutes, meal.activeTimeMinutes)} · serves ${servings}`;
 }
 
 // Used by the deep-link `?addMealId=...` injection path in app/plan/[id].tsx.

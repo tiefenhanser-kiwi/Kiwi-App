@@ -71,7 +71,8 @@ test("row carries cuisine, formatted metaLine, synthetic ids, and an unassigned 
   const rp = wizardExpandedPlanToReviewPlan(plan());
   const row = rp.unscheduledMeals[0];
   assert.equal(row.cuisine, "Italian");
-  assert.equal(row.metaLine, "Easy · 30 min · serves 4");
+  // WS9 BUG-245 — draft time is marked as an estimate (leading tilde).
+  assert.equal(row.metaLine, "Easy · ~30 min · serves 4");
   assert.equal(row.planItemId, "draft-item-0");
   assert.equal(row.mealId, "draft-meal-0");
   assert.equal(row.dayStrip.every((d) => !d.isAssigned), true);
@@ -199,4 +200,30 @@ test("BUG-163: a meal with no description leaves the row's sub-text undefined", 
   // the writer gap stays visible on device instead of being papered over.
   const rp = wizardExpandedPlanToReviewPlan(plan({ meals: [meal()] }));
   assert.equal(rp.unscheduledMeals[0].description, undefined);
+});
+
+// ── WS9 BUG-245 (D-WS9-235) — the draft's time is an estimate ────────────
+// Fixture: the default 30-min draft meal. The DRAFT row marks its time with a
+// leading tilde (the number is derived from the expand-time step outline; the
+// saved recipe re-derives it and a small gap is expected). The saved-plan
+// counterpart (reviewPlanAdapter) must NOT tilde — pinned in its own test file.
+test("BUG-245: a draft meal's metaLine marks the time as an estimate", () => {
+  const rp = wizardExpandedPlanToReviewPlan(plan());
+  assert.equal(rp.unscheduledMeals[0].metaLine, "Easy · ~30 min · serves 4");
+});
+
+// Fixture: a draft meal carrying activeTimeMinutes: 10 → the hands-on segment
+// renders beside the total, both tilde'd. Absent → today's line, nothing added.
+test("BUG-245: draft hands-on time renders only when the payload carries it", () => {
+  const withHandsOn = wizardExpandedPlanToReviewPlan(
+    plan({ meals: [meal({ activeTimeMinutes: 10 })] }),
+  );
+  assert.equal(
+    withHandsOn.unscheduledMeals[0].metaLine,
+    "Easy · ~30 min · ~10 min hands-on · serves 4",
+  );
+  const withNull = wizardExpandedPlanToReviewPlan(
+    plan({ meals: [meal({ activeTimeMinutes: null })] }),
+  );
+  assert.equal(withNull.unscheduledMeals[0].metaLine, "Easy · ~30 min · serves 4");
 });

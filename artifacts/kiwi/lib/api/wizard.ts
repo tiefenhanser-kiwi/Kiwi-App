@@ -131,6 +131,9 @@ const WizardExpandEnrichedMealSchema = z
     description: z.string().optional(),
     cuisineType: z.string(),
     estimatedTimeMinutes: z.number(),
+    // WS9 BUG-245 (D-WS9-235) — hands-on minutes if the expand payload carries
+    // them; absent/null → the draft row renders its total only.
+    activeTimeMinutes: z.number().nullable().optional(),
     difficulty: z.enum(["easy", "medium", "fancy"]),
     servings: z.number(),
     dishes: z.array(WizardExpandEnrichedDishSchema),
