@@ -23,6 +23,7 @@ import {
   type WizardExpandEnrichedMeal,
 } from "./ai/schemas/wizard";
 import { inferCategory, resolveIngredients } from "./ingredientResolve";
+import { logger } from "./logger";
 import { recomputeAndPersistMealMacros } from "./mealMacros";
 import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
 import { forkMealForUser, publishMealToStore } from "./mealFork";
@@ -411,8 +412,46 @@ export async function materializeWizardDraft(
       // Ordered BEFORE publishMealToStore: cloneMealInto copies both timing
       // columns verbatim, so the live_writeback pool copy inherits the derived
       // total and the non-null marker only if the original is stamped first.
-      await stampMealTiming(tx, meal.id, liveDishIds);
+      const stamped = await stampMealTiming(tx, meal.id, liveDishIds);
       mealId = meal.id;
+
+      // WS9 BUG-245 (O1) — THE number that decides whether finalize_steps should
+      // ever start from the expand outline: the time the user SAW on the draft
+      // (derived from the outline when timeSource is "outline", else the
+      // model's authored scalar; legacy drafts carry no timeSource → "authored")
+      // against the time the stamp just wrote from the finalized steps.
+      //
+      // Read from `m` — the savePlan slot's meal, which readAndFinalizeWizardDraft
+      // parsed out of wizardDraftPayload BEFORE this transaction began. The route
+      // clears wizardDraftPayload (DbNull) only AFTER materializeWizardDraft
+      // returns (routes/wizard.ts, the mealPlanInstance.update following the
+      // materialize call on both /save and /activate), so these are the draft's
+      // numbers, not a re-read of a cleared column. Wrapped: never fails a save.
+      try {
+        logger.info(
+          {
+            event: "wizard_presave_vs_saved_time",
+            userId,
+            draftId,
+            mealId,
+            mealTitle: m.title,
+            slotIndex: si,
+            timeSource: m.timeSource ?? "authored",
+            draftEstimatedTimeMinutes: m.estimatedTimeMinutes,
+            draftActiveTimeMinutes: m.activeTimeMinutes ?? null,
+            authoredEstimatedTimeMinutes: m.authoredEstimatedTimeMinutes ?? null,
+            savedEstimatedTimeMinutes: stamped.totalMinutes,
+            savedActiveTimeMinutes: stamped.activeMinutes,
+            deltaMinutes:
+              stamped.totalMinutes === null
+                ? null
+                : stamped.totalMinutes - m.estimatedTimeMinutes,
+          },
+          "Wizard pre-save vs saved time",
+        );
+      } catch {
+        /* telemetry only */
+      }
 
       // Write-back (D-WS7-201): publish a pool copy stamped live_writeback so a
       // future compose can reuse this live gen. Demoted store slots build but do

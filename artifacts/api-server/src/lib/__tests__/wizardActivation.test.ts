@@ -1220,3 +1220,185 @@ describe("materializeWizardDraft — D-WS9-235 live slot stamps a DERIVED time",
     assert.equal(pool.activeTimeMinutes, 8, "a NULL here hides the copy from every capped shelf");
   });
 });
+
+// ── WS9 BUG-245 (O1) — pre-save vs saved time telemetry ────────────────────
+//
+// The number that decides whether finalize_steps should ever start from the
+// expand outline: the time the user SAW on the draft (derived from the outline
+// at expand) against the time the stamp writes from the finalized steps. One
+// structured line per live meal, read off the savePlan slot's meal — which the
+// route parsed out of wizardDraftPayload BEFORE the transaction, and clears
+// only AFTER materializeWizardDraft returns.
+
+import { logger } from "../logger";
+
+async function captureActivationLogs(run: () => Promise<void>) {
+  const lines: Array<Record<string, unknown>> = [];
+  const realInfo = logger.info.bind(logger);
+  const L = logger as unknown as { info: unknown };
+  L.info = ((obj: unknown, ...rest: unknown[]) => {
+    if (obj && typeof obj === "object") lines.push(obj as Record<string, unknown>);
+    return realInfo(obj as never, ...(rest as [never]));
+  }) as never;
+  try {
+    await run();
+  } finally {
+    L.info = realInfo;
+  }
+  return lines.filter((l) => l.event === "wizard_presave_vs_saved_time");
+}
+
+describe("materializeWizardDraft — BUG-245 O1 pre-save vs saved time line", () => {
+  // Reuses the D-WS9-235 timing stubs above: the finalized steps are 8 prep +
+  // 30 unattended cook → the stamp writes 38 / active 8.
+  function timingStubs() {
+    // The D-WS9-235 describe's makeTimingStubs is block-scoped; rebuild the same
+    // minimal graph here (meal/dish/link/step maps the stamp reads back).
+    const meals = new Map<string, Record<string, unknown>>();
+    const dishes = new Map<string, Record<string, unknown>>();
+    const links: Array<{ mealId: string; dishId: string; positionIndex: number; roleLabel: string }> = [];
+    const steps: Array<Record<string, unknown>> = [];
+    let seq = 0;
+    const prismaStub = {
+      mealPlanInstance: { findUnique: async () => ({ userId: USER_ID, isWizardDraft: true }) },
+      ingredientAlias: { findUnique: async () => null, findMany: async () => [] },
+      ingredient: {
+        findMany: async () => [],
+        upsert: async (args: { where: { canonicalName: string } }) => ({ id: `ing-${args.where.canonicalName}` }),
+      },
+    };
+    const txStub = {
+      userPreferences: { findUnique: async () => null },
+      meal: {
+        create: async (args: { data: Record<string, unknown> }) => {
+          const id = `meal-${seq++}`;
+          meals.set(id, { id, ...args.data });
+          return { id };
+        },
+        update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+          meals.set(args.where.id, { ...meals.get(args.where.id)!, ...args.data });
+          return {};
+        },
+        findUnique: async (args: { where: { id: string }; select?: Record<string, unknown> }) => {
+          const row = meals.get(args.where.id)!;
+          if (args.select && "allergens" in args.select) {
+            return { allergens: [], allergenSources: null, allergensStampedAt: null };
+          }
+          const dishLinks = links
+            .filter((l) => l.mealId === row.id)
+            .map((l) => ({ ...l, dish: { ...dishes.get(l.dishId)!, dishIngredients: [] } }));
+          return { ...row, dishLinks };
+        },
+      },
+      dish: {
+        create: async (args: { data: Record<string, unknown> }) => {
+          const id = `dish-${seq++}`;
+          dishes.set(id, { id, displayTitle: null, description: null, imageUrl: null, tags: [], macroGroundedPct: null, substitutions: null, componentRegistry: null, componentSelections: null, ...args.data });
+          return { id };
+        },
+        update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+          dishes.set(args.where.id, { ...dishes.get(args.where.id)!, ...args.data });
+          return {};
+        },
+      },
+      mealDishLink: {
+        create: async (args: { data: { mealId: string; dishId: string; positionIndex: number; roleLabel: string } }) => {
+          links.push(args.data);
+          return {};
+        },
+        findMany: async (args: { where: { mealId: string; dishId?: { in: string[] } }; select?: Record<string, unknown> }) =>
+          links
+            .filter((l) => l.mealId === args.where.mealId && (!args.where.dishId || args.where.dishId.in.includes(l.dishId)))
+            .map((l) => (args.select && "dish" in args.select ? { ...l, dish: { caloriesPerServing: 0, proteinGPerServing: 0, carbsGPerServing: 0, fatGPerServing: 0 } } : l)),
+      },
+      dishIngredient: { create: async () => ({}), createMany: async () => ({ count: 0 }) },
+      recipeInstructionStep: {
+        create: async (args: { data: Record<string, unknown> }) => {
+          steps.push({ requiresPreheat: false, requiresRest: false, requiresMarination: false, ...args.data });
+          return {};
+        },
+        createMany: async (args: { data: Record<string, unknown>[] }) => {
+          for (const d of args.data) steps.push(d);
+          return { count: args.data.length };
+        },
+        findMany: async (args: { where: { ownerType: string; ownerId: string | { in: string[] } } }) =>
+          steps.filter((s) => {
+            if (s.ownerType !== args.where.ownerType) return false;
+            const o = args.where.ownerId;
+            return typeof o === "string" ? s.ownerId === o : o.in.includes(s.ownerId as string);
+          }),
+      },
+      mealPlanItem: { create: async () => ({}) },
+      mealPlanTemplate: { findFirst: async () => null, create: async () => ({ id: "tpl-presave" }) },
+    };
+    return { prismaStub, txStub };
+  }
+
+  it("(d) compares the draft's derived number (56, outline) to the stamped total (38) — delta −18", async () => {
+    // The draft said 56 from its outline (authored 30); the finalized steps
+    // derive to 38. The line is the gap, not a verdict.
+    const liveMeal = {
+      ...sampleExpanded().meals[0],
+      estimatedTimeMinutes: 56,
+      activeTimeMinutes: 11,
+      authoredEstimatedTimeMinutes: 30,
+      timeSource: "outline" as const,
+    };
+    const savePlan: WizardSavePlan = {
+      candidateId: "c1",
+      title: "Presave Plan",
+      tags: [],
+      whyBullets: ["b"],
+      slots: [{ kind: "build", meal: liveMeal, writeBack: false }],
+    };
+    const { prismaStub, txStub } = timingStubs();
+    const lines = await captureActivationLogs(async () => {
+      await materializeWizardDraft({
+        prisma: prismaStub as unknown as PrismaClient,
+        tx: txStub as unknown as Prisma.TransactionClient,
+        userId: USER_ID,
+        draftId: DRAFT_ID,
+        savePlan,
+      });
+    });
+    assert.equal(lines.length, 1, "one line per live meal");
+    const o = lines[0];
+    assert.equal(o.timeSource, "outline");
+    assert.equal(o.draftEstimatedTimeMinutes, 56);
+    assert.equal(o.draftActiveTimeMinutes, 11);
+    assert.equal(o.authoredEstimatedTimeMinutes, 30);
+    assert.equal(o.savedEstimatedTimeMinutes, 38, "the stamped total from the finalized steps");
+    assert.equal(o.savedActiveTimeMinutes, 8);
+    assert.equal(o.deltaMinutes, -18);
+    assert.equal(o.draftId, DRAFT_ID);
+    assert.equal(o.slotIndex, 0);
+  });
+
+  it("(d-2) a legacy draft with no provenance reports timeSource authored and null authored/active", async () => {
+    const liveMeal = sampleExpanded().meals[0]; // claims 35, no provenance fields
+    const savePlan: WizardSavePlan = {
+      candidateId: "c1",
+      title: "Legacy Plan",
+      tags: [],
+      whyBullets: ["b"],
+      slots: [{ kind: "build", meal: liveMeal, writeBack: false }],
+    };
+    const { prismaStub, txStub } = timingStubs();
+    const lines = await captureActivationLogs(async () => {
+      await materializeWizardDraft({
+        prisma: prismaStub as unknown as PrismaClient,
+        tx: txStub as unknown as Prisma.TransactionClient,
+        userId: USER_ID,
+        draftId: DRAFT_ID,
+        savePlan,
+      });
+    });
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].timeSource, "authored");
+    assert.equal(lines[0].draftEstimatedTimeMinutes, 35);
+    assert.equal(lines[0].authoredEstimatedTimeMinutes, null);
+    assert.equal(lines[0].draftActiveTimeMinutes, null);
+    assert.equal(lines[0].savedEstimatedTimeMinutes, 38);
+    assert.equal(lines[0].deltaMinutes, 3);
+  });
+});
