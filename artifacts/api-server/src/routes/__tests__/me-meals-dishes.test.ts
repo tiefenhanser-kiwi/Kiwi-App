@@ -29,6 +29,9 @@ interface MealOpts {
   // cook_time / date_created keyset sorts. Defaults fixed so existing
   // fixtures don't drift over time.
   estimatedTimeMinutes?: number;
+  // WS9 D-WS9-235 — the derived hands-on figure; null (the column default)
+  // unless a test opts in.
+  activeTimeMinutes?: number | null;
   createdAt?: Date;
 }
 
@@ -38,6 +41,7 @@ function mealRow(id: string, title: string, opts: MealOpts = {}) {
     title,
     cuisineType: "Testian",
     estimatedTimeMinutes: opts.estimatedTimeMinutes ?? 30,
+    activeTimeMinutes: opts.activeTimeMinutes ?? null,
     servingsDefault: 4,
     caloriesPerServing: 500,
     proteinGPerServing: 30,
@@ -133,6 +137,11 @@ function makeStubPrisma(opts: {
         orderBy?:
           | { title?: "asc" | "desc" }
           | Array<Record<string, "asc" | "desc">>;
+        // WS9 D-WS9-235 — the route's projection. Honoured below: only the
+        // keys the route SELECTS reach the row, exactly as Prisma behaves, so
+        // a column left out of MEAL_LIST_SELECT is absent on the wire here too
+        // (the wire-by-projection hazard this project has hit twice).
+        select?: Record<string, boolean>;
       }) => {
         let rows = meals.slice();
         const w = args.where;
@@ -171,7 +180,15 @@ function makeStubPrisma(opts: {
             return 0;
           });
         }
-        return rows;
+        const sel = args.select;
+        if (!sel) return rows;
+        return rows.map((m) => {
+          const projected: Record<string, unknown> = {};
+          for (const k of Object.keys(sel)) {
+            if (sel[k]) projected[k] = (m as Record<string, unknown>)[k];
+          }
+          return projected as unknown as MealRow;
+        });
       },
     },
     dish: {
@@ -351,6 +368,36 @@ describe("GET /me/meals", () => {
       assert.equal(m.minutes, 30);
       assert.equal(m.calories, 500);
       assert.equal(m.image, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS9 D-WS9-235 (BUG-245) — the derived hands-on figure reaches the wire as
+  // `activeTimeMinutes` beside `minutes`. The stub projects rows through the
+  // route's own select, so this reads the LIVE value through MEAL_LIST_SELECT
+  // → toListShape, not a stub echo: drop the column from the select and the
+  // 22 below comes back undefined.
+  it("emits activeTimeMinutes beside minutes — 22 stays 22, null stays null", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        meals: [
+          mealRow("m1", "Derived", { userId: USER_ID, activeTimeMinutes: 22 }),
+          mealRow("m2", "Stepless", { userId: USER_ID, activeTimeMinutes: null }),
+        ],
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/me/meals");
+      const body = (await res.json()) as { meals: Record<string, unknown>[] };
+      const byId = new Map(body.meals.map((m) => [m.id, m]));
+      assert.equal(byId.get("m1")?.minutes, 30);
+      assert.equal(byId.get("m1")?.activeTimeMinutes, 22);
+      assert.ok(
+        "activeTimeMinutes" in (byId.get("m2") ?? {}),
+        "a null must be PRESENT on the wire (the client's schema is nullable, not absent-only)",
+      );
+      assert.equal(byId.get("m2")?.activeTimeMinutes, null);
     } finally {
       await harness.close();
     }

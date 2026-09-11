@@ -123,6 +123,7 @@ interface DetailMealFixture {
   cuisineType: string | null;
   difficulty: string;
   estimatedTimeMinutes: number;
+  activeTimeMinutes?: number | null;
   servingsDefault: number;
   mealType: string;
   sourceType: string;
@@ -141,7 +142,10 @@ function detailMeal(
   id: string,
   title: string,
   dishLinks: DishLinkFixture[],
-  opts: { isArchived?: boolean } = {},
+  // WS9 D-WS9-235 — activeTimeMinutes: the detail row comes from an `include`
+  // query (every scalar present), so the fixture carries the column like
+  // Prisma would; undefined here models a pre-migration row → null on the wire.
+  opts: { isArchived?: boolean; activeTimeMinutes?: number | null } = {},
 ): DetailMealFixture {
   return {
     id,
@@ -151,6 +155,7 @@ function detailMeal(
     cuisineType: "American",
     difficulty: "medium",
     estimatedTimeMinutes: 35,
+    activeTimeMinutes: opts.activeTimeMinutes,
     servingsDefault: 4,
     mealType: "dinner",
     sourceType: "manual",
@@ -829,6 +834,37 @@ describe("GET /meals/:id", () => {
 
       // No meal-owned steps -> top-level steps array stays empty.
       assert.deepEqual(meal.steps, []);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS9 D-WS9-235 (BUG-245) — the derived hands-on figure rides the detail
+  // payload at the top level, beside `minutes`, through the same toListShape
+  // spread the list uses. A stamped 22 reaches the wire as 22; an unstamped
+  // meal serialises an explicit null (present, not absent).
+  it("emits activeTimeMinutes at the top level beside minutes — 22 stays 22, null stays null", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        detailMeals: [
+          detailMeal("meal-derived", "Stamped Roast", [], { activeTimeMinutes: 22 }),
+          detailMeal("meal-stepless", "Claim Only", [], { activeTimeMinutes: null }),
+        ],
+        steps: [],
+      }),
+    );
+    try {
+      const derived = await authGet(harness, "/meals/meal-derived");
+      assert.equal(derived.status, 200);
+      const { meal: d } = (await derived.json()) as { meal: Record<string, unknown> };
+      assert.equal(d.minutes, 35);
+      assert.equal(d.activeTimeMinutes, 22);
+
+      const stepless = await authGet(harness, "/meals/meal-stepless");
+      assert.equal(stepless.status, 200);
+      const { meal: n } = (await stepless.json()) as { meal: Record<string, unknown> };
+      assert.ok("activeTimeMinutes" in n, "null must be present on the wire, not dropped");
+      assert.equal(n.activeTimeMinutes, null);
     } finally {
       await harness.close();
     }

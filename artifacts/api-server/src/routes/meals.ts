@@ -97,6 +97,11 @@ export interface MealListItem {
   description: string | null;
   cuisine: string;
   minutes: number;
+  // WS9 D-WS9-235 (BUG-245) — the derived hands-on minutes, beside `minutes`.
+  // Null when nothing is derived (a step-less or claim-only meal); never a
+  // zero. The client renders it through lib/mealTimeLine.ts and computes
+  // nothing from it.
+  activeTimeMinutes: number | null;
   servings: number;
   // WS7-8 BUG-003 — immutable authored-servings anchor (== servings until a
   // future canonical promote). Render denominator; null anchor degrades to
@@ -143,6 +148,9 @@ export function toListShape(m: {
   description: string | null;
   cuisineType: string | null;
   estimatedTimeMinutes: number;
+  // Required (not optional) on purpose: a caller whose projection lacks the
+  // column fails to typecheck instead of silently serialising null.
+  activeTimeMinutes: number | null;
   servingsDefault: number;
   authoredServingsDefault: number | null;
   caloriesPerServing: number;
@@ -159,6 +167,7 @@ export function toListShape(m: {
     description: m.description ?? null,
     cuisine: m.cuisineType ?? "",
     minutes: m.estimatedTimeMinutes,
+    activeTimeMinutes: m.activeTimeMinutes ?? null,
     servings: m.servingsDefault,
     // WS7-8 BUG-003 — null anchor (legacy/seed rows) degrades to servingsDefault.
     authoredServingsDefault: m.authoredServingsDefault ?? m.servingsDefault,

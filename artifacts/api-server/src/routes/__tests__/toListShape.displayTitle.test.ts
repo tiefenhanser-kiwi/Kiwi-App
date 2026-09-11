@@ -13,6 +13,7 @@ const BASE = {
   title: "Braised Beef Short Ribs with Creamy Mashed Potatoes and Roasted Carrots",
   cuisineType: "American",
   estimatedTimeMinutes: 45,
+  activeTimeMinutes: null,
   servingsDefault: 4,
   authoredServingsDefault: 4,
   caloriesPerServing: 600,

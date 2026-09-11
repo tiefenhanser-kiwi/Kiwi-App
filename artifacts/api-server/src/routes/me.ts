@@ -62,6 +62,8 @@ type MealListRow = {
   description: string | null;
   cuisineType: string | null;
   estimatedTimeMinutes: number;
+  // WS9 D-WS9-235 — in MEAL_LIST_SELECT; toListShape requires it.
+  activeTimeMinutes: number | null;
   servingsDefault: number;
   // WS7-8 BUG-003 — authored-servings anchor (in MEAL_LIST_SELECT).
   authoredServingsDefault: number | null;
