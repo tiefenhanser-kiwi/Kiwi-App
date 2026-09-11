@@ -455,12 +455,30 @@ interface FinalizeOneMealOptions {
 async function finalizeOneMeal(
   opts: FinalizeOneMealOptions,
 ): Promise<PerMealFinalizeResult> {
+  // WS9 BUG-245 (O1) — the draft dish now carries a timed `outline` and the
+  // meal carries server-written time provenance. NEITHER reaches finalize_steps:
+  // whether finalize should ever start from the outline is a later decision,
+  // made on the draft-vs-saved gap this block measures, and handing it the
+  // outline now would contaminate that measurement (and silently change the
+  // most heavily tuned prompt's input). The meal-level `estimatedTimeMinutes`
+  // is passed as the payload holds it (the derived total when an outline was
+  // present) — the same field finalize has always seen, now an honest value.
+  const { activeTimeMinutes: _a, authoredEstimatedTimeMinutes: _b, timeSource: _c, ...mealSansProvenance } = opts.meal;
+  void _a; void _b; void _c;
   const perMealInput: WizardExpandedPlanDetails = {
     candidateId: opts.details.candidateId,
     title: opts.details.title,
     tags: opts.details.tags,
     whyBullets: opts.details.whyBullets,
-    meals: [opts.meal],
+    meals: [
+      {
+        ...mealSansProvenance,
+        dishes: opts.meal.dishes.map(({ outline: _o, ...dish }) => {
+          void _o;
+          return dish;
+        }),
+      },
+    ],
   };
   const ai = await opts.runAICall(
     "wizard.candidate.finalize_steps",

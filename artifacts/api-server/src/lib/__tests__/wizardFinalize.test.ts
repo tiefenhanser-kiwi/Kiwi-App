@@ -934,3 +934,82 @@ describe("readAndFinalizeWizardDraft — D-WS9-038 store/live partition", () => 
     }
   });
 });
+
+// ── WS9 BUG-245 (O1) — the outline never reaches finalize_steps ────────────
+//
+// The draft dish now carries a timed `outline` and the meal carries server-
+// written time provenance. Whether finalize_steps should ever start from the
+// outline is a LATER decision, made on the draft-vs-saved gap this block
+// measures — so the finalize input must be byte-shaped as before: no outline,
+// no provenance. The derived `estimatedTimeMinutes` (the same field finalize
+// has always seen) does pass, and the provenance survives the merge into the
+// with-steps shape so the save-time line can read it.
+describe("readAndFinalizeWizardDraft — BUG-245 O1: outline + provenance are stripped from the finalize input, kept on the merged meal", () => {
+  const userId = "u-outline";
+  const draftId = "d-outline";
+
+  it("finalize_steps sees no `outline` on any dish and no provenance on the meal; the merged build meal keeps the provenance", async () => {
+    const details = detailsPlan();
+    const withOutline: WizardExpandedPlanDetails = {
+      ...details,
+      meals: details.meals.map((m, mi) => ({
+        ...m,
+        estimatedTimeMinutes: 56,
+        activeTimeMinutes: 11,
+        authoredEstimatedTimeMinutes: 30,
+        timeSource: mi === 0 ? ("outline" as const) : ("authored" as const),
+        dishes: m.dishes.map((d) => ({
+          ...d,
+          outline: [
+            { phaseType: "prep" as const, estimatedMinutes: 10, isTimingSensitive: false },
+            { phaseType: "cook" as const, estimatedMinutes: 45, isTimingSensitive: false },
+          ],
+        })),
+      })),
+    };
+
+    const seenInputs: WizardExpandedPlanDetails[] = [];
+    const fn = (async (
+      _promptKey: string,
+      vars: Record<string, unknown>,
+    ): Promise<AICallResult<WizardFinalizeStepsResult>> => {
+      const input = vars.finalizeInput as WizardExpandedPlanDetails;
+      seenInputs.push(input);
+      return finalizeAISuccess(shardLocalDishSteps(input.meals[0].dishes.length, input.meals[0].title));
+    }) as unknown as Parameters<typeof readAndFinalizeWizardDraft>[0]["runAICall"];
+
+    const result = await readAndFinalizeWizardDraft({
+      prisma: makeStubPrisma(withOutline, userId),
+      userId,
+      draftId,
+      runAICall: fn,
+    });
+    assert.equal(result.status, "success", result.status !== "success" ? JSON.stringify(result) : "");
+    if (result.status !== "success") return;
+
+    assert.equal(seenInputs.length, withOutline.meals.length);
+    for (const input of seenInputs) {
+      const meal = input.meals[0] as Record<string, unknown>;
+      assert.equal("outline" in (meal.dishes as Record<string, unknown>[])[0], false, "no dish outline in the finalize input");
+      for (const d of meal.dishes as Record<string, unknown>[]) {
+        assert.equal(d.outline, undefined);
+      }
+      assert.equal(meal.timeSource, undefined, "no provenance in the finalize input");
+      assert.equal(meal.authoredEstimatedTimeMinutes, undefined);
+      assert.equal(meal.activeTimeMinutes, undefined);
+      assert.equal(meal.estimatedTimeMinutes, 56, "the meal-level number passes as the payload holds it");
+      // The rest of the meal is what finalize always saw.
+      assert.ok(Array.isArray(meal.dishes) && (meal.dishes as unknown[]).length > 0);
+    }
+
+    // The merged build meals keep the provenance for the save-time line.
+    const built = buildMealsOf(result.savePlan);
+    assert.equal(built[0].timeSource, "outline");
+    assert.equal(built[0].authoredEstimatedTimeMinutes, 30);
+    assert.equal(built[0].activeTimeMinutes, 11);
+    assert.equal(built[1].timeSource, "authored");
+    // ...and the outline itself does NOT ride into the with-steps shape (it is
+    // not a materializer concern; WizardExpandDishSchema strips it).
+    assert.equal((built[0].dishes[0] as Record<string, unknown>).outline, undefined);
+  });
+});

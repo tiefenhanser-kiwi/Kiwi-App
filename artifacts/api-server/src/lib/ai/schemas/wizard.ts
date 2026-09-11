@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { logger } from "../../logger";
 import { StepPhaseTypeSchema } from "./mealBuilder";
 
 // BUG #3 (D-WS7-165) — wizard step contract. Pre-fix, wizard steps were bare
@@ -45,6 +46,70 @@ export const WizardComponentSchema = z.object({
   order: z.number().int().nonnegative(),
 });
 export type WizardComponent = z.infer<typeof WizardComponentSchema>;
+
+// WS9 BUG-245 (O1) — the expand call's per-dish timed OUTLINE: the recipe's
+// steps in order as { phaseType, estimatedMinutes, isTimingSensitive }, no step
+// text. Field types are the step schema's own, so an outline is exactly what
+// `deriveMealTiming` consumes at save minus the prose — the draft's
+// `estimatedTimeMinutes` is derived from it by the same scheduler that stamps
+// the saved meal, instead of being the model's authored scalar (measured: on a
+// capped plan the authored number equalled the cap on 3 of 3 live meals while
+// the STEP minutes were honest — BUG-245, the meatloaf).
+export const WizardOutlineStepSchema = z.object({
+  phaseType: StepPhaseTypeSchema,
+  estimatedMinutes: z.number().int().positive().max(600),
+  isTimingSensitive: z.boolean(),
+});
+export type WizardOutlineStep = z.infer<typeof WizardOutlineStepSchema>;
+export const WizardOutlineSchema = z
+  .array(WizardOutlineStepSchema)
+  .min(1)
+  .max(20);
+export type WizardOutline = z.infer<typeof WizardOutlineSchema>;
+
+// The outline as it sits on the AI-output dish: OPTIONAL, and a MALFORMED one
+// (unknown phaseType, non-integer / negative minutes, an empty array, a string)
+// drops to `undefined` rather than failing the parse. Two reasons this is a
+// `.catch` and not a plain `.optional()`:
+//   - runAICall's one retry ends in a 502, so a strict nested field would turn
+//     a cosmetic miss (the draft shows the authored number instead of a derived
+//     one) into a failed plan.
+//   - the tool input_schema is GENERATED from this zod schema (modes.ts
+//     buildToolForSchema), and zod-to-json-schema renders a ZodCatch as its
+//     inner type — so the model still sees the full typed shape. A permissive
+//     `z.unknown()` would have hidden the shape from the model.
+// The drop is logged at warn so "the model wrote garbage" and "the model wrote
+// nothing" stay distinguishable in telemetry; a logging failure never fails the
+// parse.
+export const WizardOutlineFieldSchema = WizardOutlineSchema.optional().catch(
+  (ctx) => {
+    try {
+      logger.warn(
+        {
+          event: "wizard_expand_outline_malformed",
+          issues: ctx.error.issues
+            .slice(0, 3)
+            .map((i) => `${i.path.join(".")}:${i.code}`),
+        },
+        "BUG-245: expand outline malformed; dropped to the authored time",
+      );
+    } catch {
+      /* telemetry only */
+    }
+    return undefined;
+  },
+);
+
+// Meal-level time provenance, written by the SERVER at expand (never by the
+// model — these live only on the persisted/enriched shapes, NOT on the AI-output
+// schema, because that schema is also the tool definition the model sees).
+//   estimatedTimeMinutes (on the meal) = the derived total when timeSource is
+//   "outline", else the model's authored scalar.
+export const WizardMealTimeProvenanceFields = {
+  activeTimeMinutes: z.number().int().positive().optional(),
+  authoredEstimatedTimeMinutes: z.number().int().positive().optional(),
+  timeSource: z.enum(["outline", "authored"]).optional(),
+};
 
 // PRD §5.7 — Set Preferences wizard input shape.
 // Mirrors WizardPreferencesInput in artifacts/kiwi/lib/types.ts:521.
@@ -315,6 +380,10 @@ export const WizardExpandEnrichedMealSchema = WizardExpandMealSchema.extend({
   // from the source row), so it bypasses finalize-steps and is never built from
   // this payload's dishes. Absent = a live slot (finalize + materialize).
   sourceStoreMealId: z.string().min(1).optional(),
+  // WS9 BUG-245 (O1) — the draft's time provenance survives the finalize merge
+  // (a spread) into the materializer's parse, so the save-time telemetry can
+  // compare the number the user SAW with the number the stamp writes.
+  ...WizardMealTimeProvenanceFields,
 });
 export type WizardExpandEnrichedMeal = z.infer<
   typeof WizardExpandEnrichedMealSchema
@@ -355,6 +424,14 @@ export const WizardExpandDishDetailsSchema = z.object({
   // Absent when the dish has no sensible convenience product (never forced).
   // Referential integrity of `replaces` is sanitized post-parse in the harness.
   substitutions: z.array(WizardExpandSubstitutionSchema).optional(),
+  // WS9 BUG-245 (O1) — the timed outline the draft's time is derived from. See
+  // WizardOutlineFieldSchema for why a malformed one drops rather than fails.
+  // Stripped before finalize_steps sees the meal (wizardFinalize.ts) and not
+  // carried by WizardExpandDishSchema, so the saved steps are still authored
+  // independently — the draft-vs-saved gap that decides whether finalize
+  // should ever start from the outline is what wizard_presave_vs_saved_time
+  // measures.
+  outline: WizardOutlineFieldSchema,
   // steps intentionally absent — call #3 populates them at save/activate.
 });
 export type WizardExpandDishDetails = z.infer<
@@ -417,6 +494,8 @@ export const WizardExpandEnrichedMealDetailsSchema =
     // Persisted inside wizardDraftPayload (the Part A / D-WS9-034 column) so it
     // rides expand → save; the save partition branches on it. Absent = live slot.
     sourceStoreMealId: z.string().min(1).optional(),
+    // WS9 BUG-245 (O1) — server-written time provenance (see the fields' note).
+    ...WizardMealTimeProvenanceFields,
   });
 export type WizardExpandEnrichedMealDetails = z.infer<
   typeof WizardExpandEnrichedMealDetailsSchema

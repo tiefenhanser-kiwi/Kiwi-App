@@ -61,10 +61,18 @@ describe("wizard.candidate.expand — time instructions (BUG-245)", () => {
     );
   });
 
-  it("says the authored number is a pre-finalize estimate", () => {
+  it("says the authored number is the model's own estimate and not what the user sees (v7)", () => {
+    // v6 called it a "PRE-FINALIZE ESTIMATE ... shown on the candidate card".
+    // v7 (BUG-245 O1) derives the card's number from the dish outlines, so the
+    // scalar is telemetry: the model is told so, in those terms.
     assert.ok(
+      body.includes("NOT WHAT THE USER SEES"),
+      "the model must be told the card's number is computed from the outline, not from this scalar",
+    );
+    assert.equal(
       body.includes("PRE-FINALIZE ESTIMATE"),
-      "the model must be told the app recomputes this from the steps at save",
+      false,
+      "the v6 framing (the scalar is what the card shows) must be gone — it no longer is",
     );
   });
 

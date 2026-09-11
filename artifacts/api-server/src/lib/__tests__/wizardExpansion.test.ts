@@ -1098,3 +1098,260 @@ describe("BUG-163 — store-composed slots carry description into the draft payl
     );
   });
 });
+
+// ── WS9 BUG-245 (O1) — the draft's time is derived from the outline ────────
+//
+// On a 30-minute plan the unsaved draft read 28 · 29 · 30 · 30 and the saved
+// plan 28 · 29 · 44 · 56: a live slot's draft time was the model's authored
+// scalar, which under a cap equalled the cap on 3 of 3 meals. Expand now also
+// emits a per-dish timed outline, and the draft's `estimatedTimeMinutes` is
+// what `deriveMealTiming` (the save-time stamp's own function) makes of it.
+// A missing or malformed outline keeps the authored number — never a retry,
+// never a 502.
+
+import { logger } from "../logger";
+import {
+  WizardExpandResultDetailsSchema,
+  type WizardExpandResultDetails,
+} from "../ai/schemas/wizard";
+
+/** Capture every info/warn object the expand emits, restoring the real logger after. */
+async function captureExpandLogs(run: () => Promise<void>) {
+  const lines: Array<{ level: "info" | "warn"; obj: Record<string, unknown> }> = [];
+  const realInfo = logger.info.bind(logger);
+  const realWarn = logger.warn.bind(logger);
+  const L = logger as unknown as { info: unknown; warn: unknown };
+  L.info = ((obj: unknown, ...rest: unknown[]) => {
+    if (obj && typeof obj === "object") lines.push({ level: "info", obj: obj as Record<string, unknown> });
+    return realInfo(obj as never, ...(rest as [never]));
+  }) as never;
+  L.warn = ((obj: unknown, ...rest: unknown[]) => {
+    if (obj && typeof obj === "object") lines.push({ level: "warn", obj: obj as Record<string, unknown> });
+    return realWarn(obj as never, ...(rest as [never]));
+  }) as never;
+  try {
+    await run();
+  } finally {
+    L.info = realInfo;
+    L.warn = realWarn;
+  }
+  return lines;
+}
+
+// A details-stage meal (no steps) whose ONE dish carries the given outline.
+// Authored scalar 30 — the BUG-245 signature under a 30-minute cap.
+function makeDetailsMeal(
+  title: string,
+  outline: unknown,
+): WizardExpandResultDetails["meals"][number] {
+  const dish: Record<string, unknown> = {
+    title,
+    role: "main",
+    positionIndex: 0,
+    ingredients: [
+      { name: "ingredient a", quantity: 1, unit: "cup" },
+      { name: "ingredient b", quantity: 2, unit: "tablespoon" },
+      { name: "ingredient c", quantity: 1, unit: "pound" },
+    ],
+  };
+  if (outline !== undefined) dish.outline = outline;
+  return {
+    title,
+    cuisineType: "Test",
+    estimatedTimeMinutes: 30,
+    difficulty: "easy",
+    servings: 4,
+    dishes: [dish as unknown as WizardExpandResultDetails["meals"][number]["dishes"][number]],
+  };
+}
+
+// 10 prep (hands-on) + 45 unattended cook + 1 assemble (hands-on) = 56 serial
+// in one dish; hands-on 11. The meatloaf shape: honest step minutes under a
+// scalar that says 30.
+const HONEST_OUTLINE = [
+  { phaseType: "prep", estimatedMinutes: 10, isTimingSensitive: false },
+  { phaseType: "cook", estimatedMinutes: 45, isTimingSensitive: false },
+  { phaseType: "assemble", estimatedMinutes: 1, isTimingSensitive: false },
+];
+
+function detailsSuccess(
+  meals: WizardExpandResultDetails["meals"],
+): AICallSuccess<WizardExpandResult> {
+  // The stub is typed against the legacy with-steps result; the orchestrator
+  // only reads `meals[0]` through the details schema's parse, so the cast is
+  // shape-safe for what expandCandidate touches.
+  return successResult(meals as unknown as WizardExpandResult["meals"]);
+}
+
+function cappedRequest(titles: string[], cap: number | null): WizardExpandRequest {
+  const req = makeRequest(titles);
+  return {
+    ...req,
+    candidateContext: {
+      ...req.candidateContext,
+      maxCookTimeMinutes: cap,
+      maxCookTimeCoverage: "all",
+    },
+  };
+}
+
+describe("expandCandidate — BUG-245 O1: the draft's time is derived from the outline", () => {
+  it("(a) authored 30 + an outline deriving to 56 → draft 56, timeSource outline, authored kept, activeTimeMinutes derived", async () => {
+    const { fn, calls } = makeRunAICallStub((t) => detailsSuccess([makeDetailsMeal(t, HONEST_OUTLINE)]));
+    const result = await expandCandidate({
+      prisma: stubPrisma,
+      userId: "u1",
+      request: cappedRequest(["Meatloaf"], 30),
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    const m = result.expanded.meals[0];
+    assert.equal(m.estimatedTimeMinutes, 56, "the draft shows what the outline derives, not the scalar");
+    assert.equal(m.timeSource, "outline");
+    assert.equal(m.authoredEstimatedTimeMinutes, 30, "the model's number is kept as telemetry");
+    assert.equal(m.activeTimeMinutes, 11, "prep + assemble are hands-on; the 45-minute cook is unattended");
+    assert.equal(calls.length, 1, "one AI call — deriving is local");
+    // The outline itself rides the payload (the client passes it through).
+    assert.equal(m.dishes[0].outline?.length, 3);
+  });
+
+  it("(b) a dish with no outline → the authored number, timeSource authored, no throw", async () => {
+    const { fn, calls } = makeRunAICallStub((t) => detailsSuccess([makeDetailsMeal(t, undefined)]));
+    const result = await expandCandidate({
+      prisma: stubPrisma,
+      userId: "u1",
+      request: cappedRequest(["Plain"], 30),
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    const m = result.expanded.meals[0];
+    assert.equal(m.estimatedTimeMinutes, 30);
+    assert.equal(m.timeSource, "authored");
+    assert.equal(m.authoredEstimatedTimeMinutes, 30);
+    assert.equal(m.activeTimeMinutes, undefined, "nothing derived → no active number (never a zero)");
+    assert.equal(calls.length, 1);
+  });
+
+  it("(c) the expand-time telemetry line carries authoredAtCap:true and derivedOverCap:true for (a)", async () => {
+    const { fn } = makeRunAICallStub((t) => detailsSuccess([makeDetailsMeal(t, HONEST_OUTLINE)]));
+    const lines = await captureExpandLogs(async () => {
+      const r = await expandCandidate({
+        prisma: stubPrisma,
+        userId: "u1",
+        request: cappedRequest(["Meatloaf"], 30),
+        runAICall: fn,
+        estimateDishMacrosImpl: makeEstimateStub(),
+      });
+      assert.equal(r.status, "success");
+    });
+    const check = lines.filter((l) => l.obj.event === "wizard_expand_time_check");
+    assert.equal(check.length, 1, "one line per live meal");
+    const o = check[0].obj;
+    assert.equal(o.timeSource, "outline");
+    assert.equal(o.authoredEstimatedTimeMinutes, 30);
+    assert.equal(o.derivedTotalMinutes, 56);
+    assert.equal(o.derivedActiveMinutes, 11);
+    assert.equal(o.maxCookTimeMinutes, 30);
+    assert.equal(o.authoredAtCap, true, "30 under a 30 cap is the BUG-245 signature");
+    assert.equal(o.derivedOverCap, true);
+    assert.equal(o.outlinedDishes, 1);
+    assert.equal(o.totalDishes, 1);
+  });
+
+  it("(c-2) with no cap the line says so and both cap flags are false", async () => {
+    const { fn } = makeRunAICallStub((t) => detailsSuccess([makeDetailsMeal(t, HONEST_OUTLINE)]));
+    const lines = await captureExpandLogs(async () => {
+      await expandCandidate({
+        prisma: stubPrisma,
+        userId: "u1",
+        request: cappedRequest(["Meatloaf"], null),
+        runAICall: fn,
+        estimateDishMacrosImpl: makeEstimateStub(),
+      });
+    });
+    const o = lines.find((l) => l.obj.event === "wizard_expand_time_check")!.obj;
+    assert.equal(o.maxCookTimeMinutes, null);
+    assert.equal(o.authoredAtCap, false);
+    assert.equal(o.derivedOverCap, false);
+  });
+
+  it("(e) the expand AI-output schema accepts a payload with no outline", () => {
+    const parsed = WizardExpandResultDetailsSchema.safeParse({ meals: [makeDetailsMeal("X", undefined)] });
+    assert.equal(parsed.success, true);
+    if (!parsed.success) return;
+    assert.equal(parsed.data.meals[0].dishes[0].outline, undefined);
+  });
+
+  it("(f) a MALFORMED outline validates (dropped, warned), lands as timeSource authored, and makes no second AI call", async () => {
+    const malformed = [
+      { phaseType: "microwave", estimatedMinutes: -3, isTimingSensitive: "yes" },
+    ];
+    // Schema level: the whole-meal parse still succeeds; only the outline drops.
+    const parsed = WizardExpandResultDetailsSchema.safeParse({ meals: [makeDetailsMeal("X", malformed)] });
+    assert.equal(parsed.success, true, "a malformed outline must not fail the expand schema — runAICall's retry ends in a 502");
+    if (!parsed.success) return;
+    assert.equal(parsed.data.meals[0].dishes[0].outline, undefined);
+    // An empty array and a non-array drop the same way.
+    for (const bad of [[], "prep 10, cook 45", null, 42]) {
+      const p = WizardExpandResultDetailsSchema.safeParse({ meals: [makeDetailsMeal("X", bad)] });
+      assert.equal(p.success, true, `outline=${JSON.stringify(bad)} must validate`);
+    }
+
+    // Orchestrator level: the stub returns what runAICall would have handed
+    // back after that parse (outline already dropped); one call, authored time.
+    const { fn, calls } = makeRunAICallStub((t) => detailsSuccess([makeDetailsMeal(t, undefined)]));
+    const lines = await captureExpandLogs(async () => {
+      const r = await expandCandidate({
+        prisma: stubPrisma,
+        userId: "u1",
+        request: cappedRequest(["Garbled"], 30),
+        runAICall: fn,
+        estimateDishMacrosImpl: makeEstimateStub(),
+      });
+      assert.equal(r.status, "success");
+      if (r.status !== "success") return;
+      assert.equal(r.expanded.meals[0].timeSource, "authored");
+      assert.equal(r.expanded.meals[0].estimatedTimeMinutes, 30);
+    });
+    assert.equal(calls.length, 1, "no second AI call");
+    assert.equal(lines.find((l) => l.obj.event === "wizard_expand_time_check")?.obj.timeSource, "authored");
+  });
+
+  it("(f-2) the schema-level drop is logged as wizard_expand_outline_malformed", async () => {
+    const lines = await captureExpandLogs(async () => {
+      WizardExpandResultDetailsSchema.safeParse({
+        meals: [makeDetailsMeal("X", [{ phaseType: "cook", estimatedMinutes: 0, isTimingSensitive: false }])],
+      });
+    });
+    const warn = lines.find((l) => l.obj.event === "wizard_expand_outline_malformed");
+    assert.ok(warn, "the drop must be visible in telemetry, distinguishable from 'no outline written'");
+    assert.equal(warn.level, "warn");
+  });
+
+  it("a multi-dish meal derives only when EVERY dish carries an outline", async () => {
+    const twoDish = makeDetailsMeal("Two", HONEST_OUTLINE);
+    twoDish.dishes.push({
+      ...twoDish.dishes[0],
+      title: "Side",
+      role: "side",
+      positionIndex: 1,
+      outline: undefined,
+    });
+    const { fn } = makeRunAICallStub(() => detailsSuccess([twoDish]));
+    const result = await expandCandidate({
+      prisma: stubPrisma,
+      userId: "u1",
+      request: cappedRequest(["Two"], 30),
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.equal(result.expanded.meals[0].timeSource, "authored", "one dish without an outline → the meal is not derivable");
+    assert.equal(result.expanded.meals[0].estimatedTimeMinutes, 30);
+  });
+});

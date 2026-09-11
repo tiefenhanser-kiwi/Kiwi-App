@@ -13,8 +13,10 @@
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 
+import type { SchedulerDish } from "./cookingScheduler";
 import { estimateDishMacros } from "./dishMacros";
 import { lookupIngredientsByName } from "./ingredientLookup";
+import { deriveMealTiming } from "./mealTiming";
 import { ingredientCanonicalKey, toEffectiveIngredient } from "./overrideResolver";
 import { logger } from "./logger";
 import {
@@ -403,13 +405,65 @@ export async function expandCandidate(
       // Unreachable: every non-store slot was expanded live above.
       throw new Error(`wizard_expand_slot_invariant:${i}`);
     }
-    enrichedMeals.push({
+    // WS9 BUG-245 (O1) — the draft's time is DERIVED from the outline, not the
+    // model's scalar. A shelf slot's time comes from the catalog's derived value
+    // (storeMealDetails); a live slot's used to be `wizard.candidate.expand`'s
+    // authored number passed through untouched — and on a 30-minute plan the
+    // unsaved draft read 28 · 29 · 30 · 30 while the same plan, saved and
+    // stamped from real steps, read 28 · 29 · 44 · 56. When every dish carries
+    // an outline, the same `deriveMealTiming` the save-time stamp uses runs
+    // over it here; when any dish lacks one, the authored number stands and
+    // `timeSource: "authored"` says so. Never throws: a missing or malformed
+    // outline is a telemetry event, not a failed expand.
+    const timing = deriveTimingFromOutlines(liveMeal);
+    const authored = liveMeal.estimatedTimeMinutes;
+    const timed: WizardExpandEnrichedMealDetails = {
       ...liveMeal,
       dishes: liveMeal.dishes.map(
         (_, di) =>
           macroBySlotDish.get(`${i}:${di}`) as WizardExpandEnrichedDishDetails,
       ),
-    });
+      estimatedTimeMinutes: timing ? timing.total : authored,
+      ...(timing ? { activeTimeMinutes: timing.active } : {}),
+      authoredEstimatedTimeMinutes: authored,
+      timeSource: timing ? "outline" : "authored",
+    };
+    enrichedMeals.push(timed);
+
+    // One structured line per live meal — the O3 "clamp flag", kept as
+    // telemetry: `authoredAtCap` is the model's scalar landing within 2 minutes
+    // at or under the cap (the BUG-245 signature), `derivedOverCap` is what the
+    // outline says about the same meal. A live model shortening its OUTLINE to
+    // fit the cap would show as authoredAtCap && !derivedOverCap across the
+    // board; only a device round can tell. Wrapped: never fails the expand.
+    try {
+      const cap = serverCandidateContext.maxCookTimeMinutes ?? null;
+      const liveIdx = liveSlots.findIndex((s) => s.slotIndex === i);
+      const shard = liveIdx >= 0 ? perMealResults[liveIdx] : undefined;
+      logger.info(
+        {
+          event: "wizard_expand_time_check",
+          userId: opts.userId,
+          candidateId: opts.request.candidate.id,
+          slotIndex: i,
+          mealTitle: liveMeal.title,
+          promptVersion: shard && shard.ok ? shard.promptVersion : null,
+          timeSource: timed.timeSource,
+          authoredEstimatedTimeMinutes: authored,
+          derivedTotalMinutes: timing ? timing.total : null,
+          derivedActiveMinutes: timing ? timing.active : null,
+          maxCookTimeMinutes: cap,
+          maxCookTimeCoverage: cap === null ? null : serverCandidateContext.maxCookTimeCoverage ?? null,
+          authoredAtCap: cap !== null && authored <= cap && authored >= cap - 2,
+          derivedOverCap: cap !== null && timing !== null && timing.total > cap,
+          outlinedDishes: liveMeal.dishes.filter((d) => d.outline !== undefined).length,
+          totalDishes: liveMeal.dishes.length,
+        },
+        "Wizard expand pre-save time check",
+      );
+    } catch {
+      /* telemetry only */
+    }
   }
 
   return {
@@ -434,6 +488,40 @@ export async function expandCandidate(
   };
 }
 
+// ── outline → timing (WS9 BUG-245 O1) ─────────────────────────────────────
+
+/**
+ * Derive a live meal's { total, active } from its dishes' outlines with the
+ * SAME `deriveMealTiming` the save-time stamp uses. Returns null when any dish
+ * lacks an outline (the caller keeps the authored number) or when the scheduler
+ * finds nothing derivable.
+ *
+ * This is the smallest adapter from an outline to `SchedulerDish`: the outline
+ * step IS a SchedulerStep minus `stepIndex` (array position). No timing rule
+ * lives here — the scheduler owns overlap, `deriveMealTiming` owns the canonical
+ * dish order (positionIndex ascending, then dishId ascending — the save-time
+ * link carries `d.positionIndex`, so the same key is used; the zero-padded
+ * array index stands in for the not-yet-minted dishId as the tiebreak).
+ */
+export function deriveTimingFromOutlines(
+  meal: Pick<WizardExpandMealDetails, "dishes">,
+): { total: number; active: number } | null {
+  const dishes: SchedulerDish[] = [];
+  for (let di = 0; di < meal.dishes.length; di++) {
+    const d = meal.dishes[di];
+    if (!d.outline) return null;
+    dishes.push({
+      dishId: String(di).padStart(3, "0"),
+      title: d.title,
+      positionIndex: d.positionIndex,
+      steps: d.outline.map((o, stepIndex) => ({ stepIndex, ...o })),
+    });
+  }
+  const timing = deriveMealTiming(dishes);
+  if (timing.totalMinutes === null || timing.activeMinutes === null) return null;
+  return { total: timing.totalMinutes, active: timing.activeMinutes };
+}
+
 // ── per-meal shard helper ────────────────────────────────────────────────
 
 type PerMealResult =
@@ -444,6 +532,10 @@ type PerMealResult =
       // WS9 3d Part 3c-2 (B5) — carry the model output tokens for this shard so
       // the caller can join AI cost with the live-slot count on one summary line.
       outputTokens: number;
+      // WS9 BUG-245 (O1) — the prompt version that authored this shard, for the
+      // per-meal time-check line (an all-time rate over a versioned prompt
+      // measures dead versions — BUG-100's lesson).
+      promptVersion: number | null;
     }
   | {
       ok: false;
@@ -519,6 +611,7 @@ async function expandOneMeal(
     meal: ai.data.meals[0],
     // WS9 3d Part 3c-2 (B5) — measurement only.
     outputTokens: ai.metadata.outputTokens,
+    promptVersion: ai.metadata.promptVersion,
   };
 }
 
