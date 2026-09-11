@@ -53,7 +53,7 @@ import {
   DISH_SORT_LABEL_OVERRIDES,
   toDishSortKey,
 } from "@/lib/dishes/sortMapping";
-import type { SaveMealInput } from "@/lib/api/meals";
+import { getMeal, type SaveMealInput } from "@/lib/api/meals";
 import { useMeal } from "@/hooks/useMeal";
 import { CUISINES_TIER_1, CUISINES_TIER_2 } from "@/lib/domain";
 import { formatMacroLine } from "@/lib/format/macros";
@@ -61,6 +61,7 @@ import { isQuantityInvalid } from "@/lib/quantity";
 import {
   buildManualSaveMealInput,
   buildRecipeOverride,
+  buildStepEditMealInput,
   buildUpdateMealInput,
   draftDishToBuilderDish,
   hydrateBuilderDishesFromDraft,
@@ -69,6 +70,7 @@ import {
   newIngredient as makeNewIngredient,
   newStep as makeNewStep,
   pickSavedDishToBuilderDish,
+  stepEditsPresent,
   validateManualSave,
   type BuilderDish,
   type BuilderIngredient,
@@ -617,16 +619,39 @@ export default function MealBuilderScreen() {
   // WS7-7-A B5 — "Just this time": persist the edit as the plan item's
   // recipeOverrideJson (D-WS7-090). The global Meal is untouched; only this
   // plan instance + its grocery list reflect the change.
-  const runSaveJustThisTime = async (input: SaveMealInput) => {
+  //
+  // BUG-252 (D-WS7-142 fallback, Hans ruled Sept 11 2026) — the override
+  // carries no steps, so a step edit saved here used to vanish. When any step
+  // differs from the loaded meal, the step changes ALSO go to the recipe via
+  // the same PATCH "Apply always" uses — built from the CANONICAL meal (a
+  // fresh GET without planItemId: the loaded `sourceMeal` is override-applied,
+  // and an earlier one-time ingredient substitution must not reach the
+  // recipe) with the edited steps. The override is written first so the
+  // plan-local guarantee lands even if the recipe PATCH fails.
+  const runSaveJustThisTime = async (
+    input: SaveMealInput,
+    stepEdits: boolean,
+  ) => {
     if (!planId || !planItemId) return;
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
     try {
       await changeRecipeForPlanItem(planId, planItemId, buildRecipeOverride(input));
-      Alert.alert("Saved for this plan", `${input.title} was updated here.`, [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      if (stepEdits && mealId) {
+        const canonical = await getMeal(mealId);
+        await updateMeal(mealId, {
+          ...buildUpdateMealInput(buildStepEditMealInput(canonical, input)),
+          bumpPlanId: planId,
+        });
+      }
+      Alert.alert(
+        "Saved for this plan",
+        stepEdits
+          ? `${input.title} was updated here. Step changes were saved to the recipe.`
+          : `${input.title} was updated here.`,
+        [{ text: "OK", onPress: () => router.back() }],
+      );
     } catch (err) {
       const msg =
         err instanceof Error && err.message
@@ -760,17 +785,25 @@ export default function MealBuilderScreen() {
     // vs just this time" prompt. Drafts (no Meal row yet) fall through to
     // create-save below — there's nothing to override until save.
     if (isEditFromPlanContext && !draftMeal && mealId) {
+      // BUG-252 — the mode is chosen only here, at save time (a native Alert
+      // has no per-button sub-copy), so the one-line notice that step changes
+      // reach the recipe on either choice goes in the Alert's message.
+      const stepEdits = sourceMeal ? stepEditsPresent(sourceMeal, input) : false;
       Alert.alert(
         "Save changes",
-        "How do you want to apply your edits?",
+        stepEdits
+          ? "How do you want to apply your edits?\n\nStep changes are saved to the recipe."
+          : "How do you want to apply your edits?",
         [
           {
             // WS7-7-A B5 (D-WS7-090) — "just this time" writes the plan item's
             // recipeOverrideJson; the saved Meal is untouched, only this plan
             // instance + its grocery list change.
+            // BUG-252 — …except step edits, which the override cannot carry:
+            // those go to the recipe too (see runSaveJustThisTime).
             text: "Just this time",
             onPress: () => {
-              void runSaveJustThisTime(input);
+              void runSaveJustThisTime(input, stepEdits);
             },
           },
           {

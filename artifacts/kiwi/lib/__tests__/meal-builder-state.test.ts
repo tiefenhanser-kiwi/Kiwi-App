@@ -1080,3 +1080,138 @@ test("(D-WS7-141 Fix 1c) just-this-time idempotency: re-saving an unedited overr
     unit: "lb",
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BUG-252 (D-WS7-142 fallback) — step edits are never silently dropped on
+// "Just this time". The override carries no steps, so when any step differs
+// from the loaded meal the screen ALSO PATCHes the recipe, built from the
+// CANONICAL meal's title + ingredients with the EDITED steps.
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { buildStepEditMealInput, stepEditsPresent } from "../meal-builder-state";
+
+// The un-overridden counterpart of makeOverrideAppliedMeal(): canonical has
+// Pasta + Parmesan; the plan's override removed Parmesan. Steps identical
+// (the override never touches steps).
+function makeCanonicalPastaMeal(): MealDetail {
+  const ov = makeOverrideAppliedMeal();
+  return {
+    ...ov,
+    dishes: [
+      {
+        ...ov.dishes[0],
+        ingredients: [mealIng("Pasta", 1, "lb"), mealIng("Parmesan", 2, "oz")],
+      },
+    ],
+  };
+}
+
+// Fixture: the override-applied pasta meal (2 steps, 5 min each) hydrated into
+// the builder and serialized back UNCHANGED → no step edits.
+test("BUG-252 stepEditsPresent: an untouched round-trip reports no step edits", () => {
+  const loaded = makeOverrideAppliedMeal();
+  const dishes = hydrateBuilderDishesFromMeal(loaded, makeAlloc());
+  const input = buildManualSaveMealInput(pastaSourceState(dishes));
+  assert.equal(stepEditsPresent(loaded, input), false);
+});
+
+// Fixture: same, but step[1]'s minutes edited 5 → 22 (Hans's device case:
+// "changed a step from 2 to 22 minutes, saved with Just this time").
+test("BUG-252 stepEditsPresent: a minutes change is a step edit", () => {
+  const loaded = makeOverrideAppliedMeal();
+  const dishes = hydrateBuilderDishesFromMeal(loaded, makeAlloc());
+  dishes[0].steps[1].estimatedMinutes = "22";
+  const input = buildManualSaveMealInput(pastaSourceState(dishes));
+  assert.equal(stepEditsPresent(loaded, input), true);
+});
+
+// Fixture: step[0]'s text edited.
+test("BUG-252 stepEditsPresent: a text change is a step edit", () => {
+  const loaded = makeOverrideAppliedMeal();
+  const dishes = hydrateBuilderDishesFromMeal(loaded, makeAlloc());
+  dishes[0].steps[0].text = "Boil pasta until al dente";
+  const input = buildManualSaveMealInput(pastaSourceState(dishes));
+  assert.equal(stepEditsPresent(loaded, input), true);
+});
+
+// Fixture: a third step appended (count 2 → 3).
+test("BUG-252 stepEditsPresent: an added step is a step edit", () => {
+  const loaded = makeOverrideAppliedMeal();
+  const alloc = makeAlloc();
+  const dishes = hydrateBuilderDishesFromMeal(loaded, alloc);
+  dishes[0].steps.push(newStep(alloc, { text: "Rest 2 min", estimatedMinutes: "2" }));
+  const input = buildManualSaveMealInput(pastaSourceState(dishes));
+  assert.equal(stepEditsPresent(loaded, input), true);
+});
+
+// Fixture: an ingredient-only edit (Pasta 1 lb → 2 lb) — NOT a step edit, so
+// "Just this time" stays override-only and the recipe is not touched.
+test("BUG-252 stepEditsPresent: an ingredient-only edit is not a step edit", () => {
+  const loaded = makeOverrideAppliedMeal();
+  const dishes = hydrateBuilderDishesFromMeal(loaded, makeAlloc());
+  dishes[0].ingredients[0].quantity = "2";
+  const input = buildManualSaveMealInput(pastaSourceState(dishes));
+  assert.equal(stepEditsPresent(loaded, input), false);
+});
+
+// Fixture: the editor (seeded from the override-applied meal, Pasta only) has
+// step[1] at 22 min AND the meal name changed AND Pasta bumped to 2 lb. The
+// recipe PATCH source must carry the CANONICAL title + ingredients (Pasta 1 lb
+// + Parmesan — the override's removal never reaches the recipe, nor does the
+// 2 lb) with the EDITED steps; estimatedTimeMinutes is absent (server re-stamps).
+test("BUG-252 buildStepEditMealInput: canonical title + ingredients, edited steps", () => {
+  const loaded = makeOverrideAppliedMeal();
+  const dishes = hydrateBuilderDishesFromMeal(loaded, makeAlloc());
+  dishes[0].steps[1].estimatedMinutes = "22";
+  dishes[0].ingredients[0].quantity = "2";
+  const input = buildManualSaveMealInput({
+    ...pastaSourceState(dishes),
+    mealName: "Pasta, renamed for tonight",
+  });
+  const body = buildStepEditMealInput(makeCanonicalPastaMeal(), input);
+  assert.equal(body.title, "Weeknight Pasta");
+  assert.equal(body.estimatedTimeMinutes, undefined);
+  assert.equal(body.dishes.length, 1);
+  const dish = body.dishes[0];
+  assert.equal(dish.kind, "new");
+  if (dish.kind !== "new") return;
+  assert.equal(dish.title, "Pasta");
+  assert.equal(dish.role, "main");
+  assert.deepEqual(
+    dish.ingredients.map((i) => [i.name, i.quantity, i.unit]),
+    [["Pasta", 1, "lb"], ["Parmesan", 2, "oz"]],
+  );
+  assert.deepEqual(
+    dish.steps.map((s) => [s.text, s.estimatedMinutes]),
+    [["Boil pasta", 5], ["Toss with sauce", 22]],
+  );
+  // And the PATCH body the screen sends is buildUpdateMealInput over it —
+  // no servingsDefault (BUG-002), dishes carried, title canonical.
+  const patch = buildUpdateMealInput(body);
+  assert.equal(patch.title, "Weeknight Pasta");
+  assert.equal("servingsDefault" in patch, false);
+  assert.equal(patch.dishes?.length, 1);
+});
+
+// Fixture: canonical has 2 dishes, the editor removed dish[1] → the canonical
+// dish[1] keeps its own steps in the PATCH (a dish removal is an override-level
+// ingredient change, not a recipe edit).
+test("BUG-252 buildStepEditMealInput: a canonical dish the editor dropped keeps its steps", () => {
+  const canonical = makeMultiDishMeal();
+  const dishes = hydrateBuilderDishesFromMeal(canonical, makeAlloc());
+  dishes[0].steps[0].estimatedMinutes = "40";
+  const input = buildManualSaveMealInput({
+    ...pastaSourceState([dishes[0]]),
+    mealName: canonical.title,
+  });
+  const body = buildStepEditMealInput(canonical, input);
+  assert.equal(body.dishes.length, 2);
+  const d0 = body.dishes[0];
+  const d1 = body.dishes[1];
+  if (d0.kind !== "new" || d1.kind !== "new") throw new Error("expected new dishes");
+  assert.equal(d0.steps[0].estimatedMinutes, 40);
+  assert.deepEqual(
+    d1.steps.map((s) => s.text),
+    canonical.dishes[1].steps.map((s) => s.text),
+  );
+});

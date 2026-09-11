@@ -18,6 +18,7 @@ import { toServerDifficulty } from "./api/builder";
 import type {
   MealDetail,
   SaveMealDish,
+  SaveMealDishRole,
   SaveMealInput,
   UpdateMealInput,
 } from "./api/meals";
@@ -146,6 +147,24 @@ export function validateManualSave(state: {
 
 // ── Hydration ────────────────────────────────────────────────────────────
 
+// The step rows the builder shows for dish i — the same legacy fallback
+// hydrate applies, factored so stepEditsPresent (BUG-252) compares the edited
+// steps against exactly what was loaded, not against a differently-resolved
+// list.
+function loadedStepRowsForDish(
+  sourceMeal: MealDetail,
+  i: number,
+): MealDetail["steps"] {
+  const allDishesHaveEmptySteps = sourceMeal.dishes.every(
+    (d) => d.steps.length === 0,
+  );
+  const useLegacyMealLevelSteps =
+    allDishesHaveEmptySteps && sourceMeal.steps.length > 0;
+  return useLegacyMealLevelSteps && i === 0
+    ? sourceMeal.steps
+    : sourceMeal.dishes[i].steps;
+}
+
 /**
  * Map a server-side MealDetail into BuilderDish[], preserving per-dish
  * step ownership. The pre-fix code flattened all dishes' steps into a
@@ -160,15 +179,8 @@ export function hydrateBuilderDishesFromMeal(
   sourceMeal: MealDetail,
   allocUid: UidAllocator,
 ): BuilderDish[] {
-  const allDishesHaveEmptySteps = sourceMeal.dishes.every(
-    (d) => d.steps.length === 0,
-  );
-  const useLegacyMealLevelSteps =
-    allDishesHaveEmptySteps && sourceMeal.steps.length > 0;
-
   return sourceMeal.dishes.map((d, i) => {
-    const stepRows =
-      useLegacyMealLevelSteps && i === 0 ? sourceMeal.steps : d.steps;
+    const stepRows = loadedStepRowsForDish(sourceMeal, i);
     return newDish(allocUid, {
       name: d.title,
       ingredients:
@@ -467,5 +479,155 @@ export function buildRecipeOverride(input: SaveMealInput): RecipeOverride {
           : [],
     })),
     createdAt: new Date().toISOString(),
+  };
+}
+
+// ── BUG-252 — step edits survive "Just this time" (D-WS7-142 fallback) ───
+// buildRecipeOverride above carries NO steps (the override schema is
+// ingredient + title; the read re-merges canonical steps), so a step-duration
+// edit saved with "Just this time" vanished. Hans ruled (Sept 11, 2026) that a
+// step edit is never silently dropped: until a per-plan step override exists
+// (its own later block — every reader of a plan item's steps would have to
+// merge it), the step changes go to the RECIPE through the existing "Apply
+// always" PATCH, alongside the plan-item override. Two pure helpers:
+//
+//   stepEditsPresent      — did the user change any step vs what was loaded?
+//   buildStepEditMealInput — the PATCH source: the CANONICAL meal's title +
+//                            ingredients with the EDITED steps, so a one-time
+//                            ingredient substitution stays in the override
+//                            and never reaches the recipe.
+//
+// Both compare / pair dishes by POSITION (same rule as the override and the
+// server's applyRecipeOverrideToDishes). A dish added in the editor has no
+// canonical counterpart and is NOT written (it is an ingredient-level change
+// that belongs to the override); a canonical dish the editor removed keeps
+// its own steps.
+
+interface ComparableStep {
+  text: string;
+  minutes: number;
+  isTimingSensitive: boolean;
+}
+
+function comparableLoadedSteps(
+  sourceMeal: MealDetail,
+  dishIndex: number,
+): ComparableStep[] {
+  return loadedStepRowsForDish(sourceMeal, dishIndex).map((st) => ({
+    text: st.text.trim(),
+    minutes: st.estimatedMinutes > 0 ? st.estimatedMinutes : 0,
+    isTimingSensitive: st.isTimingSensitive === true,
+  }));
+}
+
+function comparableInputSteps(dish: SaveMealDish): ComparableStep[] | null {
+  if (dish.kind !== "new") return null;
+  return dish.steps.map((st) => ({
+    text: st.text.trim(),
+    minutes:
+      st.estimatedMinutes !== undefined && st.estimatedMinutes > 0
+        ? st.estimatedMinutes
+        : 0,
+    isTimingSensitive: st.isTimingSensitive === true,
+  }));
+}
+
+/**
+ * True when any step's text, minutes, or timing flag differs from the loaded
+ * meal, or a dish's step COUNT differs (added / removed step). Dishes are
+ * paired by position; positions with no counterpart on either side are
+ * ignored (see the block comment above).
+ */
+export function stepEditsPresent(
+  loaded: MealDetail,
+  input: SaveMealInput,
+): boolean {
+  const pairs = Math.min(loaded.dishes.length, input.dishes.length);
+  for (let i = 0; i < pairs; i++) {
+    const edited = comparableInputSteps(input.dishes[i]);
+    if (edited === null) continue;
+    const original = comparableLoadedSteps(loaded, i);
+    if (edited.length !== original.length) return true;
+    for (let s = 0; s < edited.length; s++) {
+      const a = original[s];
+      const b = edited[s];
+      if (
+        a.text !== b.text ||
+        a.minutes !== b.minutes ||
+        a.isTimingSensitive !== b.isTimingSensitive
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+const SAVE_MEAL_DISH_ROLES: readonly SaveMealDishRole[] = [
+  "main",
+  "side",
+  "sauce",
+  "topping",
+  "base",
+  "optional",
+];
+
+const SAVE_MEAL_DIFFICULTIES = ["easy", "medium", "fancy"] as const;
+
+/**
+ * The SaveMealInput the recipe PATCH is built from on "Just this time" with
+ * step edits present. `canonical` MUST be the un-overridden meal (GET
+ * /meals/:id WITHOUT planItemId): the builder's loaded meal in plan context is
+ * override-applied, so using it would leak an earlier one-time ingredient
+ * substitution into the recipe. Everything but the steps is the canonical
+ * meal's; estimatedTimeMinutes is deliberately absent so the server re-stamps
+ * it from the persisted steps (D-WS9-235).
+ */
+export function buildStepEditMealInput(
+  canonical: MealDetail,
+  input: SaveMealInput,
+): SaveMealInput {
+  const difficulty = (SAVE_MEAL_DIFFICULTIES as readonly string[]).includes(
+    canonical.difficulty,
+  )
+    ? (canonical.difficulty as (typeof SAVE_MEAL_DIFFICULTIES)[number])
+    : undefined;
+  return {
+    title: canonical.title,
+    description: canonical.description,
+    cuisineType: canonical.cuisine || null,
+    ...(difficulty !== undefined ? { difficulty } : {}),
+    dishes: canonical.dishes.map((d, i) => {
+      const edited = input.dishes[i];
+      const editedSteps =
+        edited !== undefined ? comparableInputSteps(edited) : null;
+      const role = (SAVE_MEAL_DISH_ROLES as readonly string[]).includes(
+        d.roleLabel,
+      )
+        ? (d.roleLabel as SaveMealDishRole)
+        : i === 0
+          ? "main"
+          : "side";
+      return {
+        kind: "new" as const,
+        title: d.title,
+        role,
+        positionIndex: d.positionIndex,
+        ingredients: d.ingredients.map((ing) => ({
+          name: ing.name,
+          quantity: ing.quantity,
+          unit: ing.unit,
+          preparationNote: ing.preparationNote,
+          isOptional: ing.isOptional,
+        })),
+        steps: (editedSteps ?? comparableLoadedSteps(canonical, i)).map(
+          (st) => ({
+            text: st.text,
+            ...(st.minutes > 0 ? { estimatedMinutes: st.minutes } : {}),
+            isTimingSensitive: st.isTimingSensitive,
+          }),
+        ),
+      };
+    }),
   };
 }
