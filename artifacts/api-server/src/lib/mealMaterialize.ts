@@ -1009,6 +1009,23 @@ export async function rematerializeDish(
         },
       });
     }
+
+    // D-WS9-235 follow-up — the steps just rewritten are what every linked
+    // meal's estimatedTimeMinutes / activeTimeMinutes were derived FROM. Re-stamp
+    // each of those meals in the same transaction, over its full dish set, so
+    // no meal keeps a time derived from steps that no longer exist. (The Dish
+    // Builder sends steps on every edit, so this runs on every dish save.)
+    const linked = await tx.mealDishLink.findMany({
+      where: { dishId },
+      select: { mealId: true },
+    });
+    for (const { mealId } of linked) {
+      const siblings = await tx.mealDishLink.findMany({
+        where: { mealId },
+        select: { dishId: true },
+      });
+      await stampMealTiming(tx, mealId, siblings.map((l) => l.dishId));
+    }
   }
 
   return { dishId };

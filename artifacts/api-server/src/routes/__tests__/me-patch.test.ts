@@ -216,7 +216,7 @@ function makeStub(opts: StubOpts = {}) {
         captured.linkFindMany.push({ where: args.where });
         const where = args.where as {
           mealId?: string | { not: string };
-          dishId?: { in: string[] };
+          dishId?: string | { in: string[] };
         };
         const matched = links.filter((l) => {
           if (typeof where.mealId === "string") {
@@ -224,7 +224,11 @@ function makeStub(opts: StubOpts = {}) {
           } else if (where.mealId && typeof where.mealId === "object") {
             if (l.mealId === (where.mealId as { not: string }).not) return false;
           }
-          if (where.dishId?.in) {
+          // D-WS9-235 follow-up: rematerializeDish asks "which meals link this
+          // dish" with a plain-string dishId.
+          if (typeof where.dishId === "string") {
+            if (l.dishId !== where.dishId) return false;
+          } else if (where.dishId?.in) {
             if (!where.dishId.in.includes(l.dishId)) return false;
           }
           return true;
@@ -277,7 +281,24 @@ function makeStub(opts: StubOpts = {}) {
       },
     },
     recipeInstructionStep: {
-      findMany: async () => [], // D-WS9-235 stampMealTiming reads steps back
+      // D-WS9-235 stampMealTiming reads steps back. Answer from the steps this
+      // request CREATED (deletes are captured, not applied — a pre-existing
+      // step set is never configured in this file), so a dish whose steps were
+      // just rewritten derives from exactly those steps.
+      findMany: async (args: {
+        where: { ownerType: string; ownerId: { in: string[] } };
+      }) => {
+        const owners = new Set(args.where.ownerId.in);
+        return captured.stepCreates
+          .filter((s) => owners.has(s.ownerId as string))
+          .map((s) => ({
+            ownerId: s.ownerId,
+            stepIndex: s.stepIndex,
+            estimatedMinutes: (s.estimatedMinutes as number | undefined) ?? 1,
+            phaseType: (s.phaseType as string | undefined) ?? "cook",
+            isTimingSensitive: (s.isTimingSensitive as boolean | undefined) ?? false,
+          }));
+      },
       create: async (args: { data: Record<string, unknown> }) => {
         captured.stepCreates.push(args.data);
         return {};
@@ -995,6 +1016,49 @@ describe("PATCH /me/dishes/:id (sub-graph wipe-and-recreate)", () => {
       assert.equal(captured.stepDeleteMany.length, 0);
       assert.equal(captured.dishIngredientCreates.length, 1);
       assert.equal(captured.stepCreates.length, 0);
+      // No step change → no meal re-stamped (D-WS9-235 follow-up).
+      assert.equal(captured.mealUpdates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // D-WS9-235 follow-up — a dish step edit re-stamps every meal the dish is
+  // linked to, from the NEW steps, in the same transaction. Before this, the
+  // Dish Builder (which sends steps on every edit) left each linked meal on a
+  // time derived from steps that no longer existed.
+  it("a steps patch re-stamps every linked meal's derived time from the new steps", async () => {
+    const { prisma, captured } = makeStub({
+      dishes: [{ id: "dish-1", userId: USER_ID, isArchived: false }],
+      links: [
+        { mealId: "meal-a", dishId: "dish-1" },
+        { mealId: "meal-b", dishId: "dish-1" },
+        { mealId: "meal-c", dishId: "dish-other" }, // not linked → untouched
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/dishes/dish-1", {
+        steps: [
+          { text: "Chop.", estimatedMinutes: 10, phaseType: "prep" },
+          { text: "Bake.", estimatedMinutes: 45, phaseType: "cook" },
+        ],
+      });
+      assert.equal(res.status, 200);
+      const stamped = captured.mealUpdates.filter(
+        (u) => "estimatedTimeMinutes" in u.data && "activeTimeMinutes" in u.data,
+      );
+      assert.deepEqual(
+        stamped.map((u) => u.where.id).sort(),
+        ["meal-a", "meal-b"],
+        "exactly the meals linked to the edited dish are re-stamped",
+      );
+      for (const u of stamped) {
+        // 10 prep + 45 cook, serial single dish → 55 start-to-plate; hands-on
+        // is the prep only (an unattended cook step is not active time).
+        assert.equal(u.data.estimatedTimeMinutes, 55, `${u.where.id} total`);
+        assert.equal(u.data.activeTimeMinutes, 10, `${u.where.id} active`);
+      }
     } finally {
       await harness.close();
     }
