@@ -726,3 +726,50 @@ describe("D-WS9-189 A2 -- the component pass is HELD and mutates nothing", () =>
     assert.equal(gated.folds.length, ungated.folds.length);
   });
 });
+
+// ── WS9 BUG-251 — the pool prefers a parent already on the list ────────────
+describe("BUG-251 — a child under two parents goes to the one already on the list", () => {
+  // The live shape from list 65eac724: `adobo sauce` has a component parent in
+  // more than one synonym cluster, the index walks parents alphabetically, and
+  // the alphabetically-first parent was not on the list. The dish asked for
+  // `chipotle peppers in adobo sauce`; the pool appended `chipotle chile in
+  // adobo` beside it. Two cans for one 1 tbsp of sauce.
+  const A = "chipotle chile in adobo"; // alphabetically first
+  const B = "chipotle peppers in adobo sauce"; // what the dish asked for
+  const rows: RelationRow[] = [
+    comp(A, "adobo sauce", 1, "tbsp", true),
+    comp(B, "adobo sauce", 1, "tbsp", true),
+  ];
+
+  it("tops up the parent that is on the list and appends nothing", () => {
+    const idx = buildRelationIndex(rows);
+    // Precondition the test depends on: the index really does hand A first.
+    assert.deepEqual(
+      idx.componentParents.map((p) => p.parent),
+      [A, B],
+    );
+    const out = poolComponentNeeds(
+      [item(B, 2, "each"), item("adobo sauce", 1, "tablespoon")],
+      idx,
+    );
+    // Asserted on the ROWS: one row, it is B, and it carries the top-up.
+    assert.equal(out.items.length, 1, "the sauce must fold into B, not append A");
+    assert.equal(out.items[0].canonicalName, B);
+    assert.equal(out.items[0].quantity, 3, "2 peppers wanted whole + 1 for the tbsp of sauce");
+    assert.equal(out.items.some((i) => i.canonicalName === A), false, "A was appended");
+    assert.equal(out.folds.length, 1);
+    assert.equal(out.folds[0].parent, B);
+    assert.equal(out.folds[0].toppedUpExisting, true);
+  });
+
+  it("falls back to the index order when neither parent is on the list", () => {
+    const idx = buildRelationIndex(rows);
+    const out = poolComponentNeeds([item("adobo sauce", 1, "tablespoon")], idx);
+    // Today's behaviour, unchanged: the alphabetically-first parent is appended.
+    assert.equal(out.items.length, 1);
+    assert.equal(out.items[0].canonicalName, A);
+    assert.equal(out.items[0].quantity, 1);
+    assert.equal(out.folds.length, 1);
+    assert.equal(out.folds[0].toppedUpExisting, false);
+  });
+});
