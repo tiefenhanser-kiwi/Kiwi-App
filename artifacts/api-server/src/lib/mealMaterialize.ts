@@ -617,6 +617,62 @@ export async function materializeDish(
   return { dishId: dish.id };
 }
 
+// ── step-field preservation on a builder save (D-WS9-235) ───────────────
+// The meal-builder and the Dish Builder send steps as { text, estimatedMinutes,
+// isTimingSensitive? } — no phaseType — so the wipe-and-recreate paths below
+// used to reset every re-created step to the column default `cook`, and the
+// D-WS9-235 re-stamp then derived from an all-`cook` step set. Measured
+// (September 11, live DB): 9 of 9 dishes re-created by a meal-level save carry
+// 50/50 steps `cook` (9/9 dishes all-cook) against the catalog's 36%. The
+// fix is server-side: an incoming step that OMITS phaseType / isTimingSensitive
+// inherits the existing step's value AT THE SAME stepIndex (read before the
+// wipe); a genuinely new step — no existing step at that index — falls to the
+// column default as before. A field the client does send always wins.
+
+type PreservableStepFields = {
+  phaseType: NonNullable<MaterializeMealStep["phaseType"]>;
+  isTimingSensitive: boolean;
+};
+
+// stepIndex → the fields worth preserving, for one dish.
+type PreservableStepsByIndex = Map<number, PreservableStepFields>;
+
+async function readPreservableSteps(
+  tx: Prisma.TransactionClient,
+  dishIds: string[],
+): Promise<Map<string, PreservableStepsByIndex>> {
+  const out = new Map<string, PreservableStepsByIndex>();
+  if (dishIds.length === 0) return out;
+  const rows = await tx.recipeInstructionStep.findMany({
+    where: { ownerType: "dish", ownerId: { in: dishIds } },
+    select: { ownerId: true, stepIndex: true, phaseType: true, isTimingSensitive: true },
+  });
+  for (const r of rows) {
+    const byIndex = out.get(r.ownerId) ?? new Map<number, PreservableStepFields>();
+    byIndex.set(r.stepIndex, {
+      phaseType: r.phaseType,
+      isTimingSensitive: r.isTimingSensitive,
+    });
+    out.set(r.ownerId, byIndex);
+  }
+  return out;
+}
+
+// The phaseType / isTimingSensitive slice of a step-create `data`: the
+// incoming value when sent, else the existing step's at this index, else
+// omitted (column default).
+function preservedStepFields(
+  s: MaterializeMealStep,
+  existing: PreservableStepFields | undefined,
+): Partial<PreservableStepFields> {
+  const phaseType = s.phaseType ?? existing?.phaseType;
+  const isTimingSensitive = s.isTimingSensitive ?? existing?.isTimingSensitive;
+  return {
+    ...(phaseType !== undefined ? { phaseType } : {}),
+    ...(isTimingSensitive !== undefined ? { isTimingSensitive } : {}),
+  };
+}
+
 // ── rematerializeMeal (WS7-6 1A) ───────────────────────────────────────
 // WS7-6 1A: wipe-and-recreate per Hans ruling; surgical-diff deferred → see
 // D-WS7-090 if row-id stability ever needed.
@@ -683,9 +739,19 @@ export async function rematerializeMeal(
   // (delete) vs shared/catalog (unlink only).
   const currentLinks = await tx.mealDishLink.findMany({
     where: { mealId },
-    select: { dishId: true },
+    select: { dishId: true, positionIndex: true },
   });
   const linkedDishIds = currentLinks.map((l) => l.dishId);
+
+  // D-WS9-235 — read the steps that are about to be wiped, keyed by the dish's
+  // position in the meal, so a re-created dish at the same position can keep
+  // the phaseType / isTimingSensitive a builder save does not send.
+  const preservableByDish = await readPreservableSteps(tx, linkedDishIds);
+  const preservableByPosition = new Map<number, PreservableStepsByIndex>();
+  for (const l of currentLinks) {
+    const byIndex = preservableByDish.get(l.dishId);
+    if (byIndex) preservableByPosition.set(l.positionIndex, byIndex);
+  }
 
   let exclusiveDishIds: string[] = [];
   if (linkedDishIds.length > 0) {
@@ -821,6 +887,7 @@ export async function rematerializeMeal(
         });
       }
 
+      const preservable = preservableByPosition.get(d.positionIndex);
       for (let si = 0; si < d.steps.length; si++) {
         const s = d.steps[si];
         await tx.recipeInstructionStep.create({
@@ -833,10 +900,8 @@ export async function rematerializeMeal(
             ...(s.estimatedMinutes !== undefined
               ? { estimatedMinutes: s.estimatedMinutes }
               : {}),
-            ...(s.phaseType !== undefined ? { phaseType: s.phaseType } : {}),
-            ...(s.isTimingSensitive !== undefined
-              ? { isTimingSensitive: s.isTimingSensitive }
-              : {}),
+            // D-WS9-235 — sent value, else the wiped step's at this index.
+            ...preservedStepFields(s, preservable?.get(si)),
             // Block 3.7 (D-WS9-066) — swappable-component tags (omitted unless set).
             ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
             ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),
@@ -924,6 +989,13 @@ export async function rematerializeDish(
   payload: RematerializeDishPayload,
   ingredientIdByCanonical: Map<string, string>,
 ): Promise<{ dishId: string }> {
+  // D-WS9-235 — read the steps about to be wiped so a rewrite that omits
+  // phaseType / isTimingSensitive (the Dish Builder does) keeps them per index.
+  const preservable =
+    payload.steps !== undefined
+      ? (await readPreservableSteps(tx, [dishId])).get(dishId)
+      : undefined;
+
   // Pass 2 (in-tx): wipe affected sub-rows.
   if (payload.ingredients !== undefined) {
     await tx.dishIngredient.deleteMany({ where: { dishId } });
@@ -999,10 +1071,8 @@ export async function rematerializeDish(
           ...(s.estimatedMinutes !== undefined
             ? { estimatedMinutes: s.estimatedMinutes }
             : {}),
-          ...(s.phaseType !== undefined ? { phaseType: s.phaseType } : {}),
-          ...(s.isTimingSensitive !== undefined
-            ? { isTimingSensitive: s.isTimingSensitive }
-            : {}),
+          // D-WS9-235 — sent value, else the wiped step's at this index.
+          ...preservedStepFields(s, preservable?.get(si)),
           // Block 3.7 (D-WS9-066) — swappable-component tags (omitted unless set).
           ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
           ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),

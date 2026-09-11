@@ -21,7 +21,7 @@
 // extends the save-canonical stub with findUnique/findMany/update/
 // deleteMany capture surfaces so the wipe path can be asserted.
 
-import { describe, it } from "node:test";
+import { beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import express, { type Express } from "express";
 import type { Server } from "node:http";
@@ -29,8 +29,17 @@ import type { Server } from "node:http";
 import { signToken } from "../../lib/auth";
 import { createMeRouter } from "../me";
 import { withSessionUser } from "./fixtures/sessionUserStub";
+import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 
 const USER_ID = "test-user-patch";
+
+// saveMutationLimiter (me.ts) is a module-global token bucket keyed by
+// IP+method+path with capacity 12 — every PATCH /me/meals/meal-1 in this file
+// drains one shared bucket. Clear it before each case (as me-save-canonical
+// does) so the file is robust to added cases instead of 429-ing the 13th.
+beforeEach(() => {
+  __clearRateLimitStoreForTests();
+});
 
 interface Captured {
   ingredientUpserts: Array<{ canonicalName: string }>;
@@ -74,6 +83,19 @@ interface DishRow {
 interface LinkRow {
   mealId: string;
   dishId: string;
+  // D-WS9-235 (step-field preservation) — rematerializeMeal keys the wiped
+  // steps by the link's positionIndex. Optional: the older fixtures never
+  // configure pre-existing steps, so the position is irrelevant to them.
+  positionIndex?: number;
+}
+
+// D-WS9-235 (step-field preservation) — a PRE-EXISTING RecipeInstructionStep
+// row the wipe paths read before deleting. Only the preserved fields matter.
+interface ExistingStepRow {
+  ownerId: string;
+  stepIndex: number;
+  phaseType: string;
+  isTimingSensitive: boolean;
 }
 
 interface StubOpts {
@@ -85,6 +107,10 @@ interface StubOpts {
   links?: LinkRow[];
   // WS7-7-A Block 5 — plans the bumpPlanId path can target.
   plans?: PlanRow[];
+  // D-WS9-235 — pre-existing dish-owned steps. Answered by
+  // recipeInstructionStep.findMany until this request's deleteMany removes
+  // their owner; the re-create then reads what it wrote.
+  existingSteps?: ExistingStepRow[];
 }
 
 function makeStub(opts: StubOpts = {}) {
@@ -110,6 +136,7 @@ function makeStub(opts: StubOpts = {}) {
   const dishes = [...(opts.dishes ?? [])];
   let links = [...(opts.links ?? [])];
   const plans = [...(opts.plans ?? [])];
+  let existingSteps = [...(opts.existingSteps ?? [])];
 
   let nextMealId = 1;
   let nextDishId = 1;
@@ -282,14 +309,22 @@ function makeStub(opts: StubOpts = {}) {
     },
     recipeInstructionStep: {
       // D-WS9-235 stampMealTiming reads steps back. Answer from the steps this
-      // request CREATED (deletes are captured, not applied — a pre-existing
-      // step set is never configured in this file), so a dish whose steps were
-      // just rewritten derives from exactly those steps.
+      // request CREATED, plus any configured pre-existing steps whose owner has
+      // not been wiped yet (the step-field preservation read happens BEFORE the
+      // deleteMany; the re-stamp read happens after), so a dish whose steps
+      // were just rewritten derives from exactly those steps.
       findMany: async (args: {
-        where: { ownerType: string; ownerId: { in: string[] } };
+        where: { ownerType: string; ownerId: string | { in: string[] } };
       }) => {
-        const owners = new Set(args.where.ownerId.in);
-        return captured.stepCreates
+        const owners = new Set(
+          typeof args.where.ownerId === "string"
+            ? [args.where.ownerId]
+            : args.where.ownerId.in,
+        );
+        const pre = existingSteps
+          .filter((s) => owners.has(s.ownerId))
+          .map((s) => ({ ...s, estimatedMinutes: 1 }));
+        const created = captured.stepCreates
           .filter((s) => owners.has(s.ownerId as string))
           .map((s) => ({
             ownerId: s.ownerId,
@@ -298,6 +333,7 @@ function makeStub(opts: StubOpts = {}) {
             phaseType: (s.phaseType as string | undefined) ?? "cook",
             isTimingSensitive: (s.isTimingSensitive as boolean | undefined) ?? false,
           }));
+        return [...pre, ...created];
       },
       create: async (args: { data: Record<string, unknown> }) => {
         captured.stepCreates.push(args.data);
@@ -305,7 +341,16 @@ function makeStub(opts: StubOpts = {}) {
       },
       deleteMany: async (args: { where: Record<string, unknown> }) => {
         captured.stepDeleteMany.push({ where: args.where });
-        return { count: 0 };
+        // Apply the wipe to the configured pre-existing set so the re-stamp
+        // read (after the re-create) sees only the new steps.
+        const where = args.where as { ownerId?: string | { in: string[] } };
+        const ids =
+          typeof where.ownerId === "string"
+            ? new Set([where.ownerId])
+            : new Set(where.ownerId?.in ?? []);
+        const before = existingSteps.length;
+        existingSteps = existingSteps.filter((s) => !ids.has(s.ownerId));
+        return { count: before - existingSteps.length };
       },
     },
     // WS7-7-A Block 5 — apply-every-time current-plan bump. findFirst is the
@@ -1059,6 +1104,169 @@ describe("PATCH /me/dishes/:id (sub-graph wipe-and-recreate)", () => {
         assert.equal(u.data.estimatedTimeMinutes, 55, `${u.where.id} total`);
         assert.equal(u.data.activeTimeMinutes, 10, `${u.where.id} active`);
       }
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// D-WS9-235 (step-field preservation) — the Dish Builder and the meal-builder
+// send steps as { text, estimatedMinutes, isTimingSensitive? } with no
+// phaseType, and the wipe-and-recreate used to reset every re-created step to
+// the column default `cook` (live DB, September 11: 9 of 9 dishes re-created
+// by a meal save carried 50/50 steps `cook` against the catalog's 36%). Now an
+// omitted field inherits the wiped step's value at the same stepIndex; a
+// genuinely new step still falls to the column default.
+describe("PATCH /me/dishes/:id (steps keep phaseType / isTimingSensitive when omitted — D-WS9-235)", () => {
+  it("a steps patch omitting phaseType leaves step 2's `rest` as `rest`; an appended step defaults", async () => {
+    const { prisma, captured } = makeStub({
+      dishes: [{ id: "dish-1", userId: USER_ID, isArchived: false }],
+      links: [{ mealId: "meal-a", dishId: "dish-1", positionIndex: 0 }],
+      existingSteps: [
+        { ownerId: "dish-1", stepIndex: 0, phaseType: "prep", isTimingSensitive: false },
+        { ownerId: "dish-1", stepIndex: 1, phaseType: "cook", isTimingSensitive: true },
+        { ownerId: "dish-1", stepIndex: 2, phaseType: "rest", isTimingSensitive: false },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/dishes/dish-1", {
+        // The Dish Builder's edit shape: no phaseType anywhere; isTimingSensitive
+        // sent on step 1 as false (the client's toggle), omitted elsewhere.
+        steps: [
+          { text: "Chop the onion.", estimatedMinutes: 5 },
+          { text: "Sear the steak.", estimatedMinutes: 8, isTimingSensitive: false },
+          { text: "Rest the steak.", estimatedMinutes: 10 },
+          { text: "Slice and serve.", estimatedMinutes: 3 },
+        ],
+      });
+      assert.equal(res.status, 200);
+      // The preservation read happens BEFORE the wipe: exactly one deleteMany
+      // on the dish's steps, and it came after the read (the read returned the
+      // three pre-existing rows — proven by the phases below).
+      assert.equal(captured.stepDeleteMany.length, 1);
+      const created = captured.stepCreates
+        .filter((s) => s.ownerId === "dish-1")
+        .sort((a, b) => (a.stepIndex as number) - (b.stepIndex as number));
+      assert.equal(created.length, 4);
+      assert.deepEqual(
+        created.map((s) => s.phaseType ?? "(default)"),
+        ["prep", "cook", "rest", "(default)"],
+        "steps 0–2 inherit the wiped step's phaseType at the same index; the appended step 3 falls to the column default",
+      );
+      assert.deepEqual(
+        created.map((s) => s.isTimingSensitive ?? "(default)"),
+        [false, false, false, "(default)"],
+        "omitted isTimingSensitive inherits (step 0 false, step 2 false); a SENT false on step 1 wins over the existing true; the new step defaults",
+      );
+      // And the re-stamp derived from the preserved phases: the 10-minute rest
+      // and the unattended-by-client sear are not hands-on. 5 prep + 8 cook +
+      // 10 rest + 3 assemble-by-default(cook) serial = 26 total.
+      const stamped = captured.mealUpdates.filter((u) => u.where.id === "meal-a");
+      assert.equal(stamped.length, 1);
+      assert.equal(stamped[0].data.estimatedTimeMinutes, 26);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a sent phaseType always wins over the existing step's", async () => {
+    const { prisma, captured } = makeStub({
+      dishes: [{ id: "dish-1", userId: USER_ID, isArchived: false }],
+      existingSteps: [
+        { ownerId: "dish-1", stepIndex: 0, phaseType: "rest", isTimingSensitive: false },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/dishes/dish-1", {
+        steps: [{ text: "Whisk.", estimatedMinutes: 2, phaseType: "prep", isTimingSensitive: true }],
+      });
+      assert.equal(res.status, 200);
+      assert.equal(captured.stepCreates[0].phaseType, "prep");
+      assert.equal(captured.stepCreates[0].isTimingSensitive, true);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("PATCH /me/meals/:id (re-created dishes keep phaseType / isTimingSensitive when omitted — D-WS9-235)", () => {
+  it("the meal-builder's dish re-create (no phaseType sent) keeps each step's phase by dish position + stepIndex", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+      dishes: [
+        { id: "dish-old-main", userId: USER_ID, isArchived: false },
+        { id: "dish-old-side", userId: USER_ID, isArchived: false },
+      ],
+      links: [
+        { mealId: "meal-1", dishId: "dish-old-main", positionIndex: 0 },
+        { mealId: "meal-1", dishId: "dish-old-side", positionIndex: 1 },
+      ],
+      existingSteps: [
+        { ownerId: "dish-old-main", stepIndex: 0, phaseType: "prep", isTimingSensitive: false },
+        { ownerId: "dish-old-main", stepIndex: 1, phaseType: "preheat", isTimingSensitive: false },
+        { ownerId: "dish-old-main", stepIndex: 2, phaseType: "cook", isTimingSensitive: false },
+        { ownerId: "dish-old-main", stepIndex: 3, phaseType: "rest", isTimingSensitive: false },
+        { ownerId: "dish-old-side", stepIndex: 0, phaseType: "prep", isTimingSensitive: false },
+        { ownerId: "dish-old-side", stepIndex: 1, phaseType: "assemble", isTimingSensitive: true },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      // serializeNewDishesForSave's shape: { text, estimatedMinutes, isTimingSensitive }.
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Roast chicken with slaw",
+        dishes: [
+          {
+            kind: "new",
+            title: "Roast chicken",
+            role: "main",
+            positionIndex: 0,
+            ingredients: [{ name: "Chicken", quantity: 1, unit: "pound" }],
+            steps: [
+              { text: "Season.", estimatedMinutes: 5 },
+              { text: "Oven to 425.", estimatedMinutes: 10 },
+              { text: "Roast.", estimatedMinutes: 35 },
+              { text: "Rest.", estimatedMinutes: 5 },
+              { text: "Carve and plate.", estimatedMinutes: 3 }, // new — no step 4 existed
+            ],
+          },
+          {
+            kind: "new",
+            title: "Slaw",
+            role: "side",
+            positionIndex: 1,
+            ingredients: [{ name: "Cabbage", quantity: 1, unit: "head" }],
+            steps: [
+              { text: "Shred.", estimatedMinutes: 5 },
+              { text: "Toss and serve.", estimatedMinutes: 2, isTimingSensitive: false },
+            ],
+          },
+        ],
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { meal: { dishIds: string[] } };
+      const [mainId, sideId] = body.meal.dishIds;
+      const phases = (id: string) =>
+        captured.stepCreates
+          .filter((s) => s.ownerId === id)
+          .sort((a, b) => (a.stepIndex as number) - (b.stepIndex as number))
+          .map((s) => s.phaseType ?? "(default)");
+      assert.deepEqual(
+        phases(mainId),
+        ["prep", "preheat", "cook", "rest", "(default)"],
+        "the main at position 0 keeps prep/preheat/cook/rest by stepIndex; the appended 5th step defaults",
+      );
+      assert.deepEqual(
+        phases(sideId),
+        ["prep", "assemble"],
+        "the side at position 1 keeps its own phases — matched by position, not by the main's",
+      );
+      const sideSteps = captured.stepCreates
+        .filter((s) => s.ownerId === sideId)
+        .sort((a, b) => (a.stepIndex as number) - (b.stepIndex as number));
+      assert.equal(sideSteps[1].isTimingSensitive, false, "a SENT false wins over the existing true");
     } finally {
       await harness.close();
     }
