@@ -1278,7 +1278,8 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
     assert.equal(wheres.length, 2, "under-cap query + 'most' over-cap query");
     assert.deepEqual(wheres[0].estimatedTimeMinutes, { lte: 60 });
     assert.deepEqual(wheres[0].activeTimeMinutes, { not: null });
-    assert.deepEqual(wheres[1].estimatedTimeMinutes, { gt: 60 });
+    // The one over-cap row is bounded at cap+20 (Hans: "mostly 30 maxes at 50").
+    assert.deepEqual(wheres[1].estimatedTimeMinutes, { gt: 60, lte: 80 });
   });
 
   it("D-WS7-166: a per-run 30/'all' over stored 60/'most' reaches the shelf as lte 30 with no over-cap fetch", async () => {
