@@ -1,2 +1,3 @@
 provenance,needs_review,family,name_a,name_b,label,confidence,base_is,generic_is,yield_qty,yield_unit,co_harvestable,judge_reason
 human-reviewed,AUTO,(ruling),chipotle chile in adobo,chipotle peppers in adobo sauce,SYNONYM,high,,,,,,"reviewed 2026-09-11: six spellings of one 7 oz can; the component pool's `adobo sauce` parents must share a cluster (BUG-251, September 11)"
+human-reviewed,AUTO,(ruling),chipotle chiles in adobo,chipotle chile in adobo,SYNONYM,high,,,,,,"reviewed 2026-09-11: six spellings of one 7 oz can — joins the third spelling cluster (BUG-251)"
