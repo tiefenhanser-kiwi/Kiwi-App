@@ -4,12 +4,14 @@
 // avatar chip is the sole profile entry after G7 (OPEN-1). R-3a-1: the PRD
 // §4.2.1 tagline ("Thought to Table…") does NOT carry into A1 — dropped.
 //
-// Mark = interim TEXT wordmark (the Deep Kiwi vector rebuild is unstarted —
-// tracked as a go-live item). Rendered in Colors.sage[700] (never the raw
-// #3a5235 literal — tokens are the value authority).
+// Mark = the Deep Kiwi mark, `assets/images/header-mark-28.png` (+ @2x / @3x,
+// which RN's density resolution picks from the base name). The PNGs are
+// rasters of the vector master `assets/images/kiwi-mark.svg`; regenerate from
+// that, never hand-edit. The image replaces a text wordmark, so it carries
+// accessibilityLabel="Kiwi" — a screen reader still hears the name.
 
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -45,8 +47,14 @@ export function HomeHeader() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + Spacing[3] }]}>
       <View style={styles.topRow}>
-        {/* Mark — interim text wordmark (TODO(logo): Deep Kiwi vector). */}
-        <Text style={styles.mark}>kiwi</Text>
+        {/* Mark — Deep Kiwi, 28×28. Same relative-require form as the rest of
+            the app's local images (app/(auth)/welcome.tsx). */}
+        <Image
+          source={require("../assets/images/header-mark-28.png")}
+          style={styles.mark}
+          accessible
+          accessibilityLabel="Kiwi"
+        />
         <View style={styles.right}>
           {/* Badge sits LEFT of the chip (spec §5.1). Self-hides when not trialing. */}
           <TrialBadge />
@@ -81,12 +89,8 @@ const styles = StyleSheet.create({
     gap: Spacing[2],
   },
   mark: {
-    fontSize: Typography.fontSize.xl,
-    color: Colors.sage[700],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serifItalic[600],
-    fontStyle: "italic",
-    letterSpacing: -0.3,
+    width: 28,
+    height: 28,
   },
   // BUG-035 — the declared numeric weight must MATCH the loaded face, or
   // Android synthesises a bold on top of it. This was the last surviving site

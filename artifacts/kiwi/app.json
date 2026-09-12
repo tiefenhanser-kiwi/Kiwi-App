@@ -4,12 +4,12 @@
     "slug": "kiwi",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon-1024.png",
     "scheme": "kiwi",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/splash-icon-1024.png",
       "resizeMode": "contain",
       "backgroundColor": "#3a5235"
     },
@@ -20,9 +20,14 @@
         "NSPhotoLibraryUsageDescription": "Allow Kiwi to access your photos to import recipe images."
       }
     },
-    "android": {},
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon-foreground-1024.png",
+        "backgroundColor": "#3a5235"
+      }
+    },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/favicon-64.png"
     },
     "plugins": [
       [
