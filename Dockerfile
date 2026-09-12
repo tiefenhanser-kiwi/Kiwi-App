@@ -65,11 +65,17 @@ RUN pnpm run build
 
 # Assemble the runtime tree. The esbuild bundle externalises exactly one
 # package the code imports — @prisma/client — so the runtime node_modules is
-# that package plus its generated sibling, copied OUT of pnpm's symlinked
-# store into npm's flat layout (`.prisma/client` resolves
-# `@prisma/client/runtime/library.js` upward; `@prisma/client/default.js`
-# resolves `.prisma/client` upward — the same resolution the symlink layout
-# performs today).
+# that package plus the generated client, copied OUT of pnpm's symlinked
+# store into npm's flat layout.
+#
+# Where the generated client lives: `prisma generate` writes it to the
+# node_modules that CONTAINS @prisma — i.e. TWO levels above the
+# @prisma/client package directory (`CLIENT_DIR/..` is only the @prisma scope
+# dir), so it is dirname(dirname(CLIENT_DIR))/.prisma/client. That is the
+# location `@prisma/client/default.js` fixes with its bare
+# `require('.prisma/client/default')`, which walks up from @prisma/client to
+# the same node_modules. The runtime tree reproduces exactly that shape.
+# PRISMA_NM is DERIVED, not counted, and guarded before any copy.
 #
 # ⚠️ If a future change imports another package that build.mjs lists as
 # external (sharp, bcrypt, …), this tree will not carry it and the container
@@ -83,10 +89,12 @@ RUN pnpm run build
 # from the repo against the target database; the container never runs them.
 RUN set -eu \
  && CLIENT_DIR="$(readlink -f node_modules/@prisma/client)" \
+ && PRISMA_NM="$(dirname "$(dirname "${CLIENT_DIR}")")" \
+ && test -d "${PRISMA_NM}/.prisma/client" \
  && mkdir -p /runtime/node_modules/@prisma /runtime/node_modules/.prisma /runtime/prisma \
  && cp -r dist /runtime/dist \
  && cp -r "${CLIENT_DIR}" /runtime/node_modules/@prisma/client \
- && cp -r "${CLIENT_DIR}/../.prisma/client" /runtime/node_modules/.prisma/client \
+ && cp -r "${PRISMA_NM}/.prisma/client" /runtime/node_modules/.prisma/client \
  && cp prisma/schema.prisma /runtime/prisma/schema.prisma \
  && cp package.json /runtime/package.json \
  && test -f /runtime/dist/index.mjs \

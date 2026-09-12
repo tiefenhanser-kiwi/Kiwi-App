@@ -106,7 +106,11 @@ gcloud run services describe kiwi-api --region us-east4 --format "value(status.u
 
 then redeploy with all three set.
 
-Then set the probes (the `--source` deploy does not take them inline):
+Then set the probes. A second call is unavoidable on the first deploy anyway
+(`PUBLIC_APP_URL` is not known until the service exists), so the probes ride
+it here; `gcloud run deploy` accepts the same `--startup-probe` /
+`--liveness-probe` flags, and on every later deploy they can go on the
+`deploy` call itself.
 
 ```powershell
 gcloud run services update kiwi-api --region us-east4 `
