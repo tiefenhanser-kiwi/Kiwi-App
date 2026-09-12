@@ -19,6 +19,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 
 import {
   WIZARD_SET_PREFERENCES_GENERATE_BODY,
@@ -39,11 +40,20 @@ describe("BUG-245 — a fresh dinner under a cap must realistically fit it", () 
         body.includes("the cap limits what you may choose"),
         `${key}: the cap must LIMIT fresh choices`,
       );
+      // D-WS7-166 (v9) — the cap is a CEILING. The September 11 round measured
+      // every live authored estimate landing exactly at the cap (30 · 28 · 30 ·
+      // 30) under the old "put on the table in that many minutes" wording,
+      // which Hans read as "aim for meals that take as long as the cap".
       assert.ok(
         body.includes(
-          "pick only a dinner a home cook can realistically put on the table in that many minutes from opening the fridge, prep included",
+          "The cap is a ceiling, not a target: every dinner must be on the table within it, from opening the fridge with prep included, and comfortably under is better than close to it. A 20-minute dinner is a good answer to a 30-minute limit, not a missed one — do not stretch a plan's dinners to fill the time allowed.",
         ),
-        `${key}: the rule must be stated as a property of the dinner (fridge-to-table, prep included)`,
+        `${key}: the cap must read as a ceiling, not a target`,
+      );
+      assert.equal(
+        body.includes("in that many minutes"),
+        false,
+        `${key}: the duration-to-hit wording must be gone`,
       );
       assert.ok(
         body.includes("Anything that braises, roasts, bakes or simmers longer than the cap does not fit, however it is named"),
@@ -104,5 +114,31 @@ describe("BUG-245 — a fresh dinner under a cap must realistically fit it", () 
     assert.ok(WIZARD_SET_PREFERENCES_GENERATE_BODY.includes("never abandoning the shelf"));
     assert.ok(WIZARD_DIRECTED_GENERATE_BODY.includes("not abandoning the shelf"));
     assert.equal(WIZARD_SURPRISE_GENERATE_BODY.includes("# Recent history — vary the rotation"), false);
+  });
+
+  // D-WS7-166 (v9) — the rotation sections are pinned BY HASH, sliced by
+  // heading (the section runs from its "# Recent history" heading to the next
+  // "\n# " heading), so a cap rewrite anywhere in the body cannot drift them.
+  // The literals are the sections' sha256 as measured before the v9 edit; a
+  // deliberate D-WS9-073 change re-measures and replaces them.
+  it("the D-WS9-073 rotation sections are byte-identical to their pre-v9 hashes", () => {
+    const heading = "# Recent history — vary the rotation";
+    const section = (body: string): string => {
+      const i = body.indexOf(heading);
+      assert.ok(i >= 0, "rotation heading missing");
+      const j = body.indexOf("\n# ", i + heading.length);
+      return body.slice(i, j < 0 ? undefined : j);
+    };
+    const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+    assert.equal(
+      sha(section(WIZARD_SET_PREFERENCES_GENERATE_BODY)),
+      "5d73d3c1348820fdb8bd4f2aa3c519949882076806681a4649e2b55b5db35f49",
+      "set_preferences rotation section drifted",
+    );
+    assert.equal(
+      sha(section(WIZARD_DIRECTED_GENERATE_BODY)),
+      "d2b9d421a8161ea8b59e55d23b51d78b2d8dda7a635ded93197069e5495b66fb",
+      "directed rotation section drifted",
+    );
   });
 });
