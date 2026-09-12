@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
+import pagesRouter from "./routes/pages";
 import { logger } from "./lib/logger";
 import { noStore } from "./middleware/cacheControl";
 import { errorHandler } from "./middleware/errorHandler";
@@ -92,6 +93,12 @@ app.use(express.urlencoded({ extended: true }));
 // including the unauthenticated ones (health, auth) — a signed-in device
 // should not be replaying any of them. Routes needing a different directive
 // overwrite it in their own handler (the wizard SSE stream does).
+// D-WS9-231 — the reset-password / verify-email web fallback pages live at
+// the ROOT of the host (the paths sendEmail.ts::buildAppLink mints), outside
+// the /api prefix and therefore outside its auth and API limiters. They set
+// their own no-store. Mounted before /api so the ordering is explicit.
+app.use(pagesRouter);
+
 app.use("/api", noStore);
 app.use("/api", router);
 

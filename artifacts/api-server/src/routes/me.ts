@@ -822,7 +822,10 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   );
 
   // POST /me/email/verify-change — auth NOT required; the JWT IS the auth.
-  router.post("/me/email/verify-change", async (req, res) => {
+  // BUG-257 — metered like its reset-confirm sibling (auth.ts authLimiter,
+  // the same 10/min posture passwordChangeLimiter carries); it was the one
+  // token-spending POST with no limiter.
+  router.post("/me/email/verify-change", passwordChangeLimiter, async (req, res) => {
     const parsed = emailVerifyChangeSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({

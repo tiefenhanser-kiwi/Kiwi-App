@@ -1,0 +1,45 @@
+# Build context for the root Dockerfile (WS9A). Everything the api-server
+# image does not need stays out — the mobile app most of all.
+
+# every node_modules, every build output, at any depth
+**/node_modules
+**/dist
+**/.expo
+**/*.tsbuildinfo
+
+# secrets and local env — the image reads its env from Cloud Run, never a file
+**/.env
+**/.env.*
+!**/.env.example
+
+# not part of the server
+.git
+.github
+.vscode
+.idea
+.cache
+.local
+artifacts/kiwi
+artifacts/mockup-sandbox
+artifacts/design_tokens_4.ts
+artifacts/kiwi_screens_mockup.html
+artifacts/kiwi_ux_redesign_spec.md
+lib/api-client-react
+lib/api-spec
+scripts
+attached_assets
+Claude outputs
+
+# api-server: tests, probe scripts, scratch dumps, migrations are applied by
+# Hans (never by the container), and the Windows engine leftovers
+artifacts/api-server/src/**/__tests__
+artifacts/api-server/scripts
+artifacts/api-server/prisma/migrations
+artifacts/api-server/prisma/seeds
+artifacts/api-server/prisma/seed.ts
+artifacts/api-server/ws9-*.json
+artifacts/api-server/DEPLOY.md
+**/.prisma/client/*.tmp*
+
+# docs
+**/*.md
