@@ -25,7 +25,9 @@ import {
   WIZARD_SET_PREFERENCES_GENERATE_BODY,
   WIZARD_DIRECTED_GENERATE_BODY,
   WIZARD_SURPRISE_GENERATE_BODY,
+  WIZARD_CANDIDATE_EXPAND_BODY,
 } from "../../../../prisma/seeds/aiPrompts";
+import { MOST_COVERAGE_OVERAGE_MINUTES } from "../../store/storeShortlist";
 
 const ALL: ReadonlyArray<readonly [string, string]> = [
   ["wizard.set_preferences.generate", WIZARD_SET_PREFERENCES_GENERATE_BODY],
@@ -139,6 +141,53 @@ describe("BUG-245 — a fresh dinner under a cap must realistically fit it", () 
       sha(section(WIZARD_DIRECTED_GENERATE_BODY)),
       "d2b9d421a8161ea8b59e55d23b51d78b2d8dda7a635ded93197069e5495b66fb",
       "directed rotation section drifted",
+    );
+  });
+});
+
+// D-WS7-166 (expand v9) — the one body aa13fc6 did not reach. The v8 cap
+// section told the expand pass to "aim every meal at the cap" — the prompt
+// that authored 30 · 28 · 30 · 30 on the September 11 round. Hans: "it's not
+// saying 'anything under that cap is eligible' it's 'aim for meals that take
+// as long as the cap' where it really should be the first version and honor
+// the cap." The two coverage bullets are REPLACED; the outline section v8
+// added (its round passed) is pinned by hash so a cap rewrite cannot drift it.
+describe("D-WS7-166 (expand v9) — the cap is a ceiling in wizard.candidate.expand too", () => {
+  const body = WIZARD_CANDIDATE_EXPAND_BODY;
+
+  it("neither 'aim at the cap' bullet survives", () => {
+    assert.equal(body.includes("aim every meal at the cap"), false, "'all' bullet still aims at the cap");
+    assert.equal(body.includes("aim every other meal at the cap"), false, "'most' bullet still aims at the cap");
+  });
+
+  it("the cap is stated as a ceiling, not a target, with the 20-for-30 example", () => {
+    assert.ok(body.includes("The cap is a ceiling, not a target"), "ceiling sentence missing");
+    assert.ok(
+      body.includes("a 20-minute dinner is a good answer to a 30-minute limit, not a missed one"),
+      "the under-the-cap example is what makes 'ceiling' concrete",
+    );
+  });
+
+  it("the 'most' overage in the prose is the constant the shelf enforces", () => {
+    assert.equal(MOST_COVERAGE_OVERAGE_MINUTES, 20);
+    assert.ok(
+      body.includes(`may run over the cap, and never by more than ${MOST_COVERAGE_OVERAGE_MINUTES} minutes`),
+      "the prose must state the same overage storeShortlist enforces",
+    );
+  });
+
+  // The literal is the section's sha256 measured before the v9 edit (v8's
+  // outline text, BUG-245 d5cd6b3); a deliberate outline change re-measures it.
+  it("the v8 outline section is byte-identical to its pre-v9 hash", () => {
+    const heading = "# The timed outline (no step text)";
+    const i = body.indexOf(heading);
+    assert.ok(i >= 0, "outline heading missing");
+    const j = body.indexOf("\n# ", i + heading.length);
+    const section = body.slice(i, j < 0 ? undefined : j);
+    assert.equal(
+      createHash("sha256").update(section).digest("hex"),
+      "ef2a67584e680536379fd0d4b0d2f201e92d4538c1e67ac6b7c471b8423ff815",
+      "expand outline section drifted",
     );
   });
 });

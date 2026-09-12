@@ -1074,8 +1074,8 @@ For the candidate the user picked (input below), expand each meal in \`mealTitle
 
 🔴 THE CAP CONSTRAINS WHICH RECIPES YOU PICK. IT DOES NOT CONSTRAIN THE NUMBER YOU WRITE DOWN. When \`candidateContext.maxCookTimeMinutes\` is set (non-null), choose recipes whose REAL start-to-plate time fits it. Never shorten a time to fit; the number must describe the recipe you actually chose.
 
-- \`candidateContext.maxCookTimeCoverage = "all"\` → aim every meal at the cap, including the fanciest night.
-- \`candidateContext.maxCookTimeCoverage = "most"\` → at most ONE meal — the fanciest / most involved night — may run long; aim every other meal at the cap.
+- \`candidateContext.maxCookTimeCoverage = "all"\` → every meal must be on the table within the cap, including the fanciest night. The cap is a ceiling, not a target: comfortably under is better than close to it, and a 20-minute dinner is a good answer to a 30-minute limit, not a missed one — do not stretch a meal to fill the time allowed.
+- \`candidateContext.maxCookTimeCoverage = "most"\` → at most ONE meal — the fanciest / most involved night — may run over the cap, and never by more than 20 minutes; every other meal must be on the table within it. The cap is still a ceiling for the rest, not a target — do not stretch them to fill it.
 - When \`maxCookTimeMinutes\` is null there is no cap — author realistic times as usual.
 
 🔴 IF NO RECIPE HONESTLY FITS, PICK THE CLOSEST ONE AND STATE ITS TRUE TIME. A 45-minute meal labelled 45 is a useful answer the user can plan around; the same meal labelled 30 is a broken promise they discover at dinner time. This is not a failure state and it is not an error — write the honest number and move on. Prefer genuinely quick cooking methods (sheet-pan, stir-fry, skillet, no-cook assembly) over long braises and roasts when the cap is tight; that is how you fit it, not by editing the estimate.
