@@ -11,7 +11,7 @@ import express, { type Express } from "express";
 import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
-import { createMealsRouter } from "../meals";
+import { createMealsRouter, toStepShape } from "../meals";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 import type {
   AICallFailure,
@@ -596,5 +596,32 @@ describe("POST /api/meals/find-similar — LLMCallLog accounting", () => {
     } finally {
       await fallbackHarness.close();
     }
+  });
+});
+
+// ── WS9 D-WS9-239 Phase 1b — toStepShape emits parallelGroup ─────────────────
+// The step reads feeding toStepShape are full-row (no `select`), so the
+// String? column is on the input. Emitted as null on an untagged row so the
+// wire shape is stable (never undefined); a mobile carrier can round-trip it.
+describe("toStepShape — D-WS9-239 1b carries parallelGroup", () => {
+  const row = {
+    stepIndex: 2,
+    stepTextTranslated: "Chop the onion while the oven heats.",
+    estimatedMinutes: 4,
+    phaseType: "prep",
+    requiresPreheat: false,
+    requiresRest: false,
+    requiresMarination: false,
+    isTimingSensitive: false,
+    amountRefs: null,
+  };
+  it("emits the stored token verbatim", () => {
+    assert.equal(toStepShape({ ...row, parallelGroup: "w0" }).parallelGroup, "w0");
+  });
+  it("emits null for an untagged row (null column) and for a fixture that omits the field", () => {
+    assert.equal(toStepShape({ ...row, parallelGroup: null }).parallelGroup, null);
+    const shaped = toStepShape(row);
+    assert.ok("parallelGroup" in shaped, "the key is always present on the wire");
+    assert.equal(shaped.parallelGroup, null);
   });
 });

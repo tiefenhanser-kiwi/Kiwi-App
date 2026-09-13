@@ -192,6 +192,10 @@ export function toStepShape(s: {
   requiresRest: boolean;
   requiresMarination: boolean;
   isTimingSensitive: boolean;
+  // WS9 D-WS9-239 (1b) — intra-dish overlap token (String? column; null on
+  // every row until a generator seam or the 1c catalog pass tags it). Optional
+  // on the input so existing full-row reads and hand-built fixtures compile.
+  parallelGroup?: string | null;
   // WS7-8b BUG-003 Block 1 — sidecar step→ingredient refs. The DB column is
   // Json?; null on legacy/unwired steps, an array (possibly []) on steps
   // derived by a Block-1 generation/create seam.
@@ -206,6 +210,10 @@ export function toStepShape(s: {
     requiresRest: s.requiresRest,
     requiresMarination: s.requiresMarination,
     isTimingSensitive: s.isTimingSensitive,
+    // WS9 D-WS9-239 (1b) — emitted so a mobile carrier can round-trip it (1a
+    // found the mobile step schema non-strict, so an extra field is additive
+    // on the wire). null on an untagged step, never undefined.
+    parallelGroup: s.parallelGroup ?? null,
     // Pass the stored Json through verbatim — null stays null (legacy → plain
     // render), an array stays an array. Mobile MealStepSchema validates shape.
     amountRefs: (s.amountRefs ?? null) as AmountRef[] | null,

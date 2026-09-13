@@ -16,9 +16,29 @@ import { StepPhaseTypeSchema } from "./mealBuilder";
 // field, so wizard-authored steps fell to the DB default (false) and the
 // Cooking Sequencer had no signal to stop stacking prep onto a sear. Required
 // (not optional) so the finalize AI must emit it and wizardActivation persists
-// it unconditionally — mirrors phaseType / estimatedMinutes. parallelGroup is
-// deliberately NOT added: it is retired (a deterministic scheduler derives
-// overlap from phaseType + estimatedMinutes + isTimingSensitive).
+// it unconditionally — mirrors phaseType / estimatedMinutes.
+// WS9 D-WS9-239 (Phase 1b) — `parallelGroup` is NOT retired: the scheduler
+// honours it again (cookingScheduler.ts, 1a) and every generator seam persists
+// it. But it is DERIVED SERVER-SIDE and never model-written, so it does not
+// appear here: this object is ALSO the finalize_steps TOOL schema the model
+// sees (modes.ts buildToolForSchema), and a field on it is a field the model
+// fills. What the model writes instead is `firstDependent` (below) — the
+// END-explicit dependency Phase 0b measured at 0–14% wrong-window against
+// 31–61% for model-written tokens — and parallelGroupDerive.ts turns it into
+// tokens at the seam (wizardActivation / storeFill / the expand outline).
+//
+// ONE definition, shared by WizardStepSchema and WizardOutlineStepSchema so
+// the finalize call and the expand outline describe the field identically.
+export const FirstDependentField = z
+  .number()
+  .int()
+  .nonnegative()
+  .nullable()
+  .optional()
+  .describe(
+    "UNATTENDED steps only (preheat, rest, hold, or a cook with isTimingSensitive false): the 0-based index, within this dish's steps, of the FIRST later step that cannot begin until this step has completely finished — the step that uses what is baking, boiling, resting, marinating or preheating. If the very next step needs it, give that index. null = no later step needs it. Omit on attended steps.",
+  );
+
 export const WizardStepSchema = z.object({
   text: z.string().min(1).max(400),
   phaseType: StepPhaseTypeSchema,
@@ -33,6 +53,11 @@ export const WizardStepSchema = z.object({
   // rejects the meal), so it stays a plain string here.
   componentKey: z.string().min(1).max(60).optional(),
   pathKey: z.enum(["scratch", "bought"]).optional(),
+  // WS9 D-WS9-239 (Phase 1b) — the generator's overlap declaration. Consumed
+  // by parallelGroupDerive.ts at the seam; NOT persisted (there is no column).
+  // The description is the model's per-field guidance: it survives into the
+  // tool's JSON-schema `description` (verified against buildToolForSchema).
+  firstDependent: FirstDependentField,
 });
 export type WizardStep = z.infer<typeof WizardStepSchema>;
 
@@ -59,6 +84,13 @@ export const WizardOutlineStepSchema = z.object({
   phaseType: StepPhaseTypeSchema,
   estimatedMinutes: z.number().int().positive().max(600),
   isTimingSensitive: z.boolean(),
+  // WS9 D-WS9-239 (Phase 1b) — same contract as WizardStepSchema, so the
+  // draft card's time (derived from this outline) and the saved meal's time
+  // (derived from the finalized steps) come from the same overlap declaration.
+  // ⚠️ The outline sits behind WizardOutlineFieldSchema's `.catch`: a value
+  // that fails here (a string, a fraction) drops the WHOLE outline to the
+  // authored time — the BUG-245 fallback, logged, never a failed plan.
+  firstDependent: FirstDependentField,
 });
 export type WizardOutlineStep = z.infer<typeof WizardOutlineStepSchema>;
 export const WizardOutlineSchema = z

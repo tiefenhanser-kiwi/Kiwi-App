@@ -187,8 +187,14 @@ export interface ScheduleResult {
  * an unattended grill/boil/braise is overlappable; a watched 3-min sear is not.
  * Duration ≠ attention, enforced in code. Removing this clause silently
  * reintroduces the bug with a green build.
+ *
+ * WS9 D-WS9-239 (1b) — EXPORTED so parallelGroupDerive.ts (the firstDependent
+ * → parallelGroup derivation) applies THIS predicate to a generator's output
+ * rather than carrying a second copy. Widened to the two fields it reads.
  */
-function isUnattended(step: SchedulerStep): boolean {
+export function isUnattended(
+  step: Pick<SchedulerStep, "phaseType" | "isTimingSensitive">,
+): boolean {
   switch (step.phaseType) {
     case "preheat":
     case "rest":

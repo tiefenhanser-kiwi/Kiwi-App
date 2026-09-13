@@ -772,3 +772,121 @@ describe("runStoreFill — runaway controls", () => {
     assert.equal(result.attempted, 3); // stopped before the 4th
   });
 });
+
+// ── WS9 D-WS9-239 Phase 1b — mergeSteps derives parallelGroup from firstDependent ──
+import { WizardFinalizeStepsResultSchema } from "../ai/schemas/wizard";
+// The finalize step object carries `firstDependent` (WizardStepSchema); mergeSteps
+// DERIVES the token after the component-tag drop-and-keep (so the path rule sees
+// the final pathKey), sets it on the step, and buildMaterializePayload carries it
+// to the write. A model-written token is stripped by the schema and never read.
+
+describe("mergeSteps / buildMaterializePayload — D-WS9-239 1b derived parallelGroup round-trip", () => {
+  function finalizeWithWindow(meal: WizardExpandEnrichedMealDetails) {
+    return {
+      dishSteps: meal.dishes.map((_d, di) => ({
+        mealIndex: 0,
+        dishIndex: di,
+        steps:
+          di === 0
+            ? [
+                { text: "Preheat the oven to 425°F.", phaseType: "preheat" as const, estimatedMinutes: 12, isTimingSensitive: false, firstDependent: 3 },
+                { text: "Cut the potatoes into chunks.", phaseType: "prep" as const, estimatedMinutes: 6, isTimingSensitive: false },
+                { text: "Spread on a sheet pan.", phaseType: "prep" as const, estimatedMinutes: 2, isTimingSensitive: false },
+                { text: "Roast 30 minutes.", phaseType: "cook" as const, estimatedMinutes: 30, isTimingSensitive: false, firstDependent: 4 },
+                { text: "Transfer to a platter.", phaseType: "assemble" as const, estimatedMinutes: 2, isTimingSensitive: false },
+              ]
+            : [
+                { text: "Rinse the rice.", phaseType: "prep" as const, estimatedMinutes: 2, isTimingSensitive: false },
+                { text: "Simmer covered 18 minutes.", phaseType: "cook" as const, estimatedMinutes: 18, isTimingSensitive: false, firstDependent: 2 },
+                { text: "Fluff and serve.", phaseType: "assemble" as const, estimatedMinutes: 1, isTimingSensitive: false },
+              ],
+      })),
+    };
+  }
+
+  it("one window + riders round-trips to the payload's step tags; dependents and adjacent windows stay untagged", () => {
+    const meal = makeMeal();
+    // Through the SCHEMA first, as the harness does (runAICall validates the tool output).
+    const finalize = WizardFinalizeStepsResultSchema.parse(finalizeWithWindow(meal));
+    const merged = mergeSteps(meal, finalize, "roast-potatoes");
+    assert.equal(merged.ok, true);
+    if (!merged.ok) return;
+    assert.deepEqual(merged.parallelGroupIssues, []);
+    const payload = buildMaterializePayload(meal, merged.stepsPerDish, [], "roast-potatoes", merged.registryPerDish);
+    const d0 = payload.dishes[0];
+    const d1 = payload.dishes[1];
+    assert.equal(d0.kind, "new");
+    assert.equal(d1.kind, "new");
+    if (d0.kind !== "new" || d1.kind !== "new") return;
+    assert.deepEqual(
+      d0.steps.map((s) => s.parallelGroup ?? null),
+      ["w0", "w0", "w0", null, null],
+      "preheat is the window; chop + spread ride it; the roast and the plating are dependents",
+    );
+    assert.ok(!("parallelGroup" in d0.steps[3]), "an untagged step carries no key (falls to the column null)");
+    assert.deepEqual(d1.steps.map((s) => s.parallelGroup ?? null), [null, null, null], "a window whose dependent is the next step emits no token");
+    for (const s of [...d0.steps, ...d1.steps]) assert.ok(!("firstDependent" in s), "firstDependent is consumed, never written");
+  });
+
+  it("a rejected declaration is reported on parallelGroupIssues (never fatal) and the step stays untagged", () => {
+    const meal = makeMeal();
+    const finalize = WizardFinalizeStepsResultSchema.parse({
+      dishSteps: meal.dishes.map((_d, di) => ({
+        mealIndex: 0,
+        dishIndex: di,
+        steps: [
+          { text: "Sear.", phaseType: "cook" as const, estimatedMinutes: 6, isTimingSensitive: true, firstDependent: 2 },
+          { text: "Chop.", phaseType: "prep" as const, estimatedMinutes: 2, isTimingSensitive: false },
+          { text: "Plate.", phaseType: "assemble" as const, estimatedMinutes: 2, isTimingSensitive: false },
+        ],
+      })),
+    });
+    const merged = mergeSteps(meal, finalize, "x");
+    assert.equal(merged.ok, true);
+    if (!merged.ok) return;
+    assert.equal(merged.parallelGroupIssues.length, 2, "one per dish");
+    assert.equal(merged.parallelGroupIssues[0].cls, "attended_window");
+    assert.equal(merged.parallelGroupIssues[0].dishIndex, 0);
+    assert.equal(merged.parallelGroupIssues[1].dishIndex, 1);
+    for (const steps of merged.stepsPerDish) for (const s of steps) assert.ok(!("parallelGroup" in s));
+  });
+
+  it("the path rule sees the FINAL pathKey: a bought-path rider is a hole in a scratch window (derivation runs after the tag drop-and-keep)", () => {
+    const meal = makeMeal({
+      dishes: [
+        {
+          title: "Coleslaw",
+          role: "side",
+          positionIndex: 0,
+          ingredients: [{ name: "cabbage", quantity: 1, unit: "head" }],
+          macros: macros(),
+          substitutions: [{ product: "coleslaw mix", quantity: 1, unit: "bag", replaces: ["cabbage"] }],
+        },
+      ],
+    });
+    const finalize = WizardFinalizeStepsResultSchema.parse({
+      dishSteps: [
+        {
+          mealIndex: 0,
+          dishIndex: 0,
+          components: [{ key: "slaw", label: "Slaw base", order: 0 }],
+          steps: [
+            { text: "Chill the dressing 20 minutes.", phaseType: "rest" as const, estimatedMinutes: 20, isTimingSensitive: false, firstDependent: 4, componentKey: "slaw", pathKey: "scratch" },
+            { text: "Shred the cabbage.", phaseType: "prep" as const, estimatedMinutes: 8, isTimingSensitive: false, componentKey: "slaw", pathKey: "scratch" },
+            { text: "Open the bag of slaw mix.", phaseType: "prep" as const, estimatedMinutes: 1, isTimingSensitive: false, componentKey: "slaw", pathKey: "bought" },
+            { text: "Grate the carrot.", phaseType: "prep" as const, estimatedMinutes: 3, isTimingSensitive: false },
+            { text: "Toss and serve.", phaseType: "assemble" as const, estimatedMinutes: 2, isTimingSensitive: false },
+          ],
+        },
+      ],
+    });
+    const merged = mergeSteps(meal, finalize, "coleslaw");
+    assert.equal(merged.ok, true);
+    if (!merged.ok) return;
+    const tags = merged.stepsPerDish[0].map((s) => (s as { parallelGroup?: string }).parallelGroup ?? null);
+    // #2 (bought) cannot ride the scratch window → hole → contiguity closes the group at #2;
+    // the window keeps #1 and, after the hole, #3 is a re-appearance → dropped.
+    assert.deepEqual(tags, ["w0", "w0", null, null, null]);
+    assert.ok(merged.parallelGroupIssues.some((i) => i.cls === "path_mismatch"));
+  });
+});

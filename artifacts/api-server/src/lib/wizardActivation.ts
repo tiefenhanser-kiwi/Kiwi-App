@@ -25,6 +25,7 @@ import {
 import { inferCategory, resolveIngredients } from "./ingredientResolve";
 import { logger } from "./logger";
 import { recomputeAndPersistMealMacros } from "./mealMacros";
+import { deriveParallelGroups } from "./parallelGroupDerive";
 import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
 import { forkMealForUser, publishMealToStore } from "./mealFork";
 import { stampAllergens } from "./allergens";
@@ -344,6 +345,40 @@ export async function materializeWizardDraft(
           }),
         );
 
+        // WS9 D-WS9-239 (Phase 1b) — DERIVE `parallelGroup` from the steps'
+        // `firstDependent` declarations before anything is written. The token
+        // is never read off the step object: WizardStepSchema is the
+        // finalize_steps TOOL schema, and a model-written token was measured
+        // wrong-window on 31% of tagged dishes (Phase 0) against 0–14% for the
+        // END-explicit dependency (Phase 0b). `firstDependent` itself is not
+        // persisted (no column) — it is consumed here. Issues are the
+        // derivation's rule rejections (an attended step carrying a dependent,
+        // a dependent that is not later, a path hole …); each one means a step
+        // simply waits, so they are logged, never fatal.
+        const derived = deriveParallelGroups(d.steps);
+        // Silent when the dish declared nothing at all (an old prompt version
+        // still live, or a model that skipped the field): every unattended
+        // step is then `missing_window`, which is the serial walk, not a
+        // rejection worth a line per dish.
+        if (derived.issues.length > 0 && derived.declaredCount > 0) {
+          try {
+            logger.warn(
+              {
+                event: "wizard_activation_tags_ignored",
+                userId,
+                draftId,
+                dishTitle: d.title,
+                issues: derived.issues.slice(0, 10),
+                issueCount: derived.issues.length,
+                tieBreaks: derived.tieBreaks,
+              },
+              "D-WS9-239: firstDependent declaration(s) not honoured at activation",
+            );
+          } catch {
+            /* telemetry only */
+          }
+        }
+
         for (let si = 0; si < d.steps.length; si++) {
           const step = d.steps[si];
           // WS7-8b BUG-003 Block 1 — derive step→ingredient refs from the dish's
@@ -363,16 +398,9 @@ export async function materializeWizardDraft(
           // spread guard is needed (intentional divergence from mealMaterialize.ts,
           // whose builder step fields are optional).
           //
-          // WS9 D-WS9-239 (Phase 1a) — `parallelGroup` is carried when the step
-          // object has one. It is read through a widened view rather than the
-          // WizardStep type because WizardStepSchema is ALSO the finalize_steps
-          // TOOL schema the model sees (modes.ts buildToolForSchema): adding
-          // the field there without its prompt instructions would have the
-          // model inventing tokens unguided. 1b ships the schema + prompt
-          // together; this carrier is already in place for it, and is inert
-          // until then (the live schema strips unknown keys, so `pg` is
-          // undefined on every call today).
-          const pg = (step as { parallelGroup?: string | null }).parallelGroup;
+          // WS9 D-WS9-239 — `parallelGroup` is the DERIVED token (above); an
+          // untagged step writes no key and falls to the column's null.
+          const pg = derived.tags[si];
           await tx.recipeInstructionStep.create({
             data: {
               ownerType: "dish",
@@ -383,7 +411,7 @@ export async function materializeWizardDraft(
               phaseType: step.phaseType,
               estimatedMinutes: step.estimatedMinutes,
               isTimingSensitive: step.isTimingSensitive,
-              ...(pg !== undefined ? { parallelGroup: pg } : {}),
+              ...(pg !== null ? { parallelGroup: pg } : {}),
               amountRefs: amountRefs as unknown as Prisma.InputJsonValue,
             },
           });

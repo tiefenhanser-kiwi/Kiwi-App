@@ -1355,3 +1355,54 @@ describe("expandCandidate — BUG-245 O1: the draft's time is derived from the o
     assert.equal(result.expanded.meals[0].estimatedTimeMinutes, 30);
   });
 });
+
+// ── WS9 D-WS9-239 Phase 1b — the outline's firstDependent reaches the scheduler ──
+// deriveTimingFromOutlines is the ONLY adapter from an outline to SchedulerDish.
+// It now derives `parallelGroup` from each entry's `firstDependent` with the
+// same module the save-time seams use, so the draft card's time is the
+// scheduler's TAGGED result — not the serial walk — for the same declaration.
+
+import { deriveTimingFromOutlines } from "../wizardExpansion";
+import { deriveMealTiming } from "../mealTiming";
+
+describe("deriveTimingFromOutlines — D-WS9-239 1b derives parallelGroup from the outline's firstDependent", () => {
+  // preheat 12 → the roast (3); chop 6 + spread 2 ride the preheat; roast 30 → plate 2.
+  const outline = [
+    { phaseType: "preheat" as const, estimatedMinutes: 12, isTimingSensitive: false, firstDependent: 3 },
+    { phaseType: "prep" as const, estimatedMinutes: 6, isTimingSensitive: false },
+    { phaseType: "prep" as const, estimatedMinutes: 2, isTimingSensitive: false },
+    { phaseType: "cook" as const, estimatedMinutes: 30, isTimingSensitive: false, firstDependent: 4 },
+    { phaseType: "assemble" as const, estimatedMinutes: 2, isTimingSensitive: false },
+  ];
+  const dish = { title: "Roast Potatoes", role: "side" as const, positionIndex: 0, ingredients: [{ name: "potato", quantity: 2, unit: "pound" }], outline };
+
+  it("the derived time equals the scheduler's TAGGED result (riders inside the preheat), not the serial sum", () => {
+    const got = deriveTimingFromOutlines({ dishes: [dish] });
+    assert.ok(got);
+    // Serial: 12 + 6 + 2 + 30 + 2 = 52. Tagged: the chop and spread run inside the 12-min preheat → 12 + 30 + 2 = 44.
+    const tagged = deriveMealTiming([
+      {
+        dishId: "000",
+        title: dish.title,
+        positionIndex: 0,
+        steps: [
+          { stepIndex: 0, phaseType: "preheat", estimatedMinutes: 12, isTimingSensitive: false, parallelGroup: "w0" },
+          { stepIndex: 1, phaseType: "prep", estimatedMinutes: 6, isTimingSensitive: false, parallelGroup: "w0" },
+          { stepIndex: 2, phaseType: "prep", estimatedMinutes: 2, isTimingSensitive: false, parallelGroup: "w0" },
+          { stepIndex: 3, phaseType: "cook", estimatedMinutes: 30, isTimingSensitive: false },
+          { stepIndex: 4, phaseType: "assemble", estimatedMinutes: 2, isTimingSensitive: false },
+        ],
+      },
+    ]);
+    assert.equal(got!.total, tagged.totalMinutes);
+    assert.equal(got!.total, 44, "12 (preheat, riders inside) + 30 + 2");
+    assert.equal(got!.active, 10, "active is Σ attended regardless of overlap: 6 + 2 + 2");
+  });
+
+  it("the same outline with no firstDependent is the serial walk (nothing rides)", () => {
+    const plain = outline.map(({ firstDependent: _f, ...o }) => { void _f; return o; });
+    const got = deriveTimingFromOutlines({ dishes: [{ ...dish, outline: plain }] });
+    assert.ok(got);
+    assert.equal(got!.total, 52);
+  });
+});

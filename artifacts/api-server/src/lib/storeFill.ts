@@ -36,6 +36,7 @@ import {
   type MaterializeTarget,
 } from "./mealMaterialize";
 import { deriveAllergens } from "./allergens";
+import { deriveParallelGroups, type DeriveIssue } from "./parallelGroupDerive";
 import { resolveIngredients } from "./ingredientResolve";
 import { TARGET_DISHES, type TargetDish } from "./storeFillDishes";
 import {
@@ -288,6 +289,15 @@ export interface ComponentTagFinding {
   detail: string;
 }
 
+// WS9 D-WS9-239 (1b) — a `firstDependent` declaration the derivation did not
+// honour (an attended step carrying one, a dependent that is not later, a path
+// hole …). Each one means a step simply waits; reported, never fatal.
+export interface ParallelGroupIssue extends DeriveIssue {
+  targetDish: string;
+  dishTitle: string;
+  dishIndex: number;
+}
+
 // ── merge finalize steps into the meal's dishes (single meal → mealIndex 0) ──
 export type MergeResult =
   | {
@@ -295,6 +305,7 @@ export type MergeResult =
       stepsPerDish: WizardStep[][];
       registryPerDish: WizardComponent[][];
       tagFindings: ComponentTagFinding[];
+      parallelGroupIssues: ParallelGroupIssue[];
     }
   | { ok: false; reason: string };
 
@@ -318,6 +329,7 @@ export function mergeSteps(
   const stepsPerDish: WizardStep[][] = [];
   const registryPerDish: WizardComponent[][] = [];
   const tagFindings: ComponentTagFinding[] = [];
+  const parallelGroupIssues: ParallelGroupIssue[] = [];
   for (let di = 0; di < meal.dishes.length; di++) {
     const steps = byDish.get(di);
     if (!steps) return { ok: false, reason: `missing_dish_steps:${di}` };
@@ -357,6 +369,22 @@ export function mergeSteps(
     if (hasSubs && !hasBoughtPath) {
       tagFindings.push({ targetDish, dishTitle, dishIndex: di, reason: "substitutions_without_paths", detail: `${meal.dishes[di].substitutions?.length ?? 0} substitution(s), 0 bought-path steps` });
     }
+    // WS9 D-WS9-239 (1b) — DERIVE `parallelGroup` from the steps' `firstDependent`
+    // declarations, AFTER the component-tag drop-and-keep above so the path rule
+    // (d) sees the final pathKey. Set on the step object (mutated in place, as the
+    // tags are) and carried to the write by buildMaterializePayload. Never read
+    // off the model output: WizardStepSchema is the store.finalize_steps TOOL
+    // schema, and a model-written token was measured wrong-window on 31% of
+    // tagged dishes (Phase 0) against 0–14% for the dependency (Phase 0b).
+    const derived = deriveParallelGroups(steps);
+    for (let si = 0; si < steps.length; si++) {
+      const tag = derived.tags[si];
+      if (tag !== null) (steps[si] as { parallelGroup?: string | null }).parallelGroup = tag;
+    }
+    // Silent when the dish declared nothing (see wizardActivation.ts).
+    for (const issue of derived.declaredCount > 0 ? derived.issues : []) {
+      parallelGroupIssues.push({ targetDish, dishTitle, dishIndex: di, ...issue });
+    }
     stepsPerDish.push(steps);
     registryPerDish.push(prunedRegistry);
   }
@@ -364,7 +392,7 @@ export function mergeSteps(
     const [extra] = byDish.keys();
     return { ok: false, reason: `extra_dish_steps:${extra}` };
   }
-  return { ok: true, stepsPerDish, registryPerDish, tagFindings };
+  return { ok: true, stepsPerDish, registryPerDish, tagFindings, parallelGroupIssues };
 }
 
 // ── dedup key (BACKSTOP only — the distinct target dishes are the primary
@@ -418,10 +446,9 @@ export function buildMaterializePayload(
       // Block 3.7 (D-WS9-066) — carry the (validated) component tags to the write.
       ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
       ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),
-      // WS9 D-WS9-239 (Phase 1a) — carry `parallelGroup` when the finalize step
-      // has one. Widened view, not the WizardStep type: WizardStepSchema is the
-      // store.finalize_steps TOOL schema, which 1b widens together with its
-      // prompt body (see wizardActivation.ts for the hazard). Inert until then.
+      // WS9 D-WS9-239 — carry the DERIVED `parallelGroup` (set by mergeSteps
+      // from the step's `firstDependent`) to the write. Widened view, not the
+      // WizardStep type: the token is never on the TOOL schema the model sees.
       ...((s as { parallelGroup?: string | null }).parallelGroup !== undefined
         ? { parallelGroup: (s as { parallelGroup?: string | null }).parallelGroup }
         : {}),
@@ -620,6 +647,9 @@ export interface StoreFillResult {
    *  step tags + the "substitutions but no bought path" quality signal). Never
    *  fatal — the meal is kept. */
   componentTagFindings: ComponentTagFinding[];
+  /** WS9 D-WS9-239 (1b) — `firstDependent` declarations the derivation did not
+   *  honour (each one: a step waits). Reported, never fatal. */
+  parallelGroupIssues: ParallelGroupIssue[];
   tokens: TokenTotals;
   costUsd: number;
   /** set when a runaway control halted the run early. */
@@ -668,6 +698,7 @@ export async function runStoreFill(
   const completenessRejections: CompletenessRejection[] = [];
   const substitutionDrops: DroppedSubstitution[] = [];
   const componentTagFindings: ComponentTagFinding[] = [];
+  const parallelGroupIssues: ParallelGroupIssue[] = [];
 
   // D-WS9-045 dedup on the TARGET-DISH KEY (not the generated title). Seed from
   // existing batch_generated meals → re-run safe: a re-run skips every dish
@@ -773,6 +804,7 @@ export async function runStoreFill(
     // Block 3.7 (D-WS9-066) — component tag validation findings (drop-and-keep,
     // never fatal). Accumulated for the run report.
     componentTagFindings.push(...merged.tagFindings);
+    parallelGroupIssues.push(...merged.parallelGroupIssues);
 
     // 4. Allergens + payload (stamped with the target-dish key + component registry).
     const allergens = deriveAllergens(meal);
@@ -832,5 +864,6 @@ export async function runStoreFill(
 
   const costUsd = computeCacheAwareCostUsd(tokens, rate);
   if (stoppedBy) log(`STOPPED by ${stoppedBy} — ${records.length} written, $${costUsd.toFixed(4)} spent`);
-  return { apply: opts.apply, attempted, records, skips, completenessRejections, substitutionDrops, componentTagFindings, tokens, costUsd, stoppedBy };
+  if (parallelGroupIssues.length > 0) log(`parallelGroup derivation issues (a step waits; not fatal): ${parallelGroupIssues.length}`);
+  return { apply: opts.apply, attempted, records, skips, completenessRejections, substitutionDrops, componentTagFindings, parallelGroupIssues, tokens, costUsd, stoppedBy };
 }

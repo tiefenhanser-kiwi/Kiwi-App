@@ -18,6 +18,7 @@ import { estimateDishMacros } from "./dishMacros";
 import { lookupIngredientsByName } from "./ingredientLookup";
 import { deriveMealTiming } from "./mealTiming";
 import { ingredientCanonicalKey, toEffectiveIngredient } from "./overrideResolver";
+import { deriveParallelGroups } from "./parallelGroupDerive";
 import { logger } from "./logger";
 import {
   resolveAllergenPreference,
@@ -503,11 +504,15 @@ export async function expandCandidate(
  * finds nothing derivable.
  *
  * This is the smallest adapter from an outline to `SchedulerDish`: the outline
- * step IS a SchedulerStep minus `stepIndex` (array position). No timing rule
- * lives here — the scheduler owns overlap, `deriveMealTiming` owns the canonical
- * dish order (positionIndex ascending, then dishId ascending — the save-time
- * link carries `d.positionIndex`, so the same key is used; the zero-padded
- * array index stands in for the not-yet-minted dishId as the tiebreak).
+ * step IS a SchedulerStep minus `stepIndex` (array position) and plus the
+ * D-WS9-239 `firstDependent` declaration, which becomes `parallelGroup` here
+ * through the SAME derivation the save-time seams use (parallelGroupDerive.ts)
+ * — so the draft card's time and the saved meal's time come from one overlap
+ * contract. No timing rule lives here — the scheduler owns overlap,
+ * `deriveMealTiming` owns the canonical dish order (positionIndex ascending,
+ * then dishId ascending — the save-time link carries `d.positionIndex`, so the
+ * same key is used; the zero-padded array index stands in for the
+ * not-yet-minted dishId as the tiebreak).
  */
 export function deriveTimingFromOutlines(
   meal: Pick<WizardExpandMealDetails, "dishes">,
@@ -516,11 +521,33 @@ export function deriveTimingFromOutlines(
   for (let di = 0; di < meal.dishes.length; di++) {
     const d = meal.dishes[di];
     if (!d.outline) return null;
+    const derived = deriveParallelGroups(d.outline);
+    // Silent when the outline declared nothing (see wizardActivation.ts).
+    if (derived.issues.length > 0 && derived.declaredCount > 0) {
+      try {
+        logger.warn(
+          {
+            event: "wizard_expand_outline_tags_ignored",
+            dishTitle: d.title,
+            issues: derived.issues.slice(0, 10),
+            issueCount: derived.issues.length,
+            tieBreaks: derived.tieBreaks,
+          },
+          "D-WS9-239: outline firstDependent declaration(s) not honoured",
+        );
+      } catch {
+        /* telemetry only */
+      }
+    }
     dishes.push({
       dishId: String(di).padStart(3, "0"),
       title: d.title,
       positionIndex: d.positionIndex,
-      steps: d.outline.map((o, stepIndex) => ({ stepIndex, ...o })),
+      steps: d.outline.map((o, stepIndex) => {
+        const { firstDependent: _fd, ...rest } = o;
+        void _fd;
+        return { stepIndex, ...rest, parallelGroup: derived.tags[stepIndex] };
+      }),
     });
   }
   const timing = deriveMealTiming(dishes);

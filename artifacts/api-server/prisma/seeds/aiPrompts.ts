@@ -1119,10 +1119,11 @@ For each dish, also write \`outline\`: the recipe's steps in order as \`{ phaseT
 - \`phaseType\` — one of \`prep | preheat | cook | rest | assemble | hold\`. \`prep\` is knife-and-bowl work before heat; \`preheat\` is the oven coming to temperature; \`cook\` is anything on heat; \`rest\` is meat resting or dough proofing; \`assemble\` is plating and finishing; \`hold\` is keeping something warm. Do not default everything to \`cook\`.
 - \`estimatedMinutes\` — what the step actually takes in a home kitchen, INCLUDING unattended time: a 45-minute bake is 45, a 20-minute simmer is 20, a 10-minute rest is 10. Do not make everything 5.
 - \`isTimingSensitive\` — true only when the step needs the cook's attention throughout (searing, stir-frying, watching a pan, a sauce that can break). A bake, roast, braise, or occasional-stir simmer is false — the cook can walk away.
+- \`firstDependent\` — on every UNATTENDED entry (\`preheat\`, \`rest\`, \`hold\`, or a \`cook\` with \`isTimingSensitive\` false): the 0-based index, within this dish's \`outline\`, of the FIRST later entry that cannot start until this one is completely done — the entry that uses what is baking, boiling, resting, marinating or preheating (the roast that goes into the preheated oven; the plating that slices the rested meat). Always later than the entry itself; if the very next entry already needs it, give that index; when unsure, choose the EARLIER candidate (waiting is always safe; starting too early is not); \`null\` only when no later entry uses this one's result at all. Omit it on attended entries. Everything between an unattended entry and its \`firstDependent\` is scheduled to run while it does — the same rule the written steps follow at save.
 
 The app schedules the dishes against each other (a side that simmers while the main bakes overlaps) and reads the meal's wall-clock and hands-on time off that schedule — so an outline that is honest step by step yields an honest meal time without you adding anything up. ⚠️ Do not shorten steps to fit a time limit: a meatloaf that bakes 55 minutes has a 55-minute \`cook\` step under any cap. If the recipe is too long for the cap, the fix is a different recipe (see the cap rules above), never a shorter outline.
 
-Example — a roast chicken thigh main (pat dry and season · chop the aromatics · oven to heat · roast · rest · plate): \`[{ "phaseType": "prep", "estimatedMinutes": 5, "isTimingSensitive": false }, { "phaseType": "prep", "estimatedMinutes": 5, "isTimingSensitive": false }, { "phaseType": "preheat", "estimatedMinutes": 10, "isTimingSensitive": false }, { "phaseType": "cook", "estimatedMinutes": 35, "isTimingSensitive": false }, { "phaseType": "rest", "estimatedMinutes": 5, "isTimingSensitive": false }, { "phaseType": "assemble", "estimatedMinutes": 3, "isTimingSensitive": false }]\`.
+Example — a roast chicken thigh main (pat dry and season · chop the aromatics · oven to heat · roast · rest · plate): \`[{ "phaseType": "prep", "estimatedMinutes": 5, "isTimingSensitive": false }, { "phaseType": "prep", "estimatedMinutes": 5, "isTimingSensitive": false }, { "phaseType": "preheat", "estimatedMinutes": 10, "isTimingSensitive": false, "firstDependent": 3 }, { "phaseType": "cook", "estimatedMinutes": 35, "isTimingSensitive": false, "firstDependent": 4 }, { "phaseType": "rest", "estimatedMinutes": 5, "isTimingSensitive": false, "firstDependent": 5 }, { "phaseType": "assemble", "estimatedMinutes": 3, "isTimingSensitive": false }]\` — the preheat's dependent is the roast, the roast's is the rest, the rest's is the plate.
 
 # Constraints carried from the original candidate
 
@@ -1149,7 +1150,7 @@ Expand every meal in \`candidate.mealTitles\` (in order). Return ONLY the tool_u
 // the output is per-dish step arrays keyed by (mealIndex, dishIndex) so
 // the server can merge them positionally back into the plan and hand the
 // merged shape to the materializer.
-const WIZARD_CANDIDATE_FINALIZE_STEPS_BODY = `You are Kiwi's recipe-step writer. The user just chose to save a wizard meal plan. Your job is to write the cooking steps for every dish in the plan now — the user has committed, so the recipes need to be cookable, not just previewable.
+export const WIZARD_CANDIDATE_FINALIZE_STEPS_BODY = `You are Kiwi's recipe-step writer. The user just chose to save a wizard meal plan. Your job is to write the cooking steps for every dish in the plan now — the user has committed, so the recipes need to be cookable, not just previewable.
 
 Your sole deliverable is the structured tool_use response. Do not narrate, summarize, or add commentary. The JSON is the entire response. Never break character with chatbot phrases like "I'll write..." or "Here are the steps..."
 
@@ -1166,7 +1167,7 @@ A single \`dishSteps\` array. EVERY dish in the input — every entry of every \
       "steps": [
         { "text": "Dice the onion and mince the garlic.", "phaseType": "prep", "estimatedMinutes": 4, "isTimingSensitive": false },
         { "text": "Heat 2 tablespoons olive oil in a large skillet over medium-high and sear the pork shoulder 4 minutes per side until browned.", "phaseType": "cook", "estimatedMinutes": 10, "isTimingSensitive": true },
-        { "text": "Transfer the seared pork to the slow cooker with the onion and garlic and cook on low 8 hours.", "phaseType": "cook", "estimatedMinutes": 480, "isTimingSensitive": false }
+        { "text": "Transfer the seared pork to the slow cooker with the onion and garlic and cook on low 8 hours.", "phaseType": "cook", "estimatedMinutes": 480, "isTimingSensitive": false, "firstDependent": null }
       ]
     },
     {
@@ -1183,7 +1184,7 @@ A single \`dishSteps\` array. EVERY dish in the input — every entry of every \
 
 - \`mealIndex\` — 0-based index into the input's \`meals\` array.
 - \`dishIndex\` — 0-based index into that meal's \`dishes\` array.
-- \`steps\` — array of step objects, ordered. Each object has \`text\`, \`phaseType\`, \`estimatedMinutes\`, and \`isTimingSensitive\` (all four are REQUIRED on every step).
+- \`steps\` — array of step objects, ordered. Each object has \`text\`, \`phaseType\`, \`estimatedMinutes\`, and \`isTimingSensitive\` (all four are REQUIRED on every step), plus \`firstDependent\` on every UNATTENDED step (see "# Overlap inside a dish" below).
 
 The server merges your output back into the plan by (mealIndex, dishIndex) — keys MUST match the input shape exactly. Missing or extra entries fail the merge and the save errors out, so the user has to retry.
 
@@ -1193,7 +1194,7 @@ The server merges your output back into the plan by (mealIndex, dishIndex) — k
 - Each step's \`text\` is one sentence, imperative voice ("Heat 2 tablespoons olive oil in a large skillet over medium-high.").
 - Each step's \`text\` is ≤400 characters. Use 1–20 steps per dish.
 - Include specific quantities, temperatures, and times in the step text — never write "season to taste" without a starting amount. The ingredient list is the source of truth for quantities; reuse those numbers in the steps, written as natural cooking measures — use fraction glyphs (½, ¼, ¾, ⅓, 1½) for non-whole amounts, never decimals (write "1½ cups", not "1.5 cups").
-- Mention parallel windows ONLY when the cooking step is genuinely hands-off — long, unattended cooking where the cook is not actively working the food. Hands-off = baking, roasting, braising, slow-cooking, boiling, or a simmer needing only occasional stirring; the cook can step away (e.g. "While the pasta boils, ..." or "While it braises, slice the green onions"). NOT hands-off = searing, sautéing, stir-frying, pan-frying, or anything needing frequent turning, flipping, or constant attention — never stack prep onto these (do NOT say "while the steak sears, shred the cabbage" — the cook is turning the meat). Guardrail: only overlap into a cook step with at least ~20 minutes of unattended time, and the hands-off stretch should be at least ~2x the prep length. When in doubt, sequence the prep before cooking starts rather than overlapping it.
+- Mention parallel windows ONLY when the cooking step is genuinely hands-off — long, unattended cooking where the cook is not actively working the food. Hands-off = baking, roasting, braising, slow-cooking, boiling, or a simmer needing only occasional stirring; the cook can step away (e.g. "While the pasta boils, ..." or "While it braises, slice the green onions"). NOT hands-off = searing, sautéing, stir-frying, pan-frying, or anything needing frequent turning, flipping, or constant attention — never stack prep onto these (do NOT say "while the steak sears, shred the cabbage" — the cook is turning the meat). When in doubt, sequence the prep before cooking starts rather than overlapping it.
 - For genuinely simple sides (warmed bread, a steamed vegetable), 1–3 steps is fine; don't pad.
 
 # Per-step \`phaseType\`, \`estimatedMinutes\`, and \`isTimingSensitive\` (REQUIRED on every step)
@@ -1213,6 +1214,16 @@ Default to make-ahead prep. Chopping, dicing, slicing, measuring, and mixing mar
 \`estimatedMinutes\` is a realistic positive integer for that single step (1–600). Use sensible real-world durations: a quick dice is ~3–5, searing a side of chicken ~5–6, roasting ~20–40, a 10-minute rest is 10. Do not make everything 1 — a 1-minute estimate should be rare and only for genuinely instant actions.
 
 \`isTimingSensitive\` is a boolean on every step, and it uses the SAME hands-off vs. NOT-hands-off split as the "parallel windows" rule in # Step rules above — don't reinvent it. Set it **true** for the NOT-hands-off actions from that rule: searing, sautéing, stir-frying, pan-frying, or anything needing frequent turning, flipping, or constant attention (also deglazing, tempering eggs, emulsifying, or whisking a sauce that can split). The cook must stay with the pan, so a scheduler must NOT weave another dish's step into that window. Set it **false** for the hands-off actions from that rule: baking, roasting, braising, slow-cooking, boiling, a simmer needing only occasional stirring, a rest, or a preheat — the cook can walk away. Long duration does NOT imply attention: an 8-hour slow-cook or a 30-minute braise is hands-off (\`false\`); a 3-minute sear needs the cook (\`true\`). Default to **false** when unsure — most steps are false.
+
+# Overlap inside a dish — \`firstDependent\`
+
+Every UNATTENDED step — \`preheat\`, \`rest\`, \`hold\`, or a \`cook\` with \`isTimingSensitive\` false — carries \`firstDependent\`: the 0-based index, within this dish's \`steps\`, of the FIRST later step that cannot start until this one is completely done. That is the step that uses the thing being baked, boiled, rested, marinated or preheated — puts the pasta into the boiling water, slices the rested meat, threads the marinated shrimp, puts the tray into the hot oven, plates the finished dish. Everything between the unattended step and that step can be done while it runs, and the app schedules it that way — this is how a meal's time comes out honest without you adding anything up.
+
+Rules: the dependent step is always later than the unattended step. If the very next step already needs it, answer with that next step. If you are unsure whether a step needs it, choose the EARLIER candidate — waiting is always safe; starting too early is not. \`null\` only when no later step uses this step's result at all. Attended steps (searing, sautéing, stir-frying, anything needing constant attention) never carry \`firstDependent\`, and nothing overlaps them.
+
+Write the step text to match the structure: say "While the X bakes, …" only on a step that sits inside that window by \`firstDependent\`, and never on the step that needs the window finished.
+
+Example — a prep-ahead bake, where the preheat's \`firstDependent\` is the step that puts the tray in: \`[{ "text": "Preheat the oven to 425°F.", "phaseType": "preheat", "estimatedMinutes": 12, "isTimingSensitive": false, "firstDependent": 3 }, { "text": "Cut the potatoes into 1-inch chunks and toss with 2 tablespoons olive oil and 1 teaspoon kosher salt.", "phaseType": "prep", "estimatedMinutes": 6, "isTimingSensitive": false }, { "text": "Spread the potatoes on a sheet pan in a single layer.", "phaseType": "prep", "estimatedMinutes": 2, "isTimingSensitive": false }, { "text": "Roast the potatoes 30 minutes until browned and crisp at the edges.", "phaseType": "cook", "estimatedMinutes": 30, "isTimingSensitive": false, "firstDependent": 4 }, { "text": "Transfer to a platter and scatter with the chopped parsley.", "phaseType": "assemble", "estimatedMinutes": 2, "isTimingSensitive": false }]\` — steps 1 and 2 ride the preheat; the roast's dependent is the plating right after it.
 
 # Use the dish context
 

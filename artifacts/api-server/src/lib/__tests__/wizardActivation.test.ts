@@ -1407,3 +1407,124 @@ describe("materializeWizardDraft — BUG-245 O1 pre-save vs saved time line", ()
     assert.equal(lines[0].deltaMinutes, 3);
   });
 });
+
+// ── WS9 D-WS9-239 Phase 1b — firstDependent → parallelGroup at the create ──
+// The finalize step object now carries `firstDependent` (WizardStepSchema);
+// the materializer DERIVES `parallelGroup` from it (parallelGroupDerive.ts)
+// and writes the token on the step rows. A model-written `parallelGroup` on
+// the step object is never read (the schema strips it; the create ignores it).
+
+describe("materializeWizardDraft — D-WS9-239 1b derives parallelGroup from firstDependent", () => {
+  async function captureWarnLogs(run: () => Promise<void>) {
+    const lines: Array<Record<string, unknown>> = [];
+    const realWarn = logger.warn.bind(logger);
+    const L = logger as unknown as { warn: unknown };
+    L.warn = ((obj: unknown, ...rest: unknown[]) => {
+      if (obj && typeof obj === "object") lines.push(obj as Record<string, unknown>);
+      return realWarn(obj as never, ...(rest as [never]));
+    }) as never;
+    try {
+      await run();
+    } finally {
+      L.warn = realWarn;
+    }
+    return lines.filter((l) => l.event === "wizard_activation_tags_ignored");
+  }
+
+  it("one window + riders round-trips to persisted tags; the dependent and the rest stay untagged", async () => {
+    const payload = sampleExpanded();
+    payload.meals[0].dishes[0].steps = [
+      { text: "Preheat the oven to 425°F.", phaseType: "preheat", estimatedMinutes: 12, isTimingSensitive: false, firstDependent: 3 },
+      { text: "Cut the potatoes into chunks.", phaseType: "prep", estimatedMinutes: 6, isTimingSensitive: false },
+      { text: "Spread on a sheet pan.", phaseType: "prep", estimatedMinutes: 2, isTimingSensitive: false },
+      { text: "Roast 30 minutes.", phaseType: "cook", estimatedMinutes: 30, isTimingSensitive: false, firstDependent: 4 },
+      { text: "Transfer to a platter.", phaseType: "assemble", estimatedMinutes: 2, isTimingSensitive: false },
+    ];
+    const { prismaStub, txStub, captured } = makeStubs({ expanded: payload, withoutOptimizationNotes: true });
+    const warnings = await captureWarnLogs(async () => {
+      await materializeWizardDraft({
+        prisma: prismaStub as unknown as PrismaClient,
+        tx: txStub as unknown as Prisma.TransactionClient,
+        userId: USER_ID,
+        draftId: DRAFT_ID,
+        savePlan: asSavePlan(payload),
+      });
+    });
+    const rows = captured.steps.filter((s) => s.ownerId === "dish-x").slice(0, 5) as Array<CapturedStep & { parallelGroup?: string | null; firstDependent?: unknown }>;
+    assert.equal(rows.length, 5);
+    assert.equal(rows[0].parallelGroup, "w0", "the preheat is the window");
+    assert.equal(rows[1].parallelGroup, "w0", "the chop rides it");
+    assert.equal(rows[2].parallelGroup, "w0", "the spread rides it");
+    assert.ok(!("parallelGroup" in rows[3]), "the roast is the DEPENDENT — untagged (no key, falls to null)");
+    assert.ok(!("parallelGroup" in rows[4]), "the plating is the roast's dependent — untagged");
+    for (const r of rows) assert.ok(!("firstDependent" in r), "firstDependent is consumed, never persisted");
+    const mine = warnings.filter((w) => w.dishTitle === payload.meals[0].dishes[0].title);
+    assert.equal(mine.length, 0, "a clean dish logs nothing (other sample dishes carry no entries and do warn)");
+  });
+
+  it("logs wizard_activation_tags_ignored at warn for a rejected declaration, and still writes the steps untagged", async () => {
+    const payload = sampleExpanded();
+    payload.meals[0].dishes[0].steps = [
+      { text: "Sear the steak.", phaseType: "cook", estimatedMinutes: 6, isTimingSensitive: true, firstDependent: 2 },
+      { text: "Chop the parsley.", phaseType: "prep", estimatedMinutes: 2, isTimingSensitive: false },
+      { text: "Plate.", phaseType: "assemble", estimatedMinutes: 2, isTimingSensitive: false },
+    ];
+    const { prismaStub, txStub, captured } = makeStubs({ expanded: payload, withoutOptimizationNotes: true });
+    const warnings = await captureWarnLogs(async () => {
+      await materializeWizardDraft({
+        prisma: prismaStub as unknown as PrismaClient,
+        tx: txStub as unknown as Prisma.TransactionClient,
+        userId: USER_ID,
+        draftId: DRAFT_ID,
+        savePlan: asSavePlan(payload),
+      });
+    });
+    const rows = captured.steps.filter((s) => s.ownerId === "dish-x").slice(0, 3);
+    assert.equal(rows.length, 3);
+    for (const r of rows) assert.ok(!("parallelGroup" in r), "an attended window never tags anything");
+    const mine = warnings.filter((w) => w.dishTitle === payload.meals[0].dishes[0].title);
+    assert.equal(mine.length, 1);
+    const issues = mine[0].issues as Array<{ cls: string }>;
+    assert.deepEqual(issues.map((i) => i.cls), ["attended_window"]);
+  });
+
+  it("a dish that declares NOTHING (an old prompt still live) writes plain steps and logs no warning", async () => {
+    const payload = sampleExpanded();
+    payload.meals[0].dishes[0].steps = [
+      { text: "Preheat the oven.", phaseType: "preheat", estimatedMinutes: 10, isTimingSensitive: false },
+      { text: "Chop.", phaseType: "prep", estimatedMinutes: 5, isTimingSensitive: false },
+      { text: "Plate.", phaseType: "assemble", estimatedMinutes: 2, isTimingSensitive: false },
+    ];
+    const { prismaStub, txStub, captured } = makeStubs({ expanded: payload, withoutOptimizationNotes: true });
+    const warnings = await captureWarnLogs(async () => {
+      await materializeWizardDraft({
+        prisma: prismaStub as unknown as PrismaClient,
+        tx: txStub as unknown as Prisma.TransactionClient,
+        userId: USER_ID,
+        draftId: DRAFT_ID,
+        savePlan: asSavePlan(payload),
+      });
+    });
+    const rows = captured.steps.filter((s) => s.ownerId === "dish-x").slice(0, 3);
+    for (const r of rows) assert.ok(!("parallelGroup" in r));
+    assert.equal(warnings.filter((w) => w.dishTitle === payload.meals[0].dishes[0].title).length, 0, "missing_window on an undeclared dish is the serial walk, not a warning");
+  });
+
+  it("a model-written parallelGroup on the step object is ignored: the token comes only from the derivation", async () => {
+    const payload = sampleExpanded();
+    payload.meals[0].dishes[0].steps = [
+      { text: "Chop.", phaseType: "prep", estimatedMinutes: 5, isTimingSensitive: false, parallelGroup: "oven" } as never,
+      { text: "Plate.", phaseType: "assemble", estimatedMinutes: 2, isTimingSensitive: false, parallelGroup: "oven" } as never,
+    ];
+    const { prismaStub, txStub, captured } = makeStubs({ expanded: payload, withoutOptimizationNotes: true });
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan: asSavePlan(payload),
+    });
+    const rows = captured.steps.filter((s) => s.ownerId === "dish-x").slice(0, 2);
+    for (const r of rows) assert.ok(!("parallelGroup" in r), "never model-written");
+  });
+});
