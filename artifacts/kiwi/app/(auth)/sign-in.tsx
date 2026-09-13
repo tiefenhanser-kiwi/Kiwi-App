@@ -67,6 +67,11 @@ export default function SignInPage() {
         ) : (
           <Button onPress={handleSubmit} label="Sign in" />
         )}
+        <Link href="/(auth)/forgot-password" asChild>
+          <Pressable>
+            <Text style={styles.link}>Forgot your password?</Text>
+          </Pressable>
+        </Link>
         <Link href="/(auth)/sign-up" asChild>
           <Pressable>
             <Text style={styles.link}>Don't have an account? Sign up</Text>
