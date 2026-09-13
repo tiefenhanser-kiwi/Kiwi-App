@@ -43,13 +43,19 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow Kiwi to access your photos to import recipe images.",
-          "cameraPermission": "Allow Kiwi to access your camera to import recipe images."
+          "cameraPermission": "Allow Kiwi to access your camera to import recipe images.",
+          "microphonePermission": false
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "76d74056-14ab-4840-b0ba-1caec7f51b59"
+      }
     }
   }
 }
