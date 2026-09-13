@@ -25,10 +25,22 @@
 // Every AI route sits behind requireAuth (Phase 0 §2.3), so userId is always
 // present on a request path; null userId only comes from CLI/seed callers.
 //
-// `userId IS NOT NULL` on the global sum is deliberate: the threat is
-// user-facing traffic on the public server. Hans's CLI seed runs (userId null)
-// are governed by his Anthropic console cap and must not lock the server
-// mid-seed.
+// System-triggered calls (userId null — seeds, batch jobs, Hans's CLI runs)
+// are OUTSIDE both DB-backed checks, on both sides of the ledger (BUG-262):
+// their rows do not count toward the ceiling (`userId IS NOT NULL` on the
+// sum), AND a null-userId caller skips the ceiling and per-user reads
+// entirely — zero DB reads. The threat is user-facing traffic on the public
+// server; a catalog run is thousands of sequential calls governed by Hans's
+// Anthropic console cap, and refusing it partway through because daytime user
+// traffic crossed the ceiling would leave a half-populated catalog. Only the
+// kill switch applies to everything: AI_DISABLED is a deliberate manual act
+// and must mean off, seeds included.
+//
+// Env hygiene (BUG-263): a var that is SET but unparseable disables its check
+// (null) — a typo must not take the app down — but it is loud: app.ts calls
+// validateSpendGuardEnv() once at boot, which logs `error` per bad var and an
+// `info` line with the effective config, so the guard's real state is on the
+// first page of every revision's logs. The per-call read only warns (deduped).
 //
 // ⚠️ Known limit — LLMCallLog writes fail soft (writeLogSafely swallows a
 // failed insert, and D-WS6-030 records that an unknown userId drops the row),
@@ -99,6 +111,7 @@ export const AI_DISABLED_RETRY_AFTER_SECONDS = 300;
 const REFUSAL_LOG_SAMPLE = 50;
 
 const TRUTHY = new Set(["1", "true", "yes", "on"]);
+const FALSY = new Set(["0", "false", "no", "off"]);
 
 // ── env ──────────────────────────────────────────────────────────────
 
@@ -108,45 +121,135 @@ const TRUTHY = new Set(["1", "true", "yes", "on"]);
 const warnedInvalid = new Set<string>();
 const warnedCannotEvaluate = new Set<string>();
 
-function parseThreshold(
-  name: string,
-  raw: string | undefined,
-): number | null {
-  if (raw === undefined) return null;
-  const trimmed = raw.trim();
-  if (trimmed === "") return null;
-  const n = Number(trimmed);
-  if (!Number.isFinite(n) || n < 0) {
-    const key = `${name}=${trimmed}`;
-    if (!warnedInvalid.has(key)) {
-      warnedInvalid.add(key);
-      logger.warn(
-        { event: "spend_guard_invalid_env", name, raw: trimmed },
-        "spend guard env var is not a non-negative number — check disabled",
-      );
-    }
-    return null;
-  }
-  // 0 is a valid threshold: it refuses everything (a kill switch by another
-  // name). Only unset / blank / garbage disables the check.
-  return n;
+// One parsed variable. `invalid` = SET to something we could not read; the
+// effective value is then the safe default (check off / switch off).
+interface ParsedVar<T> {
+  value: T;
+  invalid: boolean;
+  raw: string | undefined;
 }
 
+// Pure. Unset / blank → null, not invalid. Garbage / negative → null, invalid.
+// 0 is a valid threshold: it refuses everything (a kill switch by another name).
+function parseThresholdRaw(raw: string | undefined): ParsedVar<number | null> {
+  if (raw === undefined) return { value: null, invalid: false, raw };
+  const trimmed = raw.trim();
+  if (trimmed === "") return { value: null, invalid: false, raw };
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return { value: null, invalid: true, raw: trimmed };
+  return { value: n, invalid: false, raw: trimmed };
+}
+
+// Pure. Unset / blank / a FALSY word → off, not invalid. TRUTHY → on. Anything
+// else ("ture") → off AND invalid — the same silent-off class as a bad number.
+function parseDisabledRaw(raw: string | undefined): ParsedVar<boolean> {
+  if (raw === undefined) return { value: false, invalid: false, raw };
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed === "" || FALSY.has(trimmed)) return { value: false, invalid: false, raw: trimmed };
+  if (TRUTHY.has(trimmed)) return { value: true, invalid: false, raw: trimmed };
+  return { value: false, invalid: true, raw: trimmed };
+}
+
+interface ParsedEnv {
+  disabled: ParsedVar<boolean>;
+  dailyCeilingUsd: ParsedVar<number | null>;
+  userDailyCalls: ParsedVar<number | null>;
+}
+
+function parseEnv(env: NodeJS.ProcessEnv): ParsedEnv {
+  return {
+    disabled: parseDisabledRaw(env[ENV_AI_DISABLED]),
+    dailyCeilingUsd: parseThresholdRaw(env[ENV_AI_DAILY_CEILING_USD]),
+    userDailyCalls: parseThresholdRaw(env[ENV_AI_USER_DAILY_CALLS]),
+  };
+}
+
+function toConfig(parsed: ParsedEnv): SpendGuardConfig {
+  return {
+    disabled: parsed.disabled.value,
+    dailyCeilingUsd: parsed.dailyCeilingUsd.value,
+    userDailyCalls: parsed.userDailyCalls.value,
+  };
+}
+
+// Per-call read. An invalid var warns once per (name, raw) — the loud version
+// is validateSpendGuardEnv at boot.
 export function readSpendGuardConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): SpendGuardConfig {
-  const disabledRaw = env[ENV_AI_DISABLED]?.trim().toLowerCase() ?? "";
-  return {
-    disabled: TRUTHY.has(disabledRaw),
-    dailyCeilingUsd: parseThreshold(
-      ENV_AI_DAILY_CEILING_USD,
-      env[ENV_AI_DAILY_CEILING_USD],
-    ),
-    userDailyCalls: parseThreshold(
-      ENV_AI_USER_DAILY_CALLS,
-      env[ENV_AI_USER_DAILY_CALLS],
-    ),
-  };
+  const parsed = parseEnv(env);
+  const entries: Array<[string, ParsedVar<unknown>]> = [
+    [ENV_AI_DISABLED, parsed.disabled],
+    [ENV_AI_DAILY_CEILING_USD, parsed.dailyCeilingUsd],
+    [ENV_AI_USER_DAILY_CALLS, parsed.userDailyCalls],
+  ];
+  for (const [name, p] of entries) {
+    if (!p.invalid) continue;
+    const key = `${name}=${p.raw}`;
+    if (warnedInvalid.has(key)) continue;
+    warnedInvalid.add(key);
+    logger.warn(
+      { event: "spend_guard_invalid_env", envVar: name, raw: p.raw },
+      "spend guard env var is unparseable — check disabled",
+    );
+  }
+  return toConfig(parsed);
+}
+
+// ── boot-time validation (BUG-263) ───────────────────────────────────
+
+export interface SpendGuardEnvReport {
+  config: SpendGuardConfig;
+  // Every var that was SET but could not be parsed. Empty = clean.
+  invalid: Array<{ name: string; raw: string }>;
+}
+
+// Structural over pino so tests can hand in a recorder.
+interface BootLogger {
+  error(obj: object, msg: string): void;
+  info(obj: object, msg: string): void;
+}
+
+// Call ONCE at module load (app.ts, beside the TRUST_PROXY_HOPS warn). Logs
+// `error` for each var that is set but unparseable — the check it governs is
+// OFF, and whoever set it believes it is on — then ONE `info` line with the
+// effective config so the guard's real state is on the first page of every
+// revision's logs. Logs nothing but these three variables' own values.
+export function validateSpendGuardEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  log: BootLogger = logger,
+): SpendGuardEnvReport {
+  const parsed = parseEnv(env);
+  const invalid: SpendGuardEnvReport["invalid"] = [];
+  const entries: Array<[string, ParsedVar<unknown>, string]> = [
+    [ENV_AI_DISABLED, parsed.disabled, "expected 1/true/yes/on or 0/false/no/off — kill switch is OFF"],
+    [ENV_AI_DAILY_CEILING_USD, parsed.dailyCeilingUsd, "expected a non-negative number — ceiling check is OFF"],
+    [ENV_AI_USER_DAILY_CALLS, parsed.userDailyCalls, "expected a non-negative number — per-user cap is OFF"],
+  ];
+  for (const [name, p, hint] of entries) {
+    if (!p.invalid) continue;
+    invalid.push({ name, raw: p.raw ?? "" });
+    log.error(
+      { event: "spend_guard_env_invalid", envVar: name, raw: p.raw },
+      `${name} is set but unparseable: ${hint}`,
+    );
+  }
+  const config = toConfig(parsed);
+  log.info(
+    {
+      event: "spend_guard_config",
+      killSwitch: config.disabled ? "on" : "off",
+      dailyCeilingUsd: config.dailyCeilingUsd ?? "disabled",
+      userDailyCalls: config.userDailyCalls ?? "disabled",
+      invalidVars: invalid.map((i) => i.name),
+    },
+    `AI spend guard: kill switch ${config.disabled ? "ON" : "off"} · daily ceiling ${
+      config.dailyCeilingUsd == null ? "disabled" : `$${config.dailyCeilingUsd}`
+    } · per-user cap ${
+      config.userDailyCalls == null ? "disabled" : `${config.userDailyCalls} calls/day`
+    }`,
+  );
+  return { config, invalid };
 }
 
 // ── UTC day arithmetic ───────────────────────────────────────────────
@@ -220,7 +323,12 @@ export async function checkSpendGuard(
     };
   }
 
-  const needsDb = cfg.dailyCeilingUsd != null || (cfg.userDailyCalls != null && userId != null);
+  // BUG-262 — system-triggered calls (seeds, batch jobs) are outside both
+  // DB-backed checks: zero reads, never refused by a cap. Only the kill switch
+  // above reaches them. See the header for why.
+  if (userId == null) return { refused: false };
+
+  const needsDb = cfg.dailyCeilingUsd != null || cfg.userDailyCalls != null;
   if (!needsDb) return { refused: false };
 
   const log = prisma?.lLMCallLog;
@@ -262,7 +370,7 @@ export async function checkSpendGuard(
 
   // 3. Per-user daily cap. Count-based: "you've hit today's limit" is legible
   //    to a human; a dollar figure is not.
-  if (cfg.userDailyCalls != null && userId != null) {
+  if (cfg.userDailyCalls != null) {
     if (!log?.count) {
       logCannotEvaluate("spend_cap_user", promptKey);
     } else {

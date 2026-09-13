@@ -57,6 +57,8 @@ lives for the deployed instance. "env" = a plain Cloud Run env var
 | `KIWI_STORE_CUISINE_QUOTA_FRACTION` | no | env | Default 0.7. |
 | `EMAIL_REVIEW_RECIPIENT` | no | — | Documented in `.env.example`; **read by no code yet** (D-WS9-226 message 3 is not built). Nothing to set. |
 
+All three `AI_*` variables are validated once at boot (BUG-263): a variable that is **set but unparseable** (e.g. `AI_DAILY_CEILING_USD="$10"`) leaves its check **off** and logs an `error` naming it; every revision also logs one `info` line `AI spend guard: kill switch … · daily ceiling … · per-user cap …` with the effective config — read that line after each deploy rather than trusting the env you meant to set. System-triggered calls (`userId` null — seeds, batch jobs) bypass the ceiling and per-user cap entirely (BUG-262); only `AI_DISABLED` refuses them.
+
 ## First deploy
 
 One-time: project, APIs, secrets. The secret values are read from a prompt

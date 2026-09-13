@@ -15,6 +15,7 @@ import {
   secondsUntilNextUtcDay,
   utcDayStart,
   _resetSpendGuardLogSampling,
+  validateSpendGuardEnv,
 } from "../spendGuard";
 import type { PrismaLike } from "../ai/promptRegistry";
 import {
@@ -231,10 +232,14 @@ describe("checkSpendGuard — global daily ceiling", () => {
     assert.deepEqual(v, { refused: false });
   });
 
-  it("applies to null-userId callers as well (the sum is global)", async () => {
-    const { prisma } = makePrisma({ spentToday: 10 });
+  it("BUG-262: a null-userId (seed) caller bypasses the ceiling with ZERO reads even when it is exceeded", async () => {
+    const { prisma, calls } = makePrisma({ spentToday: 10 });
     const v = await checkSpendGuard({ prisma, userId: null, promptKey: "k", env, now: NOW });
-    assert.equal(v.refused && v.reason, "spend_cap_global");
+    assert.deepEqual(v, { refused: false });
+    // The zero-reads half is the real assertion — a pass that still queried
+    // would be a different bug.
+    assert.equal(calls.aggregate.length, 0);
+    assert.equal(calls.count.length, 0);
   });
 
   it("UTC-day rollover: the day window moves with `now`", async () => {
@@ -390,5 +395,137 @@ describe("aiFailureStatus / withAIFailureStatus / copy", () => {
     // Not D-WS9-229's rate-limit copy.
     assert.ok(!SPEND_CAP_USER_COPY.includes("missing the mark"));
     assert.ok(!AI_UNAVAILABLE_COPY.includes("missing the mark"));
+  });
+});
+
+// ── BUG-262 — null userId is outside both DB-backed checks ─────────────
+
+describe("checkSpendGuard — BUG-262 system callers", () => {
+  const env = { AI_DAILY_CEILING_USD: "10", AI_USER_DAILY_CALLS: "500" };
+
+  it("null userId, BOTH checks configured and BOTH exceeded → passes with zero reads", async () => {
+    const { prisma, calls } = makePrisma({ spentToday: 999, userCallsToday: 999 });
+    const v = await checkSpendGuard({ prisma, userId: null, promptKey: "seed", env, now: NOW });
+    assert.deepEqual(v, { refused: false });
+    assert.equal(calls.aggregate.length, 0, "ceiling read must not run for a seed");
+    assert.equal(calls.count.length, 0, "per-user read must not run for a seed");
+  });
+
+  it("null userId + AI_DISABLED → still refused (the kill switch means off, seeds included)", async () => {
+    const { prisma, calls } = makePrisma({ spentToday: 0, userCallsToday: 0 });
+    const v = await checkSpendGuard({
+      prisma, userId: null, promptKey: "seed", env: { ...env, AI_DISABLED: "1" }, now: NOW,
+    });
+    assert.equal(v.refused && v.reason, "ai_disabled");
+    assert.equal(calls.aggregate.length + calls.count.length, 0);
+  });
+
+  it("a non-null userId at the same exceeded ceiling is still refused", async () => {
+    const { prisma, calls } = makePrisma({ spentToday: 999, userCallsToday: 0 });
+    const v = await checkSpendGuard({ prisma, userId: USER, promptKey: "k", env, now: NOW });
+    assert.equal(v.refused && v.reason, "spend_cap_global");
+    assert.equal(calls.aggregate.length, 1);
+  });
+});
+
+// ── BUG-263 — boot-time env validation ─────────────────────────────────
+
+describe("validateSpendGuardEnv (BUG-263)", () => {
+  function recorder() {
+    const errors: Array<{ obj: Record<string, unknown>; msg: string }> = [];
+    const infos: Array<{ obj: Record<string, unknown>; msg: string }> = [];
+    return {
+      log: {
+        error: (obj: object, msg: string) => { errors.push({ obj: obj as Record<string, unknown>, msg }); },
+        info: (obj: object, msg: string) => { infos.push({ obj: obj as Record<string, unknown>, msg }); },
+      },
+      errors,
+      infos,
+    };
+  }
+
+  it("all unset → no error, one info summary saying disabled everywhere", () => {
+    const r = recorder();
+    const report = validateSpendGuardEnv({}, r.log);
+    assert.equal(r.errors.length, 0);
+    assert.equal(r.infos.length, 1);
+    assert.deepEqual(report.invalid, []);
+    assert.deepEqual(report.config, { disabled: false, dailyCeilingUsd: null, userDailyCalls: null });
+    assert.equal(r.infos[0].obj.killSwitch, "off");
+    assert.equal(r.infos[0].obj.dailyCeilingUsd, "disabled");
+    assert.equal(r.infos[0].obj.userDailyCalls, "disabled");
+    assert.match(r.infos[0].msg, /kill switch off · daily ceiling disabled · per-user cap disabled/);
+  });
+
+  it("all three valid → no error, summary reflects them", () => {
+    const r = recorder();
+    const report = validateSpendGuardEnv(
+      { AI_DISABLED: "0", AI_DAILY_CEILING_USD: "10", AI_USER_DAILY_CALLS: "500" },
+      r.log,
+    );
+    assert.equal(r.errors.length, 0);
+    assert.deepEqual(report.config, { disabled: false, dailyCeilingUsd: 10, userDailyCalls: 500 });
+    assert.equal(r.infos[0].obj.dailyCeilingUsd, 10);
+    assert.equal(r.infos[0].obj.userDailyCalls, 500);
+    assert.match(r.infos[0].msg, /daily ceiling \$10 · per-user cap 500 calls\/day/);
+
+    const on = recorder();
+    validateSpendGuardEnv({ AI_DISABLED: "true" }, on.log);
+    assert.equal(on.errors.length, 0);
+    assert.equal(on.infos[0].obj.killSwitch, "on");
+    assert.match(on.infos[0].msg, /kill switch ON/);
+  });
+
+  it("AI_DAILY_CEILING_USD=\"$10\" → error emitted, ceiling null (off), named in the summary", () => {
+    const r = recorder();
+    const report = validateSpendGuardEnv({ AI_DAILY_CEILING_USD: "$10" }, r.log);
+    assert.equal(r.errors.length, 1);
+    assert.equal(r.errors[0].obj.envVar, "AI_DAILY_CEILING_USD");
+    assert.equal(r.errors[0].obj.raw, "$10");
+    assert.match(r.errors[0].msg, /AI_DAILY_CEILING_USD is set but unparseable/);
+    assert.equal(report.config.dailyCeilingUsd, null);
+    assert.deepEqual(report.invalid, [{ name: "AI_DAILY_CEILING_USD", raw: "$10" }]);
+    assert.deepEqual(r.infos[0].obj.invalidVars, ["AI_DAILY_CEILING_USD"]);
+  });
+
+  it("AI_USER_DAILY_CALLS=\"five hundred\" → error, cap null", () => {
+    const r = recorder();
+    const report = validateSpendGuardEnv({ AI_USER_DAILY_CALLS: "five hundred" }, r.log);
+    assert.equal(r.errors.length, 1);
+    assert.equal(r.errors[0].obj.envVar, "AI_USER_DAILY_CALLS");
+    assert.equal(report.config.userDailyCalls, null);
+  });
+
+  it("AI_DISABLED=\"ture\" → error, kill switch off (same silent-off class)", () => {
+    const r = recorder();
+    const report = validateSpendGuardEnv({ AI_DISABLED: "ture" }, r.log);
+    assert.equal(r.errors.length, 1);
+    assert.equal(r.errors[0].obj.envVar, "AI_DISABLED");
+    assert.equal(report.config.disabled, false);
+  });
+
+  it("all three garbage → three errors, one summary, every check off", () => {
+    const r = recorder();
+    const report = validateSpendGuardEnv(
+      { AI_DISABLED: "maybe", AI_DAILY_CEILING_USD: "-1", AI_USER_DAILY_CALLS: "NaN" },
+      r.log,
+    );
+    assert.equal(r.errors.length, 3);
+    assert.equal(r.infos.length, 1);
+    assert.deepEqual(report.config, { disabled: false, dailyCeilingUsd: null, userDailyCalls: null });
+  });
+
+  it("the summary line owns only the three guard vars — no other env leaks", () => {
+    const r = recorder();
+    validateSpendGuardEnv(
+      { AI_DAILY_CEILING_USD: "10", DATABASE_URL: "postgres://secret", JWT_SECRET: "s3cr3t" },
+      r.log,
+    );
+    const serialized = JSON.stringify(r.infos) + JSON.stringify(r.errors);
+    assert.ok(!serialized.includes("postgres://"), "DATABASE_URL leaked");
+    assert.ok(!serialized.includes("s3cr3t"), "JWT_SECRET leaked");
+    assert.deepEqual(Object.keys(r.infos[0].obj).sort(), [
+      "dailyCeilingUsd", "event", "invalidVars", "killSwitch", "userDailyCalls",
+    ]);
   });
 });

@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import pagesRouter from "./routes/pages";
 import { logger } from "./lib/logger";
+import { validateSpendGuardEnv } from "./lib/spendGuard";
 import { noStore } from "./middleware/cacheControl";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -51,6 +52,13 @@ if (process.env["TRUST_PROXY_HOPS"] && trustProxyHops === 0) {
   );
 }
 app.set("trust proxy", trustProxyHops);
+
+// BUG-263 — same class as the TRUST_PROXY_HOPS warn above: a typo in a deploy
+// variable must not silently change what the server does. The spend guard
+// (D-WS9-240, lib/spendGuard.ts) treats an unparseable AI_* var as "check off",
+// so the typo is invisible unless something says so at boot. This logs `error`
+// per bad var and one `info` line with the effective config on every revision.
+validateSpendGuardEnv(process.env);
 
 app.use(
   pinoHttp({
