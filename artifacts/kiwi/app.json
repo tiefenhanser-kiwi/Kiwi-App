@@ -24,7 +24,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon-foreground-1024.png",
         "backgroundColor": "#3a5235"
-      }
+      },
+      "package": "com.kitchenwizard.kiwi"
     },
     "web": {
       "favicon": "./assets/images/favicon-64.png"
