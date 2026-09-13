@@ -461,6 +461,17 @@ export interface PrismaLike {
   };
   lLMCallLog: {
     create(args: { data: LLMCallLogCreateData }): Promise<unknown>;
+    // D-WS9-240 — read surface for the spend guard (lib/spendGuard.ts).
+    // Optional so the many existing test stubs that only implement `create`
+    // keep compiling; the guard passes through (with a warning) when a
+    // configured check finds them missing. The real PrismaClient has both.
+    count?(args: {
+      where: { userId: string; createdAt: { gte: Date } };
+    }): Promise<number>;
+    aggregate?(args: {
+      _sum: { costEstimateUsd: true };
+      where: { createdAt: { gte: Date }; userId: { not: null } };
+    }): Promise<{ _sum: { costEstimateUsd: unknown } }>;
   };
 }
 

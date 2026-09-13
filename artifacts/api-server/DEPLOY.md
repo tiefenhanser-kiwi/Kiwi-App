@@ -50,6 +50,9 @@ lives for the deployed instance. "env" = a plain Cloud Run env var
 | `TRUST_PROXY_HOPS` | no | **unset** | Leave unset (= 0, trust nothing) until measured — see below. Never `true`. |
 | `LOG_LEVEL` | no | env | pino level; default `info`. |
 | `USDA_INGREDIENTS_API_KEY` | no | Secret Manager | Absent → USDA enrichment no-ops. |
+| `AI_DISABLED` | no | env | **D-WS9-240 kill switch.** `1`/`true`/`yes`/`on` → every AI call is refused (503 + `Retry-After: 300`, copy "Kiwi is taking a short break…") before the SDK is touched. Unset = off. A Cloud Run env change is a new revision with no build. |
+| `AI_DAILY_CEILING_USD` | no | env | **D-WS9-240 global daily ceiling.** When `SUM(costEstimateUsd)` over the current UTC day for user-attributed rows (`userId IS NOT NULL` — CLI seeds don't count) reaches this, every AI call is refused with 503 + `Retry-After` to UTC midnight. Unset = off. **Proposed `10`** — calibrated 2026-09-13 on a 9-user sample where one account is 59% of rows (largest real day $3.50); **re-derive before the user base grows**. |
+| `AI_USER_DAILY_CALLS` | no | env | **D-WS9-240 per-user daily cap.** When one user's `LLMCallLog` row count for the current UTC day reaches this, that user's AI calls are refused with 429 + `Retry-After` to UTC midnight ("You've reached today's planning limit…"). Count-based; a wizard flow fans out to ~8–15 rows. Unset = off. **Proposed `500`**. |
 | `KIWI_STORE_SHORTLIST_SIZE` | no | env | Default 40. |
 | `KIWI_STORE_CUISINE_QUOTA_FRACTION` | no | env | Default 0.7. |
 | `EMAIL_REVIEW_RECIPIENT` | no | — | Documented in `.env.example`; **read by no code yet** (D-WS9-226 message 3 is not built). Nothing to set. |
@@ -114,7 +117,7 @@ it here; `gcloud run deploy` accepts the same `--startup-probe` /
 
 ```powershell
 gcloud run services update kiwi-api --region us-east4 `
-  --startup-probe "httpGet.path=/api/readyz,httpGet.port=8080,initialDelaySeconds=0,periodSeconds=2,failureThreshold=15,timeoutSeconds=3" `
+  --startup-probe "httpGet.path=/api/readyz,httpGet.port=8080,initialDelaySeconds=0,periodSeconds=4,failureThreshold=15,timeoutSeconds=3" `
   --liveness-probe "httpGet.path=/api/healthz,httpGet.port=8080,periodSeconds=30,failureThreshold=3,timeoutSeconds=3"
 ```
 

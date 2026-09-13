@@ -34,6 +34,7 @@ import {
 } from "../lib/kiwiAssist";
 import { parseDishFromText as productionParseDishFromText } from "../lib/dishBuilder";
 import { parseMealFromText as productionParseMealFromText } from "../lib/mealBuilder";
+import { withAIFailureStatus } from "../lib/ai/errors";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
@@ -117,9 +118,10 @@ export function createBuilderRouter(
           },
           "Kiwi-assist ingredients call failed",
         );
-        return res.status(502).json({
+        return withAIFailureStatus(res, result.reason).json({
           error: result.error,
           status: "failed",
+          reason: result.reason,
         });
       }
 
@@ -169,9 +171,10 @@ export function createBuilderRouter(
           },
           "Kiwi-assist steps call failed",
         );
-        return res.status(502).json({
+        return withAIFailureStatus(res, result.reason).json({
           error: result.error,
           status: "failed",
+          reason: result.reason,
         });
       }
 
@@ -234,9 +237,10 @@ export function createBuilderRouter(
           },
           "Mode A parse-meal call failed",
         );
-        return res.status(502).json({
+        return withAIFailureStatus(res, result.reason).json({
           error: result.error,
           status: "failed",
+          reason: result.reason,
         });
       }
 
@@ -301,9 +305,10 @@ export function createBuilderRouter(
           },
           "Dish Mode A parse-dish call failed",
         );
-        return res.status(502).json({
+        return withAIFailureStatus(res, result.reason).json({
           error: result.error,
           status: "failed",
+          reason: result.reason,
         });
       }
 

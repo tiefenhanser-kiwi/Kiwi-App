@@ -28,6 +28,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { PrismaClient, StoreSection } from "@prisma/client";
 
 import { runAICall as productionRunAICall } from "./ai/runAICall";
+import type { AICallFailureReason } from "./ai/errors";
 import {
   EMPTY_RELATION_INDEX,
   type RelationIndex,
@@ -63,9 +64,14 @@ import {
 import { roundNeedQuantity } from "./needQuantity";
 
 export class GroceryListAIError extends Error {
-  constructor(message: string) {
+  // D-WS9-240 — the AICallFailureReason when the throw came from an
+  // AICallFailure, so the route can map a spend-guard refusal to 429/503.
+  // Undefined for the code-owned invariant throws (e.g. item count grew).
+  readonly reason: AICallFailureReason | undefined;
+  constructor(message: string, reason?: AICallFailureReason) {
     super(message);
     this.name = "GroceryListAIError";
+    this.reason = reason;
   }
 }
 
@@ -117,7 +123,7 @@ export async function gapFillPurchaseSize(
     },
   );
   if (!result.success) {
-    throw new GroceryListAIError(result.userFacingMessage);
+    throw new GroceryListAIError(result.userFacingMessage, result.reason);
   }
   return result.data;
 }
@@ -630,7 +636,7 @@ export async function generateFinalGroceryList(
     },
   );
   if (!result.success) {
-    throw new GroceryListAIError(result.userFacingMessage);
+    throw new GroceryListAIError(result.userFacingMessage, result.reason);
   }
   if (result.data.items.length > aiSubset.length) {
     throw new GroceryListAIError(
@@ -1133,7 +1139,7 @@ export async function categorizeGroceryItem(
     },
   );
   if (!result.success) {
-    throw new GroceryListAIError(result.userFacingMessage);
+    throw new GroceryListAIError(result.userFacingMessage, result.reason);
   }
   return result.data;
 }

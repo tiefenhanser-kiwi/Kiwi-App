@@ -43,6 +43,7 @@ import {
 } from "../lib/groceryListAI";
 import { reconcileGroceryListIfStale } from "../lib/groceryReconcile";
 import { loadRelationIndex } from "../lib/relationIndexLoader";
+import { withAIFailureStatus } from "../lib/ai/errors";
 import { normalizeIngredientName } from "../lib/groceryNormalization";
 import { lookupIngredientByName } from "../lib/ingredientLookup";
 import {
@@ -434,9 +435,10 @@ export function createGroceryListsRouter(
           return res.status(404).json({ error: "plan_not_found" });
         }
         if (err instanceof GroceryListAIError) {
-          return res.status(502).json({
+          return withAIFailureStatus(res, err.reason ?? "sdk_error").json({
             error: "ai_failed",
             message: err.message,
+            reason: err.reason,
           });
         }
         logger.error(
@@ -757,9 +759,10 @@ export function createGroceryListsRouter(
       return res.status(200).json(payload);
     } catch (err) {
       if (err instanceof GroceryListAIError) {
-        return res.status(502).json({
+        return withAIFailureStatus(res, err.reason ?? "sdk_error").json({
           error: "ai_failed",
           message: err.message,
+          reason: err.reason,
         });
       }
       logger.error(

@@ -6,7 +6,7 @@
 // finalMessage() replays inputJson deltas to the registered listener before
 // resolving — exactly how the real MessageStream drives progressive emit.
 
-import { describe, it, beforeEach } from "node:test";
+import { describe, it, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import type Anthropic from "@anthropic-ai/sdk";
 
@@ -324,5 +324,119 @@ describe("streamPlanCandidates", () => {
     assert.equal(result.success, false);
     if (!result.success) assert.equal(result.reason, "sdk_error");
     assert.equal(llmCalls[0].failureReason, "sdk_error");
+  });
+});
+
+// ── D-WS9-240 — spend guard at the streaming door ──────────────────────
+//
+// Same contract as the buffered door: with a cap tripped, `messages.stream`
+// is never invoked, onCandidate never fires, and NO lLMCallLog.create runs.
+
+describe("streamPlanCandidates — D-WS9-240 spend guard", () => {
+  const GUARD_VARS = ["AI_DISABLED", "AI_DAILY_CEILING_USD", "AI_USER_DAILY_CALLS"] as const;
+  const saved: Record<string, string | undefined> = {};
+  before(() => {
+    for (const k of GUARD_VARS) saved[k] = process.env[k];
+  });
+  after(() => {
+    for (const k of GUARD_VARS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+  beforeEach(() => _resetRegistryCaches());
+
+  function makeGuardPrisma(today: { userCalls: number; spentUsd: number }) {
+    const { prisma, llmCalls } = makeStubPrisma();
+    let reads = 0;
+    prisma.lLMCallLog.count = async () => {
+      reads++;
+      return today.userCalls;
+    };
+    prisma.lLMCallLog.aggregate = async () => {
+      reads++;
+      return { _sum: { costEstimateUsd: today.spentUsd } };
+    };
+    return { prisma, llmCalls, reads: () => reads };
+  }
+
+  function makeCountingMessages() {
+    let streamCalls = 0;
+    const { client: inner } = makeFakeMessages({ toolInput: fullResult() });
+    const client = {
+      stream: (p: any) => {
+        streamCalls++;
+        return inner.stream(p);
+      },
+    } as unknown as StreamCapableMessages;
+    return { client, streamCalls: () => streamCalls };
+  }
+
+  it("per-user cap tripped: spend_cap_user, stream never opened, no candidates, no log row", async () => {
+    delete process.env.AI_DISABLED;
+    delete process.env.AI_DAILY_CEILING_USD;
+    process.env.AI_USER_DAILY_CALLS = "3";
+    const { client, streamCalls } = makeCountingMessages();
+    const { prisma, llmCalls } = makeGuardPrisma({ userCalls: 3, spentUsd: 0 });
+    let emitted = 0;
+
+    const result = await streamPlanCandidates(
+      "wizard.set_preferences.generate",
+      { storeShortlist: [], wizardInput: { userId: "u1" } },
+      {
+        prisma,
+        userId: "u1",
+        cacheSplitMarker: MARKER,
+        client,
+        onCandidate: () => { emitted++; },
+      },
+    );
+
+    assert.equal(result.success, false);
+    if (result.success) return;
+    assert.equal(result.reason, "spend_cap_user");
+    assert.match(result.userFacingMessage, /today's planning limit/);
+    assert.equal(streamCalls(), 0, "messages.stream must never be called");
+    assert.equal(emitted, 0);
+    assert.equal(llmCalls.length, 0, "a refusal writes no LLMCallLog row");
+  });
+
+  it("one below the cap: streams and logs as before", async () => {
+    delete process.env.AI_DISABLED;
+    delete process.env.AI_DAILY_CEILING_USD;
+    process.env.AI_USER_DAILY_CALLS = "3";
+    const { client, streamCalls } = makeCountingMessages();
+    const { prisma, llmCalls } = makeGuardPrisma({ userCalls: 2, spentUsd: 0 });
+
+    const result = await streamPlanCandidates(
+      "wizard.set_preferences.generate",
+      { storeShortlist: [], wizardInput: { userId: "u1" } },
+      { prisma, userId: "u1", cacheSplitMarker: MARKER, client },
+    );
+
+    assert.equal(result.success, true);
+    assert.equal(streamCalls(), 1);
+    assert.equal(llmCalls.length, 1);
+  });
+
+  it("kill switch: ai_disabled with zero guard reads and zero stream calls", async () => {
+    process.env.AI_DISABLED = "true";
+    delete process.env.AI_DAILY_CEILING_USD;
+    delete process.env.AI_USER_DAILY_CALLS;
+    const { client, streamCalls } = makeCountingMessages();
+    const { prisma, llmCalls, reads } = makeGuardPrisma({ userCalls: 0, spentUsd: 0 });
+
+    const result = await streamPlanCandidates(
+      "wizard.set_preferences.generate",
+      { storeShortlist: [], wizardInput: { userId: "u1" } },
+      { prisma, userId: "u1", cacheSplitMarker: MARKER, client },
+    );
+
+    assert.equal(result.success, false);
+    if (result.success) return;
+    assert.equal(result.reason, "ai_disabled");
+    assert.equal(streamCalls(), 0);
+    assert.equal(reads(), 0);
+    assert.equal(llmCalls.length, 0);
   });
 });

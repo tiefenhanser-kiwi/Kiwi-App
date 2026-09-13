@@ -26,6 +26,7 @@ import {
   EMPTY_PLAN_COPY,
 } from "../lib/prepWeekAggregation";
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
+import { withAIFailureStatus } from "../lib/ai/errors";
 import { resolvePromptDescriptorFromDb as productionResolvePromptDescriptor } from "../lib/ai/promptRegistry";
 import { prepCompositionFingerprint } from "../lib/prepWeekFingerprint";
 import {
@@ -386,7 +387,7 @@ export function createCookingRouter(
           },
           "Prep the Week narration AI call failed",
         );
-        return res.status(502).json({
+        return withAIFailureStatus(res, aiResult.reason).json({
           error: aiResult.userFacingMessage,
           reason: aiResult.reason,
         });

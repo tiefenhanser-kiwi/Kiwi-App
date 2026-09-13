@@ -105,6 +105,7 @@ function ingredientsFailure(): AssistDishIngredientsResult {
   return {
     status: "failed",
     error: "Kiwi got distracted. Try again?",
+    reason: "sdk_error",
   };
 }
 
@@ -128,7 +129,7 @@ function stepsSuccess(): AssistDishStepsResult {
 }
 
 function stepsFailure(): AssistDishStepsResult {
-  return { status: "failed", error: "Kiwi got distracted. Try again?" };
+  return { status: "failed", error: "Kiwi got distracted. Try again?", reason: "sdk_error" };
 }
 
 function makeParseMeal(result: () => Promise<ParseMealFromTextResult>) {
@@ -816,6 +817,7 @@ describe("POST /api/builder/parse-dish — auth + input validation", () => {
       parseDishFromText: makeParseDish(async () => ({
         status: "failed",
         error: "Kiwi got distracted.",
+        reason: "sdk_error",
       })).fn,
       subscriptionService: makeSubscriptionService({ allowed: true }),
       prisma: makeStubPrisma(),
@@ -838,6 +840,71 @@ describe("POST /api/builder/parse-dish — auth + input validation", () => {
       assert.equal(body.status, "failed");
     } finally {
       await failHarness.close();
+    }
+  });
+
+  // D-WS9-240 — the route maps a spend-guard refusal to 429/503 + Retry-After
+  // and carries the reason so the client can tell "limit" from "AI failed".
+  it("returns 429 + Retry-After with the copy when the guard refused this user", async () => {
+    const failHarness = await spinUp({
+      parseDishFromText: makeParseDish(async () => ({
+        status: "failed",
+        error: "You've reached today's planning limit — Kiwi will be ready to plan again tomorrow.",
+        reason: "spend_cap_user",
+      })).fn,
+      subscriptionService: makeSubscriptionService({ allowed: true }),
+      prisma: makeStubPrisma(),
+    });
+    try {
+      const token = signToken(TEST_USER_ID + "-dish-modea-capped");
+      const res = await fetch(`${failHarness.baseUrl}/builder/parse-dish`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ freeText: "Roasted broccoli with garlic", servings: 4 }),
+      });
+      assert.equal(res.status, 429);
+      const retryAfter = Number(res.headers.get("retry-after"));
+      assert.ok(retryAfter >= 1 && retryAfter <= 86400, `Retry-After ${retryAfter}`);
+      const body = (await res.json()) as { status: string; reason: string; error: string };
+      assert.equal(body.status, "failed");
+      assert.equal(body.reason, "spend_cap_user");
+      assert.match(body.error, /today's planning limit/);
+    } finally {
+      await failHarness.close();
+    }
+  });
+
+  it("returns 503 + Retry-After when the global ceiling / kill switch refused", async () => {
+    for (const reason of ["spend_cap_global", "ai_disabled"] as const) {
+      const failHarness = await spinUp({
+        parseDishFromText: makeParseDish(async () => ({
+          status: "failed",
+          error: "Kiwi is taking a short break. Please try again in a little while.",
+          reason,
+        })).fn,
+        subscriptionService: makeSubscriptionService({ allowed: true }),
+        prisma: makeStubPrisma(),
+      });
+      try {
+        const token = signToken(TEST_USER_ID + "-dish-modea-" + reason);
+        const res = await fetch(`${failHarness.baseUrl}/builder/parse-dish`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ freeText: "Roasted broccoli with garlic", servings: 4 }),
+        });
+        assert.equal(res.status, 503, reason);
+        assert.ok(Number(res.headers.get("retry-after")) >= 1, reason);
+        const body = (await res.json()) as { reason: string };
+        assert.equal(body.reason, reason);
+      } finally {
+        await failHarness.close();
+      }
     }
   });
 });

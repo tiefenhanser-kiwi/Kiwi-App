@@ -23,6 +23,7 @@ import {
   type AICallMode,
 } from "./modes";
 import { userFacingMessage, type AICallFailureReason } from "./errors";
+import { checkSpendGuard } from "../spendGuard";
 import {
   estimateCacheAwareCostUsdFromRate,
   getModelRate,
@@ -179,6 +180,28 @@ export async function runAICall<T extends z.ZodTypeAny>(
   // Fetch model rate once up-front so cost calc inside the success branch
   // stays synchronous and we don't re-query on every retry attempt.
   const rate = await getModelRate(model, prismaClient);
+
+  // D-WS9-240 — spend guard: kill switch, global daily ceiling, per-user
+  // daily cap (lib/spendGuard.ts). Last thing before the SDK is touched.
+  // ⚠️ A refusal writes NO LLMCallLog row — unlike the no_api_key branch
+  // above, which is a config failure, not attacker-triggerable. A row per
+  // refusal would be write amplification under exactly the traffic this
+  // guards against.
+  const guard = await checkSpendGuard({
+    prisma: prismaClient,
+    userId,
+    promptKey,
+  });
+  if (guard.refused) {
+    return failure({
+      promptKey,
+      promptVersion,
+      model,
+      mode,
+      latencyMs: Date.now() - start,
+      reason: guard.reason,
+    });
+  }
 
   const baseBody = renderPromptBody(descriptor.body, vars);
 

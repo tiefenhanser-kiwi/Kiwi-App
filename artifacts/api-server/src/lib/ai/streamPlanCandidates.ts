@@ -32,7 +32,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 
 import { logger } from "../logger";
 import { extractPayload } from "./modes";
-import { userFacingMessage } from "./errors";
+import { userFacingMessage, type AICallFailureReason } from "./errors";
+import { checkSpendGuard } from "../spendGuard";
 import { getSharedAnthropicClient } from "./runAICall";
 import type {
   AICallMetadata,
@@ -153,6 +154,14 @@ export async function streamPlanCandidates(
   }
 
   const rate = await getModelRate(model, prisma);
+
+  // D-WS9-240 — spend guard, same seam as runAICall: after rate resolution,
+  // before `messages.stream`. A refusal writes NO LLMCallLog row (see the
+  // runAICall note — the no_api_key branch above is the deliberate exception).
+  const guard = await checkSpendGuard({ prisma, userId, promptKey });
+  if (guard.refused) {
+    return fail(promptKey, promptVersion, model, Date.now() - start, guard.reason);
+  }
 
   // Cache split — head (stable, no vars) → cached system block; tail → user msg.
   const { prefix, body } = splitRenderedPrompt(
@@ -366,7 +375,15 @@ function fail(
   promptVersion: number | null,
   model: string,
   latencyMs: number,
-  reason: "no_api_key" | "sdk_error" | "validation_failed",
+  reason: Extract<
+    AICallFailureReason,
+    | "no_api_key"
+    | "sdk_error"
+    | "validation_failed"
+    | "ai_disabled"
+    | "spend_cap_global"
+    | "spend_cap_user"
+  >,
   tokens?: { inputTokens: number; outputTokens: number },
 ): AICallResult<WizardPlanCandidatesResult> {
   return {

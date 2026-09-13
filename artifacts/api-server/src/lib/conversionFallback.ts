@@ -79,6 +79,8 @@ export async function resolveConversionWithFallback(
   } catch {
     return null;
   }
+  // D-WS9-240 — ruled: a spend-guard refusal returns null like any other
+  // failure; the caller falls back to the static conversion table.
   if (!result.success) return null;
 
   const { gramsPerCup, gramsPerEach, confidence } = result.data;

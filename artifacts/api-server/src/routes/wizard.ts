@@ -17,6 +17,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
 import { streamPlanCandidates as productionStreamPlanCandidates } from "../lib/ai/streamPlanCandidates";
+import { withAIFailureStatus } from "../lib/ai/errors";
 import {
   WizardExpandRequestSchema,
   WizardExpandedPlanDetailsSchema,
@@ -909,7 +910,7 @@ export function createWizardRouter(
         // funnels can see real failure rates. Same fire-and-forget pattern
         // as wizard_complete: never let activity-write failures bubble up.
         await emitActivity(userId, "wizard_failure");
-        return res.status(502).json({
+        return withAIFailureStatus(res, result.reason).json({
           error: result.userFacingMessage,
           reason: result.reason,
         });
@@ -1111,7 +1112,7 @@ export function createWizardRouter(
           "Tell Kiwi parse step failed",
         );
         await emitActivity(userId, "wizard_failure");
-        return res.status(502).json({
+        return withAIFailureStatus(res, parseResult.reason).json({
           error: parseResult.userFacingMessage,
           reason: parseResult.reason,
         });
@@ -1232,7 +1233,7 @@ export function createWizardRouter(
           "Tell Kiwi generate step failed",
         );
         await emitActivity(userId, "wizard_failure");
-        return res.status(502).json({
+        return withAIFailureStatus(res, genResult.reason).json({
           error: genResult.userFacingMessage,
           reason: genResult.reason,
         });
@@ -1452,7 +1453,7 @@ export function createWizardRouter(
             "Surprise-me generate step failed",
           );
           await emitActivity(userId, "wizard_failure");
-          return res.status(502).json({
+          return withAIFailureStatus(res, genResult.reason).json({
             error: genResult.userFacingMessage,
             reason: genResult.reason,
           });
@@ -1635,7 +1636,7 @@ export function createWizardRouter(
           "Wizard candidate expand failed",
         );
         await emitActivity(userId, "wizard_failure");
-        return res.status(502).json({
+        return withAIFailureStatus(res, expanded.reason).json({
           error: expanded.userFacingMessage,
           reason: expanded.reason,
         });
@@ -1954,8 +1955,7 @@ export function createWizardRouter(
         },
         "Wizard finalize-steps AI call failed during activation",
       );
-      return res
-        .status(502)
+      return withAIFailureStatus(res, finalizeResult.reason)
         .json({
           error: finalizeResult.userFacingMessage,
           reason: finalizeResult.reason,
@@ -2219,8 +2219,7 @@ export function createWizardRouter(
         },
         "Wizard finalize-steps AI call failed during save",
       );
-      return res
-        .status(502)
+      return withAIFailureStatus(res, finalizeResult.reason)
         .json({
           error: finalizeResult.userFacingMessage,
           reason: finalizeResult.reason,

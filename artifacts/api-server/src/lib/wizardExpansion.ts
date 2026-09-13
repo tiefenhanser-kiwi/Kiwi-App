@@ -24,6 +24,7 @@ import {
   resolveEffectivePreferences,
 } from "./wizardPreferences";
 import { runAICall as productionRunAICall } from "./ai/runAICall";
+import { isSpendGuardReason } from "./ai/errors";
 import { composeStoreMealDetails } from "./store/storeMealDetails";
 import {
   WizardExpandResultDetailsSchema,
@@ -230,7 +231,12 @@ export async function expandCandidate(
     );
     return {
       status: "ai_failed",
-      reason: `meal_failed:${firstFailure.mealTitle}`,
+      // D-WS9-240 — a spend-guard refusal passes through unwrapped so the
+      // route can map it to 429/503; every other per-meal failure keeps the
+      // composite reason.
+      reason: isSpendGuardReason(firstFailure.reason)
+        ? firstFailure.reason
+        : `meal_failed:${firstFailure.mealTitle}`,
       userFacingMessage: firstFailure.userFacingMessage,
     };
   }

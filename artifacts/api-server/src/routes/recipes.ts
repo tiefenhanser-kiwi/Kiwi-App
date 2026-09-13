@@ -16,6 +16,7 @@ import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { createRequireAuth } from "../middleware/auth";
 import { runAICall } from "../lib/ai/runAICall";
+import { isSpendGuardReason } from "../lib/ai/errors";
 import { ScaleResponseSchema } from "../lib/ai/schemas/scale";
 import {
   CanonicalRecipeContentSchema,
@@ -135,6 +136,9 @@ export function createRecipesRouter(
           "Scaling AI call failed — falling back to linear scaling",
         );
       }
+      // D-WS9-240 — ruled: a spend-guard refusal ALSO lands here on purpose. A
+      // linearly scaled recipe the user can cook beats a "limit reached" error;
+      // graceful degradation is the correct behaviour under a cap.
       return res.json({
         scaled: linearFallback(ingredients, fromServings, toServings),
       });
@@ -215,10 +219,17 @@ export function createRecipesRouter(
       );
 
       if (!aiResult.success) {
+        // D-WS9-240 — a spend-guard refusal keeps its own reason + copy so
+        // the user reads "today's limit", not "import failed". Status stays
+        // 200: this route's contract is a typed envelope (the mobile client
+        // translates any 4xx/5xx into its own generic copy).
+        const guarded = isSpendGuardReason(aiResult.reason);
         return res.json({
           success: false,
-          reason: aiResult.reason === "no_api_key" ? "sdk_error" : "sdk_error",
-          userFacingMessage: URL_IMPORT_FAILURE_MESSAGE,
+          reason: guarded ? aiResult.reason : "sdk_error",
+          userFacingMessage: guarded
+            ? aiResult.userFacingMessage
+            : URL_IMPORT_FAILURE_MESSAGE,
           suggestedAction: "try_image_import",
           internalError: aiResult.internalError,
         });
@@ -335,10 +346,14 @@ export function createRecipesRouter(
       );
 
       if (!aiResult.success) {
+        // D-WS9-240 — see import-url: guard refusals keep their reason + copy.
+        const guarded = isSpendGuardReason(aiResult.reason);
         return res.json({
           success: false,
-          reason: "sdk_error",
-          userFacingMessage: IMAGE_IMPORT_FAILURE_MESSAGE,
+          reason: guarded ? aiResult.reason : "sdk_error",
+          userFacingMessage: guarded
+            ? aiResult.userFacingMessage
+            : IMAGE_IMPORT_FAILURE_MESSAGE,
           suggestedAction: "try_text_import",
           internalError: aiResult.internalError,
         });
@@ -417,10 +432,14 @@ export function createRecipesRouter(
       );
 
       if (!aiResult.success) {
+        // D-WS9-240 — see import-url: guard refusals keep their reason + copy.
+        const guarded = isSpendGuardReason(aiResult.reason);
         return res.json({
           success: false,
-          reason: "sdk_error",
-          userFacingMessage: TEXT_IMPORT_FAILURE_MESSAGE,
+          reason: guarded ? aiResult.reason : "sdk_error",
+          userFacingMessage: guarded
+            ? aiResult.userFacingMessage
+            : TEXT_IMPORT_FAILURE_MESSAGE,
           suggestedAction: "try_image_import",
           internalError: aiResult.internalError,
         });

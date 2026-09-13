@@ -206,6 +206,10 @@ export async function estimateDishMacros(
     },
   );
 
+  // D-WS9-240 — ruled: a spend-guard refusal lands here too and is NOT
+  // surfaced as a cap. The dish persists with macros:null (a soft caveat);
+  // recalc-macros answers 200 with per-dish "failed". Graceful degradation is
+  // the correct behaviour under a cap.
   if (!result.success) {
     return {
       status: "failed",

@@ -20,6 +20,7 @@ import { Router, type IRouter, type Request } from "express";
 import { Prisma, type PrismaClient, type RecipeInstructionStep } from "@prisma/client";
 
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
+import { withAIFailureStatus } from "../lib/ai/errors";
 import {
   FindSimilarRequestSchema,
   FindSimilarResultSchema,
@@ -722,7 +723,7 @@ export function createMealsRouter(
           },
           "Find Similar AI call failed",
         );
-        return res.status(502).json({
+        return withAIFailureStatus(res, result.reason).json({
           error: result.userFacingMessage,
           reason: result.reason,
         });

@@ -8,6 +8,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { runAICall as productionRunAICall } from "./ai/runAICall";
+import type { AICallFailureReason } from "./ai/errors";
 import type { PrismaLike } from "./ai/promptRegistry";
 import {
   AssistIngredientsResultSchema,
@@ -44,6 +45,9 @@ export type AssistDishIngredientsResult =
   | {
       status: "failed";
       error: string;
+      // D-WS9-240 — the AICallFailureReason, so the route can map a
+      // spend-guard refusal to 429/503 instead of a blanket 502.
+      reason: AICallFailureReason;
     };
 
 /**
@@ -76,7 +80,7 @@ export async function assistDishIngredients(
   );
 
   if (!result.success) {
-    return { status: "failed", error: result.userFacingMessage };
+    return { status: "failed", error: result.userFacingMessage, reason: result.reason };
   }
 
   return {
@@ -109,6 +113,9 @@ export type AssistDishStepsResult =
   | {
       status: "failed";
       error: string;
+      // D-WS9-240 — the AICallFailureReason, so the route can map a
+      // spend-guard refusal to 429/503 instead of a blanket 502.
+      reason: AICallFailureReason;
     };
 
 /**
@@ -141,7 +148,7 @@ export async function assistDishSteps(
   );
 
   if (!result.success) {
-    return { status: "failed", error: result.userFacingMessage };
+    return { status: "failed", error: result.userFacingMessage, reason: result.reason };
   }
 
   return {

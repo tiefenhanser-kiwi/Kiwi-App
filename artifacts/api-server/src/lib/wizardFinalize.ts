@@ -16,6 +16,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { logger } from "./logger";
 import { runAICall as productionRunAICall } from "./ai/runAICall";
+import { isSpendGuardReason } from "./ai/errors";
 import {
   WizardExpandedPlanDetailsSchema,
   WizardExpandedPlanSchema,
@@ -193,7 +194,12 @@ export async function readAndFinalizeWizardDraft(
       );
       return {
         status: "ai_failed",
-        reason: `meal_failed:${firstFailure.mealIndex}:${firstFailure.reason}`,
+        // D-WS9-240 — a spend-guard refusal passes through unwrapped so the
+        // route can map it to 429/503; every other per-meal failure keeps
+        // the composite reason.
+        reason: isSpendGuardReason(firstFailure.reason)
+          ? firstFailure.reason
+          : `meal_failed:${firstFailure.mealIndex}:${firstFailure.reason}`,
         userFacingMessage: firstFailure.userFacingMessage,
       };
     }

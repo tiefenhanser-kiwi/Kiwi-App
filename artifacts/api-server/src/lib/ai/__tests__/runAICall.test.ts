@@ -1115,3 +1115,168 @@ describe("BUG-100 — validation retry feedback", () => {
     assert.match(text, /and 5 more issue\(s\)\./);
   });
 });
+
+// ── D-WS9-240 — spend guard at the buffered door ───────────────────────
+//
+// With a cap tripped the stubbed client records ZERO calls and NO
+// lLMCallLog.create fires — a refusal is not a logged event (write
+// amplification under exactly the traffic the guard exists for).
+
+describe("runAICall — D-WS9-240 spend guard", () => {
+  const GUARD_VARS = ["AI_DISABLED", "AI_DAILY_CEILING_USD", "AI_USER_DAILY_CALLS"] as const;
+  const saved: Record<string, string | undefined> = {};
+  before(() => {
+    for (const k of GUARD_VARS) saved[k] = process.env[k];
+  });
+  after(() => {
+    for (const k of GUARD_VARS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  // The registry stub plus the guard's read surface. `count`/`aggregate`
+  // report the configured "today" figures; `create` is the same recorder.
+  function makeGuardPrisma(today: { userCalls: number; spentUsd: number }) {
+    const base = makePrismaStub();
+    let reads = 0;
+    const prisma: PrismaStub = {
+      ...base,
+      lLMCallLog: {
+        create: base.lLMCallLog.create,
+        count: async () => {
+          reads++;
+          return today.userCalls;
+        },
+        aggregate: async () => {
+          reads++;
+          return { _sum: { costEstimateUsd: today.spentUsd } };
+        },
+      },
+    };
+    return { prisma, reads: () => reads };
+  }
+
+  it("per-user cap tripped: refuses with spend_cap_user, 0 SDK calls, 0 log rows", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    delete process.env.AI_DISABLED;
+    delete process.env.AI_DAILY_CEILING_USD;
+    process.env.AI_USER_DAILY_CALLS = "5";
+    _resetClientCache();
+    const { client, callCount } = makeFakeClient([]);
+    const { prisma, reads } = makeGuardPrisma({ userCalls: 5, spentUsd: 0 });
+
+    const result = await runAICall(TEXT_KEY, {}, PongSchema, {
+      client,
+      prisma,
+      userId: "u-capped",
+    });
+
+    assert.equal(result.success, false);
+    if (result.success) return;
+    assert.equal(result.reason, "spend_cap_user");
+    assert.match(result.userFacingMessage, /today's planning limit/);
+    assert.equal(callCount(), 0, "stubbed client must record zero calls");
+    assert.equal(prisma._llmLogCalls().length, 0, "a refusal writes no LLMCallLog row");
+    assert.equal(reads(), 1, "one guard read (count) — the ceiling is unset");
+  });
+
+  it("one below the cap: the call proceeds and is logged as usual", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    delete process.env.AI_DISABLED;
+    delete process.env.AI_DAILY_CEILING_USD;
+    process.env.AI_USER_DAILY_CALLS = "5";
+    _resetClientCache();
+    const { client, callCount } = makeFakeClient([
+      {
+        content: [
+          { type: "text", text: '{"pong":"yes"}', citations: null } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+    const { prisma } = makeGuardPrisma({ userCalls: 4, spentUsd: 0 });
+
+    const result = await runAICall(TEXT_KEY, {}, PongSchema, {
+      client,
+      prisma,
+      userId: "u-ok",
+      mode: "text",
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(callCount(), 1);
+    assert.equal(prisma._llmLogCalls().length, 1);
+  });
+
+  it("global ceiling tripped: spend_cap_global, 0 SDK calls, 0 log rows", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    delete process.env.AI_DISABLED;
+    delete process.env.AI_USER_DAILY_CALLS;
+    process.env.AI_DAILY_CEILING_USD = "10";
+    _resetClientCache();
+    const { client, callCount } = makeFakeClient([]);
+    const { prisma } = makeGuardPrisma({ userCalls: 0, spentUsd: 10 });
+
+    const result = await runAICall(TEXT_KEY, {}, PongSchema, {
+      client,
+      prisma,
+      userId: "u-any",
+    });
+
+    assert.equal(result.success, false);
+    if (result.success) return;
+    assert.equal(result.reason, "spend_cap_global");
+    assert.match(result.userFacingMessage, /short break/);
+    assert.equal(callCount(), 0);
+    assert.equal(prisma._llmLogCalls().length, 0);
+  });
+
+  it("kill switch: ai_disabled, 0 SDK calls, 0 log rows, 0 guard reads", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    process.env.AI_DISABLED = "1";
+    delete process.env.AI_DAILY_CEILING_USD;
+    delete process.env.AI_USER_DAILY_CALLS;
+    _resetClientCache();
+    const { client, callCount } = makeFakeClient([]);
+    const { prisma, reads } = makeGuardPrisma({ userCalls: 0, spentUsd: 0 });
+
+    const result = await runAICall(TEXT_KEY, {}, PongSchema, {
+      client,
+      prisma,
+      userId: "u-any",
+    });
+
+    assert.equal(result.success, false);
+    if (result.success) return;
+    assert.equal(result.reason, "ai_disabled");
+    assert.equal(callCount(), 0);
+    assert.equal(prisma._llmLogCalls().length, 0);
+    assert.equal(reads(), 0);
+  });
+
+  it("unset env: no guard reads at all (behaviour unchanged)", async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    delete process.env.AI_DISABLED;
+    delete process.env.AI_DAILY_CEILING_USD;
+    delete process.env.AI_USER_DAILY_CALLS;
+    _resetClientCache();
+    const { client } = makeFakeClient([
+      {
+        content: [
+          { type: "text", text: '{"pong":"yes"}', citations: null } as Anthropic.ContentBlock,
+        ],
+      },
+    ]);
+    const { prisma, reads } = makeGuardPrisma({ userCalls: 10_000, spentUsd: 10_000 });
+
+    const result = await runAICall(TEXT_KEY, {}, PongSchema, {
+      client,
+      prisma,
+      userId: "u-any",
+      mode: "text",
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(reads(), 0);
+  });
+});

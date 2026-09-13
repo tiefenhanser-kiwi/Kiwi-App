@@ -13,6 +13,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { runAICall as productionRunAICall } from "./ai/runAICall";
+import type { AICallFailureReason } from "./ai/errors";
 import type { PrismaLike } from "./ai/promptRegistry";
 import {
   ParseDishResultSchema,
@@ -40,6 +41,9 @@ export type ParseDishFromTextResult =
   | {
       status: "failed";
       error: string;
+      // D-WS9-240 — the AICallFailureReason, so the route can map a
+      // spend-guard refusal to 429/503 instead of a blanket 502.
+      reason: AICallFailureReason;
     };
 
 /**
@@ -73,7 +77,7 @@ export async function parseDishFromText(
   );
 
   if (!result.success) {
-    return { status: "failed", error: result.userFacingMessage };
+    return { status: "failed", error: result.userFacingMessage, reason: result.reason };
   }
 
   return {
