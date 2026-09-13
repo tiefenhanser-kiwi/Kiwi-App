@@ -407,11 +407,15 @@ const stepItemSchema = z
     phaseType: z
       .enum(["prep", "preheat", "cook", "rest", "assemble", "hold"])
       .optional(),
-    // BUG-018 (WS7-8b B1) — parallelGroup retired from the write side. Dropped
-    // from this .strict() save-canonical contract so it can't be set-then-
-    // silently-discarded at the materialize boundary (BUG-029 class). The
-    // mobile save payload never sent it; the DB column stays, unwritten.
     isTimingSensitive: z.boolean().optional(),
+    // WS9 D-WS9-239 (Phase 1a) — the intra-dish overlap token, accepted again on
+    // the save-canonical contract now that the materializer carries it (BUG-018
+    // B1 had dropped it from this .strict() shape precisely because it was
+    // set-then-silently-discarded). Optional: omitted = keep the wiped step's
+    // tag at this index (D-WS9-235 preservation); null = clear it; a string =
+    // the tag. `.max(40)` is D-WS7-012, deferred since May 2026 for this pass.
+    // No client sends it yet; the mobile builder shape is unchanged.
+    parallelGroup: z.string().max(40).nullable().optional(),
   })
   .strict();
 

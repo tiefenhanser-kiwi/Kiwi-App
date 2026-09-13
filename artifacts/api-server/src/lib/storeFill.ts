@@ -418,6 +418,13 @@ export function buildMaterializePayload(
       // Block 3.7 (D-WS9-066) — carry the (validated) component tags to the write.
       ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
       ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),
+      // WS9 D-WS9-239 (Phase 1a) — carry `parallelGroup` when the finalize step
+      // has one. Widened view, not the WizardStep type: WizardStepSchema is the
+      // store.finalize_steps TOOL schema, which 1b widens together with its
+      // prompt body (see wizardActivation.ts for the hazard). Inert until then.
+      ...((s as { parallelGroup?: string | null }).parallelGroup !== undefined
+        ? { parallelGroup: (s as { parallelGroup?: string | null }).parallelGroup }
+        : {}),
     })),
     ...(d.macros
       ? {

@@ -96,6 +96,10 @@ interface ExistingStepRow {
   stepIndex: number;
   phaseType: string;
   isTimingSensitive: boolean;
+  // WS9 D-WS9-239 — the third preserved field. Optional: the older fixtures
+  // never set it and read as "untagged" (null), like the column.
+  parallelGroup?: string | null;
+  estimatedMinutes?: number;
 }
 
 interface StubOpts {
@@ -313,8 +317,12 @@ function makeStub(opts: StubOpts = {}) {
       // not been wiped yet (the step-field preservation read happens BEFORE the
       // deleteMany; the re-stamp read happens after), so a dish whose steps
       // were just rewritten derives from exactly those steps.
+      // WS9 D-WS9-239 — the rows are PROJECTED by the live `select`, the way
+      // Prisma does, so a preservation or re-stamp read that forgets a column
+      // comes back without it and the assertion on that column can go red.
       findMany: async (args: {
         where: { ownerType: string; ownerId: string | { in: string[] } };
+        select?: Record<string, boolean>;
       }) => {
         const owners = new Set(
           typeof args.where.ownerId === "string"
@@ -323,7 +331,13 @@ function makeStub(opts: StubOpts = {}) {
         );
         const pre = existingSteps
           .filter((s) => owners.has(s.ownerId))
-          .map((s) => ({ ...s, estimatedMinutes: 1 }));
+          .map((s) => ({
+            ...s,
+            estimatedMinutes: s.estimatedMinutes ?? 1,
+            parallelGroup: s.parallelGroup ?? null,
+            componentKey: null,
+            pathKey: null,
+          }));
         const created = captured.stepCreates
           .filter((s) => owners.has(s.ownerId as string))
           .map((s) => ({
@@ -332,8 +346,17 @@ function makeStub(opts: StubOpts = {}) {
             estimatedMinutes: (s.estimatedMinutes as number | undefined) ?? 1,
             phaseType: (s.phaseType as string | undefined) ?? "cook",
             isTimingSensitive: (s.isTimingSensitive as boolean | undefined) ?? false,
+            parallelGroup: (s.parallelGroup as string | null | undefined) ?? null,
+            componentKey: null,
+            pathKey: null,
           }));
-        return [...pre, ...created];
+        const rows = [...pre, ...created];
+        if (!args.select) return rows;
+        return rows.map((r) =>
+          Object.fromEntries(
+            Object.entries(r).filter(([k]) => args.select![k] === true),
+          ),
+        );
       },
       create: async (args: { data: Record<string, unknown> }) => {
         captured.stepCreates.push(args.data);
@@ -1267,6 +1290,141 @@ describe("PATCH /me/meals/:id (re-created dishes keep phaseType / isTimingSensit
         .filter((s) => s.ownerId === sideId)
         .sort((a, b) => (a.stepIndex as number) - (b.stepIndex as number));
       assert.equal(sideSteps[1].isTimingSensitive, false, "a SENT false wins over the existing true");
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS9 D-WS9-239 — parallelGroup survives the wipe-and-recreate ────────────
+//
+// THE load-bearing carrier: every meal PATCH and Dish Builder save wipes and
+// re-creates the steps from a payload that does not carry the tag. Without
+// readPreservableSteps + preservedStepFields carrying it, a persisted tag is
+// gone on the first edit and the derived time jumps back UP. Three states:
+// omitted inherits, an explicit null clears, a string wins — and the re-stamp
+// in the same transaction derives from the PRESERVED tag.
+describe("PATCH /me/dishes/:id (steps keep parallelGroup when omitted — D-WS9-239)", () => {
+  // preheat 10 (window "oven") · prep 12 (rider) · bake 30. Serial 52; with
+  // the group honoured the prep rides the preheat and OUTLASTS it, so the bake
+  // waits for max(finish) = 12: 12 + 30 = 42.
+  const existing = (): ExistingStepRow[] => [
+    { ownerId: "dish-1", stepIndex: 0, phaseType: "preheat", isTimingSensitive: false, parallelGroup: "oven", estimatedMinutes: 10 },
+    { ownerId: "dish-1", stepIndex: 1, phaseType: "prep", isTimingSensitive: false, parallelGroup: "oven", estimatedMinutes: 12 },
+    { ownerId: "dish-1", stepIndex: 2, phaseType: "cook", isTimingSensitive: false, parallelGroup: null, estimatedMinutes: 30 },
+  ];
+
+  it("a steps patch omitting parallelGroup keeps each step's tag by index, and the re-stamp derives from it (42, not 52)", async () => {
+    const { prisma, captured } = makeStub({
+      dishes: [{ id: "dish-1", userId: USER_ID, isArchived: false }],
+      links: [{ mealId: "meal-a", dishId: "dish-1", positionIndex: 0 }],
+      existingSteps: existing(),
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/dishes/dish-1", {
+        // The Dish Builder's edit shape: no phaseType, no parallelGroup.
+        steps: [
+          { text: "Heat the oven.", estimatedMinutes: 10 },
+          { text: "Dice everything.", estimatedMinutes: 12 },
+          { text: "Bake.", estimatedMinutes: 30 },
+          { text: "Serve.", estimatedMinutes: 1 }, // new — no step 3 existed
+        ],
+      });
+      assert.equal(res.status, 200);
+      const created = captured.stepCreates
+        .filter((s) => s.ownerId === "dish-1")
+        .sort((a, b) => (a.stepIndex as number) - (b.stepIndex as number));
+      assert.equal(created.length, 4);
+      assert.deepEqual(
+        created.map((s) => ("parallelGroup" in s ? s.parallelGroup : "(omitted)")),
+        ["oven", "oven", null, "(omitted)"],
+        "steps 0–2 inherit the wiped step's tag (a persisted null stays an explicit null); the appended step carries no key",
+      );
+      // The re-stamp read the PRESERVED tags: prep rides the preheat.
+      const stamped = captured.mealUpdates.filter((u) => u.where.id === "meal-a");
+      assert.equal(stamped.length, 1);
+      assert.equal(stamped[0].data.estimatedTimeMinutes, 43, "12 (the rider outlasts the 10-min window) + 30 bake + 1 serve — not the serial 53");
+      assert.equal(stamped[0].data.activeTimeMinutes, 12, "the prep only — the appended serve step defaults to cook/unattended");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a SENT null clears the tag (the number goes back to serial); a SENT string wins over the existing one", async () => {
+    const { prisma, captured } = makeStub({
+      dishes: [{ id: "dish-1", userId: USER_ID, isArchived: false }],
+      links: [{ mealId: "meal-a", dishId: "dish-1", positionIndex: 0 }],
+      existingSteps: existing(),
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/dishes/dish-1", {
+        steps: [
+          { text: "Heat the oven.", estimatedMinutes: 10, parallelGroup: "hob" },
+          { text: "Dice everything.", estimatedMinutes: 12, parallelGroup: null },
+          { text: "Bake.", estimatedMinutes: 30 },
+        ],
+      });
+      assert.equal(res.status, 200);
+      const created = captured.stepCreates
+        .filter((s) => s.ownerId === "dish-1")
+        .sort((a, b) => (a.stepIndex as number) - (b.stepIndex as number));
+      assert.equal(created[0].parallelGroup, "hob", "a sent string wins over the existing 'oven'");
+      assert.ok("parallelGroup" in created[1] && created[1].parallelGroup === null, "a sent null clears, and is written as null");
+      // "hob" is now a lone window (its rider was cleared) → ignored → serial.
+      const stamped = captured.mealUpdates.filter((u) => u.where.id === "meal-a");
+      assert.equal(stamped[0].data.estimatedTimeMinutes, 52, "back to the serial 10+12+30");
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("PATCH /me/meals/:id (re-created dishes keep parallelGroup when omitted — D-WS9-239)", () => {
+  it("the meal-builder's dish re-create (no parallelGroup sent) keeps each step's tag by dish position + stepIndex", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+      dishes: [{ id: "dish-old", userId: USER_ID, isArchived: false }],
+      links: [{ mealId: "meal-1", dishId: "dish-old", positionIndex: 0 }],
+      existingSteps: [
+        { ownerId: "dish-old", stepIndex: 0, phaseType: "preheat", isTimingSensitive: false, parallelGroup: "oven", estimatedMinutes: 10 },
+        { ownerId: "dish-old", stepIndex: 1, phaseType: "prep", isTimingSensitive: false, parallelGroup: "oven", estimatedMinutes: 12 },
+        { ownerId: "dish-old", stepIndex: 2, phaseType: "cook", isTimingSensitive: false, parallelGroup: null, estimatedMinutes: 30 },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Roast",
+        dishes: [
+          {
+            kind: "new",
+            title: "Roast",
+            role: "main",
+            positionIndex: 0,
+            ingredients: [{ name: "Chicken", quantity: 1, unit: "pound" }],
+            steps: [
+              { text: "Oven on.", estimatedMinutes: 10 },
+              { text: "Prep.", estimatedMinutes: 12 },
+              { text: "Roast.", estimatedMinutes: 30 },
+            ],
+          },
+        ],
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { meal: { dishIds: string[] } };
+      const [newId] = body.meal.dishIds;
+      const created = captured.stepCreates
+        .filter((s) => s.ownerId === newId)
+        .sort((a, b) => (a.stepIndex as number) - (b.stepIndex as number));
+      assert.deepEqual(
+        created.map((s) => s.parallelGroup),
+        ["oven", "oven", null],
+        "the re-created dish at position 0 keeps oven/oven/null by stepIndex",
+      );
+      const stamped = captured.mealUpdates.filter((u) => u.where.id === "meal-1" && "estimatedTimeMinutes" in u.data);
+      assert.equal(stamped.at(-1)!.data.estimatedTimeMinutes, 42, "derived from the preserved tags: max(10, 12) + 30 — not the serial 52");
     } finally {
       await harness.close();
     }

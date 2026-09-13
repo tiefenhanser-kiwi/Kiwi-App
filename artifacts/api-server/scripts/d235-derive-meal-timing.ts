@@ -105,7 +105,12 @@ const meals = await prisma.meal.findMany({
 });
 const steps = await prisma.recipeInstructionStep.findMany({
   where: { ownerType: "dish" },
-  select: { ownerId: true, stepIndex: true, estimatedMinutes: true, phaseType: true, isTimingSensitive: true },
+  // WS9 D-WS9-239 — parallelGroup + component tags ride along (the 1c
+  // re-derivation runs THIS script over the tagged catalog).
+  select: {
+    ownerId: true, stepIndex: true, estimatedMinutes: true, phaseType: true, isTimingSensitive: true,
+    parallelGroup: true, componentKey: true, pathKey: true,
+  },
   orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
 });
 const byDish = new Map<string, SchedulerDish["steps"]>();
@@ -116,6 +121,9 @@ for (const s of steps) {
     estimatedMinutes: s.estimatedMinutes,
     phaseType: s.phaseType as SchedulerPhase,
     isTimingSensitive: s.isTimingSensitive,
+    parallelGroup: s.parallelGroup,
+    componentKey: s.componentKey,
+    pathKey: s.pathKey,
   });
   byDish.set(s.ownerId, list);
 }
@@ -123,6 +131,10 @@ for (const s of steps) {
 interface Plan { mealId: string; total: number; active: number; dishTotals: Map<string, number>; delta: number; sourceType: string; }
 const plans: Plan[] = [];
 const skipped: { id: string; title: string; why: string }[] = [];
+// WS9 D-WS9-239 — tags the scheduler set aside, per reason, so a 1c run can
+// see its tagging defects in one line instead of per-meal warn spam.
+const ignoredByReason = new Map<string, number>();
+let mealsWithIgnored = 0;
 for (const m of meals) {
   // No ordering here, on purpose: the REAL link positionIndex is passed through
   // and deriveMealTiming applies the one canonical comparator (positionIndex,
@@ -133,6 +145,10 @@ for (const m of meals) {
     .filter((dl) => byDish.has(dl.dishId))
     .map((dl) => ({ dishId: dl.dishId, title: dl.dishId, positionIndex: dl.positionIndex, steps: byDish.get(dl.dishId)! }));
   const t = deriveMealTiming(dishes);
+  if (t.ignoredTags.length > 0) {
+    mealsWithIgnored++;
+    for (const i of t.ignoredTags) ignoredByReason.set(i.reason, (ignoredByReason.get(i.reason) ?? 0) + 1);
+  }
   if (t.totalMinutes === null || t.activeMinutes === null) {
     skipped.push({ id: m.id, title: m.title, why: m.dishLinks.length === 0 ? "no dishes" : "no steps on any dish" });
     continue;
@@ -149,6 +165,10 @@ const pct = (arr: number[], p: number) => {
 };
 const deltas = plans.map((p) => p.delta);
 console.log(`\nDERIVABLE ${plans.length} of ${meals.length}   SKIPPED ${skipped.length}`);
+console.log(
+  `PARALLELGROUP tags ignored (D-WS9-239): meals=${mealsWithIgnored}  ` +
+    ([...ignoredByReason].map(([k, v]) => `${k}=${v}`).join(", ") || "none"),
+);
 console.log(`\nTHE MOVE (derived total − stored), minutes:`);
 console.log(`  p10=${pct(deltas, 10)}  p50=${pct(deltas, 50)}  p90=${pct(deltas, 90)}   max=${Math.max(...deltas)}  min=${Math.min(...deltas)}`);
 console.log(`  meals gaining time: ${deltas.filter((d) => d > 0).length}   unchanged: ${deltas.filter((d) => d === 0).length}   losing: ${deltas.filter((d) => d < 0).length}`);

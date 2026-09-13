@@ -36,7 +36,7 @@ interface StepFixture {
   stepTextTranslated: string;
   estimatedMinutes: number;
   phaseType: "prep" | "cook" | "rest" | "preheat" | "assemble" | "hold";
-  // Still a DB column (retired write-side in B1); the loader no longer reads it.
+  // WS9 D-WS9-239 — read again: the loader forwards it to the scheduler.
   parallelGroup: string | null;
   isTimingSensitive: boolean;
 }
@@ -338,5 +338,47 @@ describe("runCookingSequence — multi-dish (deterministic)", () => {
       const overlap = r.start < sear.finish && sear.start < r.finish;
       assert.ok(!overlap, `${r.key} must not overlap the sear window`);
     }
+  });
+});
+
+// ── WS9 D-WS9-239 — the loader CARRIES parallelGroup to the scheduler ────────
+//
+// The scheduler honours the token; this test pins that the row → SchedulerStep
+// map in runCookingSequence no longer drops it (the map listed four fields by
+// name, so a persisted tag never reached Cook Mode). Same dish twice, tagged
+// and untagged: only the loader-carried tag can make the totals differ.
+describe("runCookingSequence — D-WS9-239 parallelGroup reaches the scheduler", () => {
+  function fixture(tag: string | null) {
+    const meals: MealFixture[] = [
+      {
+        id: "meal-tagged",
+        userId: USER_ID,
+        isPublic: false,
+        dishLinks: [
+          { dishId: "dish-t", positionIndex: 0, dish: { id: "dish-t", title: "Baked Ziti" } },
+        ],
+      },
+    ];
+    // preheat 20 (window) · prep 12 (rider) · bake 30 (waits). 62 serial, 50 tagged.
+    const steps: StepFixture[] = [
+      { ownerType: "dish", ownerId: "dish-t", stepIndex: 0, stepTextTranslated: "Heat the oven.", estimatedMinutes: 20, phaseType: "preheat", parallelGroup: tag, isTimingSensitive: false },
+      { ownerType: "dish", ownerId: "dish-t", stepIndex: 1, stepTextTranslated: "Assemble the ziti.", estimatedMinutes: 12, phaseType: "prep", parallelGroup: tag, isTimingSensitive: false },
+      { ownerType: "dish", ownerId: "dish-t", stepIndex: 2, stepTextTranslated: "Bake.", estimatedMinutes: 30, phaseType: "cook", parallelGroup: null, isTimingSensitive: false },
+    ];
+    return makePrismaStub({ meals, steps });
+  }
+
+  it("a tagged dish schedules 50, its untagged twin 62 — the loader forwarded the column", async () => {
+    const tagged = await runCookingSequence({ mealId: "meal-tagged", userId: USER_ID, deps: { prisma: fixture("oven") } });
+    const plain = await runCookingSequence({ mealId: "meal-tagged", userId: USER_ID, deps: { prisma: fixture(null) } });
+    assert.equal(plain.totalEstimatedMinutes, 62);
+    assert.equal(tagged.totalEstimatedMinutes, 50);
+    // The rider starts at the window's kickoff on the wire: both at T-50.
+    const at = (r: typeof tagged, idx: number) =>
+      r.sequence.find((s) => s.originalStepIndex === idx)!.startOffsetMinutes;
+    assert.equal(at(tagged, 0), -50);
+    assert.equal(at(tagged, 1), -50);
+    assert.equal(at(tagged, 2), -30);
+    assert.equal(tagged.usedAI, false);
   });
 });

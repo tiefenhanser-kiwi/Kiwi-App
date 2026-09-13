@@ -445,6 +445,30 @@ describe("buildMaterializePayload", () => {
     assert.equal(d0.steps.length, 2);
     assert.equal(d0.steps[0].phaseType, "prep");
   });
+
+  // WS9 D-WS9-239 (1a) — the payload CARRIES parallelGroup when a finalize step
+  // has one, and carries no key when it does not. Handed a step object
+  // directly (past the schema): WizardStepSchema is the store.finalize_steps
+  // TOOL schema and stays unwidened until 1b, so today every parsed step lacks
+  // the field and this carrier is inert — this pins that it is wired for the
+  // day 1b opens the schema.
+  it("D-WS9-239: carries parallelGroup from a finalize step into the payload; omitted stays omitted", () => {
+    const meal = makeMeal();
+    const merged = mergeSteps(meal, finalizeFor(meal));
+    assert.equal(merged.ok, true);
+    if (!merged.ok) return;
+    const withTag = merged.stepsPerDish.map((steps, di) =>
+      di === 0
+        ? steps.map((s, si) => (si === 0 ? ({ ...s, parallelGroup: "oven" } as typeof s) : s))
+        : steps,
+    );
+    const payload = buildMaterializePayload(meal, withTag, ["dairy"], "seared-chicken");
+    const d0 = payload.dishes[0];
+    assert.equal(d0.kind, "new");
+    if (d0.kind !== "new") return;
+    assert.equal(d0.steps[0].parallelGroup, "oven");
+    assert.ok(!("parallelGroup" in d0.steps[1]), "an untagged step carries no key (not null)");
+  });
 });
 
 // ── materializeMeal via the store target persists DISH-OWNED steps ──────────

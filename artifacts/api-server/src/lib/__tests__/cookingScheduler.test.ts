@@ -68,11 +68,15 @@ function analyze(result: ScheduleResult, dishes: SchedulerDish[]): Analyzed[] {
   });
 }
 
-/** anchor = the theoretical earliest serve = the gating (longest) dish's duration. */
-function anchorOf(dishes: SchedulerDish[]): number {
-  return Math.max(
-    ...dishes.map((d) => d.steps.reduce((a, s) => a + s.estimatedMinutes, 0)),
-  );
+/**
+ * anchor = the theoretical earliest serve = the gating (longest) dish's duration.
+ * WS9 D-WS9-239 — read off the result's per-dish CRITICAL PATH, not a serial
+ * sum: a tagged dish is shorter than Σ its steps, and a Σ-based anchor would
+ * flag every tagged fixture as "materially early". For an untagged dish the
+ * two are the same number (pinned in the D-WS9-239 block below).
+ */
+function anchorOf(result: ScheduleResult): number {
+  return Math.max(...Object.values(result.dishDurations));
 }
 
 // ── shared structural invariants (asserted on every fixture) ────────────────
@@ -131,7 +135,7 @@ function assertWellFormed(result: ScheduleResult, dishes: SchedulerDish[]) {
   // than the anchor (the earliest a single cook could possibly plate). This is
   // the invariant, not a magic number: the gating dish sets the floor and no
   // dish may complete before it.
-  const anchor = anchorOf(dishes);
+  const anchor = anchorOf(result);
   const lastFinishByDish = new Map<string, number>();
   for (const r of rows) {
     lastFinishByDish.set(
@@ -316,16 +320,19 @@ describe("scheduleCookingSequence — cues + edge cases", () => {
   });
 
   it("returns an empty schedule for no dishes / no steps", () => {
-    assert.deepEqual(scheduleCookingSequence([]), {
+    const empty: ScheduleResult = {
       steps: [],
       totalEstimatedMinutes: 0,
       activeEstimatedMinutes: 0,
-    });
+      dishDurations: {},
+      ignoredTags: [],
+    };
+    assert.deepEqual(scheduleCookingSequence([]), empty);
     assert.deepEqual(
       scheduleCookingSequence([
         { dishId: "d", title: "Empty", positionIndex: 0, steps: [] },
       ]),
-      { steps: [], totalEstimatedMinutes: 0, activeEstimatedMinutes: 0 },
+      empty,
     );
   });
 
@@ -400,5 +407,454 @@ describe("scheduleCookingSequence — cues + edge cases", () => {
       scheduleCookingSequence(dishes),
       scheduleCookingSequence(dishes),
     );
+  });
+});
+
+// ── WS9 D-WS9-239 Phase 1a — intra-dish `parallelGroup` ─────────────────────
+//
+// The contract as MEASURED in Phase 0b (see the module header): a token names
+// an UNATTENDED window step and rides on the CONTIGUOUS same-token steps after
+// it; a rider may start at the window's kickoff; the first untagged step after
+// the group waits for max(finish); every invalid tag is IGNORED (the step just
+// waits); and the meal is scheduled twice — tags honoured / ignored — with the
+// shorter total emitted. Every number below is a literal read against the live
+// result, and every invalid-shape fixture is asserted EQUAL to its own untagged
+// twin (deepEqual on the emitted schedule), not merely "not shorter".
+
+/** A step with the D-WS9-239 columns. */
+function tstep(
+  stepIndex: number,
+  estimatedMinutes: number,
+  phaseType: SchedulerStep["phaseType"],
+  opts: {
+    ts?: boolean;
+    tag?: string | null;
+    componentKey?: string | null;
+    pathKey?: string | null;
+  } = {},
+): SchedulerStep {
+  return {
+    stepIndex,
+    estimatedMinutes,
+    phaseType,
+    isTimingSensitive: opts.ts ?? false,
+    parallelGroup: opts.tag ?? null,
+    ...(opts.componentKey !== undefined ? { componentKey: opts.componentKey } : {}),
+    ...(opts.pathKey !== undefined ? { pathKey: opts.pathKey } : {}),
+  };
+}
+
+/** The same dishes with every tag stripped — the control every fixture is judged against. */
+function untaggedTwin(dishes: SchedulerDish[]): SchedulerDish[] {
+  return dishes.map((d) => ({
+    ...d,
+    steps: d.steps.map((s) => ({ ...s, parallelGroup: null })),
+  }));
+}
+
+/** The emitted schedule minus `ignoredTags` (which is the one field allowed to differ). */
+function emitted(r: ScheduleResult) {
+  const { ignoredTags: _ignored, ...rest } = r;
+  return rest;
+}
+
+describe("scheduleCookingSequence — D-WS9-239 parallelGroup (valid groups)", () => {
+  // preheat 20 (window) · prep 12 + prep 5 (riders) · bake 30 (untagged, waits).
+  const dishes: SchedulerDish[] = [
+    {
+      dishId: "bake",
+      title: "Baked Ziti",
+      positionIndex: 0,
+      steps: [
+        tstep(0, 20, "preheat", { tag: "oven" }),
+        tstep(1, 12, "prep", { tag: "oven" }),
+        tstep(2, 5, "prep", { tag: "oven" }),
+        tstep(3, 30, "cook"), // the bake — no tag, so it waits for the whole group
+      ],
+    },
+  ];
+
+  it("a valid group shortens the meal by the overlap; active minutes do not move", () => {
+    const control = scheduleCookingSequence(untaggedTwin(dishes));
+    assert.equal(control.totalEstimatedMinutes, 67, "untagged: 20+12+5+30 serial");
+    assert.equal(control.activeEstimatedMinutes, 17);
+
+    const result = scheduleCookingSequence(dishes);
+    assertWellFormed(result, dishes);
+    // Riders ride the 20-min preheat (12 then 5 serialize on the cook → done at
+    // 17); the bake waits for max(finish) = the WINDOW's 20, not the riders' 17.
+    assert.equal(result.totalEstimatedMinutes, 50, "20 (window) + 30 (bake)");
+    assert.equal(result.activeEstimatedMinutes, 17, "Σ attended is unchanged by overlap");
+    assert.deepEqual(result.ignoredTags, []);
+    // The dish's own duration is its critical path, and it equals the meal's.
+    assert.deepEqual(result.dishDurations, { bake: 50 });
+
+    const rows = analyze(result, dishes);
+    const preheat = rows.find((r) => r.stepIndex === 0)!;
+    const chop = rows.find((r) => r.stepIndex === 1)!;
+    const bakeStep = rows.find((r) => r.stepIndex === 3)!;
+    assert.equal(chop.startAbs, preheat.startAbs, "a rider starts at the window's KICKOFF");
+    assert.equal(bakeStep.startAbs, 20, "the first untagged step waits for max(finish) of the group");
+  });
+
+  it("the untagged twin's dishDurations are the serial sums (the pre-239 number)", () => {
+    const control = scheduleCookingSequence(untaggedTwin(dishes));
+    assert.deepEqual(control.dishDurations, { bake: 67 });
+    assert.deepEqual(control.ignoredTags, []);
+  });
+
+  it("an unattended rider is kicked off in the background; an attended rider still holds the cook", () => {
+    // preheat 10 (window) · prep 4 (attended rider) · simmer 8 (unattended
+    // rider) · toss 2 (untagged). The simmer's kickoff needs a free hand, so it
+    // is pushed past the prep it would otherwise land inside.
+    const d: SchedulerDish[] = [
+      {
+        dishId: "rice",
+        title: "Rice",
+        positionIndex: 0,
+        steps: [
+          tstep(0, 10, "preheat", { tag: "w" }),
+          tstep(1, 4, "prep", { tag: "w" }),
+          tstep(2, 8, "cook", { tag: "w" }), // unattended simmer
+          tstep(3, 2, "assemble"),
+        ],
+      },
+    ];
+    const result = scheduleCookingSequence(d);
+    assertWellFormed(result, d);
+    const rows = analyze(result, d);
+    assert.equal(rows.find((r) => r.stepIndex === 1)!.startAbs, 0, "attended rider at kickoff");
+    assert.equal(rows.find((r) => r.stepIndex === 2)!.startAbs, 4, "unattended rider waits for a free hand (after the 4-min prep)");
+    assert.equal(rows.find((r) => r.stepIndex === 3)!.startAbs, 12, "toss waits for max(10, 4, 12)");
+    assert.equal(result.totalEstimatedMinutes, 14, "vs 24 serial");
+    assert.equal(scheduleCookingSequence(untaggedTwin(d)).totalEstimatedMinutes, 24);
+    assert.equal(result.activeEstimatedMinutes, 6);
+  });
+
+  it("the §5.4 Cajun shape: a second window opens right after the first group closes", () => {
+    // Cajun Shrimp Pasta (handcheck_b.md): boil 8 (w0) · prep 7/3/1/3 ride it ·
+    // pasta 10 (w5) · sauté 4/4/1 ride it · deglaze 2 + cream 5 (unattended
+    // riders) · toss 2 · finish 2 · plate 2. Stored 54 → 34, measured in Phase 0b.
+    const d: SchedulerDish[] = [
+      {
+        dishId: "cajun",
+        title: "Cajun Shrimp Pasta",
+        positionIndex: 0,
+        steps: [
+          tstep(0, 8, "preheat", { tag: "w0" }),
+          tstep(1, 7, "prep", { tag: "w0" }),
+          tstep(2, 3, "prep", { tag: "w0", pathKey: "scratch" }),
+          tstep(3, 1, "prep", { tag: "w0", pathKey: "bought" }),
+          tstep(4, 3, "prep", { tag: "w0" }),
+          tstep(5, 10, "cook", { tag: "w5" }),
+          tstep(6, 4, "cook", { tag: "w5", ts: true }),
+          tstep(7, 4, "cook", { tag: "w5", ts: true }),
+          tstep(8, 1, "cook", { tag: "w5", ts: true }),
+          tstep(9, 2, "cook", { tag: "w5" }),
+          tstep(10, 5, "cook", { tag: "w5" }),
+          tstep(11, 2, "cook", { ts: true }),
+          tstep(12, 2, "assemble"),
+          tstep(13, 2, "assemble"),
+        ],
+      },
+    ];
+    const result = scheduleCookingSequence(d);
+    assertWellFormed(result, d);
+    assert.equal(scheduleCookingSequence(untaggedTwin(d)).totalEstimatedMinutes, 54);
+    assert.equal(result.totalEstimatedMinutes, 34);
+    assert.equal(result.activeEstimatedMinutes, 29);
+    assert.deepEqual(result.ignoredTags, []);
+    const rows = analyze(result, d);
+    assert.equal(rows.find((r) => r.stepIndex === 5)!.startAbs, 14, "the pasta waits for max(finish) of the w0 group (8,7,10,11,14)");
+  });
+
+  it("is deterministic with tags — identical input yields identical output", () => {
+    assert.deepEqual(scheduleCookingSequence(dishes), scheduleCookingSequence(dishes));
+  });
+});
+
+describe("scheduleCookingSequence — D-WS9-239 invalid tags are ignored (never honoured, never thrown)", () => {
+  // The base dish every invalid shape is built on: prep 5 · preheat 10 · prep 6
+  // · roast 20 (unattended) · rest 5. Untagged = 46 serial.
+  const base = (): SchedulerStep[] => [
+    tstep(0, 5, "prep"),
+    tstep(1, 10, "preheat"),
+    tstep(2, 6, "prep"),
+    tstep(3, 20, "cook"),
+    tstep(4, 5, "rest"),
+  ];
+  const dish = (steps: SchedulerStep[]): SchedulerDish[] => [
+    { dishId: "x", title: "X", positionIndex: 0, steps },
+  ];
+  const tagAt = (steps: SchedulerStep[], tag: string, ...idx: number[]) =>
+    steps.map((s, i) => (idx.includes(i) ? { ...s, parallelGroup: tag } : s));
+
+  function assertIgnoredEqualsUntagged(
+    d: SchedulerDish[],
+    expectedIgnored: ScheduleResult["ignoredTags"],
+  ) {
+    const control = scheduleCookingSequence(untaggedTwin(d));
+    const result = scheduleCookingSequence(d);
+    assertWellFormed(result, d);
+    assert.deepEqual(emitted(result), emitted(control), "the schedule is the untagged one");
+    assert.deepEqual(result.ignoredTags, expectedIgnored);
+  }
+
+  it("a window on an ATTENDED step: the whole token is dropped (attended_window)", () => {
+    const d = dish(tagAt(base(), "g", 0, 1)); // first occurrence = the prep
+    assertIgnoredEqualsUntagged(d, [
+      { dishId: "x", stepIndex: 0, token: "g", reason: "attended_window" },
+      { dishId: "x", stepIndex: 1, token: "g", reason: "attended_window" },
+    ]);
+    assert.equal(scheduleCookingSequence(d).totalEstimatedMinutes, 46);
+  });
+
+  it("a rider that PRECEDES its window: the first occurrence is attended, so there is no window", () => {
+    // The author meant the roast (#3) as the window and the prep (#2) to ride
+    // it — but the token's first occurrence is #2, an attended step.
+    const d = dish(tagAt(base(), "g", 2, 3));
+    assertIgnoredEqualsUntagged(d, [
+      { dishId: "x", stepIndex: 2, token: "g", reason: "attended_window" },
+      { dishId: "x", stepIndex: 3, token: "g", reason: "attended_window" },
+    ]);
+  });
+
+  it("contiguity: a token that re-appears after its group closed is dropped (reopened_group), the contiguous part is honoured", () => {
+    // preheat(1)+prep(2) form the group; roast(3) is untagged and closes it;
+    // rest(4) carries the token again → dropped, so the rest still waits for
+    // the roast. Honouring it would start the rest at minute 5.
+    const d = dish(tagAt(base(), "g", 1, 2, 4));
+    const result = scheduleCookingSequence(d);
+    assertWellFormed(result, d);
+    assert.deepEqual(result.ignoredTags, [
+      { dishId: "x", stepIndex: 4, token: "g", reason: "reopened_group" },
+    ]);
+    // prep 5 → preheat [5,15) with prep [5,11) riding → roast waits 15 → [15,35) → rest [35,40).
+    assert.equal(result.totalEstimatedMinutes, 40, "40, not 35 (the rest did not ride)");
+    const rows = analyze(result, d);
+    assert.equal(rows.find((r) => r.stepIndex === 4)!.startAbs, 35);
+    assert.equal(rows.find((r) => r.stepIndex === 2)!.startAbs, 5, "the contiguous rider still rides");
+  });
+
+  it("more than one token on a step (whitespace / separator) is malformed and ignored", () => {
+    const d = dish(tagAt(base(), "oven boil", 1, 2));
+    assertIgnoredEqualsUntagged(d, [
+      { dishId: "x", stepIndex: 1, token: "oven boil", reason: "malformed_token" },
+      { dishId: "x", stepIndex: 2, token: "oven boil", reason: "malformed_token" },
+    ]);
+  });
+
+  it("an empty / whitespace-only tag is simply untagged (no ignoredTags entry)", () => {
+    const d = dish(tagAt(base(), "   ", 1, 2));
+    assertIgnoredEqualsUntagged(d, []);
+  });
+
+  it("a window whose every rider was rejected is a lone_token (nothing rides it)", () => {
+    const d = dish(tagAt(base(), "g", 3)); // the roast alone
+    assertIgnoredEqualsUntagged(d, [
+      { dishId: "x", stepIndex: 3, token: "g", reason: "lone_token" },
+    ]);
+  });
+
+  describe("same-component rest/hold immediately after a cook window (Phase 0b narrowing)", () => {
+    const sear = (restComponent: string | null, cookComponent: string | null): SchedulerDish[] => [
+      {
+        dishId: "steak",
+        title: "Steak",
+        positionIndex: 0,
+        steps: [
+          tstep(0, 5, "prep"),
+          tstep(1, 20, "cook", { tag: "g", componentKey: cookComponent }), // unattended roast = window
+          tstep(2, 5, "rest", { tag: "g", componentKey: restComponent }), // rides it?
+        ],
+      },
+    ];
+
+    it("REJECTS a rest riding its own cook (both base / same componentKey): rest_rides_cook + the window goes lone", () => {
+      for (const [rest, cook] of [
+        [null, null],
+        ["meat", "meat"],
+      ] as const) {
+        const d = sear(rest, cook);
+        const control = scheduleCookingSequence(untaggedTwin(d));
+        const result = scheduleCookingSequence(d);
+        assert.deepEqual(emitted(result), emitted(control));
+        assert.equal(result.totalEstimatedMinutes, 30, `${rest}/${cook}: 5+20+5 serial`);
+        assert.deepEqual(result.ignoredTags, [
+          { dishId: "steak", stepIndex: 2, token: "g", reason: "rest_rides_cook" },
+          { dishId: "steak", stepIndex: 1, token: "g", reason: "lone_token" },
+        ]);
+      }
+    });
+
+    it("does NOT reject a rest that belongs to a DIFFERENT component (the false positive the narrowing fixed)", () => {
+      const d = sear("sauce", "meat");
+      const result = scheduleCookingSequence(d);
+      assertWellFormed(result, d);
+      assert.deepEqual(result.ignoredTags, []);
+      // The sauce's rest rides the meat's roast: [5,10) inside [5,25) → 25, not 30.
+      assert.equal(result.totalEstimatedMinutes, 25);
+      assert.equal(scheduleCookingSequence(untaggedTwin(d)).totalEstimatedMinutes, 30);
+    });
+
+    it("the narrowing is adjacency-specific: a rest two steps after the cook window is not this rule", () => {
+      const d: SchedulerDish[] = [
+        {
+          dishId: "s",
+          title: "S",
+          positionIndex: 0,
+          steps: [
+            tstep(0, 20, "cook", { tag: "g" }),
+            tstep(1, 4, "prep", { tag: "g" }),
+            tstep(2, 5, "rest", { tag: "g" }),
+          ],
+        },
+      ];
+      const result = scheduleCookingSequence(d);
+      assert.deepEqual(result.ignoredTags, []);
+      assert.equal(result.totalEstimatedMinutes, 20, "prep [0,4) and rest [4,9) both ride the 20-min roast");
+    });
+  });
+
+  describe("path rule: a rider's pathKey must agree with the window's unless one is base (null)", () => {
+    const pasta = (windowPath: string | null, riderPath: string | null): SchedulerDish[] => [
+      {
+        dishId: "p",
+        title: "Pasta",
+        positionIndex: 0,
+        steps: [
+          tstep(0, 5, "prep"),
+          tstep(1, 12, "cook", { tag: "g", pathKey: windowPath }), // unattended boil = window
+          tstep(2, 6, "prep", { tag: "g", pathKey: riderPath }),
+        ],
+      },
+    ];
+
+    it("scratch never rides bought (and vice versa): path_mismatch + lone window = the untagged schedule", () => {
+      for (const [w, r] of [
+        ["bought", "scratch"],
+        ["scratch", "bought"],
+      ] as const) {
+        const d = pasta(w, r);
+        const control = scheduleCookingSequence(untaggedTwin(d));
+        const result = scheduleCookingSequence(d);
+        assert.deepEqual(emitted(result), emitted(control));
+        assert.equal(result.totalEstimatedMinutes, 23, `${w}/${r}: 5+12+6 serial`);
+        assert.deepEqual(result.ignoredTags, [
+          { dishId: "p", stepIndex: 2, token: "g", reason: "path_mismatch" },
+          { dishId: "p", stepIndex: 1, token: "g", reason: "lone_token" },
+        ]);
+      }
+    });
+
+    it("base (null) rides with anything, on either side", () => {
+      for (const [w, r] of [
+        [null, "scratch"],
+        ["bought", null],
+        [null, null],
+        ["scratch", "scratch"],
+      ] as const) {
+        const d = pasta(w, r);
+        const result = scheduleCookingSequence(d);
+        assertWellFormed(result, d);
+        assert.deepEqual(result.ignoredTags, [], `${w}/${r}`);
+        assert.equal(result.totalEstimatedMinutes, 17, `${w}/${r}: the prep rides the boil → 5+12`);
+      }
+    });
+
+    it("a path hole closes the group: later same-token riders are reopened_group, not honoured", () => {
+      const d: SchedulerDish[] = [
+        {
+          dishId: "p",
+          title: "Pasta",
+          positionIndex: 0,
+          steps: [
+            tstep(0, 12, "cook", { tag: "g", pathKey: "bought" }),
+            tstep(1, 6, "prep", { tag: "g", pathKey: "scratch" }), // mismatch → hole
+            tstep(2, 3, "prep", { tag: "g", pathKey: "bought" }), // would agree, but the group is closed
+          ],
+        },
+      ];
+      const result = scheduleCookingSequence(d);
+      assert.deepEqual(result.ignoredTags, [
+        { dishId: "p", stepIndex: 1, token: "g", reason: "path_mismatch" },
+        { dishId: "p", stepIndex: 2, token: "g", reason: "reopened_group" },
+        { dishId: "p", stepIndex: 0, token: "g", reason: "lone_token" },
+      ]);
+      assert.equal(result.totalEstimatedMinutes, 21, "12+6+3 serial");
+    });
+  });
+
+  it("a token never spans two dishes: the same name in two dishes is two independent groups", () => {
+    // Dish A has a valid group "g". Dish B's only "g" sits on an attended step:
+    // read across dishes it would be a rider of A's window; per dish it has no
+    // window at all → attended_window, and B schedules exactly as untagged.
+    const d: SchedulerDish[] = [
+      {
+        dishId: "a",
+        title: "A",
+        positionIndex: 0,
+        steps: [tstep(0, 10, "preheat", { tag: "g" }), tstep(1, 5, "prep", { tag: "g" })],
+      },
+      {
+        dishId: "b",
+        title: "B",
+        positionIndex: 1,
+        steps: [tstep(0, 4, "prep", { tag: "g" }), tstep(1, 3, "assemble")],
+      },
+    ];
+    const result = scheduleCookingSequence(d);
+    assertWellFormed(result, d);
+    assert.deepEqual(result.ignoredTags, [
+      { dishId: "b", stepIndex: 0, token: "g", reason: "attended_window" },
+    ]);
+    assert.deepEqual(result.dishDurations, { a: 10, b: 7 }, "A's group honoured (10 not 15); B serial");
+    // B's own timeline is its untagged one: the prep does not start at A's kickoff.
+    const rows = analyze(result, d);
+    const bPrep = rows.find((r) => r.dishId === "b" && r.stepIndex === 0)!;
+    const bToss = rows.find((r) => r.dishId === "b" && r.stepIndex === 1)!;
+    assert.equal(bToss.startAbs, bPrep.finishAbs, "B's toss waits for B's prep");
+  });
+});
+
+describe("scheduleCookingSequence — D-WS9-239 the anomaly guard (rule 6)", () => {
+  // A VALID tag that makes the MEAL longer. Found by search, then checked by
+  // hand. d0 = assemble 5 · roast 12 (unattended) · preheat 5 → 22 serial.
+  // d1 = rest 7 (window "g") · watched sear 3 (rider) → 10 serial, 7 alone
+  // with the tag. Finish-aligned, d1's shorter tagged duration moves its ideal
+  // start from 12 to 15; the sear then runs [15,18) and holds the cook, so
+  // d0's preheat (ideal 17) is pushed to 18 and the meal ends at 23. Untagged
+  // the sear runs [19,22) after the preheat kicked off at 17: 22.
+  const d0: SchedulerDish = {
+    dishId: "d0",
+    title: "D0",
+    positionIndex: 0,
+    steps: [tstep(0, 5, "assemble"), tstep(1, 12, "cook"), tstep(2, 5, "preheat")],
+  };
+  const d1: SchedulerDish = {
+    dishId: "d1",
+    title: "D1",
+    positionIndex: 1,
+    steps: [tstep(0, 7, "rest", { tag: "g" }), tstep(1, 3, "cook", { ts: true, tag: "g" })],
+  };
+
+  it("the tag is valid and honoured when the dish is alone (7, not 10)", () => {
+    const alone = scheduleCookingSequence([d1]);
+    assert.equal(alone.totalEstimatedMinutes, 7);
+    assert.deepEqual(alone.ignoredTags, []);
+    assert.deepEqual(alone.dishDurations, { d1: 7 });
+  });
+
+  it("in the meal, honouring it would give 23: the guard emits the untagged 22 and reports anomaly_guard on the window", () => {
+    const control = scheduleCookingSequence(untaggedTwin([d0, d1]));
+    assert.equal(control.totalEstimatedMinutes, 22);
+    const result = scheduleCookingSequence([d0, d1]);
+    assertWellFormed(result, [d0, d1]);
+    assert.equal(result.totalEstimatedMinutes, 22, "the shorter of the two schedules");
+    assert.deepEqual(emitted(result), emitted(control), "the emitted schedule IS the untagged one (serial dish durations included)");
+    assert.deepEqual(result.ignoredTags, [
+      { dishId: "d1", stepIndex: 0, token: "g", reason: "anomaly_guard" },
+    ]);
+    assert.equal(result.activeEstimatedMinutes, control.activeEstimatedMinutes, "active is the same either way");
   });
 });

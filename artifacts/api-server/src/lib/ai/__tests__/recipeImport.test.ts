@@ -194,10 +194,33 @@ describe("CanonicalRecipeSchema — discriminated union shape", () => {
     assert.equal(result.success, false);
   });
 
-  // BUG-018 (WS7-8b B1) — the parallelGroup-type-guard test was removed with
-  // the field: parallelGroup is retired from the reformat StepSchema, so there
-  // is no longer a string|null constraint to violate (the schema isn't strict,
-  // so an extra key is simply ignored — nothing to assert).
+  // WS9 D-WS9-239 (1a) — parallelGroup is back on the reformat StepSchema
+  // (optional, nullable, .max(40) per D-WS7-012). import.reformat_for_kiwi runs
+  // in TEXT mode, so the model never sees this shape and the field is inert
+  // until 1b ships the prompt body; the fixture's "boil_water" above pins that
+  // a tag the model does emit is KEPT rather than stripped.
+  it("D-WS9-239: keeps a step's parallelGroup (string / null), rejects over 40 chars and a non-string", () => {
+    const parsed = CanonicalRecipeSchema.safeParse(SUCCESS_PAYLOAD);
+    assert.equal(parsed.success, true);
+    if (!parsed.success || parsed.data.status !== "success") return;
+    assert.equal(parsed.data.recipe.dishes[0].steps[0].parallelGroup, "boil_water");
+
+    const withNull = JSON.parse(JSON.stringify(SUCCESS_PAYLOAD));
+    withNull.recipe.dishes[0].steps[0].parallelGroup = null;
+    const n = CanonicalRecipeSchema.safeParse(withNull);
+    assert.equal(n.success, true);
+    if (n.success && n.data.status === "success") {
+      assert.equal(n.data.recipe.dishes[0].steps[0].parallelGroup, null);
+    }
+
+    const tooLong = JSON.parse(JSON.stringify(SUCCESS_PAYLOAD));
+    tooLong.recipe.dishes[0].steps[0].parallelGroup = "x".repeat(41);
+    assert.equal(CanonicalRecipeSchema.safeParse(tooLong).success, false);
+
+    const wrongType = JSON.parse(JSON.stringify(SUCCESS_PAYLOAD));
+    wrongType.recipe.dishes[0].steps[0].parallelGroup = 1;
+    assert.equal(CanonicalRecipeSchema.safeParse(wrongType).success, false);
+  });
 
   it("rejects cuisineType outside the closed catalog", () => {
     const malformed = JSON.parse(JSON.stringify(SUCCESS_PAYLOAD));

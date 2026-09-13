@@ -533,7 +533,7 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
   // field at all, so EVERY wizard-authored step reached the DB as false and
   // the Cooking Sequencer had no signal to protect a sear. This is the core
   // regression guard: a wizard-authored TRUE must survive to the create call.
-  it("persists isTimingSensitive from the step object (true and false round-trip; no parallelGroup)", async () => {
+  it("persists isTimingSensitive from the step object (true and false round-trip; an unsent parallelGroup is not written)", async () => {
     const payload = sampleExpanded();
     // Overwrite the first dish's steps with a sear (attention → true) and a
     // chop (hands-off prep → false) so BOTH values are exercised end-to-end.
@@ -584,10 +584,15 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
         s.isTimingSensitive !== undefined,
         `step "${s.stepTextRaw}" must carry isTimingSensitive explicitly`,
       );
-      // parallelGroup is retired: no wizard step create may carry it.
+      // WS9 D-WS9-239 (1a) — the create CARRIES parallelGroup when the step
+      // object has one, but nothing can have one yet: WizardStepSchema (the
+      // finalize_steps TOOL schema) is deliberately unwidened until 1b, and the
+      // materializer's own re-parse strips unknown keys before this create. So
+      // today an omitted tag is NOT written — no key, not null. 1b widens the
+      // schema and must add the tagged round-trip here.
       assert.ok(
         !("parallelGroup" in (s as unknown as Record<string, unknown>)),
-        `step "${s.stepTextRaw}" must NOT carry a parallelGroup`,
+        `step "${s.stepTextRaw}" must not carry a parallelGroup key when none was sent`,
       );
     }
   });

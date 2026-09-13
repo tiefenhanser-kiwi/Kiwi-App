@@ -559,51 +559,55 @@ describe("parseMealFromText — userHints pass-through", () => {
   });
 });
 
-// ── parallelGroup retired (BUG-018 WS7-8b B1) ─────────────────────────
-// Was: "parallelGroup schema shape (D-WS6-034 reconciliation)". The field is
-// retired from AssistedStepSchema + ParsedSubDishStepSchema. The schemas are
-// non-strict, so a stray parallelGroup from an AI parses without error — but
-// Zod strips it, so it can NEVER surface on the parsed step and reach the
-// materializer. This guards against the field silently creeping back.
+// ── parallelGroup carried on the TEXT-mode step schemas (WS9 D-WS9-239 1a) ──
+// Was (BUG-018 WS7-8b B1): "drops a supplied parallelGroup so it never
+// surfaces on the parsed step" — that pin is INVERTED here on purpose. The
+// scheduler honours the token again, so a tag a text-mode parse emits must
+// reach the materializer instead of being stripped. Both schemas are still
+// non-strict and the field is optional + nullable, so a parse that omits it is
+// unchanged. `.max(40)` is D-WS7-012. The TOOL-mode step schemas
+// (WizardStepSchema / WizardOutlineStepSchema) are deliberately NOT widened
+// until 1b ships their prompt bodies — a field on a tool schema is a field the
+// model fills.
 
-describe("AssistedStepSchema / ParsedSubDishStepSchema — parallelGroup retired", () => {
-  it("drops a supplied parallelGroup so it never surfaces on the parsed step", async () => {
+describe("AssistedStepSchema / ParsedSubDishStepSchema — parallelGroup carried (D-WS9-239)", () => {
+  it("keeps a supplied string or null on the parsed step; omitted stays omitted", async () => {
     const { AssistedStepSchema, ParsedSubDishStepSchema } = await import(
       "../schemas/mealBuilder"
     );
-
     const baseStep = {
       content: "Bring a large pot of salted water to a boil.",
       estimatedMinutes: 8,
       phaseType: "preheat" as const,
     };
+    for (const schema of [AssistedStepSchema, ParsedSubDishStepSchema]) {
+      const tagged = schema.safeParse({ ...baseStep, parallelGroup: "boil" });
+      assert.equal(tagged.success, true);
+      assert.equal(tagged.success && tagged.data.parallelGroup, "boil");
 
-    // A string, a null, or even the old-shape integer: all are simply dropped.
-    // Parsing still succeeds and the key is absent on the output.
-    for (const pg of ["group-1", null, 1] as const) {
-      const a = AssistedStepSchema.safeParse({ ...baseStep, parallelGroup: pg });
-      assert.equal(
-        a.success,
-        true,
-        `AssistedStep should parse with parallelGroup=${String(pg)}`,
-      );
-      assert.ok(
-        a.success && !("parallelGroup" in a.data),
-        "parsed AssistedStep must NOT carry parallelGroup",
-      );
-      const p = ParsedSubDishStepSchema.safeParse({
-        ...baseStep,
-        parallelGroup: pg,
-      });
-      assert.equal(
-        p.success,
-        true,
-        `ParsedSubDishStep should parse with parallelGroup=${String(pg)}`,
-      );
-      assert.ok(
-        p.success && !("parallelGroup" in p.data),
-        "parsed ParsedSubDishStep must NOT carry parallelGroup",
-      );
+      const cleared = schema.safeParse({ ...baseStep, parallelGroup: null });
+      assert.equal(cleared.success, true);
+      assert.equal(cleared.success && cleared.data.parallelGroup, null);
+
+      const omitted = schema.safeParse(baseStep);
+      assert.equal(omitted.success, true);
+      assert.ok(omitted.success && !("parallelGroup" in omitted.data), "omitted stays omitted");
+    }
+  });
+
+  it("D-WS7-012: rejects a token over 40 characters and the old-shape integer", async () => {
+    const { AssistedStepSchema, ParsedSubDishStepSchema } = await import(
+      "../schemas/mealBuilder"
+    );
+    const baseStep = {
+      content: "Bring a large pot of salted water to a boil.",
+      estimatedMinutes: 8,
+      phaseType: "preheat" as const,
+    };
+    for (const schema of [AssistedStepSchema, ParsedSubDishStepSchema]) {
+      assert.equal(schema.safeParse({ ...baseStep, parallelGroup: "x".repeat(40) }).success, true, "40 is the cap");
+      assert.equal(schema.safeParse({ ...baseStep, parallelGroup: "x".repeat(41) }).success, false, "41 is over it");
+      assert.equal(schema.safeParse({ ...baseStep, parallelGroup: 1 }).success, false, "an integer is not a token");
     }
   });
 });

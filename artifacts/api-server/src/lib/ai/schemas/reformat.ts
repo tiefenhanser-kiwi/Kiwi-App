@@ -124,10 +124,6 @@ export const IngredientSchema = z.object({
 });
 export type CanonicalIngredient = z.infer<typeof IngredientSchema>;
 
-// BUG-018 (WS7-8b B1) — parallelGroup retired from the write side. The import
-// reformat no longer emits it; a deterministic scheduler derives overlap from
-// phaseType + estimatedMinutes + isTimingSensitive. The DB column stays (no
-// migration), unwritten.
 export const StepSchema = z.object({
   stepIndex: z.number().int().nonnegative(),
   stepTextRaw: z.string(),
@@ -138,6 +134,12 @@ export const StepSchema = z.object({
   requiresRest: z.boolean(),
   requiresMarination: z.boolean(),
   isTimingSensitive: z.boolean(),
+  // WS9 D-WS9-239 (Phase 1a) — the intra-dish overlap token, back on the write
+  // side now that the scheduler honours it. OPTIONAL and INERT here:
+  // import.reformat_for_kiwi runs in TEXT mode, so the model never sees this
+  // schema and nothing prompts it to emit the field until 1b ships the prompt
+  // body. `.max(40)` is D-WS7-012.
+  parallelGroup: z.string().max(40).nullable().optional(),
 });
 export type CanonicalStep = z.infer<typeof StepSchema>;
 

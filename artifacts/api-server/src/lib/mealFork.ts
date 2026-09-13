@@ -49,8 +49,6 @@ interface CloneTarget {
 
 // Step fields copied verbatim (everything except id/ownerType/ownerId, which
 // are re-derived for the clone).
-// BUG-018 B2 — parallelGroup retired; not copied on fork (the column stays NULL,
-// which is what a clone would produce anyway).
 const STEP_COPY_FIELDS = {
   stepIndex: true,
   stepTextRaw: true,
@@ -77,6 +75,12 @@ const STEP_COPY_FIELDS = {
   // substitutions fix guarded against). null on base steps copies as null.
   componentKey: true,
   pathKey: true,
+  // WS9 D-WS9-239 — the intra-dish overlap token MUST survive the fork for the
+  // same reason the component tags must: a fork copies the source meal's
+  // SCALARS verbatim (estimatedTimeMinutes / activeTimeMinutes), so a clone that
+  // dropped the tags would carry a tag-DERIVED number over tag-LESS steps — the
+  // number and the recipe under it silently disagreeing. null copies as null.
+  parallelGroup: true,
 } as const;
 
 /**

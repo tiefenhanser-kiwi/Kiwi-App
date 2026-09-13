@@ -66,11 +66,16 @@ export interface MaterializeMealStep {
   text: string;
   estimatedMinutes?: number;
   phaseType?: "prep" | "preheat" | "cook" | "rest" | "assemble" | "hold";
-  // BUG-018 (WS7-8b B1) — parallelGroup retired. Deliberately NOT a field here:
-  // a settable-but-silently-discarded input is a BUG-029-class trap (a future
-  // caller sets it, TS stays quiet, the value vanishes at write). No caller
-  // sets it; the DB column stays (no migration), unwritten.
   isTimingSensitive?: boolean;
+  // WS9 D-WS9-239 (Phase 1a) — intra-dish overlap token, un-retired: the
+  // scheduler now honours it (cookingScheduler.ts header). Three states, all
+  // load-bearing at the create sites below: undefined = "not sent" (a builder
+  // save that omits it INHERITS the wiped step's tag at the same index, like
+  // phaseType); null = "sent, clear it"; a string = the tag. Nothing writes a
+  // non-null value until 1b ships the prompt bodies — until then this is a
+  // carrier, and the D-WS9-239 §5.1 acceptance was that every stored time is
+  // byte-identical with it in place.
+  parallelGroup?: string | null;
   // Block 3.7 (D-WS9-066) — swappable-component tags. Null/absent = BASE step
   // (always in the recipe). A tagged step belongs to one component's scratch or
   // bought path; the store-fill finalize call is the only caller that sets these.
@@ -424,6 +429,8 @@ export async function materializeMeal(
             ...(s.isTimingSensitive !== undefined
               ? { isTimingSensitive: s.isTimingSensitive }
               : {}),
+            // WS9 D-WS9-239 — intra-dish overlap token (omitted unless sent).
+            ...(s.parallelGroup !== undefined ? { parallelGroup: s.parallelGroup } : {}),
             // Block 3.7 (D-WS9-066) — swappable-component tags (store-fill only).
             ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
             ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),
@@ -607,6 +614,8 @@ export async function materializeDish(
         ...(s.isTimingSensitive !== undefined
           ? { isTimingSensitive: s.isTimingSensitive }
           : {}),
+        // WS9 D-WS9-239 — intra-dish overlap token (omitted unless sent).
+        ...(s.parallelGroup !== undefined ? { parallelGroup: s.parallelGroup } : {}),
         // Block 3.7 (D-WS9-066) — swappable-component tags (omitted unless set).
         ...(s.componentKey !== undefined ? { componentKey: s.componentKey } : {}),
         ...(s.pathKey !== undefined ? { pathKey: s.pathKey } : {}),
@@ -628,10 +637,18 @@ export async function materializeDish(
 // inherits the existing step's value AT THE SAME stepIndex (read before the
 // wipe); a genuinely new step — no existing step at that index — falls to the
 // column default as before. A field the client does send always wins.
+//
+// WS9 D-WS9-239 — `parallelGroup` joins the preserved set, and it is the
+// load-bearing carrier of the whole feature: every wipe-and-recreate (meal
+// PATCH, Dish Builder save) would otherwise drop a persisted tag, and the
+// derived time would jump back UP on the next edit — the meal's number
+// silently un-fixing itself. Same three-state rule as the other two: omitted
+// inherits, an explicit null clears, a string wins.
 
 type PreservableStepFields = {
   phaseType: NonNullable<MaterializeMealStep["phaseType"]>;
   isTimingSensitive: boolean;
+  parallelGroup: string | null;
 };
 
 // stepIndex → the fields worth preserving, for one dish.
@@ -645,31 +662,37 @@ async function readPreservableSteps(
   if (dishIds.length === 0) return out;
   const rows = await tx.recipeInstructionStep.findMany({
     where: { ownerType: "dish", ownerId: { in: dishIds } },
-    select: { ownerId: true, stepIndex: true, phaseType: true, isTimingSensitive: true },
+    select: { ownerId: true, stepIndex: true, phaseType: true, isTimingSensitive: true, parallelGroup: true },
   });
   for (const r of rows) {
     const byIndex = out.get(r.ownerId) ?? new Map<number, PreservableStepFields>();
     byIndex.set(r.stepIndex, {
       phaseType: r.phaseType,
       isTimingSensitive: r.isTimingSensitive,
+      parallelGroup: r.parallelGroup,
     });
     out.set(r.ownerId, byIndex);
   }
   return out;
 }
 
-// The phaseType / isTimingSensitive slice of a step-create `data`: the
-// incoming value when sent, else the existing step's at this index, else
-// omitted (column default).
+// The phaseType / isTimingSensitive / parallelGroup slice of a step-create
+// `data`: the incoming value when sent, else the existing step's at this
+// index, else omitted (column default).
 function preservedStepFields(
   s: MaterializeMealStep,
   existing: PreservableStepFields | undefined,
 ): Partial<PreservableStepFields> {
   const phaseType = s.phaseType ?? existing?.phaseType;
   const isTimingSensitive = s.isTimingSensitive ?? existing?.isTimingSensitive;
+  // `??` would treat a SENT null as "not sent" and resurrect the wiped tag —
+  // null is the client clearing it, so only `undefined` falls through.
+  const parallelGroup =
+    s.parallelGroup !== undefined ? s.parallelGroup : existing?.parallelGroup;
   return {
     ...(phaseType !== undefined ? { phaseType } : {}),
     ...(isTimingSensitive !== undefined ? { isTimingSensitive } : {}),
+    ...(parallelGroup !== undefined ? { parallelGroup } : {}),
   };
 }
 

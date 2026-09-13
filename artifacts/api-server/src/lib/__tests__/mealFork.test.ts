@@ -157,8 +157,8 @@ function makeTxStub(
     // Block 4a piece 2 — amountRefs must survive the fork. The scratch step
     // carries a real ref (→ ing-cream); the others carry null (legacy/unwired) to
     // exercise the DbNull re-map path.
-    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 0, stepTextRaw: "Boil", stepTextTranslated: "Boil", estimatedMinutes: 5, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, amountRefs: null, componentKey: null, pathKey: null },
-    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 1, stepTextRaw: "Simmer cream and parmesan into a sauce", stepTextTranslated: "Simmer cream and parmesan into a sauce", estimatedMinutes: 12, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, amountRefs: [{ ingredientId: "ing-cream", quantity: 1, unit: "cup", charStart: 7, charEnd: 12 }], componentKey: "sauce", pathKey: "scratch" },
+    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 0, stepTextRaw: "Boil", stepTextTranslated: "Boil", estimatedMinutes: 5, phaseType: "cook", parallelGroup: "boil", requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, amountRefs: null, componentKey: null, pathKey: null },
+    { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 1, stepTextRaw: "Simmer cream and parmesan into a sauce", stepTextTranslated: "Simmer cream and parmesan into a sauce", estimatedMinutes: 12, phaseType: "cook", parallelGroup: "boil", requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, amountRefs: [{ ingredientId: "ing-cream", quantity: 1, unit: "cup", charStart: 7, charEnd: 12 }], componentKey: "sauce", pathKey: "scratch" },
     { ownerType: "dish", ownerId: "src-dish-0", stepIndex: 2, stepTextRaw: "Warm the jarred alfredo sauce", stepTextTranslated: "Warm the jarred alfredo sauce", estimatedMinutes: 3, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, amountRefs: null, componentKey: "sauce", pathKey: "bought" },
     { ownerType: "meal", ownerId: "src-meal", stepIndex: 0, stepTextRaw: "Plate", stepTextTranslated: "Plate", estimatedMinutes: 1, phaseType: "cook", parallelGroup: null, requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, amountRefs: null, componentKey: null, pathKey: null },
   ];
@@ -205,14 +205,27 @@ function makeTxStub(
       },
     },
     recipeInstructionStep: {
+      // WS9 D-WS9-239 — HONOURS `select`, the way Prisma does. Before this the
+      // stub returned every column regardless, so an assertion that a field
+      // "survives the fork" could not fail when STEP_COPY_FIELDS dropped it: the
+      // full row rode straight into createMany. Projecting by the live select
+      // is what makes the tag / component-tag / amountRefs assertions below
+      // read the field list under test.
       findMany: async (args: {
         where: { ownerType: string; ownerId: string };
+        select?: Record<string, boolean>;
       }) => {
         rec.stepFindManyWhere.push(args.where);
-        return steps.filter(
+        const rows = steps.filter(
           (s) =>
             s.ownerType === args.where.ownerType &&
             s.ownerId === args.where.ownerId,
+        );
+        if (!args.select) return rows;
+        return rows.map((s) =>
+          Object.fromEntries(
+            Object.entries(s).filter(([k]) => args.select![k] === true),
+          ),
         );
       },
       createMany: async (args: { data: Record<string, unknown>[] }) => {
@@ -352,6 +365,32 @@ describe("forkMealForUser", () => {
       assert.equal(s.ownerId, "new-dish-1");
       assert.equal(s.ownerType, "dish");
     }
+  });
+
+  it("D-WS9-239: parallelGroup survives the fork through STEP_COPY_FIELDS (tag and null)", async () => {
+    const source = makeSource();
+    const { tx, rec } = makeTxStub(source);
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    const dishStepBatch = rec.stepCreateMany.find(
+      (b) => b[0]?.ownerType === "dish",
+    );
+    assert.ok(dishStepBatch, "dish-owned steps copied");
+    const byText = (t: string) =>
+      dishStepBatch!.find((s) => s.stepTextRaw === t)!;
+    // The boil is the window, the scratch sauce rides it: both carry "boil".
+    assert.equal(byText("Boil").parallelGroup, "boil");
+    assert.equal(byText("Simmer cream and parmesan into a sauce").parallelGroup, "boil");
+    // The bought step is untagged: null copies as null, and the KEY is present
+    // (a dropped select would leave it absent, not null).
+    assert.ok("parallelGroup" in byText("Warm the jarred alfredo sauce"));
+    assert.equal(byText("Warm the jarred alfredo sauce").parallelGroup, null);
+    // Meal-owned steps take the same field list.
+    const mealStepBatch = rec.stepCreateMany.find(
+      (b) => b[0]?.ownerType === "meal",
+    );
+    assert.ok("parallelGroup" in mealStepBatch![0]);
   });
 
   it("Block 4a (D-WS9-047/BUG-045): household-scales servingsDefault while PRESERVING the authored anchor, on meal + dishes", async () => {

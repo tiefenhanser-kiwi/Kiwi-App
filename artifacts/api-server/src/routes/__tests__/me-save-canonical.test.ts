@@ -327,9 +327,11 @@ describe("POST /me/meals (manual-built)", () => {
   });
 
   // BUG-018 (WS7-8b B1) — isTimingSensitive must still round-trip through the
-  // builder / save-canonical materialize path (don't regress the working path),
-  // and the retired parallelGroup must never be written.
-  it("round-trips isTimingSensitive (true and false) and never writes parallelGroup", async () => {
+  // builder / save-canonical materialize path (don't regress the working path).
+  // WS9 D-WS9-239 — parallelGroup is OMITTED here, and an omitted tag must not
+  // be written at all (the create carries no key, so the column default / the
+  // D-WS9-235 preservation decides) — not written as null, not invented.
+  it("round-trips isTimingSensitive (true and false); an OMITTED parallelGroup is not written", async () => {
     const { prisma, captured } = makeStub();
     const harness = await spinUp(prisma);
     try {
@@ -381,17 +383,72 @@ describe("POST /me/meals (manual-built)", () => {
       await harness.close();
     }
   });
-
-  // BUG-018 (WS7-8b B1) — the retired parallelGroup is dropped from the
-  // .strict() save-canonical step contract, so a client that still sends it is
-  // rejected (400) rather than having the value silently discarded at the
-  // materialize boundary (BUG-029-class avoidance).
-  it("rejects a save-canonical step carrying the retired parallelGroup", async () => {
-    const { prisma } = makeStub();
+  // WS9 D-WS9-239 (Phase 1a) — INVERTS the BUG-018 B1 pin that sat here
+  // ("rejects a save-canonical step carrying the retired parallelGroup", 400).
+  // The materializer carries the token again, so the .strict() contract
+  // accepts it and it reaches the step create verbatim — a string is written
+  // as that string, an explicit null as null (the "clear it" state the
+  // D-WS9-235 preservation distinguishes from "omitted").
+  it("accepts a save-canonical step carrying parallelGroup and writes it verbatim (string and null)", async () => {
+    const { prisma, captured } = makeStub();
     const harness = await spinUp(prisma);
     try {
       const res = await authPost(harness, "/me/meals", {
-        title: "Bad payload",
+        title: "Tagged payload",
+        cuisineType: "American",
+        dishes: [
+          {
+            kind: "new",
+            title: "Rice",
+            role: "base",
+            positionIndex: 0,
+            ingredients: [{ name: "Rice", quantity: 1, unit: "cup" }],
+            steps: [
+              {
+                text: "Bring the water to a boil.",
+                phaseType: "preheat",
+                estimatedMinutes: 8,
+                parallelGroup: "boil",
+              },
+              {
+                text: "Rinse the rice.",
+                phaseType: "prep",
+                estimatedMinutes: 2,
+                parallelGroup: "boil",
+              },
+              {
+                text: "Simmer, covered.",
+                phaseType: "cook",
+                estimatedMinutes: 15,
+                parallelGroup: null,
+              },
+            ],
+          },
+        ],
+      });
+      assert.equal(res.status, 201);
+      const byText = (t: string) =>
+        captured.stepCreates.find((s) => s.stepTextRaw === t)!;
+      assert.equal(byText("Bring the water to a boil.").parallelGroup, "boil");
+      assert.equal(byText("Rinse the rice.").parallelGroup, "boil");
+      assert.ok(
+        "parallelGroup" in byText("Simmer, covered."),
+        "a SENT null is written as null, not dropped",
+      );
+      assert.equal(byText("Simmer, covered.").parallelGroup, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // D-WS7-012 — the cap that was deferred with the field: a token over 40
+  // characters is a 400, not a truncation.
+  it("rejects a parallelGroup over 40 characters (D-WS7-012)", async () => {
+    const { prisma, captured } = makeStub();
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPost(harness, "/me/meals", {
+        title: "Over-long token",
         cuisineType: "American",
         dishes: [
           {
@@ -405,13 +462,14 @@ describe("POST /me/meals (manual-built)", () => {
                 text: "Boil the rice.",
                 phaseType: "cook",
                 estimatedMinutes: 12,
-                parallelGroup: "boil",
+                parallelGroup: "x".repeat(41),
               },
             ],
           },
         ],
       });
       assert.equal(res.status, 400);
+      assert.equal(captured.stepCreates.length, 0, "nothing was written");
     } finally {
       await harness.close();
     }

@@ -103,10 +103,12 @@ export const AssistedStepSchema = z.object({
   estimatedMinutes: z.number().int().positive().max(600),
   phaseType: StepPhaseTypeSchema,
   isTimingSensitive: z.boolean().optional(),
-  // BUG-018 (WS7-8b B1) — parallelGroup retired from the write side. A
-  // deterministic scheduler derives overlap from phaseType + estimatedMinutes
-  // + isTimingSensitive, so an AI-declared grouping is a redundant second
-  // source of truth. The DB column stays (no migration); nothing writes it.
+  // WS9 D-WS9-239 (Phase 1a) — the intra-dish overlap token, back on the
+  // write side now that the scheduler honours it (cookingScheduler.ts header).
+  // OPTIONAL and INERT here: meal_builder.assist_steps runs in TEXT mode, so
+  // the model never sees this schema and nothing prompts it to emit the field
+  // until 1b ships the prompt body. `.max(40)` is D-WS7-012.
+  parallelGroup: z.string().max(40).nullable().optional(),
 });
 export type AssistedStep = z.infer<typeof AssistedStepSchema>;
 
@@ -169,10 +171,11 @@ export const ParsedSubDishStepSchema = z.object({
   estimatedMinutes: z.number().int().positive().max(600),
   phaseType: StepPhaseTypeSchema,
   isTimingSensitive: z.boolean().optional(),
-  // BUG-018 (WS7-8b B1) — parallelGroup retired from the write side (shared by
-  // meal_builder.mode_a_parse + dish_builder.mode_a_parse via ParsedDish). A
-  // deterministic scheduler derives overlap from phaseType + estimatedMinutes
-  // + isTimingSensitive; the DB column stays (no migration), unwritten.
+  // WS9 D-WS9-239 (Phase 1a) — as on AssistedStepSchema: optional, inert
+  // (meal_builder.mode_a_parse + dish_builder.mode_a_parse are TEXT mode, so
+  // the model never sees this shape), `.max(40)` per D-WS7-012. Shared by both
+  // parsers via ParsedDish.
+  parallelGroup: z.string().max(40).nullable().optional(),
 });
 export type ParsedSubDishStep = z.infer<typeof ParsedSubDishStepSchema>;
 

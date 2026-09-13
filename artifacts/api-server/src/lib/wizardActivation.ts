@@ -362,6 +362,17 @@ export async function materializeWizardDraft(
           // WizardStepSchema makes all three fields required, so no optional-
           // spread guard is needed (intentional divergence from mealMaterialize.ts,
           // whose builder step fields are optional).
+          //
+          // WS9 D-WS9-239 (Phase 1a) — `parallelGroup` is carried when the step
+          // object has one. It is read through a widened view rather than the
+          // WizardStep type because WizardStepSchema is ALSO the finalize_steps
+          // TOOL schema the model sees (modes.ts buildToolForSchema): adding
+          // the field there without its prompt instructions would have the
+          // model inventing tokens unguided. 1b ships the schema + prompt
+          // together; this carrier is already in place for it, and is inert
+          // until then (the live schema strips unknown keys, so `pg` is
+          // undefined on every call today).
+          const pg = (step as { parallelGroup?: string | null }).parallelGroup;
           await tx.recipeInstructionStep.create({
             data: {
               ownerType: "dish",
@@ -372,6 +383,7 @@ export async function materializeWizardDraft(
               phaseType: step.phaseType,
               estimatedMinutes: step.estimatedMinutes,
               isTimingSensitive: step.isTimingSensitive,
+              ...(pg !== undefined ? { parallelGroup: pg } : {}),
               amountRefs: amountRefs as unknown as Prisma.InputJsonValue,
             },
           });

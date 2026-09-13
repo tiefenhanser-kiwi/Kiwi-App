@@ -248,3 +248,85 @@ describe("D-WS9-235 — stampMealTiming reads positionIndex from the link, not t
     assert.equal(mealUpdates[0].activeTimeMinutes, 30, "5+5 prep attended, B's 20 attended cook; A's cook unattended");
   });
 });
+
+// ── WS9 D-WS9-239 — dishTotals come off the scheduler, and the stamp read carries the tag ──
+describe("D-WS9-239 — deriveMealTiming.dishTotals is the dish's critical path, not a serial sum", () => {
+  const tagged: SchedulerDish = {
+    dishId: "ziti",
+    title: "ziti",
+    positionIndex: 0,
+    // preheat 20 (window) · prep 12 (rider) · bake 30 → 50 tagged, 62 serial.
+    steps: [
+      { stepIndex: 0, estimatedMinutes: 20, phaseType: "preheat", isTimingSensitive: false, parallelGroup: "oven" },
+      { stepIndex: 1, estimatedMinutes: 12, phaseType: "prep", isTimingSensitive: false, parallelGroup: "oven" },
+      { stepIndex: 2, estimatedMinutes: 30, phaseType: "cook", isTimingSensitive: false, parallelGroup: null },
+    ],
+  };
+
+  it("a tagged single-dish meal stamps the dish the SAME 50 as the meal — never the serial 62", () => {
+    const t = deriveMealTiming([tagged]);
+    assert.equal(t.totalMinutes, 50);
+    assert.equal(t.activeMinutes, 12);
+    assert.equal(t.dishTotals.get("ziti"), 50, "a serial sum here would put Dish.estimatedTimeMinutes at 62 > the meal's 50");
+    assert.deepEqual(t.ignoredTags, []);
+  });
+
+  it("an ignored tag surfaces on MealTiming.ignoredTags with its reason", () => {
+    const t = deriveMealTiming([
+      {
+        ...tagged,
+        // The token's first occurrence is now the attended prep → no window.
+        steps: tagged.steps.map((s, i) => (i === 0 ? { ...s, parallelGroup: null } : s)),
+      },
+    ]);
+    assert.equal(t.totalMinutes, 62, "back to serial: the tag was ignored");
+    assert.deepEqual(t.ignoredTags, [
+      { dishId: "ziti", stepIndex: 1, token: "oven", reason: "attended_window" },
+    ]);
+  });
+});
+
+describe("D-WS9-239 — stampMealTiming reads parallelGroup off the persisted steps", () => {
+  it("the stamp SELECTs the tag and derives 50 from it; a select that dropped it would stamp 62", async () => {
+    const rows = [
+      { ownerId: "ziti", stepIndex: 0, estimatedMinutes: 20, phaseType: "preheat", isTimingSensitive: false, parallelGroup: "oven", componentKey: null, pathKey: null },
+      { ownerId: "ziti", stepIndex: 1, estimatedMinutes: 12, phaseType: "prep", isTimingSensitive: false, parallelGroup: "oven", componentKey: null, pathKey: null },
+      { ownerId: "ziti", stepIndex: 2, estimatedMinutes: 30, phaseType: "cook", isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null },
+    ];
+    const mealUpdates: Array<Record<string, unknown>> = [];
+    const dishUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }> = [];
+    let selectSeen: Record<string, boolean> | undefined;
+    const fakeTx = {
+      meal: {
+        update: async ({ data }: { data: Record<string, unknown> }) => {
+          mealUpdates.push(data);
+          return {};
+        },
+      },
+      dish: {
+        update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+          dishUpdates.push(args);
+          return {};
+        },
+      },
+      mealDishLink: { findMany: async () => [{ dishId: "ziti", positionIndex: 0 }] },
+      recipeInstructionStep: {
+        // Projects by the LIVE select, like Prisma: a select without
+        // parallelGroup hands the scheduler untagged rows.
+        findMany: async ({ select }: { select: Record<string, boolean> }) => {
+          selectSeen = select;
+          return rows.map((r) =>
+            Object.fromEntries(Object.entries(r).filter(([k]) => select[k] === true)),
+          );
+        },
+      },
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const timing = await stampMealTiming(fakeTx as any, "meal-1", ["ziti"]);
+    assert.equal(selectSeen?.parallelGroup, true, "the stamp read selects parallelGroup");
+    assert.equal(timing.totalMinutes, 50);
+    assert.equal(mealUpdates[0].estimatedTimeMinutes, 50);
+    assert.equal(mealUpdates[0].activeTimeMinutes, 12);
+    assert.deepEqual(dishUpdates, [{ where: { id: "ziti" }, data: { estimatedTimeMinutes: 50 } }]);
+  });
+});

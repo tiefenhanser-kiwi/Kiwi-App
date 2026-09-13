@@ -21,6 +21,7 @@ import {
   type SchedulerPhase,
 } from "./cookingScheduler";
 import type { SequencedStep } from "./ai/schemas/sequencer";
+import { logger } from "./logger";
 
 // Route handler maps NotFoundError → 404; meal-exists-but-empty maps to
 // 400 with the locked copy.
@@ -143,10 +144,24 @@ export async function runCookingSequence(
         estimatedMinutes: s.estimatedMinutes,
         phaseType: s.phaseType as SchedulerPhase,
         isTimingSensitive: s.isTimingSensitive,
+        // WS9 D-WS9-239 — the intra-dish overlap token and the component tags
+        // the scheduler validates it against. Dropping them here is how a
+        // persisted tag silently failed to reach Cook Mode.
+        parallelGroup: s.parallelGroup,
+        componentKey: s.componentKey,
+        pathKey: s.pathKey,
       })),
     }));
 
   const result = scheduleCookingSequence(schedulerDishes);
+  // WS9 D-WS9-239 — an ignored tag is a tagging defect, logged and moved past:
+  // the step waited (rule 4), so the sequence is the conservative one.
+  if (result.ignoredTags.length > 0) {
+    logger.warn(
+      { event: "cooking_sequence_tags_ignored", mealId, ignoredTags: result.ignoredTags },
+      "D-WS9-239: parallelGroup tag(s) ignored at Cook Mode launch",
+    );
+  }
 
   return {
     sequence: result.steps,

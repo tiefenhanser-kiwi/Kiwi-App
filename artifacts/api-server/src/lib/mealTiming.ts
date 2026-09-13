@@ -17,6 +17,7 @@ import type { Prisma } from "@prisma/client";
 
 import {
   scheduleCookingSequence,
+  type IgnoredTag,
   type SchedulerDish,
   type SchedulerPhase,
 } from "./cookingScheduler";
@@ -27,8 +28,18 @@ export interface MealTiming {
   totalMinutes: number | null;
   /** Hands-on minutes. Null when underivable. */
   activeMinutes: number | null;
-  /** Per-dish serial totals, keyed by dishId. Empty when underivable. */
+  /**
+   * Per-dish durations, keyed by dishId. Empty when underivable. WS9 D-WS9-239:
+   * each is the dish ALONE as the scheduler walked it (its critical path once
+   * `parallelGroup` tags are honoured; the serial sum when it carries none).
+   */
   dishTotals: Map<string, number>;
+  /**
+   * WS9 D-WS9-239 — every `parallelGroup` tag the scheduler ignored, with why.
+   * Empty on an untagged meal. Surfaced so the stamp path can log them at warn;
+   * the scheduler itself is dependency-free and logs nothing.
+   */
+  ignoredTags: IgnoredTag[];
 }
 
 /**
@@ -40,10 +51,11 @@ export interface MealTiming {
  * would replace an honest-but-unverified number with a definitely-wrong one.
  * Null means "I cannot say", and the caller keeps what it had.
  *
- * `dishTotals` are SERIAL sums of each dish's own steps. Dishes overlap each
- * other — that is the scheduler's job — but a dish's own steps do not: measured
- * across the catalog, `parallelGroup` is set on 0 of 25,564 steps, so there is
- * no recorded intra-dish parallelism to honour.
+ * `dishTotals` come off the scheduler's per-dish durations (WS9 D-WS9-239),
+ * NOT a serial sum taken here: a dish's own steps may overlap once it carries
+ * `parallelGroup` tags, and a serial sum would stamp a tagged single-dish
+ * meal's Dish.estimatedTimeMinutes LONGER than the meal it is the whole of.
+ * Untagged (every row until 1c), the two numbers are the same.
  */
 export function deriveMealTiming(dishes: SchedulerDish[]): MealTiming {
   // CANONICAL DISH ORDER (D-WS9-235 follow-up). The scheduler's single-cook
@@ -61,7 +73,7 @@ export function deriveMealTiming(dishes: SchedulerDish[]): MealTiming {
         (a.dishId < b.dishId ? -1 : a.dishId > b.dishId ? 1 : 0),
     );
   if (withSteps.length === 0) {
-    return { totalMinutes: null, activeMinutes: null, dishTotals: new Map() };
+    return { totalMinutes: null, activeMinutes: null, dishTotals: new Map(), ignoredTags: [] };
   }
 
   const result = scheduleCookingSequence(withSteps);
@@ -70,21 +82,19 @@ export function deriveMealTiming(dishes: SchedulerDish[]): MealTiming {
   // guard above already excluded. Treat a 0 total as underivable rather than
   // writing it: a meal that takes no time is not a thing.
   if (result.totalEstimatedMinutes <= 0) {
-    return { totalMinutes: null, activeMinutes: null, dishTotals: new Map() };
+    return { totalMinutes: null, activeMinutes: null, dishTotals: new Map(), ignoredTags: [] };
   }
 
   const dishTotals = new Map<string, number>();
   for (const d of withSteps) {
-    dishTotals.set(
-      d.dishId,
-      d.steps.reduce((sum, s) => sum + s.estimatedMinutes, 0),
-    );
+    dishTotals.set(d.dishId, result.dishDurations[d.dishId]);
   }
 
   return {
     totalMinutes: result.totalEstimatedMinutes,
     activeMinutes: result.activeEstimatedMinutes,
     dishTotals,
+    ignoredTags: result.ignoredTags,
   };
 }
 
@@ -109,7 +119,7 @@ export async function stampMealTiming(
   mealId: string,
   dishIds: string[],
 ): Promise<MealTiming> {
-  const empty: MealTiming = { totalMinutes: null, activeMinutes: null, dishTotals: new Map() };
+  const empty: MealTiming = { totalMinutes: null, activeMinutes: null, dishTotals: new Map(), ignoredTags: [] };
   if (dishIds.length === 0) {
     logger.warn({ event: "meal_timing_not_derived", mealId, reason: "no_dishes" },
       "D-WS9-235: no dishes at stamp time; authored time left as-is");
@@ -122,7 +132,12 @@ export async function stampMealTiming(
   // dependency to buy a string this function discards.
   const steps = await tx.recipeInstructionStep.findMany({
     where: { ownerType: "dish", ownerId: { in: dishIds } },
-    select: { ownerId: true, stepIndex: true, estimatedMinutes: true, phaseType: true, isTimingSensitive: true },
+    // WS9 D-WS9-239 — parallelGroup + the component tags ride along: the
+    // scheduler honours the first and reads the other two only to validate it.
+    select: {
+      ownerId: true, stepIndex: true, estimatedMinutes: true, phaseType: true, isTimingSensitive: true,
+      parallelGroup: true, componentKey: true, pathKey: true,
+    },
     orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
   });
   const byDish = new Map<string, SchedulerDish["steps"]>();
@@ -133,6 +148,9 @@ export async function stampMealTiming(
       estimatedMinutes: s.estimatedMinutes,
       phaseType: s.phaseType as SchedulerPhase,
       isTimingSensitive: s.isTimingSensitive,
+      parallelGroup: s.parallelGroup,
+      componentKey: s.componentKey,
+      pathKey: s.pathKey,
     });
     byDish.set(s.ownerId, list);
   }
@@ -163,6 +181,15 @@ export async function stampMealTiming(
       "D-WS9-235: no derivable steps at stamp time; authored time left as-is",
     );
     return empty;
+  }
+  // WS9 D-WS9-239 — a tag the scheduler set aside is a tagging defect worth a
+  // line, not a failure: the step simply waited (rule 4), the number is the
+  // conservative one, and the stamp proceeds.
+  if (timing.ignoredTags.length > 0) {
+    logger.warn(
+      { event: "meal_timing_tags_ignored", mealId, ignoredTags: timing.ignoredTags },
+      "D-WS9-239: parallelGroup tag(s) ignored at stamp time",
+    );
   }
 
   await tx.meal.update({
