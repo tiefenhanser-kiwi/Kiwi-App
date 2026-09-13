@@ -46,13 +46,13 @@ describe("deriveParallelGroups — the Phase 0b rule set on generator output", (
       st("cook", 2, { fd: 13, path: "bought" }),
       st("assemble", 5),
       st("cook", 30, { fd: 15 }),
-      st("rest", 10, { fd: null }),
+      st("rest", 10), // last step: the field is OMITTED (1b-ii)
     ];
     const r = deriveParallelGroups(steps);
     assert.deepEqual(r.tags, [
       "w0", "w0", "w0", "w0", "w0", "w0", "w0", "w0", "w0", "w0", "w0", "w0", "w0", "w0",
       null, // the bake: the dependent, never a rider
-      null, // the rest: dependent of the bake (adjacent → no riders); its own null window has no riders
+      null, // the rest: dependent of the bake (adjacent → no riders); last step, no entry
     ]);
     // Inner windows with riders (#5→6 has none; #7→9 and #11→13 have one each) are absorbed.
     assert.equal(r.tieBreaks, 2);
@@ -155,7 +155,7 @@ describe("deriveParallelGroups — the Phase 0b rule set on generator output", (
       st("cook", 5, { fd: 3 }), // its own window would cover #2; absorbed by w0
       st("prep", 3),
       st("prep", 3),
-      st("cook", 20, { fd: null }),
+      st("cook", 20), // last step, no entry
     ]);
     assert.deepEqual(r.tags, ["w0", "w0", "w0", "w0", null]);
     assert.equal(r.tieBreaks, 1);
@@ -179,10 +179,23 @@ describe("deriveParallelGroups — the Phase 0b rule set on generator output", (
     assert.equal(classes(r).filter((c) => c === "window_collapsed").length, 2);
   });
 
-  it("null runs to the end of the dish", () => {
+  it("1b-ii: null is REFUSED on every step — no token, `null_declared` — never a window to the end of the dish", () => {
+    // The 1b gate: 9 of 9 non-final nulls meant "nothing to overlap here" and ran the window to the end.
     const r = deriveParallelGroups([st("preheat", 10, { fd: null }), st("prep", 3), st("prep", 3), st("assemble", 2)]);
-    assert.deepEqual(r.tags, ["w0", "w0", "w0", "w0"]);
-    assert.deepEqual(r.issues, []);
+    assert.deepEqual(r.tags, [null, null, null, null]);
+    assert.deepEqual(classes(r), ["null_declared"]);
+    // The carnitas shape: pour-in → null, then the braise and the crisp. Nothing rides the pour-in.
+    const carnitas = deriveParallelGroups([st("cook", 2, { fd: null }), st("cook", 45, { fd: 2 }), st("cook", 10, { ts: true }), st("assemble", 2)]);
+    assert.deepEqual(carnitas.tags, [null, null, null, null]);
+    assert.deepEqual(classes(carnitas), ["null_declared"]);
+    // null on the LAST step is refused too (the contract there is to omit), and counts as declared.
+    const last = deriveParallelGroups([st("preheat", 10, { fd: 1 }), st("cook", 20, { fd: null })]);
+    assert.deepEqual(last.tags, [null, null]);
+    assert.deepEqual(classes(last), ["null_declared"]);
+    assert.equal(last.declaredCount, 2);
+    // Omitted on the last step: no issue at all.
+    const omitted = deriveParallelGroups([st("preheat", 10, { fd: 1 }), st("cook", 20)]);
+    assert.deepEqual(omitted.issues, []);
   });
 
   it("missing entry on an unattended step = next step depends: no token, reported; attended steps need no entry", () => {
@@ -190,6 +203,11 @@ describe("deriveParallelGroups — the Phase 0b rule set on generator output", (
     assert.deepEqual(r.tags, [null, null, null, null]);
     assert.deepEqual(classes(r), ["missing_window"]);
     assert.equal(r.declaredCount, 0, "nothing declared — callers stay silent on this dish");
+    // 1b-ii: the LAST step omits the field by contract — no missing_window there.
+    const lastOmitted = deriveParallelGroups([st("preheat", 10, { fd: 1 }), st("cook", 20, { fd: 2 }), st("rest", 5)]);
+    assert.deepEqual(lastOmitted.issues, []);
+    const midMissing = deriveParallelGroups([st("preheat", 10, { fd: 1 }), st("cook", 20), st("rest", 5)]);
+    assert.deepEqual(classes(midMissing), ["missing_window"], "a NON-final omission is still reported");
     const half = deriveParallelGroups([st("preheat", 10, { fd: 2 }), st("prep", 3), st("cook", 20), st("assemble", 2)]);
     assert.equal(half.declaredCount, 1, "one declaration (the cook has none) — callers report the missing one");
     assert.deepEqual(classes(half), ["missing_window"]);

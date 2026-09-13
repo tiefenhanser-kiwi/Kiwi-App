@@ -70,7 +70,7 @@ A single \`dishSteps\` array. EVERY dish in the input — every entry of every \
       "steps": [
         { "text": "Dice the onion and mince the garlic.", "phaseType": "prep", "estimatedMinutes": 4, "isTimingSensitive": false },
         { "text": "Heat 2 tablespoons olive oil in a large skillet over medium-high and sear the pork shoulder 4 minutes per side until browned.", "phaseType": "cook", "estimatedMinutes": 10, "isTimingSensitive": true },
-        { "text": "Transfer the seared pork to the slow cooker with the onion and garlic and cook on low 8 hours.", "phaseType": "cook", "estimatedMinutes": 480, "isTimingSensitive": false, "firstDependent": null }
+        { "text": "Transfer the seared pork to the slow cooker with the onion and garlic and cook on low 8 hours.", "phaseType": "cook", "estimatedMinutes": 480, "isTimingSensitive": false }
       ]
     },
     {
@@ -149,7 +149,7 @@ Default to make-ahead prep. Chopping, dicing, slicing, measuring, and mixing mar
 
 Every UNATTENDED step — \`preheat\`, \`rest\`, \`hold\`, or a \`cook\` with \`isTimingSensitive\` false — carries \`firstDependent\`: the 0-based index, within this dish's \`steps\`, of the FIRST later step that cannot start until this one is completely done. That is the step that uses the thing being baked, boiled, rested, marinated or preheated — puts the pasta into the boiling water, slices the rested meat, threads the marinated shrimp, puts the tray into the hot oven, plates the finished dish. Everything between the unattended step and that step can be done while it runs, and the app schedules it that way — this is how a meal's time comes out honest without you adding anything up.
 
-Rules: the dependent step is always later than the unattended step. If the very next step already needs it, answer with that next step. If you are unsure whether a step needs it, choose the EARLIER candidate — waiting is always safe; starting too early is not. \`null\` only when no later step uses this step's result at all. Attended steps (searing, sautéing, stir-frying, anything needing constant attention) never carry \`firstDependent\`, and nothing overlaps them.
+Rules: the dependent step is always later than the unattended step. If the very next step already needs it, answer with that next step. If you are unsure whether a step needs it, choose the EARLIER candidate — waiting is always safe; starting too early is not. Never write \`null\`. On the last step of a dish, leave \`firstDependent\` out — there is no later step. Every other unattended step names a later step, and for most short ones that is simply the NEXT step: pouring in the broth, bringing water to a boil, stirring in the soup, warming the tortillas, heating the oil, spreading food on a hot sheet — the step right after them is the one that needs them done. Only a genuinely long hands-off stretch — a bake, a braise, a long simmer, a marinade, a preheat — has a dependent further down the list. Attended steps (searing, sautéing, stir-frying, anything needing constant attention) never carry \`firstDependent\`, and nothing overlaps them.
 
 Write the step text to match the structure: say "While the X bakes, …" only on a step that sits inside that window by \`firstDependent\`, and never on the step that needs the window finished.
 

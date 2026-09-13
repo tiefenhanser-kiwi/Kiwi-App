@@ -36,7 +36,7 @@ export const FirstDependentField = z
   .nullable()
   .optional()
   .describe(
-    "UNATTENDED steps only (preheat, rest, hold, or a cook with isTimingSensitive false): the 0-based index, within this dish's steps, of the FIRST later step that cannot begin until this step has completely finished — the step that uses what is baking, boiling, resting, marinating or preheating. If the very next step needs it, give that index. null = no later step needs it. Omit on attended steps.",
+    "UNATTENDED steps only (preheat, rest, hold, or a cook with isTimingSensitive false): the 0-based index, within this dish's steps, of the FIRST later step that cannot begin until this step has completely finished — the step that uses what is baking, boiling, resting, marinating or preheating. If the very next step needs it, give that index — for a short step (pouring in the broth, bringing water to a boil, stirring in, warming, heating the oil) that is almost always the case. Never write null: on the LAST step of a dish leave the field out (there is no later step), and omit it on attended steps.",
   );
 
 export const WizardStepSchema = z.object({
@@ -55,6 +55,9 @@ export const WizardStepSchema = z.object({
   pathKey: z.enum(["scratch", "bought"]).optional(),
   // WS9 D-WS9-239 (Phase 1b) — the generator's overlap declaration. Consumed
   // by parallelGroupDerive.ts at the seam; NOT persisted (there is no column).
+  // 1b-ii: the shape stays `.nullable()` ONLY so a model that writes null
+  // anyway never fails a save — the derivation refuses null (`null_declared`,
+  // no token); the contract is "omit on the last step, never null".
   // The description is the model's per-field guidance: it survives into the
   // tool's JSON-schema `description` (verified against buildToolForSchema).
   firstDependent: FirstDependentField,

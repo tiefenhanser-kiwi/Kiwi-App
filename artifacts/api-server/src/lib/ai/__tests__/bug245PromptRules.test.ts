@@ -176,12 +176,13 @@ describe("D-WS7-166 (expand v9) — the cap is a ceiling in wizard.candidate.exp
     );
   });
 
-  // The literal is the section's sha256 as re-measured after the D-WS9-239 1b
-  // edit (expand v10: the outline gains `firstDependent` — one bullet + the
-  // roast-chicken example). Before that it was v8's outline text (BUG-245
-  // d5cd6b3, ef2a6758…), untouched by the v9 cap rewrite. A deliberate outline
-  // change re-measures it; a cap rewrite must not move it.
-  it("the outline section is byte-identical to its post-1b hash (v10)", () => {
+  // The literal is the section's sha256 as re-measured after the D-WS9-239 1b-ii
+  // edit (expand v11: the `firstDependent` bullet's null sentence became "never
+  // write null — omit on the last entry; a short step's dependent is the NEXT
+  // entry"). History: v8 outline text (BUG-245 d5cd6b3, ef2a6758…), untouched by
+  // the v9 cap rewrite; 1b (v10, 8f3dad01…) added the bullet + the roast-chicken
+  // example. A deliberate outline change re-measures it; a cap rewrite must not.
+  it("the outline section is byte-identical to its post-1b-ii hash (v11)", () => {
     const heading = "# The timed outline (no step text)";
     const i = body.indexOf(heading);
     assert.ok(i >= 0, "outline heading missing");
@@ -189,7 +190,7 @@ describe("D-WS7-166 (expand v9) — the cap is a ceiling in wizard.candidate.exp
     const section = body.slice(i, j < 0 ? undefined : j);
     assert.equal(
       createHash("sha256").update(section).digest("hex"),
-      "8f3dad015de2f2ab626df40f1361c8c78cf3a7b3003b680db7cf698b6c291cdd",
+      "c9cf055689c3b7af1ca93d615ad30635f3e5a4582810ff54738ce7ba14a843b5",
       "expand outline section drifted",
     );
   });

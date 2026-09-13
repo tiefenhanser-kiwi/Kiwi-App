@@ -2,8 +2,8 @@
 //
 // The step generators (wizard.candidate.expand's outline, the two finalize_steps
 // calls) declare, per UNATTENDED step, the index of the FIRST later step that
-// cannot begin until it has completely finished (`firstDependent`; null = no
-// later step needs it). This module turns those END-explicit windows into the
+// cannot begin until it has completely finished (`firstDependent`; omitted on
+// the last step, never null). This module turns those END-explicit windows into the
 // `parallelGroup` tokens the scheduler honours (cookingScheduler.ts, Phase 1a).
 //
 // ⚠️ WHY THE WIRE CARRIES `firstDependent` AND NOT `parallelGroup` — measured,
@@ -36,7 +36,11 @@
 // unattended step means "the next step depends" (no token — the conservative
 // reading). `firstDependent` on an ATTENDED step is IGNORED and reported (the
 // model was told not to write it there); a value that is not later, out of
-// range, or not an integer is reported and emits no token. The assignment
+// range, or not an integer is reported and emits no token. `null` is refused
+// on every step (1b-ii, `null_declared`): the 1b gate measured 9 of 9
+// non-final nulls as a semantic inversion ("nothing to overlap here"), each
+// running a window to the end of the dish — so no window ever runs to the end
+// of a dish; the last step simply omits the field. The assignment
 // iterates to a fixpoint: a window whose whole group collapses under the rules
 // is removed so the windows it had absorbed get their turn.
 //
@@ -52,7 +56,12 @@ export interface DeriveStep {
   isTimingSensitive: boolean;
   componentKey?: string | null;
   pathKey?: string | null;
-  // Absent = the model wrote nothing; null = "no later step needs this".
+  // Absent = the model wrote nothing (on the LAST step of a dish that is the
+  // contract: there is no later step). null is NOT a value the model may write
+  // (1b-ii): the 1b gate measured 9 of 9 non-final nulls as "nothing to
+  // overlap here" — the window then ran to the end of the dish — so a null
+  // anywhere is refused (`null_declared`, no token). Typed nullable only so a
+  // model that writes it anyway never fails a save.
   firstDependent?: number | null;
 }
 
@@ -63,8 +72,11 @@ export type DeriveIssueClass =
   | "dependent_out_of_range"
   // Points at itself or an earlier step.
   | "dependent_not_later"
-  // An unattended step with no entry — treated as "next step depends".
+  // A NON-FINAL unattended step with no entry — treated as "next step depends".
   | "missing_window"
+  // 1b-ii: `null` declared on any step. Refused, no token — never a window to
+  // the end of the dish. (Omitting the field on the last step is the contract.)
+  | "null_declared"
   // Rule (b): the dependent skipped the rest/hold right after a cook window;
   // the window was closed at the rest.
   | "rest_rides_cook"
@@ -175,7 +187,7 @@ export function deriveParallelGroups(steps: Step[]): DeriveResult {
   const unattendedIdx = steps.map((s, i) => (isUnattended(s) ? i : -1)).filter((i) => i >= 0);
   const declaredCount = steps.filter((s) => s.firstDependent !== undefined).length;
 
-  // window → exclusive end (index of the first dependent; n when null)
+  // window → exclusive end (index of the first dependent)
   const ends = new Map<number, number>();
   const seen = new Set<number>();
   for (let wi = 0; wi < n; wi++) {
@@ -190,7 +202,7 @@ export function deriveParallelGroups(steps: Step[]): DeriveResult {
       continue;
     }
     if (fd === null) {
-      ends.set(wi, n);
+      issues.push({ cls: "null_declared", detail: `#${wi} declared null (refused; a window never runs to the end of the dish)` });
       continue;
     }
     if (typeof fd !== "number" || !Number.isInteger(fd) || fd < 0 || fd >= n) {
@@ -203,8 +215,9 @@ export function deriveParallelGroups(steps: Step[]): DeriveResult {
     }
     ends.set(wi, fd);
   }
+  // The LAST step omits the field by contract (1b-ii): no entry there is not missing.
   for (const ui of unattendedIdx) {
-    if (!seen.has(ui)) {
+    if (!seen.has(ui) && ui < n - 1) {
       issues.push({ cls: "missing_window", detail: `unattended #${ui} has no entry (treated as: next step depends)` });
     }
   }

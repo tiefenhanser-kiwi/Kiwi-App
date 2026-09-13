@@ -78,6 +78,13 @@ describe("firstDependent — WizardStepSchema / WizardOutlineStepSchema round-tr
     assert.ok(o.success && !("parallelGroup" in o.data));
   });
 
+  it("1b-ii: the description tells the model never to write null and to omit on the last step (shape still accepts null so a save never fails)", () => {
+    const desc = (WizardStepSchema.shape.firstDependent as { description?: string }).description ?? "";
+    assert.ok(desc.includes("Never write null: on the LAST step of a dish leave the field out"));
+    assert.ok(!desc.includes("null = no later step needs it"));
+    assert.equal(WizardStepSchema.safeParse({ ...baseStep, firstDependent: null }).success, true, "still accepted on the wire");
+  });
+
   it("a bad firstDependent on an outline entry drops the WHOLE outline (the BUG-245 catch), never fails the parse", () => {
     const r = WizardOutlineFieldSchema.safeParse([{ ...baseOutline, firstDependent: "3" }, { phaseType: "cook", estimatedMinutes: 20, isTimingSensitive: false }]);
     assert.equal(r.success, true);
@@ -120,7 +127,12 @@ describe("firstDependent — the three prompt bodies", () => {
       assert.ok(body.includes("Attended steps (searing, sautéing, stir-frying, anything needing constant attention) never carry `firstDependent`"));
       assert.ok(body.includes('say "While the X bakes, …" only on a step that sits inside that window by `firstDependent`'), "text follows structure");
       assert.ok(body.includes('"firstDependent": 3 }, { "text": "Cut the potatoes'), "the prep-ahead example: preheat → the step that puts the tray in");
-      assert.ok(body.includes('cook on low 8 hours.", "phaseType": "cook", "estimatedMinutes": 480, "isTimingSensitive": false, "firstDependent": null }'), "the slow-cooker step carries null");
+      // 1b-ii: null is out of the model's vocabulary — the slow-cooker step (the dish's last) OMITS the field.
+      assert.ok(body.includes('cook on low 8 hours.", "phaseType": "cook", "estimatedMinutes": 480, "isTimingSensitive": false }'), "the slow-cooker step omits firstDependent (last step)");
+      assert.ok(!body.includes('"firstDependent": null'), "no example writes null");
+      assert.ok(body.includes("Never write `null`. On the last step of a dish, leave `firstDependent` out — there is no later step."), "1b-ii: the null rule");
+      assert.ok(body.includes("pouring in the broth, bringing water to a boil, stirring in the soup, warming the tortillas, heating the oil, spreading food on a hot sheet — the step right after them is the one that needs them done."), "the short-step examples (the 1b gate's 9/9 + 4 minor)");
+      assert.ok(!body.includes("`null` only when no later step uses this step's result at all"), "the sentence that let null mean two things is gone");
       assert.ok(body.includes("plus `firstDependent` on every UNATTENDED step"), "the field list names it");
     });
 
@@ -138,6 +150,9 @@ describe("firstDependent — the three prompt bodies", () => {
     assert.ok(body.includes("- `firstDependent` — on every UNATTENDED entry (`preheat`, `rest`, `hold`, or a `cook` with `isTimingSensitive` false): the 0-based index, within this dish's `outline`, of the FIRST later entry that cannot start until this one is completely done"));
     assert.ok(body.includes("when unsure, choose the EARLIER candidate (waiting is always safe; starting too early is not)"));
     assert.ok(body.includes("Omit it on attended entries."));
+    // 1b-ii
+    assert.ok(body.includes("never write `null` — on the last entry of a dish leave `firstDependent` out (there is no later entry), and for a short unattended entry (pouring in the broth, bringing water to a boil, stirring in, warming, heating the oil, spreading food on a hot sheet) the dependent is simply the NEXT entry"));
+    assert.ok(!body.includes("`null` only when no later entry uses this one's result at all"));
     assert.ok(
       body.includes(
         '{ "phaseType": "preheat", "estimatedMinutes": 10, "isTimingSensitive": false, "firstDependent": 3 }, { "phaseType": "cook", "estimatedMinutes": 35, "isTimingSensitive": false, "firstDependent": 4 }, { "phaseType": "rest", "estimatedMinutes": 5, "isTimingSensitive": false, "firstDependent": 5 }, { "phaseType": "assemble", "estimatedMinutes": 3, "isTimingSensitive": false }',
