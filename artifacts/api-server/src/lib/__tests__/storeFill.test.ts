@@ -20,6 +20,7 @@ import {
   mealComplete,
   mergeSteps,
   runStoreFill,
+  generateInput,
   validateBug040Meal,
   type GenProfile,
 } from "../storeFill";
@@ -888,5 +889,40 @@ describe("mergeSteps / buildMaterializePayload — D-WS9-239 1b derived parallel
     // the window keeps #1 and, after the hole, #3 is a re-appearance → dropped.
     assert.deepEqual(tags, ["w0", "w0", null, null, null]);
     assert.ok(merged.parallelGroupIssues.some((i) => i.cls === "path_mismatch"));
+  });
+});
+
+// ── D-WS9-240 item 6 — the dish split rides the volatile input, only when given ──
+import { STABLE_GENERATE_PREFIX } from "../storeFillPrompts";
+
+describe("generateInput — the 30-minute list's dish split (D-WS9-240 item 6)", () => {
+  it("without a split the volatile input is byte-identical to Block 3.8's", () => {
+    assert.equal(generateInput("Baked Chicken Breast", PROFILE), JSON.stringify({ targetDish: "Baked Chicken Breast", servings: 4, difficulty: "easy" }));
+    assert.equal(generateInput("Baked Chicken Breast", PROFILE, []), generateInput("Baked Chicken Breast", PROFILE), "an empty split is no split");
+  });
+
+  it("with a split the input carries `dishes` in the order given", () => {
+    const parsed = JSON.parse(generateInput("BLT with Kettle Chips and a Dill Pickle", PROFILE, ["BLT sandwich", "Kettle chips and pickle"])) as { dishes: string[] };
+    assert.deepEqual(parsed.dishes, ["BLT sandwich", "Kettle chips and pickle"]);
+  });
+
+  it("the cached generate prefix tells the model what a `dishes` list means", () => {
+    assert.ok(STABLE_GENERATE_PREFIX.includes("carries a `dishes` list"), "the prefix must explain the split or the model is guessing");
+  });
+
+  it("runStoreFill passes the target's split to the generate call", async () => {
+    const meal = makeMeal();
+    const seen: string[] = [];
+    const inner = makeFakeRunAICall([okResult(meal)], [okResult(finalizeFor(meal))]);
+    const runAICall = (async (key: string, vars: Record<string, string>, ...rest: unknown[]) => {
+      if (key === "store.generate_meal") seen.push(vars.generateInput);
+      return (inner as unknown as (...a: unknown[]) => Promise<unknown>)(key, vars, ...rest);
+    }) as unknown as typeof productionRunAICall;
+    await runStoreFill(
+      { prisma: fakePrisma(), runAICall },
+      { apply: false, limit: 1, dishes: [{ ...DISH(1, "BLT with Kettle Chips and a Dill Pickle"), dishes: ["BLT sandwich", "Kettle chips and pickle"] }], profiles: [PROFILE] },
+    );
+    assert.equal(seen.length, 1);
+    assert.deepEqual((JSON.parse(seen[0]) as { dishes: string[] }).dishes, ["BLT sandwich", "Kettle chips and pickle"]);
   });
 });

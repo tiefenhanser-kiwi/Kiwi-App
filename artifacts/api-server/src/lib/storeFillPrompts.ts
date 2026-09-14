@@ -210,6 +210,8 @@ The named dish is the MAIN / CENTERPIECE, and there is always exactly ONE \`main
 - MULTI-DISH: the named dish as the \`main\`, PLUS one or two supporting dishes — a \`base\` (a starch: rice, potatoes, grains, bread, pasta) and/or a \`side\` (a vegetable or salad). This is the default for a plated protein like a fillet, chop, or breast. A plain grilled salmon fillet, a bare baked chicken breast, or a naked steak with only oil/salt/herbs is INCOMPLETE and will be rejected — give it real accompaniments.
 - SINGLE-DISH (one-pot / one-pan): ONE substantial dish that ALREADY carries, in its own ingredient list, a protein AND a starch and/or a vegetable — a soup, stew, chili, casserole, stir-fry, one-pot pasta, or a hearty protein-topped dinner salad. Complete as-is; do NOT pad it with token sides.
 
+When the message ALSO carries a \`dishes\` list, the target is a whole plate and that list is the dish split to author: one \`dishes\` entry per name, in the order given, the first one the \`main\` — name each dish from its entry, and neither merge two entries into one dish nor add a dish the list does not name. Where an entry is a bought or no-cook side ("kettle chips and a pickle", "bagged slaw"), author it as that: a short assembly, not a from-scratch recipe. The split is chosen so the dishes can overlap on the clock; keep it.
+
 Your sole deliverable is the structured tool_use response. Do not narrate or add commentary — the JSON is the entire response. Never break character with phrases like "Here's a dinner..." or "I'll create...".
 
 # What you produce

@@ -32,6 +32,16 @@ export interface TargetDish {
   band: TargetBand;
   /** Number of versions sharing this parentDish across the list. 1 = N=1 tail. */
   siblingCount: number;
+  /**
+   * D-WS9-240 item 6 — the DISH SPLIT to author, in serving order (first = the
+   * main), when the target is a whole plate rather than a centerpiece. The
+   * scheduler overlaps dishes only through unattended time, so a 30-minute
+   * dinner is a 30-minute dinner because of how it is SPLIT — the 30-minute
+   * target list carries the split per row and it is load-bearing. Absent on
+   * the frozen catalog list: the generate call's volatile input is then
+   * byte-identical to Block 3.8's.
+   */
+  dishes?: string[];
 }
 
 export const TARGET_DISHES: TargetDish[] = [

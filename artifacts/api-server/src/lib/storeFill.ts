@@ -496,11 +496,15 @@ export function buildMaterializePayload(
 }
 
 // ── volatile per-call inputs (go in the user body; NOT the cached prefix) ─────
-export function generateInput(targetDish: string, profile: GenProfile): string {
+export function generateInput(targetDish: string, profile: GenProfile, dishes?: string[]): string {
   return JSON.stringify({
     targetDish,
     servings: profile.servings,
     difficulty: profile.difficulty,
+    // D-WS9-240 item 6 — the dish split, only when the target carries one
+    // (see TargetDish.dishes); the frozen catalog list never does, so its
+    // volatile input stays byte-identical.
+    ...(dishes && dishes.length > 0 ? { dishes } : {}),
   });
 }
 
@@ -749,7 +753,7 @@ export async function runStoreFill(
       if (overCalls()) { stoppedBy = "max_calls"; break; }
       const gen = await runAICall(
         "store.generate_meal",
-        { generateInput: generateInput(target.dish, profile) },
+        { generateInput: generateInput(target.dish, profile, target.dishes) },
         WizardExpandEnrichedMealDetailsSchema,
         { prisma, mode: "tool", cachedSystemPrefix: STABLE_GENERATE_PREFIX },
       );
