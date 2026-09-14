@@ -330,3 +330,44 @@ describe("D-WS9-239 — stampMealTiming reads parallelGroup off the persisted st
     assert.deepEqual(dishUpdates, [{ where: { id: "ziti" }, data: { estimatedTimeMinutes: 50 } }]);
   });
 });
+
+describe("BUG-270 — deriveMealTiming inherits base + default path from the scheduler", () => {
+  const withPath = (
+    d: SchedulerDish,
+    paths: (["scratch" | "bought", string] | null)[],
+  ): SchedulerDish => ({
+    ...d,
+    steps: d.steps.map((s, i) => {
+      const p = paths[i];
+      return p ? { ...s, componentKey: p[1], pathKey: p[0] } : { ...s, componentKey: null, pathKey: null };
+    }),
+  });
+
+  it("a dual-path dish stamps base + scratch on the meal, the dish, and active — the bought alternate is not in any of the three", () => {
+    // shred 10 (scratch) · open bag 1 (bought) · dressing 4 (scratch) · bottle 1 (bought) · toss 3 (base) · chill 20 (base, hold)
+    const slaw = withPath(
+      dish("slaw", [
+        { min: 10, phase: "prep" },
+        { min: 1, phase: "prep" },
+        { min: 4, phase: "prep" },
+        { min: 1, phase: "prep" },
+        { min: 3, phase: "assemble" },
+        { min: 20, phase: "hold" },
+      ]),
+      [["scratch", "slaw"], ["bought", "slaw"], ["scratch", "dressing"], ["bought", "dressing"], null, null],
+    );
+    const t = deriveMealTiming([slaw]);
+    assert.equal(t.totalMinutes, 37, "10 + 4 + 3 + 20; not the 39 both paths gave");
+    assert.equal(t.activeMinutes, 17, "the two bought minutes are not hands-on either");
+    assert.equal(t.dishTotals.get("slaw"), 37);
+    assert.deepEqual(t.ignoredTags, []);
+  });
+
+  it("a dish the drop leaves empty gets NO dishTotals entry (fails open, like a null), and the meal still derives", () => {
+    const allBought = withPath(dish("jar", [{ min: 2, phase: "prep" }]), [["bought", "sauce"]]);
+    const pasta = dish("pasta", [{ min: 12 }], 1);
+    const t = deriveMealTiming([allBought, pasta]);
+    assert.equal(t.totalMinutes, 12);
+    assert.deepEqual([...t.dishTotals.entries()], [["pasta", 12]], "no undefined for the vanished dish");
+  });
+});

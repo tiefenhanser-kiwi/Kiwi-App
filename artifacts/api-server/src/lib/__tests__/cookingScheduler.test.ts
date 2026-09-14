@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 
 import {
   scheduleCookingSequence,
+  selectDefaultPathSteps,
   type SchedulerDish,
   type SchedulerStep,
   type ScheduleResult,
@@ -83,12 +84,18 @@ function anchorOf(result: ScheduleResult): number {
 
 function assertWellFormed(result: ScheduleResult, dishes: SchedulerDish[]) {
   const rows = analyze(result, dishes);
-  const inputCount = dishes.reduce((n, d) => n + d.steps.length, 0);
+  // WS9 BUG-270 — the scheduler's input is base + the default (scratch) path;
+  // a `bought` alternate is never scheduled, so it is not an input step here.
+  const inputCount = dishes.reduce((n, d) => n + selectDefaultPathSteps(d.steps).length, 0);
 
-  // Every input step appears exactly once.
-  assert.equal(rows.length, inputCount, "every input step appears exactly once");
+  // Every (default-path) input step appears exactly once; no bought step ever.
+  assert.equal(rows.length, inputCount, "every default-path input step appears exactly once");
   const keys = new Set(rows.map((r) => `${r.dishId}#${r.stepIndex}`));
   assert.equal(keys.size, inputCount, "no duplicate step in output");
+  for (const d of dishes)
+    for (const s of d.steps)
+      if (s.pathKey === "bought")
+        assert.ok(!keys.has(`${d.dishId}#${s.stepIndex}`), `bought step ${d.dishId}#${s.stepIndex} must not be scheduled`);
 
   // sequenceIndex is contiguous 0..n-1 in emission order.
   result.steps.forEach((s, i) =>
@@ -535,6 +542,9 @@ describe("scheduleCookingSequence — D-WS9-239 parallelGroup (valid groups)", (
     // Cajun Shrimp Pasta (handcheck_b.md): boil 8 (w0) · prep 7/3/1/3 ride it ·
     // pasta 10 (w5) · sauté 4/4/1 ride it · deglaze 2 + cream 5 (unattended
     // riders) · toss 2 · finish 2 · plate 2. Stored 54 → 34, measured in Phase 0b.
+    // WS9 BUG-270: step 3 is the 1-min BOUGHT alternate of step 2's scratch prep
+    // and is no longer scheduled, so the fixture reads 53 → 33 (active 28) — the
+    // Phase 0b numbers minus exactly that minute.
     const d: SchedulerDish[] = [
       {
         dishId: "cajun",
@@ -560,12 +570,12 @@ describe("scheduleCookingSequence — D-WS9-239 parallelGroup (valid groups)", (
     ];
     const result = scheduleCookingSequence(d);
     assertWellFormed(result, d);
-    assert.equal(scheduleCookingSequence(untaggedTwin(d)).totalEstimatedMinutes, 54);
-    assert.equal(result.totalEstimatedMinutes, 34);
-    assert.equal(result.activeEstimatedMinutes, 29);
+    assert.equal(scheduleCookingSequence(untaggedTwin(d)).totalEstimatedMinutes, 53);
+    assert.equal(result.totalEstimatedMinutes, 33);
+    assert.equal(result.activeEstimatedMinutes, 28);
     assert.deepEqual(result.ignoredTags, []);
     const rows = analyze(result, d);
-    assert.equal(rows.find((r) => r.stepIndex === 5)!.startAbs, 14, "the pasta waits for max(finish) of the w0 group (8,7,10,11,14)");
+    assert.equal(rows.find((r) => r.stepIndex === 5)!.startAbs, 13, "the pasta waits for max(finish) of the w0 group (8,7,10,13)");
   });
 
   it("is deterministic with tags — identical input yields identical output", () => {
@@ -717,6 +727,11 @@ describe("scheduleCookingSequence — D-WS9-239 invalid tags are ignored (never 
   });
 
   describe("path rule: a rider's pathKey must agree with the window's unless one is base (null)", () => {
+    // WS9 BUG-270 — a `bought` step is dropped at the scheduler's input, before
+    // classification, so scratch-vs-bought never reaches this rule any more.
+    // The rule stays as the defensive guard it always was; the fixtures below
+    // pin (i) what the drop does to a group that leaned on a bought step and
+    // (ii) that rule (d) still fires for a pathKey outside the enum.
     const pasta = (windowPath: string | null, riderPath: string | null): SchedulerDish[] => [
       {
         dishId: "p",
@@ -730,27 +745,46 @@ describe("scheduleCookingSequence — D-WS9-239 invalid tags are ignored (never 
       },
     ];
 
-    it("scratch never rides bought (and vice versa): path_mismatch + lone window = the untagged schedule", () => {
-      for (const [w, r] of [
-        ["bought", "scratch"],
-        ["scratch", "bought"],
-      ] as const) {
-        const d = pasta(w, r);
-        const control = scheduleCookingSequence(untaggedTwin(d));
-        const result = scheduleCookingSequence(d);
-        assert.deepEqual(emitted(result), emitted(control));
-        assert.equal(result.totalEstimatedMinutes, 23, `${w}/${r}: 5+12+6 serial`);
-        assert.deepEqual(result.ignoredTags, [
-          { dishId: "p", stepIndex: 2, token: "g", reason: "path_mismatch" },
-          { dishId: "p", stepIndex: 1, token: "g", reason: "lone_token" },
-        ]);
-      }
+    it("BUG-270: a bought WINDOW is not scheduled, so its scratch rider has no window (attended_window) — 5+6, the bought 12 gone", () => {
+      const d = pasta("bought", "scratch");
+      const result = scheduleCookingSequence(d);
+      assertWellFormed(result, d);
+      assert.equal(result.totalEstimatedMinutes, 11);
+      assert.deepEqual(result.ignoredTags, [{ dishId: "p", stepIndex: 2, token: "g", reason: "attended_window" }]);
+    });
+
+    it("BUG-270: a bought RIDER is not scheduled, so its scratch window goes lone — 5+12, the bought 6 gone", () => {
+      const d = pasta("scratch", "bought");
+      const result = scheduleCookingSequence(d);
+      assertWellFormed(result, d);
+      assert.equal(result.totalEstimatedMinutes, 17);
+      assert.deepEqual(result.ignoredTags, [{ dishId: "p", stepIndex: 1, token: "g", reason: "lone_token" }]);
+    });
+
+    it("BUG-270: a base rider whose only window was bought is simply untagged (attended_window), never orphaned onto nothing", () => {
+      const d = pasta("bought", null);
+      const result = scheduleCookingSequence(d);
+      assertWellFormed(result, d);
+      assert.equal(result.totalEstimatedMinutes, 11, "5 + 6: the base prep waits like any untagged step");
+      assert.deepEqual(result.ignoredTags, [{ dishId: "p", stepIndex: 2, token: "g", reason: "attended_window" }]);
+    });
+
+    it("rule (d) still guards a pathKey outside the enum: path_mismatch + lone window = the untagged schedule", () => {
+      const d = pasta("scratch", "frozen");
+      const control = scheduleCookingSequence(untaggedTwin(d));
+      const result = scheduleCookingSequence(d);
+      assert.deepEqual(emitted(result), emitted(control));
+      assert.equal(result.totalEstimatedMinutes, 23, "5+12+6 serial — the unknown value is kept and reads long, never short");
+      assert.deepEqual(result.ignoredTags, [
+        { dishId: "p", stepIndex: 2, token: "g", reason: "path_mismatch" },
+        { dishId: "p", stepIndex: 1, token: "g", reason: "lone_token" },
+      ]);
     });
 
     it("base (null) rides with anything, on either side", () => {
       for (const [w, r] of [
         [null, "scratch"],
-        ["bought", null],
+        ["scratch", null],
         [null, null],
         ["scratch", "scratch"],
       ] as const) {
@@ -762,22 +796,24 @@ describe("scheduleCookingSequence — D-WS9-239 invalid tags are ignored (never 
       }
     });
 
-    it("a path hole closes the group: later same-token riders are reopened_group, not honoured", () => {
+    it("a rejected rider is a hole that closes the group: later same-token riders are reopened_group, not honoured", () => {
+      // The hole is a same-component rest riding its own cook (rest_rides_cook);
+      // BUG-270 made a scratch/bought mismatch unreachable as the hole-maker.
       const d: SchedulerDish[] = [
         {
           dishId: "p",
           title: "Pasta",
           positionIndex: 0,
           steps: [
-            tstep(0, 12, "cook", { tag: "g", pathKey: "bought" }),
-            tstep(1, 6, "prep", { tag: "g", pathKey: "scratch" }), // mismatch → hole
-            tstep(2, 3, "prep", { tag: "g", pathKey: "bought" }), // would agree, but the group is closed
+            tstep(0, 12, "cook", { tag: "g", componentKey: "sauce" }),
+            tstep(1, 6, "rest", { tag: "g", componentKey: "sauce" }), // rest rides its own cook → hole
+            tstep(2, 3, "prep", { tag: "g" }), // would ride, but the group is closed
           ],
         },
       ];
       const result = scheduleCookingSequence(d);
       assert.deepEqual(result.ignoredTags, [
-        { dishId: "p", stepIndex: 1, token: "g", reason: "path_mismatch" },
+        { dishId: "p", stepIndex: 1, token: "g", reason: "rest_rides_cook" },
         { dishId: "p", stepIndex: 2, token: "g", reason: "reopened_group" },
         { dishId: "p", stepIndex: 0, token: "g", reason: "lone_token" },
       ]);
@@ -856,5 +892,200 @@ describe("scheduleCookingSequence — D-WS9-239 the anomaly guard (rule 6)", () 
       { dishId: "d1", stepIndex: 0, token: "g", reason: "anomaly_guard" },
     ]);
     assert.equal(result.activeEstimatedMinutes, control.activeEstimatedMinutes, "active is the same either way");
+  });
+});
+
+// ── WS9 BUG-270 — a dual-path dish is BASE + the default path, never both ────
+
+describe("scheduleCookingSequence — BUG-270 base + default (scratch) path only", () => {
+  /** Live rows of the km30 "Buffalo Chicken Quesadillas" dish, the shape that named the bug. */
+  const quesadilla: SchedulerDish = {
+    dishId: "q",
+    title: "Buffalo Chicken Quesadillas",
+    positionIndex: 0,
+    steps: [
+      tstep(0, 3, "prep", { componentKey: "chicken", pathKey: "scratch" }),
+      tstep(1, 14, "cook", { ts: true, componentKey: "chicken", pathKey: "scratch" }),
+      tstep(2, 4, "cook", { componentKey: "buffalo-sauce", pathKey: "scratch" }),
+      tstep(3, 5, "prep", { componentKey: "chicken", pathKey: "bought" }),
+      tstep(4, 1, "prep", { componentKey: "buffalo-sauce", pathKey: "bought" }),
+      tstep(5, 2, "prep"),
+      tstep(6, 4, "prep", { componentKey: "cheese", pathKey: "scratch" }),
+      tstep(7, 2, "prep", { componentKey: "cheese", pathKey: "bought" }),
+      tstep(8, 4, "assemble"),
+      tstep(9, 12, "cook", { ts: true }),
+      tstep(10, 2, "assemble"),
+    ],
+  };
+  const celery: SchedulerDish = {
+    dishId: "c",
+    title: "Celery Sticks with Ranch",
+    positionIndex: 1,
+    steps: [tstep(0, 4, "prep"), tstep(1, 2, "assemble")],
+  };
+  /** The same dishes with the bought steps already removed — what the fix must equal. */
+  const prefiltered = (ds: SchedulerDish[]): SchedulerDish[] =>
+    ds.map((d) => ({ ...d, steps: d.steps.filter((s) => s.pathKey !== "bought") }));
+  /** The same dishes with every path tag stripped — what the OLD scheduler effectively walked. */
+  const bothPaths = (ds: SchedulerDish[]): SchedulerDish[] =>
+    ds.map((d) => ({ ...d, steps: d.steps.map((s) => ({ ...s, componentKey: null, pathKey: null })) }));
+
+  it("the quesadilla: base 20 + scratch 25 + bought 8 schedules as 45, the meal 51 — not the 53 / 59 both paths gave", () => {
+    const d = [quesadilla, celery];
+    const result = scheduleCookingSequence(d);
+    assertWellFormed(result, d);
+    assert.equal(result.dishDurations.q, 45, "base 20 + scratch 25; the bought 8 is not cooked");
+    assert.equal(result.dishDurations.c, 6);
+    assert.equal(result.totalEstimatedMinutes, 51, "45 + the all-attended 6-minute side");
+    assert.equal(result.activeEstimatedMinutes, 47, "the unattended sauce simmer (4) is the only hands-free minute");
+    assert.deepEqual(result.ignoredTags, []);
+    // Exactly what pre-filtering by hand gives — the filter is the whole change.
+    assert.deepEqual(result, scheduleCookingSequence(prefiltered(d)));
+    // And what the unfixed walk stored: every path serialised.
+    const old = scheduleCookingSequence(bothPaths(d));
+    assert.equal(old.dishDurations.q, 53);
+    assert.equal(old.totalEstimatedMinutes, 59);
+    assert.equal(old.activeEstimatedMinutes, 55);
+  });
+
+  it("a single-path dish is byte-unchanged: base-only, and base + scratch with no bought step", () => {
+    const baseOnly: SchedulerDish[] = [
+      { dishId: "a", title: "A", positionIndex: 0, steps: [tstep(0, 5, "prep"), tstep(1, 20, "cook"), tstep(2, 3, "assemble")] },
+      { dishId: "b", title: "B", positionIndex: 1, steps: [tstep(0, 8, "prep"), tstep(1, 6, "cook", { ts: true })] },
+    ];
+    assert.deepEqual(scheduleCookingSequence(baseOnly), scheduleCookingSequence(bothPaths(baseOnly)));
+    const scratchTagged: SchedulerDish[] = [
+      {
+        dishId: "s",
+        title: "S",
+        positionIndex: 0,
+        steps: [
+          tstep(0, 10, "preheat", { tag: "w" }),
+          tstep(1, 6, "prep", { tag: "w", componentKey: "sauce", pathKey: "scratch" }),
+          tstep(2, 25, "cook"),
+        ],
+      },
+    ];
+    const result = scheduleCookingSequence(scratchTagged);
+    assertWellFormed(result, scratchTagged);
+    assert.deepEqual(result, scheduleCookingSequence(bothPaths(scratchTagged)), "a scratch tag alone changes nothing");
+    assert.equal(result.totalEstimatedMinutes, 35);
+  });
+
+  it("the default is the default, not the minimum: a SHORTER bought path still reads the scratch time", () => {
+    const d: SchedulerDish[] = [
+      {
+        dishId: "slaw",
+        title: "Coleslaw",
+        positionIndex: 0,
+        steps: [
+          tstep(0, 10, "prep", { componentKey: "slaw", pathKey: "scratch" }), // shred the cabbage
+          tstep(1, 1, "prep", { componentKey: "slaw", pathKey: "bought" }), // open the bag
+          tstep(2, 3, "assemble"),
+        ],
+      },
+    ];
+    const result = scheduleCookingSequence(d);
+    assertWellFormed(result, d);
+    assert.equal(result.totalEstimatedMinutes, 13, "10 + 3: the 1-minute bag is not the number");
+    assert.equal(result.activeEstimatedMinutes, 13);
+  });
+
+  it("an unrecognised pathKey is KEPT (reads long, never short); only the literal bought is dropped", () => {
+    const d: SchedulerDish[] = [
+      {
+        dishId: "x",
+        title: "X",
+        positionIndex: 0,
+        steps: [tstep(0, 7, "prep", { componentKey: "k", pathKey: "frozen" }), tstep(1, 2, "prep", { componentKey: "k", pathKey: "Bought" }), tstep(2, 5, "cook")],
+      },
+    ];
+    const result = scheduleCookingSequence(d);
+    assert.equal(result.steps.length, 3, "neither frozen nor Bought is the excluded value");
+    assert.equal(result.totalEstimatedMinutes, 14);
+  });
+
+  describe("token orphans: excluding bought steps must not leave a tag the derivation would not catch", () => {
+    it("a base window whose EVERY rider was bought goes lone_token — reported, never honoured, the number is the serial one", () => {
+      const d: SchedulerDish[] = [
+        {
+          dishId: "o",
+          title: "O",
+          positionIndex: 0,
+          steps: [
+            tstep(0, 10, "preheat", { tag: "w" }), // base window
+            tstep(1, 2, "prep", { tag: "w", componentKey: "sauce", pathKey: "bought" }), // the only rider — gone
+            tstep(2, 20, "cook"),
+          ],
+        },
+      ];
+      const result = scheduleCookingSequence(d);
+      assertWellFormed(result, d);
+      assert.deepEqual(result.ignoredTags, [{ dishId: "o", stepIndex: 0, token: "w", reason: "lone_token" }]);
+      assert.equal(result.totalEstimatedMinutes, 30, "10 + 20 serial: nothing rides the preheat any more");
+    });
+
+    it("a bought window with base riders: the first surviving rider becomes the window if unattended, so later riders still overlap it", () => {
+      const d: SchedulerDish[] = [
+        {
+          dishId: "r",
+          title: "R",
+          positionIndex: 0,
+          steps: [
+            tstep(0, 12, "cook", { tag: "g", componentKey: "sauce", pathKey: "bought" }), // bought window — gone
+            tstep(1, 8, "cook", { tag: "g" }), // base, unattended → the window now
+            tstep(2, 5, "prep", { tag: "g" }), // base rider → rides #1's kickoff
+            tstep(3, 2, "assemble"),
+          ],
+        },
+      ];
+      const result = scheduleCookingSequence(d);
+      assertWellFormed(result, d);
+      assert.deepEqual(result.ignoredTags, []);
+      assert.equal(result.totalEstimatedMinutes, 10, "prep rides the 8-min cook (kicked off together), then 2");
+      const rows = analyze(result, d);
+      assert.equal(rows.find((r) => r.stepIndex === 2)!.startAbs, rows.find((r) => r.stepIndex === 1)!.startAbs);
+    });
+
+    it("a bought window with an ATTENDED base rider: the rider has no window (attended_window) and simply waits", () => {
+      const d: SchedulerDish[] = [
+        {
+          dishId: "r",
+          title: "R",
+          positionIndex: 0,
+          steps: [
+            tstep(0, 12, "cook", { tag: "g", componentKey: "sauce", pathKey: "bought" }),
+            tstep(1, 5, "prep", { tag: "g" }),
+            tstep(2, 2, "assemble"),
+          ],
+        },
+      ];
+      const result = scheduleCookingSequence(d);
+      assertWellFormed(result, d);
+      assert.deepEqual(result.ignoredTags, [{ dishId: "r", stepIndex: 1, token: "g", reason: "attended_window" }]);
+      assert.equal(result.totalEstimatedMinutes, 7);
+    });
+  });
+
+  it("a dish left with NO steps by the drop is treated as empty: absent from dishDurations, the meal still schedules", () => {
+    const d: SchedulerDish[] = [
+      { dishId: "gone", title: "All bought", positionIndex: 0, steps: [tstep(0, 3, "prep", { componentKey: "k", pathKey: "bought" })] },
+      { dishId: "kept", title: "Kept", positionIndex: 1, steps: [tstep(0, 9, "prep")] },
+    ];
+    const result = scheduleCookingSequence(d);
+    assert.deepEqual(Object.keys(result.dishDurations), ["kept"]);
+    assert.equal(result.totalEstimatedMinutes, 9);
+    assert.equal(scheduleCookingSequence([d[0]]).totalEstimatedMinutes, 0, "alone it is the empty schedule");
+  });
+
+  it("selectDefaultPathSteps: drops the literal bought only, keeps order and stepIndex", () => {
+    const steps = [
+      tstep(0, 1, "prep", { pathKey: "scratch" }),
+      tstep(1, 1, "prep", { pathKey: "bought" }),
+      tstep(2, 1, "prep"),
+      tstep(3, 1, "prep", { pathKey: null }),
+      tstep(4, 1, "prep", { pathKey: "bought" }),
+    ];
+    assert.deepEqual(selectDefaultPathSteps(steps).map((s) => s.stepIndex), [0, 2, 3]);
   });
 });

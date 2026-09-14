@@ -85,9 +85,14 @@ export function deriveMealTiming(dishes: SchedulerDish[]): MealTiming {
     return { totalMinutes: null, activeMinutes: null, dishTotals: new Map(), ignoredTags: [] };
   }
 
+  // WS9 BUG-270 — the scheduler walks base + the default path only, so a dish
+  // whose every step is a `bought` alternate has no duration (no such dish
+  // exists in the catalog; the guard keeps an `undefined` out of the stamp,
+  // where it would silently leave the authored number in place).
   const dishTotals = new Map<string, number>();
   for (const d of withSteps) {
-    dishTotals.set(d.dishId, result.dishDurations[d.dishId]);
+    const duration = result.dishDurations[d.dishId];
+    if (duration !== undefined) dishTotals.set(d.dishId, duration);
   }
 
   return {

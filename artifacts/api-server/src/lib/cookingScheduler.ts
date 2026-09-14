@@ -63,6 +63,27 @@
 // tag-aware passes reduce EXACTLY to the serial walk they replaced — the §5.1
 // acceptance for Phase 1a was 1,202/1,202 derived totals byte-identical.
 //
+// ── Swappable components: BASE + ONE path, never both (WS9 BUG-270) ─────────
+// A store-filled dish can carry a swappable component (Block 3.7, D-WS9-066):
+// its from-scratch steps are tagged `pathKey: "scratch"`, the 1–3 steps that
+// use the bought product instead are tagged `pathKey: "bought"`, and everything
+// else is base (null). The two paths are ALTERNATIVES — the prompt's own rule
+// is "BASE + all SCRATCH steps = the full from-scratch dish; BASE + a
+// component's BOUGHT steps = a real dish using that product". Until BUG-270
+// this module walked every step it was handed, so a dual-path dish was
+// scheduled as if one cook shredded the cabbage AND opened the bag: measured on
+// the catalog, 1,655 dishes stored a time nobody cooks (a 53-minute quesadilla
+// dish = base 20 + scratch 25 + bought 8, where the from-scratch cook does 45).
+//
+// The rule: a dish's schedule is BASE + the DEFAULT path. The default is
+// from-scratch — the schema's "absent selection = scratch" and the prompt's
+// primary recipe — so `bought` steps are dropped at THIS module's input, once,
+// before classification, and every consumer (the save-time stamp, the backfill,
+// Cook Mode's sequence) inherits it. Only the literal "bought" is excluded: an
+// unrecognised value stays in and reads LONG, never short. This is not "store
+// two times" (D-WS9-235 rules one derived pair per meal); showing the bought
+// path's time when a user flips D-WS9-148's toggle is WS9B's decision.
+//
 // This module stays dependency-free: it does not import a logger. Invalid tags
 // come back on `ignoredTags` and the CALLER decides whether to log them.
 
@@ -130,6 +151,9 @@ export type IgnoredTagReason =
   | "rest_rides_cook"
   // The rider's pathKey differs from the window's and neither is null (base is
   // null and rides with anything): a scratch step cannot ride a bought window.
+  // Since BUG-270 drops every `bought` step before classification, this is
+  // reachable only for a pathKey outside the {scratch, bought} enum — kept as
+  // the defensive guard it always was, not removed.
   | "path_mismatch"
   // The token re-appears after its group closed (an untagged / different-token
   // / rejected step sat in between). Contiguity: honouring it would let a step
@@ -208,6 +232,26 @@ export function isUnattended(
     default:
       return false;
   }
+}
+
+// WS9 BUG-270 — the one pathKey value whose steps are NOT part of the default
+// (from-scratch) recipe. Exported for the measurement scripts; the scheduler
+// itself is the only runtime caller.
+export const EXCLUDED_PATH_KEY = "bought";
+
+/**
+ * The steps a from-scratch cook actually does: base (null path) + the scratch
+ * path. The `bought` alternates are dropped. Order and stepIndex are preserved,
+ * so every emitted `originalStepIndex` still names a persisted row.
+ *
+ * WS9 BUG-270 — applied ONCE, at `scheduleCookingSequence`'s input, so every
+ * consumer inherits it (see the header). Exported so a script can measure
+ * "what the scheduler will see" without re-implementing the predicate.
+ */
+export function selectDefaultPathSteps<T extends Pick<SchedulerStep, "pathKey">>(
+  steps: T[],
+): T[] {
+  return steps.filter((s) => (s.pathKey ?? null) !== EXCLUDED_PATH_KEY);
 }
 
 // Present-tense gerund for a passive window, used to compose a natural cue.
@@ -441,12 +485,20 @@ interface WorkStep {
  *
  * D-WS9-239: steps 1–4 run twice — tags honoured, tags ignored — and the
  * shorter total wins (rule 6). The two runs are identical when nothing is tagged.
+ *
+ * BUG-270: a dish's `bought`-path steps are dropped HERE, before anything else
+ * reads them (classification included), so the schedule is base + the default
+ * from-scratch path — never both alternatives of a swappable component. A
+ * dish left with no steps by that drop is treated exactly like a dish handed
+ * over with none (it does not appear in `dishDurations`).
  */
 export function scheduleCookingSequence(
   dishes: SchedulerDish[],
 ): ScheduleResult {
   // Guard: no dishes / no steps -> empty schedule (caller handles empties).
-  const nonEmpty = dishes.filter((d) => d.steps.length > 0);
+  const nonEmpty = dishes
+    .map((d) => ({ ...d, steps: selectDefaultPathSteps(d.steps) }))
+    .filter((d) => d.steps.length > 0);
   if (nonEmpty.length === 0) {
     return {
       steps: [],

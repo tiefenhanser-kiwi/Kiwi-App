@@ -39,6 +39,9 @@ interface StepFixture {
   // WS9 D-WS9-239 — read again: the loader forwards it to the scheduler.
   parallelGroup: string | null;
   isTimingSensitive: boolean;
+  // WS9 BUG-270 — the swappable-component tags; the scheduler drops `bought`.
+  componentKey?: string | null;
+  pathKey?: string | null;
 }
 
 function makePrismaStub(opts: {
@@ -380,5 +383,43 @@ describe("runCookingSequence — D-WS9-239 parallelGroup reaches the scheduler",
     assert.equal(at(tagged, 1), -50);
     assert.equal(at(tagged, 2), -30);
     assert.equal(tagged.usedAI, false);
+  });
+});
+
+describe("runCookingSequence — BUG-270 a dual-path dish sequences base + scratch, never the bought alternate", () => {
+  function fixture() {
+    const meals: MealFixture[] = [
+      {
+        id: "meal-dual",
+        userId: USER_ID,
+        isPublic: false,
+        dishLinks: [
+          { dishId: "dish-q", positionIndex: 0, dish: { id: "dish-q", title: "Quesadillas" } },
+        ],
+      },
+    ];
+    // season 3 (scratch) · packet 1 (bought) · cook chicken 14 (scratch, watched) ·
+    // rotisserie 3 (bought) · assemble 4 (base) · griddle 12 (base, watched)
+    const s = (stepIndex: number, estimatedMinutes: number, phaseType: StepFixture["phaseType"], extra: Partial<StepFixture> = {}): StepFixture => ({
+      ownerType: "dish", ownerId: "dish-q", stepIndex, stepTextTranslated: `step ${stepIndex}`, estimatedMinutes, phaseType, parallelGroup: null, isTimingSensitive: false, ...extra,
+    });
+    const steps: StepFixture[] = [
+      s(0, 3, "prep", { componentKey: "seasoning", pathKey: "scratch" }),
+      s(1, 1, "prep", { componentKey: "seasoning", pathKey: "bought" }),
+      s(2, 14, "cook", { componentKey: "chicken", pathKey: "scratch", isTimingSensitive: true }),
+      s(3, 3, "prep", { componentKey: "chicken", pathKey: "bought" }),
+      s(4, 4, "assemble"),
+      s(5, 12, "cook", { isTimingSensitive: true }),
+    ];
+    return makePrismaStub({ meals, steps });
+  }
+
+  it("the wire sequence carries the four default-path steps, total 33 — not six steps at 37", async () => {
+    const r = await runCookingSequence({ mealId: "meal-dual", userId: USER_ID, deps: { prisma: fixture() } });
+    assert.equal(r.totalEstimatedMinutes, 33, "3 + 14 + 4 + 12");
+    assert.deepEqual(r.sequence.map((e) => e.originalStepIndex), [0, 2, 4, 5], "originalStepIndex still names the persisted rows; 1 and 3 are the bought alternates");
+    assert.deepEqual(r.sequence.map((e) => e.startOffsetMinutes), [-33, -30, -16, -12]);
+    assert.equal(r.dishCount, 1);
+    assert.equal(r.usedAI, false);
   });
 });
