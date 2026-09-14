@@ -58,6 +58,21 @@ import { isUnattended, type SchedulerPhase } from "./cookingScheduler";
  */
 export const ADJACENCY_MAX_MINUTES = 5;
 
+/**
+ * The rest/hold refinement — which phases may be the WINDOW step of the
+ * adjacency override. The override's premise is that a short unattended step
+ * followed by an unattended cook is one process CONTINUING ("bring to a boil →
+ * simmer", "pour in → braise", "brush the glaze, into the oven → roast"). A
+ * `rest` or a `hold` is a pause, not a process: nothing a rest does continues
+ * into the cook after it, so "rest the steak → warm the tortillas" is two
+ * things happening at once, exactly the window the declaration described. The
+ * phases that CAN continue are the ones that apply heat: `cook` and `preheat`.
+ * Physical, not fitted — the Phase 2 read of the catalog's 30 fires found 4
+ * with a rest/hold window, every one a closed legitimate window and none a
+ * fixed continuation; but the rule would be right with 0 of them.
+ */
+export const ADJACENCY_WINDOW_PHASES: readonly SchedulerPhase[] = ["cook", "preheat"];
+
 /** One generator-output step, in dish order. Only the fields the rules read. */
 export interface DeriveStep {
   phaseType: SchedulerPhase;
@@ -103,8 +118,8 @@ export type DeriveIssueClass =
   // The fixpoint removed a window that lost every rider.
   | "window_collapsed"
   // Phase 1c (report-only — a correction, not a rejection): a ≤ N-minute
-  // unattended step followed by an UNATTENDED cook had its declared dependent
-  // forced to that next step, and the tokens changed because of it.
+  // unattended cook/preheat followed by an UNATTENDED cook had its declared
+  // dependent forced to that next step, and the tokens changed because of it.
   | "adjacency_override";
 
 export interface DeriveIssue {
@@ -249,10 +264,13 @@ export function deriveParallelGroups(steps: Step[]): DeriveResult {
   // is a measured edge (6 costs a real 6-minute tortilla window; ≤5 cost
   // nothing on the data). Errors can only CLOSE a window — conservative.
   // Reported as `adjacency_override` ONLY when the tokens actually change.
+  // The WINDOW step must itself be a process that can continue — `cook` or
+  // `preheat` (ADJACENCY_WINDOW_PHASES); a rest/hold window is left to its
+  // declaration. The RIDER condition (next step an unattended cook) is unchanged.
   const candidates: { wi: number; declared: number }[] = [];
   for (const [wi, end] of ends) {
     const nxt = steps[wi + 1];
-    if (end > wi + 1 && steps[wi].estimatedMinutes <= ADJACENCY_MAX_MINUTES && nxt && nxt.phaseType === "cook" && isUnattended(nxt)) {
+    if (end > wi + 1 && ADJACENCY_WINDOW_PHASES.includes(steps[wi].phaseType) && steps[wi].estimatedMinutes <= ADJACENCY_MAX_MINUTES && nxt && nxt.phaseType === "cook" && isUnattended(nxt)) {
       candidates.push({ wi, declared: end });
     }
   }

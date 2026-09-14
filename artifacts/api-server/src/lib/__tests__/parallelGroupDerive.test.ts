@@ -9,6 +9,7 @@ import { describe, it } from "node:test";
 
 import {
   ADJACENCY_MAX_MINUTES,
+  ADJACENCY_WINDOW_PHASES,
   deriveParallelGroups,
   type DeriveStep,
 } from "../parallelGroupDerive";
@@ -80,11 +81,13 @@ describe("deriveParallelGroups — the Phase 0b rule set on generator output", (
     const r = deriveParallelGroups(steps);
     assert.deepEqual(r.tags, [null, null, "w2", "w2", "w2", "w5", "w5", "w5", "w5", "w5", null, null]);
     assert.equal(r.tags[5], "w5", "the pasta step is w2's DEPENDENT, not its rider — it opens its own window");
-    // 1c: #4 (5-min rest → 11) and #8 (3-min cook → 10) are each followed by an unattended cook,
-    // so the adjacency override forces them adjacent — silently: both were absorbed (w2 / w5) and
-    // no token changes. Before 1c they showed as two nested_window_absorbed tie-breaks.
-    assert.equal(r.tieBreaks, 0);
-    assert.deepEqual(classes(r), []);
+    // 1c: #8 (3-min cook → 10) is followed by an unattended cook, so the adjacency override
+    // forces it adjacent — silently: it was absorbed (w5) and no token changes. #4 (5-min REST
+    // → 11) is the same shape but a rest is not a window the override may close (the rest/hold
+    // refinement): its declared window stands and is absorbed into w2 — one nested_window_absorbed
+    // tie-break, no token changes. (Before the refinement 1c forced #4 too and this read 0 / [].)
+    assert.equal(r.tieBreaks, 1);
+    assert.deepEqual(classes(r), ["nested_window_absorbed"]);
   });
 
   it("rule (b): a rest/hold immediately after a cook window closes the window AT the rest", () => {
@@ -306,5 +309,51 @@ describe("deriveParallelGroups — 1c adjacency override (≤ 5-min unattended s
     assert.equal(absorbed.issues.filter((i) => i.cls === "adjacency_override").length, 0, "tokens unchanged → not reported");
     const adjacent = deriveParallelGroups([st("cook", 3, { fd: 1 }), st("cook", 20, { fd: 2 }), st("assemble", 2)]);
     assert.equal(adjacent.issues.length, 0);
+  });
+});
+
+// ── The rest/hold refinement — the WINDOW step must be a cook or a preheat ───
+// A rest/hold is a pause, not a process; nothing it does continues into the
+// cook after it. Fixtures are the catalog's own adjacency fires (Phase 2 read of
+// all 30: the 4 with a rest/hold window were all closed legitimate windows —
+// "rest the steak → warm the tortillas" — and none a fixed continuation).
+describe("deriveParallelGroups — adjacency window restricted to cook/preheat (a rest is a pause, not a continuation)", () => {
+  it("the window phases are exactly cook and preheat, and exported", () => {
+    assert.deepEqual([...ADJACENCY_WINDOW_PHASES], ["cook", "preheat"]);
+  });
+
+  it("REST window (catalog 3c5f32db Smoky Chipotle Carne Asada): 'rest the steak' 5 min → #7 with 'while the steak rests, warm the tortillas' (unattended cook) next — left to its declaration, the tortillas ride the rest", () => {
+    const steps = [st("prep", 8, { path: "scratch" }), st("prep", 1, { path: "bought" }), st("rest", 20, { fd: 4 }), st("preheat", 3, { fd: 4 }), st("cook", 8, { ts: true }), st("rest", 5, { fd: 7 }), st("cook", 5), st("assemble", 4)];
+    const r = deriveParallelGroups(steps);
+    assert.deepEqual(r.tags, [null, null, "w2", "w2", null, "w5", "w5", null], "the marinade window is untouched; the rest now carries the tortilla warm-up");
+    assert.equal(r.issues.filter((i) => i.cls === "adjacency_override").length, 0, "a rest window is not a candidate");
+  });
+
+  it("HOLD window (catalog adcd1ba5 Herb Falafel in Warm Pita): 'keep the falafel warm' 5 min → #9 with 'warm the pita' (unattended cook) next — left alone, the pita rides the hold", () => {
+    const steps = [st("prep", 5), st("prep", 6), st("prep", 4), st("rest", 30, { fd: 5 }), st("preheat", 5, { fd: 6 }), st("prep", 6), st("cook", 16, { ts: true }), st("hold", 5, { fd: 9 }), st("cook", 5, { fd: 9 }), st("assemble", 3)];
+    const r = deriveParallelGroups(steps);
+    assert.deepEqual(r.tags, [null, null, null, "w3", "w3", null, null, "w7", "w7", null]);
+    assert.equal(r.issues.filter((i) => i.cls === "adjacency_override").length, 0, "a hold window is not a candidate");
+  });
+
+  it("COOK window still fires (catalog ece9b89b Classic Sloppy Joes, one of the 7 true continuations): 'add the sauce' 2 min → #7 skipping the 10-min simmer; forced → #6, no token", () => {
+    const steps = [st("prep", 6), st("prep", 3), st("cook", 7, { ts: true }), st("cook", 4, { ts: true }), st("cook", 1, { ts: true }), st("cook", 2, { fd: 7 }), st("cook", 10, { fd: 7 }), st("assemble", 2)];
+    const r = deriveParallelGroups(steps);
+    assert.deepEqual(r.tags, [null, null, null, null, null, null, null, null], "the simmer is the continuation of the sauce step; nothing rides it");
+    const ov = r.issues.filter((i) => i.cls === "adjacency_override");
+    assert.equal(ov.length, 1);
+    assert.equal(ov[0].detail, "#5 (2 min, unattended) declared →#7 but is followed by an unattended cook; forced →#6");
+  });
+
+  it("PREHEAT window still fires (catalog 075c6e9b Crispy Onion Straws): 'heat the oil' 4 min → #5 (fry) with #4 tagged an unattended cook next; forced → #4", () => {
+    // A preheat CAN continue into a cook (heat the oil → fry). On the catalog this fire was a
+    // loss — #4 'dredge the rings' is hands-on work mis-tagged unattended — but that is the
+    // RIDER side of the rule, which this refinement does not touch; the window side keeps preheat.
+    const steps = [st("prep", 5, { path: "scratch" }), st("prep", 3, { path: "scratch" }), st("prep", 1, { path: "bought" }), st("preheat", 4, { fd: 5 }), st("cook", 3, { path: "scratch" }), st("cook", 8, { ts: true, path: "scratch" })];
+    const r = deriveParallelGroups(steps);
+    assert.deepEqual(r.tags, [null, null, null, null, null, null]);
+    const ov = r.issues.filter((i) => i.cls === "adjacency_override");
+    assert.equal(ov.length, 1);
+    assert.equal(ov[0].detail, "#3 (4 min, unattended) declared →#5 but is followed by an unattended cook; forced →#4");
   });
 });
