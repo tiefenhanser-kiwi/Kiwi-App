@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import { z } from "zod";
 
 import { apiClient } from "@/lib/api/client";
@@ -10,16 +11,65 @@ import type { User } from "./types";
 const TOKEN_KEY = "kiwi_authToken";
 
 // ── Token storage ─────────────────────────────────────────────────────────
+// D-WS9-241 E — the token lives in a different place per platform.
+//
+//   native: expo-secure-store (Keychain / Keystore). Byte-unchanged.
+//   web:    sessionStorage. expo-secure-store's web entry is
+//           `export default {}` — every call rejects with a TypeError at
+//           call time (it is a throwing stub, not a missing build). That
+//           rejection was the bootstrap's third failure path: the context's
+//           `await readToken()` never resolved to a value, so the app sat
+//           blank forever. sessionStorage is per-tab and dies with the
+//           browser session — a web user signs in once per session, an
+//           accepted cost. localStorage was rejected (a 30-day JWT readable
+//           by any injected script, on a now-public API); an httpOnly cookie
+//           is the long-term answer and a server change.
+//
+// Every web access is wrapped, including the `sessionStorage` property read
+// itself: private-mode Safari and blocked third-party storage throw on
+// ACCESS, not just on write. A throw anywhere reads as "no token" — never an
+// exception escaping to the caller.
+
+function webStorage(): Storage | null {
+  try {
+    return globalThis.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function storeToken(token: string): Promise<void> {
+  if (Platform.OS === "web") {
+    try {
+      webStorage()?.setItem(TOKEN_KEY, token);
+    } catch {
+      // Storage full / blocked — the session is in-memory-only for this tab.
+    }
+    return;
+  }
   await SecureStore.setItemAsync(TOKEN_KEY, token);
 }
 
 export async function readToken(): Promise<string | null> {
+  if (Platform.OS === "web") {
+    try {
+      return webStorage()?.getItem(TOKEN_KEY) ?? null;
+    } catch {
+      return null;
+    }
+  }
   return SecureStore.getItemAsync(TOKEN_KEY);
 }
 
 export async function clearToken(): Promise<void> {
+  if (Platform.OS === "web") {
+    try {
+      webStorage()?.removeItem(TOKEN_KEY);
+    } catch {
+      // Nothing to clear if storage is unreachable.
+    }
+    return;
+  }
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
