@@ -339,6 +339,44 @@ test("Similar mode: AI hard-failure renders the error state, no list, no second 
   renderer.unmount();
 });
 
+// D-WS9-241 D — a spend-guard REFUSAL (429/503 with `reason`) renders the
+// server's copy verbatim in the banner; a 429 WITHOUT a guard reason keeps the
+// local line. Keyed on reason, not status.
+const SPEND_CAP_USER_COPY =
+  "You've reached today's planning limit — Kiwi will be ready to plan again tomorrow.";
+
+test("Similar mode: a spend-guard refusal renders the SERVER's copy verbatim (D-WS9-241 D)", async () => {
+  fetchImpl = () => ({
+    ok: false,
+    status: 429,
+    text: async () =>
+      JSON.stringify({ error: SPEND_CAP_USER_COPY, reason: "spend_cap_user" }),
+  });
+  const renderer = await renderSheet("similar");
+  const joined = textLeavesOf(renderer.root).join(" | ");
+
+  assert.ok(joined.includes(SPEND_CAP_USER_COPY), `server copy expected: ${joined}`);
+  assert.ok(!joined.includes("Couldn't reach Kiwi"), `local copy must not show: ${joined}`);
+  assert.ok(!joined.includes("Bucatini Amatriciana"), `no list on refusal: ${joined}`);
+
+  renderer.unmount();
+});
+
+test("Similar mode: a 429 WITHOUT a guard reason keeps the local copy (ruling does not over-reach)", async () => {
+  fetchImpl = () => ({
+    ok: false,
+    status: 429,
+    text: async () => JSON.stringify({ error: "Too many requests" }),
+  });
+  const renderer = await renderSheet("similar");
+  const joined = textLeavesOf(renderer.root).join(" | ");
+
+  assert.ok(joined.includes("Couldn't reach Kiwi"), `local copy expected: ${joined}`);
+  assert.ok(!joined.includes("Too many requests"), `a non-guard body is not echoed: ${joined}`);
+
+  renderer.unmount();
+});
+
 test("Similar mode: picking a match hands a real candidate-pool meal to the caller", async () => {
   fetchImpl = () => ({
     ok: true,

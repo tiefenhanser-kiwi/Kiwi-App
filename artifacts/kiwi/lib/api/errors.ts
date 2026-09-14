@@ -98,3 +98,64 @@ export function extractUserFacingMessage(body: unknown): string | undefined {
   if (typeof b.message === "string") return b.message;
   return undefined;
 }
+
+// ── Spend-guard refusals (D-WS9-241 D) ──────────────────────────────────
+//
+// The server's spend guard (D-WS9-240) refuses an AI call for one of three
+// reasons and answers 429 (per-user cap) or 503 (global ceiling / kill
+// switch) — NOT 502 — with a body carrying `reason` and its own copy. That
+// copy tells the user WHAT happened ("today's planning limit", "Kiwi is
+// taking a short break"); a client's canned "something went wrong" is the one
+// message a spend refusal must not send. Ruling: where a body carries one of
+// these reasons, every client surface renders the server's message VERBATIM
+// and keys on `reason`, not on status. Every other 4xx/5xx keeps its local
+// canonical copy — this does not open the copy question generally.
+//
+// Body shapes differ by route: most send `{ error: <copy>, reason }`; the
+// grocery routes send `{ error: "ai_failed", message: <copy>, reason }`; the
+// recipe-import envelope sends `{ userFacingMessage: <copy>, reason }`. So
+// the copy precedence here is userFacingMessage > message > error — the
+// REVERSE of extractUserFacingMessage's error > message, because on a guard
+// body `error` may be a code. A guard reason with no usable copy is NOT a
+// refusal (null) — the caller falls through to its local copy.
+
+export type SpendGuardReason =
+  | "spend_cap_user"
+  | "spend_cap_global"
+  | "ai_disabled";
+
+const SPEND_GUARD_REASONS: ReadonlySet<string> = new Set<SpendGuardReason>([
+  "spend_cap_user",
+  "spend_cap_global",
+  "ai_disabled",
+]);
+
+export interface SpendGuardRefusal {
+  reason: SpendGuardReason;
+  /** The server's copy, verbatim. */
+  message: string;
+}
+
+export function isSpendGuardReason(reason: unknown): reason is SpendGuardReason {
+  return typeof reason === "string" && SPEND_GUARD_REASONS.has(reason);
+}
+
+/** Read a spend-guard refusal off a parsed response body, or null. */
+export function spendGuardRefusal(body: unknown): SpendGuardRefusal | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  if (!isSpendGuardReason(b.reason)) return null;
+  for (const key of ["userFacingMessage", "message", "error"] as const) {
+    const v = b[key];
+    if (typeof v === "string" && v.trim().length > 0) {
+      return { reason: b.reason, message: v };
+    }
+  }
+  return null;
+}
+
+/** Same, off a thrown/enveloped error: only an ApiError carries a body. */
+export function spendGuardRefusalFromError(err: unknown): SpendGuardRefusal | null {
+  if (!(err instanceof ApiError)) return null;
+  return spendGuardRefusal(err.body);
+}

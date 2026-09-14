@@ -7,11 +7,17 @@
 //
 // Error routing mirrors askKiwiSubmit, mapped to parse-dish's typed errors:
 //   - 402 UpgradeRequiredError → route to the upgrade modal.
+//   - 429/503 ApiError with a spend-guard `reason` (D-WS9-241 D) → the
+//     server's copy VERBATIM; keyed on reason, not status.
 //   - 502 ApiError (ai_failed) → friendly retryable message; input kept.
 //   - transport / unknown → same retryable treatment.
 
 import type { ParseDishInput, ParseDishResult } from "@/lib/api/builder";
-import { ApiError, UpgradeRequiredError } from "@/lib/api/errors";
+import {
+  ApiError,
+  UpgradeRequiredError,
+  spendGuardRefusal,
+} from "@/lib/api/errors";
 
 import { parsedDishToDraft } from "./parsedDishToDraft";
 
@@ -60,6 +66,9 @@ export async function runAskKiwiDishSubmit(
       return { status: "upgrade" };
     }
     if (err instanceof ApiError) {
+      // A spend-guard refusal says WHAT happened — render it, don't replace it.
+      const refusal = spendGuardRefusal(err.body);
+      if (refusal) return { status: "error", message: refusal.message };
       return { status: "error", message: ASK_KIWI_DISH_AI_FAILED_MESSAGE };
     }
     return { status: "error", message: ASK_KIWI_DISH_AI_FAILED_MESSAGE };

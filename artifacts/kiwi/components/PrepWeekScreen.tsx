@@ -22,6 +22,7 @@ import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { PrepWeekView } from "@/components/PrepWeekView";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { spendGuardRefusalFromError } from "@/lib/api/errors";
 import { usePlan } from "@/hooks/usePlan";
 import { usePrepWeek } from "@/hooks/usePrepWeek";
 import { usePrepWeekCompletions } from "@/hooks/usePrepWeekCompletions";
@@ -286,13 +287,19 @@ export function PrepWeekScreen({
   }
 
   // ── Error: a hard failure (404/502/401/schema) ──────────────────────────────
+  // D-WS9-241 D — a spend-guard refusal (429/503 with `reason`) is not a hard
+  // failure: the server's copy says what happened and is rendered VERBATIM.
+  // Keyed on reason, not status; every other error keeps the local line.
   if (prepQuery.isError || !outcome) {
+    const refusal = spendGuardRefusalFromError(prepQuery.error);
     return (
       <View style={s.bg}>
         <Header showBack title={headerTitle} onBack={onExit} />
         <View style={s.center}>
           <Text style={s.errorText}>
-            We couldn&apos;t build your prep plan. Pull back and try again.
+            {refusal
+              ? refusal.message
+              : "We couldn't build your prep plan. Pull back and try again."}
           </Text>
           <Button label="Back" variant="secondary" onPress={onExit} />
         </View>

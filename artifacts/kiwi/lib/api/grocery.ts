@@ -17,18 +17,28 @@
 import { z } from "zod";
 
 import { apiClient } from "./client";
-import { ApiError, UnauthenticatedError } from "./errors";
+import {
+  ApiError,
+  UnauthenticatedError,
+  spendGuardRefusal,
+  type SpendGuardReason,
+} from "./errors";
 import type { GroceryList, GroceryListItem } from "../types";
 
 // ─────────────────────────────────────────────────────────────────────────
 // POST /plans/:id/generate-grocery-list
 // ─────────────────────────────────────────────────────────────────────────
 
+// `spend_guard` (D-WS9-241 D): the server REFUSED the AI call — per-user cap
+// (429), global ceiling or kill switch (503) — and `message` is its copy,
+// verbatim. Keyed on the body's `reason`, never on status: a 429/503 without
+// a guard reason is still `unknown`.
 export type GenerateGroceryListResult =
   | { success: true; groceryListId: string }
   | { success: false; error: "list_exists"; existingListId: string }
   | { success: false; error: "plan_not_found" }
   | { success: false; error: "ai_failed"; message?: string }
+  | { success: false; error: "spend_guard"; reason: SpendGuardReason; message: string }
   | { success: false; error: "unauthenticated" }
   | { success: false; error: "unknown"; status?: number };
 
@@ -57,6 +67,17 @@ export async function generateGroceryListForPlan(
     return { success: false, error: "unauthenticated" };
   }
   if (err instanceof ApiError) {
+    // Before any status branch: a guard refusal arrives as 429/503, which the
+    // ladder below would otherwise file under `unknown`.
+    const refusal = spendGuardRefusal(err.body);
+    if (refusal) {
+      return {
+        success: false,
+        error: "spend_guard",
+        reason: refusal.reason,
+        message: refusal.message,
+      };
+    }
     if (err.status === 409) {
       const body = err.body as { existingListId?: string } | null;
       return {

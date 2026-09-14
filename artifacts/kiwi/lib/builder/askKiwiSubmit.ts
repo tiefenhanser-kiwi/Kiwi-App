@@ -10,12 +10,18 @@
 // parse-meal's typed errors (lib/api/client.ts):
 //   - 402 UpgradeRequiredError → route to the upgrade modal (the UI stays
 //     ungated pre-submit; the server's 402 is the gate, PRD §1.2 trial-mode).
+//   - 429/503 ApiError with a spend-guard `reason` (D-WS9-241 D) → the
+//     server's copy VERBATIM; keyed on reason, not status.
 //   - 502 ApiError (ai_failed) → friendly retryable message; the caller keeps
 //     the typed text intact (we never signal "clear input").
 //   - transport / unknown → same retryable treatment.
 
 import type { ParseMealInput, ParseMealResult } from "@/lib/api/builder";
-import { ApiError, UpgradeRequiredError } from "@/lib/api/errors";
+import {
+  ApiError,
+  UpgradeRequiredError,
+  spendGuardRefusal,
+} from "@/lib/api/errors";
 
 import { parsedMealToDraft } from "./parsedMealToDraft";
 
@@ -64,9 +70,13 @@ export async function runAskKiwiSubmit(
       return { status: "upgrade" };
     }
     if (err instanceof ApiError) {
+      // A spend-guard refusal says WHAT happened — render it, don't replace it.
+      const refusal = spendGuardRefusal(err.body);
+      if (refusal) return { status: "error", message: refusal.message };
       // 502 ai_failed (and any other non-2xx) → friendly retryable. The
-      // server's parse-meal failure body carries no user-facing copy, so we
-      // use our own message rather than echo a raw "Request failed (502)".
+      // server's parse-meal failure copy is the generic "Kiwi got distracted",
+      // so we use our own message rather than echo it or a raw
+      // "Request failed (502)".
       return { status: "error", message: ASK_KIWI_AI_FAILED_MESSAGE };
     }
     // ApiNetworkError / anything unexpected — retryable, same treatment.

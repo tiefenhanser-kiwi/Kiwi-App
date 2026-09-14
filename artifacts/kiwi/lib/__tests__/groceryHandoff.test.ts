@@ -198,6 +198,8 @@ test("dispatch: EXACTLY ONE sink fires per outcome — never both, never neither
     { success: true, groceryListId: "gl-1" },
     { success: false, error: "list_exists", existingListId: "gl-2" },
     { success: false, error: "ai_failed" },
+    // D-WS9-241 D — the server's copy rides `message`; still exactly one sink.
+    { success: false, error: "spend_guard", reason: "spend_cap_user", message: "limit" },
     { success: false, error: "plan_not_found" },
     { success: false, error: "unauthenticated" },
     { success: false, error: "unknown" },

@@ -24,6 +24,7 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { useFindSimilarMeals } from "@/hooks/useFindSimilarMeals";
 import { useMeal } from "@/hooks/useMeal";
 import { useInfiniteMeals, useMeals } from "@/hooks/useMeals";
+import { spendGuardRefusalFromError } from "@/lib/api/errors";
 import {
   importEntryParams,
   type ImportEntryContext,
@@ -473,6 +474,10 @@ function SimilarBody({
     (visible &&
       !!sourceMealId &&
       (sourceMealQuery.isError || candidatesQuery.isError));
+  // D-WS9-241 D — when the ranking call was REFUSED by the spend guard
+  // (429/503 with `reason`), the banner carries the server's copy verbatim;
+  // any other failure keeps the local "Couldn't reach Kiwi" line.
+  const refusal = spendGuardRefusalFromError(findSimilarMutation.error);
 
   return (
     <>
@@ -502,7 +507,9 @@ function SimilarBody({
         ) : showError ? (
           <View style={s.errorBanner}>
             <Feather name="alert-circle" size={14} color={Colors.terracotta[700]} />
-            <Text style={s.errorBannerText}>Couldn&apos;t reach Kiwi — try again.</Text>
+            <Text style={s.errorBannerText}>
+              {refusal ? refusal.message : "Couldn't reach Kiwi — try again."}
+            </Text>
           </View>
         ) : matches.length === 0 ? (
           <View style={s.emptyCard}>

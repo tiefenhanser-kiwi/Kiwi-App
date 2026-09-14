@@ -23,7 +23,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { z } from "zod";
 
 import { apiClient } from "./client";
-import { ApiError } from "./errors";
+import { ApiError, spendGuardRefusal, type SpendGuardReason } from "./errors";
 import type { DraftMeal, ReviewMealDish, ReviewMealStep } from "../types";
 
 // ─────────────────────────────────────────────────────────────────
@@ -218,6 +218,32 @@ function sdkErrorFailure(): {
   };
 }
 
+// D-WS9-241 D — the non-2xx branch shared by all three imports. A spend-guard
+// refusal (a body with `reason` ∈ spend_cap_user / spend_cap_global /
+// ai_disabled, sent as 429/503) renders the server's copy VERBATIM, keyed on
+// reason. The import routes actually answer a guard refusal with a 200
+// envelope (the projectors below already pass that copy through), so this is
+// the belt to that suspender. A plain 429 with no reason — the import rate
+// limiter — still gets the local copy, and so does everything else.
+function transportFailure(err: unknown): {
+  success: false;
+  reason: "rate_limited" | "sdk_error" | SpendGuardReason;
+  userFacingMessage: string;
+} {
+  const refusal = spendGuardRefusal(err instanceof ApiError ? err.body : null);
+  if (refusal) {
+    return {
+      success: false,
+      reason: refusal.reason,
+      userFacingMessage: refusal.message,
+    };
+  }
+  if (err instanceof ApiError && err.status === 429) {
+    return rateLimitedFailure();
+  }
+  return sdkErrorFailure();
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────
@@ -236,7 +262,12 @@ export type ImportRecipeFromUrlResult =
   | {
       success: false;
       userFacingMessage: string;
-      reason: "url_parse_failed" | "fetch_error" | "rate_limited" | "sdk_error";
+      reason:
+        | "url_parse_failed"
+        | "fetch_error"
+        | "rate_limited"
+        | "sdk_error"
+        | SpendGuardReason;
     };
 
 export async function importRecipeFromUrl(
@@ -255,26 +286,23 @@ export async function importRecipeFromUrl(
 function projectUrlResult(
   res: { success: true; data: ImportEnvelope } | { success: false; error: unknown },
 ): ImportRecipeFromUrlResult {
-  if (!res.success) {
-    const err = res.error;
-    if (err instanceof ApiError && err.status === 429) {
-      return rateLimitedFailure();
-    }
-    return sdkErrorFailure();
-  }
+  if (!res.success) return transportFailure(res.error);
   const body = res.data;
   if (!body.success) {
     // Server `reason` is widened to `z.string()` in the schema for forward-
     // compat. Cast back to the consumer-facing union — unknown reasons fall
     // through as the literal string and consumers default to a generic
-    // "import failed" treatment.
+    // "import failed" treatment. A spend-guard reason rides this branch too
+    // (the route answers 200 for it) and its userFacingMessage is the
+    // server's copy, passed through verbatim.
     return {
       success: false,
       reason: body.reason as
         | "url_parse_failed"
         | "fetch_error"
         | "rate_limited"
-        | "sdk_error",
+        | "sdk_error"
+        | SpendGuardReason,
       userFacingMessage: body.userFacingMessage,
     };
   }
@@ -304,7 +332,7 @@ export type ImportRecipeFromImageResult =
   | {
       success: false;
       userFacingMessage: string;
-      reason: "url_parse_failed" | "rate_limited" | "sdk_error";
+      reason: "url_parse_failed" | "rate_limited" | "sdk_error" | SpendGuardReason;
     };
 
 // 1568px @ JPEG 0.7 per Anthropic vision API recommendation — keeps payloads
@@ -363,18 +391,16 @@ export async function importRecipeFromImage(
     errorMode: "envelope",
   });
 
-  if (!res.success) {
-    const err = res.error;
-    if (err instanceof ApiError && err.status === 429) {
-      return rateLimitedFailure();
-    }
-    return sdkErrorFailure();
-  }
+  if (!res.success) return transportFailure(res.error);
   const body = res.data;
   if (!body.success) {
     return {
       success: false,
-      reason: body.reason as "url_parse_failed" | "rate_limited" | "sdk_error",
+      reason: body.reason as
+        | "url_parse_failed"
+        | "rate_limited"
+        | "sdk_error"
+        | SpendGuardReason,
       userFacingMessage: body.userFacingMessage,
     };
   }
@@ -404,7 +430,7 @@ export type ImportRecipeFromTextResult =
   | {
       success: false;
       userFacingMessage: string;
-      reason: "url_parse_failed" | "rate_limited" | "sdk_error";
+      reason: "url_parse_failed" | "rate_limited" | "sdk_error" | SpendGuardReason;
     };
 
 export async function importRecipeFromText(
@@ -417,18 +443,16 @@ export async function importRecipeFromText(
     errorMode: "envelope",
   });
 
-  if (!res.success) {
-    const err = res.error;
-    if (err instanceof ApiError && err.status === 429) {
-      return rateLimitedFailure();
-    }
-    return sdkErrorFailure();
-  }
+  if (!res.success) return transportFailure(res.error);
   const body = res.data;
   if (!body.success) {
     return {
       success: false,
-      reason: body.reason as "url_parse_failed" | "rate_limited" | "sdk_error",
+      reason: body.reason as
+        | "url_parse_failed"
+        | "rate_limited"
+        | "sdk_error"
+        | SpendGuardReason,
       userFacingMessage: body.userFacingMessage,
     };
   }

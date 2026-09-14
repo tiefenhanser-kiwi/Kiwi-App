@@ -34,7 +34,7 @@ export type HandoffAction =
   | { kind: "alert"; title: string; message: string };
 
 /**
- * Pure mapping from a generate result to a UI action. Six outcomes.
+ * Pure mapping from a generate result to a UI action. Seven outcomes.
  *
  * ⚠️ COPY IS CANONICAL HERE. After 2c Commit 10 this is the only place these
  * strings exist; Plan Review's divergent copies were retired. The
@@ -42,6 +42,11 @@ export type HandoffAction =
  * message ("Your session expired. Please sign in again.", AuthContext.ts:90) —
  * a 401 on this screen is an EXPIRY, not a missing sign-in, because the screen
  * is unreachable while signed out.
+ *
+ * The ONE exception to "canonical here" is `spend_guard` (D-WS9-241 D): the
+ * server refused the AI call and its `message` says why ("today's planning
+ * limit", "Kiwi is taking a short break"). That copy is rendered VERBATIM —
+ * only the title is ours. "Our AI hit a hiccup" would be a lie there.
  */
 export function resolveGenerateResult(
   result: GenerateGroceryListResult,
@@ -49,6 +54,12 @@ export function resolveGenerateResult(
   if (result.success) return { kind: "navigate", listId: result.groceryListId };
   if (result.error === "list_exists")
     return { kind: "navigate", listId: result.existingListId };
+  if (result.error === "spend_guard")
+    return {
+      kind: "alert",
+      title: "Could not generate list",
+      message: result.message,
+    };
   if (result.error === "ai_failed")
     return {
       kind: "alert",
