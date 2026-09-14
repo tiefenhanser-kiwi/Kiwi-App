@@ -49,6 +49,15 @@
 
 import { isUnattended, type SchedulerPhase } from "./cookingScheduler";
 
+/**
+ * Phase 1c — the adjacency override's threshold, in minutes. A MEASURED edge:
+ * at 6 the rule closes a real window (Al Pastor's 6-minute "warm the tortillas"
+ * with "while the tortillas warm, slice the pork" riding); at ≤ 5 it closed no
+ * window a hand-check kept, on 258 dishes across six runs. Raise it only with
+ * a new measurement.
+ */
+export const ADJACENCY_MAX_MINUTES = 5;
+
 /** One generator-output step, in dish order. Only the fields the rules read. */
 export interface DeriveStep {
   phaseType: SchedulerPhase;
@@ -92,7 +101,11 @@ export type DeriveIssueClass =
   // Contiguity: a token re-appeared after its group closed.
   | "reopened_group"
   // The fixpoint removed a window that lost every rider.
-  | "window_collapsed";
+  | "window_collapsed"
+  // Phase 1c (report-only — a correction, not a rejection): a ≤ N-minute
+  // unattended step followed by an UNATTENDED cook had its declared dependent
+  // forced to that next step, and the tokens changed because of it.
+  | "adjacency_override";
 
 export interface DeriveIssue {
   cls: DeriveIssueClass;
@@ -222,6 +235,63 @@ export function deriveParallelGroups(steps: Step[]): DeriveResult {
     }
   }
 
+  // ── The adjacency override (Phase 1c, variant B, N = ADJACENCY_MAX_MINUTES) ──
+  // An unattended step of ≤ N minutes whose immediately following step is an
+  // UNATTENDED cook takes that next step as its dependent, whatever was
+  // declared. Measured (1c Phase 0, 258 dishes / six runs): the generator
+  // declares i+2 for these ~30% of the time — "bring to a boil → simmer",
+  // "pour in → braise", "spread on the sheet → roast" — and the continuation
+  // then rides its own setup. The discriminator is physical: unattended-then-
+  // unattended is one cooking process continuing; unattended-then-ATTENDED is
+  // separate hands-on work done during a window ("while the cheese melts,
+  // toast the rolls") and is deliberately out of reach — the variant that
+  // fired on any next cook fixed 13 dishes and destroyed 6 real windows. N=5
+  // is a measured edge (6 costs a real 6-minute tortilla window; ≤5 cost
+  // nothing on the data). Errors can only CLOSE a window — conservative.
+  // Reported as `adjacency_override` ONLY when the tokens actually change.
+  const candidates: { wi: number; declared: number }[] = [];
+  for (const [wi, end] of ends) {
+    const nxt = steps[wi + 1];
+    if (end > wi + 1 && steps[wi].estimatedMinutes <= ADJACENCY_MAX_MINUTES && nxt && nxt.phaseType === "cook" && isUnattended(nxt)) {
+      candidates.push({ wi, declared: end });
+    }
+  }
+  let result: { tags: (string | null)[]; issues: DeriveIssue[]; tieBreaks: number };
+  if (candidates.length === 0) {
+    result = assignTokens(steps, ends);
+  } else {
+    const baseline = assignTokens(steps, ends);
+    for (const c of candidates) {
+      const single = new Map(ends);
+      single.set(c.wi, c.wi + 1);
+      const one = assignTokens(steps, single);
+      if (one.tags.some((t, k) => t !== baseline.tags[k])) {
+        issues.push({
+          cls: "adjacency_override",
+          detail: `#${c.wi} (${steps[c.wi].estimatedMinutes} min, unattended) declared →#${c.declared} but is followed by an unattended cook; forced →#${c.wi + 1}`,
+        });
+      }
+    }
+    const forced = new Map(ends);
+    for (const c of candidates) forced.set(c.wi, c.wi + 1);
+    result = assignTokens(steps, forced);
+  }
+  issues.push(...result.issues);
+  return { tags: result.tags, issues, tieBreaks: result.tieBreaks, declaredCount };
+}
+
+/**
+ * Rules (b)–(d) + the fixpoint over a set of window ends. Pure; returns its own
+ * issue list so the caller can run it more than once (the adjacency override
+ * is reported only when it actually changes the tokens).
+ */
+function assignTokens(
+  steps: Step[],
+  endsIn: Map<number, number>,
+): { tags: (string | null)[]; issues: DeriveIssue[]; tieBreaks: number } {
+  const issues: DeriveIssue[] = [];
+  const n = steps.length;
+  const ends = new Map(endsIn);
   // Rule (b): a rest/hold at w+1 riding a cook window w → close the window at the rest.
   for (const [wi, end] of [...ends]) {
     const nxt = steps[wi + 1];
@@ -305,5 +375,5 @@ export function deriveParallelGroups(steps: Step[]): DeriveResult {
     tags = norm.tags;
     if (!removed) break;
   }
-  return { tags, issues, tieBreaks, declaredCount };
+  return { tags, issues, tieBreaks };
 }

@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  ADJACENCY_MAX_MINUTES,
   deriveParallelGroups,
   type DeriveStep,
 } from "../parallelGroupDerive";
@@ -54,9 +55,11 @@ describe("deriveParallelGroups — the Phase 0b rule set on generator output", (
       null, // the bake: the dependent, never a rider
       null, // the rest: dependent of the bake (adjacent → no riders); last step, no entry
     ]);
-    // Inner windows with riders (#5→6 has none; #7→9 and #11→13 have one each) are absorbed.
-    assert.equal(r.tieBreaks, 2);
-    assert.deepEqual(classes(r), ["nested_window_absorbed", "nested_window_absorbed"]);
+    // 1c: the inner windows (#7→9, #11→13: ≤5-min unattended cooks followed by an unattended
+    // cook) are forced adjacent by the adjacency override — silently, since they were absorbed
+    // by w0 and no token changes. Before 1c they showed as two nested_window_absorbed tie-breaks.
+    assert.equal(r.tieBreaks, 0);
+    assert.deepEqual(classes(r), []);
   });
 
   it("pasta INTO the water (v239 #19 Chicken Alfredo): the boil's dependent is the step that uses it; riders between", () => {
@@ -77,9 +80,11 @@ describe("deriveParallelGroups — the Phase 0b rule set on generator output", (
     const r = deriveParallelGroups(steps);
     assert.deepEqual(r.tags, [null, null, "w2", "w2", "w2", "w5", "w5", "w5", "w5", "w5", null, null]);
     assert.equal(r.tags[5], "w5", "the pasta step is w2's DEPENDENT, not its rider — it opens its own window");
-    // #4 (rest→11, 6 riders) and #8 (→10, 1 rider) are absorbed; #9→10 has no riders and is silent.
-    assert.equal(r.tieBreaks, 2);
-    assert.deepEqual(classes(r), ["nested_window_absorbed", "nested_window_absorbed"]);
+    // 1c: #4 (5-min rest → 11) and #8 (3-min cook → 10) are each followed by an unattended cook,
+    // so the adjacency override forces them adjacent — silently: both were absorbed (w2 / w5) and
+    // no token changes. Before 1c they showed as two nested_window_absorbed tie-breaks.
+    assert.equal(r.tieBreaks, 0);
+    assert.deepEqual(classes(r), []);
   });
 
   it("rule (b): a rest/hold immediately after a cook window closes the window AT the rest", () => {
@@ -239,5 +244,67 @@ describe("deriveParallelGroups — the Phase 0b rule set on generator output", (
     assert.equal(JSON.stringify(steps), before);
     assert.equal(r.tags.length, steps.length);
     assert.deepEqual(deriveParallelGroups([]).tags, []);
+  });
+});
+
+// ── Phase 1c — the adjacency override (variant B, N = 5) ────────────────────
+// Fixtures are the dishes that moved in the 1c Phase 0 sweep (v9 seeds 240/241)
+// and the ones the rule must leave alone. The discriminator is physical:
+// unattended-then-UNATTENDED cook is one process continuing; unattended-then-
+// ATTENDED cook is separate work done during a window.
+describe("deriveParallelGroups — 1c adjacency override (≤ 5-min unattended step followed by an unattended cook)", () => {
+  it("N is 5 and exported", () => {
+    assert.equal(ADJACENCY_MAX_MINUTES, 5);
+  });
+
+  it("Red Beans (v9-240): 'bring to a boil' 5 min → declared #9, forced to the simmer at #8; the plating no longer rides the boil", () => {
+    // #7 (5 min, unattended cook) declared →9; #8 is the 80-min simmer (unattended cook); #9 finishing (unattended cook); #10 plate.
+    const steps = [st("prep", 10), st("prep", 3), st("prep", 2), st("preheat", 2, { fd: 4 }), st("cook", 4, { ts: true }), st("cook", 7, { ts: true }), st("cook", 1, { ts: true }), st("cook", 5, { fd: 9 }), st("cook", 80, { fd: 9 }), st("cook", 3, { fd: 10 }), st("assemble", 2)];
+    const r = deriveParallelGroups(steps);
+    assert.deepEqual(r.tags, [null, null, null, null, null, null, null, null, null, null, null], "no window survives: every dependent is now adjacent");
+    const ov = r.issues.filter((i) => i.cls === "adjacency_override");
+    assert.equal(ov.length, 1);
+    assert.equal(ov[0].detail, "#7 (5 min, unattended) declared →#9 but is followed by an unattended cook; forced →#8");
+  });
+
+  it("Ham (v9-240): 'brush the glaze, into the oven' 5 min → declared #5, forced to the roast at #4; the preheat window is untouched", () => {
+    const steps = [st("preheat", 15, { fd: 3 }), st("prep", 4), st("prep", 5), st("cook", 5, { fd: 5 }), st("cook", 60, { fd: 5 }), st("cook", 25, { fd: 6 }), st("rest", 15, { fd: 7 }), st("assemble", 5)];
+    const r = deriveParallelGroups(steps);
+    assert.deepEqual(r.tags, ["w0", "w0", "w0", null, null, null, null, null]);
+    assert.deepEqual(classes(r), ["adjacency_override"]);
+  });
+
+  it("GUARD — Cheesesteak: 'let the cheese melt' 2 min → #10 with 'while the cheese melts, toast the rolls' (an ATTENDED cook) next: the rule must NOT touch it", () => {
+    const steps = [st("prep", 8), st("preheat", 2, { fd: 2 }), st("cook", 9, { ts: true }), st("cook", 6, { ts: true }), st("cook", 2, { fd: 6 }), st("cook", 2, { ts: true }), st("assemble", 2)];
+    const r = deriveParallelGroups(steps);
+    assert.deepEqual(r.tags, [null, null, null, null, "w4", "w4", null], "the toast rides the melt — a real window, kept");
+    assert.equal(r.issues.filter((i) => i.cls === "adjacency_override").length, 0, "widening B into A would fire here — it must not");
+  });
+
+  it("GUARD — Carne Asada: a 5-min rest with 'while the steak rests, warm the tortillas' (attended cook) next is kept", () => {
+    const steps = [st("cook", 8, { ts: true }), st("rest", 5, { fd: 3 }), st("cook", 5, { ts: true }), st("assemble", 3)];
+    const r = deriveParallelGroups(steps);
+    assert.deepEqual(r.tags, [null, "w1", "w1", null]);
+    assert.equal(r.issues.length, 0);
+  });
+
+  it("the N boundary — Al Pastor's 6-minute 'warm the tortillas' with an unattended-tagged 'slice the pork' next is NOT overridden; the same shape at 5 minutes is", () => {
+    const six = [st("cook", 14, { ts: true }), st("cook", 6, { fd: 3 }), st("cook", 3), st("assemble", 4)];
+    const r6 = deriveParallelGroups(six);
+    assert.deepEqual(r6.tags, [null, "w1", "w1", null], "6 > N: the declared window stands");
+    assert.equal(r6.issues.filter((i) => i.cls === "adjacency_override").length, 0);
+    const five = [st("cook", 14, { ts: true }), st("cook", 5, { fd: 3 }), st("cook", 3), st("assemble", 4)];
+    const r5 = deriveParallelGroups(five);
+    assert.deepEqual(r5.tags, [null, null, null, null], "5 ≤ N: forced adjacent, no riders, no token");
+    assert.deepEqual(classes(r5).filter((c) => c === "adjacency_override"), ["adjacency_override"]);
+  });
+
+  it("a candidate whose override changes no token is silent (absorbed inner window), and an already-adjacent declaration is not a candidate", () => {
+    // preheat w0 covers #1–#3; #1 (2-min unattended cook → 3) sits inside it and is absorbed either way.
+    const absorbed = deriveParallelGroups([st("preheat", 10, { fd: 4 }), st("cook", 2, { fd: 3 }), st("cook", 5, { fd: 3 }), st("prep", 3), st("cook", 20, { fd: 5 }), st("assemble", 2)]);
+    assert.deepEqual(absorbed.tags, ["w0", "w0", "w0", "w0", null, null]);
+    assert.equal(absorbed.issues.filter((i) => i.cls === "adjacency_override").length, 0, "tokens unchanged → not reported");
+    const adjacent = deriveParallelGroups([st("cook", 3, { fd: 1 }), st("cook", 20, { fd: 2 }), st("assemble", 2)]);
+    assert.equal(adjacent.issues.length, 0);
   });
 });
