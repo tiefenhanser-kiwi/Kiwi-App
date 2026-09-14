@@ -5,8 +5,13 @@
 // session needed). Two outcomes, same wording as the reset page's: success,
 // or the invalid/expired state. A missing token renders the invalid state
 // WITHOUT a request.
+//
+// BUG-265 — NO `kiwi://` app link here, unlike the reset page. This page
+// spends the token on load, so by the time anyone tapped "Open in the Kiwi
+// app" the link could only carry them from a success to a failure. The reset
+// page keeps its link: there the app screen does the work the form does.
 
-import { APP_SCHEME, pageShell } from "./layout";
+import { pageShell } from "./layout";
 import { LINK_INVALID_TEXT } from "./resetPassword";
 
 export const VERIFY_EMAIL_PATH = "/verify-email";
@@ -33,7 +38,6 @@ const BODY = `
   <p id="error-text" class="error"></p>
   <button id="retry" type="button">Try again</button>
 </section>
-<a id="app-link" class="app-link" hidden>Open in the Kiwi app</a>
 <script>
 (function () {
   var token = new URLSearchParams(location.search).get("token") || "";
@@ -47,10 +51,6 @@ const BODY = `
     for (var k in states) states[k].hidden = k !== name;
   }
   if (!token) { show("invalid"); return; }
-
-  var appLink = document.getElementById("app-link");
-  appLink.href = "${APP_SCHEME}:/${VERIFY_EMAIL_PATH}?token=" + encodeURIComponent(token);
-  appLink.hidden = false;
 
   var errorText = document.getElementById("error-text");
   function verify() {

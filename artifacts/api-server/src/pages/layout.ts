@@ -13,9 +13,10 @@
 // (the container's runtime layer carries dist/ and nothing else), and neither
 // tsx (dev/tests) nor tsc understands an .html import without a loader.
 //
-// The `kiwi://` anchor on each page is the "same URL, app enhancement later"
+// The `kiwi://` anchor on the RESET page is the "same URL, app enhancement later"
 // half of the ruling made concrete: it costs one tag today and becomes the
-// universal-link target when that lands.
+// universal-link target when that lands. The verify-email page has none
+// (BUG-265): it spends its token on load, so a link there is always spent.
 
 export const APP_SCHEME = "kiwi";
 

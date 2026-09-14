@@ -107,16 +107,23 @@ describe("D-WS9-231 — web fallback pages at the host root", () => {
           "the missing-token check must run before the request is issued",
         );
       });
-
-      it("carries the kiwi:// deep link as the secondary 'open in app' path", async () => {
-        const html = await (await fetch(`${harness.origin}${path}`)).text();
-        assert.ok(
-          html.includes(`"kiwi:/${path}?token="`),
-          "the D-WS9-231 'same URL, app enhancement' anchor is missing",
-        );
-      });
     });
   }
+
+  // BUG-265 — the deep link belongs only where the app screen does real work.
+  it("GET /reset-password carries the kiwi:// deep link as the secondary 'open in app' path", async () => {
+    const html = await (await fetch(`${harness.origin}/reset-password`)).text();
+    assert.ok(
+      html.includes(`"kiwi://reset-password?token="`),
+      "the D-WS9-231 'same URL, app enhancement' anchor is missing",
+    );
+  });
+
+  it("GET /verify-email carries NO kiwi:// link — the page spends the token on load, so the link could only lead from a success to a failure", async () => {
+    const html = await (await fetch(`${harness.origin}/verify-email`)).text();
+    assert.ok(!html.includes("kiwi:"), "a kiwi:// link is on the verify-email page");
+    assert.ok(!html.includes('id="app-link"'), "the app-link anchor is on the verify-email page");
+  });
 
   it("the /api prefix still answers JSON with no-store (pages did not displace it)", async () => {
     const res = await fetch(`${harness.origin}/api/healthz`);
