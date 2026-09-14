@@ -56,7 +56,7 @@ export default function Welcome() {
       <View style={styles.heroWrap}>
         <View style={styles.iconCircle}>
           <Image
-            source={require("../../assets/images/icon.png")}
+            source={require("../../assets/images/kiwi-mark-256.png")}
             style={styles.icon}
           />
         </View>
