@@ -5,6 +5,7 @@ import { z } from "zod";
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
 import { createRequireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
+import { phoneSchema } from "../lib/phoneValidation";
 import {
   buildAppLink,
   passwordResetMessage,
@@ -43,6 +44,15 @@ const signupSchema = z.object({
   lastName: z.string().min(1).max(100),
   zipCode: z.string().max(20).optional(),
   timezone: z.string().max(100).optional(),
+  // D-WS9-241 A (BUG-261) — phone + marketing consents ride the signup wire
+  // so the account is created with them in ONE write (a follow-up PATCH
+  // /me/profile was rejected: the second write can fail silently, and a
+  // consent that may or may not have landed is worse than none). The phone
+  // rule is the same object PATCH /me/profile validates with. Columns exist
+  // since D-WS7-025; PATCH /me/profile stays the edit path.
+  phone: phoneSchema.nullable().optional(),
+  marketingConsentEmail: z.boolean().optional(),
+  marketingConsentSms: z.boolean().optional(),
 });
 
 const loginSchema = z.object({
@@ -137,8 +147,25 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
     if (!parsed.success) {
       return res.status(400).json({ error: "invalid request body" });
     }
-    const { email, password, firstName, lastName, zipCode, timezone } = parsed.data;
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      zipCode,
+      timezone,
+      phone,
+      marketingConsentEmail,
+      marketingConsentSms,
+    } = parsed.data;
     const normalizedEmail = email.toLowerCase().trim();
+
+    // D-WS9-241 A — a consent that cannot be honoured is not a consent.
+    if (marketingConsentSms && !phone) {
+      return res
+        .status(400)
+        .json({ error: "SMS consent requires a phone number" });
+    }
 
     try {
       const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
@@ -161,6 +188,11 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
             lastName,
             zipCode: zipCode ?? null,
             timezone: timezone ?? "America/New_York",
+            phone: phone ?? null,
+            // Only written when the client sent them — an absent flag keeps
+            // the Prisma default (false), same as onboardingComplete below.
+            ...(marketingConsentEmail !== undefined ? { marketingConsentEmail } : {}),
+            ...(marketingConsentSms !== undefined ? { marketingConsentSms } : {}),
           },
         });
         const subscription = await tx.subscription.create({

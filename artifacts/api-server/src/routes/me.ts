@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
 import { logger } from "../lib/logger";
+import { phoneSchema } from "../lib/phoneValidation";
 import {
   collectDishMentions,
   collectMealMentions,
@@ -121,20 +122,13 @@ const favoriteCreateSchema = z.object({
 // only columns (difficultyDefault, weeklyPacingDefault, breakfastDefaults,
 // lunchDefaults, macroPref, notificationsEnabled, lastUsedRetailerId) cannot
 // be set by clients. Marketing consents stay on User per D-WS6-002.
-// Permissive phone validator: at least 7 digits anywhere in the string.
-// Mobile-side formatting (dashes, parens, country code) is up to the client.
-const PHONE_REGEX = /(?:\D*\d){7,}/;
-
+// Phone rule lives in lib/phoneValidation.ts (D-WS9-241 A) — shared with
+// POST /auth/signup so the two routes cannot drift.
 const profilePatchSchema = z
   .object({
     firstName: z.string().min(1).max(100).optional(),
     lastName: z.string().min(1).max(100).optional(),
-    phone: z
-      .string()
-      .max(40)
-      .regex(PHONE_REGEX, "phone must contain at least 7 digits")
-      .nullable()
-      .optional(),
+    phone: phoneSchema.nullable().optional(),
     // WS7-2 Block C: marketing consent (D-WS7-025) lives on User and is
     // editable from preferences.tsx. Routing flags onboardingComplete /
     // firstRunChoiceMade are written here by onboarding-step-3 +

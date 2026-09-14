@@ -17,6 +17,7 @@ import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/contexts/AuthContext";
 import { TRIAL_LENGTH_DAYS } from "@/lib/domain";
+import { isValidPhone } from "@/lib/phone";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function SignUpPage() {
@@ -74,14 +75,31 @@ export default function SignUpPage() {
       );
       return;
     }
+    // D-WS9-241 A (BUG-261) — the server validates phone with the rule
+    // lib/phone.ts mirrors; refusing here saves a round-trip that would come
+    // back as a bare "invalid request body".
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone.length > 0 && !isValidPhone(trimmedPhone)) {
+      Alert.alert(
+        "Check your phone number",
+        "Enter a phone number with at least 7 digits, or leave it blank.",
+      );
+      return;
+    }
     clearError();
     setSubmitting(true);
     try {
-      // Phone + consent flags collected here; the signup payload extension
-      // (server-side User.phone + consent storage) lands in WS5-firstrun-2
-      // or WS6 depending on schema-migration scheduling. For now, we keep
-      // the existing 4-arg signup() shape so this sub-phase ships cleanly.
-      await signup(email.trim(), password, firstName.trim(), lastName.trim());
+      // D-WS9-241 A — phone + both consents ride the signup write itself.
+      // (This used to call the 4-arg signup() and silently drop all three.)
+      await signup({
+        email: email.trim(),
+        password,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: trimmedPhone,
+        marketingConsentEmail: emailConsent,
+        marketingConsentSms: smsConsent,
+      });
       // router.replace clears the current (auth) screen from history, so
       // back-swipe can't return to a half-completed signup form. We avoid
       // dismissAll() here — the (auth) group is a regular Stack, not a

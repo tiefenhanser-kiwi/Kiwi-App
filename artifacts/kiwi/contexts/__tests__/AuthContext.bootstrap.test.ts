@@ -311,3 +311,84 @@ test("success: stored token + 200 → ok, authenticated, one attempt", async () 
   assert.equal(captured!.user?.id, "u-ok");
   assert.equal(ME_URLS().length, 1);
 });
+
+// ── D-WS9-241 A (BUG-261): signup passes phone + consents through ─────
+
+function signupResponse(overrides: Partial<User> = {}) {
+  return mockJson({ user: makeUser({ id: "u-new", ...overrides }), authToken: "tok-new" }, 201);
+}
+
+function lastSignupBody(): Record<string, unknown> {
+  const i = fetchUrls.findIndex((u) => u.endsWith("/auth/signup"));
+  assert.notEqual(i, -1, "a /auth/signup request was made");
+  return signupBodies[i];
+}
+
+let signupBodies: Record<string, unknown>[];
+
+test("signup(options) puts phone + both consents on the wire, one request, then stores the token", async () => {
+  signupBodies = [];
+  fetchImpl = (url, init) => {
+    if (url.endsWith("/auth/signup")) {
+      signupBodies.push(JSON.parse(init?.body as string));
+      return signupResponse({ phone: "(555) 123-4567", marketingConsentSms: true });
+    }
+    return mockJson({}, 200);
+  };
+  const qc = await mount();
+  await settle(qc);
+
+  await act(async () => {
+    await captured!.signup({
+      email: "n@example.com",
+      password: "password123",
+      firstName: "New",
+      lastName: "User",
+      phone: " (555) 123-4567 ",
+      marketingConsentEmail: true,
+      marketingConsentSms: true,
+    });
+  });
+
+  const body = lastSignupBody();
+  assert.equal(body.phone, "(555) 123-4567", "trimmed");
+  assert.equal(body.marketingConsentEmail, true);
+  assert.equal(body.marketingConsentSms, true);
+  assert.equal(typeof body.timezone, "string", "timezone still auto-detected");
+  assert.equal(fetchUrls.filter((u) => u.endsWith("/auth/signup")).length, 1);
+  assert.equal(fetchUrls.some((u) => u.endsWith("/me/profile")), false, "no follow-up PATCH");
+  assert.equal(captured!.token, "tok-new");
+  assert.equal(await store.getItemAsync(TOKEN_KEY), "tok-new");
+  assert.equal(captured!.user?.id, "u-new");
+});
+
+test("signup(options) with an empty phone sends no phone and never sends SMS consent", async () => {
+  signupBodies = [];
+  fetchImpl = (url, init) => {
+    if (url.endsWith("/auth/signup")) {
+      signupBodies.push(JSON.parse(init?.body as string));
+      return signupResponse();
+    }
+    return mockJson({}, 200);
+  };
+  const qc = await mount();
+  await settle(qc);
+
+  await act(async () => {
+    await captured!.signup({
+      email: "n@example.com",
+      password: "password123",
+      firstName: "New",
+      lastName: "User",
+      phone: "   ",
+      marketingConsentEmail: false,
+      // A stale true (the form clears this, but the context is the wire guarantee).
+      marketingConsentSms: true,
+    });
+  });
+
+  const body = lastSignupBody();
+  assert.equal("phone" in body, false);
+  assert.equal("marketingConsentSms" in body, false);
+  assert.equal(body.marketingConsentEmail, false);
+});

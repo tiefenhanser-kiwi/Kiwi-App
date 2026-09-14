@@ -20,6 +20,17 @@ import {
 } from "@/lib/sessionBootstrap";
 import type { User } from "@/lib/types";
 
+export interface SignupOptions {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  /** Empty / whitespace-only is sent as undefined (no phone). */
+  phone?: string;
+  marketingConsentEmail?: boolean;
+  marketingConsentSms?: boolean;
+}
+
 interface AuthContextValue {
   user: User | null;
   token: string | null;
@@ -40,12 +51,10 @@ interface AuthContextValue {
   abandonBootstrap: () => Promise<void>;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  signup: (
-    email: string,
-    password: string,
-    firstName: string,
-    lastName: string,
-  ) => Promise<void>;
+  /** D-WS9-241 A (BUG-261) — an options object (was 4 positionals): phone
+   *  and both consents ride the same create as the account. Timezone is
+   *  auto-detected here, not passed. */
+  signup: (input: SignupOptions) => Promise<void>;
   logout: () => Promise<void>;
   /** WS9 BUG-239 §1c — end THIS client's session because we already know the
    *  token is dead, rather than waiting for the next request to discover it.
@@ -193,12 +202,7 @@ export function AuthProvider({
   );
 
   const signup = React.useCallback(
-    async (
-      email: string,
-      password: string,
-      firstName: string,
-      lastName: string,
-    ) => {
+    async (input: SignupOptions) => {
       setError(null);
       try {
         // Auto-detect timezone from device.
@@ -208,12 +212,20 @@ export function AuthProvider({
         } catch {
           // If Intl fails (shouldn't on modern RN), let server default apply.
         }
+        // D-WS9-241 A — phone + consents go on the same write. An empty phone
+        // is "no phone" (undefined, not ""), and SMS consent is only ever
+        // sent alongside a phone: the server refuses the pairing (400), the
+        // form already clears it, and this is the wire-level guarantee.
+        const phone = input.phone?.trim() || undefined;
         const res = await signupRequest({
-          email,
-          password,
-          firstName,
-          lastName,
+          email: input.email,
+          password: input.password,
+          firstName: input.firstName,
+          lastName: input.lastName,
           timezone,
+          phone,
+          marketingConsentEmail: input.marketingConsentEmail,
+          marketingConsentSms: phone ? input.marketingConsentSms : undefined,
         });
         await storeToken(res.authToken);
         queryClient.setQueryData<User | null>(ME_KEY, res.user);

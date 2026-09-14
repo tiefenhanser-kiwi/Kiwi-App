@@ -140,6 +140,13 @@ export interface SignupInput {
   lastName: string;
   zipCode?: string;
   timezone?: string;
+  // D-WS9-241 A (BUG-261) — collected by sign-up.tsx and sent on the SAME
+  // write that creates the account. The server refuses marketingConsentSms
+  // without a phone (400) and validates phone with the rule lib/phone.ts
+  // mirrors. Omitted keys keep the server's defaults (null / false).
+  phone?: string | null;
+  marketingConsentEmail?: boolean;
+  marketingConsentSms?: boolean;
 }
 
 export interface LoginInput {
