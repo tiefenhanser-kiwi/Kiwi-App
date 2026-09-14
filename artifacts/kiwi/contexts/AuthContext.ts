@@ -14,13 +14,30 @@ import {
   type MealsFilter,
   type PlanDiscoveryFilter,
 } from "@/lib/auth";
+import {
+  deriveBootstrapStatus,
+  type BootstrapStatus,
+} from "@/lib/sessionBootstrap";
 import type { User } from "@/lib/types";
 
 interface AuthContextValue {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  /** `bootstrapStatus === "pending"`. Kept for the route gates that read it. */
   isLoading: boolean;
+  /** D-WS9-241 B (BUG-258) — the cold-start outcome. `failed` means /auth/me
+   *  timed out / errored / 5xx'd with a token in hand: the token is KEPT, the
+   *  root layout renders the failure screen, and SessionGate does not evict.
+   *  A 401 is NOT a failure — it clears the token through the cascade and
+   *  reads as `ok` with no user, exactly as before. */
+  bootstrapStatus: BootstrapStatus;
+  /** Re-runs /auth/me under the deadline. Resolves when it settles either
+   *  way; read `bootstrapStatus` for the outcome. */
+  retryBootstrap: () => Promise<void>;
+  /** The failure screen's "Sign out": local teardown with NO server call
+   *  (the server is unreachable by definition here), no message → Welcome. */
+  abandonBootstrap: () => Promise<void>;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   signup: (
@@ -51,30 +68,57 @@ const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 const ME_KEY = ["auth", "me"] as const;
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  bootstrapDeadlineMs,
+}: {
+  children: React.ReactNode;
+  /** Test seam only — production leaves it unset (BOOTSTRAP_DEADLINE_MS). */
+  bootstrapDeadlineMs?: number;
+}) {
   const queryClient = useQueryClient();
   const [token, setToken] = React.useState<string | null>(null);
   // `storageRead` distinguishes "still reading SecureStore" (which is async
   // on every cold start) from "no token present". useAuthMe's `enabled`
-  // flag covers the second half — the meQuery's `isLoading` is only true
-  // while an active fetch is in flight.
+  // flag covers the second half.
   const [storageRead, setStorageRead] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const uiStateTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
 
-  const meQuery = useAuthMe(token);
+  const meQuery = useAuthMe(token, { deadlineMs: bootstrapDeadlineMs });
   const user = meQuery.data ?? null;
-  const isBootstrapping = !storageRead || (!!token && meQuery.isLoading);
+  // D-WS9-241 B — see lib/sessionBootstrap.ts for the derivation and why a
+  // react-query error with a token still in hand is "failed", not "signed
+  // out". `data !== undefined` (rather than `user !== null`) is deliberate:
+  // the 401 → null mapping in fetchMe is a *resolution*, and the cascade is
+  // already clearing the token on that path.
+  const bootstrapStatus = deriveBootstrapStatus({
+    storageRead,
+    token,
+    hasMeData: meQuery.data !== undefined,
+    meIsError: meQuery.isError,
+  });
+  const isBootstrapping = bootstrapStatus === "pending";
 
   // One-time SecureStore read on mount. When a stored token is present,
   // place it in React state so useAuthMe's `enabled` flips and the
   // /auth/me query fires.
+  //
+  // D-WS9-241 B — readToken() rejecting is caught and treated as "no token".
+  // Before this, a rejection here meant setStorageRead(true) never ran and
+  // the app sat on a blank screen forever (the third bootstrap failure path;
+  // exactly what expo-secure-store's throwing web stub produced before E).
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
-      const stored = await readToken();
+      let stored: string | null = null;
+      try {
+        stored = await readToken();
+      } catch (err) {
+        console.warn("readToken failed at bootstrap; treating as signed out:", err);
+      }
       if (cancelled) return;
       if (stored) setToken(stored);
       setStorageRead(true);
@@ -83,6 +127,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  // D-WS9-241 B — the failure screen's two actions.
+  const refetchMe = meQuery.refetch;
+  const retryBootstrap = React.useCallback(async () => {
+    // refetch() resolves when the attempt settles; it never throws (the
+    // outcome lands on meQuery.isError / .data, which drive bootstrapStatus).
+    await refetchMe();
+  }, [refetchMe]);
+
+  const abandonBootstrap = React.useCallback(async () => {
+    await queryClient.cancelQueries();
+    await clearToken();
+    queryClient.removeQueries({ queryKey: ["auth"] });
+    setToken(null);
+    setError(null);
+  }, [queryClient]);
 
   // Subscribe to the apiClient 401 cascade. Any 401 (or missing-token call
   // with auth required) anywhere in the app fires `emitSessionExpired()`;
@@ -245,6 +305,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     token,
     isAuthenticated: !!token && !!user,
     isLoading: isBootstrapping,
+    bootstrapStatus,
+    retryBootstrap,
+    abandonBootstrap,
     error,
     login,
     signup,

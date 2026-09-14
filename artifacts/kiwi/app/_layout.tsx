@@ -24,11 +24,13 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
+import { BootstrapFailedScreen } from "@/components/BootstrapFailedScreen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/contexts/ToastProvider";
 import { Palette } from "@/constants/tokens";
+import { sessionGateShouldEvict } from "@/lib/sessionBootstrap";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -62,19 +64,26 @@ const queryClient = new QueryClient({
  * a password change is just the reliable way to trigger it on demand.
  */
 function SessionGate() {
-  const { user, isLoading } = useAuth();
+  const { user, bootstrapStatus } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    // Bootstrap has not resolved yet — "no user" is not yet meaningful.
-    if (isLoading || user) return;
-    const group = segments[0];
-    // undefined = "/" (index.tsx owns the cold-start decision itself, and
-    // bouncing it here would race its Redirect). "(auth)" = already where a
-    // signed-out user belongs; redirecting from there would also throw a user
-    // off the sign-in screen the moment a wrong password 401s.
-    if (group === undefined || group === "(auth)") return;
+    // D-WS9-241 B — the decision is a pure function in lib/sessionBootstrap.ts
+    // (app/** is outside the test glob). It returns false while the bootstrap
+    // is pending ("no user" not yet meaningful), while it has FAILED (token
+    // kept, user null — the failure screen owns that state and must not be
+    // evicted from under a deep link), when there is a user, and at "/" or
+    // inside "(auth)" — see the function for why each.
+    if (
+      !sessionGateShouldEvict({
+        bootstrapStatus,
+        hasUser: !!user,
+        group: segments[0],
+      })
+    ) {
+      return;
+    }
     // WS9 BUG-239 follow-up — SIGN-IN, not welcome. welcome.tsx renders no
     // error text, so every message the teardown sets (an expired session, a
     // password change) landed on a screen that cannot show it. sign-in
@@ -88,12 +97,28 @@ function SessionGate() {
     // Hans saw. Keying on the SAME user that (auth)/_layout guards on means
     // the two cannot disagree: when this fires, that guard is already false.
     router.replace("/(auth)/sign-in");
-  }, [user, isLoading, segments, router]);
+  }, [user, bootstrapStatus, segments, router]);
 
   return null;
 }
 
+/**
+ * D-WS9-241 B (BUG-258) — on a bootstrap FAILURE the failure screen renders
+ * IN PLACE OF the navigator. That is what makes the coverage route-agnostic:
+ * a cold start on "/", on "(tabs)", or on a deep link all see this, because
+ * nothing underneath (index.tsx's Redirect, (auth)/_layout's Redirect,
+ * SessionGate) is mounted to bounce it. The initial URL is held by the
+ * navigation container above this layout — the same reason the fonts-gate
+ * `return null` below does not lose deep links — so a successful "Try again"
+ * mounts the navigator onto the route the user opened.
+ */
 function RootLayoutNav() {
+  const { bootstrapStatus, retryBootstrap, abandonBootstrap } = useAuth();
+  if (bootstrapStatus === "failed") {
+    return (
+      <BootstrapFailedScreen onRetry={retryBootstrap} onSignOut={abandonBootstrap} />
+    );
+  }
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Palette.background.app } }}>
       <Stack.Screen name="(auth)" />

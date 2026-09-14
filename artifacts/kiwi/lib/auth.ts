@@ -184,15 +184,35 @@ export async function logoutRequest(): Promise<void> {
  * (which clears local state through AuthContext); we map to null so the
  * bootstrap path stays clean.
  */
-export async function fetchMe(): Promise<User | null> {
+export async function fetchMe(opts: { signal?: AbortSignal } = {}): Promise<User | null> {
   try {
-    const body = await apiClient("/auth/me", { schema: MeResponseSchema });
+    const body = await apiClient("/auth/me", {
+      schema: MeResponseSchema,
+      signal: opts.signal,
+    });
     return body.user as User;
   } catch (err) {
     if (err instanceof UnauthenticatedError) {
       return null;
     }
     throw err;
+  }
+}
+
+/**
+ * D-WS9-241 B (BUG-258) — fetchMe under an AbortController deadline. When the
+ * deadline fires, fetch rejects with an AbortError, apiClient wraps it as
+ * ApiNetworkError, and the bootstrap reads it as a *failure* (token kept,
+ * failure screen) rather than as a 401 (token cleared). The 401 path above is
+ * untouched: an UnauthenticatedError still maps to null.
+ */
+export async function fetchMeWithDeadline(deadlineMs: number): Promise<User | null> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), deadlineMs);
+  try {
+    return await fetchMe({ signal: ac.signal });
+  } finally {
+    clearTimeout(timer);
   }
 }
 

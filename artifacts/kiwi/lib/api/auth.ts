@@ -13,15 +13,25 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchMe } from "@/lib/auth";
+import { fetchMeWithDeadline } from "@/lib/auth";
+import { BOOTSTRAP_DEADLINE_MS } from "@/lib/sessionBootstrap";
 import type { User } from "@/lib/types";
 
-export function useAuthMe(token: string | null) {
+export function useAuthMe(
+  token: string | null,
+  opts: { deadlineMs?: number } = {},
+) {
+  const deadlineMs = opts.deadlineMs ?? BOOTSTRAP_DEADLINE_MS;
   return useQuery<User | null>({
     queryKey: ["auth", "me"],
-    queryFn: fetchMe,
+    // D-WS9-241 B (BUG-258) — every /auth/me run through this hook (the cold
+    // start AND the failure screen's "Try again") is under the deadline.
+    queryFn: () => fetchMeWithDeadline(deadlineMs),
     enabled: !!token,
     staleTime: Infinity,
+    // Also what makes BOOTSTRAP_DEADLINE_MS true end-to-end — with react-
+    // query's default policy (3 retries, exponential backoff) a 10s abort per
+    // attempt surfaces in 40s+. Pinned here since WS7-1; do not remove.
     retry: false,
   });
 }
