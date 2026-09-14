@@ -1,5 +1,5 @@
 // WS7-2 Block A — PATCH /me/profile and PATCH /me/password tests.
-// 8 tests: profile (happy / missing-field 400 / partial / 401) +
+// profile (happy / missing-field 400 / partial / 401) + BUG-267 consent invariant +
 //          password (happy / wrong-current 400 / too-short-new 400 / 401).
 
 import { describe, it } from "node:test";
@@ -173,10 +173,11 @@ describe("PATCH /me/profile", () => {
     }
   });
 
-  it("happy: updates marketing-consent flags and returns them", async () => {
+  it("happy: updates marketing-consent flags and returns them (the row already has a phone — BUG-267)", async () => {
     const prisma = makeStubPrisma(
       baseUser({
         id: USER_ID,
+        phone: "(555) 123-4567",
         marketingConsentEmail: false,
         marketingConsentSms: false,
       }),
@@ -265,6 +266,90 @@ describe("PATCH /me/profile", () => {
     } finally {
       await harness.close();
     }
+  });
+});
+
+// BUG-267 — the SMS-consent invariant on PATCH /me/profile. Both rules are
+// judged against the ROW AFTER the patch, never the body alone: a body with
+// only one of the two fields is exactly how this was missed the first time.
+describe("PATCH /me/profile — BUG-267 SMS consent requires a phone on the row", () => {
+  async function patch(
+    prisma: ReturnType<typeof makeStubPrisma>,
+    body: Record<string, unknown>,
+  ): Promise<{ status: number; body: { user?: Partial<UserRow>; error?: string } }> {
+    const harness = await spinUp(prisma);
+    try {
+      const res = await fetch(`${harness.baseUrl}/me/profile`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken(USER_ID)}`,
+        },
+        body: JSON.stringify(body),
+      });
+      return { status: res.status, body: (await res.json()) as { user?: Partial<UserRow>; error?: string } };
+    } finally {
+      await harness.close();
+    }
+  }
+
+  it("rule 1: `{marketingConsentSms: true}` alone against a row with NO phone → 400, the signup shape; nothing written", async () => {
+    const prisma = makeStubPrisma(baseUser({ id: USER_ID, phone: null, marketingConsentSms: false }));
+    const r = await patch(prisma, { marketingConsentSms: true });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.error, "SMS consent requires a phone number");
+    assert.equal(prisma._row().marketingConsentSms, false);
+  });
+
+  it("rule 1 judges the ROW: `{marketingConsentSms: true}` alone against a row that HAS a phone → 200, consent set", async () => {
+    const prisma = makeStubPrisma(baseUser({ id: USER_ID, phone: "(555) 123-4567", marketingConsentSms: false }));
+    const r = await patch(prisma, { marketingConsentSms: true });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.user?.marketingConsentSms, true);
+    assert.equal(prisma._row().marketingConsentSms, true);
+  });
+
+  it("rule 1: `{phone: null, marketingConsentSms: true}` → 400 (the row after the patch would have consent and no phone)", async () => {
+    const prisma = makeStubPrisma(baseUser({ id: USER_ID, phone: "(555) 123-4567", marketingConsentSms: false }));
+    const r = await patch(prisma, { phone: null, marketingConsentSms: true });
+    assert.equal(r.status, 400);
+    assert.equal(prisma._row().phone, "(555) 123-4567");
+    assert.equal(prisma._row().marketingConsentSms, false);
+  });
+
+  it("rule 2: `{phone: null}` alone CLEARS the consent in the same write", async () => {
+    const prisma = makeStubPrisma(baseUser({ id: USER_ID, phone: "(555) 123-4567", marketingConsentSms: true }));
+    const r = await patch(prisma, { phone: null });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.user?.phone, null);
+    assert.equal(r.body.user?.marketingConsentSms, false);
+    assert.equal(prisma._row().marketingConsentSms, false, "cleared on the row, not just in the response");
+  });
+
+  it("rule 2: CHANGING the phone alone clears the consent — consent was for the old number", async () => {
+    const prisma = makeStubPrisma(baseUser({ id: USER_ID, phone: "(555) 123-4567", marketingConsentSms: true }));
+    const r = await patch(prisma, { phone: "(555) 999-0000" });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.user?.phone, "(555) 999-0000");
+    assert.equal(r.body.user?.marketingConsentSms, false);
+    assert.equal(prisma._row().marketingConsentSms, false);
+  });
+
+  it("phone AND consent together → 200: a fresh consent for the new number stands", async () => {
+    const prisma = makeStubPrisma(baseUser({ id: USER_ID, phone: null, marketingConsentSms: false }));
+    const r = await patch(prisma, { phone: "(555) 999-0000", marketingConsentSms: true });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.user?.phone, "(555) 999-0000");
+    assert.equal(r.body.user?.marketingConsentSms, true);
+    assert.equal(prisma._row().marketingConsentSms, true);
+  });
+
+  it("re-sending the SAME phone is not a change: the consent is kept", async () => {
+    const prisma = makeStubPrisma(baseUser({ id: USER_ID, phone: "(555) 123-4567", marketingConsentSms: true }));
+    const r = await patch(prisma, { phone: "(555) 123-4567", firstName: "Same" });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.user?.marketingConsentSms, true);
+    assert.equal(prisma._row().marketingConsentSms, true);
   });
 });
 

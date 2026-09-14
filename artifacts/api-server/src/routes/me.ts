@@ -633,6 +633,39 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     }
 
     try {
+      // BUG-267 — the SMS-consent invariant, judged against the ROW AFTER
+      // the patch, never the body alone (a body carrying only one of the two
+      // fields is exactly how this was missed). Two rules:
+      //   1. the resulting row may not have marketingConsentSms without a
+      //      phone — 400, the same shape POST /auth/signup gives (D-WS9-241 A);
+      //   2. changing or clearing the phone CLEARS marketingConsentSms in the
+      //      same write — consent is consent for a NUMBER, not for an account.
+      //      A body that supplies the new phone AND `marketingConsentSms:
+      //      true` together is a fresh consent for that number and stands.
+      if (updates.phone !== undefined || updates.marketingConsentSms !== undefined) {
+        const current = await prisma.user.findUnique({
+          where: { id: req.userId },
+          select: { phone: true, marketingConsentSms: true },
+        });
+        if (!current) {
+          return res.status(404).json({ error: "user not found" });
+        }
+        const phoneAfter = updates.phone !== undefined ? updates.phone : current.phone;
+        const phoneChanged = updates.phone !== undefined && updates.phone !== current.phone;
+        if (phoneChanged && updates.marketingConsentSms !== true) {
+          updates.marketingConsentSms = false;
+        }
+        const smsAfter =
+          updates.marketingConsentSms !== undefined
+            ? updates.marketingConsentSms
+            : current.marketingConsentSms;
+        if (smsAfter && !phoneAfter) {
+          return res
+            .status(400)
+            .json({ error: "SMS consent requires a phone number" });
+        }
+      }
+
       const updated = await prisma.user.update({
         where: { id: req.userId },
         data: updates,
