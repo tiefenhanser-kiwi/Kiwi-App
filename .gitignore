@@ -69,3 +69,12 @@ artifacts/design_tokens_4.ts
 artifacts/kiwi_screens_mockup.html
 artifacts/kiwi_ux_redesign_spec.md
 Claude outputs/
+
+# Spent read-only probe and one-shot measurement scripts (WS9 arc). ONE ignored
+# folder rather than 36 explicit names: with that many untracked entries the
+# no-broad-globs rule above had already lost the benefit it was protecting,
+# because a genuinely new artifact no longer stood out in `git status`. Anything
+# OUTSIDE _scratch/ still shows, which is the original intent.
+# Probes are written here from the start. Scripts that REVERSE a write stay
+# tracked and must never be moved in (retag_revert / restamp_revert / revert_class).
+artifacts/api-server/scripts/_scratch/
