@@ -949,8 +949,17 @@ describe("generateInput — the 30-minute list's store-bought shortcut (D-WS9-24
     assert.equal(out.slice(json.length + 2), shortcutLine("Bagged slaw mix; potato buns"));
     assert.equal(
       shortcutLine("Bagged slaw mix; potato buns"),
-      "Store-bought shortcut the cook uses for this dinner: Bagged slaw mix; potato buns. Build the DEFAULT path around this product; the from-scratch version of that component is the optional bought→scratch alternative, not the primary path.",
+      "Store-bought shortcut the cook uses for this dinner: Bagged slaw mix; potato buns. SHORTCUT MODE (see the prefix): each product named here is a plain ingredient of this dish — the cook buys it and the recipe starts from it. Author NO `substitutions` entry that names it in either direction and NO from-scratch ingredients or steps that would replace it; for these products there is no from-scratch path, which overrides the standing rule to offer a bought alternative to scratch work. Components this line does not name follow the normal rule unchanged.",
     );
+  });
+
+  it("D-WS9-243: the wire text no longer asks for a bought→scratch alternative (the direction the schema cannot express)", () => {
+    const out = generateInput("Turkey Club", PROFILE, ["Turkey club", "Chips and pickle"], "Deli turkey; bacon cooked ahead or microwaved");
+    assert.ok(!out.includes("bought→scratch alternative"), "the old sentence is replaced, not layered");
+    assert.ok(!out.includes("Build the DEFAULT path around this product"));
+    assert.ok(out.includes("SHORTCUT MODE"));
+    assert.ok(out.includes("Author NO `substitutions` entry that names it in either direction"));
+    assert.ok(out.includes("Components this line does not name follow the normal rule unchanged."));
   });
 
   it("runStoreFill passes the target's shortcut to the generate call, and nothing when the target has none", async () => {
@@ -970,9 +979,15 @@ describe("generateInput — the 30-minute list's store-bought shortcut (D-WS9-24
     assert.equal(seen[1], JSON.stringify({ targetDish: "Pot Roast", servings: 4, difficulty: "easy" }), "no shortcut → byte-identical");
   });
 
-  it("the cached generate prefix explains the shortcut line (the product is the default path, not a substitutions swap)", () => {
-    assert.ok(STABLE_GENERATE_PREFIX.includes("names a store-bought shortcut the cook uses for this dinner"), "the prefix must explain the line");
-    assert.ok(STABLE_GENERATE_PREFIX.includes("do not offer the product as a substitution for itself"));
+  it("D-WS9-243: the cached generate prefix carries a distinct Shortcut-mode section — plain ingredient, no substitutions entry in either direction, no scratch path, override of the section above", () => {
+    assert.ok(STABLE_GENERATE_PREFIX.includes("# Shortcut mode — when the message names a store-bought shortcut"), "its own section, not a sentence beside the rule it overrides");
+    assert.ok(STABLE_GENERATE_PREFIX.includes("every product on that line is a PLAIN INGREDIENT of the dish it belongs to"));
+    assert.ok(STABLE_GENERATE_PREFIX.includes("For a shortcut product there is NO from-scratch path, and this OVERRIDES the section above for that component"));
+    assert.ok(STABLE_GENERATE_PREFIX.includes("author NO `substitutions` entry that names it, in either direction"));
+    assert.ok(STABLE_GENERATE_PREFIX.includes("Components the shortcut line does NOT name follow the section above unchanged"));
+    assert.ok(!STABLE_GENERATE_PREFIX.includes("the from-scratch version of that component is the optional alternative"), "the b3ae94d paragraph is gone");
+    assert.ok(!STABLE_GENERATE_PREFIX.includes("bought→scratch"));
+    assert.ok(STABLE_GENERATE_PREFIX.indexOf("# Shortcut mode") > STABLE_GENERATE_PREFIX.indexOf("# Store-bought substitutions"), "the override follows the rule it overrides");
   });
 });
 

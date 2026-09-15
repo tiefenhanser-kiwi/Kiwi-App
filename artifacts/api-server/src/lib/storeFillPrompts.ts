@@ -217,8 +217,6 @@ The named dish is the MAIN / CENTERPIECE, and there is always exactly ONE \`main
 
 When the message ALSO carries a \`dishes\` list, the target is a whole plate and that list is the dish split to author: one \`dishes\` entry per name, in the order given, the first one the \`main\` — name each dish from its entry, and neither merge two entries into one dish nor add a dish the list does not name. Where an entry is a bought or no-cook side ("kettle chips and a pickle", "bagged slaw"), author it as that: a short assembly, not a from-scratch recipe. The split is chosen so the dishes can overlap on the clock; keep it.
 
-When the message ALSO names a store-bought shortcut the cook uses for this dinner, that product IS the dish's ingredient for that component — list it in the ingredient list and let the steps use it as-is. It is the DEFAULT path, not a \`substitutions\` swap: the from-scratch version of that component is the optional alternative, never the primary list, and this call has no field for it — do not list the from-scratch ingredients the product stands in for, and do not offer the product as a substitution for itself.
-
 Your sole deliverable is the structured tool_use response. Do not narrate or add commentary — the JSON is the entire response. Never break character with phrases like "Here's a dinner..." or "I'll create...".
 
 # What you produce
@@ -275,6 +273,17 @@ Each substitution names ONE product that replaces a GROUP of the dish's from-scr
 
 The from-scratch ingredient list stays COMPLETE and PRIMARY — substitutions are additions on top, never a reason to drop real ingredients from the list. Where a dish has no sensible convenience product (a simple grilled fish, a green salad), produce NO substitutions for it — an absent list is correct. Never force one.
 
+# Shortcut mode — when the message names a store-bought shortcut
+
+When the message ends with a line "Store-bought shortcut the cook uses for this dinner: …", every product on that line is a PLAIN INGREDIENT of the dish it belongs to: the cook buys it and the recipe starts from it. List it in that dish's ingredient list as what it is (a 14 oz bag of coleslaw mix; 12 oz sliced deli turkey; two 8.5 oz pouches of microwavable rice; a can of tuna) and let the steps use it as-is.
+
+For a shortcut product there is NO from-scratch path, and this OVERRIDES the section above for that component:
+- author NO \`substitutions\` entry that names it, in either direction — never the product as a swap for scratch ingredients, and never scratch ingredients as a "swap" for the product;
+- list NO from-scratch ingredients it stands in for, and write nothing that would make it from scratch — no roasting a turkey breast for a sandwich, no baking bread for a BLT, no simmering fresh tuna for a tuna melt, no cooking dry rice beside a rice pouch;
+- the dish's time is the time with the product in hand.
+
+Components the shortcut line does NOT name follow the section above unchanged: from scratch is the default, and a bought product is the optional \`substitutions\` swap where that section allows it (a taco spice packet keeps both paths).
+
 # Composition guidance
 
 Build the meal the way a good home cook plans dinner — around the protein, then the supporting cast:
@@ -327,6 +336,11 @@ Return ONLY the tool_use call with the single meal object.`;
  * labels the preference with) and the `shortcut` line of the volatile input is
  * explained (D-WS9-240 item 6). Measured 4,532 → 4,931 tok, system-only
  * (scripts/ws9-242/prefix_tokens.ts).
+ * D-WS9-243: the shortcut explanation is now its own "# Shortcut mode" section
+ * (a plain base ingredient, no `substitutions` entry in either direction, no
+ * from-scratch path — an OVERRIDE of the substitutions section it follows,
+ * because a sentence beside the rule it inverted is how the label inversion
+ * happened). Measured 4,931 → 5,150 tok, system-only.
  */
 export const STABLE_GENERATE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + GENERATE_MEAL_INSTRUCTIONS;

@@ -514,9 +514,20 @@ export function generateInput(targetDish: string, profile: GenProfile, dishes?: 
   return s ? `${json}\n\n${shortcutLine(s)}` : json;
 }
 
-/** The exact wire sentence a `shortcut` renders as (pinned by tests). */
+/**
+ * The exact wire text a `shortcut` renders as (pinned by tests).
+ *
+ * D-WS9-243: the shortcut product is a PLAIN BASE INGREDIENT and no from-scratch
+ * alternative is authored for it. The previous sentence asked for "the optional
+ * bought→scratch alternative" — a direction `Dish.substitutions` cannot express
+ * (entries run scratch→bought) — and the model answered by putting the long
+ * version in `scratch` (Turkey Club: 94 derived, 26 on the bought path) or by
+ * inverting the labels (canned tuna tagged scratch, "cook 1½ lb albacore"
+ * tagged bought). The prefix's "# Shortcut mode" section carries the full rule;
+ * this line names the products and restates it so it cannot be missed.
+ */
 export function shortcutLine(shortcut: string): string {
-  return `Store-bought shortcut the cook uses for this dinner: ${shortcut}. Build the DEFAULT path around this product; the from-scratch version of that component is the optional bought→scratch alternative, not the primary path.`;
+  return `Store-bought shortcut the cook uses for this dinner: ${shortcut}. SHORTCUT MODE (see the prefix): each product named here is a plain ingredient of this dish — the cook buys it and the recipe starts from it. Author NO \`substitutions\` entry that names it in either direction and NO from-scratch ingredients or steps that would replace it; for these products there is no from-scratch path, which overrides the standing rule to offer a bought alternative to scratch work. Components this line does not name follow the normal rule unchanged.`;
 }
 
 export function finalizeInput(meal: WizardExpandEnrichedMealDetails): string {
