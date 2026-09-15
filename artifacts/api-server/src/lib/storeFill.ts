@@ -496,8 +496,8 @@ export function buildMaterializePayload(
 }
 
 // ── volatile per-call inputs (go in the user body; NOT the cached prefix) ─────
-export function generateInput(targetDish: string, profile: GenProfile, dishes?: string[]): string {
-  return JSON.stringify({
+export function generateInput(targetDish: string, profile: GenProfile, dishes?: string[], shortcut?: string): string {
+  const json = JSON.stringify({
     targetDish,
     servings: profile.servings,
     difficulty: profile.difficulty,
@@ -506,6 +506,17 @@ export function generateInput(targetDish: string, profile: GenProfile, dishes?: 
     // volatile input stays byte-identical.
     ...(dishes && dishes.length > 0 ? { dishes } : {}),
   });
+  // D-WS9-240 item 6 / D-WS9-242 — the store-bought shortcut, only when the
+  // target carries one: a plain line UNDER the JSON (below the cached prefix,
+  // in the user body), so the model cannot miss the product the whole
+  // 30-minute premise rests on. Absent → the input is byte-identical to today's.
+  const s = shortcut?.trim();
+  return s ? `${json}\n\n${shortcutLine(s)}` : json;
+}
+
+/** The exact wire sentence a `shortcut` renders as (pinned by tests). */
+export function shortcutLine(shortcut: string): string {
+  return `Store-bought shortcut the cook uses for this dinner: ${shortcut}. Build the DEFAULT path around this product; the from-scratch version of that component is the optional bought→scratch alternative, not the primary path.`;
 }
 
 export function finalizeInput(meal: WizardExpandEnrichedMealDetails): string {
@@ -753,7 +764,7 @@ export async function runStoreFill(
       if (overCalls()) { stoppedBy = "max_calls"; break; }
       const gen = await runAICall(
         "store.generate_meal",
-        { generateInput: generateInput(target.dish, profile, target.dishes) },
+        { generateInput: generateInput(target.dish, profile, target.dishes, target.shortcut) },
         WizardExpandEnrichedMealDetailsSchema,
         { prisma, mode: "tool", cachedSystemPrefix: STABLE_GENERATE_PREFIX },
       );

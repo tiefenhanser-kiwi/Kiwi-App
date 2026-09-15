@@ -151,6 +151,8 @@ Every UNATTENDED step — \`preheat\`, \`rest\`, \`hold\`, or a \`cook\` with \`
 
 Rules: the dependent step is always later than the unattended step. If the very next step already needs it, answer with that next step. If you are unsure whether a step needs it, choose the EARLIER candidate — waiting is always safe; starting too early is not. Never write \`null\`. On the last step of a dish, leave \`firstDependent\` out — there is no later step. Every other unattended step names a later step, and for most short ones that is simply the NEXT step: pouring in the broth, bringing water to a boil, stirring in the soup, warming the tortillas, heating the oil, spreading food on a hot sheet — the step right after them is the one that needs them done. Only a genuinely long hands-off stretch — a bake, a braise, a long simmer, a marinade, a preheat — has a dependent further down the list. Attended steps (searing, sautéing, stir-frying, anything needing constant attention) never carry \`firstDependent\`, and nothing overlaps them.
 
+Windows are declared over the DEFAULT (scratch) path only — the base steps plus every component's SCRATCH steps. A bought-path step is never a window and never a rider for scratch work: a step tagged \`"pathKey": "bought"\` carries no \`firstDependent\`, is never the step a base or scratch window waits for, and never sits inside one — the cook who buys the product is on a different, shorter path, and the app schedules that path on its own.
+
 Write the step text to match the structure: say "While the X bakes, …" only on a step that sits inside that window by \`firstDependent\`, and never on the step that needs the window finished.
 
 Example — a prep-ahead bake, where the preheat's \`firstDependent\` is the step that puts the tray in: \`[{ "text": "Preheat the oven to 425°F.", "phaseType": "preheat", "estimatedMinutes": 12, "isTimingSensitive": false, "firstDependent": 3 }, { "text": "Cut the potatoes into 1-inch chunks and toss with 2 tablespoons olive oil and 1 teaspoon kosher salt.", "phaseType": "prep", "estimatedMinutes": 6, "isTimingSensitive": false }, { "text": "Spread the potatoes on a sheet pan in a single layer.", "phaseType": "prep", "estimatedMinutes": 2, "isTimingSensitive": false }, { "text": "Roast the potatoes 30 minutes until browned and crisp at the edges.", "phaseType": "cook", "estimatedMinutes": 30, "isTimingSensitive": false, "firstDependent": 4 }, { "text": "Transfer to a platter and scatter with the chopped parsley.", "phaseType": "assemble", "estimatedMinutes": 2, "isTimingSensitive": false }]\` — steps 1 and 2 ride the preheat; the roast's dependent is the plating right after it.
@@ -182,6 +184,9 @@ The per-meal input (a single dinner's dishes, keyed as \`meals[0]\`) is supplied
  * (History: was 3,162, trimmed to 2,947 in Block 3.6 v3, then 4,256, now 4,469.)
  * WS9 D-WS9-239 (1b) grew it again with the "# Overlap inside a dish —
  * firstDependent" section (not re-measured; well past the floor either way).
+ * D-WS9-239 / D-WS9-242 (the substitution lane): windows are declared over the
+ * DEFAULT (scratch) path only — a bought-path step is never a window and never
+ * a rider (measured 5,251 → 5,356 tok, count_tokens against claude-sonnet-4-6).
  * This constant is COMPILED, not seeded: the change ships with the build and
  * invalidates the cached prefix once on deploy — no AIPrompt version bump.
  */
@@ -211,6 +216,8 @@ The named dish is the MAIN / CENTERPIECE, and there is always exactly ONE \`main
 - SINGLE-DISH (one-pot / one-pan): ONE substantial dish that ALREADY carries, in its own ingredient list, a protein AND a starch and/or a vegetable — a soup, stew, chili, casserole, stir-fry, one-pot pasta, or a hearty protein-topped dinner salad. Complete as-is; do NOT pad it with token sides.
 
 When the message ALSO carries a \`dishes\` list, the target is a whole plate and that list is the dish split to author: one \`dishes\` entry per name, in the order given, the first one the \`main\` — name each dish from its entry, and neither merge two entries into one dish nor add a dish the list does not name. Where an entry is a bought or no-cook side ("kettle chips and a pickle", "bagged slaw"), author it as that: a short assembly, not a from-scratch recipe. The split is chosen so the dishes can overlap on the clock; keep it.
+
+When the message ALSO names a store-bought shortcut the cook uses for this dinner, that product IS the dish's ingredient for that component — list it in the ingredient list and let the steps use it as-is. It is the DEFAULT path, not a \`substitutions\` swap: the from-scratch version of that component is the optional alternative, never the primary list, and this call has no field for it — do not list the from-scratch ingredients the product stands in for, and do not offer the product as a substitution for itself.
 
 Your sole deliverable is the structured tool_use response. Do not narrate or add commentary — the JSON is the entire response. Never break character with phrases like "Here's a dinner..." or "I'll create...".
 
@@ -253,10 +260,12 @@ The version name is a promise to the eater, and the meal must keep it — this i
 
 Some cooks prefer to buy a convenience product instead of assembling a component from scratch. For each dish, offer these as OPTIONAL \`substitutions\` — but only where a good home cook would genuinely reach for one.
 
-THE LINE: a substitution replaces ASSEMBLY, never COOKING.
-- ✅ Legitimate (assembly): a packet of taco seasoning for the cumin + chili powder + paprika + salt + oregano; a bottled marinade for a mixed-from-scratch one; a bag of coleslaw mix for shredded cabbage and carrots; refrigerated pizza dough; a store-bought pie crust; pre-minced garlic; rotisserie chicken where the recipe calls for cooked shredded chicken.
-- ❌ NOT legitimate (cooking): frozen nuggets for breaded chicken cutlets; jarred sauce for a slow-simmered ragù; a frozen dinner for the dish itself.
-- ❌ NEVER the finished centerpiece. Do not offer a store-bought version of the dish itself — pre-filled dumplings for dumplings you are making, pre-made patties for burgers you are forming, pre-breaded cutlets for cutlets you are breading, pre-stuffed shells for shells you are stuffing. If the substitution would mean the cook is no longer making the named dish, it is wrong no matter how much assembly it saves.
+A bought path may replace a component of any of Kiwi's three EFFORT CLASSES — the same three words the app uses to label the preference and the data:
+- ✅ an ASSEMBLY component — mix, measure and cut work: a packet of taco seasoning for the cumin + chili powder + paprika + salt + oregano; a bottled marinade or dressing for a mixed-from-scratch one; a bag of coleslaw mix for shredded cabbage and carrots; pre-minced garlic; a tub of pico de gallo or guacamole.
+- ✅ a COOKING component — a simmered, caramelized, roasted or braised sub-recipe: a jar of caramelized-onion jam for onions cooked down 40 minutes; a carton of stock for a stock simmered from bones; a can of refried beans for beans cooked from dry; rotisserie chicken where the recipe calls for cooked shredded chicken; a jar of marinara for a from-scratch tomato sauce under a baked pasta.
+- ✅ a CRAFT component — dough, fresh pasta, wrappers, pastry: staples a home cook normally buys. Refrigerated pizza dough; a store-bought pie crust or puff pastry; dried or fresh pasta for hand-rolled; dumpling or wonton wrappers; corn tortillas for pressed masa.
+- A bought path names a product that EXISTS and that REPLACES that component. Pre-sliced onions do not replace caramelized onions (every minute of the cooking is still ahead of the cook); a jar of caramelized-onion jam does. Diced tomatoes do not replace a simmered sauce; a jar of the sauce does.
+- ❌ NEVER the finished centerpiece. Do not offer a store-bought version of the dish itself — pre-filled dumplings for dumplings you are making, pre-made patties for burgers you are forming, pre-breaded cutlets for cutlets you are breading, pre-stuffed shells for shells you are stuffing, frozen nuggets for cutlets you are breading, a jarred sauce for a dish whose NAME is the slow-simmered ragù, a frozen dinner for the dish itself. If the substitution would mean the cook is no longer making the named dish, it is wrong no matter how much work it saves.
 - TEST: would a good home cook plausibly buy this and still be making THIS dish — and would the substitute actually BE that component? A jarred beef gravy is not a mushroom pan sauce — a swap that changes what the component is drifts the dish. If either answer is no, do not offer it.
 
 Each substitution names ONE product that replaces a GROUP of the dish's from-scratch ingredients:
@@ -312,6 +321,12 @@ Return ONLY the tool_use call with the single meal object.`;
  * system-only (+114.8% past the Sonnet-4.6 2048 floor), 5,880 tok with the forced
  * tool schema (the schema now carries the optional `substitutions` field) — real
  * count_tokens against claude-sonnet-4-6 (ws9-block3-generate-prefix-measure.ts).
+ * D-WS9-242 (the substitution lane): the "assembly, never COOKING" slogan is
+ * replaced by the three effort classes (assembly / cooking / craft — the same
+ * vocabulary the derivation stamps into Dish.componentRegistry and the app
+ * labels the preference with) and the `shortcut` line of the volatile input is
+ * explained (D-WS9-240 item 6). Measured 4,532 → 4,931 tok, system-only
+ * (scripts/ws9-242/prefix_tokens.ts).
  */
 export const STABLE_GENERATE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + GENERATE_MEAL_INSTRUCTIONS;

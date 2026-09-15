@@ -42,6 +42,14 @@ export interface TargetDish {
    * byte-identical to Block 3.8's.
    */
   dishes?: string[];
+  /**
+   * D-WS9-240 item 6 / D-WS9-242 — the STORE-BOUGHT SHORTCUT the cook uses for
+   * this dinner (the 30-minute list's `shortcut_used` column: "Bagged slaw;
+   * potato buns"). Rides the generate call's volatile input as a line the model
+   * cannot miss, so the default path is built around the product. Absent on the
+   * frozen catalog list: the volatile input then stays byte-identical.
+   */
+  shortcut?: string;
 }
 
 export const TARGET_DISHES: TargetDish[] = [

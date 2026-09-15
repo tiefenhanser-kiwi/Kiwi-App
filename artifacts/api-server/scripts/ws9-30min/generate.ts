@@ -11,6 +11,7 @@
 //   node --env-file=.env --import tsx scripts/ws9-30min/generate.ts --limit 5 --apply
 //   node --env-file=.env --import tsx scripts/ws9-30min/generate.ts --apply            # all rows
 //   node --env-file=.env --import tsx scripts/ws9-30min/generate.ts --report           # DB → run.json, no calls
+//   node --env-file=.env --import tsx scripts/ws9-30min/generate.ts --offset 10 --limit 10 --cap 15 --apply   # a batch, lower breaker
 //
 // ⚠️ SHARED CATALOG DATA (D-WS9-230) — Hans ruled the run (September 14). Revert: revert.ts,
 // which removes exactly the meals this run created, by id (dishFamilyKey `km30-…`).
@@ -25,13 +26,14 @@ import { getModelRate, MODEL_SONNET } from "../../src/lib/ai/promptRegistry";
 import { runAICall as productionRunAICall } from "../../src/lib/ai/runAICall";
 import type { SchedulerDish, SchedulerPhase } from "../../src/lib/cookingScheduler";
 import { deriveMealTiming } from "../../src/lib/mealTiming";
+import { ADJACENCY_MAX_MINUTES } from "../../src/lib/parallelGroupDerive";
 import { computeCacheAwareCostUsd, emptyTokenTotals, runStoreFill, type ModelRateUsd, type TokenTotals } from "../../src/lib/storeFill";
 import type { TargetDish } from "../../src/lib/storeFillDishes";
 
 export const OUT = "scripts/output/ws9-30min";
 const CSV = `${OUT}/kiwi_30min_meal_targets_2026-09-12.csv`;
 const SPEND_FILE = `${OUT}/spend.json`;
-const SPEND_CAP_USD = 60;
+const SPEND_CAP_DEFAULT_USD = 60;
 export const KEY_PREFIX = "km30-";
 
 const argv = process.argv.slice(2);
@@ -39,6 +41,12 @@ const APPLY = argv.includes("--apply");
 const REPORT_ONLY = argv.includes("--report");
 const limitIdx = argv.indexOf("--limit");
 const LIMIT = limitIdx >= 0 ? Number(argv[limitIdx + 1]) : Infinity;
+// D-WS9-242 lane: `--offset N` starts the slice at row N (0-based) so the rerun goes in batches of 10
+// (runStoreFill is sequential — there is no concurrency knob); `--cap USD` lowers the cumulative breaker.
+const offsetIdx = argv.indexOf("--offset");
+const OFFSET = offsetIdx >= 0 ? Number(argv[offsetIdx + 1]) : 0;
+const capIdx = argv.indexOf("--cap");
+const SPEND_CAP_USD = capIdx >= 0 ? Number(argv[capIdx + 1]) : SPEND_CAP_DEFAULT_USD;
 
 // ── the target list ──────────────────────────────────────────────────────────
 export type TargetRow = { id: string; title: string; cuisine: string; protein: string; dishes: string[]; estTotalMin: number; estHandsOnMin: number; why: string; shortcut: string };
@@ -65,7 +73,9 @@ export function readTargets(): TargetRow[] {
 const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 export const keyFor = (t: TargetRow) => `${KEY_PREFIX}${t.id.toLowerCase()}-${slug(t.title)}`.slice(0, 120);
 function toTargetDish(t: TargetRow, i: number): TargetDish {
-  return { rank: i + 1, dish: t.title, key: keyFor(t), category: t.cuisine, parentDish: t.title, band: "midtail", siblingCount: 1, dishes: t.dishes };
+  // D-WS9-242 lane: the CSV's `shortcut_used` column rides the wire (TargetDish.shortcut → generateInput's
+  // shortcut line). The September 14 run passed title + dish split only.
+  return { rank: i + 1, dish: t.title, key: keyFor(t), category: t.cuisine, parentDish: t.title, band: "midtail", siblingCount: 1, dishes: t.dishes, shortcut: t.shortcut.trim() || undefined };
 }
 
 // ── DB read-back: the derived number is the acceptance, never the model's estimate ──
@@ -102,6 +112,7 @@ async function shelf(prisma: PrismaClient): Promise<string> {
 const targets = readTargets();
 console.log(`target list: ${CSV} · rows=${targets.length} · fields=id,title,cuisine,protein,dishes(|-split),est_total_min,est_hands_on_min,why_it_fits_kiwis_clock,shortcut_used · dish-split sizes: ${[...new Map(targets.map((t) => [t.dishes.length, targets.filter((x) => x.dishes.length === t.dishes.length).length]))].sort().map(([k, v]) => `${k}→${v}`).join(", ")}`);
 const prisma = new PrismaClient();
+console.log(`scheduler: src/lib/mealTiming.ts deriveMealTiming → src/lib/cookingScheduler.ts scheduleCookingSequence (selectDefaultPathSteps, BUG-270) · parallelGroup tokens derived at merge by src/lib/parallelGroupDerive.ts · ADJACENCY_MAX_MINUTES=${ADJACENCY_MAX_MINUTES}`);
 if (REPORT_ONLY) {
   const rs = await reportFromDb(prisma, targets);
   writeFileSync(`${OUT}/run.json`, JSON.stringify({ reportedAt: new Date().toISOString(), meals: rs }, null, 1));
@@ -140,7 +151,8 @@ const guardedRunAICall: typeof productionRunAICall = (async (key: string, vars: 
   return res;
 }) as unknown as typeof productionRunAICall;
 
-const dishes = targets.slice(0, Number.isFinite(LIMIT) ? LIMIT : targets.length).map(toTargetDish);
+const dishes = targets.map(toTargetDish).slice(OFFSET, Number.isFinite(LIMIT) ? OFFSET + LIMIT : targets.length);
+console.log(`batch: rows ${OFFSET}..${OFFSET + dishes.length - 1} (${dishes.length}) · shortcut on the wire for ${dishes.filter((d) => d.shortcut).length}/${dishes.length}`);
 const t0 = Date.now();
 const result = await runStoreFill(
   { prisma, runAICall: guardedRunAICall },

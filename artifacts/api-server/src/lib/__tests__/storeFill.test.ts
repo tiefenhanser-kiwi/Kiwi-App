@@ -926,3 +926,75 @@ describe("generateInput — the 30-minute list's dish split (D-WS9-240 item 6)",
     assert.deepEqual((JSON.parse(seen[0]) as { dishes: string[] }).dishes, ["BLT sandwich", "Kettle chips and pickle"]);
   });
 });
+
+// ── D-WS9-242 lane — `shortcut_used` on the wire, only when given ─────────────
+import { shortcutLine } from "../storeFill";
+import { STABLE_FINALIZE_PREFIX } from "../storeFillPrompts";
+
+describe("generateInput — the 30-minute list's store-bought shortcut (D-WS9-240 item 6 / D-WS9-242)", () => {
+  it("without a shortcut the rendered input is BYTE-IDENTICAL to today's (with and without a split)", () => {
+    assert.equal(generateInput("Baked Chicken Breast", PROFILE, undefined, undefined), generateInput("Baked Chicken Breast", PROFILE));
+    assert.equal(generateInput("Baked Chicken Breast", PROFILE, undefined, ""), generateInput("Baked Chicken Breast", PROFILE), "an empty string is no shortcut");
+    assert.equal(generateInput("Baked Chicken Breast", PROFILE, undefined, "   "), generateInput("Baked Chicken Breast", PROFILE), "whitespace is no shortcut");
+    assert.equal(
+      generateInput("BLT", PROFILE, ["BLT sandwich", "Kettle chips and pickle"], undefined),
+      JSON.stringify({ targetDish: "BLT", servings: 4, difficulty: "easy", dishes: ["BLT sandwich", "Kettle chips and pickle"] }),
+    );
+  });
+
+  it("with a shortcut the JSON is unchanged and the shortcut line follows it, verbatim", () => {
+    const out = generateInput("Smash Burgers with Special Sauce and Bagged Slaw", PROFILE, ["Smash burgers", "Quick slaw"], "Bagged slaw mix; potato buns");
+    const json = JSON.stringify({ targetDish: "Smash Burgers with Special Sauce and Bagged Slaw", servings: 4, difficulty: "easy", dishes: ["Smash burgers", "Quick slaw"] });
+    assert.ok(out.startsWith(json + "\n\n"), "the JSON comes first, byte-identical, then a blank line");
+    assert.equal(out.slice(json.length + 2), shortcutLine("Bagged slaw mix; potato buns"));
+    assert.equal(
+      shortcutLine("Bagged slaw mix; potato buns"),
+      "Store-bought shortcut the cook uses for this dinner: Bagged slaw mix; potato buns. Build the DEFAULT path around this product; the from-scratch version of that component is the optional bought→scratch alternative, not the primary path.",
+    );
+  });
+
+  it("runStoreFill passes the target's shortcut to the generate call, and nothing when the target has none", async () => {
+    const meal = makeMeal();
+    const seen: string[] = [];
+    const inner = makeFakeRunAICall([okResult(meal), okResult(meal)], [okResult(finalizeFor(meal)), okResult(finalizeFor(meal))]);
+    const runAICall = (async (key: string, vars: Record<string, string>, ...rest: unknown[]) => {
+      if (key === "store.generate_meal") seen.push(vars.generateInput);
+      return (inner as unknown as (...a: unknown[]) => Promise<unknown>)(key, vars, ...rest);
+    }) as unknown as typeof productionRunAICall;
+    await runStoreFill(
+      { prisma: fakePrisma(), runAICall },
+      { apply: false, limit: 2, dishes: [{ ...DISH(1, "Smash Burgers"), shortcut: "Bagged slaw mix; potato buns" }, DISH(2, "Pot Roast")], profiles: [PROFILE] },
+    );
+    assert.equal(seen.length, 2);
+    assert.ok(seen[0].includes("Store-bought shortcut the cook uses for this dinner: Bagged slaw mix; potato buns."));
+    assert.equal(seen[1], JSON.stringify({ targetDish: "Pot Roast", servings: 4, difficulty: "easy" }), "no shortcut → byte-identical");
+  });
+
+  it("the cached generate prefix explains the shortcut line (the product is the default path, not a substitutions swap)", () => {
+    assert.ok(STABLE_GENERATE_PREFIX.includes("names a store-bought shortcut the cook uses for this dinner"), "the prefix must explain the line");
+    assert.ok(STABLE_GENERATE_PREFIX.includes("do not offer the product as a substitution for itself"));
+  });
+});
+
+describe("store prefixes — D-WS9-242 vocabulary + D-WS9-239 default-path-only windows", () => {
+  it("generate: the 'assembly, never COOKING' slogan is gone; the three effort classes are named; the TEST sentence is kept verbatim", () => {
+    assert.ok(!STABLE_GENERATE_PREFIX.includes("never COOKING"), "the slogan is replaced, not layered");
+    assert.ok(!STABLE_GENERATE_PREFIX.includes("NOT legitimate (cooking)"), "the contradicting example list is gone");
+    assert.ok(STABLE_GENERATE_PREFIX.includes("an ASSEMBLY component"));
+    assert.ok(STABLE_GENERATE_PREFIX.includes("a COOKING component"));
+    assert.ok(STABLE_GENERATE_PREFIX.includes("a CRAFT component"));
+    assert.ok(STABLE_GENERATE_PREFIX.includes("A bought path names a product that EXISTS and that REPLACES that component."));
+    assert.ok(STABLE_GENERATE_PREFIX.includes("Pre-sliced onions do not replace caramelized onions"));
+    assert.ok(STABLE_GENERATE_PREFIX.includes("NEVER the finished centerpiece"));
+    assert.ok(
+      STABLE_GENERATE_PREFIX.includes("TEST: would a good home cook plausibly buy this and still be making THIS dish — and would the substitute actually BE that component?"),
+      "the quality bar stays a prompt rule, verbatim",
+    );
+  });
+
+  it("finalize: windows are declared over the DEFAULT (scratch) path only — a bought-path step is never a window and never a rider", () => {
+    assert.ok(STABLE_FINALIZE_PREFIX.includes("Windows are declared over the DEFAULT (scratch) path only"));
+    assert.ok(STABLE_FINALIZE_PREFIX.includes("A bought-path step is never a window and never a rider for scratch work"));
+    assert.ok(STABLE_FINALIZE_PREFIX.includes('a step tagged `"pathKey": "bought"` carries no `firstDependent`'));
+  });
+});
