@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { WizardPlanCandidatesResultSchema } from "./wizard";
+import {
+  DiscoveryLevelInputSchema,
+  PlaylistLevelInputSchema,
+  WizardPlanCandidatesResultSchema,
+} from "./wizard";
 
 // PRD §6.8 — Tell Kiwi (directed input) request shape.
 // Mirrors TellKiwiInput in artifacts/kiwi/lib/types.ts:503.
@@ -32,7 +36,11 @@ export const DirectedInputSchema = z.object({
   // Cookbook Phase B Block 4 (D-WS7-035) — per-run overrides. Optional, NO
   // default (see WizardInputSchema note): omitted means "use stored". The
   // route resolves these into `preferencesContext`.
+  // WS9 Redesign Arc Block 1 (D-WS9-245) — the dials; see WizardInputSchema
+  // for the enum-or-legacy-int shim and the legacy-key fold.
+  discoveryLevel: DiscoveryLevelInputSchema.optional(),
   discoveryMealsPerWeek: z.number().int().min(0).max(2).optional(),
+  playlistLevel: PlaylistLevelInputSchema.optional(),
   saucePreference: z.enum(["store_bought", "balanced", "homemade"]).optional(),
   maxCookTimeMinutes: z.number().int().positive().max(600).nullable().optional(),
   maxCookTimeCoverage: z.enum(["all", "most"]).optional(),

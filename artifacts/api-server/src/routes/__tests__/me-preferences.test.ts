@@ -38,7 +38,8 @@ interface PrefsRow {
   defaultRetailer: string | null;
   dietaryNotes: string | null;
   // Cookbook Phase B Block 1 — new stored prefs.
-  discoveryMealsPerWeek: number;
+  // WS9 Redesign Arc Block 1 (D-WS9-245) — the discovery dial is an enum now.
+  discoveryLevel: "none" | "some" | "mostly" | "all";
   saucePreference: string;
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: string;
@@ -72,7 +73,7 @@ function defaultsFor(userId: string): PrefsRow {
     // Cookbook Phase B Block 1 — models a row after the additive migration:
     // Postgres backfills these column defaults, so a pre-existing row reads
     // back with them already applied (the server serializer just spreads).
-    discoveryMealsPerWeek: 0,
+    discoveryLevel: "none",
     saucePreference: "balanced",
     maxCookTimeMinutes: null,
     maxCookTimeCoverage: "most",
@@ -182,7 +183,7 @@ describe("GET /me/preferences", () => {
       assert.equal(body.preferences.spiceTolerance, "medium");
       assert.equal(body.preferences.planLengthDefault, 7);
       // Cookbook Phase B Block 1 — new fields surface with their DB defaults.
-      assert.equal(body.preferences.discoveryMealsPerWeek, 0);
+      assert.equal(body.preferences.discoveryLevel, "none");
       assert.equal(body.preferences.saucePreference, "balanced");
       assert.equal(body.preferences.maxCookTimeMinutes, null);
       assert.equal(body.preferences.maxCookTimeCoverage, "most");
@@ -276,7 +277,7 @@ describe("PATCH /me/preferences", () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          discoveryMealsPerWeek: 2,
+          discoveryLevel: "mostly",
           saucePreference: "homemade",
           maxCookTimeMinutes: 45,
           maxCookTimeCoverage: "all",
@@ -284,7 +285,7 @@ describe("PATCH /me/preferences", () => {
       });
       assert.equal(res.status, 200);
       const out = (await res.json()) as { preferences: PrefsRow };
-      assert.equal(out.preferences.discoveryMealsPerWeek, 2);
+      assert.equal(out.preferences.discoveryLevel, "mostly");
       assert.equal(out.preferences.saucePreference, "homemade");
       assert.equal(out.preferences.maxCookTimeMinutes, 45);
       assert.equal(out.preferences.maxCookTimeCoverage, "all");
@@ -316,7 +317,47 @@ describe("PATCH /me/preferences", () => {
     }
   });
 
-  it("Phase B: rejects out-of-range discoveryMealsPerWeek and bad saucePreference", async () => {
+  // WS9 Redesign Arc Block 1 (D-WS9-245) — TEMPORARY legacy shim: the current
+  // mobile build still PATCHes `discoveryMealsPerWeek: 0..2`; it is folded onto
+  // the enum column (0→none, 1→some, 2→mostly) and never reaches Prisma under
+  // its legacy key. Delete this test with the shim in Block 2.
+  it("D-WS9-245 shim: legacy discoveryMealsPerWeek int folds onto discoveryLevel", async () => {
+    const prisma = makeStubPrisma(defaultsFor(USER_ID));
+    const harness = await spinUp(prisma);
+    try {
+      const token = signToken(USER_ID);
+      const patch = async (payload: Record<string, unknown>) => {
+        const res = await fetch(`${harness.baseUrl}/me/preferences`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        assert.equal(res.status, 200);
+        return ((await res.json()) as { preferences: PrefsRow & Record<string, unknown> })
+          .preferences;
+      };
+      const one = await patch({ discoveryMealsPerWeek: 1 });
+      assert.equal(one.discoveryLevel, "some");
+      assert.equal("discoveryMealsPerWeek" in one, false, "legacy key reached the row");
+      const two = await patch({ discoveryMealsPerWeek: 2 });
+      assert.equal(two.discoveryLevel, "mostly");
+      const zero = await patch({ discoveryMealsPerWeek: 0 });
+      assert.equal(zero.discoveryLevel, "none");
+      // The enum key wins when both arrive.
+      const both = await patch({ discoveryMealsPerWeek: 2, discoveryLevel: "all" });
+      assert.equal(both.discoveryLevel, "all");
+      // The enum field also accepts the legacy int directly.
+      const viaEnumKey = await patch({ discoveryLevel: 1 });
+      assert.equal(viaEnumKey.discoveryLevel, "some");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("Phase B: rejects out-of-range discoveryMealsPerWeek / discoveryLevel and bad saucePreference", async () => {
     const harness = await spinUp(makeStubPrisma(defaultsFor(USER_ID)));
     try {
       const token = signToken(USER_ID);
@@ -332,6 +373,8 @@ describe("PATCH /me/preferences", () => {
         return res.status;
       };
       assert.equal(await bad({ discoveryMealsPerWeek: 3 }), 400);
+      assert.equal(await bad({ discoveryLevel: "lots" }), 400);
+      assert.equal(await bad({ discoveryLevel: 3 }), 400);
       assert.equal(await bad({ saucePreference: "instant" }), 400);
       assert.equal(await bad({ maxCookTimeCoverage: "half" }), 400);
     } finally {

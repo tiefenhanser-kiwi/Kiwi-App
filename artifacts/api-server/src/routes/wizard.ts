@@ -73,6 +73,7 @@ import {
   type RecentRotation,
 } from "../lib/planningContext";
 import {
+  discoveryLevelFromInput,
   resolveAllergenPreference,
   resolveEffectivePreferences,
   type ResolvedPreferences,
@@ -606,8 +607,13 @@ export function createWizardRouter(
       // input. The four per-run override fields are peeled OFF parsed.data (so
       // they don't leak into the AI input at top level — the prompt reads them
       // only via preferencesContext) and resolved against stored prefs.
+      // WS9 Redesign Arc Block 1 (D-WS9-245) — the dials are peeled off too
+      // (enum key + the legacy int key + playlist) and folded to levels; the
+      // resolver turns them into COUNTS against this run's plan length.
       const {
+        discoveryLevel,
         discoveryMealsPerWeek,
+        playlistLevel,
         saucePreference,
         maxCookTimeMinutes,
         maxCookTimeCoverage,
@@ -617,11 +623,16 @@ export function createWizardRouter(
         prisma,
         userId,
         {
-          discoveryMealsPerWeek,
+          discoveryLevel: discoveryLevelFromInput({
+            discoveryLevel,
+            discoveryMealsPerWeek,
+          }),
+          playlistLevel,
           saucePreference,
           maxCookTimeMinutes,
           maxCookTimeCoverage,
         },
+        { planDurationDays: aiInput.planDurationDays },
       );
       // Block 4b-2 (D-WS9-073, Part 1b) — recentRotation REPLACES recentMeals as
       // this route's recency unit, so strip recentMeals from the payload: one
@@ -1164,11 +1175,14 @@ export function createWizardRouter(
         prisma,
         userId,
         {
-          discoveryMealsPerWeek: directed.discoveryMealsPerWeek,
+          // D-WS9-245 — enum key, else the legacy int key (shim), else stored.
+          discoveryLevel: discoveryLevelFromInput(directed),
+          playlistLevel: directed.playlistLevel,
           saucePreference: directed.saucePreference,
           maxCookTimeMinutes: directed.maxCookTimeMinutes,
           maxCookTimeCoverage: directed.maxCookTimeCoverage,
         },
+        { planDurationDays },
       );
       // Block 4b-2 (D-WS9-073, Part 1b) — strip recentMeals: recentRotation is
       // this route's recency unit now (see the build-plans handler). Kept live
@@ -1382,6 +1396,8 @@ export function createWizardRouter(
         const preferencesContext = await resolveEffectivePreferences(
           prisma,
           userId,
+          {},
+          { planDurationDays },
         );
 
         // BUG-053 (Part B) — fold this session's shown plans into the recency

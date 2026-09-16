@@ -13,6 +13,8 @@ import { z } from "zod";
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { phoneSchema } from "../lib/phoneValidation";
+import { DiscoveryLevelInputSchema } from "../lib/ai/schemas/wizard";
+import { legacyDiscoveryIntToLevel } from "../lib/wizardPreferences";
 import {
   collectDishMentions,
   collectMealMentions,
@@ -198,6 +200,12 @@ const preferencesPatchSchema = z
     // Cookbook Phase B Block 1 — new preference fields. maxCookTimeMinutes
     // stays a permissive nullable int (the 30/45/60/null UI gate is Block 3);
     // the others are value-set-validated here since the DB stores plain int/String.
+    // WS9 Redesign Arc Block 1 (D-WS9-245) — the stored discovery dial is the
+    // DiscoveryLevel enum now. `discoveryMealsPerWeek` (the legacy 0..2 int
+    // under its legacy KEY) is still accepted and folded onto the enum column
+    // below so the current mobile build's preferences save keeps working —
+    // TEMPORARY, remove in Block 2. The enum key wins when both arrive.
+    discoveryLevel: DiscoveryLevelInputSchema.optional(),
     discoveryMealsPerWeek: z.number().int().min(0).max(2).optional(),
     saucePreference: z.enum(["store_bought", "balanced", "homemade"]).optional(),
     maxCookTimeMinutes: z.number().int().nullable().optional(),
@@ -994,7 +1002,12 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         details: flat,
       });
     }
-    const updates = parsed.data;
+    // D-WS9-245 legacy fold — the column is `discoveryLevel`; the legacy int
+    // never reaches Prisma.
+    const { discoveryMealsPerWeek: legacyDiscovery, ...updates } = parsed.data;
+    if (legacyDiscovery !== undefined && updates.discoveryLevel === undefined) {
+      updates.discoveryLevel = legacyDiscoveryIntToLevel(legacyDiscovery);
+    }
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: "no fields to update" });
     }

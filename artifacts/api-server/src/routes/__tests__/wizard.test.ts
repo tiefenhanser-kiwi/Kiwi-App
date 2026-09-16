@@ -46,7 +46,8 @@ interface StubPrismaOpts {
     // Cookbook Phase B Block 4 — stored generation-shaping prefs the resolver
     // reads. The stub returns the whole object regardless of `select`, so these
     // feed resolveEffectivePreferences() in the same call.
-    discoveryMealsPerWeek?: number;
+    // WS9 Redesign Arc Block 1 (D-WS9-245) — the stored dial is the enum.
+    discoveryLevel?: "none" | "some" | "mostly" | "all";
     saucePreference?: "store_bought" | "balanced" | "homemade";
     maxCookTimeMinutes?: number | null;
     maxCookTimeCoverage?: "all" | "most";
@@ -1111,7 +1112,7 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
   // Stored prefs deliberately DIFFER from the per-run body below.
   const prefPrisma = makeStubPrisma({
     preferences: {
-      discoveryMealsPerWeek: 0,
+      discoveryLevel: "none",
       saucePreference: "balanced",
       maxCookTimeMinutes: 60,
       maxCookTimeCoverage: "most",
@@ -1136,12 +1137,14 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      // Override two of the four (a 30-min cap for THIS plan + discovery=2);
-      // omit saucePreference + maxCookTimeCoverage so they fall back to stored.
+      // Override two of the four (a 30-min cap for THIS plan + discovery
+      // "mostly"); omit saucePreference + maxCookTimeCoverage so they fall
+      // back to stored. D-WS9-245: the level becomes a COUNT against the
+      // 5-day VALID_BODY plan — mostly = ceil(5 × 0.7) = 4.
       body: JSON.stringify({
         ...VALID_BODY,
         maxCookTimeMinutes: 30,
-        discoveryMealsPerWeek: 2,
+        discoveryLevel: "mostly",
       }),
     });
 
@@ -1164,7 +1167,12 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
     assert.ok(pc, "preferencesContext missing from wizardInput");
     // Per-run overrides win.
     assert.equal(pc.maxCookTimeMinutes, 30, "per-run cook cap did not win");
-    assert.equal(pc.discoveryMealsPerWeek, 2, "per-run discovery did not win");
+    assert.equal(pc.discoveryMealsPerWeek, 4, "per-run discovery did not win");
+    assert.equal(
+      (pc as { discoveryLevel?: string }).discoveryLevel,
+      "mostly",
+      "resolved level missing from preferencesContext",
+    );
     // Omitted fields fall back to stored.
     assert.equal(pc.saucePreference, "balanced", "stored sauce not used");
     assert.equal(
@@ -1209,6 +1217,67 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
       0,
       "should fall back to stored discovery",
     );
+  });
+
+  // WS9 Redesign Arc Block 1 (D-WS9-245) — TEMPORARY shim: the current mobile
+  // build still sends the legacy `discoveryMealsPerWeek: 0..2` key on the
+  // per-run body; it maps 2 → mostly → ceil(5 × 0.7) = 4. Delete with Block 2.
+  it("D-WS9-245 shim: a legacy discoveryMealsPerWeek int on the body still overrides", async () => {
+    const token = signToken(PREF_USER_ID);
+    await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ...VALID_BODY, discoveryMealsPerWeek: 2 }),
+    });
+    const lastVars = ai.getVars().at(-1) as {
+      wizardInput?: {
+        preferencesContext?: { discoveryMealsPerWeek?: number; discoveryLevel?: string };
+        discoveryMealsPerWeek?: unknown;
+        discoveryLevel?: unknown;
+      };
+    };
+    const pc = lastVars?.wizardInput?.preferencesContext;
+    assert.ok(pc);
+    assert.equal(pc.discoveryLevel, "mostly");
+    assert.equal(pc.discoveryMealsPerWeek, 4);
+    assert.equal("discoveryMealsPerWeek" in (lastVars.wizardInput ?? {}), false);
+    assert.equal("discoveryLevel" in (lastVars.wizardInput ?? {}), false);
+  });
+
+  it("D-WS9-245: playlist all forces discovery none on the resolved bag", async () => {
+    const token = signToken(PREF_USER_ID);
+    await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        ...VALID_BODY,
+        discoveryLevel: "all",
+        playlistLevel: "all",
+      }),
+    });
+    const pc = (
+      ai.getVars().at(-1) as {
+        wizardInput?: {
+          preferencesContext?: {
+            discoveryMealsPerWeek?: number;
+            discoveryLevel?: string;
+            playlistLevel?: string;
+            playlistMealsPerWeek?: number;
+          };
+        };
+      }
+    )?.wizardInput?.preferencesContext;
+    assert.ok(pc);
+    assert.equal(pc.playlistLevel, "all");
+    assert.equal(pc.playlistMealsPerWeek, 5);
+    assert.equal(pc.discoveryLevel, "none");
+    assert.equal(pc.discoveryMealsPerWeek, 0);
   });
 
   it("honors an explicit null cap override over a stored cap", async () => {

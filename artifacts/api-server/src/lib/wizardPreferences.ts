@@ -29,33 +29,130 @@ import type { PrismaClient } from "@prisma/client";
 
 import { logger } from "./logger";
 
-/** The four generation-shaping prefs, fully resolved (no undefined). */
+// ── WS9 Redesign Arc Block 1 (D-WS9-245) — the two dials ─────────────────────
+//
+// Discovery and Playlist are each None · Some · Mostly · All. Discovery is
+// STORED (UserPreferences.discoveryLevel) and per-run overridable under
+// D-WS7-035's rule below; Playlist is PER-RUN ONLY (no column; omitted = none).
+// A level becomes a COUNT here, on the server, from the plan length — no prompt
+// ever sees the level, only the integer it resolves to. First setting, tune
+// with data: none = 0 · some = ceil(days × 0.3) · mostly = ceil(days × 0.7) ·
+// all = days. "All" on one dial forces "none" on the other (a plan that is all
+// playlist meals has no room for a new-to-you one, and vice versa).
+
+export const DIAL_LEVELS = ["none", "some", "mostly", "all"] as const;
+export type DiscoveryLevel = (typeof DIAL_LEVELS)[number];
+export type PlaylistLevel = DiscoveryLevel;
+
+const LEVEL_FRACTION: Record<DiscoveryLevel, number> = {
+  none: 0,
+  some: 0.3,
+  mostly: 0.7,
+  all: 1,
+};
+
+/** A dial level → the number of slots it claims out of `size`. */
+export function levelToCount(level: DiscoveryLevel, size: number): number {
+  if (!Number.isFinite(size) || size <= 0) return 0;
+  return Math.ceil(size * LEVEL_FRACTION[level]);
+}
+
+/**
+ * Legacy shim (TEMPORARY — remove in Redesign Arc Block 2 once the mobile
+ * dials send the enum): the pre-arc `discoveryMealsPerWeek` integer 0..2 maps
+ * onto the level exactly as the D-WS9-245 migration mapped the stored column
+ * (0→none, 1→some, 2→mostly; anything else → none).
+ */
+export function legacyDiscoveryIntToLevel(n: number): DiscoveryLevel {
+  if (n === 1) return "some";
+  if (n === 2) return "mostly";
+  return "none";
+}
+
+/**
+ * Fold a parsed per-run body's discovery fields into ONE optional level: the
+ * enum field wins when sent; else the legacy integer (shimmed); else undefined
+ * (= no per-run override, use stored). Presence semantics preserved.
+ */
+export function discoveryLevelFromInput(input: {
+  discoveryLevel?: DiscoveryLevel;
+  discoveryMealsPerWeek?: number;
+}): DiscoveryLevel | undefined {
+  if (input.discoveryLevel !== undefined) return input.discoveryLevel;
+  if (input.discoveryMealsPerWeek !== undefined) {
+    return legacyDiscoveryIntToLevel(input.discoveryMealsPerWeek);
+  }
+  return undefined;
+}
+
+/**
+ * "All on one dial forces None on the other." When BOTH are `all` the playlist
+ * wins: the user's declared list is the more specific instruction, and a
+ * playlist meal can never be new-to-you, so discovery has nothing to claim.
+ */
+export function applyAllForcesNone(
+  discoveryLevel: DiscoveryLevel,
+  playlistLevel: PlaylistLevel,
+): { discoveryLevel: DiscoveryLevel; playlistLevel: PlaylistLevel } {
+  if (playlistLevel === "all") {
+    return { discoveryLevel: "none", playlistLevel: "all" };
+  }
+  if (discoveryLevel === "all") {
+    return { discoveryLevel: "all", playlistLevel: "none" };
+  }
+  return { discoveryLevel, playlistLevel };
+}
+
+/** The generation-shaping prefs, fully resolved (no undefined). */
 export interface ResolvedPreferences {
+  /** The resolved dial (override ?? stored), after All-forces-None. */
+  discoveryLevel: DiscoveryLevel;
+  /** The resolved dial (override ?? none), after All-forces-None. */
+  playlistLevel: PlaylistLevel;
+  /**
+   * The COUNT the prompts consume — kept under its historical name so
+   * `preferencesContext.discoveryMealsPerWeek` stays an integer for the two
+   * generate bodies. 0 when the caller supplied no plan length.
+   */
   discoveryMealsPerWeek: number;
+  /** The playlist count, same derivation. Not read by any prompt yet. */
+  playlistMealsPerWeek: number;
   saucePreference: string;
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: string;
 }
 
 /** Stored defaults for a user with no override on a given field. */
-export type StoredPreferences = ResolvedPreferences;
+export interface StoredPreferences {
+  discoveryLevel: DiscoveryLevel;
+  saucePreference: string;
+  maxCookTimeMinutes: number | null;
+  maxCookTimeCoverage: string;
+}
 
 /**
  * Per-run client overrides. Every field optional: `undefined` = the client
  * did not set a per-run value (fall back to stored). `maxCookTimeMinutes:
- * null` is a real override meaning "no cap this plan".
+ * null` is a real override meaning "no cap this plan". `playlistLevel` has
+ * no stored counterpart: omitted = none.
  */
 export interface PreferencesOverrides {
-  discoveryMealsPerWeek?: number;
+  discoveryLevel?: DiscoveryLevel;
+  playlistLevel?: PlaylistLevel;
   saucePreference?: string;
   maxCookTimeMinutes?: number | null;
   maxCookTimeCoverage?: string;
 }
 
+/** What the counts are derived against. Absent → both counts resolve to 0. */
+export interface PreferencesResolutionContext {
+  planDurationDays?: number;
+}
+
 // Mirror the schema.prisma column defaults so a user with no UserPreferences
 // row still resolves to concrete values.
 const PREFERENCE_DEFAULTS: StoredPreferences = {
-  discoveryMealsPerWeek: 0,
+  discoveryLevel: "none",
   saucePreference: "balanced",
   maxCookTimeMinutes: null,
   maxCookTimeCoverage: "most",
@@ -64,16 +161,25 @@ const PREFERENCE_DEFAULTS: StoredPreferences = {
 /**
  * Pure precedence: per-run override wins when present, else the stored value.
  * Uses presence (`!== undefined`), not nullish, so an explicit null cap wins.
+ * The dials are then reconciled (All-forces-None) and turned into counts.
  */
 export function resolvePreferences(
   stored: StoredPreferences,
   overrides: PreferencesOverrides,
+  context: PreferencesResolutionContext = {},
 ): ResolvedPreferences {
+  const dials = applyAllForcesNone(
+    overrides.discoveryLevel !== undefined
+      ? overrides.discoveryLevel
+      : stored.discoveryLevel,
+    overrides.playlistLevel !== undefined ? overrides.playlistLevel : "none",
+  );
+  const days = context.planDurationDays ?? 0;
   return {
-    discoveryMealsPerWeek:
-      overrides.discoveryMealsPerWeek !== undefined
-        ? overrides.discoveryMealsPerWeek
-        : stored.discoveryMealsPerWeek,
+    discoveryLevel: dials.discoveryLevel,
+    playlistLevel: dials.playlistLevel,
+    discoveryMealsPerWeek: levelToCount(dials.discoveryLevel, days),
+    playlistMealsPerWeek: levelToCount(dials.playlistLevel, days),
     saucePreference:
       overrides.saucePreference !== undefined
         ? overrides.saucePreference
@@ -99,19 +205,19 @@ export async function resolveEffectivePreferences(
   prisma: Pick<PrismaClient, "userPreferences">,
   userId: string,
   overrides: PreferencesOverrides = {},
+  context: PreferencesResolutionContext = {},
 ): Promise<ResolvedPreferences> {
   const prefs = await prisma.userPreferences.findUnique({
     where: { userId },
     select: {
-      discoveryMealsPerWeek: true,
+      discoveryLevel: true,
       saucePreference: true,
       maxCookTimeMinutes: true,
       maxCookTimeCoverage: true,
     },
   });
   const stored: StoredPreferences = {
-    discoveryMealsPerWeek:
-      prefs?.discoveryMealsPerWeek ?? PREFERENCE_DEFAULTS.discoveryMealsPerWeek,
+    discoveryLevel: prefs?.discoveryLevel ?? PREFERENCE_DEFAULTS.discoveryLevel,
     saucePreference:
       prefs?.saucePreference ?? PREFERENCE_DEFAULTS.saucePreference,
     maxCookTimeMinutes:
@@ -119,7 +225,7 @@ export async function resolveEffectivePreferences(
     maxCookTimeCoverage:
       prefs?.maxCookTimeCoverage ?? PREFERENCE_DEFAULTS.maxCookTimeCoverage,
   };
-  return resolvePreferences(stored, overrides);
+  return resolvePreferences(stored, overrides, context);
 }
 
 // ── BUG-201 / D-WS9-214 — the allergen field ─────────────────────────────────

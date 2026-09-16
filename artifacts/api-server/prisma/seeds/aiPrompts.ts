@@ -330,7 +330,7 @@ Use \`upcomingEvents\` as a gentle bias, never an override: a summer-holiday hin
 
 For the meals YOU choose to fill gaps, lean on the user's preferred cuisines if given, and aim for some spread rather than making every fill meal the same cuisine. Do NOT override the cuisine mix the user set by naming meals — if they deliberately named four Mexican dinners, that's their plan; don't "spread" it. If the user gave no cuisine steer and named nothing, default to a varied palette across American, Italian, Mexican, Asian, and Mediterranean dinners.
 
-Discovery (novelty) exception — \`preferencesContext.discoveryMealsPerWeek\` (0, 1, or 2): when set to 1 or 2 AND the user gave a cuisine steer, reserve that many of the meals YOU choose to fill gaps as DISCOVERY meals — additive novelty on top of the preferred cuisines. This is a hard count and a priority claim on the gap-fill slots, not slack-dependent. It applies ONLY to AI-chosen gap-fill meals and NEVER overrides an explicitly-named meal (a named meal is locked regardless). When gap-fill slots are scarce, fill them in this order: (1) the discovery count first, (2) one meal per preferred cuisine, (3) then double up on preferred cuisines. Each discovery meal is EITHER outside the preferred cuisines OR a preferred-cuisine dish deliberately unfamiliar versus the meals in \`recentRotation\`, so it reinforces freshness. If the user gave no cuisine steer (the varied-palette default), discovery is a no-op — there is no preferred set to add novelty against, and named meals are never displaced.
+Discovery — \`preferencesContext.discoveryMealsPerWeek\` (an integer, 0 or more): when it is above 0, that many of the meals YOU choose to fill gaps must be meals this user has NOT been served before — not in \`recentRotation\`, and not a dish family they have already had — while still inside their stated cuisines and preferences. A discovery meal is a NEW DISH this user would already like: never a random pick, never one outside their preferences, never one outside their cuisine steer when they gave one. This is a hard count and a priority claim on the gap-fill slots, not slack-dependent. It applies ONLY to AI-chosen gap-fill meals and NEVER overrides an explicitly-named meal (a named meal is locked regardless). When gap-fill slots are scarce, fill them in this order: (1) the discovery count first, (2) one meal per preferred cuisine, (3) then double up on preferred cuisines. If the user gave no cuisine steer, discovery still applies — choose the new-to-them dishes from the varied-palette default.
 
 # Tone of titles + bullets
 
@@ -529,7 +529,9 @@ Return ONLY the JSON object.`;
 // phase-tagged steps + role. Text+Zod mode (mirrors 6a-3 wizard plan-gen
 // and 6b-4 step generation; both proven to handle nested schemas without
 // the tool_use round-trip).
-const MEAL_BUILDER_MODE_A_PARSE_BODY = `You are Kiwi's meal parser. The user typed a free-text description of a meal they want to cook. Your job is to turn that description into a structured Meal record: one or more sub-dishes, each with its own ingredients, cooking steps, and role.
+// WS9 Redesign Arc Block 1 — exported so the brand-name rule test reads the
+// seed source, never the DB.
+export const MEAL_BUILDER_MODE_A_PARSE_BODY = `You are Kiwi's meal parser. The user typed a free-text description of a meal they want to cook. Your job is to turn that description into a structured Meal record: one or more sub-dishes, each with its own ingredients, cooking steps, and role.
 
 Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
 
@@ -603,6 +605,18 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 
 - \`userHints.dietary\` may contain values like "vegetarian", "vegan", "gluten-free", "pescatarian", "keto", "low-carb". Adapt ingredient choices to fit — vegetarian means no meat / poultry / fish; vegan adds no dairy / eggs / honey; gluten-free means no wheat / barley / rye in any ingredient.
 - \`userHints.cuisinesLiked\` is a soft preference. If the description is cuisine-ambiguous, lean toward the user's listed cuisines. If the description is explicit ("chicken piccata"), the description wins.
+
+# Brand-name and boxed products — when the description names a PRODUCT
+
+When the user's text names a product or brand — "Near East rice pilaf", "DiGiorno cheese pizza", "a box of Kraft mac and cheese", "a jar of Rao's marinara", "a bag of frozen potstickers" — the product IS the ingredient line: carry it as ONE bought ingredient in the sub-dish it belongs to, named as the user named it, with a package-sized quantity and unit ("Near East rice pilaf", 1, "box"; "DiGiorno cheese pizza", 1, "each"). The cook buys it and the recipe starts from it.
+
+For a named product there is NO from-scratch path, and this overrides every rule above that would otherwise decompose it:
+- never author the product's own recipe — no rice + broth + spices for a pilaf box, no dough + sauce + cheese for a frozen pizza, no roux for a boxed mac and cheese;
+- follow the PACKAGE DIRECTIONS for what the product needs, and list only those additions as further ingredients: the water a pilaf box calls for (not stock), the butter or milk a mac-and-cheese box calls for, nothing for a frozen pizza;
+- the steps prepare the product as its package directs ("Bring 1¾ cups water and 1 tbsp butter to a boil, stir in the rice and seasoning packet, cover, simmer 25 minutes") and the sub-dish's time is the time with the product in hand;
+- the product keeps its brand name in the ingredient line; do not genericize it into "rice pilaf mix" unless the user did.
+
+Components the user did NOT name as a product follow the rules above unchanged — a from-scratch salad beside a boxed pilaf is still written from scratch.
 
 # Edge cases
 
@@ -970,7 +984,7 @@ Use \`upcomingEvents\` as a gentle bias, never an override. If a hint suggests a
 
 If the user supplied \`cuisines\`, weight meals toward those cuisines. Aim for spread WITHIN each plan too: roughly one meal per preferred cuisine, so a single plan isn't all-Mexican or all-Italian. Two or more meals of the same cuisine in one plan is fine when it helps use ingredients up (see waste minimization above) or when the user listed fewer cuisines than the plan has days — otherwise vary it.
 
-Discovery (novelty) exception — \`preferencesContext.discoveryMealsPerWeek\` (0, 1, or 2): when this is set to 1 or 2 AND \`cuisines\` is non-empty, reserve exactly that many dinners in each plan as DISCOVERY meals — additive novelty on top of the preferred cuisines. This is a hard count and a priority claim on slots, not slack-dependent: honor it even when slots are scarce. When there aren't enough dinners to do everything, fill slots in this priority order — (1) the discovery count first, (2) then one meal per preferred cuisine, (3) then use any remaining slots to double up on the preferred cuisines. Each discovery meal is EITHER outside the user's preferred cuisines OR within a preferred cuisine but a dish deliberately unfamiliar versus the meals in \`recentRotation\` — so discovery still reinforces freshness rather than fighting it. Examples: 2 cuisines + 4 dinners + discovery 1 → cuisine A, cuisine B, cuisine B, 1 discovery; 3 cuisines + 3 dinners + discovery 1 → 2 of the cuisines + 1 discovery (discovery wins over covering every preferred cuisine). If \`cuisines\` is empty, discovery is a no-op — the empty-palette default already spans a broad variety, so there is no preferred set to add novelty against.
+Discovery — \`preferencesContext.discoveryMealsPerWeek\` (an integer, 0 or more): when it is above 0, exactly that many dinners in each plan must be meals this user has NOT been served before — not in \`recentRotation\`, and not a dish family they have already had — while still inside their stated cuisines and preferences. A discovery meal is a NEW DISH this user would already like: never a random pick, never one outside their preferences, and when \`cuisines\` is non-empty never one outside those cuisines. This is a hard count and a priority claim on slots, not slack-dependent: honor it even when slots are scarce. When there aren't enough dinners to do everything, fill slots in this priority order — (1) the discovery count first, (2) then one meal per preferred cuisine, (3) then use any remaining slots to double up on the preferred cuisines. Examples: 2 cuisines + 4 dinners + discovery 1 → cuisine A, cuisine B, cuisine B, plus one dinner from cuisine A or B that is new to this user; 3 cuisines + 3 dinners + discovery 1 → 2 familiar dinners from the cuisines + 1 new-to-them dinner from one of the same cuisines (discovery wins over covering every preferred cuisine). If \`cuisines\` is empty, discovery still applies — choose the new-to-them dishes from the varied-palette default.
 
 Across the 1-3 candidates, keep them distinct: if the user listed three cuisines, ideally each candidate emphasizes a different one (when distinct candidates is the higher priority).
 
