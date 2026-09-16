@@ -27,9 +27,36 @@ import type { WizardPlanCandidate } from "./ai/schemas/wizard";
 // union (the route is deleted, D-WS9-237). Rows written before Block 2 still
 // carry it; the READ type below keeps a legacy branch so those rows parse —
 // forward-only, no data migration (D-WS9-230).
-export type WizardBatchSource = "wizard" | "tellkiwi";
+// WS9 Redesign Arc post-pass (Part A, [WS9-arc-PS-A]) — "shelf" joins the
+// write union: the slot holds whatever chunk of suggestions was LAST presented,
+// plan candidates OR the Pick screen's meal cards, last one wins. The `source`
+// column is a plain String so this needs no migration; a shelf batch carries
+// its ordered meal refs in the Json payload (`shelf`), candidates [].
+export type WizardBatchSource = "wizard" | "tellkiwi" | "shelf";
 /** What a stored row may still say: the write union plus the retired value. */
 export type WizardBatchSourceOnRead = WizardBatchSource | "surprise";
+
+// A shelf batch's per-card presentation, minus the card body: the ORDERED ids
+// that were on screen plus the flags the Pick screen rendered them with. The
+// read side re-resolves the ids to CURRENT cards (a meal deleted or archived
+// since simply drops out) and re-applies these flags — the card body is never
+// snapshotted, so "previous options" never shows stale titles or macros.
+export interface WizardLastBatchShelfMealRef {
+  id: string;
+  isNewToYou: boolean;
+  isPlaylist: boolean;
+  isPinned: boolean;
+  matchesCuisine: boolean | null;
+  source: "playlist" | "shelf";
+}
+
+export interface WizardLastBatchShelf {
+  meals: WizardLastBatchShelfMealRef[];
+  totalEligible: number;
+  hasMore: boolean;
+  unmatchedNames: string[];
+  metadata: unknown;
+}
 
 // The stored blob. `input` is the request slice a later expand needs to rebuild
 // candidateContext (see the route write sites); null on legacy surprise rows. Kept as
@@ -39,6 +66,8 @@ export interface WizardLastBatchPayload {
   source: WizardBatchSourceOnRead;
   candidates: WizardPlanCandidate[];
   input: unknown | null;
+  /** Non-null only on a `source: "shelf"` batch; absent on rows written before Part A. */
+  shelf?: WizardLastBatchShelf | null;
 }
 
 export interface PersistWizardLastBatchOptions {
@@ -47,6 +76,7 @@ export interface PersistWizardLastBatchOptions {
   source: WizardBatchSource;
   candidates: WizardPlanCandidate[];
   input: unknown | null;
+  shelf?: WizardLastBatchShelf | null;
 }
 
 /**
@@ -67,6 +97,7 @@ export async function persistWizardLastBatch(
     source: opts.source,
     candidates: opts.candidates,
     input: opts.input ?? null,
+    shelf: opts.shelf ?? null,
   };
   try {
     await opts.prisma.wizardLastBatch.upsert({

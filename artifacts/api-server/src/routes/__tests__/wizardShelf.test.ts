@@ -20,6 +20,7 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import { createWizardRouter } from "../wizard";
+import { persistWizardLastBatch } from "../../lib/wizardLastBatch";
 import type { AICallResult } from "../../lib/ai/runAICall";
 import type { ParsedIntent } from "../../lib/ai/schemas/tellKiwi";
 import { withSessionUser } from "./fixtures/sessionUserStub";
@@ -96,6 +97,7 @@ function makeStubPrisma(opts: StubOpts) {
   const byId = new Map(opts.meals.map((m) => [m.id, m]));
   const mealWheres: Record<string, unknown>[] = [];
   const toCard = (m: MealRow) => ({ ...m, _count: { dishLinks: m.dishCount } });
+  const lastBatch = new Map<string, LastBatchRow>();
   return {
     aIPrompt: { findUnique: async () => null },
     systemSetting: { findUnique: async () => null },
@@ -156,11 +158,21 @@ function makeStubPrisma(opts: StubOpts) {
             )
             .map((m) => ({ sourceStoreMealId: m.sourceStoreMealId, title: m.title }));
         }
-        // (c) card details / playlist-source families: by id.
+        // (c) card details / playlist-source families: by id. The last-batch
+        // re-resolve (post-pass Part A) adds isArchived:false + a public-OR-
+        // owner OR; honoured only when sent so the other by-id reads are as
+        // before.
         if (w.id?.in) {
+          const visibleTo: string | undefined = Array.isArray(w.OR)
+            ? w.OR.find((o: Record<string, unknown>) => "userId" in o)?.userId
+            : undefined;
           const rows = (w.id.in as string[])
             .map((id) => byId.get(id))
-            .filter((m): m is MealRow => !!m);
+            .filter((m): m is MealRow => !!m)
+            .filter((m) => (w.isArchived === false ? !m.isArchived : true))
+            .filter((m) =>
+              visibleTo === undefined ? true : m.isPublic || m.userId === visibleTo,
+            );
           return args.select && "_count" in args.select ? rows.map(toCard) : rows;
         }
         // (b) named-meal pins: public dinner meals whose title contains a name.
@@ -192,8 +204,32 @@ function makeStubPrisma(opts: StubOpts) {
       },
     },
     _mealWheres: () => mealWheres,
+    // Post-pass Part A — the single last-batch slot, Map-backed like the lib
+    // test's store (one row per user; upsert = overwrite).
+    wizardLastBatch: {
+      upsert: async (a: {
+        where: { userId: string };
+        create: { userId: string; payload: unknown; source: string };
+        update: { payload: unknown; source: string; createdAt: Date };
+      }) => {
+        const row = lastBatch.get(a.where.userId)
+          ? { ...lastBatch.get(a.where.userId)!, ...a.update }
+          : { ...a.create, createdAt: new Date("2026-09-16T00:00:00.000Z") };
+        lastBatch.set(a.where.userId, row);
+        return row;
+      },
+      findUnique: async (a: { where: { userId: string } }) =>
+        lastBatch.get(a.where.userId) ?? null,
+    },
+    _lastBatch: () => lastBatch,
+    _deleteMeal: (id: string) => byId.delete(id),
+    _archiveMeal: (id: string) => {
+      const m = byId.get(id);
+      if (m) m.isArchived = true;
+    },
   };
 }
+type LastBatchRow = { userId: string; payload: any; source: string; createdAt: Date };
 
 function makeSubscriptionService(allowed: boolean): SubscriptionService {
   return {
@@ -669,6 +705,184 @@ describe("POST /api/wizard/shelf — Tell Kiwi text: pins + unmatched names", ()
       assert.equal(status, 200);
       assert.deepEqual(parse.calls, []);
       assert.equal("textParsed" in json, false);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+// ── post-pass Part A ([WS9-arc-PS-A]) — "See previous options" for meals ──
+// One slot, either kind, last one wins: a shelf presentation overwrites the
+// last-batch row with its ORDERED refs; a plans batch overwrites it back. The
+// read side re-resolves the refs to CURRENT cards and drops what is gone.
+
+async function lastBatch(
+  h: Harness,
+  userId: string,
+): Promise<{ status: number; json: { batch: any } }> {
+  const res = await fetch(`${h.baseUrl}/wizard/last-batch`, {
+    headers: { Authorization: `Bearer ${signToken(userId)}` },
+  });
+  return { status: res.status, json: (await res.json()) as { batch: any } };
+}
+
+describe("POST /api/wizard/shelf → last-batch slot (post-pass Part A)", () => {
+  it("a shelf run writes the slot: source shelf, the on-screen ids in order, candidates []; GET re-resolves them to cards", async () => {
+    const stub = makeStubPrisma({ meals: catalog20 });
+    const h = await spinUp(stub);
+    try {
+      const { json } = await shelf(h, U, { ...BASE_BODY, size: 5 });
+      const shownIds = json.meals.map((m) => m.id);
+      const row = stub._lastBatch().get(U);
+      assert.ok(row, "slot written");
+      assert.equal(row.source, "shelf");
+      assert.equal(row.payload.source, "shelf");
+      assert.deepEqual(row.payload.candidates, []);
+      assert.deepEqual(
+        row.payload.shelf.meals.map((r: { id: string }) => r.id),
+        shownIds,
+      );
+      assert.equal(row.payload.shelf.hasMore, true);
+      assert.equal(row.payload.shelf.totalEligible, 20);
+      // The stored input is the request slice (a rehydrated Pick pages from it).
+      assert.equal(row.payload.input.planDurationDays, 5);
+
+      const read = await lastBatch(h, U);
+      assert.equal(read.status, 200);
+      assert.equal(read.json.batch.source, "shelf");
+      assert.deepEqual(read.json.batch.candidates, []);
+      assert.deepEqual(
+        read.json.batch.shelf.meals.map((m: { id: string }) => m.id),
+        shownIds,
+      );
+      const first = read.json.batch.shelf.meals[0];
+      // The shelf's own card serialiser — same fields as the live shelf.
+      assert.equal(first.description, `Desc ${first.id}`);
+      assert.deepEqual(first.macrosPerServing, { calories: 500, protein: 30, carbs: 40, fat: 20 });
+      assert.equal(first.dishCount, 2);
+      assert.equal(first.source, "shelf");
+      assert.equal(first.isNewToYou, true);
+      assert.equal(read.json.batch.shelf.hasMore, true);
+      assert.equal(read.json.batch.shelf.totalEligible, 20);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a 'Get more options' round stores WHAT IS ON SCREEN: excludeMealIds (prior flags kept) + the fresh page, first-page input retained", async () => {
+    const stub = makeStubPrisma({ meals: catalog20 });
+    const h = await spinUp(stub);
+    try {
+      const first = await shelf(h, U, { ...BASE_BODY, size: 4, cuisines: ["italian"] });
+      const firstIds = first.json.meals.map((m) => m.id);
+      const more = await shelf(h, U, { ...BASE_BODY, size: 3, excludeMealIds: firstIds });
+      const moreIds = more.json.meals.map((m) => m.id);
+      assert.equal(moreIds.length, 3);
+      const row = stub._lastBatch().get(U)!;
+      assert.deepEqual(
+        row.payload.shelf.meals.map((r: { id: string }) => r.id),
+        [...firstIds, ...moreIds],
+      );
+      // The first page's request slice survives the paging round.
+      assert.deepEqual(row.payload.input.cuisines, ["italian"]);
+      assert.equal(row.payload.input.size, 4);
+      assert.equal("excludeMealIds" in row.payload.input, false);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a plans batch OVERWRITES a shelf batch (and vice versa) — one slot, last one wins", async () => {
+    const stub = makeStubPrisma({ meals: catalog20 });
+    const h = await spinUp(stub);
+    try {
+      await shelf(h, U, { ...BASE_BODY, size: 3 });
+      assert.equal(stub._lastBatch().get(U)!.source, "shelf");
+      // The plans write path is unchanged (wizard.test.ts pins it); the
+      // overwrite is the same upsert, driven here through the lib.
+      await persistWizardLastBatch({
+        prisma: stub as never,
+        userId: U,
+        source: "wizard",
+        candidates: [
+          {
+            id: "c1",
+            title: "Cozy Week",
+            tags: [],
+            whyBullets: ["x"],
+            mealTitles: ["Soup"],
+            dailyMacros: { calories: 1, proteinG: 1, carbsG: 1, fatG: 1 },
+          },
+        ],
+        input: { planDurationDays: 5 },
+      });
+      const afterPlans = await lastBatch(h, U);
+      assert.equal(afterPlans.json.batch.source, "wizard");
+      assert.equal(afterPlans.json.batch.candidates.length, 1);
+      assert.equal("shelf" in afterPlans.json.batch, false);
+
+      await shelf(h, U, { ...BASE_BODY, size: 3 });
+      const afterShelf = await lastBatch(h, U);
+      assert.equal(afterShelf.json.batch.source, "shelf");
+      assert.equal(afterShelf.json.batch.shelf.meals.length, 3);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a meal deleted or archived since simply drops out of the re-resolved cards, order kept", async () => {
+    const stub = makeStubPrisma({ meals: catalog20 });
+    const h = await spinUp(stub);
+    try {
+      const { json } = await shelf(h, U, { ...BASE_BODY, size: 5 });
+      const ids = json.meals.map((m) => m.id);
+      stub._deleteMeal(ids[1]);
+      stub._archiveMeal(ids[3]);
+      const read = await lastBatch(h, U);
+      assert.equal(read.status, 200);
+      assert.deepEqual(
+        read.json.batch.shelf.meals.map((m: { id: string }) => m.id),
+        [ids[0], ids[2], ids[4]],
+      );
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("an emptied batch is NOT an error — { batch: null }", async () => {
+    const stub = makeStubPrisma({ meals: catalog20 });
+    const h = await spinUp(stub);
+    try {
+      const { json } = await shelf(h, U, { ...BASE_BODY, size: 2 });
+      for (const m of json.meals) stub._deleteMeal(m.id);
+      const read = await lastBatch(h, U);
+      assert.equal(read.status, 200);
+      assert.equal(read.json.batch, null);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("source: playlist (the user's own list) and an empty shelf do NOT touch the slot", async () => {
+    const stub = makeStubPrisma({
+      meals: [...catalog20, ownRow("own1", U)],
+      playlist: [{ userId: U, mealId: "own1", createdAt: new Date() }],
+    });
+    const h = await spinUp(stub);
+    try {
+      await shelf(h, U, { ...BASE_BODY, size: 3 });
+      const before = stub._lastBatch().get(U)!;
+      const pl = await shelf(h, U, { ...BASE_BODY, source: "playlist" });
+      assert.equal(pl.json.meals.length, 1);
+      assert.equal(stub._lastBatch().get(U), before, "playlist run left the slot alone");
+      // Every catalog id excluded → nothing shown → no write.
+      const empty = await shelf(h, U, {
+        ...BASE_BODY,
+        playlistLevel: "none",
+        excludeMealIds: catalog20.map((m) => m.id),
+      });
+      assert.equal(empty.json.meals.length, 0);
+      assert.equal(stub._lastBatch().get(U), before, "empty shelf left the slot alone");
     } finally {
       await h.close();
     }

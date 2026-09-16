@@ -28,6 +28,7 @@ import {
   WizardShelfRequestSchema,
   type WizardInput,
   type WizardPlanCandidate,
+  type WizardShelfRequest,
 } from "../lib/ai/schemas/wizard";
 import {
   allowedDifficultyLevels,
@@ -74,6 +75,7 @@ import {
   persistWizardLastBatch as productionPersistWizardLastBatch,
   readWizardLastBatch as productionReadWizardLastBatch,
   type WizardBatchSource,
+  type WizardLastBatchShelfMealRef,
 } from "../lib/wizardLastBatch";
 import { computeWizardContentHash } from "../lib/wizardContentHash";
 import { resolveThisWeekWinnerId } from "../lib/planDates";
@@ -383,6 +385,92 @@ export function createWizardRouter(
       candidates: args.candidates,
       input: args.input,
     });
+  }
+
+  // ── shelf presentation → last-batch slot (post-pass Part A) ──────────
+  // The slot holds WHAT WAS LAST PRESENTED. The Pick screen APPENDS "Get more
+  // options" pages and sends every on-screen id back as excludeMealIds, so on a
+  // paging round the presentation is excludeMealIds (in shown order) + this
+  // page — not the first page alone, and not this page alone. The prior shelf
+  // slot supplies the flags for the already-shown ids; an id it does not know
+  // (the slot was a plans batch in between, or never written) gets neutral
+  // flags. Only the refs are stored — the card body is re-resolved on read.
+  // Best-effort like every last-batch write: never sinks the shelf response.
+  async function persistShelfBatch(args: {
+    userId: string;
+    body: WizardShelfRequest;
+    meals: Array<{
+      id: string;
+      isNewToYou: boolean;
+      isPlaylist: boolean;
+      isPinned: boolean;
+      matchesCuisine: boolean | null;
+      source: "playlist" | "shelf";
+    }>;
+    totalEligible: number;
+    hasMore: boolean;
+    unmatchedNames: string[];
+    metadata: unknown;
+  }): Promise<void> {
+    try {
+      const shown = args.body.excludeMealIds ?? [];
+      const pageRefs: WizardLastBatchShelfMealRef[] = args.meals.map((m) => ({
+        id: m.id,
+        isNewToYou: m.isNewToYou,
+        isPlaylist: m.isPlaylist,
+        isPinned: m.isPinned,
+        matchesCuisine: m.matchesCuisine,
+        source: m.source,
+      }));
+      let refs = pageRefs;
+      // The stored request slice is the FIRST page's body (a rehydrated Pick
+      // screen pages from it with its own excludeMealIds); on a paging round
+      // the prior shelf slot's input is kept, else this body minus the paging
+      // fields.
+      const { excludeMealIds: _ex, size: _size, ...baseInput } = args.body;
+      let input: unknown = args.body;
+      if (shown.length > 0) {
+        const prior = await readWizardLastBatch({ prisma, userId: args.userId });
+        const priorShelf =
+          prior && prior.payload.source === "shelf" ? prior.payload.shelf ?? null : null;
+        const priorById = new Map((priorShelf?.meals ?? []).map((r) => [r.id, r]));
+        const pageIds = new Set(pageRefs.map((r) => r.id));
+        const shownRefs: WizardLastBatchShelfMealRef[] = shown
+          .filter((id) => !pageIds.has(id))
+          .map(
+            (id) =>
+              priorById.get(id) ?? {
+                id,
+                isNewToYou: false,
+                isPlaylist: false,
+                isPinned: false,
+                matchesCuisine: null,
+                source: "shelf" as const,
+              },
+          );
+        refs = [...shownRefs, ...pageRefs];
+        input = priorShelf ? prior?.payload.input ?? baseInput : baseInput;
+      }
+      await persistWizardLastBatch({
+        prisma,
+        userId: args.userId,
+        source: "shelf",
+        candidates: [],
+        input,
+        shelf: {
+          meals: refs,
+          totalEligible: args.totalEligible,
+          hasMore: args.hasMore,
+          unmatchedNames: args.unmatchedNames,
+          metadata: args.metadata,
+        },
+      });
+    } catch (err) {
+      logger.warn(
+        { event: "wizard_shelf_batch_persist_failed", userId: args.userId, err },
+        "Failed to persist shelf last-batch",
+      );
+    }
   }
 
   // ── idempotent self-archive (Block 4b-3, BUG-047) ────────────────────
@@ -865,20 +953,41 @@ export function createWizardRouter(
 
       const shelfShown = meals.filter((m) => m.source === "shelf" && !m.isPinned).length;
       const totalEligible = shelf?.eligibleCount ?? 0;
+      const hasMore = totalEligible > shelfShown;
+      const metadata = {
+        size,
+        playlistLevel,
+        discoveryLevel: discoveryLevel ?? null,
+        playlistCount: composed.playlistCount,
+        pinnedCount: composed.pinnedCount,
+        shelfRemainder: composed.shelfRemainder,
+      };
+
+      // Post-pass Part A ([WS9-arc-PS-A]) — "See previous options" learns about
+      // meals: this presentation overwrites the single last-batch slot (a plans
+      // run overwrites it back; last one wins). Only when cards were shown — an
+      // empty shelf is not a presentation and must not wipe the prior batch.
+      // Deliberately NOT commitGeneratedBatch: a shelf run is not a plan
+      // generation, so it does not supersede the user's expand-drafts.
+      if (meals.length > 0) {
+        await persistShelfBatch({
+          userId,
+          body,
+          meals,
+          totalEligible,
+          hasMore,
+          unmatchedNames,
+          metadata,
+        });
+      }
+
       return res.json({
         meals,
         totalEligible,
-        hasMore: totalEligible > shelfShown,
+        hasMore,
         unmatchedNames,
         ...(textParsed === undefined ? {} : { textParsed }),
-        metadata: {
-          size,
-          playlistLevel,
-          discoveryLevel: discoveryLevel ?? null,
-          playlistCount: composed.playlistCount,
-          pinnedCount: composed.pinnedCount,
-          shelfRemainder: composed.shelfRemainder,
-        },
+        metadata,
       });
     } catch (err) {
       logger.error(
@@ -2550,9 +2659,67 @@ export function createWizardRouter(
     if (!record) {
       return res.json({ batch: null });
     }
+    const source = record.payload.source ?? record.source;
+
+    // Post-pass Part A ([WS9-arc-PS-A]) — a SHELF batch: the stored refs are
+    // re-resolved to CURRENT cards through the shelf's own serialiser (one
+    // projection, D-WS9-237). A meal deleted, archived, or no longer visible to
+    // this user (neither public nor theirs) simply drops out, in place; when
+    // nothing survives there are no previous options — { batch: null }, not an
+    // error. `shelf` is a WizardShelfResponse the Pick screen can mount as-is.
+    if (source === "shelf") {
+      const stored = record.payload.shelf ?? null;
+      const refs = stored?.meals ?? [];
+      const ids = [...new Set(refs.map((r) => r.id))];
+      const rows =
+        ids.length > 0
+          ? await prisma.meal.findMany({
+              where: {
+                id: { in: ids },
+                isArchived: false,
+                OR: [{ isPublic: true }, { userId }],
+              },
+              select: MEAL_CARD_SELECT,
+            })
+          : [];
+      const rowById = new Map(rows.map((r) => [r.id, r]));
+      const meals = refs
+        .map((ref) => {
+          const row = rowById.get(ref.id);
+          if (!row) return null;
+          return {
+            ...toMealCard(row),
+            isNewToYou: ref.isNewToYou,
+            isPlaylist: ref.isPlaylist,
+            isPinned: ref.isPinned,
+            matchesCuisine: ref.matchesCuisine,
+            source: ref.source,
+          };
+        })
+        .filter((m): m is NonNullable<typeof m> => m !== null);
+      if (meals.length === 0) {
+        return res.json({ batch: null });
+      }
+      return res.json({
+        batch: {
+          source,
+          candidates: [],
+          input: record.payload.input ?? null,
+          createdAt: record.createdAt.toISOString(),
+          shelf: {
+            meals,
+            totalEligible: stored?.totalEligible ?? meals.length,
+            hasMore: stored?.hasMore ?? false,
+            unmatchedNames: stored?.unmatchedNames ?? [],
+            metadata: stored?.metadata ?? null,
+          },
+        },
+      });
+    }
+
     return res.json({
       batch: {
-        source: record.payload.source ?? record.source,
+        source,
         candidates: record.payload.candidates,
         input: record.payload.input ?? null,
         createdAt: record.createdAt.toISOString(),
