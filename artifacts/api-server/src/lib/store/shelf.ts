@@ -166,6 +166,8 @@ export async function addPlaylistToShelf(
         proteinGPerServing: true,
         carbsGPerServing: true,
         fatGPerServing: true,
+        // D-WS9-191 — the wire meals[] reads the row's own description.
+        description: true,
       },
     });
     if (sources.length === 0) return shortlist;
@@ -179,6 +181,10 @@ export async function addPlaylistToShelf(
     });
     const aliasToId = new Map(shortlist.aliasToId);
     const selectedIds = [...shortlist.selectedIds];
+    // D-WS9-191 — the appended playlist rows carry their own description and
+    // time into the pre-loaded maps (an in-place-marked row is already there).
+    const descriptionById = new Map(shortlist.descriptionById);
+    const timeById = new Map(shortlist.timeById);
     let n = 0;
     // Keep the playlist's own order (newest first) for the appended rows.
     for (const id of sourceIds) {
@@ -187,6 +193,8 @@ export async function addPlaylistToShelf(
       const alias = `p${++n}`;
       aliasToId.set(alias, row.id);
       selectedIds.push(row.id);
+      descriptionById.set(row.id, row.description ?? null);
+      timeById.set(row.id, row.estimatedTimeMinutes);
       forPrompt.push({
         id: alias,
         title: row.title,
@@ -203,7 +211,14 @@ export async function addPlaylistToShelf(
         isPlaylist: true,
       });
     }
-    return { ...shortlist, forPrompt, aliasToId, selectedIds };
+    return {
+      ...shortlist,
+      forPrompt,
+      aliasToId,
+      selectedIds,
+      descriptionById,
+      timeById,
+    };
   } catch (err) {
     logger.warn(
       { event: "wizard_playlist_shelf_failed", userId: opts.userId, err },

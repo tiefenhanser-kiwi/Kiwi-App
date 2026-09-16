@@ -5282,3 +5282,213 @@ describe("Block 4b-3 — activation leaves the batch intact (Hans's ruling)", ()
     }
   });
 });
+
+// ── D-WS9-191 Block 1 (Part A) — candidate meals[] on the wire ───────────────
+// The chooser card is the review: every candidate ships `meals[]` (title +
+// description per slot, in mealTitles order). A store slot's description is the
+// shelf row's own (pre-loaded — no query at emit time) with the row's time and
+// real id; a live slot's is the model's `mealDescriptions` entry. The raw model
+// array never reaches the wire; the shelf JSON the model sees is byte-identical
+// to before (no description key).
+
+function describedCandidates(): WizardPlanCandidatesResult {
+  const data = happyCandidates();
+  // Candidate 0: slot 0 from the shelf (alias m1 → store-1), the rest live.
+  data.candidates[0].storeSlots = [{ slotIndex: 0, storeMealId: "m1" }];
+  data.candidates[0].mealDescriptions = [
+    "",
+    "A creamy tomato soup with a buttery grilled cheese for dunking.",
+    "Baked potatoes with all the toppings, built at the table.",
+    "Classic chicken noodle soup, brothy and comforting.",
+    "Skillet meatballs simmered in marinara over pasta.",
+  ];
+  // Candidate 1: a MISMATCHED array (2 for 5 titles) — ignored, candidate kept.
+  data.candidates[1].mealDescriptions = ["only", "two"];
+  // Candidate 2: no array at all — every slot null.
+  return data;
+}
+
+function assertWireMeals(cands: Array<Record<string, unknown>>) {
+  const c0 = cands[0] as {
+    meals: Array<{
+      title: string;
+      description: string | null;
+      storeMealId?: string;
+      estimatedTimeMinutes?: number;
+    }>;
+    mealTitles: string[];
+    mealDescriptions?: unknown;
+  };
+  assert.equal("mealDescriptions" in c0, false, "the raw model array is stripped from the wire");
+  assert.equal(c0.meals.length, 5);
+  assert.deepEqual(c0.meals.map((m) => m.title), c0.mealTitles, "meals[] is in mealTitles order");
+  assert.deepEqual(c0.meals[0], {
+    title: "Sheet-pan harissa chicken",
+    description: "Shelf description for store-1",
+    storeMealId: "store-1",
+    estimatedTimeMinutes: 30,
+  });
+  assert.deepEqual(c0.meals[1], {
+    title: "Tomato soup + grilled cheese",
+    description: "A creamy tomato soup with a buttery grilled cheese for dunking.",
+  });
+  const c1 = cands[1] as { meals: Array<{ description: string | null }> };
+  assert.equal(c1.meals.length, 5, "a mismatched array never drops the candidate");
+  assert.ok(c1.meals.every((m) => m.description === null), "…and is ignored for that candidate");
+  const c2 = cands[2] as { meals: Array<{ description: string | null }> };
+  assert.ok(c2.meals.every((m) => m.description === null));
+}
+
+describe("D-WS9-191 Block 1 — candidate meals[] on the wire", () => {
+  const SHELF = [
+    storeMealRow("store-1", { useCount: 100, description: "Shelf description for store-1" }),
+    storeMealRow("store-2", { description: "Shelf description for store-2" }),
+  ];
+
+  it("STREAM path: every candidate frame carries meals[] and the last batch stores the wire shape", async () => {
+    const rec = makeBatchRecorder();
+    const stream = makeStreamFn(describedCandidates().candidates);
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      streamPlanCandidates: stream.fn,
+      prisma: makeStubPrisma({ storeMeals: SHELF }),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: { ...AUTH_HEADERS("meals-stream-user"), Accept: "text/event-stream" },
+        body: JSON.stringify(VALID_BODY),
+      });
+      const frames = parseSse(await res.text());
+      const cands = frames
+        .filter((f) => f.event === "candidate")
+        .sort((a, b) => a.data.index - b.data.index)
+        .map((f) => f.data.candidate as Record<string, unknown>);
+      assert.equal(cands.length, 3);
+      assertWireMeals(cands);
+      // Persisted as shipped — descriptions rehydrate with the batch.
+      assert.equal(rec.persistCalls.length, 1);
+      assertWireMeals(rec.persistCalls[0].candidates as Array<Record<string, unknown>>);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BUFFERED path: the JSON body carries meals[]; the shelf JSON the model saw has no description key", async () => {
+    const ai = makeRunAICall(async () => ({ ...happyResult(), data: describedCandidates() }));
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma: makeStubPrisma({ storeMeals: SHELF }),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("meals-buffered-user"),
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { candidates: Array<Record<string, unknown>> };
+      assertWireMeals(body.candidates);
+      // The shelf JSON is byte-identical to before: the description map rides
+      // BESIDE forPrompt, never in it.
+      const shelf = (ai.getVars().at(-1) as { storeShortlist: Array<Record<string, unknown>> })
+        .storeShortlist;
+      assert.equal(shelf.length, 2);
+      for (const row of shelf) {
+        assert.deepEqual(Object.keys(row).sort(), [
+          "cuisineType",
+          "difficulty",
+          "estimatedTimeMinutes",
+          "id",
+          "macros",
+          "tags",
+          "title",
+        ]);
+      }
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("DIRECTED path (build-from-text): candidates carry meals[]", async () => {
+    const runner = makeTellKiwiRunner({
+      parse: () =>
+        parseSuccess({
+          scenario: "vague",
+          explicitMeals: [],
+          intentDescriptors: ["easy"],
+          mealCount: 5,
+        }),
+      generate: () => genSuccess(describedCandidates()),
+    });
+    const harness = await spinUp({
+      runAICall: runner.fn,
+      prisma: makeStubPrisma({ storeMeals: SHELF }),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+        method: "POST",
+        headers: AUTH_HEADERS("meals-directed-user"),
+        body: JSON.stringify(TELL_KIWI_BODY),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { candidates: Array<Record<string, unknown>> };
+      assertWireMeals(body.candidates);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a playlist row appended to the shelf carries its description + time into the map, not into the shelf JSON", async () => {
+    const ai = makeRunAICall(async () => {
+      const data = happyCandidates();
+      data.candidates[0].storeSlots = [{ slotIndex: 0, storeMealId: "p1" }];
+      return { ...happyResult(), data };
+    });
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma: makeStubPrisma({
+        storeMeals: [
+          ...SHELF,
+          storeMealRow("fav-src", {
+            title: "Family chili",
+            useCount: 0,
+            description: "A slow family chili.",
+            estimatedTimeMinutes: 90,
+          }),
+        ],
+        shelfHidden: ["fav-src"],
+        playlistCount: 1,
+        playlistSources: ["fav-src"],
+      }),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("meals-playlist-user"),
+        body: JSON.stringify({ ...VALID_BODY, playlistLevel: "some" }),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        candidates: Array<{ meals: Array<Record<string, unknown>> }>;
+      };
+      assert.deepEqual(body.candidates[0].meals[0], {
+        title: "Sheet-pan harissa chicken",
+        description: "A slow family chili.",
+        storeMealId: "fav-src",
+        estimatedTimeMinutes: 90,
+      });
+      const shelf = (ai.getVars().at(-1) as { storeShortlist: Array<Record<string, unknown>> })
+        .storeShortlist;
+      assert.equal(shelf.some((r) => "description" in r), false);
+    } finally {
+      await harness.close();
+    }
+  });
+});

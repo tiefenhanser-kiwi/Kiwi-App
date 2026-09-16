@@ -10,7 +10,10 @@ import {
   persistWizardLastBatch,
   readWizardLastBatch,
 } from "../wizardLastBatch";
-import type { WizardPlanCandidate } from "../ai/schemas/wizard";
+import type {
+  WizardPlanCandidate,
+  WizardPlanCandidateWire,
+} from "../ai/schemas/wizard";
 
 interface StoredRow {
   userId: string;
@@ -60,7 +63,8 @@ function makeStore() {
   return { prisma, rows, stats: () => ({ creates, updates }) };
 }
 
-const CANDIDATES: WizardPlanCandidate[] = [
+// D-WS9-191 Block 1 — the slot stores the WIRE shape (meals[] composed).
+const CANDIDATES: WizardPlanCandidateWire[] = [
   {
     id: "c1",
     title: "Cozy Comfort Week",
@@ -68,6 +72,10 @@ const CANDIDATES: WizardPlanCandidate[] = [
     whyBullets: ["one-pot meals"],
     mealTitles: ["Soup", "Chili", "Stew", "Bake", "Skillet"],
     dailyMacros: { calories: 540, proteinG: 28, carbsG: 56, fatG: 22 },
+    meals: ["Soup", "Chili", "Stew", "Bake", "Skillet"].map((title) => ({
+      title,
+      description: null,
+    })),
   },
 ];
 

@@ -812,6 +812,7 @@ describe("POST /api/wizard/shelf → last-batch slot (post-pass Part A)", () => 
             whyBullets: ["x"],
             mealTitles: ["Soup"],
             dailyMacros: { calories: 1, proteinG: 1, carbsG: 1, fatG: 1 },
+            meals: [{ title: "Soup", description: null }],
           },
         ],
         input: { planDurationDays: 5 },

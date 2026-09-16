@@ -66,7 +66,11 @@ const TEXT_MODE_JSON_INSTRUCTION = [
   "object — no prose, no markdown code fences, nothing before or after it —",
   "of exactly this shape:",
   '{"candidates":[{"id":string,"title":string,"tags":string[],',
-  '"whyBullets":string[],"mealTitles":string[],',
+  // D-WS9-191 Block 1 — mealDescriptions is index-aligned to mealTitles (the
+  // body says how to write it). Pinned here because this instruction, not the
+  // body, is the shape the text-mode model emits; NOT in the optional-fields
+  // sentence below — the model always writes it.
+  '"whyBullets":string[],"mealTitles":string[],"mealDescriptions":string[],',
   '"dailyMacros":{"calories":number,"proteinG":number,"carbsG":number,"fatG":number},',
   '"storeSlots":[{"slotIndex":number,"storeMealId":string}]}],',
   '"cannotGenerateMore":boolean,"reason":string}',

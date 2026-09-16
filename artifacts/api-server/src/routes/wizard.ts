@@ -28,8 +28,10 @@ import {
   WizardShelfRequestSchema,
   type WizardInput,
   type WizardPlanCandidate,
+  type WizardPlanCandidateWire,
   type WizardShelfRequest,
 } from "../lib/ai/schemas/wizard";
+import { toWireCandidate, toWireCandidates } from "../lib/wizardCandidateMeals";
 import {
   allowedDifficultyLevels,
   reconcileStoreSlots,
@@ -365,7 +367,9 @@ export function createWizardRouter(
   async function commitGeneratedBatch(args: {
     userId: string;
     source: WizardBatchSource;
-    candidates: WizardPlanCandidate[];
+    // D-WS9-191 — the WIRE shape (meals[] composed) is what the slot stores,
+    // so "see previous options" rehydrates with descriptions.
+    candidates: WizardPlanCandidateWire[];
     input: unknown | null;
     // BUG-052 — captured at the top of each generate handler, before the AI
     // call. Passed to the supersede as the createdBefore cutoff so a draft the
@@ -1199,7 +1203,7 @@ export function createWizardRouter(
         // keyed by index, so the last-batch commit persists real Meal.ids (not
         // m1-style aliases) without mutating `finalCandidates` (which must stay
         // raw for the baseline-comparable storeSlotsMarked count).
-        const reconciledByIndex = new Map<number, WizardPlanCandidate>();
+        const reconciledByIndex = new Map<number, WizardPlanCandidateWire>();
         const sendFrame = (event: string, data: unknown): void => {
           if (clientGone) return;
           res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -1215,9 +1219,18 @@ export function createWizardRouter(
             [candidate],
             storeShortlist.aliasToId,
           );
+          // D-WS9-191 Block 1 — compose the wire meals[] (title + description
+          // per slot) here, between reconcile and the frame: synchronous, the
+          // shelf's description map is already in hand, so the first card is
+          // not delayed by a query.
+          const wire = toWireCandidate(reconciled, {
+            descriptionById: storeShortlist.descriptionById,
+            timeById: storeShortlist.timeById,
+            userId,
+          });
           sent.add(index);
-          reconciledByIndex.set(index, reconciled);
-          sendFrame("candidate", { index, candidate: reconciled });
+          reconciledByIndex.set(index, wire);
+          sendFrame("candidate", { index, candidate: wire });
         };
 
         const streamResult = await streamPlanCandidates(
@@ -1283,7 +1296,7 @@ export function createWizardRouter(
         // index was passed through sendCandidate above, so the map is complete.
         const reconciledCandidates = finalCandidates
           .map((_, i) => reconciledByIndex.get(i))
-          .filter((c): c is WizardPlanCandidate => !!c);
+          .filter((c): c is WizardPlanCandidateWire => !!c);
 
         // BUG-249 — the set is complete: every streamed candidate against the
         // ones emitted before it, on the reconciled (real-id) wire objects.
@@ -1394,7 +1407,16 @@ export function createWizardRouter(
       //    offered. The fork-time isPublic recheck (save path) is the second,
       //    authoritative guard; this one keeps the wire honest.
       const trimmed = result.data.candidates.slice(0, candidateCount);
-      const candidates = reconcileStoreSlots(trimmed, storeShortlist.aliasToId);
+      // D-WS9-191 Block 1 — the wire meals[] composed from the reconciled
+      // (real-id) marks + the shelf's pre-loaded descriptions.
+      const candidates = toWireCandidates(
+        reconcileStoreSlots(trimmed, storeShortlist.aliasToId),
+        {
+          descriptionById: storeShortlist.descriptionById,
+          timeById: storeShortlist.timeById,
+          userId,
+        },
+      );
       // BUG-249 — cross-candidate repeat check on the reconciled set.
       logCandidateRepeatCheck({
         route: "wizard.build_plans",
@@ -1731,10 +1753,18 @@ export function createWizardRouter(
         parsedIntent.scenario === "overflow"
           ? 1
           : candidateCount;
-      // Reconcile alias → real Meal.id (D-WS9-038) after the slice.
-      const candidates = reconcileStoreSlots(
-        genResult.data.candidates.slice(0, expected),
-        storeShortlist.aliasToId,
+      // Reconcile alias → real Meal.id (D-WS9-038) after the slice, then
+      // compose the wire meals[] (D-WS9-191 Block 1) from the real ids.
+      const candidates = toWireCandidates(
+        reconcileStoreSlots(
+          genResult.data.candidates.slice(0, expected),
+          storeShortlist.aliasToId,
+        ),
+        {
+          descriptionById: storeShortlist.descriptionById,
+          timeById: storeShortlist.timeById,
+          userId,
+        },
       );
       // BUG-249 — cross-candidate repeat check. A repeat that matches one of
       // the user's named meals is exempted (PRD §6.5 Scenario C: named meals

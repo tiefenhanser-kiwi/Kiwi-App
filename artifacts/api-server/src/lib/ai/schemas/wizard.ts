@@ -272,6 +272,20 @@ export const WizardPlanCandidateSchema = z.object({
   tags: z.array(z.string()).max(5),
   whyBullets: z.array(z.string()).min(1).max(3),
   mealTitles: z.array(z.string()).min(1).max(7),
+  // D-WS9-191 Block 1 (Part A) — the model's one-line description per meal
+  // slot, index-aligned to mealTitles. ADDITIVE and OPTIONAL: a candidate that
+  // omits it still validates (old prompt versions, the mobile echo, stored
+  // batches). A shelf slot's entry is "" — Kiwi already holds that meal's
+  // description in the DB and the server composes the wire `meals[]` from it
+  // (wizardCandidateMeals.ts); only a live slot's entry is ever read. The
+  // .describe() survives into the tool JSON schema (see FirstDependentField).
+  mealDescriptions: z
+    .array(z.string())
+    .max(7)
+    .optional()
+    .describe(
+      "One entry per mealTitles entry, in the same order: one sentence, under 25 words, saying what the dinner is and what makes it appealing. For a slot you filled from the shelf write the empty string — Kiwi already knows those meals.",
+    ),
   dailyMacros: z.object({
     calories: z.number().nonnegative(),
     proteinG: z.number().nonnegative(),
@@ -297,6 +311,38 @@ export const WizardPlanCandidateSchema = z.object({
     .optional(),
 });
 export type WizardPlanCandidate = z.infer<typeof WizardPlanCandidateSchema>;
+
+// D-WS9-191 Block 1 (Part A) — the WIRE shape of a candidate's meal rows, one
+// per mealTitles entry, in order, composed by the server after reconcile
+// (wizardCandidateMeals.ts): a store slot's description is the Meal row's own
+// (pre-loaded on the shortlist, null when the row has none — Phase 0 measured
+// ~3.7% of public dinners blank), a live slot's is the model's non-empty entry
+// or null. `storeMealId` is the REAL Meal.id (never an alias); `estimatedTime-
+// Minutes` rides only for a store slot (the shelf row's number — a fresh title
+// has no honest time yet, BUG-245). The chooser card renders from this.
+export const WizardCandidateMealWireSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().nullable(),
+  storeMealId: z.string().min(1).optional(),
+  estimatedTimeMinutes: z.number().int().positive().optional(),
+});
+export type WizardCandidateMealWire = z.infer<
+  typeof WizardCandidateMealWireSchema
+>;
+
+/**
+ * A candidate as it ships on the wire (build-plans frames and JSON,
+ * build-from-text, the stored last batch): the AI-output shape minus the raw
+ * `mealDescriptions` array, plus the composed `meals`. mealTitles / storeSlots
+ * keep every meaning they have (content hash, expand, playlist rule, the
+ * mobile .passthrough()), so a wire object is still a WizardPlanCandidate.
+ */
+export type WizardPlanCandidateWire = Omit<
+  WizardPlanCandidate,
+  "mealDescriptions"
+> & {
+  meals: WizardCandidateMealWire[];
+};
 
 // PRD §5.5 + §5.8 — wrapper with empty/restrictive-constraint flag.
 export const WizardPlanCandidatesResultSchema = z.object({
@@ -353,7 +399,16 @@ export type WizardExpandCandidateContext = z.infer<
 >;
 
 export const WizardExpandRequestSchema = z.object({
-  candidate: WizardPlanCandidateSchema,
+  // D-WS9-191 Block 1 (Part A.5) — the client echoes the WIRE candidate, so the
+  // composed `meals` may ride along (optional: an old client or a batch stored
+  // before this block sends none). A LIVE slot's echoed description then
+  // replaces the expand output's `description` for that meal, so what the user
+  // read on the card is what the saved meal says (wizardExpansion.ts); store
+  // slots read the DB row regardless. `mealDescriptions`, if echoed, passes
+  // the base schema and is ignored here.
+  candidate: WizardPlanCandidateSchema.extend({
+    meals: z.array(WizardCandidateMealWireSchema).max(7).optional(),
+  }),
   candidateContext: WizardExpandCandidateContextSchema,
 });
 export type WizardExpandRequest = z.infer<typeof WizardExpandRequestSchema>;

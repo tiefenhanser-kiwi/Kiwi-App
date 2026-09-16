@@ -221,6 +221,16 @@ describe("streamPlanCandidates", () => {
     assert.equal(params.tool_choice, undefined);
     assert.ok(params.messages[0].content.includes("OUTPUT FORMAT (OVERRIDE)"));
     assert.ok(!params.system[0].text.includes("OUTPUT FORMAT (OVERRIDE)"));
+    // D-WS9-191 Block 1 — the pinned shape names mealDescriptions beside
+    // mealTitles, and NOT in the optional-fields sentence (always written).
+    assert.ok(
+      params.messages[0].content.includes('"mealTitles":string[],"mealDescriptions":string[],'),
+    );
+    assert.ok(
+      params.messages[0].content.includes(
+        'The "storeSlots", "cannotGenerateMore", and "reason" fields are optional;',
+      ),
+    );
   });
 
   it("Bug-1 regression: accumulates INCREMENTAL text fragments (not prefixes)", async () => {

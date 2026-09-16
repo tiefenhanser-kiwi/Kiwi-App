@@ -302,12 +302,17 @@ describe("buildStoreShortlist", () => {
 
   it("projects the lean per-meal shape the AI reasons over", async () => {
     const { prisma } = stubPrisma([
-      mealRow({ id: "a", title: "Ragu", cuisineType: "Italian", tags: ["cozy"] }),
+      mealRow({ id: "a", title: "Ragu", cuisineType: "Italian", tags: ["cozy"], description: "A slow beef ragu." }),
     ]);
     const out = await buildStoreShortlist(prisma, {
       ...BASE,
       config: { shortlistSize: 5, cuisineQuotaFraction: 0.7 },
     });
+    // D-WS9-191 Block 1 — the description is pre-loaded BESIDE the prompt
+    // shape (keyed by the real id), never in it: the deepEqual below is the
+    // byte-identity assertion for the shelf JSON the model sees.
+    assert.deepEqual(out.descriptionById.get("a"), "A slow beef ragu.");
+    assert.deepEqual(out.timeById.get("a"), 30);
     assert.deepEqual(out.forPrompt[0], {
       id: "m1",
       title: "Ragu",

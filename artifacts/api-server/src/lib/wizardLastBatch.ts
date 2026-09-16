@@ -19,7 +19,10 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { logger } from "./logger";
-import type { WizardPlanCandidate } from "./ai/schemas/wizard";
+import type {
+  WizardPlanCandidate,
+  WizardPlanCandidateWire,
+} from "./ai/schemas/wizard";
 
 // Which generate surface produced the batch. Rehydrate (Part 1b) branches on
 // this to rebuild candidateContext: "wizard"/"tellkiwi" replay `input`.
@@ -64,7 +67,11 @@ export interface WizardLastBatchShelf {
 // concern, and it rides in a Json column so it never needs a migration to evolve.
 export interface WizardLastBatchPayload {
   source: WizardBatchSourceOnRead;
-  candidates: WizardPlanCandidate[];
+  // D-WS9-191 Block 1 — written as the WIRE shape (meals[] composed, so a
+  // rehydrated batch carries descriptions). Rows written before this block
+  // have no `meals` — read tolerantly; GET /wizard/last-batch returns them
+  // as stored, and the client's candidate schema is .passthrough().
+  candidates: Array<WizardPlanCandidateWire | WizardPlanCandidate>;
   input: unknown | null;
   /** Non-null only on a `source: "shelf"` batch; absent on rows written before Part A. */
   shelf?: WizardLastBatchShelf | null;
@@ -74,7 +81,7 @@ export interface PersistWizardLastBatchOptions {
   prisma: PrismaClient;
   userId: string;
   source: WizardBatchSource;
-  candidates: WizardPlanCandidate[];
+  candidates: WizardPlanCandidateWire[];
   input: unknown | null;
   shelf?: WizardLastBatchShelf | null;
 }

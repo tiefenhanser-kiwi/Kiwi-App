@@ -424,8 +424,18 @@ export async function expandCandidate(
     // outline is a telemetry event, not a failed expand.
     const timing = deriveTimingFromOutlines(liveMeal);
     const authored = liveMeal.estimatedTimeMinutes;
+    // D-WS9-191 Block 1 (Part A.5) — a LIVE slot's saved description matches
+    // the chooser card: when the client echoed the wire `meals[i]` with a
+    // non-empty description for this slot, it REPLACES the expand output's.
+    // Store slots never reach here (composeStoreMealDetails read the DB row).
+    // Bounded by WizardExpandMealSchema's max(200): the draft payload is
+    // re-validated on every read, so an over-long card line keeps the expand's.
+    const cardDescription = opts.request.candidate.meals?.[i]?.description?.trim();
     const timed: WizardExpandEnrichedMealDetails = {
       ...liveMeal,
+      ...(cardDescription && cardDescription.length <= 200
+        ? { description: cardDescription }
+        : {}),
       dishes: liveMeal.dishes.map(
         (_, di) =>
           macroBySlotDish.get(`${i}:${di}`) as WizardExpandEnrichedDishDetails,
@@ -606,8 +616,18 @@ interface ExpandOneMealOptions {
 async function expandOneMeal(
   opts: ExpandOneMealOptions,
 ): Promise<PerMealResult> {
+  // D-WS9-191 Block 1 — the echoed WIRE fields (`meals`, and a raw
+  // `mealDescriptions` if a client ever echoes it) are NOT the expand prompt's
+  // input: they describe the whole candidate while this shard sees one title,
+  // and the body is unchanged (no bump). Stripped here; the live-slot
+  // description override happens at assembly, after the AI output validates.
+  const {
+    meals: _wireMeals,
+    mealDescriptions: _wireDescriptions,
+    ...promptCandidate
+  } = opts.candidate;
   const perMealRequest: WizardExpandRequest = {
-    candidate: { ...opts.candidate, mealTitles: [opts.mealTitle] },
+    candidate: { ...promptCandidate, mealTitles: [opts.mealTitle] },
     candidateContext: opts.candidateContext,
   };
   const ai = await opts.runAICall(

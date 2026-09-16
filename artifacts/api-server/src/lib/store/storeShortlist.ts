@@ -69,6 +69,8 @@ interface StoreRow {
   fatGPerServing: number;
   dishFamilyKey: string | null;
   allergens: string[];
+  /** D-WS9-191 Block 1 — pre-loaded for the wire meals[]; NOT in forPrompt. */
+  description: string | null;
 }
 
 export interface StoreShortlist {
@@ -100,6 +102,16 @@ export interface StoreShortlist {
   eligibleCount: number;
   /** The raw eligible row count before the one-version-per-family cap. */
   poolCount: number;
+  /**
+   * D-WS9-191 Block 1 (Part A.3) — every shelf row's `Meal.description` and
+   * `estimatedTimeMinutes`, keyed by the REAL Meal.id (the aliasToId value),
+   * pre-loaded here so the wire `meals[]` is composed with zero added latency
+   * (wizardCandidateMeals.ts). NOT part of forPrompt — the shelf JSON the model
+   * sees is byte-identical to before (the model does not describe a shelf meal;
+   * Kiwi already has the row). Extended by addPlaylistToShelf for its rows.
+   */
+  descriptionById: Map<string, string | null>;
+  timeById: Map<string, number>;
 }
 
 export interface BuildStoreShortlistOptions {
@@ -266,6 +278,8 @@ export async function buildStoreShortlist(
     fatGPerServing: true,
     dishFamilyKey: true,
     allergens: true,
+    // D-WS9-191 — for descriptionById only; never projected into forPrompt.
+    description: true,
   } as const;
 
   const rows = (await prisma.meal.findMany({
@@ -437,6 +451,12 @@ export async function buildStoreShortlist(
     matchesById: new Map(selected.map((e) => [e.row.id, e.matches])),
     eligibleCount: reps.length,
     poolCount: rows.length,
+    descriptionById: new Map(
+      selected.map((e) => [e.row.id, e.row.description ?? null]),
+    ),
+    timeById: new Map(
+      selected.map((e) => [e.row.id, e.row.estimatedTimeMinutes]),
+    ),
   };
 }
 
@@ -449,6 +469,8 @@ export function emptyShortlist(): StoreShortlist {
     matchesById: new Map(),
     eligibleCount: 0,
     poolCount: 0,
+    descriptionById: new Map(),
+    timeById: new Map(),
   };
 }
 

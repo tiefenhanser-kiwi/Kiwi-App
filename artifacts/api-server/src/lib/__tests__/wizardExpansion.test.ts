@@ -1406,3 +1406,78 @@ describe("deriveTimingFromOutlines — D-WS9-239 1b derives parallelGroup from t
     assert.equal(got!.total, 52);
   });
 });
+
+// ── D-WS9-191 Block 1 (Part A.5) — a live slot's saved description matches the card ──
+describe("expandCandidate — D-WS9-191 the echoed card description overrides a LIVE slot's", () => {
+  it("live slot: the echoed meals[i].description replaces the expand output's; store slot keeps the DB row's", async () => {
+    const req = makeRequest(["A", "B"]); // slot 0 store, slot 1 live
+    req.candidate.storeSlots = [{ slotIndex: 0, storeMealId: "store-1" }];
+    req.candidate.meals = [
+      { title: "A", description: "The card's line for the STORE slot — must not win", storeMealId: "store-1" },
+      { title: "B", description: "Crispy carnitas tacos with lime crema." },
+    ];
+    const { fn, calls } = makeRunAICallStub((mealTitle) =>
+      successResult([{ ...makeMeal(mealTitle), description: "The expand's own line." }]),
+    );
+    const result = await expandCandidate({
+      prisma: storePrisma,
+      userId: "u1",
+      request: req,
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.equal(result.expanded.meals[0].description, "Headnote for store-1");
+    assert.equal(result.expanded.meals[1].description, "Crispy carnitas tacos with lime crema.");
+    // Only the live slot was expanded, and its shard request did NOT carry the
+    // wire fields (the body is unchanged — no bump).
+    assert.equal(calls.length, 1);
+  });
+
+  it("no echo, an empty/null echo, or an over-long one → the expand output's description stands", async () => {
+    const mk = async (meals: WizardExpandRequest["candidate"]["meals"]) => {
+      const req = makeRequest(["B"]);
+      req.candidate.meals = meals;
+      const { fn } = makeRunAICallStub((mealTitle) =>
+        successResult([{ ...makeMeal(mealTitle), description: "The expand's own line." }]),
+      );
+      const result = await expandCandidate({
+        prisma: stubPrisma,
+        userId: "u1",
+        request: req,
+        runAICall: fn,
+        estimateDishMacrosImpl: makeEstimateStub(),
+      });
+      assert.equal(result.status, "success");
+      return result.status === "success" ? result.expanded.meals[0].description : undefined;
+    };
+    assert.equal(await mk(undefined), "The expand's own line.");
+    assert.equal(await mk([{ title: "B", description: null }]), "The expand's own line.");
+    assert.equal(await mk([{ title: "B", description: "   " }]), "The expand's own line.");
+    assert.equal(await mk([{ title: "B", description: "x".repeat(201) }]), "The expand's own line.");
+  });
+
+  it("the shard request strips the wire fields so the expand prompt input is unchanged", async () => {
+    const req = makeRequest(["B"]);
+    req.candidate.meals = [{ title: "B", description: "card line" }];
+    (req.candidate as { mealDescriptions?: string[] }).mealDescriptions = ["card line"];
+    let seen: Record<string, unknown> | null = null;
+    const fn = (async (_k: string, vars: Record<string, unknown>) => {
+      seen = (vars.expandInput as { candidate: Record<string, unknown> }).candidate;
+      return successResult([makeMeal("B")]);
+    }) as unknown as Parameters<typeof expandCandidate>[0]["runAICall"];
+    const result = await expandCandidate({
+      prisma: stubPrisma,
+      userId: "u1",
+      request: req,
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+    assert.equal(result.status, "success");
+    assert.ok(seen);
+    assert.equal("meals" in seen!, false);
+    assert.equal("mealDescriptions" in seen!, false);
+    assert.deepEqual((seen as { mealTitles: string[] }).mealTitles, ["B"]);
+  });
+});

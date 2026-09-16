@@ -262,12 +262,16 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 
 The parsed intent (below) tells you the scenario. Generate accordingly:
 
-- **vague** → 3 distinct candidate plans, each with exactly \`mealCount\` dinners. Differentiate strongly across themes / cuisines / styles.
-- **partial** → 3 distinct candidate plans, each with exactly \`mealCount\` dinners. EVERY candidate MUST include all of the user's \`explicitMeals\` (they're locked in). Differentiate the candidates via the OTHER meals — the meals the user did not name.
+- **vague** → exactly \`requestedCandidateCount\` distinct candidate plans (the input names the number — usually 3; it is 1 when the user asked for one more option), each with exactly \`mealCount\` dinners. Differentiate strongly across themes / cuisines / styles.
+- **partial** → exactly \`requestedCandidateCount\` distinct candidate plans, each with exactly \`mealCount\` dinners. EVERY candidate MUST include all of the user's \`explicitMeals\` (they're locked in). Differentiate the candidates via the OTHER meals — the meals the user did not name.
 - **fully_specified** → exactly 1 candidate plan with exactly \`mealCount\` dinners, in the order the user named them. Fill any gaps with complementary choices that match the user's other intent. Set \`cannotGenerateMore: true\` with a brief \`reason\` like "You named the meals you want — here's that plan."
 - **overflow** → exactly 1 candidate plan with the FIRST \`mealCount\` of the user's explicitMeals, in the order they were named. Set \`cannotGenerateMore: true\`. The dropped meals are echoed back via the route's needsClarification — you do NOT need to surface them here.
 
-For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits the user's request — practical, never time-saved claims), 1-5 short \`tags\`, the \`mealTitles\` array, optionally a richer \`meals\` array with \`{title, cuisineType, estimatedTimeMinutes}\` per meal, and per-day average \`dailyMacros\`.
+For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits the user's request — practical, never time-saved claims), 1-5 short \`tags\`, the \`mealTitles\` array, the matching \`mealDescriptions\` array (below), and per-day average \`dailyMacros\`.
+
+For every entry in \`mealTitles\` write the matching \`mealDescriptions\` entry at the same index: one sentence, under 25 words, saying what the dinner is and what makes it appealing — plain and appetizing, no puns. For a slot you fill from the shelf write \`""\` (the empty string): Kiwi shows the shelf meal's own description.
+
+When \`requestedCandidateCount\` is 1 (vague or partial), return one plan, fully distinct from every title in \`planningContext.recentPlanNames\` — the user has seen those and asked for another.
 
 # Hard constraints (never violated)
 
@@ -294,11 +298,11 @@ Apply these as biases — they shape the menu but do not override hard constrain
 
 # Distinctness (vague + partial only)
 
-For vague and partial scenarios, three candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing. And no meal YOU choose may appear in more than one candidate of THIS response — whether it is a shelf meal (same \`storeMealId\`) or one you compose fresh (same dinner under any title). Each candidate is a different set of dinners, not a reshuffle of the same ones. This is about the candidates you return together; meals from the user's earlier plans are the rotation section's concern, below.
+For vague and partial scenarios with more than one candidate requested, candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing. And no meal YOU choose may appear in more than one candidate of THIS response — whether it is a shelf meal (same \`storeMealId\`) or one you compose fresh (same dinner under any title). Each candidate is a different set of dinners, not a reshuffle of the same ones. This is about the candidates you return together; meals from the user's earlier plans are the rotation section's concern, below.
 
 For partial: the explicit meals are LOCKED in every candidate — they are the one exception to the rule above — so differentiate via the OTHER meals. Example: user said "include tacos and pasta", planDurationDays=5 → every candidate has tacos + pasta, but the other 3 meals vary across candidates and none of those 3 is reused in another candidate. Strong example: candidate 1 emphasizes Mediterranean, candidate 2 emphasizes high-protein, candidate 3 emphasizes one-pot weeknight comfort.
 
-If for some reason the constraints are too tight to produce 3 distinct candidates (vague or partial), return 1-2 candidates and set \`cannotGenerateMore: true\` with a one-sentence \`reason\`. Do not pad with weak third options.
+If for some reason the constraints are too tight to produce \`requestedCandidateCount\` distinct candidates (vague or partial), return fewer and set \`cannotGenerateMore: true\` with a one-sentence \`reason\`. Do not pad with weak options.
 
 ${WHY_BULLETS_RULES}
 
@@ -922,11 +926,13 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 
 # What you produce
 
-1 to 3 distinct candidate plans, each containing exactly \`planDurationDays\` dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the \`mealTitles\` array (one per dinner), per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}), and — when you build any slot from the store shelf (see "Composing from the store shelf" below) — a \`storeSlots\` array recording which slots you took from the shelf.
+Exactly \`requestedCandidateCount\` candidate plans — the input names the number (usually 3; it is 1 when the user asked for one more option) — each containing exactly \`planDurationDays\` dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the \`mealTitles\` array (one per dinner), the matching \`mealDescriptions\` array (below), per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}), and — when you build any slot from the store shelf (see "Composing from the store shelf" below) — a \`storeSlots\` array recording which slots you took from the shelf.
 
-Distinctness is mandatory: three candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing. And no meal may appear in more than one candidate of THIS response — whether it is a shelf meal (same \`storeMealId\`) or one you compose fresh (same dinner under any title). Each candidate is a different set of dinners, not a reshuffle of the same ones. This is about the candidates you return together; meals from the user's earlier plans are the rotation section's concern, below.
+For every entry in \`mealTitles\` write the matching \`mealDescriptions\` entry at the same index: one sentence, under 25 words, saying what the dinner is and what makes it appealing — plain and appetizing, no puns. For a slot you fill from the shelf write \`""\` (the empty string): Kiwi shows the shelf meal's own description.
 
-If the constraints are too tight to produce 3 genuinely distinct candidates, return 1 or 2 candidates and set \`cannotGenerateMore: true\` with a one-sentence \`reason\` (e.g., "Vegan + nut-free + low-carb together limits options to one strong plan."). Do not pad with weak third options.
+Distinctness is mandatory whenever \`requestedCandidateCount\` is above 1: candidates that all feel like "weeknight Italian" is failure. Vary by theme, cuisine emphasis, cooking style, ingredient palette, or pacing. And no meal may appear in more than one candidate of THIS response — whether it is a shelf meal (same \`storeMealId\`) or one you compose fresh (same dinner under any title). Each candidate is a different set of dinners, not a reshuffle of the same ones. This is about the candidates you return together; meals from the user's earlier plans are the rotation section's concern, below. When \`requestedCandidateCount\` is 1, return one plan, fully distinct from every title in \`planningContext.recentPlanNames\` — the user has seen those and asked for another.
+
+If the constraints are too tight to produce \`requestedCandidateCount\` genuinely distinct candidates, return fewer and set \`cannotGenerateMore: true\` with a one-sentence \`reason\` (e.g., "Vegan + nut-free + low-carb together limits options to one strong plan."). Do not pad with weak options.
 
 # Hard constraints (never violated)
 
@@ -994,7 +1000,7 @@ Discovery — \`preferencesContext.discoveryMealsPerWeek\` (an integer, 0 or mor
 
 Playlist — \`preferencesContext.playlistMealsPerWeek\` (an integer, 0 or more): when it is above 0, exactly that many dinners in each plan must be the user's PLAYLIST meals — the \`storeShortlist\` entries marked \`"isPlaylist": true\`, their own declared go-to dinners. Pick the N that fit the plan best and place each as a shelf slot exactly as any other shelf meal (its exact \`title\` in \`mealTitles\`, its \`id\` in \`storeSlots\`); if fewer than N are marked, use every marked one. A playlist meal is never a discovery meal (the two counts claim different slots). Hard constraints still bind it exactly as they bind every shelf meal.
 
-Across the 1-3 candidates, keep them distinct: if the user listed three cuisines, ideally each candidate emphasizes a different one (when distinct candidates is the higher priority).
+Across the candidates (when more than one), keep them distinct: if the user listed three cuisines, ideally each candidate emphasizes a different one (when distinct candidates is the higher priority).
 
 If \`cuisines\` is empty, default to a varied palette across American, Italian, Mexican, Asian, Mediterranean dinners — the broader Tier-1 set.
 
@@ -1008,7 +1014,7 @@ Give each candidate a THEMATIC title — a short, evocative name for the through
 - DON'T use empty templates ("Cozy Comfort Week," "Mediterranean Variety," "High-Protein Reset") — they say nothing about the specific dinners inside.
 - Never bake the dinner count into the title (no "Five Weeknight One-Pots," no "3-Night Reset") — the count is \`planDurationDays\` and varies.
 
-Do not repeat any name that appears in \`planningContext.recentPlanNames\` — treat every entry as a HARD exclusion, not a soft nudge. That list includes both plan names AND meals the user has already been shown, including ones shown earlier in THIS session (they tapped "More options" to get something different), so never return a plan named like one of them, and never rebuild one of those meals under a fresh plan title.
+Do not repeat any name that appears in \`planningContext.recentPlanNames\` — treat every entry as a HARD exclusion, not a soft nudge. That list includes both plan names AND meals the user has already been shown, including ones shown earlier in THIS session (they tapped "Get another plan option" to get something different), so never return a plan named like one of them, and never rebuild one of those meals under a fresh plan title.
 
 # What makes a good dinner to choose
 
