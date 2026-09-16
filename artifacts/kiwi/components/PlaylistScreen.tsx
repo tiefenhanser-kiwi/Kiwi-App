@@ -5,9 +5,13 @@
 // actually cook"). No "last cooked" anywhere (no data source at launch,
 // BUG-275). Fed by GET /me/playlist (the shared MealCard shape + addedAt).
 //
-// Rows: thumb · title (serif) · meta "{total} min · {active} min hands-on ·
-// {difficulty} · {cuisine}" (derived times AS SENT, D-WS9-235) · an "in this
-// week's plan" chip · a "⋯" menu (View meal · Remove from playlist).
+// Rows (Block 2c Part D, Hans item 23 — "mirror the 'my meals' listview
+// convention"): the shared MealRowBody (thumb · serif title · two-line
+// description · meta "{total} min · {active} min hands-on · {difficulty}"
+// (derived times AS SENT, D-WS9-235) · a macros line when the card carries
+// non-zero macros · cuisine + tag pills de-duped, BUG-284) · an "in this
+// week's plan" chip · a "⋯" menu (View meal · Remove from playlist). The
+// WHOLE row taps through to Meal Detail; the menu stays for Remove.
 //
 // ⚠️ THE CHIP IS CLIENT-DERIVED AND CACHE-ONLY. GET /me/playlist carries no
 // in-plan flag and the Home payload carries the active plan's id but not its
@@ -25,6 +29,7 @@
 import React from "react";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -36,10 +41,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
+import { MealRowBody } from "@/components/MealRowBody";
 import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
-import { TreatedImage } from "@/components/TreatedImage";
-import { Colors, ImageTreatment, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useHomePayload } from "@/hooks/useHomePayload";
+import { formatMacroLine } from "@/lib/format/macros";
+import { cardPills } from "@/lib/meals/cardPills";
 import { getPlan, type PlanDetail } from "@/lib/api/plans";
 import {
   getPlaylist,
@@ -65,13 +72,33 @@ export const MENU_REMOVE = "Remove from playlist";
 
 export function playlistMetaLine(m: PlaylistMeal): string {
   const active = m.activeTimeMinutes === null ? "—" : String(m.activeTimeMinutes);
+  // Block 2c Part D — cuisine moved to the pills (the My-Meals convention);
+  // the line is times + difficulty.
   const parts = [
     `${m.estimatedTimeMinutes} min`,
     `${active} min hands-on`,
     m.difficulty,
-    m.cuisineType,
   ].filter((p): p is string => !!p && p.length > 0);
   return parts.join(" · ");
+}
+
+/** Cuisine + tags as pills, de-duped (BUG-284); the difficulty is on the meta line. */
+export function playlistPills(m: Pick<PlaylistMeal, "cuisineType" | "difficulty" | "tags">): string[] {
+  const diff = (m.difficulty ?? "").toLowerCase();
+  return cardPills(m).filter((t) => t.toLowerCase() !== diff);
+}
+
+/**
+ * The macros line — only when the card carries them and they are not all
+ * zero (a fresh import saves zeros; "0 cal · 0g P" is noise, not data).
+ * Tolerates the field being absent so the row is green if a server shape
+ * ever ships without it.
+ */
+export function playlistMacroLine(m: Partial<Pick<PlaylistMeal, "macrosPerServing">>): string | null {
+  const x = m.macrosPerServing;
+  if (!x) return null;
+  if (!(x.calories > 0 || x.protein > 0 || x.carbs > 0 || x.fat > 0)) return null;
+  return formatMacroLine(x.calories, x.protein, x.carbs, x.fat);
 }
 
 export function PlaylistScreen() {
@@ -218,28 +245,35 @@ function PlaylistRow({
   onView: () => void;
   onRemove: () => void;
 }) {
+  const macros = playlistMacroLine(meal);
   return (
-    <View style={s.row} accessibilityLabel={meal.title}>
-      <TreatedImage
-        source={null}
-        width={THUMB}
-        height={THUMB}
-        radius={Radius.md}
-        style={s.thumb}
-      />
-      <View style={s.rowBody}>
-        <Text style={s.rowTitle} numberOfLines={2}>
-          {meal.title}
-        </Text>
-        <Text style={s.rowMeta} numberOfLines={1}>
-          {playlistMetaLine(meal)}
-        </Text>
-        {inActivePlan && (
-          <View style={s.chip}>
-            <Text style={s.chipText}>{IN_PLAN_CHIP}</Text>
-          </View>
-        )}
-      </View>
+    <View style={s.row}>
+      {/* The whole card taps through to Meal Detail (Hans item 23); the menu
+          keeps View meal beside Remove — a one-item menu reads broken. */}
+      <Pressable
+        onPress={onView}
+        accessibilityRole="button"
+        accessibilityLabel={meal.title}
+        style={({ pressed }) => [s.cardArea, pressed && { opacity: 0.85 }]}
+      >
+        <MealRowBody
+          title={meal}
+          description={meal.description}
+          meta={playlistMetaLine(meal)}
+          tags={playlistPills(meal)}
+        >
+          {macros ? (
+            <Text style={s.macros} numberOfLines={1}>
+              {macros}
+            </Text>
+          ) : null}
+          {inActivePlan && (
+            <View style={s.chip}>
+              <Text style={s.chipText}>{IN_PLAN_CHIP}</Text>
+            </View>
+          )}
+        </MealRowBody>
+      </Pressable>
       <PlanCardOverflowMenu
         accessibilityLabel={`More for ${meal.title}`}
         items={[
@@ -250,8 +284,6 @@ function PlaylistRow({
     </View>
   );
 }
-
-const THUMB = 52;
 
 const s = StyleSheet.create({
   bg: { flex: 1, backgroundColor: Colors.neutral[100] },
@@ -269,25 +301,24 @@ const s = StyleSheet.create({
     lineHeight: 20,
   },
   list: { gap: 9 },
+  // MealRow's surface, verbatim (the My-Meals convention).
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing[3],
+    gap: Spacing[2],
     backgroundColor: Palette.background.card,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.md,
+    padding: Spacing[2],
     borderWidth: 1,
-    borderColor: Colors.neutral[300],
-    padding: Spacing[3],
+    borderColor: Colors.neutral[200],
   },
-  thumb: { backgroundColor: ImageTreatment.placeholder.base },
-  rowBody: { flex: 1, minWidth: 0, gap: 2 },
-  rowTitle: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serif[600],
+  cardArea: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[2],
   },
-  rowMeta: {
+  macros: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],

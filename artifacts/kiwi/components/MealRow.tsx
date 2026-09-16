@@ -1,13 +1,7 @@
 import React, { useMemo } from "react";
-import {
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { DisplayTitle } from "@/components/DisplayTitle";
+import { MealRowBody } from "@/components/MealRowBody";
 import type { SortKey } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { MealListItem } from "@/lib/api/meals";
@@ -63,50 +57,32 @@ export function MealRow({
         onPress={onPress}
         style={({ pressed }) => [styles.cardArea, pressed && { opacity: 0.85 }]}
       >
-        <View style={styles.thumb}>
-          {meal.image ? (
-            <Image
-              source={{ uri: meal.image }}
-              style={styles.thumbImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.thumbFallback} />
-          )}
-        </View>
-        <View style={styles.body}>
-          <DisplayTitle source={meal} variant="row" style={styles.title} />
-          {/* WS9 3f-4d Part 1c (D-WS9-124) — the "what's on the plate" sub-text.
-              Omitted entirely when absent (no empty gap/placeholder).
-              ⚠️ WS9 BUG-158 AMENDMENT (Sept 2) — TWO lines, was one. Last block
-              held this at one as a deliberate per-surface divergence while
-              PlanReviewMealRow and AddMealsSheet went to two. Hans has now seen
-              both side by side on device and ruled two here as well: "I think
-              two lines in My Recipes is a good call, maybe 3, but it's a lot of
-              text on the card." TWO, NOT THREE — he named three and declined it
-              in the same breath.
-              ⚠️ D-WS9-124 was checked in canon before this changed. It ruled the
-              AUTHORING of `description` (≤160-char instruction, 200-char schema,
-              wizard + Mode-A prompts, list-item wiring). It never ruled a line
-              count, and BUG-158's own entry calls line count "a per-surface
-              decision". No conflict. */}
-          {meal.description ? (
-            <Text style={styles.description} numberOfLines={2}>
-              {meal.description}
-            </Text>
-          ) : null}
-          <Text style={styles.meta} numberOfLines={1}>
-            {meta}
-          </Text>
+        {/* Block 2c Part D — the body is the shared MealRowBody (the Playlist
+            row renders the same shape); this row keeps its Cook Now / Add to
+            Plan stack. WS9 3f-4d Part 1c (D-WS9-124) — the "what's on the
+            plate" sub-text. Omitted entirely when absent (no empty gap/
+            placeholder).
+            ⚠️ WS9 BUG-158 AMENDMENT (Sept 2) — TWO lines, was one. Last block
+            held this at one as a deliberate per-surface divergence while
+            PlanReviewMealRow and AddMealsSheet went to two. Hans has now seen
+            both side by side on device and ruled two here as well: "I think
+            two lines in My Recipes is a good call, maybe 3, but it's a lot of
+            text on the card." TWO, NOT THREE — he named three and declined it
+            in the same breath.
+            ⚠️ D-WS9-124 was checked in canon before this changed. It ruled the
+            AUTHORING of `description` (≤160-char instruction, 200-char schema,
+            wizard + Mode-A prompts, list-item wiring). It never ruled a line
+            count, and BUG-158's own entry calls line count "a per-surface
+            decision". No conflict. */}
+        <MealRowBody
+          title={meal}
+          description={meal.description}
+          meta={meta}
+          image={meal.image}
+          tags={cuisineTag ? [cuisineTag] : []}
+        >
           {sortLine && <Text style={styles.sortLine}>{sortLine}</Text>}
-          {cuisineTag && (
-            <View style={styles.tagRow}>
-              <View style={styles.tag}>
-                <Text style={styles.tagText}>{cuisineTag}</Text>
-              </View>
-            </View>
-          )}
-        </View>
+        </MealRowBody>
       </Pressable>
       <View style={styles.actionStack}>
         <Pressable
@@ -149,53 +125,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing[2],
   },
-  thumb: {
-    width: 56,
-    height: 56,
-    borderRadius: Radius.sm,
-    overflow: "hidden",
-    backgroundColor: Colors.sage[100],
-  },
-  thumbImage: { width: "100%", height: "100%" },
-  thumbFallback: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: Colors.sage[100],
-  },
-  body: { flex: 1, gap: 2 },
-  title: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serif[600],
-  },
-  meta: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
-  },
-  description: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
-  },
   sortLine: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
-  },
-  tagRow: { flexDirection: "row", marginTop: 4 },
-  tag: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    backgroundColor: Colors.sage[50],
-    borderRadius: 4,
-  },
-  tagText: {
-    fontSize: Typography.fontSize.xxs,
-    color: Colors.sage[700],
-    fontFamily: Typography.face.sans[500],
   },
   actionStack: {
     gap: Spacing[1],

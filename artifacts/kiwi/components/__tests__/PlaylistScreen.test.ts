@@ -27,7 +27,9 @@ import {
   MENU_REMOVE,
   PLAYLIST_INTRO,
   PlaylistScreen,
+  playlistMacroLine,
   playlistMetaLine,
+  playlistPills,
 } from "../PlaylistScreen";
 import type { PlaylistMeal } from "@/lib/api/playlist";
 
@@ -188,9 +190,11 @@ test("renders N rows from the route's real shape, the count in the subline, the 
   for (const title of ["Grandma's Lasagna", "Miso Salmon", "Sunday Braise"]) {
     assert.ok(byLabel(m.root(), title), `row ${title} missing`);
   }
-  // Meta line — derived times AS SENT; a null active time renders "—".
-  assert.ok(t.includes("35 min · 15 min hands-on · easy · Italian"), t);
-  assert.ok(t.includes("35 min · — min hands-on · easy · Japanese"), t);
+  // Meta line — derived times AS SENT; a null active time renders "—". Block
+  // 2c Part D: cuisine is a pill now (the My-Meals convention), not on the line.
+  assert.ok(t.includes("35 min · 15 min hands-on · easy"), t);
+  assert.ok(t.includes("35 min · — min hands-on · easy"), t);
+  assert.ok(t.includes("Italian") && t.includes("Japanese"), "cuisine pills");
   assert.ok(!/last cooked/i.test(t), "BUG-275: no 'last cooked' anywhere");
   assert.ok(!byTestId(m.root(), "playlist-plan")!.props.disabled, "Plan a week enabled at 3");
 });
@@ -255,4 +259,59 @@ test("'Plan a week from these' routes to the Pick screen in playlist mode", asyn
   const m = await mount();
   await tap(byTestId(m.root(), "playlist-plan"), "Plan a week");
   assert.deepEqual(pushed, [{ pathname: "/pick-meals", params: { source: "playlist" } }]);
+});
+
+// ── Block 2c Part D — the row is the My-Meals shape, and the whole row taps ─
+
+test("the whole row taps through to Meal Detail; the menu keeps View meal beside Remove", async () => {
+  const m = await mount();
+  await tap(byLabel(m.root(), "Miso Salmon"), "row");
+  assert.deepEqual(pushed, [{ pathname: "/meal/[id]", params: { id: "m2" } }]);
+  const menu = byLabel(m.root(), "More for Miso Salmon");
+  assert.ok(menu, "the ⋯ menu stays");
+  await tap(menu, "⋯ trigger");
+  assert.ok(byLabel(m.root(), "View meal"), "View meal still in the menu");
+  assert.ok(byLabel(m.root(), MENU_REMOVE));
+});
+
+test("row shape: description (two lines) + macros line + cuisine/tag pills when the card carries them", async () => {
+  playlist = [
+    meal("m9", "Weeknight Ramen", {
+      description: "Quick miso broth with soft eggs and greens.",
+      cuisineType: "Japanese",
+      tags: ["japanese", "quick", "easy"],
+      macrosPerServing: { calories: 520.4, protein: 28, carbs: 61, fat: 17 },
+    }),
+  ];
+  const m = await mount();
+  const row = byLabel(m.root(), "Weeknight Ramen")!;
+  const desc = walk(row).find((n) => allText(n).join("") === "Quick miso broth with soft eggs and greens.");
+  assert.ok(desc, "description renders");
+  assert.equal(desc!.props.numberOfLines, 2);
+  const t = joined(row);
+  assert.ok(t.includes("520 cal · 28g P · 61g C · 17g F"), t);
+  // Pills: cuisine first, tags de-duped against it and the difficulty (BUG-284).
+  assert.deepEqual(playlistPills(playlist[0]), ["Japanese", "quick"]);
+  assert.equal(allText(row).filter((x) => x.toLowerCase() === "japanese").length, 1, "one Japanese pill");
+  assert.equal(allText(row).filter((x) => x === "easy").length, 0, "no difficulty pill");
+  assert.ok(t.includes("hands-on · easy"), "difficulty on the meta line");
+});
+
+test("row shape: no description and all-zero macros → neither line renders (the pre-widening shape)", async () => {
+  playlist = [
+    meal("m8", "Plain Toast", {
+      description: null,
+      cuisineType: null,
+      tags: [],
+      macrosPerServing: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    }),
+  ];
+  const m = await mount();
+  const row = byLabel(m.root(), "Plain Toast")!;
+  const t = joined(row);
+  assert.ok(!t.includes(" cal ·"), "no macros line for zeros");
+  assert.equal(playlistMacroLine({}), null, "absent field tolerated");
+  assert.equal(playlistMacroLine({ macrosPerServing: undefined }), null);
+  assert.ok(t.includes("35 min · 15 min hands-on · easy"));
+  assert.deepEqual(playlistPills(playlist[0]), []);
 });
