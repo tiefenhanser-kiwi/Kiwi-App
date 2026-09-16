@@ -48,6 +48,8 @@ interface StubPrismaOpts {
     // feed resolveEffectivePreferences() in the same call.
     // WS9 Redesign Arc Block 1 (D-WS9-245) — the stored dial is the enum.
     discoveryLevel?: "none" | "some" | "mostly" | "all";
+    // WS9 Redesign Arc Block 2 — the Playlist dial's stored default.
+    playlistLevel?: "none" | "some" | "mostly" | "all";
     saucePreference?: "store_bought" | "balanced" | "homemade";
     maxCookTimeMinutes?: number | null;
     maxCookTimeCoverage?: "all" | "most";
@@ -67,6 +69,9 @@ interface StubPrismaOpts {
     wantsLeftovers?: boolean;
   } | null;
   pantryStaples?: string[];
+  // Block 2 — how many playlist meals the user has (the resolver's zero-
+  // playlist guard reads it whenever a playlist level would claim slots).
+  playlistCount?: number;
 }
 
 function makeStubPrisma(opts: StubPrismaOpts = {}) {
@@ -88,6 +93,9 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
     },
     userPreferences: {
       findUnique: async () => opts.preferences ?? null,
+    },
+    playlistMeal: {
+      count: async () => opts.playlistCount ?? 0,
     },
     pantryStaple: {
       findMany: async () =>
@@ -1113,10 +1121,15 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
   const prefPrisma = makeStubPrisma({
     preferences: {
       discoveryLevel: "none",
+      playlistLevel: "none",
       saucePreference: "balanced",
       maxCookTimeMinutes: 60,
       maxCookTimeCoverage: "most",
     },
+    // Block 2 — this user HAS playlist meals, so a per-run playlist level
+    // survives the resolver's zero-playlist guard (the guard's own case is
+    // the sibling test below).
+    playlistCount: 3,
   });
 
   before(async () => {
@@ -1278,6 +1291,70 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
     assert.equal(pc.playlistMealsPerWeek, 5);
     assert.equal(pc.discoveryLevel, "none");
     assert.equal(pc.discoveryMealsPerWeek, 0);
+  });
+
+  // WS9 Redesign Arc Block 2 (Part A) — the zero-playlist guard is enforced
+  // in the resolver, not the UI: with NO playlist meals a per-run (or stored)
+  // playlist level is none, so it cannot claim slots nothing fills — and it
+  // no longer forces discovery off.
+  it("Block 2: playlist all with an EMPTY playlist resolves to none and leaves discovery alone", async () => {
+    const emptyPrisma = makeStubPrisma({
+      preferences: {
+        discoveryLevel: "none",
+        playlistLevel: "mostly",
+        saucePreference: "balanced",
+        maxCookTimeMinutes: 60,
+        maxCookTimeCoverage: "most",
+      },
+      playlistCount: 0,
+    });
+    const emptyAi = makeRunAICall(async () => happyResult());
+    const h = await spinUp({
+      runAICall: emptyAi.fn,
+      prisma: emptyPrisma,
+      subscriptionService: makeSubscriptionService(true),
+      rateLimiterOpts: { capacity: 100, refillPerSec: 100 },
+    });
+    try {
+      const token = signToken("test-user-wizard-empty-playlist");
+      await fetch(`${h.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...VALID_BODY, discoveryLevel: "all", playlistLevel: "all" }),
+      });
+      const pc = (
+        emptyAi.getVars().at(-1) as {
+          wizardInput?: {
+            preferencesContext?: {
+              discoveryMealsPerWeek?: number;
+              discoveryLevel?: string;
+              playlistLevel?: string;
+              playlistMealsPerWeek?: number;
+            };
+          };
+        }
+      )?.wizardInput?.preferencesContext;
+      assert.ok(pc);
+      assert.equal(pc.playlistLevel, "none");
+      assert.equal(pc.playlistMealsPerWeek, 0);
+      assert.equal(pc.discoveryLevel, "all");
+      assert.equal(pc.discoveryMealsPerWeek, 5);
+      // …and with no per-run playlist at all, the stored "mostly" is neutralised too.
+      await fetch(`${h.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(VALID_BODY),
+      });
+      const stored = (
+        emptyAi.getVars().at(-1) as {
+          wizardInput?: { preferencesContext?: { playlistLevel?: string; playlistMealsPerWeek?: number } };
+        }
+      )?.wizardInput?.preferencesContext;
+      assert.equal(stored?.playlistLevel, "none");
+      assert.equal(stored?.playlistMealsPerWeek, 0);
+    } finally {
+      await h.close();
+    }
   });
 
   it("honors an explicit null cap override over a stored cap", async () => {

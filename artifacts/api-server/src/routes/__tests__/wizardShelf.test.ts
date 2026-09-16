@@ -108,6 +108,9 @@ function makeStubPrisma(opts: StubOpts) {
     mealPlanInstance: { count: async () => 0, findMany: async () => [] },
     lLMCallLog: { create: async (a: unknown) => a },
     playlistMeal: {
+      // Block 2 — the resolver's zero-playlist guard counts the rows.
+      count: async ({ where }: { where: { userId: string } }) =>
+        (opts.playlist ?? []).filter((p) => p.userId === where.userId).length,
       findMany: async ({
         where,
       }: {

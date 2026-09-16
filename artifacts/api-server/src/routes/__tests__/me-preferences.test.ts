@@ -40,6 +40,8 @@ interface PrefsRow {
   // Cookbook Phase B Block 1 — new stored prefs.
   // WS9 Redesign Arc Block 1 (D-WS9-245) — the discovery dial is an enum now.
   discoveryLevel: "none" | "some" | "mostly" | "all";
+  // WS9 Redesign Arc Block 2 — the Playlist dial's stored default.
+  playlistLevel: "none" | "some" | "mostly" | "all";
   saucePreference: string;
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: string;
@@ -74,6 +76,7 @@ function defaultsFor(userId: string): PrefsRow {
     // Postgres backfills these column defaults, so a pre-existing row reads
     // back with them already applied (the server serializer just spreads).
     discoveryLevel: "none",
+    playlistLevel: "none",
     saucePreference: "balanced",
     maxCookTimeMinutes: null,
     maxCookTimeCoverage: "most",
@@ -388,6 +391,44 @@ describe("PATCH /me/preferences", () => {
       assert.equal((await patch({ discoveryLevel: "none" })).discoveryMealsPerWeek, 0);
       assert.equal((await patch({ discoveryLevel: "some" })).discoveryMealsPerWeek, 1);
       assert.equal((await patch({ discoveryLevel: "all" })).discoveryMealsPerWeek, 2, "all caps at 2 for the mobile Zod");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS9 Redesign Arc Block 2 (Part A) — the Playlist dial is STORED beside
+  // Discovery (Hans: "these are the defaults that go into the wizard for the
+  // user"). Enum key only: this dial never had an integer form.
+  it("Block 2: playlistLevel round-trips GET → PATCH → GET as the enum, and rejects anything else", async () => {
+    const prisma = makeStubPrisma(defaultsFor(USER_ID));
+    const harness = await spinUp(prisma);
+    try {
+      const token = signToken(USER_ID);
+      const get = async () => {
+        const res = await fetch(`${harness.baseUrl}/me/preferences`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        assert.equal(res.status, 200);
+        return ((await res.json()) as { preferences: Record<string, unknown> }).preferences;
+      };
+      const patch = async (payload: Record<string, unknown>) => {
+        const res = await fetch(`${harness.baseUrl}/me/preferences`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payload),
+        });
+        return { status: res.status, body: (await res.json()) as { preferences?: Record<string, unknown> } };
+      };
+      assert.equal((await get()).playlistLevel, "none", "column default on the wire");
+      const set = await patch({ playlistLevel: "mostly" });
+      assert.equal(set.status, 200);
+      assert.equal(set.body.preferences?.playlistLevel, "mostly");
+      assert.equal(prisma._row()?.playlistLevel, "mostly", "stored on the row");
+      assert.equal((await get()).playlistLevel, "mostly", "GET reads the stored level back");
+      // Enum only — no legacy integer, ever.
+      assert.equal((await patch({ playlistLevel: 2 })).status, 400);
+      assert.equal((await patch({ playlistLevel: "lots" })).status, 400);
+      assert.equal(prisma._row()?.playlistLevel, "mostly", "a rejected PATCH leaves the row alone");
     } finally {
       await harness.close();
     }

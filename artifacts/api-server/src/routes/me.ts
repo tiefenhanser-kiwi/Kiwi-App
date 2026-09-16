@@ -13,7 +13,10 @@ import { z } from "zod";
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { phoneSchema } from "../lib/phoneValidation";
-import { DiscoveryLevelInputSchema } from "../lib/ai/schemas/wizard";
+import {
+  DiscoveryLevelInputSchema,
+  PlaylistLevelInputSchema,
+} from "../lib/ai/schemas/wizard";
 import {
   discoveryLevelToLegacyInt,
   legacyDiscoveryIntToLevel,
@@ -213,6 +216,11 @@ const preferencesPatchSchema = z
     // TEMPORARY, remove in Block 2. The enum key wins when both arrive.
     discoveryLevel: DiscoveryLevelInputSchema.optional(),
     discoveryMealsPerWeek: z.number().int().min(0).max(2).optional(),
+    // WS9 Redesign Arc Block 2 — the Playlist dial's stored default (Hans:
+    // "if we have discovery meals we should have playlist in there, too").
+    // Enum key only — this dial never had an integer form. The resolver
+    // neutralises any level to `none` for a user with no playlist meals.
+    playlistLevel: PlaylistLevelInputSchema.optional(),
     saucePreference: z.enum(["store_bought", "balanced", "homemade"]).optional(),
     maxCookTimeMinutes: z.number().int().nullable().optional(),
     maxCookTimeCoverage: z.enum(["all", "most"]).optional(),

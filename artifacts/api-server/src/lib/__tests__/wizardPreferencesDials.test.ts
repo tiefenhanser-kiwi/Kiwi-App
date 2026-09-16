@@ -20,6 +20,7 @@ import {
 
 const STORED: StoredPreferences = {
   discoveryLevel: "some",
+  playlistLevel: "none",
   saucePreference: "balanced",
   maxCookTimeMinutes: 45,
   maxCookTimeCoverage: "most",
@@ -117,7 +118,7 @@ describe("resolvePreferences — dials → counts (D-WS7-035 presence semantics 
     const r = resolvePreferences(
       STORED,
       { discoveryLevel: "mostly", playlistLevel: "some" },
-      { planDurationDays: 5 },
+      { planDurationDays: 5, playlistMealCount: 3 },
     );
     assert.equal(r.discoveryLevel, "mostly");
     assert.equal(r.discoveryMealsPerWeek, 4);
@@ -129,14 +130,14 @@ describe("resolvePreferences — dials → counts (D-WS7-035 presence semantics 
     const r = resolvePreferences(
       STORED,
       { discoveryLevel: "all", playlistLevel: "mostly" },
-      { planDurationDays: 7 },
+      { planDurationDays: 7, playlistMealCount: 3 },
     );
     assert.equal(r.discoveryMealsPerWeek, 7);
     assert.equal(r.playlistMealsPerWeek, 0);
     const p = resolvePreferences(
       STORED,
       { playlistLevel: "all" },
-      { planDurationDays: 7 },
+      { planDurationDays: 7, playlistMealCount: 3 },
     );
     assert.equal(p.discoveryLevel, "none");
     assert.equal(p.discoveryMealsPerWeek, 0);
@@ -156,6 +157,45 @@ describe("resolvePreferences — dials → counts (D-WS7-035 presence semantics 
   });
 });
 
+// WS9 Redesign Arc Block 2 (Part A) — the Playlist dial is STORED beside
+// Discovery and resolves the same way (per-run ?? stored ?? none); a level is
+// neutralised to `none` for a user with zero playlist meals, on the server.
+describe("resolvePreferences — stored playlistLevel + the zero-playlist guard (Block 2)", () => {
+  const STORED_MOSTLY: StoredPreferences = { ...STORED, playlistLevel: "mostly" };
+
+  it("stored mostly + no per-run → a count, when the user has playlist meals", () => {
+    const r = resolvePreferences(STORED_MOSTLY, {}, { planDurationDays: 7, playlistMealCount: 4 });
+    assert.equal(r.playlistLevel, "mostly");
+    assert.equal(r.playlistMealsPerWeek, 5); // ceil(4.9)
+  });
+
+  it("stored mostly + no per-run → none / 0 with an EMPTY playlist (the guard)", () => {
+    const r = resolvePreferences(STORED_MOSTLY, {}, { planDurationDays: 7, playlistMealCount: 0 });
+    assert.equal(r.playlistLevel, "none");
+    assert.equal(r.playlistMealsPerWeek, 0);
+    const absent = resolvePreferences(STORED_MOSTLY, {}, { planDurationDays: 7 });
+    assert.equal(absent.playlistLevel, "none", "an absent count is an empty playlist");
+  });
+
+  it("a per-run level is neutralised too — the guard is not UI-only", () => {
+    const r = resolvePreferences(STORED, { playlistLevel: "all" }, { planDurationDays: 7, playlistMealCount: 0 });
+    assert.equal(r.playlistLevel, "none");
+    assert.equal(r.playlistMealsPerWeek, 0);
+    // …and with nothing to force, the discovery dial keeps its own level.
+    assert.equal(r.discoveryLevel, "some");
+  });
+
+  it("per-run none overrides stored mostly", () => {
+    const r = resolvePreferences(
+      STORED_MOSTLY,
+      { playlistLevel: "none" },
+      { planDurationDays: 7, playlistMealCount: 4 },
+    );
+    assert.equal(r.playlistLevel, "none");
+    assert.equal(r.playlistMealsPerWeek, 0);
+  });
+});
+
 describe("resolveEffectivePreferences — reads discoveryLevel, falls back to column defaults", () => {
   it("reads the stored enum column and derives the count", async () => {
     const prisma = {
@@ -163,19 +203,61 @@ describe("resolveEffectivePreferences — reads discoveryLevel, falls back to co
         findUnique: async (args: { select: Record<string, boolean> }) => {
           assert.equal(args.select.discoveryLevel, true, "must select the enum column");
           assert.equal("discoveryMealsPerWeek" in args.select, false, "legacy column selected");
+          assert.equal(args.select.playlistLevel, true, "must select the playlist column");
           return {
             discoveryLevel: "mostly",
+            playlistLevel: "none",
             saucePreference: "homemade",
             maxCookTimeMinutes: null,
             maxCookTimeCoverage: "all",
           };
         },
       },
+      playlistMeal: { count: async () => 0 },
     } as unknown as Parameters<typeof resolveEffectivePreferences>[0];
     const r = await resolveEffectivePreferences(prisma, "u1", {}, { planDurationDays: 3 });
     assert.equal(r.discoveryLevel, "mostly");
     assert.equal(r.discoveryMealsPerWeek, 3); // ceil(2.1)
     assert.equal(r.saucePreference, "homemade");
+  });
+
+  it("Block 2: a stored playlist level counts the user's playlist rows — > 0 with meals, none without", async () => {
+    const make = (playlistRows: number) => {
+      let counted = 0;
+      const prisma = {
+        userPreferences: {
+          findUnique: async () => ({
+            discoveryLevel: "none",
+            playlistLevel: "mostly",
+            saucePreference: "balanced",
+            maxCookTimeMinutes: null,
+            maxCookTimeCoverage: "most",
+          }),
+        },
+        playlistMeal: {
+          count: async ({ where }: { where: { userId: string } }) => {
+            counted++;
+            assert.equal(where.userId, "u1");
+            return playlistRows;
+          },
+        },
+      } as unknown as Parameters<typeof resolveEffectivePreferences>[0];
+      return { prisma, counted: () => counted };
+    };
+    const withMeals = make(3);
+    const r = await resolveEffectivePreferences(withMeals.prisma, "u1", {}, { planDurationDays: 7 });
+    assert.equal(r.playlistLevel, "mostly");
+    assert.ok(r.playlistMealsPerWeek > 0);
+    assert.equal(withMeals.counted(), 1);
+    const empty = make(0);
+    const e = await resolveEffectivePreferences(empty.prisma, "u1", {}, { planDurationDays: 7 });
+    assert.equal(e.playlistLevel, "none");
+    assert.equal(e.playlistMealsPerWeek, 0);
+    // A per-run none skips the read altogether — nothing to neutralise.
+    const skipped = make(3);
+    const n = await resolveEffectivePreferences(skipped.prisma, "u1", { playlistLevel: "none" }, { planDurationDays: 7 });
+    assert.equal(n.playlistLevel, "none");
+    assert.equal(skipped.counted(), 0);
   });
 
   it("no prefs row → none / 0", async () => {

@@ -31,14 +31,21 @@ import { logger } from "./logger";
 
 // ── WS9 Redesign Arc Block 1 (D-WS9-245) — the two dials ─────────────────────
 //
-// Discovery and Playlist are each None · Some · Mostly · All. Discovery is
-// STORED (UserPreferences.discoveryLevel) and per-run overridable under
-// D-WS7-035's rule below; Playlist is PER-RUN ONLY (no column; omitted = none).
+// Discovery and Playlist are each None · Some · Mostly · All. BOTH are STORED
+// (UserPreferences.discoveryLevel / playlistLevel — Block 2 gave Playlist its
+// stored default: Hans, 2026-09-16, "these are the defaults that go into the
+// wizard for the user, overrideable in the wizard as usual") and per-run
+// overridable under D-WS7-035's rule below: per-run ?? stored ?? none.
 // A level becomes a COUNT here, on the server, from the plan length — no prompt
 // ever sees the level, only the integer it resolves to. First setting, tune
 // with data: none = 0 · some = ceil(days × 0.3) · mostly = ceil(days × 0.7) ·
 // all = days. "All" on one dial forces "none" on the other (a plan that is all
 // playlist meals has no room for a new-to-you one, and vice versa).
+//
+// ⚠️ A playlist level — stored OR per-run — is treated as `none` when the user
+// has ZERO playlist meals. Enforced here (resolveEffectivePreferences counts
+// the rows), not only in the UI, so a stale stored "mostly" can never claim
+// slots nothing can fill and hand the generator an empty plan.
 
 export const DIAL_LEVELS = ["none", "some", "mostly", "all"] as const;
 export type DiscoveryLevel = (typeof DIAL_LEVELS)[number];
@@ -119,7 +126,7 @@ export function applyAllForcesNone(
 export interface ResolvedPreferences {
   /** The resolved dial (override ?? stored), after All-forces-None. */
   discoveryLevel: DiscoveryLevel;
-  /** The resolved dial (override ?? none), after All-forces-None. */
+  /** The resolved dial (override ?? stored; `none` with no playlist meals), after All-forces-None. */
   playlistLevel: PlaylistLevel;
   /**
    * The COUNT the prompts consume — kept under its historical name so
@@ -137,6 +144,7 @@ export interface ResolvedPreferences {
 /** Stored defaults for a user with no override on a given field. */
 export interface StoredPreferences {
   discoveryLevel: DiscoveryLevel;
+  playlistLevel: PlaylistLevel;
   saucePreference: string;
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: string;
@@ -145,8 +153,7 @@ export interface StoredPreferences {
 /**
  * Per-run client overrides. Every field optional: `undefined` = the client
  * did not set a per-run value (fall back to stored). `maxCookTimeMinutes:
- * null` is a real override meaning "no cap this plan". `playlistLevel` has
- * no stored counterpart: omitted = none.
+ * null` is a real override meaning "no cap this plan".
  */
 export interface PreferencesOverrides {
   discoveryLevel?: DiscoveryLevel;
@@ -159,12 +166,20 @@ export interface PreferencesOverrides {
 /** What the counts are derived against. Absent → both counts resolve to 0. */
 export interface PreferencesResolutionContext {
   planDurationDays?: number;
+  /**
+   * How many playlist meals the user has. 0 (or absent) neutralises the
+   * playlist dial to `none` whatever was stored or sent — nothing could fill
+   * the slots it would claim. resolveEffectivePreferences supplies it from
+   * the DB; a caller of the pure resolvePreferences passes it.
+   */
+  playlistMealCount?: number;
 }
 
 // Mirror the schema.prisma column defaults so a user with no UserPreferences
 // row still resolves to concrete values.
 const PREFERENCE_DEFAULTS: StoredPreferences = {
   discoveryLevel: "none",
+  playlistLevel: "none",
   saucePreference: "balanced",
   maxCookTimeMinutes: null,
   maxCookTimeCoverage: "most",
@@ -173,18 +188,25 @@ const PREFERENCE_DEFAULTS: StoredPreferences = {
 /**
  * Pure precedence: per-run override wins when present, else the stored value.
  * Uses presence (`!== undefined`), not nullish, so an explicit null cap wins.
- * The dials are then reconciled (All-forces-None) and turned into counts.
+ * The playlist dial is then neutralised to `none` for a user with no playlist
+ * meals (header note), the dials reconciled (All-forces-None) and turned into
+ * counts.
  */
 export function resolvePreferences(
   stored: StoredPreferences,
   overrides: PreferencesOverrides,
   context: PreferencesResolutionContext = {},
 ): ResolvedPreferences {
+  const requestedPlaylist =
+    overrides.playlistLevel !== undefined
+      ? overrides.playlistLevel
+      : stored.playlistLevel;
+  const playlistMealCount = context.playlistMealCount ?? 0;
   const dials = applyAllForcesNone(
     overrides.discoveryLevel !== undefined
       ? overrides.discoveryLevel
       : stored.discoveryLevel,
-    overrides.playlistLevel !== undefined ? overrides.playlistLevel : "none",
+    playlistMealCount > 0 ? requestedPlaylist : "none",
   );
   const days = context.planDurationDays ?? 0;
   return {
@@ -214,7 +236,7 @@ export function resolvePreferences(
  * candidateContext fields.
  */
 export async function resolveEffectivePreferences(
-  prisma: Pick<PrismaClient, "userPreferences">,
+  prisma: Pick<PrismaClient, "userPreferences" | "playlistMeal">,
   userId: string,
   overrides: PreferencesOverrides = {},
   context: PreferencesResolutionContext = {},
@@ -223,6 +245,7 @@ export async function resolveEffectivePreferences(
     where: { userId },
     select: {
       discoveryLevel: true,
+      playlistLevel: true,
       saucePreference: true,
       maxCookTimeMinutes: true,
       maxCookTimeCoverage: true,
@@ -230,6 +253,7 @@ export async function resolveEffectivePreferences(
   });
   const stored: StoredPreferences = {
     discoveryLevel: prefs?.discoveryLevel ?? PREFERENCE_DEFAULTS.discoveryLevel,
+    playlistLevel: prefs?.playlistLevel ?? PREFERENCE_DEFAULTS.playlistLevel,
     saucePreference:
       prefs?.saucePreference ?? PREFERENCE_DEFAULTS.saucePreference,
     maxCookTimeMinutes:
@@ -237,7 +261,19 @@ export async function resolveEffectivePreferences(
     maxCookTimeCoverage:
       prefs?.maxCookTimeCoverage ?? PREFERENCE_DEFAULTS.maxCookTimeCoverage,
   };
-  return resolvePreferences(stored, overrides, context);
+  // The zero-playlist guard reads the count only when a level would claim
+  // slots — `none` from both sources is none without the read.
+  const requestedPlaylist =
+    overrides.playlistLevel !== undefined
+      ? overrides.playlistLevel
+      : stored.playlistLevel;
+  const playlistMealCount =
+    context.playlistMealCount !== undefined
+      ? context.playlistMealCount
+      : requestedPlaylist === "none"
+        ? 0
+        : await prisma.playlistMeal.count({ where: { userId } });
+  return resolvePreferences(stored, overrides, { ...context, playlistMealCount });
 }
 
 // ── BUG-201 / D-WS9-214 — the allergen field ─────────────────────────────────

@@ -203,14 +203,18 @@ enum BudgetLevel {
   premium
 }
 
-// WS9 Redesign Arc Block 1 (D-WS9-245) — the discovery dial. Replaces the
+// WS9 Redesign Arc Block 1 (D-WS9-245) — the dial levels. Replaces the
 // 0..2 integer discoveryMealsPerWeek: a LEVEL is stored, and the server turns
 // it into a COUNT from the plan length before any prompt sees it (none = 0,
 // some = ceil(days x 0.3), mostly = ceil(days x 0.7), all = days). "Discovery"
 // means meals NEW TO THIS USER that still match their preferences — never an
-// out-of-preference pick. The Playlist dial shares the four values but is
-// per-run only (no column).
-enum DiscoveryLevel {
+// out-of-preference pick.
+// WS9 Redesign Arc Block 2 — renamed DiscoveryLevel → DialLevel (ALTER TYPE …
+// RENAME in the migration, no drop-and-recreate) because the Playlist dial now
+// has a STORED default too (UserPreferences.playlistLevel; Hans, 2026-09-16:
+// "if we have discovery meals we should have playlist in there, too"). Both
+// dials resolve per-run ?? stored ?? none; the wizard overrides per run.
+enum DialLevel {
   none
   some
   mostly
@@ -393,7 +397,11 @@ model UserPreferences {
   // convention (Zod validates the value set, not the DB).
   // WS9 Redesign Arc Block 1 (D-WS9-245) — was `discoveryMealsPerWeek Int 0..2`;
   // the migration maps 0→none, 1→some, 2→mostly (anything else → none).
-  discoveryLevel          DiscoveryLevel  @default(none)
+  discoveryLevel          DialLevel       @default(none)
+  // WS9 Redesign Arc Block 2 — the Playlist dial's stored default (per-run only
+  // in Block 1). The resolver treats ANY level as `none` for a user with zero
+  // playlist meals, so a stale stored default can never produce an empty plan.
+  playlistLevel           DialLevel       @default(none)
   saucePreference         String          @default("balanced")
   maxCookTimeMinutes      Int?
   maxCookTimeCoverage     String          @default("most")
