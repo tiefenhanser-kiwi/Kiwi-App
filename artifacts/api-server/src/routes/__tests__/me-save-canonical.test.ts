@@ -841,6 +841,89 @@ describe("POST /me/dishes (standalone)", () => {
     }
   });
 
+  // ── WS9 BUG-278 (server half) — macros at save for a standalone dish ─────
+  // The same seam as POST /me/meals (BUG-274): the injected estimator runs on
+  // the plain client BEFORE the tx, fail-soft; materializeDish stamps the
+  // result + grounding and emits dish_macros_estimated.
+  const zeroMacroDish = {
+    title: "Charred broccoli",
+    servingsDefault: 4,
+    ingredients: [{ name: "Broccoli", quantity: 1, unit: "head" }],
+    steps: [{ text: "Roast." }],
+  };
+
+  it("BUG-278: the injected estimator runs for a zero-macro dish and its result is stamped", async () => {
+    const { prisma, captured } = makeStub();
+    const seen: string[] = [];
+    const recording: EstimateDep = (async (o: { dishTitle: string; servings: number }) => {
+      seen.push(`${o.dishTitle}@${o.servings}`);
+      return {
+        status: "success",
+        perServing: { calories: 90, proteinG: 4, carbsG: 8, fatG: 5 },
+        sanityFlags: [],
+        grounding: { status: "full", ratio: 1, matched: 1, total: 1 },
+      };
+    }) as never;
+    const harness = await spinUp(prisma, recording);
+    try {
+      const res = await authPost(harness, "/me/dishes", zeroMacroDish);
+      assert.equal(res.status, 201);
+      assert.deepEqual(seen, ["Charred broccoli@4"]);
+      assert.equal(captured.dishCreates.length, 1);
+      assert.equal(captured.dishCreates[0].caloriesPerServing, 90);
+      assert.equal(captured.dishCreates[0].proteinGPerServing, 4);
+      assert.equal(captured.dishCreates[0].macroGroundedPct, 100);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BUG-278: a dish that arrives WITH macros is not estimated", async () => {
+    const { prisma, captured } = makeStub();
+    let calls = 0;
+    const counting: EstimateDep = (async () => {
+      calls++;
+      return { status: "failed", error: "should not run" };
+    }) as never;
+    const harness = await spinUp(prisma, counting);
+    try {
+      const res = await authPost(harness, "/me/dishes", {
+        ...zeroMacroDish,
+        macros: { caloriesPerServing: 120, proteinGPerServing: 3, carbsGPerServing: 10, fatGPerServing: 7 },
+      });
+      assert.equal(res.status, 201);
+      assert.equal(calls, 0);
+      assert.equal(captured.dishCreates[0].caloriesPerServing, 120);
+      assert.ok(!("macroGroundedPct" in captured.dishCreates[0]));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BUG-278: a THROWING estimator still returns 201 with the dish at zero (fail-soft), and the estimate runs BEFORE the tx", async () => {
+    const { prisma, captured } = makeStub();
+    const order: string[] = [];
+    const surface = prisma as unknown as { $transaction: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown> };
+    const origTx = surface.$transaction;
+    surface.$transaction = async (fn) => {
+      order.push("tx-open");
+      return origTx(fn);
+    };
+    const throwing: EstimateDep = (async () => {
+      order.push("estimate");
+      throw new Error("estimator down");
+    }) as never;
+    const harness = await spinUp(prisma, throwing);
+    try {
+      const res = await authPost(harness, "/me/dishes", zeroMacroDish);
+      assert.equal(res.status, 201);
+      assert.deepEqual(order, ["estimate", "tx-open"]);
+      assert.ok(!("caloriesPerServing" in captured.dishCreates[0]), "left at the column default");
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("rejects invalid body with 400", async () => {
     const { prisma } = makeStub();
     const harness = await spinUp(prisma);

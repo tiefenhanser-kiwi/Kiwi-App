@@ -754,6 +754,43 @@ export interface MaterializeDishResult {
   dishId: string;
 }
 
+// WS9 BUG-278 (server half) — the standalone-dish save never estimated macros.
+// Same seam as POST /me/meals (BUG-274): the pre-pass runs in the ROUTE on the
+// plain client, before the tx; materializeDish only CONSUMES the result.
+export interface MaterializeDishOptions {
+  /** The route's pre-computed estimate for a zero-macro payload; absent = nothing estimated. */
+  estimatedMacros?: EstimatedDishMacros;
+}
+
+/**
+ * Estimate macros for a standalone dish payload when its macros are zero /
+ * absent — the one-dish form of estimateZeroMacroDishes (same predicate, same
+ * deadline, same fail-soft). Returns undefined when nothing was estimated.
+ */
+export async function estimateZeroMacroDish(
+  opts: Omit<EstimateZeroMacroDishesOptions, "payload"> & { payload: MaterializeDishPayload },
+): Promise<EstimatedDishMacros | undefined> {
+  const { payload, ...rest } = opts;
+  const asMeal: MaterializeMealPayload = {
+    title: payload.title,
+    servingsDefault: payload.servingsDefault,
+    dishes: [
+      {
+        kind: "new",
+        title: payload.title,
+        role: "main",
+        positionIndex: 0,
+        servingsDefault: payload.servingsDefault,
+        ingredients: payload.ingredients,
+        steps: payload.steps,
+        macros: payload.macros,
+      },
+    ],
+  };
+  const byIndex = await estimateZeroMacroDishes({ ...rest, payload: asMeal });
+  return byIndex.get(0);
+}
+
 /**
  * Collect ingredient mentions for a standalone Dish payload so the route
  * can resolve them BEFORE opening the $transaction (WS7-6 Fix-Block 1A).
@@ -769,15 +806,21 @@ export async function materializeDish(
   userId: string,
   payload: MaterializeDishPayload,
   ingredientIdByCanonical: Map<string, string>,
+  opts?: MaterializeDishOptions,
 ): Promise<MaterializeDishResult> {
-  const macros = payload.macros
-    ? {
-        caloriesPerServing: payload.macros.caloriesPerServing ?? 0,
-        proteinGPerServing: payload.macros.proteinGPerServing ?? 0,
-        carbsGPerServing: payload.macros.carbsGPerServing ?? 0,
-        fatGPerServing: payload.macros.fatGPerServing ?? 0,
-      }
-    : {};
+  // WS9 BUG-278 — a zero/absent macro set the route's pre-pass estimated is
+  // stamped with its grounding, exactly as materializeMeal does per dish.
+  const estimated = opts?.estimatedMacros;
+  const macros = estimated
+    ? estimated
+    : payload.macros
+      ? {
+          caloriesPerServing: payload.macros.caloriesPerServing ?? 0,
+          proteinGPerServing: payload.macros.proteinGPerServing ?? 0,
+          carbsGPerServing: payload.macros.carbsGPerServing ?? 0,
+          fatGPerServing: payload.macros.fatGPerServing ?? 0,
+        }
+      : {};
 
   const dish = await tx.dish.create({
     data: {
@@ -803,6 +846,26 @@ export async function materializeDish(
     },
     select: { id: true },
   });
+
+  // WS9 BUG-278 — the same event plan recalc / the meal save emit per fresh
+  // estimate, so the write paths are indistinguishable downstream.
+  if (estimated) {
+    try {
+      await tx.userActivity.create({
+        data: {
+          userId,
+          eventType: "dish_macros_estimated",
+          entityId: dish.id,
+          platform: "api",
+        },
+      });
+    } catch (err) {
+      logger.warn(
+        { event: "dish_macros_estimated_event_failed", userId, dishId: dish.id, err },
+        "Could not record dish_macros_estimated at dish save",
+      );
+    }
+  }
 
   for (let ii = 0; ii < payload.ingredients.length; ii++) {
     const ing = payload.ingredients[ii];

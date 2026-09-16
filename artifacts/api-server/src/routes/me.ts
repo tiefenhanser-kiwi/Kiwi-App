@@ -21,6 +21,7 @@ import {
   collectDishMentions,
   collectMealMentions,
   collectRematerializeDishMentions,
+  estimateZeroMacroDish,
   estimateZeroMacroDishes,
   materializeDish,
   materializeMeal,
@@ -1433,9 +1434,22 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           prisma,
           mentions,
         );
+        // WS9 BUG-278 (server half) — macros at save for a standalone dish,
+        // through the SAME seam as POST /me/meals (BUG-274 / F2): the
+        // injected estimator, on the plain client, BEFORE the tx opens,
+        // fail-soft (a failed / slow estimate saves at zero with a warn).
+        const estimatedMacros = await estimateZeroMacroDish({
+          prisma,
+          userId,
+          payload: body,
+          ingredientIdByCanonical,
+          estimateImpl: estimateDishMacros,
+        });
         const result = await prisma.$transaction(
           async (tx) =>
-            materializeDish(tx, userId, body, ingredientIdByCanonical),
+            materializeDish(tx, userId, body, ingredientIdByCanonical, {
+              estimatedMacros,
+            }),
           { timeout: 15000 },
         );
         return res.status(201).json({ dish: { id: result.dishId } });
