@@ -413,6 +413,12 @@ export interface ReviewMeal {
 export interface ReviewMealDish {
   name: string;
   ingredients: ReviewMealIngredient[];
+  /** WS9 BUG-273 — the dish's OWN steps. Import / Ask-Kiwi drafts fill this
+   *  so the builder hydrates each step onto its dish instead of collapsing
+   *  every step onto dish[0] (which made the scheduler's cross-dish overlap
+   *  impossible and Cook Mode run the meal as one dish). Optional: legacy
+   *  drafts and Meal Detail keep the meal-level `steps[]` only. */
+  steps?: ReviewMealStep[];
 }
 
 export interface ReviewMealIngredient {
@@ -421,12 +427,29 @@ export interface ReviewMealIngredient {
   name: string;
 }
 
+/** Step phase taxonomy — the same enum the server's stepItemSchema and the
+ *  parse-meal / import wires carry (lib/api/builder.ts StepPhaseTypeEnum). */
+export type StepPhaseType =
+  | "prep"
+  | "preheat"
+  | "cook"
+  | "rest"
+  | "assemble"
+  | "hold";
+
 export interface ReviewMealStep {
   stepNumber: number;
   text: string;
   estimatedMinutes?: number;
   /** Optional: timing-sensitive steps render in terracotta per PRD §10.6.1 */
   isTimingSensitive?: boolean;
+  /** WS9 BUG-273 — carried from the parse / import so the save sends it and
+   *  the server's timing derivation sees rest/hold/preheat instead of the
+   *  `cook` default. Absent on legacy drafts. */
+  phaseType?: StepPhaseType;
+  /** WS9 BUG-273 — intra-dish overlap token (D-WS9-239). Carried when the
+   *  source emits it; the parse prompts currently never do (inert). */
+  parallelGroup?: string | null;
 }
 
 /**

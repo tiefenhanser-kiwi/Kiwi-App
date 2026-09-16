@@ -118,3 +118,95 @@ test("a meal with no steps yields an empty steps array (not undefined)", () => {
   assert.deepEqual(draft.steps, []);
   assert.equal(draft.dishes.length, 1);
 });
+
+// ── WS9 BUG-273 — steps stay with their sub-dish; phaseType survives ────────
+//
+// Hans's device case: "Grilled chicken breast with rice pilaf and steamed
+// green beans" → mode_a_parse rule 1 splits on "with / and" → three sub-dishes,
+// each with its own steps. The pre-fix adapter flattened all of them into the
+// meal-level list (dropping phaseType) and the builder hydrated that list onto
+// dish[0], so the meal saved as ONE dish carrying every step — serial time,
+// one-dish Cook Mode.
+
+function makeThreeDishParse(): ParsedMeal {
+  return {
+    title: "Grilled chicken with rice pilaf and green beans",
+    cuisine: "American",
+    estimatedPrepMinutes: 15,
+    estimatedCookMinutes: 30,
+    servingsDefault: 4,
+    difficulty: "easy",
+    tags: ["weeknight"],
+    subDishes: [
+      {
+        title: "Grilled Chicken Breast",
+        role: "main",
+        positionIndex: 0,
+        ingredients: [{ name: "chicken breast", quantity: 4, unit: "pieces" }],
+        steps: [
+          { content: "Preheat the grill to high.", estimatedMinutes: 10, phaseType: "preheat" },
+          { content: "Grill 6 minutes per side.", estimatedMinutes: 12, phaseType: "cook", isTimingSensitive: true },
+          { content: "Rest 5 minutes.", estimatedMinutes: 5, phaseType: "rest" },
+        ],
+      },
+      {
+        title: "Rice Pilaf",
+        role: "side",
+        positionIndex: 1,
+        ingredients: [{ name: "long-grain rice", quantity: 1.5, unit: "cups" }],
+        steps: [
+          { content: "Toast the rice in butter.", estimatedMinutes: 3, phaseType: "cook" },
+          { content: "Add stock, cover, simmer.", estimatedMinutes: 18, phaseType: "cook", parallelGroup: null },
+        ],
+      },
+      {
+        title: "Steamed Green Beans",
+        role: "side",
+        positionIndex: 2,
+        ingredients: [{ name: "green beans", quantity: 1, unit: "lb" }],
+        steps: [
+          { content: "Trim the beans.", estimatedMinutes: 4, phaseType: "prep" },
+          { content: "Steam until crisp-tender.", estimatedMinutes: 6, phaseType: "cook", isTimingSensitive: true },
+        ],
+      },
+    ],
+  };
+}
+
+test("BUG-273: each sub-dish keeps ITS steps (nothing collapses onto dish[0])", () => {
+  const draft = parsedMealToDraft(makeThreeDishParse());
+  assert.equal(draft.dishes.length, 3);
+  assert.deepEqual(
+    draft.dishes.map((d) => d.steps?.length),
+    [3, 2, 2],
+    "3 / 2 / 2 steps stay on their own dish",
+  );
+  assert.equal(draft.dishes[0].steps?.[0].text, "Preheat the grill to high.");
+  assert.equal(draft.dishes[1].steps?.[1].text, "Add stock, cover, simmer.");
+  assert.equal(draft.dishes[2].steps?.[0].text, "Trim the beans.");
+  // Per-dish numbering restarts at 1 for each dish (one list per dish in the
+  // builder).
+  assert.deepEqual(draft.dishes[2].steps?.map((s) => s.stepNumber), [1, 2]);
+});
+
+test("BUG-273: phaseType (and parallelGroup when sent) survive the adapter", () => {
+  const draft = parsedMealToDraft(makeThreeDishParse());
+  assert.deepEqual(
+    draft.dishes[0].steps?.map((s) => s.phaseType),
+    ["preheat", "cook", "rest"],
+  );
+  assert.deepEqual(draft.dishes[2].steps?.map((s) => s.phaseType), ["prep", "cook"]);
+  assert.equal(draft.dishes[0].steps?.[1].isTimingSensitive, true);
+  assert.equal(draft.dishes[0].steps?.[1].estimatedMinutes, 12);
+  // parallelGroup: carried as-sent (null here), absent when the parse omits it.
+  assert.equal(draft.dishes[1].steps?.[1].parallelGroup, null);
+  assert.ok(!("parallelGroup" in draft.dishes[1].steps![0]));
+});
+
+test("BUG-273: the legacy meal-level steps[] is still the flattened, renumbered view", () => {
+  const draft = parsedMealToDraft(makeThreeDishParse());
+  assert.equal(draft.steps.length, 7);
+  assert.deepEqual(draft.steps.map((s) => s.stepNumber), [1, 2, 3, 4, 5, 6, 7]);
+  assert.equal(draft.steps[3].text, "Toast the rice in butter.");
+  assert.equal(draft.steps[3].phaseType, "cook");
+});

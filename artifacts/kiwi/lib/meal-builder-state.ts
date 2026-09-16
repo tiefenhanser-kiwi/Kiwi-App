@@ -23,7 +23,12 @@ import type {
   UpdateMealInput,
 } from "./api/meals";
 import type { DraftDish } from "./builder/parsedDishToDraft";
-import type { DraftMeal, RecipeOverride, SavedDish } from "./types";
+import type {
+  DraftMeal,
+  RecipeOverride,
+  SavedDish,
+  StepPhaseType,
+} from "./types";
 
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -39,6 +44,14 @@ export interface BuilderStep {
   text: string;
   estimatedMinutes: string;
   isTimingSensitive?: boolean;
+  /** WS9 BUG-273 — carried from the parse / import / loaded meal through the
+   *  editor to the save, so rest/hold/preheat reach the server's timing
+   *  derivation. The builder has no control for it; undefined on hand-typed
+   *  steps (the server defaults those to `cook`). */
+  phaseType?: StepPhaseType;
+  /** WS9 BUG-273 — intra-dish overlap token (D-WS9-239), carried the same
+   *  way. Not yet on the save wire (lib/api/meals.ts SaveMealStep). */
+  parallelGroup?: string | null;
 }
 
 export interface BuilderDish {
@@ -79,7 +92,26 @@ export function newStep(
     text: partial?.text ?? "",
     estimatedMinutes: partial?.estimatedMinutes ?? "",
     isTimingSensitive: partial?.isTimingSensitive,
+    phaseType: partial?.phaseType,
+    parallelGroup: partial?.parallelGroup,
   };
+}
+
+// WS9 BUG-273 — the loaded-meal wire types phaseType as a bare string
+// (MealStepSchema); only the server enum is carried into the editor.
+const STEP_PHASE_TYPES: readonly StepPhaseType[] = [
+  "prep",
+  "preheat",
+  "cook",
+  "rest",
+  "assemble",
+  "hold",
+];
+
+function narrowPhaseType(raw: string | undefined): StepPhaseType | undefined {
+  return raw !== undefined && (STEP_PHASE_TYPES as readonly string[]).includes(raw)
+    ? (raw as StepPhaseType)
+    : undefined;
 }
 
 export function newDish(
@@ -201,6 +233,9 @@ export function hydrateBuilderDishesFromMeal(
               ? String(st.estimatedMinutes)
               : "",
           isTimingSensitive: st.isTimingSensitive,
+          // WS9 BUG-273 — explicit on the edit PATCH so a reordered step keeps
+          // ITS phase (the server's D-WS9-235 fallback preserves by index).
+          phaseType: narrowPhaseType(st.phaseType),
         }),
       ),
     });
@@ -240,6 +275,8 @@ export function pickSavedDishToBuilderDish(
             ? String(st.estimatedMinutes)
             : "",
         isTimingSensitive: st.isTimingSensitive,
+        phaseType: st.phaseType,
+        parallelGroup: st.parallelGroup,
       }),
     ),
   });
@@ -283,18 +320,33 @@ export function draftDishToBuilderDish(
 }
 
 /**
- * Map an imported DraftMeal into BuilderDish[]. Drafts carry a single
- * meal-level `steps[]` (the importer doesn't know about per-dish
- * ownership), so for a multi-dish draft all steps land on dish[0] — the
- * §10.5.4 "the meal IS the dish" collapse for the simple case naturally
- * extends to "the meal's steps live on its first dish" for drafts.
+ * Map an imported DraftMeal into BuilderDish[].
+ *
+ * WS9 BUG-273 — every adapter (Ask Kiwi parse, URL / image / text import)
+ * now nests each dish's steps under `dishes[i].steps`, so each step is
+ * hydrated onto ITS dish. The pre-fix draft carried only the meal-level
+ * `steps[]` and this put the whole list on dish[0] — a three-dish parse
+ * saved as one dish with every step, which the scheduler (cross-dish overlap
+ * only) timed as the serial sum and Cook Mode ran as one dish.
+ *
+ * Legacy fallback (same rule as hydrateBuilderDishesFromMeal): when NO dish
+ * carries a `steps` array, the meal-level list lands on dish[0] — a draft
+ * produced before this fix, or a hand-built one, still round-trips.
  */
 export function hydrateBuilderDishesFromDraft(
   draftMeal: DraftMeal,
   allocUid: UidAllocator,
 ): BuilderDish[] {
-  return draftMeal.dishes.map((d, i) =>
-    newDish(allocUid, {
+  const anyDishCarriesSteps = draftMeal.dishes.some(
+    (d) => d.steps !== undefined,
+  );
+  return draftMeal.dishes.map((d, i) => {
+    const stepRows = anyDishCarriesSteps
+      ? (d.steps ?? [])
+      : i === 0
+        ? draftMeal.steps
+        : [];
+    return newDish(allocUid, {
       name: d.name,
       ingredients:
         d.ingredients.length > 0
@@ -306,21 +358,48 @@ export function hydrateBuilderDishesFromDraft(
               }),
             )
           : [newIngredient(allocUid)],
-      steps:
-        i === 0
-          ? draftMeal.steps.map((st) =>
-              newStep(allocUid, {
-                text: st.text,
-                estimatedMinutes:
-                  st.estimatedMinutes !== undefined
-                    ? String(st.estimatedMinutes)
-                    : "",
-                isTimingSensitive: st.isTimingSensitive,
-              }),
-            )
-          : [],
-    }),
-  );
+      steps: stepRows.map((st) =>
+        newStep(allocUid, {
+          text: st.text,
+          estimatedMinutes:
+            st.estimatedMinutes !== undefined
+              ? String(st.estimatedMinutes)
+              : "",
+          isTimingSensitive: st.isTimingSensitive,
+          phaseType: st.phaseType,
+          parallelGroup: st.parallelGroup,
+        }),
+      ),
+    });
+  });
+}
+
+/**
+ * WS9 BUG-273 — move one step from one dish to another (appended at the end
+ * of the target's list). Pure; returns the same array when the step or the
+ * target dish is not found, or when source === target. This is the state
+ * half of the builder's per-step "→ next dish" control, which exists so a
+ * user can correct a parse that attached a step to the wrong sub-dish.
+ */
+export function moveStepToDish(
+  dishes: BuilderDish[],
+  fromDishUid: number,
+  stepUid: number,
+  toDishUid: number,
+): BuilderDish[] {
+  if (fromDishUid === toDishUid) return dishes;
+  const from = dishes.find((d) => d.uid === fromDishUid);
+  const step = from?.steps.find((st) => st.uid === stepUid);
+  if (!step || !dishes.some((d) => d.uid === toDishUid)) return dishes;
+  return dishes.map((d) => {
+    if (d.uid === fromDishUid) {
+      return { ...d, steps: d.steps.filter((st) => st.uid !== stepUid) };
+    }
+    if (d.uid === toDishUid) {
+      return { ...d, steps: [...d.steps, step] };
+    }
+    return d;
+  });
 }
 
 // ── Save serialization ──────────────────────────────────────────────────
@@ -358,6 +437,12 @@ export function serializeNewDishesForSave(
           estimatedMinutes:
             Number.isFinite(min) && min > 0 ? min : undefined,
           isTimingSensitive: st.isTimingSensitive,
+          // WS9 BUG-273 — per step, per dish; omitted (not null) when the
+          // editor has none so the server's `cook` default / D-WS9-235 index
+          // preservation apply exactly as before. parallelGroup is carried in
+          // BuilderStep but NOT emitted: SaveMealStep (lib/api/meals.ts) has
+          // no field for it yet.
+          ...(st.phaseType !== undefined ? { phaseType: st.phaseType } : {}),
         };
       });
     return {

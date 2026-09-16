@@ -27,6 +27,7 @@ import {
   buildUpdateMealInput,
   hydrateBuilderDishesFromDraft,
   hydrateBuilderDishesFromMeal,
+  moveStepToDish,
   newDish,
   newIngredient,
   newStep,
@@ -1214,4 +1215,157 @@ test("BUG-252 buildStepEditMealInput: a canonical dish the editor dropped keeps 
     d1.steps.map((s) => s.text),
     canonical.dishes[1].steps.map((s) => s.text),
   );
+});
+
+// ── WS9 BUG-273 — per-dish draft steps hydrate onto THEIR dish ──────────────
+//
+// The adapters (parsedMealToDraft, canonicalToDraftMeal) now nest each dish's
+// steps under dishes[i].steps. Hydration must put them there — the pre-fix
+// helper put the meal-level list on dish[0] for every multi-dish draft, so a
+// three-dish Ask-Kiwi parse saved as one dish carrying all the steps (serial
+// derived time, one-dish Cook Mode).
+
+function makeThreeDishDraft(): DraftMeal {
+  return {
+    title: "Grilled chicken with rice pilaf and green beans",
+    difficulty: "easy",
+    estimatedTimeMinutes: 45,
+    servingsDefault: 4,
+    tags: [],
+    caloriesPerServing: 0,
+    proteinGPerServing: 0,
+    carbsGPerServing: 0,
+    fatGPerServing: 0,
+    dishes: [
+      {
+        name: "Grilled Chicken Breast",
+        ingredients: [{ name: "chicken breast", quantity: 4, unit: "pieces" }],
+        steps: [
+          { stepNumber: 1, text: "Preheat the grill.", estimatedMinutes: 10, phaseType: "preheat" },
+          { stepNumber: 2, text: "Grill 6 min per side.", estimatedMinutes: 12, phaseType: "cook", isTimingSensitive: true },
+          { stepNumber: 3, text: "Rest 5 minutes.", estimatedMinutes: 5, phaseType: "rest" },
+        ],
+      },
+      {
+        name: "Rice Pilaf",
+        ingredients: [{ name: "rice", quantity: 1.5, unit: "cups" }],
+        steps: [
+          { stepNumber: 1, text: "Toast the rice.", estimatedMinutes: 3, phaseType: "cook" },
+          { stepNumber: 2, text: "Simmer covered.", estimatedMinutes: 18, phaseType: "cook", parallelGroup: null },
+        ],
+      },
+      {
+        name: "Steamed Green Beans",
+        ingredients: [{ name: "green beans", quantity: 1, unit: "lb" }],
+        steps: [
+          { stepNumber: 1, text: "Trim the beans.", estimatedMinutes: 4, phaseType: "prep" },
+          { stepNumber: 2, text: "Steam until crisp-tender.", estimatedMinutes: 6, phaseType: "cook" },
+        ],
+      },
+    ],
+    // The legacy flat view the adapters still emit — must be IGNORED when the
+    // dishes carry their own steps (otherwise steps would double up on dish[0]).
+    steps: [
+      { stepNumber: 1, text: "Preheat the grill.", phaseType: "preheat" },
+      { stepNumber: 2, text: "Grill 6 min per side.", phaseType: "cook" },
+      { stepNumber: 3, text: "Rest 5 minutes.", phaseType: "rest" },
+      { stepNumber: 4, text: "Toast the rice.", phaseType: "cook" },
+      { stepNumber: 5, text: "Simmer covered.", phaseType: "cook" },
+      { stepNumber: 6, text: "Trim the beans.", phaseType: "prep" },
+      { stepNumber: 7, text: "Steam until crisp-tender.", phaseType: "cook" },
+    ],
+  };
+}
+
+test("BUG-273: per-dish draft steps hydrate onto their own dish, phaseType kept", () => {
+  const dishes = hydrateBuilderDishesFromDraft(makeThreeDishDraft(), makeAlloc());
+  assert.equal(dishes.length, 3);
+  assert.deepEqual(dishes.map((d) => d.steps.length), [3, 2, 2]);
+  assert.equal(dishes[0].steps[0].text, "Preheat the grill.");
+  assert.equal(dishes[1].steps[1].text, "Simmer covered.");
+  assert.equal(dishes[2].steps[0].text, "Trim the beans.");
+  assert.deepEqual(dishes[0].steps.map((s) => s.phaseType), ["preheat", "cook", "rest"]);
+  assert.equal(dishes[0].steps[1].isTimingSensitive, true);
+  assert.equal(dishes[0].steps[1].estimatedMinutes, "12");
+  assert.equal(dishes[1].steps[1].parallelGroup, null);
+});
+
+test("BUG-273: the save wire carries phaseType per step, per dish", () => {
+  const dishes = hydrateBuilderDishesFromDraft(makeThreeDishDraft(), makeAlloc());
+  const input = buildManualSaveMealInput({
+    mealName: "Grilled chicken with rice pilaf and green beans",
+    cuisineType: "",
+    difficulty: "easy",
+    estimatedTimeMinutes: "45",
+    servingsDefault: 4,
+    notes: "",
+    dishes,
+    sourceType: "directed",
+  });
+  assert.equal(input.dishes.length, 3);
+  const wire = input.dishes.map((d) =>
+    d.kind === "new" ? d.steps.map((s) => s.phaseType) : null,
+  );
+  assert.deepEqual(wire, [
+    ["preheat", "cook", "rest"],
+    ["cook", "cook"],
+    ["prep", "cook"],
+  ]);
+  const d0 = input.dishes[0];
+  if (d0.kind !== "new") throw new Error("expected new dish");
+  assert.equal(d0.steps[1].estimatedMinutes, 12);
+  assert.equal(d0.steps[1].isTimingSensitive, true);
+  // parallelGroup is NOT on the save wire (SaveMealStep has no field for it).
+  assert.ok(!("parallelGroup" in d0.steps[0]));
+});
+
+test("BUG-273: a hand-typed step has no phaseType on the wire (server default applies)", () => {
+  const alloc = makeAlloc();
+  const dishes = [
+    newDish(alloc, {
+      name: "",
+      ingredients: [newIngredient(alloc, { quantity: "1", unit: "cup", name: "Rice" })],
+      steps: [newStep(alloc, { text: "Cook the rice", estimatedMinutes: "20" })],
+    }),
+  ];
+  const input = buildManualSaveMealInput({
+    mealName: "Plain rice",
+    cuisineType: "",
+    difficulty: "easy",
+    estimatedTimeMinutes: "20",
+    servingsDefault: 2,
+    notes: "",
+    dishes,
+    sourceType: "manual",
+  });
+  assert.equal(input.dishes.length, 1);
+  const d0 = input.dishes[0];
+  if (d0.kind !== "new") throw new Error("expected new dish");
+  assert.equal(d0.title, "Plain rice", "single unnamed dish takes the meal name (unchanged)");
+  assert.deepEqual(d0.steps, [
+    { text: "Cook the rice", estimatedMinutes: 20, isTimingSensitive: undefined },
+  ]);
+  assert.ok(!("phaseType" in d0.steps[0]));
+});
+
+// ── WS9 BUG-273 — moveStepToDish (the "→ next dish" control's state half) ───
+
+test("BUG-273: moveStepToDish moves one step to the end of the target dish", () => {
+  const dishes = hydrateBuilderDishesFromDraft(makeThreeDishDraft(), makeAlloc());
+  const restStep = dishes[0].steps[2];
+  const next = moveStepToDish(dishes, dishes[0].uid, restStep.uid, dishes[2].uid);
+  assert.deepEqual(next.map((d) => d.steps.length), [2, 2, 3]);
+  assert.equal(next[2].steps[2].uid, restStep.uid);
+  assert.equal(next[2].steps[2].phaseType, "rest", "the step keeps its phase");
+  assert.ok(!next[0].steps.some((s) => s.uid === restStep.uid));
+  // Untouched dish keeps its identity (no needless re-render churn).
+  assert.equal(next[1], dishes[1]);
+});
+
+test("BUG-273: moveStepToDish is a no-op for same dish, unknown step, or unknown target", () => {
+  const dishes = hydrateBuilderDishesFromDraft(makeThreeDishDraft(), makeAlloc());
+  const step = dishes[1].steps[0];
+  assert.equal(moveStepToDish(dishes, dishes[1].uid, step.uid, dishes[1].uid), dishes);
+  assert.equal(moveStepToDish(dishes, dishes[1].uid, 9999, dishes[0].uid), dishes);
+  assert.equal(moveStepToDish(dishes, dishes[1].uid, step.uid, 9999), dishes);
 });

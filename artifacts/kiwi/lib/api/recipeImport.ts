@@ -24,7 +24,12 @@ import { z } from "zod";
 
 import { apiClient } from "./client";
 import { ApiError, spendGuardRefusal, type SpendGuardReason } from "./errors";
-import type { DraftMeal, ReviewMealDish, ReviewMealStep } from "../types";
+import type {
+  DraftMeal,
+  ReviewMealDish,
+  ReviewMealStep,
+  StepPhaseType,
+} from "../types";
 
 // ─────────────────────────────────────────────────────────────────
 // Zod schemas — mirror artifacts/api-server/src/lib/ai/schemas/reformat.ts
@@ -143,10 +148,33 @@ function mapDifficulty(d: "easy" | "medium" | "fancy"): DraftMeal["difficulty"] 
   return d === "fancy" ? "hard" : d;
 }
 
-function canonicalToDraftMeal(
+// The canonical wire types phaseType as a bare string (passthrough schema);
+// only the server's enum survives into the draft — anything else is dropped
+// and the save falls to the server's `cook` default, exactly as before.
+const STEP_PHASE_TYPES: readonly StepPhaseType[] = [
+  "prep",
+  "preheat",
+  "cook",
+  "rest",
+  "assemble",
+  "hold",
+];
+
+function narrowPhaseType(raw: string): StepPhaseType | undefined {
+  return (STEP_PHASE_TYPES as readonly string[]).includes(raw)
+    ? (raw as StepPhaseType)
+    : undefined;
+}
+
+// Exported for the BUG-273 adapter test only — not part of the import API.
+export function canonicalToDraftMeal(
   canonical: CanonicalRecipeContentWire,
   sourceUrl: string | null,
 ): DraftMeal {
+  // WS9 BUG-273 — steps stay with their dish (same fix as parsedMealToDraft:
+  // the flatten-onto-dish[0] made every URL / image / text import a one-dish
+  // meal for the scheduler and Cook Mode). Per-dish numbering 1..N within the
+  // dish; the legacy meal-level list below renumbers across dishes.
   const dishes: ReviewMealDish[] = canonical.dishes.map((d) => ({
     name: d.title,
     ingredients: d.ingredients.map((i) => ({
@@ -154,19 +182,27 @@ function canonicalToDraftMeal(
       quantity: i.quantity,
       unit: i.unit,
     })),
-  }));
-
-  // Flatten per-dish steps into a meal-level list and renumber stepNumber 1..N.
-  let stepCounter = 1;
-  const steps: ReviewMealStep[] = [];
-  for (const dish of canonical.dishes) {
-    for (const step of dish.steps ?? []) {
-      steps.push({
-        stepNumber: stepCounter++,
+    steps: (d.steps ?? []).map((step, idx): ReviewMealStep => {
+      const phaseType = narrowPhaseType(step.phaseType);
+      return {
+        stepNumber: idx + 1,
         text: step.stepTextTranslated,
         estimatedMinutes: step.estimatedMinutes,
         isTimingSensitive: step.isTimingSensitive,
-      });
+        ...(phaseType !== undefined ? { phaseType } : {}),
+        ...(step.parallelGroup !== undefined
+          ? { parallelGroup: step.parallelGroup }
+          : {}),
+      };
+    }),
+  }));
+
+  // Legacy meal-level view: the same steps flattened and renumbered 1..N.
+  let stepCounter = 1;
+  const steps: ReviewMealStep[] = [];
+  for (const d of dishes) {
+    for (const st of d.steps ?? []) {
+      steps.push({ ...st, stepNumber: stepCounter++ });
     }
   }
 

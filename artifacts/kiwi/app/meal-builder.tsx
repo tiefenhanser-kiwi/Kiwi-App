@@ -66,6 +66,7 @@ import {
   draftDishToBuilderDish,
   hydrateBuilderDishesFromDraft,
   hydrateBuilderDishesFromMeal,
+  moveStepToDish,
   newDish as makeNewDish,
   newIngredient as makeNewIngredient,
   newStep as makeNewStep,
@@ -316,9 +317,9 @@ export default function MealBuilderScreen() {
   // Pre-population from imported draft (one-shot on mount when draftJson present).
   // Distinct from sourceMeal: no Meal record yet, so save = create.
   //
-  // WS7-6 Fix-Block 1B: drafts carry a single meal-level steps[] (the
-  // importer doesn't know per-dish ownership), so for multi-dish drafts
-  // all steps land on dish[0] — the §10.5.4 "meal IS the dish" collapse.
+  // WS9 BUG-273: drafts now carry each dish's own steps (dishes[i].steps), so
+  // hydration puts every step on ITS dish; only a legacy draft with meal-level
+  // steps alone still lands them on dish[0] (hydrateBuilderDishesFromDraft).
   useEffect(() => {
     if (sourceMeal || !draftMeal) return;
     setMealName(draftMeal.title);
@@ -521,6 +522,15 @@ export default function MealBuilderScreen() {
     setDishes((prev) =>
       prev.map((d) => (d.uid === dishUid ? { ...d, steps: next } : d)),
     );
+  // WS9 BUG-273 — a parse can attach a step to the wrong sub-dish; the
+  // per-step "→ <next dish>" control cycles it to the next dish (wrapping).
+  const moveStepToNextDish = (dishUid: number, stepUid: number) =>
+    setDishes((prev) => {
+      const i = prev.findIndex((d) => d.uid === dishUid);
+      if (i < 0 || prev.length < 2) return prev;
+      const target = prev[(i + 1) % prev.length];
+      return moveStepToDish(prev, dishUid, stepUid, target.uid);
+    });
 
   // Stable identity so DishPickerRow's memoization holds across parent re-renders
   // (e.g. while user types in MetaFields above the picker).
@@ -1113,6 +1123,7 @@ export default function MealBuilderScreen() {
             removeStep={removeStep}
             updateStep={updateStep}
             reorderStepsForDish={reorderStepsForDish}
+            moveStepToNextDish={moveStepToNextDish}
             notes={notes}
             setNotes={setNotes}
             // WS7-6 Block 1F — surface per-field validation reasons
@@ -1558,6 +1569,9 @@ interface ManualEditorProps extends MetaFieldsProps {
   // on BuilderStep), so reorder is automatic — no renumber pass needed.
   // WS7-6 Fix-Block 1B — scoped to a single dish's steps.
   reorderStepsForDish: (dishUid: number, next: BuilderStep[]) => void;
+  // WS9 BUG-273 — move a step to the next dish (wrapping). Only rendered
+  // when the meal has >1 dish.
+  moveStepToNextDish: (dishUid: number, stepUid: number) => void;
   notes: string;
   setNotes: (v: string) => void;
   // WS7-6 Block 1F — per-field validation surface, driven by parent's
@@ -1741,15 +1755,24 @@ function ManualEditor(p: ManualEditorProps) {
             </Text>
           </View>
         )}
-        {p.dishes.map((dish) => (
+        {p.dishes.map((dish, di) => (
           <PerDishSteps
             key={dish.uid}
             dish={dish}
             showDishHeader={moreThanOneDish}
+            // WS9 BUG-273 — the "→ <dish>" move target (wrapping); absent on
+            // single-dish meals so the row is unchanged there.
+            nextDishName={
+              moreThanOneDish
+                ? p.dishes[(di + 1) % p.dishes.length].name.trim() ||
+                  `Dish ${((di + 1) % p.dishes.length) + 1}`
+                : undefined
+            }
             addStep={p.addStep}
             removeStep={p.removeStep}
             updateStep={p.updateStep}
             reorderStepsForDish={p.reorderStepsForDish}
+            moveStepToNextDish={p.moveStepToNextDish}
           />
         ))}
       </View>
@@ -1789,6 +1812,9 @@ interface PerDishStepsProps {
    *  belongs to. Single-dish meals suppress the header for visual parity
    *  with the pre-fix UX. */
   showDishHeader: boolean;
+  /** WS9 BUG-273 — name of the dish a step moves to on "→"; undefined on
+   *  single-dish meals (control hidden). */
+  nextDishName?: string;
   addStep: (dishUid: number) => void;
   removeStep: (dishUid: number, stepUid: number) => void;
   updateStep: (
@@ -1797,6 +1823,7 @@ interface PerDishStepsProps {
     patch: Partial<Omit<BuilderStep, "uid">>,
   ) => void;
   reorderStepsForDish: (dishUid: number, next: BuilderStep[]) => void;
+  moveStepToNextDish: (dishUid: number, stepUid: number) => void;
 }
 
 function PerDishSteps(p: PerDishStepsProps) {
@@ -1883,6 +1910,30 @@ function PerDishSteps(p: PerDishStepsProps) {
                       onSubmitEditing={Keyboard.dismiss}
                     />
                     <Text style={s.suffixLabel}>min</Text>
+                    {/* WS9 BUG-273 — imported steps now land on their own
+                        dish; this is the correction for a parse that put
+                        one on the wrong dish. Cycles to the next dish. */}
+                    {p.nextDishName !== undefined && (
+                      <Pressable
+                        onPress={() => p.moveStepToNextDish(dishUid, step.uid)}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Move step to ${p.nextDishName}`}
+                        style={({ pressed }) => [
+                          s.moveStepBtn,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Feather
+                          name="corner-down-right"
+                          size={14}
+                          color={Colors.neutral[700]}
+                        />
+                        <Text style={s.moveStepLabel} numberOfLines={1}>
+                          {p.nextDishName}
+                        </Text>
+                      </Pressable>
+                    )}
                   </View>
                 </View>
                 <Pressable
@@ -2339,6 +2390,23 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
+  },
+  // WS9 BUG-273 — per-step "→ <dish>" move control; sits after the minutes
+  // field and shrinks (flex) so a long dish name never pushes the row.
+  moveStepBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: "auto",
+    flexShrink: 1,
+    paddingVertical: 4,
+    paddingHorizontal: Spacing[2],
+  },
+  moveStepLabel: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    flexShrink: 1,
   },
   stepperRow: {
     flexDirection: "row",
