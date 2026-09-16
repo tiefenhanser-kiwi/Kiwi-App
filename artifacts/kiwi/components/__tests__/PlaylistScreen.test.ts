@@ -112,7 +112,8 @@ beforeEach(() => {
       playlist = playlist.filter((m) => m.id !== id);
       return Promise.resolve(jsonResponse(null, 204));
     }
-    if (path === "/home")
+    // BUG-282 — GET /home carries ?localDate=YYYY-MM-DD.
+    if (path.split("?")[0] === "/home")
       return Promise.resolve(
         jsonResponse({
           todaysMeal: null,
@@ -158,8 +159,10 @@ async function mount(seed?: (client: QueryClient) => void) {
       React.createElement(QueryClientProvider, { client }, React.createElement(PlaylistScreen)),
     );
   });
+  // Two reads (playlist + home) must settle before the cache-only plan read
+  // can resolve its key; give the fake server a full turn under a loaded suite.
   await act(async () => {
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((r) => setTimeout(r, 120));
   });
   screen = { renderer, client };
   return {
