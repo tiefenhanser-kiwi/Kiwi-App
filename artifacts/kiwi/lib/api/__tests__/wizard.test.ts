@@ -618,3 +618,91 @@ test("getWizardLastBatch ACCEPTS a source:'shelf' row: shelf = a WizardShelfResp
   assert.equal(res.batch?.shelf?.meals[0].id, "m1");
   assert.equal(res.batch?.shelf?.hasMore, true);
 });
+
+// ── D-WS9-191 Block 2 — the candidate's `meals`, /wizard/limits, candidates/dismiss ─
+
+const WIRE_CANDIDATE = {
+  id: "cand-9",
+  title: "Sheet-Pan Week",
+  tags: ["weeknight"],
+  whyBullets: ["Fast"],
+  mealTitles: ["Fajitas", "Roast chicken"],
+  storeSlots: [{ slotIndex: 1, storeMealId: "meal-rc" }],
+  meals: [
+    { title: "Fajitas", description: null },
+    { title: "Roast chicken", description: "Crisp skin, pan juices.", storeMealId: "meal-rc", estimatedTimeMinutes: 55 },
+  ],
+  dailyMacros: { calories: 700, proteinG: 40, carbsG: 60, fatG: 30 },
+};
+
+test("last-batch: a Block 1 candidate carries meals (description null tolerated) + storeSlots; a legacy one without meals still parses", async () => {
+  nextResponse = () =>
+    mockJson({
+      batch: {
+        source: "wizard",
+        candidates: [WIRE_CANDIDATE, EXPAND_REQUEST.candidate],
+        input: { planDurationDays: 5 },
+        createdAt: "2026-09-16T00:00:00.000Z",
+      },
+    });
+  const { getWizardLastBatch } = await import("../wizard");
+  const res = await getWizardLastBatch();
+  const [wire, legacy] = res.batch!.candidates!;
+  assert.equal(wire.meals?.length, 2);
+  assert.equal(wire.meals?.[0].description, null);
+  assert.equal(wire.meals?.[1].estimatedTimeMinutes, 55);
+  assert.deepEqual(wire.storeSlots, [{ slotIndex: 1, storeMealId: "meal-rc" }]);
+  assert.equal(legacy.meals, undefined);
+});
+
+test("buildWizardPlans: the 'another' extras ride the body beside the input — another.dismissedPlanTitles + candidateCount:1 + the exclusion", async () => {
+  nextResponse = () => mockJson({ candidates: [WIRE_CANDIDATE] });
+  const { buildWizardPlans } = await import("../wizard");
+  const input = { planDurationDays: 5, householdSize: 4, cuisines: [], difficulty: "medium", weeklyPacing: "mixed" };
+  await buildWizardPlans(input as never, {
+    excludePlanTitles: ["Grill Nights"],
+    excludeMealTitles: ["Burgers"],
+    another: { dismissedPlanTitles: ["Grill Nights"] },
+    candidateCount: 1,
+  });
+  assert.equal(lastUrl?.endsWith("/wizard/build-plans"), true);
+  const body = JSON.parse(lastBody!) as Record<string, unknown>;
+  assert.equal(body.householdSize, 4);
+  assert.deepEqual(body.another, { dismissedPlanTitles: ["Grill Nights"] });
+  assert.equal(body.candidateCount, 1);
+  assert.deepEqual(body.excludePlanTitles, ["Grill Nights"]);
+});
+
+test("getWizardLimits: reads maxRefreshesPerSession (candidateCount passes through)", async () => {
+  nextResponse = () => mockJson({ candidateCount: 3, maxRefreshesPerSession: 4 });
+  const { getWizardLimits } = await import("../wizard");
+  const res = await getWizardLimits();
+  assert.equal(res.maxRefreshesPerSession, 4);
+  assert.equal(lastMethod, "GET");
+  assert.equal(lastUrl?.endsWith("/wizard/limits"), true);
+});
+
+test("dismissWizardCandidate: POST /wizard/candidates/dismiss with the body, a 204 resolves", async () => {
+  nextResponse = () => new Response(null, { status: 204 });
+  const { dismissWizardCandidate } = await import("../wizard");
+  await dismissWizardCandidate({
+    title: "Sheet-Pan Week",
+    mealTitles: ["Fajitas", "Roast chicken"],
+    storeMealIds: ["meal-rc"],
+    source: "wizard",
+  });
+  assert.equal(lastMethod, "POST");
+  assert.equal(lastUrl?.endsWith("/wizard/candidates/dismiss"), true);
+  const body = JSON.parse(lastBody!) as Record<string, unknown>;
+  assert.equal(body.source, "wizard");
+  assert.deepEqual(body.storeMealIds, ["meal-rc"]);
+});
+
+test("dismissWizardCandidate: a 500 rejects (the screen fires-and-forgets; the client itself does not swallow)", async () => {
+  nextResponse = () => mockJson({ error: "boom" }, 500);
+  const { dismissWizardCandidate } = await import("../wizard");
+  await assert.rejects(
+    dismissWizardCandidate({ title: "x", mealTitles: ["y"], source: "tellkiwi" }),
+    ApiError,
+  );
+});

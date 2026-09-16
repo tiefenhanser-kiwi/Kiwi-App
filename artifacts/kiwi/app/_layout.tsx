@@ -127,7 +127,10 @@ function RootLayoutNav() {
       <Stack.Screen name="onboarding-step-3" />
       <Stack.Screen name="wizard" options={{ presentation: "modal" }} />
       <Stack.Screen name="tellkiwi" options={{ presentation: "modal" }} />
-      <Stack.Screen name="wizard-results" />
+      {/* D-WS9-191 Block 2 — the chooser is /plan-options; wizard-results and
+          wizard-plan-details stay in the tree UNROUTED until Block 3 removes
+          them (D-WS9-032 point 7). */}
+      <Stack.Screen name="plan-options" />
       <Stack.Screen name="plan/[id]" />
       <Stack.Screen name="meal/[id]" />
       <Stack.Screen name="meal-builder" />

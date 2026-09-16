@@ -5,7 +5,7 @@
 // Replaces the old mount-time resume interstitial (which could only catch the
 // user at one moment). Hidden when the user has no batch.
 //
-// Tapping mounts wizard-results in "rehydrate" mode (rehydrate:"1") fed by the
+// Tapping mounts plan-options in "rehydrate" mode (rehydrate:"1") fed by the
 // stored candidates — no AI call. Block 2c Part E: when the slot holds a SHELF
 // batch (source:"shelf", the cards last shown on the Pick screen) it opens the
 // Pick screen re-hydrated from those cards instead — selections not restored. The batch is GLOBAL (one per user), so this
@@ -48,14 +48,15 @@ export function WizardPreviousOptionsLink() {
 
   const handlePress = () => {
     // Block 2c Part E — a SHELF batch re-opens the Pick screen from the cards
-    // it last showed; a plans batch rehydrates wizard-results exactly as today.
+    // it last showed; a plans batch rehydrates the plan-options screen
+    // (D-WS9-191 Block 2 — the same rehydrate params the retired chooser took).
     const shelfParams = buildShelfRehydrateParams(batch);
     if (shelfParams) {
       router.push({ pathname: "/pick-meals", params: shelfParams });
       return;
     }
     router.push({
-      pathname: "/wizard-results",
+      pathname: "/plan-options",
       params: buildRehydrateParams(batch),
     });
   };

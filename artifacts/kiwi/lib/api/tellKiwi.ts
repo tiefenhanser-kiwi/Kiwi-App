@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { apiClient } from "./client";
 import type { TellKiwiInput, WizardPlanCandidate } from "../types";
+import type { WizardGenerateExtras } from "./wizard";
 
 // ── Zod schemas ──────────────────────────────────────────────────────────
 
@@ -24,6 +25,25 @@ const WizardPlanCandidateSchema = z
     tags: z.array(z.string()),
     whyBullets: z.array(z.string()),
     mealTitles: z.array(z.string()),
+    // D-WS9-191 Block 1 — the per-meal rows (title + description | null, the
+    // store id and minutes on store-bound slots), in mealTitles order. Optional:
+    // a legacy batch has none. Mirrors lib/api/wizard.ts's schema — duplicated
+    // here on purpose (this file keeps its own transcription).
+    storeSlots: z
+      .array(z.object({ slotIndex: z.number(), storeMealId: z.string() }).passthrough())
+      .optional(),
+    meals: z
+      .array(
+        z
+          .object({
+            title: z.string(),
+            description: z.string().nullable(),
+            storeMealId: z.string().optional(),
+            estimatedTimeMinutes: z.number().optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
     dailyMacros: z.object({
       calories: z.number(),
       proteinG: z.number(),
@@ -104,10 +124,14 @@ export interface BuildFromTextInput extends TellKiwiInput {
 
 export async function buildFromText(
   input: BuildFromTextInput,
+  // D-WS9-191 Block 2 — "Get another plan option" in Tell Kiwi mode: the SAME
+  // stored body plus the session exclusion + `another` / `candidateCount: 1`
+  // (lib/api/wizard.ts WizardGenerateExtras). Omitted on the first build.
+  extras?: WizardGenerateExtras,
 ): Promise<BuildFromTextResult> {
   const body = await apiClient("/wizard/build-from-text", {
     method: "POST",
-    body: input,
+    body: extras ? { ...input, ...extras } : input,
     schema: BuildFromTextResponseSchema,
   });
   return body as BuildFromTextResult;

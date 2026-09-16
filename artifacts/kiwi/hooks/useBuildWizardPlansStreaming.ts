@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   buildWizardPlans,
   type BuildWizardPlansResult,
+  type WizardGenerateExtras,
 } from "@/lib/api/wizard";
 import { streamWizardPlans } from "@/lib/api/wizardStream";
 import { UnauthenticatedError, UpgradeRequiredError } from "@/lib/api/errors";
@@ -35,13 +36,25 @@ interface InternalState {
   error: Error | null;
 }
 
-export interface BuildWizardPlansStreamingResult {
+// D-WS9-191 Block 2 — generic over the generation INPUT so the plan-options
+// screen can drive one "Get another plan option" call per mode through the
+// same progressive-render + fallback machinery: WizardPreferencesInput on the
+// real stream (the default), TellKiwiInput through an injected buffered
+// adapter. The type parameter changes nothing for the existing callers.
+export interface BuildWizardPlansStreamingResult<
+  TInput = WizardPreferencesInput,
+> {
   data: BuildWizardPlansResult | undefined;
   isPending: boolean;
   isSuccess: boolean;
   isError: boolean;
+  // D-WS9-191 Block 2 — true only once the run has SETTLED with cards: the
+  // stream resolved (or its buffered fallback did, or a died-mid-stream run
+  // kept its partial cards). isSuccess flips at the FIRST card for progressive
+  // render; the plan-options screen gates "Get another plan option" on this.
+  isComplete: boolean;
   error: Error | null;
-  mutate: (input: WizardPreferencesInput, exclude?: WizardExclusionArg) => void;
+  mutate: (input: TInput, exclude?: WizardExclusionArg) => void;
   reset: () => void;
 }
 
@@ -49,19 +62,19 @@ export interface BuildWizardPlansStreamingResult {
 // buffered impls. `streamImpl` mirrors streamWizardPlans; `bufferedImpl`
 // mirrors buildWizardPlans (the fallback).
 // BUG-053 (Part F) — session re-roll exclusion, threaded to both impls.
-export interface WizardExclusionArg {
-  excludePlanTitles: string[];
-  excludeMealTitles: string[];
-}
+// D-WS9-191 — widened to the generation extras (the "another" pair rides it).
+export type WizardExclusionArg = WizardGenerateExtras;
 
-export interface UseBuildWizardPlansStreamingDeps {
+export interface UseBuildWizardPlansStreamingDeps<
+  TInput = WizardPreferencesInput,
+> {
   streamImpl?: (
-    input: WizardPreferencesInput,
+    input: TInput,
     onCandidate: (index: number, candidate: WizardPlanCandidate) => void,
     opts: { signal?: AbortSignal; exclude?: WizardExclusionArg },
   ) => Promise<{ cannotGenerateMore?: boolean; reason?: string }>;
   bufferedImpl?: (
-    input: WizardPreferencesInput,
+    input: TInput,
     exclude?: WizardExclusionArg,
   ) => Promise<BuildWizardPlansResult>;
   // BUG-051 fix (WS9 3c) — fired ONCE when a generation TRULY completes: the
@@ -78,11 +91,23 @@ export interface UseBuildWizardPlansStreamingDeps {
 
 const IDLE: InternalState = { status: "idle", candidates: [], error: null };
 
-export function useBuildWizardPlansStreaming(
-  deps: UseBuildWizardPlansStreamingDeps = {},
-): BuildWizardPlansStreamingResult {
-  const streamImpl = deps.streamImpl ?? streamWizardPlans;
-  const bufferedImpl = deps.bufferedImpl ?? buildWizardPlans;
+export function useBuildWizardPlansStreaming<
+  TInput = WizardPreferencesInput,
+>(
+  deps: UseBuildWizardPlansStreamingDeps<TInput> = {},
+): BuildWizardPlansStreamingResult<TInput> {
+  // The defaults are the real wizard impls; a caller that parameterises TInput
+  // to anything else must inject both (the cast only widens the default).
+  const streamImpl =
+    deps.streamImpl ??
+    (streamWizardPlans as unknown as NonNullable<
+      UseBuildWizardPlansStreamingDeps<TInput>["streamImpl"]
+    >);
+  const bufferedImpl =
+    deps.bufferedImpl ??
+    (buildWizardPlans as unknown as NonNullable<
+      UseBuildWizardPlansStreamingDeps<TInput>["bufferedImpl"]
+    >);
   // Track onComplete in a ref so mutate's captured closure always calls the
   // latest callback without needing to be in its useCallback dep list.
   const onCompleteRef = useRef(deps.onComplete);
@@ -109,7 +134,7 @@ export function useBuildWizardPlansStreaming(
   useEffect(() => stop, [stop]);
 
   const mutate = useCallback((
-    input: WizardPreferencesInput,
+    input: TInput,
     exclude?: WizardExclusionArg,
   ) => {
     const gen = ++genRef.current;
@@ -202,6 +227,7 @@ export function useBuildWizardPlansStreaming(
     isPending: state.status === "streaming" && !hasCards,
     isSuccess: state.status === "success" || hasCards,
     isError: state.status === "error",
+    isComplete: state.status === "success",
     error: state.error,
     mutate,
     reset,

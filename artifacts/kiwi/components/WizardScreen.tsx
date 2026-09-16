@@ -295,14 +295,14 @@ export function WizardScreen({
       "Describe what you'd like — at least a few words about meals, cuisines, or the kind of week you want.",
     );
 
-  // ── Path B: "Complete plans" → today's chooser, untouched ──────────────
+  // ── Path B: "Complete plans" → the plan-options screen (D-WS9-191 Block 2) ─
   const submitPlans = () => {
     if (!isText) {
-      // WS6 6a-3 — payload travels to wizard-results as a JSON-encoded route
+      // WS6 6a-3 — payload travels to the chooser as a JSON-encoded route
       // param; that screen calls POST /api/wizard/build-plans on mount.
       const payload = buildWizardPayload(form, hydrated);
       router.push({
-        pathname: "/wizard-results",
+        pathname: "/plan-options",
         params: { input: JSON.stringify(payload) },
       });
       return;
@@ -323,7 +323,7 @@ export function WizardScreen({
         // last-batch row; the "See Previous Options" link must reflect it.
         queryClient.invalidateQueries({ queryKey: ["wizard", "lastBatch"] });
         router.push({
-          pathname: "/wizard-results",
+          pathname: "/plan-options",
           params: {
             source: "tellkiwi",
             tellKiwiResult: JSON.stringify(result),

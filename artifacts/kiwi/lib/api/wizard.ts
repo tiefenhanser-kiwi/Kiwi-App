@@ -21,6 +21,19 @@ import type { WizardShelfRequest } from "../wizard/perRunPayload";
 // kept mobile-side rather than imported so the mobile package stays
 // independent of the api-server build. `.passthrough()` for forward-compat.
 
+// D-WS9-191 Block 1 (server) — the per-meal rows the chooser card shows, in
+// `mealTitles` order. OPTIONAL on the wire: a legacy batch (a pre-Block-1
+// last-batch row) has none and the card renders title-only rows. `.passthrough()`
+// on the row too — the server may add fields.
+export const WizardPlanCandidateMealSchema = z
+  .object({
+    title: z.string(),
+    description: z.string().nullable(),
+    storeMealId: z.string().optional(),
+    estimatedTimeMinutes: z.number().optional(),
+  })
+  .passthrough();
+
 export const WizardPlanCandidateSchema = z
   .object({
     id: z.string(),
@@ -30,6 +43,10 @@ export const WizardPlanCandidateSchema = z
     tags: z.array(z.string()),
     whyBullets: z.array(z.string()),
     mealTitles: z.array(z.string()),
+    storeSlots: z
+      .array(z.object({ slotIndex: z.number(), storeMealId: z.string() }).passthrough())
+      .optional(),
+    meals: z.array(WizardPlanCandidateMealSchema).optional(),
     dailyMacros: z.object({
       calories: z.number(),
       proteinG: z.number(),
@@ -38,6 +55,20 @@ export const WizardPlanCandidateSchema = z
     }),
   })
   .passthrough();
+
+// ── D-WS9-191 Block 2 — the generation body's session extras ───────────────
+// Merged into the POST body beside the wizard input (the server reads them
+// separately; WizardInputSchema is a plain z.object, so an unread key is
+// stripped, never a 400). BUG-053 Part F's exclusion pair, plus the "Get
+// another plan option" pair: `another.dismissedPlanTitles` (the contract's
+// field) and `candidateCount: 1` (the Block 1 shape's request field) — the
+// screen sends both on an "another" call and neither on the first batch.
+export interface WizardGenerateExtras {
+  excludePlanTitles: string[];
+  excludeMealTitles: string[];
+  another?: { dismissedPlanTitles: string[] };
+  candidateCount?: number;
+}
 
 const BuildWizardPlansResponseSchema = z.object({
   candidates: z.array(WizardPlanCandidateSchema),
@@ -65,8 +96,9 @@ export async function buildWizardPlans(
   input: WizardPreferencesInput,
   // BUG-053 (Part F) — session re-roll exclusion, merged into the POST body
   // alongside the wizard input (server strips it from WizardInputSchema and
-  // reads it separately). Optional + backward-compatible.
-  exclude?: { excludePlanTitles: string[]; excludeMealTitles: string[] },
+  // reads it separately). Optional + backward-compatible. D-WS9-191 — the
+  // "another" pair rides the same slot.
+  exclude?: WizardGenerateExtras,
 ): Promise<BuildWizardPlansResult> {
   const body = await apiClient("/wizard/build-plans", {
     method: "POST",
@@ -428,6 +460,53 @@ export async function buildWizardShelf(
     method: "POST",
     body,
     schema: WizardShelfResponseSchema,
+  });
+}
+
+// ── D-WS9-191 Block 2 — GET /wizard/limits + POST /wizard/candidates/dismiss ─
+
+// `maxRefreshesPerSession` = the server's `wizard.max_refreshes_per_session`
+// (default 4). Since D-WS9-191 it means PRESSES of "Get another plan option"
+// per plan-options screen session; the initial batch is not a press. The
+// client counts presses (lib/wizard/planOptions.ts pressesLeft). `.passthrough()`
+// — the route also returns candidateCount, unused here.
+const WizardLimitsResponseSchema = z
+  .object({
+    maxRefreshesPerSession: z.number(),
+  })
+  .passthrough();
+export type WizardLimitsResponse = z.infer<typeof WizardLimitsResponseSchema>;
+
+/**
+ * GET /api/wizard/limits — the per-session cap. A failure is not fatal to the
+ * screen (it falls back to the server's known default); propagates apiClient
+ * typed errors so the caller can decide.
+ */
+export async function getWizardLimits(): Promise<WizardLimitsResponse> {
+  return apiClient("/wizard/limits", { schema: WizardLimitsResponseSchema });
+}
+
+/** POST /wizard/candidates/dismiss body — see lib/wizard/planOptions.ts dismissRequestFor. */
+export interface DismissWizardCandidateRequest {
+  title: string;
+  mealTitles: string[];
+  storeMealIds?: string[];
+  source: "wizard" | "tellkiwi";
+}
+
+/**
+ * POST /api/wizard/candidates/dismiss — "Not For Me". Logs a
+ * `plan_candidate_dismissed` activity row a future wizard can read; nothing
+ * acts on it now (Hans: no preference learning at this stage). 204, no body.
+ * Fire-and-forget at the call site: a failure never blocks the dismissal.
+ */
+export async function dismissWizardCandidate(
+  body: DismissWizardCandidateRequest,
+): Promise<void> {
+  await apiClient("/wizard/candidates/dismiss", {
+    method: "POST",
+    body,
+    parseAs: "none",
   });
 }
 

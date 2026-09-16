@@ -26,7 +26,9 @@ import { Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 // Pressable a third time. (It REPLACES `outlineOnSage`, which shipped for one
 // day and read as sage because a transparent fill over a sage lane IS sage —
 // see the token note.)
-type Variant = "primary" | "secondary" | "ghost" | "tint" | "creamOnSage";
+// WS9 D-WS9-191 Block 2 — `ghostQuiet`: the ghost with the secondary text tier
+// as its label (the plan-options card's "Not For Me"). See the token note.
+type Variant = "primary" | "secondary" | "ghost" | "ghostQuiet" | "tint" | "creamOnSage";
 
 // WS9-2 2e (D-WS9-157) — size scale. The plan-review action panel needs one
 // cell (Compost) rendered visually SMALLER than its four peers, and the ruling
@@ -160,6 +162,11 @@ const VARIANTS: Record<
     bg: Palette.button.ghost.background,
     text: Palette.button.ghost.text,
     border: Palette.button.ghost.border,
+  },
+  ghostQuiet: {
+    bg: Palette.button.ghostQuiet.background,
+    text: Palette.button.ghostQuiet.text,
+    border: Palette.button.ghostQuiet.border,
   },
   tint: {
     bg: Palette.button.tint.background,

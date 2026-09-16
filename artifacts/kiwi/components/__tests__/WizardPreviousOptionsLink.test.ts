@@ -1,5 +1,5 @@
 // WS9 Redesign Arc Block 2c Part E — "See previous options" with both batch
-// kinds stubbed on GET /wizard/last-batch: a PLANS batch pushes wizard-results
+// kinds stubbed on GET /wizard/last-batch: a PLANS batch pushes /plan-options
 // in rehydrate mode exactly as before; a SHELF batch pushes the Pick screen
 // re-hydrated from the stored cards; an empty shelf batch hides the link.
 
@@ -109,7 +109,7 @@ async function mount() {
   };
 }
 
-test("plans batch: wizard-results in rehydrate mode (unchanged)", async () => {
+test("plans batch: /plan-options in rehydrate mode (D-WS9-191 Block 2 — the same params the retired chooser took)", async () => {
   batch = {
     source: "wizard",
     candidates: [CANDIDATE],
@@ -120,7 +120,7 @@ test("plans batch: wizard-results in rehydrate mode (unchanged)", async () => {
   assert.ok(m.text().includes("Your last generated plan"), m.text());
   await m.tap();
   assert.equal(pushed.length, 1);
-  assert.equal(pushed[0].pathname, "/wizard-results");
+  assert.equal(pushed[0].pathname, "/plan-options");
   assert.equal(pushed[0].params.rehydrate, "1");
   assert.deepEqual(JSON.parse(pushed[0].params.rehydratedCandidates), [CANDIDATE]);
 });

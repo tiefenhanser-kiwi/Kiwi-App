@@ -30,6 +30,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
+import { ExhaustedCard } from "@/components/ExhaustedCard";
 import { Header } from "@/components/Header";
 import { MealPickCard } from "@/components/MealPickCard";
 import { useToast } from "@/contexts/ToastProvider";
@@ -73,10 +74,15 @@ export const PLAYLIST_PICK_SUBLINE = (n: number) =>
   `${n} in your playlist · per serving · tap to add`;
 export const MORE_LABEL = "Get more options";
 export const MORE_SLOW_CAPTION = "Kiwi is creating a few new ones…";
-export const EXHAUSTED_TITLE = "Not many meals fit your preferences and restrictions.";
-export const EXHAUSTED_BODY = "Refine them for this plan, or tell Kiwi what you're after.";
-export const EXHAUSTED_REFINE = "Refine preferences";
-export const EXHAUSTED_TELL = "Tell Kiwi";
+// D-WS9-191 Block 2 — the exhausted card is a shared component now
+// (components/ExhaustedCard.tsx: the copy, the two dismissTo exits); its copy
+// is re-exported here unchanged for the importers that read it from this file.
+export {
+  EXHAUSTED_BODY,
+  EXHAUSTED_REFINE,
+  EXHAUSTED_TELL,
+  EXHAUSTED_TITLE,
+} from "@/components/ExhaustedCard";
 export const BUILD_LABEL = "Build my week";
 export const FOOTER_FLEX = (days: number) => `fewer or more than ${days} is fine`;
 export const FOOTER_OVER_CAP = (n: number, cap: number) => ` · ${n} over your ${cap}-min cap`;
@@ -166,21 +172,9 @@ export function PickMealsScreen({
     });
   };
 
-  // The exhausted card's two exits — BACK to the wizard already on the stack
-  // (Block 2b ruling, 2a CANDIDATE-4: no stack growth). dismissTo pops to the
-  // route when it is on the stack and pushes it otherwise (e.g. "Tell Kiwi" from
-  // a prefs-mode run, where /tellkiwi was never mounted). The params reach the
-  // mounted screen live; `nonce` changes each time so the same "1" re-fires.
-  const handleRefine = () =>
-    router.dismissTo({
-      pathname: "/wizard",
-      params: { adjust: "1", nonce: String(Date.now()) },
-    });
-  const handleTellKiwi = () =>
-    router.dismissTo({
-      pathname: "/tellkiwi",
-      params: { focus: "1", nonce: String(Date.now()) },
-    });
+  // The exhausted card's two exits (BACK to the wizard on the stack via
+  // dismissTo — Block 2b ruling, no stack growth) live on the shared
+  // ExhaustedCard since D-WS9-191 Block 2.
 
   const isPlaylist = source === "playlist";
   const exhausted = isExhausted(state);
@@ -234,18 +228,7 @@ export function PickMealsScreen({
             exhausted card (an empty playlist never reaches this screen; the
             tab's button is disabled at 0). */}
         {isPlaylist ? null : exhausted ? (
-          <View style={s.exhaustedCard}>
-            <Text style={s.exhaustedTitle}>{EXHAUSTED_TITLE}</Text>
-            <Text style={s.exhaustedBody}>{EXHAUSTED_BODY}</Text>
-            <View style={s.exhaustedRow}>
-              <View style={{ flex: 1 }}>
-                <Button label={EXHAUSTED_REFINE} variant="ghost" onPress={handleRefine} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button label={EXHAUSTED_TELL} variant="ghost" onPress={handleTellKiwi} />
-              </View>
-            </View>
-          </View>
+          <ExhaustedCard />
         ) : (
           <View style={s.moreWrap}>
             <Pressable
@@ -350,31 +333,6 @@ const s = StyleSheet.create({
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     textAlign: "center",
-  },
-  exhaustedCard: {
-    backgroundColor: Palette.background.card,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.sage[300],
-    padding: Spacing[4],
-    gap: Spacing[2],
-  },
-  exhaustedTitle: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serif[600],
-  },
-  exhaustedBody: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
-    lineHeight: 20,
-  },
-  exhaustedRow: {
-    flexDirection: "row",
-    gap: Spacing[2],
-    marginTop: Spacing[1],
   },
   noticeCard: {
     backgroundColor: Colors.terracotta[50],

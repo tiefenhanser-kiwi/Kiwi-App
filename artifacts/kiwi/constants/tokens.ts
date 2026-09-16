@@ -230,6 +230,18 @@ export const Palette = {
       border:     Colors.neutral[400],
       hover:      Colors.neutral[200],
     },
+    // WS9 D-WS9-191 Block 2 — the ghost's QUIET twin: same transparent fill and
+    // edge, the label in the secondary text tier (neutral[700], the body-text
+    // colour that clears AA on card and paper). For the third action on the
+    // plan-options card, "Not For Me", which must read as the least-weight
+    // choice next to Save for Later. A VARIANT for the reason tint is one:
+    // Button derives label colour from VARIANTS and `style` cannot reach it.
+    ghostQuiet: {
+      background: 'transparent',
+      text:       Colors.neutral[700],
+      border:     Colors.neutral[400],
+      hover:      Colors.neutral[200],
+    },
     destructive: {
       background: 'transparent',
       text:       Colors.terracotta[600],

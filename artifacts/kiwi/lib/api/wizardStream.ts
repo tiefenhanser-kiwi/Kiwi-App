@@ -23,7 +23,7 @@ import {
   UpgradeRequiredError,
   extractUserFacingMessage,
 } from "./errors";
-import { WizardPlanCandidateSchema } from "./wizard";
+import { WizardPlanCandidateSchema, type WizardGenerateExtras } from "./wizard";
 import type { WizardPlanCandidate, WizardPreferencesInput } from "../types";
 
 // If no bytes arrive for this long mid-stream, treat the stream as stalled,
@@ -53,7 +53,9 @@ export async function streamWizardPlans(
     signal?: AbortSignal;
     stallMs?: number;
     // BUG-053 (Part F) — session re-roll exclusion, merged into the POST body.
-    exclude?: { excludePlanTitles: string[]; excludeMealTitles: string[] };
+    // D-WS9-191 — the "another" pair (another.dismissedPlanTitles +
+    // candidateCount) rides the same slot; one `candidate` frame comes back.
+    exclude?: WizardGenerateExtras;
     // Test seam — inject a fetch. Production omits (uses expo/fetch, the only
     // RN fetch whose response body is a real ReadableStream).
     fetchImpl?: typeof expoFetch;

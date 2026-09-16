@@ -319,13 +319,13 @@ test("path A ('Meals to choose from') POSTs /wizard/shelf with the per-run body 
   assert.equal(href.params.capMinutes, "45");
 });
 
-test("path B ('Complete plans') in PREFS mode routes to today's /wizard-results with the input — no shelf call", async () => {
+test("path B ('Complete plans') in PREFS mode routes to /plan-options (D-WS9-191 Block 2) with the input — no shelf call", async () => {
   const m = await mount({ mode: "prefs" });
   await tap(byTestId(m.root(), "wizard-path-plans"), "path B row");
   await tap(byTestId(m.root(), "wizard-build"), "CTA");
   assert.equal(calls.some((c) => c.path === "/wizard/shelf"), false, "path B must not hit the shelf");
   const href = pushed[0] as { pathname: string; params: Record<string, string> };
-  assert.equal(href.pathname, "/wizard-results");
+  assert.equal(href.pathname, "/plan-options");
   const input = JSON.parse(href.params.input) as Record<string, unknown>;
   assert.equal(input.discoveryLevel, "mostly");
   assert.equal(input.playlistLevel, "some");
