@@ -28,6 +28,7 @@ import {
 } from "@/constants/tokens";
 import type { ShelfMeal } from "@/lib/api/wizard";
 import { formatMacro } from "@/lib/format/macros";
+import { cardPills } from "@/lib/meals/cardPills";
 import { isOverCap } from "@/lib/wizard/pickMeals";
 
 export const PLAYLIST_PILL = "playlist";
@@ -53,11 +54,9 @@ interface Props {
 
 export function MealPickCard({ meal, selected, capMinutes, onToggle }: Props) {
   const overCap = isOverCap(meal, capMinutes);
-  const tags = [
-    meal.cuisineType,
-    meal.difficulty,
-    ...meal.tags,
-  ].filter((t): t is string => !!t && t.trim().length > 0);
+  // Block 2c Part F (BUG-284) — de-duped: the catalog's tags repeat the
+  // difficulty and a lower-cased cuisine, which collided as keys.
+  const tags = cardPills(meal);
 
   return (
     <Pressable
