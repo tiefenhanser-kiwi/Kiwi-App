@@ -21,6 +21,7 @@ import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { forkMealForUser } from "../lib/mealFork";
 import { MEAL_CARD_SELECT, toMealCard } from "../lib/store/mealCard";
+import { resolveThisWeekWinnerId } from "../lib/planDates";
 import { createRequireAuth } from "../middleware/auth";
 
 export interface PlaylistRouterDeps {
@@ -42,6 +43,14 @@ export function createPlaylistRouter(
 
   // GET /me/playlist — the user's playlist meals as Pick-screen cards, newest
   // first, REAL ids (always the user's own meal ids).
+  //
+  // Post-pass Part C (BUG-283) — `inActivePlan` per row. The client cannot
+  // derive it (Home's activePlan is a summary with no meal ids), so the chip
+  // only rendered when a plan detail happened to be cached. The route did not
+  // load the active plan for any other reason, so this is one resolver call +
+  // one narrow item read, only when a winner exists. A playlist meal is "in"
+  // the plan by its own id OR by lineage (the plan may hold a separate fork of
+  // the same catalog source — from-meals forks a public pick anew).
   router.get("/me/playlist", requireAuth, async (req, res) => {
     const userId = req.userId!;
     try {
@@ -53,12 +62,29 @@ export function createPlaylistRouter(
           meal: { select: MEAL_CARD_SELECT },
         },
       });
+      const winnerId =
+        rows.length > 0 ? await resolveThisWeekWinnerId(prisma, userId) : null;
+      const activeItems = winnerId
+        ? await prisma.mealPlanItem.findMany({
+            where: { mealPlanInstanceId: winnerId },
+            select: { mealId: true, meal: { select: { sourceStoreMealId: true } } },
+          })
+        : [];
+      const activeMealIds = new Set(activeItems.map((i) => i.mealId));
+      const activeSourceIds = new Set(
+        activeItems
+          .map((i) => i.meal.sourceStoreMealId)
+          .filter((x): x is string => !!x),
+      );
       const playlist = rows.map((r) => ({
         ...toMealCard(r.meal),
         isPlaylist: true as const,
         isNewToYou: false as const,
         source: "playlist" as const,
         addedAt: r.createdAt.toISOString(),
+        inActivePlan:
+          activeMealIds.has(r.meal.id) ||
+          (!!r.meal.sourceStoreMealId && activeSourceIds.has(r.meal.sourceStoreMealId)),
       }));
       return res.json({ playlist, count: playlist.length });
     } catch (err) {

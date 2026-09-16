@@ -76,6 +76,10 @@ interface StubPrismaOpts {
   // (newest first), as playlistMeal.findMany reports them; the sources
   // themselves must be in storeMeals to reach the shelf.
   playlistSources?: string[];
+  // Post-pass Part C (BUG-281) — USER-BUILT playlist meals (no public source):
+  // their own ids, reported after the sourced rows; the rows must be in
+  // storeMeals (the by-id read finds them under the owner-OR-pool OR).
+  playlistOwnIds?: string[];
   // Block 2 (Part E) — storeMeals ids the SHELF query does not return (a row
   // the 40-row sample happened not to draw); the by-id playlist read still
   // finds them.
@@ -104,10 +108,16 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
     },
     playlistMeal: {
       count: async () => opts.playlistCount ?? 0,
-      findMany: async () =>
-        (opts.playlistSources ?? []).map((sourceStoreMealId) => ({
+      findMany: async () => [
+        ...(opts.playlistSources ?? []).map((sourceStoreMealId) => ({
+          mealId: `fork-of-${sourceStoreMealId}`,
           meal: { sourceStoreMealId },
         })),
+        ...(opts.playlistOwnIds ?? []).map((mealId) => ({
+          mealId,
+          meal: { sourceStoreMealId: null },
+        })),
+      ],
     },
     pantryStaple: {
       findMany: async () =>
@@ -851,6 +861,55 @@ describe("POST /api/wizard/build-plans — store compose (D-WS9-038)", () => {
       const off = (ai.getVars().at(-1) as { storeShortlist?: { id: string; isPlaylist?: true }[] }).storeShortlist ?? [];
       assert.equal(off.some((m) => m.isPlaylist), false);
       assert.equal(off.some((m) => m.id.startsWith("p")), false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // Post-pass Part C (BUG-281) — a user-built playlist meal (imported, no
+  // public source) rides the generate shelf under its REAL id, flagged; the
+  // AI's mark on it reconciles to that id (the save path binds it direct).
+  it("BUG-281: a USER-BUILT playlist meal rides the shelf under its own id and reconciles", async () => {
+    const ai = makeRunAICall(async () =>
+      resultWithStoreSlots([{ slotIndex: 0, storeMealId: "p1" }]),
+    );
+    const prisma = makeStubPrisma({
+      storeMeals: [
+        storeMealRow("store-1"),
+        storeMealRow("my-import", { title: "Grandma's actual chili", isPublic: false, userId: "playlist-own-user" }),
+      ],
+      shelfHidden: ["my-import"],
+      playlistCount: 1,
+      playlistOwnIds: ["my-import"],
+    });
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("playlist-own-user"),
+        body: JSON.stringify({ ...VALID_BODY, playlistLevel: "some" }),
+      });
+      assert.equal(res.status, 200);
+      const shelf =
+        (ai.getVars().at(-1) as { storeShortlist?: { id: string; title: string; isPlaylist?: true }[] })
+          .storeShortlist ?? [];
+      const own = shelf.find((m) => m.title === "Grandma's actual chili");
+      assert.ok(own, "the user-built playlist meal is on the shelf");
+      assert.equal(own.isPlaylist, true);
+      assert.equal(own.id, "p1");
+      // The playlist read asked for the owner-OR-pool predicate, not isPublic:true alone.
+      const wheres = prisma._mealWheres() as Array<Record<string, unknown>>;
+      const byId = wheres.find((w) => (w.id as { in?: string[] } | undefined)?.in?.includes("my-import"));
+      assert.ok(byId, "the by-id playlist read ran");
+      assert.deepEqual(byId.OR, [{ isPublic: true }, { userId: "playlist-own-user" }]);
+      const body = (await res.json()) as {
+        candidates: { storeSlots?: { slotIndex: number; storeMealId: string }[] }[];
+      };
+      assert.deepEqual(body.candidates[0].storeSlots, [{ slotIndex: 0, storeMealId: "my-import" }]);
     } finally {
       await harness.close();
     }

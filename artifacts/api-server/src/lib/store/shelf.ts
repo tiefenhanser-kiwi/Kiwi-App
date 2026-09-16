@@ -88,13 +88,15 @@ export async function retrieveShelf(
 // smallest honest fix: put the playlist's PUBLIC SOURCES on the shelf, marked,
 // and let one instruction in each body place N of them.
 //
-// Why the public source and not the user's own fork: the compose pipeline
-// re-validates every store slot isPublic:true at save (wizardFinalize →
-// filterPublicStoreMealIds) and forks the source (D-WS7-139) — a private id
-// would compose at expand and then demote to a live rebuild at save, a
-// duplicate instead of a bind. A playlist meal the user built themselves (no
-// public source) therefore cannot ride this path and is left off the generate
-// shelf — reported as a CANDIDATE (the save predicate would need owner-OR-pool).
+// Why the public source and not the user's own fork (for an ACQUIRED go-to):
+// the compose pipeline forks the source at save (D-WS7-139), so the source is
+// the id that binds. Post-pass Part C (BUG-281) — a playlist meal the user
+// BUILT themselves (imported, no public source) rides the shelf under its REAL
+// id: the save predicate is now owner-OR-pool (wizardFinalize →
+// filterBindableStoreMealIds) and an own id is placed DIRECT, no fork — the
+// same branch POST /plans/from-meals has. Before this, the isPublic:true
+// revalidation demoted such an id to a live rebuild, so an imported go-to was
+// invisible to the "Complete plans" path.
 //
 // Allergen filter + the difficulty ceiling apply (as on the Pick screen's
 // playlist rows); the cook-time cap does NOT (BUG-245's ruling: a declared
@@ -124,16 +126,18 @@ export async function addPlaylistToShelf(
     const rows = await prisma.playlistMeal.findMany({
       where: {
         userId: opts.userId,
-        meal: { isArchived: false, sourceStoreMealId: { not: null } },
+        meal: { isArchived: false },
       },
       orderBy: { createdAt: "desc" },
-      select: { meal: { select: { sourceStoreMealId: true } } },
+      select: { mealId: true, meal: { select: { sourceStoreMealId: true } } },
       take: PLAYLIST_SHELF_CAP,
     });
+    // An acquired go-to rides as its public SOURCE (forked at save); a
+    // user-built one (no source) rides as ITSELF (bound direct at save).
     const sourceIds = [
       ...new Set(
         rows
-          .map((r) => r.meal.sourceStoreMealId)
+          .map((r) => r.meal.sourceStoreMealId ?? r.mealId)
           .filter((x): x is string => !!x),
       ),
     ];
@@ -145,7 +149,8 @@ export async function addPlaylistToShelf(
     const sources = await prisma.meal.findMany({
       where: {
         id: { in: sourceIds },
-        isPublic: true,
+        // Owner-OR-pool — the same predicate the save path re-checks.
+        OR: [{ isPublic: true }, { userId: opts.userId }],
         isArchived: false,
         difficulty: { in: allowedDifficultyLevels(opts.difficulty) },
         ...(allergenConditions.length > 0 ? { AND: allergenConditions } : {}),

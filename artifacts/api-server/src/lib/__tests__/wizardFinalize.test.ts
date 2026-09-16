@@ -820,14 +820,18 @@ describe("readAndFinalizeWizardDraft — per-meal fan-out", () => {
 
 // ── D-WS9-038 — store/live partition at save ──────────────────────────────
 
-// Adds a meal.findMany stub for filterPublicStoreMealIds: returns {id} for the
-// ids in `stillPublic`, modelling the isPublic revalidation.
+// Adds a meal.findMany stub for filterBindableStoreMealIds (owner-OR-pool,
+// BUG-281): returns {id, userId:null, isPublic:true} for the ids in
+// `stillPublic` and {id, userId, isPublic:false} for the ids in `ownIds` —
+// modelling the pool half and the owner half of the revalidation.
 function makeStubPrismaWithStore(
   details: WizardExpandedPlanDetails,
   userId: string,
   stillPublic: string[],
+  ownIds: string[] = [],
 ): PrismaClient {
   const publicSet = new Set(stillPublic);
+  const ownSet = new Set(ownIds);
   return {
     mealPlanInstance: {
       findUnique: async () => ({
@@ -837,9 +841,28 @@ function makeStubPrismaWithStore(
       }),
     },
     meal: {
-      findMany: async (args: { where: { id: { in: string[] } } }) => {
-        const ids = args.where.id.in.filter((id) => publicSet.has(id));
-        return ids.map((id) => ({ id }));
+      // Honours the where it is handed (isPublic / the owner-OR-pool OR) so a
+      // regression to the pool-only predicate turns the BUG-281 test red.
+      findMany: async (args: {
+        where: { id: { in: string[] }; isPublic?: boolean; OR?: Array<Record<string, unknown>> };
+      }) => {
+        const rows = args.where.id.in
+          .filter((id) => publicSet.has(id) || ownSet.has(id))
+          .map((id) =>
+            ownSet.has(id)
+              ? { id, userId, isPublic: false }
+              : { id, userId: null as string | null, isPublic: true },
+          );
+        const w = args.where;
+        return rows.filter((r) => {
+          if (w.isPublic !== undefined && r.isPublic !== w.isPublic) return false;
+          if (w.OR) {
+            return w.OR.some((o) =>
+              Object.entries(o).every(([k, v]) => (r as Record<string, unknown>)[k] === v),
+            );
+          }
+          return true;
+        });
       },
     },
   } as unknown as PrismaClient;
@@ -857,6 +880,43 @@ function detailsWithStore(storeBySlot: Record<number, string>): WizardExpandedPl
 describe("readAndFinalizeWizardDraft — D-WS9-038 store/live partition", () => {
   const userId = "u-finalize";
   const draftId = "d-finalize";
+
+  // Post-pass Part C (BUG-281) — owner-OR-pool: the user's OWN meal id (a
+  // user-built playlist go-to) is a store slot marked bindDirect; a pool id is
+  // a store slot without it; an id that is neither demotes to build.
+  it("BUG-281: an OWN store id partitions to a bindDirect store slot; a pool id forks; neither → build", async () => {
+    const details = detailsWithStore({ 0: "own-go-to", 1: "store-1" });
+    const { fn, calls } = makeFinalizeRunAICallStub((mealTitle, dishCount) =>
+      finalizeAISuccess(shardLocalDishSteps(dishCount, mealTitle)),
+    );
+    const result = await readAndFinalizeWizardDraft({
+      prisma: makeStubPrismaWithStore(details, userId, ["store-1"], ["own-go-to"]),
+      userId,
+      draftId,
+      runAICall: fn,
+    });
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.deepEqual(result.savePlan.slots[0], {
+      kind: "store",
+      sourceStoreMealId: "own-go-to",
+      bindDirect: true,
+    });
+    assert.deepEqual(result.savePlan.slots[1], { kind: "store", sourceStoreMealId: "store-1" });
+    assert.equal(calls.length, 0, "all-store plan → zero finalize calls");
+
+    // Another user's private id (neither public nor the caller's) still demotes.
+    const theirs = detailsWithStore({ 0: "theirs-private" });
+    const demoted = await readAndFinalizeWizardDraft({
+      prisma: makeStubPrismaWithStore(theirs, userId, [], []),
+      userId,
+      draftId,
+      runAICall: fn,
+    });
+    assert.equal(demoted.status, "success");
+    if (demoted.status !== "success") return;
+    assert.equal(demoted.savePlan.slots[0].kind, "build");
+  });
 
   it("finalizes ONLY the live subset; store slots become fork slots (fewer AI calls)", async () => {
     const details = detailsWithStore({ 0: "store-1" }); // slot 0 store, slot 1 live

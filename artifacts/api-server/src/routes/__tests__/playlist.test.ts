@@ -33,8 +33,15 @@ interface PlaylistRow {
   createdAt: Date;
 }
 
-function makeStub(opts: { meals: MealRow[]; playlist?: PlaylistRow[] }) {
+function makeStub(opts: {
+  meals: MealRow[];
+  playlist?: PlaylistRow[];
+  // Post-pass Part C (BUG-283) — the this-week winner and its item meal ids
+  // (the resolver's narrow findMany + the route's item read).
+  activePlan?: { id: string; itemMealIds: string[] };
+}) {
   const meals = new Map(opts.meals.map((m) => [m.id, { ...m }]));
+  const resolverReads: number[] = [];
   const playlist: PlaylistRow[] = [...(opts.playlist ?? [])];
   const forks: string[] = [];
   let forkN = 0;
@@ -44,7 +51,9 @@ function makeStub(opts: { meals: MealRow[]; playlist?: PlaylistRow[] }) {
   const card = (m: MealRow) => ({
     id: m.id,
     title: m.title ?? `T-${m.id}`,
+    displayTitle: null,
     description: null,
+    imageUrl: null,
     cuisineType: "italian",
     difficulty: "easy",
     estimatedTimeMinutes: 40,
@@ -115,6 +124,32 @@ function makeStub(opts: { meals: MealRow[]; playlist?: PlaylistRow[] }) {
     },
     recipeInstructionStep: { findMany: async () => [] },
     userPreferences: { findUnique: async () => null },
+    mealPlanInstance: {
+      findMany: async () => {
+        resolverReads.push(1);
+        const p = opts.activePlan;
+        if (!p) return [];
+        return [
+          {
+            id: p.id,
+            startDate: new Date("2000-01-01T00:00:00Z"),
+            endDate: new Date("2099-01-01T00:00:00Z"),
+            activatedAt: new Date("2026-09-01T00:00:00Z"),
+            createdAt: new Date("2026-09-01T00:00:00Z"),
+          },
+        ];
+      },
+    },
+    mealPlanItem: {
+      findMany: async (args: { where: { mealPlanInstanceId: string } }) => {
+        const p = opts.activePlan;
+        if (!p || p.id !== args.where.mealPlanInstanceId) return [];
+        return p.itemMealIds.map((mealId) => ({
+          mealId,
+          meal: { sourceStoreMealId: meals.get(mealId)?.sourceStoreMealId ?? null },
+        }));
+      },
+    },
     playlistMeal: {
       findMany: async (args: { where: { userId: string } }) =>
         playlist
@@ -168,6 +203,7 @@ function makeStub(opts: { meals: MealRow[]; playlist?: PlaylistRow[] }) {
     forks,
     playlist,
     mealDeletes,
+    resolverReads,
   };
 }
 
@@ -309,6 +345,63 @@ describe("GET /api/me/playlist", () => {
       assert.equal(card.isPlaylist, true);
       assert.equal(card.source, "playlist");
       assert.equal(typeof card.addedAt, "string");
+      // Part C — the My-Meals card fields ride along (description + macros
+      // were already here; displayTitle + imageUrl are the added pair), and
+      // with no active plan every row is inActivePlan:false.
+      assert.equal("description" in card, true);
+      assert.equal("displayTitle" in card, true);
+      assert.equal("imageUrl" in card, true);
+      assert.equal(card.inActivePlan, false);
+    } finally {
+      await h.close();
+    }
+  });
+
+  // Post-pass Part C (BUG-283) — inActivePlan per row: by the meal's own id
+  // (an own meal placed direct by from-meals) OR by lineage (the plan holds a
+  // SEPARATE fork of the same catalog source). No active plan → all false and
+  // the item read never runs; an empty playlist skips the resolver entirely.
+  it("BUG-283: inActivePlan is true by id or by lineage against the this-week winner, false otherwise", async () => {
+    const s = makeStub({
+      meals: [
+        ...MEALS,
+        // The playlist's fork of cat-2 and the PLAN's separate fork of cat-2.
+        { id: "pl-fork-cat-2", userId: U, isPublic: false, sourceStoreMealId: "cat-2" },
+        { id: "plan-fork-cat-2", userId: U, isPublic: false, sourceStoreMealId: "cat-2" },
+      ],
+      playlist: [
+        { id: "pl-1", userId: U, mealId: "own-1", createdAt: new Date("2026-09-01T00:00:00Z") },
+        { id: "pl-2", userId: U, mealId: "own-2", createdAt: new Date("2026-09-05T00:00:00Z") },
+        { id: "pl-3", userId: U, mealId: "pl-fork-cat-2", createdAt: new Date("2026-09-06T00:00:00Z") },
+      ],
+      activePlan: { id: "plan-1", itemMealIds: ["own-1", "plan-fork-cat-2"] },
+    });
+    const h = await spinUp(s.prisma);
+    try {
+      const r = await fetch(`${h.baseUrl}/me/playlist`, { headers: H() });
+      assert.equal(r.status, 200);
+      const b = (await r.json()) as { playlist: Array<{ id: string; inActivePlan: boolean }> };
+      assert.deepEqual(
+        b.playlist.map((m) => [m.id, m.inActivePlan]),
+        [
+          ["pl-fork-cat-2", true], // by lineage
+          ["own-2", false],
+          ["own-1", true], // by id
+        ],
+      );
+      assert.equal(s.resolverReads.length, 1, "one resolver read for the whole list");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("BUG-283: an empty playlist does not resolve the active plan at all", async () => {
+    const s = makeStub({ meals: MEALS, activePlan: { id: "plan-1", itemMealIds: ["own-1"] } });
+    const h = await spinUp(s.prisma);
+    try {
+      const r = await fetch(`${h.baseUrl}/me/playlist`, { headers: H() });
+      assert.equal(r.status, 200);
+      assert.equal(s.resolverReads.length, 0);
     } finally {
       await h.close();
     }

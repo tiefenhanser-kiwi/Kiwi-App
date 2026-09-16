@@ -202,8 +202,12 @@ export async function materializeWizardDraft(
     const slot = savePlan.slots[si];
     let mealId: string;
 
-    if (slot.kind === "store") {
-      // Store slot — fork the (already isPublic-revalidated) pool meal. Steps +
+    if (slot.kind === "store" && slot.bindDirect) {
+      // BUG-281 — the user's OWN meal (revalidated owner-side at partition):
+      // placed direct, no fork, nothing created — the from-meals owned branch.
+      mealId = slot.sourceStoreMealId;
+    } else if (slot.kind === "store") {
+      // Store slot — fork the (already pool-revalidated) pool meal. Steps +
       // dishes come from the source row, so there is no build and no finalize.
       let bound = boundBySource.get(slot.sourceStoreMealId);
       if (!bound) {

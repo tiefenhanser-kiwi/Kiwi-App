@@ -7,11 +7,13 @@
 // copy is preview-only — but it must be a valid details-stage meal so the draft
 // persists + parses.
 //
-// filterPublicStoreMealIds is the save-time isPublic revalidation: it returns
-// the subset of ids still in the shared pool (isPublic:true, not archived). A
-// store slot whose id is NOT returned has drifted (unpublished/archived) or was
-// tampered — the save path demotes it to a live slot. One check covers
-// drift-safety, tamper-safety, and graceful-degrade.
+// filterBindableStoreMealIds is the save-time revalidation — the OWNER-OR-POOL
+// predicate (post-pass Part C, BUG-281): a store slot may be a shared-pool meal
+// (isPublic:true → forked at save, as always) OR the user's OWN meal by id (a
+// user-built playlist go-to → placed DIRECT, the same branch POST
+// /plans/from-meals has). A store slot whose id is neither has drifted
+// (unpublished/archived) or was tampered — the save path demotes it to a live
+// slot. One check covers drift-safety, tamper-safety, and graceful-degrade.
 
 import type { PrismaClient } from "@prisma/client";
 
@@ -173,21 +175,30 @@ export async function composeStoreMealDetails(
   };
 }
 
+/** How a revalidated store slot binds at save: fork the pool row, or place the user's own row direct. */
+export type StoreSlotBinding = "pool" | "own";
+
 /**
- * Save-time isPublic revalidation. Given the store meal ids marked on a draft,
- * returns the subset that are STILL in the shared pool (isPublic:true, not
- * archived) — the owner-OR-pool predicate reduced to the pool half, since a
- * store meal is only ever bound because it was public. Ids absent from the
- * result have drifted or were tampered and must demote to live.
+ * Save-time owner-OR-pool revalidation (BUG-281). Given the store meal ids
+ * marked on a draft, returns how each STILL-bindable id binds: "own" when the
+ * meal is the user's (placed direct, no fork — a user-built playlist meal),
+ * "pool" when it is in the shared pool (isPublic:true → forked). Ids absent
+ * from the result have drifted, are another user's private meal, or were
+ * tampered — and must demote to live.
  */
-export async function filterPublicStoreMealIds(
+export async function filterBindableStoreMealIds(
   prisma: PrismaClient,
   ids: string[],
-): Promise<Set<string>> {
-  if (ids.length === 0) return new Set();
+  userId: string,
+): Promise<Map<string, StoreSlotBinding>> {
+  if (ids.length === 0) return new Map();
   const rows = await prisma.meal.findMany({
-    where: { id: { in: ids }, isPublic: true, isArchived: false },
-    select: { id: true },
+    where: {
+      id: { in: ids },
+      isArchived: false,
+      OR: [{ isPublic: true }, { userId }],
+    },
+    select: { id: true, userId: true, isPublic: true },
   });
-  return new Set(rows.map((r) => r.id));
+  return new Map(rows.map((r) => [r.id, r.userId === userId ? "own" : "pool"]));
 }

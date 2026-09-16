@@ -33,7 +33,7 @@ import {
   WizardDraftMalformedError,
   WizardDraftNotFoundError,
 } from "./wizardActivation";
-import { filterPublicStoreMealIds } from "./store/storeMealDetails";
+import { filterBindableStoreMealIds } from "./store/storeMealDetails";
 import type { WizardSavePlan, WizardSaveSlot } from "./wizardSavePlan";
 
 // WS7-5c tail — sized for ONE meal's step output, not the whole plan. A
@@ -121,17 +121,19 @@ export async function readAndFinalizeWizardDraft(
   }
   const details = detailsParse.data;
 
-  // 3. D-WS9-038 — partition slots into store (fork) vs build (finalize). A
-  //    store slot's id is revalidated isPublic:true HERE (before finalize) so a
-  //    since-unpublished / tampered id demotes to a BUILD slot and gets
-  //    finalized like any live meal — drift-safe + tamper-safe + graceful.
+  // 3. D-WS9-038 — partition slots into store (fork / direct) vs build
+  //    (finalize). A store slot's id is revalidated HERE (before finalize) with
+  //    the owner-OR-pool predicate (BUG-281): pool → fork, the user's own →
+  //    bind direct; anything else (since-unpublished / another user's private
+  //    / tampered) demotes to a BUILD slot and gets finalized like any live
+  //    meal — drift-safe + tamper-safe + graceful.
   const storeIds = details.meals
     .map((m) => m.sourceStoreMealId)
     .filter((id): id is string => typeof id === "string");
   const validStore =
     storeIds.length > 0
-      ? await filterPublicStoreMealIds(prisma, storeIds)
-      : new Set<string>();
+      ? await filterBindableStoreMealIds(prisma, storeIds, userId)
+      : new Map<string, "pool" | "own">();
 
   // Build entries keep their ORIGINAL slot index so we can re-interleave after
   // finalize. writeBack = the slot was live from the start (no store id); a
@@ -291,7 +293,10 @@ export async function readAndFinalizeWizardDraft(
     if (built) {
       return { kind: "build", meal: built.meal, writeBack: built.writeBack };
     }
-    return { kind: "store", sourceStoreMealId: storeBySlot.get(i) as string };
+    const sid = storeBySlot.get(i) as string;
+    return validStore.get(sid) === "own"
+      ? { kind: "store", sourceStoreMealId: sid, bindDirect: true }
+      : { kind: "store", sourceStoreMealId: sid };
   });
 
   return {

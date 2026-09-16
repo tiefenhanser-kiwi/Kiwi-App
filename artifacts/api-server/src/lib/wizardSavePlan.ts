@@ -13,9 +13,11 @@ import type { WizardExpandEnrichedMeal } from "./ai/schemas/wizard";
 
 export type WizardSaveSlot =
   // Store-filled slot: fork the shared-pool Meal (steps + dishes come from the
-  // source row), bypassing finalize entirely. isPublic was revalidated at
-  // partition time, so the id is safe to fork.
-  | { kind: "store"; sourceStoreMealId: string }
+  // source row), bypassing finalize entirely. The id was revalidated at
+  // partition time (owner-OR-pool, BUG-281): `bindDirect` = it is the user's
+  // OWN meal, placed as-is (no fork) — the from-meals owned branch; absent /
+  // false = a pool meal, forked.
+  | { kind: "store"; sourceStoreMealId: string; bindDirect?: boolean }
   // Built slot: a live-generated meal (with finalized steps), materialized from
   // this payload. `writeBack` = publish a pool copy stamped live_writeback.
   // A slot that demoted from store (its id drifted un-public since build-plans)
