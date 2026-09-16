@@ -45,6 +45,17 @@ import { recomputeAndPersistMealMacros } from "./mealMacros";
 import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
 import { stampAllergens } from "./allergens";
 import { stampMealTiming } from "./mealTiming";
+import {
+  estimateDishMacros,
+  shouldEstimateMacros,
+  type EstimateDishMacrosResult,
+} from "./dishMacros";
+import { logger } from "./logger";
+import {
+  ingredientCanonicalKey,
+  toEffectiveIngredient,
+  type IngredientRowForGrounding,
+} from "./overrideResolver";
 
 // ── payload shape ───────────────────────────────────────────────────────
 //
@@ -176,6 +187,187 @@ export interface MaterializeMealPayload {
   dishes: MaterializeMealDish[];
 }
 
+// ── WS9 BUG-274 — macros at save ─────────────────────────────────────────
+//
+// PRD §10.3.2 / §11.10 lock macros as WRITE-TIME on every path, but POST
+// /me/meals never estimated them: the builder / parse / import adapters send
+// no macros (the client zeroes them), recomputeAndPersistMealMacros below SUMS
+// dish macros, and the grounded estimator (dishMacros.ts, D-WS9-050) was only
+// ever reached from plan recalc — lazily, when a zero dish was already in a
+// plan — and from wizard expansion. Every user-saved meal therefore sat at 0
+// until it happened to be planned.
+//
+// The pre-pass here estimates each `kind:"new"` dish that arrives with all
+// four macros zero/absent (shouldEstimateMacros — the same predicate plan
+// recalc uses), in parallel, BEFORE any row is written, and the dish create
+// stamps the result + macroGroundedPct the way plan recalc / wizard activation
+// do; a `dish_macros_estimated` UserActivity row is emitted per estimated dish
+// (planMacros.ts). Then the existing meal-level sum runs and the meal has
+// macros at save.
+//
+// Fail SOFT, always: an estimator failure / throw / deadline saves the dish at
+// zero with a warn — never blocks the save (plan recalc still picks it up).
+//
+// Scope: the USER save path only (no `target`). The store-fill harness
+// materialises with `target` and userId "" inside a default-timeout tx; its
+// dishes carry macros from wizard expansion, where a failed estimate is a
+// deliberate `failed:true` at zero — re-estimating it here would put an AI
+// call into that tx and re-key the spend guard on an empty user id.
+//
+// Latency: this puts one LLM round trip inside the route's interactive tx
+// (15000ms budget, routes/me.ts). Dishes run in parallel, the conversion
+// write-back is skipped (skipConversionWriteback — no second serial LLM hop
+// and no ingredient row mutation inside the tx; the grounding stamp is
+// ref-based, unaffected), and each dish races a deadline so a slow estimate
+// degrades to "zero, warn" instead of blowing the tx budget and failing the
+// save with a 500 — which would be the opposite of fail-soft.
+
+export const MEAL_SAVE_MACRO_ESTIMATE_DEADLINE_MS = 8000;
+
+export interface MaterializeMealOptions {
+  // ⚠️ OFF unless the caller says so. The route tests (me-save-canonical.test.ts)
+  // drive POST /me/meals through the real materializer with a stub prisma and
+  // `pnpm test` loads .env, so a default-on estimate would reach the live SDK
+  // from a hermetic suite. The route turns it on and threads its own
+  // `deps.estimateDishMacros` stub the way routes/plans.ts threads
+  // computePlanMacros — until that line lands in routes/me.ts (outside this
+  // lane's fence) the pre-pass is inert and every saved meal stays at zero.
+  estimateMacros?: boolean;
+  // DI seam for tests (mirrors wizardExpansion.ts). Production omits.
+  estimateDishMacrosImpl?: typeof estimateDishMacros;
+  // Deadline override for tests. Production omits.
+  estimateDeadlineMs?: number;
+}
+
+interface EstimatedDishMacros {
+  caloriesPerServing: number;
+  proteinGPerServing: number;
+  carbsGPerServing: number;
+  fatGPerServing: number;
+  macroGroundedPct: number;
+}
+
+function withDeadline(
+  work: Promise<EstimateDishMacrosResult>,
+  ms: number,
+): Promise<EstimateDishMacrosResult> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(
+      () => resolve({ status: "failed", error: `deadline ${ms}ms` }),
+      ms,
+    );
+    timer.unref?.();
+    work.then(
+      (r) => {
+        clearTimeout(timer);
+        resolve(r);
+      },
+      (err) => {
+        clearTimeout(timer);
+        resolve({
+          status: "failed",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      },
+    );
+  });
+}
+
+/**
+ * Estimate macros for every zero-macro `kind:"new"` dish. Returns a map
+ * dish-index → estimate (absent = left alone or failed). Never throws.
+ */
+async function estimateZeroMacroDishes(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  payload: MaterializeMealPayload,
+  ingredientIdByCanonical: Map<string, string>,
+  opts: MaterializeMealOptions | undefined,
+): Promise<Map<number, EstimatedDishMacros>> {
+  const out = new Map<number, EstimatedDishMacros>();
+  const estimateImpl = opts?.estimateDishMacrosImpl ?? estimateDishMacros;
+  const deadlineMs = opts?.estimateDeadlineMs ?? MEAL_SAVE_MACRO_ESTIMATE_DEADLINE_MS;
+
+  const work: Array<{ index: number; dish: Extract<MaterializeMealDish, { kind: "new" }> }> = [];
+  payload.dishes.forEach((d, index) => {
+    if (d.kind !== "new") return;
+    const snapshot = {
+      caloriesPerServing: d.macros?.caloriesPerServing ?? 0,
+      proteinGPerServing: d.macros?.proteinGPerServing ?? 0,
+      carbsGPerServing: d.macros?.carbsGPerServing ?? 0,
+      fatGPerServing: d.macros?.fatGPerServing ?? 0,
+    };
+    if (shouldEstimateMacros(snapshot)) work.push({ index, dish: d });
+  });
+  if (work.length === 0) return out;
+
+  // Ground the estimate from the Ingredient rows Pass 1 already resolved (one
+  // read; the ids are in hand). A miss — or a test tx without `ingredient` —
+  // just sends the ingredient ungrounded, never drops it (D-WS9-050 P1.2).
+  const rowById = new Map<string, IngredientRowForGrounding>();
+  try {
+    const ids = [...new Set([...ingredientIdByCanonical.values()])];
+    const rows = await tx.ingredient.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, canonicalName: true, nutritionRefPerUnit: true, conversionRef: true },
+    });
+    for (const r of rows) rowById.set(r.id, r);
+  } catch (err) {
+    logger.warn(
+      { event: "meal_save_macro_grounding_failed", userId, err },
+      "Grounding lookup failed; estimating ungrounded",
+    );
+  }
+
+  await Promise.all(
+    work.map(async ({ index, dish }) => {
+      try {
+        const result = await withDeadline(
+          estimateImpl({
+            prisma: tx,
+            userId,
+            dishTitle: dish.title,
+            servings: dish.servingsDefault ?? payload.servingsDefault ?? 4,
+            ingredients: dish.ingredients.map((ing) =>
+              toEffectiveIngredient(
+                ing,
+                rowById.get(ingredientIdByCanonical.get(ingredientCanonicalKey(ing.name)) ?? ""),
+              ),
+            ),
+            skipConversionWriteback: true,
+          }),
+          deadlineMs,
+        );
+        if (result.status === "failed") {
+          logger.warn(
+            {
+              event: "meal_save_dish_macros_failed",
+              userId,
+              dishTitle: dish.title,
+              error: result.error,
+            },
+            "Per-dish macro estimate failed at meal save; dish saved at zero",
+          );
+          return;
+        }
+        out.set(index, {
+          caloriesPerServing: result.perServing.calories,
+          proteinGPerServing: result.perServing.proteinG,
+          carbsGPerServing: result.perServing.carbsG,
+          fatGPerServing: result.perServing.fatG,
+          macroGroundedPct: Math.round(result.grounding.ratio * 100),
+        });
+      } catch (err) {
+        logger.warn(
+          { event: "meal_save_dish_macros_failed", userId, dishTitle: dish.title, err },
+          "Per-dish macro estimate threw at meal save; dish saved at zero",
+        );
+      }
+    }),
+  );
+  return out;
+}
+
 export interface MaterializeMealResult {
   mealId: string;
   // The dish ids in payload order. For "new" entries this is the freshly
@@ -272,11 +464,21 @@ export async function materializeMeal(
   payload: MaterializeMealPayload,
   ingredientIdByCanonical: Map<string, string>,
   target?: MaterializeTarget,
+  opts?: MaterializeMealOptions,
 ): Promise<MaterializeMealResult> {
   // Plan-Gen Arc · Block 3 (R1) — resolve owner/visibility/provenance once.
   // With no target this is byte-identical to the pre-Block-3 write.
   const { ownerUserId, isPublic: resolvedIsPublic, sourceType: resolvedSourceType } =
     resolveMaterializeOwnership(userId, payload.sourceType, target);
+
+  // WS9 BUG-274 — macros at save (user path only, and only when the caller
+  // opts in; see MaterializeMealOptions + the block comment above
+  // estimateZeroMacroDishes). Runs BEFORE any row is written so the LLM wait
+  // holds no dirty rows; never throws.
+  const estimatedMacrosByIndex =
+    target === undefined && opts?.estimateMacros === true
+      ? await estimateZeroMacroDishes(tx, userId, payload, ingredientIdByCanonical, opts)
+      : new Map<number, EstimatedDishMacros>();
 
   // ── Pass 2 (transactional): meal graph.
   const meal = await tx.meal.create({
@@ -336,14 +538,20 @@ export async function materializeMeal(
       // kind === "new": create the Dish row + its DishIngredients +
       // RecipeInstructionSteps. Macros at the dish level mirror the
       // wizard activation pattern (default-0 when omitted).
-      const macros = d.macros
-        ? {
-            caloriesPerServing: d.macros.caloriesPerServing ?? 0,
-            proteinGPerServing: d.macros.proteinGPerServing ?? 0,
-            carbsGPerServing: d.macros.carbsGPerServing ?? 0,
-            fatGPerServing: d.macros.fatGPerServing ?? 0,
-          }
-        : {};
+      // WS9 BUG-274 — a zero/absent incoming macro set that the pre-pass
+      // estimated is stamped here with its grounding (macroGroundedPct), the
+      // same columns plan recalc writes.
+      const estimated = estimatedMacrosByIndex.get(di);
+      const macros = estimated
+        ? estimated
+        : d.macros
+          ? {
+              caloriesPerServing: d.macros.caloriesPerServing ?? 0,
+              proteinGPerServing: d.macros.proteinGPerServing ?? 0,
+              carbsGPerServing: d.macros.carbsGPerServing ?? 0,
+              fatGPerServing: d.macros.fatGPerServing ?? 0,
+            }
+          : {};
 
       const dish = await tx.dish.create({
         data: {
@@ -374,6 +582,29 @@ export async function materializeMeal(
         select: { id: true },
       });
       dishId = dish.id;
+
+      // WS9 BUG-274 — the same event plan recalc emits per fresh estimate
+      // (planMacros.ts), so the two write paths are indistinguishable
+      // downstream. Warn-and-continue: the macros are already on the row.
+      if (estimated) {
+        try {
+          await tx.userActivity.create({
+            data: {
+              // Estimation only runs on the user path (no target), where the
+              // owner IS the caller — never the store pool's null owner.
+              userId,
+              eventType: "dish_macros_estimated",
+              entityId: dishId,
+              platform: "api",
+            },
+          });
+        } catch (err) {
+          logger.warn(
+            { event: "dish_macros_estimated_event_failed", userId, dishId, err },
+            "Could not record dish_macros_estimated at meal save",
+          );
+        }
+      }
 
       for (let ii = 0; ii < d.ingredients.length; ii++) {
         const ing = d.ingredients[ii];
