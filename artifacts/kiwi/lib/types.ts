@@ -587,6 +587,20 @@ export interface WizardPlanCandidate {
   whyBullets: string[];
   /** 5 meal titles for the preview list. */
   mealTitles: string[];
+  /**
+   * D-WS9-191 Block 1 (server) — store-filled slots reference a real Meal.id.
+   * Declared here for the first time (Phase 0 found it undeclared); the mobile
+   * Zod is `.passthrough()`, so it always rode along.
+   */
+  storeSlots?: { slotIndex: number; storeMealId: string }[];
+  /**
+   * D-WS9-191 Block 1 (server) — the per-meal rows the chooser card shows, in
+   * `mealTitles` order: title + description (null when neither the store meal
+   * nor the model had one), the store meal id and its total minutes on
+   * store-bound slots. OPTIONAL: a legacy batch (a pre-Block-1 last-batch row)
+   * has none and renders title-only rows.
+   */
+  meals?: WizardPlanCandidateMeal[];
   /** Daily-average macros for the plan. */
   dailyMacros: {
     calories: number;
@@ -594,6 +608,13 @@ export interface WizardPlanCandidate {
     carbsG: number;
     fatG: number;
   };
+}
+
+export interface WizardPlanCandidateMeal {
+  title: string;
+  description: string | null;
+  storeMealId?: string;
+  estimatedTimeMinutes?: number;
 }
 
 /**
