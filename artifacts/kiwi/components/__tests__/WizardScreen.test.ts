@@ -353,3 +353,29 @@ test("path A in TEXT mode sends the text on the shelf body", async () => {
   const href = pushed[0] as { pathname: string; params: Record<string, string> };
   assert.equal(href.params.mode, "text");
 });
+
+// ── Block 2c Part B — the CTA is ANCHORED: outside the scroll view ──────────
+
+test("the CTA renders OUTSIDE the scrollable content (pinned under the header), gate untouched", async () => {
+  const m = await mount({ mode: "prefs" });
+  // One walk — toJSON() builds fresh objects per call, so indexOf needs one tree.
+  const all = walk(m.root());
+  const scroller = all.find((n) => n.type === "rn-keyboard-aware-scrollview");
+  assert.ok(scroller, "scroll view not found");
+  // 🔴 THE BREAK THIS CATCHES: the CTA moving back inside the scroll view.
+  assert.equal(
+    walk(scroller!).some((n) => n.props.testID === "wizard-build"),
+    false,
+    "the CTA must not be a descendant of the scroll view",
+  );
+  assert.ok(byTestId(m.root(), "wizard-build"), "the CTA still renders");
+  assert.ok(byTestId(m.root(), "wizard-cta-bar"), "the anchored bar renders");
+  // The bar sits ABOVE the scroll view in document order.
+  assert.ok(
+    all.findIndex((n) => n.props.testID === "wizard-cta-bar") < all.indexOf(scroller!),
+    "the bar precedes the scroll view",
+  );
+  // The path rows still live in the scroll content and the gate still holds.
+  assert.ok(walk(scroller!).some((n) => n.props.testID === "wizard-path-pick"));
+  assert.equal(byTestId(m.root(), "wizard-build")!.props.disabled, true);
+});

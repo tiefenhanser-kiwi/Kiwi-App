@@ -11,7 +11,8 @@
 //   1. header "Kitchen Wizard" — "Set preferences" / "Just say what you want";
 //   2. the CTA "Build my plan", terracotta, at the TOP (it lived at the bottom
 //      of both old screens) — DISABLED until a path is chosen, with a hint
-//      line that says what happens next;
+//      line that says what happens next. Block 2c Part B: ANCHORED — it sits
+//      outside the scroll view, pinned under the header at any scroll;
 //   3. text mode only — "Tell Kiwi · What do you want to eat?" (the existing
 //      500-cap box + counter);
 //   4. "How to build it · What should Kiwi suggest?" — two option rows, NOTHING
@@ -394,6 +395,27 @@ export function WizardScreen({
         title="Kitchen Wizard"
         subtitle={isText ? "Just say what you want" : "Set preferences"}
       />
+      {/* 2 — the CTA, at the TOP as drawn, and ANCHORED (Block 2c Part B,
+          Hans's item 6: "persist/anchor the top button… anchor is probably
+          slicker"). It sits OUTSIDE the scroll view, pinned under the header
+          at any scroll position, the way the Pick screen's footer is pinned.
+          Gate, disabled state and the three hints are untouched. */}
+      <View style={s.ctaBar} testID="wizard-cta-bar">
+        <Button
+          label={busy ? "Kiwi is thinking…" : CTA_LABEL}
+          variant="primary"
+          onPress={handleSubmit}
+          disabled={!path || busy}
+          testID="wizard-build"
+        />
+        {shelfMutation.isPending ? (
+          <LoadingShim variant="inline" label="Pulling meals that fit…" />
+        ) : textMutation.isPending ? (
+          <LoadingShim variant="inline" label="Reading what you wrote…" />
+        ) : (
+          <Text style={s.ctaHint}>{ctaHint}</Text>
+        )}
+      </View>
       <KeyboardAwareScrollViewCompat
         // WS9 3f-4c (BUG-064) — clearance so a focused field near the bottom
         // lifts clear of the keyboard.
@@ -401,24 +423,6 @@ export function WizardScreen({
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* 2 — the CTA, at the TOP as drawn. Gated on a chosen path. */}
-        <View style={s.ctaCard}>
-          <Button
-            label={busy ? "Kiwi is thinking…" : CTA_LABEL}
-            variant="primary"
-            onPress={handleSubmit}
-            disabled={!path || busy}
-            testID="wizard-build"
-          />
-          {shelfMutation.isPending ? (
-            <LoadingShim variant="inline" label="Pulling meals that fit…" />
-          ) : textMutation.isPending ? (
-            <LoadingShim variant="inline" label="Reading what you wrote…" />
-          ) : (
-            <Text style={s.ctaHint}>{ctaHint}</Text>
-          )}
-        </View>
-
         {/* Inline status for the two calls, right under the action. */}
         {(shelfMutation.isError || textMutation.isError) && (
           <View style={s.noticeCard}>
@@ -766,9 +770,17 @@ const s = StyleSheet.create({
     borderColor: Colors.neutral[300],
     padding: Spacing[4],
   },
-  ctaCard: {
+  // The anchored CTA bar — a card-surface strip under the header, hairline
+  // below so the scrolling content reads as passing beneath it.
+  ctaBar: {
     gap: Spacing[2],
-    alignItems: "center",
+    alignItems: "stretch",
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    paddingBottom: Spacing[3],
+    backgroundColor: Palette.background.card,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[300],
   },
   ctaHint: {
     fontSize: Typography.fontSize.xs,
