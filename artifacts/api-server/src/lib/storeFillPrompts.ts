@@ -292,6 +292,8 @@ Build the meal the way a good home cook plans dinner — around the protein, the
 
 - SIZE THE PROTEIN HONESTLY. Portion the anchor for the stated servings so each serving lands roughly 25–45g protein where the diet allows. Reflect that in the ingredient quantity (e.g. ~6 oz raw protein per serving) and in the main dish's macros. A dinner that photographs as protein-light is a fail.
 
+- PORTION DRY STAPLES DRY, PER SERVING. Rice and other dry grains (quinoa, farro, bulgur, couscous, polenta) ≈ ¼ cup dry per serving — 1 cup uncooked for four, never 2. Dry pasta ≈ 2 oz per serving — 8 oz for four (up to 12 oz when the pasta IS the meal; 1 lb for four is over-portioned). Dried legumes (lentils, dried beans, split peas) ≈ ⅓ cup dry per serving. State the quantity as DRY ("1 cup uncooked jasmine rice"), never the cooked yield, and never a cooked-volume number as if it were dry. A store-bought shortcut product (a rice pouch, a boxed pilaf — see below) follows its package directions instead.
+
 - SUPPORTING DISHES EARN THEIR PLACE. One or two supporting dishes, not a pile of sides with no center — a \`base\` (rice, grains, potatoes, flatbread) and/or a \`side\` (a roasted or fresh vegetable, a crisp salad). A \`sauce\` only when the dish is actually built on one. (Their fit and cohesion are governed by "Name fidelity and plate cohesion" above.)
 
 - INGREDIENTS ARE SPECIFIC AND SHOPPABLE. "boneless skinless chicken thighs," "San Marzano tomatoes," "fresh cilantro" — not "protein," "vegetables," or "seasoning." Every ingredient is something a shopper buys and a cook uses in this meal. Fold pantry staples (oil, salt, common spices) in only where the dish needs them; don't pad the list.

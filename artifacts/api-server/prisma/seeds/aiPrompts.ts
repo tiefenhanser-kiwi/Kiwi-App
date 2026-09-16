@@ -599,7 +599,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 2. **Assign roles correctly.** Entrées and proteins are \`main\`. Vegetables, starches served on the side are \`side\`. Dressings, gravies, dips, finishing sauces are \`sauce\`. Garnishes (parsley, crispy shallots, breadcrumbs) are \`topping\`. Rice / grain / polenta the main is plated over is \`base\`.
 3. **Order sub-dishes naturally.** Main first (positionIndex=0), sides next, sauces/toppings last.
 4. **Cuisine guides ingredients + technique.** Italian piccata → capers, lemon, white wine, flour-dredged chicken. Mexican → cilantro, lime, fresh tomato, chiles. Thai → fish sauce, lime, chile, herbs. Don't homogenize into generic American substitutions unless the description points that way.
-5. **Scale quantities to the input \`servings\`.** Carbonara for 4 = 1 lb spaghetti, not single-serving portions.
+5. **Scale quantities to the input \`servings\`.** Carbonara for 4 = 8 oz spaghetti and 4 eggs, not single-serving portions. **Dry staples are portioned DRY, per serving.** Rice and other dry grains (quinoa, farro, bulgur, couscous, polenta) ≈ ¼ cup dry per serving — 1 cup uncooked for four, never 2. Dry pasta ≈ 2 oz per serving — 8 oz for four (up to 12 oz when the pasta IS the meal; 1 lb for four is over-portioned). Dried legumes (lentils, dried beans, split peas) ≈ ⅓ cup dry per serving. State the quantity as DRY ("1 cup uncooked jasmine rice"), never the cooked yield, and never a cooked-volume number as if it were dry. A named packaged product (the boxed-product rule) follows its package directions instead of this guide.
 6. **Steps per sub-dish: aim for 4-10.** Simple sides may be 3-5 (toss greens, dress, plate). Complex mains may be 8-10. Don't pad to look thorough; don't oversimplify ("cook the chicken" is useless).
 7. **Total time math.** \`estimatedPrepMinutes + estimatedCookMinutes\` should approximate the sum of all sub-dish step minutes — but don't double-count parallel work. If chicken simmers 20 min while you whisk a vinaigrette in 5 min, that's 20 min total, not 25.
 
@@ -646,7 +646,7 @@ Return ONLY the JSON object.`;
 // key `meal_builder_text_input`; PRD §10.5.8 "dishes work the same way").
 // Mirrors meal_builder.mode_a_parse but emits ONE dish (no sub-dishes — a dish
 // is the atomic recipe unit) with its own ingredients + phase-tagged steps.
-const DISH_BUILDER_MODE_A_PARSE_BODY = `You are Kiwi's dish parser. The user typed a free-text description of a single dish they want to cook. Your job is to turn that description into one structured Dish record: its ingredients, cooking steps, and meta.
+export const DISH_BUILDER_MODE_A_PARSE_BODY = `You are Kiwi's dish parser. The user typed a free-text description of a single dish they want to cook. Your job is to turn that description into one structured Dish record: its ingredients, cooking steps, and meta.
 
 Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
 
@@ -698,7 +698,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 
 1. **This is ONE dish, not a meal.** A dish is the atomic recipe unit (a single component: an entree, a side, a sauce, a salad). Do NOT split it into sub-dishes. If the user's description names multiple distinct dishes ("steak and a caesar salad"), parse the PRIMARY dish only and add a caveat noting the others were dropped (e.g., "Parsed the steak; describe the salad separately as its own dish").
 2. **Cuisine guides ingredients + technique.** Italian leans olive oil, garlic, parmesan. Thai leans fish sauce, lime, chile, herbs. Don't homogenize into generic American substitutions unless the description points that way.
-3. **Scale quantities to the input \`servings\`.** A side for 4 is more than a single-serving portion.
+3. **Scale quantities to the input \`servings\`.** A side for 4 is more than a single-serving portion. **Dry staples are portioned DRY, per serving.** Rice and other dry grains (quinoa, farro, bulgur, couscous, polenta) ≈ ¼ cup dry per serving — 1 cup uncooked for four, never 2. Dry pasta ≈ 2 oz per serving — 8 oz for four (up to 12 oz when the pasta IS the meal; 1 lb for four is over-portioned). Dried legumes (lentils, dried beans, split peas) ≈ ⅓ cup dry per serving. State the quantity as DRY ("1 cup uncooked jasmine rice"), never the cooked yield, and never a cooked-volume number as if it were dry. A named packaged product follows its package directions instead of this guide.
 4. **Steps: aim for 4-10.** Simple dishes may be 3-5; complex ones 8-10. Don't pad to look thorough; don't oversimplify ("cook it" is useless).
 5. **Time math.** \`estimatedPrepMinutes + estimatedCookMinutes\` should approximate the sum of step minutes — but don't double-count parallel work (e.g., 20 min roasting while you whisk a 3-min dressing is 20 min, not 23).
 
@@ -729,7 +729,7 @@ Return ONLY the JSON object.`;
 // user already typed, and fills out a coherent ingredient list. User-typed
 // items are echoed back with isUserProvided=true; any additions get
 // addedByKiwi=true so the form can render the diff visually.
-const MEAL_BUILDER_ASSIST_INGREDIENTS_BODY = `You are Kiwi's ingredient assistant. The user is building a dish and wants Kiwi to fill in the ingredient list. They may have already typed some ingredients — those are LOCKED IN. Your job is to keep what they typed, fill in any missing quantities/units, and add whatever else the dish needs to make sense.
+export const MEAL_BUILDER_ASSIST_INGREDIENTS_BODY = `You are Kiwi's ingredient assistant. The user is building a dish and wants Kiwi to fill in the ingredient list. They may have already typed some ingredients — those are LOCKED IN. Your job is to keep what they typed, fill in any missing quantities/units, and add whatever else the dish needs to make sense.
 
 Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
 
@@ -769,7 +769,7 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 2. **Fill in missing quantities/units on user-typed items.** If the user typed \`{ name: "eggs" }\` with no quantity, supply one (e.g. \`{ name: "eggs", quantity: 4, unit: "each" }\`) and mark isUserProvided=true.
 3. **Add what's needed to make the dish coherent.** Look at the dish title + cuisine and add any standard ingredients the user didn't name. Each addition gets addedByKiwi=true.
 4. **Cuisine guidance is strong.** The cuisine drives ingredient choices. Italian carbonara → guanciale or pancetta, pecorino romano, eggs, black pepper, spaghetti. Mexican tacos → cilantro, lime, fresh tomato, onion. Don't default to bland "American" substitutions unless the user typed them.
-5. **Scale to servings.** Quantities should match \`servings\` (e.g. carbonara for 4 → 1 lb spaghetti, 4 eggs, 4 oz guanciale, ½ cup pecorino, NOT a single-serving portion).
+5. **Scale to servings.** Quantities should match \`servings\` (e.g. carbonara for 4 → 8 oz spaghetti, 4 eggs, 4 oz guanciale, ½ cup pecorino, NOT a single-serving portion). **Dry staples are portioned DRY, per serving.** Rice and other dry grains (quinoa, farro, bulgur, couscous, polenta) ≈ ¼ cup dry per serving — 1 cup uncooked for four, never 2. Dry pasta ≈ 2 oz per serving — 8 oz for four (up to 12 oz when the pasta IS the meal; 1 lb for four is over-portioned). Dried legumes (lentils, dried beans, split peas) ≈ ⅓ cup dry per serving. State the quantity as DRY ("1 cup uncooked jasmine rice"), never the cooked yield, and never a cooked-volume number as if it were dry. A named packaged product follows its package directions instead of this guide.
 6. **Respect dietary hints.** \`userHints.dietary\` (vegan, vegetarian, etc.) is guidance — avoid adding ingredients that violate it. If a user-typed ingredient conflicts (e.g. user typed "bacon" but dietary is "vegetarian"), keep what they typed (their dish, their call) but add a caveat noting the conflict.
 7. **Don't pad.** A simple dish has a simple list. Aim for the natural ingredient count for the dish — typically 5-12 ingredients for a home-cooked dinner. Don't invent 18-ingredient lists for "Spaghetti Aglio e Olio".
 8. **Don't duplicate.** If the user typed "onion" and you also need "onion", echo it once with isUserProvided=true. Never emit two rows for the same ingredient.
@@ -1113,6 +1113,7 @@ The minute cap and a meal's \`difficulty\` are INDEPENDENT axes: do NOT treat "f
 - \`isOptional\` — true ONLY if the dish is fully cookable without it (garnishes, optional sides).
 - Most dishes have 3+ ingredients. Genuinely simple sides (warmed bread, a baked potato, a steamed vegetable) may have 1–2; do not pad with filler to hit an arbitrary count.
 - Quantities must be sensible for the dish's \`servings\` — assume the AI's per-serving macro pass will divide the totals by \`servings\`.
+- DRY STAPLES ARE PORTIONED DRY, PER SERVING. Rice and other dry grains (quinoa, farro, bulgur, couscous, polenta) ≈ 0.25 cup dry per serving — 1 cup uncooked for four, never 2. Dry pasta ≈ 2 ounces per serving — 8 ounces for four (up to 12 when the pasta IS the meal; 1 pound for four is over-portioned). Dried legumes (lentils, dried beans, split peas) ≈ 0.33 cup dry per serving. State the quantity as DRY (\`1 cup\` of \`jasmine rice\`, preparationNote \`uncooked\`), never the cooked yield, and never a cooked-volume number as if it were dry. A \`store_bought\` packaged line (a rice pouch, a boxed pilaf) follows its package instead.
 
 # Compose a complete, real dinner
 
@@ -1275,7 +1276,7 @@ Return ONLY the tool_use call with one \`dishSteps\` entry for every (mealIndex,
 // (URL-scraped JSON-LD, raw page text, or OCR'd image text) into Kiwi's
 // canonical Meal/Dish/Step shape. Output is a discriminated union on `status`
 // — success carries the recipe; no_recipe_content carries a one-sentence reason.
-const IMPORT_REFORMAT_FOR_KIWI_BODY = `You are Kiwi's recipe-reformatter. The user imported a recipe from another source (a recipe website, a personal blog, a pasted block of text, or one or more images — photos of cookbook pages, recipe-card screenshots, or hand-written notes). Your job is to turn that source material into Kiwi's canonical recipe shape: clean meal-level metadata, properly grouped sub-dishes, parsed ingredients, and phase-tagged cooking steps with explicit quantities and timing flags.
+export const IMPORT_REFORMAT_FOR_KIWI_BODY = `You are Kiwi's recipe-reformatter. The user imported a recipe from another source (a recipe website, a personal blog, a pasted block of text, or one or more images — photos of cookbook pages, recipe-card screenshots, or hand-written notes). Your job is to turn that source material into Kiwi's canonical recipe shape: clean meal-level metadata, properly grouped sub-dishes, parsed ingredients, and phase-tagged cooking steps with explicit quantities and timing flags.
 
 Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
 
@@ -1395,11 +1396,11 @@ The strings above are exact — preserve the title case, the spaces, and the sla
 
 **Vague → explicit step language.** Source steps often say "Cook until done", "Sauté the onions", "Bake until golden". Translate every vague instruction into something a beginner can act on. Examples:
 - "Cook until done" → "Cook for 8-10 minutes, or until the internal temperature reaches 165°F."
-- "Sauté the onions" → "Heat 2 tbsp olive oil in a skillet over medium heat. Add the onions and cook, stirring occasionally, for 5-7 minutes until softened and translucent."
-- "Season to taste" → "Season with 1 tsp salt and 1/2 tsp black pepper; adjust to taste."
+- "Sauté the onions" → "Heat the olive oil in a skillet over medium heat. Add the onions and cook, stirring occasionally, for 5-7 minutes until softened and translucent."
+- "Season to taste" → "Season with salt and black pepper; adjust to taste."
 - "Bake until golden" → "Bake for 25-30 minutes, until the top is deep golden brown and a tester comes out clean."
 
-**Embed quantities + timings inline.** The translated step text MUST contain the quantities for any ingredient added in that step ("Add the 4 cloves of minced garlic"), the temperature ("over medium-high heat", "at 425°F"), and a duration or doneness cue ("for 3-4 minutes", "until shimmering"). Don't refer to ingredients by name without quantity in the cooking steps — the user reads steps one at a time and shouldn't have to scroll back to the ingredient list.
+**Name the ingredient; the amount stays in the ingredient list.** Like every printed recipe, a step names what goes in ("Add the minced garlic", "Add the salt, pepper and olive oil to the chicken") and the ingredient list carries how much — the app shows the list's amounts beside the step. Do NOT write ingredient quantities into the step text, and NEVER invent one the source did not state ("season with salt and pepper", not "season with 1 tsp salt and 1 tsp pepper"). Keep an amount in a step ONLY when (a) the source step itself states it, or (b) the step uses PART of a listed ingredient — then say the part ("half the onion", "the remaining ¾ cup of broth", "1 tbsp of the butter"). Temperatures ("over medium-high heat", "at 425°F") and durations or doneness cues ("for 3-4 minutes", "until shimmering") DO stay inline — those are what a beginner needs on the step.
 
 **Preserve the original text.** Put the source's wording (cleaned of HTML, normalized whitespace) into \`stepTextRaw\`. Put your translated/explicit rewrite into \`stepTextTranslated\`. If the source step is already explicit and well-quantified, \`stepTextRaw\` and \`stepTextTranslated\` may be identical or near-identical — that's fine, do not pad.
 
@@ -1425,7 +1426,7 @@ Source recipes often combine multiple components ("Salmon with lemon caper sauce
 # Ingredient parsing
 
 - \`name\` — lower-case unless a proper noun ("Parmigiano-Reggiano"). Specific over generic ("pecorino romano" > "cheese"). Strip prep instructions from the name and put them in \`preparationNote\` ("garlic, minced" → name="garlic", preparationNote="minced").
-- \`quantity\` — a positive number. Convert mixed fractions ("1 1/2") to decimals (1.5). For "to taste" or "as needed", use quantity=1 with unit="to_taste".
+- \`quantity\` — a positive number. Convert mixed fractions ("1 1/2") to decimals (1.5). For "to taste" or "as needed", use quantity=1 with unit="to_taste". The quantity is the SOURCE's — never re-portion it. Dry staples are stated DRY: when the source gives a cooked amount ("2 cups cooked rice"), keep its number and put "cooked" in \`preparationNote\`; when the source gives NO quantity for a dry staple, portion it per serving — rice and other dry grains ≈ 0.25 cup dry per serving (1 cup for four), dry pasta ≈ 2 oz per serving, dried legumes ≈ 0.33 cup per serving — and say so in a caveat. A named packaged product follows its package directions instead.
 - \`unit\` — standard kitchen unit (cup, tbsp, tsp, oz, lb, g, ml, each, clove, slice, pinch, bunch, can, head, sprig). Match the ingredient: solids by weight or count, liquids by volume, eggs/cloves/cans by count.
 - \`preparationNote\` — short descriptor of state or prep, ≤120 chars. Common values: "minced", "chopped", "diced", "halved", "thinly sliced", "to taste", "softened", "at room temperature", "divided".
 - \`isOptional\` — true for genuinely optional finishing or garnish items the source flagged as optional. Default false / omit.
