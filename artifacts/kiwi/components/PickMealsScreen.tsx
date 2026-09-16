@@ -165,11 +165,21 @@ export function PickMealsScreen({
     });
   };
 
-  // The exhausted card's two exits — back into the wizard, in the mode named.
+  // The exhausted card's two exits — BACK to the wizard already on the stack
+  // (Block 2b ruling, 2a CANDIDATE-4: no stack growth). dismissTo pops to the
+  // route when it is on the stack and pushes it otherwise (e.g. "Tell Kiwi" from
+  // a prefs-mode run, where /tellkiwi was never mounted). The params reach the
+  // mounted screen live; `nonce` changes each time so the same "1" re-fires.
   const handleRefine = () =>
-    router.push({ pathname: "/wizard", params: { adjust: "1" } });
+    router.dismissTo({
+      pathname: "/wizard",
+      params: { adjust: "1", nonce: String(Date.now()) },
+    });
   const handleTellKiwi = () =>
-    router.push({ pathname: "/tellkiwi", params: { focus: "1" } });
+    router.dismissTo({
+      pathname: "/tellkiwi",
+      params: { focus: "1", nonce: String(Date.now()) },
+    });
 
   const isPlaylist = source === "playlist";
   const exhausted = isExhausted(state);

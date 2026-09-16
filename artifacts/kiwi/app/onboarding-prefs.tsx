@@ -31,9 +31,10 @@ type Step2FormState = {
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: "all" | "most";
   // Cookbook Phase B Block 5 — step 2 now carries all four Phase-B fields.
-  // WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials, enum keys.
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the discovery dial, enum key. The
+  // playlist dial is NOT collected at onboarding (Block 2b ruling): a new user
+  // has no playlist; the stored default stays none.
   discoveryLevel: DialLevel;
-  playlistLevel: DialLevel;
   saucePreference: "store_bought" | "balanced" | "homemade";
   cuisines: string[];
   eatingStyles: string[];
@@ -58,7 +59,6 @@ export default function OnboardingPrefs() {
         maxCookTimeMinutes: onboardingStep2Draft.maxCookTimeMinutes,
         maxCookTimeCoverage: onboardingStep2Draft.maxCookTimeCoverage,
         discoveryLevel: onboardingStep2Draft.discoveryLevel,
-        playlistLevel: onboardingStep2Draft.playlistLevel,
         saucePreference: onboardingStep2Draft.saucePreference,
         cuisines: onboardingStep2Draft.cuisines,
         eatingStyles: onboardingStep2Draft.eatingStyles,
@@ -75,7 +75,6 @@ export default function OnboardingPrefs() {
       maxCookTimeMinutes: null,
       maxCookTimeCoverage: "most",
       discoveryLevel: "none",
-      playlistLevel: "none",
       saucePreference: "balanced",
       cuisines: [],
       eatingStyles: [],
@@ -102,7 +101,6 @@ export default function OnboardingPrefs() {
       maxCookTimeMinutes: form.maxCookTimeMinutes,
       maxCookTimeCoverage: form.maxCookTimeCoverage,
       discoveryLevel: form.discoveryLevel,
-      playlistLevel: form.playlistLevel,
       saucePreference: form.saucePreference,
       cuisines: form.cuisines,
       eatingStyles: form.eatingStyles,
@@ -181,17 +179,17 @@ export default function OnboardingPrefs() {
             </>
           )}
 
-          {/* WS9 Redesign Arc Block 2a (D-WS9-245) — the same two dial rows
-              the preferences screen shows. No playlistCount here: a user at
-              onboarding has no playlist by construction and no Playlist tab
-              to be nudged towards yet, so the chips render for both. */}
+          {/* WS9 Redesign Arc Block 2a (D-WS9-245) — the shared dial rows;
+              Block 2b (ruled) HIDES the Playlist row here: a new user has no
+              playlist, the stored default stays none, and they meet the dial
+              in Preferences and the wizard. Discovery stays. */}
           <MixDials
             style={{ marginTop: Spacing[4] }}
-            value={{
-              playlistLevel: form.playlistLevel,
-              discoveryLevel: form.discoveryLevel,
-            }}
-            onChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
+            showPlaylist={false}
+            value={{ playlistLevel: "none", discoveryLevel: form.discoveryLevel }}
+            onChange={(next) =>
+              setForm((prev) => ({ ...prev, discoveryLevel: next.discoveryLevel }))
+            }
           />
         </Section>
 

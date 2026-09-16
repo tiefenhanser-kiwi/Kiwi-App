@@ -87,3 +87,15 @@ test("buildRehydrateParams — omits input when a wizard batch has none", () => 
   assert.equal(p.rehydrate, "1");
   assert.equal(p.input, undefined);
 });
+
+// ── Block 2b (2a CANDIDATE-1, ruled) — legacy Surprise Me rows ──────────────
+
+test("a pre-Block-2 source:'surprise' row parses (read-tolerant) and the link HIDES", () => {
+  // The server tolerates the retired value on read (WizardBatchSourceOnRead);
+  // so does the mobile union — a schema error here would hide the link for
+  // the wrong reason (and log an ApiSchemaError for a row that is merely old).
+  const legacy = batch({ source: "surprise" as WizardLastBatch["source"], input: null });
+  assert.equal(shouldShowPreviousOptions(legacy), false);
+  // …and a real batch still shows.
+  assert.equal(shouldShowPreviousOptions(batch()), true);
+});

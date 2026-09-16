@@ -15,7 +15,11 @@ export default function Wizard() {
   // PRD §9.4 — when launched from the AddMealToPlanSheet "Create new plan"
   // path, the meal id we should attach to the new plan arrives as a route
   // param. WS5: param plumbing only — attach + redirect land later.
-  const params = useLocalSearchParams<{ addMealId?: string; adjust?: string }>();
+  const params = useLocalSearchParams<{
+    addMealId?: string;
+    adjust?: string;
+    nonce?: string;
+  }>();
 
   useEffect(() => {
     if (params.addMealId) {
@@ -23,5 +27,11 @@ export default function Wizard() {
     }
   }, [params.addMealId]);
 
-  return <WizardScreen mode="prefs" adjustOpen={params.adjust === "1"} />;
+  return (
+    <WizardScreen
+      mode="prefs"
+      adjustOpen={params.adjust === "1"}
+      paramNonce={params.nonce}
+    />
+  );
 }

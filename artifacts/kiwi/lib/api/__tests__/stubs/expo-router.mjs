@@ -11,6 +11,7 @@ let __routerImpl = {
   back: () => {},
   navigate: () => {},
   setParams: () => {},
+  dismissTo: () => {},
 };
 
 export function __setRouterForTests(impl) {
@@ -24,6 +25,7 @@ export function __resetRouterForTests() {
     back: () => {},
     navigate: () => {},
     setParams: () => {},
+    dismissTo: () => {},
   };
 }
 

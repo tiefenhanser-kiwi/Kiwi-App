@@ -12,6 +12,9 @@ import type { WizardLastBatch } from "../api/wizard";
 export function shouldShowPreviousOptions(
   batch: WizardLastBatch | null | undefined,
 ): boolean {
+  // Block 2b — a legacy Surprise Me row parses (read-tolerant union) but has
+  // no results screen to land on: hide the link rather than rehydrate it.
+  if (batch?.source === "surprise") return false;
   return !!batch && batch.candidates.length > 0;
 }
 

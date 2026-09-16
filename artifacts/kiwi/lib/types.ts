@@ -133,9 +133,9 @@ export interface Step2Draft {
   // Cookbook Phase B Block 5 — the remaining two generation-shaping prefs, so
   // step 2 carries ALL FOUR Phase-B fields (a user may set prefs once at
   // onboarding and never revisit).
-  // WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials, enum keys.
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the discovery dial, enum key.
+  // Block 2b (ruled): the playlist dial is not collected at onboarding.
   discoveryLevel: DialLevel;
-  playlistLevel: DialLevel;
   saucePreference: "store_bought" | "balanced" | "homemade";
 }
 

@@ -149,8 +149,9 @@ export default function OnboardingStep3() {
       }
       // Cookbook Phase B Block 5 — the remaining two Phase-B fields, so all
       // four generation-shaping prefs set at onboarding reach the PATCH.
+      // Block 2b — the playlist dial is not collected at onboarding; the
+      // stored default (none) stands.
       prefs.discoveryLevel = onboardingStep2Draft.discoveryLevel;
-      prefs.playlistLevel = onboardingStep2Draft.playlistLevel;
       prefs.saucePreference = onboardingStep2Draft.saucePreference;
       // dietaryNotes: include only when non-empty. Step 2 saves "" when the
       // user leaves the field blank; an empty string is not a meaningful

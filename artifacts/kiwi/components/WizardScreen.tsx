@@ -202,6 +202,9 @@ export interface WizardScreenProps {
   adjustOpen?: boolean;
   /** Focus the text box on mount (the exhausted card → "Tell Kiwi"). */
   focusText?: boolean;
+  /** Block 2b — changes when the Pick screen dismisses BACK to this mounted
+   *  screen with adjust / focus, so the effects below re-fire on the same "1". */
+  paramNonce?: string;
 }
 
 export function WizardScreen({
@@ -209,6 +212,7 @@ export function WizardScreen({
   initialText = "",
   adjustOpen = false,
   focusText = false,
+  paramNonce,
 }: WizardScreenProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -250,11 +254,19 @@ export function WizardScreen({
 
   // Text mode, "Tell Kiwi" from the exhausted card — put the caret in the box
   // once the loader has lifted. The ref is null while the loader renders.
+  // Block 2b — keyed on paramNonce too: the Pick screen dismisses BACK to this
+  // mounted screen, so the param arrives as an update, not at mount.
   useEffect(() => {
     if (!focusText || prefsQuery.isLoading) return;
     const t = setTimeout(() => textInputRef.current?.focus(), 50);
     return () => clearTimeout(t);
-  }, [focusText, prefsQuery.isLoading]);
+  }, [focusText, prefsQuery.isLoading, paramNonce]);
+
+  // "Refine preferences" from the exhausted card → the disclosure opens on the
+  // wizard already on the stack (initial state covers the mount case).
+  useEffect(() => {
+    if (adjustOpen) setForm((prev) => ({ ...prev, adjustExpanded: true }));
+  }, [adjustOpen, paramNonce]);
 
   // Path B, text mode — today's build-from-text (buffered), untouched.
   const textMutation = useBuildFromText();

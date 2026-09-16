@@ -568,3 +568,20 @@ test("getWizardDraft propagates a 422 malformed-draft as ApiError", async () => 
     (err: unknown) => err instanceof ApiError && err.status === 422,
   );
 });
+
+// ── Block 2b (2a CANDIDATE-1, ruled) — GET /wizard/last-batch read tolerance ─
+
+test("getWizardLastBatch ACCEPTS a legacy source:'surprise' row (server read union mirrored)", async () => {
+  nextResponse = () =>
+    mockJson({
+      batch: {
+        source: "surprise",
+        candidates: [],
+        input: null,
+        createdAt: "2026-09-01T00:00:00.000Z",
+      },
+    });
+  const { getWizardLastBatch } = await import("../wizard");
+  const res = await getWizardLastBatch();
+  assert.equal(res.batch?.source, "surprise");
+});

@@ -225,6 +225,7 @@ const originalFetch = globalThis.fetch;
 let calls: { path: string; method: string; body: Record<string, unknown> }[] = [];
 let replaced: unknown[] = [];
 let pushed: unknown[] = [];
+let dismissed: unknown[] = [];
 let moreResponse: () => WizardShelfResponse = () => shelf([meal("x1"), meal("x2")], 40, true);
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -240,9 +241,11 @@ beforeEach(() => {
   calls = [];
   replaced = [];
   pushed = [];
+  dismissed = [];
   __setRouterForTests({
     replace: (href: unknown) => replaced.push(href),
     push: (href: unknown) => pushed.push(href),
+    dismissTo: (href: unknown) => dismissed.push(href),
   });
   (globalThis as { fetch: typeof fetch }).fetch = ((url: string, init?: RequestInit) => {
     const u = String(url);
@@ -356,14 +359,19 @@ test("screen: hasMore:false → the exhausted card replaces 'Get more options'; 
   assert.ok(z.text().includes(EXHAUSTED_TITLE));
 });
 
-test("screen: the exhausted card's two exits go back into the wizard in the named mode", async () => {
+test("screen: the exhausted card's two exits go BACK to the wizard on the stack (dismissTo, never push) with the params", async () => {
   const m = await mount({ shelf: shelf([], 0, false) });
   await tap(walk(m.root()).find((n) => n.props.onPress && allText(n).join("") === "Refine preferences"), "Refine");
   await tap(walk(m.root()).find((n) => n.props.onPress && allText(n).join("") === "Tell Kiwi"), "Tell Kiwi");
-  assert.deepEqual(pushed, [
-    { pathname: "/wizard", params: { adjust: "1" } },
-    { pathname: "/tellkiwi", params: { focus: "1" } },
-  ]);
+  // Block 2b (2a CANDIDATE-4, ruled) — no stack growth.
+  assert.equal(pushed.length, 0, "the exits must not push a fresh wizard");
+  const hrefs = dismissed as { pathname: string; params: Record<string, string> }[];
+  assert.equal(hrefs.length, 2);
+  assert.equal(hrefs[0].pathname, "/wizard");
+  assert.equal(hrefs[0].params.adjust, "1");
+  assert.match(hrefs[0].params.nonce, /^\d+$/);
+  assert.equal(hrefs[1].pathname, "/tellkiwi");
+  assert.equal(hrefs[1].params.focus, "1");
 });
 
 test("screen: 'Get more options' re-posts the shelf with EVERY shown id excluded and appends, keeping picks", async () => {

@@ -8,6 +8,7 @@
 
 import { z } from "zod";
 
+import { todayLocalDate } from "../dates";
 import { apiClient } from "./client";
 import { MealListItemSchema } from "./meals";
 import { PlanSummarySchema } from "./plans";
@@ -56,7 +57,13 @@ export type HomePayload = z.infer<typeof HomePayloadSchema>;
  * mismatch.
  */
 export async function getHomePayload(): Promise<HomePayload> {
-  return apiClient("/home", { schema: HomePayloadSchema });
+  // WS9 BUG-282 (client half) — "today" for the Tonight card is resolved on
+  // the SERVER by server-local time (UTC on Cloud Run), so after 8 PM ET the
+  // card showed tomorrow's meal. Send the device's local calendar date; the
+  // server half reads it next lane (it ignores the param until then).
+  return apiClient(`/home?localDate=${encodeURIComponent(todayLocalDate())}`, {
+    schema: HomePayloadSchema,
+  });
 }
 
 // ── WS9-2 2c (D-WS9-154) — the Featured-plans rail ──────────────────────────

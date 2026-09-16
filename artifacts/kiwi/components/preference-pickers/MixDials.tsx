@@ -10,10 +10,14 @@
 // ⚠️ ZERO PLAYLIST MEALS → the Playlist row is REPLACED by the nudge card,
 // here, so the preferences screen and the wizard cannot drift on when it shows
 // or what it says. The caller passes `playlistCount` (from GET /me/playlist);
-// `undefined` means "not known / not asked" and renders the chips — onboarding
-// step 2 passes nothing (a brand-new user has no playlist by construction and
-// no Playlist tab to link to yet), and a preferences screen whose playlist
-// read failed falls back to the chips rather than nagging.
+// `undefined` means "not known / not asked" and renders the chips; a
+// preferences screen whose playlist read failed falls back to the chips rather
+// than nagging.
+//
+// Block 2b (ruled, 2a CANDIDATE-2) — onboarding step 2 HIDES the Playlist row
+// (`showPlaylist={false}`): a brand-new user has no playlist, the stored default
+// stays none, and they meet the dial in Preferences and the wizard. Discovery
+// stays.
 //
 // The stored level may be non-none while the playlist is empty (the user set
 // it, then removed every meal). The server treats that as none; the UI shows
@@ -54,13 +58,21 @@ export interface MixDialsProps {
   /** Space above the first row — the preferences screen stacks rows with
    *  Spacing[4]; the wizard's section supplies its own. */
   style?: object;
+  /** Block 2b — onboarding step 2 passes false: Discovery only. Default true. */
+  showPlaylist?: boolean;
 }
 
-export function MixDials({ value, onChange, playlistCount, style }: MixDialsProps) {
+export function MixDials({
+  value,
+  onChange,
+  playlistCount,
+  style,
+  showPlaylist = true,
+}: MixDialsProps) {
   const showNudge = playlistCount === 0;
   return (
     <View style={style}>
-      {showNudge ? (
+      {!showPlaylist ? null : showNudge ? (
         <PlaylistNudgeCard />
       ) : (
         <DialRow
@@ -75,7 +87,7 @@ export function MixDials({ value, onChange, playlistCount, style }: MixDialsProp
         hint={DISCOVERY_DIAL_HINT}
         value={value.discoveryLevel}
         onSelect={(level) => onChange(setDial(value, "discoveryLevel", level))}
-        style={{ marginTop: Spacing[4] }}
+        style={showPlaylist ? { marginTop: Spacing[4] } : undefined}
       />
     </View>
   );

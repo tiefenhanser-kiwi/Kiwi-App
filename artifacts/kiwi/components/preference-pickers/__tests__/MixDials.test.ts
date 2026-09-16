@@ -143,3 +143,26 @@ test("an UNKNOWN count (undefined) renders the chips, not the nudge", () => {
   assert.ok(text.includes(PLAYLIST_DIAL_LABEL));
   assert.ok(!text.includes(NUDGE_TITLE));
 });
+
+test("Block 2b (ruled): showPlaylist=false renders Discovery ONLY — no Playlist row, no nudge (onboarding step 2)", () => {
+  let tree!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    tree = TestRenderer.create(
+      React.createElement(MixDials, {
+        value: NONE_NONE,
+        onChange: () => {},
+        showPlaylist: false,
+        playlistCount: 0,
+      }),
+    );
+  });
+  mounted = tree;
+  const root = tree.toJSON() as unknown as Json;
+  const text = allText(root);
+  assert.ok(text.includes(DISCOVERY_DIAL_LABEL));
+  assert.ok(!text.includes(PLAYLIST_DIAL_LABEL), "the Playlist row must be hidden");
+  assert.ok(!text.includes(NUDGE_TITLE), "count 0 must NOT nudge when the row is hidden");
+  for (const label of ["None", "Some", "Mostly", "All"]) {
+    assert.equal(pressablesByExactText(root, label).length, 1, `${label}: Discovery only`);
+  }
+});

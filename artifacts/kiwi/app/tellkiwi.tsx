@@ -12,13 +12,14 @@ import { useLocalSearchParams } from "expo-router";
 import { WizardScreen } from "@/components/WizardScreen";
 
 export default function TellKiwi() {
-  const params = useLocalSearchParams<{ text?: string; focus?: string }>();
+  const params = useLocalSearchParams<{ text?: string; focus?: string; nonce?: string }>();
   const initialText = typeof params.text === "string" ? params.text : "";
   return (
     <WizardScreen
       mode="text"
       initialText={initialText}
       focusText={params.focus === "1"}
+      paramNonce={params.nonce}
     />
   );
 }

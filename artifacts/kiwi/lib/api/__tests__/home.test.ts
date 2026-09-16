@@ -274,3 +274,20 @@ test("useHomePayload surfaces an error state on a 401", async () => {
   assert.equal(latest!.data, undefined);
   renderer.unmount();
 });
+
+// ── WS9 BUG-282 (client half) — localDate on GET /home ──────────────────────
+
+test("BUG-282: getHomePayload sends the device's local calendar date as ?localDate", async () => {
+  let lastUrl: string | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (url: string) => {
+    lastUrl = url;
+    return mockJson(HOME_FULL);
+  }) as unknown as typeof fetch;
+  const { todayLocalDate } = await import("../../dates");
+  await getHomePayload();
+  assert.ok(lastUrl, "no request");
+  const u = new URL(lastUrl!);
+  assert.ok(u.pathname.endsWith("/home"), u.pathname);
+  assert.equal(u.searchParams.get("localDate"), todayLocalDate());
+  assert.match(u.searchParams.get("localDate") ?? "", /^\d{4}-\d{2}-\d{2}$/);
+});
