@@ -24,7 +24,6 @@ import { createHash } from "node:crypto";
 import {
   WIZARD_SET_PREFERENCES_GENERATE_BODY,
   WIZARD_DIRECTED_GENERATE_BODY,
-  WIZARD_SURPRISE_GENERATE_BODY,
   WIZARD_CANDIDATE_EXPAND_BODY,
 } from "../../../../prisma/seeds/aiPrompts";
 import { MOST_COVERAGE_OVERAGE_MINUTES } from "../../store/storeShortlist";
@@ -32,7 +31,7 @@ import { MOST_COVERAGE_OVERAGE_MINUTES } from "../../store/storeShortlist";
 const ALL: ReadonlyArray<readonly [string, string]> = [
   ["wizard.set_preferences.generate", WIZARD_SET_PREFERENCES_GENERATE_BODY],
   ["wizard.directed.generate", WIZARD_DIRECTED_GENERATE_BODY],
-  ["wizard.surprise.generate", WIZARD_SURPRISE_GENERATE_BODY],
+  // wizard.surprise.generate — body deleted, D-WS9-191 Block 1 (Part D.2).
 ];
 
 describe("BUG-245 — a fresh dinner under a cap must realistically fit it", () => {
@@ -106,7 +105,6 @@ describe("BUG-245 — a fresh dinner under a cap must realistically fit it", () 
     assert.ok(WIZARD_SET_PREFERENCES_GENERATE_BODY.includes("a slow-simmered stew is not a 30-minute dinner"));
     assert.equal(WIZARD_SET_PREFERENCES_GENERATE_BODY.includes("a whole roast is not"), false);
     assert.equal(WIZARD_DIRECTED_GENERATE_BODY.includes("a slow-simmered stew is not"), false);
-    assert.equal(WIZARD_SURPRISE_GENERATE_BODY.includes("is not a 30-minute dinner"), false);
   });
 
   // D-WS9-073 — the rotation sections were not touched. Byte-identity is
@@ -115,7 +113,6 @@ describe("BUG-245 — a fresh dinner under a cap must realistically fit it", () 
   it("each body's OWN shelf-guard phrase on the rotation section survives", () => {
     assert.ok(WIZARD_SET_PREFERENCES_GENERATE_BODY.includes("never abandoning the shelf"));
     assert.ok(WIZARD_DIRECTED_GENERATE_BODY.includes("not abandoning the shelf"));
-    assert.equal(WIZARD_SURPRISE_GENERATE_BODY.includes("# Recent history — vary the rotation"), false);
   });
 
   // D-WS7-166 (v9) — the rotation sections are pinned BY HASH, sliced by

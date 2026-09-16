@@ -51,6 +51,13 @@ const RETIRED_KEYS: readonly string[] = [
   // only because a placeholder row looks like a real row in the prompts table,
   // and it made the BUG-179 search briefly point at the wrong prompt.
   "wizard.optimization_notes",
+  // D-WS9-191 Block 1 (Part D.2) — Surprise Me was retired in the Redesign Arc
+  // (Block 2, D-WS9-237: the route is deleted; the Pick screen is the
+  // zero-typing path). The body and its seed entry stayed INERT for the shared
+  // prompt-rule tests; this block deletes both and sweeps the row. LLMCallLog
+  // rows keep the key as a plain string. ⚠️ The runtime REGISTRY entry in
+  // lib/ai/promptRegistry.ts (placeholder body, no caller) is NOT touched here.
+  "wizard.surprise.generate",
 ];
 
 const placeholder = (key: string): string =>
@@ -126,7 +133,7 @@ And never equate few dishes with an easy night. A charcoal grill is more work th
 // allowance only tightens the BUG-179 guard; its prohibitions are unchanged.
 const WHY_BULLETS_RULES = `# whyBullets — what you may claim, and what you may not
 
-\`whyBullets\` tell the user why THIS plan fits THEM. Write 2-3. Every bullet must be checkable against the input you were handed: if you cannot point at the field that makes it true, do not write it.
+\`whyBullets\` tell the user why THIS plan fits THEM. Write 3. Every bullet must be checkable against the input you were handed — or against the plan you just composed: if you cannot point at the field, the \`mealTitles\` entry, or the shelf row that makes it true, do not write it.
 
 **You may not claim anything about ingredients being shared, used up, stretched, or bought once.** You have no ingredient data here. The meals do not exist yet — you are choosing titles — and the shelf gives you titles, cuisines, macros and times, never quantities and never pack sizes. So "the cilantro carries across both nights", "asparagus in two meals", "one pack of chicken covers Monday and Thursday", and "less waste this week" are invented, however plausible they sound. Two meals containing the same ingredient is CO-OCCURRENCE, not a saving: a saving needs two meals drawing on ONE purchased pack, and packs are invisible to you. This holds even when you chose the meals with waste in mind — that shapes what you pick, it is not something you may say.
 
@@ -141,7 +148,9 @@ Then structured fit, when it is actually true of this plan:
 - Kitchen fit — "All 5 meals fit your no-Instant-Pot kitchen"
 - What the plan simply IS — "Sheet-pan and one-pot meals minimize cleanup midweek"
 
-**Fewer honest bullets beat padded ones.** If only one thing is genuinely worth saying, write ONE bullet and stop. Never invent a second to reach a count.
+**A sparse profile still gets three bullets — from composition facts, not praise.** When the user gave little free text and few structured preferences, the preference-grounded bullets run out early; fill the rest from facts about the plan you composed that you can point at: the cooking methods you chose ("Four one-pan nights and one skillet"), the protein or cuisine spread ("Chicken, salmon, beans and beef — no two nights alike"), the shelf rows' times for shelf slots ("Three of five under 30 minutes on the shelf"), or a night worth cooking for ("Friday's braise is the one to linger over"). A composition fact is checkable against your own \`mealTitles\` and the shelf; praise is not — "a delicious week" is forbidden. Never state a time for a meal you composed fresh (the rule above stands: for those you aimed at the cap, you did not time them).
+
+**Fewer honest bullets beat padded ones.** A composition fact is an honest bullet; padding is praise or filler. If, after the preference facts AND the composition facts, only one thing is genuinely worth saying, write ONE bullet and stop. Never invent a second to reach a count.
 
 Never write filler that would be true of any plan, or a non-advantage dressed as one:
 - "Saves you time" (vague, and time-saved claims are forbidden)
@@ -151,8 +160,8 @@ Never write filler that would be true of any plan, or a non-advantage dressed as
 - "Asparagus features in two meals" (co-occurrence, not a saving)`;
 
 // D-WS9-038 / BUG-039 (Fix 3) — the shared catalog-compose instruction, used by
-// build-plans, Surprise-me, and Tell Kiwi so all three prefer the shelf the same
-// way. Strengthened from the timid B-1 wording: shelf-usage is the DEFAULT when
+// build-plans and Tell Kiwi (and, until D-WS9-191 Block 1 deleted its body, the
+// retired Surprise-me) so every generator prefers the shelf the same way. Strengthened from the timid B-1 wording: shelf-usage is the DEFAULT when
 // a shelf meal reasonably fits, not a rare option — the catalog only pays off
 // (latency + cost) if it's actually used. Hard constraints still bind shelf
 // meals exactly as fresh ones. The {{storeShortlist}} slot renders the shelf.
@@ -267,7 +276,7 @@ The parsed intent (below) tells you the scenario. Generate accordingly:
 - **fully_specified** → exactly 1 candidate plan with exactly \`mealCount\` dinners, in the order the user named them. Fill any gaps with complementary choices that match the user's other intent. Set \`cannotGenerateMore: true\` with a brief \`reason\` like "You named the meals you want — here's that plan."
 - **overflow** → exactly 1 candidate plan with the FIRST \`mealCount\` of the user's explicitMeals, in the order they were named. Set \`cannotGenerateMore: true\`. The dropped meals are echoed back via the route's needsClarification — you do NOT need to surface them here.
 
-For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits the user's request — practical, never time-saved claims), 1-5 short \`tags\`, the \`mealTitles\` array, the matching \`mealDescriptions\` array (below), and per-day average \`dailyMacros\`.
+For each candidate provide: a title, three \`whyBullets\` (Kiwi's brief explanation of why this plan fits the user's request — practical, never time-saved claims), 1-5 short \`tags\`, the \`mealTitles\` array, the matching \`mealDescriptions\` array (below), and per-day average \`dailyMacros\`.
 
 For every entry in \`mealTitles\` write the matching \`mealDescriptions\` entry at the same index: one sentence, under 25 words, saying what the dinner is and what makes it appealing — plain and appetizing, no puns. For a slot you fill from the shelf write \`""\` (the empty string): Kiwi shows the shelf meal's own description.
 
@@ -357,64 +366,6 @@ The full input arrives below. \`parsedIntent\` is from step 1 (the parser). \`us
 \`\`\`
 
 Generate the candidates now. Return ONLY the tool_use call.`;
-
-// WS9 3c §7.6 — wizard.surprise.generate. The "Surprise me" path: zero user
-// input, so there is no parse step and no parsedIntent. The server injects the
-// same hidden/planning/preferences context as the directed generate; this
-// prompt produces ONE CROWD-PLEASER candidate (BUG-249 removed a stale
-// three-candidate distinctness paragraph on 2026-09-10) from model
-// knowledge, strictly inside the user's stored hard constraints. Sonnet, tool.
-// WS9 BUG-179 — exported so cleanupClaimRules.test.ts can assert against the
-// REAL body. Its two siblings were already exported for the same reason.
-export const WIZARD_SURPRISE_GENERATE_BODY = `You are Kiwi's meal-planning AI. The user tapped "Surprise me" — they gave NO specific request. Your job is to generate plans of popular, mainstream, crowd-pleaser meals that most households love, tailored to this user's stored preferences.
-
-Your sole deliverable is the structured tool_use response. Do not narrate, summarize, or add commentary. The JSON is the entire response. Never break character with chatbot phrases.
-
-# What you produce
-
-1 candidate plan with exactly \`planDurationDays\` dinners. These are CROWD-PLEASERS drawn from your own knowledge of popular home cooking — the meals that reliably win at a family table (tacos, roast chicken, spaghetti and meatballs, stir-fries, burgers, curries, sheet-pan salmon, and the like). No obscure or experimental dishes: the "surprise" is that the user didn't have to choose, NOT novelty for its own sake.
-
-For each candidate provide: a title, 1-3 \`whyBullets\`, 1-5 short \`tags\`, the \`mealTitles\` array, optionally a richer \`meals\` array with \`{title, cuisineType, estimatedTimeMinutes}\` per meal, and per-day average \`dailyMacros\`.
-
-# Hard constraints (NEVER violated — this is the whole contract of "surprise")
-
-The surprise is meal CHOICE. It is NEVER a licence to break a constraint.
-
-- Dietary restrictions in \`eatingStyles\` (vegan, vegetarian, pescatarian, keto, etc.) are absolute exclusions for every meal in every candidate.
-- Allergies and avoidances in \`allergiesAndAvoidances\` are absolute exclusions for every ingredient in every meal. A crowd-pleaser that contains an allergen is NOT a candidate — pick a different crowd-pleaser.
-- \`hiddenContext.equipment\`: only suggest meals the user can actually cook.
-- \`hiddenContext.pickyAvoidances\` (free-text) → exclusions for the household, treated with the same weight as allergies.
-- \`dietaryNotes\` (free-text) → honor as exclusions/preferences.
-- Meal titles are appetizing, specific, and clear. Never placeholder titles.
-
-# Soft preferences (bias, never override hard constraints)
-
-- Lean toward the user's preferred \`cuisines\` when given, but keep the crowd-pleaser character. If none given, spread across mainstream American, Italian, Mexican, Asian, and Mediterranean dinners.
-- \`weeklyPacing\` shapes effort: \`mostly_easy\` / \`minimal_effort\` → weeknight-simple; \`one_fancy_night\` → one slightly nicer meal, the rest simple; \`mixed\` → a spread.
-- \`hiddenContext.spiceTolerance\` / \`budgetLevel\` / \`recurringItems\` → same weighting as the directed flow.
-- \`preferencesContext.maxCookTimeMinutes\` (when set) → a capped shelf is already filtered to it on a start-to-plate time measured from each meal's steps (under \`preferencesContext.maxCookTimeCoverage: "most"\`, at most one shelf row runs over it, by at most 20 minutes). For a dinner you compose fresh, the cap limits what you may choose. The cap is a ceiling, not a target: every dinner must be on the table within it, from opening the fridge with prep included, and comfortably under is better than close to it. A 20-minute dinner is a good answer to a 30-minute limit, not a missed one — do not stretch a plan's dinners to fill the time allowed. Under a short cap that means few components, a quick-cooking protein, simple assembly. Anything that braises, roasts, bakes or simmers longer than the cap does not fit, however it is named. If no fresh dinner honestly fits a slot, use a shelf meal.
-- \`wantsLeftovers: true\` → target servings = householdSize + 1-2; else exactly householdSize.
-- \`planningContext.recentMeals\` → steer AWAY from meals the user planned/cooked recently so the surprise feels fresh, not recycled. Season and \`upcomingEvents\` tilt choices gently; they never override a constraint.
-
-${WHY_BULLETS_RULES}
-
-# Macros and tone
-
-\`dailyMacros\` is the per-day average, whole numbers. Titles sound like a friend recommending dinner. Plan-level titles are specific to the plan's real through-line and vary run to run. Treat every entry in \`planningContext.recentPlanNames\` as a HARD exclusion, not a soft nudge: the user has already seen those plans — including any shown earlier in THIS session — and tapped "Surprise Me again" precisely to get something different, so never return one of them again. Likewise avoid rebuilding the dinners listed in \`planningContext.recentMeals\`: a fresh title over the same meals is still a repeat.
-
-${CLEANUP_CLAIM_RULES}
-
-${CATALOG_SHELF_SECTION}
-
-# Input
-
-Server-injected context arrives below. The user made no request this time, but they have still written things down: \`dietaryNotes\` and \`hiddenContext.pickyAvoidances\` are their own words, carried from their profile, and they are the strongest material for \`whyBullets\`.
-
-\`\`\`json
-{{generateInput}}
-\`\`\`
-
-Generate 1 crowd-pleaser candidate now. Return ONLY the tool_use call.`;
 
 // REVIEW(hans-6b-2): nutrition.ingredient_estimate prompt body — per-serving
 // macro estimation from an ingredient list (PRD §11). Cheap utility flow:
@@ -926,7 +877,7 @@ Your sole deliverable is the structured tool_use response. Do not narrate, summa
 
 # What you produce
 
-Exactly \`requestedCandidateCount\` candidate plans — the input names the number (usually 3; it is 1 when the user asked for one more option) — each containing exactly \`planDurationDays\` dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, 1-3 \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the \`mealTitles\` array (one per dinner), the matching \`mealDescriptions\` array (below), per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}), and — when you build any slot from the store shelf (see "Composing from the store shelf" below) — a \`storeSlots\` array recording which slots you took from the shelf.
+Exactly \`requestedCandidateCount\` candidate plans — the input names the number (usually 3; it is 1 when the user asked for one more option) — each containing exactly \`planDurationDays\` dinners (no breakfasts, no lunches, no standalone drinks/desserts/sides). For each candidate provide: a title, three \`whyBullets\` (Kiwi's brief explanation of why this plan fits — practical, never time-saved claims), 1-5 short \`tags\`, the \`mealTitles\` array (one per dinner), the matching \`mealDescriptions\` array (below), per-day average \`dailyMacros\` ({calories, proteinG, carbsG, fatG}), and — when you build any slot from the store shelf (see "Composing from the store shelf" below) — a \`storeSlots\` array recording which slots you took from the shelf.
 
 For every entry in \`mealTitles\` write the matching \`mealDescriptions\` entry at the same index: one sentence, under 25 words, saying what the dinner is and what makes it appealing — plain and appetizing, no puns. For a slot you fill from the shelf write \`""\` (the empty string): Kiwi shows the shelf meal's own description.
 
@@ -2003,15 +1954,6 @@ const PROMPTS: PromptSeed[] = [
     defaultModel: MODEL_SONNET,
     defaultMode: "tool",
     body: WIZARD_DIRECTED_GENERATE_BODY,
-  },
-  {
-    key: "wizard.surprise.generate",
-    description:
-      "Generate ONE popular crowd-pleaser plan candidate for the Surprise-me path (zero user input), within stored-preference hard constraints; composes from the catalog.",
-    variables: ["generateInput", "storeShortlist"],
-    defaultModel: MODEL_SONNET,
-    defaultMode: "tool",
-    body: WIZARD_SURPRISE_GENERATE_BODY,
   },
   {
     key: "wizard.candidate.expand",

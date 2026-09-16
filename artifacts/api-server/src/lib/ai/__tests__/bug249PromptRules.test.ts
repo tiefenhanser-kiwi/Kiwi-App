@@ -1,6 +1,7 @@
-// WS9 BUG-249 — the cross-candidate repeat rule, the corrected cook-time
-// sentences, and the surprise body's stale three-candidate paragraph, asserted
-// against the REAL seed source (prisma/seeds/aiPrompts.ts), never the DB.
+// WS9 BUG-249 — the cross-candidate repeat rule and the corrected cook-time
+// sentences, asserted against the REAL seed source (prisma/seeds/aiPrompts.ts),
+// never the DB. (The surprise body's assertions left with the body itself —
+// D-WS9-191 Block 1, Part D.2.)
 //
 // Hans: "When Kiwi generates plans, it shouldn't repeat the same meal across
 // the plans it suggests." Measured before this: a cross-candidate repeat in 4 of
@@ -16,17 +17,13 @@ import assert from "node:assert/strict";
 import {
   WIZARD_SET_PREFERENCES_GENERATE_BODY,
   WIZARD_DIRECTED_GENERATE_BODY,
-  WIZARD_SURPRISE_GENERATE_BODY,
 } from "../../../../prisma/seeds/aiPrompts";
 
 const MULTI_CANDIDATE: ReadonlyArray<readonly [string, string]> = [
   ["wizard.set_preferences.generate", WIZARD_SET_PREFERENCES_GENERATE_BODY],
   ["wizard.directed.generate", WIZARD_DIRECTED_GENERATE_BODY],
 ];
-const ALL: ReadonlyArray<readonly [string, string]> = [
-  ...MULTI_CANDIDATE,
-  ["wizard.surprise.generate", WIZARD_SURPRISE_GENERATE_BODY],
-];
+const ALL: ReadonlyArray<readonly [string, string]> = [...MULTI_CANDIDATE];
 
 describe("BUG-249 — no Kiwi-chosen meal in two suggested plans", () => {
   it("the cross-candidate rule is present in every multi-candidate body, scoped to THIS response", () => {
@@ -83,16 +80,4 @@ describe("BUG-249 — no Kiwi-chosen meal in two suggested plans", () => {
     }
   });
 
-  it("surprise generates ONE candidate and no longer carries the three-candidate distinctness paragraph", () => {
-    assert.ok(
-      WIZARD_SURPRISE_GENERATE_BODY.includes("1 candidate plan with exactly `planDurationDays` dinners"),
-    );
-    assert.ok(WIZARD_SURPRISE_GENERATE_BODY.includes("Generate 1 crowd-pleaser candidate now."));
-    assert.equal(WIZARD_SURPRISE_GENERATE_BODY.includes("Three candidates that all feel the same is failure"), false);
-    assert.equal(WIZARD_SURPRISE_GENERATE_BODY.includes("# Distinctness"), false);
-    // And nothing else was added: no rotation section (deliberate, D-WS9-073)
-    // and no cross-candidate rule (a single candidate has nothing to repeat).
-    assert.equal(WIZARD_SURPRISE_GENERATE_BODY.includes("# Recent history — vary the rotation"), false);
-    assert.equal(WIZARD_SURPRISE_GENERATE_BODY.includes("more than one candidate of THIS response"), false);
-  });
 });

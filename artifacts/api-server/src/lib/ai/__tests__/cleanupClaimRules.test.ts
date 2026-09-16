@@ -19,13 +19,12 @@ import assert from "node:assert/strict";
 import {
   WIZARD_SET_PREFERENCES_GENERATE_BODY,
   WIZARD_DIRECTED_GENERATE_BODY,
-  WIZARD_SURPRISE_GENERATE_BODY,
 } from "../../../../prisma/seeds/aiPrompts";
 
 const BODIES: ReadonlyArray<readonly [string, string]> = [
   ["wizard.set_preferences.generate", WIZARD_SET_PREFERENCES_GENERATE_BODY],
   ["wizard.directed.generate", WIZARD_DIRECTED_GENERATE_BODY],
-  ["wizard.surprise.generate", WIZARD_SURPRISE_GENERATE_BODY],
+  // wizard.surprise.generate — body deleted, D-WS9-191 Block 1 (Part D.2).
 ];
 
 describe("BUG-179 — cleanup/effort claim rules reach every plan generator", () => {

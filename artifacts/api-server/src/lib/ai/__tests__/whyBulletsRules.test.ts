@@ -12,10 +12,11 @@
 // tacos and the curry"), which this stage cannot ground, so the model degraded
 // them into co-occurrence claims. The examples are REPLACED, not softened.
 //
-// All three plan generators emit whyBullets, so all three carry the rules and
-// this test covers all three. Every expected string below is a hand-written
-// literal; nothing here reads WHY_BULLETS_RULES, so a change to the shared const
-// cannot silently satisfy the assertions.
+// Both plan generators emit whyBullets, so both carry the rules and this test
+// covers both (the third, Surprise-me, was deleted — D-WS9-191 Block 1, Part
+// D.2). Every expected string below is a hand-written literal; nothing here
+// reads WHY_BULLETS_RULES, so a change to the shared const cannot silently
+// satisfy the assertions.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -23,17 +24,15 @@ import assert from "node:assert/strict";
 import {
   WIZARD_SET_PREFERENCES_GENERATE_BODY,
   WIZARD_DIRECTED_GENERATE_BODY,
-  WIZARD_SURPRISE_GENERATE_BODY,
 } from "../../../../prisma/seeds/aiPrompts";
 
 const BODIES: ReadonlyArray<readonly [string, string]> = [
   ["wizard.set_preferences.generate", WIZARD_SET_PREFERENCES_GENERATE_BODY],
   ["wizard.directed.generate", WIZARD_DIRECTED_GENERATE_BODY],
-  ["wizard.surprise.generate", WIZARD_SURPRISE_GENERATE_BODY],
 ];
 
 describe("BUG-190 — whyBullets claim rules reach every plan generator", () => {
-  it("the taught quantity-grounded examples are gone from all three bodies", () => {
+  it("the taught quantity-grounded examples are gone from both bodies", () => {
     // Each of these taught a sharing claim this stage cannot ground. Replaced,
     // not softened — §10: we do not layer a correction on the thing corrected.
     const taught = [
@@ -113,6 +112,36 @@ describe("BUG-190 — whyBullets claim rules reach every plan generator", () => 
     }
   });
 
+  // D-WS9-191 Block 1 (Part D.1) — the §5d floor: a sparse profile still gets
+  // three bullets, filled from COMPOSITION FACTS the model can point at (its own
+  // mealTitles, the shelf rows), never praise; the fresh-meal time ban stands.
+  it("D-WS9-191: a sparse profile still gets three bullets, from composition facts, never praise", () => {
+    for (const [key, body] of BODIES) {
+      assert.ok(body.includes("Write 3."), `${key}: three is the target`);
+      assert.ok(
+        body.includes("**A sparse profile still gets three bullets — from composition facts, not praise.**"),
+        `${key}: the floor paragraph`,
+      );
+      assert.ok(
+        body.includes("if you cannot point at the field, the \`mealTitles\` entry, or the shelf row that makes it true, do not write it"),
+        `${key}: checkable against the plan composed, not only the input`,
+      );
+      // The four fill sources, each an example the model can check.
+      assert.ok(body.includes('"Four one-pan nights and one skillet"'), `${key}: cooking methods`);
+      assert.ok(body.includes('"Chicken, salmon, beans and beef — no two nights alike"'), `${key}: protein spread`);
+      assert.ok(body.includes('"Three of five under 30 minutes on the shelf"'), `${key}: shelf times for shelf slots`);
+      assert.ok(body.includes('"Friday\'s braise is the one to linger over"'), `${key}: a night worth cooking for`);
+      // Praise is forbidden by name; a composed meal's time stays unstated.
+      assert.ok(body.includes('"a delicious week" is forbidden'), `${key}: praise is not a fact`);
+      assert.ok(body.includes("Never state a time for a meal you composed fresh"), `${key}: the fresh-time ban stands`);
+      // The padding rule is scoped, not deleted: a composition fact is honest.
+      assert.ok(body.includes("A composition fact is an honest bullet; padding is praise or filler."), `${key}: scoped`);
+      // Both bodies ask for three (the schema's max), not "1-3".
+      assert.ok(body.includes("three \`whyBullets\`"), `${key}: three whyBullets`);
+      assert.equal(body.includes("1-3 \`whyBullets\`"), false, `${key}: the 1-3 wording is gone`);
+    }
+  });
+
   it("no body still authorizes a sharing claim via the cleanup rules", () => {
     // CLEANUP_CLAIM_RULES listed "Ingredients shared across meals — buy once,
     // less waste" and "Prep genuinely done once and used across several nights"
@@ -153,10 +182,10 @@ describe("BUG-190 — whyBullets claim rules reach every plan generator", () => 
   });
 
   it("each body names the free-text fields its own path actually carries", () => {
-    // The three paths carry different free text. additionalNotes exists ONLY on
+    // The two paths carry different free text. additionalNotes exists ONLY on
     // the build-plans request body (no UserPreferences column, and no client
-    // sends it to Tell Kiwi or Surprise-me), so the other two bodies must point
-    // at what they really have instead of a field that will never arrive.
+    // sends it to Tell Kiwi), so the directed body must point at what it really
+    // has instead of a field that will never arrive.
     assert.ok(
       WIZARD_SET_PREFERENCES_GENERATE_BODY.includes(
         "The words the user typed themselves are `additionalNotes`, `dietaryNotes`, and `hiddenContext.pickyAvoidances`",
@@ -165,16 +194,6 @@ describe("BUG-190 — whyBullets claim rules reach every plan generator", () => 
     assert.ok(
       WIZARD_DIRECTED_GENERATE_BODY.includes(
         "The words the user typed themselves are `userInput`, `dietaryNotes`, and `hiddenContext.pickyAvoidances`",
-      ),
-    );
-    assert.equal(
-      WIZARD_SURPRISE_GENERATE_BODY.includes("There is no user free-text."),
-      false,
-      "surprise must not claim the user wrote nothing — dietaryNotes and pickyAvoidances are their words",
-    );
-    assert.ok(
-      WIZARD_SURPRISE_GENERATE_BODY.includes(
-        "`dietaryNotes` and `hiddenContext.pickyAvoidances` are their own words",
       ),
     );
   });
