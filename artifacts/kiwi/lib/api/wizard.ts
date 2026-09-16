@@ -450,13 +450,13 @@ export async function buildWizardShelf(
 // The server lane is teaching WizardLastBatch a `shelf` source carrying the
 // ordered meal ids last shown on the Pick screen; the read shape coded here
 // is `meals` (the cards, in order — what the Pick screen renders) beside
-// `mealIds`. A shelf row carries no plan candidates (`candidates` defaults to
-// []); `input` is the WizardShelfRequest slice, which is what "Get more
+// `mealIds`. A shelf row carries no plan candidates (`candidates` is optional
+// on read; consumers coalesce); `input` is the WizardShelfRequest slice, which is what "Get more
 // options" re-posts. ⚠️ Coded to the contract as described; if the server's
 // shape differs when it lands, that is a follow-up, not a redesign.
 const WizardLastBatchSchema = z.object({
   source: z.enum(["wizard", "tellkiwi", "surprise", "shelf"]),
-  candidates: z.array(WizardPlanCandidateSchema).default([]),
+  candidates: z.array(WizardPlanCandidateSchema).optional(),
   meals: z.array(ShelfMealSchema).optional(),
   mealIds: z.array(z.string()).optional(),
   // Loosely typed on purpose — it round-trips verbatim into the wizard-results

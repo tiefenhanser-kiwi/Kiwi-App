@@ -20,7 +20,7 @@ export function shouldShowPreviousOptions(
   // Block 2c Part E — a shelf batch shows when it still has CARDS to re-show
   // (an empty or fully-stale row — every id gone, so no cards — hides it).
   if (batch?.source === "shelf") return (batch.meals?.length ?? 0) > 0;
-  return !!batch && batch.candidates.length > 0;
+  return !!batch && (batch.candidates?.length ?? 0) > 0;
 }
 
 /** Block 2c Part E — the link's subtitle, by batch kind. */
@@ -29,7 +29,7 @@ export function previousOptionsSubtitle(batch: WizardLastBatch): string {
     const n = batch.meals?.length ?? 0;
     return n === 1 ? "Your last suggested meal" : `Your last ${n} suggested meals`;
   }
-  const count = batch.candidates.length;
+  const count = batch.candidates?.length ?? 0;
   return count === 1 ? "Your last generated plan" : `Your last ${count} generated plans`;
 }
 
@@ -85,7 +85,7 @@ export function buildRehydrateParams(
 ): Record<string, string> {
   const base = {
     rehydrate: "1",
-    rehydratedCandidates: JSON.stringify(batch.candidates),
+    rehydratedCandidates: JSON.stringify(batch.candidates ?? []),
   };
   if (batch.source === "tellkiwi") {
     return {
