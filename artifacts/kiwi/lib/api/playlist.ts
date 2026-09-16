@@ -16,6 +16,10 @@ const PlaylistMealSchema = MealCardSchema.extend({
   isNewToYou: z.literal(false),
   source: z.literal("playlist"),
   addedAt: z.string(),
+  // Post-pass server Part C (BUG-283) — the server says whether this meal is
+  // in the active this-week plan; the client no longer derives it. Optional
+  // (coalesced false) so an older cached row still parses.
+  inActivePlan: z.boolean().optional(),
 });
 export type PlaylistMeal = z.infer<typeof PlaylistMealSchema>;
 

@@ -269,6 +269,31 @@ beforeEach(() => {
           201,
         ),
       );
+    // D-WS9-191 Block 2 Part C — the demotion toast names the plan as the SERVER
+    // named it (lib/planTitle.ts), read off the plan detail after the 201.
+    if (method === "GET" && u.endsWith("/plans/plan-new"))
+      return Promise.resolve(
+        jsonResponse({
+          plan: {
+            id: "plan-new",
+            name: "Hans's meals, week of Sep 17",
+            status: "this_week",
+            startDate: "2026-09-17T00:00:00.000Z",
+            endDate: "2026-09-21T00:00:00.000Z",
+            revisionId: 1,
+            isActiveThisWeek: true,
+            userId: "user-1",
+            sourceType: "directed",
+            prepStatus: "not_prepped",
+            prepStatusIsManual: false,
+            optimizationNotes: [],
+            breakfastOverrides: "",
+            lunchOverrides: "",
+            items: [],
+            macroDailyAverage: { caloriesPerDay: 0, proteinGPerDay: 0, carbsGPerDay: 0, fatGPerDay: 0 },
+          },
+        }),
+      );
     return Promise.resolve(jsonResponse({ error: "not found" }, 404));
   }) as unknown as typeof fetch;
 });
@@ -405,10 +430,13 @@ test("screen: 'Build my week' is disabled at 0 picks; with picks it POSTs the id
   assert.equal(post!.body.householdSize, 4);
   assert.equal(post!.body.localDate, todayLocalDate());
   assert.match(String(post!.body.localDate), /^\d{4}-\d{2}-\d{2}$/);
+  // D-WS9-191 Block 2 Part C — the SERVER names the plan; no client title.
+  assert.equal("title" in post!.body, false, "the 'Your picks' sentinel is no longer sent");
   assert.deepEqual(replaced, [{ pathname: "/plan/[id]", params: { id: "plan-new" } }]);
-  // D-WS9-011a — the EXISTING demotion toast, off the response's `demoted`.
+  // D-WS9-011a — the EXISTING demotion toast, off the response's `demoted`,
+  // naming the plan as the server named it (read off GET /plans/:id).
   assert.ok(
-    m.text().includes("Now cooking: Your picks. Cozy Week taken off this week."),
+    m.text().includes("Now cooking: Hans's meals, week of Sep 17. Cozy Week taken off this week."),
     `demotion toast missing: ${m.text()}`,
   );
 });

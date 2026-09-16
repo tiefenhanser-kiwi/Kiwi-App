@@ -37,6 +37,7 @@ import { useToast } from "@/contexts/ToastProvider";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   createPlanFromMeals,
+  getPlan,
   type CreatePlanFromMealsResponse,
 } from "@/lib/api/plans";
 import { getPreferences, type UserPreferences } from "@/lib/api/me";
@@ -87,8 +88,12 @@ export const BUILD_LABEL = "Build my week";
 export const FOOTER_FLEX = (days: number) => `fewer or more than ${days} is fine`;
 export const FOOTER_OVER_CAP = (n: number, cap: number) => ` · ${n} over your ${cap}-min cap`;
 export const COULDNT_FIND = (names: string[]) => `Couldn't find: ${names.join(", ")}`;
-/** The server's default title for a picks plan — mirrored so the demotion toast can name it. */
-export const PICKS_PLAN_TITLE = "Your picks";
+// D-WS9-191 Block 2 Part C — the SERVER names a picks plan (lib/planTitle.ts:
+// "{Name}'s meals, week of {Mon D}"); the client sends NO title. The from-meals
+// 201 carries no name, so the demotion toast reads it off the plan detail
+// (the same query Plan Review mounts next — warmed, not doubled) and falls
+// back to this when that read fails.
+export const PICKS_PLAN_FALLBACK_NAME = "Your new plan";
 
 export type PickMealsScreenProps = PickMealsParamsInput & {
   /** Block 2b — "Plan a week from these". Playlist-only: no paging, no exhausted card. */
@@ -140,7 +145,6 @@ export function PickMealsScreen({
         mealIds,
         planDurationDays,
         householdSize,
-        title: PICKS_PLAN_TITLE,
       }),
   });
 
@@ -157,13 +161,27 @@ export function PickMealsScreen({
   const handleBuild = () => {
     if (state.pickedIds.length === 0 || buildMutation.isPending) return;
     buildMutation.mutate(state.pickedIds, {
-      onSuccess: (result) => {
+      onSuccess: async (result) => {
         // BUG-051's gap — the same invalidation the activate path does.
         queryClient.invalidateQueries({ queryKey: ["plans"] });
         queryClient.invalidateQueries({ queryKey: ["home"] });
-        // D-WS9-011a — the existing demotion toast, off the response's `demoted`.
-        const msg = demotionToastMessage(PICKS_PLAN_TITLE, result.demoted);
-        if (msg) showToast({ message: msg });
+        // D-WS9-011a — the existing demotion toast, off the response's `demoted`,
+        // naming the plan as the SERVER named it (Part C).
+        if (result.demoted) {
+          let name = PICKS_PLAN_FALLBACK_NAME;
+          try {
+            const id = result.instance.id;
+            const plan = await queryClient.fetchQuery({
+              queryKey: ["plans", "detail", id],
+              queryFn: () => getPlan(id),
+            });
+            name = plan.name || name;
+          } catch {
+            // the toast still shows, with the fallback name
+          }
+          const msg = demotionToastMessage(name, result.demoted);
+          if (msg) showToast({ message: msg });
+        }
         router.replace({
           pathname: "/plan/[id]",
           params: { id: result.instance.id },

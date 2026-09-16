@@ -262,6 +262,10 @@ export async function getPlans(
   const params = new URLSearchParams();
   if (filter && filter.length > 0) params.set("filter", filter.join(","));
   if (opts.cursor) params.set("cursor", opts.cursor);
+  // D-WS9-191 Block 2 Part C (BUG-282's client half for this reader) — the
+  // device's local calendar date, like GET /home sends since 2b: the server
+  // ([WS9-arc-PS-E]) resolves "this week" in the client's day when sent.
+  params.set("localDate", todayLocalDate());
   const qs = params.toString();
   return apiClient(`/plans${qs ? `?${qs}` : ""}`, {
     schema: PlanListResponseSchema,

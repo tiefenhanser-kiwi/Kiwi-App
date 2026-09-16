@@ -217,6 +217,10 @@ export type ParsedSubDish = z.infer<typeof ParsedSubDishSchema>;
 // transforms to `ParsedMeal` (UI difficulty) before returning to callers.
 const ServerParsedMealSchema = z.object({
   title: z.string(),
+  // WS9 BUG-288 — the one-line headnote mode_a_parse authors (server: ≤200
+  // chars, persisted to Meal.description on save). The bare z.object here
+  // STRIPPED it, so the Ask-Kiwi save never carried it. Optional, as sent.
+  description: z.string().optional(),
   cuisine: z.string().nullable(),
   estimatedPrepMinutes: z.number(),
   estimatedCookMinutes: z.number(),
@@ -234,6 +238,8 @@ const ParseMealResponseSchema = z.object({
 
 export interface ParsedMeal {
   title: string;
+  // WS9 BUG-288 — see the schema note.
+  description?: string;
   cuisine: string | null;
   estimatedPrepMinutes: number;
   estimatedCookMinutes: number;

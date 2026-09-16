@@ -225,3 +225,23 @@ test("a 402 stops the run: that box fails with the upgrade message, the rest go 
   assert.equal(last(boxes[0].id).error, BULK_UPGRADE_MESSAGE);
   assert.equal(last(boxes[1].id).status, "idle");
 });
+
+// ── WS9 BUG-288 — the save body carries the parse's description + tags ────────
+
+test("BUG-288: the untouched-draft save body carries the parse's description and tags", () => {
+  const draft = parsedMealToDraft({
+    ...parsed("Chicken Thighs").meal,
+    description: "Crisp-skinned thighs, pan juices, a squeeze of lemon.",
+    tags: ["weeknight", "one-pan"],
+  });
+  const input = draftToSaveMealInput(draft);
+  assert.equal(input.description, "Crisp-skinned thighs, pan juices, a squeeze of lemon.");
+  assert.deepEqual(input.tags, ["weeknight", "one-pan"]);
+});
+
+test("BUG-288: no description on the parse → no description on the body; empty tags → no tags key", () => {
+  const draft = parsedMealToDraft({ ...parsed("Chicken Thighs").meal, tags: [] });
+  const input = draftToSaveMealInput(draft);
+  assert.equal(input.description, undefined);
+  assert.equal("tags" in input, false);
+});

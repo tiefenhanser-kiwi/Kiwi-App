@@ -481,6 +481,12 @@ export interface ManualSaveSourceState {
   notes: string;
   dishes: BuilderDish[];
   sourceType: "manual" | "directed";
+  // WS9 BUG-288 — a draft's own headnote + tags (Ask Kiwi's mode_a_parse and
+  // the import path both author them; the builder has no tags control and its
+  // notes box is the description). Optional: the manual path sends neither.
+  // The user's typed notes WIN over the draft's description; tags pass through.
+  description?: string;
+  tags?: string[];
 }
 
 /**
@@ -495,15 +501,18 @@ export function buildManualSaveMealInput(
     throw new Error("Add a meal name.");
   }
   const minutes = parseInt(state.estimatedTimeMinutes, 10);
+  const draftTags = (state.tags ?? []).map((t) => t.trim()).filter(Boolean);
   const baseMeta = {
     title: trimmedName,
-    description: state.notes.trim() || undefined,
+    // BUG-288 — typed notes first, else the draft's headnote, else nothing.
+    description: state.notes.trim() || state.description?.trim() || undefined,
     cuisineType: state.cuisineType.trim() || undefined,
     servingsDefault: state.servingsDefault,
     estimatedTimeMinutes:
       Number.isFinite(minutes) && minutes > 0 ? minutes : undefined,
     difficulty: toServerDifficulty(state.difficulty),
     sourceType: state.sourceType,
+    ...(draftTags.length > 0 ? { tags: draftTags } : {}),
   };
   const newDishes = serializeNewDishesForSave(state.dishes, trimmedName);
   if (newDishes.length === 0) {

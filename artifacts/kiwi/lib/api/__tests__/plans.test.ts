@@ -313,15 +313,23 @@ test("getPlans parses the discovery-list response", async () => {
   assert.equal(res.nextCursor, null);
 });
 
-test("getPlans with no filter omits the query param", async () => {
+// D-WS9-191 Block 2 Part C — GET /plans always carries ?localDate= (the device's
+// day, like GET /home since 2b); the filter param rides beside it.
+test("getPlans with no filter sends ONLY ?localDate= (no filter param)", async () => {
+  const { todayLocalDate } = await import("../../dates");
   await getPlans();
-  assert.ok(lastUrl?.endsWith("/plans"), `unexpected url: ${lastUrl}`);
+  assert.ok(
+    lastUrl?.endsWith(`/plans?localDate=${todayLocalDate()}`),
+    `unexpected url: ${lastUrl}`,
+  );
+  assert.ok(!lastUrl?.includes("filter="));
 });
 
-test("getPlans serializes a multi-select filter into ?filter=", async () => {
+test("getPlans serializes a multi-select filter into ?filter= beside localDate", async () => {
+  const { todayLocalDate } = await import("../../dates");
   await getPlans(["my_plans", "featured"]);
   assert.ok(
-    lastUrl?.endsWith("/plans?filter=my_plans%2Cfeatured"),
+    lastUrl?.endsWith(`/plans?filter=my_plans%2Cfeatured&localDate=${todayLocalDate()}`),
     `unexpected url: ${lastUrl}`,
   );
 });

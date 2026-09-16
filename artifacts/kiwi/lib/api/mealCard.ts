@@ -13,6 +13,11 @@ export const MealCardSchema = z
     id: z.string(),
     title: z.string(),
     description: z.string().nullable(),
+    // D-WS9-191 Block 2 Part C — the server card carries the meal's image url
+    // (null on every row today, roadmap row 5); declared so the Playlist row
+    // can render it through TreatedImage when it lands. Optional for a cached
+    // older shape.
+    imageUrl: z.string().nullable().optional(),
     cuisineType: z.string().nullable(),
     difficulty: z.string(),
     estimatedTimeMinutes: z.number(),

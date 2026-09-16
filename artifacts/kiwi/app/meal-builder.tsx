@@ -386,7 +386,9 @@ export default function MealBuilderScreen() {
     setEstimatedTimeMinutes(String(draftMeal.estimatedTimeMinutes));
     setServingsDefault(draftMeal.servingsDefault);
     setDishes(hydrateBuilderDishesFromDraft(draftMeal, allocUid));
-    setNotes(draftMeal.notes ?? "");
+    // WS9 BUG-288 — a draft's headnote (Ask Kiwi / import) seeds the notes box,
+    // which is the description at save; explicit notes still win.
+    setNotes(draftMeal.notes ?? draftMeal.description ?? "");
   }, [draftMeal, sourceMeal]);
 
   // PRD §10.5 / WS5-5O — entry from Recipes Dishes view "Add to Meal" sheet
@@ -678,6 +680,8 @@ export default function MealBuilderScreen() {
       notes,
       dishes,
       sourceType: draftMeal ? "directed" : "manual",
+      // WS9 BUG-288 — the draft's tags ride the save (no tags control here).
+      ...(draftMeal?.tags?.length ? { tags: draftMeal.tags } : {}),
     });
   };
 

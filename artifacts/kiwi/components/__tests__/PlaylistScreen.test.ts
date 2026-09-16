@@ -206,29 +206,46 @@ test("playlistMetaLine drops an empty cuisine and keeps the order", () => {
   );
 });
 
-test("the 'in this week's plan' chip renders ONLY when the active plan's detail is cached — and never fetches it", async () => {
-  // Cold cache: no chip, and GET /plans/plan-1 is NOT called.
-  const cold = await mount();
-  assert.ok(!cold.text().includes(IN_PLAN_CHIP), "chip rendered without a cached plan");
-  assert.equal(calls.some((c) => c.path === "/plans/plan-1"), false, "the chip must never fetch the plan");
+test("the 'in this week's plan' chip is the SERVER's per-row inActivePlan — no plan fetch, no cache dependency (Part C)", async () => {
+  playlist = [
+    meal("m1", "Grandma's Lasagna"),
+    meal("m2", "Miso Salmon", { inActivePlan: true }),
+    meal("m3", "Sunday Braise", { inActivePlan: false }),
+  ];
+  const m = await mount();
+  const rows = walk(m.root()).filter((n) => typeof n.props.accessibilityLabel === "string" && ["Grandma's Lasagna", "Miso Salmon", "Sunday Braise"].includes(n.props.accessibilityLabel as string));
+  const withChip = rows.filter((r) => allText(r).includes(IN_PLAN_CHIP)).map((r) => r.props.accessibilityLabel);
+  assert.deepEqual(withChip, ["Miso Salmon"]);
+  assert.equal(calls.some((c) => c.path.startsWith("/plans")), false, "the chip never fetches a plan");
+  // A cached plan detail no longer has any say.
   await act(async () => {
     screen!.renderer.unmount();
   });
   screen!.client.clear();
   screen = null;
   calls = [];
-
-  // Warm cache: the plan detail was opened this session → chip on m2 only.
+  playlist = THREE;
   const warm = await mount((client) => {
-    client.setQueryData(["plans", "detail", "plan-1"], {
-      id: "plan-1",
-      items: [{ mealId: "m2" }],
-    });
+    client.setQueryData(["plans", "detail", "plan-1"], { id: "plan-1", items: [{ mealId: "m2" }] });
   });
-  const rows = walk(warm.root()).filter((n) => typeof n.props.accessibilityLabel === "string" && ["Grandma's Lasagna", "Miso Salmon", "Sunday Braise"].includes(n.props.accessibilityLabel as string));
-  const withChip = rows.filter((r) => allText(r).includes(IN_PLAN_CHIP)).map((r) => r.props.accessibilityLabel);
-  assert.deepEqual(withChip, ["Miso Salmon"]);
-  assert.equal(calls.some((c) => c.path === "/plans/plan-1"), false);
+  assert.ok(!warm.text().includes(IN_PLAN_CHIP), "the client derivation is gone");
+});
+
+test("row thumb: the server's imageUrl renders through TreatedImage; null → the placeholder ramp, no Image (Part C)", async () => {
+  playlist = [
+    meal("m1", "Grandma's Lasagna", { imageUrl: "https://img.test/lasagna.jpg" }),
+    meal("m2", "Miso Salmon", { imageUrl: null }),
+  ];
+  const m = await mount();
+  const rows = walk(m.root()).filter((n) => typeof n.props.accessibilityLabel === "string" && ["Grandma's Lasagna", "Miso Salmon"].includes(n.props.accessibilityLabel as string));
+  const lasagna = rows.find((r) => r.props.accessibilityLabel === "Grandma's Lasagna")!;
+  const salmon = rows.find((r) => r.props.accessibilityLabel === "Miso Salmon")!;
+  assert.equal(walk(lasagna).filter((n) => n.type === "rn-linear-gradient").length, 1, "the ramp is always painted");
+  const img = walk(lasagna).find((n) => n.type === "rn-image");
+  assert.ok(img, "the photo mounts when the row has one");
+  assert.deepEqual(img!.props.source, { uri: "https://img.test/lasagna.jpg" });
+  assert.equal(walk(salmon).filter((n) => n.type === "rn-linear-gradient").length, 1);
+  assert.equal(walk(salmon).filter((n) => n.type === "rn-image").length, 0, "null → ramp only");
 });
 
 test("Remove from playlist → DELETE /me/playlist/:id and the row drops (optimistic)", async () => {

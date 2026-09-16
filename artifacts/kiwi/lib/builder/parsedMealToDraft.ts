@@ -59,6 +59,10 @@ export function parsedMealToDraft(meal: ParsedMeal): DraftMeal {
 
   return {
     title: meal.title,
+    // WS9 BUG-288 — the headnote rides the draft like the import path's does
+    // (canonicalToDraftMeal); the save builder carries it when the user typed
+    // no notes over it. Omitted (not "") when the parse had none.
+    ...(meal.description && meal.description.trim() ? { description: meal.description.trim() } : {}),
     // DraftMeal.cuisineType is `string?`; collapse parse-meal's nullable.
     ...(meal.cuisine ? { cuisineType: meal.cuisine } : {}),
     difficulty: meal.difficulty,

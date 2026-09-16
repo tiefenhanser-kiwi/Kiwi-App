@@ -25,6 +25,13 @@ export interface MealRowBodyProps {
   /** The one-line meta under the description ("30 min · serves 4"). */
   meta: string;
   image?: string | null;
+  /**
+   * D-WS9-191 Block 2 Part C — a host-rendered thumb that REPLACES the default
+   * slot (the Playlist row passes a TreatedImage: the photo when the row has
+   * one, the warm placeholder ramp otherwise). MealRow omits it and keeps the
+   * flat sage fallback it has always had.
+   */
+  thumbSlot?: React.ReactNode;
   /** Tag pills, already de-duped by the host (lib/meals/cardPills). */
   tags?: readonly string[];
   /** Extra lines between the meta and the pills (a sort hint, a macros line). */
@@ -36,18 +43,23 @@ export function MealRowBody({
   description,
   meta,
   image,
+  thumbSlot,
   tags = [],
   children,
 }: MealRowBodyProps) {
   return (
     <>
-      <View style={styles.thumb}>
-        {image ? (
-          <Image source={{ uri: image }} style={styles.thumbImage} resizeMode="cover" />
-        ) : (
-          <View style={styles.thumbFallback} />
-        )}
-      </View>
+      {thumbSlot !== undefined ? (
+        thumbSlot
+      ) : (
+        <View style={styles.thumb}>
+          {image ? (
+            <Image source={{ uri: image }} style={styles.thumbImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.thumbFallback} />
+          )}
+        </View>
+      )}
       <View style={styles.body}>
         <DisplayTitle source={title} variant="row" style={styles.title} />
         {/* WS9 3f-4d Part 1c (D-WS9-124) + BUG-158 amendment — TWO lines, ruled

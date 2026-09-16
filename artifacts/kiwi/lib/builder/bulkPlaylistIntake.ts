@@ -121,6 +121,9 @@ export function draftToSaveMealInput(draft: DraftMeal): SaveMealInput {
     notes: draft.notes ?? "",
     dishes: hydrateBuilderDishesFromDraft(draft, allocUid),
     sourceType: "directed",
+    // WS9 BUG-288 — the parse's headnote + tags reach the save body.
+    ...(draft.description ? { description: draft.description } : {}),
+    tags: draft.tags,
   });
 }
 

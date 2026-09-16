@@ -13,12 +13,10 @@
 // week's plan" chip · a "⋯" menu (View meal · Remove from playlist). The
 // WHOLE row taps through to Meal Detail; the menu stays for Remove.
 //
-// ⚠️ THE CHIP IS CLIENT-DERIVED AND CACHE-ONLY. GET /me/playlist carries no
-// in-plan flag and the Home payload carries the active plan's id but not its
-// meal ids, so the chip reads the plan DETAIL query (["plans","detail",id])
-// with `enabled:false` — it renders only when that query is already cached
-// (the user opened the plan this session). It never fetches. CANDIDATE for the
-// server: an `inActivePlan` flag on the playlist row makes it deterministic.
+// The "in this week's plan" chip is the SERVER's per-row `inActivePlan`
+// (post-pass server Part C, BUG-283; wired here in D-WS9-191 Block 2 Part C) —
+// deterministic, no cache dependency. The earlier client derivation (the plan
+// DETAIL query with enabled:false, cache-only) is gone.
 //
 // Footer: "Add meals" (primary → today's Create Meal screen with toPlaylist=1)
 // and "Plan a week from these" (ghost → the Pick screen in playlist mode;
@@ -42,13 +40,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { MealRowBody } from "@/components/MealRowBody";
+import { TreatedImage } from "@/components/TreatedImage";
 import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
 import { PlaylistImportReviewSheet } from "@/components/PlaylistImportReviewSheet";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
-import { useHomePayload } from "@/hooks/useHomePayload";
 import { formatMacroLine } from "@/lib/format/macros";
 import { cardPills } from "@/lib/meals/cardPills";
-import { getPlan, type PlanDetail } from "@/lib/api/plans";
 import {
   beginImportReview,
   clearImportReview,
@@ -118,18 +115,9 @@ export function PlaylistScreen() {
     queryFn: getPlaylist,
   });
 
-  // The "in this week's plan" chip — cache-only, see the header note.
-  const homeQuery = useHomePayload();
-  const activePlanId = homeQuery.data?.activePlan?.id ?? "";
-  const activePlanQuery = useQuery<PlanDetail>({
-    queryKey: ["plans", "detail", activePlanId],
-    queryFn: () => getPlan(activePlanId),
-    enabled: false,
-  });
-  const activeMealIds = React.useMemo(
-    () => new Set(activePlanQuery.data?.items.map((i) => i.mealId) ?? []),
-    [activePlanQuery.data],
-  );
+  // The "in this week's plan" chip reads the SERVER's per-row `inActivePlan`
+  // (post-pass server Part C, BUG-283) — the cache-only client derivation is
+  // gone (D-WS9-191 Block 2 Part C).
 
   // Block 2c Part A — the bulk intake's review sheet. Staged by the builder
   // when a run finishes; hidden while a "Review ›" editor is open above this
@@ -225,7 +213,7 @@ export function PlaylistScreen() {
               <PlaylistRow
                 key={m.id}
                 meal={m}
-                inActivePlan={activeMealIds.has(m.id)}
+                inActivePlan={m.inActivePlan ?? false}
                 onView={() => handleView(m.id)}
                 onRemove={() => removeMutation.mutate(m.id)}
               />
@@ -265,6 +253,11 @@ export function PlaylistScreen() {
   );
 }
 
+// D-WS9-191 Block 2 Part C — the row's thumb is the server's imageUrl through
+// TreatedImage (the photo when there is one, the warm placeholder ramp
+// otherwise), at the My-Meals row size MealRowBody renders.
+const PLAYLIST_THUMB = 56;
+
 function PlaylistRow({
   meal,
   inActivePlan,
@@ -292,6 +285,14 @@ function PlaylistRow({
           description={meal.description}
           meta={playlistMetaLine(meal)}
           tags={playlistPills(meal)}
+          thumbSlot={
+            <TreatedImage
+              source={meal.imageUrl ? { uri: meal.imageUrl } : null}
+              width={PLAYLIST_THUMB}
+              height={PLAYLIST_THUMB}
+              radius={Radius.sm}
+            />
+          }
         >
           {macros ? (
             <Text style={s.macros} numberOfLines={1}>

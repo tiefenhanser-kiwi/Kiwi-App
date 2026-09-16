@@ -210,3 +210,18 @@ test("BUG-273: the legacy meal-level steps[] is still the flattened, renumbered 
   assert.equal(draft.steps[3].text, "Toast the rice in butter.");
   assert.equal(draft.steps[3].phaseType, "cook");
 });
+
+// ── WS9 BUG-288 — the headnote + tags survive the adapter ─────────────────────
+
+test("BUG-288: description rides the draft (trimmed) when the parse authored one; omitted, not '', when it did not", () => {
+  const withDesc = parsedMealToDraft(
+    makeParsedMeal({ description: "  Lemony pan sauce over seared chicken, peppery greens.  " }),
+  );
+  assert.equal(withDesc.description, "Lemony pan sauce over seared chicken, peppery greens.");
+  assert.deepEqual(withDesc.tags, ["weeknight"]);
+
+  const without = parsedMealToDraft(makeParsedMeal());
+  assert.equal("description" in without, false);
+  const blank = parsedMealToDraft(makeParsedMeal({ description: "   " }));
+  assert.equal("description" in blank, false);
+});

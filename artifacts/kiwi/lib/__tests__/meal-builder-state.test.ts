@@ -1369,3 +1369,62 @@ test("BUG-273: moveStepToDish is a no-op for same dish, unknown step, or unknown
   assert.equal(moveStepToDish(dishes, dishes[1].uid, 9999, dishes[0].uid), dishes);
   assert.equal(moveStepToDish(dishes, dishes[1].uid, step.uid, 9999), dishes);
 });
+
+// ── WS9 BUG-288 — buildManualSaveMealInput: description precedence + tags ──────
+
+test("BUG-288: typed notes win over the draft's description; the draft's description fills in when notes are blank; tags pass through trimmed", () => {
+  const dishes = hydrateBuilderDishesFromDraft(
+    {
+      title: "Roast chicken",
+      difficulty: "medium",
+      estimatedTimeMinutes: 35,
+      servingsDefault: 4,
+      tags: [],
+      caloriesPerServing: 0,
+      proteinGPerServing: 0,
+      carbsGPerServing: 0,
+      fatGPerServing: 0,
+      dishes: [
+        {
+          name: "Roast chicken",
+          ingredients: [{ name: "chicken", quantity: 1, unit: "whole" }],
+          steps: [{ stepNumber: 1, text: "Roast it." }],
+        },
+      ],
+      steps: [{ stepNumber: 1, text: "Roast it." }],
+    },
+    (() => {
+      let n = 0;
+      return () => ++n;
+    })(),
+  );
+  const base = {
+    mealName: "Roast chicken",
+    cuisineType: "American",
+    difficulty: "medium" as const,
+    estimatedTimeMinutes: "35",
+    servingsDefault: 4,
+    dishes,
+    sourceType: "directed" as const,
+  };
+  const fromDraft = buildManualSaveMealInput({
+    ...base,
+    notes: "",
+    description: "Sunday roast, crackling skin.",
+    tags: [" weeknight ", "", "one-pan"],
+  });
+  assert.equal(fromDraft.description, "Sunday roast, crackling skin.");
+  assert.deepEqual(fromDraft.tags, ["weeknight", "one-pan"]);
+
+  const typed = buildManualSaveMealInput({
+    ...base,
+    notes: "Use the drippings for gravy.",
+    description: "Sunday roast, crackling skin.",
+  });
+  assert.equal(typed.description, "Use the drippings for gravy.");
+  assert.equal("tags" in typed, false);
+
+  const manual = buildManualSaveMealInput({ ...base, notes: "" });
+  assert.equal(manual.description, undefined);
+  assert.equal("tags" in manual, false);
+});
