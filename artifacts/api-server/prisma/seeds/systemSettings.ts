@@ -27,10 +27,16 @@ const SETTINGS: SettingSeed[] = [
   },
   {
     key: "wizard.max_refreshes_per_session",
-    value: 3,
-    defaultValue: 3,
+    // D-WS9-191 Block 1 (Part B.5) — RULED by Hans, September 16, 2026: four
+    // presses of "Get another plan option" per screen session, one plan each;
+    // the initial batch is not a press. Served by GET /wizard/limits as
+    // maxRefreshesPerSession (the client counts presses; the server does not
+    // enforce). ⚠️ The seed PRESERVES a live row's `value` on re-run, so an
+    // existing row keeps 3 until it is updated by hand.
+    value: 4,
+    defaultValue: 4,
     description:
-      "Maximum number of refresh-results actions allowed per wizard session.",
+      "Presses of 'Get another plan option' allowed per plan-options session (one plan each; the initial batch is not a press).",
   },
   {
     key: "trial.duration_days",

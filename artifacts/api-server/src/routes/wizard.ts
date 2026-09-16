@@ -77,9 +77,13 @@ import {
   persistWizardLastBatch as productionPersistWizardLastBatch,
   readWizardLastBatch as productionReadWizardLastBatch,
   type WizardBatchSource,
+  type WizardLastBatchPayload,
   type WizardLastBatchShelfMealRef,
 } from "../lib/wizardLastBatch";
-import { computeWizardContentHash } from "../lib/wizardContentHash";
+import {
+  computeWizardContentHash,
+  normalizeWizardTitle,
+} from "../lib/wizardContentHash";
 import { resolveThisWeekWinnerId } from "../lib/planDates";
 import {
   activeWindowFromToday,
@@ -182,6 +186,34 @@ function parseSessionExclusion(body: unknown): {
     excludePlanTitles: toStrArr(b.excludePlanTitles, 50),
     excludeMealTitles: toStrArr(b.excludeMealTitles, 200),
   };
+}
+
+// D-WS9-191 Block 1 (Part B) — "Get another plan option". The client sends
+// `another: { dismissedPlanTitles }` (the subset of excludePlanTitles the user
+// rejected with Not-for-me; the surviving cards stay on screen) and the request
+// becomes a ONE-candidate call: requestedCandidateCount = 1 on the prompt
+// input, the trims use 1, no draft supersede, and the last-batch slot becomes
+// prior-surviving + the new one (commitGeneratedBatch). Absent or malformed →
+// null → today's behaviour. Bounded like the session exclusion: 50 titles,
+// each ≤ 120 chars (a candidate title's own cap). Hand-parsed for the same
+// reason parseSessionExclusion is.
+export interface AnotherRequest {
+  dismissedPlanTitles: string[];
+}
+function parseAnother(body: unknown): AnotherRequest | null {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const a = b.another;
+  if (!a || typeof a !== "object" || Array.isArray(a)) return null;
+  const raw = (a as Record<string, unknown>).dismissedPlanTitles;
+  const dismissedPlanTitles = Array.isArray(raw)
+    ? raw
+        .filter(
+          (x): x is string =>
+            typeof x === "string" && x.length > 0 && x.length <= 120,
+        )
+        .slice(0, 50)
+    : [];
+  return { dismissedPlanTitles };
 }
 
 // D-WS9-038 / BUG-039 — shared catalog-compose retrieval (retrieveShelf) now
@@ -314,9 +346,15 @@ export function createWizardRouter(
     if (maxRefreshesCache && maxRefreshesCache.expiresAt > Date.now()) {
       return maxRefreshesCache.value;
     }
+    // D-WS9-191 Block 1 (Part B.5) — RULED by Hans, September 16, 2026: "four
+    // total. one press = one plan. 4 presses = refine or tell kiwi". The unit
+    // is a PRESS of "Get another plan option" (one plan each); the initial
+    // batch is not a press. The server serves the number (/wizard/limits keeps
+    // the field name maxRefreshesPerSession — renaming is a client change);
+    // the client counts presses. Not enforced here.
     const value = await readNumberSetting(
       "wizard.max_refreshes_per_session",
-      3,
+      4,
     );
     maxRefreshesCache = { value, expiresAt: Date.now() + settingsCacheMs };
     return value;
@@ -376,18 +414,59 @@ export function createWizardRouter(
     // user created mid-stream (card tapped as the first candidate landed) is not
     // archived by its own batch's end-of-generation supersede.
     generationStartedAt: Date;
+    // D-WS9-191 Block 1 (Part B.4) — an "another" call: the surviving cards are
+    // STILL PRESENTED, so (1) no draft supersede (a draft expanded from one of
+    // them is live), and (2) the slot follows the shelf's read-then-merge
+    // precedent (persistShelfBatch): prior batch's candidates whose title is
+    // not dismissed, in their order, + the new one; `input` = the prior
+    // batch's when the prior slot was a plans batch of the same source, else
+    // this body. A shelf-slot / empty / other-source prior → just the new one.
+    // Titles compare under the content hash's own normalisation. Best-effort
+    // like every last-batch write.
+    another?: AnotherRequest | null;
   }): Promise<void> {
-    await supersedeUnconsumedWizardDrafts({
-      prisma,
-      userId: args.userId,
-      createdBefore: args.generationStartedAt,
-    });
+    if (!args.another) {
+      await supersedeUnconsumedWizardDrafts({
+        prisma,
+        userId: args.userId,
+        createdBefore: args.generationStartedAt,
+      });
+      await persistWizardLastBatch({
+        prisma,
+        userId: args.userId,
+        source: args.source,
+        candidates: args.candidates,
+        input: args.input,
+      });
+      return;
+    }
+    let candidates: WizardLastBatchPayload["candidates"] = args.candidates;
+    let input = args.input;
+    try {
+      const prior = await readWizardLastBatch({ prisma, userId: args.userId });
+      const priorSource = prior ? prior.payload.source ?? prior.source : null;
+      if (prior && priorSource === args.source) {
+        const dismissed = new Set(
+          args.another.dismissedPlanTitles.map(normalizeWizardTitle),
+        );
+        const surviving = (prior.payload.candidates ?? []).filter(
+          (c) => !dismissed.has(normalizeWizardTitle(c.title)),
+        );
+        candidates = [...surviving, ...args.candidates];
+        input = prior.payload.input ?? args.input;
+      }
+    } catch (err) {
+      logger.warn(
+        { event: "wizard_another_batch_merge_failed", userId: args.userId, err },
+        "Failed to merge the prior batch for an 'another' call — storing the new candidate alone",
+      );
+    }
     await persistWizardLastBatch({
       prisma,
       userId: args.userId,
       source: args.source,
-      candidates: args.candidates,
-      input: args.input,
+      candidates,
+      input,
     });
   }
 
@@ -1040,6 +1119,11 @@ export function createWizardRouter(
 
       // 3. Read SystemSetting tunables.
       const candidateCount = await getCandidateCount();
+      // D-WS9-191 Block 1 (Part B) — an "another" call asks for ONE plan; the
+      // requested count reaches the prompt (requestedCandidateCount, below the
+      // cache marker) and every trim below.
+      const another = parseAnother(req.body);
+      const requestedCandidateCount = another ? 1 : candidateCount;
 
       // 4. Inject hidden context from the user's profile.
       const hiddenContext = await buildHiddenContext(userId);
@@ -1127,6 +1211,7 @@ export function createWizardRouter(
         planningContext: Omit<PlanningContext, "recentMeals">;
         preferencesContext: PreferencesContext;
         recentRotation: RecentRotation;
+        requestedCandidateCount: number;
       } = {
         ...aiInput,
         // AFTER the spread on purpose — this overwrites the raw client field.
@@ -1135,6 +1220,8 @@ export function createWizardRouter(
         planningContext: planningContextForPrompt,
         preferencesContext,
         recentRotation,
+        // D-WS9-191 — the body says "exactly `requestedCandidateCount`".
+        requestedCandidateCount,
       };
 
       // 4b. Plan-Gen Arc Block 2 (D-WS9-038) — retrieve the shared-pool
@@ -1214,7 +1301,7 @@ export function createWizardRouter(
           index: number,
           candidate: WizardPlanCandidate,
         ): void => {
-          if (sent.has(index) || index >= candidateCount) return;
+          if (sent.has(index) || index >= requestedCandidateCount) return;
           const [reconciled] = reconcileStoreSlots(
             [candidate],
             storeShortlist.aliasToId,
@@ -1284,10 +1371,10 @@ export function createWizardRouter(
         // Catch-up: emit any validated candidate that didn't surface
         // progressively (e.g. one that only became parseable at finalMessage),
         // so the client always ends with the full set regardless of mid-stream
-        // parse timing. `sent` dedupes; `candidateCount` trims.
+        // parse timing. `sent` dedupes; `requestedCandidateCount` trims.
         const finalCandidates = streamResult.data.candidates.slice(
           0,
-          candidateCount,
+          requestedCandidateCount,
         );
         finalCandidates.forEach((c, index) => sendCandidate(index, c));
 
@@ -1357,6 +1444,7 @@ export function createWizardRouter(
             candidates: reconciledCandidates,
             input: parsed.data,
             generationStartedAt,
+            another,
           });
         }
 
@@ -1406,7 +1494,7 @@ export function createWizardRouter(
       //    so a slot only stays store-filled when its alias was genuinely
       //    offered. The fork-time isPublic recheck (save path) is the second,
       //    authoritative guard; this one keeps the wire honest.
-      const trimmed = result.data.candidates.slice(0, candidateCount);
+      const trimmed = result.data.candidates.slice(0, requestedCandidateCount);
       // D-WS9-191 Block 1 — the wire meals[] composed from the reconciled
       // (real-id) marks + the shelf's pre-loaded descriptions.
       const candidates = toWireCandidates(
@@ -1474,6 +1562,7 @@ export function createWizardRouter(
           candidates,
           input: parsed.data,
           generationStartedAt,
+          another,
         });
       }
 
@@ -1555,6 +1644,10 @@ export function createWizardRouter(
       // 3. Read SystemSetting tunables (same dial as build-plans for
       //    candidate count; Tell Kiwi may return fewer per scenario).
       const candidateCount = await getCandidateCount();
+      // D-WS9-191 Block 1 (Part B) — "another" ⇒ one plan. The parse_intent
+      // call still re-runs on an "another" call (cheap Haiku; accepted).
+      const another = parseAnother(req.body);
+      const requestedCandidateCount = another ? 1 : candidateCount;
 
       // 4. Inject hidden context from the user's profile.
       const hiddenContext = await buildHiddenContext(userId);
@@ -1688,6 +1781,9 @@ export function createWizardRouter(
         planningContext: planningContextForPrompt,
         preferencesContext,
         recentRotation,
+        // D-WS9-191 — vague/partial return exactly this many; the scenario
+        // rule (fully_specified / overflow ⇒ 1) stands regardless.
+        requestedCandidateCount,
       };
 
       // Fix 4 — Tell Kiwi composes from the catalog too. The directed body carries
@@ -1747,12 +1843,13 @@ export function createWizardRouter(
       // 8. Trim candidates defensively.
       //    fully_specified + overflow scenarios produce exactly 1 candidate
       //    by prompt design — but if the AI returns more, slice to 1 to
-      //    keep the UI invariant clean. vague/partial honor candidateCount.
+      //    keep the UI invariant clean. vague/partial honor the requested
+      //    count (the setting, or 1 on an "another" call — D-WS9-191).
       const expected =
         parsedIntent.scenario === "fully_specified" ||
         parsedIntent.scenario === "overflow"
           ? 1
-          : candidateCount;
+          : requestedCandidateCount;
       // Reconcile alias → real Meal.id (D-WS9-038) after the slice, then
       // compose the wire meals[] (D-WS9-191 Block 1) from the real ids.
       const candidates = toWireCandidates(
@@ -1822,6 +1919,7 @@ export function createWizardRouter(
             maxCookTimeCoverage: directed.maxCookTimeCoverage,
           },
           generationStartedAt,
+          another,
         });
       }
 

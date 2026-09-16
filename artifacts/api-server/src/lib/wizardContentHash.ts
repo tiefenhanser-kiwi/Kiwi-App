@@ -20,6 +20,14 @@ import { createHash } from "node:crypto";
 // is deliberately conservative — it does NOT stem or reorder words, only
 // canonicalizes whitespace/case/Unicode, so genuinely different meals stay
 // distinct.
+//
+// D-WS9-191 Block 1 (Part B.4) — exported (unchanged) so the "another" last-
+// batch merge compares dismissed plan titles under the SAME normalisation the
+// hash uses; the hash itself is untouched.
+export function normalizeWizardTitle(s: string): string {
+  return normalizeTitle(s);
+}
+
 function normalizeTitle(s: string): string {
   return s
     .normalize("NFKC")

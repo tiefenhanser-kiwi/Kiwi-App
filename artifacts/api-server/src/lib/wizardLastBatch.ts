@@ -81,7 +81,10 @@ export interface PersistWizardLastBatchOptions {
   prisma: PrismaClient;
   userId: string;
   source: WizardBatchSource;
-  candidates: WizardPlanCandidateWire[];
+  // The wire shape; the read union is admitted ONLY so an "another" merge can
+  // carry forward a prior slot's candidates as stored (a pre-block row's have
+  // no meals[] — they are never re-composed, GET returns them as stored).
+  candidates: WizardLastBatchPayload["candidates"];
   input: unknown | null;
   shelf?: WizardLastBatchShelf | null;
 }

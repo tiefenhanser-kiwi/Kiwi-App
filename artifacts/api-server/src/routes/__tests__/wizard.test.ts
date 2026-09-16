@@ -5492,3 +5492,341 @@ describe("D-WS9-191 Block 1 — candidate meals[] on the wire", () => {
     }
   });
 });
+
+// ── D-WS9-191 Block 1 (Part B) — "Get another plan option" ──────────────────
+// `another: { dismissedPlanTitles }` on the body ⇒ requestedCandidateCount 1 on
+// the prompt input and every trim; no draft supersede (the surviving cards are
+// still presented); the last-batch slot follows the shelf's read-then-merge
+// precedent: prior batch minus the dismissed titles + the new candidate, the
+// prior input carried. A shelf / empty / other-source prior ⇒ the new one alone.
+
+function oneCandidateResult(title = "Another Option"): AICallSuccess<WizardPlanCandidatesResult> {
+  const data = happyCandidates();
+  data.candidates = [{ ...data.candidates[0], id: "c-new", title }];
+  return { ...happyResult(), data };
+}
+
+function priorWizardBatch(input: unknown = { planDurationDays: 7, householdSize: 2 }) {
+  return {
+    source: "wizard" as const,
+    payload: {
+      source: "wizard" as const,
+      candidates: happyCandidates().candidates.map((c) => ({
+        ...c,
+        meals: c.mealTitles.map((title) => ({ title, description: null })),
+      })),
+      input,
+    },
+    createdAt: new Date("2026-09-16T12:00:00.000Z"),
+  };
+}
+
+describe("D-WS9-191 Block 1 — 'another' asks for ONE plan", () => {
+  it("BUFFERED: another ⇒ requestedCandidateCount 1 on wizardInput and the trim keeps one of three", async () => {
+    const ai = makeRunAICall(async () => happyResult()); // the AI still returns 3
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("another-buffered-user"),
+        body: JSON.stringify({
+          ...VALID_BODY,
+          excludePlanTitles: ["Cozy Comfort Week", "Mediterranean-Leaning Variety", "High-Protein Reset"],
+          another: { dismissedPlanTitles: ["High-Protein Reset"] },
+        }),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { candidates: unknown[] };
+      assert.equal(body.candidates.length, 1);
+      const vars = ai.getVars().at(-1) as { wizardInput: { requestedCandidateCount: number } };
+      assert.equal(vars.wizardInput.requestedCandidateCount, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("without another ⇒ requestedCandidateCount is the setting (3) and three ship", async () => {
+    const ai = makeRunAICall(async () => happyResult());
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("another-absent-user"),
+        // A malformed `another` (not an object) is ignored, not a 400.
+        body: JSON.stringify({ ...VALID_BODY, another: "yes" }),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { candidates: unknown[] };
+      assert.equal(body.candidates.length, 3);
+      const vars = ai.getVars().at(-1) as { wizardInput: { requestedCandidateCount: number } };
+      assert.equal(vars.wizardInput.requestedCandidateCount, 3);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("STREAM: another ⇒ exactly one candidate frame even when the model streams three", async () => {
+    const stream = makeStreamFn(happyCandidates().candidates);
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      streamPlanCandidates: stream.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: { ...AUTH_HEADERS("another-stream-user"), Accept: "text/event-stream" },
+        body: JSON.stringify({ ...VALID_BODY, another: { dismissedPlanTitles: [] } }),
+      });
+      const frames = parseSse(await res.text());
+      assert.equal(frames.filter((f) => f.event === "candidate").length, 1);
+      assert.equal(frames.filter((f) => f.event === "done").length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("build-from-text: another ⇒ 1 for vague (requestedCandidateCount on generateInput); the scenario rule is unchanged", async () => {
+    const mk = (scenario: "vague" | "fully_specified") =>
+      makeTellKiwiRunner({
+        parse: () =>
+          parseSuccess({
+            scenario,
+            explicitMeals: scenario === "vague" ? [] : ["tacos", "salmon", "stir fry", "pizza", "pasta"],
+            intentDescriptors: [],
+            mealCount: 5,
+          }),
+        generate: () => genSuccess(threeCandidates(scenario)),
+      });
+    // (a) vague + another → 1
+    const vague = mk("vague");
+    let harness = await spinUp({
+      runAICall: vague.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+        method: "POST",
+        headers: AUTH_HEADERS("another-tk-vague"),
+        body: JSON.stringify({ ...TELL_KIWI_BODY, another: { dismissedPlanTitles: ["x"] } }),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(((await res.json()) as { candidates: unknown[] }).candidates.length, 1);
+      const gen = vague.getCalls().find((c) => c.promptKey === "wizard.directed.generate");
+      assert.equal(
+        (gen?.vars.generateInput as { requestedCandidateCount: number }).requestedCandidateCount,
+        1,
+      );
+      // parse_intent still ran (cheap Haiku; accepted).
+      assert.equal(vague.getCalls()[0].promptKey, "wizard.directed.parse_intent");
+    } finally {
+      await harness.close();
+    }
+    // (b) vague without another → 3 on the input
+    const vague3 = mk("vague");
+    harness = await spinUp({
+      runAICall: vague3.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+        method: "POST",
+        headers: AUTH_HEADERS("another-tk-vague3"),
+        body: JSON.stringify(TELL_KIWI_BODY),
+      });
+      assert.equal(((await res.json()) as { candidates: unknown[] }).candidates.length, 3);
+      const gen = vague3.getCalls().find((c) => c.promptKey === "wizard.directed.generate");
+      assert.equal(
+        (gen?.vars.generateInput as { requestedCandidateCount: number }).requestedCandidateCount,
+        3,
+      );
+    } finally {
+      await harness.close();
+    }
+    // (c) fully_specified, no another → still 1 (scenario rule)
+    const fs = mk("fully_specified");
+    harness = await spinUp({
+      runAICall: fs.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+        method: "POST",
+        headers: AUTH_HEADERS("another-tk-fs"),
+        body: JSON.stringify(TELL_KIWI_BODY),
+      });
+      assert.equal(((await res.json()) as { candidates: unknown[] }).candidates.length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("D-WS9-191 Block 1 — 'another' and the last-batch slot", () => {
+  it("prior plans batch of the same source ⇒ prior minus dismissed (normalised titles) + new, prior input carried, NO supersede", async () => {
+    const rec = makeBatchRecorder();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => oneCandidateResult()).fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+      readWizardLastBatch: (async () => priorWizardBatch()) as never,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("another-merge-user"),
+        body: JSON.stringify({
+          ...VALID_BODY,
+          // Case + whitespace differ from the stored title — the content hash's
+          // normalisation makes them the same plan.
+          another: { dismissedPlanTitles: ["  mediterranean-leaning   VARIETY "] },
+        }),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(rec.supersedeCalls.length, 0, "no supersede on an 'another' call");
+      assert.equal(rec.persistCalls.length, 1);
+      const stored = rec.persistCalls[0];
+      assert.equal(stored.source, "wizard");
+      assert.deepEqual(
+        (stored.candidates as Array<{ title: string }>).map((c) => c.title),
+        ["Cozy Comfort Week", "High-Protein Reset", "Another Option"],
+      );
+      // The prior batch's input, not this body's.
+      assert.deepEqual(stored.input, { planDurationDays: 7, householdSize: 2 });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("prior slot is a SHELF batch ⇒ just the new candidate, this body as input", async () => {
+    const rec = makeBatchRecorder();
+    const shelfPrior = {
+      source: "shelf" as const,
+      payload: { source: "shelf" as const, candidates: [], input: { size: 12 }, shelf: { meals: [], totalEligible: 0, hasMore: false, unmatchedNames: [], metadata: null } },
+      createdAt: new Date("2026-09-16T12:00:00.000Z"),
+    };
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => oneCandidateResult()).fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+      readWizardLastBatch: (async () => shelfPrior) as never,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("another-shelf-prior-user"),
+        body: JSON.stringify({ ...VALID_BODY, another: { dismissedPlanTitles: [] } }),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(rec.supersedeCalls.length, 0);
+      assert.equal(rec.persistCalls.length, 1);
+      assert.deepEqual(
+        (rec.persistCalls[0].candidates as Array<{ title: string }>).map((c) => c.title),
+        ["Another Option"],
+      );
+      assert.equal((rec.persistCalls[0].input as { planDurationDays: number }).planDurationDays, 5);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("no prior slot ⇒ just the new candidate; and WITHOUT another the supersede + overwrite are unchanged", async () => {
+    const rec = makeBatchRecorder();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => oneCandidateResult()).fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+      readWizardLastBatch: (async () => null) as never,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("another-empty-prior-user"),
+        body: JSON.stringify({ ...VALID_BODY, another: { dismissedPlanTitles: ["x"] } }),
+      });
+      assert.equal(rec.supersedeCalls.length, 0);
+      assert.equal(rec.persistCalls.length, 1);
+      assert.equal((rec.persistCalls[0].candidates as unknown[]).length, 1);
+      // A plain generate on the same harness: supersede fires, slot overwritten.
+      await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("another-empty-prior-user"),
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(rec.supersedeCalls.length, 1);
+      assert.equal(rec.persistCalls.length, 2);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("build-from-text 'another' merges against a prior TELLKIWI batch only (a wizard prior ⇒ new alone)", async () => {
+    const rec = makeBatchRecorder();
+    const runner = makeTellKiwiRunner({
+      parse: () => parseSuccess({ scenario: "vague", explicitMeals: [], intentDescriptors: [], mealCount: 5 }),
+      generate: () => genSuccess({ candidates: [threeCandidates("vague").candidates[0]] }),
+    });
+    const harness = await spinUp({
+      runAICall: runner.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      persistWizardLastBatch: rec.persistWizardLastBatch,
+      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
+      readWizardLastBatch: (async () => priorWizardBatch()) as never, // source: wizard
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+        method: "POST",
+        headers: AUTH_HEADERS("another-tk-merge-user"),
+        body: JSON.stringify({ ...TELL_KIWI_BODY, another: { dismissedPlanTitles: [] } }),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(rec.supersedeCalls.length, 0);
+      assert.equal(rec.persistCalls.length, 1);
+      assert.equal(rec.persistCalls[0].source, "tellkiwi");
+      assert.equal((rec.persistCalls[0].candidates as unknown[]).length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("D-WS9-191 Block 1 — GET /wizard/limits default", () => {
+  it("with no SystemSetting row the cap defaults to 4 presses (Hans: four total, one press = one plan)", async () => {
+    const prisma = makeStubPrisma();
+    prisma.systemSetting.findUnique = async () => null;
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/limits`, {
+        headers: { Authorization: `Bearer ${signToken("limits-default-user")}` },
+      });
+      const body = (await res.json()) as { candidateCount: number; maxRefreshesPerSession: number };
+      assert.equal(body.maxRefreshesPerSession, 4);
+      assert.equal(body.candidateCount, 3);
+    } finally {
+      await harness.close();
+    }
+  });
+});
