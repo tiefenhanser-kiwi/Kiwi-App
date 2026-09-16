@@ -41,7 +41,11 @@ const PATCH_ALLOW_LIST = new Set([
   // had drifted and omitted it, which made the subset check below pass only
   // because SERVER_ROW happened to omit it too. Both are corrected here.
   "otherAllergies",
-  "discoveryMealsPerWeek",
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the two dial enums. discoveryLevel
+  // is on the server allow-list today; playlistLevel is the server lane's
+  // parallel addition (coded to the name — §1 of the Block 2a prompt).
+  "discoveryLevel",
+  "playlistLevel",
   "saucePreference",
   "maxCookTimeMinutes",
   "maxCookTimeCoverage",
@@ -69,7 +73,8 @@ const SERVER_ROW: UserPreferences = {
   wantsLeftovers: true,
   weeklyPacingDefault: "mixed",
   dietaryNotes: null,
-  discoveryMealsPerWeek: 0,
+  discoveryLevel: "none",
+  playlistLevel: "none",
   saucePreference: "balanced",
   maxCookTimeMinutes: null,
   maxCookTimeCoverage: "most",
@@ -243,4 +248,22 @@ test("BUG-203: every clearable field on the PATCH survives the clear", () => {
   const capped = onTheWire(toPatchBody({ ...FORM, maxCookTimeMinutes: null }));
   assert.ok("maxCookTimeMinutes" in capped);
   assert.equal(capped.maxCookTimeMinutes, null);
+});
+
+// ── WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials ──────────────
+
+test("Block 2a: a read row without playlistLevel seeds the form with none", () => {
+  const { playlistLevel: _absent, ...row } = SERVER_ROW;
+  const form = toFormState(row as UserPreferences);
+  assert.equal(form.playlistLevel, "none");
+  assert.equal(form.discoveryLevel, "none");
+});
+
+test("Block 2a: the PATCH body carries BOTH dials as enum keys and no integer", () => {
+  const body = toPatchBody(
+    toFormState({ ...SERVER_ROW, discoveryLevel: "all", playlistLevel: "some" }),
+  ) as Record<string, unknown>;
+  assert.equal(body.discoveryLevel, "all");
+  assert.equal(body.playlistLevel, "some");
+  assert.equal("discoveryMealsPerWeek" in body, false, "the legacy integer leaked into PATCH");
 });

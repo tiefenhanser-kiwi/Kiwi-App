@@ -149,7 +149,8 @@ export default function OnboardingStep3() {
       }
       // Cookbook Phase B Block 5 — the remaining two Phase-B fields, so all
       // four generation-shaping prefs set at onboarding reach the PATCH.
-      prefs.discoveryMealsPerWeek = onboardingStep2Draft.discoveryMealsPerWeek;
+      prefs.discoveryLevel = onboardingStep2Draft.discoveryLevel;
+      prefs.playlistLevel = onboardingStep2Draft.playlistLevel;
       prefs.saucePreference = onboardingStep2Draft.saucePreference;
       // dietaryNotes: include only when non-empty. Step 2 saves "" when the
       // user leaves the field blank; an empty string is not a meaningful

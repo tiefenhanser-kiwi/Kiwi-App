@@ -17,6 +17,7 @@ import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
 import { DietarySection } from "@/components/preference-pickers/DietarySection";
 import { EquipmentPicker } from "@/components/preference-pickers/EquipmentPicker";
 import { HealthGoalsPicker } from "@/components/preference-pickers/HealthGoalsPicker";
+import { MixDials } from "@/components/preference-pickers/MixDials";
 import { PickyEatersPicker } from "@/components/preference-pickers/PickyEatersPicker";
 import { RecurringItemsPicker } from "@/components/preference-pickers/RecurringItemsPicker";
 import { SkillLevelPicker } from "@/components/preference-pickers/SkillLevelPicker";
@@ -30,11 +31,11 @@ import {
   COOK_TIME_CAP_OPTIONS,
   COOK_TIME_COVERAGE_OPTIONS,
   DEFAULT_RETAILERS,
-  DISCOVERY_MEALS_OPTIONS,
   PLAN_DURATION_PRESETS,
   SAUCE_PREFERENCE_OPTIONS,
 } from "@/lib/domain";
 import { getPreferences } from "@/lib/api/me";
+import { getPlaylist, PLAYLIST_QUERY_KEY } from "@/lib/api/playlist";
 import { useDebouncedAutoSave } from "@/hooks/useDebouncedAutoSave";
 import type { UserPreferencesData } from "@/lib/types";
 import { toFormState, toPatchBody } from "@/lib/preferencesForm";
@@ -63,6 +64,15 @@ export default function Preferences() {
   const prefsQuery = useQuery({
     queryKey: ["me", "preferences"],
     queryFn: () => getPreferences(),
+    enabled: !!authUser,
+  });
+
+  // WS9 Redesign Arc Block 2a — the Playlist dial's gate. Only the count is
+  // read; 0 swaps the row for the nudge card inside <MixDials>. A failed read
+  // leaves the count undefined, which renders the chips (never a blocker).
+  const playlistQuery = useQuery({
+    queryKey: PLAYLIST_QUERY_KEY,
+    queryFn: getPlaylist,
     enabled: !!authUser,
   });
 
@@ -243,18 +253,23 @@ export default function Preferences() {
             </>
           )}
 
-          <SubLabel style={{ marginTop: Spacing[4] }}>Discovery meals</SubLabel>
-          <View style={s.chipRow}>
-            {DISCOVERY_MEALS_OPTIONS.map((opt) => (
-              <Chip
-                key={opt.value}
-                label={opt.label}
-                selected={form.discoveryMealsPerWeek === opt.value}
-                onPress={() => update("discoveryMealsPerWeek", opt.value)}
-              />
-            ))}
-          </View>
-          <Text style={s.helpText}>Add 1-2 novel meals to each plan</Text>
+          {/* WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials
+              (Playlist above Discovery), shared with onboarding step 2 and the
+              wizard. Saves exactly as every other row here: the edit lands in
+              the form buffer and the debounced auto-save PATCHes it. A tap on
+              All resets the other dial to None (lib/wizard/dials.ts), so both
+              keys land in the same PATCH. */}
+          <MixDials
+            style={{ marginTop: Spacing[4] }}
+            value={{
+              playlistLevel: form.playlistLevel,
+              discoveryLevel: form.discoveryLevel,
+            }}
+            onChange={(next) =>
+              setForm((prev) => (prev ? { ...prev, ...next } : prev))
+            }
+            playlistCount={playlistQuery.data?.count}
+          />
 
           <SubLabel style={{ marginTop: Spacing[4] }}>
             Kids in household

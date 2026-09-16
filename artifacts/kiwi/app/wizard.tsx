@@ -19,13 +19,14 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { Stepper } from "@/components/Stepper";
 import { WizardPreviousOptionsLink } from "@/components/WizardPreviousOptionsLink";
 import { DietarySection } from "@/components/preference-pickers/DietarySection";
+import { MixDials } from "@/components/preference-pickers/MixDials";
 import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   COOK_TIME_CAP_OPTIONS,
   COOK_TIME_COVERAGE_OPTIONS,
-  DISCOVERY_MEALS_OPTIONS,
   PLAN_DURATION_PRESETS,
+  type DialLevel,
   SAUCE_PREFERENCE_OPTIONS,
 } from "@/lib/domain";
 import type { WizardPreferencesInput } from "@/lib/types";
@@ -66,7 +67,8 @@ interface WizardFormState {
   additionalNotes: string;
   // Cookbook Phase B Block 4 (D-WS7-035) — the four generation-shaping prefs,
   // hydrated from stored UserPreferences and editable for THIS plan only.
-  discoveryMealsPerWeek: number;
+  discoveryLevel: DialLevel;
+  playlistLevel: DialLevel;
   saucePreference: SaucePreference;
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: CookTimeCoverage;
@@ -102,7 +104,8 @@ const INITIAL_FORM: WizardFormState = {
   difficulty: HIDDEN_DEFAULT_DIFFICULTY,
   weeklyPacing: "mostly_easy",
   additionalNotes: "",
-  discoveryMealsPerWeek: 0,
+  discoveryLevel: "none",
+  playlistLevel: "none",
   saucePreference: "balanced",
   maxCookTimeMinutes: null,
   maxCookTimeCoverage: "most",
@@ -124,7 +127,8 @@ function hydrateForm(prefs: UserPreferences): WizardFormState {
     difficulty: HIDDEN_DEFAULT_DIFFICULTY,
     weeklyPacing: prefs.weeklyPacingDefault ?? "mostly_easy",
     additionalNotes: "",
-    discoveryMealsPerWeek: prefs.discoveryMealsPerWeek,
+    discoveryLevel: prefs.discoveryLevel,
+    playlistLevel: prefs.playlistLevel ?? "none",
     saucePreference: prefs.saucePreference,
     maxCookTimeMinutes: prefs.maxCookTimeMinutes,
     maxCookTimeCoverage: prefs.maxCookTimeCoverage,
@@ -352,22 +356,17 @@ export default function Wizard() {
                 />
               </View>
 
-              {/* Discovery meals */}
-              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
-                Discovery meals
-              </Text>
-              <View style={s.chipRow}>
-                {DISCOVERY_MEALS_OPTIONS.map((opt) => (
-                  <Chip
-                    key={opt.value}
-                    label={opt.label}
-                    selected={form.discoveryMealsPerWeek === opt.value}
-                    onPress={() =>
-                      update("discoveryMealsPerWeek", opt.value)
-                    }
-                  />
-                ))}
-              </View>
+              {/* WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials,
+                  per-run: hydrated from stored prefs, edited for THIS plan only,
+                  never written back. Shared <MixDials>. */}
+              <MixDials
+                style={{ marginTop: Spacing[4] }}
+                value={{
+                  playlistLevel: form.playlistLevel,
+                  discoveryLevel: form.discoveryLevel,
+                }}
+                onChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
+              />
 
               {/* Sauce preference */}
               <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>

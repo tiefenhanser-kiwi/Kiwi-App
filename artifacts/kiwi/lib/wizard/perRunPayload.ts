@@ -48,6 +48,7 @@
 // these keys. ⚠️ Do NOT "fix" the eatingStyles gap from this side — the schemas
 // belong to the server lane.
 
+import type { DialLevel } from "@/lib/domain";
 import type { TellKiwiInput, WizardPreferencesInput } from "@/lib/types";
 
 type WeeklyPacing = NonNullable<TellKiwiInput["weeklyPacing"]>;
@@ -67,7 +68,9 @@ export interface WizardPayloadForm {
   difficulty: Difficulty;
   weeklyPacing: WeeklyPacing;
   additionalNotes: string;
-  discoveryMealsPerWeek: number;
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials, enum keys.
+  discoveryLevel: DialLevel;
+  playlistLevel: DialLevel;
   saucePreference: SaucePreference;
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: CookTimeCoverage;
@@ -83,7 +86,8 @@ export interface TellKiwiPayloadForm {
   eatingStyles: string[];
   allergies: string[];
   dietaryNotes: string;
-  discoveryMealsPerWeek: number;
+  discoveryLevel: DialLevel;
+  playlistLevel: DialLevel;
   saucePreference: SaucePreference;
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: CookTimeCoverage;
@@ -92,7 +96,8 @@ export interface TellKiwiPayloadForm {
 /**
  * The hydration-gated slice, shared by both screens.
  *
- * Four of these six are the Cookbook Phase B per-run overrides (D-WS7-035),
+ * Five of these seven are the Cookbook Phase B per-run overrides (D-WS7-035;
+ * the discovery dial split into discovery + playlist in Redesign Arc Block 2a),
  * gated since Block 4 for the same reason: sending a pre-hydration default
  * clobbers the user's stored value through the server's override-else-stored
  * resolver. BUG-201 adds the two dietary arrays, which were sent
@@ -107,7 +112,8 @@ function hydratedSlice(
   return {
     allergiesAndAvoidances: form.allergies,
     eatingStyles: form.eatingStyles,
-    discoveryMealsPerWeek: form.discoveryMealsPerWeek,
+    discoveryLevel: form.discoveryLevel,
+    playlistLevel: form.playlistLevel,
     saucePreference: form.saucePreference,
     maxCookTimeMinutes: form.maxCookTimeMinutes,
     maxCookTimeCoverage: form.maxCookTimeCoverage,
@@ -147,5 +153,34 @@ export function buildTellKiwiPayload(
     weeklyPacing: form.weeklyPacing,
     dietaryNotes: form.dietaryNotes.trim() || undefined,
     ...hydratedSlice(form, hydrated),
+  };
+}
+
+// ── WS9 Redesign Arc Block 2a (D-WS9-237) — POST /wizard/shelf ──────────────
+// The Pick screen's request is the SAME per-run body build-plans gets (the
+// dials ride on it under the same hydration gate), plus the Tell Kiwi text in
+// text mode and, on "Get more options", the ids already shown. The server
+// schema (WizardShelfRequestSchema) requires `difficulty` + `weeklyPacing` in
+// BOTH modes — the merged wizard's form carries them in text mode too, which
+// is why this builds from the wizard-shaped form rather than the Tell Kiwi one.
+export interface WizardShelfRequest extends WizardPreferencesInput {
+  /** Text mode only — 5..500 chars, the server parses named meals out of it. */
+  text?: string;
+  /** "Get more options" — every id already on the Pick screen. */
+  excludeMealIds?: string[];
+}
+
+export function buildShelfRequest(
+  form: WizardPayloadForm,
+  hydrated: boolean,
+  opts: { text?: string; excludeMealIds?: string[] } = {},
+): WizardShelfRequest {
+  const text = opts.text?.trim();
+  return {
+    ...buildWizardPayload(form, hydrated),
+    ...(text ? { text } : {}),
+    ...(opts.excludeMealIds && opts.excludeMealIds.length > 0
+      ? { excludeMealIds: opts.excludeMealIds }
+      : {}),
   };
 }

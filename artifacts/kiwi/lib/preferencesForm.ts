@@ -27,6 +27,9 @@ export function toFormState(p: UserPreferences): UserPreferencesData {
   const { weeklyPacingDefault: _serverOnlyPacing, ...editable } = p;
   return {
     ...editable,
+    // WS9 Redesign Arc Block 2a — the playlist dial is optional on the read
+    // schema until the server lane ships it; a missing level IS none.
+    playlistLevel: p.playlistLevel ?? "none",
     cookingSkill: p.cookingSkill ?? undefined,
     stovetopType: p.stovetopType ?? undefined,
     defaultRetailer: p.defaultRetailer ?? undefined,

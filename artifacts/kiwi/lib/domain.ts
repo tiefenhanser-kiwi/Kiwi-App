@@ -141,14 +141,24 @@ export const COOK_TIME_COVERAGE_OPTIONS: ReadonlyArray<{
   { label: "Every night", value: "all" },
 ];
 
-/** Discovery meals per week — 0 (Off) | 1 | 2. Default 0. */
-export const DISCOVERY_MEALS_OPTIONS: ReadonlyArray<{
+// WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials. Discovery and
+// Playlist are each None · Some · Mostly · All, on the wire as the enum key
+// (`discoveryLevel` / `playlistLevel`). The pre-arc `discoveryMealsPerWeek`
+// integer (0 | 1 | 2) is GONE from the client; a level becomes a count on the
+// server, from the plan length. Mirrors DIAL_LEVELS in
+// artifacts/api-server/src/lib/wizardPreferences.ts.
+export const DIAL_LEVELS = ["none", "some", "mostly", "all"] as const;
+export type DialLevel = (typeof DIAL_LEVELS)[number];
+
+/** Chip row for either dial. Default "none". */
+export const DIAL_LEVEL_OPTIONS: ReadonlyArray<{
   label: string;
-  value: number;
+  value: DialLevel;
 }> = [
-  { label: "Off", value: 0 },
-  { label: "1", value: 1 },
-  { label: "2", value: 2 },
+  { label: "None", value: "none" },
+  { label: "Some", value: "some" },
+  { label: "Mostly", value: "mostly" },
+  { label: "All", value: "all" },
 ];
 
 /** Sauce preference — three-way single-select. Default "balanced". */

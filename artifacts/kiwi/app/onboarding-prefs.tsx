@@ -9,6 +9,7 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { Stepper } from "@/components/Stepper";
 import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
 import { DietarySection } from "@/components/preference-pickers/DietarySection";
+import { MixDials } from "@/components/preference-pickers/MixDials";
 import { RecurringItemsPicker } from "@/components/preference-pickers/RecurringItemsPicker";
 import { SkillLevelPicker } from "@/components/preference-pickers/SkillLevelPicker";
 import { useApp } from "@/contexts/AppContext";
@@ -16,8 +17,8 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import {
   COOK_TIME_CAP_OPTIONS,
   COOK_TIME_COVERAGE_OPTIONS,
-  DISCOVERY_MEALS_OPTIONS,
   PLAN_DURATION_PRESETS,
+  type DialLevel,
   SAUCE_PREFERENCE_OPTIONS,
 } from "@/lib/domain";
 
@@ -30,7 +31,9 @@ type Step2FormState = {
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: "all" | "most";
   // Cookbook Phase B Block 5 — step 2 now carries all four Phase-B fields.
-  discoveryMealsPerWeek: number;
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials, enum keys.
+  discoveryLevel: DialLevel;
+  playlistLevel: DialLevel;
   saucePreference: "store_bought" | "balanced" | "homemade";
   cuisines: string[];
   eatingStyles: string[];
@@ -54,7 +57,8 @@ export default function OnboardingPrefs() {
         planLengthDefault: onboardingStep2Draft.planLengthDefault,
         maxCookTimeMinutes: onboardingStep2Draft.maxCookTimeMinutes,
         maxCookTimeCoverage: onboardingStep2Draft.maxCookTimeCoverage,
-        discoveryMealsPerWeek: onboardingStep2Draft.discoveryMealsPerWeek,
+        discoveryLevel: onboardingStep2Draft.discoveryLevel,
+        playlistLevel: onboardingStep2Draft.playlistLevel,
         saucePreference: onboardingStep2Draft.saucePreference,
         cuisines: onboardingStep2Draft.cuisines,
         eatingStyles: onboardingStep2Draft.eatingStyles,
@@ -70,7 +74,8 @@ export default function OnboardingPrefs() {
       planLengthDefault: 5,
       maxCookTimeMinutes: null,
       maxCookTimeCoverage: "most",
-      discoveryMealsPerWeek: 0,
+      discoveryLevel: "none",
+      playlistLevel: "none",
       saucePreference: "balanced",
       cuisines: [],
       eatingStyles: [],
@@ -96,7 +101,8 @@ export default function OnboardingPrefs() {
       planLengthDefault: form.planLengthDefault,
       maxCookTimeMinutes: form.maxCookTimeMinutes,
       maxCookTimeCoverage: form.maxCookTimeCoverage,
-      discoveryMealsPerWeek: form.discoveryMealsPerWeek,
+      discoveryLevel: form.discoveryLevel,
+      playlistLevel: form.playlistLevel,
       saucePreference: form.saucePreference,
       cuisines: form.cuisines,
       eatingStyles: form.eatingStyles,
@@ -175,20 +181,18 @@ export default function OnboardingPrefs() {
             </>
           )}
 
-          <Text style={[s.subLabel, { marginTop: Spacing[4] }]}>
-            Discovery meals
-          </Text>
-          <View style={s.chipRow}>
-            {DISCOVERY_MEALS_OPTIONS.map((opt) => (
-              <Chip
-                key={opt.value}
-                label={opt.label}
-                selected={form.discoveryMealsPerWeek === opt.value}
-                onPress={() => update("discoveryMealsPerWeek", opt.value)}
-              />
-            ))}
-          </View>
-          <Text style={s.helpText}>Add 1-2 novel meals to each plan</Text>
+          {/* WS9 Redesign Arc Block 2a (D-WS9-245) — the same two dial rows
+              the preferences screen shows. No playlistCount here: a user at
+              onboarding has no playlist by construction and no Playlist tab
+              to be nudged towards yet, so the chips render for both. */}
+          <MixDials
+            style={{ marginTop: Spacing[4] }}
+            value={{
+              playlistLevel: form.playlistLevel,
+              discoveryLevel: form.discoveryLevel,
+            }}
+            onChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
+          />
         </Section>
 
         <Section

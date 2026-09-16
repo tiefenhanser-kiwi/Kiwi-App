@@ -49,7 +49,8 @@ const WIZARD_UNHYDRATED: WizardPayloadForm = {
   difficulty: "medium",
   weeklyPacing: "mostly_easy",
   additionalNotes: "",
-  discoveryMealsPerWeek: 0,
+  discoveryLevel: "none",
+  playlistLevel: "none",
   saucePreference: "balanced",
   maxCookTimeMinutes: null,
   maxCookTimeCoverage: "most",
@@ -64,7 +65,8 @@ const TELLKIWI_UNHYDRATED: TellKiwiPayloadForm = {
   eatingStyles: [],
   allergies: [],
   dietaryNotes: "",
-  discoveryMealsPerWeek: 0,
+  discoveryLevel: "none",
+  playlistLevel: "none",
   saucePreference: "balanced",
   maxCookTimeMinutes: null,
   maxCookTimeCoverage: "most",
@@ -75,7 +77,8 @@ const WIZARD_HYDRATED: WizardPayloadForm = {
   ...WIZARD_UNHYDRATED,
   allergies: ["Peanuts", "Shellfish"],
   eatingStyles: ["Vegetarian"],
-  discoveryMealsPerWeek: 2,
+  discoveryLevel: "mostly",
+  playlistLevel: "some",
   saucePreference: "homemade",
   maxCookTimeMinutes: 45,
   maxCookTimeCoverage: "all",
@@ -102,10 +105,12 @@ test("BUG-201 wizard: hydrated=false OMITS the allergen field entirely", () => {
   );
   assert.equal("eatingStyles" in wire, false);
 
-  // The four Phase-B overrides were already gated (D-WS7-035); pinned so a
-  // future edit cannot ungate them while "fixing" the two new ones.
+  // The Phase-B overrides were already gated (D-WS7-035); pinned so a
+  // future edit cannot ungate them while "fixing" the two new ones. The two
+  // dial enums (Redesign Arc Block 2a) sit under the same gate.
   for (const key of [
-    "discoveryMealsPerWeek",
+    "discoveryLevel",
+    "playlistLevel",
     "saucePreference",
     "maxCookTimeMinutes",
     "maxCookTimeCoverage",
@@ -140,6 +145,10 @@ test("BUG-201: hydrated=true sends the real values", () => {
   assert.deepEqual(wire.eatingStyles, ["Vegetarian"]);
   assert.equal(wire.saucePreference, "homemade");
   assert.equal(wire.maxCookTimeMinutes, 45);
+  // Redesign Arc Block 2a — the dials go out as ENUM KEYS, never an integer.
+  assert.equal(wire.discoveryLevel, "mostly");
+  assert.equal(wire.playlistLevel, "some");
+  assert.equal("discoveryMealsPerWeek" in wire, false, "the legacy integer is back on the wire");
 
   const tk = onTheWire(buildTellKiwiPayload(TELLKIWI_HYDRATED, true));
   assert.deepEqual(tk.allergiesAndAvoidances, ["Peanuts"]);

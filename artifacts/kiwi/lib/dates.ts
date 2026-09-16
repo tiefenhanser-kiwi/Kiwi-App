@@ -20,6 +20,18 @@ export function toLocalDateString(d: Date): string {
 }
 
 /**
+ * WS9 Redesign Arc Block 2a — the device's local calendar date, "YYYY-MM-DD".
+ * Sent as `localDate` on every call that DATES a plan (POST /plans/from-meals,
+ * the wizard /activate, the "Cook This Week" PATCH and the date-range PATCH)
+ * so the server anchors "today" / "tomorrow" to the user's day, not to the
+ * server's UTC clock. Same local-time rule as toLocalDateString — a user west
+ * of UTC at 9pm is still on today, not tomorrow.
+ */
+export function todayLocalDate(): string {
+  return toLocalDateString(new Date());
+}
+
+/**
  * Parse "YYYY-MM-DD" as a LOCAL-time Date. JS's default `new Date(iso)`
  * treats bare-date strings as UTC midnight, which lands on the previous
  * local day for users west of UTC and breaks downstream getDate() /

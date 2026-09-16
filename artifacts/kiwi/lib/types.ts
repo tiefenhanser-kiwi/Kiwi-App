@@ -2,6 +2,8 @@
 // Previously colocated with mock recipe data in mockData.ts; extracted
 // during WS1 so types can outlive the mock data layer.
 
+import type { DialLevel } from "./domain";
+
 export type DayKey = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
 
 export interface Ingredient {
@@ -131,7 +133,9 @@ export interface Step2Draft {
   // Cookbook Phase B Block 5 — the remaining two generation-shaping prefs, so
   // step 2 carries ALL FOUR Phase-B fields (a user may set prefs once at
   // onboarding and never revisit).
-  discoveryMealsPerWeek: number;
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials, enum keys.
+  discoveryLevel: DialLevel;
+  playlistLevel: DialLevel;
   saucePreference: "store_bought" | "balanced" | "homemade";
 }
 
@@ -192,7 +196,10 @@ export interface UserPreferencesData {
   // Cookbook Phase B Block 1 — new stored prefs (storage + wire only; the
   // preferences UI that edits them lands in Block 3). Non-null with server
   // defaults except maxCookTimeMinutes, which is null when uncapped.
-  discoveryMealsPerWeek: number;   // 0 | 1 | 2
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials replace the
+  // 0 | 1 | 2 discoveryMealsPerWeek integer. Enum keys on the wire.
+  discoveryLevel: DialLevel;
+  playlistLevel: DialLevel;
   saucePreference: "store_bought" | "balanced" | "homemade";
   maxCookTimeMinutes: number | null;
   maxCookTimeCoverage: "all" | "most";
@@ -626,9 +633,11 @@ export interface TellKiwiInput {
   allergiesAndAvoidances?: string[]; // From ALLERGIES_AND_AVOIDANCES
   dietaryNotes?: string;          // "no shellfish, low sodium"
 
-  // Block 4 — the four generation-shaping per-run overrides. Sent only when
+  // Block 4 — the generation-shaping per-run overrides. Sent only when
   // the user edits them; the server resolves override-else-stored.
-  discoveryMealsPerWeek?: number;   // 0 | 1 | 2
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the two dials, enum keys.
+  discoveryLevel?: DialLevel;
+  playlistLevel?: DialLevel;
   saucePreference?: "store_bought" | "balanced" | "homemade";
   maxCookTimeMinutes?: number | null;
   maxCookTimeCoverage?: "all" | "most";
@@ -667,7 +676,9 @@ export interface WizardPreferencesInput {
   // generation-shaping prefs. Hydrated from stored UserPreferences on wizard
   // open, editable for THIS plan only, NEVER written back. Sent only when the
   // user edits them; the server resolves override-else-stored.
-  discoveryMealsPerWeek?: number;   // 0 | 1 | 2
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the two dials, enum keys.
+  discoveryLevel?: DialLevel;
+  playlistLevel?: DialLevel;
   saucePreference?: "store_bought" | "balanced" | "homemade";
   maxCookTimeMinutes?: number | null;
   maxCookTimeCoverage?: "all" | "most";

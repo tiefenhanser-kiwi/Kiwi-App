@@ -14,6 +14,7 @@
 import { z } from "zod";
 
 import { MeUserSchema, storeToken } from "../auth";
+import { DIAL_LEVELS } from "../domain";
 import type { User } from "../types";
 import { apiClient } from "./client";
 
@@ -75,7 +76,22 @@ export const UserPreferencesSchema = z.object({
   // now ships as GET /plans/:id.dietaryStale.
   // Cookbook Phase B Block 1 — new stored prefs. Enums have server defaults so
   // they are always present; maxCookTimeMinutes is Prisma Int? → explicit null.
-  discoveryMealsPerWeek: z.number().int(),
+  //
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials are the enum
+  // None · Some · Mostly · All. The legacy integer `discoveryMealsPerWeek` is
+  // GONE from this schema (not optional — removed); the server's TEMPORARY
+  // echo of it on GET is stripped by the plain z.object(), and PATCH never
+  // sends it. `playlistLevel` is the server lane's parallel addition: it is
+  // `.optional()` so a GET from a server that does not send it yet still
+  // parses (the server treats a missing level as none; lib/preferencesForm.ts
+  // toFormState and the wizard hydrate coalesce it the same way). Not
+  // `.default()`: apiClient types its schema as ZodType<T>, which reads the
+  // INPUT side of a default and would type the field optional anyway.
+  // ⚠️ The server's PATCH allow-list is `.strict()` (BUG-137 class) — the key
+  // must be on that list before the preferences screen can save with it in
+  // the body.
+  discoveryLevel: z.enum(DIAL_LEVELS),
+  playlistLevel: z.enum(DIAL_LEVELS).optional(),
   saucePreference: z.enum(["store_bought", "balanced", "homemade"]),
   maxCookTimeMinutes: z.number().int().nullable(),
   maxCookTimeCoverage: z.enum(["all", "most"]),

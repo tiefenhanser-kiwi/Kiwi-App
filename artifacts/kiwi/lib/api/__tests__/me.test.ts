@@ -33,7 +33,9 @@ const VALID_PREFS = {
   planLengthDefault: 7,
   wantsLeftovers: true,
   dietaryNotes: null,
-  discoveryMealsPerWeek: 0,
+  // WS9 Redesign Arc Block 2a (D-WS9-245) — the dials are enum keys.
+  discoveryLevel: "none",
+  playlistLevel: "none",
   saucePreference: "balanced",
   maxCookTimeMinutes: null,
   maxCookTimeCoverage: "most",
@@ -72,4 +74,47 @@ test("UserPreferencesSchema rejects a payload missing a required field", () => {
   const { budgetLevel: _omitted, ...withoutBudget } = VALID_PREFS;
   const result = UserPreferencesSchema.safeParse(withoutBudget);
   assert.equal(result.success, false);
+});
+
+// ── WS9 Redesign Arc Block 2a (D-WS9-245) — the two mix dials ──────────────
+
+test("Block 2a: accepts the enum dials and drops the legacy integer echo", () => {
+  // The server's TEMPORARY GET echo (D-WS9-245 shim) still rides the wire
+  // until the server lane deletes it; a plain z.object() strips it.
+  const parsed = UserPreferencesSchema.parse({
+    ...VALID_PREFS,
+    discoveryLevel: "mostly",
+    playlistLevel: "some",
+    discoveryMealsPerWeek: 2,
+  });
+  assert.equal(parsed.discoveryLevel, "mostly");
+  assert.equal(parsed.playlistLevel, "some");
+  assert.equal("discoveryMealsPerWeek" in parsed, false, "the legacy integer survived parsing");
+});
+
+test("Block 2a: REJECTS the old integer shape (no discoveryLevel)", () => {
+  const { discoveryLevel: _gone, playlistLevel: _alsoGone, ...legacy } = VALID_PREFS;
+  const result = UserPreferencesSchema.safeParse({
+    ...legacy,
+    discoveryMealsPerWeek: 1,
+  });
+  assert.equal(result.success, false, "an integer-only payload parsed as a dial");
+});
+
+test("Block 2a: rejects an integer where the enum key is expected", () => {
+  const result = UserPreferencesSchema.safeParse({
+    ...VALID_PREFS,
+    discoveryLevel: 2,
+  });
+  assert.equal(result.success, false);
+});
+
+test("Block 2a: playlistLevel is optional on READ until the server lane ships it", () => {
+  // A GET from today's server (no playlistLevel key) must still parse — the
+  // preferences screen is unusable otherwise. A missing level is none; the
+  // coalescing happens in lib/preferencesForm.ts toFormState.
+  const { playlistLevel: _absent, ...withoutPlaylist } = VALID_PREFS;
+  const parsed = UserPreferencesSchema.parse(withoutPlaylist);
+  assert.equal(parsed.playlistLevel, undefined);
+  assert.equal(parsed.discoveryLevel, "none");
 });
