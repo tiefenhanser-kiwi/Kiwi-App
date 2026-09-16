@@ -148,27 +148,19 @@ export default function HomeTab() {
     router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
   };
 
-  // ── Make lane: Tell Kiwi ────────────────────────────────────────────────
+  // ── Make lane: "Create a meal plan" (WS9 Redesign Arc Block 2a) ──────────
+  // Two equal entries into ONE merged wizard screen (components/WizardScreen):
+  // /tellkiwi mounts it in TEXT mode, /wizard in PREFERENCES mode. Surprise Me
+  // is gone (Part B) — its handler, its route param and its server route.
   const [tellText, setTellText] = useState("");
   const handleTellSubmit = () => {
     if (isLocked) return router.push("/upgrade");
-    // Free text → tellkiwi.tsx (PRD §6). The text rides along as a param so it
-    // survives the navigation (tellkiwi seeds its input from it, WS9 3a seam).
+    // Free text → the wizard in text mode (PRD §6). The text rides along as a
+    // param so it survives the navigation (the screen seeds its box from it).
     router.push({ pathname: "/tellkiwi", params: { text: tellText.trim() } });
   };
-  // ✦ Surprise me (WS9 3c §7.6) → zero-typing instant plan. Lands on
-  // wizard-results in "surprise" mode, which fires the generation on mount and
-  // renders the standard 3-candidate cards (Ruling 1). R5's "Use this plan"
-  // then applies unchanged.
-  const handleSurprise = () =>
-    router.push(
-      isLocked
-        ? "/upgrade"
-        : { pathname: "/wizard-results", params: { source: "surprise" } },
-    );
-  // Use my preferences → the Set-Prefs wizard, which already hydrates from
-  // stored preferences on mount (D-WS9-014 pt 1, verified shipped via
-  // hydrateForm — review-then-generate, no explicit param needed).
+  // Have Kiwi use my preferences → the wizard in preferences mode, which
+  // hydrates from stored preferences on mount (D-WS9-014 pt 1 / D-WS7-035).
   const handleUsePreferences = () =>
     router.push(isLocked ? "/upgrade" : "/wizard");
   // §4.5 — Add my own meals → the meal builder, the SAME zero-param push the
@@ -434,7 +426,6 @@ export default function HomeTab() {
                     value={tellText}
                     onChangeText={setTellText}
                     onSubmit={handleTellSubmit}
-                    onSurprise={handleSurprise}
                     onUsePreferences={handleUsePreferences}
                     onAddOwnMeals={handleAddOwnMeals}
                     showAddOwnMeals={hasNoSavedPlans}

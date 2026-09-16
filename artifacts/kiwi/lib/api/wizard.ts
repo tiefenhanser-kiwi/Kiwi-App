@@ -377,15 +377,21 @@ export async function dismissWizardDraft(
 // The user's single last-generated plan-options batch (pre-expand candidate
 // cards). The generate surfaces read this to decide whether to show the link,
 // and to rehydrate wizard-results without a fresh AI call. `input` is the
-// request slice needed to rebuild candidateContext at a later expand (null for
-// surprise — context re-derives from stored prefs). Snapshot by design.
+// request slice needed to rebuild candidateContext at a later expand. Snapshot
+// by design.
+//
+// WS9 Redesign Arc Block 2a Part B — "surprise" is REMOVED from the source
+// union with the Surprise Me entry. A last-batch row a user generated through
+// Surprise Me before this build fails this parse (ApiSchemaError) and the "See
+// Previous Options" link hides — the link is an assist, never a blocker, and
+// the next generation overwrites the row. CANDIDATE for the server lane: null
+// out / skip source:"surprise" rows in GET /wizard/last-batch.
 
 const WizardLastBatchSchema = z.object({
-  source: z.enum(["wizard", "tellkiwi", "surprise"]),
+  source: z.enum(["wizard", "tellkiwi"]),
   candidates: z.array(WizardPlanCandidateSchema),
   // Loosely typed on purpose — it round-trips verbatim into the wizard-results
-  // rehydrate params as the WizardPreferencesInput / TellKiwiInput slice. Null
-  // for surprise.
+  // rehydrate params as the WizardPreferencesInput / TellKiwiInput slice.
   input: z.unknown().nullable(),
   createdAt: z.string(),
 });

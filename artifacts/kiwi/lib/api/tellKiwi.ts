@@ -1,4 +1,6 @@
 // Mobile client for POST /api/wizard/build-from-text.
+// WS9 Redesign Arc Block 2a Part B — buildSurprise (POST /wizard/surprise-me)
+// DELETED with the Surprise Me entry; the server lane removes the route.
 // WS6 6a-4 — replaces the WS5 Tell Kiwi stub with the real two-step pipeline.
 // WS7-1 — migrated to apiClient + Zod validation.
 //
@@ -106,29 +108,6 @@ export async function buildFromText(
   const body = await apiClient("/wizard/build-from-text", {
     method: "POST",
     body: input,
-    schema: BuildFromTextResponseSchema,
-  });
-  return body as BuildFromTextResult;
-}
-
-/**
- * POST /api/wizard/surprise-me — WS9 3c §7.6 Surprise-me path.
- *
- * Zero-input generation: the server reads the user's stored preferences and
- * generates popular crowd-pleaser candidates from model knowledge, ALWAYS
- * within hard constraints (allergies/dietary). Returns the same
- * BuildFromTextResult shape (candidates + a synthetic `vague` parsedIntent) so
- * the wizard-results screen renders it through the existing Tell Kiwi branch
- * and R5's "Use this plan" applies unchanged.
- */
-export async function buildSurprise(
-  // BUG-053 (Part B) — session re-roll exclusion (plan + meal titles shown so
-  // far). Optional + backward-compatible; empty/absent is a no-op server-side.
-  exclude?: { excludePlanTitles: string[]; excludeMealTitles: string[] },
-): Promise<BuildFromTextResult> {
-  const body = await apiClient("/wizard/surprise-me", {
-    method: "POST",
-    body: exclude ?? {},
     schema: BuildFromTextResponseSchema,
   });
   return body as BuildFromTextResult;

@@ -9,8 +9,7 @@
 // stored candidates — no AI call. The batch is GLOBAL (one per user), so this
 // link shows the same last run on either form regardless of which route
 // produced it; params branch on batch.source so expand/activate can rebuild
-// candidateContext (wizard/tellkiwi replay `input`; surprise re-derives from
-// stored prefs).
+// candidateContext (wizard/tellkiwi replay `input`).
 
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";

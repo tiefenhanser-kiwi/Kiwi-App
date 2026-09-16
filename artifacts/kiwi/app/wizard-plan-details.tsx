@@ -37,7 +37,6 @@ import { WizardPlanMealCard } from "@/components/WizardPlanMealCard";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   activateWizardDraft,
-  dismissWizardDraft,
   saveWizardDraft,
   WizardExpandedPlanSchema,
   type WizardExpandedPlan,
@@ -115,7 +114,7 @@ type UseState =
 // WS9 3c (D-WS9-032) — RETIRED. The wizard plan-preview + save/activate flow
 // moved onto the SHARED Plan Review screen (app/plan/[id].tsx) in draft mode,
 // so this standalone screen is no longer part of any UI path (results cards now
-// open Plan Review as a draft; Surprise-me routes there too). This route is
+// open Plan Review as a draft). This route is
 // kept ON DISK but made unreachable: any navigation to /wizard-plan-details
 // redirects out. Deletion is deferred until Hans confirms the new flow on
 // device (prompt Part B). The original implementation is preserved below as
@@ -128,19 +127,17 @@ export default function WizardPlanDetailsScreen() {
 function LegacyWizardPlanDetailsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { draftId, expanded, peek, surprise } = useLocalSearchParams<{
+  const { draftId, expanded, peek } = useLocalSearchParams<{
     draftId?: string;
     expanded?: string;
     // WS9 3c 7.4 — demote. `peek:"1"` = the R5 "View details" read-only preview
     // (the results card owns activation via "Use this plan"). Absent = the
     // resume-draft path, which still needs the activate CTA to use its draft.
     peek?: string;
-    // BUG-037 — `surprise:"1"` = this draft came from Surprise-me's auto-expand.
-    // Keeps the save/use CTAs AND adds a "Surprise Me again" re-roll.
-    surprise?: string;
+    // WS9 Redesign Arc Block 2a Part B — the BUG-037 `surprise:"1"` param and
+    // its "Surprise Me again" re-roll are gone with the Surprise Me entry.
   }>();
   const isPeek = peek === "1";
-  const isSurprise = surprise === "1";
 
   const plan = useMemo(() => parseExpanded(expanded), [expanded]);
   const dailyAverages = useMemo(
@@ -159,19 +156,6 @@ function LegacyWizardPlanDetailsScreen() {
 
   const handleHeaderBack = () => {
     router.back();
-  };
-
-  // BUG-037 re-roll: supersede the CURRENT surprise draft (reuse Block 1's
-  // dismiss/archive primitive — no parallel supersede infra, no orphan trail),
-  // then bounce back to Surprise-me, which generates + auto-expands a fresh
-  // plan. Best-effort dismiss: if it fails, the orphan self-heals on the next
-  // consume-supersede or the TTL sweep.
-  const handleSurpriseAgain = () => {
-    if (draftId) void dismissWizardDraft(draftId).catch(() => {});
-    router.replace({
-      pathname: "/wizard-results",
-      params: { source: "surprise" },
-    });
   };
 
   const handleSaveForLater = async () => {
@@ -438,16 +422,6 @@ function LegacyWizardPlanDetailsScreen() {
                 saveState.kind === "pending" || useState_.kind === "pending"
               }
             />
-            {isSurprise && (
-              <Button
-                label="Surprise Me again ↺"
-                variant="ghost"
-                onPress={handleSurpriseAgain}
-                disabled={
-                  saveState.kind === "pending" || useState_.kind === "pending"
-                }
-              />
-            )}
           </View>
         )}
       </ScrollView>

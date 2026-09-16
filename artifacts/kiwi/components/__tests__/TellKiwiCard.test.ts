@@ -1,4 +1,9 @@
 // WS9-2 2e Part 2 Phase 2 (D-WS9-162) — TellKiwiCard.
+// WS9 Redesign Arc Block 2a Part B (D-WS9-237) — the card is "Create a meal
+// plan" now: two equal entries (Tell Kiwi text → text mode; "Have Kiwi use my
+// preferences" → preferences mode), TWO terracotta round arrows by ruling, and
+// NO Surprise Me. The rotation / focus / reduce-motion tests below are carried
+// over unchanged — that behaviour did not move.
 //
 // This component had NO test file and it is the make lane's hero. The two
 // things most worth guarding are behavioural, not cosmetic:
@@ -22,8 +27,10 @@ import {
   TellKiwiCard,
   TELL_KIWI_PLACEHOLDERS,
   ADD_OWN_MEALS_SUBLINE,
-  DEFAULT_SUBTITLE,
+  CARD_TITLE,
+  CONNECTOR_COPY,
   PLACEHOLDER_INTERVAL_MS,
+  USE_PREFERENCES_LABEL,
 } from "../TellKiwiCard";
 import { Colors, Components, Palette, Typography } from "@/constants/tokens";
 
@@ -97,11 +104,12 @@ function pressableByText(root: Json, label: string): Json | null {
 
 // ── §4.5 the conditional third option ───────────────────────────────────────
 
-test("§4.5: the standard card shows TWO options — no 'Add my own meals'", () => {
+test("§4.5: the standard card shows the TWO entries — no 'Add my own meals'", () => {
   const { root } = render();
   const t = allText(root);
-  assert.ok(t.includes("Surprise me"));
-  assert.ok(t.includes("Use my preferences"));
+  assert.ok(t.includes(CARD_TITLE));
+  assert.ok(t.includes("Tell Kiwi"));
+  assert.ok(t.includes(USE_PREFERENCES_LABEL));
   assert.ok(
     !t.includes("Add my own meals"),
     "the third option must be absent unless the user has no saved plans",
@@ -113,7 +121,6 @@ test("§4.5: showAddOwnMeals adds the third option AND its sub-line", () => {
   const { root } = render({ showAddOwnMeals: true });
   const t = allText(root);
   assert.ok(t.includes("Add my own meals"));
-  assert.ok(t.includes("Start from a recipe you know"));
   assert.ok(t.includes(ADD_OWN_MEALS_SUBLINE));
 });
 
@@ -138,45 +145,64 @@ test("§4.5: tapping the third option fires onAddOwnMeals", () => {
   assert.equal(fired, 1);
 });
 
-test("the other two options fire their own handlers, not each other's", () => {
+// ── Block 2a Part B: two entries, two modes ─────────────────────────────────
+
+test("Block 2a: the send arrow routes to TEXT mode; row 2 routes to PREFERENCES mode", () => {
   const fired: string[] = [];
   const { root } = render({
-    onSurprise: () => fired.push("surprise"),
+    value: "something cozy",
+    onSubmit: () => fired.push("text"),
     onUsePreferences: () => fired.push("prefs"),
   });
+  const send = walk(root).find((n) => n.props.accessibilityLabel === "Send");
+  assert.ok(send, "row 1's send arrow not found");
   act(() => {
-    (pressableByText(root, "Surprise me")!.props.onPress as () => void)();
+    (send!.props.onPress as () => void)();
   });
   act(() => {
-    (pressableByText(root, "Use my preferences")!.props.onPress as () => void)();
+    (pressableByText(root, USE_PREFERENCES_LABEL)!.props.onPress as () => void)();
   });
-  assert.deepEqual(fired, ["surprise", "prefs"]);
+  // 🔴 THE BREAK THIS CATCHES: wiring row 2's arrow to onSubmit (text mode)
+  // would read ["text", "text"] here.
+  assert.deepEqual(fired, ["text", "prefs"]);
 });
 
-test("every option row carries its one-line description", () => {
-  const t = allText(render({ showAddOwnMeals: true }).root);
-  for (const d of [
-    "A full week, chosen for you",
-    "Built from what you already like",
-    "Start from a recipe you know",
-  ]) {
-    assert.ok(t.includes(d), `missing description: ${d}`);
-  }
+test("Block 2a: row 2's own arrow ALSO routes to preferences mode, never text", () => {
+  const fired: string[] = [];
+  const { root } = render({
+    onSubmit: () => fired.push("text"),
+    onUsePreferences: () => fired.push("prefs"),
+  });
+  const arrow = walk(root).find(
+    (n) => n.props.accessibilityLabel === "Use my preferences",
+  );
+  assert.ok(arrow, "row 2's arrow not found");
+  act(() => {
+    (arrow!.props.onPress as () => void)();
+  });
+  assert.deepEqual(fired, ["prefs"]);
 });
 
-// ── the send button is the ONLY terracotta fill ─────────────────────────────
+test("Block 2a: Surprise Me is GONE from the card", () => {
+  const t = allText(render({ showAddOwnMeals: true }).root).join(" ");
+  assert.ok(!/surprise/i.test(t), `Surprise Me copy is back: ${t}`);
+});
 
-test("D-WS9-162: exactly ONE terracotta FILL on the card, and it is the send button", () => {
+// ── the two terracotta arrows — RULED, exactly two ──────────────────────────
+
+test("D-WS9-237: exactly TWO terracotta FILLS on the card — the send arrow and row 2's arrow", () => {
+  // 🔴 Two arrows is deliberate and Hans-ruled (D-WS9-237 overrides D-WS9-162's
+  // one-emphasis rule for THIS card). A "fix" to one goes red here; so does a
+  // third (the conditional row keeps a sage chevron).
   const { root } = render({ showAddOwnMeals: true });
   const filled = walk(root).filter(
     (n) => flatten(n.props.style).backgroundColor === Colors.terracotta[400],
   );
-  assert.equal(
-    filled.length,
-    1,
-    "the send button owns the card's only terracotta fill",
+  assert.deepEqual(
+    filled.map((n) => n.props.accessibilityLabel).sort(),
+    ["Send", "Use my preferences"],
+    "the card's terracotta fills are the two round arrows, and only those",
   );
-  assert.equal(filled[0].props.accessibilityLabel, "Send");
 });
 
 test("the option rows are SOLID WHITE surfaces, not alpha hairlines", () => {
@@ -187,26 +213,33 @@ test("the option rows are SOLID WHITE surfaces, not alpha hairlines", () => {
   const rows = walk(root).filter(
     (n) => flatten(n.props.style).backgroundColor === Colors.neutral[0],
   );
-  assert.equal(rows.length, 3, "three white option surfaces");
+  assert.equal(rows.length, 2, "two white option surfaces (row 2 + the conditional row)");
   for (const r of rows) {
     const s = flatten(r.props.style);
     assert.equal(s.borderWidth, undefined, "no hairline border on a solid row");
   }
 });
 
-test("the option ICONS are a terracotta tint, never a fill", () => {
+test("Block 2a: the row icon is SAGE, never a terracotta fill", () => {
   const { root } = render();
   const icons = byType(root, "icon-feather").filter(
     (n) => n.props.color === Components.tellKiwi.optionIcon,
   );
-  assert.equal(icons.length, 2, "one tinted icon per option row");
-  for (const i of icons) {
-    assert.equal(
-      flatten(i.props.style).backgroundColor,
-      undefined,
-      "an icon tint must not also paint a background",
-    );
-  }
+  assert.equal(icons.length, 1, "one sage sliders icon on row 2");
+  assert.equal(icons[0].props.name, "sliders");
+  assert.equal(Components.tellKiwi.optionIcon, Colors.sage[600]);
+  assert.equal(flatten(icons[0].props.style).backgroundColor, undefined);
+});
+
+test("Block 2a: row 2's title is text2 (neutral[700]) semibold — a shade lighter than ink", () => {
+  const { root } = render();
+  const node = walk(root).find(
+    (n) => allText(n).join("") === USE_PREFERENCES_LABEL && n.type === "rn-text",
+  );
+  assert.ok(node, "row 2 title not found");
+  const st = flatten(node!.props.style);
+  assert.equal(st.color, Colors.neutral[700]);
+  assert.equal(st.fontWeight, Typography.fontWeight.semibold);
 });
 
 test("the connector line is LIGHT, not the muted-dark sub tone", () => {
@@ -418,42 +451,17 @@ function indexOf(root: Json, needle: string): number {
   return orderedText(root).indexOf(needle);
 }
 
-test("Item 4: the sub-line LEADS — it sits ABOVE the input, not below it", () => {
-  // It used to sit under the input, reading as a footnote to a control the user
-  // had already decided about.
+test("Block 2a: the card TITLE leads, serif italic, above the Tell Kiwi row", () => {
   const { root } = render();
-  const sub = indexOf(root, DEFAULT_SUBTITLE);
-  const title = indexOf(root, "Tell Kiwi");
-  assert.ok(sub >= 0, "sub-line not found");
+  const title = indexOf(root, CARD_TITLE);
+  const row = indexOf(root, "Tell Kiwi");
   assert.ok(title >= 0, "title not found");
-  assert.ok(sub < title, "the sub-line must precede the Tell Kiwi input row");
-});
-
-test("Item 4: the sub-line is one step UP the type scale", () => {
-  // It read slightly small on device, and it is now the first line on the card.
-  const { root } = render();
-  const node = walk(root).find(
-    (n) => allText(n).join("") === DEFAULT_SUBTITLE,
-  );
-  assert.ok(node, "sub-line node not found");
-  const s = flatten(node!.props.style);
-  assert.equal(s.fontSize, Typography.fontSize.base, "14px, not 12px");
-  assert.notEqual(
-    s.fontSize,
-    Typography.fontSize.sm,
-    "fontSize.sm is the size it was bumped off",
-  );
-});
-
-test("Item 4: 'Use my preferences' comes BEFORE 'Surprise me' — reversed, ruled", () => {
-  const { root } = render();
-  const prefs = indexOf(root, "Use my preferences");
-  const surprise = indexOf(root, "Surprise me");
-  assert.ok(prefs >= 0 && surprise >= 0, "both options render");
-  assert.ok(
-    prefs < surprise,
-    "2e Part 2 shipped these the other way round; Part 4 reverses it",
-  );
+  assert.ok(row >= 0, "row label not found");
+  assert.ok(title < row, "the title must precede the Tell Kiwi input row");
+  const node = walk(root).find((n) => allText(n).join("") === CARD_TITLE);
+  const st = flatten(node!.props.style);
+  assert.equal(st.fontFamily, Typography.face.serifItalic[500]);
+  assert.equal(st.fontStyle, "italic");
 });
 
 test("Item 4: the conditional connector introduces the option BELOW it", () => {
@@ -472,11 +480,10 @@ test("Item 4: the WHOLE card reads in the ruled order, top to bottom", () => {
   // caught even if each pairwise test above were individually satisfied.
   const { root } = render({ showAddOwnMeals: true });
   const marks = [
-    DEFAULT_SUBTITLE,
+    CARD_TITLE,
     "Tell Kiwi",
-    "or let Kiwi take it from here",
-    "Use my preferences",
-    "Surprise me",
+    CONNECTOR_COPY,
+    USE_PREFERENCES_LABEL,
     ADD_OWN_MEALS_SUBLINE,
     "Add my own meals",
   ];

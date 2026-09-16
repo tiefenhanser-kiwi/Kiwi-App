@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
 import { DisplayTitle } from "@/components/DisplayTitle";
@@ -25,9 +25,8 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 // (mutate/reset/data/isPending/isSuccess/isError), but data.candidates GROWS as
 // the SSE stream lands each card, so the gates below render progressively. It
 // falls back to the buffered endpoint on any stream failure (worst case =
-// today). Tell-Kiwi + Surprise-me stay buffered (separate flows).
+// today). Tell Kiwi stays buffered (a separate flow).
 import { useBuildWizardPlansStreaming } from "@/hooks/useBuildWizardPlansStreaming";
-import { useBuildSurprise } from "@/hooks/useBuildSurprise";
 import {
   expandWizardCandidate,
   type WizardExpandCandidateContext,
@@ -39,7 +38,6 @@ import {
   EMPTY_SESSION_EXCLUSION,
   toExclusionRequest,
 } from "@/lib/wizard/sessionExclusion";
-import { getPreferences, type UserPreferences } from "@/lib/api/me";
 import type {
   BuildFromTextResult,
   ParsedIntent,
@@ -52,28 +50,6 @@ import type { TellKiwiInput, WizardPlanCandidate, WizardPreferencesInput } from 
 // real success is never read as a timeout, while a true hang still surfaces via
 // the §5.4 error surface. The Cancel button also aborts this controller.
 const EXPAND_CLIENT_TIMEOUT_MS = 90_000;
-
-// Synthesize a TellKiwiInput-shaped constraint slice from stored preferences so
-// the Surprise-me path can build the same expand candidateContext the Tell Kiwi
-// path does — allergies/eating-styles MUST reach expand so ingredient authoring
-// stays inside the user's hard constraints (the "surprise" is meal choice only).
-function tellKiwiInputFromPrefs(prefs: UserPreferences): TellKiwiInput {
-  return {
-    description: "",
-    planDurationDays: prefs.planLengthDefault,
-    householdSize: prefs.householdSize,
-    cuisines: prefs.cuisines,
-    weeklyPacing: prefs.weeklyPacingDefault ?? "mostly_easy",
-    eatingStyles: prefs.eatingStyles,
-    allergiesAndAvoidances: prefs.allergiesAndAvoidances,
-    dietaryNotes: prefs.dietaryNotes ?? undefined,
-    discoveryLevel: prefs.discoveryLevel,
-    playlistLevel: prefs.playlistLevel ?? "none",
-    saucePreference: prefs.saucePreference,
-    maxCookTimeMinutes: prefs.maxCookTimeMinutes,
-    maxCookTimeCoverage: prefs.maxCookTimeCoverage,
-  };
-}
 
 if (
   Platform.OS === "android" &&
@@ -209,8 +185,7 @@ const EXPAND_THOROUGH_THRESHOLD_SEC = 30;
 // a single action: EXPAND the picked candidate, then open the SHARED Plan
 // Review screen as an unsaved draft (the save/activate decision moves there,
 // onto its action bar). Tapping a card = one wait, then Plan Review; the commit
-// primary and the "View details" peek are both gone. Surprise-me reuses the
-// same expand → draft path (its auto-expand skips the card picker).
+// primary and the "View details" peek are both gone.
 type ChainState =
   | { kind: "idle" }
   | {
@@ -236,7 +211,7 @@ export default function WizardResultsScreen() {
   const queryClient = useQueryClient();
   const { source, input, tellKiwiResult, tellKiwiInput, rehydrate, rehydratedCandidates } =
     useLocalSearchParams<{
-      source?: "tellkiwi" | "surprise";
+      source?: "tellkiwi";
       input?: string;
       tellKiwiResult?: string;
       tellKiwiInput?: string;
@@ -262,18 +237,10 @@ export default function WizardResultsScreen() {
     [tellKiwiInput],
   );
 
-  // WS9 3c 7.6 — Surprise-me: a third entry mode. Zero user input; the server
-  // reads stored prefs and generates crowd-pleaser candidates. We fire the
-  // mutation on mount (mirroring the wizard build-plans path) and render the
-  // same candidate cards. Stored prefs are also read here so the expand
-  // candidateContext keeps allergies/eating-styles as hard constraints.
-  const isSurprise = source === "surprise" && !tellKiwiPayload && !wizardInput;
-  const surpriseMutation = useBuildSurprise();
-  const prefsQuery = useQuery<UserPreferences>({
-    queryKey: ["me", "preferences"],
-    queryFn: getPreferences,
-    enabled: isSurprise,
-  });
+  // WS9 Redesign Arc Block 2a Part B — the Surprise Me entry mode (WS9 3c
+  // §7.6) is REMOVED: its mutation, its stored-prefs read, its re-roll and its
+  // single-card render. Two entry modes remain: the wizard's build-plans and
+  // Tell Kiwi's preloaded result.
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   // `attempt` ticks once per regen request so the effect re-fires even when
@@ -284,8 +251,7 @@ export default function WizardResultsScreen() {
     // BUG-051 fix — invalidate the "See Previous Options" cache only when the
     // stream TRULY completes (server has written its last-batch row), NOT on
     // isSuccess (which flips at the first streamed card, before the write).
-    // See the effect below for the surprise (buffered) path, whose isSuccess is
-    // already correctly timed. The ["wizard","drafts"] key is no longer
+    // The ["wizard","drafts"] key is no longer
     // invalidated here — its sole observer (wizard.tsx's draftsQuery) was
     // removed with the resume interstitial (WS9 3c), so it has no observers.
     onComplete: () => {
@@ -305,9 +271,8 @@ export default function WizardResultsScreen() {
     if (isRehydrate) return;
     // Tell Kiwi preloads its result via params; never re-fire the wizard
     // mutation in that case, which would clobber the candidates with an
-    // unrelated set from a different prompt. Surprise-me fires its own
-    // mutation below, not the build-plans one.
-    if (tellKiwiPayload || isSurprise) return;
+    // unrelated set from a different prompt.
+    if (tellKiwiPayload) return;
     if (!wizardInput) return;
     mutation.reset();
     // Part F — exclude the plans shown so far this session from the re-roll.
@@ -315,25 +280,12 @@ export default function WizardResultsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, attempt, tellKiwiPayload]);
 
-  useEffect(() => {
-    // Surprise-me generation (no input). `attempt` re-fires it for the
-    // "Surprise me again" re-roll, same as the wizard path's More-options.
-    if (isRehydrate) return; // Block 4b-3 — rehydrate never generates.
-    if (!isSurprise) return;
-    surpriseMutation.reset();
-    // Part B — exclude the plans shown so far this session from the re-roll.
-    surpriseMutation.mutate(toExclusionRequest(sessionExclusion));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSurprise, attempt]);
-
   // Fold each shown generation into the session exclusion. Keyed on the
   // arriving data (deduped by plan title in accumulateShownPlans), so the
   // reset()→undefined→new-data cycle of a re-roll accumulates the NEW plan
   // once and never re-counts the stale one. Same-ref-on-no-change keeps this
-  // from looping. Takes ALL candidates (surprise: 1, standard wizard: 3).
-  const shownCandidates = isSurprise
-    ? surpriseMutation.data?.candidates
-    : mutation.data?.candidates;
+  // from looping. Takes ALL candidates (standard wizard: 3).
+  const shownCandidates = mutation.data?.candidates;
   useEffect(() => {
     if (!shownCandidates || shownCandidates.length === 0) return;
     setSessionExclusion((prev) =>
@@ -351,41 +303,12 @@ export default function WizardResultsScreen() {
   // last-batch row, so the "See Previous Options" cache must be invalidated to
   // reflect the new run. The STREAMING (Set-Prefs) path invalidates via the
   // hook's onComplete above (BUG-051 — its isSuccess flips at the first card,
-  // before the server write). This effect handles the SURPRISE path only: it's
-  // buffered, so surpriseMutation.isSuccess fires after the server responds
-  // (post-write), making it correctly timed. Once per attempt; never on
-  // rehydrate. Tell Kiwi generates on its own screen and invalidates there.
-  const invalidatedAttemptRef = useRef(-1);
-  useEffect(() => {
-    if (isRehydrate) return;
-    const generated =
-      surpriseMutation.isSuccess &&
-      (surpriseMutation.data?.candidates?.length ?? 0) > 0;
-    if (generated && invalidatedAttemptRef.current !== attempt) {
-      invalidatedAttemptRef.current = attempt;
-      queryClient.invalidateQueries({ queryKey: ["wizard", "lastBatch"] });
-    }
-  }, [
-    isRehydrate,
-    attempt,
-    surpriseMutation.isSuccess,
-    surpriseMutation.data,
-    queryClient,
-  ]);
+  // before the server write). Tell Kiwi generates on its own screen and
+  // invalidates there.
 
-  // For Surprise-me, synthesize the constraint slice the expand step needs
-  // (allergies/eating-styles/household) from stored prefs — the candidate was
-  // generated within constraints, but ingredient authoring at expand must be
-  // too. Falls back to null until prefs load (buildCandidateContext then uses
-  // its own safe default).
-  const effectiveTellKiwiInput: TellKiwiInput | null = isSurprise
-    ? prefsQuery.data
-      ? tellKiwiInputFromPrefs(prefsQuery.data)
-      : null
-    : tellKiwiInputParsed;
+  const effectiveTellKiwiInput: TellKiwiInput | null = tellKiwiInputParsed;
 
-  const parsedIntent: ParsedIntent | null =
-    tellKiwiPayload?.parsedIntent ?? surpriseMutation.data?.parsedIntent ?? null;
+  const parsedIntent: ParsedIntent | null = tellKiwiPayload?.parsedIntent ?? null;
 
   const subtitleForScenario = (scenario: ParsedIntent["scenario"]): string => {
     switch (scenario) {
@@ -402,8 +325,6 @@ export default function WizardResultsScreen() {
 
   const subtitle = isRehydrate
     ? "Your previous options"
-    : isSurprise
-    ? "3 crowd-pleasers Kiwi picked for you"
     : tellKiwiPayload && parsedIntent
     ? subtitleForScenario(parsedIntent.scenario)
     : source === "tellkiwi"
@@ -414,19 +335,13 @@ export default function WizardResultsScreen() {
     ? rehydratedCands ?? []
     : tellKiwiPayload
     ? tellKiwiPayload.candidates
-    : isSurprise
-    ? surpriseMutation.data?.candidates ?? []
     : mutation.data?.candidates ?? [];
 
   const cannotGenerateMore = tellKiwiPayload
     ? tellKiwiPayload.cannotGenerateMore
-    : isSurprise
-    ? surpriseMutation.data?.cannotGenerateMore
     : mutation.data?.cannotGenerateMore;
   const cannotGenerateMoreReason = tellKiwiPayload
     ? tellKiwiPayload.reason
-    : isSurprise
-    ? surpriseMutation.data?.reason
     : mutation.data?.reason;
 
   const toggleExpanded = (id: string) => {
@@ -450,10 +365,10 @@ export default function WizardResultsScreen() {
       router.back();
       return;
     }
-    // Surprise-me and the wizard path both re-roll by bumping `attempt`; the
-    // mount effects handle reset+mutate so navigation- and button-driven
-    // re-rolls share one code path.
-    if (!isSurprise && !wizardInput) return;
+    // The wizard path re-rolls by bumping `attempt`; the mount effect handles
+    // reset+mutate so navigation- and button-driven re-rolls share one code
+    // path.
+    if (!wizardInput) return;
     setExpandedIds(new Set());
     setAttempt((n) => n + 1);
   };
@@ -579,22 +494,11 @@ export default function WizardResultsScreen() {
     setChainState({ kind: "idle" });
   };
 
-  // WS9 3c follow-up (Part A / surprise A′) — Surprise-me NO LONGER auto-expands.
-  // It generates and lands on the single surprise card with details expanded by
-  // default; expand fires only when the user taps "See full plan & save". This
-  // deletes the effect that raced the generation on a re-roll (BUG-053): the
-  // effect re-armed on `attempt` and fired an expand on the STALE candidate as
-  // "Surprise Me again" kicked off a new generation. With no auto-expand, a
-  // re-roll is a generation only — the concurrent expand is gone by construction.
-
   // ── render branches ──────────────────────────────────────────────────
 
   // No usable payload — entry-point misrouted (no input AND no preloaded
-  // Tell Kiwi result). Surface a recoverable error. BUG-036 — the surprise
-  // path carries neither `wizardInput` nor `tellKiwiPayload` (it generates on
-  // mount from stored prefs), so it MUST be exempted here or this guard fires
-  // on first render and sends every surprise run to the error screen.
-  if (!isRehydrate && !wizardInput && !tellKiwiPayload && !isSurprise) {
+  // Tell Kiwi result). Surface a recoverable error.
+  if (!isRehydrate && !wizardInput && !tellKiwiPayload) {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header showBack onBack={handleHeaderBack} title="Plan options" />
@@ -627,59 +531,36 @@ export default function WizardResultsScreen() {
         subtitle={subtitle}
       />
       <Screen>
-        {/* Surprise A′ (Part A) — "Surprise Me again" sits at the TOP: one tap,
-            no expand, straight to a new generation (the reject path costs
-            nothing). Not shown on a rehydrated snapshot (a recall, not a run). */}
-        {isSurprise && !isRehydrate ? (
-          <View style={s.actionRow}>
+        <View style={s.actionRow}>
+          <View style={{ flex: 1 }}>
+            <Button
+              label={tellKiwiPayload ? "Edit my message" : "Refine preferences"}
+              variant="ghost"
+              onPress={handleRefine}
+            />
+          </View>
+          {/* For Tell Kiwi, "More options" returns to the form (the wording
+              determines the scenario — re-rolling here would just call the
+              same prompts and likely produce the same plan). For the wizard
+              path it triggers a fresh AI call. */}
+          {/* Block 4b-3 — no re-roll on a rehydrated snapshot. */}
+          {!tellKiwiPayload && !isRehydrate && (
             <View style={{ flex: 1 }}>
               <Button
-                label="Surprise Me again ↺"
+                label="More options ↺"
                 variant="primary"
                 onPress={handleMoreOptions}
-                disabled={surpriseMutation.isPending}
+                disabled={mutation.isPending}
               />
             </View>
-          </View>
-        ) : (
-          <View style={s.actionRow}>
-            <View style={{ flex: 1 }}>
-              <Button
-                label={tellKiwiPayload ? "Edit my message" : "Refine preferences"}
-                variant="ghost"
-                onPress={handleRefine}
-              />
-            </View>
-            {/* For Tell Kiwi, "More options" returns to the form (the wording
-                determines the scenario — re-rolling here would just call the
-                same prompts and likely produce the same plan). For the wizard
-                path it triggers a fresh AI call. */}
-            {/* Block 4b-3 — no re-roll on a rehydrated snapshot. */}
-            {!tellKiwiPayload && !isRehydrate && (
-              <View style={{ flex: 1 }}>
-                <Button
-                  label="More options ↺"
-                  variant="primary"
-                  onPress={handleMoreOptions}
-                  disabled={mutation.isPending}
-                />
-              </View>
-            )}
-          </View>
-        )}
+          )}
+        </View>
 
-        {!tellKiwiPayload && !isSurprise && mutation.isPending && (
+        {!tellKiwiPayload && mutation.isPending && (
           <LoadingShim variant="status-box" />
         )}
 
-        {isSurprise && surpriseMutation.isPending && (
-          <LoadingShim
-            variant="status-box"
-            label="Kiwi is dreaming up crowd-pleasers…"
-          />
-        )}
-
-        {!tellKiwiPayload && !isSurprise && !mutation.isPending && mutation.isError && (
+        {!tellKiwiPayload && !mutation.isPending && mutation.isError && (
           <View style={s.statusBox}>
             <Text style={s.errorTitle}>Kiwi got distracted. Try again?</Text>
             {mutation.error?.message ? (
@@ -688,22 +569,6 @@ export default function WizardResultsScreen() {
             <View style={{ marginTop: Spacing[3] }}>
               <Button
                 label="Try again"
-                variant="primary"
-                onPress={handleMoreOptions}
-              />
-            </View>
-          </View>
-        )}
-
-        {isSurprise && !surpriseMutation.isPending && surpriseMutation.isError && (
-          <View style={s.statusBox}>
-            <Text style={s.errorTitle}>Kiwi got distracted. Try again?</Text>
-            {surpriseMutation.error?.message ? (
-              <Text style={s.errorBody}>{surpriseMutation.error.message}</Text>
-            ) : null}
-            <View style={{ marginTop: Spacing[3] }}>
-              <Button
-                label="Surprise me again"
                 variant="primary"
                 onPress={handleMoreOptions}
               />
@@ -756,8 +621,7 @@ export default function WizardResultsScreen() {
 
         {(isRehydrate ||
           tellKiwiPayload ||
-          (isSurprise && surpriseMutation.isSuccess) ||
-          (!isSurprise && !mutation.isPending && mutation.isSuccess)) && (
+          (!mutation.isPending && mutation.isSuccess)) && (
           <View style={s.candidatesWrap}>
             {candidates.map((c) => (
               <CandidateCard
@@ -766,18 +630,7 @@ export default function WizardResultsScreen() {
                 expanded={expandedIds.has(c.id)}
                 onToggleExpanded={() => toggleExpanded(c.id)}
                 onOpenDraft={() => handleOpenDraft(c)}
-                // Surprise: keep the commit button disabled until stored prefs
-                // load, so expand's candidateContext carries the user's hard
-                // constraints (allergies / eating styles) — the guard the old
-                // auto-expand effect enforced with `if (!prefsQuery.data)`.
-                disabled={
-                  chainState.kind === "pending" ||
-                  (isSurprise && !prefsQuery.data)
-                }
-                // Surprise A′ (Part A) — one card, expanded by default, commit
-                // via an explicit button (no whole-card tap).
-                forceExpanded={isSurprise}
-                explicitButton={isSurprise}
+                disabled={chainState.kind === "pending"}
               />
             ))}
           </View>
@@ -850,24 +703,15 @@ function CandidateCard({
   onToggleExpanded,
   onOpenDraft,
   disabled,
-  forceExpanded = false,
-  explicitButton = false,
 }: {
   candidate: WizardPlanCandidate;
   expanded: boolean;
   onToggleExpanded: () => void;
   onOpenDraft: () => void;
   disabled?: boolean;
-  // WS9 3c follow-up (Part A / surprise A′) — surprise shows ONE card with its
-  // details expanded by default (forceExpanded, hiding the toggle) and commits
-  // via an explicit button, not a whole-card tap (explicitButton), so the
-  // single full-screen card can't be mis-tapped into an expand + navigation.
-  // The 3-candidate results screen passes neither and keeps whole-card-tap.
-  forceExpanded?: boolean;
-  explicitButton?: boolean;
 }) {
   const macrosLine = `Avg ${formatMacro(candidate.dailyMacros.calories, "0")} cal/day · ${formatMacro(candidate.dailyMacros.proteinG, "0")}g P · ${formatMacro(candidate.dailyMacros.carbsG, "0")}g C · ${formatMacro(candidate.dailyMacros.fatG, "0")}g F`;
-  const isExpanded = forceExpanded || expanded;
+  const isExpanded = expanded;
 
   const inner = (
     <>
@@ -922,27 +766,23 @@ function CandidateCard({
           {macrosLine}
         </Text>
 
-        {/* No collapse toggle when forceExpanded (surprise) — the details are
-            the point of the single card. */}
-        {!forceExpanded && (
-          <Pressable
-            onPress={onToggleExpanded}
-            hitSlop={6}
-            style={({ pressed }) => [
-              s.expandToggle,
-              pressed && { opacity: 0.6 },
-            ]}
-          >
-            <Text style={s.expandToggleText}>
-              {expanded ? "Hide preview" : "Preview meals & macros"}
-            </Text>
-            <Feather
-              name={expanded ? "chevron-up" : "chevron-down"}
-              size={16}
-              color={Colors.sage[700]}
-            />
-          </Pressable>
-        )}
+        <Pressable
+          onPress={onToggleExpanded}
+          hitSlop={6}
+          style={({ pressed }) => [
+            s.expandToggle,
+            pressed && { opacity: 0.6 },
+          ]}
+        >
+          <Text style={s.expandToggleText}>
+            {expanded ? "Hide preview" : "Preview meals & macros"}
+          </Text>
+          <Feather
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={16}
+            color={Colors.sage[700]}
+          />
+        </Pressable>
 
         {isExpanded && (
           <View style={s.expandedSection}>
@@ -984,35 +824,16 @@ function CandidateCard({
           </View>
         )}
 
-        {explicitButton ? (
-          // Surprise (Part A) — an explicit primary owns the navigation; the
-          // card body is not a tap target.
-          <View style={s.cardButtonWrap}>
-            <Button
-              label="See full plan & save"
-              variant="primary"
-              onPress={onOpenDraft}
-              disabled={disabled}
-            />
-          </View>
-        ) : (
-          // D-WS9-032 — the card no longer commits. A tap-hint stands in for the
-          // removed "Use this plan" primary; the whole card opens Plan Review as
-          // a draft, where Save for Later / Use This Week live.
-          <View style={s.tapHintRow}>
-            <Text style={s.tapHintText}>Review &amp; save</Text>
-            <Feather name="arrow-right" size={16} color={Colors.sage[700]} />
-          </View>
-        )}
+        {/* D-WS9-032 — the card no longer commits. A tap-hint stands in for the
+            removed "Use this plan" primary; the whole card opens Plan Review as
+            a draft, where Save for Later / Use This Week live. */}
+        <View style={s.tapHintRow}>
+          <Text style={s.tapHintText}>Review &amp; save</Text>
+          <Feather name="arrow-right" size={16} color={Colors.sage[700]} />
+        </View>
       </View>
     </>
   );
-
-  // Explicit-button mode (surprise): no whole-card tap target — the button owns
-  // the navigation, so the card is a plain View.
-  if (explicitButton) {
-    return <View style={[s.card, disabled && { opacity: 0.6 }]}>{inner}</View>;
-  }
 
   // WS9 3c (D-WS9-032) — the whole card is the tap target on the 3-candidate
   // screen. The inline "Preview meals & macros" toggle is a nested Pressable, so

@@ -488,13 +488,20 @@ export const Components = {
     // terracotta as an ICON TINT on white, which is a different thing.
     sendFill:          Colors.terracotta[400],
     sendGlyph:         '#FBF7EF',
-    // The three option rows: solid white surfaces, terracotta icon tint.
+    // The option rows: solid white surfaces.
     // ⚠️ Replaces the 55%-alpha hairline chips, which measured 2.54:1 against
     // the sage surface — below the 3:1 non-text bar. Their TEXT was 4.62:1,
     // only 0.12 above AA, so the fix had to be a surface, not a darker tint.
+    // WS9 Redesign Arc Block 2a (D-WS9-237) — the "Create a meal plan" card:
+    // the row icon is SAGE (the mockup draws the sliders in sage; terracotta
+    // on this card is now reserved for the two round arrows, which are the
+    // card's deliberate, Hans-ruled pair of fills), and the row title is
+    // text2 (neutral[700] — Hans asked for a shade lighter than ink; tune on
+    // device). optionDesc is kept for the descriptions the rows no longer
+    // carry; nothing reads it today.
     optionSurface:     Colors.neutral[0],
-    optionIcon:        Colors.terracotta[400],
-    optionTitle:       Colors.neutral[900],
+    optionIcon:        Colors.sage[600],
+    optionTitle:       Colors.neutral[700],
     optionDesc:        Colors.neutral[700],
     // The connector line above the options. LIGHT, per ruling — on sage[600]
     // a lighter tone means MORE contrast, so legibility and the visual

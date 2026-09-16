@@ -1,6 +1,6 @@
 // WS9 3c follow-up (BUG-053, Parts B + F) — session-scoped re-roll exclusion.
 //
-// A re-roll (surprise "Surprise Me again", or the standard wizard "More
+// A re-roll (the standard wizard "More
 // options ↺") must not return a plan already shown in THIS session — not merely
 // the immediately-previous one. The client accumulates every shown plan's title
 // + meal titles and sends them so the next generation excludes them.
@@ -38,7 +38,7 @@ export function toExclusionRequest(ex: SessionExclusion): ExclusionRequest {
 
 /**
  * Fold the just-shown plan(s) into the running session exclusion. Accepts an
- * array so it serves both surprise (one candidate per generation) and the
+ * array so it serves both a one-candidate generation and the
  * standard wizard (three). Returns the SAME reference when nothing is new, so a
  * React effect can skip a redundant state write.
  */

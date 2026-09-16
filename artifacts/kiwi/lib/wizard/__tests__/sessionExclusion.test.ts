@@ -16,7 +16,7 @@ import {
 const PLAN_A = { title: "Grill Nights", mealTitles: ["Burgers", "Tacos"] };
 const PLAN_B = { title: "Cozy One-Pots", mealTitles: ["Chili", "Stew"] };
 
-test("accumulates a single shown plan (surprise: one candidate per generation)", () => {
+test("accumulates a single shown plan (one candidate per generation)", () => {
   const next = accumulateShownPlans(EMPTY_SESSION_EXCLUSION, [PLAN_A]);
   assert.deepEqual(next.planTitles, ["Grill Nights"]);
   assert.deepEqual(next.mealTitles, ["Burgers", "Tacos"]);

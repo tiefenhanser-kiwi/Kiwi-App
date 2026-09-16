@@ -1,6 +1,7 @@
 // Plan-Gen Arc Block 4b-3 (D-WS9-072) — "See Previous Options" helper tests.
 // Pins the link's show/hide rule and the wizard-results rehydrate params so the
-// three source branches (wizard / tellkiwi / surprise) navigate correctly and a
+// two source branches (wizard / tellkiwi — surprise went with Surprise Me in
+// Redesign Arc Block 2a) navigate correctly and a
 // rehydrated candidate round-trips VERBATIM (which is what makes its server hash
 // match, so re-expand reuses the draft instead of calling the AI).
 
@@ -79,14 +80,6 @@ test("buildRehydrateParams — tellkiwi carries source + tellKiwiInput", () => {
   assert.equal(p.source, "tellkiwi");
   assert.equal(JSON.parse(p.tellKiwiInput).description, "easy week");
   assert.equal(p.input, undefined);
-});
-
-test("buildRehydrateParams — surprise carries source, NO input", () => {
-  const p = buildRehydrateParams(batch({ source: "surprise", input: null }));
-  assert.equal(p.rehydrate, "1");
-  assert.equal(p.source, "surprise");
-  assert.equal(p.input, undefined);
-  assert.equal(p.tellKiwiInput, undefined);
 });
 
 test("buildRehydrateParams — omits input when a wizard batch has none", () => {

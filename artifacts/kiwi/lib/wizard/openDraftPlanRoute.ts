@@ -1,5 +1,5 @@
 // WS9 Block 3c (D-WS9-032) — params that open the SHARED Plan Review screen as
-// an unsaved wizard draft (Option A). The results card / Surprise-me expand a
+// an unsaved wizard draft (Option A). The results card expands a
 // candidate, then push /plan/[id] with these params:
 //   - id       — a placeholder path segment ("/plan/[id]" needs one). Plan
 //                 Review branches to draft mode on `draftId`, so it never

@@ -21,7 +21,7 @@ export function shouldShowPreviousOptions(
  * `source` so the "Use this plan" expand can rebuild candidateContext:
  *   - wizard   → replay the WizardPreferencesInput slice as `input`
  *   - tellkiwi → replay the TellKiwiInput slice as `tellKiwiInput`
- *   - surprise → no input; wizard-results re-derives context from stored prefs
+ * (Redesign Arc Block 2a Part B — the surprise branch is gone with Surprise Me.)
  *
  * Candidates are serialized VERBATIM, so a rehydrated candidate carries the same
  * title + mealTitles as when generated — which is exactly what makes its
@@ -41,9 +41,6 @@ export function buildRehydrateParams(
       source: "tellkiwi",
       ...(batch.input ? { tellKiwiInput: JSON.stringify(batch.input) } : {}),
     };
-  }
-  if (batch.source === "surprise") {
-    return { ...base, source: "surprise" };
   }
   return {
     ...base,
