@@ -6,7 +6,9 @@
 // user at one moment). Hidden when the user has no batch.
 //
 // Tapping mounts wizard-results in "rehydrate" mode (rehydrate:"1") fed by the
-// stored candidates — no AI call. The batch is GLOBAL (one per user), so this
+// stored candidates — no AI call. Block 2c Part E: when the slot holds a SHELF
+// batch (source:"shelf", the cards last shown on the Pick screen) it opens the
+// Pick screen re-hydrated from those cards instead — selections not restored. The batch is GLOBAL (one per user), so this
 // link shows the same last run on either form regardless of which route
 // produced it; params branch on batch.source so expand/activate can rebuild
 // candidateContext (wizard/tellkiwi replay `input`).
@@ -24,6 +26,8 @@ import {
 } from "@/lib/api/wizard";
 import {
   buildRehydrateParams,
+  buildShelfRehydrateParams,
+  previousOptionsSubtitle,
   shouldShowPreviousOptions,
 } from "@/lib/wizard/previousOptions";
 
@@ -42,8 +46,14 @@ export function WizardPreviousOptionsLink() {
   // on error — the link is an assist, never a blocker.
   if (!shouldShowPreviousOptions(batch) || !batch) return null;
 
-  const count = batch.candidates.length;
   const handlePress = () => {
+    // Block 2c Part E — a SHELF batch re-opens the Pick screen from the cards
+    // it last showed; a plans batch rehydrates wizard-results exactly as today.
+    const shelfParams = buildShelfRehydrateParams(batch);
+    if (shelfParams) {
+      router.push({ pathname: "/pick-meals", params: shelfParams });
+      return;
+    }
     router.push({
       pathname: "/wizard-results",
       params: buildRehydrateParams(batch),
@@ -61,11 +71,7 @@ export function WizardPreviousOptionsLink() {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={s.title}>See previous options</Text>
-        <Text style={s.subtitle}>
-          {count === 1
-            ? "Your last generated plan"
-            : `Your last ${count} generated plans`}
-        </Text>
+        <Text style={s.subtitle}>{previousOptionsSubtitle(batch)}</Text>
       </View>
       <Feather name="chevron-right" size={20} color={Colors.neutral[600]} />
     </Pressable>

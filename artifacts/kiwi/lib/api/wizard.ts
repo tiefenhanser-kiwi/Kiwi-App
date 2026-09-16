@@ -380,71 +380,6 @@ export async function dismissWizardDraft(
   });
 }
 
-// ── Block 4b-3 (D-WS9-072) — "See Previous Options" last-batch ───────────
-// The user's single last-generated plan-options batch (pre-expand candidate
-// cards). The generate surfaces read this to decide whether to show the link,
-// and to rehydrate wizard-results without a fresh AI call. `input` is the
-// request slice needed to rebuild candidateContext at a later expand. Snapshot
-// by design.
-//
-// WS9 Redesign Arc Block 2a Part B — "surprise" is REMOVED from the WRITE side
-// with the Surprise Me entry. Block 2b (ruled, 2a CANDIDATE-1) — the READ union
-// mirrors the server's (wizardLastBatch.ts WizardBatchSourceOnRead): a row a
-// user generated through Surprise Me before Block 2 still parses, and
-// shouldShowPreviousOptions renders NOTHING for it (there is no screen left to
-// rehydrate it into). The next generation overwrites the row.
-
-const WizardLastBatchSchema = z.object({
-  source: z.enum(["wizard", "tellkiwi", "surprise"]),
-  candidates: z.array(WizardPlanCandidateSchema),
-  // Loosely typed on purpose — it round-trips verbatim into the wizard-results
-  // rehydrate params as the WizardPreferencesInput / TellKiwiInput slice.
-  input: z.unknown().nullable(),
-  createdAt: z.string(),
-});
-export type WizardLastBatch = z.infer<typeof WizardLastBatchSchema>;
-
-const GetWizardLastBatchResponseSchema = z.object({
-  batch: WizardLastBatchSchema.nullable(),
-});
-export type GetWizardLastBatchResponse = z.infer<
-  typeof GetWizardLastBatchResponseSchema
->;
-
-/**
- * GET /api/wizard/last-batch — the "See Previous Options" batch, or
- * { batch: null } for a user who has never generated. Never 404s.
- *
- * Propagates apiClient typed errors: `UnauthenticatedError` (401),
- * `ApiError` (500), `ApiSchemaError` on a response-shape mismatch.
- */
-export async function getWizardLastBatch(): Promise<GetWizardLastBatchResponse> {
-  return apiClient("/wizard/last-batch", {
-    schema: GetWizardLastBatchResponseSchema,
-  });
-}
-
-/**
- * GET /api/wizard/drafts/:id — resume detail fetch. Returns the same
- * envelope as POST /wizard/expand so resume navigates to the Block A
- * Plan Details screen with the same (draftId, expanded JSON) params.
- *
- * 404 here means the draft is gone (swept past TTL, saved/activated since
- * the list snapshot, or never owned). 422 means optimizationNotes failed
- * schema parse — surface as an error and offer "Get new results" instead.
- *
- * Propagates apiClient typed errors: `UnauthenticatedError` (401),
- * `ApiError` (404 not found / not owned / not a draft, 422 malformed,
- * 500 read failed), `ApiSchemaError` on a response-shape mismatch.
- */
-export async function getWizardDraft(
-  draftId: string,
-): Promise<WizardExpandResponse> {
-  return apiClient(`/wizard/drafts/${encodeURIComponent(draftId)}`, {
-    schema: WizardExpandResponseSchema,
-  });
-}
-
 // ── WS9 Redesign Arc Block 2a (D-WS9-237) — POST /wizard/shelf ──────────────
 // The Pick screen's feed: ~15 catalog + playlist meals that fit the wizard's
 // per-run input, with REAL meal ids. Transcribed from the route
@@ -493,5 +428,82 @@ export async function buildWizardShelf(
     method: "POST",
     body,
     schema: WizardShelfResponseSchema,
+  });
+}
+
+// ── Block 4b-3 (D-WS9-072) — "See Previous Options" last-batch ───────────
+// The user's single last-generated plan-options batch (pre-expand candidate
+// cards). The generate surfaces read this to decide whether to show the link,
+// and to rehydrate wizard-results without a fresh AI call. `input` is the
+// request slice needed to rebuild candidateContext at a later expand. Snapshot
+// by design.
+//
+// WS9 Redesign Arc Block 2a Part B — "surprise" is REMOVED from the WRITE side
+// with the Surprise Me entry. Block 2b (ruled, 2a CANDIDATE-1) — the READ union
+// mirrors the server's (wizardLastBatch.ts WizardBatchSourceOnRead): a row a
+// user generated through Surprise Me before Block 2 still parses, and
+// shouldShowPreviousOptions renders NOTHING for it (there is no screen left to
+// rehydrate it into). The next generation overwrites the row.
+
+//
+// WS9 Redesign Arc Block 2c Part E — a SHELF batch ("Meals to choose from").
+// The server lane is teaching WizardLastBatch a `shelf` source carrying the
+// ordered meal ids last shown on the Pick screen; the read shape coded here
+// is `meals` (the cards, in order — what the Pick screen renders) beside
+// `mealIds`. A shelf row carries no plan candidates (`candidates` defaults to
+// []); `input` is the WizardShelfRequest slice, which is what "Get more
+// options" re-posts. ⚠️ Coded to the contract as described; if the server's
+// shape differs when it lands, that is a follow-up, not a redesign.
+const WizardLastBatchSchema = z.object({
+  source: z.enum(["wizard", "tellkiwi", "surprise", "shelf"]),
+  candidates: z.array(WizardPlanCandidateSchema).default([]),
+  meals: z.array(ShelfMealSchema).optional(),
+  mealIds: z.array(z.string()).optional(),
+  // Loosely typed on purpose — it round-trips verbatim into the wizard-results
+  // rehydrate params as the WizardPreferencesInput / TellKiwiInput slice (or,
+  // for a shelf batch, the Pick screen's WizardShelfRequest).
+  input: z.unknown().nullable(),
+  createdAt: z.string(),
+});
+export type WizardLastBatch = z.infer<typeof WizardLastBatchSchema>;
+
+const GetWizardLastBatchResponseSchema = z.object({
+  batch: WizardLastBatchSchema.nullable(),
+});
+export type GetWizardLastBatchResponse = z.infer<
+  typeof GetWizardLastBatchResponseSchema
+>;
+
+/**
+ * GET /api/wizard/last-batch — the "See Previous Options" batch, or
+ * { batch: null } for a user who has never generated. Never 404s.
+ *
+ * Propagates apiClient typed errors: `UnauthenticatedError` (401),
+ * `ApiError` (500), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function getWizardLastBatch(): Promise<GetWizardLastBatchResponse> {
+  return apiClient("/wizard/last-batch", {
+    schema: GetWizardLastBatchResponseSchema,
+  });
+}
+
+/**
+ * GET /api/wizard/drafts/:id — resume detail fetch. Returns the same
+ * envelope as POST /wizard/expand so resume navigates to the Block A
+ * Plan Details screen with the same (draftId, expanded JSON) params.
+ *
+ * 404 here means the draft is gone (swept past TTL, saved/activated since
+ * the list snapshot, or never owned). 422 means optimizationNotes failed
+ * schema parse — surface as an error and offer "Get new results" instead.
+ *
+ * Propagates apiClient typed errors: `UnauthenticatedError` (401),
+ * `ApiError` (404 not found / not owned / not a draft, 422 malformed,
+ * 500 read failed), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function getWizardDraft(
+  draftId: string,
+): Promise<WizardExpandResponse> {
+  return apiClient(`/wizard/drafts/${encodeURIComponent(draftId)}`, {
+    schema: WizardExpandResponseSchema,
   });
 }

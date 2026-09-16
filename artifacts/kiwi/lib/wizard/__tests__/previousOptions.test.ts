@@ -99,3 +99,67 @@ test("a pre-Block-2 source:'surprise' row parses (read-tolerant) and the link HI
   // …and a real batch still shows.
   assert.equal(shouldShowPreviousOptions(batch()), true);
 });
+
+// ── Block 2c Part E — a SHELF batch ("Meals to choose from") ────────────────
+
+const SHELF_MEALS = [
+  {
+    id: "m1", title: "Miso Salmon", description: null, cuisineType: "Japanese", difficulty: "easy",
+    estimatedTimeMinutes: 30, activeTimeMinutes: 15,
+    macrosPerServing: { calories: 500, protein: 30, carbs: 40, fat: 20 }, tags: ["quick"], dishCount: 2,
+    isNewToYou: true, isPlaylist: false, isPinned: false, matchesCuisine: true, source: "catalog",
+  },
+  {
+    id: "m2", title: "Chicken Tacos", description: null, cuisineType: "Mexican", difficulty: "easy",
+    estimatedTimeMinutes: 25, activeTimeMinutes: 20,
+    macrosPerServing: { calories: 600, protein: 35, carbs: 50, fat: 25 }, tags: [], dishCount: 1,
+    isNewToYou: false, isPlaylist: true, isPinned: false, matchesCuisine: false, source: "playlist",
+  },
+];
+const SHELF_INPUT = {
+  planDurationDays: 4, householdSize: 3, cuisines: ["Japanese"], difficulty: "medium",
+  weeklyPacing: "mixed", maxCookTimeMinutes: 40,
+};
+function shelfBatch(overrides: Partial<WizardLastBatch> = {}): WizardLastBatch {
+  return {
+    source: "shelf",
+    candidates: [],
+    meals: SHELF_MEALS,
+    mealIds: ["m1", "m2"],
+    input: SHELF_INPUT,
+    createdAt: "2026-09-16T12:00:00.000Z",
+    ...overrides,
+  } as WizardLastBatch;
+}
+
+test("shelf batch - shown when it still has cards; an empty / fully-stale one hides", async () => {
+  const { buildShelfRehydrateParams, previousOptionsSubtitle } = await import("../previousOptions");
+  assert.equal(shouldShowPreviousOptions(shelfBatch()), true);
+  assert.equal(shouldShowPreviousOptions(shelfBatch({ meals: [] })), false, "empty");
+  assert.equal(
+    shouldShowPreviousOptions(shelfBatch({ meals: undefined, mealIds: ["gone-1"] })),
+    false,
+    "ids with no cards = fully stale, hidden",
+  );
+  assert.equal(previousOptionsSubtitle(shelfBatch()), "Your last 2 suggested meals");
+  assert.equal(previousOptionsSubtitle(batch()), "Your last generated plan");
+  assert.equal(buildShelfRehydrateParams(batch()), null, "a plans batch is not a shelf");
+});
+
+test("shelf batch - Pick params: the stored cards IN ORDER as the shelf, the stored request as the body, no selection, cap from the input", async () => {
+  const { buildShelfRehydrateParams } = await import("../previousOptions");
+  const p = buildShelfRehydrateParams(shelfBatch());
+  assert.ok(p, "params");
+  const shelf = JSON.parse(p!.shelf);
+  assert.deepEqual(shelf.meals.map((m: { id: string }) => m.id), ["m1", "m2"]);
+  assert.equal(shelf.totalEligible, 2);
+  assert.equal(shelf.hasMore, true, "the user can page on from here");
+  assert.deepEqual(JSON.parse(p!.request), SHELF_INPUT, "the request round-trips verbatim");
+  assert.equal(p!.mode, "prefs");
+  assert.equal(p!.planDurationDays, "4");
+  assert.equal(p!.householdSize, "3");
+  assert.equal(p!.capMinutes, "40");
+  // A text-mode shelf: the text in the input flips the mode.
+  const t = buildShelfRehydrateParams(shelfBatch({ input: { ...SHELF_INPUT, text: "tacos week" } }));
+  assert.equal(t!.mode, "text");
+});
