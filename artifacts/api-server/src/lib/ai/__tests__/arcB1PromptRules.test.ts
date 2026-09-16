@@ -126,3 +126,44 @@ describe("meal_builder.mode_a_parse — the brand-name rule", () => {
     );
   });
 });
+
+// WS9 Redesign Arc Block 2 (Part E) — the Playlist dial on the generate path.
+// Block 1 gave the dial a count but neither body read it and the shelf never
+// carried the playlist; the count is now placed against rows the shelf marks.
+describe("Block 2 — the Playlist dial names marked shelf rows in both generate bodies", () => {
+  it("both generate bodies read the count and the shelf mark", () => {
+    for (const [key, body] of GENERATE_BODIES) {
+      assert.ok(
+        body.includes("Playlist — `preferencesContext.playlistMealsPerWeek` (an integer, 0 or more)"),
+        `${key}: playlist paragraph missing`,
+      );
+      assert.ok(
+        body.includes("the `storeShortlist` entries marked `\"isPlaylist\": true`"),
+        `${key}: the shelf mark is not named`,
+      );
+      assert.ok(
+        body.includes("Pick the N that fit the plan best"),
+        `${key}: pick-the-N instruction missing`,
+      );
+      assert.ok(
+        body.includes("if fewer than N are marked, use every marked one"),
+        `${key}: the short-playlist case is unstated`,
+      );
+      assert.ok(
+        body.includes("A playlist meal is never a discovery meal"),
+        `${key}: the two counts must claim different slots`,
+      );
+      // Beside Discovery, before the shelf section (inside the cached head).
+      assert.ok(
+        body.indexOf("Discovery — `preferencesContext.discoveryMealsPerWeek`") <
+          body.indexOf("Playlist — `preferencesContext.playlistMealsPerWeek`"),
+        `${key}: playlist paragraph must follow the discovery paragraph`,
+      );
+      assert.ok(
+        body.indexOf("Playlist — `preferencesContext.playlistMealsPerWeek`") <
+          body.indexOf("{{storeShortlist}}"),
+        `${key}: playlist paragraph must precede the shelf slot`,
+      );
+    }
+  });
+});

@@ -439,6 +439,29 @@ describe("POST /api/wizard/shelf — playlist dial", () => {
     assert.deepEqual(shelfIds(json), []);
   });
 
+  // WS9 Redesign Arc Block 2 (Part E) — `source: "playlist"`: every eligible
+  // playlist meal, no catalog fill, no size cap, hasMore false — "Plan a week
+  // from these". Unlike playlistOnly it ignores `size` and never falls back
+  // to the shelf.
+  it("source: playlist → ONLY the user's playlist meals, uncapped, hasMore false", async () => {
+    const { status, json } = await shelf(h, U, { ...BASE_BODY, size: 2, source: "playlist" });
+    assert.equal(status, 200);
+    assert.equal(json.meals.length, 6, "not capped by size: 2");
+    assert.deepEqual(shelfIds(json), []);
+    assert.ok(json.meals.every((m) => m.isPlaylist && m.source === "playlist"));
+    assert.equal(json.meals.some((m) => m.id === "p7"), false, "the fancy one is dropped by the easy ceiling");
+    assert.equal(json.hasMore, false);
+    assert.equal(json.totalEligible, 6);
+    assert.equal(json.metadata.shelfRemainder, 0);
+    // The over-cap favourite (p6) is shown with its honest time — no cook-time cap here.
+    assert.ok(json.meals.some((m) => m.id === "p6"));
+    // A user with no playlist gets an empty list — not the shelf.
+    const empty = await shelf(h, "shelf-user-no-playlist", { ...BASE_BODY, source: "playlist" });
+    assert.equal(empty.status, 200);
+    assert.deepEqual(empty.json.meals, []);
+    assert.equal(empty.json.hasMore, false);
+  });
+
   it("All-forces-None: playlist all + discovery all → all playlist; discovery all + playlist mostly → no playlist", async () => {
     const a = await shelf(h, U, {
       ...BASE_BODY,

@@ -72,6 +72,14 @@ interface StubPrismaOpts {
   // Block 2 — how many playlist meals the user has (the resolver's zero-
   // playlist guard reads it whenever a playlist level would claim slots).
   playlistCount?: number;
+  // Block 2 (Part E) — the PUBLIC SOURCE ids of the user's playlist meals
+  // (newest first), as playlistMeal.findMany reports them; the sources
+  // themselves must be in storeMeals to reach the shelf.
+  playlistSources?: string[];
+  // Block 2 (Part E) — storeMeals ids the SHELF query does not return (a row
+  // the 40-row sample happened not to draw); the by-id playlist read still
+  // finds them.
+  shelfHidden?: string[];
 }
 
 function makeStubPrisma(opts: StubPrismaOpts = {}) {
@@ -96,6 +104,10 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
     },
     playlistMeal: {
       count: async () => opts.playlistCount ?? 0,
+      findMany: async () =>
+        (opts.playlistSources ?? []).map((sourceStoreMealId) => ({
+          meal: { sourceStoreMealId },
+        })),
     },
     pantryStaple: {
       findMany: async () =>
@@ -133,7 +145,13 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
       // what the cap resolved to at the query (rows are still not filtered).
       findMany: async (args: { where?: Record<string, unknown> }) => {
         mealWheres.push(args?.where ?? {});
-        return opts.storeMeals ?? [];
+        const rows = opts.storeMeals ?? [];
+        // Block 2 (Part E) — the playlist-source read is by id; honour it so a
+        // shelf row is marked only when it IS a playlist source.
+        const idIn = (args?.where?.id as { in?: string[] } | undefined)?.in;
+        if (idIn) return rows.filter((r) => idIn.includes(r.id as string));
+        const hidden = opts.shelfHidden ?? [];
+        return rows.filter((r) => !hidden.includes(r.id as string));
       },
     },
     _mealWheres: () => mealWheres,
@@ -766,6 +784,73 @@ describe("POST /api/wizard/build-plans — store compose (D-WS9-038)", () => {
       assert.deepEqual(body.candidates[0].storeSlots, [
         { slotIndex: 0, storeMealId: "store-1" },
       ]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // WS9 Redesign Arc Block 2 (Part E) — the Playlist dial on the generate
+  // path: when the resolved count is > 0 the user's playlist SOURCES ride the
+  // shelf, flagged isPlaylist:true (a sampled one is marked in place, the rest
+  // appended under p<n> aliases the reconcile map translates); off the dial
+  // the shelf is byte-identical to before.
+  it("Block 2: a playlist level puts the user's playlist sources on the shelf, flagged; none leaves the shelf untouched", async () => {
+    const ai = makeRunAICall(async () =>
+      resultWithStoreSlots([{ slotIndex: 0, storeMealId: "p1" }]),
+    );
+    const prisma = makeStubPrisma({
+      storeMeals: [
+        storeMealRow("store-1", { useCount: 100 }),
+        storeMealRow("store-2"),
+        // A playlist source the shelf sample did NOT draw — the playlist read
+        // finds it by id and appends it.
+        storeMealRow("fav-src", { title: "Grandma's chili", useCount: 0 }),
+      ],
+      shelfHidden: ["fav-src"],
+      playlistCount: 2,
+      playlistSources: ["fav-src", "store-2"],
+    });
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("playlist-shelf-user"),
+        body: JSON.stringify({ ...VALID_BODY, playlistLevel: "some" }),
+      });
+      assert.equal(res.status, 200);
+      const vars = ai.getVars().at(-1) as {
+        storeShortlist?: { id: string; title: string; isPlaylist?: true }[];
+        wizardInput?: { preferencesContext?: { playlistMealsPerWeek?: number } };
+      };
+      assert.equal(vars.wizardInput?.preferencesContext?.playlistMealsPerWeek, 2);
+      const shelf = vars.storeShortlist ?? [];
+      // Every source is on the shelf exactly once, flagged; the non-playlist
+      // row is not flagged.
+      const flagged = shelf.filter((m) => m.isPlaylist === true);
+      assert.equal(shelf.length, 3, "two sampled rows + the appended playlist source");
+      assert.equal(flagged.length, 2, "both playlist sources flagged (one in place, one appended)");
+      assert.equal(shelf.filter((m) => m.title === "Grandma's chili").length, 1, "appended once");
+      assert.equal(shelf.find((m) => m.title === "Grandma's chili")?.id, "p1", "appended under a p-alias");
+      assert.equal(shelf.filter((m) => !m.isPlaylist).length, 1, "the non-playlist row stays unflagged");
+      // The AI cited the appended alias → reconcile translated it to the real id.
+      const body = (await res.json()) as {
+        candidates: { storeSlots?: { slotIndex: number; storeMealId: string }[] }[];
+      };
+      assert.deepEqual(body.candidates[0].storeSlots, [{ slotIndex: 0, storeMealId: "fav-src" }]);
+
+      // Dial none → nothing flagged, no p-alias.
+      await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("playlist-shelf-user"),
+        body: JSON.stringify({ ...VALID_BODY, playlistLevel: "none" }),
+      });
+      const off = (ai.getVars().at(-1) as { storeShortlist?: { id: string; isPlaylist?: true }[] }).storeShortlist ?? [];
+      assert.equal(off.some((m) => m.isPlaylist), false);
+      assert.equal(off.some((m) => m.id.startsWith("p")), false);
     } finally {
       await harness.close();
     }

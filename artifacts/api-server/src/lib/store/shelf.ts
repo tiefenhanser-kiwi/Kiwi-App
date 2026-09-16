@@ -12,11 +12,14 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { logger } from "../logger";
+import { allergenTokensForUser, allergenWhereConditions } from "./allergenFilter";
 import { resolveStoreComposeConfig } from "./storeComposeConfig";
 import {
+  allowedDifficultyLevels,
   buildStoreShortlist,
   emptyShortlist,
   type StoreShortlist,
+  type StoreShortlistMeal,
 } from "./storeShortlist";
 
 export interface RetrieveShelfOptions {
@@ -74,5 +77,133 @@ export async function retrieveShelf(
       "Store shortlist retrieval failed — composing fully live",
     );
     return emptyShortlist();
+  }
+}
+
+// ── WS9 Redesign Arc Block 2 (Part E) — the user's playlist ON the shelf ─────
+//
+// Block 1 gave the Playlist dial a count (preferencesContext.playlistMealsPerWeek)
+// but the generate shelf never carried the user's playlist meals and neither
+// generate body named them — a dial that visibly did nothing (D-WS7-202). The
+// smallest honest fix: put the playlist's PUBLIC SOURCES on the shelf, marked,
+// and let one instruction in each body place N of them.
+//
+// Why the public source and not the user's own fork: the compose pipeline
+// re-validates every store slot isPublic:true at save (wizardFinalize →
+// filterPublicStoreMealIds) and forks the source (D-WS7-139) — a private id
+// would compose at expand and then demote to a live rebuild at save, a
+// duplicate instead of a bind. A playlist meal the user built themselves (no
+// public source) therefore cannot ride this path and is left off the generate
+// shelf — reported as a CANDIDATE (the save predicate would need owner-OR-pool).
+//
+// Allergen filter + the difficulty ceiling apply (as on the Pick screen's
+// playlist rows); the cook-time cap does NOT (BUG-245's ruling: a declared
+// favourite over the cap is offered with its honest time). Newest first,
+// capped so a long playlist cannot bloat the prompt.
+
+export const PLAYLIST_SHELF_CAP = 20;
+
+export interface PlaylistShelfOptions {
+  userId: string;
+  allergiesAndAvoidances: string[];
+  difficulty: string;
+}
+
+/**
+ * Return the shelf with the user's playlist sources present and flagged:
+ * a source already sampled onto the shelf is marked in place; the rest are
+ * appended under `p<n>` aliases (the reconcile map translates any alias).
+ * Best-effort: a read failure leaves the shelf as it was.
+ */
+export async function addPlaylistToShelf(
+  prisma: PrismaClient,
+  shortlist: StoreShortlist,
+  opts: PlaylistShelfOptions,
+): Promise<StoreShortlist> {
+  try {
+    const rows = await prisma.playlistMeal.findMany({
+      where: {
+        userId: opts.userId,
+        meal: { isArchived: false, sourceStoreMealId: { not: null } },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { meal: { select: { sourceStoreMealId: true } } },
+      take: PLAYLIST_SHELF_CAP,
+    });
+    const sourceIds = [
+      ...new Set(
+        rows
+          .map((r) => r.meal.sourceStoreMealId)
+          .filter((x): x is string => !!x),
+      ),
+    ];
+    if (sourceIds.length === 0) return shortlist;
+
+    const allergenConditions = allergenWhereConditions(
+      allergenTokensForUser(opts.allergiesAndAvoidances),
+    );
+    const sources = await prisma.meal.findMany({
+      where: {
+        id: { in: sourceIds },
+        isPublic: true,
+        isArchived: false,
+        difficulty: { in: allowedDifficultyLevels(opts.difficulty) },
+        ...(allergenConditions.length > 0 ? { AND: allergenConditions } : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        cuisineType: true,
+        difficulty: true,
+        estimatedTimeMinutes: true,
+        tags: true,
+        caloriesPerServing: true,
+        proteinGPerServing: true,
+        carbsGPerServing: true,
+        fatGPerServing: true,
+      },
+    });
+    if (sources.length === 0) return shortlist;
+    const byId = new Map(sources.map((m) => [m.id, m]));
+
+    const idToAlias = new Map<string, string>();
+    for (const [alias, id] of shortlist.aliasToId) idToAlias.set(id, alias);
+    const forPrompt: StoreShortlistMeal[] = shortlist.forPrompt.map((m) => {
+      const real = shortlist.aliasToId.get(m.id);
+      return real && byId.has(real) ? { ...m, isPlaylist: true } : m;
+    });
+    const aliasToId = new Map(shortlist.aliasToId);
+    const selectedIds = [...shortlist.selectedIds];
+    let n = 0;
+    // Keep the playlist's own order (newest first) for the appended rows.
+    for (const id of sourceIds) {
+      const row = byId.get(id);
+      if (!row || idToAlias.has(id)) continue;
+      const alias = `p${++n}`;
+      aliasToId.set(alias, row.id);
+      selectedIds.push(row.id);
+      forPrompt.push({
+        id: alias,
+        title: row.title,
+        cuisineType: row.cuisineType,
+        difficulty: row.difficulty,
+        estimatedTimeMinutes: row.estimatedTimeMinutes,
+        tags: row.tags,
+        macros: {
+          caloriesPerServing: row.caloriesPerServing,
+          proteinGPerServing: row.proteinGPerServing,
+          carbsGPerServing: row.carbsGPerServing,
+          fatGPerServing: row.fatGPerServing,
+        },
+        isPlaylist: true,
+      });
+    }
+    return { ...shortlist, forPrompt, aliasToId, selectedIds };
+  } catch (err) {
+    logger.warn(
+      { event: "wizard_playlist_shelf_failed", userId: opts.userId, err },
+      "Playlist shelf read failed — shelf served without playlist rows",
+    );
+    return shortlist;
   }
 }

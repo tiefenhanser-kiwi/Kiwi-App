@@ -46,6 +46,13 @@ export interface StoreShortlistMeal {
     carbsGPerServing: number;
     fatGPerServing: number;
   };
+  /**
+   * WS9 Redesign Arc Block 2 (Part E) — set (true) ONLY on a row that is the
+   * public source of one of the user's PLAYLIST meals; absent otherwise, so
+   * the shelf JSON is byte-identical for a user with no playlist. The two
+   * generate bodies read it for the Playlist dial's count.
+   */
+  isPlaylist?: true;
 }
 
 // The projected DB row the selection pipeline works over.

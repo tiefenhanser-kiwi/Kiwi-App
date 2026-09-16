@@ -252,6 +252,13 @@ export const WizardShelfRequestSchema = WizardInputSchema.omit({
   excludeMealIds: z.array(z.string().min(1).max(100)).max(200).optional(),
   size: z.number().int().min(1).max(WIZARD_SHELF_MAX_SIZE).optional(),
   playlistOnly: z.boolean().optional(),
+  // WS9 Redesign Arc Block 2 (Part E) — `source: "playlist"` returns ONLY the
+  // user's playlist meals (card shape, no catalog fill, no size cap,
+  // hasMore:false) for "Plan a week from these". Distinct from playlistOnly
+  // (≡ playlist dial "all"): that one is capped at `size` and, under the
+  // zero-playlist guard, falls back to the shelf for an empty playlist.
+  // Omitted = today's composed shelf.
+  source: z.enum(["playlist"]).optional(),
 });
 export type WizardShelfRequest = z.infer<typeof WizardShelfRequestSchema>;
 

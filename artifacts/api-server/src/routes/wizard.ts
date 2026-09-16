@@ -33,7 +33,7 @@ import {
   allowedDifficultyLevels,
   reconcileStoreSlots,
 } from "../lib/store/storeShortlist";
-import { retrieveShelf } from "../lib/store/shelf";
+import { addPlaylistToShelf, retrieveShelf } from "../lib/store/shelf";
 import { composeShelf, shelfRemainderFor } from "../lib/store/shelfCompose";
 import { MEAL_CARD_SELECT, toMealCard } from "../lib/store/mealCard";
 import { servedCatalogIds } from "../lib/store/newToYou";
@@ -548,7 +548,120 @@ export function createWizardRouter(
     const body = parsed.data;
     const size = body.size ?? WIZARD_SHELF_DEFAULT_SIZE;
 
+    // The user's playlist — their own declared meals, ELIGIBLE under the
+    // allergen filter + the difficulty ceiling; the cook-time cap does NOT
+    // apply (BUG-245's ruling: a declared favourite over the cap is shown with
+    // its honest time). Ordered by the source's catalog rank, then newest
+    // first. Shared by the composed shelf (step 3 below) and the
+    // `source: "playlist"` branch (Block 2, Part E).
+    const readPlaylistIds = async (
+      allergenConditions: ReturnType<typeof allergenWhereConditions>,
+      difficultyCeiling: ReturnType<typeof allowedDifficultyLevels>,
+    ): Promise<{ ids: string[]; sourceIds: string[] }> => {
+      const playlistRows = await prisma.playlistMeal.findMany({
+        where: {
+          userId,
+          meal: {
+            isArchived: false,
+            difficulty: { in: difficultyCeiling },
+            ...(allergenConditions.length > 0 ? { AND: allergenConditions } : {}),
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          mealId: true,
+          meal: { select: { sourceStoreMealId: true } },
+        },
+      });
+      const sourceIds = [
+        ...new Set(
+          playlistRows
+            .map((r) => r.meal.sourceStoreMealId)
+            .filter((x): x is string => !!x),
+        ),
+      ];
+      const sourceFamilies =
+        sourceIds.length > 0
+          ? await prisma.meal.findMany({
+              where: { id: { in: sourceIds } },
+              select: { id: true, dishFamilyKey: true },
+            })
+          : [];
+      const rankBySource = new Map(
+        sourceFamilies.map((m) => [
+          m.id,
+          lookupDishFamily(m.dishFamilyKey)?.rank ?? NON_CATALOG_RANK,
+        ]),
+      );
+      const ids = playlistRows
+        .map((r, i) => ({
+          id: r.mealId,
+          rank: r.meal.sourceStoreMealId
+            ? rankBySource.get(r.meal.sourceStoreMealId) ?? NON_CATALOG_RANK
+            : NON_CATALOG_RANK,
+          i,
+        }))
+        .sort((a, b) => a.rank - b.rank || a.i - b.i)
+        .map((r) => r.id);
+      return { ids, sourceIds };
+    };
+
     try {
+      // WS9 Redesign Arc Block 2 (Part E) — `source: "playlist"`: ONLY the
+      // user's playlist meals, every eligible one, in the card shape — no
+      // catalog fill, no `size` cap, no text parse, hasMore false. The
+      // mobile lane renders "Plan a week from these" from it. Allergens
+      // resolve exactly as on the composed shelf.
+      if (body.source === "playlist") {
+        const resolvedAllergens = await resolveAllergenPreference(
+          prisma,
+          userId,
+          body.allergiesAndAvoidances,
+          { route: "wizard.shelf.playlist" },
+        );
+        const allergenConditions = allergenWhereConditions(
+          allergenTokensForUser(resolvedAllergens.allergiesAndAvoidances),
+        );
+        const { ids } = await readPlaylistIds(
+          allergenConditions,
+          allowedDifficultyLevels(body.difficulty),
+        );
+        const detailRows =
+          ids.length > 0
+            ? await prisma.meal.findMany({
+                where: { id: { in: ids } },
+                select: MEAL_CARD_SELECT,
+              })
+            : [];
+        const detailById = new Map(detailRows.map((r) => [r.id, r]));
+        const meals = ids
+          .map((id) => detailById.get(id))
+          .filter((r): r is NonNullable<typeof r> => !!r)
+          .map((r) => ({
+            ...toMealCard(r),
+            isNewToYou: false,
+            isPlaylist: true,
+            isPinned: false,
+            matchesCuisine: null,
+            source: "playlist" as const,
+          }));
+        return res.json({
+          meals,
+          totalEligible: meals.length,
+          hasMore: false,
+          unmatchedNames: [],
+          metadata: {
+            size: meals.length,
+            playlistLevel: "all",
+            discoveryLevel: null,
+            playlistCount: meals.length,
+            pinnedCount: 0,
+            shelfRemainder: 0,
+            source: "playlist",
+          },
+        });
+      }
+
       // 1. Preferences — resolved exactly as build-plans resolves them (override
       //    ?? stored), then the dials against THIS list's size. playlistOnly ≡
       //    playlist all; All-forces-None applies here too.
@@ -667,56 +780,11 @@ export function createWizardRouter(
         }
       }
 
-      // 3. Playlist — the user's own declared meals. Allergen filter + the
-      //    difficulty ceiling apply; the cook-time cap does NOT (BUG-245's
-      //    ruling: a declared favourite over the cap is shown with its honest
-      //    time). Ordered by the source's catalog rank, then newest first.
-      const playlistRows = await prisma.playlistMeal.findMany({
-        where: {
-          userId,
-          meal: {
-            isArchived: false,
-            difficulty: { in: difficultyCeiling },
-            ...(allergenConditions.length > 0 ? { AND: allergenConditions } : {}),
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        select: {
-          mealId: true,
-          meal: { select: { sourceStoreMealId: true } },
-        },
-      });
-      const playlistSourceIds = [
-        ...new Set(
-          playlistRows
-            .map((r) => r.meal.sourceStoreMealId)
-            .filter((x): x is string => !!x),
-        ),
-      ];
-      const sourceFamilies =
-        playlistSourceIds.length > 0
-          ? await prisma.meal.findMany({
-              where: { id: { in: playlistSourceIds } },
-              select: { id: true, dishFamilyKey: true },
-            })
-          : [];
-      const rankBySource = new Map(
-        sourceFamilies.map((m) => [
-          m.id,
-          lookupDishFamily(m.dishFamilyKey)?.rank ?? NON_CATALOG_RANK,
-        ]),
-      );
-      const playlistIds = playlistRows
-        .map((r, i) => ({
-          id: r.mealId,
-          rank: r.meal.sourceStoreMealId
-            ? rankBySource.get(r.meal.sourceStoreMealId) ?? NON_CATALOG_RANK
-            : NON_CATALOG_RANK,
-          i,
-        }))
-        .sort((a, b) => a.rank - b.rank || a.i - b.i)
-        .map((r) => r.id)
-        .filter((id) => !pinnedIds.includes(id));
+      // 3. Playlist — the user's own declared meals (readPlaylistIds above),
+      //    minus anything already pinned.
+      const playlist = await readPlaylistIds(allergenConditions, difficultyCeiling);
+      const playlistSourceIds = playlist.sourceIds;
+      const playlistIds = playlist.ids.filter((id) => !pinnedIds.includes(id));
 
       // 4. The shelf for the remainder — excluding what was shown, what the
       //    playlist already covers (its forks' sources), and the pins. Over-
@@ -963,7 +1031,7 @@ export function createWizardRouter(
       //     the gap (structural graceful-degrade, D-WS9-037). Best-effort: a
       //     retrieval failure must not sink plan generation — fall back to an
       //     empty shelf (fully-live) rather than 500.
-      const storeShortlist = await retrieveShelf(prisma, {
+      const baseShortlist = await retrieveShelf(prisma, {
         cuisines: aiInput.cuisines ?? [],
         // BUG-201 — the RESOLVED list, not `aiInput.… ?? []`. The old `?? []`
         // is what turned an absent field into zero allergen tokens, which made
@@ -977,6 +1045,19 @@ export function createWizardRouter(
         maxCookTimeMinutes: preferencesContext.maxCookTimeMinutes,
         maxCookTimeCoverage: preferencesContext.maxCookTimeCoverage,
       });
+      // WS9 Redesign Arc Block 2 (Part E) — when the Playlist dial claims
+      // slots, the user's playlist sources ride the shelf, flagged, so the
+      // body's playlist instruction has rows to name. Off the dial (count 0,
+      // which the resolver also forces for an empty playlist) the shelf is
+      // byte-identical to before.
+      const storeShortlist =
+        preferencesContext.playlistMealsPerWeek > 0
+          ? await addPlaylistToShelf(prisma, baseShortlist, {
+              userId,
+              allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
+              difficulty: aiInput.difficulty,
+            })
+          : baseShortlist;
 
       // 5-STREAM. Progressive render (Latency Block, D-WS9-076). When the client
       //   negotiates an event stream, emit each candidate the MOMENT it
@@ -1485,7 +1566,7 @@ export function createWizardRouter(
         where: { userId },
         select: { difficultyDefault: true },
       });
-      const storeShortlist = await retrieveShelf(prisma, {
+      const baseShortlist = await retrieveShelf(prisma, {
         cuisines: directed.cuisines ?? [],
         // BUG-201 — resolved, not `?? []`. See build-plans for why that
         // fallback disabled the hard filter rather than tightening it.
@@ -1497,6 +1578,16 @@ export function createWizardRouter(
         maxCookTimeMinutes: preferencesContext.maxCookTimeMinutes,
         maxCookTimeCoverage: preferencesContext.maxCookTimeCoverage,
       });
+      // Block 2 (Part E) — the playlist rides the shelf when the dial claims
+      // slots (see build-plans).
+      const storeShortlist =
+        preferencesContext.playlistMealsPerWeek > 0
+          ? await addPlaylistToShelf(prisma, baseShortlist, {
+              userId,
+              allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
+              difficulty: tkPrefs?.difficultyDefault ?? "easy",
+            })
+          : baseShortlist;
 
       const genResult = await runAICall(
         "wizard.directed.generate",
