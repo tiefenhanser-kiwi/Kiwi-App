@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
@@ -44,6 +45,8 @@ import { fromServerDifficulty, toServerDifficulty } from "@/lib/api/builder";
 import { useDishes } from "@/hooks/useDishes";
 import { savedDishFromListItem } from "@/lib/dishes/savedDishFromListItem";
 import { resolvePostSaveNav } from "@/lib/builder/postSaveNav";
+import { completePlaylistSave } from "@/lib/builder/playlistAfterSave";
+import { addToPlaylist, PLAYLIST_QUERY_KEY } from "@/lib/api/playlist";
 import {
   armDishHandoff,
   disarmDishHandoff,
@@ -141,6 +144,7 @@ export default function MealBuilderScreen() {
     draftJson,
     addToPlanId,
     addDishId,
+    toPlaylist,
   } = useLocalSearchParams<{
     mealId?: string;
     planId?: string;
@@ -150,7 +154,18 @@ export default function MealBuilderScreen() {
     draftJson?: string;
     addToPlanId?: string;
     addDishId?: string;
+    // WS9 Redesign Arc Block 2b (D-WS9-234) — the Playlist tab's "Add meals":
+    // rides every one of the six create flows and, at the single save funnel
+    // below, adds the new meal to the playlist and lands back on the tab.
+    toPlaylist?: string;
   }>();
+  const wantsPlaylist = toPlaylist === "1";
+  // Threaded onto the four flows that leave this screen (Ask Kiwi + the three
+  // imports) so their save, which funnels back here, still sees it.
+  const flowParams = {
+    ...(addToPlanId ? { addToPlanId } : {}),
+    ...(wantsPlaylist ? { toPlaylist: "1" } : {}),
+  };
   const isEditFromPlanContext = !!(mealId && planId && planItemId);
   // WS7-6 1G — library-context edit (Meal Detail → Edit, no plan params).
   // Routes to PATCH /me/meals/:id with NO §2.5 prompt (PRD §8.4.4).
@@ -171,6 +186,9 @@ export default function MealBuilderScreen() {
     changeRecipeForPlanItem,
   } = useApp();
   const router = useRouter();
+  // WS9 Redesign Arc Block 2b — the playlist-add completion refreshes the
+  // Playlist tab's query before landing on it.
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   // ② synchronous double-tap guard, shared by all three save paths (create,
   // runUpdateMeal, runSaveJustThisTime). `saving` state drives the button UI but
@@ -869,6 +887,7 @@ export default function MealBuilderScreen() {
         addToPlanId,
         planId,
         planItemId,
+        toPlaylist: wantsPlaylist,
       });
       const applyNav = () => {
         // `replace` (not push) drops the builder/input screen so Back returns
@@ -878,6 +897,9 @@ export default function MealBuilderScreen() {
             pathname: "/meal/[id]",
             params: { id: nav.mealId },
           });
+        } else if (nav.kind === "playlist") {
+          // Block 2b — the playlist branch below owns its own navigation
+          // (completePlaylistSave → dismissTo the tab); nothing to do here.
         } else {
           // WS7-6 G3 Scope D — dismissTo lands on the plan regardless of how
           // many intermediate screens (import-*/ask-kiwi) sit between the
@@ -940,6 +962,23 @@ export default function MealBuilderScreen() {
           );
           // Intentionally no nav — user keeps the form open.
         }
+      } else if (nav.kind === "playlist") {
+        // WS9 Redesign Arc Block 2b (D-WS9-234) — the Playlist tab's "Add
+        // meals": POST /me/playlist with the NEW id, refresh the tab's list,
+        // land back on the tab (dismissTo — the import / Ask-Kiwi input screen
+        // may sit between the tab and this builder). A failed add still
+        // navigates: the meal IS saved, and the tab is where the user started.
+        await completePlaylistSave(newMealId, {
+          addToPlaylist,
+          invalidatePlaylist: () =>
+            queryClient.invalidateQueries({ queryKey: PLAYLIST_QUERY_KEY }),
+          goToPlaylist: () => router.dismissTo("/(tabs)/playlist"),
+          onAddFailed: (msg) =>
+            Alert.alert(
+              "Saved but couldn't add to your playlist",
+              `${input.title} was saved to your meals, but adding it to the playlist failed:\n\n${msg}`,
+            ),
+        });
       } else {
         Alert.alert(
           draftMeal ? "Recipe saved" : "Meal saved",
@@ -1027,10 +1066,7 @@ export default function MealBuilderScreen() {
               selected={false}
               onPress={() => {
                 Keyboard.dismiss();
-                router.push({
-                  pathname: "/ask-kiwi",
-                  params: addToPlanId ? { addToPlanId } : {},
-                });
+                router.push({ pathname: "/ask-kiwi", params: flowParams });
               }}
             />
             {/* WS7-6 G3-fix — import parity. Pre-fix the three recipe imports
@@ -1046,10 +1082,7 @@ export default function MealBuilderScreen() {
               selected={false}
               onPress={() => {
                 Keyboard.dismiss();
-                router.push({
-                  pathname: "/import-url",
-                  params: addToPlanId ? { addToPlanId } : {},
-                });
+                router.push({ pathname: "/import-url", params: flowParams });
               }}
             />
             <ModeCard
@@ -1059,10 +1092,7 @@ export default function MealBuilderScreen() {
               selected={false}
               onPress={() => {
                 Keyboard.dismiss();
-                router.push({
-                  pathname: "/import-image",
-                  params: addToPlanId ? { addToPlanId } : {},
-                });
+                router.push({ pathname: "/import-image", params: flowParams });
               }}
             />
             <ModeCard
@@ -1072,10 +1102,7 @@ export default function MealBuilderScreen() {
               selected={false}
               onPress={() => {
                 Keyboard.dismiss();
-                router.push({
-                  pathname: "/import-text",
-                  params: addToPlanId ? { addToPlanId } : {},
-                });
+                router.push({ pathname: "/import-text", params: flowParams });
               }}
             />
             <ModeCard

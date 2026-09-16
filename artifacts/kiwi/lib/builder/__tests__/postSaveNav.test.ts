@@ -141,3 +141,34 @@ test("without mealId the replace precedence is unchanged (guard did not reorder 
   });
   assert.deepEqual(nav, { kind: "plan-replace", planId: "p", planItemId: "pi" });
 });
+
+// ── WS9 Redesign Arc Block 2b (D-WS9-234) — the playlist outcome ────────────
+
+test("Block 2b: toPlaylist (no plan context) resolves to the playlist landing with the new id", () => {
+  assert.deepEqual(
+    resolvePostSaveNav({ newMealId: "m-new", toPlaylist: true }),
+    { kind: "playlist", mealId: "m-new" },
+  );
+});
+
+test("Block 2b: toPlaylist never overrides a plan context — append and replace still win", () => {
+  assert.equal(
+    resolvePostSaveNav({ newMealId: "m", toPlaylist: true, addToPlanId: "p1" }).kind,
+    "plan-back",
+  );
+  assert.equal(
+    resolvePostSaveNav({ newMealId: "m", toPlaylist: true, planId: "p1", planItemId: "i1" }).kind,
+    "plan-replace",
+  );
+});
+
+test("Block 2b: toPlaylist on an EDIT still lands on the meal's own detail (edit guard wins)", () => {
+  assert.deepEqual(
+    resolvePostSaveNav({ newMealId: "m", mealId: "m", toPlaylist: true }),
+    { kind: "meal-detail", mealId: "m" },
+  );
+});
+
+test("Block 2b: toPlaylist=false / absent is the plain detail landing", () => {
+  assert.equal(resolvePostSaveNav({ newMealId: "m", toPlaylist: false }).kind, "meal-detail");
+});

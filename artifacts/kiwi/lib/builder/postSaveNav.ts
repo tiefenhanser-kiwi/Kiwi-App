@@ -23,10 +23,19 @@
 // discriminator is the CREATE branch (no mealId — handled by the caller) plus
 // planId + planItemId present. See the precedence note below for the
 // (illegal-but-defined) case where both signals arrive.
+//
+// WS9 Redesign Arc Block 2b (D-WS9-234) — FOURTH outcome: "playlist". A save
+// that originated from the Playlist tab's "Add meals" carries `toPlaylist` and
+// must ADD the new meal to the playlist (POST /me/playlist), then land back on
+// the Playlist tab with it on top. It sits BELOW the two plan outcomes in
+// precedence (a plan context is the more specific intent and the two never
+// co-occur in normal use — the Playlist tab threads toPlaylist and no plan
+// params) and ABOVE the default detail landing.
 
 export type PostSaveNav =
   | { kind: "plan-replace"; planId: string; planItemId: string }
   | { kind: "plan-back"; planId: string }
+  | { kind: "playlist"; mealId: string }
   | { kind: "meal-detail"; mealId: string };
 
 export function resolvePostSaveNav(args: {
@@ -41,6 +50,8 @@ export function resolvePostSaveNav(args: {
   // through to append/detail.
   planId?: string;
   planItemId?: string;
+  // WS9 Redesign Arc Block 2b — the Playlist tab's "Add meals" context.
+  toPlaylist?: boolean;
 }): PostSaveNav {
   // ── Self-enforcing edit guard (WS9 3f-3 Phase 1b). ─────────────────────────
   // An edit-from-plan (mealId + planId + planItemId) must NEVER route into a
@@ -71,6 +82,9 @@ export function resolvePostSaveNav(args: {
   }
   if (args.addToPlanId) {
     return { kind: "plan-back", planId: args.addToPlanId };
+  }
+  if (args.toPlaylist) {
+    return { kind: "playlist", mealId: args.newMealId };
   }
   return { kind: "meal-detail", mealId: args.newMealId };
 }

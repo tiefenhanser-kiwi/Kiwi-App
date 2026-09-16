@@ -14,6 +14,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { Button } from "@/components/Button";
+import { PlaylistToggleButton } from "@/components/PlaylistToggleButton";
 import { Card } from "@/components/Card";
 import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
@@ -561,6 +562,17 @@ function MealDetailContent({
           {!inPlanContext && (
             <Button label="Add to Plan" variant="secondary" onPress={onAddToPlan} />
           )}
+          {/* WS9 Redesign Arc Block 2b (D-WS9-234) — the playlist toggle, beside
+              the existing actions; the favorites heart in the Header stays
+              (WS7-11 reconciles). A public catalog meal is FORKED on add and
+              the playlist holds the fork, so this page replaces itself with
+              the user's copy — the one that is actually in the playlist. */}
+          <PlaylistToggleButton
+            mealId={meal.id}
+            onForked={(forkId) =>
+              router.replace({ pathname: "/meal/[id]", params: { id: forkId } })
+            }
+          />
         </View>
         <View style={s.actionRow}>
           <View style={{ flex: 1 }}>

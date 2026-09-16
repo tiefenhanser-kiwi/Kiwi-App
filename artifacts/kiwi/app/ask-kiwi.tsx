@@ -31,7 +31,11 @@ import { Colors, Spacing } from "@/constants/tokens";
 // the whole body — a deliberate, minor cosmetic change.
 export default function AskKiwiScreen() {
   const router = useRouter();
-  const { addToPlanId } = useLocalSearchParams<{ addToPlanId?: string }>();
+  const { addToPlanId, toPlaylist } = useLocalSearchParams<{
+    addToPlanId?: string;
+    /** WS9 Redesign Arc Block 2b — the Playlist tab's "Add meals" context. */
+    toPlaylist?: string;
+  }>();
 
   return (
     <View style={styles.bg}>
@@ -48,6 +52,7 @@ export default function AskKiwiScreen() {
                 draftSource: "text",
                 draftJson,
                 ...(addToPlanId ? { addToPlanId } : {}),
+                ...(toPlaylist ? { toPlaylist } : {}),
               },
             });
           }}

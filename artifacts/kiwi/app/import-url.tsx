@@ -47,10 +47,12 @@ export default function ImportUrlScreen() {
   // WS9 3f-3 (D-WS9-005) — planId + planItemId thread the SWAP (replace) context
   // through to the builder's CREATE branch; addToPlanId threads the APPEND
   // context. They are mutually exclusive in practice (different entry points).
-  const { addToPlanId, planId, planItemId } = useLocalSearchParams<{
+  const { addToPlanId, planId, planItemId, toPlaylist } = useLocalSearchParams<{
     addToPlanId?: string;
     planId?: string;
     planItemId?: string;
+    /** WS9 Redesign Arc Block 2b — the Playlist tab's "Add meals" context. */
+    toPlaylist?: string;
   }>();
   const [phase, setPhase] = useState<Phase>("input");
   const [url, setUrl] = useState("");
@@ -87,6 +89,7 @@ export default function ImportUrlScreen() {
           ...(addToPlanId ? { addToPlanId } : {}),
           ...(planId ? { planId } : {}),
           ...(planItemId ? { planItemId } : {}),
+          ...(toPlaylist ? { toPlaylist } : {}),
         },
       });
       setPhase("input");
