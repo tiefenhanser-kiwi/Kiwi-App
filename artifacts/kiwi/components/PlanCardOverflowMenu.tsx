@@ -18,8 +18,24 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 // when its handler is supplied, so a plan with no backing template can drop
 // "Use again" by omitting onUseAgain (Compost is always available on a saved
 // plan). Compost gets the destructive (terracotta) treatment.
+//
+// WS9 Redesign Arc Block 2b — the Playlist row needs the same "⋯" → sheet
+// affordance with two DIFFERENT items (View meal · Remove from playlist).
+// Rather than a second copy of the trigger + Modal + sheet, the host takes an
+// optional `items` list; when supplied it renders those and the two plan props
+// are ignored. The plan-card API is byte-for-byte unchanged.
+
+export interface OverflowMenuItem {
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  onPress: () => void;
+  /** Terracotta treatment (the Compost idiom). */
+  destructive?: boolean;
+}
 
 export interface PlanCardOverflowMenuProps {
+  /** Block 2b — generic items. When given, onUseAgain / onCompost are ignored. */
+  items?: OverflowMenuItem[];
   /** Fired when "Use again" is chosen. Omit to hide the item (e.g. a plan with
    *  no backing MealPlanTemplate to copy from). */
   onUseAgain?: () => void;
@@ -30,6 +46,7 @@ export interface PlanCardOverflowMenuProps {
 }
 
 export function PlanCardOverflowMenu({
+  items,
   onUseAgain,
   onCompost,
   accessibilityLabel = "Plan actions",
@@ -37,11 +54,19 @@ export function PlanCardOverflowMenu({
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
-  const hasUseAgain = !!onUseAgain;
-  const hasCompost = !!onCompost;
+  const resolved: OverflowMenuItem[] =
+    items ??
+    [
+      ...(onUseAgain
+        ? [{ label: "Use again", icon: "copy" as const, onPress: onUseAgain }]
+        : []),
+      ...(onCompost
+        ? [{ label: "Compost", icon: "trash-2" as const, onPress: onCompost, destructive: true }]
+        : []),
+    ];
   // Nothing to show → render no trigger at all (keeps template rows / plans
   // with no offered action clean).
-  if (!hasUseAgain && !hasCompost) return null;
+  if (resolved.length === 0) return null;
 
   const choose = (handler: () => void) => {
     setOpen(false);
@@ -74,24 +99,24 @@ export function PlanCardOverflowMenu({
         <Pressable style={s.backdrop} onPress={() => setOpen(false)} />
         <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
           <View style={s.handle} />
-          {hasUseAgain && (
+          {resolved.map((item) => (
             <Pressable
-              onPress={() => choose(onUseAgain!)}
+              key={item.label}
+              onPress={() => choose(item.onPress)}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
               style={({ pressed }) => [s.item, pressed && { opacity: 0.7 }]}
             >
-              <Feather name="copy" size={18} color={Colors.neutral[800]} />
-              <Text style={s.itemText}>Use again</Text>
+              <Feather
+                name={item.icon}
+                size={18}
+                color={item.destructive ? Colors.terracotta[600] : Colors.neutral[800]}
+              />
+              <Text style={[s.itemText, item.destructive && s.itemTextDestructive]}>
+                {item.label}
+              </Text>
             </Pressable>
-          )}
-          {hasCompost && (
-            <Pressable
-              onPress={() => choose(onCompost!)}
-              style={({ pressed }) => [s.item, pressed && { opacity: 0.7 }]}
-            >
-              <Feather name="trash-2" size={18} color={Colors.terracotta[600]} />
-              <Text style={[s.itemText, s.itemTextDestructive]}>Compost</Text>
-            </Pressable>
-          )}
+          ))}
         </View>
       </Modal>
     </>

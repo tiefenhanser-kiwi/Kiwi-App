@@ -37,3 +37,44 @@ export const PLAYLIST_QUERY_KEY = ["me", "playlist"] as const;
 export async function getPlaylist(): Promise<GetPlaylistResponse> {
   return apiClient("/me/playlist", { schema: GetPlaylistResponseSchema });
 }
+
+// ── WS9 Redesign Arc Block 2b — add / remove ────────────────────────────────
+
+// POST /me/playlist { mealId } → 201. ⚠️ `playlistMeal.mealId` may DIFFER from
+// the id sent: a public catalog meal is forked onto the user's library
+// (D-WS7-139 fork-on-acquire, idempotent by lineage) and the FORK's id is what
+// the playlist holds. `sourceMealId` is the catalog id in that case, null when
+// the user already owned the meal. Callers refetch the playlist rather than
+// assume membership by the id they sent.
+const AddToPlaylistResponseSchema = z.object({
+  playlistMeal: z.object({
+    id: z.string(),
+    mealId: z.string(),
+    sourceMealId: z.string().nullable(),
+    forked: z.boolean(),
+    createdAt: z.string(),
+  }),
+});
+export type AddToPlaylistResponse = z.infer<typeof AddToPlaylistResponseSchema>;
+
+/**
+ * POST /me/playlist — add a meal (owned, or a public catalog meal which is
+ * forked first). Propagates apiClient typed errors: `UnauthenticatedError`
+ * (401), `ApiError` (403 another user's private meal, 404 missing / archived,
+ * 500), `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function addToPlaylist(mealId: string): Promise<AddToPlaylistResponse> {
+  return apiClient("/me/playlist", {
+    method: "POST",
+    body: { mealId },
+    schema: AddToPlaylistResponseSchema,
+  });
+}
+
+/** DELETE /me/playlist/:mealId — 204, idempotent (the meal itself stays). */
+export async function removeFromPlaylist(mealId: string): Promise<void> {
+  await apiClient(`/me/playlist/${encodeURIComponent(mealId)}`, {
+    method: "DELETE",
+    parseAs: "none",
+  });
+}

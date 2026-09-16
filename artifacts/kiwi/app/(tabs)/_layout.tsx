@@ -27,7 +27,7 @@ import { Colors, Radius, Typography } from "@/constants/tokens";
 // the second. ⚠️ Supplying `tabBarLabel` opts that tab out of `tabBarLabelStyle`
 // entirely, so the label styles below carry the FULL type (size + family), not
 // just the weight — dropping either would silently resize every tab label.
-// Both wrapped in helpers rather than repeated across five Tabs.Screen blocks.
+// Both wrapped in helpers rather than repeated across six Tabs.Screen blocks.
 const INDICATOR_WIDTH = 22;
 const INDICATOR_HEIGHT = 3;
 
@@ -105,9 +105,12 @@ export default function TabLayout() {
         headerShown: false,
       }}
     >
-      {/* WS9 3a / G7 — 4-tab bar: Home / Plans / Recipes / Groceries. Order per
-          spec §5.2 + mockup (Plans before Recipes). "Recipes" label, meals.tsx
-          file kept (OPEN-2). */}
+      {/* WS9 3a / G7 — Home / Plans / Recipes / Groceries. Order per spec §5.2
+          + mockup (Plans before Recipes). "Recipes" label, meals.tsx file kept
+          (OPEN-2).
+          WS9 Redesign Arc Block 2b (D-WS9-234) — FIFTH tab, Playlist, between
+          Recipes and Groceries as drawn: Home · Plans · Recipes · Playlist ·
+          Groceries. Music-note icon in the same tabIcon idiom. */}
       <Tabs.Screen
         name="index"
         options={{ title: "Home", tabBarIcon: tabIcon("calendar"), tabBarLabel: tabLabel("Home") }}
@@ -119,6 +122,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="meals"
         options={{ title: "Recipes", tabBarIcon: tabIcon("bookmark"), tabBarLabel: tabLabel("Recipes") }}
+      />
+      <Tabs.Screen
+        name="playlist"
+        options={{ title: "Playlist", tabBarIcon: tabIcon("music"), tabBarLabel: tabLabel("Playlist") }}
       />
       <Tabs.Screen
         name="groceries"

@@ -24,7 +24,7 @@
 
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useRouter, type Href } from "expo-router";
+import { useRouter } from "expo-router";
 
 import { Chip } from "@/components/Chip";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -42,9 +42,8 @@ export const NUDGE_TITLE = "No playlist? No problem.";
 export const NUDGE_BODY = "Want your own go-to favorites in your plans?";
 export const NUDGE_LINK = "Start your playlist ›";
 
-/** Where the nudge's link lands — Block 2b creates the tab; the link is wired
- *  now. Cast: typed routes do not know the tab until its file exists. */
-export const PLAYLIST_ROUTE = "/(tabs)/playlist" as Href;
+/** Where the nudge's link lands — the Playlist tab (Block 2b). */
+export const PLAYLIST_ROUTE = "/(tabs)/playlist" as const;
 
 export interface MixDialsProps {
   value: DialState;
