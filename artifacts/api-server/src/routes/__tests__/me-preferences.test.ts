@@ -320,53 +320,11 @@ describe("PATCH /me/preferences", () => {
     }
   });
 
-  // WS9 Redesign Arc Block 1 (D-WS9-245) — TEMPORARY legacy shim: the current
-  // mobile build still PATCHes `discoveryMealsPerWeek: 0..2`; it is folded onto
-  // the enum column (0→none, 1→some, 2→mostly) and never reaches Prisma under
-  // its legacy key. Delete this test with the shim in Block 2.
-  it("D-WS9-245 shim: legacy discoveryMealsPerWeek int folds onto discoveryLevel", async () => {
-    const prisma = makeStubPrisma(defaultsFor(USER_ID));
-    const harness = await spinUp(prisma);
-    try {
-      const token = signToken(USER_ID);
-      const patch = async (payload: Record<string, unknown>) => {
-        const res = await fetch(`${harness.baseUrl}/me/preferences`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-        assert.equal(res.status, 200);
-        return ((await res.json()) as { preferences: PrefsRow & Record<string, unknown> })
-          .preferences;
-      };
-      const one = await patch({ discoveryMealsPerWeek: 1 });
-      assert.equal(one.discoveryLevel, "some");
-      // The stored row never carries the legacy key (the stub echoes the row
-      // it wrote); what the wire shows is the serializer's echo (Item 1).
-      assert.equal("discoveryMealsPerWeek" in (prisma._row() ?? {}), false, "legacy key reached the row");
-      assert.equal(one.discoveryMealsPerWeek, 1);
-      const two = await patch({ discoveryMealsPerWeek: 2 });
-      assert.equal(two.discoveryLevel, "mostly");
-      const zero = await patch({ discoveryMealsPerWeek: 0 });
-      assert.equal(zero.discoveryLevel, "none");
-      // The enum key wins when both arrive.
-      const both = await patch({ discoveryMealsPerWeek: 2, discoveryLevel: "all" });
-      assert.equal(both.discoveryLevel, "all");
-      // The enum field also accepts the legacy int directly.
-      const viaEnumKey = await patch({ discoveryLevel: 1 });
-      assert.equal(viaEnumKey.discoveryLevel, "some");
-    } finally {
-      await harness.close();
-    }
-  });
-
-  // TEMPORARY — Block 2 removes (with the echo in serializePreferences). The
-  // current mobile build's Zod requires an integer discoveryMealsPerWeek on
-  // this response; the level is echoed as none 0 · some 1 · mostly 2 · all 2.
-  it("D-WS9-245 shim: GET + PATCH echo discoveryMealsPerWeek derived from discoveryLevel", async () => {
+  // WS9 Redesign Arc Block 2 (Part B) — the Block 1 shims are gone: the wire
+  // is `discoveryLevel` / `playlistLevel`, enum keys, nothing else. The legacy
+  // `discoveryMealsPerWeek` key is an unknown key (400 under .strict()) and is
+  // never echoed on GET.
+  it("Block 2: the legacy discoveryMealsPerWeek key is rejected on PATCH and absent on GET", async () => {
     const seed = defaultsFor(USER_ID);
     seed.discoveryLevel = "mostly";
     const prisma = makeStubPrisma(seed);
@@ -378,19 +336,20 @@ describe("PATCH /me/preferences", () => {
       });
       const got = ((await get.json()) as { preferences: Record<string, unknown> }).preferences;
       assert.equal(got.discoveryLevel, "mostly");
-      assert.equal(got.discoveryMealsPerWeek, 2);
+      assert.equal("discoveryMealsPerWeek" in got, false, "legacy echo must be gone");
       const patch = async (payload: Record<string, unknown>) => {
         const res = await fetch(`${harness.baseUrl}/me/preferences`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(payload),
         });
-        assert.equal(res.status, 200);
-        return ((await res.json()) as { preferences: Record<string, unknown> }).preferences;
+        return res.status;
       };
-      assert.equal((await patch({ discoveryLevel: "none" })).discoveryMealsPerWeek, 0);
-      assert.equal((await patch({ discoveryLevel: "some" })).discoveryMealsPerWeek, 1);
-      assert.equal((await patch({ discoveryLevel: "all" })).discoveryMealsPerWeek, 2, "all caps at 2 for the mobile Zod");
+      assert.equal(await patch({ discoveryMealsPerWeek: 1 }), 400);
+      assert.equal(await patch({ discoveryLevel: 1 }), 400, "the enum key takes no integer");
+      assert.equal(prisma._row()?.discoveryLevel, "mostly", "nothing reached the row");
+      assert.equal(await patch({ discoveryLevel: "some" }), 200);
+      assert.equal(prisma._row()?.discoveryLevel, "some");
     } finally {
       await harness.close();
     }
@@ -434,7 +393,7 @@ describe("PATCH /me/preferences", () => {
     }
   });
 
-  it("Phase B: rejects out-of-range discoveryMealsPerWeek / discoveryLevel and bad saucePreference", async () => {
+  it("Phase B: rejects a bad discoveryLevel and bad saucePreference", async () => {
     const harness = await spinUp(makeStubPrisma(defaultsFor(USER_ID)));
     try {
       const token = signToken(USER_ID);
@@ -449,7 +408,6 @@ describe("PATCH /me/preferences", () => {
         });
         return res.status;
       };
-      assert.equal(await bad({ discoveryMealsPerWeek: 3 }), 400);
       assert.equal(await bad({ discoveryLevel: "lots" }), 400);
       assert.equal(await bad({ discoveryLevel: 3 }), 400);
       assert.equal(await bad({ saucePreference: "instant" }), 400);

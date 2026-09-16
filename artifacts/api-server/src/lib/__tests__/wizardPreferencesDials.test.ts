@@ -2,8 +2,8 @@
 //
 // A level is stored / sent; a COUNT is what the prompts consume, derived on
 // the server from the plan length. All-forces-None is enforced here, once,
-// for every generation path. The legacy 0..2 integer shim is covered so its
-// removal in Block 2 turns exactly these tests red.
+// for every generation path. (Block 2 removed the Block 1 legacy 0..2 integer
+// shim and its tests; the wire is the enum key only.)
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -11,7 +11,6 @@ import assert from "node:assert/strict";
 import {
   applyAllForcesNone,
   discoveryLevelFromInput,
-  legacyDiscoveryIntToLevel,
   levelToCount,
   resolveEffectivePreferences,
   resolvePreferences,
@@ -51,22 +50,11 @@ describe("levelToCount — level × plan length → slots", () => {
   });
 });
 
-describe("legacy shim — 0..2 int → level (TEMPORARY, remove in Block 2)", () => {
-  it("maps exactly as the migration did", () => {
-    assert.equal(legacyDiscoveryIntToLevel(0), "none");
-    assert.equal(legacyDiscoveryIntToLevel(1), "some");
-    assert.equal(legacyDiscoveryIntToLevel(2), "mostly");
-    assert.equal(legacyDiscoveryIntToLevel(7), "none");
-  });
-
-  it("discoveryLevelFromInput: enum key wins, legacy key folds, absent stays absent", () => {
+describe("discoveryLevelFromInput — the enum key only (Block 2)", () => {
+  it("enum key passes through, absent stays absent", () => {
     assert.equal(discoveryLevelFromInput({}), undefined);
-    assert.equal(discoveryLevelFromInput({ discoveryMealsPerWeek: 2 }), "mostly");
     assert.equal(discoveryLevelFromInput({ discoveryLevel: "all" }), "all");
-    assert.equal(
-      discoveryLevelFromInput({ discoveryLevel: "none", discoveryMealsPerWeek: 2 }),
-      "none",
-    );
+    assert.equal(discoveryLevelFromInput({ discoveryLevel: "none" }), "none");
   });
 });
 

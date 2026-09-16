@@ -1232,32 +1232,29 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
     );
   });
 
-  // WS9 Redesign Arc Block 1 (D-WS9-245) — TEMPORARY shim: the current mobile
-  // build still sends the legacy `discoveryMealsPerWeek: 0..2` key on the
-  // per-run body; it maps 2 → mostly → ceil(5 × 0.7) = 4. Delete with Block 2.
-  it("D-WS9-245 shim: a legacy discoveryMealsPerWeek int on the body still overrides", async () => {
+  // WS9 Redesign Arc Block 2 (Part B) — the Block 1 legacy-integer shim is
+  // gone: the per-run body takes `discoveryLevel` / `playlistLevel` enum keys
+  // only. An integer on either enum key is 400; the legacy key is stripped by
+  // the (non-strict) schema and is NOT an override — stored wins.
+  it("Block 2: an integer level is a 400; the legacy discoveryMealsPerWeek key no longer overrides", async () => {
     const token = signToken(PREF_USER_ID);
-    await fetch(`${harness.baseUrl}/wizard/build-plans`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ ...VALID_BODY, discoveryMealsPerWeek: 2 }),
-    });
-    const lastVars = ai.getVars().at(-1) as {
-      wizardInput?: {
-        preferencesContext?: { discoveryMealsPerWeek?: number; discoveryLevel?: string };
-        discoveryMealsPerWeek?: unknown;
-        discoveryLevel?: unknown;
-      };
-    };
-    const pc = lastVars?.wizardInput?.preferencesContext;
-    assert.ok(pc);
-    assert.equal(pc.discoveryLevel, "mostly");
-    assert.equal(pc.discoveryMealsPerWeek, 4);
-    assert.equal("discoveryMealsPerWeek" in (lastVars.wizardInput ?? {}), false);
-    assert.equal("discoveryLevel" in (lastVars.wizardInput ?? {}), false);
+    const post = async (body: Record<string, unknown>) =>
+      await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+    assert.equal((await post({ ...VALID_BODY, discoveryLevel: 2 })).status, 400);
+    assert.equal((await post({ ...VALID_BODY, playlistLevel: 1 })).status, 400);
+    const legacy = await post({ ...VALID_BODY, discoveryMealsPerWeek: 2 });
+    assert.equal(legacy.status, 200);
+    const pc = (
+      ai.getVars().at(-1) as {
+        wizardInput?: { preferencesContext?: { discoveryLevel?: string; discoveryMealsPerWeek?: number } };
+      }
+    )?.wizardInput?.preferencesContext;
+    assert.equal(pc?.discoveryLevel, "none", "stored none — the legacy key is not a shim any more");
+    assert.equal(pc?.discoveryMealsPerWeek, 0);
   });
 
   it("D-WS9-245: playlist all forces discovery none on the resolved bag", async () => {

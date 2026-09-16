@@ -516,12 +516,14 @@ describe("POST /api/wizard/shelf — discovery dial ordering", () => {
     assert.deepEqual(ids(json), ["c06", "c07", "c08", "c01", "c02"]);
   });
 
-  it("all = every new-to-you first; the legacy int 2 (→ mostly) still works", async () => {
+  it("all = every new-to-you first; the Block 1 legacy int key is now IGNORED (not an override)", async () => {
     const { json } = await shelf(h, U, { ...BASE_BODY, size: 5, discoveryLevel: "all" });
     assert.deepEqual(ids(json), ["c06", "c07", "c08", "c01", "c02"]);
+    // Block 2 removed the shim: the schema is not .strict(), so the legacy key
+    // is stripped — no per-run override, stored none → today's order.
     const legacy = await shelf(h, U, { ...BASE_BODY, size: 5, discoveryMealsPerWeek: 2 });
-    assert.equal(legacy.json.metadata.discoveryLevel, "mostly");
-    assert.deepEqual(ids(legacy.json), ["c06", "c07", "c08", "c01", "c02"]);
+    assert.equal(legacy.json.metadata.discoveryLevel, null);
+    assert.deepEqual(ids(legacy.json), [...ids(legacy.json)].sort(), "no reorder: the shelf's own order");
   });
 
   it("a STORED level with no per-run override also reorders (override ?? stored)", async () => {

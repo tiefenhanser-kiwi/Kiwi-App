@@ -881,11 +881,10 @@ export function createWizardRouter(
       // they don't leak into the AI input at top level — the prompt reads them
       // only via preferencesContext) and resolved against stored prefs.
       // WS9 Redesign Arc Block 1 (D-WS9-245) — the dials are peeled off too
-      // (enum key + the legacy int key + playlist) and folded to levels; the
-      // resolver turns them into COUNTS against this run's plan length.
+      // (enum keys; Block 2 removed the legacy int key); the resolver turns
+      // them into COUNTS against this run's plan length.
       const {
         discoveryLevel,
-        discoveryMealsPerWeek,
         playlistLevel,
         saucePreference,
         maxCookTimeMinutes,
@@ -896,10 +895,7 @@ export function createWizardRouter(
         prisma,
         userId,
         {
-          discoveryLevel: discoveryLevelFromInput({
-            discoveryLevel,
-            discoveryMealsPerWeek,
-          }),
+          discoveryLevel: discoveryLevelFromInput({ discoveryLevel }),
           playlistLevel,
           saucePreference,
           maxCookTimeMinutes,
@@ -1448,7 +1444,7 @@ export function createWizardRouter(
         prisma,
         userId,
         {
-          // D-WS9-245 — enum key, else the legacy int key (shim), else stored.
+          // D-WS9-245 — the enum key, else stored.
           discoveryLevel: discoveryLevelFromInput(directed),
           playlistLevel: directed.playlistLevel,
           saucePreference: directed.saucePreference,
@@ -1588,7 +1584,9 @@ export function createWizardRouter(
             eatingStyles: directed.eatingStyles,
             allergiesAndAvoidances: directed.allergiesAndAvoidances,
             dietaryNotes: directed.dietaryNotes,
-            discoveryMealsPerWeek: directed.discoveryMealsPerWeek,
+            // Block 2 — the per-run dial levels (was the legacy int key).
+            discoveryLevel: directed.discoveryLevel,
+            playlistLevel: directed.playlistLevel,
             saucePreference: directed.saucePreference,
             maxCookTimeMinutes: directed.maxCookTimeMinutes,
             maxCookTimeCoverage: directed.maxCookTimeCoverage,

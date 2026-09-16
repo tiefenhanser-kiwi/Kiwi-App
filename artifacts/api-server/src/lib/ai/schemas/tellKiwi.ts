@@ -36,10 +36,9 @@ export const DirectedInputSchema = z.object({
   // Cookbook Phase B Block 4 (D-WS7-035) — per-run overrides. Optional, NO
   // default (see WizardInputSchema note): omitted means "use stored". The
   // route resolves these into `preferencesContext`.
-  // WS9 Redesign Arc Block 1 (D-WS9-245) — the dials; see WizardInputSchema
-  // for the enum-or-legacy-int shim and the legacy-key fold.
+  // WS9 Redesign Arc Block 1 (D-WS9-245) — the dials, enum keys only (see
+  // WizardInputSchema; Block 2 removed the legacy key + shim).
   discoveryLevel: DiscoveryLevelInputSchema.optional(),
-  discoveryMealsPerWeek: z.number().int().min(0).max(2).optional(),
   playlistLevel: PlaylistLevelInputSchema.optional(),
   saucePreference: z.enum(["store_bought", "balanced", "homemade"]).optional(),
   maxCookTimeMinutes: z.number().int().positive().max(600).nullable().optional(),

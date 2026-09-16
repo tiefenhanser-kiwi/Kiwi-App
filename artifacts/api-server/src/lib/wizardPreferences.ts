@@ -65,43 +65,15 @@ export function levelToCount(level: DiscoveryLevel, size: number): number {
 }
 
 /**
- * Legacy shim (TEMPORARY — remove in Redesign Arc Block 2 once the mobile
- * dials send the enum): the pre-arc `discoveryMealsPerWeek` integer 0..2 maps
- * onto the level exactly as the D-WS9-245 migration mapped the stored column
- * (0→none, 1→some, 2→mostly; anything else → none).
- */
-export function legacyDiscoveryIntToLevel(n: number): DiscoveryLevel {
-  if (n === 1) return "some";
-  if (n === 2) return "mostly";
-  return "none";
-}
-
-/**
- * TEMPORARY — Block 2 removes. The inverse of the shim above, for the wire:
- * the current mobile build's preferences Zod REQUIRES an integer
- * `discoveryMealsPerWeek` on GET /me/preferences, so the level is echoed as
- * one (none 0 · some 1 · mostly 2 · all 2 — the mobile schema allows no more).
- */
-export function discoveryLevelToLegacyInt(level: DiscoveryLevel): number {
-  if (level === "some") return 1;
-  if (level === "mostly" || level === "all") return 2;
-  return 0;
-}
-
-/**
- * Fold a parsed per-run body's discovery fields into ONE optional level: the
- * enum field wins when sent; else the legacy integer (shimmed); else undefined
- * (= no per-run override, use stored). Presence semantics preserved.
+ * The per-run discovery level off a parsed body: the enum key when sent, else
+ * undefined (= no per-run override, use stored). Presence semantics preserved.
+ * Block 2 removed Block 1's legacy-integer fold — the wire is the
+ * enum key only (`discoveryLevel` / `playlistLevel`), nothing else.
  */
 export function discoveryLevelFromInput(input: {
   discoveryLevel?: DiscoveryLevel;
-  discoveryMealsPerWeek?: number;
 }): DiscoveryLevel | undefined {
-  if (input.discoveryLevel !== undefined) return input.discoveryLevel;
-  if (input.discoveryMealsPerWeek !== undefined) {
-    return legacyDiscoveryIntToLevel(input.discoveryMealsPerWeek);
-  }
-  return undefined;
+  return input.discoveryLevel;
 }
 
 /**

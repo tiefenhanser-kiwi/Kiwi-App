@@ -1,20 +1,13 @@
 import { z } from "zod";
 
-import {
-  DIAL_LEVELS,
-  legacyDiscoveryIntToLevel,
-} from "../../wizardPreferences";
+import { DIAL_LEVELS } from "../../wizardPreferences";
 
 // WS9 Redesign Arc Block 1 (D-WS9-245) — the two dials' wire shape. Shared by
-// WizardInputSchema, DirectedInputSchema (tellKiwi.ts) and the shelf route.
+// WizardInputSchema, DirectedInputSchema (tellKiwi.ts), the shelf route and
+// PATCH /me/preferences. Block 2 removed the Block 1 legacy-integer shim:
+// both dials take the enum key only.
 export const DialLevelSchema = z.enum(DIAL_LEVELS);
-// TEMPORARY SHIM (remove in Redesign Arc Block 2): the discovery dial also
-// accepts the pre-arc 0..2 integer and maps it as the migration did. The
-// playlist dial is new and takes the enum only.
-export const DiscoveryLevelInputSchema = z.union([
-  DialLevelSchema,
-  z.number().int().min(0).max(2).transform(legacyDiscoveryIntToLevel),
-]);
+export const DiscoveryLevelInputSchema = DialLevelSchema;
 export const PlaylistLevelInputSchema = DialLevelSchema;
 
 import { logger } from "../../logger";
@@ -202,13 +195,11 @@ export const WizardInputSchema = z.object({
   // The route resolves these against stored UserPreferences into
   // `preferencesContext`; they are NOT passed to the prompt at top level.
   //
-  // WS9 Redesign Arc Block 1 (D-WS9-245) — the dials. `discoveryLevel` is the
-  // enum (or the shimmed legacy int); `discoveryMealsPerWeek` is the LEGACY KEY
-  // the current mobile build still sends, accepted until Block 2 lands and
-  // folded by discoveryLevelFromInput() (the enum key wins when both arrive).
-  // `playlistLevel` is per-run only. A level becomes a count server-side.
+  // WS9 Redesign Arc Block 1 (D-WS9-245) — the dials, enum keys only (Block 2
+  // removed the legacy `discoveryMealsPerWeek` key + integer shim). Both have
+  // a stored default (Block 2) and resolve per-run ?? stored ?? none; a level
+  // becomes a count server-side.
   discoveryLevel: DiscoveryLevelInputSchema.optional(),
-  discoveryMealsPerWeek: z.number().int().min(0).max(2).optional(),
   playlistLevel: PlaylistLevelInputSchema.optional(),
   saucePreference: z.enum(["store_bought", "balanced", "homemade"]).optional(),
   maxCookTimeMinutes: z.number().int().positive().max(600).nullable().optional(),

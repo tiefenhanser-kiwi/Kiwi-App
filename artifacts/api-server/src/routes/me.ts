@@ -18,11 +18,6 @@ import {
   PlaylistLevelInputSchema,
 } from "../lib/ai/schemas/wizard";
 import {
-  discoveryLevelToLegacyInt,
-  legacyDiscoveryIntToLevel,
-  type DiscoveryLevel,
-} from "../lib/wizardPreferences";
-import {
   collectDishMentions,
   collectMealMentions,
   collectRematerializeDishMentions,
@@ -210,12 +205,9 @@ const preferencesPatchSchema = z
     // stays a permissive nullable int (the 30/45/60/null UI gate is Block 3);
     // the others are value-set-validated here since the DB stores plain int/String.
     // WS9 Redesign Arc Block 1 (D-WS9-245) — the stored discovery dial is the
-    // DiscoveryLevel enum now. `discoveryMealsPerWeek` (the legacy 0..2 int
-    // under its legacy KEY) is still accepted and folded onto the enum column
-    // below so the current mobile build's preferences save keeps working —
-    // TEMPORARY, remove in Block 2. The enum key wins when both arrive.
+    // DialLevel enum; enum key only (Block 2 removed the legacy
+    // `discoveryMealsPerWeek` key + integer shim from this allow-list).
     discoveryLevel: DiscoveryLevelInputSchema.optional(),
-    discoveryMealsPerWeek: z.number().int().min(0).max(2).optional(),
     // WS9 Redesign Arc Block 2 — the Playlist dial's stored default (Hans:
     // "if we have discovery meals we should have playlist in there, too").
     // Enum key only — this dial never had an integer form. The resolver
@@ -300,17 +292,10 @@ function serializePreferences(p: {
   id: string;
   userId: string;
   updatedAt: Date;
-  discoveryLevel?: DiscoveryLevel;
   [k: string]: unknown;
 }) {
   return {
     ...p,
-    // TEMPORARY — Block 2 removes. D-WS9-245 replaced the integer column with
-    // the DiscoveryLevel enum, but the current mobile build's preferences Zod
-    // (artifacts/kiwi/lib/api/me.ts) requires `discoveryMealsPerWeek: int` on
-    // this response; without the echo the preferences screen fails to parse
-    // between migrate deploy and Block 2. Derived, never stored.
-    discoveryMealsPerWeek: discoveryLevelToLegacyInt(p.discoveryLevel ?? "none"),
     updatedAt: p.updatedAt.toISOString(),
   };
 }
@@ -1036,12 +1021,7 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         details: flat,
       });
     }
-    // D-WS9-245 legacy fold — the column is `discoveryLevel`; the legacy int
-    // never reaches Prisma.
-    const { discoveryMealsPerWeek: legacyDiscovery, ...updates } = parsed.data;
-    if (legacyDiscovery !== undefined && updates.discoveryLevel === undefined) {
-      updates.discoveryLevel = legacyDiscoveryIntToLevel(legacyDiscovery);
-    }
+    const updates = parsed.data;
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: "no fields to update" });
     }
