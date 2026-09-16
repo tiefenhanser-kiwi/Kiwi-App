@@ -1,8 +1,8 @@
 // Plan-Gen Arc Block 4b-3 (D-WS9-072) — "last generated plan-options batch"
 // persistence.
 //
-// The three generate routes (build-plans, build-from-text, surprise-me) return
-// candidate cards but persist nothing — the batch dies with the client screen
+// The generate routes (build-plans, build-from-text; Surprise-me until Block 2
+// retired it) return candidate cards but persist nothing — the batch dies with the client screen
 // (Phase 0 finding). This module gives that batch a durable, server-authoritative
 // home so the "See Previous Options" surface can re-show the last run without
 // regenerating.
@@ -22,16 +22,21 @@ import { logger } from "./logger";
 import type { WizardPlanCandidate } from "./ai/schemas/wizard";
 
 // Which generate surface produced the batch. Rehydrate (Part 1b) branches on
-// this to rebuild candidateContext: "wizard"/"tellkiwi" replay `input`;
-// "surprise" re-derives context from stored prefs (input is null).
-export type WizardBatchSource = "wizard" | "tellkiwi" | "surprise";
+// this to rebuild candidateContext: "wizard"/"tellkiwi" replay `input`.
+// WS9 Redesign Arc Block 2 (Part C) — "surprise" is retired from the WRITE
+// union (the route is deleted, D-WS9-237). Rows written before Block 2 still
+// carry it; the READ type below keeps a legacy branch so those rows parse —
+// forward-only, no data migration (D-WS9-230).
+export type WizardBatchSource = "wizard" | "tellkiwi";
+/** What a stored row may still say: the write union plus the retired value. */
+export type WizardBatchSourceOnRead = WizardBatchSource | "surprise";
 
 // The stored blob. `input` is the request slice a later expand needs to rebuild
-// candidateContext (see the route write sites); null for surprise. Kept as
+// candidateContext (see the route write sites); null on legacy surprise rows. Kept as
 // `unknown` here — its shape is the write↔rehydrate contract, not this module's
 // concern, and it rides in a Json column so it never needs a migration to evolve.
 export interface WizardLastBatchPayload {
-  source: WizardBatchSource;
+  source: WizardBatchSourceOnRead;
   candidates: WizardPlanCandidate[];
   input: unknown | null;
 }

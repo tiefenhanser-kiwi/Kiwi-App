@@ -145,11 +145,6 @@ export interface WizardRouterDeps {
   readWizardLastBatch?: typeof productionReadWizardLastBatch;
 }
 
-// BUG-037 — Surprise-me returns ONE plan (→ draft screen + "Surprise Me
-// again"), not the shared 3-candidate picker count. Distinct from
-// getCandidateCount() (the SystemSetting that governs build-plans / Tell Kiwi).
-const SURPRISE_CANDIDATE_COUNT = 1;
-
 // Latency Block (D-WS9-076) — cache-split point for the generate prompt. The
 // stable instruction head (everything before this {{var}} token) is sent as a
 // cached `system` prefix; the volatile tail (shortlist + wizardInput) stays in
@@ -157,9 +152,10 @@ const SURPRISE_CANDIDATE_COUNT = 1;
 const WIZARD_GENERATE_CACHE_MARKER = "{{storeShortlist}}";
 
 // WS9 3c follow-up (BUG-053, Parts B + F) — session re-roll exclusion. The
-// client sends the plan + meal titles already shown this surprise/wizard
-// session in the request body; we fold them into the recency signals the
-// generate prompt already avoids (recentPlanNames / recentMeals) so the re-roll
+// client sends the plan + meal titles already shown this wizard session
+// (originally also the Surprise-me re-roll, retired in Block 2) in the request
+// body; we fold them into the recency signals the generate prompt already
+// avoids (recentPlanNames / recentMeals) so the re-roll
 // doesn't return a shown plan. Optional + backward-compatible: an absent or
 // malformed body yields empty lists (no-op), and both arrays are capped so a
 // long session can't bloat the prompt. Kept as a defensive hand-parser (this
@@ -905,9 +901,9 @@ export function createWizardRouter(
       );
       // Block 4b-2 (D-WS9-073, Part 1b) — recentRotation REPLACES recentMeals as
       // this route's recency unit, so strip recentMeals from the payload: one
-      // recency signal, no two-sources-of-truth drift. recentMeals stays live
-      // ONLY for wizard.surprise.generate, which still reads it. (buildPlanning-
-      // Context still computes it — a negligible read left in place rather than
+      // recency signal, no two-sources-of-truth drift. (Block 2 retired the
+      // Surprise-me route, the last reader of recentMeals; buildPlanningContext
+      // still computes it — a negligible read left in place rather than
       // refactoring the shared helper.)
       const { recentMeals: _strippedRecentMeals, ...planningContextBase } =
         planningContext;
@@ -1454,8 +1450,7 @@ export function createWizardRouter(
         { planDurationDays },
       );
       // Block 4b-2 (D-WS9-073, Part 1b) — strip recentMeals: recentRotation is
-      // this route's recency unit now (see the build-plans handler). Kept live
-      // only for wizard.surprise.generate.
+      // this route's recency unit now (see the build-plans handler).
       const { recentMeals: _strippedRecentMeals, ...planningContextForPrompt } =
         planningContext;
       const generateInput = {
@@ -1601,222 +1596,12 @@ export function createWizardRouter(
     },
   );
 
-  // ── POST /wizard/surprise-me — WS9 3c §7.6 Surprise-me path ───────────
-  // Zero-input generation: the user tapped "Surprise me" and typed nothing.
-  // We read their stored preferences server-side and run a SINGLE generate
-  // call (wizard.surprise.generate) that produces crowd-pleaser candidates
-  // strictly inside their hard constraints. No parse step (nothing to parse),
-  // so this is CHEAPER than Tell Kiwi. The response mirrors build-from-text's
-  // shape (candidates + a synthetic `vague` parsedIntent) so wizard-results
-  // renders it through the Tell Kiwi branch and R5's "Use this plan" applies.
-  router.post(
-    "/wizard/surprise-me",
-    requireAuth,
-    tellKiwiLimiter,
-    async (req, res) => {
-      const userId = req.userId;
-      if (!userId) {
-        return res.status(401).json({ error: "unauthenticated" });
-      }
-      // BUG-052 — capture before generation; see the build-plans handler.
-      const generationStartedAt = new Date();
-
-      // BUG-039 — a genuine try/catch so a throw (e.g. a prompt-resolution
-      // failure like the one that made this a bare 500) is LOGGED with its
-      // cause and returned as a friendly handled error, not an opaque 500.
-      try {
-        // 1. Entitlement — Surprise-me rides the Tell Kiwi ("just say") lane.
-        const ent = await subscriptionService.can(
-          userId,
-          "kitchen_wizard_just_say",
-        );
-        if (!ent.allowed) {
-          return res.status(402).json({
-            error: "upgrade required",
-            reason: ent.reason ?? "Surprise me is a premium feature.",
-          });
-        }
-
-        // 2. Load the stored preferences that shape the plan. Unlike Tell Kiwi /
-        //    build-plans, there is no request body — stored prefs ARE the input.
-        //    Allergies/eatingStyles/pickyAvoidances become the hard constraints
-        //    the prompt must never violate.
-        const storedPrefs = await prisma.userPreferences.findUnique({
-          where: { userId },
-          select: {
-            planLengthDefault: true,
-            householdSize: true,
-            cuisines: true,
-            eatingStyles: true,
-            allergiesAndAvoidances: true,
-            difficultyDefault: true,
-            dietaryNotes: true,
-            weeklyPacingDefault: true,
-            wantsLeftovers: true,
-          },
-        });
-
-        const planDurationDays = (() => {
-          const n = storedPrefs?.planLengthDefault ?? 5;
-          return n >= 1 && n <= 7 ? n : 5;
-        })();
-
-        // 3. Same server-injected context bags as the directed generate path.
-        const hiddenContext = await buildHiddenContext(userId);
-        const planningContext = await buildPlanningContext(prisma, userId);
-        const preferencesContext = await resolveEffectivePreferences(
-          prisma,
-          userId,
-          {},
-          { planDurationDays },
-        );
-
-        // BUG-053 (Part B) — fold this session's shown plans into the recency
-        // signals the prompt avoids: plan titles → recentPlanNames, meal titles
-        // → recentMeals (source "planned" — the only consumer of
-        // planningContext.recentMeals is this prompt's steer-away instruction,
-        // so labeling rejected meals "planned" only steers away from them,
-        // which is exactly the intent; verified by grep, D-WS9-074 untouched).
-        const { excludePlanTitles, excludeMealTitles } = parseSessionExclusion(
-          req.body,
-        );
-        const planningContextWithExclusion: PlanningContext = {
-          ...planningContext,
-          recentPlanNames: [
-            ...planningContext.recentPlanNames,
-            ...excludePlanTitles,
-          ],
-          recentMeals: [
-            ...planningContext.recentMeals,
-            ...excludeMealTitles.map((title) => ({
-              title,
-              source: "planned" as const,
-              when: planningContext.currentDate,
-            })),
-          ],
-        };
-
-        const generateInput = {
-          planDurationDays,
-          householdSize: storedPrefs?.householdSize ?? 4,
-          wantsLeftovers: storedPrefs?.wantsLeftovers ?? false,
-          cuisines: storedPrefs?.cuisines ?? [],
-          weeklyPacing: storedPrefs?.weeklyPacingDefault ?? "mostly_easy",
-          eatingStyles: storedPrefs?.eatingStyles ?? [],
-          allergiesAndAvoidances: storedPrefs?.allergiesAndAvoidances ?? [],
-          dietaryNotes: storedPrefs?.dietaryNotes ?? "",
-          hiddenContext,
-          planningContext: planningContextWithExclusion,
-          preferencesContext,
-        };
-
-        // Fix 4 — Surprise-me composes from the catalog too.
-        const storeShortlist = await retrieveShelf(prisma, {
-          cuisines: storedPrefs?.cuisines ?? [],
-          allergiesAndAvoidances: storedPrefs?.allergiesAndAvoidances ?? [],
-          difficulty: storedPrefs?.difficultyDefault ?? "easy",
-          userId,
-          excludeMealIds: hiddenContext?.recentMealIds,
-          // D-WS7-166 — from the RESOLVED bag, same object the prompt reads.
-          maxCookTimeMinutes: preferencesContext.maxCookTimeMinutes,
-          maxCookTimeCoverage: preferencesContext.maxCookTimeCoverage,
-        });
-
-        const genResult = await runAICall(
-          "wizard.surprise.generate",
-          { generateInput, storeShortlist: storeShortlist.forPrompt },
-          WizardPlanCandidatesResultSchema,
-          { prisma, userId },
-        );
-
-        if (!genResult.success) {
-          logger.warn(
-            {
-              event: "surprise_generate_failed",
-              userId,
-              reason: genResult.reason,
-              promptKey: "wizard.surprise.generate",
-            },
-            "Surprise-me generate step failed",
-          );
-          await emitActivity(userId, "wizard_failure");
-          return withAIFailureStatus(res, genResult.reason).json({
-            error: genResult.userFacingMessage,
-            reason: genResult.reason,
-          });
-        }
-
-        // BUG-037 — Surprise-me is ONE plan (straight to the draft screen, with
-        // "Surprise Me again" to re-roll), not the 3-candidate picker. Reconcile
-        // alias → real Meal.id (D-WS9-038) on the single candidate we keep.
-        const candidates = reconcileStoreSlots(
-          genResult.data.candidates.slice(0, SURPRISE_CANDIDATE_COUNT),
-          storeShortlist.aliasToId,
-        );
-        // BUG-249 — wired for symmetry with the other two buffered routes; at
-        // SURPRISE_CANDIDATE_COUNT = 1 the helper logs nothing (one plan has
-        // nothing to repeat against). Starts logging the day that count moves.
-        logCandidateRepeatCheck({
-          route: "wizard.surprise_me",
-          path: "buffered",
-          promptKey: "wizard.surprise.generate",
-          userId,
-          candidates,
-        });
-
-        // Synthesize a `vague` parsedIntent so the mobile wizard-results screen
-        // renders this through its existing Tell Kiwi branch without a new
-        // render path. No explicit meals, no clarification.
-        const parsedIntent: ParsedIntent = {
-          scenario: "vague",
-          explicitMeals: [],
-          intentDescriptors: ["popular", "crowd-pleaser", "family-friendly"],
-          mealCount: planDurationDays,
-        };
-
-        // Block 4b-3 (D-WS9-072 + BUG-047) — generation-clears. input is null:
-        // Surprise-me has no request body, so rehydrate re-derives
-        // candidateContext from stored prefs (same as the live surprise flow).
-        if (candidates.length > 0) {
-          await commitGeneratedBatch({
-            userId,
-            source: "surprise",
-            candidates,
-            input: null,
-            generationStartedAt,
-          });
-        }
-
-        await emitActivity(userId, "wizard_complete");
-
-        return res.json({
-          candidates,
-          parsedIntent,
-          cannotGenerateMore: genResult.data.cannotGenerateMore,
-          reason: genResult.data.reason,
-          metadata: {
-            promptVersion: genResult.metadata.promptVersion,
-            latencyMs: genResult.metadata.latencyMs,
-            flow: "surprise",
-          },
-        });
-      } catch (err) {
-        logger.error(
-          {
-            event: "surprise_me_failed",
-            userId,
-            err,
-            message: err instanceof Error ? err.message : String(err),
-          },
-          "Surprise-me handler threw",
-        );
-        return res.status(500).json({
-          error: "Kiwi got distracted. Try again?",
-          reason: "internal_error",
-        });
-      }
-    },
-  );
+  // WS9 Redesign Arc Block 2 (Part C) — POST /wizard/surprise-me DELETED. Hans
+  // retired Surprise Me (D-WS9-237): the Pick screen + /plans/from-meals is the
+  // zero-typing path now. The `wizard.surprise.generate` seed body + registry
+  // entry stay INERT (the shared prompt-rule tests still read the seed source);
+  // no route calls it. Old WizardLastBatch rows may still carry
+  // source:"surprise" — reads tolerate it (wizardLastBatch.ts).
 
   // ── POST /wizard/expand — Branch B "View plan" (PRD §5.6 redline) ─────
   // Step 2 of the two-step wizard commit model. Takes ONE candidate from a

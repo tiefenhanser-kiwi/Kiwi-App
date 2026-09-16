@@ -53,8 +53,9 @@ interface StubPrismaOpts {
     saucePreference?: "store_bought" | "balanced" | "homemade";
     maxCookTimeMinutes?: number | null;
     maxCookTimeCoverage?: "all" | "most";
-    // WS9 3c — the Surprise-me route reads these stored prefs directly (no
-    // request body). The stub returns the whole object regardless of `select`.
+    // WS9 3c — stored prefs the (since-retired, Block 2) Surprise-me route read
+    // directly; other stubs still seed them. The stub returns the whole object
+    // regardless of `select`.
     householdSize?: number;
     planLengthDefault?: number;
     cuisines?: string[];
@@ -872,17 +873,19 @@ describe("POST /api/wizard/build-plans — planning-context wiring", () => {
     );
     assert.ok(Array.isArray(pc.upcomingEvents));
     // Block 4b-2 (D-WS9-073, Part 1b) — recentMeals is STRIPPED from the
-    // build-plans payload (recentRotation is the recency unit now); it survives
-    // only on the surprise route. recentPlanNames stays on planningContext.
+    // build-plans payload (recentRotation is the recency unit now; Block 2
+    // retired its last reader, the Surprise-me route). recentPlanNames stays on
+    // planningContext.
     assert.ok(!("recentMeals" in pc), "recentMeals should be stripped");
     assert.ok(Array.isArray(pc.recentPlanNames));
   });
 });
 
 // Block 4b-2 (D-WS9-073) — the recent-rotation nudge is threaded onto the
-// build-plans + directed generate inputs, and DELIBERATELY NOT onto surprise
-// (ruling 2). The stub prisma has no plans, so the payload is the empty
-// rotation — presence/absence is the contract under test here.
+// build-plans + directed generate inputs. (Surprise-me, which deliberately did
+// NOT carry it under ruling 2, was retired in Redesign Arc Block 2.) The stub
+// prisma has no plans, so the payload is the empty rotation — presence is the
+// contract under test here.
 describe("recent-rotation nudge threading (Block 4b-2, D-WS9-073)", () => {
   const EMPTY_ROTATION = { plansConsidered: 0, meals: [] };
 
@@ -952,72 +955,17 @@ describe("recent-rotation nudge threading (Block 4b-2, D-WS9-073)", () => {
     }
   });
 
-  it("surprise-me does NOT thread recentRotation (ruling-2 guard; input byte-unchanged)", async () => {
-    const captured: { promptKey: string; vars: Record<string, unknown> }[] = [];
-    const runAICall = (async (
-      promptKey: string,
-      vars: Record<string, unknown>,
-    ) => {
-      captured.push({ promptKey, vars });
-      return genSuccess(threeCandidates("surprise"));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }) as any;
-    const harness = await spinUp({
-      runAICall,
-      prisma: makeStubPrisma({
-        preferences: {
-          householdSize: 3,
-          planLengthDefault: 4,
-          cuisines: [],
-          eatingStyles: [],
-          allergiesAndAvoidances: [],
-          weeklyPacingDefault: "mostly_easy",
-          wantsLeftovers: false,
-        },
-      }),
-      subscriptionService: makeSubscriptionService(true),
-    });
-    try {
-      const res = await fetch(`${harness.baseUrl}/wizard/surprise-me`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${signToken("test-user-rotation-sm")}`,
-        },
-      });
-      assert.equal(res.status, 200);
-      const generateInput = captured[0].vars.generateInput as Record<
-        string,
-        unknown
-      >;
-      assert.ok(
-        !("recentRotation" in generateInput),
-        "surprise-me must not carry recentRotation",
-      );
-    } finally {
-      await harness.close();
-    }
-  });
 });
 
 // BUG-053 (Parts B + F) — session re-roll exclusion. The client sends the
 // plan + meal titles shown so far; the routes must fold them into the recency
 // signals the generate prompt avoids so a re-roll returns something new.
-describe("POST /api/wizard — session re-roll exclusion (BUG-053)", () => {
-  it("surprise-me folds excludePlanTitles → recentPlanNames and excludeMealTitles → recentMeals", async () => {
-    // Fixture body carries the two exclusion arrays; stub prisma yields empty
-    // persisted recency, so the merged values are exactly the session's.
-    const captured: { promptKey: string; vars: Record<string, unknown> }[] = [];
-    const runAICall = (async (
-      promptKey: string,
-      vars: Record<string, unknown>,
-    ) => {
-      captured.push({ promptKey, vars });
-      return genSuccess(threeCandidates("surprise"));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }) as any;
+// WS9 Redesign Arc Block 2 (Part C) — Surprise Me is retired (D-WS9-237): the
+// route is gone, so a stale client tapping it gets a plain 404, not a 500.
+describe("POST /api/wizard/surprise-me — DELETED in Redesign Arc Block 2", () => {
+  it("is a 404 (no handler), even for an entitled user", async () => {
     const harness = await spinUp({
-      runAICall,
+      runAICall: makeRunAICall(async () => happyResult()).fn,
       prisma: makeStubPrisma(),
       subscriptionService: makeSubscriptionService(true),
     });
@@ -1026,37 +974,18 @@ describe("POST /api/wizard — session re-roll exclusion (BUG-053)", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${signToken("test-user-excl-surprise")}`,
+          Authorization: `Bearer ${signToken("test-user-surprise-gone")}`,
         },
-        body: JSON.stringify({
-          excludePlanTitles: ["Backyard Grill Night"],
-          excludeMealTitles: ["Old Tacos"],
-        }),
+        body: "{}",
       });
-      assert.equal(res.status, 200);
-      const generateInput = captured[0].vars.generateInput as {
-        planningContext: {
-          recentPlanNames: string[];
-          recentMeals: { title: string; source: string }[];
-        };
-      };
-      assert.ok(
-        generateInput.planningContext.recentPlanNames.includes(
-          "Backyard Grill Night",
-        ),
-        "shown plan title must land in recentPlanNames",
-      );
-      const mealTitles = generateInput.planningContext.recentMeals.map(
-        (m) => m.title,
-      );
-      assert.ok(
-        mealTitles.includes("Old Tacos"),
-        "shown meal title must land in recentMeals",
-      );
+      assert.equal(res.status, 404);
     } finally {
       await harness.close();
     }
   });
+});
+
+describe("POST /api/wizard — session re-roll exclusion (BUG-053)", () => {
 
   it("build-plans folds BOTH excluded plan + meal titles into recentPlanNames (recentMeals is stripped on this route)", async () => {
     // A plain fetch (no text/event-stream Accept) takes the BUFFERED path, which
@@ -4778,119 +4707,6 @@ describe("inferCategory (wizardActivation)", () => {
   });
 });
 
-// ── Surprise-me (surprise-me) tests — WS9 3c §7.6 ─────────────────────
-
-describe("POST /api/wizard/surprise-me — WS9 3c §7.6", () => {
-  it("generates within stored hard constraints; one AI call, vague parsedIntent", async () => {
-    const captured: { promptKey: string; vars: Record<string, unknown> }[] = [];
-    const runAICall = (async (
-      promptKey: string,
-      vars: Record<string, unknown>,
-    ) => {
-      captured.push({ promptKey, vars });
-      if (promptKey !== "wizard.surprise.generate") {
-        throw new Error(`unexpected promptKey ${promptKey}`);
-      }
-      return genSuccess(threeCandidates("surprise"));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }) as any;
-    const prisma = makeStubPrisma({
-      preferences: {
-        householdSize: 3,
-        planLengthDefault: 4,
-        cuisines: ["Italian"],
-        eatingStyles: ["vegetarian"],
-        allergiesAndAvoidances: ["peanuts", "shellfish"],
-        dietaryNotes: "no cilantro",
-        weeklyPacingDefault: "mostly_easy",
-        wantsLeftovers: false,
-      },
-    });
-    const harness = await spinUp({
-      runAICall,
-      prisma,
-      subscriptionService: makeSubscriptionService(true),
-    });
-    try {
-      const token = signToken("test-user-surprise");
-      const res = await fetch(`${harness.baseUrl}/wizard/surprise-me`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      assert.equal(res.status, 200);
-      const body = (await res.json()) as {
-        candidates: { id: string }[];
-        parsedIntent: ParsedIntent;
-        metadata: { flow: string };
-      };
-      // BUG-037 — Surprise-me returns exactly ONE plan (→ draft screen), not 3.
-      assert.equal(body.candidates.length, 1);
-      assert.equal(body.parsedIntent.scenario, "vague");
-      assert.deepEqual(body.parsedIntent.explicitMeals, []);
-      assert.equal(body.metadata.flow, "surprise");
-
-      // Exactly ONE AI call — Surprise-me skips the parse step (no user text).
-      assert.equal(captured.length, 1);
-      assert.equal(captured[0].promptKey, "wizard.surprise.generate");
-
-      // The stored hard constraints MUST reach the generate prompt — the
-      // "surprise" is meal choice, never a constraint violation.
-      const generateInput = captured[0].vars.generateInput as Record<
-        string,
-        unknown
-      >;
-      assert.deepEqual(generateInput.allergiesAndAvoidances, [
-        "peanuts",
-        "shellfish",
-      ]);
-      assert.deepEqual(generateInput.eatingStyles, ["vegetarian"]);
-      assert.equal(generateInput.householdSize, 3);
-      // planDurationDays comes from the stored planLengthDefault (no body).
-      assert.equal(generateInput.planDurationDays, 4);
-
-      // Fix 4 — Surprise-me composes from the catalog: the shelf var reaches the
-      // AI (empty here — no storeMeals stubbed — which is a valid empty shelf).
-      assert.ok(Array.isArray(captured[0].vars.storeShortlist));
-
-      const events = prisma._activities().map((a) => a.eventType);
-      assert.ok(events.includes("wizard_complete"));
-    } finally {
-      await harness.close();
-    }
-  });
-
-  it("returns 402 when the just-say entitlement is denied; no AI call fires", async () => {
-    const captured: unknown[] = [];
-    const runAICall = (async (...args: unknown[]) => {
-      captured.push(args);
-      return genSuccess(threeCandidates("surprise"));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }) as any;
-    const prisma = makeStubPrisma();
-    const harness = await spinUp({
-      runAICall,
-      prisma,
-      subscriptionService: makeSubscriptionService(false),
-    });
-    try {
-      const token = signToken("test-user-surprise-locked");
-      const res = await fetch(`${harness.baseUrl}/wizard/surprise-me`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      assert.equal(res.status, 402);
-      assert.equal(captured.length, 0);
-    } finally {
-      await harness.close();
-    }
-  });
-});
 
 // ── Plan-Gen Arc Block 4b-3 (D-WS9-072 + BUG-047) — last-batch persistence ──
 // The generate routes now (1) upsert the user's single last-generated batch and
@@ -5077,45 +4893,7 @@ describe("Block 4b-3 — build-plans last-batch persist + supersede", () => {
   });
 });
 
-describe("Block 4b-3 — surprise-me + tell-kiwi last-batch source/input", () => {
-  it("surprise-me persists source surprise with null input", async () => {
-    const rec = makeBatchRecorder();
-    const harness = await spinUp({
-      runAICall: makeRunAICall(async () => happyResult()).fn,
-      prisma: makeStubPrisma({
-        preferences: {
-          planLengthDefault: 5,
-          householdSize: 4,
-          cuisines: ["Italian"],
-          eatingStyles: [],
-          allergiesAndAvoidances: [],
-          weeklyPacingDefault: "mostly_easy",
-          wantsLeftovers: false,
-        },
-      }),
-      subscriptionService: makeSubscriptionService(true),
-      persistWizardLastBatch: rec.persistWizardLastBatch,
-      supersedeUnconsumedWizardDrafts: rec.supersedeUnconsumedWizardDrafts,
-    } as unknown as Parameters<typeof spinUp>[0]);
-    try {
-      const res = await fetch(`${harness.baseUrl}/wizard/surprise-me`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${signToken("test-user-surprise-batch")}`,
-        },
-      });
-      assert.equal(res.status, 200);
-      assert.equal(rec.persistCalls.length, 1);
-      assert.equal(rec.persistCalls[0].source, "surprise");
-      assert.equal(rec.persistCalls[0].input, null);
-      // BUG-037 — surprise trims to ONE candidate.
-      assert.equal(rec.persistCalls[0].candidates.length, 1);
-      assert.equal(rec.supersedeCalls.length, 1);
-    } finally {
-      await harness.close();
-    }
-  });
+describe("Block 4b-3 — tell-kiwi last-batch source/input", () => {
 
   it("build-from-text persists source tellkiwi with a replayable input", async () => {
     const rec = makeBatchRecorder();

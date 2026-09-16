@@ -86,7 +86,9 @@ describe("persistWizardLastBatch", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       prisma: store.prisma as any,
       userId: "u1",
-      source: "surprise",
+      // Block 2 retired "surprise" from the write union; tellkiwi is the
+      // other surviving source.
+      source: "tellkiwi",
       candidates: [],
       input: null,
     });
@@ -98,9 +100,9 @@ describe("persistWizardLastBatch", () => {
 
     // The surviving row is the SECOND batch.
     const row = store.rows.get("u1")!;
-    assert.equal(row.source, "surprise");
+    assert.equal(row.source, "tellkiwi");
     const payload = row.payload as { source: string; candidates: unknown[]; input: unknown };
-    assert.equal(payload.source, "surprise");
+    assert.equal(payload.source, "tellkiwi");
     assert.equal(payload.candidates.length, 0);
     assert.equal(payload.input, null);
   });
@@ -178,6 +180,32 @@ describe("readWizardLastBatch", () => {
       (record!.payload.input as { description: string }).description,
       "easy week",
     );
+  });
+
+  // WS9 Redesign Arc Block 2 (Part C) — Surprise-me is retired (route deleted,
+  // "surprise" gone from the WRITE union) but rows written before Block 2 still
+  // say source:"surprise" with input:null. Forward-only (D-WS9-230): the read
+  // tolerates them exactly as stored.
+  it("Block 2: a pre-existing surprise row still reads (legacy branch on read, not write)", async () => {
+    const prisma = {
+      wizardLastBatch: {
+        findUnique: async () => ({
+          source: "surprise",
+          payload: { source: "surprise", candidates: CANDIDATES, input: null },
+          createdAt: new Date("2026-09-01T00:00:00Z"),
+        }),
+      },
+    };
+    const record = await readWizardLastBatch({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: prisma as any,
+      userId: "u-legacy",
+    });
+    assert.ok(record);
+    assert.equal(record!.source, "surprise");
+    assert.equal(record!.payload.source, "surprise");
+    assert.equal(record!.payload.input, null);
+    assert.equal(record!.payload.candidates.length, 1);
   });
 
   it("degrades a read failure to null", async () => {
