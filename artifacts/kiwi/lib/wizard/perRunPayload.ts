@@ -168,6 +168,8 @@ export interface WizardShelfRequest extends WizardPreferencesInput {
   text?: string;
   /** "Get more options" — every id already on the Pick screen. */
   excludeMealIds?: string[];
+  /** Card count for this call (server default 15, max 20); a round asks for 5. */
+  size?: number;
 }
 
 export function buildShelfRequest(

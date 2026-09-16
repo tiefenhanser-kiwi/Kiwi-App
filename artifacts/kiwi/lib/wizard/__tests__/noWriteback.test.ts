@@ -6,11 +6,14 @@
 // must not silently shift the saved defaults). The wizard's ONLY outbound write
 // is the per-run generate payload.
 //
-// The mobile test harness has no screen-render capability (logic-only unit
-// tests), so this is enforced structurally: the two wizard screens must not
-// reference patchPreferences, nor issue a PATCH against /me/preferences. A
-// source-level guard is the faithful assertion here — if a future edit wires a
-// write-back, this fails.
+// Enforced structurally: the wizard must not reference patchPreferences, nor
+// issue a PATCH against /me/preferences. A source-level guard is the faithful
+// assertion here — if a future edit wires a write-back, this fails.
+//
+// WS9 Redesign Arc Block 2a Part C — /wizard and /tellkiwi are one-line mounts
+// of components/WizardScreen.tsx now, so the guard runs over all three: the
+// two routes (which must stay inert) and the component (which is where the
+// hydration read — the positive control — lives).
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -20,12 +23,21 @@ import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(here, "../../../app");
+const componentsDir = resolve(here, "../../../components");
 
-const SCREENS = ["wizard.tsx", "tellkiwi.tsx"] as const;
+const SCREENS = [
+  { screen: "app/wizard.tsx", path: resolve(appDir, "wizard.tsx"), hydrates: false },
+  { screen: "app/tellkiwi.tsx", path: resolve(appDir, "tellkiwi.tsx"), hydrates: false },
+  {
+    screen: "components/WizardScreen.tsx",
+    path: resolve(componentsDir, "WizardScreen.tsx"),
+    hydrates: true,
+  },
+] as const;
 
-for (const screen of SCREENS) {
+for (const { screen, path, hydrates } of SCREENS) {
   test(`${screen} never writes back to /me/preferences`, () => {
-    const src = readFileSync(resolve(appDir, screen), "utf8");
+    const src = readFileSync(path, "utf8");
 
     // No import or call of the preferences mutator.
     assert.equal(
@@ -43,10 +55,17 @@ for (const screen of SCREENS) {
       `${screen} issues a PATCH to /me/preferences — no write-back allowed`,
     );
 
-    // Positive control: the screen DOES read preferences (hydration source).
-    assert.ok(
+    // Positive control: the merged screen DOES read preferences (hydration
+    // source); the two routes mount it and read nothing themselves.
+    assert.equal(
       /getPreferences/.test(src),
-      `${screen} should hydrate from getPreferences`,
+      hydrates,
+      hydrates
+        ? `${screen} should hydrate from getPreferences`
+        : `${screen} is a route mount and should not read preferences itself`,
     );
+    if (!hydrates) {
+      assert.ok(/WizardScreen/.test(src), `${screen} should mount WizardScreen`);
+    }
   });
 }

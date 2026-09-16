@@ -10,8 +10,11 @@
 
 import { z } from "zod";
 
+import { todayLocalDate } from "../dates";
 import { apiClient } from "./client";
+import { MealCardSchema } from "./mealCard";
 import type { WizardPlanCandidate, WizardPreferencesInput } from "../types";
+import type { WizardShelfRequest } from "../wizard/perRunPayload";
 
 // ── Zod schemas ──────────────────────────────────────────────────────────
 // Transcribed from artifacts/api-server/src/lib/ai/schemas/wizard.ts —
@@ -301,6 +304,10 @@ export async function activateWizardDraft(
     `/wizard/drafts/${encodeURIComponent(draftId)}/activate`,
     {
       method: "POST",
+      // WS9 Redesign Arc Block 2a (§1) — the device's local calendar date, so
+      // the server dates the activated plan to the USER's week. The route
+      // parses no body today and ignores the key until the server lane reads it.
+      body: { localDate: todayLocalDate() },
       schema: WizardDraftMutationResponseSchema,
       signal: opts.signal,
     },
@@ -435,5 +442,56 @@ export async function getWizardDraft(
 ): Promise<WizardExpandResponse> {
   return apiClient(`/wizard/drafts/${encodeURIComponent(draftId)}`, {
     schema: WizardExpandResponseSchema,
+  });
+}
+
+// ── WS9 Redesign Arc Block 2a (D-WS9-237) — POST /wizard/shelf ──────────────
+// The Pick screen's feed: ~15 catalog + playlist meals that fit the wizard's
+// per-run input, with REAL meal ids. Transcribed from the route
+// (artifacts/api-server/src/routes/wizard.ts) — the card is the shared
+// MealCard plus the per-card flags; times are the server's DERIVED columns
+// (D-WS9-235). Paging is by exclusion: the client re-sends every id already
+// shown as `excludeMealIds` and the server returns the next slice.
+
+export const ShelfMealSchema = MealCardSchema.extend({
+  /** A catalog meal the user has never been served (the discovery dial's unit). */
+  isNewToYou: z.boolean(),
+  /** In the user's playlist (a fork of it, or a playlist meal itself). */
+  isPlaylist: z.boolean(),
+  /** Text mode — a meal the user NAMED, matched and pinned to the front. */
+  isPinned: z.boolean(),
+  matchesCuisine: z.boolean().nullable(),
+  source: z.string(),
+});
+export type ShelfMeal = z.infer<typeof ShelfMealSchema>;
+
+const WizardShelfResponseSchema = z.object({
+  meals: z.array(ShelfMealSchema),
+  /** Every catalog meal that fits the filters — the "{N} fit your preferences" N. */
+  totalEligible: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+  /** Text mode — named meals Kiwi could not find. [] in prefs mode. */
+  unmatchedNames: z.array(z.string()),
+  /** Text mode — whether the parse ran (false = parse failed, shelf unpinned). */
+  textParsed: z.boolean().optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+export type WizardShelfResponse = z.infer<typeof WizardShelfResponseSchema>;
+
+/**
+ * POST /api/wizard/shelf — "Meals to choose from". DB-only unless `text` is
+ * sent (then the parse_intent call runs for its named meals). Fast.
+ *
+ * Propagates apiClient typed errors: `UnauthenticatedError` (401),
+ * `UpgradeRequiredError` (402 — entitlement), `ApiError` (400 body, 500),
+ * `ApiSchemaError` on a response-shape mismatch.
+ */
+export async function buildWizardShelf(
+  body: WizardShelfRequest,
+): Promise<WizardShelfResponse> {
+  return apiClient("/wizard/shelf", {
+    method: "POST",
+    body,
+    schema: WizardShelfResponseSchema,
   });
 }
