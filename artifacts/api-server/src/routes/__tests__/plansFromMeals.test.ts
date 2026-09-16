@@ -15,7 +15,8 @@ import express, { type Express } from "express";
 import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
-import { currentWeekRange } from "../../lib/planDates";
+import { currentWeekRange, resolveThisWeekPlan } from "../../lib/planDates";
+import { tomorrowUtc } from "../../lib/planDayAssignment";
 import { createPlansRouter } from "../plans";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 
@@ -282,16 +283,34 @@ describe("POST /api/plans/from-meals", () => {
         ],
       );
 
-      // The instance: ACTIVE this week, committed, never a draft.
+      // The instance: ACTIVE, committed, never a draft — and (F3) dated from
+      // the day assignment: tomorrow … tomorrow + 2 for the three dated meals
+      // (the unassigned fourth pick does not extend the range).
       const inst = rec.createdInstances[0];
-      const week = currentWeekRange();
+      const tomorrow = tomorrowUtc();
+      const dayAfterNext = new Date(tomorrow.getTime() + 2 * 86_400_000);
       assert.equal(inst.isWizardDraft, false);
       assert.equal(inst.mealPlanTemplateId, "tpl-1");
       assert.ok(inst.activatedAt instanceof Date);
       assert.ok(inst.committedAt instanceof Date);
-      assert.equal((inst.startDate as Date).toISOString().slice(0, 10), week.startDate);
-      assert.equal((inst.endDate as Date).toISOString().slice(0, 10), week.endDate);
+      assert.equal((inst.startDate as Date).toISOString(), tomorrow.toISOString());
+      assert.equal((inst.endDate as Date).toISOString(), dayAfterNext.toISOString());
+      assert.equal(json.startDate, tomorrow.toISOString().slice(0, 10));
+      assert.equal(json.endDate, dayAfterNext.toISOString().slice(0, 10));
       assert.equal("wizardDraftPayload" in inst, false);
+      // Range-containment (D-WS9-147): it is the this-week winner on its first
+      // day, and NOT yet today (the plan starts tomorrow — "you have to shop
+      // before you can cook").
+      const row = {
+        id: "plan-1",
+        startDate: inst.startDate as Date,
+        endDate: inst.endDate as Date,
+        activatedAt: inst.activatedAt as Date,
+        createdAt: new Date(),
+      };
+      assert.equal(resolveThisWeekPlan([row], tomorrow)?.id, "plan-1");
+      assert.equal(resolveThisWeekPlan([row], dayAfterNext)?.id, "plan-1");
+      assert.equal(resolveThisWeekPlan([row], new Date(dayAfterNext.getTime() + 86_400_000)), null);
 
       // Hidden template with the given title + the item count.
       assert.equal(rec.templatesCreated.length, 1);
@@ -309,16 +328,16 @@ describe("POST /api/plans/from-meals", () => {
 
       // Days: 4 meals, 3 days → the first three dated (fish first — Protein;
       // then pasta — Dairy; then chili — Canned, the easiest last); the fourth
-      // (own-salad) left unassigned. Persisted on every item.
-      assert.equal(rec.itemUpdates.length, 4);
-      const dayByItem = Object.fromEntries(
-        rec.itemUpdates.map((u) => [u.where.id, u.data.assignedDayOfWeek]),
-      );
-      assert.equal(dayByItem["item-3"], null, "the 4th pick has no day");
-      assert.equal(rec.itemUpdates[3].data.assignedDate, null);
-      const dated = rec.itemUpdates.slice(0, 3).map((u) => u.data.assignedDate as Date);
+      // (own-salad) left unassigned. Written on the items at create (F3).
+      assert.equal(rec.itemUpdates.length, 0, "no post-hoc update: days ride the createMany");
+      const items = rec.createManyItems;
+      assert.equal(items[3].assignedDayOfWeek, null, "the 4th pick has no day");
+      assert.equal(items[3].assignedDate, null);
+      const dated = items.slice(0, 3).map((d) => d.assignedDate as Date);
       // item-2 (fish) is day 0, item-0 (pasta) day 1, item-1 (chili) day 2.
       assert.ok(dated[2] < dated[0] && dated[0] < dated[1]);
+      assert.equal(dated[2].toISOString(), tomorrow.toISOString());
+      assert.equal(typeof items[0].assignedDayOfWeek, "string");
       // The response echoes the assignment (YYYY-MM-DD).
       assert.equal(json.days.length, 4);
       assert.equal(json.days[3].assignedDayOfWeek, null);
@@ -335,6 +354,10 @@ describe("POST /api/plans/from-meals", () => {
       const { status, json } = await post(h, { mealIds: ["own-chili"], planDurationDays: 1 });
       assert.equal(status, 201);
       assert.equal(json.demoted, null);
+      // A one-day plan is dated tomorrow … tomorrow.
+      const t = tomorrowUtc().toISOString().slice(0, 10);
+      assert.equal(json.startDate, t);
+      assert.equal(json.endDate, t);
       assert.equal(rec.templatesCreated[0].title, "Your picks");
       assert.deepEqual(rec.forkedFrom, []);
     } finally {

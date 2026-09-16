@@ -30,7 +30,7 @@ import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
 import { forkMealForUser, publishMealToStore } from "./mealFork";
 import { stampAllergens } from "./allergens";
 import { stampMealTiming } from "./mealTiming";
-import { assignAndPersistPlanDays } from "./planDayAssignment";
+import { assignAndPersistPlanDays, type AssignedDay } from "./planDayAssignment";
 import type { WizardSavePlan } from "./wizardSavePlan";
 
 // WS7-6 Block 2: inferCategory now lives in ingredientResolve.ts so the new
@@ -94,6 +94,10 @@ export interface MaterializeWizardDraftResult {
   // route handler reads this and writes it into the Instance's
   // mealPlanTemplateId in the same transaction.
   mealPlanTemplateId: string;
+  // WS9 Redesign Arc Block 1 (F3) — the day assignment written when
+  // `dayAssignment` was passed (item order); the activate route dates the
+  // instance first…last assigned day from it. Absent on the /save path.
+  assignedDays?: AssignedDay[];
 }
 
 /**
@@ -572,12 +576,12 @@ export async function materializeWizardDraft(
 
   // D-WS7-213 half 1 — day assignment on activate (all generation paths). The
   // items were just written above; every slot is a dinner for one day.
-  if (opts.dayAssignment) {
-    await assignAndPersistPlanDays(tx, draftId, {
-      startDate: opts.dayAssignment.startDate,
-      planDurationDays: savePlan.slots.length,
-    });
-  }
+  const assignedDays = opts.dayAssignment
+    ? await assignAndPersistPlanDays(tx, draftId, {
+        startDate: opts.dayAssignment.startDate,
+        planDurationDays: savePlan.slots.length,
+      })
+    : undefined;
 
   return {
     savePlan,
@@ -586,5 +590,6 @@ export async function materializeWizardDraft(
     itemsCreated,
     ingredientsTouched: ingredientIdByCanonical.size,
     mealPlanTemplateId: template.id,
+    ...(assignedDays ? { assignedDays } : {}),
   };
 }

@@ -3067,6 +3067,9 @@ function makeActivateDeps(opts: {
   // When set, the resolver's covering-subset query returns it (covering now,
   // activated in the past) so the route computes `demoted`.
   coveringWinner?: { id: string; name: string };
+  // WS9 Redesign Arc Block 1 (F3) — what the materializer reports as the day
+  // assignment it wrote; the activate flip dates the instance from it.
+  assignedDays?: Array<{ assignedDate: Date | null }>;
 }) {
   const rec: ActivateRecorder = opts.recorder ?? {
     materializeCalls: [],
@@ -3214,6 +3217,7 @@ function makeActivateDeps(opts: {
       // MealPlanTemplate inside Pass 2 and returns its id so the route
       // handler can write it into the Instance's mealPlanTemplateId.
       mealPlanTemplateId: "tpl-test-id",
+      ...(opts.assignedDays ? { assignedDays: opts.assignedDays } : {}),
     };
   }) as never;
 
@@ -3458,6 +3462,9 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
     // current Sun-Sat week via the shared currentWeekRange() helper. Round-
     // trips back through toYmd as YYYY-MM-DD (NOT ISO 8601), symmetric with
     // the c11/c16 read-path wire shape and the PATCH auto-date envelope.
+    // (F3: this is now the FALLBACK — the stub materializer reports no
+    // assignedDays; the dated case is the "dates the flip from the day
+    // assignment" test below.)
     const start = flip.startDate as Date;
     const end = flip.endDate as Date;
     assert.ok(start instanceof Date, "startDate written as Date");
@@ -4296,6 +4303,58 @@ describe("POST /api/wizard/drafts/:id/activate — idempotent archives ONLY its 
     // The orphan is archived; the sibling is spared.
     assert.equal(drafts.get("draft-dupe")?.isArchived, true);
     assert.equal(drafts.get("draft-sibling")?.isArchived ?? false, false);
+  });
+});
+
+// WS9 Redesign Arc Block 1 (F3) — the activate flip dates the instance from
+// the day assignment the materializer wrote (first…last assigned day), not
+// the calendar week; the this-week derivation is range-containment.
+describe("POST /api/wizard/drafts/:id/activate — dates the flip from the day assignment (F3)", () => {
+  it("startDate = first assigned day, endDate = last assigned day; an unassigned overflow slot does not extend it", async () => {
+    const deps = makeActivateDeps({
+      drafts: new Map<string, ActivateDraftRow>([
+        [
+          "draft-ok",
+          {
+            id: "draft-ok",
+            userId: "activate-f3-user",
+            isWizardDraft: true,
+            createdAt: new Date("2026-05-28T10:00:00Z"),
+            wizardDraftPayload: SAMPLE_EXPANDED,
+          },
+        ],
+      ]),
+      assignedDays: [
+        { assignedDate: new Date("2026-09-18T00:00:00Z") },
+        { assignedDate: new Date("2026-09-17T00:00:00Z") },
+        { assignedDate: new Date("2026-09-23T00:00:00Z") },
+        { assignedDate: null },
+      ],
+    });
+    const h = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const res = await fetch(`${h.baseUrl}/wizard/drafts/draft-ok/activate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("activate-f3-user")}`,
+        },
+      });
+      assert.equal(res.status, 201);
+      const flip = deps.rec.updateCalls[0].data;
+      assert.equal((flip.startDate as Date).toISOString(), "2026-09-17T00:00:00.000Z");
+      assert.equal((flip.endDate as Date).toISOString(), "2026-09-23T00:00:00.000Z");
+      assert.equal(flip.isWizardDraft, false);
+    } finally {
+      await h.close();
+    }
   });
 });
 

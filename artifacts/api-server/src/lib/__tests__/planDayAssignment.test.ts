@@ -7,8 +7,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { resolveThisWeekPlan } from "../planDates";
 import {
   assignAndPersistPlanDays,
+  assignedDateRange,
   assignPlanDays,
   DAY_NAMES,
   loadAssignableMeals,
@@ -165,6 +167,41 @@ describe("assignPlanDays — dates", () => {
     const out = assignPlanDays(meals, { now: NOW });
     assert.deepEqual(new Set(out.map((o) => o.assignedDayOfWeek)).size, 7);
     assert.equal(out.filter((o) => o.dayIndex === null).length, 0);
+  });
+});
+
+describe("assignedDateRange — the instance's dates come from the assignment (F3)", () => {
+  it("a Wednesday-created 7-day plan runs Thursday → the following Wednesday and wins on Thursday", () => {
+    // NOW is Wednesday 2026-09-16 (UTC); tomorrow is Thursday the 17th.
+    const meals = Array.from({ length: 7 }, (_, i) => meal(`m${i}`, ["Pantry"], 10 + i));
+    const assigned = assignPlanDays(meals, { now: NOW });
+    const range = assignedDateRange(assigned);
+    assert.ok(range);
+    assert.equal(range.startDate.toISOString(), "2026-09-17T00:00:00.000Z");
+    assert.equal(range.startDate.getUTCDay(), 4, "Thursday");
+    assert.equal(range.endDate.toISOString(), "2026-09-23T00:00:00.000Z");
+    assert.equal(range.endDate.getUTCDay(), 3, "the following Wednesday");
+
+    const row = { id: "p", ...range, activatedAt: NOW, createdAt: NOW };
+    // Range-containment (lib/planDates.ts): winner on Thursday, on the last
+    // Wednesday, not on creation day, not the day after.
+    assert.equal(resolveThisWeekPlan([row], new Date("2026-09-17T08:00:00Z"))?.id, "p");
+    assert.equal(resolveThisWeekPlan([row], new Date("2026-09-23T23:00:00Z"))?.id, "p");
+    assert.equal(resolveThisWeekPlan([row], NOW), null, "not yet active on creation day");
+    assert.equal(resolveThisWeekPlan([row], new Date("2026-09-24T00:00:00Z")), null);
+  });
+
+  it("unassigned overflow meals do not extend the range; nothing assigned → null", () => {
+    const assigned = assignPlanDays(
+      [meal("a", ["Pantry"], 1), meal("b", ["Pantry"], 2), meal("c", ["Protein"], 3), meal("d", ["Pantry"], 4)],
+      { planDurationDays: 2, now: NOW },
+    );
+    const range = assignedDateRange(assigned);
+    assert.deepEqual(
+      { s: range?.startDate.toISOString(), e: range?.endDate.toISOString() },
+      { s: "2026-09-17T00:00:00.000Z", e: "2026-09-18T00:00:00.000Z" },
+    );
+    assert.equal(assignedDateRange(assignPlanDays([], { now: NOW })), null);
   });
 });
 

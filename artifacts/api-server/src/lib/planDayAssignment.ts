@@ -187,6 +187,26 @@ export function assignPlanDays(
   });
 }
 
+/**
+ * Block 1 follow-up (F3) — the instance's date range for a plan whose days
+ * were just assigned: first assigned day … last assigned day. The "active this
+ * week" derivation (D-WS9-147, lib/planDates.ts resolveThisWeekPlan) is
+ * range-containment — today between startDate and endDate, greatest
+ * activatedAt wins — so a plan that starts tomorrow is dated from tomorrow,
+ * not from the calendar week's Sunday. Unassigned overflow meals do not
+ * extend the range. null when nothing was assigned.
+ */
+export function assignedDateRange(
+  assigned: AssignedDay[],
+): { startDate: Date; endDate: Date } | null {
+  const dates = assigned
+    .map((a) => a.assignedDate)
+    .filter((d): d is Date => d !== null)
+    .sort((a, b) => a.getTime() - b.getTime());
+  if (dates.length === 0) return null;
+  return { startDate: dates[0], endDate: dates[dates.length - 1] };
+}
+
 // ── the Prisma-side helper the two write paths share ─────────────────────────
 
 /** The read that turns stored meals into AssignableMeal[] (order = `mealIds`). */

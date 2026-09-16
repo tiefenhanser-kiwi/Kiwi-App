@@ -34,7 +34,11 @@ import {
   IngredientResolutionError,
 } from "../lib/mealCreate";
 import { forkMealForUser } from "../lib/mealFork";
-import { assignAndPersistPlanDays } from "../lib/planDayAssignment";
+import {
+  assignPlanDays,
+  assignedDateRange,
+  loadAssignableMeals,
+} from "../lib/planDayAssignment";
 import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
 import { markFirstPlanCreated } from "../lib/firstPlan";
@@ -1353,8 +1357,10 @@ export function createPlansRouter(
   //     anything else → 403 (a private meal of another user), 404 (missing /
   //     archived);
   //   • the hidden MealPlanTemplate (same title + day-count dedup);
-  //   • the MealPlanInstance created ACTIVE for this week (currentWeekRange,
-  //     activatedAt, committedAt, isWizardDraft:false — no draft row ever);
+  //   • the MealPlanInstance created ACTIVE, dated first…last assigned day
+  //     (F3: the this-week derivation is range-containment, so a plan that
+  //     starts tomorrow is dated from tomorrow — not the calendar week),
+  //     activatedAt, committedAt, isWizardDraft:false — no draft row ever;
   //   • N MealPlanItem in the order given; days assigned deterministically
   //     (D-WS7-213: perishability first, easiest last, from tomorrow) and
   //     PERSISTED — the first planDurationDays meals get a day, the rest none;
@@ -1462,18 +1468,34 @@ export function createPlansRouter(
                 select: { id: true },
               }));
 
+            // D-WS7-213 half 1 — assign days BEFORE the instance exists so the
+            // instance is dated from the assignment (first…last assigned day;
+            // the calendar week only if nothing could be dated, which a 1..14
+            // pick with 1..7 days never produces).
+            const assigned = assignPlanDays(
+              await loadAssignableMeals(
+                tx,
+                mealIds.map((id) => boundBySource.get(id) ?? id),
+              ),
+              { planDurationDays },
+            );
+            const week = currentWeekRange();
+            const range = assignedDateRange(assigned) ?? {
+              startDate: new Date(week.startDate),
+              endDate: new Date(week.endDate),
+            };
+
             // Resolve the prior this-week winner BEFORE the new row exists so
             // the demotion toast can name it (D-WS9-011a).
             const priorWinnerId = await resolveThisWeekWinnerId(tx, userId);
-            const week = currentWeekRange();
             const instance = await tx.mealPlanInstance.create({
               data: {
                 userId,
                 mealPlanTemplateId: template.id,
                 titleOverride: null,
                 status: "draft",
-                startDate: new Date(week.startDate),
-                endDate: new Date(week.endDate),
+                startDate: range.startDate,
+                endDate: range.endDate,
                 activatedAt: new Date(),
                 committedAt: new Date(),
                 isWizardDraft: false,
@@ -1484,20 +1506,18 @@ export function createPlansRouter(
               select: { id: true, revisionId: true },
             });
 
+            // Items in the order given, each carrying its assigned day (or none).
             await tx.mealPlanItem.createMany({
               data: mealIds.map((id, positionIndex) => ({
                 mealPlanInstanceId: instance.id,
                 mealId: boundBySource.get(id) ?? id,
                 positionIndex,
+                assignedDayOfWeek: assigned[positionIndex].assignedDayOfWeek,
+                assignedDate: assigned[positionIndex].assignedDate,
                 isBreakfast: false,
                 isLunch: false,
                 isDinner: true,
               })),
-            });
-
-            // D-WS7-213 half 1 — assign + persist days (from tomorrow).
-            const assigned = await assignAndPersistPlanDays(tx, instance.id, {
-              planDurationDays,
             });
 
             // D-WS9-026 — stamp first-plan-created (write-if-null; first wins).
@@ -1531,7 +1551,7 @@ export function createPlansRouter(
               }
             }
 
-            return { instance, demoted, assigned };
+            return { instance, demoted, assigned, range };
           },
           { timeout: 60_000, maxWait: 20_000 },
         );
@@ -1543,6 +1563,8 @@ export function createPlansRouter(
             revisionId: result.instance.revisionId,
           },
           demoted: result.demoted,
+          startDate: result.range.startDate.toISOString().slice(0, 10),
+          endDate: result.range.endDate.toISOString().slice(0, 10),
           days: result.assigned.map((a) => ({
             mealId: a.mealId,
             assignedDayOfWeek: a.assignedDayOfWeek,

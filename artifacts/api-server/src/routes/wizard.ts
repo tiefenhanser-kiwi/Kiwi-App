@@ -76,6 +76,7 @@ import {
 } from "../lib/wizardLastBatch";
 import { computeWizardContentHash } from "../lib/wizardContentHash";
 import { currentWeekRange, resolveThisWeekWinnerId } from "../lib/planDates";
+import { assignedDateRange } from "../lib/planDayAssignment";
 import {
   buildPlanningContext,
   buildRecentRotation,
@@ -2292,7 +2293,16 @@ export function createWizardRouter(
         // simply no longer designated. The unconditional emit below is
         // preserved (Phase 1 ruling): every wizard activate is a fresh
         // user commitment, regardless of pre-state.
+        // WS9 Redesign Arc Block 1 (F3) — the instance is dated from the day
+        // assignment just written (first…last assigned day, from tomorrow —
+        // D-WS7-213), not the calendar week: the this-week derivation is
+        // range-containment (lib/planDates.ts), so a mid-week start is fine.
+        // The calendar week remains the fallback only if nothing was dated.
         const week = currentWeekRange();
+        const range = assignedDateRange(materialized.assignedDays ?? []) ?? {
+          startDate: new Date(week.startDate),
+          endDate: new Date(week.endDate),
+        };
         // WS9 3d Part 3b-4 (D-WS9-011a) — resolve the prior this-week winner
         // BEFORE the flip. The draft is still isWizardDraft:true + undated here,
         // so the resolver (which filters isWizardDraft:false) can never return
@@ -2304,8 +2314,8 @@ export function createWizardRouter(
           data: {
             isWizardDraft: false,
             revisionId: { increment: 1 },
-            startDate: new Date(week.startDate),
-            endDate: new Date(week.endDate),
+            startDate: range.startDate,
+            endDate: range.endDate,
             activatedAt: new Date(),
             // WS9 3d Part 2d (D-WS9-013) — the draft→plan flip IS the commit;
             // stamp committedAt so the dietary-staleness note anchors on the
