@@ -108,7 +108,7 @@ const STEP_PHASE_TYPES: readonly StepPhaseType[] = [
   "hold",
 ];
 
-function narrowPhaseType(raw: string | undefined): StepPhaseType | undefined {
+export function narrowPhaseType(raw: string | undefined): StepPhaseType | undefined {
   return raw !== undefined && (STEP_PHASE_TYPES as readonly string[]).includes(raw)
     ? (raw as StepPhaseType)
     : undefined;
@@ -314,6 +314,9 @@ export function draftDishToBuilderDish(
             ? String(st.estimatedMinutes)
             : "",
         isTimingSensitive: st.isTimingSensitive,
+        // WS9 BUG-278 — a Kiwi-drafted dish appended to a meal keeps its phases.
+        phaseType: st.phaseType,
+        parallelGroup: st.parallelGroup,
       }),
     ),
   });
@@ -439,10 +442,11 @@ export function serializeNewDishesForSave(
           isTimingSensitive: st.isTimingSensitive,
           // WS9 BUG-273 — per step, per dish; omitted (not null) when the
           // editor has none so the server's `cook` default / D-WS9-235 index
-          // preservation apply exactly as before. parallelGroup is carried in
-          // BuilderStep but NOT emitted: SaveMealStep (lib/api/meals.ts) has
-          // no field for it yet.
+          // preservation apply exactly as before.
           ...(st.phaseType !== undefined ? { phaseType: st.phaseType } : {}),
+          // WS9 BUG-278 — parallelGroup rides the same way (SaveMealStep
+          // carries it now; the server accepts it, D-WS9-239 Phase 1a).
+          ...(st.parallelGroup !== undefined ? { parallelGroup: st.parallelGroup } : {}),
         };
       });
     return {

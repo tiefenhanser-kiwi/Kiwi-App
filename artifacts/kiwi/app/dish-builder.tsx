@@ -35,7 +35,8 @@ import { isQuantityInvalid, parseQuantity } from "@/lib/quantity";
 import type { DishDetail } from "@/lib/api/dishes";
 import type { DraftDish } from "@/lib/builder/parsedDishToDraft";
 import { resolveDishPostSaveNav } from "@/lib/builder/dishPostSaveNav";
-import type { DishDraft } from "@/lib/types";
+import type { DishDraft, StepPhaseType } from "@/lib/types";
+import { narrowPhaseType } from "@/lib/meal-builder-state";
 
 const TIME_MIN = 0;
 const TIME_MAX = 300;
@@ -60,6 +61,9 @@ interface StepRow {
   text: string;
   estimatedMinutes: number;
   isTimingSensitive: boolean;
+  /** WS9 BUG-278 — carried from the parse / loaded dish; not editable here. */
+  phaseType?: StepPhaseType;
+  parallelGroup?: string | null;
 }
 
 interface DishBuilderForm {
@@ -149,6 +153,9 @@ function dishDetailToForm(dish: DishDetail): DishBuilderForm {
       text: s.text,
       estimatedMinutes: s.estimatedMinutes,
       isTimingSensitive: s.isTimingSensitive,
+      // WS9 BUG-278 — an edit re-sends the stored phase (the wire types it as
+      // a bare string; narrow to the enum, unknown → omitted → server keeps).
+      phaseType: narrowPhaseType(s.phaseType),
     })),
     notes: dish.description ?? "",
   };
@@ -189,6 +196,9 @@ function draftDishToForm(draft: DraftDish): DishBuilderForm {
       text: s.text,
       estimatedMinutes: s.estimatedMinutes ?? 0,
       isTimingSensitive: s.isTimingSensitive ?? false,
+      // WS9 BUG-278 — the parse's phases survive the form round-trip.
+      phaseType: s.phaseType,
+      parallelGroup: s.parallelGroup,
     })),
     notes: "",
   };
@@ -520,6 +530,10 @@ export default function DishBuilderScreen() {
               estimatedMinutes:
                 s.estimatedMinutes > 0 ? s.estimatedMinutes : undefined,
               isTimingSensitive: s.isTimingSensitive || undefined,
+              // WS9 BUG-278 — onto the save shape; AppContext.saveDish puts it
+              // on the wire. Omitted when the row has none.
+              ...(s.phaseType !== undefined ? { phaseType: s.phaseType } : {}),
+              ...(s.parallelGroup !== undefined ? { parallelGroup: s.parallelGroup } : {}),
             })),
       caloriesPerServing: form.caloriesPerServing,
       proteinGPerServing: form.proteinGPerServing,

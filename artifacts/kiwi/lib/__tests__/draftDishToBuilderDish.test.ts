@@ -72,3 +72,23 @@ test("draftDishToBuilderDish: every row gets a unique uid from the allocator", (
   ];
   assert.equal(new Set(uids).size, uids.length, "uids must be unique");
 });
+
+test("BUG-278: draftDishToBuilderDish carries phaseType + parallelGroup onto the BuilderStep", () => {
+  let uid = 1;
+  const dish = draftDishToBuilderDish(
+    {
+      name: "Roasted Broccoli",
+      type: "main",
+      estimatedTimeMinutes: 30,
+      servingsDefault: 4,
+      ingredients: [],
+      steps: [
+        { text: "Heat oven.", estimatedMinutes: 5, phaseType: "preheat" },
+        { text: "Roast.", estimatedMinutes: 22, phaseType: "cook", parallelGroup: "roast" },
+      ],
+    },
+    () => uid++,
+  );
+  assert.deepEqual(dish.steps.map((s) => s.phaseType), ["preheat", "cook"]);
+  assert.deepEqual(dish.steps.map((s) => s.parallelGroup), [undefined, "roast"]);
+});

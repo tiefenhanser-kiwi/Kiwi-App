@@ -821,6 +821,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         text: s.text,
         estimatedMinutes: s.estimatedMinutes,
         isTimingSensitive: s.isTimingSensitive,
+        // WS9 BUG-278 — the dish-side twin of BUG-273: phaseType (and the
+        // parallelGroup token) reach POST /me/dishes instead of falling to the
+        // DB default. Omitted (not null) when the form has none.
+        ...(s.phaseType !== undefined ? { phaseType: s.phaseType } : {}),
+        ...(s.parallelGroup !== undefined ? { parallelGroup: s.parallelGroup } : {}),
       })),
     });
     // Refresh the Dishes-tab list so the new dish appears (and so the Mode-C

@@ -717,6 +717,10 @@ export interface DishDraft {
     text: string;
     estimatedMinutes?: number;
     isTimingSensitive?: boolean;
+    /** WS9 BUG-278 — carried from the parse / loaded dish so the save sends it. */
+    phaseType?: StepPhaseType;
+    /** WS9 BUG-278 — intra-dish overlap token (D-WS9-239). */
+    parallelGroup?: string | null;
   }>;
   /** Macros — preserved across edit, AI-computed on save. Not user-editable. */
   caloriesPerServing: number;   // Default 0

@@ -155,9 +155,10 @@ export interface SaveDishStep {
   text: string;
   estimatedMinutes?: number;
   phaseType?: "prep" | "preheat" | "cook" | "rest" | "assemble" | "hold";
-  // BUG-018 B1/B2 — parallelGroup retired; the server save contract now rejects
-  // it (me.ts .strict()), so it must not be settable here either.
   isTimingSensitive?: boolean;
+  // WS9 BUG-278 — see SaveMealStep: accepted again by the server's
+  // stepItemSchema (D-WS9-239 Phase 1a); omitted keeps, null clears.
+  parallelGroup?: string | null;
 }
 
 export interface SaveDishInput {

@@ -354,9 +354,12 @@ export interface SaveMealStep {
   text: string;
   estimatedMinutes?: number;
   phaseType?: "prep" | "preheat" | "cook" | "rest" | "assemble" | "hold";
-  // BUG-018 B1/B2 — parallelGroup retired; the server save contract now rejects
-  // it (me.ts .strict()), so it must not be settable here either.
   isTimingSensitive?: boolean;
+  // WS9 BUG-278 — the intra-dish overlap token (D-WS9-239). The server's
+  // stepItemSchema accepts it again (Phase 1a re-added it after BUG-018 B1 had
+  // dropped the set-then-discarded field): omitted = keep the stored tag at this
+  // index, null = clear it, a string = the tag.
+  parallelGroup?: string | null;
 }
 
 export type SaveMealDishRole =

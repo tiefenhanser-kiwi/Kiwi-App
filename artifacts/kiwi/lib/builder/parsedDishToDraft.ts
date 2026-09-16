@@ -9,8 +9,16 @@
 // are intentionally dropped: the Dish Builder form doesn't capture them today
 // (its save path omits both), so carrying them here would be dead data — the
 // hydrated form stays consistent with a manually-built one.
+//
+// WS9 BUG-278 (client half) — the dish-side twin of BUG-273: this adapter used
+// to DROP each step's `phaseType` (and `parallelGroup`), so every Ask-Kiwi dish
+// saved with the DB default phase (cook) and the Cook Mode prep filter / the
+// sequencer had nothing to work with. Both now ride the DraftDish step, through
+// the Dish Builder's form, onto the POST /me/dishes wire (the server's
+// stepItemSchema accepts both — D-WS9-239 Phase 1a).
 
 import type { ParsedDish } from "@/lib/api/builder";
+import type { StepPhaseType } from "@/lib/types";
 
 export interface DraftDish {
   name: string;
@@ -25,6 +33,10 @@ export interface DraftDish {
     text: string;
     estimatedMinutes?: number;
     isTimingSensitive?: boolean;
+    /** WS9 BUG-278 — carried from the parse so the save sends it. */
+    phaseType?: StepPhaseType;
+    /** WS9 BUG-278 — intra-dish overlap token (D-WS9-239), when the parse set one. */
+    parallelGroup?: string | null;
   }[];
 }
 
@@ -45,6 +57,8 @@ export function parsedDishToDraft(dish: ParsedDish): DraftDish {
       text: st.content,
       estimatedMinutes: st.estimatedMinutes,
       isTimingSensitive: st.isTimingSensitive,
+      phaseType: st.phaseType,
+      ...(st.parallelGroup !== undefined ? { parallelGroup: st.parallelGroup } : {}),
     })),
   };
 }

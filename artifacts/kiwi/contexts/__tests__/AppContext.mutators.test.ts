@@ -2147,3 +2147,56 @@ test("BUG-203: an explicit null clear reaches the PATCH body (not dropped by JSO
   assert.ok("dietaryNotes" in parsed, "the clear was dropped from the body");
   assert.equal(parsed.dietaryNotes, null);
 });
+
+// ── WS9 BUG-278 (client half) — phaseType + parallelGroup reach POST /me/dishes ─
+
+test("BUG-278: saveDish puts each step's phaseType (+ parallelGroup) ON THE WIRE; a step without one sends neither key", async () => {
+  await mountAuthed();
+
+  let postedBody: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((
+    url: string,
+    init?: RequestInit,
+  ) => {
+    if (
+      (init?.method ?? "GET").toUpperCase() === "POST" &&
+      String(url).endsWith("/me/dishes")
+    ) {
+      postedBody = JSON.parse(String(init?.body ?? "{}"));
+      return Promise.resolve(mockJson({ dish: { id: "dish-new-10" } }, 201));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+
+  await act(async () => {
+    await app!.saveDish({
+      name: "Roasted Broccoli",
+      servingsDefault: 4,
+      type: "side",
+      kiwiAssistIngredients: false,
+      kiwiAssistSteps: false,
+      ingredients: [{ quantity: 1, unit: "lb", name: "Broccoli" }],
+      steps: [
+        { stepNumber: 1, text: "Heat oven.", estimatedMinutes: 5, phaseType: "preheat" },
+        { stepNumber: 2, text: "Roast.", estimatedMinutes: 22, phaseType: "cook", parallelGroup: "roast" },
+        { stepNumber: 3, text: "Plate.", estimatedMinutes: 1 },
+      ],
+      caloriesPerServing: 0,
+      proteinGPerServing: 0,
+      carbsGPerServing: 0,
+      fatGPerServing: 0,
+    });
+  });
+
+  assert.ok(postedBody, "POST /me/dishes fired");
+  const steps = (postedBody as { steps: Record<string, unknown>[] }).steps;
+  assert.equal(steps[0].phaseType, "preheat");
+  assert.equal("parallelGroup" in steps[0], false);
+  assert.equal(steps[1].phaseType, "cook");
+  assert.equal(steps[1].parallelGroup, "roast");
+  // The .strict() server schema: a step with no phase sends NEITHER key, so
+  // the server's default / index-preservation applies exactly as before.
+  assert.equal("phaseType" in steps[2], false);
+  assert.equal("parallelGroup" in steps[2], false);
+});
