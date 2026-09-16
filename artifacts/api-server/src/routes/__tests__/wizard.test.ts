@@ -14,7 +14,6 @@ import type { Server } from "node:http";
 import { Prisma } from "@prisma/client";
 
 import { signToken } from "../../lib/auth";
-import { currentWeekRange } from "../../lib/planDates";
 import { toYmd } from "../../lib/planQueries";
 import { createWizardRouter } from "../wizard";
 import type {
@@ -3022,7 +3021,12 @@ const SAMPLE_EXPANDED = {
 };
 
 interface ActivateRecorder {
-  materializeCalls: Array<{ userId: string; draftId: string }>;
+  materializeCalls: Array<{
+    userId: string;
+    draftId: string;
+    // Block 2 (Part D) — the first day the route asked the materializer for.
+    dayAssignment?: { startDate?: Date };
+  }>;
   updateManyCalls: Array<{ where: Record<string, unknown> }>;
   updateCalls: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>;
   activityCalls: Array<{
@@ -3196,8 +3200,13 @@ function makeActivateDeps(opts: {
   const materializeWizardDraft = (async (args: {
     userId: string;
     draftId: string;
+    dayAssignment?: { startDate?: Date };
   }) => {
-    rec.materializeCalls.push({ userId: args.userId, draftId: args.draftId });
+    rec.materializeCalls.push({
+      userId: args.userId,
+      draftId: args.draftId,
+      dayAssignment: args.dayAssignment,
+    });
     if (opts.materializeBehavior === "not_found") {
       const { WizardDraftNotFoundError } = await import(
         "../../lib/wizardActivation"
@@ -3461,30 +3470,33 @@ describe("POST /api/wizard/drafts/:id/activate — happy path", () => {
     assert.equal(flip.wizardDraftPayload, Prisma.DbNull);
     assert.equal(flip.optimizationNotes, Prisma.DbNull);
 
-    // WS7-5b-mobile-PRE — activate dates the freshly-activated plan to the
-    // current Sun-Sat week via the shared currentWeekRange() helper. Round-
-    // trips back through toYmd as YYYY-MM-DD (NOT ISO 8601), symmetric with
-    // the c11/c16 read-path wire shape and the PATCH auto-date envelope.
-    // (F3: this is now the FALLBACK — the stub materializer reports no
-    // assignedDays; the dated case is the "dates the flip from the day
-    // assignment" test below.)
+    // WS9 Redesign Arc Block 2 (Part D, rule (a)) — the window opens TODAY
+    // ("active the day you make it"); with no reported day assignment (this
+    // stub materializer reports none) it ends today + 6. Round-trips back
+    // through toYmd as YYYY-MM-DD (NOT ISO 8601), symmetric with the c11/c16
+    // read-path wire shape. The dated case is the "dates the flip from the
+    // day assignment" test below.
     const start = flip.startDate as Date;
     const end = flip.endDate as Date;
     assert.ok(start instanceof Date, "startDate written as Date");
     assert.ok(end instanceof Date, "endDate written as Date");
     assert.equal(start.getUTCHours(), 0);
-    assert.equal(start.getUTCDay(), 0, "startDate is a Sunday (UTC)");
-    assert.equal(end.getUTCDay(), 6, "endDate is a Saturday (UTC)");
     assert.equal(
       (end.getTime() - start.getTime()) / 86_400_000,
       6,
-      "Sun → Sat spans 6 days",
+      "today → today + 6 spans 6 days",
     );
     assert.match(toYmd(start) as string, /^\d{4}-\d{2}-\d{2}$/);
     assert.match(toYmd(end) as string, /^\d{4}-\d{2}-\d{2}$/);
-    const expected = currentWeekRange();
-    assert.equal(toYmd(start), expected.startDate);
-    assert.equal(toYmd(end), expected.endDate);
+    const todayUtc = new Date();
+    assert.equal(
+      toYmd(start),
+      toYmd(new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), todayUtc.getUTCDate()))),
+    );
+    // …and the materializer was asked to assign from TOMORROW.
+    const asked = deps.rec.materializeCalls.at(-1)?.dayAssignment?.startDate;
+    assert.ok(asked instanceof Date, "route passes the first day");
+    assert.equal((asked.getTime() - start.getTime()) / 86_400_000, 1, "first meal is tomorrow");
 
     // Activity emitted on the active flip.
     assert.equal(deps.rec.activityCalls.length, 1);
@@ -4309,11 +4321,12 @@ describe("POST /api/wizard/drafts/:id/activate — idempotent archives ONLY its 
   });
 });
 
-// WS9 Redesign Arc Block 1 (F3) — the activate flip dates the instance from
-// the day assignment the materializer wrote (first…last assigned day), not
-// the calendar week; the this-week derivation is range-containment.
-describe("POST /api/wizard/drafts/:id/activate — dates the flip from the day assignment (F3)", () => {
-  it("startDate = first assigned day, endDate = last assigned day; an unassigned overflow slot does not extend it", async () => {
+// WS9 Redesign Arc Block 1 (F3) → Block 2 (Part D, rule (a)) — the activate
+// flip opens the window TODAY (the client's localDate when sent) and ends it
+// on the last assigned day the materializer wrote; the first meal is
+// tomorrow; the this-week derivation is range-containment.
+describe("POST /api/wizard/drafts/:id/activate — dates the flip from today + the day assignment (F3, amended by Block 2)", () => {
+  it("startDate = today (localDate), endDate = last assigned day; first meal tomorrow; an unassigned overflow slot does not extend it", async () => {
     const deps = makeActivateDeps({
       drafts: new Map<string, ActivateDraftRow>([
         [
@@ -4349,12 +4362,60 @@ describe("POST /api/wizard/drafts/:id/activate — dates the flip from the day a
           "Content-Type": "application/json",
           Authorization: `Bearer ${signToken("activate-f3-user")}`,
         },
+        // Wednesday 2026-09-16 in the client's calendar.
+        body: JSON.stringify({ localDate: "2026-09-16" }),
       });
       assert.equal(res.status, 201);
       const flip = deps.rec.updateCalls[0].data;
-      assert.equal((flip.startDate as Date).toISOString(), "2026-09-17T00:00:00.000Z");
-      assert.equal((flip.endDate as Date).toISOString(), "2026-09-23T00:00:00.000Z");
+      assert.equal((flip.startDate as Date).toISOString(), "2026-09-16T00:00:00.000Z", "opens today");
+      assert.equal((flip.endDate as Date).toISOString(), "2026-09-23T00:00:00.000Z", "ends on the last assigned day");
       assert.equal(flip.isWizardDraft, false);
+      const asked = deps.rec.materializeCalls.at(-1)?.dayAssignment?.startDate;
+      assert.equal(asked?.toISOString(), "2026-09-17T00:00:00.000Z", "first meal is tomorrow in the client's calendar");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a malformed localDate is a 400 before any work; an absent body is fine", async () => {
+    const deps = makeActivateDeps({
+      drafts: new Map<string, ActivateDraftRow>([
+        [
+          "draft-ld",
+          {
+            id: "draft-ld",
+            userId: "activate-ld-user",
+            isWizardDraft: true,
+            createdAt: new Date("2026-05-28T10:00:00Z"),
+            wizardDraftPayload: SAMPLE_EXPANDED,
+          },
+        ],
+      ]),
+    });
+    const h = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: deps.prisma as unknown as Parameters<typeof spinUp>[0]["prisma"],
+      subscriptionService: makeSubscriptionService(true),
+      materializeWizardDraft: deps.materializeWizardDraft,
+      emitActivity: deps.emitActivity,
+      readAndFinalizeWizardDraft: deps.readAndFinalizeWizardDraft,
+    } as unknown as Parameters<typeof spinUp>[0]);
+    try {
+      const bad = await fetch(`${h.baseUrl}/wizard/drafts/draft-ld/activate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("activate-ld-user")}`,
+        },
+        body: JSON.stringify({ localDate: "16/09/2026" }),
+      });
+      assert.equal(bad.status, 400);
+      assert.equal(deps.rec.materializeCalls.length, 0, "nothing materialized on a bad body");
+      const none = await fetch(`${h.baseUrl}/wizard/drafts/draft-ld/activate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken("activate-ld-user")}` },
+      });
+      assert.equal(none.status, 201);
     } finally {
       await h.close();
     }

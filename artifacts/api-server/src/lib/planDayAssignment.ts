@@ -29,9 +29,26 @@
 // in the Block 1 report; no name-based classifier is invented here.
 //
 // Timezone: dates follow lib/planDates.ts — UTC calendar days, stored as UTC
-// midnight, day names from getUTCDay(). "Tomorrow" = the server's UTC date + 1.
-// (routes/home.ts resolves "today's meal" by LOCAL getDay(); on a non-UTC
-// server the two can disagree for a few hours around midnight — flagged.)
+// midnight, day names from getUTCDay(). (routes/home.ts resolves "today's
+// meal" by LOCAL getDay(); on a non-UTC server the two can disagree for a few
+// hours around midnight — flagged.)
+//
+// WS9 Redesign Arc Block 2 (Part D, D-WS7-213 amendment 2) — "today" is the
+// CLIENT's local calendar day when it sends one (`localDate: "YYYY-MM-DD"`),
+// else the server's UTC day. Block 1 assigned in UTC days only, so a plan made
+// Saturday 9:26 PM ET (01:26Z Sunday) put its first meal on MONDAY, not
+// Sunday. The rule set the routes apply (Hans, 2026-09-16):
+//   (a) built or activated FOR NOW (/plans/from-meals, /activate, the "Cook
+//       This Week" PATCH): the window opens TODAY (startDate = today), the
+//       first meal is TOMORROW, endDate = the last assigned day;
+//   (b) a start date the user CHOSE (the date editor): the window opens on
+//       that day and the first meal is THAT day (they will shop before it);
+//   (c) any change to a plan's date range RE-RUNS assignPlanDays from the new
+//       start — same function, same order, only the dates move; a range
+//       shorter than the meal count leaves the overflow unassigned, never an
+//       error;
+//   (d) /save and "Use again" are unchanged — a saved-for-later plan gets its
+//       days when it is activated or dated.
 
 import type { Prisma } from "@prisma/client";
 
@@ -123,11 +140,75 @@ function utcDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
+/** `d` (truncated to its UTC day) + `n` calendar days. */
+export function addUtcDays(d: Date, n: number): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n));
+}
+
+/** Inclusive day count of a range, 0 when end precedes start. */
+export function inclusiveDayCount(start: Date, end: Date): number {
+  const ms = utcDay(end).getTime() - utcDay(start).getTime();
+  return Math.max(0, Math.round(ms / 86_400_000) + 1);
+}
+
 /** Tomorrow as a UTC calendar day (the plan-date convention of lib/planDates.ts). */
 export function tomorrowUtc(now: Date = new Date()): Date {
   return new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
   );
+}
+
+// ── the client's local calendar day (Part D, rule (e)) ───────────────────────
+
+/** The only accepted wire shape for `localDate`. */
+export const LOCAL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * "YYYY-MM-DD" → that calendar day as UTC midnight (the stored basis), or null
+ * when the string is malformed or names a day that does not exist (2026-02-30
+ * round-trips to a different date and is refused).
+ */
+export function parseLocalDate(value: string): Date | null {
+  if (!LOCAL_DATE_PATTERN.test(value)) return null;
+  const [y, m, d] = value.split("-").map((n) => Number(n));
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (
+    date.getUTCFullYear() !== y ||
+    date.getUTCMonth() !== m - 1 ||
+    date.getUTCDate() !== d
+  ) {
+    return null;
+  }
+  return date;
+}
+
+/**
+ * "Today" for a date decision: the client's local calendar day when it sent
+ * one (already validated by the route schema), else the server's UTC day.
+ */
+export function todayFor(localDate: string | undefined, now: Date = new Date()): Date {
+  if (localDate !== undefined) {
+    const parsed = parseLocalDate(localDate);
+    if (parsed) return parsed;
+  }
+  return utcDay(now);
+}
+
+/**
+ * Rule (a) — the active window of a plan built or activated FOR NOW: opens
+ * today, ends on the last assigned day. With nothing assigned (a plan with no
+ * items) the window is today + 6, the nearest honest "a week from now".
+ */
+export function activeWindowFromToday(
+  today: Date,
+  assigned: AssignedDay[],
+): { startDate: Date; endDate: Date } {
+  const start = utcDay(today);
+  const last = assignedDateRange(assigned)?.endDate;
+  return {
+    startDate: start,
+    endDate: last && last.getTime() >= start.getTime() ? last : addUtcDays(start, 6),
+  };
 }
 
 /**
@@ -188,13 +269,15 @@ export function assignPlanDays(
 }
 
 /**
- * Block 1 follow-up (F3) — the instance's date range for a plan whose days
- * were just assigned: first assigned day … last assigned day. The "active this
- * week" derivation (D-WS9-147, lib/planDates.ts resolveThisWeekPlan) is
- * range-containment — today between startDate and endDate, greatest
- * activatedAt wins — so a plan that starts tomorrow is dated from tomorrow,
- * not from the calendar week's Sunday. Unassigned overflow meals do not
- * extend the range. null when nothing was assigned.
+ * Block 1 follow-up (F3) — first assigned day … last assigned day. Block 2
+ * (Part D, rule (a)) amends F3 for a plan built or activated FOR NOW: the
+ * window now opens TODAY, not on the first assigned day (activeWindowFromToday
+ * above) — "active the day you make it, and tomorrow is the first meal". This
+ * helper still supplies the END of that window, and the whole range for a
+ * user-chosen start (rule (b)). The "active this week" derivation
+ * (D-WS9-147, lib/planDates.ts resolveThisWeekPlan) is range-containment.
+ * Unassigned overflow meals do not extend the range. null when nothing was
+ * assigned.
  */
 export function assignedDateRange(
   assigned: AssignedDay[],
@@ -262,13 +345,14 @@ export async function loadAssignableMeals(
 
 /**
  * Assign + PERSIST days onto a plan instance's items (in positionIndex order).
- * Items beyond `planDurationDays` are written with NO day (explicit nulls, so a
- * re-run clears a stale assignment). Returns the assignment for the report.
+ * Items beyond `planDurationDays` (default: every item gets a day) are written
+ * with NO day (explicit nulls, so a re-run clears a stale assignment — rule
+ * (c): a re-date re-runs this from the new start). Returns the assignment.
  */
 export async function assignAndPersistPlanDays(
   tx: Pick<Prisma.TransactionClient, "meal" | "mealPlanItem">,
   planInstanceId: string,
-  opts: AssignPlanDaysOptions & { planDurationDays: number },
+  opts: AssignPlanDaysOptions = {},
 ): Promise<AssignedDay[]> {
   const items = await tx.mealPlanItem.findMany({
     where: { mealPlanInstanceId: planInstanceId },

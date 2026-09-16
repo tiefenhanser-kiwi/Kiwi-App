@@ -15,7 +15,7 @@ import {
   PlanMacrosNotFoundError,
   type PlanMacrosResult,
 } from "../../lib/planMacros";
-import { currentWeekRange, resolveThisWeekPlan } from "../../lib/planDates";
+import { resolveThisWeekPlan } from "../../lib/planDates";
 import { toYmd } from "../../lib/planQueries";
 import { createPlansRouter } from "../plans";
 import { withSessionUser } from "./fixtures/sessionUserStub";
@@ -3722,18 +3722,70 @@ interface C4PatchRecorder {
   instanceUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
   updateManyCalls: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>;
   activityWrites: Array<Record<string, unknown>>;
+  // WS9 Redesign Arc Block 2 (Part D) — the day (re)assignment writes.
+  itemUpdates?: Array<{ where: { id: string }; data: Record<string, unknown> }>;
+}
+
+// WS9 Redesign Arc Block 2 (Part D) — a plan's dinner items, for the day
+// (re)assignment the PATCH now runs (rules (a)/(b)/(c)). Categories drive the
+// perishability tier; default Pantry (stable) so given order is preserved.
+interface C4PatchItemFix {
+  id: string;
+  mealPlanInstanceId: string;
+  mealId: string;
+  positionIndex: number;
+  categories?: string[];
+  activeTimeMinutes?: number | null;
+  estimatedTimeMinutes?: number;
+  difficulty?: string;
 }
 
 function makeC4PatchStub(opts: {
   instances?: C4PatchFix[];
+  items?: C4PatchItemFix[];
   recorder: C4PatchRecorder;
   /** Throw on mealPlanInstance.update — exercises rollback. */
   throwOnUpdate?: boolean;
 }) {
   const instances = opts.instances ?? [];
+  const items = opts.items ?? [];
   const recorder = opts.recorder;
 
   const txClient = {
+    // Block 2 (Part D) — assignAndPersistPlanDays reads the plan's items in
+    // positionIndex order, loads each meal's perishability/effort inputs, and
+    // writes assignedDayOfWeek / assignedDate per item.
+    mealPlanItem: {
+      findMany: async (args: { where: { mealPlanInstanceId: string } }) =>
+        items
+          .filter((i) => i.mealPlanInstanceId === args.where.mealPlanInstanceId)
+          .sort((a, b) => a.positionIndex - b.positionIndex)
+          .map((i) => ({ id: i.id, mealId: i.mealId })),
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        (recorder.itemUpdates ??= []).push(args);
+        return { id: args.where.id };
+      },
+    },
+    meal: {
+      findMany: async (args: { where: { id: { in: string[] } } }) =>
+        items
+          .filter((i) => args.where.id.in.includes(i.mealId))
+          .map((i) => ({
+            id: i.mealId,
+            activeTimeMinutes: i.activeTimeMinutes ?? 20,
+            estimatedTimeMinutes: i.estimatedTimeMinutes ?? 40,
+            difficulty: i.difficulty ?? "easy",
+            dishLinks: [
+              {
+                dish: {
+                  dishIngredients: (i.categories ?? ["Pantry"]).map((category) => ({
+                    ingredient: { category },
+                  })),
+                },
+              },
+            ],
+          })),
+    },
     // Block 4a — forkMealForUser resolves the acquiring household once per fork
     // inside the tx; no prefs row in these stubs → forks keep source servings.
     userPreferences: { findUnique: async () => null },
@@ -4341,20 +4393,28 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
   });
 
   // WS7-6 (E) Block 2 — chip auto-date envelope + stamp fallback. PATCH
-  // /plans/:id now treats body.isActiveThisWeek:true as the chip's one-tap
-  // "make this my week" designation: the envelope sets dates to the shared
-  // Sun-Sat currentWeekRange() whenever the body says active=true (no
-  // longer gated on row.startDate === null), and a stamp fallback after
-  // seam B guarantees activatedAt = now even when the dates already match
-  // currentWeekRange() exactly (envelope produces no diff). Body
+  // /plans/:id treats body.isActiveThisWeek:true as the chip's one-tap
+  // "make this my week" designation: the envelope re-dates the plan whenever
+  // the body says active=true (no longer gated on row.startDate === null),
+  // and a stamp fallback after seam B guarantees activatedAt = now even when
+  // the dates already match exactly (envelope produces no diff). Body
   // startDate/endDate still win — activation does not clobber an explicit
   // date edit. Non-active and unrelated PATCHes never touch the date
-  // fields or stamp activatedAt. The three round-trip tests below cover
-  // (a) future-dated, (b) past-dated, and (c) already-exactly-this-week
-  // starting states; each fail-against-old (pre-Block-2 noop) and
-  // pass-against-new (dates + stamp + emit + resolver winner).
+  // fields or stamp activatedAt.
+  //
+  // WS9 Redesign Arc Block 2 (Part D, D-WS7-213 amendment 2) — the window
+  // is no longer the Sun–Sat calendar week: it opens TODAY (the client's
+  // localDate when sent, else UTC today), the days are re-assigned from
+  // TOMORROW, and it ends on the last assigned day — a plan with no items
+  // gets today + 6. The three round-trip tests below cover (a) future-dated,
+  // (b) past-dated, and (c) already-exactly-dated starting states.
+  const chipWindowNoItems = (now = new Date()) => {
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 6));
+    return { start, end };
+  };
 
-  it("auto-dates the plan on flip-to-active when undated and body has no dates (Sun-Sat, YYYY-MM-DD round-trip)", async () => {
+  it("auto-dates the plan on flip-to-active when undated and body has no dates (today → today + 6 with no items, YYYY-MM-DD round-trip)", async () => {
     const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
     const harness = await mutationSpinUp(
       makeC4PatchStub({
@@ -4379,24 +4439,169 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
       const end = wrote.endDate as Date;
       assert.ok(start instanceof Date, "startDate written as Date");
       assert.ok(end instanceof Date, "endDate written as Date");
-      // UTC-midnight, Sunday → Saturday calendar week.
+      // UTC-midnight, opens TODAY; no items → a week from today.
       assert.equal(start.getUTCHours(), 0);
       assert.equal(start.getUTCMinutes(), 0);
-      assert.equal(start.getUTCDay(), 0, "startDate is a Sunday (UTC)");
-      assert.equal(end.getUTCDay(), 6, "endDate is a Saturday (UTC)");
       assert.equal(
         (end.getTime() - start.getTime()) / 86_400_000,
         6,
-        "Sun → Sat spans 6 days",
+        "today → today + 6 spans 6 days",
       );
 
       // Round-trip via toYmd — the read path hands mobile YYYY-MM-DD (NOT
       // ISO 8601). This is the c11/c16 wire-shape symmetry assertion.
       assert.match(toYmd(start) as string, /^\d{4}-\d{2}-\d{2}$/);
       assert.match(toYmd(end) as string, /^\d{4}-\d{2}-\d{2}$/);
-      const expected = currentWeekRange();
-      assert.equal(toYmd(start), expected.startDate);
-      assert.equal(toYmd(end), expected.endDate);
+      const expected = chipWindowNoItems();
+      assert.equal(toYmd(start), toYmd(expected.start));
+      assert.equal(toYmd(end), toYmd(expected.end));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // ── WS9 Redesign Arc Block 2 (Part D, D-WS7-213 amendment 2) ─────────────
+  // The PATCH now (re)assigns a plan's days: the "Cook This Week" chip opens
+  // the window today and puts the first meal tomorrow (rule (a)); the date
+  // editor's chosen start IS the first meal's day (rule (b)); any range change
+  // re-runs the same assignment from the new start, overflow unassigned, never
+  // an error (rule (c)); "today" is the client's local calendar day (rule (e)).
+  const sevenItems = (planId: string): C4PatchItemFix[] =>
+    Array.from({ length: 7 }, (_, i) => ({
+      id: `it-${i}`,
+      mealPlanInstanceId: planId,
+      mealId: `meal-${i}`,
+      positionIndex: i,
+      // Stable tier for all, effort DEScending with index → the assignment
+      // order equals the given order (harder first → easiest last).
+      categories: ["Pantry"],
+      activeTimeMinutes: 60 - i,
+    }));
+  const assignedDatesOf = (recorder: C4PatchRecorder) =>
+    (recorder.itemUpdates ?? []).map((u) => ({
+      id: u.where.id,
+      date: u.data.assignedDate as Date | null,
+      day: u.data.assignedDayOfWeek as string | null,
+    }));
+
+  it("Part D (c): the Cook This Week PATCH on a saved plan → window opens today, first meal tomorrow, endDate = last assigned day (localDate honoured)", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-saved", startDate: null, endDate: null })],
+        items: sevenItems("p-saved"),
+      }),
+    );
+    try {
+      // Wednesday 2026-09-16 in the client's calendar.
+      const res = await patchPlan(harness, "p-saved", { isActiveThisWeek: true, localDate: "2026-09-16" });
+      assert.equal(res.status, 200);
+      const wrote = recorder.instanceUpdates[0].data;
+      assert.equal(toYmd(wrote.startDate as Date), "2026-09-16", "window opens today");
+      assert.equal(toYmd(wrote.endDate as Date), "2026-09-23", "ends on the last assigned day");
+      const days = assignedDatesOf(recorder);
+      assert.equal(days.length, 7, "every item re-assigned");
+      assert.equal(toYmd(days[0].date), "2026-09-17", "first meal tomorrow (Thursday)");
+      assert.equal(days[0].day, "Thursday");
+      assert.equal(toYmd(days[6].date), "2026-09-23");
+      // It covers "today" in that calendar → activatedAt stamped + emit.
+      assert.ok(wrote.activatedAt instanceof Date);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("Part D (b): the date editor sets start = next Sunday → first meal Sunday, endDate Sunday + 6, days re-assigned in the same meal order", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [
+          fixturePatch({
+            id: "p-dated",
+            startDate: new Date("2026-09-16T00:00:00Z"),
+            endDate: new Date("2026-09-23T00:00:00Z"),
+          }),
+        ],
+        items: sevenItems("p-dated"),
+      }),
+    );
+    try {
+      // The editor sends both ends (start + 6, PlanDateRangeEditor).
+      const res = await patchPlan(harness, "p-dated", { startDate: "2026-09-20", endDate: "2026-09-26" });
+      assert.equal(res.status, 200);
+      const wrote = recorder.instanceUpdates[0].data;
+      assert.equal(toYmd(wrote.startDate as Date), "2026-09-20");
+      assert.equal(toYmd(wrote.endDate as Date), "2026-09-26");
+      const days = assignedDatesOf(recorder);
+      assert.equal(days.length, 7);
+      assert.equal(toYmd(days[0].date), "2026-09-20", "first meal ON the chosen Sunday (they will shop before it)");
+      assert.equal(days[0].day, "Sunday");
+      assert.deepEqual(
+        days.map((d) => toYmd(d.date)),
+        ["2026-09-20", "2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26"],
+        "same meal order, only the dates moved",
+      );
+      // Start alone → every item gets a day and the window ends on the last one.
+      const recorder2: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+      const h2 = await mutationSpinUp(
+        makeC4PatchStub({
+          recorder: recorder2,
+          instances: [fixturePatch({ id: "p-dated", startDate: null, endDate: null })],
+          items: sevenItems("p-dated"),
+        }),
+      );
+      try {
+        const r2 = await patchPlan(h2, "p-dated", { startDate: "2026-09-27" });
+        assert.equal(r2.status, 200);
+        const w2 = recorder2.instanceUpdates[0].data;
+        assert.equal(toYmd(w2.startDate as Date), "2026-09-27");
+        assert.equal(toYmd(w2.endDate as Date), "2026-10-03", "endDate = last assigned day");
+        assert.equal(assignedDatesOf(recorder2).length, 7);
+      } finally {
+        await h2.close();
+      }
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("Part D (c): a range shorter than the meal count leaves the overflow unassigned — never an error", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-short", startDate: null, endDate: null })],
+        items: sevenItems("p-short"),
+      }),
+    );
+    try {
+      const res = await patchPlan(harness, "p-short", { startDate: "2026-09-20", endDate: "2026-09-22" });
+      assert.equal(res.status, 200);
+      const days = assignedDatesOf(recorder);
+      assert.equal(days.length, 7, "every item written (explicit nulls clear stale days)");
+      assert.deepEqual(
+        days.map((d) => (d.date ? toYmd(d.date) : null)),
+        ["2026-09-20", "2026-09-21", "2026-09-22", null, null, null, null],
+      );
+      const wrote = recorder.instanceUpdates[0].data;
+      assert.equal(toYmd(wrote.endDate as Date), "2026-09-22", "the chosen end is kept");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("Part D (e): a malformed localDate on the PATCH is a 400; a localDate-only body is an empty patch", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({ recorder, instances: [fixturePatch({ id: "p-ld" })] }),
+    );
+    try {
+      assert.equal((await patchPlan(harness, "p-ld", { isActiveThisWeek: true, localDate: "2026-9-16" })).status, 400);
+      assert.equal((await patchPlan(harness, "p-ld", { isActiveThisWeek: true, localDate: "2026-02-30" })).status, 400);
+      assert.equal((await patchPlan(harness, "p-ld", { localDate: "2026-09-16" })).status, 400, "nothing to patch");
+      assert.equal(recorder.instanceUpdates.length, 0);
     } finally {
       await harness.close();
     }
@@ -4439,18 +4644,18 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
   // week, stamps activatedAt, emits plan_activated_this_week, and the
   // resolver picks the chipped plan as winner — for every starting state.
 
-  it("round-trip (a) future-dated chip PATCH: dates → this-week, activatedAt stamped, emit, resolver winner over pre-existing P", async () => {
+  it("round-trip (a) future-dated chip PATCH: dates → from today, activatedAt stamped, emit, resolver winner over pre-existing P", async () => {
     // Pre-Block-2: future-dated row + flag PATCH was a noop (envelope's
     // `row.startDate === null` guard skipped the auto-date branch, no
-    // field diff, no stamp). Under Block 2: envelope ALWAYS rewrites
-    // dates to currentWeekRange() when the flag is true, seam B fires
-    // (didNewlyCoverNow {future} → {this-week} is true → stamp), emit
+    // field diff, no stamp). Under Block 2: envelope ALWAYS re-dates the
+    // plan when the flag is true (Redesign Arc Block 2: from TODAY), seam B
+    // fires (didNewlyCoverNow {future} → {covers now} is true → stamp), emit
     // fires, resolver picks the chipped plan.
     const now = Date.now();
     const day = 24 * 60 * 60 * 1000;
-    const week = currentWeekRange();
-    const expectedStart = new Date(week.startDate);
-    const expectedEnd = new Date(week.endDate);
+    const window = chipWindowNoItems();
+    const expectedStart = window.start;
+    const expectedEnd = window.end;
 
     // P — pre-existing covering plan with activatedAt in the past.
     const pCovering = fixturePatch({
@@ -4479,7 +4684,7 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
       const upd = recorder.instanceUpdates[0];
       assert.equal(upd.where.id, "q-future");
 
-      // Dates moved to currentWeekRange().
+      // Dates moved to today → today + 6 (no items).
       assert.ok(upd.data.startDate instanceof Date, "startDate written");
       assert.ok(upd.data.endDate instanceof Date, "endDate written");
       assert.equal((upd.data.startDate as Date).getTime(), expectedStart.getTime());
@@ -4584,15 +4789,15 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
-  it("round-trip (b) past-dated chip PATCH: dates → this-week, activatedAt stamped, emit, resolver winner over pre-existing P", async () => {
+  it("round-trip (b) past-dated chip PATCH: dates → from today, activatedAt stamped, emit, resolver winner over pre-existing P", async () => {
     // Pre-Block-2: past-dated row + flag PATCH was a noop. Under Block
-    // 2: envelope rewrites dates, seam B stamps (not-covering →
-    // covering), emit fires, resolver picks Q.
+    // 2: envelope rewrites dates (from TODAY), seam B stamps (not-covering
+    // → covering), emit fires, resolver picks Q.
     const now = Date.now();
     const day = 24 * 60 * 60 * 1000;
-    const week = currentWeekRange();
-    const expectedStart = new Date(week.startDate);
-    const expectedEnd = new Date(week.endDate);
+    const window = chipWindowNoItems();
+    const expectedStart = window.start;
+    const expectedEnd = window.end;
 
     const pCovering = fixturePatch({
       id: "p-pre",
@@ -4657,23 +4862,24 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
     }
   });
 
-  it("round-trip (c) already-exactly-this-week chip PATCH: dates UNCHANGED, activatedAt stamped via fallback, emit, resolver winner over pre-existing P", async () => {
+  it("round-trip (c) already-exactly-dated chip PATCH: dates UNCHANGED, activatedAt stamped via fallback, emit, resolver winner over pre-existing P", async () => {
     // Pre-Block-2: row with startDate !== null skipped the envelope; no
     // field diff → noop → no stamp → P kept winning. Under Block 2: the
-    // envelope sees dates already match currentWeekRange() so it does
-    // NOT add to changedFields (no spurious date emit), but the stamp
-    // fallback fires because body.isActiveThisWeek === true && seam B
-    // did not stamp. activatedAt is stamped, emit fires, resolver picks Q.
+    // envelope sees dates already match the window it would write (today →
+    // today + 6 for a plan with no items) so it does NOT add to
+    // changedFields (no spurious date emit), but the stamp fallback fires
+    // because body.isActiveThisWeek === true && seam B did not stamp.
+    // activatedAt is stamped, emit fires, resolver picks Q.
     const now = Date.now();
     const day = 24 * 60 * 60 * 1000;
-    const week = currentWeekRange();
-    const thisWeekStart = new Date(week.startDate);
-    const thisWeekEnd = new Date(week.endDate);
+    const window = chipWindowNoItems();
+    const thisWeekStart = window.start;
+    const thisWeekEnd = window.end;
 
     const pCovering = fixturePatch({
       id: "p-pre",
-      // Same calendar week as currentWeekRange() — both P and Q cover now,
-      // so the resolver must use activatedAt to tiebreak.
+      // Same window — both P and Q cover now, so the resolver must use
+      // activatedAt to tiebreak.
       startDate: thisWeekStart,
       endDate: thisWeekEnd,
     });
@@ -4704,12 +4910,12 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
       assert.equal(
         Object.prototype.hasOwnProperty.call(upd.data, "startDate"),
         false,
-        "startDate not rewritten when already matches currentWeekRange()",
+        "startDate not rewritten when already matches the window",
       );
       assert.equal(
         Object.prototype.hasOwnProperty.call(upd.data, "endDate"),
         false,
-        "endDate not rewritten when already matches currentWeekRange()",
+        "endDate not rewritten when already matches the window",
       );
 
       // Stamp fallback fired.

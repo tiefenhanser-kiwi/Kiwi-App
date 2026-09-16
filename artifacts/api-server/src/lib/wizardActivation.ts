@@ -575,7 +575,9 @@ export async function materializeWizardDraft(
     }));
 
   // D-WS7-213 half 1 — day assignment on activate (all generation paths). The
-  // items were just written above; every slot is a dinner for one day.
+  // items were just written above; every slot is a dinner for one day. Block 2
+  // (Part D): the route passes the first day (tomorrow in the CLIENT's calendar);
+  // absent, the helper defaults to tomorrow UTC.
   const assignedDays = opts.dayAssignment
     ? await assignAndPersistPlanDays(tx, draftId, {
         startDate: opts.dayAssignment.startDate,

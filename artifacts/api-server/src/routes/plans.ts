@@ -35,9 +35,14 @@ import {
 } from "../lib/mealCreate";
 import { forkMealForUser } from "../lib/mealFork";
 import {
+  activeWindowFromToday,
+  addUtcDays,
+  assignAndPersistPlanDays,
   assignPlanDays,
   assignedDateRange,
+  inclusiveDayCount,
   loadAssignableMeals,
+  todayFor,
 } from "../lib/planDayAssignment";
 import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
@@ -58,6 +63,7 @@ import {
   type InstanceRow,
   type PlanListItem,
 } from "../lib/planQueries";
+import { LocalDateSchema } from "../lib/ai/schemas/wizard";
 import {
   currentWeekRange,
   didNewlyCoverNow,
@@ -926,9 +932,16 @@ export function createPlansRouter(
       lunchOverrides: z.string().nullable().optional(),
       prepStatus: z.enum(["not_prepped", "partial", "prepped"]).optional(),
       optimizationNotes: z.unknown().optional(),
+      // Block 2 (Part D, rule (e)) — the client's local calendar day. Read by
+      // the "Cook This Week" envelope below as "today"; accepted (and unused)
+      // beside an explicit date range, whose days are the user's own choice.
+      localDate: LocalDateSchema.optional(),
     })
     .strict()
-    .refine((b) => Object.keys(b).length > 0, "empty patch");
+    .refine(
+      (b) => Object.keys(b).some((k) => k !== "localDate"),
+      "empty patch",
+    );
 
   // Forward-only prepStatus transitions for emission gating (Phase 1 §2 c4).
   const PREP_RANK: Record<string, number> = {
@@ -1066,34 +1079,86 @@ export function createPlansRouter(
         // WS7-6 (E) Block 2 — chip auto-date envelope. Product contract:
         // "Cook This Week" is a single one-tap "make this my week" action
         // for a plan in ANY date state (past, future, undated, or
-        // already-this-week). When the body says active=true the dates
-        // ALWAYS move to currentWeekRange(); server owns the week
-        // definition so mobile sends ONLY the boolean. An explicit
-        // body.startDate / body.endDate in the same PATCH wins —
-        // activation does NOT clobber a deliberate date edit (the chip
-        // never co-sends dates, but keeps the contract sane for other
-        // callers). Only adds to changedFields when the value actually
-        // differs from the stored row, so an already-exactly-this-week
-        // plan does not emit a spurious plan_date_range_edited event or
-        // bump revisionId for a no-op date write — the stamp fallback
-        // below catches that case.
+        // already-this-week). Server owns the week definition so mobile
+        // sends ONLY the boolean (plus, since Redesign Arc Block 2, its
+        // local calendar day). An explicit body.startDate / body.endDate in
+        // the same PATCH wins — activation does NOT clobber a deliberate
+        // date edit (the chip never co-sends dates, but keeps the contract
+        // sane for other callers). Only adds to changedFields when the value
+        // actually differs from the stored row, so an already-exactly-dated
+        // plan does not emit a spurious plan_date_range_edited event or bump
+        // revisionId for a no-op date write — the stamp fallback below
+        // catches that case.
+        //
+        // WS9 Redesign Arc Block 2 (Part D, D-WS7-213 amendment 2) — the
+        // window is no longer the calendar week (D-WS9-147's "this past
+        // Sunday + 7"). Rule (a): it opens TODAY, the plan's days are
+        // RE-ASSIGNED from TOMORROW (perishability tier → easiest last, every
+        // item gets a day), and it ends on the last assigned day. "Today" is
+        // the client's local calendar day when sent (rule (e)).
         if (
           body.isActiveThisWeek === true &&
           body.startDate === undefined &&
           body.endDate === undefined
         ) {
-          const week = currentWeekRange();
-          const autoStart = new Date(week.startDate);
-          const autoEnd = new Date(week.endDate);
-          if (isoOrNull(autoStart) !== isoOrNull(row.startDate)) {
-            data.startDate = autoStart;
+          const today = todayFor(body.localDate);
+          const assigned = await assignAndPersistPlanDays(tx, id, {
+            startDate: addUtcDays(today, 1),
+          });
+          const window = activeWindowFromToday(today, assigned);
+          if (isoOrNull(window.startDate) !== isoOrNull(row.startDate)) {
+            data.startDate = window.startDate;
             changedFields.add("startDate");
-            nextStartDate = autoStart;
+            nextStartDate = window.startDate;
           }
-          if (isoOrNull(autoEnd) !== isoOrNull(row.endDate)) {
-            data.endDate = autoEnd;
+          if (isoOrNull(window.endDate) !== isoOrNull(row.endDate)) {
+            data.endDate = window.endDate;
             changedFields.add("endDate");
-            nextEndDate = autoEnd;
+            nextEndDate = window.endDate;
+          }
+        } else if (
+          changedFields.has("startDate") ||
+          changedFields.has("endDate")
+        ) {
+          // Rules (b) + (c) — the user CHOSE this range (the date editor):
+          // the window opens on the chosen start and the first meal is THAT
+          // day (they will shop before it); any change to the range re-runs
+          // the same assignment from the new start, only the dates move. The
+          // duration is the range when both ends are known (a range shorter
+          // than the meal count leaves the overflow unassigned — never an
+          // error); with a start alone every item gets a day and the window
+          // ends on the last assigned one (a plan with no items keeps its
+          // stored end). An explicit end the user sent is
+          // kept as the window's end even when the meals run out earlier —
+          // shrinking a chosen "Sun–Sat" to "Sun–Thu" would silently drop
+          // the plan off Home for the days they asked for. Un-dating a plan
+          // (start → null) leaves its days alone: /save's "undated, days
+          // when dated" state is the same state.
+          const chosenStart = changedFields.has("startDate")
+            ? (nextStartDate ?? null)
+            : row.startDate;
+          const chosenEnd = changedFields.has("endDate")
+            ? (nextEndDate ?? null)
+            : row.endDate;
+          if (chosenStart) {
+            const assigned = await assignAndPersistPlanDays(tx, id, {
+              startDate: chosenStart,
+              ...(chosenEnd
+                ? { planDurationDays: inclusiveDayCount(chosenStart, chosenEnd) }
+                : {}),
+            });
+            const last = chosenEnd ? null : assignedDateRange(assigned)?.endDate;
+            if (last) {
+              if (isoOrNull(last) !== isoOrNull(row.endDate)) {
+                data.endDate = last;
+                changedFields.add("endDate");
+                nextEndDate = last;
+              } else {
+                delete data.endDate;
+                changedFields.delete("endDate");
+                nextEndDate = undefined;
+              }
+            }
           }
         }
 
@@ -1372,6 +1437,8 @@ export function createPlansRouter(
     planDurationDays: z.number().int().min(1).max(7),
     householdSize: z.number().int().min(1).max(30).optional(),
     title: z.string().min(1).max(120).optional(),
+    // Block 2 (Part D, rule (e)) — the client's local calendar day = "today".
+    localDate: LocalDateSchema.optional(),
   });
   const FROM_MEALS_DEFAULT_TITLE = "Your picks";
 
@@ -1391,8 +1458,14 @@ export function createPlansRouter(
           details: parsed.error.flatten(),
         });
       }
-      const { mealIds, planDurationDays, householdSize, title } = parsed.data;
+      const { mealIds, planDurationDays, householdSize, title, localDate } = parsed.data;
       const distinctIds = [...new Set(mealIds)];
+      // Block 2 (Part D, rule (a)) — "active the day you make it, and tomorrow
+      // is the first meal": the window opens TODAY (the client's calendar day
+      // when sent), the first meal is assigned to TOMORROW, the window ends on
+      // the last assigned day. Amends F3, which opened the window on the first
+      // assigned day.
+      const today = todayFor(localDate);
 
       try {
         const sources = await prisma.meal.findMany({
@@ -1469,21 +1542,17 @@ export function createPlansRouter(
               }));
 
             // D-WS7-213 half 1 — assign days BEFORE the instance exists so the
-            // instance is dated from the assignment (first…last assigned day;
-            // the calendar week only if nothing could be dated, which a 1..14
-            // pick with 1..7 days never produces).
+            // instance is dated from the assignment. Block 2 (Part D, rule
+            // (a)): first meal TOMORROW in the client's calendar; the window
+            // opens today and ends on the last assigned day.
             const assigned = assignPlanDays(
               await loadAssignableMeals(
                 tx,
                 mealIds.map((id) => boundBySource.get(id) ?? id),
               ),
-              { planDurationDays },
+              { startDate: addUtcDays(today, 1), planDurationDays },
             );
-            const week = currentWeekRange();
-            const range = assignedDateRange(assigned) ?? {
-              startDate: new Date(week.startDate),
-              endDate: new Date(week.endDate),
-            };
+            const range = activeWindowFromToday(today, assigned);
 
             // Resolve the prior this-week winner BEFORE the new row exists so
             // the demotion toast can name it (D-WS9-011a).

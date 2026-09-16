@@ -16,7 +16,7 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import { currentWeekRange, resolveThisWeekPlan } from "../../lib/planDates";
-import { tomorrowUtc } from "../../lib/planDayAssignment";
+import { addUtcDays, todayFor, tomorrowUtc } from "../../lib/planDayAssignment";
 import { createPlansRouter } from "../plans";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 
@@ -283,24 +283,25 @@ describe("POST /api/plans/from-meals", () => {
         ],
       );
 
-      // The instance: ACTIVE, committed, never a draft — and (F3) dated from
-      // the day assignment: tomorrow … tomorrow + 2 for the three dated meals
-      // (the unassigned fourth pick does not extend the range).
+      // The instance: ACTIVE, committed, never a draft — and (Block 2, Part D,
+      // rule (a)) the window opens TODAY, the first meal is tomorrow, and it
+      // ends on the last assigned day: today … tomorrow + 2 for the three
+      // dated meals (the unassigned fourth pick does not extend the range).
       const inst = rec.createdInstances[0];
+      const today = todayFor(undefined);
       const tomorrow = tomorrowUtc();
       const dayAfterNext = new Date(tomorrow.getTime() + 2 * 86_400_000);
       assert.equal(inst.isWizardDraft, false);
       assert.equal(inst.mealPlanTemplateId, "tpl-1");
       assert.ok(inst.activatedAt instanceof Date);
       assert.ok(inst.committedAt instanceof Date);
-      assert.equal((inst.startDate as Date).toISOString(), tomorrow.toISOString());
+      assert.equal((inst.startDate as Date).toISOString(), today.toISOString());
       assert.equal((inst.endDate as Date).toISOString(), dayAfterNext.toISOString());
-      assert.equal(json.startDate, tomorrow.toISOString().slice(0, 10));
+      assert.equal(json.startDate, today.toISOString().slice(0, 10));
       assert.equal(json.endDate, dayAfterNext.toISOString().slice(0, 10));
       assert.equal("wizardDraftPayload" in inst, false);
-      // Range-containment (D-WS9-147): it is the this-week winner on its first
-      // day, and NOT yet today (the plan starts tomorrow — "you have to shop
-      // before you can cook").
+      // Range-containment (D-WS9-147): it is the this-week winner from the day
+      // it is made ("active the day you make it"), through the last dinner.
       const row = {
         id: "plan-1",
         startDate: inst.startDate as Date,
@@ -308,6 +309,7 @@ describe("POST /api/plans/from-meals", () => {
         activatedAt: inst.activatedAt as Date,
         createdAt: new Date(),
       };
+      assert.equal(resolveThisWeekPlan([row], new Date())?.id, "plan-1");
       assert.equal(resolveThisWeekPlan([row], tomorrow)?.id, "plan-1");
       assert.equal(resolveThisWeekPlan([row], dayAfterNext)?.id, "plan-1");
       assert.equal(resolveThisWeekPlan([row], new Date(dayAfterNext.getTime() + 86_400_000)), null);
@@ -354,12 +356,92 @@ describe("POST /api/plans/from-meals", () => {
       const { status, json } = await post(h, { mealIds: ["own-chili"], planDurationDays: 1 });
       assert.equal(status, 201);
       assert.equal(json.demoted, null);
-      // A one-day plan is dated tomorrow … tomorrow.
-      const t = tomorrowUtc().toISOString().slice(0, 10);
-      assert.equal(json.startDate, t);
-      assert.equal(json.endDate, t);
+      // A one-day plan: the window opens today, its one dinner is tomorrow.
+      assert.equal(json.startDate, todayFor(undefined).toISOString().slice(0, 10));
+      assert.equal(json.endDate, tomorrowUtc().toISOString().slice(0, 10));
       assert.equal(rec.templatesCreated[0].title, "Your picks");
       assert.deepEqual(rec.forkedFrom, []);
+    } finally {
+      await h.close();
+    }
+  });
+
+  // WS9 Redesign Arc Block 2 (Part D) — rules (a) + (e). "Today" is the
+  // client's local calendar day; the window opens on it, the first meal is
+  // the next day, the window ends on the last assigned day.
+  it("Part D (a): a Wednesday-created 7-day plan (localDate Wed) → startDate Wed, first meal Thu, endDate the following Wed, this-week winner ON Wednesday", async () => {
+    const seven = Array.from({ length: 7 }, (_, i) => ({
+      id: `own-${i}`,
+      userId: U,
+      isPublic: false,
+      categories: ["Pantry"],
+      activeTimeMinutes: 20 + i,
+    }));
+    const { prisma, rec } = makeStub({ meals: seven });
+    const h = await spinUp(prisma);
+    try {
+      const wed = "2026-09-16"; // a Wednesday
+      const { status, json } = await post(h, {
+        mealIds: seven.map((m) => m.id),
+        planDurationDays: 7,
+        localDate: wed,
+      });
+      assert.equal(status, 201);
+      assert.equal(json.startDate, "2026-09-16");
+      assert.equal(new Date(json.startDate).getUTCDay(), 3, "starts on the Wednesday");
+      assert.equal(json.endDate, "2026-09-23", "ends the following Wednesday (7 dinners Thu … Wed)");
+      const dates = (json.days as { assignedDate: string | null }[]).map((d) => d.assignedDate).sort();
+      assert.equal(dates[0], "2026-09-17", "first meal is Thursday");
+      assert.equal(dates[6], "2026-09-23");
+      // This-week winner ON the Wednesday it was made.
+      const inst = rec.createdInstances[0];
+      const row = {
+        id: "plan-1",
+        startDate: inst.startDate as Date,
+        endDate: inst.endDate as Date,
+        activatedAt: inst.activatedAt as Date,
+        createdAt: new Date(),
+      };
+      assert.equal(resolveThisWeekPlan([row], new Date("2026-09-16T15:00:00Z"))?.id, "plan-1");
+      assert.equal(resolveThisWeekPlan([row], new Date("2026-09-15T15:00:00Z")), null);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("Part D (e): localDate 2026-09-19 sent at 01:26Z on the 20th → first meal 2026-09-20 (not Monday the 21st)", async () => {
+    const { prisma } = makeStub({ meals: MEALS });
+    const h = await spinUp(prisma);
+    try {
+      // Hans's own example: Saturday 9:26 PM ET is 01:26Z Sunday. In UTC days
+      // the first meal would land on MONDAY; with the client's calendar day it
+      // is Sunday.
+      const { status, json } = await post(h, {
+        mealIds: ["own-chili"],
+        planDurationDays: 1,
+        localDate: "2026-09-19",
+      });
+      assert.equal(status, 201);
+      assert.equal(json.startDate, "2026-09-19");
+      assert.equal(json.days[0].assignedDate, "2026-09-20");
+      assert.equal(json.days[0].assignedDayOfWeek, "Sunday");
+      assert.equal(json.endDate, "2026-09-20");
+      // Sanity: the UTC-day reading of that instant WOULD have been Monday.
+      assert.equal(addUtcDays(new Date("2026-09-20T01:26:00Z"), 1).getUTCDay(), 1);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("Part D (e): a malformed localDate is a 400", async () => {
+    const { prisma, rec } = makeStub({ meals: MEALS });
+    const h = await spinUp(prisma);
+    try {
+      for (const bad of ["2026-9-19", "19/09/2026", "2026-09-19T00:00:00Z", "2026-02-30", 20260919]) {
+        const { status } = await post(h, { mealIds: ["own-chili"], planDurationDays: 1, localDate: bad });
+        assert.equal(status, 400, `localDate ${String(bad)} must be rejected`);
+      }
+      assert.equal(rec.createdInstances.length, 0);
     } finally {
       await h.close();
     }

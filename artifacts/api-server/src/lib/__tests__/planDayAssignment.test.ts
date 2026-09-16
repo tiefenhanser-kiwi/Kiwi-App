@@ -9,10 +9,15 @@ import assert from "node:assert/strict";
 
 import { resolveThisWeekPlan } from "../planDates";
 import {
+  activeWindowFromToday,
+  addUtcDays,
   assignAndPersistPlanDays,
   assignedDateRange,
   assignPlanDays,
   DAY_NAMES,
+  inclusiveDayCount,
+  parseLocalDate,
+  todayFor,
   loadAssignableMeals,
   PERISHABILITY_BY_CATEGORY,
   perishabilityTierFor,
@@ -318,5 +323,46 @@ describe("loadAssignableMeals + assignAndPersistPlanDays", () => {
       data: { assignedDayOfWeek: null, assignedDate: null },
     });
     assert.equal(assigned.filter((a) => a.dayIndex === null).length, 1);
+  });
+});
+
+// WS9 Redesign Arc Block 2 (Part D) — the client's local calendar day and
+// the "for now" window (rules (a) + (e)).
+describe("Block 2 — localDate + the active window", () => {
+  it("parseLocalDate accepts YYYY-MM-DD for a real day only", () => {
+    assert.equal(parseLocalDate("2026-09-19")?.toISOString(), "2026-09-19T00:00:00.000Z");
+    assert.equal(parseLocalDate("2026-02-30"), null, "not a calendar date");
+    assert.equal(parseLocalDate("2026-9-19"), null);
+    assert.equal(parseLocalDate("2026-09-19T00:00:00Z"), null);
+    assert.equal(parseLocalDate("19/09/2026"), null);
+  });
+
+  it("todayFor: the client's day when sent, else the server's UTC day", () => {
+    // Saturday 9:26 PM ET = 01:26Z Sunday: UTC says the 20th, the client says the 19th.
+    const at = new Date("2026-09-20T01:26:00Z");
+    assert.equal(todayFor(undefined, at).toISOString(), "2026-09-20T00:00:00.000Z");
+    assert.equal(todayFor("2026-09-19", at).toISOString(), "2026-09-19T00:00:00.000Z");
+    // …so "tomorrow" is Sunday, not Monday.
+    assert.equal(DAY_NAMES[addUtcDays(todayFor("2026-09-19", at), 1).getUTCDay()], "Sunday");
+    assert.equal(DAY_NAMES[addUtcDays(todayFor(undefined, at), 1).getUTCDay()], "Monday");
+  });
+
+  it("activeWindowFromToday: opens today, ends on the last assigned day; today + 6 with nothing assigned", () => {
+    const today = new Date("2026-09-16T00:00:00Z");
+    const assigned = assignPlanDays(
+      [meal("a", ["Pantry"], 30), meal("b", ["Pantry"], 20), meal("c", ["Pantry"], 10)],
+      { startDate: addUtcDays(today, 1) },
+    );
+    const w = activeWindowFromToday(today, assigned);
+    assert.equal(w.startDate.toISOString(), "2026-09-16T00:00:00.000Z");
+    assert.equal(w.endDate.toISOString(), "2026-09-19T00:00:00.000Z");
+    const empty = activeWindowFromToday(today, []);
+    assert.equal(empty.endDate.toISOString(), "2026-09-22T00:00:00.000Z");
+  });
+
+  it("inclusiveDayCount", () => {
+    assert.equal(inclusiveDayCount(new Date("2026-09-20T00:00:00Z"), new Date("2026-09-26T00:00:00Z")), 7);
+    assert.equal(inclusiveDayCount(new Date("2026-09-20T00:00:00Z"), new Date("2026-09-20T00:00:00Z")), 1);
+    assert.equal(inclusiveDayCount(new Date("2026-09-21T00:00:00Z"), new Date("2026-09-20T00:00:00Z")), 0);
   });
 });

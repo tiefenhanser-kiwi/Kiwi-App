@@ -1,6 +1,21 @@
 import { z } from "zod";
 
 import { DIAL_LEVELS } from "../../wizardPreferences";
+import { LOCAL_DATE_PATTERN, parseLocalDate } from "../../planDayAssignment";
+
+// WS9 Redesign Arc Block 2 (Part D, rule (e)) — the client's LOCAL calendar
+// date, "YYYY-MM-DD" and nothing else (a real day, too). Optional on every
+// body that dates a plan FOR NOW; the server uses it as "today" and derives
+// tomorrow from it. Absent → the server's UTC day, as before.
+export const LocalDateSchema = z
+  .string()
+  .regex(LOCAL_DATE_PATTERN, "expected YYYY-MM-DD")
+  .refine((v) => parseLocalDate(v) !== null, "not a calendar date");
+
+/** POST /wizard/drafts/:id/activate — an optional body. */
+export const WizardActivateRequestSchema = z.object({
+  localDate: LocalDateSchema.optional(),
+});
 
 // WS9 Redesign Arc Block 1 (D-WS9-245) — the two dials' wire shape. Shared by
 // WizardInputSchema, DirectedInputSchema (tellKiwi.ts), the shelf route and

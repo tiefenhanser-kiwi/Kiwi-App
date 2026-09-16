@@ -24,6 +24,7 @@ import {
   WizardExpandedPlanDetailsSchema,
   WizardInputSchema,
   WizardPlanCandidatesResultSchema,
+  WizardActivateRequestSchema,
   WizardShelfRequestSchema,
   type WizardInput,
   type WizardPlanCandidate,
@@ -75,8 +76,12 @@ import {
   type WizardBatchSource,
 } from "../lib/wizardLastBatch";
 import { computeWizardContentHash } from "../lib/wizardContentHash";
-import { currentWeekRange, resolveThisWeekWinnerId } from "../lib/planDates";
-import { assignedDateRange } from "../lib/planDayAssignment";
+import { resolveThisWeekWinnerId } from "../lib/planDates";
+import {
+  activeWindowFromToday,
+  addUtcDays,
+  todayFor,
+} from "../lib/planDayAssignment";
 import {
   buildPlanningContext,
   buildRecentRotation,
@@ -1959,6 +1964,17 @@ export function createWizardRouter(
     ) {
       return res.status(400).json({ error: "invalid draft id" });
     }
+    // WS9 Redesign Arc Block 2 (Part D, rule (e)) — an OPTIONAL body carrying
+    // the client's local calendar day. The route had no body before; an
+    // absent / empty one is still fine, a malformed localDate is a 400.
+    const activateBody = WizardActivateRequestSchema.safeParse(req.body ?? {});
+    if (!activateBody.success) {
+      return res.status(400).json({
+        error: "invalid request body",
+        details: activateBody.error.flatten(),
+      });
+    }
+    const today = todayFor(activateBody.data.localDate);
 
     // BUG-030 idempotency (activate side). If this candidate's content-hash
     // has ALREADY materialized into a real (non-draft) plan for this user,
@@ -2062,8 +2078,10 @@ export function createWizardRouter(
           userId,
           draftId,
           savePlan,
-          // D-WS7-213 half 1 — this plan is for THIS week: assign days.
-          dayAssignment: {},
+          // D-WS7-213 half 1 — this plan is for NOW: assign days. Block 2
+          // (Part D, rule (a)): the first meal is TOMORROW in the client's
+          // calendar (rule (e)), not tomorrow UTC.
+          dayAssignment: { startDate: addUtcDays(today, 1) },
         });
 
         // WS7-6 (E) Block 1 REWORK seam C — stamp activatedAt in the
@@ -2076,16 +2094,12 @@ export function createWizardRouter(
         // simply no longer designated. The unconditional emit below is
         // preserved (Phase 1 ruling): every wizard activate is a fresh
         // user commitment, regardless of pre-state.
-        // WS9 Redesign Arc Block 1 (F3) — the instance is dated from the day
-        // assignment just written (first…last assigned day, from tomorrow —
-        // D-WS7-213), not the calendar week: the this-week derivation is
-        // range-containment (lib/planDates.ts), so a mid-week start is fine.
-        // The calendar week remains the fallback only if nothing was dated.
-        const week = currentWeekRange();
-        const range = assignedDateRange(materialized.assignedDays ?? []) ?? {
-          startDate: new Date(week.startDate),
-          endDate: new Date(week.endDate),
-        };
+        // WS9 Redesign Arc Block 1 (F3) → Block 2 (Part D, rule (a)) — the
+        // window opens TODAY ("active the day you make it") and ends on the
+        // last assigned day; the this-week derivation is range-containment
+        // (lib/planDates.ts), so the plan is this week's plan from the moment
+        // it is activated, with its first dinner tomorrow.
+        const range = activeWindowFromToday(today, materialized.assignedDays ?? []);
         // WS9 3d Part 3b-4 (D-WS9-011a) — resolve the prior this-week winner
         // BEFORE the flip. The draft is still isWizardDraft:true + undated here,
         // so the resolver (which filters isWizardDraft:false) can never return
