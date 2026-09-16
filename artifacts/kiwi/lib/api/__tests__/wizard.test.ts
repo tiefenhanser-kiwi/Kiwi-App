@@ -361,6 +361,12 @@ test("activateWizardDraft POSTs to /wizard/drafts/:id/activate and returns insta
   assert.equal(result.instance.id, "plan-activated-1");
   // PRE bumps revisionId from 1 (expand persist) to 2 (activate).
   assert.equal(result.instance.revisionId, 2);
+  // WS9 Redesign Arc Block 2a (§1) — activation DATES the plan, so the body
+  // carries the device's local calendar date.
+  assert.ok(lastBody, "expected a request body");
+  const body = JSON.parse(lastBody!) as { localDate?: string };
+  assert.match(String(body.localDate), /^\d{4}-\d{2}-\d{2}$/);
+  assert.deepEqual(Object.keys(body), ["localDate"], "activate sends localDate and nothing else");
 });
 
 // D-WS7-080 fix — the screen wraps /activate with an AbortController +

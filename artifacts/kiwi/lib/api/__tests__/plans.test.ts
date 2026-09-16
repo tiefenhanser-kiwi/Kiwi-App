@@ -629,9 +629,14 @@ test("patchPlan with startDate-only body sends just startDate (Q-P1-2 optional f
   }) as unknown as typeof fetch;
 
   const { patchPlan } = await import("../plans");
+  const { todayLocalDate } = await import("../../dates");
   const out = await patchPlan("plan-1", { startDate: "2026-06-01T00:00:00.000Z" });
   assert.equal(out.instance.revisionId, 2);
-  assert.equal(capturedBody, JSON.stringify({ startDate: "2026-06-01T00:00:00.000Z" }));
+  // WS9 Redesign Arc Block 2a (§1) — a DATING patch also carries localDate.
+  assert.equal(
+    capturedBody,
+    JSON.stringify({ startDate: "2026-06-01T00:00:00.000Z", localDate: todayLocalDate() }),
+  );
 });
 
 test("patchPlan with both startDate and endDate sends both fields", async () => {
@@ -650,13 +655,87 @@ test("patchPlan with both startDate and endDate sends both fields", async () => 
     startDate: "2026-06-01T00:00:00.000Z",
     endDate: "2026-06-07T00:00:00.000Z",
   });
+  const { todayLocalDate } = await import("../../dates");
   assert.equal(
     capturedBody,
     JSON.stringify({
       startDate: "2026-06-01T00:00:00.000Z",
       endDate: "2026-06-07T00:00:00.000Z",
+      localDate: todayLocalDate(),
     }),
   );
+});
+
+// ── WS9 Redesign Arc Block 2a (§1) — localDate on every call that DATES a plan
+// The four call sites: POST /plans/from-meals (createPlanFromMeals), the wizard
+// /activate (lib/api/wizard.ts, tested there), the "Cook This Week" PATCH and
+// the date-range PATCH (both through patchPlan's dating branch). A non-dating
+// PATCH carries no such key — the server body is .strict().
+
+test("Block 2a: the 'Cook This Week' PATCH carries localDate; a name-only PATCH does NOT", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    _url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    bodies.push(JSON.parse(init?.body ?? "{}"));
+    return mockJson({ instance: { id: "plan-1", revisionId: 2 }, demoted: null });
+  }) as unknown as typeof fetch;
+
+  const { patchPlan } = await import("../plans");
+  const { todayLocalDate } = await import("../../dates");
+  await patchPlan("plan-1", { isActiveThisWeek: true });
+  await patchPlan("plan-1", { name: "Renamed" });
+  await patchPlan("plan-1", { prepStatus: "prepped" });
+  assert.deepEqual(bodies[0], { isActiveThisWeek: true, localDate: todayLocalDate() });
+  assert.match(String(bodies[0].localDate), /^\d{4}-\d{2}-\d{2}$/);
+  assert.deepEqual(bodies[1], { name: "Renamed" }, "a rename must not carry localDate");
+  assert.deepEqual(bodies[2], { prepStatus: "prepped" });
+});
+
+test("Block 2a: createPlanFromMeals POSTs /plans/from-meals with the ids in order + localDate", async () => {
+  let capturedMethod: string | null = null;
+  let capturedBody: Record<string, unknown> | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (
+    url: string,
+    init?: { method?: string; body?: string },
+  ) => {
+    lastUrl = url;
+    capturedMethod = init?.method ?? "GET";
+    capturedBody = JSON.parse(init?.body ?? "{}");
+    return mockJson(
+      {
+        planId: "plan-9",
+        instance: { id: "plan-9", revisionId: 1 },
+        demoted: { id: "plan-1", name: "Old" },
+        startDate: "2026-09-17",
+        endDate: "2026-09-21",
+        days: [{ mealId: "m2", assignedDayOfWeek: "Thu", assignedDate: "2026-09-17" }],
+      },
+      201,
+    );
+  }) as unknown as typeof fetch;
+
+  const { createPlanFromMeals } = await import("../plans");
+  const { todayLocalDate } = await import("../../dates");
+  const out = await createPlanFromMeals({
+    mealIds: ["m2", "m1"],
+    planDurationDays: 5,
+    householdSize: 4,
+    title: "Your picks",
+  });
+  assert.equal(capturedMethod, "POST");
+  assert.ok(lastUrl?.endsWith("/plans/from-meals"), `unexpected url: ${lastUrl}`);
+  assert.deepEqual(capturedBody, {
+    mealIds: ["m2", "m1"],
+    planDurationDays: 5,
+    householdSize: 4,
+    title: "Your picks",
+    localDate: todayLocalDate(),
+  });
+  assert.equal(out.instance.id, "plan-9");
+  assert.deepEqual(out.demoted, { id: "plan-1", name: "Old" });
+  assert.equal(out.days[0].assignedDate, "2026-09-17");
 });
 
 // WS7-4-D c11 — production path: PlanDateRangeEditor emits YYYY-MM-DD using
@@ -680,9 +759,10 @@ test("patchPlan with YYYY-MM-DD body (mobile production path) sends the dates ve
     startDate: "2026-06-03",
     endDate: "2026-06-09",
   });
+  const { todayLocalDate } = await import("../../dates");
   assert.equal(
     capturedBody,
-    JSON.stringify({ startDate: "2026-06-03", endDate: "2026-06-09" }),
+    JSON.stringify({ startDate: "2026-06-03", endDate: "2026-06-09", localDate: todayLocalDate() }),
   );
 });
 

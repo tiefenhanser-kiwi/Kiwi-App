@@ -28,6 +28,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppProvider, useApp } from "../AppContext";
 import { AuthProvider, useAuth } from "../AuthContext";
 import { __resetForTests as resetAuthBridge } from "@/lib/api/auth-bridge";
+import { todayLocalDate } from "@/lib/dates";
 
 const TOKEN_KEY = "kiwi_authToken";
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
@@ -717,7 +718,9 @@ test("setPlanActiveThisWeek PATCHes { isActiveThisWeek: true } and invalidates g
     await app!.setPlanActiveThisWeek("plan-1");
   });
 
-  assert.deepEqual(capturedBody, { isActiveThisWeek: true });
+  // WS9 Redesign Arc Block 2a (§1) — the "Cook This Week" flip DATES the plan,
+  // so patchPlan adds the device's local calendar date beside the flag.
+  assert.deepEqual(capturedBody, { isActiveThisWeek: true, localDate: todayLocalDate() });
   assert.equal(
     qc.getQueryState(["groceries", "list", null])?.isInvalidated,
     true,

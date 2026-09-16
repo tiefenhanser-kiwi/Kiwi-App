@@ -8,6 +8,7 @@
 
 import { z } from "zod";
 
+import { todayLocalDate } from "../dates";
 import { apiClient } from "./client";
 import { MealDetailSchema } from "./meals";
 
@@ -346,9 +347,30 @@ export async function patchPlan(
 ): Promise<PatchPlanResponse> {
   return apiClient(`/plans/${encodeURIComponent(planId)}`, {
     method: "PATCH",
-    body,
+    body: datesPlan(body) ? { ...body, localDate: todayLocalDate() } : body,
     schema: PatchPlanResponseSchema,
   });
+}
+
+/**
+ * WS9 Redesign Arc Block 2a (§1) — a PATCH that DATES the plan carries the
+ * device's local calendar date as `localDate`: the "Cook This Week" flip
+ * (`isActiveThisWeek: true`, the server auto-dates the week) and the date-range
+ * edit (`startDate` / `endDate`). Every other PATCH (name, prep status, the
+ * overrides) is unchanged. The two PATCH call sites are contexts/AppContext.ts
+ * setPlanActiveThisWeek + updatePlanDateRange (and wizard-plan-details'
+ * post-save activate); they all pass through here.
+ *
+ * ⚠️ The server's PatchPlanBody is `.strict()` (src/routes/plans.ts) — until
+ * the server lane adds `localDate` to it, a dating PATCH 400s. Coded to the
+ * §1 contract; both lanes land together.
+ */
+function datesPlan(body: PatchPlanBody): boolean {
+  return (
+    body.isActiveThisWeek === true ||
+    body.startDate !== undefined ||
+    body.endDate !== undefined
+  );
 }
 
 /**
@@ -559,4 +581,51 @@ export async function recalcPlanMacros(
       schema: RecalcMacrosResponseSchema,
     },
   );
+}
+
+// ── WS9 Redesign Arc Block 2a Part D (D-WS9-237) — POST /plans/from-meals ────
+// "Build my week" on the Pick screen: ONE ACTIVE plan from exactly the meals
+// the user picked — no chooser, no draft, no AI. Body mirrors
+// fromMealsBodySchema in src/routes/plans.ts (mealIds 1..14 in the order
+// picked, planDurationDays, optional householdSize / title) plus `localDate`
+// (§1 — the device's local calendar date, so "from tomorrow" is the user's
+// tomorrow; the server lane adds the key in parallel, a plain z.object()
+// ignores it until then). Response: the new plan, its dated range, the day
+// assignment, and `demoted` — the plan this one displaced as this week's, for
+// the demotion toast (same shape the activate path returns).
+
+const CreatePlanFromMealsResponseSchema = z.object({
+  planId: z.string(),
+  instance: z.object({ id: z.string(), revisionId: z.number() }),
+  demoted: z.object({ id: z.string(), name: z.string() }).nullable(),
+  startDate: z.string(),
+  endDate: z.string(),
+  days: z.array(
+    z.object({
+      mealId: z.string(),
+      assignedDayOfWeek: z.string().nullable(),
+      assignedDate: z.string().nullable(),
+    }),
+  ),
+});
+export type CreatePlanFromMealsResponse = z.infer<
+  typeof CreatePlanFromMealsResponseSchema
+>;
+
+export interface CreatePlanFromMealsBody {
+  /** The picked ids IN THE ORDER PICKED — the server assigns days in this order. */
+  mealIds: string[];
+  planDurationDays: number;
+  householdSize?: number;
+  title?: string;
+}
+
+export async function createPlanFromMeals(
+  body: CreatePlanFromMealsBody,
+): Promise<CreatePlanFromMealsResponse> {
+  return apiClient("/plans/from-meals", {
+    method: "POST",
+    body: { ...body, localDate: todayLocalDate() },
+    schema: CreatePlanFromMealsResponseSchema,
+  });
 }
