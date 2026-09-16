@@ -233,6 +233,22 @@ export const WizardInputSchema = z.object({
 });
 export type WizardInput = z.infer<typeof WizardInputSchema>;
 
+// WS9 Redesign Arc Block 1 (D-WS9-237) — POST /wizard/shelf, the Pick screen's
+// request: the SAME per-run input the wizard sends to build-plans, plus the
+// Tell Kiwi text, the ids already shown ("Get more options"), the card count,
+// and "Plan a week from these". The dials ride on the base schema.
+export const WIZARD_SHELF_DEFAULT_SIZE = 15;
+export const WIZARD_SHELF_MAX_SIZE = 20;
+export const WizardShelfRequestSchema = WizardInputSchema.omit({
+  hiddenContext: true,
+}).extend({
+  text: z.string().min(5).max(500).optional(),
+  excludeMealIds: z.array(z.string().min(1).max(100)).max(200).optional(),
+  size: z.number().int().min(1).max(WIZARD_SHELF_MAX_SIZE).optional(),
+  playlistOnly: z.boolean().optional(),
+});
+export type WizardShelfRequest = z.infer<typeof WizardShelfRequestSchema>;
+
 // PRD §5.7 — single plan candidate.
 // Mirrors WizardPlanCandidate in artifacts/kiwi/lib/types.ts:476.
 export const WizardPlanCandidateSchema = z.object({

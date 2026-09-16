@@ -76,6 +76,23 @@ export interface StoreShortlist {
    * before it hits the wire. So expand/save downstream always see real ids.
    */
   aliasToId: Map<string, string>;
+  /**
+   * WS9 Redesign Arc Block 1 (POST /wizard/shelf) — the REAL ids of the
+   * selected rows in forPrompt order, and each one's cuisine `matches` flag
+   * (computed at enrich time and, until now, never returned). Additive: the
+   * three compose callers read forPrompt + aliasToId only.
+   */
+  selectedIds: string[];
+  matchesById: Map<string, boolean>;
+  /**
+   * The shelf's pre-sample size — how many DISTINCT eligible dinners (one per
+   * dish family, after every hard filter and the exclusions) the user could be
+   * shown. The Pick screen's thin-shelf signal and its `hasMore` derive from
+   * this; it is free (the reps array already exists).
+   */
+  eligibleCount: number;
+  /** The raw eligible row count before the one-version-per-family cap. */
+  poolCount: number;
 }
 
 export interface BuildStoreShortlistOptions {
@@ -132,7 +149,7 @@ function difficultyLevel(v: string): number {
 // The difficulty tokens a user of the given skill may be served: everything up to
 // and including one tier above their level. Missing/unknown skill → treat as the
 // most permissive (fancy) so we never over-restrict on bad input.
-function allowedDifficultyLevels(userDifficulty: string): DifficultyLevel[] {
+export function allowedDifficultyLevels(userDifficulty: string): DifficultyLevel[] {
   const ceiling = Math.min(
     difficultyLevel(userDifficulty) + 1,
     DIFFICULTY_RANK.fancy,
@@ -188,7 +205,7 @@ export async function buildStoreShortlist(
 ): Promise<StoreShortlist> {
   const { config } = opts;
   if (config.shortlistSize <= 0) {
-    return { forPrompt: [], aliasToId: new Map() };
+    return emptyShortlist();
   }
 
   const allergenTokens = allergenTokensForUser(opts.allergiesAndAvoidances);
@@ -278,7 +295,7 @@ export async function buildStoreShortlist(
       : [];
 
   if (rows.length === 0 && overCapRows.length === 0) {
-    return { forPrompt: [], aliasToId: new Map() };
+    return emptyShortlist();
   }
 
   const userTokens = userCuisineTokens(opts.cuisines);
@@ -406,7 +423,26 @@ export async function buildStoreShortlist(
     };
   });
 
-  return { forPrompt, aliasToId };
+  return {
+    forPrompt,
+    aliasToId,
+    selectedIds: selected.map((e) => e.row.id),
+    matchesById: new Map(selected.map((e) => [e.row.id, e.matches])),
+    eligibleCount: reps.length,
+    poolCount: rows.length,
+  };
+}
+
+/** The empty shelf — the caller composes fully live (D-WS9-037). */
+export function emptyShortlist(): StoreShortlist {
+  return {
+    forPrompt: [],
+    aliasToId: new Map(),
+    selectedIds: [],
+    matchesById: new Map(),
+    eligibleCount: 0,
+    poolCount: 0,
+  };
 }
 
 /**

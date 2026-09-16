@@ -19,19 +19,29 @@ import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
 import { streamPlanCandidates as productionStreamPlanCandidates } from "../lib/ai/streamPlanCandidates";
 import { withAIFailureStatus } from "../lib/ai/errors";
 import {
+  WIZARD_SHELF_DEFAULT_SIZE,
   WizardExpandRequestSchema,
   WizardExpandedPlanDetailsSchema,
   WizardInputSchema,
   WizardPlanCandidatesResultSchema,
+  WizardShelfRequestSchema,
   type WizardInput,
   type WizardPlanCandidate,
 } from "../lib/ai/schemas/wizard";
 import {
-  buildStoreShortlist,
+  allowedDifficultyLevels,
   reconcileStoreSlots,
 } from "../lib/store/storeShortlist";
+import { retrieveShelf } from "../lib/store/shelf";
+import { composeShelf, shelfRemainderFor } from "../lib/store/shelfCompose";
+import { MEAL_CARD_SELECT, toMealCard } from "../lib/store/mealCard";
+import { servedCatalogIds } from "../lib/store/newToYou";
+import {
+  allergenTokensForUser,
+  allergenWhereConditions,
+} from "../lib/store/allergenFilter";
+import { lookupDishFamily, NON_CATALOG_RANK } from "../lib/store/dishFamily";
 import { logCandidateRepeatCheck } from "../lib/wizardRepeatCheck";
-import { resolveStoreComposeConfig } from "../lib/store/storeComposeConfig";
 import {
   DirectedInputSchema,
   ParsedIntentSchema,
@@ -73,6 +83,7 @@ import {
   type RecentRotation,
 } from "../lib/planningContext";
 import {
+  applyAllForcesNone,
   discoveryLevelFromInput,
   resolveAllergenPreference,
   resolveEffectivePreferences,
@@ -167,55 +178,9 @@ function parseSessionExclusion(body: unknown): {
   };
 }
 
-// D-WS9-038 / BUG-039 — shared catalog-compose retrieval. All three generate
-// endpoints (build-plans, surprise-me, build-from-text) hand the AI the same
-// shelf and reconcile the same way; this centralizes the retrieval + its
-// best-effort fallback (a retrieval failure or thin catalog → empty shelf →
-// the AI composes fully live, never a 500).
-async function retrieveShelf(
-  prisma: PrismaClient,
-  opts: {
-    cuisines: string[];
-    allergiesAndAvoidances: string[];
-    difficulty: string;
-    userId: string;
-    excludeMealIds?: string[];
-    // D-WS7-166 — the cook-time cap, from the D-WS7-198 RESOLVED bag (never the
-    // raw client field: an explicit per-run null means "no limit this plan" and
-    // must reach the shelf as no term, which only the resolver's presence check
-    // preserves). The shelf is the ONLY place the cap can bite for a catalog
-    // meal — catalog slots skip the expand AI (wizardExpansion.ts) and with it
-    // wizard.candidate.expand's cap instruction.
-    maxCookTimeMinutes: number | null;
-    maxCookTimeCoverage: string;
-  },
-): Promise<Awaited<ReturnType<typeof buildStoreShortlist>>> {
-  try {
-    // Rotation salt (Block 4b-1) — the user's saved-plan count. Seeds shortlist
-    // variety across a user's plans; deterministic within a request (build-plans
-    // and expand of the same plan share one salt).
-    const rotationSalt = await prisma.mealPlanInstance.count({
-      where: { userId: opts.userId, isWizardDraft: false },
-    });
-    return await buildStoreShortlist(prisma, {
-      cuisines: opts.cuisines,
-      allergiesAndAvoidances: opts.allergiesAndAvoidances,
-      difficulty: opts.difficulty,
-      userId: opts.userId,
-      rotationSalt,
-      excludeMealIds: opts.excludeMealIds,
-      maxCookTimeMinutes: opts.maxCookTimeMinutes,
-      maxCookTimeCoverage: opts.maxCookTimeCoverage,
-      config: resolveStoreComposeConfig(),
-    });
-  } catch (err) {
-    logger.warn(
-      { event: "wizard_store_shortlist_failed", err },
-      "Store shortlist retrieval failed — composing fully live",
-    );
-    return { forPrompt: [], aliasToId: new Map() };
-  }
-}
+// D-WS9-038 / BUG-039 — shared catalog-compose retrieval (retrieveShelf) now
+// lives in lib/store/shelf.ts (WS9 Redesign Arc Block 1) so POST /wizard/shelf
+// retrieves exactly as the three generate endpoints do.
 
 // Block 4b-3 follow-up (BUG-049) — post-reconcile store-slot instrumentation.
 // The pre-reconcile `storeSlotsMarked` count can't distinguish "marks reached
@@ -545,6 +510,313 @@ export function createWizardRouter(
   const wizardLimiter = rateLimit({
     ...limiterOpts,
     keyFn: (req: Request) => req.userId ?? "anonymous",
+  });
+
+  // ── POST /wizard/shelf — WS9 Redesign Arc Block 1 (D-WS9-237) ────────────
+  // The Pick screen: "Meals to choose from". Returns ~size catalog + playlist
+  // meals that fit the wizard inputs, REAL ids, for the user to pick from;
+  // POST /plans/from-meals then builds ONE active plan from the picks (no
+  // chooser, no draft). Composition is composeShelf (lib/store/shelfCompose.ts):
+  // pinned named meals → playlist (per dial) → the shelf for the remainder,
+  // re-ordered by the discovery dial. No AI call unless `text` is sent (then
+  // the same parse_intent build-from-text runs, for its named meals only —
+  // the parse yields no cuisines/constraints; those ride on the body).
+  router.post("/wizard/shelf", requireAuth, wizardLimiter, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const parsed = WizardShelfRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "invalid request body",
+        details: parsed.error.flatten(),
+      });
+    }
+    const ent = await subscriptionService.can(
+      userId,
+      "kitchen_wizard_set_preferences",
+    );
+    if (!ent.allowed) {
+      return res.status(402).json({
+        error: "upgrade required",
+        reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
+      });
+    }
+    const body = parsed.data;
+    const size = body.size ?? WIZARD_SHELF_DEFAULT_SIZE;
+
+    try {
+      // 1. Preferences — resolved exactly as build-plans resolves them (override
+      //    ?? stored), then the dials against THIS list's size. playlistOnly ≡
+      //    playlist all; All-forces-None applies here too.
+      const resolved = await resolveEffectivePreferences(
+        prisma,
+        userId,
+        {
+          discoveryLevel: discoveryLevelFromInput(body),
+          playlistLevel: body.playlistOnly ? "all" : body.playlistLevel,
+          saucePreference: body.saucePreference,
+          maxCookTimeMinutes: body.maxCookTimeMinutes,
+          maxCookTimeCoverage: body.maxCookTimeCoverage,
+        },
+        { planDurationDays: body.planDurationDays },
+      );
+      // The discovery dial re-orders only when SET (per-run or stored non-none
+      // is still "set"; the stored default `none` with no override = today's
+      // order). discoveryLevelFromInput is undefined when the body sent nothing.
+      const discoveryLevel =
+        discoveryLevelFromInput(body) !== undefined ||
+        resolved.discoveryLevel !== "none"
+          ? applyAllForcesNone(resolved.discoveryLevel, resolved.playlistLevel)
+              .discoveryLevel
+          : undefined;
+      const playlistLevel = resolved.playlistLevel;
+      const resolvedAllergens = await resolveAllergenPreference(
+        prisma,
+        userId,
+        body.allergiesAndAvoidances,
+        { route: "wizard.shelf" },
+      );
+      const allergenConditions = allergenWhereConditions(
+        allergenTokensForUser(resolvedAllergens.allergiesAndAvoidances),
+      );
+      const difficultyCeiling = allowedDifficultyLevels(body.difficulty);
+
+      // 2. Tell Kiwi text — the same parse_intent build-from-text runs; only its
+      //    named meals are used here. A failed / unclear parse is not a failed
+      //    shelf: log and continue unpinned (the AI fallback is a later block).
+      const pinnedIds: string[] = [];
+      const unmatchedNames: string[] = [];
+      let textParsed: boolean | undefined;
+      if (body.text) {
+        textParsed = false;
+        const hiddenContext = await buildHiddenContext(userId);
+        const parseResult = await runAICall(
+          "wizard.directed.parse_intent",
+          {
+            parseInput: {
+              userInput: body.text,
+              planDurationDays: body.planDurationDays,
+              householdSize: body.householdSize,
+              wantsLeftovers: body.wantsLeftovers,
+              eatingStyles: body.eatingStyles,
+              allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
+              dietaryNotes: body.dietaryNotes ?? "",
+              hiddenContext,
+            },
+          },
+          ParsedIntentSchema,
+          { prisma, userId, temperature: 0 },
+        );
+        if (parseResult.success) {
+          textParsed = true;
+          const names = parseResult.data.explicitMeals
+            .map((n) => n.trim())
+            .filter((n) => n.length > 0);
+          if (names.length > 0) {
+            const candidates = await prisma.meal.findMany({
+              where: {
+                isPublic: true,
+                isArchived: false,
+                mealType: "dinner",
+                OR: names.map((n) => ({
+                  title: { contains: n, mode: "insensitive" as const },
+                })),
+                ...(allergenConditions.length > 0
+                  ? { AND: allergenConditions }
+                  : {}),
+              },
+              select: { id: true, title: true, dishFamilyKey: true },
+              take: 200,
+            });
+            for (const name of names) {
+              const lower = name.toLowerCase();
+              const hits = candidates.filter((c) =>
+                c.title.toLowerCase().includes(lower),
+              );
+              if (hits.length === 0) {
+                unmatchedNames.push(name);
+                continue;
+              }
+              // Exact title first, else the best-ranked family, else stable id.
+              hits.sort((a, b) => {
+                const ea = a.title.toLowerCase() === lower ? 0 : 1;
+                const eb = b.title.toLowerCase() === lower ? 0 : 1;
+                if (ea !== eb) return ea - eb;
+                const ra = lookupDishFamily(a.dishFamilyKey)?.rank ?? NON_CATALOG_RANK;
+                const rb = lookupDishFamily(b.dishFamilyKey)?.rank ?? NON_CATALOG_RANK;
+                return ra - rb || (a.id < b.id ? -1 : 1);
+              });
+              const pick = hits[0];
+              if (!pinnedIds.includes(pick.id)) pinnedIds.push(pick.id);
+            }
+          }
+        } else {
+          logger.warn(
+            {
+              event: "wizard_shelf_parse_failed",
+              userId,
+              reason: parseResult.reason,
+              promptKey: "wizard.directed.parse_intent",
+            },
+            "Shelf text parse failed — returning the shelf unpinned",
+          );
+        }
+      }
+
+      // 3. Playlist — the user's own declared meals. Allergen filter + the
+      //    difficulty ceiling apply; the cook-time cap does NOT (BUG-245's
+      //    ruling: a declared favourite over the cap is shown with its honest
+      //    time). Ordered by the source's catalog rank, then newest first.
+      const playlistRows = await prisma.playlistMeal.findMany({
+        where: {
+          userId,
+          meal: {
+            isArchived: false,
+            difficulty: { in: difficultyCeiling },
+            ...(allergenConditions.length > 0 ? { AND: allergenConditions } : {}),
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          mealId: true,
+          meal: { select: { sourceStoreMealId: true } },
+        },
+      });
+      const playlistSourceIds = [
+        ...new Set(
+          playlistRows
+            .map((r) => r.meal.sourceStoreMealId)
+            .filter((x): x is string => !!x),
+        ),
+      ];
+      const sourceFamilies =
+        playlistSourceIds.length > 0
+          ? await prisma.meal.findMany({
+              where: { id: { in: playlistSourceIds } },
+              select: { id: true, dishFamilyKey: true },
+            })
+          : [];
+      const rankBySource = new Map(
+        sourceFamilies.map((m) => [
+          m.id,
+          lookupDishFamily(m.dishFamilyKey)?.rank ?? NON_CATALOG_RANK,
+        ]),
+      );
+      const playlistIds = playlistRows
+        .map((r, i) => ({
+          id: r.mealId,
+          rank: r.meal.sourceStoreMealId
+            ? rankBySource.get(r.meal.sourceStoreMealId) ?? NON_CATALOG_RANK
+            : NON_CATALOG_RANK,
+          i,
+        }))
+        .sort((a, b) => a.rank - b.rank || a.i - b.i)
+        .map((r) => r.id)
+        .filter((id) => !pinnedIds.includes(id));
+
+      // 4. The shelf for the remainder — excluding what was shown, what the
+      //    playlist already covers (its forks' sources), and the pins. Over-
+      //    fetch ×2 when a discovery dial is set so the reorder has new-to-you
+      //    rows to promote; the composition trims to the remainder.
+      const counts = shelfRemainderFor({
+        size,
+        pinnedCount: pinnedIds.length,
+        playlistEligibleCount: playlistIds.length,
+        playlistLevel,
+      });
+      const excludeMealIds = [
+        ...new Set([
+          ...(body.excludeMealIds ?? []),
+          ...playlistSourceIds,
+          ...pinnedIds,
+        ]),
+      ];
+      const shelf =
+        counts.shelfRemainder > 0
+          ? await retrieveShelf(prisma, {
+              cuisines: body.cuisines ?? [],
+              allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
+              difficulty: body.difficulty,
+              userId,
+              excludeMealIds,
+              maxCookTimeMinutes: resolved.maxCookTimeMinutes,
+              maxCookTimeCoverage: resolved.maxCookTimeCoverage,
+              shortlistSize:
+                discoveryLevel === undefined
+                  ? counts.shelfRemainder
+                  : counts.shelfRemainder * 2,
+            })
+          : null;
+      const shelfIds = shelf?.selectedIds ?? [];
+
+      // 5. One detail read for every id in play (cards), one served read for
+      //    the new-to-you flag on the shelf rows.
+      const allIds = [...new Set([...pinnedIds, ...playlistIds, ...shelfIds])];
+      const detailRows =
+        allIds.length > 0
+          ? await prisma.meal.findMany({
+              where: { id: { in: allIds } },
+              select: MEAL_CARD_SELECT,
+            })
+          : [];
+      const detailById = new Map(detailRows.map((r) => [r.id, r]));
+      const catalogRefs = [...pinnedIds, ...shelfIds]
+        .map((id) => detailById.get(id))
+        .filter((r): r is NonNullable<typeof r> => !!r)
+        .map((r) => ({ id: r.id, title: r.title }));
+      const served = await servedCatalogIds(prisma, userId, catalogRefs);
+
+      const composed = composeShelf({
+        size,
+        pinnedIds,
+        playlistIds,
+        playlistLevel,
+        shelf: shelfIds.map((id) => ({ id, isNewToYou: !served.has(id) })),
+        discoveryLevel,
+      });
+
+      const playlistSet = new Set(playlistIds);
+      const meals = composed.meals
+        .map((m) => {
+          const row = detailById.get(m.id);
+          if (!row) return null;
+          return {
+            ...toMealCard(row),
+            isNewToYou: m.source === "shelf" && !served.has(m.id),
+            isPlaylist: m.source === "playlist" || playlistSet.has(m.id),
+            isPinned: m.isPinned,
+            matchesCuisine: shelf?.matchesById.get(m.id) ?? null,
+            source: m.source,
+          };
+        })
+        .filter((m): m is NonNullable<typeof m> => m !== null);
+
+      const shelfShown = meals.filter((m) => m.source === "shelf" && !m.isPinned).length;
+      const totalEligible = shelf?.eligibleCount ?? 0;
+      return res.json({
+        meals,
+        totalEligible,
+        hasMore: totalEligible > shelfShown,
+        unmatchedNames,
+        ...(textParsed === undefined ? {} : { textParsed }),
+        metadata: {
+          size,
+          playlistLevel,
+          discoveryLevel: discoveryLevel ?? null,
+          playlistCount: composed.playlistCount,
+          pinnedCount: composed.pinnedCount,
+          shelfRemainder: composed.shelfRemainder,
+        },
+      });
+    } catch (err) {
+      logger.error(
+        { event: "wizard_shelf_failed", userId, err },
+        "POST /wizard/shelf failed",
+      );
+      return res.status(500).json({ error: "failed to build shelf" });
+    }
   });
 
   router.post(
