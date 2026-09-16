@@ -19,6 +19,7 @@ import { currentWeekRange, resolveThisWeekPlan } from "../../lib/planDates";
 import { addUtcDays, todayFor, tomorrowUtc } from "../../lib/planDayAssignment";
 import { createPlansRouter } from "../plans";
 import { withSessionUser } from "./fixtures/sessionUserStub";
+import { formatWeekOfDate } from "../../lib/planTitle";
 
 const U = "from-meals-user";
 
@@ -44,7 +45,12 @@ interface SourceMeal {
   difficulty?: string;
 }
 
-function makeStub(opts: { meals: SourceMeal[]; priorWinner?: { id: string; title: string } }) {
+function makeStub(opts: {
+  meals: SourceMeal[];
+  priorWinner?: { id: string; title: string };
+  // Post-pass Part D — the stored first name the deterministic title reads.
+  firstName?: string;
+}) {
   const rec: Recorder = {
     createdInstances: [],
     createManyItems: [],
@@ -183,6 +189,7 @@ function makeStub(opts: { meals: SourceMeal[]; priorWinner?: { id: string; title
       },
     },
     user: {
+      findUnique: async () => ({ firstName: opts.firstName ?? "" }),
       updateMany: async () => {
         rec.firstPlanStamps += 1;
         return { count: 1 };
@@ -349,8 +356,8 @@ describe("POST /api/plans/from-meals", () => {
     }
   });
 
-  it("uses the stored household when the body has none; defaults the title", async () => {
-    const { prisma, rec } = makeStub({ meals: MEALS });
+  it("uses the stored household when the body has none; names the plan from the first name + start date (Part D)", async () => {
+    const { prisma, rec } = makeStub({ meals: MEALS, firstName: "Hans" });
     const h = await spinUp(prisma);
     try {
       const { status, json } = await post(h, { mealIds: ["own-chili"], planDurationDays: 1 });
@@ -359,10 +366,46 @@ describe("POST /api/plans/from-meals", () => {
       // A one-day plan: the window opens today, its one dinner is tomorrow.
       assert.equal(json.startDate, todayFor(undefined).toISOString().slice(0, 10));
       assert.equal(json.endDate, tomorrowUtc().toISOString().slice(0, 10));
-      assert.equal(rec.templatesCreated[0].title, "Your picks");
+      assert.equal(
+        rec.templatesCreated[0].title,
+        `Hans's meals, week of ${formatWeekOfDate(todayFor(undefined))}`,
+      );
       assert.deepEqual(rec.forkedFrom, []);
     } finally {
       await h.close();
+    }
+  });
+
+  // Post-pass Part D ([WS9-arc-PS-D]) — the deterministic name, pinned:
+  // localDate fixes the start date; the client's "Your picks" sentinel is NOT
+  // a name; no stored name → the fallback. No AI call anywhere on this route.
+  it("Part D: 'Your picks' from the client is not a name → '{first name}'s meals, week of {start}'; no name → 'Meals for the week of {start}'", async () => {
+    const named = makeStub({ meals: MEALS, firstName: "Hans" });
+    const h1 = await spinUp(named.prisma);
+    try {
+      const { status } = await post(h1, {
+        mealIds: ["own-chili"],
+        planDurationDays: 1,
+        title: "Your picks",
+        localDate: "2026-09-16",
+      });
+      assert.equal(status, 201);
+      assert.equal(named.rec.templatesCreated[0].title, "Hans's meals, week of Sep 16");
+    } finally {
+      await h1.close();
+    }
+    const unnamed = makeStub({ meals: MEALS, firstName: "  " });
+    const h2 = await spinUp(unnamed.prisma);
+    try {
+      const { status } = await post(h2, {
+        mealIds: ["own-chili"],
+        planDurationDays: 1,
+        localDate: "2026-12-30",
+      });
+      assert.equal(status, 201);
+      assert.equal(unnamed.rec.templatesCreated[0].title, "Meals for the week of Dec 30");
+    } finally {
+      await h2.close();
     }
   });
 

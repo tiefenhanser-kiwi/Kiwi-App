@@ -44,6 +44,7 @@ import {
   loadAssignableMeals,
   todayFor,
 } from "../lib/planDayAssignment";
+import { picksPlanTitle, UNNAMED_PICKS_TITLE } from "../lib/planTitle";
 import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
 import { markFirstPlanCreated } from "../lib/firstPlan";
@@ -1440,7 +1441,11 @@ export function createPlansRouter(
     // Block 2 (Part D, rule (e)) — the client's local calendar day = "today".
     localDate: LocalDateSchema.optional(),
   });
-  const FROM_MEALS_DEFAULT_TITLE = "Your picks";
+  // Post-pass Part D ([WS9-arc-PS-D]) — a plan built from picks is named
+  // deterministically (lib/planTitle.ts) from the user's first name and the
+  // window's start date; a body title is honoured only when it is a real
+  // name, not the client's "Your picks" sentinel (the Pick screen still sends
+  // it). No AI call — an AI-authored name is a later block's job.
 
   router.post(
     "/plans/from-meals",
@@ -1513,7 +1518,19 @@ export function createPlansRouter(
 
             // The hidden template — same dedup key as materializeWizardDraft
             // (userId + wizard source + title + day-count).
-            const planTitle = title ?? FROM_MEALS_DEFAULT_TITLE;
+            const bodyTitle =
+              title !== undefined && title.trim() !== UNNAMED_PICKS_TITLE ? title : undefined;
+            const planTitle =
+              bodyTitle ??
+              picksPlanTitle(
+                (
+                  await tx.user.findUnique({
+                    where: { id: userId },
+                    select: { firstName: true },
+                  })
+                )?.firstName,
+                today,
+              );
             const existingTemplate = await tx.mealPlanTemplate.findFirst({
               where: {
                 userId,
