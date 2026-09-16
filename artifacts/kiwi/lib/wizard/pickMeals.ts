@@ -96,6 +96,19 @@ export function appendPage(state: PickState, page: WizardShelfResponse): PickSta
   };
 }
 
+/**
+ * Block 2c Part C — whether the "new to you" pill is worth showing. The flag
+ * means "not in the user's plan history", so a NEW user sees it on nearly
+ * every card, where it says nothing. Ruled: suppress it when it applies to
+ * MORE THAN HALF of the cards on screen; recomputed as rounds append. Client
+ * only — the flag keeps arriving.
+ */
+export function showNewToYouChips(meals: readonly Pick<ShelfMeal, "isNewToYou">[]): boolean {
+  if (meals.length === 0) return true;
+  const fresh = meals.filter((m) => m.isNewToYou).length;
+  return fresh * 2 <= meals.length;
+}
+
 /** The ids to exclude on the next round — every card on screen. */
 export function excludeIdsFor(state: Pick<PickState, "meals">): string[] {
   return state.meals.map((m) => m.id);

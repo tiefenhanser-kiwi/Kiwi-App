@@ -50,9 +50,17 @@ interface Props {
   /** The user's cook-time cap for this run; null = no cap, no pill. */
   capMinutes: number | null;
   onToggle: () => void;
+  /** Block 2c Part C — the screen-level rule (showNewToYouChips); default on. */
+  showNewToYou?: boolean;
 }
 
-export function MealPickCard({ meal, selected, capMinutes, onToggle }: Props) {
+export function MealPickCard({
+  meal,
+  selected,
+  capMinutes,
+  onToggle,
+  showNewToYou = true,
+}: Props) {
   const overCap = isOverCap(meal, capMinutes);
   // Block 2c Part F (BUG-284) — de-duped: the catalog's tags repeat the
   // difficulty and a lower-cased cuisine, which collided as keys.
@@ -109,7 +117,7 @@ export function MealPickCard({ meal, selected, capMinutes, onToggle }: Props) {
               <Text style={[s.pillText, s.pillPlaylistText]}>{PLAYLIST_PILL}</Text>
             </View>
           )}
-          {meal.isNewToYou && (
+          {meal.isNewToYou && showNewToYou && (
             <View style={[s.pill, s.pillNew]}>
               <Text style={[s.pillText, s.pillNewText]}>{NEW_TO_YOU_PILL}</Text>
             </View>

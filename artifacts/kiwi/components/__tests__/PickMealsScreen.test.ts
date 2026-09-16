@@ -474,3 +474,37 @@ test("PlaylistPickScreen: builds the shelf request from STORED prefs with source
   // The cap comes from stored prefs (45) → the 120-min braise is flagged, not blocked.
   assert.ok(t.includes("over your 45-min cap"), t);
 });
+
+// ── Block 2c Part C — the "new to you" pill is suppressed when it is on more
+// than half the cards on screen, recomputed as "Get more options" appends ──
+
+function countNewPills(root: Json): number {
+  return walk(root).filter(
+    (n) => n.type === "rn-text" && allText(n).join("") === NEW_TO_YOU_PILL,
+  ).length;
+}
+function tenWith(fresh: number): ShelfMeal[] {
+  return Array.from({ length: 10 }, (_, i) => meal(`t${i}`, { isNewToYou: i < fresh }));
+}
+
+test("new-to-you: 6 of 10 cards new → NO pills; 3 of 10 → three pills", async () => {
+  const six = await mount({ shelf: shelf(tenWith(6), 40) });
+  assert.equal(countNewPills(six.root()), 0);
+  await act(async () => screen!.renderer.unmount());
+  screen!.client.clear();
+  screen = null;
+  const three = await mount({ shelf: shelf(tenWith(3), 40) });
+  assert.equal(countNewPills(three.root()), 3);
+});
+
+test("new-to-you: a round that appends two new cards flips 2-of-4 (shown) to 4-of-6 (hidden), and back", async () => {
+  const m = await mount({ shelf: shelf(tenWith(2).slice(0, 4), 40) });
+  assert.equal(countNewPills(m.root()), 2, "2 of 4 is exactly half → shown");
+  moreResponse = () => shelf([meal("x1", { isNewToYou: true }), meal("x2", { isNewToYou: true })], 40, true);
+  await tap(byLabel(m.root(), MORE_LABEL), "Get more options");
+  assert.ok(m.text().includes("Meal x1"), "round appended");
+  assert.equal(countNewPills(m.root()), 0, "4 of 6 → suppressed");
+  moreResponse = () => shelf([meal("y1"), meal("y2"), meal("y3")], 40, true);
+  await tap(byLabel(m.root(), MORE_LABEL), "Get more options again");
+  assert.equal(countNewPills(m.root()), 4, "4 of 9 → shown again");
+});

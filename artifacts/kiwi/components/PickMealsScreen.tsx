@@ -56,6 +56,7 @@ import {
   moreCaption,
   overCapPickedCount,
   pickHeaderSubline,
+  showNewToYouChips,
   SLOW_ROUND_MS,
   togglePick,
   type PickMealsParamsInput,
@@ -185,6 +186,8 @@ export function PickMealsScreen({
   const exhausted = isExhausted(state);
   const overCapPicked = overCapPickedCount(state, capMinutes);
   const pickedCount = state.pickedIds.length;
+  // Block 2c Part C — over the cards on screen NOW, so a round can flip it.
+  const newToYouChips = showNewToYouChips(state.meals);
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
@@ -212,6 +215,7 @@ export function PickMealsScreen({
               meal={meal}
               selected={state.pickedIds.includes(meal.id)}
               capMinutes={capMinutes}
+              showNewToYou={newToYouChips}
               onToggle={() => setState((prev) => togglePick(prev, meal.id))}
             />
           ))}

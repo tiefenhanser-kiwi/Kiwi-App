@@ -188,3 +188,16 @@ test("parsePickMealsParams: missing or malformed params → null, never a throw"
   assert.equal(parsePickMealsParams({ shelf: "{not json", request: "{}" }), null);
   assert.equal(parsePickMealsParams({ shelf: JSON.stringify({}), request: "{}" }), null);
 });
+
+// ── Block 2c Part C — the "new to you" pill's more-than-half rule ────────────
+
+test("showNewToYouChips: suppressed when MORE THAN HALF the cards are new; shown at half or fewer", async () => {
+  const { showNewToYouChips } = await import("../pickMeals");
+  const cards = (fresh: number, total: number) =>
+    Array.from({ length: total }, (_, i) => ({ isNewToYou: i < fresh }));
+  assert.equal(showNewToYouChips(cards(6, 10)), false, "6 of 10 → no chips");
+  assert.equal(showNewToYouChips(cards(5, 10)), true, "exactly half → chips");
+  assert.equal(showNewToYouChips(cards(3, 10)), true, "3 of 10 → chips");
+  assert.equal(showNewToYouChips(cards(1, 1)), false, "1 of 1 is everything");
+  assert.equal(showNewToYouChips([]), true, "empty is not 'more than half'");
+});
