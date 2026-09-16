@@ -9,6 +9,7 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -17,7 +18,7 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import DraggableFlatList, {
   ScaleDecorator,
@@ -41,11 +42,16 @@ import {
 } from "@/constants/tokens";
 import { useApp } from "@/contexts/AppContext";
 import { resolveDisplayTitle } from "@/components/DisplayTitle";
-import { fromServerDifficulty, toServerDifficulty } from "@/lib/api/builder";
+import { fromServerDifficulty, parseMeal, toServerDifficulty } from "@/lib/api/builder";
 import { useDishes } from "@/hooks/useDishes";
 import { savedDishFromListItem } from "@/lib/dishes/savedDishFromListItem";
 import { resolvePostSaveNav } from "@/lib/builder/postSaveNav";
 import { completePlaylistSave } from "@/lib/builder/playlistAfterSave";
+import { PlaylistBulkIntake } from "@/components/PlaylistBulkIntake";
+import {
+  markImportReviewed,
+  stageImportReview,
+} from "@/lib/builder/playlistImportReview";
 import { addToPlaylist, PLAYLIST_QUERY_KEY } from "@/lib/api/playlist";
 import {
   armDishHandoff,
@@ -145,6 +151,7 @@ export default function MealBuilderScreen() {
     addToPlanId,
     addDishId,
     toPlaylist,
+    reviewReturn,
   } = useLocalSearchParams<{
     mealId?: string;
     planId?: string;
@@ -158,6 +165,9 @@ export default function MealBuilderScreen() {
     // rides every one of the six create flows and, at the single save funnel
     // below, adds the new meal to the playlist and lands back on the tab.
     toPlaylist?: string;
+    // WS9 Redesign Arc Block 2c Part A — opened from the bulk intake's review
+    // sheet ("Review ›"): a library-edit save marks the row Reviewed ✓.
+    reviewReturn?: "playlist";
   }>();
   const wantsPlaylist = toPlaylist === "1";
   // Threaded onto the four flows that leave this screen (Ask Kiwi + the three
@@ -195,6 +205,30 @@ export default function MealBuilderScreen() {
   // is read stale on a same-tick second tap; the ref is set/reset synchronously
   // so a rapid double-tap can't fire a second create POST and dupe the meal.
   const savingRef = useRef(false);
+  // WS9 Redesign Arc Block 2c Part A — the bulk intake is running: the screen
+  // cannot be dismissed without a confirm (header back, Android back, and the
+  // iOS swipe is disabled via the Stack options below). Saved meals stay
+  // saved; leaving stops the rest.
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const confirmLeaveBulk = (leave: () => void) => {
+    Alert.alert(
+      "Kiwi is still writing",
+      "Leave now and the meals already saved stay saved; the rest stop.",
+      [
+        { text: "Keep going", style: "cancel" },
+        { text: "Leave", style: "destructive", onPress: leave },
+      ],
+    );
+  };
+  useEffect(() => {
+    if (!bulkRunning) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      confirmLeaveBulk(() => router.back());
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkRunning]);
 
   // WS7-6 1G — hydration now reads from the server (GET /meals/:id) instead
   // of the lib/stubs catalog. Without this, a library-context edit would
@@ -408,7 +442,10 @@ export default function MealBuilderScreen() {
         ? "Edit Meal"
         : draftMeal
           ? "Review imported recipe"
-          : "Create Meal";
+          : wantsPlaylist
+            // Block 2c Part A — the Playlist tab's "Add meals" context.
+            ? "Add to your playlist"
+            : "Create Meal";
 
   // ── Mode switching with unsaved-data guard ──────────────────────
   const hasManualData = (): boolean => {
@@ -728,6 +765,9 @@ export default function MealBuilderScreen() {
         ...buildUpdateMealInput(input),
         ...(bumpPlanId ? { bumpPlanId } : {}),
       });
+      // Block 2c Part A — a "Review ›" edit from the bulk intake's sheet
+      // flips that row to Reviewed ✓ on save.
+      if (reviewReturn === "playlist") markImportReviewed(id);
       Alert.alert("Saved", `${input.title} was updated.`, [
         { text: "OK", onPress: () => router.back() },
       ]);
@@ -1002,7 +1042,12 @@ export default function MealBuilderScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
-      <Header showBack title={headerTitle} />
+      <Stack.Screen options={{ gestureEnabled: !bulkRunning }} />
+      <Header
+        showBack
+        title={headerTitle}
+        onBack={bulkRunning ? () => confirmLeaveBulk(() => router.back()) : undefined}
+      />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -1049,9 +1094,29 @@ export default function MealBuilderScreen() {
           </View>
         )}
 
+        {/* WS9 Redesign Arc Block 2c Part A (D-WS9-244) — the bulk intake,
+            ABOVE the six ways in, in the Playlist tab's "Add meals" context.
+            One Ask-Kiwi call per box, one at a time (the runner owns the
+            sequence); each result is saved through the same POST /me/meals
+            body the builder posts for an untouched draft and added to the
+            playlist; the run ends on the tab with the review sheet. */}
+        {!mealId && !draftMeal && !addDishId && wantsPlaylist && (
+          <PlaylistBulkIntake
+            deps={{ parseMeal, saveMeal, addToPlaylist }}
+            onRunningChange={setBulkRunning}
+            onUpgradeRequired={() => router.push("/upgrade")}
+            onFinished={(saved) => {
+              stageImportReview(saved);
+              queryClient.invalidateQueries({ queryKey: PLAYLIST_QUERY_KEY });
+              router.dismissTo("/(tabs)/playlist");
+            }}
+          />
+        )}
+
         {/* Mode picker — create-from-scratch context only (no mealId, no draft, no addDishId) */}
         {!mealId && !draftMeal && !addDishId && (
           <View>
+            {wantsPlaylist && <Text style={s.sectionLabelQuiet}>One at a time</Text>}
             <Text style={s.sectionHeader}>How do you want to build this meal?</Text>
             {/* WS7-6 G3 Scope A — Ask-Kiwi-first ordering, mirroring the #4
                 reference chooser (Ask Kiwi → create options). WS7-6 G1: Mode A
@@ -2222,6 +2287,15 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     marginBottom: Spacing[2],
     textAlign: "center",
+  },
+  sectionLabelQuiet: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[600],
+    fontWeight: Typography.fontWeight.semibold,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 2,
   },
   sectionHeader: {
     fontSize: Typography.fontSize.md,

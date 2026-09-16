@@ -35,7 +35,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -43,11 +43,18 @@ import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { MealRowBody } from "@/components/MealRowBody";
 import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
+import { PlaylistImportReviewSheet } from "@/components/PlaylistImportReviewSheet";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useHomePayload } from "@/hooks/useHomePayload";
 import { formatMacroLine } from "@/lib/format/macros";
 import { cardPills } from "@/lib/meals/cardPills";
 import { getPlan, type PlanDetail } from "@/lib/api/plans";
+import {
+  beginImportReview,
+  clearImportReview,
+  endImportReview,
+  useImportReview,
+} from "@/lib/builder/playlistImportReview";
 import {
   getPlaylist,
   PLAYLIST_QUERY_KEY,
@@ -123,6 +130,23 @@ export function PlaylistScreen() {
     () => new Set(activePlanQuery.data?.items.map((i) => i.mealId) ?? []),
     [activePlanQuery.data],
   );
+
+  // Block 2c Part A — the bulk intake's review sheet. Staged by the builder
+  // when a run finishes; hidden while a "Review ›" editor is open above this
+  // tab (a native Modal would sit over it) and shown again on focus.
+  const review = useImportReview();
+  useFocusEffect(
+    React.useCallback(() => {
+      endImportReview();
+    }, []),
+  );
+  const handleReviewMeal = (mealId: string) => {
+    beginImportReview(mealId);
+    router.push({
+      pathname: "/meal-builder",
+      params: { mealId, reviewReturn: "playlist" },
+    });
+  };
 
   // Remove — optimistic: the row drops at once, the DELETE is idempotent, a
   // failure restores the cached list (undo not required by the ruling).
@@ -209,6 +233,13 @@ export function PlaylistScreen() {
           </View>
         )}
       </ScrollView>
+
+      <PlaylistImportReviewSheet
+        visible={review.items.length > 0 && review.reviewingId === null}
+        items={review.items}
+        onReview={handleReviewMeal}
+        onDone={clearImportReview}
+      />
 
       {/* Sticky footer. */}
       <View style={[s.footer, { paddingBottom: insets.bottom + Spacing[3] }]}>

@@ -315,3 +315,46 @@ test("row shape: no description and all-zero macros → neither line renders (th
   assert.ok(t.includes("35 min · 15 min hands-on · easy"));
   assert.deepEqual(playlistPills(playlist[0]), []);
 });
+
+// ── Block 2c Part A — the bulk intake's review sheet over the tab ───────────
+
+test("review sheet: staged saves show the sheet with Hans's copy; Review › hides it and opens the editor with reviewReturn; the editor's save flips the row; Done clears", async () => {
+  const { stageImportReview, markImportReviewed, getImportReview } = await import(
+    "@/lib/builder/playlistImportReview"
+  );
+  const { IMPORT_REVIEW_TITLE, IMPORT_REVIEW_BODY, IMPORT_REVIEWED } = await import(
+    "../PlaylistImportReviewSheet"
+  );
+  stageImportReview([
+    { mealId: "m1", title: "Grandma's Lasagna" },
+    { mealId: "m2", title: "Miso Salmon" },
+  ]);
+  const m = await mount();
+  const sheet = () => walk(m.root()).find((n) => n.type === "rn-modal");
+  // The Modal stub renders nothing while !visible — presence IS visibility.
+  assert.ok(sheet(), "the sheet shows over the tab");
+  const t = m.text();
+  assert.ok(t.includes(IMPORT_REVIEW_TITLE) && t.includes(IMPORT_REVIEW_BODY), t);
+  assert.ok(byLabel(m.root(), "Imported Grandma's Lasagna") && byLabel(m.root(), "Imported Miso Salmon"));
+  // Done is live with nothing reviewed — nothing is required.
+  assert.ok(!byTestId(m.root(), "playlist-import-done")!.props.disabled);
+
+  await tap(byLabel(m.root(), "Review Miso Salmon"), "Review ›");
+  assert.deepEqual(pushed, [
+    { pathname: "/meal-builder", params: { mealId: "m2", reviewReturn: "playlist" } },
+  ]);
+  assert.equal(sheet(), undefined, "hidden while the editor is open above the tab");
+
+  // The editor saved (meal-builder calls this on a reviewReturn=playlist save).
+  await act(async () => {
+    markImportReviewed("m2");
+  });
+  assert.ok(sheet(), "shown again");
+  assert.ok(byTestId(m.root(), "import-reviewed-m2"), "the row flipped to Reviewed ✓");
+  assert.ok(m.text().includes(IMPORT_REVIEWED));
+  assert.ok(byLabel(m.root(), "Review Grandma's Lasagna"), "the other row still offers Review");
+
+  await tap(byTestId(m.root(), "playlist-import-done"), "Done");
+  assert.equal(sheet(), undefined);
+  assert.deepEqual(getImportReview().items, []);
+});
