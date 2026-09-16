@@ -20,6 +20,7 @@ import { streamPlanCandidates as productionStreamPlanCandidates } from "../lib/a
 import { withAIFailureStatus } from "../lib/ai/errors";
 import {
   WIZARD_SHELF_DEFAULT_SIZE,
+  WizardCandidateDismissRequestSchema,
   WizardExpandRequestSchema,
   WizardExpandedPlanDetailsSchema,
   WizardInputSchema,
@@ -1928,6 +1929,38 @@ export function createWizardRouter(
       return res.json(response);
     },
   );
+
+  // ── POST /wizard/candidates/dismiss — "Not for me" (D-WS9-191 Block 1, Part C) ──
+  // The card's third action. Writes ONE activity row (plan_candidate_dismissed,
+  // entityType wizard_candidate, the candidate's title / meal titles / store ids
+  // / source in metadata) so a future wizard can read what this user turned
+  // down — and does nothing else: no preference write, no prompt feedback,
+  // nothing read back anywhere (Hans, September 16, 2026). Goes through the
+  // shared lib/userActivity.ts emitter (the route-local wrapper carries no
+  // metadata), which is the injectable seam the activate route already uses.
+  // Cheap write: requireAuth only, as /wizard/drafts/:id/dismiss (this file's
+  // convention for a cheap write carries no limiter).
+  router.post("/wizard/candidates/dismiss", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    const parsed = WizardCandidateDismissRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "invalid request body",
+        details: parsed.error.flatten(),
+      });
+    }
+    const { title, mealTitles, storeMealIds, source } = parsed.data;
+    await emitSharedActivity({
+      userId,
+      eventType: "plan_candidate_dismissed",
+      entityType: "wizard_candidate",
+      metadata: { title, mealTitles, storeMealIds: storeMealIds ?? [], source },
+    });
+    return res.status(204).end();
+  });
 
   // WS9 Redesign Arc Block 2 (Part C) — POST /wizard/surprise-me DELETED. Hans
   // retired Surprise Me (D-WS9-237): the Pick screen + /plans/from-meals is the

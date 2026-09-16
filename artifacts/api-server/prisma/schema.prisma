@@ -188,6 +188,9 @@ enum ActivityEventType {
   plan_status_changed
   plan_activated_this_week
   wizard_candidate_expanded
+  // D-WS9-191 Block 1 — "Not for me" on a plan-options card. Logged only
+  // (title, mealTitles, storeMealIds, source in metadata); nothing reads it yet.
+  plan_candidate_dismissed
 }
 
 enum SpiceTolerance {

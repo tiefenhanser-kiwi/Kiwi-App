@@ -344,6 +344,20 @@ export type WizardPlanCandidateWire = Omit<
   meals: WizardCandidateMealWire[];
 };
 
+// D-WS9-191 Block 1 (Part C) — POST /wizard/candidates/dismiss body: what the
+// user said "Not for me" to. Sizes mirror the candidate schema. The row is
+// the whole feature (no preference write, nothing reads it back — Hans:
+// "I'm not taking on preference stamping and learning stuff at this stage").
+export const WizardCandidateDismissRequestSchema = z.object({
+  title: z.string().min(1).max(120),
+  mealTitles: z.array(z.string().min(1).max(200)).min(1).max(7),
+  storeMealIds: z.array(z.string().min(1).max(64)).max(7).optional(),
+  source: z.enum(["wizard", "tellkiwi"]),
+});
+export type WizardCandidateDismissRequest = z.infer<
+  typeof WizardCandidateDismissRequestSchema
+>;
+
 // PRD §5.5 + §5.8 — wrapper with empty/restrictive-constraint flag.
 export const WizardPlanCandidatesResultSchema = z.object({
   candidates: z.array(WizardPlanCandidateSchema).max(3),

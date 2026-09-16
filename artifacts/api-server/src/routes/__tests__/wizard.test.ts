@@ -5830,3 +5830,125 @@ describe("D-WS9-191 Block 1 — GET /wizard/limits default", () => {
     }
   });
 });
+
+// ── D-WS9-191 Block 1 (Part C) — POST /wizard/candidates/dismiss ─────────────
+// "Not for me" writes ONE activity row and learns nothing.
+describe("POST /api/wizard/candidates/dismiss — plan_candidate_dismissed", () => {
+  function recorder() {
+    const calls: Array<{
+      userId: string;
+      eventType: string;
+      entityType?: string;
+      entityId?: string;
+      metadata?: Record<string, unknown>;
+    }> = [];
+    const emitActivity = (async (args: (typeof calls)[number]) => {
+      calls.push(args);
+    }) as never;
+    return { calls, emitActivity };
+  }
+
+  it("204 + one activity row with the candidate's title, meal titles, store ids and source in metadata", async () => {
+    const rec = recorder();
+    const prisma = makeStubPrisma();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+      emitActivity: rec.emitActivity,
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/candidates/dismiss`, {
+        method: "POST",
+        headers: AUTH_HEADERS("dismiss-user-1"),
+        body: JSON.stringify({
+          title: "High-Protein Reset",
+          mealTitles: ["Herb chicken + roasted potatoes", "Steak + green beans"],
+          storeMealIds: ["store-9"],
+          source: "wizard",
+        }),
+      });
+      assert.equal(res.status, 204);
+      assert.equal(await res.text(), "");
+      assert.equal(rec.calls.length, 1);
+      assert.deepEqual(rec.calls[0], {
+        userId: "dismiss-user-1",
+        eventType: "plan_candidate_dismissed",
+        entityType: "wizard_candidate",
+        metadata: {
+          title: "High-Protein Reset",
+          mealTitles: ["Herb chicken + roasted potatoes", "Steak + green beans"],
+          storeMealIds: ["store-9"],
+          source: "wizard",
+        },
+      });
+      // No other effect: no preference write, no AI call, no other activity.
+      assert.equal(prisma._activities().length, 0);
+      assert.equal(prisma._llmCalls().length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("storeMealIds is optional (stored as []) and source tellkiwi is accepted", async () => {
+    const rec = recorder();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      emitActivity: rec.emitActivity,
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/candidates/dismiss`, {
+        method: "POST",
+        headers: AUTH_HEADERS("dismiss-user-2"),
+        body: JSON.stringify({ title: "T", mealTitles: ["A"], source: "tellkiwi" }),
+      });
+      assert.equal(res.status, 204);
+      assert.deepEqual(rec.calls[0].metadata, {
+        title: "T",
+        mealTitles: ["A"],
+        storeMealIds: [],
+        source: "tellkiwi",
+      });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("400 on a bad body (no row written); 401 unauthenticated", async () => {
+    const rec = recorder();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+      emitActivity: rec.emitActivity,
+    });
+    try {
+      for (const bad of [
+        {},
+        { title: "", mealTitles: ["A"], source: "wizard" },
+        { title: "T", mealTitles: [], source: "wizard" },
+        { title: "T", mealTitles: ["A"], source: "surprise" },
+        { title: "T", mealTitles: ["A"], source: "wizard", storeMealIds: "store-1" },
+      ]) {
+        const res = await fetch(`${harness.baseUrl}/wizard/candidates/dismiss`, {
+          method: "POST",
+          headers: AUTH_HEADERS("dismiss-user-3"),
+          body: JSON.stringify(bad),
+        });
+        assert.equal(res.status, 400, JSON.stringify(bad));
+      }
+      assert.equal(rec.calls.length, 0);
+      const anon = await fetch(`${harness.baseUrl}/wizard/candidates/dismiss`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "T", mealTitles: ["A"], source: "wizard" }),
+      });
+      assert.equal(anon.status, 401);
+      assert.equal(rec.calls.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
