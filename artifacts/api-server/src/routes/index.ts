@@ -9,6 +9,7 @@ import homeRouter from "./home";
 import mealsRouter from "./meals";
 import meRouter from "./me";
 import plansRouter from "./plans";
+import playlistRouter from "./playlist";
 import recipesRouter from "./recipes";
 import wizardRouter from "./wizard";
 
@@ -24,6 +25,8 @@ router.use(homeRouter);
 router.use(meRouter);
 router.use(mealsRouter);
 router.use(plansRouter);
+// WS9 Redesign Arc Block 1 — the playlist (D-WS9-234).
+router.use(playlistRouter);
 router.use(recipesRouter);
 router.use(wizardRouter);
 

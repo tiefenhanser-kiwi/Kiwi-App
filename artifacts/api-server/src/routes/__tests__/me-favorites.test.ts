@@ -25,9 +25,13 @@ interface FavRow {
 function makeStubPrisma(opts: {
   meals?: Set<string>;
   initialFavorites?: FavRow[];
+  // BUG-276 — private meals and their owners; a meal listed here is
+  // isPublic:false. Meals in `meals` but not here are public (userId null).
+  privateOwners?: Record<string, string>;
 }) {
   const meals = opts.meals ?? new Set<string>();
   const favorites: FavRow[] = [...(opts.initialFavorites ?? [])];
+  const privateOwners = opts.privateOwners ?? {};
 
   return {
     meal: {
@@ -35,8 +39,12 @@ function makeStubPrisma(opts: {
         where,
       }: {
         where: { id: string };
-      }): Promise<{ id: string } | null> => {
-        return meals.has(where.id) ? { id: where.id } : null;
+      }): Promise<{ id: string; isPublic: boolean; userId: string | null } | null> => {
+        if (!meals.has(where.id)) return null;
+        const owner = privateOwners[where.id];
+        return owner === undefined
+          ? { id: where.id, isPublic: true, userId: null }
+          : { id: where.id, isPublic: false, userId: owner };
       },
     },
     favorite: {
@@ -176,6 +184,33 @@ describe("POST /me/favorites", () => {
       const b1 = (await r1.json()) as { favorite: { id: string } };
       const b2 = (await r2.json()) as { favorite: { id: string } };
       assert.equal(b1.favorite.id, b2.favorite.id);
+      assert.equal(prisma._favorites().length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // BUG-276 — the ownership gate. Same rule as the playlist.
+  it("BUG-276: 403 for another user's private meal; the owner may favourite their own", async () => {
+    const prisma = makeStubPrisma({
+      meals: new Set(["mine", "theirs"]),
+      privateOwners: { mine: USER_ID, theirs: "someone-else" },
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const token = signToken(USER_ID);
+      const post = async (mealId: string) =>
+        fetch(`${harness.baseUrl}/me/favorites`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ mealId }),
+        });
+      assert.equal((await post("theirs")).status, 403);
+      assert.equal(prisma._favorites().length, 0, "nothing written on 403");
+      assert.equal((await post("mine")).status, 201);
       assert.equal(prisma._favorites().length, 1);
     } finally {
       await harness.close();

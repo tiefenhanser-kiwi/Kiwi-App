@@ -1210,10 +1210,15 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     try {
       const meal = await prisma.meal.findUnique({
         where: { id: mealId },
-        select: { id: true },
+        select: { id: true, isPublic: true, userId: true },
       });
       if (!meal) {
         return res.status(404).json({ error: "meal not found" });
+      }
+      // BUG-276 — ownership gate: a private meal can be favourited only by
+      // its owner. Same gate as the playlist (routes/playlist.ts).
+      if (!meal.isPublic && meal.userId !== req.userId) {
+        return res.status(403).json({ error: "forbidden" });
       }
 
       // Idempotent: unique (userId, mealId) — upsert returns the existing row
