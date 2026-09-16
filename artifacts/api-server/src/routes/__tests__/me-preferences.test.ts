@@ -341,7 +341,10 @@ describe("PATCH /me/preferences", () => {
       };
       const one = await patch({ discoveryMealsPerWeek: 1 });
       assert.equal(one.discoveryLevel, "some");
-      assert.equal("discoveryMealsPerWeek" in one, false, "legacy key reached the row");
+      // The stored row never carries the legacy key (the stub echoes the row
+      // it wrote); what the wire shows is the serializer's echo (Item 1).
+      assert.equal("discoveryMealsPerWeek" in (prisma._row() ?? {}), false, "legacy key reached the row");
+      assert.equal(one.discoveryMealsPerWeek, 1);
       const two = await patch({ discoveryMealsPerWeek: 2 });
       assert.equal(two.discoveryLevel, "mostly");
       const zero = await patch({ discoveryMealsPerWeek: 0 });
@@ -352,6 +355,39 @@ describe("PATCH /me/preferences", () => {
       // The enum field also accepts the legacy int directly.
       const viaEnumKey = await patch({ discoveryLevel: 1 });
       assert.equal(viaEnumKey.discoveryLevel, "some");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // TEMPORARY — Block 2 removes (with the echo in serializePreferences). The
+  // current mobile build's Zod requires an integer discoveryMealsPerWeek on
+  // this response; the level is echoed as none 0 · some 1 · mostly 2 · all 2.
+  it("D-WS9-245 shim: GET + PATCH echo discoveryMealsPerWeek derived from discoveryLevel", async () => {
+    const seed = defaultsFor(USER_ID);
+    seed.discoveryLevel = "mostly";
+    const prisma = makeStubPrisma(seed);
+    const harness = await spinUp(prisma);
+    try {
+      const token = signToken(USER_ID);
+      const get = await fetch(`${harness.baseUrl}/me/preferences`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const got = ((await get.json()) as { preferences: Record<string, unknown> }).preferences;
+      assert.equal(got.discoveryLevel, "mostly");
+      assert.equal(got.discoveryMealsPerWeek, 2);
+      const patch = async (payload: Record<string, unknown>) => {
+        const res = await fetch(`${harness.baseUrl}/me/preferences`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payload),
+        });
+        assert.equal(res.status, 200);
+        return ((await res.json()) as { preferences: Record<string, unknown> }).preferences;
+      };
+      assert.equal((await patch({ discoveryLevel: "none" })).discoveryMealsPerWeek, 0);
+      assert.equal((await patch({ discoveryLevel: "some" })).discoveryMealsPerWeek, 1);
+      assert.equal((await patch({ discoveryLevel: "all" })).discoveryMealsPerWeek, 2, "all caps at 2 for the mobile Zod");
     } finally {
       await harness.close();
     }

@@ -14,7 +14,11 @@ import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/aut
 import { logger } from "../lib/logger";
 import { phoneSchema } from "../lib/phoneValidation";
 import { DiscoveryLevelInputSchema } from "../lib/ai/schemas/wizard";
-import { legacyDiscoveryIntToLevel } from "../lib/wizardPreferences";
+import {
+  discoveryLevelToLegacyInt,
+  legacyDiscoveryIntToLevel,
+  type DiscoveryLevel,
+} from "../lib/wizardPreferences";
 import {
   collectDishMentions,
   collectMealMentions,
@@ -286,9 +290,19 @@ function serializePreferences(p: {
   id: string;
   userId: string;
   updatedAt: Date;
+  discoveryLevel?: DiscoveryLevel;
   [k: string]: unknown;
 }) {
-  return { ...p, updatedAt: p.updatedAt.toISOString() };
+  return {
+    ...p,
+    // TEMPORARY — Block 2 removes. D-WS9-245 replaced the integer column with
+    // the DiscoveryLevel enum, but the current mobile build's preferences Zod
+    // (artifacts/kiwi/lib/api/me.ts) requires `discoveryMealsPerWeek: int` on
+    // this response; without the echo the preferences screen fails to parse
+    // between migrate deploy and Block 2. Derived, never stored.
+    discoveryMealsPerWeek: discoveryLevelToLegacyInt(p.discoveryLevel ?? "none"),
+    updatedAt: p.updatedAt.toISOString(),
+  };
 }
 
 // ── WS7-3 A2: catalog-read helpers (GET /me/meals, GET /me/dishes) ──────────

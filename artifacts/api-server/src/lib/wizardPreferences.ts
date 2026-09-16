@@ -70,6 +70,18 @@ export function legacyDiscoveryIntToLevel(n: number): DiscoveryLevel {
 }
 
 /**
+ * TEMPORARY — Block 2 removes. The inverse of the shim above, for the wire:
+ * the current mobile build's preferences Zod REQUIRES an integer
+ * `discoveryMealsPerWeek` on GET /me/preferences, so the level is echoed as
+ * one (none 0 · some 1 · mostly 2 · all 2 — the mobile schema allows no more).
+ */
+export function discoveryLevelToLegacyInt(level: DiscoveryLevel): number {
+  if (level === "some") return 1;
+  if (level === "mostly" || level === "all") return 2;
+  return 0;
+}
+
+/**
  * Fold a parsed per-run body's discovery fields into ONE optional level: the
  * enum field wins when sent; else the legacy integer (shimmed); else undefined
  * (= no per-run override, use stored). Presence semantics preserved.
