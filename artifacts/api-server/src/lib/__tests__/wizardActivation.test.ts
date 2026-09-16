@@ -656,7 +656,7 @@ describe("materializeWizardDraft — day assignment (dayAssignment option)", () 
           activeTimeMinutes: 20,
           estimatedTimeMinutes: 40,
           difficulty: "easy",
-          dishLinks: [{ dish: { dishIngredients: [{ ingredient: { category: "Produce" } }] } }],
+          dishLinks: [{ dish: { dishIngredients: [{ ingredient: { category: "Produce", canonicalName: "romaine" } }] } }],
         }));
       }
       return origFindMany(args);
@@ -1111,6 +1111,37 @@ describe("materializeWizardDraft — D-WS9-038 store fork + write-back", () => {
     // Forked steps survive: at least one dish-step createMany ran (fork copy).
     assert.ok(captured.stepCreateManys.length > 0, "forked store steps must be copied");
     assert.equal(result.itemsCreated, 5);
+  });
+
+  // Post-pass Part C (BUG-281) — an OWN store slot (a user-built playlist meal
+  // the owner-OR-pool partition marked bindDirect) is placed as-is: no fork, no
+  // meal.create, the item binds the id itself — the from-meals owned branch.
+  it("BUG-281: a bindDirect store slot binds the user's own meal id directly — no fork, no meal.create", async () => {
+    const savePlan: WizardSavePlan = {
+      candidateId: "c1",
+      title: "Own Plan",
+      tags: [],
+      whyBullets: ["b"],
+      slots: [
+        { kind: "store", sourceStoreMealId: "own-go-to", bindDirect: true },
+        { kind: "store", sourceStoreMealId: "s1" },
+      ],
+    };
+    const { prismaStub, txStub, captured } = makeStoreStubs();
+
+    const result = await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan,
+    });
+
+    assert.equal(captured.items.length, 2);
+    assert.equal(captured.items[0].mealId, "own-go-to", "the own id binds direct");
+    assert.notEqual(captured.items[1].mealId, "s1", "the pool id is forked as before");
+    assert.equal(captured.mealCreates.length, 1, "one fork only — the own slot created nothing");
+    assert.equal(result.mealsCreated, 1);
   });
 
   it("dedups a store meal used in two slots — forks it once (boundBySource)", async () => {
