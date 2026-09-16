@@ -203,6 +203,20 @@ enum BudgetLevel {
   premium
 }
 
+// WS9 Redesign Arc Block 1 (D-WS9-245) — the discovery dial. Replaces the
+// 0..2 integer discoveryMealsPerWeek: a LEVEL is stored, and the server turns
+// it into a COUNT from the plan length before any prompt sees it (none = 0,
+// some = ceil(days x 0.3), mostly = ceil(days x 0.7), all = days). "Discovery"
+// means meals NEW TO THIS USER that still match their preferences — never an
+// out-of-preference pick. The Playlist dial shares the four values but is
+// per-run only (no column).
+enum DiscoveryLevel {
+  none
+  some
+  mostly
+  all
+}
+
 enum AIPromptMode {
   tool
   text
@@ -271,6 +285,7 @@ model User {
   meals                   Meal[]
   dishes                  Dish[]
   favorites               Favorite[]
+  playlistMeals           PlaylistMeal[]
   groceryLists            GroceryList[]
   retailerConnections     RetailerConnection[]
   orderSessions           OrderSession[]
@@ -298,6 +313,27 @@ model Favorite {
   @@unique([userId, mealId])
   @@index([userId, createdAt])
   @@map("favorites")
+}
+
+// WS9 Redesign Arc Block 1 (D-WS9-234 / D-WS9-244) — the user's PLAYLIST: a
+// declared set of go-to meals the Pick screen can plan a week from. A SIBLING
+// of Favorite, not a reuse of it — D-WS9-234 keeps affection (favorites) and
+// planning signal (playlist) apart. Declared, never derived from cook counts
+// (cook tracking is dead, BUG-275). Adding a public catalog meal to the
+// playlist is an ACQUISITION: the route forks it (D-WS7-139) and stores the
+// FORK's id, so mealId is always a meal the user owns.
+model PlaylistMeal {
+  id        String   @id @default(uuid())
+  userId    String
+  mealId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mealId])
+  @@index([userId])
+  @@map("playlist_meals")
 }
 
 model UserPreferences {
@@ -355,7 +391,9 @@ model UserPreferences {
   // generation wiring is Block 2, mobile UI is Block 3). String-with-default
   // for the categorical prefs matches the newer cookingSkill/stovetopType
   // convention (Zod validates the value set, not the DB).
-  discoveryMealsPerWeek   Int             @default(0)
+  // WS9 Redesign Arc Block 1 (D-WS9-245) — was `discoveryMealsPerWeek Int 0..2`;
+  // the migration maps 0→none, 1→some, 2→mostly (anything else → none).
+  discoveryLevel          DiscoveryLevel  @default(none)
   saucePreference         String          @default("balanced")
   maxCookTimeMinutes      Int?
   maxCookTimeCoverage     String          @default("most")
@@ -863,6 +901,7 @@ model Meal {
   planItems     MealPlanItem[]
   templateItems MealPlanTemplateItem[]
   favorites     Favorite[]
+  playlistMeals PlaylistMeal[]
 
   // D-WS9-038 (Plan-Gen Arc Block 2) — store-shortlist retrieval index. The
   // compose read path filters the shared pool by (isPublic, isArchived,
