@@ -14,7 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
-import { PickMealsScreen } from "@/components/PickMealsScreen";
+import { PickMealsScreen, PlaylistPickScreen } from "@/components/PickMealsScreen";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   parsePickMealsParams,
@@ -23,8 +23,14 @@ import {
 
 export default function PickMeals() {
   const router = useRouter();
-  const raw = useLocalSearchParams<PickMealsRouteParams>();
+  const raw = useLocalSearchParams<PickMealsRouteParams & { source?: string }>();
   const parsed = useMemo(() => parsePickMealsParams(raw), [raw]);
+
+  // WS9 Redesign Arc Block 2b — the Playlist tab's "Plan a week from these"
+  // arrives with only `source=playlist`; the loader fetches its own shelf.
+  if (raw.source === "playlist") {
+    return <PlaylistPickScreen />;
+  }
 
   if (!parsed) {
     return (

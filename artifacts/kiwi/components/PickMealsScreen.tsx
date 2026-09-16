@@ -26,7 +26,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
@@ -38,9 +38,14 @@ import {
   createPlanFromMeals,
   type CreatePlanFromMealsResponse,
 } from "@/lib/api/plans";
+import { getPreferences, type UserPreferences } from "@/lib/api/me";
 import { buildWizardShelf, type WizardShelfResponse } from "@/lib/api/wizard";
 import { demotionToastMessage } from "@/lib/plans/planLifecycleActions";
-import type { WizardShelfRequest } from "@/lib/wizard/perRunPayload";
+import {
+  buildShelfRequest,
+  wizardFormFromPreferences,
+  type WizardShelfRequest,
+} from "@/lib/wizard/perRunPayload";
 import {
   appendPage,
   excludeIdsFor,
@@ -59,6 +64,12 @@ import {
 
 // Copy — verbatim from the locked mockups.
 export const PICK_TITLE = "Pick your meals";
+// Block 2b — the Playlist tab's "Plan a week from these": the same screen in
+// playlist mode (source:"playlist" shelf — only the user's playlist meals, no
+// Kiwi suggestions, no "Get more options", no exhausted card).
+export const PLAYLIST_PICK_TITLE = "Pick from your playlist";
+export const PLAYLIST_PICK_SUBLINE = (n: number) =>
+  `${n} in your playlist · per serving · tap to add`;
 export const MORE_LABEL = "Get more options";
 export const MORE_SLOW_CAPTION = "Kiwi is creating a few new ones…";
 export const EXHAUSTED_TITLE = "Not many meals fit your preferences and restrictions.";
@@ -72,7 +83,10 @@ export const COULDNT_FIND = (names: string[]) => `Couldn't find: ${names.join(",
 /** The server's default title for a picks plan — mirrored so the demotion toast can name it. */
 export const PICKS_PLAN_TITLE = "Your picks";
 
-export type PickMealsScreenProps = PickMealsParamsInput;
+export type PickMealsScreenProps = PickMealsParamsInput & {
+  /** Block 2b — "Plan a week from these". Playlist-only: no paging, no exhausted card. */
+  source?: "playlist";
+};
 
 export function PickMealsScreen({
   shelf,
@@ -81,6 +95,7 @@ export function PickMealsScreen({
   planDurationDays,
   householdSize,
   capMinutes,
+  source,
 }: PickMealsScreenProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -156,6 +171,7 @@ export function PickMealsScreen({
   const handleTellKiwi = () =>
     router.push({ pathname: "/tellkiwi", params: { focus: "1" } });
 
+  const isPlaylist = source === "playlist";
   const exhausted = isExhausted(state);
   const overCapPicked = overCapPickedCount(state, capMinutes);
   const pickedCount = state.pickedIds.length;
@@ -164,8 +180,12 @@ export function PickMealsScreen({
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header
         showBack
-        title={PICK_TITLE}
-        subtitle={pickHeaderSubline(state.totalEligible)}
+        title={isPlaylist ? PLAYLIST_PICK_TITLE : PICK_TITLE}
+        subtitle={
+          isPlaylist
+            ? PLAYLIST_PICK_SUBLINE(state.totalEligible)
+            : pickHeaderSubline(state.totalEligible)
+        }
       />
       <ScrollView
         contentContainerStyle={s.scrollContent}
@@ -196,7 +216,10 @@ export function PickMealsScreen({
           </View>
         )}
 
-        {exhausted ? (
+        {/* Playlist mode: the list IS the whole shelf — no paging, no
+            exhausted card (an empty playlist never reaches this screen; the
+            tab's button is disabled at 0). */}
+        {isPlaylist ? null : exhausted ? (
           <View style={s.exhaustedCard}>
             <Text style={s.exhaustedTitle}>{EXHAUSTED_TITLE}</Text>
             <Text style={s.exhaustedBody}>{EXHAUSTED_BODY}</Text>
@@ -261,6 +284,17 @@ export function PickMealsScreen({
 }
 
 const s = StyleSheet.create({
+  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
+  statusBox: {
+    margin: Spacing[4],
+    backgroundColor: Palette.background.card,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.neutral[300],
+    padding: Spacing[4],
+    alignItems: "center",
+    gap: Spacing[2],
+  },
   scrollContent: {
     paddingHorizontal: Spacing[4],
     paddingTop: Spacing[3],
@@ -380,3 +414,74 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.medium,
   },
 });
+
+
+// ── Block 2b — "Plan a week from these": load the playlist shelf, then pick ──
+// The Playlist tab routes here with ONLY `source=playlist` — no shelf in the
+// params. This fetches the user's stored preferences (the body the server
+// schema requires: plan length, household, difficulty, pacing…), posts the
+// shelf with source:"playlist", and mounts the Pick screen in playlist mode.
+// No wizard screen in between: the stored preferences ARE the run.
+
+export function PlaylistPickScreen() {
+  const router = useRouter();
+  const prefsQuery = useQuery<UserPreferences>({
+    queryKey: ["me", "preferences"],
+    queryFn: getPreferences,
+  });
+  const request = React.useMemo(
+    () =>
+      prefsQuery.data
+        ? buildShelfRequest(wizardFormFromPreferences(prefsQuery.data), true, {
+            source: "playlist",
+          })
+        : null,
+    [prefsQuery.data],
+  );
+  const shelfQuery = useQuery<WizardShelfResponse>({
+    queryKey: ["wizard", "shelf", "playlist", request],
+    queryFn: () => buildWizardShelf(request!),
+    enabled: request !== null,
+    // Hot-volatile: a playlist edit must show on the next open.
+    staleTime: 0,
+  });
+
+  if (prefsQuery.isError || shelfQuery.isError) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
+        <Header showBack title={PLAYLIST_PICK_TITLE} />
+        <View style={s.statusBox}>
+          <Text style={s.noticeTitle}>Kiwi got distracted. Try again?</Text>
+          <Text style={s.noticeBody}>
+            {(shelfQuery.error ?? prefsQuery.error)?.message ||
+              "Couldn't load your playlist. Please try again."}
+          </Text>
+          <View style={{ marginTop: Spacing[3] }}>
+            <Button label="Back" variant="primary" onPress={() => router.back()} />
+          </View>
+        </View>
+      </View>
+    );
+  }
+  if (!request || !shelfQuery.data) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
+        <Header showBack title={PLAYLIST_PICK_TITLE} />
+        <View style={s.loadingWrap}>
+          <ActivityIndicator color={Colors.sage[700]} />
+        </View>
+      </View>
+    );
+  }
+  return (
+    <PickMealsScreen
+      shelf={shelfQuery.data}
+      request={request}
+      mode="prefs"
+      planDurationDays={request.planDurationDays}
+      householdSize={request.householdSize}
+      capMinutes={request.maxCookTimeMinutes ?? null}
+      source="playlist"
+    />
+  );
+}

@@ -49,6 +49,7 @@
 // belong to the server lane.
 
 import type { DialLevel } from "@/lib/domain";
+import type { UserPreferences } from "@/lib/api/me";
 import type { TellKiwiInput, WizardPreferencesInput } from "@/lib/types";
 
 type WeeklyPacing = NonNullable<TellKiwiInput["weeklyPacing"]>;
@@ -170,12 +171,15 @@ export interface WizardShelfRequest extends WizardPreferencesInput {
   excludeMealIds?: string[];
   /** Card count for this call (server default 15, max 20); a round asks for 5. */
   size?: number;
+  /** Block 2b — ONLY the user's playlist meals, no fill, hasMore:false
+   *  ("Plan a week from these"). */
+  source?: "playlist";
 }
 
 export function buildShelfRequest(
   form: WizardPayloadForm,
   hydrated: boolean,
-  opts: { text?: string; excludeMealIds?: string[] } = {},
+  opts: { text?: string; excludeMealIds?: string[]; source?: "playlist" } = {},
 ): WizardShelfRequest {
   const text = opts.text?.trim();
   return {
@@ -184,5 +188,34 @@ export function buildShelfRequest(
     ...(opts.excludeMealIds && opts.excludeMealIds.length > 0
       ? { excludeMealIds: opts.excludeMealIds }
       : {}),
+    ...(opts.source ? { source: opts.source } : {}),
+  };
+}
+
+// ── WS9 Redesign Arc Block 2b — the wizard form seeded from STORED prefs ────
+// The merged wizard hydrates its form from this (D-WS7-035 hydrate step) and
+// the Playlist tab's "Plan a week from these" builds its shelf request from it
+// directly — no wizard screen in between, the user's stored preferences ARE the
+// body. `difficulty` stays the hidden "medium" default (D-WS9-031: required on
+// the server schema, unsurfaced on the client).
+export const HIDDEN_DEFAULT_DIFFICULTY: Difficulty = "medium";
+
+export function wizardFormFromPreferences(prefs: UserPreferences): WizardPayloadForm {
+  return {
+    planDurationDays: prefs.planLengthDefault,
+    householdSize: prefs.householdSize,
+    cuisines: prefs.cuisines,
+    eatingStyles: prefs.eatingStyles,
+    allergies: prefs.allergiesAndAvoidances,
+    dietaryNotes: prefs.dietaryNotes ?? "",
+    difficulty: HIDDEN_DEFAULT_DIFFICULTY,
+    weeklyPacing: prefs.weeklyPacingDefault ?? "mostly_easy",
+    additionalNotes: "",
+    discoveryLevel: prefs.discoveryLevel,
+    // Optional on the read schema; a missing level IS none.
+    playlistLevel: prefs.playlistLevel ?? "none",
+    saucePreference: prefs.saucePreference,
+    maxCookTimeMinutes: prefs.maxCookTimeMinutes,
+    maxCookTimeCoverage: prefs.maxCookTimeCoverage,
   };
 }

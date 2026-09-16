@@ -73,6 +73,8 @@ import {
   buildShelfRequest,
   buildTellKiwiPayload,
   buildWizardPayload,
+  HIDDEN_DEFAULT_DIFFICULTY,
+  wizardFormFromPreferences,
   type WizardShelfRequest,
 } from "@/lib/wizard/perRunPayload";
 import { pickMealsRouteParams } from "@/lib/wizard/pickMeals";
@@ -148,10 +150,6 @@ interface WizardFormState {
   adjustExpanded: boolean;
 }
 
-// WS9 3c Ruling 3 (D-WS9-031): `difficulty` is unsurfaced but REQUIRED on the
-// server's WizardInputSchema (consumed in expand + materialize), so omitting it
-// 400s. Vestigial; removal is the server's (TODO D-WS9-031).
-const HIDDEN_DEFAULT_DIFFICULTY: Difficulty = "medium";
 
 // Fallback state before stored preferences hydrate (or if the prefs read
 // fails — hydration is an assist, not a blocker). Once prefs load, the form is
@@ -184,23 +182,14 @@ function hydrateForm(
   prefs: UserPreferences,
   prev: WizardFormState,
 ): WizardFormState {
+  // Block 2b — the stored-prefs seed is shared with the Playlist tab's "Plan a
+  // week from these" (lib/wizard/perRunPayload.ts). The description, the
+  // disclosure state and additionalNotes are the user's, never seeded.
+  const { additionalNotes: _seedNotes, ...seeded } = wizardFormFromPreferences(prefs);
   return {
     ...prev,
-    planDurationDays: prefs.planLengthDefault,
-    householdSize: prefs.householdSize,
-    cuisines: prefs.cuisines,
-    eatingStyles: prefs.eatingStyles,
-    allergies: prefs.allergiesAndAvoidances,
-    dietaryNotes: prefs.dietaryNotes ?? "",
+    ...seeded,
     otherAllergies: prefs.otherAllergies,
-    difficulty: HIDDEN_DEFAULT_DIFFICULTY,
-    weeklyPacing: prefs.weeklyPacingDefault ?? "mostly_easy",
-    discoveryLevel: prefs.discoveryLevel,
-    // Optional on the read schema until the server lane ships it; missing = none.
-    playlistLevel: prefs.playlistLevel ?? "none",
-    saucePreference: prefs.saucePreference,
-    maxCookTimeMinutes: prefs.maxCookTimeMinutes,
-    maxCookTimeCoverage: prefs.maxCookTimeCoverage,
   };
 }
 

@@ -36,6 +36,8 @@ import {
   EXHAUSTED_TITLE,
   MORE_LABEL,
   PickMealsScreen,
+  PlaylistPickScreen,
+  PLAYLIST_PICK_TITLE,
   type PickMealsScreenProps,
 } from "../PickMealsScreen";
 
@@ -210,6 +212,15 @@ test("card: selected → sage-600 1.4px border on a sage-50 surface", () => {
 
 // ── the screen ─────────────────────────────────────────────────────────────
 
+const PREFS_FIXTURE = {
+  spiceTolerance: "mild", budgetLevel: "economy", cookingSkill: "intermediate", stovetopType: "gas",
+  defaultRetailer: null, cuisines: ["Italian"], allergiesAndAvoidances: ["Peanuts"], otherAllergies: [],
+  cookingEquipment: [], recurringGroceryItems: [], eatingStyles: [], healthGoals: [], pickyAvoidances: [],
+  householdSize: 3, kidsCount: 0, pickyEaterCount: 0, planLengthDefault: 4, wantsLeftovers: false,
+  weeklyPacingDefault: "mixed", dietaryNotes: null, discoveryLevel: "none", playlistLevel: "some",
+  saucePreference: "balanced", maxCookTimeMinutes: 45, maxCookTimeCoverage: "most",
+};
+
 const originalFetch = globalThis.fetch;
 let calls: { path: string; method: string; body: Record<string, unknown> }[] = [];
 let replaced: unknown[] = [];
@@ -239,6 +250,8 @@ beforeEach(() => {
     const body = init?.body ? JSON.parse(String(init.body)) : {};
     calls.push({ path: u.slice(u.indexOf("/api") + 4), method, body });
     if (u.endsWith("/wizard/shelf")) return Promise.resolve(jsonResponse(moreResponse()));
+    if (u.endsWith("/me/preferences"))
+      return Promise.resolve(jsonResponse({ preferences: PREFS_FIXTURE }));
     if (u.endsWith("/plans/from-meals"))
       return Promise.resolve(
         jsonResponse(
@@ -400,4 +413,56 @@ test("screen: over-cap picks are COUNTED in the footer, never blocked", async ()
   assert.ok(t.includes("2 picked · 5-day plan"), t);
   assert.ok(t.includes("fewer or more than 5 is fine · 1 over your 45-min cap"), t);
   assert.ok(!byTestId(m.root(), "pick-build")!.props.disabled, "an over-cap pick must not disable the build");
+});
+
+// ── Block 2b Part C — "Plan a week from these" (playlist mode) ──────────────
+
+test("playlist mode: 'Pick from your playlist', '{N} in your playlist', NO more-button, NO exhausted card, Build still works", async () => {
+  const m = await mount({ shelf: shelf(THREE, 3, false), source: "playlist" });
+  const t = m.text();
+  assert.ok(t.includes(PLAYLIST_PICK_TITLE), t);
+  assert.ok(t.includes("3 in your playlist · per serving · tap to add"), t);
+  assert.equal(byLabel(m.root(), MORE_LABEL), undefined, "no Get more options in playlist mode");
+  assert.ok(!t.includes(EXHAUSTED_TITLE), "no exhausted card in playlist mode (hasMore:false is the norm here)");
+  await tap(byLabel(m.root(), "Miso Salmon"), "card n1");
+  await tap(byTestId(m.root(), "pick-build"), "Build my week");
+  const post = calls.find((c) => c.path === "/plans/from-meals");
+  assert.ok(post, "from-meals not called");
+  assert.deepEqual(post!.body.mealIds, ["n1"]);
+  assert.equal(calls.some((c) => c.path === "/wizard/shelf"), false, "playlist mode never re-posts the shelf");
+});
+
+test("PlaylistPickScreen: builds the shelf request from STORED prefs with source:'playlist' and NO exclusions", async () => {
+  moreResponse = () => shelf(THREE.map((mm) => ({ ...mm, isPlaylist: true, source: "playlist" })), 3, false);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        React.createElement(ToastProvider, null, React.createElement(PlaylistPickScreen)),
+      ),
+    );
+  });
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 60));
+  });
+  screen = { renderer, client };
+  const post = calls.find((c) => c.path === "/wizard/shelf");
+  assert.ok(post, "the playlist shelf was not requested");
+  assert.equal(post!.body.source, "playlist");
+  assert.equal("excludeMealIds" in post!.body, false, "playlist mode sends no exclusions");
+  // The server schema's required fields ride from stored prefs (hydrated=true).
+  assert.equal(post!.body.planDurationDays, 4);
+  assert.equal(post!.body.householdSize, 3);
+  assert.equal(post!.body.difficulty, "medium");
+  assert.equal(post!.body.weeklyPacing, "mixed");
+  assert.deepEqual(post!.body.allergiesAndAvoidances, ["Peanuts"]);
+  const t = joined(renderer.toJSON() as unknown as Tree);
+  assert.ok(t.includes(PLAYLIST_PICK_TITLE), t);
+  assert.ok(t.includes("3 in your playlist"), t);
+  assert.equal(byLabel(renderer.toJSON() as unknown as Tree, MORE_LABEL), undefined);
+  // The cap comes from stored prefs (45) → the 120-min braise is flagged, not blocked.
+  assert.ok(t.includes("over your 45-min cap"), t);
 });
