@@ -23,12 +23,14 @@ import {
   collectDishMentions,
   collectMealMentions,
   collectRematerializeDishMentions,
+  estimateZeroMacroDishes,
   materializeDish,
   materializeMeal,
   rematerializeDish,
   rematerializeMeal,
   type MaterializeMealDish,
 } from "../lib/mealMaterialize";
+import { estimateDishMacros as productionEstimateDishMacros } from "../lib/dishMacros";
 import { resolveIngredients } from "../lib/ingredientResolve";
 import { bumpPlanRevision } from "../lib/planRevision";
 import {
@@ -600,10 +602,20 @@ export interface MeRouterDeps {
   prisma: PrismaClient;
   /** BUG-224 — injected so tests record instead of sending. See lib/email. */
   sendEmail: EmailSender;
+  /**
+   * WS9 BUG-274 — the per-dish macro estimator POST /me/meals runs for
+   * zero-macro new dishes, on the routes/plans.ts computePlanMacros pattern:
+   * production wiring defaults to the real implementation; every router test
+   * that reaches POST /me/meals injects a stub, so the suite is hermetic by
+   * construction (`pnpm test` loads .env — a default-on real call here would
+   * otherwise reach the live SDK from a stub-prisma test).
+   */
+  estimateDishMacros: typeof productionEstimateDishMacros;
 }
 
 export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
+  const estimateDishMacros = deps.estimateDishMacros ?? productionEstimateDishMacros;
   // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
   // needs a Prisma client. Building it from the injected one (rather than
   // importing the singleton) is what keeps this router's tests hermetic.
@@ -1370,9 +1382,24 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           prisma,
           mentions,
         );
+        // WS9 BUG-274 — macros at save. The estimator pre-pass runs HERE, on
+        // the plain client, BEFORE the tx opens: an AI round trip inside the
+        // 15 s tx would hold a Neon connection through model latency and roll
+        // back its LLMCallLog rows on a failed save. Fail-soft (a failed /
+        // slow dish saves at zero with a warn); materializeMeal consumes the
+        // result and stamps macros + macroGroundedPct + dish_macros_estimated.
+        const estimatedMacrosByIndex = await estimateZeroMacroDishes({
+          prisma,
+          userId,
+          payload,
+          ingredientIdByCanonical,
+          estimateImpl: estimateDishMacros,
+        });
         const result = await prisma.$transaction(
           async (tx) =>
-            materializeMeal(tx, userId, payload, ingredientIdByCanonical),
+            materializeMeal(tx, userId, payload, ingredientIdByCanonical, undefined, {
+              estimatedMacrosByIndex,
+            }),
           { timeout: 15000 },
         );
         return res.status(201).json({

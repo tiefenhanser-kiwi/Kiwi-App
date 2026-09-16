@@ -223,10 +223,26 @@ interface Harness {
   close: () => Promise<void>;
 }
 
-async function spinUp(prisma: unknown): Promise<Harness> {
+// WS9 BUG-274 — the estimator reaches the route as an injected dep (the
+// routes/plans.ts computePlanMacros pattern), so this suite is hermetic by
+// construction: the default stub never estimates (fail-soft path, every dish
+// at zero exactly as before BUG-274); the wiring tests below inject a
+// recording stub.
+type EstimateDep = NonNullable<Parameters<typeof createMeRouter>[0]>["estimateDishMacros"];
+const failSoftEstimator: EstimateDep = (async () => ({
+  status: "failed",
+  error: "test stub",
+})) as never;
+
+async function spinUp(
+  prisma: unknown,
+  estimateDishMacros: EstimateDep = failSoftEstimator,
+): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use(createMeRouter({ prisma: withSessionUser(prisma) as never }));
+  app.use(
+    createMeRouter({ prisma: withSessionUser(prisma) as never, estimateDishMacros }),
+  );
 
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {
@@ -532,6 +548,99 @@ describe("POST /me/meals (manual-built)", () => {
 });
 
 // ── POST /me/meals — Mode-C link path (Q1: link, not clone) ────────────
+
+// ── WS9 BUG-274 — macros at save, LIVE through the route ────────────────
+describe("POST /me/meals — BUG-274 estimator wiring (Block 1 follow-up F2)", () => {
+  const twoDishBody = {
+    title: "Chicken and rice",
+    dishes: [
+      {
+        kind: "new",
+        title: "Grilled chicken",
+        role: "main",
+        positionIndex: 0,
+        ingredients: [{ name: "Chicken breast", quantity: 1, unit: "lb" }],
+        steps: [{ text: "Grill." }],
+        // no macros -> estimate
+      },
+      {
+        kind: "new",
+        title: "Rice",
+        role: "side",
+        positionIndex: 1,
+        ingredients: [{ name: "Rice", quantity: 1, unit: "cup" }],
+        steps: [{ text: "Simmer." }],
+        macros: { caloriesPerServing: 200, proteinGPerServing: 4, carbsGPerServing: 44, fatGPerServing: 0 },
+      },
+    ],
+  };
+
+  it("calls the injected estimator for the zero-macro dish, NOT for the dish with macros; stamps the result", async () => {
+    const { prisma, captured } = makeStub();
+    const seen: string[] = [];
+    const recording: EstimateDep = (async (o: { dishTitle: string }) => {
+      seen.push(o.dishTitle);
+      return {
+        status: "success",
+        perServing: { calories: 310, proteinG: 35, carbsG: 2, fatG: 12 },
+        sanityFlags: [],
+        grounding: { status: "partial", ratio: 0.5, matched: 1, total: 2 },
+      };
+    }) as never;
+    const harness = await spinUp(prisma, recording);
+    try {
+      const res = await authPost(harness, "/me/meals", twoDishBody);
+      assert.equal(res.status, 201);
+      assert.deepEqual(seen, ["Grilled chicken"], "only the zero-macro dish is estimated");
+      assert.equal(captured.dishCreates[0].caloriesPerServing, 310);
+      assert.equal(captured.dishCreates[0].macroGroundedPct, 50);
+      assert.equal(captured.dishCreates[1].caloriesPerServing, 200);
+      assert.ok(!("macroGroundedPct" in captured.dishCreates[1]));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a THROWING estimator still returns 201 with that dish at zero (fail-soft)", async () => {
+    const { prisma, captured } = makeStub();
+    const throwing: EstimateDep = (async () => {
+      throw new Error("estimator down");
+    }) as never;
+    const harness = await spinUp(prisma, throwing);
+    try {
+      const res = await authPost(harness, "/me/meals", twoDishBody);
+      assert.equal(res.status, 201);
+      assert.ok(!("caloriesPerServing" in captured.dishCreates[0]), "zero dish left at the column default");
+      assert.equal(captured.dishCreates[1].caloriesPerServing, 200);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("the estimator runs BEFORE the save tx opens, on the plain client", async () => {
+    const { prisma, captured } = makeStub();
+    const order: string[] = [];
+    const surface = prisma as unknown as { $transaction: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown> };
+    const origTx = surface.$transaction;
+    surface.$transaction = async (fn) => {
+      order.push("tx-open");
+      return origTx(fn);
+    };
+    const recording: EstimateDep = (async () => {
+      order.push("estimate");
+      return { status: "failed", error: "n/a" };
+    }) as never;
+    const harness = await spinUp(prisma, recording);
+    try {
+      const res = await authPost(harness, "/me/meals", twoDishBody);
+      assert.equal(res.status, 201);
+      assert.deepEqual(order, ["estimate", "tx-open"]);
+      assert.equal(captured.dishCreates.length, 2);
+    } finally {
+      await harness.close();
+    }
+  });
+});
 
 describe("POST /me/meals (Mode-C link path)", () => {
   it("creates MealDishLink rows pointing at existing dish ids without writing new Dish rows", async () => {

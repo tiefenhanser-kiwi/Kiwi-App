@@ -7,13 +7,45 @@
 // before any row is written), stamps macros + macroGroundedPct on the create,
 // emits dish_macros_estimated, and FAILS SOFT.
 //
-// The estimator is stubbed at the opts seam — no AI call, no DB.
+// Block 1 follow-up (F2): the pre-pass is estimateZeroMacroDishes, a
+// standalone the ROUTE runs on the plain client BEFORE the save tx opens;
+// materializeMeal only consumes opts.estimatedMacrosByIndex. The tests below
+// drive the two in sequence (saveWith) exactly as POST /me/meals does. The
+// estimator is stubbed — no AI call, no DB.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { materializeMeal, type MaterializeMealPayload } from "../mealMaterialize";
-import type { EstimateDishMacrosResult } from "../dishMacros";
+import {
+  estimateZeroMacroDishes,
+  materializeMeal,
+  type MaterializeMealPayload,
+  type MaterializeTarget,
+} from "../mealMaterialize";
+import type { EstimateDishMacrosResult, estimateDishMacros } from "../dishMacros";
+
+type EstimateImpl = typeof estimateDishMacros;
+
+/** The route's shape: pre-pass on the plain client, then the save. */
+async function saveWith(
+  tx: ReturnType<typeof makeFakeTx>["tx"],
+  impl: EstimateImpl,
+  opts: { deadlineMs?: number; userId?: string; target?: MaterializeTarget } = {},
+) {
+  const userId = opts.userId ?? "user-1";
+  const payload = threeDishPayload();
+  const estimatedMacrosByIndex = await estimateZeroMacroDishes({
+    prisma: tx as never,
+    userId,
+    payload,
+    ingredientIdByCanonical: INGREDIENT_MAP,
+    estimateImpl: impl,
+    deadlineMs: opts.deadlineMs,
+  });
+  return materializeMeal(tx as never, userId, payload, INGREDIENT_MAP, opts.target, {
+    estimatedMacrosByIndex,
+  });
+}
 
 function makeFakeTx() {
   const dishCreates: Array<Record<string, unknown>> = [];
@@ -138,30 +170,16 @@ describe("BUG-274 — materializeMeal estimates zero-macro dishes at save", () =
     const calls: Array<{ dishTitle: string; ingredients: unknown[] }> = [];
     let inFlight = 0;
     let maxInFlight = 0;
-    await materializeMeal(
-      tx as never,
-      "user-1",
-      threeDishPayload(),
-      INGREDIENT_MAP,
-      undefined,
-      {
-        estimateMacros: true,
-        estimateDishMacrosImpl: async (o) => {
-          calls.push({ dishTitle: o.dishTitle, ingredients: o.ingredients });
-          inFlight++;
-          maxInFlight = Math.max(maxInFlight, inFlight);
-          await new Promise((r) => setTimeout(r, 5));
-          inFlight--;
-          assert.equal(
-            o.skipConversionWriteback,
-            true,
-            "no ingredient write-back inside the tx",
-          );
-          assert.equal(o.servings, 4);
-          return successFor(o.dishTitle === "Rice Pilaf" ? 210 : 280);
-        },
-      },
-    );
+    await saveWith(tx, async (o) => {
+      calls.push({ dishTitle: o.dishTitle, ingredients: o.ingredients });
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      assert.equal(o.skipConversionWriteback, true, "no ingredient write-back");
+      assert.equal(o.servings, 4);
+      return successFor(o.dishTitle === "Rice Pilaf" ? 210 : 280);
+    });
 
     assert.deepEqual(
       calls.map((c) => c.dishTitle).sort(),
@@ -205,20 +223,10 @@ describe("BUG-274 — materializeMeal estimates zero-macro dishes at save", () =
 
   it("an estimator THROW or a failed result still saves the meal, that dish at zero", async () => {
     const { tx, dishCreates, activity } = makeFakeTx();
-    const res = await materializeMeal(
-      tx as never,
-      "user-1",
-      threeDishPayload(),
-      INGREDIENT_MAP,
-      undefined,
-      {
-        estimateMacros: true,
-        estimateDishMacrosImpl: async (o) => {
-          if (o.dishTitle === "Grilled Chicken Breast") throw new Error("boom");
-          return { status: "failed", error: "spend guard" };
-        },
-      },
-    );
+    const res = await saveWith(tx, async (o) => {
+      if (o.dishTitle === "Grilled Chicken Breast") throw new Error("boom");
+      return { status: "failed", error: "spend guard" };
+    });
     assert.equal(res.mealId, "meal-1");
     assert.equal(res.dishIds.length, 3, "the save completed");
     assert.equal(dishCreates.length, 3);
@@ -232,52 +240,38 @@ describe("BUG-274 — materializeMeal estimates zero-macro dishes at save", () =
   it("a slow estimator is cut at the deadline and the save proceeds at zero", async () => {
     const { tx, dishCreates } = makeFakeTx();
     const started = Date.now();
-    await materializeMeal(
-      tx as never,
-      "user-1",
-      threeDishPayload(),
-      INGREDIENT_MAP,
-      undefined,
-      {
-        estimateMacros: true,
-        estimateDeadlineMs: 20,
-        estimateDishMacrosImpl: () =>
-          new Promise((r) => setTimeout(() => r(successFor(999)), 500)),
-      },
+    await saveWith(
+      tx,
+      () => new Promise((r) => setTimeout(() => r(successFor(999)), 500)),
+      { deadlineMs: 20 },
     );
     assert.ok(Date.now() - started < 400, "did not wait for the slow estimate");
     assert.ok(!("caloriesPerServing" in dishCreates[0]));
     assert.equal(dishCreates[1].caloriesPerServing, 0);
   });
 
-  it("OFF by default, and off on the store-pool (target) path even when asked", async () => {
+  it("no pre-computed estimates → nothing stamped; a store-pool (target) save ignores estimates it is handed", async () => {
     let calls = 0;
     const impl = async () => {
       calls++;
       return successFor(100);
     };
+    // The store-fill harness never runs the pre-pass (it calls materializeMeal
+    // directly); with no map handed in, the write is byte-identical to before.
     const a = makeFakeTx();
-    await materializeMeal(
-      a.tx as never,
-      "user-1",
-      threeDishPayload(),
-      INGREDIENT_MAP,
-      undefined,
-      { estimateDishMacrosImpl: impl },
-    );
-    assert.equal(calls, 0, "no estimateMacros flag -> no call");
+    await materializeMeal(a.tx as never, "user-1", threeDishPayload(), INGREDIENT_MAP);
+    assert.equal(calls, 0);
     assert.ok(!("caloriesPerServing" in a.dishCreates[0]));
 
+    // And even if a caller hands a store target a map, it is not consumed.
     const b = makeFakeTx();
-    await materializeMeal(
-      b.tx as never,
-      "",
-      threeDishPayload(),
-      INGREDIENT_MAP,
-      { userId: null, isPublic: true, sourceType: "batch_generated" },
-      { estimateMacros: true, estimateDishMacrosImpl: impl },
-    );
-    assert.equal(calls, 0, "store-fill target -> never estimates");
+    await saveWith(b.tx, impl, {
+      userId: "",
+      target: { userId: null, isPublic: true, sourceType: "batch_generated" },
+    });
+    assert.equal(calls, 2, "the pre-pass itself ran (the route gates it, not this)");
+    assert.ok(!("caloriesPerServing" in b.dishCreates[0]), "store-fill target -> not stamped");
+    assert.equal(b.dishCreates[1].caloriesPerServing, 0);
   });
 
   it("a tx without the grounding / activity surfaces still saves (ungrounded, warned)", async () => {
@@ -288,20 +282,10 @@ describe("BUG-274 — materializeMeal estimates zero-macro dishes at save", () =
     delete (tx as any).userActivity;
     let seen: unknown[] = [];
     // Capture the CHICKEN call specifically (the two estimates race).
-    await materializeMeal(
-      tx as never,
-      "user-1",
-      threeDishPayload(),
-      INGREDIENT_MAP,
-      undefined,
-      {
-        estimateMacros: true,
-        estimateDishMacrosImpl: async (o) => {
-          if (o.dishTitle === "Grilled Chicken Breast") seen = o.ingredients;
-          return successFor(300);
-        },
-      },
-    );
+    await saveWith(tx, async (o) => {
+      if (o.dishTitle === "Grilled Chicken Breast") seen = o.ingredients;
+      return successFor(300);
+    });
     assert.equal(dishCreates[0].caloriesPerServing, 300);
     assert.deepEqual(seen[0], {
       name: "chicken breast",

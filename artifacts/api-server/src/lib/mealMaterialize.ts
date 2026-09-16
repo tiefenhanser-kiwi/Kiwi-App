@@ -48,6 +48,7 @@ import { stampMealTiming } from "./mealTiming";
 import {
   estimateDishMacros,
   shouldEstimateMacros,
+  type EstimateDishMacrosOptions,
   type EstimateDishMacrosResult,
 } from "./dishMacros";
 import { logger } from "./logger";
@@ -214,32 +215,45 @@ export interface MaterializeMealPayload {
 // deliberate `failed:true` at zero — re-estimating it here would put an AI
 // call into that tx and re-key the spend guard on an empty user id.
 //
-// Latency: this puts one LLM round trip inside the route's interactive tx
-// (15000ms budget, routes/me.ts). Dishes run in parallel, the conversion
-// write-back is skipped (skipConversionWriteback — no second serial LLM hop
-// and no ingredient row mutation inside the tx; the grounding stamp is
-// ref-based, unaffected), and each dish races a deadline so a slow estimate
-// degrades to "zero, warn" instead of blowing the tx budget and failing the
-// save with a 500 — which would be the opposite of fail-soft.
+// Placement (Block 1 follow-up F2): the pre-pass runs in the ROUTE, between
+// resolveIngredients and `$transaction` — never inside the tx. An AI round
+// trip (up to the deadline, ×N dishes in parallel) inside a 15 s Neon tx would
+// hold a connection through model latency and roll back the LLMCallLog rows
+// on a failed save. So estimateZeroMacroDishes takes the PLAIN client, and
+// materializeMeal only CONSUMES its result via opts.estimatedMacrosByIndex.
+// Dishes run in parallel, the conversion write-back is skipped
+// (skipConversionWriteback — no second serial LLM hop and no ingredient row
+// mutation; the grounding stamp is ref-based, unaffected), and each dish
+// races a deadline so a slow estimate degrades to "zero, warn" rather than
+// delaying the save — which would be the opposite of fail-soft.
+//
+// Hermetic by construction: the estimator reaches the route as
+// `MeRouterDeps.estimateDishMacros` (the routes/plans.ts computePlanMacros
+// pattern) — production wiring defaults to the real implementation, router
+// tests inject a stub — so no opt-in flag guards the live SDK any more.
 
 export const MEAL_SAVE_MACRO_ESTIMATE_DEADLINE_MS = 8000;
 
 export interface MaterializeMealOptions {
-  // ⚠️ OFF unless the caller says so. The route tests (me-save-canonical.test.ts)
-  // drive POST /me/meals through the real materializer with a stub prisma and
-  // `pnpm test` loads .env, so a default-on estimate would reach the live SDK
-  // from a hermetic suite. The route turns it on and threads its own
-  // `deps.estimateDishMacros` stub the way routes/plans.ts threads
-  // computePlanMacros — until that line lands in routes/me.ts (outside this
-  // lane's fence) the pre-pass is inert and every saved meal stays at zero.
-  estimateMacros?: boolean;
-  // DI seam for tests (mirrors wizardExpansion.ts). Production omits.
-  estimateDishMacrosImpl?: typeof estimateDishMacros;
-  // Deadline override for tests. Production omits.
-  estimateDeadlineMs?: number;
+  // BUG-274 — the route's pre-computed estimates (estimateZeroMacroDishes),
+  // dish-index → macros. Consumed on the user path only; ignored when a store
+  // `target` is set (see the scope note above). Absent = nothing estimated.
+  estimatedMacrosByIndex?: Map<number, EstimatedDishMacros>;
 }
 
-interface EstimatedDishMacros {
+export interface EstimateZeroMacroDishesOptions {
+  /** The PLAIN client (the pre-pass runs outside the save tx). */
+  prisma: Pick<Prisma.TransactionClient, "ingredient"> & EstimateDishMacrosOptions["prisma"];
+  userId: string;
+  payload: MaterializeMealPayload;
+  ingredientIdByCanonical: Map<string, string>;
+  /** The estimator — the route's injected dep (real in production, a stub in tests). */
+  estimateImpl: typeof estimateDishMacros;
+  /** Deadline override for tests. Production omits. */
+  deadlineMs?: number;
+}
+
+export interface EstimatedDishMacros {
   caloriesPerServing: number;
   proteinGPerServing: number;
   carbsGPerServing: number;
@@ -275,18 +289,15 @@ function withDeadline(
 
 /**
  * Estimate macros for every zero-macro `kind:"new"` dish. Returns a map
- * dish-index → estimate (absent = left alone or failed). Never throws.
+ * dish-index → estimate (absent = left alone or failed). Never throws. Runs
+ * on the PLAIN client, before the save tx opens (see the placement note).
  */
-async function estimateZeroMacroDishes(
-  tx: Prisma.TransactionClient,
-  userId: string,
-  payload: MaterializeMealPayload,
-  ingredientIdByCanonical: Map<string, string>,
-  opts: MaterializeMealOptions | undefined,
+export async function estimateZeroMacroDishes(
+  opts: EstimateZeroMacroDishesOptions,
 ): Promise<Map<number, EstimatedDishMacros>> {
   const out = new Map<number, EstimatedDishMacros>();
-  const estimateImpl = opts?.estimateDishMacrosImpl ?? estimateDishMacros;
-  const deadlineMs = opts?.estimateDeadlineMs ?? MEAL_SAVE_MACRO_ESTIMATE_DEADLINE_MS;
+  const { prisma: tx, userId, payload, ingredientIdByCanonical, estimateImpl } = opts;
+  const deadlineMs = opts.deadlineMs ?? MEAL_SAVE_MACRO_ESTIMATE_DEADLINE_MS;
 
   const work: Array<{ index: number; dish: Extract<MaterializeMealDish, { kind: "new" }> }> = [];
   payload.dishes.forEach((d, index) => {
@@ -471,13 +482,12 @@ export async function materializeMeal(
   const { ownerUserId, isPublic: resolvedIsPublic, sourceType: resolvedSourceType } =
     resolveMaterializeOwnership(userId, payload.sourceType, target);
 
-  // WS9 BUG-274 — macros at save (user path only, and only when the caller
-  // opts in; see MaterializeMealOptions + the block comment above
-  // estimateZeroMacroDishes). Runs BEFORE any row is written so the LLM wait
-  // holds no dirty rows; never throws.
+  // WS9 BUG-274 — macros at save: the ROUTE ran estimateZeroMacroDishes
+  // before this tx opened (see the placement note above it); this only
+  // consumes the result, and only on the user path (never for a store target).
   const estimatedMacrosByIndex =
-    target === undefined && opts?.estimateMacros === true
-      ? await estimateZeroMacroDishes(tx, userId, payload, ingredientIdByCanonical, opts)
+    target === undefined && opts?.estimatedMacrosByIndex
+      ? opts.estimatedMacrosByIndex
       : new Map<number, EstimatedDishMacros>();
 
   // ── Pass 2 (transactional): meal graph.

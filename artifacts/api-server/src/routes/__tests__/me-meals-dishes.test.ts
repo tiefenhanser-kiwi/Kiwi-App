@@ -298,7 +298,15 @@ interface Harness {
 async function spinUp(prisma: unknown): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use(createMeRouter({ prisma: withSessionUser(prisma) as never }));
+  app.use(
+    createMeRouter({
+      prisma: withSessionUser(prisma) as never,
+      // WS9 BUG-274 — hermetic by construction: the estimator dep is a stub
+      // that never estimates (fail-soft path), so no live SDK call can leave
+      // this suite. The BUG-274 wiring itself is asserted in me-save-canonical.
+      estimateDishMacros: (async () => ({ status: "failed", error: "test stub" })) as never,
+    }),
+  );
 
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {
