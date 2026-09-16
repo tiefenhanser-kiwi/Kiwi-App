@@ -630,6 +630,74 @@ describe("materializeWizardDraft — WS7-5c Block A payload path", () => {
 // canned items (crushed/diced tomatoes, coconut milk, enchilada sauce) drop
 // into Pantry on every wizard activation.
 
+// WS9 Redesign Arc Block 1 — D-WS7-213 half 1 on the activate path.
+describe("materializeWizardDraft — day assignment (dayAssignment option)", () => {
+  function withDayStubs(stubs: ReturnType<typeof makeStubs>) {
+    const itemUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }> = [];
+    const items: Array<{ id: string; mealId: string; positionIndex: number }> = [];
+    const tx = stubs.txStub as unknown as Record<string, any>;
+    let n = 0;
+    tx.mealPlanItem = {
+      create: async (args: { data: { mealId: string; positionIndex: number } }) => {
+        items.push({ id: `item-${n++}`, mealId: args.data.mealId, positionIndex: args.data.positionIndex });
+        return {};
+      },
+      findMany: async () => items,
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        itemUpdates.push(args);
+        return {};
+      },
+    };
+    const origFindMany = tx.meal.findMany;
+    tx.meal.findMany = async (args: { where?: { id?: { in?: string[] } }; select?: Record<string, unknown> }) => {
+      if (args?.select && "dishLinks" in args.select) {
+        return (args.where?.id?.in ?? []).map((id: string) => ({
+          id,
+          activeTimeMinutes: 20,
+          estimatedTimeMinutes: 40,
+          difficulty: "easy",
+          dishLinks: [{ dish: { dishIngredients: [{ ingredient: { category: "Produce" } }] } }],
+        }));
+      }
+      return origFindMany(args);
+    };
+    return { itemUpdates };
+  }
+
+  it("with dayAssignment: every item gets a day, starting tomorrow (UTC)", async () => {
+    const expanded = sampleExpanded();
+    const stubs = makeStubs({ expanded });
+    const { itemUpdates } = withDayStubs(stubs);
+    await materializeWizardDraft({
+      prisma: stubs.prismaStub as unknown as PrismaClient,
+      tx: stubs.txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan: asSavePlan(expanded),
+      dayAssignment: { startDate: new Date("2026-09-17T00:00:00Z") },
+    });
+    assert.equal(itemUpdates.length, expanded.meals.length);
+    assert.equal(itemUpdates.every((u) => typeof u.data.assignedDayOfWeek === "string"), true);
+    assert.equal(itemUpdates.every((u) => u.data.assignedDate instanceof Date), true);
+    const dates = itemUpdates.map((u) => (u.data.assignedDate as Date).toISOString().slice(0, 10)).sort();
+    assert.equal(dates[0], "2026-09-17");
+  });
+
+  it("without dayAssignment (the /save path): no day writes at all", async () => {
+    const expanded = sampleExpanded();
+    const stubs = makeStubs({ expanded });
+    const { itemUpdates } = withDayStubs(stubs);
+    await materializeWizardDraft({
+      prisma: stubs.prismaStub as unknown as PrismaClient,
+      tx: stubs.txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan: asSavePlan(expanded),
+    });
+    assert.equal(itemUpdates.length, 0);
+  });
+});
+
 describe("inferCategory — WS7-5d Block 2 expanded category union", () => {
   it("infers Canned for common canned items (multi-token keywords win over the Produce 'tomato' single-token)", () => {
     assert.equal(inferCategory("diced tomatoes"), "Canned");

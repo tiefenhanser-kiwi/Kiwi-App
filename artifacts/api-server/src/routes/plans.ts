@@ -34,6 +34,7 @@ import {
   IngredientResolutionError,
 } from "../lib/mealCreate";
 import { forkMealForUser } from "../lib/mealFork";
+import { assignAndPersistPlanDays } from "../lib/planDayAssignment";
 import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
 import { markFirstPlanCreated } from "../lib/firstPlan";
@@ -1342,6 +1343,218 @@ export function createPlansRouter(
       return res.status(500).json({ error: "failed to update plan" });
     }
   });
+
+  // ── POST /plans/from-meals — WS9 Redesign Arc Block 1 (D-WS9-237) ──────
+  // "Build my week" on the Pick screen: ONE ACTIVE plan from exactly the meals
+  // the user picked — no chooser, no draft, no save step, no AI. The store-slot
+  // half of materializeWizardDraft, re-used without a draft row:
+  //   • a public catalog meal → forkMealForUser (D-WS7-139 fork-on-acquire, one
+  //     fork per distinct source); a meal the user owns → used directly;
+  //     anything else → 403 (a private meal of another user), 404 (missing /
+  //     archived);
+  //   • the hidden MealPlanTemplate (same title + day-count dedup);
+  //   • the MealPlanInstance created ACTIVE for this week (currentWeekRange,
+  //     activatedAt, committedAt, isWizardDraft:false — no draft row ever);
+  //   • N MealPlanItem in the order given; days assigned deterministically
+  //     (D-WS7-213: perishability first, easiest last, from tomorrow) and
+  //     PERSISTED — the first planDurationDays meals get a day, the rest none;
+  //   • the this-week winner resolution, markFirstPlanCreated, the activity.
+  // No WizardLastBatch upsert, no draft supersede. NOT filtered by the
+  // cook-time cap — the user chose these.
+  const fromMealsBodySchema = z.object({
+    mealIds: z.array(z.string().min(1).max(100)).min(1).max(14),
+    planDurationDays: z.number().int().min(1).max(7),
+    householdSize: z.number().int().min(1).max(30).optional(),
+    title: z.string().min(1).max(120).optional(),
+  });
+  const FROM_MEALS_DEFAULT_TITLE = "Your picks";
+
+  router.post(
+    "/plans/from-meals",
+    requireAuth,
+    mutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const parsed = fromMealsBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid request body",
+          details: parsed.error.flatten(),
+        });
+      }
+      const { mealIds, planDurationDays, householdSize, title } = parsed.data;
+      const distinctIds = [...new Set(mealIds)];
+
+      try {
+        const sources = await prisma.meal.findMany({
+          where: { id: { in: distinctIds } },
+          select: { id: true, userId: true, isPublic: true, isArchived: true },
+        });
+        const sourceById = new Map(sources.map((m) => [m.id, m]));
+        for (const id of distinctIds) {
+          const m = sourceById.get(id);
+          if (!m || m.isArchived) {
+            return res.status(404).json({ error: "meal not found", mealId: id });
+          }
+          if (!m.isPublic && m.userId !== userId) {
+            return res.status(403).json({ error: "forbidden", mealId: id });
+          }
+        }
+
+        const result = await prisma.$transaction(
+          async (tx) => {
+            // Servings unification (BUG-046 / D-WS9-070) — ONE household for
+            // every fork: per-run (this request) ?? stored.
+            const effectiveHousehold =
+              householdSize ??
+              (
+                await tx.userPreferences.findUnique({
+                  where: { userId },
+                  select: { householdSize: true },
+                })
+              )?.householdSize;
+
+            // Fork-on-acquire, one fork per distinct public source; owned
+            // meals bind as-is.
+            const boundBySource = new Map<string, string>();
+            let mealsForked = 0;
+            for (const id of distinctIds) {
+              const m = sourceById.get(id)!;
+              if (m.userId === userId) {
+                boundBySource.set(id, id);
+              } else {
+                const fork = await forkMealForUser(tx, id, userId, effectiveHousehold);
+                boundBySource.set(id, fork.mealId);
+                mealsForked++;
+              }
+            }
+
+            // The hidden template — same dedup key as materializeWizardDraft
+            // (userId + wizard source + title + day-count).
+            const planTitle = title ?? FROM_MEALS_DEFAULT_TITLE;
+            const existingTemplate = await tx.mealPlanTemplate.findFirst({
+              where: {
+                userId,
+                sourceType: "wizard",
+                isArchived: false,
+                title: planTitle,
+                defaultDaysCount: mealIds.length,
+              },
+              select: { id: true },
+            });
+            const template =
+              existingTemplate ??
+              (await tx.mealPlanTemplate.create({
+                data: {
+                  userId,
+                  title: planTitle,
+                  description: null,
+                  tags: [],
+                  sourceType: "wizard",
+                  defaultDaysCount: mealIds.length,
+                  imageUrl: null,
+                  isPublic: false,
+                  isArchived: false,
+                },
+                select: { id: true },
+              }));
+
+            // Resolve the prior this-week winner BEFORE the new row exists so
+            // the demotion toast can name it (D-WS9-011a).
+            const priorWinnerId = await resolveThisWeekWinnerId(tx, userId);
+            const week = currentWeekRange();
+            const instance = await tx.mealPlanInstance.create({
+              data: {
+                userId,
+                mealPlanTemplateId: template.id,
+                titleOverride: null,
+                status: "draft",
+                startDate: new Date(week.startDate),
+                endDate: new Date(week.endDate),
+                activatedAt: new Date(),
+                committedAt: new Date(),
+                isWizardDraft: false,
+                optimizationNotes: Prisma.DbNull,
+                breakfastOverrides: null,
+                lunchOverrides: null,
+              },
+              select: { id: true, revisionId: true },
+            });
+
+            await tx.mealPlanItem.createMany({
+              data: mealIds.map((id, positionIndex) => ({
+                mealPlanInstanceId: instance.id,
+                mealId: boundBySource.get(id) ?? id,
+                positionIndex,
+                isBreakfast: false,
+                isLunch: false,
+                isDinner: true,
+              })),
+            });
+
+            // D-WS7-213 half 1 — assign + persist days (from tomorrow).
+            const assigned = await assignAndPersistPlanDays(tx, instance.id, {
+              planDurationDays,
+            });
+
+            // D-WS9-026 — stamp first-plan-created (write-if-null; first wins).
+            await markFirstPlanCreated(tx, userId);
+
+            await emitActivity({
+              tx,
+              userId,
+              eventType: "plan_activated_this_week",
+              entityType: "MealPlanInstance",
+              entityId: instance.id,
+              metadata: {
+                source: "plans_from_meals",
+                mealsForked,
+                itemsCreated: mealIds.length,
+                daysAssigned: assigned.filter((a) => a.dayIndex !== null).length,
+              },
+            });
+
+            let demoted: { id: string; name: string } | null = null;
+            if (priorWinnerId && priorWinnerId !== instance.id) {
+              const y = await tx.mealPlanInstance.findUnique({
+                where: { id: priorWinnerId },
+                select: { titleOverride: true, template: { select: { title: true } } },
+              });
+              if (y) {
+                demoted = {
+                  id: priorWinnerId,
+                  name: y.titleOverride ?? y.template?.title ?? "",
+                };
+              }
+            }
+
+            return { instance, demoted, assigned };
+          },
+          { timeout: 60_000, maxWait: 20_000 },
+        );
+
+        return res.status(201).json({
+          planId: result.instance.id,
+          instance: {
+            id: result.instance.id,
+            revisionId: result.instance.revisionId,
+          },
+          demoted: result.demoted,
+          days: result.assigned.map((a) => ({
+            mealId: a.mealId,
+            assignedDayOfWeek: a.assignedDayOfWeek,
+            assignedDate: a.assignedDate ? a.assignedDate.toISOString().slice(0, 10) : null,
+          })),
+        });
+      } catch (err) {
+        logger.error({ err, userId }, "POST /plans/from-meals failed");
+        return res.status(500).json({ error: "failed to create plan" });
+      }
+    },
+  );
 
   // WS7-4-B c4 — POST /plans/use-template/:templateId — copy a public (or
   // owner's private) Template into a new MealPlanInstance for the requester.

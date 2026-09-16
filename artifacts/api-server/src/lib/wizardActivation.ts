@@ -30,6 +30,7 @@ import { deriveAmountRefs, type MatcherIngredient } from "./stepAmountRefs";
 import { forkMealForUser, publishMealToStore } from "./mealFork";
 import { stampAllergens } from "./allergens";
 import { stampMealTiming } from "./mealTiming";
+import { assignAndPersistPlanDays } from "./planDayAssignment";
 import type { WizardSavePlan } from "./wizardSavePlan";
 
 // WS7-6 Block 2: inferCategory now lives in ingredientResolve.ts so the new
@@ -74,6 +75,12 @@ export interface MaterializeWizardDraftOptions {
   // a (revalidated) sourceStoreMealId. Replaces the old flat WizardExpandedPlan
   // payload so the materializer can mix forked + built meals per slot.
   savePlan: WizardSavePlan;
+  // WS9 Redesign Arc Block 1 (D-WS7-213 half 1) — when present, the items get
+  // deterministic days (perishability first, easiest last, from tomorrow)
+  // written in the same tx. Passed by /activate (a plan for THIS week);
+  // omitted by /save ("Save for Later" is undated — dating its days from
+  // tomorrow would be a stale claim by the time it is used).
+  dayAssignment?: { startDate?: Date };
 }
 
 export interface MaterializeWizardDraftResult {
@@ -562,6 +569,15 @@ export async function materializeWizardDraft(
       },
       select: { id: true },
     }));
+
+  // D-WS7-213 half 1 — day assignment on activate (all generation paths). The
+  // items were just written above; every slot is a dinner for one day.
+  if (opts.dayAssignment) {
+    await assignAndPersistPlanDays(tx, draftId, {
+      startDate: opts.dayAssignment.startDate,
+      planDurationDays: savePlan.slots.length,
+    });
+  }
 
   return {
     savePlan,

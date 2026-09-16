@@ -2278,6 +2278,8 @@ export function createWizardRouter(
           userId,
           draftId,
           savePlan,
+          // D-WS7-213 half 1 — this plan is for THIS week: assign days.
+          dayAssignment: {},
         });
 
         // WS7-6 (E) Block 1 REWORK seam C — stamp activatedAt in the
