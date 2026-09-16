@@ -124,8 +124,7 @@ function shelfBatch(overrides: Partial<WizardLastBatch> = {}): WizardLastBatch {
   return {
     source: "shelf",
     candidates: [],
-    meals: SHELF_MEALS,
-    mealIds: ["m1", "m2"],
+    shelf: { meals: SHELF_MEALS, totalEligible: 40, hasMore: true, unmatchedNames: [], metadata: null },
     input: SHELF_INPUT,
     createdAt: "2026-09-16T12:00:00.000Z",
     ...overrides,
@@ -135,12 +134,14 @@ function shelfBatch(overrides: Partial<WizardLastBatch> = {}): WizardLastBatch {
 test("shelf batch - shown when it still has cards; an empty / fully-stale one hides", async () => {
   const { buildShelfRehydrateParams, previousOptionsSubtitle } = await import("../previousOptions");
   assert.equal(shouldShowPreviousOptions(shelfBatch()), true);
-  assert.equal(shouldShowPreviousOptions(shelfBatch({ meals: [] })), false, "empty");
   assert.equal(
-    shouldShowPreviousOptions(shelfBatch({ meals: undefined, mealIds: ["gone-1"] })),
+    shouldShowPreviousOptions(
+      shelfBatch({ shelf: { meals: [], totalEligible: 0, hasMore: false, unmatchedNames: [], metadata: null } }),
+    ),
     false,
-    "ids with no cards = fully stale, hidden",
+    "empty",
   );
+  assert.equal(shouldShowPreviousOptions(shelfBatch({ shelf: null })), false, "no shelf = nothing to re-show");
   assert.equal(previousOptionsSubtitle(shelfBatch()), "Your last 2 suggested meals");
   assert.equal(previousOptionsSubtitle(batch()), "Your last generated plan");
   assert.equal(buildShelfRehydrateParams(batch()), null, "a plans batch is not a shelf");
@@ -152,8 +153,9 @@ test("shelf batch - Pick params: the stored cards IN ORDER as the shelf, the sto
   assert.ok(p, "params");
   const shelf = JSON.parse(p!.shelf);
   assert.deepEqual(shelf.meals.map((m: { id: string }) => m.id), ["m1", "m2"]);
-  assert.equal(shelf.totalEligible, 2);
-  assert.equal(shelf.hasMore, true, "the user can page on from here");
+  assert.equal(shelf.totalEligible, 40, "as stored");
+  assert.equal(shelf.hasMore, true, "as stored — the user can page on from here");
+  assert.equal("metadata" in shelf, false, "a null metadata is not forwarded");
   assert.deepEqual(JSON.parse(p!.request), SHELF_INPUT, "the request round-trips verbatim");
   assert.equal(p!.mode, "prefs");
   assert.equal(p!.planDurationDays, "4");

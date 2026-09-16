@@ -585,3 +585,36 @@ test("getWizardLastBatch ACCEPTS a legacy source:'surprise' row (server read uni
   const res = await getWizardLastBatch();
   assert.equal(res.batch?.source, "surprise");
 });
+
+// ── Block 2c Part E — GET /wizard/last-batch: a SHELF batch (server PS-A shape) ─
+
+test("getWizardLastBatch ACCEPTS a source:'shelf' row: shelf = a WizardShelfResponse with metadata:null, candidates []", async () => {
+  nextResponse = () =>
+    mockJson({
+      batch: {
+        source: "shelf",
+        candidates: [],
+        input: { planDurationDays: 4, householdSize: 2 },
+        createdAt: "2026-09-16T00:00:00.000Z",
+        shelf: {
+          meals: [
+            {
+              id: "m1", title: "Miso Salmon", description: null, cuisineType: "Japanese", difficulty: "easy",
+              estimatedTimeMinutes: 30, activeTimeMinutes: 15,
+              macrosPerServing: { calories: 500, protein: 30, carbs: 40, fat: 20 }, tags: [], dishCount: 2,
+              isNewToYou: true, isPlaylist: false, isPinned: false, matchesCuisine: true, source: "shelf",
+            },
+          ],
+          totalEligible: 12,
+          hasMore: true,
+          unmatchedNames: [],
+          metadata: null,
+        },
+      },
+    });
+  const { getWizardLastBatch } = await import("../wizard");
+  const res = await getWizardLastBatch();
+  assert.equal(res.batch?.source, "shelf");
+  assert.equal(res.batch?.shelf?.meals[0].id, "m1");
+  assert.equal(res.batch?.shelf?.hasMore, true);
+});

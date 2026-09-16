@@ -18,15 +18,16 @@ export function shouldShowPreviousOptions(
   // no results screen to land on: hide the link rather than rehydrate it.
   if (batch?.source === "surprise") return false;
   // Block 2c Part E — a shelf batch shows when it still has CARDS to re-show
-  // (an empty or fully-stale row — every id gone, so no cards — hides it).
-  if (batch?.source === "shelf") return (batch.meals?.length ?? 0) > 0;
+  // (the server already drops stale ids and nulls an emptied batch; a
+  // degenerate empty shelf hides here too).
+  if (batch?.source === "shelf") return (batch.shelf?.meals.length ?? 0) > 0;
   return !!batch && (batch.candidates?.length ?? 0) > 0;
 }
 
 /** Block 2c Part E — the link's subtitle, by batch kind. */
 export function previousOptionsSubtitle(batch: WizardLastBatch): string {
   if (batch.source === "shelf") {
-    const n = batch.meals?.length ?? 0;
+    const n = batch.shelf?.meals.length ?? 0;
     return n === 1 ? "Your last suggested meal" : `Your last ${n} suggested meals`;
   }
   const count = batch.candidates?.length ?? 0;
@@ -35,26 +36,27 @@ export function previousOptionsSubtitle(batch: WizardLastBatch): string {
 
 /**
  * Block 2c Part E — the Pick-screen params that re-show a SHELF batch: the
- * stored cards, in order, as the shelf; the stored request as the body "Get
- * more options" re-posts (with the shown ids excluded, as always). Selections
- * are NOT restored — this is "here is what you were looking at", not a
- * resumed session. hasMore stays true so the user can page on from here.
- * Returns null when the batch is not a shelf or carries no cards.
+ * server-resolved cards, in order, as the shelf (its totalEligible / hasMore
+ * / unmatchedNames as stored); the stored request as the body "Get more
+ * options" re-posts (with the shown ids excluded, as always). Selections are
+ * NOT restored — this is "here is what you were looking at", not a resumed
+ * session. Returns null when the batch is not a shelf or carries no cards.
  */
 export function buildShelfRehydrateParams(
   batch: WizardLastBatch,
 ): PickMealsRouteParams | null {
-  if (batch.source !== "shelf") return null;
-  const meals = batch.meals ?? [];
-  if (meals.length === 0) return null;
+  if (batch.source !== "shelf" || !batch.shelf) return null;
+  const stored = batch.shelf;
+  if (stored.meals.length === 0) return null;
   const request = (batch.input ?? {}) as Partial<WizardShelfRequest>;
   const days = Number(request.planDurationDays);
   const household = Number(request.householdSize);
   const shelf: WizardShelfResponse = {
-    meals,
-    totalEligible: meals.length,
-    hasMore: true,
-    unmatchedNames: [],
+    meals: stored.meals,
+    totalEligible: stored.totalEligible,
+    hasMore: stored.hasMore,
+    unmatchedNames: stored.unmatchedNames,
+    ...(stored.metadata ? { metadata: stored.metadata } : {}),
   };
   return pickMealsRouteParams({
     shelf,

@@ -128,8 +128,8 @@ test("plans batch: wizard-results in rehydrate mode (unchanged)", async () => {
 test("shelf batch: the Pick screen re-hydrated from the stored cards, no selection", async () => {
   batch = {
     source: "shelf",
-    meals: [CARD],
-    mealIds: ["m1"],
+    candidates: [],
+    shelf: { meals: [CARD], totalEligible: 12, hasMore: true, unmatchedNames: [], metadata: null },
     input: SHELF_INPUT,
     createdAt: "2026-09-16T00:00:00.000Z",
   };
@@ -145,11 +145,11 @@ test("shelf batch: the Pick screen re-hydrated from the stored cards, no selecti
   assert.equal(pushed[0].params.rehydratedCandidates, undefined);
 });
 
-test("empty / fully-stale shelf batch: the link hides", async () => {
+test("empty shelf batch (the server nulls a fully-stale one): the link hides", async () => {
   batch = {
     source: "shelf",
-    meals: [],
-    mealIds: ["gone"],
+    candidates: [],
+    shelf: { meals: [], totalEligible: 0, hasMore: false, unmatchedNames: [], metadata: null },
     input: SHELF_INPUT,
     createdAt: "2026-09-16T00:00:00.000Z",
   };
