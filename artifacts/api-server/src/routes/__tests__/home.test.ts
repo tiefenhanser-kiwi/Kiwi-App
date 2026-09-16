@@ -18,11 +18,11 @@ const USER_ID = "test-user-home";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// Post-pass Part E (BUG-282) — UTC, like the route and the stored dates.
 function startOfDay(d: Date): Date {
-  const c = new Date(d);
-  c.setHours(0, 0, 0, 0);
-  return c;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
+const DAY_NAMES_T = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 // ── fixtures ───────────────────────────────────────────────────────────
 
@@ -373,12 +373,11 @@ describe("GET /home", () => {
   // BUG-114 — today's item resolves by assignedDayOfWeek. This test used to
   // seed only assignedDate and rely on the removed date branch; nothing writes
   // that column, so the branch could only ever fire for seed rows.
-  it("resolves today's meal by assignedDayOfWeek and computes dayOffset from plan start", async () => {
+  it("resolves today's meal by assignedDayOfWeek (UTC day, no localDate) and computes dayOffset from plan start", async () => {
     const today = startOfDay(new Date());
     const startDate = startOfDay(new Date(Date.now() - 2 * MS_PER_DAY));
-    const DAY_NAMES_T = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    const todayName = DAY_NAMES_T[new Date().getDay()];
-    const yesterdayName = DAY_NAMES_T[(new Date().getDay() + 6) % 7];
+    const todayName = DAY_NAMES_T[new Date().getUTCDay()];
+    const yesterdayName = DAY_NAMES_T[(new Date().getUTCDay() + 6) % 7];
     const harness = await spinUp(
       makeStubPrisma({
         activeInstance: activeInstanceRow({
@@ -404,6 +403,55 @@ describe("GET /home", () => {
       const meal = body.todaysMeal.meal as { id: string; minutes: number };
       assert.equal(meal.id, "m-t");
       assert.equal(meal.minutes, 35); // renamed flat shape
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // Post-pass Part E (BUG-282, [WS9-arc-PS-E]) — the server half. The client
+  // sends ?localDate=YYYY-MM-DD (Block 2b); a day BEHIND the server's UTC day
+  // (8 PM Eastern = 00:xx UTC tomorrow) resolves the EARLIER day's meal, and
+  // the this-week winner is read in that day too. A malformed value falls back
+  // to UTC rather than 400.
+  it("BUG-282: ?localDate= a day behind UTC resolves the earlier day's meal (and its dayOffset)", async () => {
+    // Fixed calendar: plan Sun 2026-09-13 … Sat 2026-09-19. The server's UTC
+    // "now" is irrelevant — localDate pins the day.
+    const startDate = new Date("2026-09-13T00:00:00Z");
+    const harness = await spinUp(
+      makeStubPrisma({
+        activeInstance: activeInstanceRow({
+          startDate,
+          items: [
+            planItem("item-wed", 0, "m-w", "Wednesday Meal", new Date("2026-09-16T00:00:00Z"), "Wednesday"),
+            planItem("item-thu", 1, "m-t", "Thursday Meal", new Date("2026-09-17T00:00:00Z"), "Thursday"),
+          ],
+        }),
+        savedPlanCount: 1,
+      }),
+    );
+    try {
+      // 8 PM Eastern on Wednesday the 16th is 00:xx UTC on the 17th; the
+      // client says the 16th, so it is Wednesday's meal, at offset 3.
+      const wed = await authGet(harness, "/home?localDate=2026-09-16");
+      const wedBody = (await wed.json()) as { todaysMeal: Record<string, unknown> | null };
+      assert.ok(wedBody.todaysMeal, "Wednesday resolves");
+      assert.equal(wedBody.todaysMeal.mealPlanItemId, "item-wed");
+      assert.equal(wedBody.todaysMeal.dayOffset, 3);
+
+      const thu = await authGet(harness, "/home?localDate=2026-09-17");
+      const thuBody = (await thu.json()) as { todaysMeal: Record<string, unknown> | null };
+      assert.equal(thuBody.todaysMeal?.mealPlanItemId, "item-thu");
+      assert.equal(thuBody.todaysMeal?.dayOffset, 4);
+
+      // Outside the plan's window the resolver finds no winner in THAT day.
+      const out = await authGet(harness, "/home?localDate=2026-09-25");
+      const outBody = (await out.json()) as { todaysMeal: unknown; activePlan: unknown };
+      assert.equal(outBody.activePlan, null);
+      assert.equal(outBody.todaysMeal, null);
+
+      // Malformed → UTC fallback, still 200.
+      const bad = await authGet(harness, "/home?localDate=2026-13-45");
+      assert.equal(bad.status, 200);
     } finally {
       await harness.close();
     }

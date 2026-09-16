@@ -20,12 +20,13 @@ import { createRequireAuth } from "../middleware/auth";
 import { MEAL_LIST_SELECT, toListShape } from "./meals";
 import { resolveRailPlans, toYmd } from "../lib/planQueries";
 import { resolveThisWeekWinnerId } from "../lib/planDates";
+import { parseLocalDate, todayFor } from "../lib/planDayAssignment";
 
 export interface HomeRouterDeps {
   prisma: PrismaClient;
 }
 
-// Sunday-indexed (Date.getDay()) → day name, matching MealPlanItem.assignedDayOfWeek.
+// Sunday-indexed (Date.getUTCDay()) → day name, matching MealPlanItem.assignedDayOfWeek.
 const DAY_NAMES = [
   "Sunday",
   "Monday",
@@ -50,10 +51,13 @@ const MONDAY_OFFSET: Record<string, number> = {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// Post-pass Part E (BUG-282, [WS9-arc-PS-E]) — UTC truncation. Plan dates are
+// stored as UTC midnight (lib/planDates.ts) and "today" below is either the
+// client's calendar day as UTC midnight (todayFor) or the server's UTC day, so
+// every comparison is like with like. The old local-time setHours() disagreed
+// with both on any server west of UTC.
 function startOfDay(d: Date): Date {
-  const c = new Date(d);
-  c.setHours(0, 0, 0, 0);
-  return c;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
 interface PlanItemLite {
@@ -112,7 +116,7 @@ function resolveTodaysItem(
   now: Date,
 ): { item: PlanItemLite; dayOffset: number } | null {
   const today = startOfDay(now);
-  const todayName = DAY_NAMES[now.getDay()];
+  const todayName = DAY_NAMES[now.getUTCDay()];
 
   let match: PlanItemLite | null = null;
   for (const item of items) {
@@ -150,7 +154,20 @@ export function createHomeRouter(
     if (!userId) {
       return res.status(401).json({ error: "unauthenticated" });
     }
-    const now = new Date();
+    // Post-pass Part E (BUG-282) — "today" is the CLIENT's calendar day when
+    // it sends `?localDate=YYYY-MM-DD` (Block 2b already does), else the
+    // server's UTC day. On Cloud Run the clock is UTC, so after ~8 PM Eastern
+    // the Tonight card showed tomorrow's meal. todayFor() yields that day as
+    // UTC midnight — the same basis D-WS7-103's day-granular resolver
+    // truncates to, so passing it as `now` makes the this-week winner AND
+    // today's item both read in the client's day. A malformed value is
+    // ignored (the UTC fallback), never a 400 — Home must always render.
+    const localDateRaw = req.query.localDate;
+    const localDate =
+      typeof localDateRaw === "string" && parseLocalDate(localDateRaw) !== null
+        ? localDateRaw
+        : undefined;
+    const now = localDate !== undefined ? todayFor(localDate) : new Date();
 
     try {
       // ── active plan + today's meal ──────────────────────────────────

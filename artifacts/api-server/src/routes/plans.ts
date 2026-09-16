@@ -42,6 +42,7 @@ import {
   assignedDateRange,
   inclusiveDayCount,
   loadAssignableMeals,
+  parseLocalDate,
   todayFor,
 } from "../lib/planDayAssignment";
 import { picksPlanTitle, UNNAMED_PICKS_TITLE } from "../lib/planTitle";
@@ -295,7 +296,14 @@ export function createPlansRouter(
       typeof req.query.cursor === "string" && req.query.cursor.length > 0
         ? req.query.cursor
         : undefined;
-    const now = new Date();
+    // Post-pass Part E (BUG-282) — the this-week winner reads in the client's
+    // calendar day when `?localDate=` is sent (same seam as GET /home), else
+    // the server's UTC day. The mobile list does not send it yet.
+    const localDateRaw = req.query.localDate;
+    const now =
+      typeof localDateRaw === "string" && parseLocalDate(localDateRaw) !== null
+        ? todayFor(localDateRaw)
+        : new Date();
 
     try {
       // WS7-6 (E) Block 1 REWORK — compute the resolver winnerId ONCE per
