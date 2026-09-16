@@ -167,3 +167,41 @@ describe("Block 2 — the Playlist dial names marked shelf rows in both generate
     }
   });
 });
+
+// WS9 Redesign Arc Block 2 (Part F) — Ask-Kiwi fidelity: a plain name gets a
+// plain dish. Hans typed "grilled chicken breast with rice pilaf and steamed
+// green beans" and got lemon-garlic-oregano MARINATED chicken — "a little more
+// artistic license with the prompt than I would expect". One rule beside the
+// brand-name section, in the same voice; nothing in the body governed
+// embellishment before, so this is added, not layered over an older rule.
+describe("Block 2 — meal_builder.mode_a_parse: a plain name gets a plain dish", () => {
+  const body = MEAL_BUILDER_MODE_A_PARSE_BODY;
+
+  it("states the rule's key sentence in the SEED source", () => {
+    assert.ok(body.includes("# Plain names get plain dishes"));
+    assert.ok(
+      body.includes(
+        "A dish the user names in its plain form is returned in its plain, most common form.",
+      ),
+    );
+    assert.ok(
+      body.includes(
+        "Do not add marinades, sauces, glazes, rubs or flavour profiles the user did not name",
+      ),
+    );
+    assert.ok(
+      body.includes(
+        '"Grilled chicken breast" is seasoned and grilled — it is not lemon-garlic-oregano marinated chicken.',
+      ),
+    );
+    assert.ok(body.includes("Named flavours are honoured exactly"));
+  });
+
+  it("sits beside the brand-name section, before the edge cases, stated once", () => {
+    const brand = body.indexOf("# Brand-name and boxed products");
+    const plain = body.indexOf("# Plain names get plain dishes");
+    const edge = body.indexOf("# Edge cases");
+    assert.ok(brand < plain && plain < edge);
+    assert.equal(body.split("# Plain names get plain dishes").length - 1, 1, "not layered");
+  });
+});

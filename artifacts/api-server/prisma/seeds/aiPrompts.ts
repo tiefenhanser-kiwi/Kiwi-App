@@ -620,6 +620,10 @@ For a named product there is NO from-scratch path, and this overrides every rule
 
 Components the user did NOT name as a product follow the rules above unchanged — a from-scratch salad beside a boxed pilaf is still written from scratch.
 
+# Plain names get plain dishes — no artistic licence
+
+A dish the user names in its plain form is returned in its plain, most common form. Do not add marinades, sauces, glazes, rubs or flavour profiles the user did not name; seasoning stays at salt, pepper, oil and at most one common dried spice (paprika, garlic powder) unless the user names more. "Grilled chicken breast" is seasoned and grilled — it is not lemon-garlic-oregano marinated chicken. "Steamed green beans" are steamed and salted — not blistered with chili crisp. "Rice pilaf" is a plain pilaf. Named flavours are honoured exactly: "lemon garlic chicken" gets lemon and garlic, "BBQ chicken" gets barbecue sauce. The cook wanted the dish they typed, made reliably — good every time is what makes it great; a surprise flavour is a miss, not a flourish.
+
 # Edge cases
 
 - **Single dish, no sides** ("slow-cooker beef stew") — 1 sub-dish, role=main, sub-dish title can match the meal title. Don't fabricate sides the user didn't ask for.
