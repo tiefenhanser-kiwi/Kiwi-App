@@ -23,10 +23,19 @@
 //
 // ⚠️ `Ingredient.category` has ONE tier for all fresh protein — "Protein"
 // covers seafood AND meat/poultry (ingredientResolve.ts CATEGORY_RULES), and
-// `subcategory` is never written. So "fish before chicken" within the fresh
-// tier is NOT expressible from stored data; seafood and fresh meat share the
-// earliest tier and fall back to effort + given order. Recorded as a CANDIDATE
-// in the Block 1 report; no name-based classifier is invented here.
+// `subcategory` is never written (0 of 1,773 rows on 2026-09-16). So "fish
+// before chicken" is NOT expressible from the category alone.
+//
+// Post-pass Part B (BUG-280, [WS9-arc-PS-B]) — fish first, ruled: the FRESH
+// tier is split in two, SEAFOOD ahead of other fresh protein and produce, by a
+// NAMED word list over the ingredient names (SEAFOOD_INGREDIENT_TERMS below).
+// A name list is sanctioned HERE because the blast radius is one day of
+// ordering, not a health claim — the D-WS9-211 ban on name-based allergen
+// classification stands and this licence must not be generalised. The check
+// runs on the NAME regardless of `category` because inferCategory mis-stamps
+// some seafood (ahi tuna steaks → Canned, mahi-mahi / flounder fillets →
+// Pantry). Forward-compatible: when `Ingredient.subcategory` is ever stamped,
+// read it in loadAssignableMeals and let the list become its FALLBACK.
 //
 // Timezone: dates follow lib/planDates.ts — UTC calendar days, stored as UTC
 // midnight, day names from getUTCDay(). (routes/home.ts resolves "today's
@@ -52,28 +61,132 @@
 
 import type { Prisma } from "@prisma/client";
 
-export type PerishabilityTier = 0 | 1 | 2;
+export type PerishabilityTier = 0 | 1 | 2 | 3;
 
 /**
- * `Ingredient.category` → perishability tier. The named table Hans asked for:
- *   0 = FRESH   (earliest): seafood, fresh meat & poultry (both "Protein"),
- *                           fresh produce
- *   1 = CHILLED (middle):   dairy & eggs
- *   2 = STABLE  (latest):   pantry, canned, frozen, dried, bakery, snacks,
+ * `Ingredient.category` → perishability tier. The named table Hans asked for,
+ * with the Part B split at the top:
+ *   0 = SEAFOOD (earliest): fresh fish & shellfish — by NAME, see
+ *                           SEAFOOD_INGREDIENT_TERMS (no category says it)
+ *   1 = FRESH:              other fresh meat & poultry ("Protein"), fresh produce
+ *   2 = CHILLED (middle):   dairy & eggs
+ *   3 = STABLE  (latest):   pantry, canned, frozen, dried, bakery, snacks,
  *                           household — and anything unknown.
  */
+export const PERISHABILITY_SEAFOOD: PerishabilityTier = 0;
 export const PERISHABILITY_BY_CATEGORY: Readonly<Record<string, PerishabilityTier>> = {
-  Protein: 0,
-  Produce: 0,
-  Dairy: 1,
-  Bakery: 2,
-  Pantry: 2,
-  Canned: 2,
-  Frozen: 2,
-  Snacks: 2,
-  Household: 2,
+  Protein: 1,
+  Produce: 1,
+  Dairy: 2,
+  Bakery: 3,
+  Pantry: 3,
+  Canned: 3,
+  Frozen: 3,
+  Snacks: 3,
+  Household: 3,
 };
-export const PERISHABILITY_UNKNOWN: PerishabilityTier = 2;
+export const PERISHABILITY_UNKNOWN: PerishabilityTier = 3;
+
+/**
+ * Part B (BUG-280) — the seafood name list. Matched as WHOLE WORDS (a term's
+ * words must appear as a contiguous run of the ingredient name's words, so
+ * "sea bass" hits "chilean sea bass" and "cod" does not hit "codfish cakes"
+ * nor "coddled"). Seeded per the ruling plus "fish" and "prawn" (generic
+ * names an import writes). ⚠️ NOT an allergen classifier — see the header.
+ */
+export const SEAFOOD_INGREDIENT_TERMS: readonly string[] = [
+  "salmon",
+  "shrimp",
+  "prawn",
+  "prawns",
+  "cod",
+  "tuna",
+  "tilapia",
+  "halibut",
+  "trout",
+  "scallop",
+  "scallops",
+  "mussel",
+  "mussels",
+  "clam",
+  "clams",
+  "crab",
+  "lobster",
+  "oyster",
+  "oysters",
+  "snapper",
+  "sea bass",
+  "swordfish",
+  "mahi",
+  "sole",
+  "flounder",
+  "squid",
+  "calamari",
+  "octopus",
+  "fish",
+];
+
+/**
+ * Names that carry a seafood word but are flavourings, shelf-stable or frozen
+ * goods, or something else entirely — exactly what a naive substring match
+ * gets wrong. Word-boundary matched like the terms. Pinned by tests (the six
+ * ruled negatives) and seeded from the live ingredient table (oyster
+ * mushrooms, clam juice, crab boil seasoning, albacore tuna "in water").
+ */
+export const SEAFOOD_EXCLUSION_TERMS: readonly string[] = [
+  "sauce",
+  "paste",
+  "juice",
+  "base",
+  "seasoning",
+  "crackers",
+  "mushroom",
+  "mushrooms",
+  "imitation",
+  "canned",
+  "tinned",
+  "in water",
+  "in oil",
+  "in olive oil",
+  "in brine",
+  "dried",
+  "frozen",
+  "sticks",
+  "powder",
+  "stock",
+  "broth",
+  "chowder",
+  "extract",
+  "flakes",
+  "smoked",
+];
+
+function nameWords(name: string): string[] {
+  return name.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 0);
+}
+
+function hasWordRun(words: string[], term: string): boolean {
+  const tw = nameWords(term);
+  if (tw.length === 0) return false;
+  for (let i = 0; i + tw.length <= words.length; i++) {
+    let ok = true;
+    for (let j = 0; j < tw.length; j++) {
+      if (words[i + j] !== tw[j]) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+
+/** Is this ingredient NAME fresh seafood for day-ordering purposes? */
+export function isSeafoodIngredientName(name: string): boolean {
+  const words = nameWords(name);
+  if (!SEAFOOD_INGREDIENT_TERMS.some((t) => hasWordRun(words, t))) return false;
+  return !SEAFOOD_EXCLUSION_TERMS.some((t) => hasWordRun(words, t));
+}
 
 const DIFFICULTY_EFFORT: Record<string, number> = { easy: 0, medium: 1, fancy: 2 };
 
@@ -93,6 +206,12 @@ export interface AssignableMeal {
   mealId: string;
   /** Categories of every (non-optional) ingredient across the meal's dishes. */
   ingredientCategories: string[];
+  /**
+   * Part B — the canonical NAMES of the same ingredients, for the seafood tier
+   * (isSeafoodIngredientName). Optional: a caller without names gets the
+   * category tiers only.
+   */
+  ingredientNames?: string[];
   /** The derived active minutes; null when never derived. */
   activeTimeMinutes: number | null;
   /** The stored total — the fallback effort when activeTimeMinutes is null. */
@@ -119,12 +238,18 @@ export interface AssignPlanDaysOptions {
   now?: Date;
 }
 
-export function perishabilityTierFor(categories: string[]): PerishabilityTier {
+export function perishabilityTierFor(
+  categories: string[],
+  names: string[] = [],
+): PerishabilityTier {
+  // Part B — any fresh seafood by name governs the meal (the most perishable
+  // ingredient rule), whatever inferCategory stamped on it.
+  if (names.some(isSeafoodIngredientName)) return PERISHABILITY_SEAFOOD;
   let tier: PerishabilityTier = PERISHABILITY_UNKNOWN;
   for (const c of categories) {
     const t = PERISHABILITY_BY_CATEGORY[c];
     if (t !== undefined && t < tier) tier = t;
-    if (tier === 0) break;
+    if (tier === 1) break;
   }
   return tier;
 }
@@ -227,7 +352,7 @@ export function assignPlanDays(
   const scored = meals.map((m, index) => ({
     index,
     mealId: m.mealId,
-    tier: perishabilityTierFor(m.ingredientCategories),
+    tier: perishabilityTierFor(m.ingredientCategories, m.ingredientNames ?? []),
     effort: effortMinutesFor(m),
     difficulty: DIFFICULTY_EFFORT[m.difficulty] ?? DIFFICULTY_EFFORT.fancy,
   }));
@@ -311,7 +436,12 @@ export async function loadAssignableMeals(
             select: {
               dishIngredients: {
                 where: { isOptional: false },
-                select: { ingredient: { select: { category: true } } },
+                // Part B — canonicalName feeds the seafood tier. When
+                // Ingredient.subcategory is ever stamped, select it here and
+                // let SEAFOOD_INGREDIENT_TERMS become its fallback.
+                select: {
+                  ingredient: { select: { category: true, canonicalName: true } },
+                },
               },
             },
           },
@@ -326,6 +456,7 @@ export async function loadAssignableMeals(
       return {
         mealId: id,
         ingredientCategories: [],
+        ingredientNames: [],
         activeTimeMinutes: null,
         estimatedTimeMinutes: 0,
         difficulty: "easy",
@@ -335,6 +466,9 @@ export async function loadAssignableMeals(
       mealId: id,
       ingredientCategories: r.dishLinks.flatMap((l) =>
         l.dish.dishIngredients.map((di) => di.ingredient.category),
+      ),
+      ingredientNames: r.dishLinks.flatMap((l) =>
+        l.dish.dishIngredients.map((di) => di.ingredient.canonicalName),
       ),
       activeTimeMinutes: r.activeTimeMinutes,
       estimatedTimeMinutes: r.estimatedTimeMinutes,

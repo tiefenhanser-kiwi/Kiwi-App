@@ -21,6 +21,8 @@ import {
   loadAssignableMeals,
   PERISHABILITY_BY_CATEGORY,
   perishabilityTierFor,
+  isSeafoodIngredientName,
+  SEAFOOD_INGREDIENT_TERMS,
   tomorrowUtc,
   type AssignableMeal,
 } from "../planDayAssignment";
@@ -43,25 +45,32 @@ const meal = (
 const NOW = new Date("2026-09-16T21:30:00Z");
 
 describe("the perishability table", () => {
-  it("is the named inferCategory vocabulary, three tiers", () => {
+  it("is the named inferCategory vocabulary — Part B: seafood (0, by name) ahead of fresh (1), chilled (2), stable (3)", () => {
     assert.deepEqual(PERISHABILITY_BY_CATEGORY, {
-      Protein: 0,
-      Produce: 0,
-      Dairy: 1,
-      Bakery: 2,
-      Pantry: 2,
-      Canned: 2,
-      Frozen: 2,
-      Snacks: 2,
-      Household: 2,
+      Protein: 1,
+      Produce: 1,
+      Dairy: 2,
+      Bakery: 3,
+      Pantry: 3,
+      Canned: 3,
+      Frozen: 3,
+      Snacks: 3,
+      Household: 3,
     });
   });
   it("the most perishable ingredient governs the meal; unknown / none → stable", () => {
-    assert.equal(perishabilityTierFor(["Pantry", "Canned", "Protein"]), 0);
-    assert.equal(perishabilityTierFor(["Pantry", "Dairy"]), 1);
-    assert.equal(perishabilityTierFor(["Pantry", "Frozen"]), 2);
-    assert.equal(perishabilityTierFor(["Mystery"]), 2);
-    assert.equal(perishabilityTierFor([]), 2);
+    assert.equal(perishabilityTierFor(["Pantry", "Canned", "Protein"]), 1);
+    assert.equal(perishabilityTierFor(["Pantry", "Dairy"]), 2);
+    assert.equal(perishabilityTierFor(["Pantry", "Frozen"]), 3);
+    assert.equal(perishabilityTierFor(["Mystery"]), 3);
+    assert.equal(perishabilityTierFor([]), 3);
+  });
+  it("Part B (BUG-280): a seafood NAME puts the meal in tier 0 whatever its category says", () => {
+    assert.equal(perishabilityTierFor(["Protein", "Pantry"], ["salmon fillets", "rice"]), 0);
+    // inferCategory mis-stamps these; the name still wins.
+    assert.equal(perishabilityTierFor(["Canned"], ["ahi tuna steaks"]), 0);
+    assert.equal(perishabilityTierFor(["Pantry"], ["mahi-mahi fillets"]), 0);
+    assert.equal(perishabilityTierFor(["Protein"], ["chicken thighs"]), 1);
   });
 });
 
@@ -137,6 +146,134 @@ describe("assignPlanDays — order", () => {
     );
     assert.equal(out.find((o) => o.mealId === "fish")?.dayIndex, 0);
     assert.equal(out.find((o) => o.mealId === "beans")?.dayIndex, 1);
+  });
+});
+
+// Post-pass Part B (BUG-280, [WS9-arc-PS-B]) — fish first: the FRESH tier is
+// split, seafood → other fresh → dairy → shelf-stable, easiest-last unchanged
+// inside each tier. Name list, word-boundary matched; the six ruled negatives
+// and the live-table traps are pinned so a naive substring match cannot creep
+// back in.
+const named = (
+  mealId: string,
+  names: string[],
+  cats: string[],
+  active: number,
+  difficulty = "easy",
+): AssignableMeal => ({ ...meal(mealId, cats, active, difficulty), ingredientNames: names });
+
+describe("Part B — fish first (BUG-280)", () => {
+  it("a salmon meal sorts ahead of a chicken meal of EQUAL effort (given order would have put chicken first)", () => {
+    const out = assignPlanDays(
+      [
+        named("chicken", ["chicken thighs", "rice"], ["Protein", "Pantry"], 25),
+        named("salmon", ["salmon fillets", "rice"], ["Protein", "Pantry"], 25),
+      ],
+      { now: NOW },
+    );
+    const byId = Object.fromEntries(out.map((o) => [o.mealId, o]));
+    assert.equal(byId.salmon.dayIndex, 0);
+    assert.equal(byId.salmon.perishabilityTier, 0);
+    assert.equal(byId.chicken.dayIndex, 1);
+    assert.equal(byId.chicken.perishabilityTier, 1);
+  });
+
+  it("a Worcestershire-containing beef meal does NOT jump the seafood tier", () => {
+    const out = assignPlanDays(
+      [
+        named("beef", ["ground beef", "worcestershire sauce"], ["Protein", "Pantry"], 25),
+        named("salmon", ["salmon fillets"], ["Protein"], 25),
+      ],
+      { now: NOW },
+    );
+    const byId = Object.fromEntries(out.map((o) => [o.mealId, o]));
+    assert.equal(byId.beef.perishabilityTier, 1);
+    assert.equal(byId.salmon.dayIndex, 0);
+    assert.equal(byId.beef.dayIndex, 1);
+  });
+
+  it("the six ruled negatives are NOT seafood: fish sauce · oyster sauce · anchovy paste · Worcestershire · imitation crab · canned tuna", () => {
+    for (const n of [
+      "fish sauce",
+      "oyster sauce",
+      "anchovy paste",
+      "worcestershire sauce",
+      "imitation crab",
+      "imitation crab meat",
+      "canned tuna",
+      "canned tuna in water",
+    ]) {
+      assert.equal(isSeafoodIngredientName(n), false, n);
+    }
+  });
+
+  it("live-table traps (2026-09-16 probe) are NOT seafood; real fish names ARE, whatever inferCategory stamped", () => {
+    for (const n of [
+      "oyster mushrooms",
+      "oyster crackers",
+      "clam juice",
+      "bottled clam juice",
+      "clam chowder base",
+      "dry crab boil seasoning",
+      "solid white albacore tuna in water",
+      "canned wild-caught salmon",
+      "frozen peeled shrimp",
+      "frozen fish sticks",
+      "dried shrimp",
+      "smoked salmon",
+      // word boundaries: no substring bleed
+      "codfish cakes mix",
+      "coddled eggs",
+      "crabapple jelly",
+    ]) {
+      assert.equal(isSeafoodIngredientName(n), false, n);
+    }
+    for (const n of [
+      "salmon fillets, skin-on",
+      "large shrimp, peeled and deveined (16/20 count)",
+      "cod fillets",
+      "ahi tuna steaks",
+      "mahi-mahi fillets",
+      "flounder fillets",
+      "lump crab meat",
+      "chilean sea bass",
+      "lobster tails",
+      "tilapia fillets",
+    ]) {
+      assert.equal(isSeafoodIngredientName(n), true, n);
+    }
+  });
+
+  it("every seeded term is present and the list is not empty (the break test empties it)", () => {
+    for (const t of [
+      "salmon", "shrimp", "cod", "tuna", "tilapia", "halibut", "trout", "scallop",
+      "mussel", "clam", "crab", "lobster", "oyster", "snapper", "sea bass", "swordfish",
+      "mahi", "sole", "flounder", "squid", "calamari", "octopus",
+    ]) {
+      assert.ok(SEAFOOD_INGREDIENT_TERMS.includes(t), t);
+    }
+  });
+
+  it("easiest-last still holds INSIDE each tier: two seafood meals, the quicker one lands second; then fresh, dairy, stable", () => {
+    const out = assignPlanDays(
+      [
+        named("mac", ["cheddar", "pasta"], ["Dairy", "Pantry"], 15),
+        named("quickfish", ["tilapia fillets"], ["Protein"], 10),
+        named("chili", ["canned beans"], ["Canned"], 20),
+        named("chicken", ["chicken breast"], ["Protein"], 30),
+        named("slowfish", ["halibut"], ["Protein"], 40),
+        named("salad", ["romaine"], ["Produce"], 5),
+      ],
+      { now: NOW },
+    );
+    const order = [...out].sort((a, b) => a.dayIndex! - b.dayIndex!).map((o) => o.mealId);
+    assert.deepEqual(order, ["slowfish", "quickfish", "chicken", "salad", "mac", "chili"]);
+  });
+
+  it("a caller without names gets the category tiers only (no crash, no seafood tier)", () => {
+    assert.equal(perishabilityTierFor(["Protein"]), 1);
+    const out = assignPlanDays([meal("x", ["Protein"], 10)], { now: NOW });
+    assert.equal(out[0].perishabilityTier, 1);
   });
 });
 
@@ -260,8 +397,8 @@ describe("loadAssignableMeals + assignAndPersistPlanDays", () => {
           {
             dish: {
               dishIngredients: [
-                { ingredient: { category: "Protein" } },
-                { ingredient: { category: "Pantry" } },
+                { ingredient: { category: "Protein", canonicalName: "cod fillets" } },
+                { ingredient: { category: "Pantry", canonicalName: "rice" } },
               ],
             },
           },
@@ -272,7 +409,13 @@ describe("loadAssignableMeals + assignAndPersistPlanDays", () => {
         activeTimeMinutes: null,
         estimatedTimeMinutes: 20,
         difficulty: "easy",
-        dishLinks: [{ dish: { dishIngredients: [{ ingredient: { category: "Pantry" } }] } }],
+        dishLinks: [
+          {
+            dish: {
+              dishIngredients: [{ ingredient: { category: "Pantry", canonicalName: "pasta" } }],
+            },
+          },
+        ],
       },
       extra: {
         id: "extra",
@@ -303,6 +446,7 @@ describe("loadAssignableMeals + assignAndPersistPlanDays", () => {
 
     const loaded = await loadAssignableMeals(tx, ["pasta", "fish"]);
     assert.deepEqual(loaded[1].ingredientCategories, ["Protein", "Pantry"]);
+    assert.deepEqual(loaded[1].ingredientNames, ["cod fillets", "rice"]);
     assert.equal(loaded[0].activeTimeMinutes, null);
 
     const assigned = await assignAndPersistPlanDays(tx, "plan-1", {

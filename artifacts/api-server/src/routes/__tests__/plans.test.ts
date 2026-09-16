@@ -3779,7 +3779,7 @@ function makeC4PatchStub(opts: {
               {
                 dish: {
                   dishIngredients: (i.categories ?? ["Pantry"]).map((category) => ({
-                    ingredient: { category },
+                    ingredient: { category, canonicalName: category.toLowerCase() },
                   })),
                 },
               },

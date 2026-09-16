@@ -71,7 +71,7 @@ function makeStub(opts: { meals: SourceMeal[]; priorWinner?: { id: string; title
         {
           dish: {
             dishIngredients: (src?.categories ?? ["Pantry"]).map((category) => ({
-              ingredient: { category },
+              ingredient: { category, canonicalName: category.toLowerCase() },
             })),
           },
         },
