@@ -1,6 +1,6 @@
 // Plan-Gen Arc Block 4b-3 (D-WS9-072) — "See Previous Options" decision + param
 // helpers, pinned here as pure functions so the link's show/hide rule and its
-// wizard-results rehydrate navigation are testable without rendering the screen.
+// plan-options rehydrate navigation are testable without rendering the screen.
 
 import type { WizardLastBatch, WizardShelfResponse } from "../api/wizard";
 import type { WizardShelfRequest } from "./perRunPayload";
@@ -70,7 +70,7 @@ export function buildShelfRehydrateParams(
 }
 
 /**
- * Build the wizard-results route params that re-show a stored batch WITHOUT a
+ * Build the plan-options route params that re-show a stored batch WITHOUT a
  * generate call (`rehydrate:"1"` + the candidates JSON). Params branch on
  * `source` so the "Use this plan" expand can rebuild candidateContext:
  *   - wizard   → replay the WizardPreferencesInput slice as `input`

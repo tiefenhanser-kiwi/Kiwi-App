@@ -116,6 +116,9 @@ test("AddMealsSheet: the two dead 'Coming in WS6' controls are gone", async () =
   );
   // The live Ask Kiwi create option IS present.
   assert.ok(joined.includes("Ask Kiwi"), "live Ask Kiwi card missing");
+  // BUG-291 — and it no longer wears the "Premium" lock pill (display only;
+  // no gate changed).
+  assert.ok(!joined.includes("Premium"), "the Premium pill is back on the Ask Kiwi card");
 
   renderer.unmount();
 });

@@ -36,7 +36,7 @@ type ImportSourcePath =
 interface ImportSourceCardsProps {
   /** Which completion context this chooser threads (append / replace / library). */
   context: ImportEntryContext;
-  /** Render the (cosmetic, premium-pilled) "Ask Kiwi for a meal" card on top.
+  /** Render the sage-tinted "Ask Kiwi for a meal" card on top (no pill — BUG-291).
    *  AddMealsSheet passes true (route-away). SwapMealSheet now passes true too,
    *  paired with `onAskKiwi` so the card mounts the creator INLINE (3f-4 Thread
    *  A) instead of routing to /ask-kiwi. */
@@ -84,7 +84,7 @@ export function ImportSourceCards({
       )}
       <View style={s.list}>
         {includeAskKiwi && (
-          <PremiumSourceCard
+          <AskKiwiSourceCard
             icon="zap"
             title="Ask Kiwi for a meal"
             subtitle="Describe a meal and Kiwi drafts it to fit this plan"
@@ -150,9 +150,12 @@ export function NewSourceCard({
   );
 }
 
-// Cosmetic premium-pilled card (subscriptionService.can() is unconditional
-// allow today; the pill is carried across unchanged from AddMealsSheet).
-function PremiumSourceCard({
+// The Ask-Kiwi card: the sage-tinted sibling of NewSourceCard. BUG-291 (Hans,
+// device pass): the "Premium" lock pill it wore is GONE — display only; no
+// entitlement gate, subscriptionService.can call or server check changed. The
+// trial model behind it ("full access for 14 days, then you pay or you only
+// view") is a business ruling not yet made in canon.
+function AskKiwiSourceCard({
   icon,
   title,
   subtitle,
@@ -166,19 +169,13 @@ function PremiumSourceCard({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [s.premiumCard, pressed && { opacity: 0.85 }]}
+      style={({ pressed }) => [s.askKiwiCard, pressed && { opacity: 0.85 }]}
     >
-      <View style={s.premiumIcon}>
+      <View style={s.askKiwiIcon}>
         <Feather name={icon} size={18} color={Colors.sage[700]} />
       </View>
       <View style={{ flex: 1 }}>
-        <View style={s.premiumTitleRow}>
-          <Text style={s.sourceTitle}>{title}</Text>
-          <View style={s.premiumPill}>
-            <Feather name="lock" size={10} color={Colors.terracotta[700]} />
-            <Text style={s.premiumPillText}>Premium</Text>
-          </View>
-        </View>
+        <Text style={s.sourceTitle}>{title}</Text>
         <Text style={s.sourceSubtitle}>{subtitle}</Text>
       </View>
     </Pressable>
@@ -233,7 +230,7 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
   },
-  premiumCard: {
+  askKiwiCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing[3],
@@ -243,33 +240,12 @@ const s = StyleSheet.create({
     borderColor: Colors.sage[300],
     padding: Spacing[3],
   },
-  premiumIcon: {
+  askKiwiIcon: {
     width: 36,
     height: 36,
     borderRadius: Radius.sm,
     backgroundColor: Palette.background.card,
     alignItems: "center",
     justifyContent: "center",
-  },
-  premiumTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing[2],
-  },
-  premiumPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: Colors.terracotta[100],
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing[2],
-    paddingVertical: 4,
-  },
-  premiumPillText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.terracotta[700],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
   },
 });

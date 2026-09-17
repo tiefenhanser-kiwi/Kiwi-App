@@ -18,16 +18,13 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
-
 import {
   buildTellKiwiPayload,
   buildWizardPayload,
   type TellKiwiPayloadForm,
   type WizardPayloadForm,
 } from "../perRunPayload";
+import { buildCandidateContext } from "../planOptions";
 
 /** What JSON.stringify actually puts on the wire. */
 function onTheWire(body: unknown): Record<string, unknown> {
@@ -185,41 +182,35 @@ test("BUG-201: `hydrated` is the ONLY thing that decides presence", () => {
   }
 });
 
-// ── The third site — wizard-results' no-input expand fallback ──────────────
+// ── The third site — the no-input expand fallback ──────────────────────────
 //
-// app/wizard-results.tsx is outside the test glob and buildCandidateContext
-// depends on a full WizardPlanCandidate, so this is a SOURCE-LEVEL guard in the
-// style of noWriteback.test.ts. The literal it forbids is the exact one that
-// was there: a no-input fallback asserting the user has no allergies, feeding
-// the expand prompt that authors ingredients.
-test("BUG-201: wizard-results' no-input expand fallback OMITS rather than sends []", () => {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const src = readFileSync(
-    resolve(here, "../../../app/wizard-results.tsx"),
-    "utf8",
-  );
-
-  // Positive control: the guard is reading the right function.
-  assert.ok(
-    /function buildCandidateContext/.test(src),
-    "buildCandidateContext moved — this guard is no longer reading it",
-  );
-
-  // Isolate the final (no-input) return so a legitimate `[]` elsewhere in the
-  // file cannot mask a regression here, and so this cannot pass vacuously.
-  const marker = "// No input at all";
-  const idx = src.indexOf(marker);
-  assert.ok(idx > 0, "the no-input fallback branch was not found");
-  const fallback = src.slice(idx, src.indexOf("}", src.indexOf("return {", idx)));
-
-  assert.ok(
-    !/allergiesAndAvoidances\s*:\s*\[\s*\]/.test(fallback),
-    `the no-input fallback still asserts an empty allergy list:\n${fallback}`,
-  );
-  assert.ok(
-    !/eatingStyles\s*:\s*\[\s*\]/.test(fallback),
-    `the no-input fallback still asserts empty eating styles:\n${fallback}`,
-  );
-  // It should still supply the fields it CAN legitimately know.
-  assert.ok(/difficulty:/.test(fallback), "the fallback lost its other fields");
+// Block 3 (D-WS9-191) deleted app/wizard-results.tsx; its buildCandidateContext
+// lives in lib/wizard/planOptions.ts (tested), so the SOURCE-LEVEL guard that
+// used to read the screen file is retargeted to the function itself. The
+// property is the same: a no-input fallback must OMIT allergiesAndAvoidances /
+// eatingStyles — never send [] — because [] asserts the user has no
+// constraints, and that assertion reaches the prompt that authors ingredients.
+// Read on the wire, like every other assertion in this file.
+test("BUG-201: the no-input expand fallback OMITS allergiesAndAvoidances / eatingStyles rather than sending []", () => {
+  const candidate = {
+    id: "c",
+    title: "Cozy One-Pots",
+    tags: [],
+    whyBullets: [],
+    mealTitles: ["Chili", "Stew"],
+    dailyMacros: { calories: 1600, proteinG: 90, carbsG: 170, fatG: 50 },
+  };
+  const wire = onTheWire(buildCandidateContext(candidate, null, null));
+  assert.equal("allergiesAndAvoidances" in wire, false, "the no-input fallback asserts an empty allergy list");
+  assert.equal("eatingStyles" in wire, false, "the no-input fallback asserts empty eating styles");
+  // It still supplies the fields it CAN legitimately know.
+  assert.equal(wire.difficulty, "medium");
+  assert.equal(wire.planDurationDays, 2);
+  assert.equal(wire.householdSize, 4);
+  // And WITH an input, the user's actual (even empty) choice is sent — the other half of the contract.
+  // buildWizardPayload(UNHYDRATED, hydrated:true) is the "user really has no
+  // allergies" payload — the same fixture the gate test above uses.
+  const withInput = onTheWire(buildCandidateContext(candidate, buildWizardPayload(WIZARD_UNHYDRATED, true), null));
+  assert.equal("allergiesAndAvoidances" in withInput, true);
+  assert.deepEqual(withInput.allergiesAndAvoidances, []);
 });

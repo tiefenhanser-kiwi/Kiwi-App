@@ -127,9 +127,9 @@ function RootLayoutNav() {
       <Stack.Screen name="onboarding-step-3" />
       <Stack.Screen name="wizard" options={{ presentation: "modal" }} />
       <Stack.Screen name="tellkiwi" options={{ presentation: "modal" }} />
-      {/* D-WS9-191 Block 2 — the chooser is /plan-options; wizard-results and
-          wizard-plan-details stay in the tree UNROUTED until Block 3 removes
-          them (D-WS9-032 point 7). */}
+      {/* D-WS9-191 — the chooser is /plan-options (Block 2); wizard-results
+          and wizard-plan-details were deleted in Block 3 (D-WS9-032 point 7),
+          once the device pass confirmed the new flow. */}
       <Stack.Screen name="plan-options" />
       <Stack.Screen name="plan/[id]" />
       <Stack.Screen name="meal/[id]" />

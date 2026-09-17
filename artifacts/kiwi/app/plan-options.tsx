@@ -1,7 +1,7 @@
 // /plan-options — WS9 Plan-flow redesign (D-WS9-191) Block 2 Part B. Written
 // fresh (Hans: "writing it from scratch is honestly probably the best path to
-// avoid drift"); it REPLACES app/wizard-results.tsx, which stays in the tree
-// unrouted until Block 3 removes it (D-WS9-032 point 7).
+// avoid drift"); it REPLACED app/wizard-results.tsx, deleted in Block 3 once
+// the device pass confirmed the new flow (D-WS9-032 point 7).
 //
 // The ruling this implements: the wizard's generate lands on ONE screen of
 // candidate cards, each a pared-back plan review, with three actions — Use This

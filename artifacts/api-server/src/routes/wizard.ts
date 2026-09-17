@@ -1964,10 +1964,10 @@ export function createWizardRouter(
 
   // WS9 Redesign Arc Block 2 (Part C) — POST /wizard/surprise-me DELETED. Hans
   // retired Surprise Me (D-WS9-237): the Pick screen + /plans/from-meals is the
-  // zero-typing path now. The `wizard.surprise.generate` seed body + registry
-  // entry stay INERT (the shared prompt-rule tests still read the seed source);
-  // no route calls it. Old WizardLastBatch rows may still carry
-  // source:"surprise" — reads tolerate it (wizardLastBatch.ts).
+  // zero-typing path now. The `wizard.surprise.generate` seed body and the
+  // runtime registry entry are both gone (D-WS9-191 Blocks 1 + 3, Part D.2).
+  // Old WizardLastBatch rows may still carry source:"surprise" — reads
+  // tolerate it (wizardLastBatch.ts).
 
   // ── POST /wizard/expand — Branch B "View plan" (PRD §5.6 redline) ─────
   // Step 2 of the two-step wizard commit model. Takes ONE candidate from a

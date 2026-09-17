@@ -287,16 +287,14 @@ describe("runAICall — env / failure modes", () => {
     );
   });
 
-  it("resolves wizard.surprise.generate — BUG-039 registered runtime key", async () => {
-    // The key was seeded to the DB but missing from the in-memory REGISTRY, so
-    // resolution threw UnknownPromptKeyError → every Surprise-me tap 500'd.
-    // With it registered, resolution succeeds (null prisma → in-memory fallback).
-    const desc = await resolvePromptDescriptorFromDb(
-      "wizard.surprise.generate",
-      null,
+  it("wizard.surprise.generate is RETIRED — no longer a registered runtime key (D-WS9-191 Block 3 Part D.2)", async () => {
+    // BUG-039 once pinned this key as registered; Surprise Me was removed
+    // (D-WS9-237), its seed body deleted (Block 1 D.2) and the runtime entry
+    // with it. Resolution now fails the way any unregistered key does.
+    await assert.rejects(
+      () => resolvePromptDescriptorFromDb("wizard.surprise.generate", null),
+      (err: unknown) => err instanceof UnknownPromptKeyError,
     );
-    assert.equal(desc.defaultMode, "tool");
-    assert.ok(desc.body.length > 0);
   });
 });
 
