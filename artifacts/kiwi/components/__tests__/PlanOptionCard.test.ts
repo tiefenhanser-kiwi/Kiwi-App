@@ -32,7 +32,13 @@ import {
 } from "@/lib/wizard/planOptions";
 import { Button } from "../Button";
 import { EXHAUSTED_REFINE, EXHAUSTED_TELL, EXHAUSTED_TITLE, ExhaustedCard } from "../ExhaustedCard";
-import { PlanOptionCard, PlanOptionCardSkeleton, ROW_BODY_MIN_HEIGHT, macrosLine } from "../PlanOptionCard";
+import {
+  PlanOptionCard,
+  PlanOptionCardSkeleton,
+  ROW_BODY_MIN_HEIGHT,
+  ROW_DESCRIPTION_MAX_LINES,
+  macrosLine,
+} from "../PlanOptionCard";
 
 type Json = {
   type: string;
@@ -252,13 +258,17 @@ test("C.2 cook time: '{n} min' on a row whose wire slot carried a time; NOTHING 
   assert.ok(!joined(legacy).includes(" min"), joined(legacy));
 });
 
-test("C.3 descriptions get a third line: numberOfLines 3 on the description text", () => {
+// Block 3 Part C set three; BUG-294 (Hans: "some descriptions are still cut
+// off and we need the option to expand to 4 lines") raised the ceiling to four.
+// The floor (ROW_BODY_MIN_HEIGHT, C.4) is untouched.
+test("C.3 / BUG-294 descriptions get a fourth line: numberOfLines 4 on the description text", () => {
   const { root } = card();
   const descs = walk(root).filter(
     (n) => n.type === "rn-text" && allText(n).join("") === "Smash patties, toasted buns.",
   );
   assert.equal(descs.length, 1);
-  assert.equal(descs[0].props.numberOfLines, 3);
+  assert.equal(ROW_DESCRIPTION_MAX_LINES, 4);
+  assert.equal(descs[0].props.numberOfLines, ROW_DESCRIPTION_MAX_LINES);
 });
 
 test("C.4 ragged rows: every row body carries the SAME minimum height (a two-line description), description or not", () => {

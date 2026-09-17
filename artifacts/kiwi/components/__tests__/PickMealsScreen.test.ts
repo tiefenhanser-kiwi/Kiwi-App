@@ -27,6 +27,7 @@ import { Colors, Palette } from "@/constants/tokens";
 import type { ShelfMeal, WizardShelfResponse } from "@/lib/api/wizard";
 import { todayLocalDate } from "@/lib/dates";
 import {
+  DESCRIPTION_MAX_LINES,
   MealPickCard,
   NEW_TO_YOU_PILL,
   overCapPill,
@@ -199,6 +200,53 @@ test("card: over the cap → the pill + a terracotta bold total, and the card ST
   assert.deepEqual(toggles, ["o1"]);
   // No cap → no pill.
   assert.ok(!joined(renderCard(OVER_CAP_MEAL, false, null).root).includes("over your"));
+});
+
+// BUG-294 (Hans, device re-test) — "the description text is running off the
+// page … the precedent is to have the cards expand when they need to display
+// more lines". The cause was the Block 2a ONE-line cap, not a missing width
+// constraint: the body has always been flex 1 / minWidth 0. Pinned: the cap is
+// DESCRIPTION_MAX_LINES (4), the width constraint is present (so the cap can
+// bite and wrap rather than overflow), and nothing fixes the card's or body's
+// height — the card grows with the text.
+const LONG_DESCRIPTION =
+  "Crispy-skinned chicken thighs roasted over a bed of fennel, lemon and green olives, finished with a splash of the pan juices and torn parsley; the kind of one-tray dinner that leaves the oven doing the work.";
+const LONG_MEAL = meal("l1", { title: "Fennel Chicken Tray", description: LONG_DESCRIPTION });
+
+test("card (BUG-294): a long description wraps to at most DESCRIPTION_MAX_LINES (4) — the one-line cap is gone", () => {
+  const { root } = renderCard(LONG_MEAL);
+  const desc = walk(root).find(
+    (n) => n.type === "rn-text" && allText(n).join("") === LONG_DESCRIPTION,
+  );
+  assert.ok(desc, "description text not found");
+  assert.equal(DESCRIPTION_MAX_LINES, 4);
+  assert.equal(desc!.props.numberOfLines, DESCRIPTION_MAX_LINES);
+  assert.equal(flatten(desc!.props.style).height, undefined, "the description has no fixed height");
+});
+
+test("card (BUG-294): the body is width-constrained (flex 1 / minWidth 0) and neither card nor body fixes a height — the card expands", () => {
+  const { root } = renderCard(LONG_MEAL);
+  const card = byLabel(root, "Fennel Chicken Tray")!;
+  const cardStyle = flatten(card.props.style);
+  assert.equal(cardStyle.flexDirection, "row");
+  assert.equal(cardStyle.height, undefined, "the card has no fixed height");
+  assert.equal(cardStyle.maxHeight, undefined, "the card has no max height");
+  // The row's flex child that holds the text: the width constraint that makes
+  // the line cap wrap instead of overflow.
+  const body = (card.children as Json[]).find(
+    (c) => typeof c !== "string" && flatten(c.props.style).flex === 1,
+  ) as Json | undefined;
+  assert.ok(body, "no flex:1 body beside the thumb");
+  const bodyStyle = flatten(body!.props.style);
+  assert.equal(bodyStyle.minWidth, 0);
+  assert.equal(bodyStyle.height, undefined, "the body has no fixed height");
+  assert.equal(bodyStyle.maxHeight, undefined, "the body has no max height");
+  assert.ok(allText(body!).join(" ").includes(LONG_DESCRIPTION), "the description lives inside the flex body");
+  // The thumb stays 56 on this screen (42 is the chooser's — deliberate).
+  const thumb = (card.children as Json[]).find(
+    (c) => typeof c !== "string" && flatten(c.props.style).width === 56,
+  );
+  assert.ok(thumb, "56px thumb missing");
 });
 
 test("card: selected → sage-600 1.4px border on a sage-50 surface", () => {

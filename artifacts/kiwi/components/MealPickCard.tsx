@@ -1,6 +1,7 @@
 // WS9 Redesign Arc Block 2a Part D (D-WS9-237) — one Pick-screen card.
 //
-// thumb · name (serif) · one-line description · "{total} min total · {active}
+// thumb · name (serif) · description (up to DESCRIPTION_MAX_LINES; the card
+// GROWS to fit — Hans's precedent, BUG-294) · "{total} min total · {active}
 // min active" · "{kcal} kcal · {p}g protein · {c}g carbs · {f}g fat" · tag
 // pills · a select circle. Selected → sage-600 1.4px border on a sage-50
 // surface. Every number is rendered AS THE SERVER SENT IT — the minutes are the
@@ -31,6 +32,12 @@ import { formatMacro } from "@/lib/format/macros";
 import { cardPills } from "@/lib/meals/cardPills";
 import { isOverCap } from "@/lib/wizard/pickMeals";
 
+// BUG-294 (Hans, device re-test) — the Block 2a build capped the description at
+// ONE line, which tail-ellipsised at the card's right edge and read on device as
+// "running off the page". The width constraint (body: flex 1 / minWidth 0) was
+// always there; the cap is what changed. Four lines is the real ceiling seen in
+// authored descriptions; the card has no fixed height, so it expands to fit.
+export const DESCRIPTION_MAX_LINES = 4;
 export const PLAYLIST_PILL = "playlist";
 export const NEW_TO_YOU_PILL = "new to you";
 export function overCapPill(capMinutes: number): string {
@@ -90,7 +97,7 @@ export function MealPickCard({
           {meal.title}
         </Text>
         {meal.description ? (
-          <Text style={s.description} numberOfLines={1}>
+          <Text style={s.description} numberOfLines={DESCRIPTION_MAX_LINES}>
             {meal.description}
           </Text>
         ) : null}

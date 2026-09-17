@@ -5,7 +5,7 @@
 // title (serif) · meta line ("5 dinners · serves 4 · ~40 min avg") · meal rows
 // (the 42px placeholder ramp — ImageTreatment.thumbSize, NOT the Pick screen's
 // 56 — + title + the cook time when the wire carried one + a description of up
-// to three lines, the row never shorter than a two-line one) · "Why this works" bullets · the daily
+// to four lines, the row never shorter than a two-line one) · "Why this works" bullets · the daily
 // macro line · the actions row: Use This Week (tint) · Save for Later (ghost) ·
 // Not For Me (ghostQuiet — text2 ink). NO hero image (imageUrl / badge are dead fields on
 // the candidate — Phase 0), no tags row (spec §2). The card body is not a tap
@@ -52,10 +52,13 @@ export type PlanOptionCardBusyAction = "use" | "save";
 // minimum height is derived, not guessed: a row with no description is padded
 // to the height of a two-line one ("some meals don't have descriptions and
 // their meal rows are shorter height… it looks a little awkward"); a long
-// description gets a third line ("we need a 3rd row for the text").
+// description gets a third line ("we need a 3rd row for the text") — raised to
+// FOUR by BUG-294 ("some descriptions are still cut off and we need the option
+// to expand to 4 lines"). The floor (ROW_BODY_MIN_HEIGHT) is unchanged: this
+// raises the ceiling only.
 const ROW_TITLE_LINE_HEIGHT = 20;
 const ROW_DESCRIPTION_LINE_HEIGHT = 18;
-const ROW_DESCRIPTION_MAX_LINES = 3;
+export const ROW_DESCRIPTION_MAX_LINES = 4;
 const ROW_BODY_GAP = 2;
 export const ROW_BODY_MIN_HEIGHT =
   ROW_TITLE_LINE_HEIGHT + ROW_BODY_GAP + 2 * ROW_DESCRIPTION_LINE_HEIGHT;
