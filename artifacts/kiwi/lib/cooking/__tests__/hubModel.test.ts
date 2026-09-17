@@ -269,6 +269,17 @@ test("buildPrepCookHubModel: surfaces today's meal when one is assigned to today
 
 // ── Empty-state promote helpers ─────────────────────────────────────────────
 
+// BUG-293 (same class as AddMealToPlanSheet) — the Hub empty-state cards and
+// Plan Detail's composted label both render plan dates through this; a
+// YYYY-MM-DD must read as its own calendar day in EVERY zone.
+test("formatPlanDateRange (BUG-293): a YYYY-MM-DD reads as its own calendar day — never a day early", () => {
+  assert.equal(formatPlanDateRange("2026-10-01", "2026-10-07"), "Oct 1, 2026 – Oct 7, 2026");
+  assert.equal(formatPlanDateRange("2026-01-31", null), "Jan 31, 2026");
+  assert.equal(formatDate("2026-03-01"), "Mar 1, 2026");
+  // A full timestamp is still an instant (unchanged behaviour).
+  assert.equal(formatDate("2026-03-01T12:00:00.000Z"), new Date("2026-03-01T12:00:00.000Z").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }));
+});
+
 test("formatPlanDateRange: both dates → range; one → single; neither → null", () => {
   assert.equal(
     formatPlanDateRange("2026-06-15", "2026-06-21"),

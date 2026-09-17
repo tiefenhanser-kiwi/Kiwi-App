@@ -18,6 +18,7 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { useApp } from "@/contexts/AppContext";
 import { usePlans } from "@/hooks/usePlans";
 import type { PlanListItem } from "@/lib/api/plans";
+import { formatPlanDateRange } from "@/lib/plans/planRowMeta";
 
 export interface AddMealToPlanSheetProps {
   visible: boolean;
@@ -30,20 +31,13 @@ export interface AddMealToPlanSheetProps {
   onPickExistingPlan: (plan: PlanListItem) => void;
 }
 
-function formatDateRange(start: string | null, end: string | null): string {
-  if (!start || !end) return "";
-  const s = new Date(start);
-  const e = new Date(end);
-  const sFormatted = s.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-  if (start === end) return sFormatted;
-  const eFormatted = e.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-  return `${sFormatted} – ${eFormatted}`;
+// BUG-293 — this used to parse the plan's YYYY-MM-DD with new Date() (UTC
+// midnight) and format it locally, so west of UTC the row read a day early.
+// Same shape as the My Plans meta line (Block 3, planRowMeta.ts): parseLocalDate
+// underneath, "Sep 16 – Sep 21", one day collapses to "Sep 16". Not a third
+// date path.
+export function formatDateRange(start: string | null, end: string | null): string {
+  return formatPlanDateRange(start, end) ?? "";
 }
 
 function statusLabel(status: string | null): string {

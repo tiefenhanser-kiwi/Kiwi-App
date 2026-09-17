@@ -2,6 +2,10 @@
 // (Recipes tab, picker sheets) and elsewhere. Approximate; precision
 // is a polish pass.
 
+import { parseLocalDate } from "./dates";
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 export function formatRelative(iso: string): string {
   const date = new Date(iso);
   const now = new Date();
@@ -24,7 +28,10 @@ export function formatRelative(iso: string): string {
 }
 
 export function formatDate(iso: string): string {
-  const date = new Date(iso);
+  // BUG-293 (same class) — a YYYY-MM-DD is a CALENDAR day, not an instant:
+  // new Date("2026-09-16") is UTC midnight and reads Sep 15 west of UTC.
+  // Full timestamps keep the instant parse.
+  const date = DATE_ONLY.test(iso) ? parseLocalDate(iso) : new Date(iso);
   return date.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",

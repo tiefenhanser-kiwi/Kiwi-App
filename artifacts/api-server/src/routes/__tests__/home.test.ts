@@ -666,8 +666,13 @@ describe("BUG-114 — today's item is driven by assignedDayOfWeek alone", () => 
     // a different day. Pre-fix the date branch ran first and item-stale won.
     const today = startOfDay(new Date());
     const startDate = startOfDay(new Date(Date.now() - 2 * MS_PER_DAY));
-    const todayName = DAY_NAMES_B[new Date().getDay()];
-    const otherName = DAY_NAMES_B[(new Date().getDay() + 3) % 7];
+    // BUG-292 — the route resolves the weekday with getUTCDay() (1336fa6,
+    // BUG-282: no ?localDate → UTC is the fallback). This used to read local
+    // getDay(), so after ~20:00 US-local the expectation was tomorrow's name
+    // and the assertion went red by wall clock. Match the route; do not pin
+    // TZ in the runner.
+    const todayName = DAY_NAMES_B[new Date().getUTCDay()];
+    const otherName = DAY_NAMES_B[(new Date().getUTCDay() + 3) % 7];
     const harness = await spinUp(
       makeStubPrisma({
         activeInstance: activeInstanceRow({
