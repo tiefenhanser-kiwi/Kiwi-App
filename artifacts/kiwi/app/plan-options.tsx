@@ -44,6 +44,7 @@ import { Header } from "@/components/Header";
 import { PlanOptionCard, PlanOptionCardSkeleton, type PlanOptionCardBusyAction } from "@/components/PlanOptionCard";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useToast } from "@/contexts/ToastProvider";
+import { useAnotherPlanOption } from "@/hooks/useAnotherPlanOption";
 import {
   useBuildWizardPlansStreaming,
   type UseBuildWizardPlansStreamingDeps,
@@ -74,6 +75,7 @@ import {
   dismissRequestFor,
   EMPTY_PLAN_OPTIONS,
   EXHAUSTED_PLANS_TITLE,
+  hasCandidate,
   insertAnother,
   noticeFor,
   patchCard,
@@ -229,54 +231,45 @@ export default function PlanOptionsScreen() {
   const firstBatchComplete = mode !== "wizard" || initial.isComplete;
 
   // ── "Get another plan option" ────────────────────────────────────────────
+  // BUG-289 — the run, its within-run dedupe and the busy flag live in
+  // useAnotherPlanOption (tested). This screen only decides where a delivered
+  // card goes and what a settled run says. `busy` is released by the settle
+  // handler on EVERY outcome — a duplicate, an empty run and an error all clear
+  // it; the insert path never touches it.
   const anotherDeps = source === "tellkiwi" ? TELLKIWI_ANOTHER_DEPS : WIZARD_ANOTHER_DEPS;
-  const another = useBuildWizardPlansStreaming<GenerateInput>({
+  const another = useAnotherPlanOption<GenerateInput>({
     ...anotherDeps,
     onComplete: invalidateLastBatch,
+    onCard: (fresh) => {
+      // Content identity (never `candidate.id`): a plan already on the list
+      // is not a delivery and not a press.
+      if (hasCandidate(listRef.current, fresh)) return false;
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      const at = lastDismissedIndexRef.current;
+      lastDismissedIndexRef.current = null;
+      setList((prev) => insertAnother(prev, fresh, at));
+      setPresses((n) => n + 1);
+      return true;
+    },
+    onSettled: ({ delivered, error, reason }) => {
+      if (error) {
+        showToast({ message: error.message || ANOTHER_FAILED_COPY });
+        return;
+      }
+      // Settled with NO new card: the server's cannotGenerateMore on an
+      // exhausted constraint set, or a plan the list already held.
+      if (!delivered) {
+        showToast({
+          message: reason || "Kiwi couldn't find another distinct plan for these constraints.",
+        });
+      }
+    },
   });
-  const [anotherBusy, setAnotherBusy] = useState(false);
-  // Candidate ids already counted as a press — the stream re-delivers its cards
-  // in the catch-up before `done`, which re-fires this effect with the same
-  // card; insertAnother dedupes the list, this dedupes the count.
-  const countedRef = useRef<Set<string>>(new Set());
-  const anotherCandidates = another.data?.candidates;
-  useEffect(() => {
-    if (!anotherCandidates || anotherCandidates.length === 0) return;
-    // ONE press = ONE plan: the first card of the response, whatever the server
-    // sent (a pre-Block-1 server ignores the count and returns three).
-    const fresh = anotherCandidates[0];
-    if (countedRef.current.has(fresh.id)) return;
-    countedRef.current.add(fresh.id);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const at = lastDismissedIndexRef.current;
-    lastDismissedIndexRef.current = null;
-    setList((prev) => insertAnother(prev, fresh, at));
-    setPresses((n) => n + 1);
-    setAnotherBusy(false);
-  }, [anotherCandidates]);
-  useEffect(() => {
-    if (!another.isError) return;
-    setAnotherBusy(false);
-    showToast({ message: another.error?.message || ANOTHER_FAILED_COPY });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [another.isError]);
-  // A run that settled with NO card (the server's cannotGenerateMore on an
-  // exhausted constraint set) — release the button and say why; not a press.
-  useEffect(() => {
-    if (!another.isComplete || (anotherCandidates?.length ?? 0) > 0) return;
-    setAnotherBusy(false);
-    showToast({
-      message:
-        another.data?.reason || "Kiwi couldn't find another distinct plan for these constraints.",
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [another.isComplete]);
+  const anotherBusy = another.busy;
 
   const handleAnother = () => {
     if (!anotherBody || anotherBusy || left <= 0 || anyBusy(list)) return;
-    setAnotherBusy(true);
-    another.reset();
-    another.mutate(anotherBody, anotherRequestFor(list));
+    another.start(anotherBody, anotherRequestFor(list));
   };
 
   // ── Not For Me ───────────────────────────────────────────────────────────
@@ -477,7 +470,7 @@ export default function PlanOptionsScreen() {
               onNotForMe={() => handleNotForMe(card)}
             />
           ))}
-          {(showSkeleton || anotherBusy) && <PlanOptionCardSkeleton />}
+          {(showSkeleton || (anotherBusy && !another.hasCard)) && <PlanOptionCardSkeleton />}
         </View>
 
         {showError && (

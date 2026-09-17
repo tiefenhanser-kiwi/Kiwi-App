@@ -34,7 +34,7 @@ import {
 export type PlanOptionCardState = "fresh" | "busy" | "saved" | "dismissed";
 
 export interface PlanOptionCard {
-  /** Render key. The candidate id, disambiguated when a later batch reuses one. */
+  /** Render key. The candidate's content identity (candidateIdentity), disambiguated when a later batch repeats one. */
   key: string;
   candidate: WizardPlanCandidate;
   state: PlanOptionCardState;
@@ -59,15 +59,41 @@ function uniqueKey(list: PlanOptionList, id: string): string {
   return `${id}-${n}`;
 }
 
-function hasCandidate(list: PlanOptionList, candidate: WizardPlanCandidate): boolean {
-  return list.some((c) => c.candidate.id === candidate.id);
+// BUG-289 — identity is CONTENT, never `candidate.id`. The server's
+// wizardContentHash.ts header says why: the id is an AI-minted free string that
+// "can collide across generate calls, and regenerates on every call. It is
+// therefore useless as an idempotency key" — the finding BUG-030 built the
+// content hash on. Two separate single-plan "another" calls re-mint the same
+// id, so keying on it made the second press read as a re-delivered frame and
+// froze the screen. This mirrors computeWizardContentHash's normalisation
+// (NFKC, trim, lowercase, collapse whitespace; title + meal titles sorted) as
+// a plain composite string — no hashing needed client-side.
+function normalizeTitle(s: string): string {
+  return s.normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** The content identity of a candidate: its normalised title + sorted normalised meal titles. */
+export function candidateIdentity(candidate: WizardPlanCandidate): string {
+  const meals = (candidate.mealTitles ?? [])
+    .map((t) => normalizeTitle(typeof t === "string" ? t : ""))
+    .filter((t) => t.length > 0)
+    .sort();
+  return JSON.stringify({ t: normalizeTitle(candidate.title ?? ""), m: meals });
+}
+
+/** True when a card with the same CONTENT identity is already in the list. */
+export function hasCandidate(list: PlanOptionList, candidate: WizardPlanCandidate): boolean {
+  const identity = candidateIdentity(candidate);
+  return list.some((c) => candidateIdentity(c.candidate) === identity);
 }
 
 /**
  * Fold an arriving batch into the list as fresh cards, in arrival order. A
  * stream re-delivers cards it already sent (the catch-up before `done`), so a
- * candidate id already present is skipped; returns the SAME reference when
- * nothing is new so a React effect can skip a redundant write.
+ * candidate whose CONTENT identity is already present is skipped; returns the
+ * SAME reference when nothing is new so a React effect can skip a redundant
+ * write. Two candidates that share an AI-minted `id` but differ in content are
+ * BOTH kept (BUG-289).
  */
 export function appendCandidates(
   list: PlanOptionList,
@@ -77,7 +103,7 @@ export function appendCandidates(
   for (const candidate of candidates) {
     if (hasCandidate(next ?? list, candidate)) continue;
     next = next ?? [...list];
-    next.push({ key: uniqueKey(next, candidate.id), candidate, state: "fresh" });
+    next.push({ key: uniqueKey(next, candidateIdentity(candidate)), candidate, state: "fresh" });
   }
   return next ?? list;
 }
@@ -88,8 +114,8 @@ export function appendCandidates(
  * the bottom. A dismissed card stays in the list (collapsed) so its titles keep
  * feeding the exclusion; inserting AT its index puts the new card in front of
  * it, which is the same slot on screen. An index outside the list, or null
- * (nothing dismissed yet), means the bottom. Same id already present → the
- * SAME reference (a re-delivered frame).
+ * (nothing dismissed yet), means the bottom. Same CONTENT identity already
+ * present → the SAME reference (a re-delivered frame).
  */
 export function insertAnother(
   list: PlanOptionList,
@@ -98,7 +124,7 @@ export function insertAnother(
 ): PlanOptionList {
   if (hasCandidate(list, candidate)) return list;
   const card: PlanOptionCard = {
-    key: uniqueKey(list, candidate.id),
+    key: uniqueKey(list, candidateIdentity(candidate)),
     candidate,
     state: "fresh",
   };
