@@ -412,6 +412,14 @@ export function metaLine(
 // ── Header + notices ──────────────────────────────────────────────────────
 
 export const PLAN_OPTIONS_TITLE = "Pick a plan";
+/**
+ * D-WS9-161 returns on D-WS9-191's surface: the retention line, at the TOP of
+ * "Pick a plan", above the notice and the cards. A user who dislikes one meal
+ * must learn here that every plan is editable before concluding Kiwi does not
+ * get them. Hans's wording verbatim; readable body copy, never fine print.
+ */
+export const PLAN_OPTIONS_CUSTOMIZABLE_COPY =
+  "All plans are fully customizable — save or use one to edit meals, dishes, and ingredients.";
 export const ANOTHER_LABEL = "Get another plan option";
 export const USE_LABEL = "Use This Week";
 export const USE_BUSY_LABEL = "Building your week…";

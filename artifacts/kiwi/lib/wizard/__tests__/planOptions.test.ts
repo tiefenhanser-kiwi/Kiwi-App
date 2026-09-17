@@ -24,6 +24,7 @@ import {
   metaLine,
   noticeFor,
   patchCard,
+  PLAN_OPTIONS_CUSTOMIZABLE_COPY,
   pressesLeft,
   rowsFor,
   rowTimeLabel,
@@ -441,4 +442,13 @@ test("rowTimeLabel: the wire time as \"{n} min\"; a live slot (no time), zero, n
   const labels = rowsFor(WIRE).map(rowTimeLabel);
   assert.deepEqual(labels, ["25 min", "40 min", null, "50 min"]);
   assert.deepEqual(rowsFor(LEGACY).map(rowTimeLabel), [null, null]);
+});
+
+// ── the customizability line (D-WS9-161 returns on this surface) ───────────
+
+test("D-WS9-161: the customizability line is Hans's wording verbatim (pinned against drift)", () => {
+  assert.equal(
+    PLAN_OPTIONS_CUSTOMIZABLE_COPY,
+    "All plans are fully customizable — save or use one to edit meals, dishes, and ingredients.",
+  );
 });

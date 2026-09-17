@@ -79,6 +79,7 @@ import {
   insertAnother,
   noticeFor,
   patchCard,
+  PLAN_OPTIONS_CUSTOMIZABLE_COPY,
   PLAN_OPTIONS_TITLE,
   pressesLeft,
   sublineFor,
@@ -454,6 +455,10 @@ export default function PlanOptionsScreen() {
     <View style={s.screen}>
       <Header showBack onBack={() => router.back()} title={PLAN_OPTIONS_TITLE} subtitle={subline} />
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        {/* D-WS9-161 on this surface: first thing on the page, every mode, before the cards exist. */}
+        <Text style={s.customizableCopy} testID="plan-options-customizable">
+          {PLAN_OPTIONS_CUSTOMIZABLE_COPY}
+        </Text>
         {notice ? <Text style={s.notice}>{notice}</Text> : null}
 
         <View style={s.list}>
@@ -515,6 +520,15 @@ const s = StyleSheet.create({
   },
   list: {
     gap: Spacing[3],
+  },
+  // D-WS9-161's ruling: readable body copy, never fine print. Its own entry —
+  // not an alias of `notice` or `statusBody` — so retuning either can never
+  // silently restyle this line. neutral[800] on the neutral[100] paper: 9.61:1.
+  customizableCopy: {
+    fontSize: Typography.fontSize.md,
+    lineHeight: 22,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
   },
   notice: {
     fontSize: Typography.fontSize.sm,
