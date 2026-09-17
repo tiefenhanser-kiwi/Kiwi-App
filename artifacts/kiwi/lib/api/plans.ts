@@ -55,6 +55,9 @@ export const PlanListItemSchema = z.object({
   startDate: z.string().nullable(),
   endDate: z.string().nullable(),
   isActiveThisWeek: z.boolean(),
+  // BUG-290 — the row's meal count (instances; null on templates). Optional so
+  // a server without it still validates.
+  mealCount: z.number().nullable().optional(),
 });
 export type PlanListItem = z.infer<typeof PlanListItemSchema>;
 

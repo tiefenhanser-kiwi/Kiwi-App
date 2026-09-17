@@ -43,6 +43,10 @@ export interface PlanListItem {
   startDate: string | null;
   endDate: string | null;
   isActiveThisWeek: boolean;
+  // BUG-290 — the My Plans row distinguishes same-named plans by their meal
+  // count + date range; the count is the instance's item rows. Templates
+  // carry null (they are not the user's plans).
+  mealCount: number | null;
 }
 
 // WS9-2 2c (D-WS9-154) — one Home rail card, as it crosses the wire.
@@ -112,6 +116,10 @@ export interface InstanceRow {
     imageUrl: string | null;
     tags: string[];
   } | null;
+  // BUG-290 — `_count.items` from INSTANCE_TEMPLATE_INCLUDE; optional so the
+  // summary-only loaders (GET /plans/:id's meta, the this-week hydrate) that
+  // reuse InstanceRow without the count still type.
+  _count?: { items: number };
 }
 
 interface TemplateRow {
@@ -164,6 +172,8 @@ export const INSTANCE_TEMPLATE_INCLUDE = {
       tags: true,
     } satisfies SelectFor<NonNullable<InstanceRow["template"]>>,
   },
+  // BUG-290 — the row's meal count, one COUNT per instance in the same query.
+  _count: { select: { items: true } },
 } as const;
 
 const TEMPLATE_SELECT = {
@@ -201,6 +211,7 @@ export function instanceToListItem(
     startDate: toYmd(row.startDate),
     endDate: toYmd(row.endDate),
     isActiveThisWeek: winnerId !== null && row.id === winnerId,
+    mealCount: typeof row._count?.items === "number" ? row._count.items : null,
   };
 }
 
@@ -216,6 +227,7 @@ function templateToListItem(row: TemplateRow): PlanListItem {
     startDate: null,
     endDate: null,
     isActiveThisWeek: false,
+    mealCount: null,
   };
 }
 

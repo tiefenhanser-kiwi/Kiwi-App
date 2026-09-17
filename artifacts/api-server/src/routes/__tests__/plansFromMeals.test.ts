@@ -50,6 +50,15 @@ function makeStub(opts: {
   priorWinner?: { id: string; title: string };
   // Post-pass Part D — the stored first name the deterministic title reads.
   firstName?: string;
+  // BUG-290 — the user's existing plan rows as the title disambiguation reads
+  // them (titleOverride ?? template.title; archived / draft rows filtered by
+  // the where clause the helper sends).
+  existingPlans?: Array<{
+    titleOverride: string | null;
+    template: { title: string } | null;
+    isArchived?: boolean;
+    isWizardDraft?: boolean;
+  }>;
 }) {
   const rec: Recorder = {
     createdInstances: [],
@@ -145,9 +154,18 @@ function makeStub(opts: {
       },
     },
     mealPlanInstance: {
-      // resolveThisWeekWinnerId reads the user's covering rows.
-      findMany: async () =>
-        opts.priorWinner
+      // resolveThisWeekWinnerId reads the user's covering rows; BUG-290's
+      // uniquePlanTitle reads the stored titles (selected by titleOverride).
+      findMany: async (args?: { where?: Record<string, unknown>; select?: Record<string, unknown> }) =>
+        args?.select?.titleOverride
+          ? (opts.existingPlans ?? [])
+              .filter(
+                (r) =>
+                  (r.isArchived ?? false) === args.where?.isArchived &&
+                  (r.isWizardDraft ?? false) === args.where?.isWizardDraft,
+              )
+              .map((r) => ({ titleOverride: r.titleOverride, template: r.template }))
+          : opts.priorWinner
           ? [
               {
                 id: opts.priorWinner.id,
@@ -406,6 +424,85 @@ describe("POST /api/plans/from-meals", () => {
       assert.equal(unnamed.rec.templatesCreated[0].title, "Meals for the week of Dec 30");
     } finally {
       await h2.close();
+    }
+  });
+
+  // BUG-290 — two plans, one name. The deterministic name repeats within a
+  // week, so a second build gets " (2)", a third " (3)"; an archived same-name
+  // plan does not consume a number; a single build carries no suffix, ever.
+  it("BUG-290: a second build in the same week is '… (2)', a third '… (3)'; archived rows do not count; a single build has no suffix", async () => {
+    const base = "Hans's meals, week of Sep 16";
+    const body = { mealIds: ["own-chili"], planDurationDays: 1, localDate: "2026-09-16" };
+
+    const first = makeStub({ meals: MEALS, firstName: "Hans", existingPlans: [] });
+    const h1 = await spinUp(first.prisma);
+    try {
+      assert.equal((await post(h1, body)).status, 201);
+      assert.equal(first.rec.templatesCreated[0].title, base);
+      assert.ok(!first.rec.templatesCreated[0].title.endsWith("(1)"));
+    } finally {
+      await h1.close();
+    }
+
+    const second = makeStub({
+      meals: MEALS,
+      firstName: "Hans",
+      existingPlans: [{ titleOverride: null, template: { title: base } }],
+    });
+    const h2 = await spinUp(second.prisma);
+    try {
+      assert.equal((await post(h2, body)).status, 201);
+      assert.equal(second.rec.templatesCreated[0].title, `${base} (2)`);
+    } finally {
+      await h2.close();
+    }
+
+    // The stored title is what counts — a titleOverride wins over its template.
+    const third = makeStub({
+      meals: MEALS,
+      firstName: "Hans",
+      existingPlans: [
+        { titleOverride: null, template: { title: base } },
+        { titleOverride: `${base} (2)`, template: { title: "an older template name" } },
+      ],
+    });
+    const h3 = await spinUp(third.prisma);
+    try {
+      assert.equal((await post(h3, body)).status, 201);
+      assert.equal(third.rec.templatesCreated[0].title, `${base} (3)`);
+    } finally {
+      await h3.close();
+    }
+
+    // Archived (and wizard-draft) rows with the same name do not consume a number.
+    const archived = makeStub({
+      meals: MEALS,
+      firstName: "Hans",
+      existingPlans: [
+        { titleOverride: null, template: { title: base }, isArchived: true },
+        { titleOverride: base, template: null, isWizardDraft: true },
+      ],
+    });
+    const h4 = await spinUp(archived.prisma);
+    try {
+      assert.equal((await post(h4, body)).status, 201);
+      assert.equal(archived.rec.templatesCreated[0].title, base);
+    } finally {
+      await h4.close();
+    }
+
+    // A real body title is suffixed the same way.
+    const named = makeStub({
+      meals: MEALS,
+      firstName: "Hans",
+      existingPlans: [{ titleOverride: null, template: { title: "Taco week" } }],
+    });
+    const h5 = await spinUp(named.prisma);
+    try {
+      assert.equal((await post(h5, { ...body, title: "Taco week" })).status, 201);
+      assert.equal(named.rec.templatesCreated[0].title, "Taco week (2)");
+    } finally {
+      await h5.close();
     }
   });
 

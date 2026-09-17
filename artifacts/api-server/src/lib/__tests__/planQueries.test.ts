@@ -93,6 +93,8 @@ function instanceRow(id: string, imageUrl: string | null) {
       imageUrl,
       tags: ["dev"],
     },
+    // BUG-290 — INSTANCE_TEMPLATE_INCLUDE's _count.items.
+    _count: { items: 5 },
   };
 }
 

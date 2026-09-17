@@ -13,6 +13,7 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
 import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { canUseAgain } from "@/lib/plans/planLifecycleActions";
+import { planRowMeta } from "@/lib/plans/planRowMeta";
 
 type Props = {
   plan: PlanListItem;
@@ -44,6 +45,9 @@ export function PlanRow({ plan, onPreviewTemplate, onCompost, onUseAgain }: Prop
   };
 
   const visibleTags = plan.tags.slice(0, 3);
+  // BUG-290 — "5 meals · Sep 16 – Sep 21": two same-named plans (the
+  // deterministic week-of name repeats) read apart by what is in them.
+  const meta = planRowMeta(plan);
 
   return (
     <View style={styles.row}>
@@ -60,6 +64,11 @@ export function PlanRow({ plan, onPreviewTemplate, onCompost, onUseAgain }: Prop
       </View>
       <View style={styles.body}>
         <DisplayTitle source={plan} variant="slim" style={styles.title} />
+        {meta && (
+          <Text style={styles.meta} numberOfLines={1} testID="plan-row-meta">
+            {meta}
+          </Text>
+        )}
         {plan.description && (
           <Text style={styles.meta} numberOfLines={1}>
             {plan.description}
