@@ -4,7 +4,8 @@
 //
 // title (serif) · meta line ("5 dinners · serves 4 · ~40 min avg") · meal rows
 // (the 42px placeholder ramp — ImageTreatment.thumbSize, NOT the Pick screen's
-// 56 — + title + one-line description) · "Why this works" bullets · the daily
+// 56 — + title + the cook time when the wire carried one + a description of up
+// to three lines, the row never shorter than a two-line one) · "Why this works" bullets · the daily
 // macro line · the actions row: Use This Week (tint) · Save for Later (ghost) ·
 // Not For Me (ghostQuiet — text2 ink). NO hero image (imageUrl / badge are dead fields on
 // the candidate — Phase 0), no tags row (spec §2). The card body is not a tap
@@ -35,6 +36,7 @@ import {
   DISMISS_LABEL,
   metaLine,
   rowsFor,
+  rowTimeLabel,
   SAVE_BUSY_LABEL,
   SAVE_LABEL,
   SAVED_LINE,
@@ -45,6 +47,18 @@ import {
 } from "@/lib/wizard/planOptions";
 
 export type PlanOptionCardBusyAction = "use" | "save";
+
+// Block 3 Part C (Hans, device pass) — the row's type metrics, named so the
+// minimum height is derived, not guessed: a row with no description is padded
+// to the height of a two-line one ("some meals don't have descriptions and
+// their meal rows are shorter height… it looks a little awkward"); a long
+// description gets a third line ("we need a 3rd row for the text").
+const ROW_TITLE_LINE_HEIGHT = 20;
+const ROW_DESCRIPTION_LINE_HEIGHT = 18;
+const ROW_DESCRIPTION_MAX_LINES = 3;
+const ROW_BODY_GAP = 2;
+export const ROW_BODY_MIN_HEIGHT =
+  ROW_TITLE_LINE_HEIGHT + ROW_BODY_GAP + 2 * ROW_DESCRIPTION_LINE_HEIGHT;
 
 interface Props {
   candidate: WizardPlanCandidate;
@@ -97,8 +111,13 @@ export function PlanOptionCard({
               <Text style={s.rowTitle} numberOfLines={2}>
                 {row.title}
               </Text>
+              {rowTimeLabel(row) ? (
+                <Text style={s.rowTime} testID={`plan-option-row-time-${i}`}>
+                  {rowTimeLabel(row)}
+                </Text>
+              ) : null}
               {row.description ? (
-                <Text style={s.rowDescription} numberOfLines={2}>
+                <Text style={s.rowDescription} numberOfLines={ROW_DESCRIPTION_MAX_LINES}>
                   {row.description}
                 </Text>
               ) : null}
@@ -240,19 +259,27 @@ const s = StyleSheet.create({
   rowBody: {
     flex: 1,
     minWidth: 0,
-    gap: 2,
+    gap: ROW_BODY_GAP,
+    minHeight: ROW_BODY_MIN_HEIGHT,
   },
   rowTitle: {
     fontSize: Typography.fontSize.md,
     color: Colors.neutral[900],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.serif[600],
+    lineHeight: ROW_TITLE_LINE_HEIGHT,
+  },
+  rowTime: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    lineHeight: 14,
   },
   rowDescription: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
-    lineHeight: 18,
+    lineHeight: ROW_DESCRIPTION_LINE_HEIGHT,
   },
   why: {
     backgroundColor: Colors.sage[50],

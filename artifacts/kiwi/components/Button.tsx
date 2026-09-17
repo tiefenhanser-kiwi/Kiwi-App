@@ -28,7 +28,10 @@ import { Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 // see the token note.)
 // WS9 D-WS9-191 Block 2 — `ghostQuiet`: the ghost with the secondary text tier
 // as its label (the plan-options card's "Not For Me"). See the token note.
-type Variant = "primary" | "secondary" | "ghost" | "ghostQuiet" | "tint" | "creamOnSage";
+// WS9 D-WS9-191 Block 3 — `sageTint`: `tint` in the sage scale ("Get another
+// plan option"; Hans: "light shaded sage, not light terracotta"). A VARIANT for
+// the same reason `tint` is: the label colour lives in VARIANTS.
+type Variant = "primary" | "secondary" | "ghost" | "ghostQuiet" | "tint" | "sageTint" | "creamOnSage";
 
 // WS9-2 2e (D-WS9-157) — size scale. The plan-review action panel needs one
 // cell (Compost) rendered visually SMALLER than its four peers, and the ruling
@@ -172,6 +175,11 @@ const VARIANTS: Record<
     bg: Palette.button.tint.background,
     text: Palette.button.tint.text,
     border: Palette.button.tint.border,
+  },
+  sageTint: {
+    bg: Palette.button.sageTint.background,
+    text: Palette.button.sageTint.text,
+    border: Palette.button.sageTint.border,
   },
   creamOnSage: {
     bg: Palette.button.creamOnSage.background,

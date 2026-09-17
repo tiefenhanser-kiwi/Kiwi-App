@@ -486,7 +486,7 @@ export default function PlanOptionsScreen() {
             <View style={s.anotherWrap}>
               <Button
                 label={ANOTHER_LABEL}
-                variant="tint"
+                variant="sageTint"
                 onPress={handleAnother}
                 disabled={anotherBusy || busy}
                 testID="plan-options-another"

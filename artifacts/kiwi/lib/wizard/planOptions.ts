@@ -366,6 +366,18 @@ export function rowsFor(candidate: WizardPlanCandidate): PlanOptionRow[] {
   });
 }
 
+/**
+ * The row's cook-time label ("25 min") — ONLY when the wire carried a time
+ * (a store-bound slot). Never invented or estimated: the generate bodies
+ * forbid claiming a time for a meal composed fresh, and a live slot has none
+ * → null, nothing rendered. (Hans, device pass: cook time on each meal row.)
+ */
+export function rowTimeLabel(row: Pick<PlanOptionRow, "estimatedTimeMinutes">): string | null {
+  const t = row.estimatedTimeMinutes;
+  if (typeof t !== "number" || !Number.isFinite(t) || t <= 0) return null;
+  return `${Math.round(t)} min`;
+}
+
 /** Round to the nearest 5 minutes ("~40 min avg"). */
 export function roundTo5(minutes: number): number {
   return Math.max(5, Math.round(minutes / 5) * 5);

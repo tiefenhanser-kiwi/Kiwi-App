@@ -26,6 +26,7 @@ import {
   patchCard,
   pressesLeft,
   rowsFor,
+  rowTimeLabel,
   sublineFor,
   visibleCards,
 } from "../planOptions";
@@ -425,4 +426,19 @@ test("noticeFor: overflow names the left-out meals; cannotGenerateMore surfaces 
   );
   assert.equal(noticeFor({ scenario: "vague" }), null);
   assert.equal(ANOTHER_LABEL, "Get another plan option");
+});
+
+// ── rowTimeLabel (Block 3 Part C — cook time on the row, never invented) ────
+
+test("rowTimeLabel: the wire time as \"{n} min\"; a live slot (no time), zero, negative or non-finite → null", () => {
+  assert.equal(rowTimeLabel({ estimatedTimeMinutes: 25 }), "25 min");
+  assert.equal(rowTimeLabel({ estimatedTimeMinutes: 42.4 }), "42 min");
+  assert.equal(rowTimeLabel({}), null);
+  assert.equal(rowTimeLabel({ estimatedTimeMinutes: 0 }), null);
+  assert.equal(rowTimeLabel({ estimatedTimeMinutes: -5 }), null);
+  assert.equal(rowTimeLabel({ estimatedTimeMinutes: Number.NaN }), null);
+  // Through rowsFor: WIRE has times on its store slots only.
+  const labels = rowsFor(WIRE).map(rowTimeLabel);
+  assert.deepEqual(labels, ["25 min", "40 min", null, "50 min"]);
+  assert.deepEqual(rowsFor(LEGACY).map(rowTimeLabel), [null, null]);
 });

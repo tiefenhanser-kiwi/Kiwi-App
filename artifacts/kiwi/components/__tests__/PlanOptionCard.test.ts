@@ -32,7 +32,7 @@ import {
 } from "@/lib/wizard/planOptions";
 import { Button } from "../Button";
 import { EXHAUSTED_REFINE, EXHAUSTED_TELL, EXHAUSTED_TITLE, ExhaustedCard } from "../ExhaustedCard";
-import { PlanOptionCard, PlanOptionCardSkeleton, macrosLine } from "../PlanOptionCard";
+import { PlanOptionCard, PlanOptionCardSkeleton, ROW_BODY_MIN_HEIGHT, macrosLine } from "../PlanOptionCard";
 
 type Json = {
   type: string;
@@ -236,7 +236,69 @@ test("skeleton: card-shaped, three 42px ramps, no text content", () => {
   assert.equal(joined(root).trim(), "");
 });
 
+// ── Block 3 Part C — the row per Hans's device read ─────────────────────────
+
+test("C.2 cook time: '{n} min' on a row whose wire slot carried a time; NOTHING on a live slot (never invented)", () => {
+  const { root } = card();
+  const t0 = byTestId(root, "plan-option-row-time-0");
+  const t1 = byTestId(root, "plan-option-row-time-1");
+  const t2 = byTestId(root, "plan-option-row-time-2");
+  assert.equal(joined(t0 ?? null), "25 min");
+  assert.equal(t1, undefined, "Tacos is a live slot — no time, no label");
+  assert.equal(joined(t2 ?? null), "35 min");
+  // A legacy candidate (no meals) shows no time anywhere.
+  const legacy = card({ candidate: LEGACY, householdSize: null }).root;
+  assert.equal(walk(legacy).filter((n) => /^plan-option-row-time-/.test(String(n.props.testID ?? ""))).length, 0);
+  assert.ok(!joined(legacy).includes(" min"), joined(legacy));
+});
+
+test("C.3 descriptions get a third line: numberOfLines 3 on the description text", () => {
+  const { root } = card();
+  const descs = walk(root).filter(
+    (n) => n.type === "rn-text" && allText(n).join("") === "Smash patties, toasted buns.",
+  );
+  assert.equal(descs.length, 1);
+  assert.equal(descs[0].props.numberOfLines, 3);
+});
+
+test("C.4 ragged rows: every row body carries the SAME minimum height (a two-line description), description or not", () => {
+  const { root } = card();
+  const bodies = walk(root).filter((n) => {
+    const s = flatten(n.props.style);
+    return s.minHeight === ROW_BODY_MIN_HEIGHT;
+  });
+  assert.equal(bodies.length, 3, "three row bodies, all padded to the two-line minimum");
+  // Derived from the row's own type metrics: title line + gap + two description lines.
+  assert.equal(ROW_BODY_MIN_HEIGHT, 20 + 2 + 2 * 18);
+  // The description-less row (Tacos) still has it.
+  const tacos = bodies.find((b) => allText(b).join(" ").includes("Tacos"));
+  assert.ok(tacos, "the Tacos row body (no description) is padded too");
+});
+
+test("C.5 still no per-meal macros and no per-meal tags on the row", () => {
+  const { root } = card();
+  const text = joined(root);
+  assert.ok(!text.includes("summer") && !text.includes("grill,"), "tags are not rendered");
+  // Only the plan's daily macro line carries a "cal" — nothing per row.
+  assert.equal((text.match(/cal/g) ?? []).length, 1);
+});
+
 // ── the Button variant ──────────────────────────────────────────────────────
+
+test("Button sageTint (C.1): tint's cell in the sage scale — pale sage surface, sage[400] edge, sage[700] ink; NOT button.sage's solid fill", () => {
+  const node = render(React.createElement(Button, { label: "Get another plan option", variant: "sageTint" }));
+  const s = flatten(node.props.style);
+  assert.equal(s.backgroundColor, Palette.button.sageTint.background);
+  assert.equal(Palette.button.sageTint.background, Colors.sage[50]);
+  assert.equal(s.borderColor, Colors.sage[400]);
+  assert.notEqual(s.backgroundColor, Palette.button.sage.background, "not the solid sage[600] fill");
+  assert.notEqual(s.backgroundColor, Palette.button.tint.background, "not light terracotta");
+  const label = walk(node).find((n) => n.type === "rn-text");
+  assert.equal(flatten(label?.props.style).color, Colors.sage[700]);
+  // tint itself is untouched.
+  const tint = render(React.createElement(Button, { label: "x", variant: "tint" }));
+  assert.equal(flatten(tint.props.style).backgroundColor, Colors.terracotta[50]);
+});
 
 test("Button ghostQuiet: the ghost's fill and edge, the secondary text tier as label; ghost itself untouched", () => {
   const quiet = render(React.createElement(Button, { label: "Not For Me", variant: "ghostQuiet" }));

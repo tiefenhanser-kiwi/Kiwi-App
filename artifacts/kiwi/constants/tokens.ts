@@ -267,6 +267,19 @@ export const Palette = {
       border:     Colors.terracotta[400],
       hover:      Colors.terracotta[100],
     },
+    // WS9 D-WS9-191 Block 3 (Sept 16) — `tint` in the sage scale: the
+    // plan-options screen's "Get another plan option". Hans on the device:
+    // "get another plan should be light shaded sage, not light terracotta."
+    // ⚠️ NOT `button.sage` above — that is a SOLID sage[600] fill with a cream
+    // label (the treatment D-WS9-215 pulled off "Prep selected meals"), not a
+    // light shade. Same cell as `tint`: pale surface, full-strength edge, dark
+    // ink. Label sage[700] on sage[50] = 7.7481:1 (tint's own pair is 7.0357:1).
+    sageTint: {
+      background: Colors.sage[50],
+      text:       Colors.sage[700],
+      border:     Colors.sage[400],
+      hover:      Colors.sage[100],
+    },
   },
 
   chip: {
