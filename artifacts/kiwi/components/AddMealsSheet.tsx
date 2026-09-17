@@ -382,12 +382,6 @@ const s = StyleSheet.create({
     padding: Spacing[3],
     opacity: 0.95,
   },
-  askHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing[2],
-  },
   sourceCard: {
     flexDirection: "row",
     alignItems: "center",

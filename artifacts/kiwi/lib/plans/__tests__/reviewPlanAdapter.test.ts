@@ -364,7 +364,7 @@ test("mealDetailToRow: deep-link injection row carries cuisine + macros, empty d
 
 // ── WS9 BUG-245 (D-WS9-235) — saved plan: no estimate mark; hands-on where sent
 // Fixture: a SAVED plan item (MealDetail, minutes 45). The saved row never
-// tildes — the tilde is the wizardDraftReviewAdapter's mark alone.
+// tildes — the tilde was the (since-deleted) wizard draft adapter's mark alone.
 test("BUG-245: a saved plan's metaLine carries no estimate mark", () => {
   const result = planDetailToReviewPlan(
     makeDetail({

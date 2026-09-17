@@ -42,14 +42,12 @@ interface Props {
   /** Fired when the row's "Compost" action is tapped — parent owns
    *  the confirmation alert + optimistic remove (PRD §8.4.5). */
   onCompost?: (planItemId: string, title: string) => void;
-  /** WS9 3c (D-WS9-032) — draft/preview mode. The row's meal has no real
-   *  server id (a wizard draft), so every interactive affordance is either
-   *  hidden (Cook Now + the edit action row) or routed to onReadOnlyEdit
-   *  (row tap, day pills) instead of navigating to a route that would 404.
-   *  Editing requires saving the plan first (point 6). */
+  /** Inert mode (D-WS9-159, composted plans). Every interactive affordance is
+   *  either hidden (Cook Now + the edit action row) or a no-op (row tap, day
+   *  pills): the meals stay visible, nothing on the row acts. Born as WS9 3c's
+   *  draft/preview mode; the draft surface and its onReadOnlyEdit guard left
+   *  with D-WS9-191. */
   readOnly?: boolean;
-  /** Guard invoked when a readOnly row's tappable surface is pressed. */
-  onReadOnlyEdit?: () => void;
 }
 
 export function PlanReviewMealRow({
@@ -60,7 +58,6 @@ export function PlanReviewMealRow({
   onAssignDay,
   onCompost,
   readOnly = false,
-  onReadOnlyEdit,
 }: Props) {
   const router = useRouter();
 
@@ -97,10 +94,7 @@ export function PlanReviewMealRow({
   };
 
   const onRowTap = () => {
-    if (readOnly) {
-      onReadOnlyEdit?.();
-      return;
-    }
+    if (readOnly) return;
     console.log("[meal-row] row tapped (→ Meal Detail)", {
       planItemId: row.planItemId,
       mealId: row.mealId,
@@ -214,10 +208,7 @@ export function PlanReviewMealRow({
           <Pressable
             key={entry.day}
             onPress={() => {
-              if (readOnly) {
-                onReadOnlyEdit?.();
-                return;
-              }
+              if (readOnly) return;
               console.log("[meal-row] day-pill tapped", {
                 planItemId: row.planItemId,
                 day: entry.day,

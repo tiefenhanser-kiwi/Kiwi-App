@@ -67,7 +67,7 @@ export interface PlanReviewSurface {
   showMealDefaults: boolean;
   /**
    * PlanReviewMealRow.readOnly — hides Cook Now + the four edit actions and
-   * routes row taps / day pills to onReadOnlyEdit instead of mutating.
+   * makes row taps / day pills no-ops (inert; the draft guard is gone).
    */
   rowsReadOnly: boolean;
 }

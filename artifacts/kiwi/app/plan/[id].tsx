@@ -987,14 +987,12 @@ export default function PlanReviewScreen() {
                   row={row}
                   planId={planId}
                   // D-WS9-159 — REUSED, not rebuilt. PlanReviewMealRow already
-                  // owns this mechanism (WS9 3c, for drafts): readOnly hides Cook
-                  // Now + the four edit actions, and routes row taps / day pills
-                  // to onReadOnlyEdit instead of mutating. Composted simply
-                  // becomes its second caller.
+                  // owned this mechanism (WS9 3c, for drafts): readOnly hides
+                  // Cook Now + the four edit actions and makes row taps / day
+                  // pills no-ops. Composted is now its only caller — the draft
+                  // surface and its onReadOnlyEdit guard left with D-WS9-191;
+                  // the row is genuinely INERT.
                   readOnly={surface.rowsReadOnly}
-                  // A composted plan has nothing to explain and no action to
-                  // offer, so no onReadOnlyEdit handler: the row is genuinely
-                  // INERT — onReadOnlyEdit?.() no-ops.
                   onChangeMeal={(planItemId, currentMealId) =>
                     setSwapForRow({
                       planItemId,
