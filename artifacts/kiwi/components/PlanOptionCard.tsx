@@ -33,6 +33,7 @@ import {
 import { formatMacro } from "@/lib/format/macros";
 import type { WizardPlanCandidate } from "@/lib/types";
 import {
+  candidateIdentity,
   DISMISS_LABEL,
   metaLine,
   rowsFor,
@@ -91,13 +92,18 @@ export function PlanOptionCard({
   onNotForMe,
 }: Props) {
   const rows = rowsFor(candidate);
+  // lane-pfc Part C.5 — testIDs key on the CONTENT identity (BUG-289's
+  // candidateIdentity), never candidate.id: the AI-minted id is not unique
+  // across runs and was removed from every load-bearing path. Keeping it here
+  // would invite the next author to trust it.
+  const idKey = candidateIdentity(candidate);
   const busy = state === "busy";
   const locked = busy || disabled;
   const useLabel = busy && busyAction === "use" ? USE_BUSY_LABEL : USE_LABEL;
   const saveLabel = busy && busyAction === "save" ? SAVE_BUSY_LABEL : SAVE_LABEL;
 
   return (
-    <View style={s.card} accessibilityLabel={candidate.title} testID={`plan-option-${candidate.id}`}>
+    <View style={s.card} accessibilityLabel={candidate.title} testID={`plan-option-${idKey}`}>
       <Text style={s.title}>{candidate.title}</Text>
       <Text style={s.meta}>{metaLine(candidate, householdSize)}</Text>
 
@@ -156,7 +162,7 @@ export function PlanOptionCard({
               variant="tint"
               onPress={onUseThisWeek}
               disabled={locked}
-              testID={`plan-option-${candidate.id}-use`}
+              testID={`plan-option-${idKey}-use`}
             />
           </View>
         </View>
@@ -167,7 +173,7 @@ export function PlanOptionCard({
             variant="tint"
             onPress={onUseThisWeek}
             disabled={locked}
-            testID={`plan-option-${candidate.id}-use`}
+            testID={`plan-option-${idKey}-use`}
           />
           <View style={s.quietRow}>
             <View style={{ flex: 1 }}>
@@ -176,7 +182,7 @@ export function PlanOptionCard({
                 variant="ghost"
                 onPress={onSaveForLater}
                 disabled={locked}
-                testID={`plan-option-${candidate.id}-save`}
+                testID={`plan-option-${idKey}-save`}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -185,7 +191,7 @@ export function PlanOptionCard({
                 variant="ghostQuiet"
                 onPress={onNotForMe}
                 disabled={locked}
-                testID={`plan-option-${candidate.id}-dismiss`}
+                testID={`plan-option-${idKey}-dismiss`}
               />
             </View>
           </View>

@@ -8,8 +8,12 @@
 // soft-deleted plan, with a fully green suite.
 //
 // The matrix below is the whole spec, not a sample. Every state asserts every
-// flag, so ADDING a flag without deciding its value in all four states fails
+// flag, so ADDING a flag without deciding its value in all three states fails
 // here rather than shipping as an accidental `undefined`.
+//
+// lane-pfc Part C.3 — the "draft" state (and D-WS9-161's line, which only ever
+// rendered on it) left the table with the screen's draftId branch: D-WS9-191
+// §4.7 ruled the unsaved-draft state out of existence.
 //
 // ⚠️ SCOPE OF THIS GUARD, STATED HONESTLY: this pins the TABLE. It cannot see
 // whether app/plan/[id].tsx still reads the table — that seam is untestable
@@ -21,7 +25,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  DRAFT_CUSTOMIZABLE_COPY,
   planReviewState,
   planReviewSurface,
   type PlanReviewState,
@@ -30,33 +33,18 @@ import {
 
 // ── state derivation ────────────────────────────────────────────────────────
 
-test("planReviewState: the four content states", () => {
+test("planReviewState: the three content states", () => {
   assert.equal(
-    planReviewState({ isDraft: true, isComposted: false, isActiveThisWeek: false }),
-    "draft",
-  );
-  assert.equal(
-    planReviewState({ isDraft: false, isComposted: true, isActiveThisWeek: false }),
+    planReviewState({ isComposted: true, isActiveThisWeek: false }),
     "composted",
   );
   assert.equal(
-    planReviewState({ isDraft: false, isComposted: false, isActiveThisWeek: false }),
+    planReviewState({ isComposted: false, isActiveThisWeek: false }),
     "liveInactive",
   );
   assert.equal(
-    planReviewState({ isDraft: false, isComposted: false, isActiveThisWeek: true }),
+    planReviewState({ isComposted: false, isActiveThisWeek: true }),
     "liveThisWeek",
-  );
-});
-
-test("planReviewState: draft wins over every other signal", () => {
-  // A draft's planQuery is disabled so isComposted is always false in practice;
-  // the precedence is defensive, and pinning it stops a future reorder from
-  // rendering a draft as a composted plan (which would show "Use again" on a
-  // plan that was never saved).
-  assert.equal(
-    planReviewState({ isDraft: true, isComposted: true, isActiveThisWeek: true }),
-    "draft",
   );
 });
 
@@ -64,29 +52,30 @@ test("planReviewState: composted wins over active-this-week", () => {
   // Compost does not clear isActiveThisWeek optimistically, so a just-composted
   // active plan hits this branch. It must NOT render the live surface.
   assert.equal(
-    planReviewState({ isDraft: false, isComposted: true, isActiveThisWeek: true }),
+    planReviewState({ isComposted: true, isActiveThisWeek: true }),
     "composted",
+  );
+});
+
+test("planReviewState (lane-pfc C.3): there is no draft state and no draft input", () => {
+  // D-WS9-191 §4.7 — a plan is only ever reviewed after it is saved. The
+  // screen can no longer be reached with a draftId, so the table cannot
+  // describe one; a state the screen can never set would be the same trap as
+  // a flag hard-coded false.
+  const states = ["composted", "liveInactive", "liveThisWeek"] as const;
+  for (const st of states) assert.ok(!("showDraftCommitBar" in planReviewSurface(st)));
+  assert.equal(
+    planReviewState({ isComposted: false, isActiveThisWeek: false } as never),
+    "liveInactive",
   );
 });
 
 // ── the matrix ──────────────────────────────────────────────────────────────
 
 const MATRIX: Record<PlanReviewState, PlanReviewSurface> = {
-  draft: {
-    headerBand: "draftTitle",
-    showThisWeekSlot: false,
-    showDraftCommitBar: true,
-    showDraftCustomizableNote: true,
-    showCompostedBar: false,
-    showActionPanel: false,
-    showMealDefaults: false,
-    rowsReadOnly: true,
-  },
   composted: {
     headerBand: "staticMeta",
     showThisWeekSlot: false,
-    showDraftCommitBar: false,
-    showDraftCustomizableNote: false,
     showCompostedBar: true,
     showActionPanel: false,
     showMealDefaults: false,
@@ -95,8 +84,6 @@ const MATRIX: Record<PlanReviewState, PlanReviewSurface> = {
   liveInactive: {
     headerBand: "editors",
     showThisWeekSlot: true,
-    showDraftCommitBar: false,
-    showDraftCustomizableNote: false,
     showCompostedBar: false,
     showActionPanel: true,
     showMealDefaults: true,
@@ -105,8 +92,6 @@ const MATRIX: Record<PlanReviewState, PlanReviewSurface> = {
   liveThisWeek: {
     headerBand: "editors",
     showThisWeekSlot: true,
-    showDraftCommitBar: false,
-    showDraftCustomizableNote: false,
     showCompostedBar: false,
     showActionPanel: true,
     showMealDefaults: true,
@@ -122,12 +107,7 @@ for (const state of Object.keys(MATRIX) as PlanReviewState[]) {
 
 test("matrix: every state is covered — a new state cannot skip the table", () => {
   const covered = Object.keys(MATRIX).sort();
-  assert.deepEqual(covered, [
-    "composted",
-    "draft",
-    "liveInactive",
-    "liveThisWeek",
-  ]);
+  assert.deepEqual(covered, ["composted", "liveInactive", "liveThisWeek"]);
   // And every flag is a real boolean/string, never an accidental undefined from
   // a half-added field.
   for (const state of covered as PlanReviewState[]) {
@@ -173,42 +153,11 @@ test("GUARD (D-WS9-159): 'Use again' survives — it is the only way back", () =
 });
 
 test("GUARD: the live states are the ONLY ones carrying the action panel", () => {
-  // The panel is five cells wide. In draft and composted, ZERO of those five
-  // exist — it is five-or-nothing, not five-minus-two.
+  // The panel is five cells wide. In composted, ZERO of those five exist — it
+  // is five-or-nothing, not five-minus-two.
   const withPanel = (Object.keys(MATRIX) as PlanReviewState[]).filter(
     (s) => planReviewSurface(s).showActionPanel,
   );
   assert.deepEqual(withPanel, ["liveInactive", "liveThisWeek"]);
 });
 
-test("GUARD: a draft never renders a live or composted affordance", () => {
-  const s = planReviewSurface("draft");
-  assert.equal(s.showActionPanel, false);
-  assert.equal(s.showCompostedBar, false);
-  assert.equal(s.showThisWeekSlot, false);
-  assert.equal(s.rowsReadOnly, true);
-  // Its own commit bar and the D-WS9-161 line are the whole surface.
-  assert.equal(s.showDraftCommitBar, true);
-  assert.equal(s.showDraftCustomizableNote, true);
-});
-
-// ── D-WS9-161 copy ──────────────────────────────────────────────────────────
-
-test("D-WS9-161: the draft customization line is verbatim, em dash included", () => {
-  assert.equal(
-    DRAFT_CUSTOMIZABLE_COPY,
-    "This plan is fully customizable — save it to add, swap, or remove meals.",
-  );
-  // The em dash is the ruled character. A "helpful" hyphen swap is a copy edit
-  // to a string that was ruled verbatim.
-  assert.ok(DRAFT_CUSTOMIZABLE_COPY.includes("—"), "em dash, not a hyphen");
-});
-
-test("D-WS9-161: the line renders ONLY on a draft", () => {
-  // It explains why editing is off. On any state where editing is ON, it would
-  // be telling the user to save a plan that is already saved.
-  const shown = (Object.keys(MATRIX) as PlanReviewState[]).filter(
-    (s) => planReviewSurface(s).showDraftCustomizableNote,
-  );
-  assert.deepEqual(shown, ["draft"]);
-});

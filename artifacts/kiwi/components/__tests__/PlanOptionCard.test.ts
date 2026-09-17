@@ -22,6 +22,7 @@ import { __resetRouterForTests, __setRouterForTests } from "expo-router";
 import { Colors, ImageTreatment, Palette } from "@/constants/tokens";
 import type { WizardPlanCandidate } from "@/lib/types";
 import {
+  candidateIdentity,
   DISMISS_LABEL,
   EXHAUSTED_PLANS_TITLE,
   SAVE_BUSY_LABEL,
@@ -121,6 +122,11 @@ const LEGACY: WizardPlanCandidate = {
   dailyMacros: { calories: 1600, proteinG: 90, carbsG: 170, fatG: 50 },
 };
 
+// lane-pfc Part C.5 — testIDs key on the CONTENT identity, never candidate.id
+// (BUG-289 removed the AI-minted id from every load-bearing path; the testID
+// was the last reader). WIRE's id "c1" must not appear in any testID.
+const TID = `plan-option-${candidateIdentity(WIRE)}`;
+
 function card(over: Partial<React.ComponentProps<typeof PlanOptionCard>> = {}) {
   const calls = { use: 0, save: 0, dismiss: 0 };
   const el = React.createElement(PlanOptionCard, {
@@ -164,13 +170,31 @@ test("fresh: title, meta line, three rows (42px ramp, title, description when pr
   assert.ok(!text.includes("Featured"), "the dead badge field is not rendered");
 });
 
+test("C.5 (lane-pfc): no testID is keyed on candidate.id — the content identity is the key", () => {
+  const { root } = card();
+  const ids = walk(root)
+    .map((n) => n.props.testID)
+    // the card + its actions; the per-row time ids are index-keyed and not in scope
+    .filter((t): t is string => typeof t === "string" && t.startsWith("plan-option-") && !t.startsWith("plan-option-row-"));
+  assert.ok(ids.length >= 4, "the card + three actions carry testIDs");
+  for (const id of ids) {
+    assert.ok(!id.includes("plan-option-c1"), `testID keyed on candidate.id: ${id}`);
+    assert.ok(id.startsWith(TID), `testID not keyed on the content identity: ${id}`);
+  }
+  // Two candidates that share an AI-minted id but differ in content get
+  // DIFFERENT testIDs — the same property BUG-289 pinned for the card key.
+  const other = card({ candidate: { ...WIRE, title: "A different plan" } }).root;
+  assert.equal(byTestId(other, TID), undefined, "the other card does not answer to WIRE's identity");
+  assert.ok(byTestId(other, `plan-option-${candidateIdentity({ ...WIRE, title: "A different plan" })}`));
+});
+
 test("fresh: the three actions fire their callbacks; the card body is not a tap target", () => {
   const { root, calls } = card();
-  press(byTestId(root, "plan-option-c1-use"), "Use This Week");
-  press(byTestId(root, "plan-option-c1-save"), "Save for Later");
-  press(byTestId(root, "plan-option-c1-dismiss"), "Not For Me");
+  press(byTestId(root, `${TID}-use`), "Use This Week");
+  press(byTestId(root, `${TID}-save`), "Save for Later");
+  press(byTestId(root, `${TID}-dismiss`), "Not For Me");
   assert.deepEqual(calls, { use: 1, save: 1, dismiss: 1 });
-  const body = byTestId(root, "plan-option-c1");
+  const body = byTestId(root, TID);
   assert.ok(body);
   assert.equal(body.props.onPress, undefined, "the card body does nothing on tap");
 });
@@ -181,12 +205,12 @@ test("busy (use): the label reads 'Building your week…' (no spinner) and every
   assert.ok(text.includes(USE_BUSY_LABEL), text);
   assert.ok(!text.includes(USE_LABEL + " "), "the idle label is replaced");
   assert.equal(walk(root).filter((n) => n.type === "rn-activity-indicator").length, 0, "no spinner");
-  for (const id of ["plan-option-c1-use", "plan-option-c1-save", "plan-option-c1-dismiss"]) {
+  for (const id of [`${TID}-use`, `${TID}-save`, `${TID}-dismiss`]) {
     const b = byTestId(root, id);
     assert.ok(b);
     assert.equal(b.props.disabled, true, `${id} disabled while busy`);
   }
-  press(byTestId(root, "plan-option-c1-save"), "Save while busy");
+  press(byTestId(root, `${TID}-save`), "Save while busy");
   assert.equal(calls.save, 0, "a disabled Button does not fire");
 });
 
@@ -199,7 +223,7 @@ test("disabled (another card is busy): the three actions are disabled, labels id
   const { root } = card({ disabled: true });
   const text = joined(root);
   assert.ok(text.includes(USE_LABEL) && !text.includes(USE_BUSY_LABEL));
-  assert.equal(byTestId(root, "plan-option-c1-dismiss")?.props.disabled, true);
+  assert.equal(byTestId(root, `${TID}-dismiss`)?.props.disabled, true);
 });
 
 test("saved: 'Saved ✓' where the actions row was, keeping ONLY Use This Week", () => {
@@ -209,9 +233,9 @@ test("saved: 'Saved ✓' where the actions row was, keeping ONLY Use This Week",
   assert.ok(text.includes(USE_LABEL));
   assert.ok(!text.includes(SAVE_LABEL), "Save for Later is gone");
   assert.ok(!text.includes(DISMISS_LABEL), "Not For Me is gone");
-  assert.equal(byTestId(root, "plan-option-c1-save"), undefined);
-  assert.equal(byTestId(root, "plan-option-c1-dismiss"), undefined);
-  press(byTestId(root, "plan-option-c1-use"), "Use on a saved card");
+  assert.equal(byTestId(root, `${TID}-save`), undefined);
+  assert.equal(byTestId(root, `${TID}-dismiss`), undefined);
+  press(byTestId(root, `${TID}-use`), "Use on a saved card");
   assert.equal(calls.use, 1);
 });
 
@@ -226,12 +250,12 @@ test("legacy candidate (no meals): title-only rows, no description lines, no cra
 
 test("Not For Me is the ghostQuiet variant (text2 ink); Use This Week is tint", () => {
   const { root } = card();
-  const dismiss = byTestId(root, "plan-option-c1-dismiss");
+  const dismiss = byTestId(root, `${TID}-dismiss`);
   assert.ok(dismiss);
   const dismissLabel = walk(dismiss).find((n) => n.type === "rn-text");
   assert.equal(flatten(dismissLabel?.props.style).color, Palette.button.ghostQuiet.text);
   assert.equal(Palette.button.ghostQuiet.text, Colors.neutral[700]);
-  const use = byTestId(root, "plan-option-c1-use");
+  const use = byTestId(root, `${TID}-use`);
   assert.equal(flatten(use?.props.style).backgroundColor, Palette.button.tint.background);
 });
 

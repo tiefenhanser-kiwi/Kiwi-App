@@ -26,7 +26,7 @@ import {
 import type { PlanDetail, PlanDetailItem } from "@/lib/api/plans";
 import type { MealDetail } from "@/lib/api/meals";
 
-// ── Tree helpers (shared pattern with PlanRow / WizardPlanMealCard tests) ────
+// ── Tree helpers (shared pattern with the PlanRow tests) ─────────────────────
 
 interface RenderedNode {
   type?: string;

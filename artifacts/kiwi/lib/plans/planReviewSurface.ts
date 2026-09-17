@@ -16,39 +16,40 @@
 // add a flag here instead.
 
 /**
- * The four states Plan Review can render CONTENT in. The load/error/parse-fail
- * gates are not here: they return early from the screen with no plan to
- * describe, so they have no surface to decide.
+ * The three states Plan Review can render CONTENT in. The load/error gates
+ * are not here: they return early from the screen with no plan to describe,
+ * so they have no surface to decide.
+ *
+ * lane-pfc Part C.3 — the "draft" state (an unsaved wizard candidate reached
+ * with `?draftId=`) is GONE: D-WS9-191 §4.7 ruled the unsaved-draft state
+ * out of existence (a plan is only reviewed after it is saved; the chooser
+ * card owns save / activate), the screen deletion that followed left nothing
+ * that could route here with a draftId, and app/plan/[id].tsx no longer
+ * carries the branch. A table state the screen can never reach is the same
+ * trap as a flag hard-coded false — so it is removed rather than left
+ * "for later".
  *
  * ⚠️ There is deliberately no "past" state. PlanDetail.status exists on the
  * wire but the screen has never read it, so a past plan renders as a live one
  * (logged as BUG-090 — NOT this block's to fix).
  */
-export type PlanReviewState =
-  | "draft"
-  | "composted"
-  | "liveInactive"
-  | "liveThisWeek";
+export type PlanReviewState = "composted" | "liveInactive" | "liveThisWeek";
 
 export function planReviewState(opts: {
-  /** A `draftId` route param is present — an unsaved wizard candidate. */
-  isDraft: boolean;
   /** GET /plans/:id returned a non-null compostedAt — soft-deleted. */
   isComposted: boolean;
   /** Server-resolved this-week winner. */
   isActiveThisWeek: boolean;
 }): PlanReviewState {
-  // Draft wins: a draft's planQuery is disabled, so isComposted is always false
-  // on one and the order below only matters for defensiveness.
-  if (opts.isDraft) return "draft";
+  // Composted wins over active-this-week: compost does not clear
+  // isActiveThisWeek optimistically, and a just-composted active plan must
+  // not render the live surface.
   if (opts.isComposted) return "composted";
   return opts.isActiveThisWeek ? "liveThisWeek" : "liveInactive";
 }
 
 /** How the sage header band presents the plan's identity. */
 export type PlanReviewHeaderBand =
-  /** Fixed candidate title + meal count. No week exists yet. */
-  | "draftTitle"
   /** Name / dates / meal count as PLAIN TEXT — read-only, not tappable. */
   | "staticMeta"
   /** The editable meta strip: inline name editor + date-range editor. */
@@ -58,10 +59,6 @@ export interface PlanReviewSurface {
   headerBand: PlanReviewHeaderBand;
   /** The Cook This Week chip (inactive) / This Week's Plan badge (active). */
   showThisWeekSlot: boolean;
-  /** Draft commit bar: Use This Week / Save for Later. */
-  showDraftCommitBar: boolean;
-  /** D-WS9-161 — the "fully customizable" line under the draft commit bar. */
-  showDraftCustomizableNote: boolean;
   /** Composted notice + the standalone "Use again" — the user's only way back. */
   showCompostedBar: boolean;
   /** The five-cell action panel (D-WS9-157). Live states only. */
@@ -76,19 +73,6 @@ export interface PlanReviewSurface {
 }
 
 const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
-  // An unsaved candidate. Its job is ACCEPT OR SAVE, not edit — every edit
-  // affordance is off and D-WS9-161's line explains why in one sentence
-  // (a user who dislikes one meal must not conclude the plan is fixed).
-  draft: {
-    headerBand: "draftTitle",
-    showThisWeekSlot: false,
-    showDraftCommitBar: true,
-    showDraftCustomizableNote: true,
-    showCompostedBar: false,
-    showActionPanel: false,
-    showMealDefaults: false,
-    rowsReadOnly: true,
-  },
   // D-WS9-159 — GENUINELY read-only. Compost is a soft-delete and the row's
   // whole graph is intact, so the plan stays reachable by direct navigation and
   // must NOT 404 — reporting a user's own intact data as nonexistent is worse
@@ -98,8 +82,6 @@ const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
   composted: {
     headerBand: "staticMeta",
     showThisWeekSlot: false,
-    showDraftCommitBar: false,
-    showDraftCustomizableNote: false,
     showCompostedBar: true,
     showActionPanel: false,
     showMealDefaults: false,
@@ -108,8 +90,6 @@ const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
   liveInactive: {
     headerBand: "editors",
     showThisWeekSlot: true,
-    showDraftCommitBar: false,
-    showDraftCustomizableNote: false,
     showCompostedBar: false,
     showActionPanel: true,
     showMealDefaults: true,
@@ -118,8 +98,6 @@ const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
   liveThisWeek: {
     headerBand: "editors",
     showThisWeekSlot: true,
-    showDraftCommitBar: false,
-    showDraftCustomizableNote: false,
     showCompostedBar: false,
     showActionPanel: true,
     showMealDefaults: true,
@@ -130,14 +108,3 @@ const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
 export function planReviewSurface(state: PlanReviewState): PlanReviewSurface {
   return SURFACES[state];
 }
-
-/**
- * D-WS9-161, verbatim. Rendered on the DRAFT state only, below the commit bar.
- *
- * ⚠️ NOT a caption. A user looking at generated plans who dislikes one meal may
- * conclude the product does not understand them and leave, never learning the
- * plan is fully editable. This line is the ONLY thing on a draft that tells
- * them otherwise — it is styled as body copy, not fine print.
- */
-export const DRAFT_CUSTOMIZABLE_COPY =
-  "This plan is fully customizable — save it to add, swap, or remove meals.";
