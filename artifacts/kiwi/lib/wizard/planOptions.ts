@@ -428,7 +428,10 @@ export const SAVE_BUSY_LABEL = "Saving…";
 export const DISMISS_LABEL = "Not For Me";
 export const SAVED_LINE = "Saved ✓";
 export const WHY_LABEL = "Why this works";
-export const EXHAUSTED_PLANS_TITLE = "Not many plans fit your preferences and restrictions.";
+// Hans, Sept 17: most people who want a meal get it or give up by 4 presses;
+// anyone still pressing is testing Kiwi. The PLANS card only — the Pick-meals
+// card (components/ExhaustedCard.tsx EXHAUSTED_TITLE) keeps its own wording.
+export const EXHAUSTED_PLANS_TITLE = "It looks like these aren't matching your preferences.";
 
 export type PlanOptionsMode = "wizard" | "tellkiwi" | "rehydrate";
 

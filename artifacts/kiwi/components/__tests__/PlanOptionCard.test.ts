@@ -360,7 +360,7 @@ test("ExhaustedCard: the Pick screen's copy by default; the plan-options title w
 
   const plans = render(React.createElement(ExhaustedCard, { title: EXHAUSTED_PLANS_TITLE }));
   const text = joined(plans);
-  assert.ok(text.includes("Not many plans fit your preferences and restrictions."), text);
+  assert.ok(text.includes("It looks like these aren't matching your preferences."), text);
   assert.ok(text.includes(EXHAUSTED_REFINE) && text.includes(EXHAUSTED_TELL));
 
   press(walk(plans).find((n) => n.props.onPress && allText(n).join("") === EXHAUSTED_REFINE), "Refine");
