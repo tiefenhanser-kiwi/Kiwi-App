@@ -98,6 +98,7 @@ export default function ForgotPasswordPage() {
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
+          placeholderTextColor={Palette.text.placeholder}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
@@ -127,7 +128,8 @@ const styles = StyleSheet.create({
   body: { gap: Spacing[3] },
   title: { fontSize: Typography.fontSize.xl * 1.4, fontWeight: "700", color: Colors.neutral[900], fontFamily: Typography.face.serif[700] },
   hint: { fontSize: Typography.fontSize.sm, color: Colors.neutral[700], fontFamily: Typography.face.sans[400], lineHeight: 20 },
-  input: { borderWidth: 1, borderColor: Colors.neutral[400], borderRadius: Radius.md, padding: Spacing[3], fontSize: Typography.fontSize.md, backgroundColor: Palette.background.card, fontFamily: Typography.face.sans[400] },
+  // BUG-295 — explicit `color`; see sign-in.tsx.
+  input: { borderWidth: 1, borderColor: Colors.neutral[400], borderRadius: Radius.md, padding: Spacing[3], fontSize: Typography.fontSize.md, color: Colors.neutral[900], backgroundColor: Palette.background.card, fontFamily: Typography.face.sans[400] },
   errorText: { color: Colors.terracotta[700], fontSize: Typography.fontSize.sm, fontFamily: Typography.face.sans[500] },
   buttonLoading: { alignItems: "center", padding: Spacing[3] },
   link: { color: Colors.sage[700], fontSize: Typography.fontSize.md, textAlign: "center", marginTop: Spacing[2], fontFamily: Typography.face.sans[500] },

@@ -44,6 +44,7 @@ export default function SignInPage() {
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
+          placeholderTextColor={Palette.text.placeholder}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
@@ -54,6 +55,7 @@ export default function SignInPage() {
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
+          placeholderTextColor={Palette.text.placeholder}
           secureTextEntry
           autoComplete="password"
           style={styles.input}
@@ -87,7 +89,10 @@ const styles = StyleSheet.create({
   back: { marginBottom: Spacing[3] },
   body: { gap: Spacing[3] },
   title: { fontSize: Typography.fontSize.xl * 1.4, fontWeight: "700", color: Colors.neutral[900], fontFamily: Typography.face.serif[700] },
-  input: { borderWidth: 1, borderColor: Colors.neutral[400], borderRadius: Radius.md, padding: Spacing[3], fontSize: Typography.fontSize.md, backgroundColor: Palette.background.card, fontFamily: Typography.face.sans[400] },
+  // BUG-295 — `color` is explicit: with neither it nor placeholderTextColor
+  // set, the preview APK rendered white-on-white (the native EditText theme
+  // decided). Every other text on this screen already sets a Colors.* value.
+  input: { borderWidth: 1, borderColor: Colors.neutral[400], borderRadius: Radius.md, padding: Spacing[3], fontSize: Typography.fontSize.md, color: Colors.neutral[900], backgroundColor: Palette.background.card, fontFamily: Typography.face.sans[400] },
   errorText: { color: Colors.terracotta[700], fontSize: Typography.fontSize.sm, fontFamily: Typography.face.sans[500] },
   buttonLoading: { alignItems: "center", padding: Spacing[3] },
   link: { color: Colors.sage[700], fontSize: Typography.fontSize.md, textAlign: "center", marginTop: Spacing[2], fontFamily: Typography.face.sans[500] },

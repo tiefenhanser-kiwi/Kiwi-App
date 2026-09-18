@@ -140,6 +140,7 @@ export default function SignUpPage() {
           value={firstName}
           onChangeText={setFirstName}
           placeholder="First name"
+          placeholderTextColor={Palette.text.placeholder}
           autoCapitalize="words"
           autoComplete="given-name"
           returnKeyType="next"
@@ -153,6 +154,7 @@ export default function SignUpPage() {
           value={lastName}
           onChangeText={setLastName}
           placeholder="Last name"
+          placeholderTextColor={Palette.text.placeholder}
           autoCapitalize="words"
           autoComplete="family-name"
           returnKeyType="next"
@@ -166,6 +168,7 @@ export default function SignUpPage() {
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
+          placeholderTextColor={Palette.text.placeholder}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
@@ -181,6 +184,7 @@ export default function SignUpPage() {
           value={password}
           onChangeText={setPassword}
           placeholder="Password (min 8 characters)"
+          placeholderTextColor={Palette.text.placeholder}
           secureTextEntry
           autoComplete="new-password"
           returnKeyType="next"
@@ -194,6 +198,7 @@ export default function SignUpPage() {
           value={phone}
           onChangeText={setPhone}
           placeholder="Phone number (optional)"
+          placeholderTextColor={Palette.text.placeholder}
           keyboardType="phone-pad"
           autoComplete="tel"
           returnKeyType="done"
@@ -279,12 +284,16 @@ const styles = StyleSheet.create({
     fontFamily: Typography.face.serif[700],
     marginTop: -Spacing[1],
   },
+  // BUG-295 — `color` is explicit: with neither it nor placeholderTextColor
+  // set, the preview APK rendered white-on-white on all five fields (the
+  // native EditText theme decided). Every other text here sets a Colors.* value.
   input: {
     borderWidth: 1,
     borderColor: Colors.neutral[400],
     borderRadius: Radius.md,
     padding: Spacing[3],
     fontSize: Typography.fontSize.md,
+    color: Colors.neutral[900],
     backgroundColor: Palette.background.card,
     fontFamily: Typography.face.sans[400],
   },
