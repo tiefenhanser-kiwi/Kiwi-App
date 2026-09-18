@@ -161,6 +161,22 @@ const SETTINGS: SettingSeed[] = [
     description:
       "Output USD per million tokens for claude-haiku-4-5-20251001.",
   },
+  // Row 5 · Block 1 (D-WS9-246) — OpenAI gpt-image-1-mini, the meal-image
+  // generator (lib/images/imageGenerator.ts). Text-input and image-output
+  // token rates as published October 2025; a 1024×1024 medium image is
+  // ~1,000 output tokens. Read by getModelRate like the Anthropic rates.
+  {
+    key: "ai.model_rate.gpt-image-1-mini.input_per_mtok",
+    value: 2,
+    defaultValue: 2,
+    description: "Text-input USD per million tokens for gpt-image-1-mini.",
+  },
+  {
+    key: "ai.model_rate.gpt-image-1-mini.output_per_mtok",
+    value: 8,
+    defaultValue: 8,
+    description: "Image-output USD per million tokens for gpt-image-1-mini.",
+  },
 ];
 
 export async function seedSystemSettings(prisma: PrismaClient): Promise<void> {

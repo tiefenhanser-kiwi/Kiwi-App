@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
+    "@google-cloud/storage": "^8.1.0",
     "@prisma/client": "^6.19.3",
     "@workspace/api-zod": "workspace:*",
     "bcryptjs": "^3.0.3",

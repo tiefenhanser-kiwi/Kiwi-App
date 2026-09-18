@@ -330,6 +330,18 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
         "Finalize a meal plan grocery list: refine display names, reconcile unit mismatches, reassign extras-bucketed items to correct sections. Preserves staple/recurring flags exactly.",
     },
   ],
+  // Row 5 · Block 1 (D-WS9-246) — stock-image relevance judge. Vision call:
+  // the candidates ride as attachments, the meal + descriptions as vars.
+  [
+    "images.relevance_judge",
+    {
+      body: placeholder("images.relevance_judge"),
+      defaultModel: MODEL_SONNET,
+      defaultMode: "tool",
+      toolDescription:
+        "Pick the one stock photo that shows this meal, or reject them all.",
+    },
+  ],
   // 6b-1 — Find Similar AI semantic similarity (WS6 addition)
   [
     "meals.find_similar",
@@ -422,7 +434,10 @@ export interface AIPromptRow {
   id: string;
   key: string;
   defaultModel: string;
-  defaultMode: AICallMode;
+  // The DB enum (AIPromptMode) is wider than the Anthropic call mode since
+  // Row 5 added `image` for LLMCallLog rows. An AIPrompt row can never
+  // legitimately carry it — the resolver below refuses one that does.
+  defaultMode: LLMCallLogMode;
   // Optional so the real PrismaClient.findUnique (without include) is also
   // assignable. The resolver always queries with include and treats absence
   // as a fallback path.
@@ -465,11 +480,16 @@ export interface PrismaLike {
   };
 }
 
+// Row 5 · Block 1 (D-WS9-246) — the ledger's mode column is wider than the
+// Anthropic call mode: `image` is an OpenAI image generation (lib/images/
+// imageGenerator.ts), logged here so the spend guard's ceiling can sum it.
+export type LLMCallLogMode = AICallMode | "image";
+
 export interface LLMCallLogCreateData {
   promptKey: string;
   promptVersion: number | null;
   model: string;
-  mode: AICallMode;
+  mode: LLMCallLogMode;
   userId: string | null;
   latencyMs: number;
   inputTokens: number;
@@ -546,11 +566,21 @@ export async function resolvePromptDescriptorFromDb(
         include: { versions: { where: { isActive: true }, take: 1 } },
       });
       const active = row?.versions?.[0];
-      if (row && active) {
+      // Row 5 · Block 1 — `image` is a ledger mode, not a call mode. A row
+      // carrying it is a data error; fall back to the registry rather than
+      // hand runAICall a mode it cannot execute.
+      if (row && active && row.defaultMode === "image") {
+        logger.error(
+          { event: "prompt_resolve", key, defaultMode: row.defaultMode },
+          "AI prompt row has defaultMode=image, which is not a call mode — using in-memory fallback",
+        );
+      } else if (row && active) {
+        // Narrowed by the branch above; TS cannot see through the object.
+        const defaultMode: AICallMode = row.defaultMode as AICallMode;
         const value: DescriptorWithVersion = {
           body: active.body,
           defaultModel: row.defaultModel,
-          defaultMode: row.defaultMode,
+          defaultMode,
           // toolDescription stays in code — it's caller-facing metadata,
           // not user-editable prompt content. Sourced from REGISTRY.
           toolDescription: fallback.toolDescription,
@@ -588,6 +618,10 @@ export interface ModelRate {
 const FALLBACK_MODEL_RATES: Record<string, ModelRate> = {
   "claude-sonnet-4-6": { inputPerMtokUsd: 3, outputPerMtokUsd: 15 },
   "claude-haiku-4-5-20251001": { inputPerMtokUsd: 1, outputPerMtokUsd: 5 },
+  // Row 5 · Block 1 — OpenAI gpt-image-1-mini: text input $2/M, image output
+  // $8/M (published October 2025). A 1024×1024 medium image is ~1,000 output
+  // tokens ≈ $0.008–0.011. Mirrored into SystemSetting by the seed.
+  "gpt-image-1-mini": { inputPerMtokUsd: 2, outputPerMtokUsd: 8 },
 };
 
 export async function getModelRate(

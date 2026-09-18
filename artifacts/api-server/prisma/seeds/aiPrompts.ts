@@ -1930,6 +1930,32 @@ knownSections: {{knownSections}}
 nearMatches: {{nearMatches}}
 `;
 
+// Row 5 · Block 1 (D-WS9-246 step 2) — the stock-image relevance judge.
+// Vision call: the candidate previews ride as image attachments IN THE SAME
+// ORDER as the `candidates` array in {{judgeInput}}; the text carries the
+// meal title, its dish list, and each provider's own description. One
+// accepted index or null. Tool mode, temperature 0.
+export const IMAGES_RELEVANCE_JUDGE_BODY = `You are Kiwi's meal-photo judge. Kiwi is a home-cooking app; every meal card shows one photo, and a wrong photo (a different dish, a raw ingredient, a restaurant scene, a stock-photo cliché) is worse than no photo at all — the app falls back to a tasteful gradient when you reject everything.
+
+You are given ONE meal — its title and the dishes it is made of — and a short list of candidate stock photos. The photos are attached as images in the SAME ORDER as the candidates array below (candidate index 0 is the first image, index 1 the second, and so on). Each candidate also carries the provider's own description text, which may be wrong or generic — trust what you SEE over what the description says.
+
+Accept a candidate ONLY if ALL of these hold:
+- The photo clearly shows the meal's main dish as a cooked, plated (or bowl/board) serving that a home cook would recognise as THIS dish. "Chicken tacos" must show tacos with chicken, not a taco salad, not a plate of raw chicken, not a generic Mexican spread.
+- It is food photography: the food is the subject. No people or hands as the subject, no restaurant interiors, no packaging, no text overlays, no logos, no cutlery-in-motion lifestyle shots.
+- Nothing in it contradicts the dish list (a beef stew photo for a "vegetarian lentil stew" is a rejection; a photo of pancakes for a dinner meal is a rejection).
+- It is appetising and in focus. Reject dim, blurry, heavily filtered, or cluttered photos.
+
+If more than one candidate qualifies, pick the one whose plating and ingredients match the dish list most closely, then the more appetising one.
+
+If NO candidate qualifies, return accepted: null. Rejecting all is the correct answer whenever you are unsure — Kiwi would rather generate an image than show a wrong one.
+
+Meal and candidates (JSON):
+{{judgeInput}}
+
+Return a JSON object with exactly two keys:
+- "accepted": the 0-based index of the ONE accepted candidate, or null.
+- "reason": one sentence (≤ 30 words) saying why that candidate was chosen, or — when null — the single most important reason the closest candidate was rejected.`;
+
 const PROMPTS: PromptSeed[] = [
   {
     key: "wizard.set_preferences.generate",
@@ -2158,6 +2184,15 @@ const PROMPTS: PromptSeed[] = [
     defaultModel: MODEL_SONNET,
     defaultMode: "text",
     body: GROCERY_GENERATE_LIST_BODY,
+  },
+  {
+    key: "images.relevance_judge",
+    description:
+      "Row 5 (D-WS9-246): pick the ONE stock photo that shows this meal, or reject them all. Vision — candidate previews are attached in candidates-array order.",
+    variables: ["judgeInput"],
+    defaultModel: MODEL_SONNET,
+    defaultMode: "tool",
+    body: IMAGES_RELEVANCE_JUDGE_BODY,
   },
   {
     key: "meals.find_similar",
