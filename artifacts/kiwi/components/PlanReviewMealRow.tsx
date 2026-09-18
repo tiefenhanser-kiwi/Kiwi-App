@@ -1,9 +1,10 @@
 import React, { useRef } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import {
   Colors,
+  ImageTreatment,
   Palette,
   Radius,
   Shadow,
@@ -11,6 +12,7 @@ import {
   Typography,
 } from "@/constants/tokens";
 import { DisplayTitle } from "@/components/DisplayTitle";
+import { TreatedImage } from "@/components/TreatedImage";
 import { formatMacroLine } from "@/lib/format/macros";
 import {
   DAY_SHORT,
@@ -162,11 +164,14 @@ export function PlanReviewMealRow({
         onPress={onRowTap}
         style={({ pressed }) => [styles.bodyRow, pressed && { opacity: 0.85 }]}
       >
-        {row.thumbnailUrl ? (
-          <Image source={{ uri: row.thumbnailUrl }} style={styles.thumb} />
-        ) : (
-          <View style={[styles.thumb, styles.thumbFallback]} />
-        )}
+        {/* WS9 row 5 Block 2 — through TreatedImage: the photo when the meal
+            has one, the warm placeholder ramp when it never will (D-WS9-230). */}
+        <TreatedImage
+          source={row.thumbnailUrl ? { uri: row.thumbnailUrl } : null}
+          width={ImageTreatment.thumb.row}
+          height={ImageTreatment.thumb.row}
+          radius={Radius.md}
+        />
         <View style={styles.textCol}>
           {/* WS9 BUG-153 — the one-line "what's on the plate" sub-text. Pattern
               reused verbatim from MealRow.tsx:81-85: rendered ONLY when present,
@@ -382,15 +387,6 @@ const styles = StyleSheet.create({
     gap: Spacing[3],
     alignItems: "flex-start",
     marginTop: Spacing[2],
-  },
-  thumb: {
-    width: 56,
-    height: 56,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.neutral[200],
-  },
-  thumbFallback: {
-    backgroundColor: Colors.sage[100],
   },
   textCol: {
     flex: 1,

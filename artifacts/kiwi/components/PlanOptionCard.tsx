@@ -11,6 +11,14 @@
 // the candidate — Phase 0), no tags row (spec §2). The card body is not a tap
 // target: the actions are the only way in.
 //
+// WS9 row 5 Block 2 — the meal rows still render the placeholder ramp. The
+// candidate's `meals[]` row (D-WS9-191) carries `storeMealId`, not `imageUrl`,
+// and this screen is entered from the wizard's "Complete plans" path and the
+// previous-options link — never from the Pick screen — so no shelf batch is in
+// memory to join against. The image lands when the server puts `imageUrl` on
+// the candidate-meal row (one line in wizardCandidateMeals.ts); until then the
+// ramp is what the wire supports, and no fetch is built to get a photo on a card.
+//
 // States (lib/wizard/planOptions.ts): fresh → the three actions; busy → the
 // pressed action shows its busy label and everything on every card disables;
 // saved → a "Saved ✓" line where the actions row was, keeping ONLY Use This

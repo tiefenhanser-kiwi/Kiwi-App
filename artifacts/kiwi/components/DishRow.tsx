@@ -1,9 +1,10 @@
 import React, { useMemo } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { DisplayTitle } from "@/components/DisplayTitle";
 import type { SortKey } from "@/components/SortDropdown";
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { TreatedImage } from "@/components/TreatedImage";
+import { Colors, ImageTreatment, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { DishListItem } from "@/lib/api/dishes";
 import { formatMacroLine } from "@/lib/format/macros";
 
@@ -61,17 +62,15 @@ export function DishRow({
         onPress={onPress}
         style={({ pressed }) => [styles.cardArea, pressed && { opacity: 0.85 }]}
       >
-        <View style={styles.thumb}>
-          {dish.image ? (
-            <Image
-              source={{ uri: dish.image }}
-              style={styles.thumbImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.thumbFallback} />
-          )}
-        </View>
+        {/* WS9 row 5 Block 2 — through TreatedImage. Dishes have no images
+            (unruled), so this renders the warm ramp today; the day dishes get
+            one, nothing here changes. */}
+        <TreatedImage
+          source={dish.image ? { uri: dish.image } : null}
+          width={ImageTreatment.thumb.compact}
+          height={ImageTreatment.thumb.compact}
+          radius={Radius.sm}
+        />
         <View style={styles.body}>
           <DisplayTitle source={dish} variant="row" style={styles.title} />
           {metaParts.length > 0 && (
@@ -127,19 +126,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing[2],
-  },
-  thumb: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.sm,
-    overflow: "hidden",
-    backgroundColor: Colors.sage[100],
-  },
-  thumbImage: { width: "100%", height: "100%" },
-  thumbFallback: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: Colors.sage[100],
   },
   body: { flex: 1, gap: 2 },
   title: {

@@ -85,10 +85,14 @@ export function MealPickCard({
         pressed && { opacity: 0.9 },
       ]}
     >
+      {/* WS9 row 5 Block 2 — the shelf row's imageUrl (MealCardSchema, nullable:
+          the catalog and its forks carry one, D-WS9-246; a user-authored meal
+          never will, D-WS9-230 — and its gradient is the ruled terminal state,
+          not a loading or error state). */}
       <TreatedImage
-        source={null}
-        width={THUMB}
-        height={THUMB}
+        source={meal.imageUrl ? { uri: meal.imageUrl } : null}
+        width={ImageTreatment.thumb.row}
+        height={ImageTreatment.thumb.row}
         radius={Radius.md}
         style={s.thumb}
       />
@@ -142,8 +146,6 @@ export function MealPickCard({
     </Pressable>
   );
 }
-
-const THUMB = 56;
 
 const s = StyleSheet.create({
   card: {

@@ -26,7 +26,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { TreatedImage } from "@/components/TreatedImage";
+import { Colors, ImageTreatment, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   DISH_DISABLED_SORT_KEYS,
   DISH_SORT_LABEL_OVERRIDES,
@@ -405,7 +406,15 @@ export function DishChooserRow({ dish, onPress }: DishChooserRowProps) {
       onPress={onPress}
       style={({ pressed }) => [s.dishRow, pressed && { opacity: 0.7 }]}
     >
-      <View style={[s.thumb, !dish.imageUrl && s.thumbFallback]} />
+      {/* WS9 row 5 Block 2 — was a flat tinted square that only CLASSED on
+          imageUrl and never rendered it; through TreatedImage now (dishes have
+          no images today — unruled — so this is the warm ramp until they do). */}
+      <TreatedImage
+        source={dish.imageUrl ? { uri: dish.imageUrl } : null}
+        width={ImageTreatment.thumb.dense}
+        height={ImageTreatment.thumb.dense}
+        radius={Radius.sm}
+      />
       <View style={{ flex: 1 }}>
         <Text style={s.dishName}>{resolveDisplayTitle(dish)}</Text>
         {metaParts.length > 0 && (
@@ -517,15 +526,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.neutral[300],
     padding: Spacing[2],
-  },
-  thumb: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.neutral[200],
-  },
-  thumbFallback: {
-    backgroundColor: Colors.sage[100],
   },
   dishName: {
     fontSize: Typography.fontSize.sm,

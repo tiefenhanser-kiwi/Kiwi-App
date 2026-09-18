@@ -12,10 +12,11 @@
 // MealRow's verbatim so the Meals tab renders pixel-identically.
 
 import React from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { DisplayTitle, type TitleSource } from "@/components/DisplayTitle";
-import { Colors, Radius, Typography } from "@/constants/tokens";
+import { TreatedImage } from "@/components/TreatedImage";
+import { Colors, ImageTreatment, Radius, Typography } from "@/constants/tokens";
 
 export interface MealRowBodyProps {
   /** The entity DisplayTitle reads (displayTitle ?? title). */
@@ -24,14 +25,16 @@ export interface MealRowBodyProps {
   description?: string | null;
   /** The one-line meta under the description ("30 min · serves 4"). */
   meta: string;
-  image?: string | null;
   /**
-   * D-WS9-191 Block 2 Part C — a host-rendered thumb that REPLACES the default
-   * slot (the Playlist row passes a TreatedImage: the photo when the row has
-   * one, the warm placeholder ramp otherwise). MealRow omits it and keeps the
-   * flat sage fallback it has always had.
+   * The meal's image url. WS9 row 5 Block 2 — rendered through TreatedImage:
+   * the photo when there is one, the warm placeholder ramp when there is not
+   * (a user-authored meal never has one, D-WS9-230, and the ramp is its ruled
+   * terminal state, D-WS9-246 — not a loading state, not an error). This
+   * replaced the D-WS9-191 `thumbSlot` escape hatch, which existed only so the
+   * Playlist row could get the treated slot while MealRow kept a flat sage
+   * fallback; every host now renders the same slot.
    */
-  thumbSlot?: React.ReactNode;
+  image?: string | null;
   /** Tag pills, already de-duped by the host (lib/meals/cardPills). */
   tags?: readonly string[];
   /** Extra lines between the meta and the pills (a sort hint, a macros line). */
@@ -43,23 +46,17 @@ export function MealRowBody({
   description,
   meta,
   image,
-  thumbSlot,
   tags = [],
   children,
 }: MealRowBodyProps) {
   return (
     <>
-      {thumbSlot !== undefined ? (
-        thumbSlot
-      ) : (
-        <View style={styles.thumb}>
-          {image ? (
-            <Image source={{ uri: image }} style={styles.thumbImage} resizeMode="cover" />
-          ) : (
-            <View style={styles.thumbFallback} />
-          )}
-        </View>
-      )}
+      <TreatedImage
+        source={image ? { uri: image } : null}
+        width={ImageTreatment.thumb.row}
+        height={ImageTreatment.thumb.row}
+        radius={Radius.sm}
+      />
       <View style={styles.body}>
         <DisplayTitle source={title} variant="row" style={styles.title} />
         {/* WS9 3f-4d Part 1c (D-WS9-124) + BUG-158 amendment — TWO lines, ruled
@@ -89,19 +86,6 @@ export function MealRowBody({
 }
 
 const styles = StyleSheet.create({
-  thumb: {
-    width: 56,
-    height: 56,
-    borderRadius: Radius.sm,
-    overflow: "hidden",
-    backgroundColor: Colors.sage[100],
-  },
-  thumbImage: { width: "100%", height: "100%" },
-  thumbFallback: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: Colors.sage[100],
-  },
   body: { flex: 1, gap: 2 },
   title: {
     fontSize: Typography.fontSize.sm,

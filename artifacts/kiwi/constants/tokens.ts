@@ -483,6 +483,17 @@ export const ImageTreatment = {
   },
   radiusRule: 'match-container' as const,
   thumbSize: 42,
+  // WS9 row 5 Block 2 — the meal-thumb sizes, named by ROLE. The values are
+  // the literals each site already carried (nothing resized; the thumb sizes
+  // are on Hans's device script as judgment calls): `row` is the list-row
+  // thumb (Meals tab, Playlist, Pick card, plan review), `compact` the sheet /
+  // hub row, `dense` the dish chooser. The plan-option row's 42 stays
+  // `thumbSize` above — its own value, its own token, its own device item (8a).
+  thumb: {
+    row:     56,
+    compact: 48,
+    dense:   40,
+  },
   // Placeholder treatment — shown through when a photo is absent/failed. The
   // warm ramp is reused across the rail card / tonight strip / hero image slots
   // (added WS9 L2b; canonical v4 never captured it — a gap-fill, not a FLAG

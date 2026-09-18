@@ -20,8 +20,10 @@ import { Button } from "@/components/Button";
 import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { Screen } from "@/components/Screen";
+import { TreatedImage } from "@/components/TreatedImage";
 import {
   Colors,
+  ImageTreatment,
   Palette,
   Radius,
   Shadow,
@@ -444,11 +446,16 @@ function Hub({
                     <Text style={s.selectCellLabel}>Prep This Meal</Text>
                   </View>
                 </Pressable>
-                {row.thumbnailUrl ? (
-                  <Image source={{ uri: row.thumbnailUrl }} style={s.thumb} />
-                ) : (
-                  <View style={[s.thumb, s.thumbFallback]} />
-                )}
+                {/* WS9 row 5 Block 2 — the meal thumb through TreatedImage
+                    (photo, or the warm ramp for a meal that never has one). The
+                    plan card above keeps its raw <Image>: that is a PLAN image
+                    (the template imageUrl), not a meal, and out of this block. */}
+                <TreatedImage
+                  source={row.thumbnailUrl ? { uri: row.thumbnailUrl } : null}
+                  width={ImageTreatment.thumb.compact}
+                  height={ImageTreatment.thumb.compact}
+                  radius={Radius.md}
+                />
                 <View style={s.mealText}>
                   <DisplayTitle
                     source={row}
@@ -718,13 +725,6 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[700],
   },
-  thumb: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.neutral[200],
-  },
-  thumbFallback: { backgroundColor: Colors.sage[100] },
   mealText: { flex: 1, gap: 2 },
   mealTitle: {
     fontSize: Typography.fontSize.md,
@@ -811,6 +811,7 @@ const s = StyleSheet.create({
     borderRadius: Radius.md,
     backgroundColor: Colors.neutral[200],
   },
+  thumbFallback: { backgroundColor: Colors.sage[100] },
   planText: { flex: 1, gap: 2 },
   planCardName: {
     fontSize: Typography.fontSize.md,

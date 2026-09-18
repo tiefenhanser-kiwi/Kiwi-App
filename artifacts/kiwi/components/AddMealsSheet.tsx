@@ -16,8 +16,9 @@ import { ImportSourceCards } from "@/components/ImportSourceCards";
 import { DisplayTitle } from "@/components/DisplayTitle";
 import { sortMeals } from "@/components/mealSort";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
+import { TreatedImage } from "@/components/TreatedImage";
 import { MEAL_DISABLED_SORT_KEYS } from "@/lib/meals/sortMapping";
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { Colors, ImageTreatment, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useMeals } from "@/hooks/useMeals";
 import type { MealFilterKey } from "@/lib/api/meals";
 import { formatMacroLine } from "@/lib/format/macros";
@@ -189,7 +190,14 @@ function MealRow({
       onPress={onPress}
       style={({ pressed }) => [s.mealRow, pressed && { opacity: 0.7 }]}
     >
-      <View style={[s.thumb, !meal.imageUrl && s.thumbFallback]} />
+      {/* WS9 row 5 Block 2 — was a flat tinted square that only CLASSED on
+          imageUrl and never rendered it; through TreatedImage now. */}
+      <TreatedImage
+        source={meal.imageUrl ? { uri: meal.imageUrl } : null}
+        width={ImageTreatment.thumb.compact}
+        height={ImageTreatment.thumb.compact}
+        radius={Radius.sm}
+      />
       <View style={{ flex: 1 }}>
         <DisplayTitle source={meal} variant="row" style={s.mealTitle} />
         {/* WS9 BUG-153 — the one-line "what's on the plate" sub-text. Pattern
@@ -329,15 +337,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.neutral[300],
     padding: Spacing[2],
-  },
-  thumb: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.neutral[200],
-  },
-  thumbFallback: {
-    backgroundColor: Colors.sage[100],
   },
   mealTitle: {
     fontSize: Typography.fontSize.sm,

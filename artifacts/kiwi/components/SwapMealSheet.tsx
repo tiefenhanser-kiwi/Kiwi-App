@@ -20,7 +20,8 @@ import { FilterChipRow } from "@/components/FilterChipRow";
 import { ImportSourceCards } from "@/components/ImportSourceCards";
 import { LoadingShim } from "@/components/LoadingShim";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { TreatedImage } from "@/components/TreatedImage";
+import { Colors, ImageTreatment, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useFindSimilarMeals } from "@/hooks/useFindSimilarMeals";
 import { useMeal } from "@/hooks/useMeal";
 import { useInfiniteMeals, useMeals } from "@/hooks/useMeals";
@@ -655,7 +656,15 @@ function MealRow({
       onPress={onPress}
       style={({ pressed }) => [s.mealRow, pressed && { opacity: 0.7 }]}
     >
-      <View style={[s.thumb, !meal.imageUrl && s.thumbFallback]} />
+      {/* WS9 row 5 Block 2 — the row was a flat tinted square that only
+          CLASSED on imageUrl and never rendered it. Through TreatedImage now:
+          the photo, or the warm ramp for a meal that never has one. */}
+      <TreatedImage
+        source={meal.imageUrl ? { uri: meal.imageUrl } : null}
+        width={ImageTreatment.thumb.compact}
+        height={ImageTreatment.thumb.compact}
+        radius={Radius.sm}
+      />
       <View style={{ flex: 1 }}>
         {/* §5.1 — titles wrap to TWO lines before truncating, so rows that share
             a long prefix ("Air Fryer Crispy Chicken Tenders with…") stay
@@ -888,15 +897,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.neutral[300],
     padding: Spacing[2],
-  },
-  thumb: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.neutral[200],
-  },
-  thumbFallback: {
-    backgroundColor: Colors.sage[100],
   },
   mealTitle: {
     fontSize: Typography.fontSize.sm,

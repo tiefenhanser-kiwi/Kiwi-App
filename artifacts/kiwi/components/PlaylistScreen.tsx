@@ -40,7 +40,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { MealRowBody } from "@/components/MealRowBody";
-import { TreatedImage } from "@/components/TreatedImage";
 import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
 import { PlaylistImportReviewSheet } from "@/components/PlaylistImportReviewSheet";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -255,8 +254,9 @@ export function PlaylistScreen() {
 
 // D-WS9-191 Block 2 Part C — the row's thumb is the server's imageUrl through
 // TreatedImage (the photo when there is one, the warm placeholder ramp
-// otherwise), at the My-Meals row size MealRowBody renders.
-const PLAYLIST_THUMB = 56;
+// otherwise). WS9 row 5 Block 2 — MealRowBody now renders that slot itself
+// for every host (ImageTreatment.thumb.row), so the row passes `image` and
+// the local thumbSlot / size are gone.
 
 function PlaylistRow({
   meal,
@@ -285,14 +285,7 @@ function PlaylistRow({
           description={meal.description}
           meta={playlistMetaLine(meal)}
           tags={playlistPills(meal)}
-          thumbSlot={
-            <TreatedImage
-              source={meal.imageUrl ? { uri: meal.imageUrl } : null}
-              width={PLAYLIST_THUMB}
-              height={PLAYLIST_THUMB}
-              radius={Radius.sm}
-            />
-          }
+          image={meal.imageUrl}
         >
           {macros ? (
             <Text style={s.macros} numberOfLines={1}>
