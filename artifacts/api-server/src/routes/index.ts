@@ -6,6 +6,7 @@ import dishesRouter from "./dishes";
 import groceryListsRouter from "./groceryLists";
 import healthRouter from "./health";
 import homeRouter from "./home";
+import internalRouter from "./internal";
 import mealsRouter from "./meals";
 import meRouter from "./me";
 import plansRouter from "./plans";
@@ -22,6 +23,8 @@ router.use(dishesRouter);
 router.use(groceryListsRouter);
 router.use(healthRouter);
 router.use(homeRouter);
+// Row 5 · Block 1c (D-WS9-248) — scheduler-only routes (OIDC-gated).
+router.use(internalRouter);
 router.use(meRouter);
 router.use(mealsRouter);
 router.use(plansRouter);

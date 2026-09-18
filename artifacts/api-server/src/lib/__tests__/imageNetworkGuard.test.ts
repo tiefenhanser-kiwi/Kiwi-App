@@ -1,19 +1,20 @@
 // Row 5 · Block 1 — BUG-279's class, for the image pipeline: `pnpm test`
-// loads .env, so PEXELS / PIXABAY / OPENAI / ANTHROPIC keys are all present
-// in the suite. If any file under src/lib/images/ could reach the real
-// network on its own, a green run could be green because a live provider
-// answered — and it would spend money doing it.
+// loads .env, so the OPENAI / ANTHROPIC keys are present in the suite. If any
+// file under src/lib/images/ could reach the real network on its own, a
+// green run could be green because a live provider answered — and it would
+// spend money doing it.
 //
 // Two guards, both of which a deliberate break turns red (§27.4):
 //
 //   1. STATIC — every source file under src/lib/images/ EXCEPT live.ts is
 //      scanned for a bare `fetch(` call, `globalThis.fetch`, `process.env`,
-//      the storage SDK, and an OpenAI SDK import. The extractor is also
-//      scanned for an `img` selector (D-WS9-246: never enumerate <img>).
+//      the storage SDK, and an OpenAI SDK import. Block 1c: the queue's
+//      drain (imageQueue.ts) is in the folder and under the same scan, and
+//      the deleted stock / judge / extractor files must STAY deleted.
 //   2. RUNTIME — globalThis.fetch is replaced with a trap that throws, and the
-//      WHOLE chain (page → stock → judge → generate → store) runs on stubs.
-//      If any path fell through to the real fetch, the trap fires. The trap
-//      is proven able to fire first (§27.5 — the fixture can express the
+//      chain (generate → store) AND a full drain tick run on stubs. If any
+//      path fell through to the real fetch, the trap fires. The trap is
+//      proven able to fire first (§27.5 — the fixture can express the
 //      failure).
 //
 // Run via: pnpm --filter @workspace/api-server test
@@ -26,9 +27,9 @@ import { fileURLToPath } from "node:url";
 import { Jimp } from "jimp";
 
 import { resolveMealImage, type PipelineDeps } from "../images/imagePipeline";
+import { runImageDrain, type ClaimedImageRow, type ImageQueueStore } from "../images/imageQueue";
 import { ImageStore } from "../images/imageStore";
-import type { JudgeAICall } from "../images/relevanceJudge";
-import type { ImageFetch, ImageFetchResponse, ObjectWriter, StockImageProvider } from "../images/types";
+import type { ImageFetch, ImageFetchResponse, ObjectWriter } from "../images/types";
 
 const IMAGES_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "images");
 const LIVE_FILE = "live.ts";
@@ -55,10 +56,22 @@ const FORBIDDEN: Array<{ name: string; re: RegExp }> = [
 describe("image pipeline — network guard (static)", () => {
   it("the folder has the files this guard expects, and live.ts is the only exception", () => {
     const files = sourceFiles();
-    for (const expected of ["imageGenerator.ts", "imagePipeline.ts", "imageStore.ts", "pageImageExtractor.ts", "relevanceJudge.ts", "stockProviders.ts"]) {
+    for (const expected of ["imageGenerator.ts", "imagePipeline.ts", "imageQueue.ts", "imageStore.ts", "rateLimiter.ts", "types.ts"]) {
       assert.ok(files.includes(expected), `missing ${expected}`);
     }
     assert.ok(readdirSync(IMAGES_DIR).includes(LIVE_FILE));
+  });
+
+  it("Block 1c (D-WS9-246): the stock providers, the judge and the page extractor stay DELETED", () => {
+    const files = readdirSync(IMAGES_DIR);
+    for (const gone of ["stockProviders.ts", "relevanceJudge.ts", "pageImageExtractor.ts"]) {
+      assert.ok(!files.includes(gone), `${gone} is back — D-WS9-246 deleted it, do not re-add`);
+    }
+    // And no file in the folder mentions a stock provider or the judge.
+    for (const f of readdirSync(IMAGES_DIR).filter((x) => x.endsWith(".ts"))) {
+      const src = stripComments(readFileSync(join(IMAGES_DIR, f), "utf8"));
+      assert.doesNotMatch(src, /pexels|pixabay|relevance_judge|og:image/i, `${f} references a deleted step`);
+    }
   });
 
   it("no file except live.ts reaches fetch / env / a cloud SDK on its own", () => {
@@ -77,16 +90,6 @@ describe("image pipeline — network guard (static)", () => {
     assert.match(src, /globalThis\s*\.\s*fetch/);
     assert.match(src, /from\s+["']@google-cloud\/storage["']/);
     assert.match(src, /new Storage\(\)/);
-  });
-
-  it("the page extractor never selects <img> elements", () => {
-    const src = stripComments(readFileSync(join(IMAGES_DIR, "pageImageExtractor.ts"), "utf8"));
-    assert.doesNotMatch(src, /\$\(\s*["'`][^"'`]*\bimg\b/);
-    assert.doesNotMatch(src, /["'`]img(\[|\s|["'`])/);
-    // And it does select the publisher tags.
-    assert.match(src, /og:image/);
-    assert.match(src, /twitter:image/);
-    assert.match(src, /extractJsonLdRecipe/);
   });
 });
 
@@ -117,6 +120,23 @@ async function bitmap(): Promise<Buffer> {
   return new Jimp({ width: 900, height: 600, color: 0x3366ffff }).getBuffer("image/png");
 }
 
+function stubFetch(big: Buffer): ImageFetch {
+  return async (url) => {
+    const res: ImageFetchResponse = {
+      ok: true,
+      status: 200,
+      headers: { get: () => "image/png" },
+      json: async () =>
+        url.startsWith("https://api.openai.com/")
+          ? { data: [{ b64_json: big.toString("base64") }], usage: { input_tokens: 1, output_tokens: 1 } }
+          : {},
+      arrayBuffer: async () => big.buffer.slice(big.byteOffset, big.byteOffset + big.byteLength) as ArrayBuffer,
+      text: async () => "",
+    };
+    return res;
+  };
+}
+
 describe("image pipeline — network guard (runtime)", () => {
   it("the trap can fire (the fixture can express the failure)", async () => {
     await withTrappedFetch(async (trips) => {
@@ -125,54 +145,47 @@ describe("image pipeline — network guard (runtime)", () => {
     });
   });
 
-  it("the whole chain runs to `none` → `ai_generated` on stubs without touching globalThis.fetch", async () => {
+  it("the chain runs to `ai_generated` on stubs without touching globalThis.fetch", async () => {
     const big = await bitmap();
-    const stub: ImageFetch = async (url) => {
-      const res: ImageFetchResponse = {
-        ok: true,
-        status: 200,
-        headers: { get: () => "image/png" },
-        json: async () =>
-          url.startsWith("https://api.openai.com/")
-            ? { data: [{ b64_json: big.toString("base64") }], usage: { input_tokens: 1, output_tokens: 1 } }
-            : {},
-        arrayBuffer: async () => big.buffer.slice(big.byteOffset, big.byteOffset + big.byteLength) as ArrayBuffer,
-        text: async () => "",
-      };
-      return res;
-    };
     const saved: string[] = [];
     const writer: ObjectWriter = { save: async (key) => void saved.push(key) };
-    const providers: StockImageProvider[] = [
-      { name: "pexels", search: async () => [] },
-      { name: "pixabay", search: async () => [{ provider: "pixabay", providerId: "1", url: "https://cdn.test/1.jpg", previewUrl: "https://cdn.test/1p.jpg", width: 2000, height: 1300, photographer: "x", sourcePageUrl: "https://pixabay.test/1", description: "d" }] },
-    ];
-    const ai: JudgeAICall = async (promptKey, _v, schema) => ({
-      success: true,
-      data: schema.parse({ accepted: null, reason: "none fit" }),
-      metadata: { promptKey, promptVersion: null, model: "m", mode: "tool", latencyMs: 0, inputTokens: 0, outputTokens: 0, costEstimateUsd: 0, retryCount: 0 },
-    });
     const deps: PipelineDeps = {
-      fetch: stub,
-      providers,
-      judge: { ai },
+      fetch: stubFetch(big),
       generator: { apiKey: "sk-stub" },
       store: new ImageStore({ writer, bucket: "b" }),
     };
-    const html = `<html><head><meta property="og:image" content="https://publisher.test/dish-logo.png"></head><body><img src="https://ads.test/x.jpg"></body></html>`;
-
     await withTrappedFetch(async (trips) => {
-      const out = await resolveMealImage(
-        { mealId: "guard-1", title: "Guard Meal with Rice", dishTitles: ["Guard Meal"] },
-        { pageHtml: html, sourceUrl: "https://publisher.test/recipe" },
-        deps,
-      );
+      const out = await resolveMealImage({ mealId: "guard-1", title: "Guard Meal with Rice", dishTitles: ["Guard Meal"] }, deps);
       assert.equal(trips(), 0);
       assert.equal(out.image.source, "ai_generated");
       assert.deepEqual(saved, ["meals/guard-1.jpg"]);
-      // The og:image was a logo shape → rejected; the <img> was never seen.
-      assert.equal(out.trace.page?.accepted, null);
-      assert.equal(out.trace.page?.rejected[0]?.reason, "filename_shape");
+    });
+  });
+
+  it("a full drain tick (claim → generate → store → ready) runs on stubs without touching globalThis.fetch", async () => {
+    const big = await bitmap();
+    const saved: string[] = [];
+    const writer: ObjectWriter = { save: async (key) => void saved.push(key) };
+    const ready: string[] = [];
+    const row: ClaimedImageRow = { id: "guard-q1", title: "Queued Meal", userId: "u1", imageAttempts: 1 };
+    const store: ImageQueueStore = {
+      claim: async () => ({ claimed: [row], requeuedStuck: 0, failedOut: 0, budget: { recentSends: 0, inFlight: 0, limit: 5 } }),
+      loadSubjects: async () => [{ mealId: row.id, title: row.title, dishTitles: ["Queued Meal"] }],
+      markReady: async (id) => {
+        ready.push(id);
+        return { forksStamped: 0 };
+      },
+      release: async () => "pending",
+    };
+    await withTrappedFetch(async (trips) => {
+      const summary = await runImageDrain({
+        store,
+        pipeline: { fetch: stubFetch(big), generator: { apiKey: "sk-stub" }, store: new ImageStore({ writer, bucket: "b" }) },
+      });
+      assert.equal(trips(), 0);
+      assert.equal(summary.ready, 1);
+      assert.deepEqual(ready, ["guard-q1"]);
+      assert.deepEqual(saved, ["meals/guard-q1.jpg"]);
     });
   });
 });

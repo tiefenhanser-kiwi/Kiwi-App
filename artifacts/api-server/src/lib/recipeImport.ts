@@ -247,9 +247,6 @@ export interface RecipeJsonLd {
   recipeCategory?: string | string[];
   author?: unknown;
   url?: string;
-  // Row 5 · Block 1 (D-WS9-246) — the publisher image: a URL string, a list,
-  // an ImageObject, or a list of them. Read by lib/images/pageImageExtractor.
-  image?: unknown;
 }
 
 function isRecipeNode(node: unknown): node is Record<string, unknown> {

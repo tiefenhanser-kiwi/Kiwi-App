@@ -330,18 +330,6 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
         "Finalize a meal plan grocery list: refine display names, reconcile unit mismatches, reassign extras-bucketed items to correct sections. Preserves staple/recurring flags exactly.",
     },
   ],
-  // Row 5 · Block 1 (D-WS9-246) — stock-image relevance judge. Vision call:
-  // the candidates ride as attachments, the meal + descriptions as vars.
-  [
-    "images.relevance_judge",
-    {
-      body: placeholder("images.relevance_judge"),
-      defaultModel: MODEL_SONNET,
-      defaultMode: "tool",
-      toolDescription:
-        "Pick the one stock photo that shows this meal, or reject them all.",
-    },
-  ],
   // 6b-1 — Find Similar AI semantic similarity (WS6 addition)
   [
     "meals.find_similar",

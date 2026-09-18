@@ -46,7 +46,7 @@
 //   6. BUCKET KEYS `meals/<mealId>.jpg`, native 1024² (Block 1b ruling) — ImageStore.put,
 //      the same resize path as the six templates.
 //   7. PROVENANCE, unconditionally: imageSource ai_generated · imageGeneratedAt
-//      now() · imageAttribution NULL · imageSourceUrl NULL. No other branch.
+//      now() · imageStatus ready (Block 1c). No other branch.
 //   8. LLMCallLog mode=image per generation — inside generateMealImage
 //      (prisma passed), so the spend is reconstructible from the ledger.
 //   9. prisma generate is never run here; a running dev server holding the
@@ -386,7 +386,7 @@ async function catalogRun(prisma: PrismaClient): Promise<void> {
         // 4. the row — five columns, one statement, guarded on imageUrl NULL.
         const w = await prisma.meal.updateMany({
           where: { id: subject.mealId, imageUrl: null },
-          data: { imageUrl: put.url, imageSource: "ai_generated", imageGeneratedAt: new Date(), imageAttribution: null, imageSourceUrl: null },
+          data: { imageUrl: put.url, imageSource: "ai_generated", imageGeneratedAt: new Date(), imageStatus: "ready" },
         });
         if (w.count !== 1) {
           finish(record(subject, "skipped_has_image", todo, gen, put, `updateMany matched ${w.count} rows (image appeared between re-read and write; object at ${put.url} now carries this run's bytes)`));
@@ -477,8 +477,7 @@ async function forks(prisma: PrismaClient): Promise<void> {
        set "imageUrl" = c."imageUrl",
            "imageSource" = c."imageSource",
            "imageGeneratedAt" = c."imageGeneratedAt",
-           "imageAttribution" = null,
-           "imageSourceUrl" = null,
+           "imageStatus" = 'ready',
            "updatedAt" = now()
       from meals c
      where c.id = u."sourceStoreMealId"
@@ -505,7 +504,7 @@ async function report(prisma: PrismaClient): Promise<void> {
       count(*) filter (where "userId" is not null and "sourceStoreMealId" is null and "imageUrl" is not null) as authored_with_image,
       count(*) filter (where "imageSource" = 'ai_generated') as source_ai,
       count(*) filter (where "imageSource" is not null and "imageSource" <> 'ai_generated') as source_other,
-      count(*) filter (where "imageSource" = 'ai_generated' and ("imageAttribution" is not null or "imageSourceUrl" is not null or "imageGeneratedAt" is null)) as provenance_bad,
+      count(*) filter (where "imageSource" = 'ai_generated' and "imageGeneratedAt" is null) as provenance_bad,
       count(distinct "imageUrl") filter (where "userId" is null and "imageUrl" is not null) as distinct_catalog_urls
     from meals`);
   log(`db: ${JSON.stringify(r[0], (_k, v) => (typeof v === "bigint" ? Number(v) : v))}`);

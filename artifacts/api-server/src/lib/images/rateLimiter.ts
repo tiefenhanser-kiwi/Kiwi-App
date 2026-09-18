@@ -1,13 +1,14 @@
-// Row 5 · Block 1 (D-WS9-246) — a sliding-window rate limiter for the stock
-// providers. Pexels allows 200 requests/hour, Pixabay 100 requests/minute;
-// each provider instance owns one limiter and awaits `acquire()` before every
-// request. When the window is full, acquire() sleeps until the OLDEST request
-// in the window ages out, then records the new one — so a full catalog run
-// self-paces instead of getting a 429 halfway through the night.
+// Row 5 · Block 1 (D-WS9-246) — a sliding-window rate limiter. Since Block
+// 1c its ONE consumer is the single-process catalog script
+// (scripts/ws9-row5/generate.ts), which paces its OpenAI calls at the
+// org-wide 5 images/minute. When the window is full, acquire() sleeps until
+// the OLDEST request in the window ages out, then records the new one — so a
+// full catalog run self-paces instead of getting a 429 halfway through.
 //
-// ⚠️ In-process only. Two processes sharing one key would each believe they
-// hold the whole budget. That is fine for the batch runner (one process) and
-// for Cloud Run at one instance; a second instance is a Block 1c concern.
+// 🔴 In-process only. On Cloud Run this BOUNDS NOTHING — every instance
+// would keep its own counter (D-WS9-248). The on-save path never uses this:
+// its bound lives in the database (imageQueue.ts, the claim query). Keep it
+// out of anything the api-server serves.
 //
 // Clock and sleep are injectable so the tests run without wall-clock waits.
 
@@ -68,6 +69,3 @@ export class SlidingWindowRateLimiter {
     return this.stamps.length;
   }
 }
-
-export const PEXELS_RATE = { limit: 200, windowMs: 60 * 60 * 1000 } as const;
-export const PIXABAY_RATE = { limit: 100, windowMs: 60 * 1000 } as const;

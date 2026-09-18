@@ -1,15 +1,17 @@
-// Row 5 · Block 1 (D-WS9-246) — the four-step chain and the store. Every
-// dependency is a stub; the images are jimp-built bitmaps. No network.
+// Row 5 · Block 1 (D-WS9-246) — the chain and the store. Since Block 1c the
+// chain is ONE step (generate → store) with the gradient as the fallback;
+// the stock / publisher steps and their tests are deleted, not skipped.
+// Every dependency is a stub; the images are jimp-built bitmaps. No network.
 // Run via: pnpm --filter @workspace/api-server test
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Jimp } from "jimp";
 
-import { resolveMealImage, stockAttribution, stockStep, type PipelineDeps } from "../images/imagePipeline";
+import { downloadImageBytes, resolveMealImage, type PipelineDeps } from "../images/imagePipeline";
 import { IMAGE_LONG_EDGE_PX, ImageStore, mealImageKey, publicUrlFor, resizeForStore } from "../images/imageStore";
-import type { JudgeAICall } from "../images/relevanceJudge";
-import type { ImageFetch, ImageFetchResponse, ObjectWriter, StockCandidate, StockImageProvider } from "../images/types";
+import { SlidingWindowRateLimiter } from "../images/rateLimiter";
+import type { ImageFetch, ImageFetchResponse, ObjectWriter } from "../images/types";
 
 async function bitmap(w: number, h: number): Promise<Buffer> {
   const img = new Jimp({ width: w, height: h, color: 0xff6600ff });
@@ -29,44 +31,11 @@ function bytesResponse(bytes: Buffer | null, contentType = "image/png"): ImageFe
 
 class MemoryWriter implements ObjectWriter {
   saved: Array<{ key: string; bytes: Buffer; contentType: string }> = [];
+  failWith: Error | null = null;
   async save(key: string, bytes: Buffer, contentType: string) {
+    if (this.failWith) throw this.failWith;
     this.saved.push({ key, bytes, contentType });
   }
-}
-
-function provider(name: "pexels" | "pixabay", results: StockCandidate[] | Error): StockImageProvider & { queries: string[] } {
-  const queries: string[] = [];
-  return {
-    name,
-    queries,
-    async search(q) {
-      queries.push(q);
-      if (results instanceof Error) throw results;
-      return results;
-    },
-  };
-}
-
-function cand(provider: "pexels" | "pixabay", id: string): StockCandidate {
-  return {
-    provider,
-    providerId: id,
-    url: `https://cdn.test/${provider}/${id}/full.jpg`,
-    previewUrl: `https://cdn.test/${provider}/${id}/preview.jpg`,
-    width: 3000,
-    height: 2000,
-    photographer: `photog-${id}`,
-    sourcePageUrl: `https://${provider}.test/photo/${id}`,
-    description: `desc ${id}`,
-  };
-}
-
-function aiReply(accepted: number | null, reason = "r"): JudgeAICall {
-  return async (promptKey, _vars, schema) => ({
-    success: true,
-    data: schema.parse({ accepted, reason }),
-    metadata: { promptKey, promptVersion: 1, model: "m", mode: "tool", latencyMs: 1, inputTokens: 1, outputTokens: 1, costEstimateUsd: 0.005, retryCount: 0 },
-  });
 }
 
 const subject = { mealId: "meal-abc", title: "Birria Tacos with Consommé", dishTitles: ["Birria Tacos", "Consommé"] };
@@ -78,12 +47,7 @@ interface Harness {
   openaiCalls: number;
 }
 
-async function harness(opts: {
-  providers?: StockImageProvider[];
-  accepted?: number | null;
-  openai?: "ok" | "fail";
-  pageImageBytes?: Buffer | null;
-}): Promise<Harness> {
+async function harness(opts: { openai?: "ok" | "fail"; apiKey?: string } = {}): Promise<Harness> {
   const big = await bitmap(1600, 1000);
   const writer = new MemoryWriter();
   const fetched: string[] = [];
@@ -95,14 +59,11 @@ async function harness(opts: {
       if (opts.openai === "fail") return { ...bytesResponse(null), ok: false, status: 500, json: async () => ({ error: { message: "boom" } }) };
       return { ...bytesResponse(big), json: async () => ({ data: [{ b64_json: big.toString("base64") }], usage: { input_tokens: 10, output_tokens: 1000 } }) };
     }
-    if (url.startsWith("https://publisher.test/")) return bytesResponse(opts.pageImageBytes === undefined ? big : opts.pageImageBytes);
     return bytesResponse(big);
   };
   h.deps = {
     fetch,
-    providers: opts.providers ?? [provider("pexels", [cand("pexels", "p1")]), provider("pixabay", [cand("pixabay", "x1")])],
-    judge: { ai: aiReply(opts.accepted ?? null) },
-    generator: { apiKey: "sk" },
+    generator: { apiKey: opts.apiKey ?? "sk" },
     store: new ImageStore({ writer, bucket: "test-bucket" }),
   };
   return h;
@@ -151,86 +112,84 @@ describe("ImageStore / resizeForStore", () => {
   });
 });
 
-describe("resolveMealImage — the chain", () => {
-  it("step 1 wins: a page image is downloaded, stored, and stock/generate are never touched", async () => {
-    const h = await harness({ accepted: 0 });
-    const html = `<html><head><meta property="og:image" content="https://publisher.test/dish.jpg"></head></html>`;
-    const out = await resolveMealImage(subject, { pageHtml: html, sourceUrl: "https://publisher.test/recipe" }, h.deps);
-    assert.equal(out.image.source, "page_extracted");
-    assert.equal(out.image.url, "https://storage.googleapis.com/test-bucket/meals/meal-abc.jpg");
-    assert.equal(out.image.sourceUrl, "https://publisher.test/recipe");
-    assert.equal(out.image.attribution, null);
-    assert.equal(h.writer.saved.length, 1);
-    assert.equal((h.deps.providers[0] as StockImageProvider & { queries: string[] }).queries.length, 0);
-    assert.equal(h.openaiCalls, 0);
-    assert.equal(out.trace.costEstimateUsd, 0);
-  });
-
-  it("step 1 → 2: a page image under 400 px after download is rejected and stock runs", async () => {
-    const h = await harness({ accepted: 0, pageImageBytes: await bitmap(300, 200) });
-    const html = `<html><head><meta property="og:image" content="https://publisher.test/tiny.jpg"></head></html>`;
-    const out = await resolveMealImage(subject, { pageHtml: html }, h.deps);
-    assert.equal(out.trace.page?.rejectedAfterDownload, "too_small_300x200");
-    assert.equal(out.image.source, "stock_pexels");
-  });
-
-  it("step 2 wins: both providers are queried with the shaped title, the judge's pick is stored with attribution + source page", async () => {
-    const h = await harness({ accepted: 1 });
-    const out = await resolveMealImage(subject, {}, h.deps);
-    const pexels = h.deps.providers[0] as StockImageProvider & { queries: string[] };
-    const pixabay = h.deps.providers[1] as StockImageProvider & { queries: string[] };
-    assert.deepEqual(pexels.queries, ["birria tacos"]);
-    assert.deepEqual(pixabay.queries, ["birria tacos"]);
-    assert.equal(out.image.source, "stock_pixabay");
-    assert.equal(out.image.attribution, "Photo by photog-x1 on Pixabay");
-    assert.equal(out.image.sourceUrl, "https://pixabay.test/photo/x1");
-    assert.equal(out.image.url, "https://storage.googleapis.com/test-bucket/meals/meal-abc.jpg");
-    assert.ok(h.fetched.includes("https://cdn.test/pixabay/x1/full.jpg"));
-    assert.equal(h.openaiCalls, 0);
-    assert.equal(out.trace.stock?.candidates.length, 2);
-    assert.equal(out.trace.costEstimateUsd, 0.005);
-  });
-
-  it("step 3: the judge rejects all → generate, stored as ai_generated with the model in the attribution", async () => {
-    const h = await harness({ accepted: null });
-    const out = await resolveMealImage(subject, {}, h.deps);
-    assert.equal(h.openaiCalls, 1);
+describe("resolveMealImage — generate → store, else the gradient", () => {
+  it("generation succeeds → stored as ai_generated at meals/<id>.jpg, one OpenAI call, nothing else fetched", async () => {
+    const h = await harness();
+    const out = await resolveMealImage(subject, h.deps);
     assert.equal(out.image.source, "ai_generated");
-    assert.equal(out.image.attribution, "AI-generated (gpt-image-1-mini)");
-    assert.equal(out.image.sourceUrl, null);
-    assert.equal(h.writer.saved.length, 1);
-    assert.equal(h.writer.saved[0].key, "meals/meal-abc.jpg");
-    // judge 0.005 + generation (10×2e-6 + 1000×8e-6 = 0.00802)
-    assert.ok(Math.abs(out.trace.costEstimateUsd - 0.01302) < 1e-9);
+    assert.equal(out.image.url, "https://storage.googleapis.com/test-bucket/meals/meal-abc.jpg");
+    assert.equal(h.openaiCalls, 1);
+    assert.deepEqual(h.fetched, ["https://api.openai.com/v1/images/generations"]);
+    assert.deepEqual(h.writer.saved.map((s) => s.key), ["meals/meal-abc.jpg"]);
+    assert.ok(out.trace.generation?.ok);
+    assert.ok(out.trace.costEstimateUsd > 0);
   });
 
-  it("step 4: no stock candidates and generation fails → none, nothing stored", async () => {
-    const h = await harness({ providers: [provider("pexels", []), provider("pixabay", new Error("timeout"))], openai: "fail" });
-    const out = await resolveMealImage(subject, {}, h.deps);
-    assert.deepEqual(out.image, { source: "none", url: null, attribution: null, sourceUrl: null });
+  it("generation fails (HTTP 500) → none, nothing stored, the reason is on the trace", async () => {
+    const h = await harness({ openai: "fail" });
+    const out = await resolveMealImage(subject, h.deps);
+    assert.equal(out.image.source, "none");
+    assert.equal(out.image.url, null);
     assert.equal(h.writer.saved.length, 0);
-    assert.equal(out.trace.stock?.judge, null);
-    assert.deepEqual(out.trace.stock?.providerErrors, [{ provider: "pixabay", message: "timeout" }]);
     assert.equal(out.trace.generation?.ok, false);
+    assert.equal(out.trace.generation && !out.trace.generation.ok ? out.trace.generation.reason : null, "http_error");
   });
 
-  it("a stock candidate with a rejected filename shape never reaches the judge", async () => {
-    const bad = { ...cand("pexels", "p9"), url: "https://cdn.test/pexels/p9/logo.jpg" };
-    const h = await harness({ providers: [provider("pexels", [bad])], accepted: 0 });
-    const out = await stockStep(subject, h.deps);
-    assert.equal(out.candidates.length, 0);
-    assert.equal(out.judge, null);
-  });
-
-  it("skipStock / skipGenerate seams", async () => {
-    const h = await harness({ accepted: 0 });
-    const out = await resolveMealImage(subject, { skipStock: true, skipGenerate: true }, h.deps);
+  it("no API key → none with reason no_api_key, and OpenAI is never called", async () => {
+    const h = await harness({ apiKey: "" });
+    const out = await resolveMealImage(subject, h.deps);
     assert.equal(out.image.source, "none");
     assert.equal(h.openaiCalls, 0);
+    assert.equal(out.trace.generation && !out.trace.generation.ok ? out.trace.generation.reason : null, "no_api_key");
   });
 
-  it("stockAttribution names the photographer and the site", () => {
-    assert.equal(stockAttribution(cand("pexels", "a")), "Photo by photog-a on Pexels");
-    assert.equal(stockAttribution(cand("pixabay", "b")), "Photo by photog-b on Pixabay");
+  it("the bucket write throws → none with storeError set (the generation itself succeeded and was paid for)", async () => {
+    const h = await harness();
+    h.writer.failWith = new Error("gcs down");
+    const out = await resolveMealImage(subject, h.deps);
+    assert.equal(out.image.source, "none");
+    assert.equal(out.trace.storeError, "gcs down");
+    assert.ok(out.trace.generation?.ok, "the generation was fine");
+    assert.equal(h.openaiCalls, 1);
+  });
+});
+
+describe("downloadImageBytes (kept for scripts/ws9-row5/rehost_templates.ts)", () => {
+  it("returns the bytes on 200 and null on a non-2xx", async () => {
+    const big = await bitmap(10, 10);
+    const ok = await downloadImageBytes(async () => bytesResponse(big), "https://x.test/a.png");
+    assert.ok(ok && ok.equals(big));
+    const missing = await downloadImageBytes(async () => bytesResponse(null), "https://x.test/b.png");
+    assert.equal(missing, null);
+  });
+});
+
+// The limiter's consumer is now only the single-process catalog script
+// (generate.ts). Its test rides here since the stock-provider file that held
+// it is deleted.
+describe("SlidingWindowRateLimiter (generate.ts's pacer — never the api-server's bound)", () => {
+  it("allows `limit` requests in a window, then sleeps until the oldest ages out", async () => {
+    let now = 1_000_000;
+    const sleeps: number[] = [];
+    const limiter = new SlidingWindowRateLimiter({
+      limit: 3,
+      windowMs: 1000,
+      now: () => now,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        now += ms;
+      },
+    });
+    await limiter.acquire();
+    now += 100;
+    await limiter.acquire();
+    now += 100;
+    await limiter.acquire();
+    assert.deepEqual(sleeps, []);
+    assert.equal(limiter.inWindow(), 3);
+    // Fourth: the oldest stamp is at t=1_000_000; window ends at +1000; now is +200.
+    await limiter.acquire();
+    assert.deepEqual(sleeps, [800]);
+    assert.equal(limiter.inWindow(), 3);
   });
 });

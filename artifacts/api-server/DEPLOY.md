@@ -56,6 +56,10 @@ lives for the deployed instance. "env" = a plain Cloud Run env var
 | `KIWI_STORE_SHORTLIST_SIZE` | no | env | Default 40. |
 | `KIWI_STORE_CUISINE_QUOTA_FRACTION` | no | env | Default 0.7. |
 | `EMAIL_REVIEW_RECIPIENT` | no | — | Documented in `.env.example`; **read by no code yet** (D-WS9-226 message 3 is not built). Nothing to set. |
+| `OPENAI_API_KEY` | for meal images | Secret Manager | gpt-image-1-mini (D-WS9-246). Absent → a queued meal is deferred each tick (no strike, no cost) and keeps the gradient. |
+| `KIWI_IMAGE_BUCKET` | no | env | Default `kiwi-prod-508416-images`. Written via ADC — the runtime service account needs `roles/storage.objectAdmin` on it. |
+| `IMAGE_DRAIN_OIDC_EMAIL` | for the image queue | env | The Cloud Scheduler job's service-account email (comma-separated allowlist). Unset → `POST /api/internal/images/drain` answers 404 to everyone. See **The image queue's drain**. |
+| `IMAGE_DRAIN_OIDC_AUDIENCE` | for the image queue | env | The `aud` the job's OIDC token carries — the drain URL, `https://<service-url>/api/internal/images/drain`. Unset → same 404. |
 
 All three `AI_*` variables are validated once at boot (BUG-263): a variable that is **set but unparseable** (e.g. `AI_DAILY_CEILING_USD="$10"`) leaves its check **off** and logs an `error` naming it; every revision also logs one `info` line `AI spend guard: kill switch … · daily ceiling … · per-user cap …` with the effective config — read that line after each deploy rather than trusting the env you meant to set. System-triggered calls (`userId` null — seeds, batch jobs) bypass the ceiling and per-user cap entirely (BUG-262); only `AI_DISABLED` refuses them.
 
@@ -169,6 +173,49 @@ Invoke-RestMethod -Method Post -Uri "$url/api/auth/password-reset/confirm" -Cont
 4. **A `Cannot find module` at boot** means a new package was added to
    `build.mjs`'s `external` list and imported — the runtime tree carries only
    `@prisma/client`. Add it to the copy step in the Dockerfile.
+
+## The image queue's drain (Cloud Scheduler) — D-WS9-248
+
+A save only marks a meal `imageStatus = pending`; nothing on a request path
+calls OpenAI. `POST /api/internal/images/drain` claims at most five pending
+rows a minute (the org-wide OpenAI cap, bounded in the database — see
+`lib/images/imageQueue.ts`), generates, uploads, writes `ready`. Cloud
+Scheduler fires it once a minute with an OIDC identity token; the route
+verifies the token against Google's JWKS and the two `IMAGE_DRAIN_OIDC_*`
+variables. **Enabling Cloud Scheduler and creating the job is a Hans step.**
+
+```powershell
+gcloud services enable cloudscheduler.googleapis.com
+
+# A dedicated identity for the job — nothing else should be able to mint a token the drain accepts.
+gcloud iam service-accounts create kiwi-image-drain --display-name "Kiwi image queue drain"
+$sa = "kiwi-image-drain@<gcp-project-id>.iam.gserviceaccount.com"
+$url = gcloud run services describe kiwi-api --region us-east4 --format "value(status.url)"
+$drain = "$url/api/internal/images/drain"
+
+# The service is --allow-unauthenticated, so no run.invoker binding is needed; the route does its own check.
+gcloud run services update kiwi-api --region us-east4 --update-env-vars "IMAGE_DRAIN_OIDC_EMAIL=$sa,IMAGE_DRAIN_OIDC_AUDIENCE=$drain"
+
+gcloud scheduler jobs create http kiwi-image-drain `
+  --location us-east4 `
+  --schedule "* * * * *" `
+  --uri $drain `
+  --http-method POST `
+  --oidc-service-account-email $sa `
+  --oidc-token-audience $drain `
+  --attempt-deadline 180s
+```
+
+Read it back: `gcloud scheduler jobs run kiwi-image-drain --location us-east4`
+then look for `image_drain_tick` in the service log — its fields are the
+tick's summary (`claimed`, `ready`, `failed`, `deferred`, `budget`). A
+`image_drain_refused` line with `reason: bad_signature_or_claims` almost
+always means the audience on the job and in the env differ by a character.
+A `image_drain_not_configured` line means one of the two env vars is unset.
+
+**Latency this accepts (D-WS9-248):** up to ~60 s of queue plus ~12 s of
+generation before an image appears; the save never blocks. **The runtime
+service account must be able to write the bucket** (ADC — no key file).
 
 ## Redeploy
 

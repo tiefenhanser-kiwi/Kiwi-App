@@ -234,14 +234,27 @@ enum AIPromptMode {
 }
 
 // Row 5 · Block 1 (D-WS9-246) — where a meal's image came from. `none` is the
-// gradient, a legitimate terminal state written so the backfill can tell
-// "resolved to nothing" from "never attempted" (NULL).
+// gradient, a legitimate terminal state written so a run can tell "resolved to
+// nothing" from "never attempted" (NULL).
+// Block 1c: the stock and publisher values are GONE with their code (D-WS9-246:
+// AI for every image, no exceptions). The enum was rebuilt in the migration;
+// every row held `ai_generated` at the time.
 enum MealImageSource {
-  page_extracted
-  stock_pexels
-  stock_pixabay
   ai_generated
   none
+}
+
+// Row 5 · Block 1c (D-WS9-248) — the on-save image queue's state, carried on
+// the meal row itself (no queue table). A save writes `pending` and never
+// calls OpenAI; the scheduled drain (lib/images/imageQueue.ts) claims at most
+// five `pending` rows a minute FIFO, marks them `generating`, and writes
+// `ready` (imageUrl set) or, after three strikes, `failed` (the gradient,
+// permanently). A fork inherits its parent's state instead of enqueuing.
+enum MealImageStatus {
+  pending
+  generating
+  ready
+  failed
 }
 
 // ── MODELS ──
@@ -862,15 +875,21 @@ model Meal {
   // explicitly not MVP; this exists so the client can show it.
   activeTimeMinutes    Int?
   imageUrl             String?
-  // Row 5 · Block 1 (D-WS9-246 / D-WS9-149) — image provenance. NULL = the
-  // pipeline has never run for this row. imageAttribution is the Pexels
-  // photographer credit obligation met without re-querying; imageSourceUrl is
-  // the provider page / publisher image a bad batch is identified and
-  // reverted by (scripts/ws9-row5/revert.ts). The client never reads these.
+  // Row 5 · Block 1 (D-WS9-246 / D-WS9-149) — image provenance. NULL = no
+  // generation has ever completed for this row. Block 1c dropped
+  // imageAttribution / imageSourceUrl with the stock + publisher steps (0 rows
+  // carried a value; nothing populated them). The client never reads these.
   imageSource          MealImageSource?
-  imageAttribution     String?
-  imageSourceUrl       String?
   imageGeneratedAt     DateTime?
+  // Row 5 · Block 1c (D-WS9-248) — the queue state + strike counter. Default
+  // `pending`: a Meal row without an image is one the queue owes an image to,
+  // so a create path that sets nothing enqueues. The copy paths (fork,
+  // publish-to-store, promote-override) set it explicitly from the source.
+  // The 1c migration backfilled: imageUrl present → ready; the user-authored
+  // rows without one → failed (D-WS9-230: Hans's test residue is never
+  // backfilled, and the queue must not spend its 5/min on it).
+  imageStatus          MealImageStatus @default(pending)
+  imageAttempts        Int             @default(0)
   servingsDefault      Int             @default(4)
   // WS7-8 BUG-003 — immutable authored-servings anchor. Set once at create
   // (== servingsDefault) and NEVER updated on edit; render scales as
@@ -947,6 +966,8 @@ model Meal {
   @@index([isPublic, isArchived, mealType, cuisineType])
   // D-WS9-045 — dedup + dishFamily lookup for the store-fill harness.
   @@index([sourceType, dishFamilyKey])
+  // Row 5 · Block 1c (D-WS9-248) — the drain's claim: `pending` rows FIFO.
+  @@index([imageStatus, createdAt])
   @@map("meals")
 }
 

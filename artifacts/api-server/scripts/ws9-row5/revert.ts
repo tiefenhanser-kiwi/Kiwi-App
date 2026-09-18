@@ -12,7 +12,7 @@
 //   --delete-objects     also delete meals/<id>.jpg for every row reverted
 //
 //   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts                       # dry run: counts + the first 20 ids per group
-//   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts --meals --apply       # Meal rows: imageUrl/imageSource/imageAttribution/imageSourceUrl/imageGeneratedAt → NULL
+//   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts --meals --apply       # Meal rows: imageUrl/imageSource/imageGeneratedAt → NULL, imageStatus → pending (Block 1c: back on the queue)
 //   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts --meals --source ai_generated --apply   # only rows with that imageSource (a bad batch)
 //   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts --templates --apply   # the six template rows → their Unsplash URLs
 //   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts --all --apply
@@ -67,7 +67,7 @@ async function main(): Promise<void> {
       if (APPLY && rows.length > 0) {
         const res = await prisma.meal.updateMany({
           where,
-          data: { imageUrl: null, imageSource: null, imageAttribution: null, imageSourceUrl: null, imageGeneratedAt: null },
+          data: { imageUrl: null, imageSource: null, imageGeneratedAt: null, imageStatus: "pending" },
         });
         console.log(`  UPDATED ${res.count} meal rows → image fields NULL`);
         if (DELETE_OBJECTS) {

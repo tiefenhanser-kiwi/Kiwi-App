@@ -1,31 +1,32 @@
 // Row 5 · Block 1 (D-WS9-246) — THE ONE FILE that assembles the real wiring:
-// globalThis.fetch, the three provider keys from process.env, the Anthropic
-// path via runAICall, and a GCS bucket authenticated by Application Default
-// Credentials (no key file, no credential path — @google-cloud/storage's
-// `new Storage()` reads ADC from the environment: gcloud's local ADC file on
-// a dev box, the runtime service account on Cloud Run).
+// globalThis.fetch, the OpenAI key from process.env, and a GCS bucket
+// authenticated by Application Default Credentials (no key file, no
+// credential path — @google-cloud/storage's `new Storage()` reads ADC from
+// the environment: gcloud's local ADC file on a dev box, the runtime service
+// account on Cloud Run).
 //
-// Nothing in the hermetic suite imports this file. networkGuard.test.ts pins
-// (statically) that no other file under src/lib/images/ references fetch,
-// process.env, or the storage SDK, and (at runtime) that the whole pipeline
-// runs with a trapped globalThis.fetch. Keep it that way: any new real
-// dependency goes HERE and is injected everywhere else.
+// Nothing in the hermetic suite imports this file. imageNetworkGuard.test.ts
+// pins (statically) that no other file under src/lib/images/ references
+// fetch, process.env, or the storage SDK, and (at runtime) that the whole
+// pipeline runs with a trapped globalThis.fetch. Keep it that way: any new
+// real dependency goes HERE and is injected everywhere else.
+//
+// Block 1c: the Pexels / Pixabay providers and the relevance judge are gone
+// (D-WS9-246), and with them their keys. The drain's wiring is assembled here
+// too (createLiveImageDrainDeps) — same fetch, same bucket, the real prisma.
 //
 // Env (names only in .env.example, values in the gitignored .env):
-//   PEXELS_API_KEY · PIXABAY_API_KEY · OPENAI_API_KEY · KIWI_IMAGE_BUCKET
+//   OPENAI_API_KEY · KIWI_IMAGE_BUCKET
 
+import type { PrismaClient } from "@prisma/client";
 import { Storage } from "@google-cloud/storage";
 
-import { runAICall } from "../ai/runAICall";
 import type { PrismaLike } from "../ai/promptRegistry";
-import { fetchRecipePage } from "../recipeImport";
 import { DEFAULT_IMAGE_BUCKET, ImageStore } from "./imageStore";
 import type { PipelineDeps } from "./imagePipeline";
-import { PexelsProvider, PixabayProvider } from "./stockProviders";
-import type { ImageFetch, ObjectWriter, StockImageProvider } from "./types";
+import { createPrismaImageQueueStore, type ImageDrainDeps } from "./imageQueue";
+import type { ImageFetch, ObjectWriter } from "./types";
 
-export const ENV_PEXELS_API_KEY = "PEXELS_API_KEY";
-export const ENV_PIXABAY_API_KEY = "PIXABAY_API_KEY";
 export const ENV_OPENAI_API_KEY = "OPENAI_API_KEY";
 export const ENV_KIWI_IMAGE_BUCKET = "KIWI_IMAGE_BUCKET";
 
@@ -54,8 +55,8 @@ export interface LiveImageDepsOptions {
   prisma?: PrismaLike;
   userId?: string;
   env?: NodeJS.ProcessEnv;
-  // Pilot seam: an ObjectWriter that does NOT reach the bucket (nothing is
-  // uploaded in Phase 4). Production omits it → GCS.
+  // Seam: an ObjectWriter that does NOT reach the bucket. Production omits
+  // it → GCS.
   writer?: ObjectWriter;
 }
 
@@ -63,31 +64,31 @@ export function liveImageBucket(env: NodeJS.ProcessEnv = process.env): string {
   return env[ENV_KIWI_IMAGE_BUCKET]?.trim() || DEFAULT_IMAGE_BUCKET;
 }
 
-// Which providers have a key. A missing key drops that provider (logged by
-// the caller) rather than throwing — a half-configured box still resolves
-// images through the other steps.
-export function liveStockProviders(env: NodeJS.ProcessEnv = process.env): StockImageProvider[] {
-  const providers: StockImageProvider[] = [];
-  const pexels = env[ENV_PEXELS_API_KEY]?.trim();
-  const pixabay = env[ENV_PIXABAY_API_KEY]?.trim();
-  if (pexels) providers.push(new PexelsProvider({ fetch: liveFetch, apiKey: pexels }));
-  if (pixabay) providers.push(new PixabayProvider({ fetch: liveFetch, apiKey: pixabay }));
-  return providers;
-}
-
 export function createLiveImageDeps(opts: LiveImageDepsOptions = {}): PipelineDeps {
   const env = opts.env ?? process.env;
   const bucket = liveImageBucket(env);
   return {
     fetch: liveFetch,
-    providers: liveStockProviders(env),
-    judge: { ai: runAICall, prisma: opts.prisma, userId: opts.userId },
     generator: {
       apiKey: env[ENV_OPENAI_API_KEY]?.trim() ?? "",
       prisma: opts.prisma,
       userId: opts.userId,
     },
     store: new ImageStore({ writer: opts.writer ?? new GcsObjectWriter(bucket), bucket }),
-    fetchPage: fetchRecipePage,
+  };
+}
+
+// Block 1c (D-WS9-248) — the drain's real wiring. The generator's userId is
+// left unset here: runImageDrain sets it per row from the meal's owner.
+export function createLiveImageDrainDeps(prisma: PrismaClient, opts: { env?: NodeJS.ProcessEnv; writer?: ObjectWriter } = {}): ImageDrainDeps {
+  const env = opts.env ?? process.env;
+  const bucket = liveImageBucket(env);
+  return {
+    store: createPrismaImageQueueStore(prisma),
+    pipeline: {
+      fetch: liveFetch,
+      generator: { apiKey: env[ENV_OPENAI_API_KEY]?.trim() ?? "", prisma },
+      store: new ImageStore({ writer: opts.writer ?? new GcsObjectWriter(bucket), bucket }),
+    },
   };
 }
