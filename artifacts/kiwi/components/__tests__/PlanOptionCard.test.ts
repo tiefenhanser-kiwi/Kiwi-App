@@ -164,7 +164,7 @@ test("fresh: title, meta line, three rows (42px ramp, title, description when pr
   });
   assert.equal(thumbs.length, 3, "three 42px thumb slots");
   assert.equal(ImageTreatment.thumbSize, 42);
-  assert.equal(walk(root).filter((n) => n.type === "rn-image").length, 0, "no hero, no photo");
+  assert.equal(walk(root).filter((n) => n.type === "rn-image" || n.type === "expo-image").length, 0, "no hero, no photo");
   // No tags row — the candidate's tags are not rendered.
   assert.ok(!text.includes("summer"), "tags are not shown (spec §2)");
   assert.ok(!text.includes("Featured"), "the dead badge field is not rendered");

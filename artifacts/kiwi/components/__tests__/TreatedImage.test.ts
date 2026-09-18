@@ -9,6 +9,10 @@
 // The onError signal added this commit is ADDITIVE. These tests pin that the
 // rendering is byte-identical in every pre-existing case — most importantly the
 // null path, which the rail depends on and which later commits must not touch.
+//
+// WS9 row 5 Block 2 Part E — the photo element is expo-image ("expo-image" in
+// the stub tree, stubs/expo-image.mjs), with contentFit "cover" and a
+// memory-disk cache. The null path is unchanged: no image element of any kind.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -56,9 +60,9 @@ test("null source: renders the gradient placeholder and mounts NO Image", () => 
     "the warm gradient is the fallback and must always be painted",
   );
   assert.equal(
-    findAll(json, "rn-image").length,
+    findAll(json, "expo-image").length + findAll(json, "rn-image").length,
     0,
-    "no <Image> is mounted at all when there is no source — the ternary short-circuits",
+    "no image element of any kind is mounted when there is no source — the ternary short-circuits",
   );
 });
 
@@ -80,15 +84,23 @@ test("adding an onError prop does NOT change the null-source render", () => {
 
 // ── the photo path ──────────────────────────────────────────────────────────
 
-test("a remote source mounts an Image OVER the gradient (gradient still painted)", () => {
+test("a remote source mounts an expo-image OVER the gradient (gradient still painted)", () => {
   const tree = render({ source: { uri: URI }, height: 74 });
   const json = tree.toJSON() as unknown as Json;
 
   assert.equal(findAll(json, "rn-linear-gradient").length, 1);
-  const images = findAll(json, "rn-image");
+  const images = findAll(json, "expo-image");
   assert.equal(images.length, 1);
   assert.deepEqual(images[0].props.source, { uri: URI });
-  assert.equal(images[0].props.resizeMode, "cover");
+  assert.equal(images[0].props.contentFit, "cover");
+  assert.equal(findAll(json, "rn-image").length, 0, "the react-native Image is gone from this component");
+});
+
+test("Part E — the photo is cached on disk and in memory, with no fade (transition 0)", () => {
+  const json = render({ source: { uri: URI }, height: 74 }).toJSON() as unknown as Json;
+  const image = findAll(json, "expo-image")[0];
+  assert.equal(image.props.cachePolicy, "memory-disk");
+  assert.equal(image.props.transition, 0);
 });
 
 // ── onError ─────────────────────────────────────────────────────────────────
@@ -101,7 +113,7 @@ test("onError fires with the failing URI when the remote image fails", () => {
     onError: (u) => seen.push(u),
   });
   const json = tree.toJSON() as unknown as Json;
-  const image = findAll(json, "rn-image")[0];
+  const image = findAll(json, "expo-image")[0];
 
   const warn = console.warn;
   console.warn = () => {};
@@ -124,7 +136,7 @@ test("onError reports null for a bundled asset (a local require cannot 404)", ()
     height: 74,
     onError: (u) => seen.push(u),
   });
-  const image = findAll(tree.toJSON() as unknown as Json, "rn-image")[0];
+  const image = findAll(tree.toJSON() as unknown as Json, "expo-image")[0];
 
   const warn = console.warn;
   console.warn = () => {};
@@ -141,7 +153,7 @@ test("onError reports null for a bundled asset (a local require cannot 404)", ()
 
 test("the failure is warned even when no caller passes onError", () => {
   const tree = render({ source: { uri: URI }, height: 74 });
-  const image = findAll(tree.toJSON() as unknown as Json, "rn-image")[0];
+  const image = findAll(tree.toJSON() as unknown as Json, "expo-image")[0];
 
   const calls: unknown[][] = [];
   const warn = console.warn;

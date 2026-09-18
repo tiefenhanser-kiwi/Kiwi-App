@@ -9,16 +9,29 @@
 // 3a first renders real photos. We do NOT pull a blend-mode lib for a 6% overlay.
 //
 // Sourcing is out of scope (§3): this wrapper renders whatever `source` it's given.
+//
+// WS9 row 5 Block 2 Part E — the photo element is expo-image, not react-native
+// Image. Every list now scrolls hundreds of 1024² JPEGs from the public bucket
+// (D-WS9-246) and RN's Image has no disk cache worth the name; expo-image
+// caches on disk and in memory (cachePolicy "memory-disk"), so a thumb seen
+// once is not fetched again. This is the ONE place the swap lives: every meal
+// slot in the app routes through here (Parts B/C), so the rest of the tree
+// does not know the element changed. The prop type stays react-native's
+// ImageSourcePropType for the same reason — callers pass { uri } or a bundled
+// asset and expo-image accepts both. ⚠️ expo-image is a NATIVE module: this
+// commit changes the native build (the package was already in package.json and
+// the lockfile since f14d3bf, imported by nothing — so a binary built since
+// then already carries the module; one built before it does not).
 
 import React from "react";
 import {
-  Image,
   ImageSourcePropType,
   StyleProp,
   StyleSheet,
   View,
   ViewStyle,
 } from "react-native";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { ImageTreatment } from "@/constants/tokens";
@@ -102,7 +115,9 @@ export function TreatedImage({
         <Image
           source={source}
           style={StyleSheet.absoluteFill}
-          resizeMode="cover"
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={0}
           onError={handleError}
         />
       ) : null}

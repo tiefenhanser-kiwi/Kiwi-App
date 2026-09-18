@@ -97,7 +97,7 @@ test("today: renders the meal thumbnail (restores the call site Commit 5 removed
   // 1471/1471 rows that gradient IS what ships today.
   assert.equal(findAll(root, "rn-linear-gradient").length, 1);
   assert.equal(
-    findAll(root, "rn-image").length,
+    findAll(root, "expo-image").length,
     0,
     "no photo exists yet — the gradient fallback is the intended render",
   );
@@ -108,7 +108,7 @@ test("today: a meal WITH a photo mounts an Image over the gradient", () => {
     model: { ...TODAY, meal: { ...MEAL, image: "https://example.com/m.jpg" } },
   });
   assert.equal(findAll(root, "rn-linear-gradient").length, 1);
-  assert.equal(findAll(root, "rn-image").length, 1);
+  assert.equal(findAll(root, "expo-image").length, 1);
 });
 
 // ⚠️ WS9-2 2e (BUG-091) — these two tests CHANGED. The card gained a third
@@ -332,7 +332,7 @@ test("plan: renders This week, the plan name, and the nothing-set-today line", (
 test("plan: renders NO image (D-WS9-144 — only the MEAL thumbnail is the exception)", () => {
   const root = render({ model: PLAN });
   assert.equal(findAll(root, "rn-linear-gradient").length, 0);
-  assert.equal(findAll(root, "rn-image").length, 0);
+  assert.equal(findAll(root, "expo-image").length, 0);
 });
 
 test("plan: the panel is Prep and Cook · Grocery List · Order Online · View plan", () => {

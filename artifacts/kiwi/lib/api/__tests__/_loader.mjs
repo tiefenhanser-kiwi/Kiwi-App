@@ -39,6 +39,8 @@ const PHYSICAL_STUBS = new Map([
   ["expo-haptics", "./stubs/expo-haptics.mjs"],
   // WS9-2 2c Commit 2 — lets TreatedImage (and its consumers) be tested.
   ["expo-linear-gradient", "./stubs/expo-linear-gradient.mjs"],
+  // WS9 row 5 Block 2 Part E — TreatedImage renders its photo through expo-image.
+  ["expo-image", "./stubs/expo-image.mjs"],
   // WS9 Redesign Arc Block 2a — lets the merged wizard (WizardScreen) mount.
   ["react-native-keyboard-controller", "./stubs/keyboard-controller.mjs"],
 ]);

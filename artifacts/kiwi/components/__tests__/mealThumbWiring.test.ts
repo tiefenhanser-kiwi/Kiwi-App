@@ -28,9 +28,9 @@ import { MealPickCard } from "../MealPickCard";
 import { MealRowBody } from "../MealRowBody";
 import { PlanReviewMealRow } from "../PlanReviewMealRow";
 
-// The host element TreatedImage mounts for a photo. The test stubs render a
-// react-native Image as "rn-image" (stubs/react-native.mjs).
-const IMAGE_HOST = "rn-image";
+// The host element TreatedImage mounts for a photo: expo-image (Part E), which
+// the test stub renders as "expo-image" (stubs/expo-image.mjs).
+const IMAGE_HOST = "expo-image";
 const GRADIENT_HOST = "rn-linear-gradient";
 
 type Json = {

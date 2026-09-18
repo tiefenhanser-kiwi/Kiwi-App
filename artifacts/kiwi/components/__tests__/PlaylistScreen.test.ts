@@ -241,11 +241,11 @@ test("row thumb: the server's imageUrl renders through TreatedImage; null → th
   const lasagna = rows.find((r) => r.props.accessibilityLabel === "Grandma's Lasagna")!;
   const salmon = rows.find((r) => r.props.accessibilityLabel === "Miso Salmon")!;
   assert.equal(walk(lasagna).filter((n) => n.type === "rn-linear-gradient").length, 1, "the ramp is always painted");
-  const img = walk(lasagna).find((n) => n.type === "rn-image");
+  const img = walk(lasagna).find((n) => n.type === "expo-image");
   assert.ok(img, "the photo mounts when the row has one");
   assert.deepEqual(img!.props.source, { uri: "https://img.test/lasagna.jpg" });
   assert.equal(walk(salmon).filter((n) => n.type === "rn-linear-gradient").length, 1);
-  assert.equal(walk(salmon).filter((n) => n.type === "rn-image").length, 0, "null → ramp only");
+  assert.equal(walk(salmon).filter((n) => n.type === "expo-image").length, 0, "null → ramp only");
 });
 
 test("Remove from playlist → DELETE /me/playlist/:id and the row drops (optimistic)", async () => {
