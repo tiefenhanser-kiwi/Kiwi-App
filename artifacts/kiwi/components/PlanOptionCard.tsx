@@ -3,8 +3,8 @@
 // board Chooser_Ruled).
 //
 // title (serif) · meta line ("5 dinners · serves 4 · ~40 min avg") · meal rows
-// (the 42px placeholder ramp — ImageTreatment.thumbSize, NOT the Pick screen's
-// 56 — + title + the cook time when the wire carried one + a description of up
+// (the 60px placeholder ramp — ImageTreatment.thumbSize, D-WS9-252 — NOT the Pick screen's
+// 72 — + title + the cook time when the wire carried one + a description of up
 // to four lines, the row never shorter than a two-line one) · "Why this works" bullets · the daily
 // macro line · the actions row: Use This Week (tint) · Save for Later (ghost) ·
 // Not For Me (ghostQuiet — text2 ink). NO hero image (imageUrl / badge are dead fields on
@@ -211,7 +211,7 @@ export function PlanOptionCard({
 
 /**
  * The skeleton shown while the first `candidate` frame is in flight: a
- * card-shaped placeholder with the row geometry of the real card (42px ramp +
+ * card-shaped placeholder with the row geometry of the real card (60px ramp +
  * two bars), so the first real card lands without a layout jump.
  */
 export function PlanOptionCardSkeleton() {

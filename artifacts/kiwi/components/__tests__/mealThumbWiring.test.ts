@@ -217,3 +217,15 @@ test("DishRow: null image → ramp only at the compact size; a url would mount t
   assert.equal(images(withUrl).length, 1);
   assert.deepEqual(images(withUrl)[0].props.source, { uri: URL });
 });
+
+// ── D-WS9-252 (row 5 Block 3) — the four ruled sizes ────────────────────────
+// Hans, device item 8c: "thumbs are a bit small ... can we make those bigger?"
+// Each value is a one-line revert in constants/tokens.ts; this pin exists so a
+// revert (or a drive-by "harmonise") is a deliberate red, not a silent drift.
+
+test("D-WS9-252: meal thumb tokens are 72 / 60 / 48, and thumbSize folded into the compact step", () => {
+  assert.equal(ImageTreatment.thumb.row, 72);
+  assert.equal(ImageTreatment.thumb.compact, 60);
+  assert.equal(ImageTreatment.thumb.dense, 48);
+  assert.equal(ImageTreatment.thumbSize, ImageTreatment.thumb.compact, "the orphan 42 joined the family");
+});

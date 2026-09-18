@@ -23,7 +23,7 @@ import {
 import { __resetRouterForTests, __setRouterForTests } from "expo-router";
 
 import { ToastProvider } from "@/contexts/ToastProvider";
-import { Colors, Palette } from "@/constants/tokens";
+import { Colors, ImageTreatment, Palette } from "@/constants/tokens";
 import type { ShelfMeal, WizardShelfResponse } from "@/lib/api/wizard";
 import { todayLocalDate } from "@/lib/dates";
 import {
@@ -242,11 +242,14 @@ test("card (BUG-294): the body is width-constrained (flex 1 / minWidth 0) and ne
   assert.equal(bodyStyle.height, undefined, "the body has no fixed height");
   assert.equal(bodyStyle.maxHeight, undefined, "the body has no max height");
   assert.ok(allText(body!).join(" ").includes(LONG_DESCRIPTION), "the description lives inside the flex body");
-  // The thumb stays 56 on this screen (42 is the chooser's — deliberate).
+  // The thumb is the row role (ImageTreatment.thumb.row — 72 since D-WS9-252;
+  // the plan-option card reads thumbSize, deliberately its own step). This
+  // pinned the literal 56 through row 5 Block 2's tokenisation and went red
+  // the moment the token moved — it reads the token now.
   const thumb = (card.children as Json[]).find(
-    (c) => typeof c !== "string" && flatten(c.props.style).width === 56,
+    (c) => typeof c !== "string" && flatten(c.props.style).width === ImageTreatment.thumb.row,
   );
-  assert.ok(thumb, "56px thumb missing");
+  assert.ok(thumb, "row-role thumb missing");
 });
 
 test("card: selected → sage-600 1.4px border on a sage-50 surface", () => {

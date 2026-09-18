@@ -2,7 +2,7 @@
 // the shared ExhaustedCard + the ghostQuiet Button variant.
 //
 // The card renders every field from a fixture in the Block 1 wire shape (meals
-// with description | null and times on store slots), a 42px ramp per row (NOT
+// with description | null and times on store slots), a 60px ramp per row (D-WS9-252; was 42) (NOT
 // the Pick screen's 56), no hero image and no tags row; its three actions fire
 // the right callbacks; busy shows the busy LABEL (not a spinner) and locks the
 // rest; saved shows "Saved ✓" and keeps ONLY Use This Week; a legacy candidate
@@ -143,7 +143,7 @@ function card(over: Partial<React.ComponentProps<typeof PlanOptionCard>> = {}) {
 
 // ── the card ────────────────────────────────────────────────────────────────
 
-test("fresh: title, meta line, three rows (42px ramp, title, description when present), why bullets, macro line, three actions", () => {
+test("fresh: title, meta line, three rows (60px ramp, title, description when present), why bullets, macro line, three actions", () => {
   const { root } = card();
   const text = joined(root);
   assert.ok(text.includes("Grill Nights"));
@@ -155,15 +155,15 @@ test("fresh: title, meta line, three rows (42px ramp, title, description when pr
   assert.ok(text.includes("Avg 1850 cal/day · 121g P · 180g C · 61g F"));
   assert.ok(text.includes(USE_LABEL) && text.includes(SAVE_LABEL) && text.includes(DISMISS_LABEL));
 
-  // 42px placeholder ramps — one per row — and NO photograph anywhere.
+  // 60px placeholder ramps (ImageTreatment.thumbSize, D-WS9-252) — one per row — and NO photograph anywhere.
   const ramps = walk(root).filter((n) => n.type === "rn-linear-gradient");
   assert.equal(ramps.length, 3);
   const thumbs = walk(root).filter((n) => {
     const s = flatten(n.props.style);
     return s.width === ImageTreatment.thumbSize && s.height === ImageTreatment.thumbSize;
   });
-  assert.equal(thumbs.length, 3, "three 42px thumb slots");
-  assert.equal(ImageTreatment.thumbSize, 42);
+  assert.equal(thumbs.length, 3, "three 60px thumb slots");
+  assert.equal(ImageTreatment.thumbSize, 60, "D-WS9-252: the orphan 42 folded into the compact step");
   assert.equal(walk(root).filter((n) => n.type === "rn-image" || n.type === "expo-image").length, 0, "no hero, no photo");
   // No tags row — the candidate's tags are not rendered.
   assert.ok(!text.includes("summer"), "tags are not shown (spec §2)");
@@ -259,7 +259,7 @@ test("Not For Me is the ghostQuiet variant (text2 ink); Use This Week is tint", 
   assert.equal(flatten(use?.props.style).backgroundColor, Palette.button.tint.background);
 });
 
-test("skeleton: card-shaped, three 42px ramps, no text content", () => {
+test("skeleton: card-shaped, three 60px ramps, no text content", () => {
   const root = render(React.createElement(PlanOptionCardSkeleton));
   assert.ok(byTestId(root, "plan-option-skeleton"));
   assert.equal(walk(root).filter((n) => n.type === "rn-linear-gradient").length, 3);

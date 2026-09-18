@@ -482,17 +482,28 @@ export const ImageTreatment = {
     thumb:      1,
   },
   radiusRule: 'match-container' as const,
-  thumbSize: 42,
-  // WS9 row 5 Block 2 — the meal-thumb sizes, named by ROLE. The values are
-  // the literals each site already carried (nothing resized; the thumb sizes
-  // are on Hans's device script as judgment calls): `row` is the list-row
-  // thumb (Meals tab, Playlist, Pick card, plan review), `compact` the sheet /
-  // hub row, `dense` the dish chooser. The plan-option row's 42 stays
-  // `thumbSize` above — its own value, its own token, its own device item (8a).
+  // WS9 row 5 Block 3 (D-WS9-252) — 42 -> 60. The plan-option card's thumb
+  // (PlanOptionCard, both the live row and the skeleton) folds into the
+  // `compact` step below; the orphan VALUE is retired, the token is not (its
+  // two consumers keep reading it). Device item 8c: "thumbs are a bit small".
+  thumbSize: 60,
+  // WS9 row 5 Block 2 — the meal-thumb sizes, named by ROLE: `row` is the
+  // list-row thumb (Meals tab, Playlist, Pick card, plan review), `compact`
+  // the sheet / hub row, `dense` the dish chooser. Block 2 tokenised the
+  // literals each site carried (56 / 48 / 40) without resizing anything.
+  //
+  // WS9 row 5 Block 3 (D-WS9-252) — enlarged 56/48/40 -> 72/60/48 on Hans's
+  // device ruling (item 8c, the first time real photographs rendered: "it's
+  // hard to get really appetized. can we make those bigger?"). The values are
+  // chat-Claude's under delegation; each is a one-line revert. The trade is
+  // stated in the ruling: rows get taller, fewer meals fit a screen.
+  // ⚠️ This makes the existing row BIGGER; it does not make the row a card.
+  // If 72 still reads small on device that re-opens as a layout question
+  // (wide / full-bleed image, text beneath), not another bump here.
   thumb: {
-    row:     56,
-    compact: 48,
-    dense:   40,
+    row:     72,
+    compact: 60,
+    dense:   48,
   },
   // Placeholder treatment — shown through when a photo is absent/failed. The
   // warm ramp is reused across the rail card / tonight strip / hero image slots
@@ -592,8 +603,12 @@ export const Components = {
     // carrying its own size: PlanReviewMealRow (the plan-item row) renders
     // 56 x 56 at Radius.md, and MealRow (catalog rows) 56 x 56 at Radius.sm.
     // The plan-item value wins — this card shows a plan item.
-    // ImageTreatment.thumbSize stays 42 as the canonical v4 value; it simply
-    // has no consumer now.
+    // ImageTreatment.thumbSize stayed 42 as the canonical v4 value. ⚠️ It is
+    // NOT consumer-less (an earlier revision of this comment said so, wrongly):
+    // PlanOptionCard reads it for the plan-option row thumb AND the skeleton
+    // row thumb (row 5 Block 2 found both; row 5 Block 3 / D-WS9-252 moved it
+    // 42 -> 60). THIS token is the this-week card's own 56 and is untouched by
+    // D-WS9-252 — the ruling named four values and this is not one of them.
     thumbSize:   56,
     radius:      Radius.xl,
     // ⚠️ WS9-2 2e Part 4 Item 3 — NO CONSUMER. It coloured the card's filled
