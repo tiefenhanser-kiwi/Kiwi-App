@@ -7,10 +7,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import {
-  ADD_OWN_MEALS_TOAST,
-  shouldOfferAddOwnMeals,
-} from "../makeLaneOptions";
+import { shouldOfferAddOwnMeals } from "../makeLaneOptions";
 
 test("no saved plans → the option is offered", () => {
   assert.equal(shouldOfferAddOwnMeals(0), true);
@@ -57,8 +54,4 @@ test("the predicate is COUNT-based, not first-run-based", () => {
     true,
     "zero saved plans offers the option even for a long-lived account",
   );
-});
-
-test("the arrival toast copy is verbatim", () => {
-  assert.equal(ADD_OWN_MEALS_TOAST, "Anytime: Recipes → Meals → Add Meal.");
 });

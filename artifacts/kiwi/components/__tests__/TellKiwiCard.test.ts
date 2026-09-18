@@ -27,6 +27,7 @@ import {
   TellKiwiCard,
   TELL_KIWI_PLACEHOLDERS,
   ADD_OWN_MEALS_SUBLINE,
+  SET_UP_PLAYLIST_LABEL,
   CARD_TITLE,
   CONNECTOR_COPY,
   PLACEHOLDER_INTERVAL_MS,
@@ -104,14 +105,14 @@ function pressableByText(root: Json, label: string): Json | null {
 
 // ── §4.5 the conditional third option ───────────────────────────────────────
 
-test("§4.5: the standard card shows the TWO entries — no 'Add my own meals'", () => {
+test("§4.5: the standard card shows the TWO entries — no 'Set up my Playlist'", () => {
   const { root } = render();
   const t = allText(root);
   assert.ok(t.includes(CARD_TITLE));
   assert.ok(t.includes("Tell Kiwi"));
   assert.ok(t.includes(USE_PREFERENCES_LABEL));
   assert.ok(
-    !t.includes("Add my own meals"),
+    !t.includes(SET_UP_PLAYLIST_LABEL),
     "the third option must be absent unless the user has no saved plans",
   );
   assert.ok(!t.includes(ADD_OWN_MEALS_SUBLINE), "its sub-line must be absent too");
@@ -120,15 +121,16 @@ test("§4.5: the standard card shows the TWO entries — no 'Add my own meals'",
 test("§4.5: showAddOwnMeals adds the third option AND its sub-line", () => {
   const { root } = render({ showAddOwnMeals: true });
   const t = allText(root);
-  assert.ok(t.includes("Add my own meals"));
+  assert.ok(t.includes(SET_UP_PLAYLIST_LABEL));
   assert.ok(t.includes(ADD_OWN_MEALS_SUBLINE));
 });
 
-test("§4.5: the sub-line copy is verbatim, em dash included", () => {
+test("§4.5 / D-WS9-247: the sub-line and the label are verbatim from the ruling", () => {
   assert.equal(
     ADD_OWN_MEALS_SUBLINE,
-    "or bring in recipes you already love — by link, photo, or paste.",
+    "Have go-to meals? Put them on your Playlist and they'll show up in your plans.",
   );
+  assert.equal(SET_UP_PLAYLIST_LABEL, "Set up my Playlist");
 });
 
 test("§4.5: tapping the third option fires onAddOwnMeals", () => {
@@ -137,7 +139,7 @@ test("§4.5: tapping the third option fires onAddOwnMeals", () => {
     showAddOwnMeals: true,
     onAddOwnMeals: () => (fired += 1),
   });
-  const btn = pressableByText(root, "Add my own meals");
+  const btn = pressableByText(root, SET_UP_PLAYLIST_LABEL);
   assert.ok(btn, "third option not found");
   act(() => {
     (btn!.props.onPress as () => void)();
@@ -467,7 +469,7 @@ test("Block 2a: the card TITLE leads, serif italic, above the Tell Kiwi row", ()
 test("Item 4: the conditional connector introduces the option BELOW it", () => {
   const { root } = render({ showAddOwnMeals: true });
   const line = indexOf(root, ADD_OWN_MEALS_SUBLINE);
-  const option = indexOf(root, "Add my own meals");
+  const option = indexOf(root, SET_UP_PLAYLIST_LABEL);
   assert.ok(line >= 0 && option >= 0, "both render together");
   assert.ok(
     line < option,
@@ -485,7 +487,7 @@ test("Item 4: the WHOLE card reads in the ruled order, top to bottom", () => {
     CONNECTOR_COPY,
     USE_PREFERENCES_LABEL,
     ADD_OWN_MEALS_SUBLINE,
-    "Add my own meals",
+    SET_UP_PLAYLIST_LABEL,
   ];
   const positions = marks.map((m) => indexOf(root, m));
   for (const [i, p] of positions.entries()) {
@@ -505,7 +507,7 @@ test("Item 4: D-WS9-163's gate is UNCHANGED — the connector is gated too", () 
   // ever escaped the gate, a user with saved plans would see a line introducing
   // a path that is not there.
   const t = allText(render().root);
-  assert.ok(!t.includes("Add my own meals"));
+  assert.ok(!t.includes(SET_UP_PLAYLIST_LABEL));
   assert.ok(
     !t.includes(ADD_OWN_MEALS_SUBLINE),
     "the connector must not render without the option it introduces",

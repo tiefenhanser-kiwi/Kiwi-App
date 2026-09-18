@@ -15,9 +15,11 @@
 //   4. row 2 — a white pill row: sliders icon (sage) · "Have Kiwi use my
 //      preferences" · the SAME terracotta round arrow. Tap → the merged wizard
 //      in PREFERENCES mode;
-//   5. the CONDITIONAL third row, "Add my own meals", with its connector above
-//      it — D-WS9-163's gate is unchanged (Home passes showAddOwnMeals when
-//      the user has NO saved plans).
+//   5. the CONDITIONAL third row, "Set up my Playlist", with its connector
+//      above it — D-WS9-163's gate is unchanged (Home passes showAddOwnMeals
+//      when the user has NO saved plans). D-WS9-247 re-aimed this row at the
+//      Playlist tab (it used to send a new user to the single-meal builder,
+//      which predates the Playlist); the prop names keep their §4.5 name.
 //
 // 🔴 TWO TERRACOTTA ARROWS ON ONE CARD IS DELIBERATE AND HANS-RULED (D-WS9-237
 // overrides D-WS9-162's one-emphasis rule for this card). Do not "fix" it to
@@ -81,9 +83,14 @@ export const TELL_KIWI_PLACEHOLDERS = [
 export const PLACEHOLDER_INTERVAL_MS = 2600;
 const FADE_MS = 220;
 
-/** D-WS9-161/162 — the sub-line under the conditional third option. */
+/**
+ * D-WS9-247 — the line above the conditional third option, and its label.
+ * Both verbatim from the ruling (Hans, September 18, 2026). Same weight as
+ * the card's other connector — not fine print (D-WS9-161's rule carries).
+ */
 export const ADD_OWN_MEALS_SUBLINE =
-  "or bring in recipes you already love — by link, photo, or paste.";
+  "Have go-to meals? Put them on your Playlist and they'll show up in your plans.";
+export const SET_UP_PLAYLIST_LABEL = "Set up my Playlist";
 
 type Props = {
   value?: string;
@@ -94,10 +101,11 @@ type Props = {
   /** Row 2 — Home routes to the wizard in PREFERENCES mode. */
   onUsePreferences?: () => void;
   /**
-   * §4.5 — "Add my own meals". Renders ONLY when `showAddOwnMeals` is true;
-   * Home passes that when the user has NO SAVED PLANS (not when they are
-   * "first run" — a user who composts their only plan needs this option and is
-   * no longer first-run).
+   * §4.5's third option — since D-WS9-247 "Set up my Playlist" (Home routes
+   * to the Playlist tab). Renders ONLY when `showAddOwnMeals` is true; Home
+   * passes that when the user has NO SAVED PLANS (not when they are "first
+   * run" — a user who composts their only plan needs this option and is no
+   * longer first-run).
    */
   onAddOwnMeals?: () => void;
   showAddOwnMeals?: boolean;
@@ -286,16 +294,17 @@ export function TellKiwiCard({
             <Pressable
               onPress={onAddOwnMeals}
               accessibilityRole="button"
-              accessibilityLabel="Add my own meals"
+              accessibilityLabel={SET_UP_PLAYLIST_LABEL}
               style={({ pressed }) => [styles.option, pressed && { opacity: 0.85 }]}
             >
+              {/* The Playlist tab's own glyph (music), not the builder's pencil. */}
               <Feather
-                name="edit-3"
+                name="music"
                 size={18}
                 color={Components.tellKiwi.optionIcon}
               />
               <Text style={styles.optionTitle} numberOfLines={1}>
-                Add my own meals
+                {SET_UP_PLAYLIST_LABEL}
               </Text>
               {/* A chevron, not a third terracotta arrow — the two-arrow
                   ruling is exact and this row is outside the mockup. */}

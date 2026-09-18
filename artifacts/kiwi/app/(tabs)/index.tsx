@@ -37,7 +37,6 @@ import { TellKiwiCard } from "@/components/TellKiwiCard";
 import { FeaturedPlanCard } from "@/components/FeaturedPlanCard";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/contexts/ToastProvider";
 import { useHomePayload } from "@/hooks/useHomePayload";
 import { useHomeRail } from "@/hooks/useHomeRail";
 import { usePlans } from "@/hooks/usePlans";
@@ -45,10 +44,7 @@ import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { deriveHeroModel } from "@/lib/home/heroState";
 import { homeSectionOrder } from "@/lib/home/homeSections";
-import {
-  ADD_OWN_MEALS_TOAST,
-  shouldOfferAddOwnMeals,
-} from "@/lib/home/makeLaneOptions";
+import { shouldOfferAddOwnMeals } from "@/lib/home/makeLaneOptions";
 import { buildRailItems } from "@/lib/home/rail";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
 import { dispatchGenerateResult } from "@/lib/groceryHandoff";
@@ -60,7 +56,6 @@ export default function HomeTab() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
-  const { showToast } = useToast();
 
   // Paywall: an expired/lapsed subscription routes the MAKE-lane actions to
   // upgrade (preserved from the pre-3a home; grocery/prep/cook stay ungated as
@@ -102,7 +97,8 @@ export default function HomeTab() {
   // warm. Removing it now breaks a visible feature, not only a latency win.
   const myPlans = usePlans(["my_plans"]);
 
-  // §4.5 — "Add my own meals" renders ONLY when the user has NO SAVED PLANS.
+  // §4.5 — the third option ("Set up my Playlist" since D-WS9-247) renders
+  // ONLY when the user has NO SAVED PLANS.
   //
   // ⚠️ THIS IS NOT `isFirstRun`. firstPlanCreatedAt is a permanent stamp — once
   // set it is never cleared — so a user who creates a plan and composts it is
@@ -163,23 +159,19 @@ export default function HomeTab() {
   // hydrates from stored preferences on mount (D-WS9-014 pt 1 / D-WS7-035).
   const handleUsePreferences = () =>
     router.push(isLocked ? "/upgrade" : "/wizard");
-  // §4.5 — Add my own meals → the meal builder, the SAME zero-param push the
-  // Meals tab uses (app/(tabs)/meals.tsx handleAddMeal), which lands on the
-  // mode picker.
+  // §4.5's third option — D-WS9-247: "Set up my Playlist" → the Playlist tab
+  // (the fifth tab, D-WS9-237), the route meal-builder's after-save hop
+  // already uses. It USED to push /meal-builder with an arrival toast
+  // ("Anytime: Recipes → Meals → Add Meal."); the toast is gone — a tab
+  // landing is its own confirmation — and the Playlist's empty state is the
+  // teaching surface now (Hans: "it's perfect as is").
   //
   // ⚠️ DELIBERATELY NOT PAYWALLED. The two actions above route to /upgrade when
-  // locked because they trigger AI GENERATION. Manual meal entry is not
-  // generation, and the Meals tab does not gate it — gating it here would be a
-  // bug, and a nasty one: it would tell a lapsed user they cannot type in a
-  // recipe they own.
-  //
-  // The toast is fired BEFORE the push on purpose. The app-level ToastProvider
-  // lives above the navigator specifically so a toast shown right before a
-  // route change survives the transition with its timer running (the same
-  // property compost-with-undo relies on), so this lands ON the builder screen.
+  // locked because they trigger AI GENERATION. Building a playlist is not
+  // generation — gating it here would tell a lapsed user they cannot list
+  // meals they own.
   const handleAddOwnMeals = () => {
-    showToast({ message: ADD_OWN_MEALS_TOAST });
-    router.push("/meal-builder");
+    router.push("/(tabs)/playlist");
   };
 
   // ── Tonight strip routing (branch by model.kind — the strip is dumb) ─────

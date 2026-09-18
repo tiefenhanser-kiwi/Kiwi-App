@@ -39,12 +39,7 @@ export function shouldOfferAddOwnMeals(
   return savedPlanCount === 0;
 }
 
-/**
- * Shown on arrival at the meal builder, so the user learns the durable path
- * rather than only the one-off entry point they just used.
- *
- * Fired BEFORE the navigation on purpose: the app-level ToastProvider is
- * mounted above the navigator specifically so a toast raised right before a
- * route change survives the transition with its timer running.
- */
-export const ADD_OWN_MEALS_TOAST = "Anytime: Recipes → Meals → Add Meal.";
+// D-WS9-247 — ADD_OWN_MEALS_TOAST ("Anytime: Recipes → Meals → Add Meal.")
+// used to live here. The option it accompanied now lands on the Playlist tab,
+// and a tab landing is its own confirmation, so the toast was deleted rather
+// than re-worded. It had exactly one production reader (Home's handler).
