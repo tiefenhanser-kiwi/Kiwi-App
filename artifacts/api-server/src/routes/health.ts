@@ -46,7 +46,15 @@ export function createHealthRouter(
   const prisma = deps.prisma ?? productionPrisma;
   const router: IRouter = Router();
 
-  router.get("/healthz", (_req, res) => {
+  router.get("/healthz", (req, res) => {
+    // TODO(BUG-223) — TEMPORARY, remove after the two-network measurement.
+    // Which address does Cloud Run's front end present, and how many hops does
+    // x-forwarded-for carry? Hans curls this from two networks and reads the
+    // three values back; TRUST_PROXY_HOPS is then a fact, not a guess.
+    logger.info(
+      { event: "bug223_proxy_probe", ip: req.ip, remoteAddress: req.socket.remoteAddress, xForwardedFor: req.headers["x-forwarded-for"] ?? null },
+      "BUG-223 proxy probe",
+    );
     const data = HealthCheckResponse.parse({ status: "ok" });
     res.json(data);
   });
