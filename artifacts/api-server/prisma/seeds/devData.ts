@@ -518,8 +518,13 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
     isFeatured: true,
     isHostingFeatured: false,
     occasionType: null,
+    // Row 5 · Block 1 (D-WS9-149) — the six template images were Unsplash
+    // hotlinks; they are re-hosted in the bucket (scripts/ws9-row5/
+    // rehost_templates.ts) and the seed carries the bucket URLs so a re-seed
+    // does not put the hotlinks back. The pre-re-host URLs live in that
+    // script's TEMPLATE_UNSPLASH_URLS for revert.ts.
     imageUrl:
-      "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80",
+      "https://storage.googleapis.com/kiwi-prod-508416-images/templates/dev-plan-template-family-favorites.jpg",
     items: [
       { mealId: DEV_MEAL_IDS.beefTacos, positionIndex: 0, assignedDayOfWeek: "Monday", slot: "dinner" },
       { mealId: DEV_MEAL_IDS.fajitas, positionIndex: 1, assignedDayOfWeek: "Tuesday", slot: "dinner" },
@@ -541,7 +546,7 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
     isHostingFeatured: false,
     occasionType: null,
     imageUrl:
-      "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=800&q=80",
+      "https://storage.googleapis.com/kiwi-prod-508416-images/templates/dev-plan-template-quick-weeknights.jpg",
     items: [
       { mealId: DEV_MEAL_IDS.fajitas, positionIndex: 0, assignedDayOfWeek: "Monday", slot: "dinner" },
       { mealId: DEV_MEAL_IDS.beefTacos, positionIndex: 1, assignedDayOfWeek: "Tuesday", slot: "dinner" },
@@ -563,7 +568,7 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
     isHostingFeatured: true,
     occasionType: "holiday",
     imageUrl:
-      "https://images.unsplash.com/photo-1606787366850-de6330128bfc?auto=format&fit=crop&w=800&q=80",
+      "https://storage.googleapis.com/kiwi-prod-508416-images/templates/dev-plan-template-holiday-hosting.jpg",
     items: [
       { mealId: DEV_MEAL_IDS.salmonRicePilaf, positionIndex: 0, assignedDayOfWeek: null, slot: "dinner" },
       { mealId: DEV_MEAL_IDS.tikkaMasala, positionIndex: 1, assignedDayOfWeek: null, slot: "dinner" },
@@ -583,7 +588,7 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
     isHostingFeatured: false,
     occasionType: null,
     imageUrl:
-      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80",
+      "https://storage.googleapis.com/kiwi-prod-508416-images/templates/dev-plan-template-budget-bowls.jpg",
     items: [
       { mealId: DEV_MEAL_IDS.grainBowl, positionIndex: 0, assignedDayOfWeek: "Monday", slot: "dinner" },
       { mealId: DEV_MEAL_IDS.padThai, positionIndex: 1, assignedDayOfWeek: "Tuesday", slot: "dinner" },
@@ -608,7 +613,7 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
     isHostingFeatured: true,
     occasionType: "summer_holiday",
     imageUrl:
-      "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=800&q=80",
+      "https://storage.googleapis.com/kiwi-prod-508416-images/templates/dev-plan-template-fourth-of-july-bbq.jpg",
     items: [
       { mealId: DEV_MEAL_IDS.fajitas, positionIndex: 0, assignedDayOfWeek: null, slot: "dinner" },
       { mealId: DEV_MEAL_IDS.beefTacos, positionIndex: 1, assignedDayOfWeek: null, slot: "dinner" },
@@ -628,7 +633,7 @@ const DISCOVERY_TEMPLATES: DevDiscoveryTemplate[] = [
     isHostingFeatured: true,
     occasionType: "game_day",
     imageUrl:
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80",
+      "https://storage.googleapis.com/kiwi-prod-508416-images/templates/dev-plan-template-game-day-spread.jpg",
     items: [
       { mealId: DEV_MEAL_IDS.beefTacos, positionIndex: 0, assignedDayOfWeek: null, slot: "dinner" },
       { mealId: DEV_MEAL_IDS.fajitas, positionIndex: 1, assignedDayOfWeek: null, slot: "dinner" },
