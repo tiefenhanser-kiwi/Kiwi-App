@@ -44,6 +44,10 @@ export class GcsObjectWriter implements ObjectWriter {
       metadata: { cacheControl: "public, max-age=31536000, immutable" },
     });
   }
+  // Block 1b — revert.ts --delete-objects. Missing object = already gone (idempotent).
+  async delete(key: string): Promise<void> {
+    await this.storage.bucket(this.bucket).file(key).delete({ ignoreNotFound: true });
+  }
 }
 
 export interface LiveImageDepsOptions {

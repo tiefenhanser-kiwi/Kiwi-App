@@ -22,7 +22,7 @@ function bytesResponse(bytes: Buffer | null, contentType = "image/png"): ImageFe
     status: bytes != null ? 200 : 404,
     headers: { get: (n) => (n.toLowerCase() === "content-type" ? contentType : null) },
     json: async () => ({}),
-    arrayBuffer: async () => (bytes ?? Buffer.alloc(0)).buffer.slice(bytes?.byteOffset ?? 0, (bytes?.byteOffset ?? 0) + (bytes?.byteLength ?? 0)),
+    arrayBuffer: async () => (bytes ?? Buffer.alloc(0)).buffer.slice(bytes?.byteOffset ?? 0, (bytes?.byteOffset ?? 0) + (bytes?.byteLength ?? 0)) as ArrayBuffer,
     text: async () => "",
   };
 }
@@ -111,16 +111,28 @@ async function harness(opts: {
 describe("ImageStore / resizeForStore", () => {
   it(`resizes to ${IMAGE_LONG_EDGE_PX} px on the long edge, JPEG, never upscales`, async () => {
     const wide = await resizeForStore(await bitmap(1600, 1000));
-    assert.equal(wide.width, 800);
-    assert.equal(wide.height, 500);
+    assert.equal(wide.width, 1024);
+    assert.equal(wide.height, 640);
     assert.equal(wide.contentType, "image/jpeg");
     assert.equal(wide.bytes.subarray(0, 2).toString("hex"), "ffd8");
     const tall = await resizeForStore(await bitmap(1000, 1600));
-    assert.equal(tall.width, 500);
-    assert.equal(tall.height, 800);
+    assert.equal(tall.width, 640);
+    assert.equal(tall.height, 1024);
     const small = await resizeForStore(await bitmap(600, 400));
     assert.equal(small.width, 600);
     assert.equal(small.height, 400);
+  });
+
+  it("a JPEG that already fits is stored native — byte-identical, no re-encode (Block 1b: the generator's 1024²)", async () => {
+    const native = await new Jimp({ width: 1024, height: 1024, color: 0x3366ffff }).getBuffer("image/jpeg", { quality: 90 });
+    const out = await resizeForStore(native);
+    assert.equal(out.width, 1024);
+    assert.equal(out.height, 1024);
+    assert.ok(out.bytes.equals(native), "bytes must pass through untouched");
+    // A PNG of the same size is still re-encoded to JPEG.
+    const png = await resizeForStore(await bitmap(1024, 1024));
+    assert.equal(png.bytes.subarray(0, 2).toString("hex"), "ffd8");
+    assert.equal(png.width, 1024);
   });
 
   it("put() writes meals/<id>.jpg to the writer and returns the public bucket URL", async () => {
@@ -131,7 +143,7 @@ describe("ImageStore / resizeForStore", () => {
     assert.equal(writer.saved[0].contentType, "image/jpeg");
     assert.equal(out.url, "https://storage.googleapis.com/kiwi-prod-508416-images/meals/m-1.jpg");
     assert.equal(out.url, publicUrlFor("kiwi-prod-508416-images", "meals/m-1.jpg"));
-    assert.equal(out.width, 800);
+    assert.equal(out.width, 1024);
   });
 
   it("an undecodable input throws (the caller skips that candidate)", async () => {

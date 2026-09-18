@@ -1,14 +1,22 @@
 // Row 5 · Block 1 — revert. DRY RUN BY DEFAULT. Nulls out everything the
 // image pipeline wrote to Meal rows, and/or restores the six template
 // Unsplash URLs that rehost_templates.ts replaced. Bucket objects are left in
-// place (they are inert once no row points at them; delete by hand with
-// `gcloud storage rm` if wanted).
+// place unless `--delete-objects` (Block 1b): they are inert once no row
+// points at them, but generate.ts --report reconciles bucket vs rows, so a
+// revert that leaves objects behind shows up there as orphans.
+//
+// Block 1b scoping (first exercised 2026-09-18 on the 25 gate rows, which
+// were stored at 800 px before Hans ruled native 1024²):
+//   --ids a,b,c          only these meal ids (still AND imageSource selector)
+//   --ids-file path      one id per line (e.g. the ok ids out of run/run.json)
+//   --delete-objects     also delete meals/<id>.jpg for every row reverted
 //
 //   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts                       # dry run: counts + the first 20 ids per group
 //   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts --meals --apply       # Meal rows: imageUrl/imageSource/imageAttribution/imageSourceUrl/imageGeneratedAt → NULL
 //   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts --meals --source ai_generated --apply   # only rows with that imageSource (a bad batch)
 //   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts --templates --apply   # the six template rows → their Unsplash URLs
 //   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts --all --apply
+//   node --env-file=.env --import tsx scripts/ws9-row5/revert.ts --meals --ids-file ids.txt --delete-objects --apply
 //
 // The meal selector is `imageSource IS NOT NULL` — the provenance column the
 // Block 1 migration added, which nothing but this pipeline writes — so a
@@ -17,7 +25,10 @@
 // Block 1b / 1c, ready before the first write.)
 
 import { PrismaClient, type MealImageSource } from "@prisma/client";
+import { readFileSync } from "node:fs";
 
+import { mealImageKey } from "../../src/lib/images/imageStore";
+import { GcsObjectWriter, liveImageBucket } from "../../src/lib/images/live";
 import { TEMPLATE_UNSPLASH_URLS } from "./templateUrls";
 
 const argv = process.argv.slice(2);
@@ -27,6 +38,15 @@ const MEALS = ALL || argv.includes("--meals");
 const TEMPLATES = ALL || argv.includes("--templates");
 const sourceIdx = argv.indexOf("--source");
 const SOURCE = sourceIdx >= 0 ? (argv[sourceIdx + 1] as MealImageSource) : null;
+const idsIdx = argv.indexOf("--ids");
+const idsFileIdx = argv.indexOf("--ids-file");
+const IDS: string[] | null =
+  idsIdx >= 0
+    ? argv[idsIdx + 1].split(",").map((s) => s.trim()).filter(Boolean)
+    : idsFileIdx >= 0
+      ? readFileSync(argv[idsFileIdx + 1], "utf8").split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+      : null;
+const DELETE_OBJECTS = argv.includes("--delete-objects");
 
 async function main(): Promise<void> {
   if (!MEALS && !TEMPLATES) {
@@ -34,10 +54,10 @@ async function main(): Promise<void> {
   }
   const prisma = new PrismaClient();
   try {
-    console.log(`${APPLY ? "APPLY" : "DRY RUN"}${SOURCE ? ` · source=${SOURCE}` : ""}`);
+    console.log(`${APPLY ? "APPLY" : "DRY RUN"}${SOURCE ? ` · source=${SOURCE}` : ""}${IDS ? ` · ids=${IDS.length}` : ""}${DELETE_OBJECTS ? " · delete-objects" : ""}`);
 
     if (MEALS) {
-      const where = { imageSource: SOURCE ? SOURCE : { not: null } } as const;
+      const where = { imageSource: SOURCE ? SOURCE : { not: null }, ...(IDS ? { id: { in: IDS } } : {}) } as const;
       const rows = await prisma.meal.findMany({ where, select: { id: true, title: true, imageSource: true, imageUrl: true }, orderBy: { id: "asc" } });
       const bySource = new Map<string, number>();
       for (const r of rows) bySource.set(String(r.imageSource), (bySource.get(String(r.imageSource)) ?? 0) + 1);
@@ -50,6 +70,31 @@ async function main(): Promise<void> {
           data: { imageUrl: null, imageSource: null, imageAttribution: null, imageSourceUrl: null, imageGeneratedAt: null },
         });
         console.log(`  UPDATED ${res.count} meal rows → image fields NULL`);
+        if (DELETE_OBJECTS) {
+          // Only the objects the reverted rows pointed at, by their own key —
+          // a fork's row points at its CATALOG source's object, which is not
+          // this row's to delete; skip any imageUrl that is not its own key.
+          const bucket = liveImageBucket();
+          const writer = new GcsObjectWriter(bucket);
+          let deleted = 0;
+          let skipped = 0;
+          for (const r of rows) {
+            const key = mealImageKey(r.id);
+            if (r.imageUrl !== `https://storage.googleapis.com/${bucket}/${key}`) {
+              skipped++;
+              continue;
+            }
+            try {
+              await writer.delete(key);
+              deleted++;
+            } catch (err) {
+              console.log(`  delete ${key} failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+          console.log(`  DELETED ${deleted} bucket objects (${skipped} rows pointed at another row's object — left)`);
+        }
+      } else if (DELETE_OBJECTS) {
+        console.log(`  would delete ${rows.filter((r) => r.imageUrl === `https://storage.googleapis.com/${liveImageBucket()}/${mealImageKey(r.id)}`).length} bucket objects`);
       }
     }
 

@@ -136,7 +136,7 @@ describe("image pipeline — network guard (runtime)", () => {
           url.startsWith("https://api.openai.com/")
             ? { data: [{ b64_json: big.toString("base64") }], usage: { input_tokens: 1, output_tokens: 1 } }
             : {},
-        arrayBuffer: async () => big.buffer.slice(big.byteOffset, big.byteOffset + big.byteLength),
+        arrayBuffer: async () => big.buffer.slice(big.byteOffset, big.byteOffset + big.byteLength) as ArrayBuffer,
         text: async () => "",
       };
       return res;
