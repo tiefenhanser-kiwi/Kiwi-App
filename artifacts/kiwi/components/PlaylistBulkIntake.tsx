@@ -1,5 +1,5 @@
 // WS9 Redesign Arc Block 2c Part A (D-WS9-244) — the Playlist BULK intake
-// section: "Several at once · Name the meals you already cook".
+// section — the boxes under the host-owned "Several at once · Name the meals you already cook" heading (BUG-298).
 //
 // Hans: "a component with say 3 individual text boxes, with an 'add another
 // meal' action below them, and the user can just type in a handful of meals,
@@ -33,9 +33,7 @@ import {
   BULK_ADD_ANOTHER,
   BULK_PLACEHOLDERS,
   BULK_RETRY,
-  BULK_SECTION_LABEL,
   BULK_SECTION_SUBLINE,
-  BULK_SECTION_TITLE,
   BULK_STATUS_FAILED,
   BULK_STATUS_SAVED,
   BULK_STATUS_WAITING,
@@ -147,8 +145,14 @@ export function PlaylistBulkIntake({
 
   return (
     <View style={s.section} testID="playlist-bulk">
-      <Text style={s.label}>{BULK_SECTION_LABEL}</Text>
-      <Text style={s.title}>{BULK_SECTION_TITLE}</Text>
+      {/* WS9 row 5 Block 3 (BUG-298) — the section heading ("Several at once ·
+          Name the meals you already cook") is NOT rendered here any more. The
+          HOST renders it, exactly as it renders the sibling "One at a time ·
+          How do you want to build this meal?" heading, so the two sit under
+          one layout rule instead of one inside a card and one outside it
+          (Hans, device item 7b). The strings still live in
+          lib/builder/bulkPlaylistIntake.ts; the one mount (app/meal-builder.tsx)
+          reads them from there. The subline stays: it captions the boxes. */}
       <Text style={s.subline}>{BULK_SECTION_SUBLINE}</Text>
 
       <View style={s.boxes}>
@@ -292,26 +296,14 @@ const s = StyleSheet.create({
     padding: Spacing[4],
     marginBottom: Spacing[4],
   },
-  label: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.sage[700],
-    fontFamily: Typography.face.sans[600],
-    fontWeight: Typography.fontWeight.semibold,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  title: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serif[600],
-    marginTop: 2,
-  },
+  // BUG-298 — `label` / `title` styles DELETED with the heading hoist; the
+  // host's sectionLabelQuiet / sectionHeader render the heading now. The
+  // subline is the card's first line, so its top margin (which spaced it off
+  // the title) is gone with them.
   subline: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
-    marginTop: 2,
     marginBottom: Spacing[3],
   },
   boxes: { gap: Spacing[2] },

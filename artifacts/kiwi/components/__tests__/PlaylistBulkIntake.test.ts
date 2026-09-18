@@ -23,6 +23,7 @@ import type { SaveMealInput } from "@/lib/api/meals";
 import {
   BULK_ADD_ANOTHER,
   BULK_PLACEHOLDERS,
+  BULK_SECTION_LABEL,
   BULK_SECTION_SUBLINE,
   BULK_SECTION_TITLE,
   BULK_STATUS_FAILED,
@@ -159,7 +160,13 @@ async function mount(opts: {
 test("three boxes with the go-to-meal placeholders, the copy, and 'Add another meal' grows the list", async () => {
   const m = await mount();
   const t = m.text();
-  assert.ok(t.includes(BULK_SECTION_TITLE) && t.includes(BULK_SECTION_SUBLINE) && t.includes(BULK_SUBMIT_CAPTION), t);
+  assert.ok(t.includes(BULK_SECTION_SUBLINE) && t.includes(BULK_SUBMIT_CAPTION), t);
+  // BUG-298 (row 5 Block 3) — the heading is the HOST's, not the component's:
+  // a screen that mounts this next to its own "One at a time" heading must
+  // render "Several at once · Name the meals you already cook" itself (see
+  // lib/__tests__/bulkIntakeHeadingOwner.test.ts for the host side).
+  assert.ok(!t.includes(BULK_SECTION_LABEL), "the label is the host's (BUG-298)");
+  assert.ok(!t.includes(BULK_SECTION_TITLE), "the title is the host's (BUG-298)");
   const boxes = inputs(m.root());
   assert.equal(boxes.length, 3);
   assert.deepEqual(boxes.map((b) => b.props.placeholder), [...BULK_PLACEHOLDERS]);

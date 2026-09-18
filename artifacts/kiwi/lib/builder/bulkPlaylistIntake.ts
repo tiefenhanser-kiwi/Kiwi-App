@@ -39,6 +39,9 @@ import { ASK_KIWI_AI_FAILED_MESSAGE } from "./askKiwiSubmit";
 import { parsedMealToDraft } from "./parsedMealToDraft";
 
 // ── Copy (Hans's words where he gave them) ──────────────────────────────────
+// BUG-298 (row 5 Block 3) — LABEL and TITLE are rendered by the HOST screen
+// (app/meal-builder.tsx), not by PlaylistBulkIntake; the component renders the
+// SUBLINE and the boxes. Strings are unchanged by that hoist.
 export const BULK_SECTION_LABEL = "Several at once";
 export const BULK_SECTION_TITLE = "Name the meals you already cook";
 export const BULK_SECTION_SUBLINE = "One per box — Kiwi does the rest";

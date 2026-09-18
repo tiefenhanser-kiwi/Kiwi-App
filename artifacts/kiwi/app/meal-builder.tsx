@@ -47,6 +47,7 @@ import { useDishes } from "@/hooks/useDishes";
 import { savedDishFromListItem } from "@/lib/dishes/savedDishFromListItem";
 import { resolvePostSaveNav } from "@/lib/builder/postSaveNav";
 import { completePlaylistSave } from "@/lib/builder/playlistAfterSave";
+import { BULK_SECTION_LABEL, BULK_SECTION_TITLE } from "@/lib/builder/bulkPlaylistIntake";
 import { PlaylistBulkIntake } from "@/components/PlaylistBulkIntake";
 import {
   markImportReviewed,
@@ -1105,16 +1106,26 @@ export default function MealBuilderScreen() {
             body the builder posts for an untouched draft and added to the
             playlist; the run ends on the tab with the review sheet. */}
         {!mealId && !draftMeal && !addDishId && wantsPlaylist && (
-          <PlaylistBulkIntake
-            deps={{ parseMeal, saveMeal, addToPlaylist }}
-            onRunningChange={setBulkRunning}
-            onUpgradeRequired={() => router.push("/upgrade")}
-            onFinished={(saved) => {
-              stageImportReview(saved);
-              queryClient.invalidateQueries({ queryKey: PLAYLIST_QUERY_KEY });
-              router.dismissTo("/(tabs)/playlist");
-            }}
-          />
+          <View>
+            {/* WS9 row 5 Block 3 (BUG-298) — the SCREEN owns this heading,
+                with the same two styles as the "One at a time" heading below,
+                so the two sections read under one rule (Hans, device item 7b:
+                the heading used to sit inside the component's card while its
+                sibling sat outside). Strings unchanged, read from the runner
+                module like the rest of the section's copy. */}
+            <Text style={s.sectionLabelQuiet}>{BULK_SECTION_LABEL}</Text>
+            <Text style={s.sectionHeader}>{BULK_SECTION_TITLE}</Text>
+            <PlaylistBulkIntake
+              deps={{ parseMeal, saveMeal, addToPlaylist }}
+              onRunningChange={setBulkRunning}
+              onUpgradeRequired={() => router.push("/upgrade")}
+              onFinished={(saved) => {
+                stageImportReview(saved);
+                queryClient.invalidateQueries({ queryKey: PLAYLIST_QUERY_KEY });
+                router.dismissTo("/(tabs)/playlist");
+              }}
+            />
+          </View>
         )}
 
         {/* Mode picker — create-from-scratch context only (no mealId, no draft, no addDishId) */}
