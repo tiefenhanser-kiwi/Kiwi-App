@@ -79,8 +79,19 @@ RUN pnpm run build
 #
 # ⚠️ If a future change imports another package that build.mjs lists as
 # external (sharp, bcrypt, …), this tree will not carry it and the container
-# fails LOUDLY at boot with `Cannot find module '<name>'` — visible in the
-# revision's logs, never a silent degradation. Add it to the copies below.
+# fails at boot with `Cannot find package '<name>'` — which is exactly what
+# took down revision kiwi-api-00010-fs2 (Row 5 Block 1c-fix: build.mjs had
+# "@google-cloud/*" external, live.ts imports @google-cloud/storage, esbuild
+# hoisted it to a top-level import, this tree did not carry it). Three guards
+# now stand between an edit and that boot failure: `pnpm run build` above
+# refuses a bundle whose bare imports are not in RUNTIME_PACKAGES
+# (artifacts/api-server/bundleExternals.mjs); the suite's
+# bundleExternals.test.ts diffs RUNTIME_PACKAGES against the `cp` lines below;
+# and the last line of this RUN resolves every bare import of the built bundle
+# FROM THIS TREE, so `docker build` fails before a revision exists. Add a new
+# external in all three places: the copies below, RUNTIME_PACKAGES, and (if it
+# has a transitive closure, as @google-cloud/storage does) a real install
+# rather than a `cp -r` out of pnpm's symlinked store.
 #
 # prisma/schema.prisma rides along as the schema of record for the client this
 # image was generated from. It is NOT enough to run `prisma migrate deploy`
@@ -98,6 +109,7 @@ RUN set -eu \
  && cp prisma/schema.prisma /runtime/prisma/schema.prisma \
  && cp package.json /runtime/package.json \
  && test -f /runtime/dist/index.mjs \
+ && node bundleExternals.mjs /runtime/dist/index.mjs --resolve-from /runtime \
  && ls /runtime/node_modules/.prisma/client/ | grep -q 'libquery_engine-.*\.so\.node'
 
 # ── runtime ────────────────────────────────────────────────────────────────

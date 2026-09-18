@@ -1,17 +1,22 @@
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm } from "node:fs/promises";
+import { checkBundle, formatMissing } from "./bundleExternals.mjs";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 
-async function buildAll() {
-  const distDir = path.resolve(artifactDir, "dist");
+/**
+ * Build the server bundle into distDir. Exported so bundleExternals.test.ts
+ * can build into a temp dir with the SAME config and check it; the CLI path
+ * at the bottom is what `pnpm build` and the Dockerfile run.
+ */
+export async function buildBundle(distDir = path.resolve(artifactDir, "dist")) {
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
@@ -63,7 +68,27 @@ async function buildAll() {
       "@aws-sdk/*",
       "@azure/*",
       "@opentelemetry/*",
-      "@google-cloud/*",
+      // Row 5 Block 1c-fix — was "@google-cloud/*", which externalised
+      // @google-cloud/storage too. The runtime stage of the repo-root
+      // Dockerfile carries ONLY @prisma/client into the container, so the
+      // hoisted `import ... from "@google-cloud/storage"` failed at boot
+      // (ERR_MODULE_NOT_FOUND, revision kiwi-api-00010-fs2). Storage v8 is
+      // REST-only (teeny-request + gaxios; @grpc/* is a devDependency) and
+      // its one package.json read is a static relative require that esbuild
+      // inlines — it bundles cleanly. The gax/gRPC-based clients are the ones
+      // that path-traverse to sibling .proto files; list them explicitly.
+      // Any NEW external that the code actually imports must ALSO be carried
+      // by the Dockerfile — bundleExternals.mjs (beside this file, run after
+      // every build below) fails the build if it is not.
+      "@google-cloud/secret-manager",
+      "@google-cloud/pubsub",
+      "@google-cloud/firestore",
+      "@google-cloud/spanner",
+      "@google-cloud/bigtable",
+      "@google-cloud/logging",
+      "@google-cloud/tasks",
+      "@google-cloud/scheduler",
+      "google-gax",
       "@google/*",
       "googleapis",
       "firebase-admin",
@@ -118,9 +143,20 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
   });
+
+  // Row 5 Block 1c-fix — every bare import left in the bundle must be a
+  // package the repo-root Dockerfile carries into the runtime tree; a green
+  // build with a missing one is a container that dies at boot.
+  const bundlePath = path.join(distDir, "index.mjs");
+  const { imports, missing } = checkBundle(bundlePath);
+  if (missing.length > 0) throw new Error(formatMissing(bundlePath, missing));
+  console.log(`bundle externals: ok — [${imports.map((i) => i.specifier).join(", ") || "none"}] all carried by the Dockerfile runtime tree`);
+  return bundlePath;
 }
 
-buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  buildBundle().catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
+}
