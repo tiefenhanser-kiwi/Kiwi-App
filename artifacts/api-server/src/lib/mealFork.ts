@@ -18,11 +18,21 @@
 // each acquisition is its own independent copy.
 
 import { Prisma } from "@prisma/client";
-import type { SourceType } from "@prisma/client";
+import type { MealImageStatus, SourceType } from "@prisma/client";
 
 import { stampAllergens } from "./allergens";
 
 type Tx = Prisma.TransactionClient;
+
+// Row 5 · Block 1c (D-WS9-248) — the queue state a copy takes from its source.
+// Shared by cloneMealInto and mealCreate.ts's createMealWithDishes.
+export function inheritedImageStatus(source: {
+  imageUrl: string | null;
+  imageStatus: MealImageStatus;
+}): MealImageStatus {
+  if (source.imageUrl) return "ready";
+  return source.imageStatus === "failed" ? "failed" : "pending";
+}
 
 // Target attributes for a clone: who owns it, whether it's pool-visible, and an
 // optional provenance override. forkMealForUser and publishMealToStore differ
@@ -211,7 +221,15 @@ async function cloneMealInto(
       // The clone copies every step verbatim, so the derivation holds for the
       // copy; leaving this NULL would hide the fork from every capped shelf.
       activeTimeMinutes: source.activeTimeMinutes,
+      // Row 5 · Block 1c (D-WS9-248) — a copy INHERITS the parent's image, it
+      // never enqueues its own: url + provenance travel together, and the
+      // queue state follows the image (ready when there is one; a copy of a
+      // still-pending parent is pending and is STAMPED by the drain when the
+      // parent lands — the claim skips it; a copy of a failed parent is failed).
       imageUrl: source.imageUrl,
+      imageSource: source.imageSource,
+      imageGeneratedAt: source.imageGeneratedAt,
+      imageStatus: inheritedImageStatus(source),
       // Block 4a piece 1 (D-WS9-047) — household scale on the user fork; on the
       // publish-to-store branch servingsDefaultOverride is undefined → copy source.
       servingsDefault: target.servingsDefaultOverride ?? source.servingsDefault,

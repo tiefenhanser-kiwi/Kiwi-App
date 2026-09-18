@@ -259,6 +259,12 @@ export async function materializeWizardDraft(
           authoredServingsDefault: m.servings,
           isPublic: false,
           isArchived: false,
+          // Row 5 · Block 1c (D-WS9-248) — ENQUEUE the live-built meal. Its
+          // publishMealToStore copy below is created pending too and generates
+          // its own image: a write-back carries no lineage (D-WS9-073), so the
+          // drain cannot pair them. Two generations per live-built slot,
+          // accepted — the store forks (the common path) inherit and pay once.
+          imageStatus: "pending",
         },
         select: { id: true },
       });

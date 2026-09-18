@@ -531,6 +531,10 @@ describe("materializeMeal via STORE_FILL_TARGET", () => {
     assert.deepEqual(m.allergens, ["dairy"]);
     assert.equal(m.dishFamilyKey, "seared-chicken");
     assert.equal(m.mealType, "dinner");
+    // Row 5 · Block 1c (D-WS9-248) — a freshly materialised meal (catalog or
+    // user) is ENQUEUED: pending, no image, and the save made no OpenAI call.
+    assert.equal(m.imageStatus, "pending");
+    assert.equal(m.imageUrl, undefined);
   });
 
   it("D-WS9-066: persists dish.componentRegistry + per-step component tags", async () => {

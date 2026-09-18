@@ -29,6 +29,8 @@ function makeTx(opts: {
   recorder: CreateMealRecorder;
   /** Throw on first dish.create — exercises mid-tx rollback. */
   throwOnFirstDishCreate?: boolean;
+  /** Row 5 · Block 1c — the source's image columns (default: none, pending). */
+  sourceImage?: { imageUrl: string | null; imageSource: string | null; imageGeneratedAt: Date | null; imageStatus: string };
 }) {
   const recorder = opts.recorder;
   let mealCounter = 0;
@@ -57,7 +59,7 @@ function makeTx(opts: {
               description: "src desc",
               cuisineType: "Italian",
               mealType: "dinner",
-              imageUrl: null,
+              ...(opts.sourceImage ?? { imageUrl: null, imageSource: null, imageGeneratedAt: null, imageStatus: "pending" }),
               servingsDefault: 4,
               estimatedTimeMinutes: 45,
               difficulty: "medium",
@@ -190,6 +192,8 @@ describe("createMealWithDishes (WS7-4-D c4 helper)", () => {
     assert.equal(recorder.mealCreates[0].data.userId, "u-1");
     assert.equal(recorder.mealCreates[0].data.sourceType, "manual");
     assert.equal(recorder.mealCreates[0].data.isPublic, false);
+    // Row 5 · Block 1c — a source with no image: the copy is pending (its own generation).
+    assert.equal(recorder.mealCreates[0].data.imageStatus, "pending");
 
     assert.equal(recorder.dishCreates.length, 1);
     assert.equal(recorder.dishCreates[0].data.title, "Tweaked Sauce");
@@ -343,5 +347,42 @@ describe("createMealWithDishes — alias resolution (BUG-096)", () => {
       },
     });
     assert.equal(recorder.dishIngredientCreates[0].data.ingredientId, "ing-own");
+  });
+});
+
+// Row 5 · Block 1c (D-WS9-248) — promote-override is a COPY path: it inherits
+// the source's image + provenance and never enqueues its own.
+describe("createMealWithDishes — Block 1c image provenance", () => {
+  it("carries imageUrl + imageSource + imageGeneratedAt and lands `ready` from an imaged source", async () => {
+    const recorder = emptyRecorder();
+    const at = new Date("2026-09-18T12:00:00Z");
+    const tx = makeTx({
+      recorder,
+      ingredients: [
+        { id: "ing-salt", canonicalName: "salt" },
+        { id: "ing-tomato", canonicalName: "tomato" },
+      ],
+      sourceImage: { imageUrl: "https://storage.googleapis.com/b/meals/src.jpg", imageSource: "ai_generated", imageGeneratedAt: at, imageStatus: "ready" },
+    });
+    await createMealWithDishes(tx as never, { userId: "u-1", sourceMealId: "src", override: OVERRIDE_HAPPY });
+    const data = recorder.mealCreates[0].data;
+    assert.equal(data.imageUrl, "https://storage.googleapis.com/b/meals/src.jpg");
+    assert.equal(data.imageSource, "ai_generated");
+    assert.equal(data.imageGeneratedAt, at);
+    assert.equal(data.imageStatus, "ready");
+  });
+
+  it("a failed-image source yields a failed copy (D-WS9-230 residue never re-enters the queue)", async () => {
+    const recorder = emptyRecorder();
+    const tx = makeTx({
+      recorder,
+      ingredients: [
+        { id: "ing-salt", canonicalName: "salt" },
+        { id: "ing-tomato", canonicalName: "tomato" },
+      ],
+      sourceImage: { imageUrl: null, imageSource: null, imageGeneratedAt: null, imageStatus: "failed" },
+    });
+    await createMealWithDishes(tx as never, { userId: "u-1", sourceMealId: "src", override: OVERRIDE_HAPPY });
+    assert.equal(recorder.mealCreates[0].data.imageStatus, "failed");
   });
 });

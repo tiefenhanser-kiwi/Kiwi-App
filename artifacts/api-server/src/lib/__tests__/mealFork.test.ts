@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 
 import { Prisma } from "@prisma/client";
 
-import { forkMealForUser, publishMealToStore } from "../mealFork";
+import { forkMealForUser, inheritedImageStatus, publishMealToStore } from "../mealFork";
 
 // A minimal source-meal graph: 2 dishes, one with 2 ingredients + dish-owned
 // steps, plus meal-owned steps (the curated/seed shape).
@@ -547,5 +547,44 @@ describe("forkMealForUser", () => {
       () => forkMealForUser(tx as never, "ghost", "user-1"),
       /Source meal not found/,
     );
+  });
+});
+
+// Row 5 · Block 1c (D-WS9-248) — a copy INHERITS the parent's image; it never
+// enqueues its own. Provenance travels with the URL (the gap Block 1 flagged).
+describe("Block 1c — image provenance + queue state on the copy paths", () => {
+  it("inheritedImageStatus: url → ready; no url + failed parent → failed; no url otherwise → pending", () => {
+    assert.equal(inheritedImageStatus({ imageUrl: "https://x/meals/a.jpg", imageStatus: "pending" }), "ready");
+    assert.equal(inheritedImageStatus({ imageUrl: null, imageStatus: "failed" }), "failed");
+    assert.equal(inheritedImageStatus({ imageUrl: null, imageStatus: "pending" }), "pending");
+    assert.equal(inheritedImageStatus({ imageUrl: null, imageStatus: "generating" }), "pending");
+  });
+
+  it("forkMealForUser carries imageUrl + imageSource + imageGeneratedAt and lands `ready` when the parent has an image", async () => {
+    const at = new Date("2026-09-18T12:00:00Z");
+    const source = { ...makeSource(), imageUrl: "https://storage.googleapis.com/b/meals/src-meal.jpg", imageSource: "ai_generated", imageGeneratedAt: at, imageStatus: "ready" };
+    const { tx, rec } = makeTxStub(source as never);
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+    const meal = rec.mealCreates[0];
+    assert.equal(meal.imageUrl, "https://storage.googleapis.com/b/meals/src-meal.jpg");
+    assert.equal(meal.imageSource, "ai_generated");
+    assert.equal(meal.imageGeneratedAt, at);
+    assert.equal(meal.imageStatus, "ready");
+  });
+
+  it("a fork of a still-pending parent is `pending` with the lineage the drain pairs on — it is stamped, never generated", async () => {
+    const source = { ...makeSource(), imageUrl: null, imageSource: null, imageGeneratedAt: null, imageStatus: "pending" };
+    const { tx, rec } = makeTxStub(source as never);
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+    assert.equal(rec.mealCreates[0].imageStatus, "pending");
+    assert.equal(rec.mealCreates[0].imageUrl, null);
+    assert.equal(rec.mealCreates[0].sourceStoreMealId, "src-meal");
+  });
+
+  it("publishMealToStore of a failed-image source is `failed` too (never re-enqueued)", async () => {
+    const source = { ...makeSource(), imageUrl: null, imageSource: null, imageGeneratedAt: null, imageStatus: "failed" };
+    const { tx, rec } = makeTxStub(source as never);
+    await publishMealToStore(tx as never, "src-meal");
+    assert.equal(rec.mealCreates[0].imageStatus, "failed");
   });
 });

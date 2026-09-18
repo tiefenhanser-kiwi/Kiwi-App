@@ -518,6 +518,14 @@ export async function materializeMeal(
       tags: payload.tags ?? [],
       isPublic: resolvedIsPublic,
       isArchived: false,
+      // Row 5 · Block 1c (D-WS9-248) — ENQUEUE. A new meal has no image; the
+      // save never calls OpenAI, the scheduled drain generates it within
+      // ~a minute and the row renders the gradient meanwhile. Explicit here
+      // (it is also the column default) because this is THE save path: manual,
+      // URL/photo import, Ask-Kiwi, and the store-fill catalog run all land
+      // here. A store-target row (userId null) is a catalog meal owed an image
+      // like any other; its generation runs under no user (BUG-262).
+      imageStatus: "pending",
       ...(payload.macros
         ? {
             caloriesPerServing: payload.macros.caloriesPerServing ?? 0,

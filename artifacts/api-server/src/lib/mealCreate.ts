@@ -13,6 +13,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { lookupIngredientByName } from "./ingredientLookup";
+import { inheritedImageStatus } from "./mealFork";
 import { stampAllergens } from "./allergens";
 import { stampMealTiming } from "./mealTiming";
 
@@ -56,6 +57,9 @@ export async function createMealWithDishes(
       cuisineType: true,
       mealType: true,
       imageUrl: true,
+      imageSource: true,
+      imageGeneratedAt: true,
+      imageStatus: true,
       servingsDefault: true,
       estimatedTimeMinutes: true,
       difficulty: true,
@@ -79,7 +83,12 @@ export async function createMealWithDishes(
       description: source.description,
       cuisineType: source.cuisineType,
       mealType: source.mealType,
+      // Row 5 · Block 1c (D-WS9-248) — inherit the source's image + provenance +
+      // queue state (see mealFork.ts inheritedImageStatus); never enqueue a copy.
       imageUrl: source.imageUrl,
+      imageSource: source.imageSource,
+      imageGeneratedAt: source.imageGeneratedAt,
+      imageStatus: inheritedImageStatus(source),
       servingsDefault: source.servingsDefault,
       estimatedTimeMinutes: source.estimatedTimeMinutes,
       difficulty: source.difficulty,

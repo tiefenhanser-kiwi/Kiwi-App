@@ -361,6 +361,8 @@ describe("materializeWizardDraft — WS7-8 BUG-003 authored-servings anchor", ()
       assert.equal(m.servingsDefault, 4);
       assert.equal(m.authoredServingsDefault, 4);
       assert.equal(m.authoredServingsDefault, m.servingsDefault);
+      // Row 5 · Block 1c (D-WS9-248) — every live-built wizard meal is ENQUEUED.
+      assert.equal(m.imageStatus, "pending");
     }
     for (const d of captured.dishes) {
       assert.equal(d.servingsDefault, 4);
