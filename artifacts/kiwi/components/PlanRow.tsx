@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -12,8 +11,14 @@ import type { PlanListItem } from "@/lib/api/plans";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
 import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
+import { TreatedImage } from "@/components/TreatedImage";
 import { canUseAgain } from "@/lib/plans/planLifecycleActions";
 import { planRowMeta } from "@/lib/plans/planRowMeta";
+
+// WS9 row 5 Block 3 Part D — the plan row's thumb size, unchanged from the 56
+// the deleted `styles.thumb` carried. Deliberately NOT ImageTreatment.thumb.*:
+// those are meal roles (D-WS9-252) and a plan surface does not read them.
+const PLAN_THUMB = 56;
 
 type Props = {
   plan: PlanListItem;
@@ -51,17 +56,19 @@ export function PlanRow({ plan, onPreviewTemplate, onCompost, onUseAgain }: Prop
 
   return (
     <View style={styles.row}>
-      <View style={styles.thumb}>
-        {plan.image ? (
-          <Image
-            source={{ uri: plan.image }}
-            style={styles.thumbImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.thumbFallback} />
-        )}
-      </View>
+      {/* WS9 row 5 Block 3 Part D — the PLAN image (PlanListItem.image: the
+          template imageUrl, D-WS9-149) through TreatedImage, for expo-image's
+          memory-disk cache and the same warm-ramp fallback the meal slots use.
+          ⚠️ NOT a meal thumb: the size is this row's own 56 (PLAN_THUMB), not
+          an ImageTreatment.thumb.* token — D-WS9-252 named the meal roles and
+          this is not one. Most plans carry no image (~4.7%, D-WS9-144), so the
+          ramp is what usually renders here; that is the ruled interim. */}
+      <TreatedImage
+        source={plan.image ? { uri: plan.image } : null}
+        width={PLAN_THUMB}
+        height={PLAN_THUMB}
+        radius={Radius.sm}
+      />
       <View style={styles.body}>
         <DisplayTitle source={plan} variant="slim" style={styles.title} />
         {meta && (
@@ -118,15 +125,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.neutral[200],
   },
-  thumb: {
-    width: 56,
-    height: 56,
-    borderRadius: Radius.sm,
-    overflow: "hidden",
-    backgroundColor: Colors.sage[100],
-  },
-  thumbImage: { width: "100%", height: "100%" },
-  thumbFallback: { width: "100%", height: "100%", backgroundColor: Colors.sage[100] },
+  // `thumb` / `thumbImage` / `thumbFallback` DELETED in row 5 Block 3 Part D:
+  // the slot is TreatedImage now (PLAN_THUMB above), which carries its own
+  // clip, radius and ramp fallback. The flat sage[100] square is gone with them.
   body: { flex: 1, gap: 2 },
   title: {
     fontSize: Typography.fontSize.sm,

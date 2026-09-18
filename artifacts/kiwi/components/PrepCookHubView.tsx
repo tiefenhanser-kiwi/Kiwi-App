@@ -8,7 +8,6 @@
 import React from "react";
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -90,6 +89,10 @@ export const TONE_STYLE: Record<PillTone, { bg: string; fg: string }> = {
 
 const SAGE_SURFACE = Colors.sage[600]; // #5C7350 — locked "Prep the week" lane.
 const CREAM = Palette.text.inverse; // #FBF7EF
+// WS9 row 5 Block 3 Part D — the promotable-plan card's thumb size, unchanged
+// from the 48 the deleted `s.planThumb` carried. Deliberately NOT an
+// ImageTreatment.thumb.* role: those are meal thumbs (D-WS9-252); this is a plan.
+const PLAN_CARD_THUMB = 48;
 
 export function PrepCookHubView({
   model,
@@ -202,11 +205,19 @@ function PromotePlanCard({
 }) {
   return (
     <View style={s.planCard}>
-      {plan.thumbnailUrl ? (
-        <Image source={{ uri: plan.thumbnailUrl }} style={s.planThumb} />
-      ) : (
-        <View style={[s.planThumb, s.thumbFallback]} />
-      )}
+      {/* WS9 row 5 Block 3 Part D — the PLAN image (PromotablePlan.thumbnailUrl
+          = PlanListItem.image, the template imageUrl — D-WS9-149) through
+          TreatedImage, for expo-image's memory-disk cache and the same ramp
+          fallback as the meal rows below. ⚠️ NOT a meal thumb: the size is the
+          card's own 48 (PLAN_CARD_THUMB), not an ImageTreatment.thumb.* role
+          (D-WS9-252). ~4.7% of plans carry an image (D-WS9-144), so the ramp is
+          what usually renders — the ruled interim, not a bug. */}
+      <TreatedImage
+        source={plan.thumbnailUrl ? { uri: plan.thumbnailUrl } : null}
+        width={PLAN_CARD_THUMB}
+        height={PLAN_CARD_THUMB}
+        radius={Radius.md}
+      />
       <View style={s.planText}>
         <DisplayTitle source={plan} variant="slim" style={s.planCardName} />
         {plan.dateRangeLabel && (
@@ -448,8 +459,8 @@ function Hub({
                 </Pressable>
                 {/* WS9 row 5 Block 2 — the meal thumb through TreatedImage
                     (photo, or the warm ramp for a meal that never has one). The
-                    plan card above keeps its raw <Image>: that is a PLAN image
-                    (the template imageUrl), not a meal, and out of this block. */}
+                    plan card above goes through TreatedImage too since row 5
+                    Block 3 Part D, at its own 48 — a PLAN image, not a meal thumb. */}
                 <TreatedImage
                   source={row.thumbnailUrl ? { uri: row.thumbnailUrl } : null}
                   width={ImageTreatment.thumb.compact}
@@ -805,13 +816,9 @@ const s = StyleSheet.create({
     padding: Spacing[3],
     ...Shadow.card,
   },
-  planThumb: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.neutral[200],
-  },
-  thumbFallback: { backgroundColor: Colors.sage[100] },
+  // `planThumb` / `thumbFallback` DELETED in row 5 Block 3 Part D: the plan
+  // card's slot is TreatedImage (PLAN_CARD_THUMB), which carries its own clip,
+  // radius and ramp fallback. The flat neutral[200] / sage[100] squares are gone.
   planText: { flex: 1, gap: 2 },
   planCardName: {
     fontSize: Typography.fontSize.md,
