@@ -8,6 +8,7 @@ import {
   UnauthenticatedError,
   UpgradeRequiredError,
   extractUserFacingMessage,
+  parseRetryAfterSec,
 } from "../errors";
 
 test("ApiError carries status + body + userFacingMessage", () => {
@@ -92,4 +93,24 @@ test("extractUserFacingMessage: undefined on missing / non-object body", () => {
   assert.equal(extractUserFacingMessage({}), undefined);
   // Ignores non-string fields.
   assert.equal(extractUserFacingMessage({ error: 12 }), undefined);
+});
+
+// BUG-296 — Retry-After parsing: delta-seconds only.
+test("parseRetryAfterSec: delta-seconds parse, everything else undefined", () => {
+  assert.equal(parseRetryAfterSec("7"), 7);
+  assert.equal(parseRetryAfterSec(" 30 "), 30);
+  assert.equal(parseRetryAfterSec("0"), 0);
+  assert.equal(parseRetryAfterSec(null), undefined);
+  assert.equal(parseRetryAfterSec(undefined), undefined);
+  assert.equal(parseRetryAfterSec(""), undefined);
+  assert.equal(parseRetryAfterSec("-5"), undefined);
+  assert.equal(parseRetryAfterSec("1.5"), undefined);
+  assert.equal(parseRetryAfterSec("Wed, 21 Oct 2026 07:28:00 GMT"), undefined);
+});
+
+test("ApiError carries retryAfterSec when the details do", () => {
+  const withIt = new ApiError("x", { status: 429, body: null, retryAfterSec: 12 });
+  assert.equal(withIt.retryAfterSec, 12);
+  const without = new ApiError("x", { status: 429, body: null });
+  assert.equal(without.retryAfterSec, undefined);
 });

@@ -18,6 +18,7 @@ import {
   deriveBootstrapStatus,
   type BootstrapStatus,
 } from "@/lib/sessionBootstrap";
+import { authErrorPresentation } from "@/lib/authErrorCopy";
 import type { User } from "@/lib/types";
 
 export interface SignupOptions {
@@ -193,8 +194,9 @@ export function AuthProvider({
         queryClient.setQueryData<User | null>(ME_KEY, res.user);
         setToken(res.authToken);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Login failed";
-        setError(message);
+        // BUG-296 — the screen renders `error`; the 429 / 400 copy is decided
+        // in one place (lib/authErrorCopy.ts), not off the server's string.
+        setError(authErrorPresentation(err, "Login failed").message);
         throw err;
       }
     },
@@ -231,8 +233,7 @@ export function AuthProvider({
         queryClient.setQueryData<User | null>(ME_KEY, res.user);
         setToken(res.authToken);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Signup failed";
-        setError(message);
+        setError(authErrorPresentation(err, "Signup failed").message);
         throw err;
       }
     },

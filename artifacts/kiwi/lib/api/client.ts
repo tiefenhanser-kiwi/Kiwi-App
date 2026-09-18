@@ -44,6 +44,7 @@ import {
   UnauthenticatedError,
   UpgradeRequiredError,
   extractUserFacingMessage,
+  parseRetryAfterSec,
 } from "./errors";
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -198,7 +199,10 @@ export async function apiClient<T = unknown>(
   // ── Status routing ────────────────────────────────────────────────
   if (!res.ok) {
     const userFacingMessage = extractUserFacingMessage(rawBody);
-    const details = { status: res.status, body: rawBody, userFacingMessage };
+    // BUG-296 — carry Retry-After so a 429's consumer can hold its submit
+    // for the server's stated wait instead of guessing.
+    const retryAfterSec = parseRetryAfterSec(res.headers.get("Retry-After"));
+    const details = { status: res.status, body: rawBody, userFacingMessage, retryAfterSec };
 
     if (res.status === 401) {
       // WS9 BUG-239 — only an AUTHENTICATED request's 401 means "your session

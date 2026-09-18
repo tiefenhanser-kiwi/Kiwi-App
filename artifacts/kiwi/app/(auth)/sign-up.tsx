@@ -16,6 +16,8 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
+import { authErrorPresentation } from "@/lib/authErrorCopy";
 import { TRIAL_LENGTH_DAYS } from "@/lib/domain";
 import { isValidPhone } from "@/lib/phone";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -24,6 +26,7 @@ export default function SignUpPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signup, error, clearError } = useAuth();
+  const cooldown = useSubmitCooldown();
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -56,6 +59,10 @@ export default function SignUpPage() {
     !submitting;
 
   const handleSubmit = async () => {
+    // BUG-296 — inside a rate-limit hold the button is disabled and the copy
+    // is on screen; a tap that slips through must not raise the
+    // "missing fields" alert below.
+    if (cooldown.active) return;
     console.log("[sign-up] submit attempt", {
       email: email.trim(),
       hasPhone: phoneEntered,
@@ -109,9 +116,14 @@ export default function SignUpPage() {
       // handled" warning.
       router.replace("/onboarding-prefs");
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Signup failed. Please try again.";
+      // BUG-296 — same copy decision as context.error (which this screen
+      // also renders), plus the Retry-After hold on a 429.
+      const { message, retryAfterSec } = authErrorPresentation(
+        err,
+        "Signup failed. Please try again.",
+      );
       console.log("[sign-up] submit failed", message);
+      if (retryAfterSec !== null) cooldown.start(retryAfterSec);
       Alert.alert("Couldn't create your account", message);
     } finally {
       setSubmitting(false);
@@ -226,7 +238,7 @@ export default function SignUpPage() {
             <ActivityIndicator color={Colors.sage[700]} />
           </View>
         ) : (
-          <Button onPress={handleSubmit} label="Create account" />
+          <Button onPress={handleSubmit} label="Create account" disabled={cooldown.active} />
         )}
         <Text style={styles.trustSignal}>
           {`${TRIAL_LENGTH_DAYS}-day free trial · no credit card needed`}

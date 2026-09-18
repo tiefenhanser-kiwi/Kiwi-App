@@ -14,12 +14,19 @@ export interface ApiErrorDetails {
   status: number;
   body: unknown;
   userFacingMessage?: string;
+  /**
+   * BUG-296 — the response's `Retry-After` header, in whole seconds, when
+   * the server sent one (the rate limiter does, on every 429). Absent when
+   * there was no header or it was not a delta-seconds value.
+   */
+  retryAfterSec?: number;
 }
 
 export class ApiError extends Error {
   readonly status: number;
   readonly body: unknown;
   readonly userFacingMessage?: string;
+  readonly retryAfterSec?: number;
 
   constructor(message: string, details: ApiErrorDetails) {
     super(message);
@@ -27,7 +34,20 @@ export class ApiError extends Error {
     this.status = details.status;
     this.body = details.body;
     this.userFacingMessage = details.userFacingMessage;
+    this.retryAfterSec = details.retryAfterSec;
   }
+}
+
+/**
+ * Parse a `Retry-After` header value as delta-seconds. The HTTP-date form is
+ * not handled (nothing in this API sends it) and yields undefined, as does a
+ * missing, empty, negative or non-numeric value.
+ */
+export function parseRetryAfterSec(value: string | null | undefined): number | undefined {
+  if (value == null) return undefined;
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return undefined;
+  return Number(trimmed);
 }
 
 /**

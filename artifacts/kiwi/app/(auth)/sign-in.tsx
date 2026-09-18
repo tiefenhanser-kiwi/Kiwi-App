@@ -6,19 +6,22 @@ import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
+import { authErrorPresentation } from "@/lib/authErrorCopy";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function SignInPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { login, error, clearError } = useAuth();
+  const cooldown = useSubmitCooldown();
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
 
   const handleSubmit = async () => {
-    if (!email.trim() || !password) return;
+    if (!email.trim() || !password || cooldown.active) return;
     clearError();
     setSubmitting(true);
     try {
@@ -26,8 +29,11 @@ export default function SignInPage() {
       // Route through index.tsx's state machine (WS7-2-E Bug 2) so a user
       // who bailed mid-onboarding resumes at the right gate on re-login.
       router.replace("/");
-    } catch {
-      // Error is already in context.error; submit button re-enables below.
+    } catch (err) {
+      // The message is already in context.error. BUG-296 — a 429 also holds
+      // the button for the server's Retry-After so the bucket can refill.
+      const { retryAfterSec } = authErrorPresentation(err, "Login failed");
+      if (retryAfterSec !== null) cooldown.start(retryAfterSec);
     } finally {
       setSubmitting(false);
     }
@@ -67,7 +73,7 @@ export default function SignInPage() {
             <ActivityIndicator color={Colors.sage[700]} />
           </View>
         ) : (
-          <Button onPress={handleSubmit} label="Sign in" />
+          <Button onPress={handleSubmit} label="Sign in" disabled={cooldown.active} />
         )}
         <Link href="/(auth)/forgot-password" asChild>
           <Pressable>

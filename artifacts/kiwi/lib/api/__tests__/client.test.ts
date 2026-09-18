@@ -265,3 +265,35 @@ test("non-JSON body on 2xx with parseAs: 'json' → ApiSchemaError", async () =>
     },
   );
 });
+
+// BUG-296 — the limiter's 429 carries Retry-After; the wrapper surfaces it as
+// delta-seconds on ApiError so the auth screens can hold their submit.
+test("429 with Retry-After → ApiError.retryAfterSec is the header's seconds", async () => {
+  nextResponse = () =>
+    new Response(JSON.stringify({ error: "Too many requests, slow down." }), {
+      status: 429,
+      headers: { "Content-Type": "application/json", "Retry-After": "7" },
+    });
+  await assert.rejects(
+    () => apiClient("/auth/login", { method: "POST", body: {}, auth: false }),
+    (err: unknown) => {
+      assert.ok(err instanceof ApiError);
+      assert.equal(err.status, 429);
+      assert.equal(err.retryAfterSec, 7);
+      assert.equal(err.userFacingMessage, "Too many requests, slow down.");
+      return true;
+    },
+  );
+});
+
+test("429 without Retry-After → ApiError.retryAfterSec is undefined", async () => {
+  nextResponse = () => mockResponse({ error: "Too many requests, slow down." }, 429);
+  await assert.rejects(
+    () => apiClient("/auth/login", { method: "POST", body: {}, auth: false }),
+    (err: unknown) => {
+      assert.ok(err instanceof ApiError);
+      assert.equal(err.retryAfterSec, undefined);
+      return true;
+    },
+  );
+});

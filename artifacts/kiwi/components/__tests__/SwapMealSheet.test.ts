@@ -117,7 +117,16 @@ interface FetchStubResponse {
   ok: boolean;
   status: number;
   text: () => Promise<string>;
+  /** Optional on the stub; the Response contract always has it (see below). */
+  headers?: { get: (name: string) => string | null };
 }
+
+// BUG-296 — apiClient reads `res.headers.get("Retry-After")` on every non-2xx
+// response. A real Response always carries `headers`; this bare stub did not,
+// so the 429 case here threw a TypeError inside the wrapper instead of
+// producing the ApiError the sheet keys on. Every stub gets an empty headers
+// object so the wrapper sees the shape fetch guarantees.
+const NO_HEADERS = { get: () => null };
 
 let fetchCalls: string[] = [];
 let lastFindSimilarBody: { candidates: { id: string; title: string }[] } | null =
@@ -166,7 +175,8 @@ beforeEach(() => {
     if (String(url).includes("/meals/find-similar") && init?.body) {
       lastFindSimilarBody = JSON.parse(String(init.body));
     }
-    return fetchImpl(String(url));
+    const res = fetchImpl(String(url));
+    return { headers: NO_HEADERS, ...res };
   }) as unknown as typeof fetch;
 });
 
