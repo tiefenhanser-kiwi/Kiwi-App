@@ -47,6 +47,8 @@ import { homeSectionOrder } from "@/lib/home/homeSections";
 import { shouldOfferAddOwnMeals } from "@/lib/home/makeLaneOptions";
 import { buildRailItems } from "@/lib/home/rail";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
+import type { HomePayload } from "@/lib/api/home";
+import { patchUiState } from "@/lib/auth";
 import { dispatchGenerateResult } from "@/lib/groceryHandoff";
 import { buildCookSessionParams } from "@/lib/cooking/cookSession";
 import { Colors, Spacing } from "@/constants/tokens";
@@ -83,37 +85,32 @@ export default function HomeTab() {
   // neutral when we genuinely have nothing to render from.
   const isHomeLoading = homeQuery.isLoading;
 
-  // Prefetch AND, as of 2e, this screen's saved-plan count.
-  //
-  // The query key ["plans","list",["my_plans"]] is SHARED with three live
-  // consumers, so issuing it here warms all of them:
+  // Prefetch. The query key ["plans","list",["my_plans"]] is SHARED with three
+  // live consumers, so issuing it here warms all of them:
   //   • the Plans tab            (app/(tabs)/plans.tsx)
   //   • the Prep & Cook hub      (app/prep-cook.tsx)
   //   • AddMealToPlanSheet       (components/AddMealToPlanSheet.tsx)
   //
-  // ⚠️ IT NOW HAS A READER — see hasNoSavedPlans below. The long-standing
-  // "deliberate prefetch with no reader, do not sweep" warning is retired: the
-  // call is load-bearing for the make lane's third option, not just a cache
-  // warm. Removing it now breaks a visible feature, not only a latency win.
-  const myPlans = usePlans(["my_plans"]);
+  // ⚠️ DELIBERATE PREFETCH WITH NO READER ON THIS SCREEN — do not sweep. It
+  // briefly HAD one (2e → Row 5 Block 4: the make lane's third option gated on
+  // the saved-plan count); the D-WS9-247 amendment moved that gate to GET
+  // /home, so this is a cache warm again, not a feature.
+  usePlans(["my_plans"]);
 
-  // §4.5 — the third option ("Set up my Playlist" since D-WS9-247) renders
-  // ONLY when the user has NO SAVED PLANS.
+  // §4.5 / D-WS9-247 amendment — the third option ("Set up my Playlist")
+  // renders ONLY while the user has NO meals AND has NOT tapped it (Hans, on
+  // the device: "it displays until a user has a meal or they click the
+  // button"). Both halves ride GET /home so the state is per-USER — a tap on
+  // one phone hides the card on another — never AsyncStorage.
   //
-  // ⚠️ THIS IS NOT `isFirstRun`. firstPlanCreatedAt is a permanent stamp — once
-  // set it is never cleared — so a user who creates a plan and composts it is
-  // no longer "first run" while having zero saved plans. That user is exactly
-  // who needs this option, and gating on isFirstRun would hide it from them.
+  // ⚠️ THIS IS NOT `isFirstRun`. firstPlanCreatedAt is a permanent stamp; the
+  // CTA's gate is its own two facts.
   //
-  // `my_plans` excludes soft-deleted rows server-side (planQueries: the
-  // isArchived:false gate), so length === 0 genuinely means "nothing saved",
-  // post-compost included.
-  //
-  // ⚠️ SUPPRESS WHILE UNKNOWN (ruled). While the query is in flight `data` is
-  // undefined — that is "we don't know yet", not "zero". The decision lives in
-  // lib/home/makeLaneOptions so it can be pinned by a test; this screen is
-  // outside the test glob and must not re-derive it inline.
-  const hasNoSavedPlans = shouldOfferAddOwnMeals(myPlans.data?.plans.length);
+  // ⚠️ SUPPRESS WHILE UNKNOWN (ruled). While GET /home is in flight `data` is
+  // undefined — that is "we don't know yet", not "fresh account". The decision
+  // lives in lib/home/makeLaneOptions so it can be pinned by a test; this
+  // screen is outside the test glob and must not re-derive it inline.
+  const showPlaylistCta = shouldOfferAddOwnMeals(homeQuery.data);
 
   // Featured-plans rail — ONE ordered read (WS9-2 2c, D-WS9-154). Replaces the
   // three per-badge usePlans calls that used to be merged client-side; the
@@ -170,7 +167,19 @@ export default function HomeTab() {
   // locked because they trigger AI GENERATION. Building a playlist is not
   // generation — gating it here would tell a lapsed user they cannot list
   // meals they own.
+  //
+  // D-WS9-247 amendment — the tap is the second half of the gate. Hide the
+  // card NOW (setQueryData on the payload this screen reads, so the user
+  // never sees it again on the way back), and record the tap on the USER row
+  // (fire-and-forget: a failed PATCH costs one more sighting, which the next
+  // tap repairs — never a blocked navigation).
   const handleAddOwnMeals = () => {
+    queryClient.setQueryData<HomePayload>(["home", "payload"], (prev) =>
+      prev ? { ...prev, playlistCtaTappedAt: new Date().toISOString() } : prev,
+    );
+    patchUiState({ playlistCtaTapped: true }).catch((err) => {
+      console.warn("[home] playlistCtaTapped PATCH failed", err);
+    });
     router.push("/(tabs)/playlist");
   };
 
@@ -420,7 +429,7 @@ export default function HomeTab() {
                     onSubmit={handleTellSubmit}
                     onUsePreferences={handleUsePreferences}
                     onAddOwnMeals={handleAddOwnMeals}
-                    showAddOwnMeals={hasNoSavedPlans}
+                    showAddOwnMeals={showPlaylistCta}
                   />
                 </React.Fragment>
               );

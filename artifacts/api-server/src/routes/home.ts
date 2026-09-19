@@ -241,7 +241,8 @@ export function createHomeRouter(
       // WS9-2 2c Commit 6 — `planDiscoveryCards` REMOVED. It was built on every
       // /home request and parsed by the mobile Zod schema, and NOTHING on the
       // client ever read it: useHomePayload has exactly one consumer, and that
-      // screen reads only todaysMeal, activePlan and firstPlanCreatedAt.
+      // screen read only todaysMeal, activePlan and firstPlanCreatedAt (Row 5
+      // Block 4 added the two CTA-gate fields below, read by the same screen).
       //
       // Removing it also deletes the filter-resolution block that fed it — the
       // savedFilters narrowing, the default-by-plan-count branch, and with it
@@ -254,12 +255,25 @@ export function createHomeRouter(
       // "the filters the Plans tab remembers", which is the only place a user
       // can actually set them. (The Plans tab additionally has its own
       // `lastPlansFilters`; reconciling the two is not 2c's.)
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        // D-WS9-026 — firstPlanCreatedAt drives the Home teaching-arc collapse
-        // (null → first-run, show the arc; non-null → collapsed forever).
-        select: { firstPlanCreatedAt: true },
-      });
+      // Row 5 Block 4 / D-WS9-247 amendment — the two halves of the "Set up
+      // my Playlist" CTA gate ride THIS payload, which Home already fetches,
+      // rather than a new client query. The has-a-meal half is an indexed
+      // existence read (userId, isArchived:false — the `my_meals` predicate;
+      // a playlist add forks the catalog meal into a row this matches, so
+      // "has a meal" covers authored AND playlisted). Both reads in parallel
+      // so the payload pays no extra round-trip.
+      const [user, anyMeal] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          // D-WS9-026 — firstPlanCreatedAt drives the Home teaching-arc collapse
+          // (null → first-run, show the arc; non-null → collapsed forever).
+          select: { firstPlanCreatedAt: true, playlistCtaTappedAt: true },
+        }),
+        prisma.meal.findFirst({
+          where: { userId, isArchived: false },
+          select: { id: true },
+        }),
+      ]);
 
       return res.json({
         todaysMeal,
@@ -267,6 +281,9 @@ export function createHomeRouter(
         // D-WS9-026 — ISO timestamp (full precision preserves the
         // time-to-first-plan metric); client only needs null-vs-not.
         firstPlanCreatedAt: user?.firstPlanCreatedAt?.toISOString() ?? null,
+        // D-WS9-247 amendment — the CTA gate: shown only when BOTH are falsy.
+        playlistCtaTappedAt: user?.playlistCtaTappedAt?.toISOString() ?? null,
+        hasMeals: anyMeal !== null,
       });
     } catch (err) {
       logger.error({ err, userId }, "GET /home failed");

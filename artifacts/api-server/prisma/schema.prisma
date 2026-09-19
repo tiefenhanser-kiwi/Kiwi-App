@@ -295,6 +295,15 @@ model User {
   // plan activation metric (un-reconstructable after the fact). Nullable,
   // no backfill — the DB is wiped before launch; the first create flips it.
   firstPlanCreatedAt       DateTime?
+  // Row 5 Block 4 / D-WS9-247 amendment — the Home card's "Set up my
+  // Playlist" CTA hides once the user has tapped it (or has any meal). Set
+  // by PATCH /me/ui-state { playlistCtaTapped: true }, read by GET /home.
+  // Per-USER, not per-device: a tap on one phone hides it on another, which
+  // is why this is a column and not AsyncStorage. A timestamp like its
+  // sibling above (IS NULL is the gate; the value says when). Nullable, no
+  // default, no backfill — ADDITIVE, so the live Cloud Run client that does
+  // not know the column is unaffected (D-WS9-254).
+  playlistCtaTappedAt      DateTime?
   // WS9A BUG-233 + BUG-234 — the token revocation epoch. NULL means "never
   // revoked", which is every row that exists today, so behaviour is identical
   // to c38a596 until something bumps it (D-WS9-230: no backfill).

@@ -42,6 +42,8 @@ function mkPayload(over: Partial<HomePayload>): HomePayload {
     // field itself. firstPlanCreatedAt is required by HomePayload, so it is
     // spelled out here rather than relying on the caller's override.
     firstPlanCreatedAt: null,
+    playlistCtaTappedAt: null,
+    hasMeals: false,
     ...over,
   };
 }

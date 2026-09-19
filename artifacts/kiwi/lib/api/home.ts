@@ -48,6 +48,14 @@ export const HomePayloadSchema = z.object({
   // forever. A timestamp, not a boolean, so the value doubles as the
   // time-to-first-plan activation metric server-side.
   firstPlanCreatedAt: z.string().nullable(),
+  // Row 5 Block 4 / D-WS9-247 amendment — the "Set up my Playlist" CTA gate,
+  // both halves from the server so they are per-USER (a tap on one phone
+  // hides the card on another): the tapped stamp (ISO or null) and whether
+  // the user owns any non-archived meal. Required, like firstPlanCreatedAt:
+  // a server that does not send them is a contract mismatch and fails loudly
+  // here rather than silently showing or hiding the CTA.
+  playlistCtaTappedAt: z.string().nullable(),
+  hasMeals: z.boolean(),
 });
 export type HomePayload = z.infer<typeof HomePayloadSchema>;
 

@@ -238,6 +238,12 @@ export async function patchUiState(body: {
   lastPlanDiscoveryFilters?: PlanDiscoveryFilter[];
   lastPlansFilters?: PlanDiscoveryFilter[];
   lastMealsFilters?: MealsFilter[];
+  /**
+   * Row 5 Block 4 / D-WS9-247 amendment — the Home card's "Set up my
+   * Playlist" CTA was tapped. Send the FACT; the server stamps the time.
+   * One-way: there is no `false`.
+   */
+  playlistCtaTapped?: true;
 }): Promise<void> {
   await apiClient("/me/ui-state", {
     method: "PATCH",

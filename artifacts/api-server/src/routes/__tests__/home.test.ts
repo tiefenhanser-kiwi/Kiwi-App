@@ -136,6 +136,9 @@ interface StubOpts {
   // WS9 3a — R4 active-plan grocery-list pointer + D-WS9-026 first-plan stamp.
   existingGroceryListId?: string | null;
   firstPlanCreatedAt?: Date | null;
+  // Row 5 Block 4 (D-WS9-247 amendment) — the CTA gate's two halves.
+  playlistCtaTappedAt?: Date | null;
+  hasMeals?: boolean;
   // WS9-2 2c (D-WS9-154) — GET /home/rail rows.
   rail?: ReturnType<typeof railTemplate>[];
 }
@@ -248,7 +251,16 @@ function makeStubPrisma(opts: StubOpts) {
       findUnique: async () => ({
         lastPlanDiscoveryFilters: opts.lastPlanDiscoveryFilters ?? [],
         firstPlanCreatedAt: opts.firstPlanCreatedAt ?? null,
+        playlistCtaTappedAt: opts.playlistCtaTappedAt ?? null,
       }),
+    },
+    meal: {
+      // Row 5 Block 4 — the has-a-meal existence read (my_meals predicate).
+      findFirst: async (args: { where: Record<string, unknown> }) => {
+        assert.equal(args.where.isArchived, false, "must exclude archived rows");
+        assert.equal(typeof args.where.userId, "string", "must be scoped to the user");
+        return opts.hasMeals ? { id: "meal-any" } : null;
+      },
     },
     systemSetting: {
       findMany: async (args: { where: { key: { in: string[] } } }) =>
@@ -342,6 +354,51 @@ describe("GET /home", () => {
       assert.ok(body.activePlan);
       assert.equal(body.activePlan.groceryListId, "gl-42");
       assert.equal(body.firstPlanCreatedAt, stamp.toISOString());
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // Row 5 Block 4 / D-WS9-247 amendment — the "Set up my Playlist" CTA gate's
+  // two halves ride the payload Home already fetches: the per-USER tapped
+  // stamp (a column, not device storage) and whether the user has ANY
+  // non-archived meal of their own.
+  it("D-WS9-247 amendment — exposes playlistCtaTappedAt (ISO or null) and hasMeals", async () => {
+    const startDate = startOfDay(new Date(Date.now() - 2 * MS_PER_DAY));
+    const tapped = new Date("2026-09-18T20:00:00.000Z");
+    const harness = await spinUp(
+      makeStubPrisma({
+        activeInstance: activeInstanceRow({ startDate, items: [] }),
+        savedPlanCount: 1,
+        playlistCtaTappedAt: tapped,
+        hasMeals: true,
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/home");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { playlistCtaTappedAt: string | null; hasMeals: boolean };
+      assert.equal(body.playlistCtaTappedAt, tapped.toISOString());
+      assert.equal(body.hasMeals, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("D-WS9-247 amendment — a brand-new account: playlistCtaTappedAt null, hasMeals false (the CTA shows)", async () => {
+    const startDate = startOfDay(new Date(Date.now() - 2 * MS_PER_DAY));
+    const harness = await spinUp(
+      makeStubPrisma({
+        activeInstance: activeInstanceRow({ startDate, items: [] }),
+        savedPlanCount: 0,
+        // playlistCtaTappedAt + hasMeals default to null / false.
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/home");
+      const body = (await res.json()) as { playlistCtaTappedAt: string | null; hasMeals: boolean };
+      assert.equal(body.playlistCtaTappedAt, null);
+      assert.equal(body.hasMeals, false);
     } finally {
       await harness.close();
     }

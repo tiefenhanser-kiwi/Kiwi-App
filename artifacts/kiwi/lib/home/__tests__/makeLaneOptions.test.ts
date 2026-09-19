@@ -1,57 +1,63 @@
-// WS9-2 2e Part 2 Phase 4 (§4.5) — the "Add my own meals" predicate.
+// WS9-2 2e Part 2 Phase 4 (§4.5) → Row 5 Block 4 (D-WS9-247 amendment) — the
+// "Set up my Playlist" predicate.
 //
 // app/(tabs)/index.tsx is outside the test glob, so this decision was
-// unguarded while it sat inline. It is the subtlest thing in the 2e Home work:
-// three separate ways to get it wrong, each of which looks like a tidy-up.
+// unguarded while it sat inline. Hans's rule, September 18: "it displays until
+// a user has a meal or they click the button" — offered ⇔ NO meals AND NOT
+// tapped. Both halves come from GET /home (per-user, never per-device).
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { shouldOfferAddOwnMeals } from "../makeLaneOptions";
 
-test("no saved plans → the option is offered", () => {
-  assert.equal(shouldOfferAddOwnMeals(0), true);
+const FRESH = { hasMeals: false, playlistCtaTappedAt: null };
+
+test("no meals AND never tapped → the option is offered", () => {
+  assert.equal(shouldOfferAddOwnMeals(FRESH), true);
 });
 
-test("any saved plan → the option is absent", () => {
-  assert.equal(shouldOfferAddOwnMeals(1), false);
-  assert.equal(shouldOfferAddOwnMeals(7), false);
+test("has a meal → absent, even if never tapped (the half Hans named first)", () => {
+  assert.equal(shouldOfferAddOwnMeals({ hasMeals: true, playlistCtaTappedAt: null }), false);
 });
 
-test("⚠️ UNKNOWN IS NOT ZERO — an unresolved count suppresses the option", () => {
-  // While the plans query is in flight the count is undefined, meaning "we have
-  // not looked yet". Coercing that to 0 (`count ?? 0`, or a truthiness check on
-  // the data object) renders the option and then RETRACTS it a beat later,
-  // which is worse than showing it late — and it is the exact mistake the
-  // isFirstRun gate already documents avoiding.
+test("tapped → absent, even with no meals (the half that hides it on every device)", () => {
+  assert.equal(
+    shouldOfferAddOwnMeals({ hasMeals: false, playlistCtaTappedAt: "2026-09-18T20:00:00.000Z" }),
+    false,
+  );
+});
+
+test("both → absent", () => {
+  assert.equal(
+    shouldOfferAddOwnMeals({ hasMeals: true, playlistCtaTappedAt: "2026-09-18T20:00:00.000Z" }),
+    false,
+  );
+});
+
+test("⚠️ UNKNOWN IS NOT 'NO' — an unloaded payload suppresses the option", () => {
+  // While GET /home is in flight the payload is undefined, meaning "we have
+  // not looked yet". Treating that as fresh renders the option and then
+  // RETRACTS it a beat later, which is worse than showing it late — the exact
+  // mistake the isFirstRun gate already documents avoiding.
   assert.equal(shouldOfferAddOwnMeals(undefined), false);
-});
-
-test("the three cases are exhaustive and distinct", () => {
-  // undefined and 0 must NOT collapse to the same answer — that collapse is the
-  // whole bug this predicate exists to prevent.
   assert.notEqual(
     shouldOfferAddOwnMeals(undefined),
-    shouldOfferAddOwnMeals(0),
-    "unknown and zero must produce different answers",
+    shouldOfferAddOwnMeals(FRESH),
+    "unknown and fresh must produce different answers",
   );
-  assert.equal(shouldOfferAddOwnMeals(undefined), shouldOfferAddOwnMeals(1));
 });
 
-test("the predicate is COUNT-based, not first-run-based", () => {
-  // ⚠️ The tempting simplification is `isFirstRun`, which is right there in the
-  // same component. It is wrong: firstPlanCreatedAt is a permanent stamp, so a
-  // user who creates a plan and composts it is NOT first-run but HAS zero saved
-  // plans — and is exactly who this option is for. A count of 0 must offer the
-  // option regardless of how long the account has existed.
-  //
-  // Expressed as a contract: the function takes a COUNT and nothing else. It
-  // has no access to a first-run flag and cannot be made to depend on one
-  // without changing its signature, which is the point.
-  assert.equal(shouldOfferAddOwnMeals.length, 1, "one input: the count");
-  assert.equal(
-    shouldOfferAddOwnMeals(0),
-    true,
-    "zero saved plans offers the option even for a long-lived account",
-  );
+test("the tapped half is a null-check on the stamp, not a truthiness check on a string", () => {
+  // An empty string is not a valid ISO stamp and the server never sends one,
+  // but if it did, it is NOT null — the card must stay hidden. Guards against
+  // `!playlistCtaTappedAt`.
+  assert.equal(shouldOfferAddOwnMeals({ hasMeals: false, playlistCtaTappedAt: "" }), false);
+});
+
+test("the predicate takes the payload's gate fields and nothing else", () => {
+  // Expressed as a contract: one input, the GET /home gate shape. It has no
+  // access to a saved-plan count or a first-run flag and cannot be made to
+  // depend on either without changing its signature, which is the point.
+  assert.equal(shouldOfferAddOwnMeals.length, 1, "one input: the home gate fields");
 });

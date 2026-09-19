@@ -60,6 +60,9 @@ const HOME_FULL = {
     groceryListId: "gl-1",
   },
   firstPlanCreatedAt: "2026-05-10T00:00:00.000Z",
+  // Row 5 Block 4 (D-WS9-247 amendment) — the CTA gate, both halves required.
+  playlistCtaTappedAt: "2026-09-18T20:00:00.000Z",
+  hasMeals: true,
 };
 
 // The empty-state Home payload — no active plan, nothing assigned to today.
@@ -67,6 +70,8 @@ const HOME_EMPTY = {
   todaysMeal: null,
   activePlan: null,
   firstPlanCreatedAt: null,
+  playlistCtaTappedAt: null,
+  hasMeals: false,
 };
 
 // ── Harness ─────────────────────────────────────────────────────────────────
@@ -109,12 +114,15 @@ test("HomePayloadSchema parses the all-null empty state", () => {
 
 // WS9-2 2c Commit 6 — REPLACES "rejects an unknown discovery-card badge". The
 // field is gone from both the server builder and this schema; the payload the
-// client actually reads is exactly these three keys.
+// client actually reads is exactly these five keys (three + the Row 5 Block 4
+// CTA-gate pair).
 test("HomePayloadSchema no longer carries planDiscoveryCards", () => {
   const parsed = HomePayloadSchema.parse(HOME_FULL);
   assert.deepEqual(Object.keys(parsed).sort(), [
     "activePlan",
     "firstPlanCreatedAt",
+    "hasMeals",
+    "playlistCtaTappedAt",
     "todaysMeal",
   ]);
 

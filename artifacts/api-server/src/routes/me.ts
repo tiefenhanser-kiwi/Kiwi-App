@@ -116,6 +116,12 @@ const uiStateSchema = z.object({
   lastPlanDiscoveryFilters: z.array(z.enum(FILTER_KEYS)).optional(),
   lastPlansFilters: z.array(z.enum(FILTER_KEYS)).optional(),
   lastMealsFilters: z.array(z.enum(MEALS_FILTER_KEYS)).optional(),
+  // Row 5 Block 4 / D-WS9-247 amendment — the Home card's "Set up my
+  // Playlist" CTA was tapped. The client sends the FACT (`true`), never a
+  // timestamp; the server stamps `playlistCtaTappedAt = now()`. `false` is not
+  // a value: the flag is one-way (the CTA is only ever visible while unset,
+  // so there is nothing to un-tap).
+  playlistCtaTapped: z.literal(true).optional(),
   // At-least-one-field requirement is enforced below by the runtime
   // Object.keys length check, so Zod's .optional() on every field is
   // intentional.
@@ -634,10 +640,15 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         details: parsed.error.flatten(),
       });
     }
-    const updates = parsed.data;
-    if (Object.keys(updates).length === 0) {
+    const { playlistCtaTapped, ...filterUpdates } = parsed.data;
+    if (Object.keys(parsed.data).length === 0) {
       return res.status(400).json({ error: "no fields to update" });
     }
+    // The tapped FACT becomes a server-side stamp (never client time).
+    const updates: Prisma.UserUpdateInput = {
+      ...filterUpdates,
+      ...(playlistCtaTapped ? { playlistCtaTappedAt: new Date() } : {}),
+    };
 
     try {
       await prisma.user.update({
