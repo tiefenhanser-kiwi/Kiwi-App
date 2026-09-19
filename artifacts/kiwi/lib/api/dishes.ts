@@ -222,7 +222,6 @@ export interface UpdateDishInput {
   difficulty?: "easy" | "medium" | "fancy";
   servingsDefault?: number;
   tags?: string[];
-  imageUrl?: string | null;
   macros?: SaveDishMacrosPerServing;
   ingredients?: SaveDishIngredient[];
   steps?: SaveDishStep[];

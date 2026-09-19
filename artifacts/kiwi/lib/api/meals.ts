@@ -460,7 +460,6 @@ export interface UpdateMealInput {
   estimatedTimeMinutes?: number;
   difficulty?: "easy" | "medium" | "fancy";
   tags?: string[];
-  imageUrl?: string | null;
   macros?: SaveMealMacrosPerServing;
   dishes?: SaveMealDish[];
   // WS7-7-A B5 — "apply every time" from inside a plan. When set, the server

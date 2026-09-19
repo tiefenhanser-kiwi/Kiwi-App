@@ -1036,7 +1036,8 @@ export interface RematerializeMealPayload {
   difficulty?: "easy" | "medium" | "fancy";
   tags?: string[];
   macros?: MaterializeMealMacrosPerServing;
-  imageUrl?: string | null;
+  // No `imageUrl` (BUG-297 / D-WS9-246): the image is server-owned — the
+  // queue writes it, forks inherit it, no edit path sets it.
   // dishes[] — REQUIRED for rematerialize; the route uses a scalar-only
   // update path when dishes is absent so the wipe never runs unnecessarily.
   dishes: MaterializeMealDish[];
@@ -1143,7 +1144,6 @@ export async function rematerializeMeal(
   if (payload.difficulty !== undefined)
     scalarUpdate.difficulty = payload.difficulty;
   if (payload.tags !== undefined) scalarUpdate.tags = payload.tags;
-  if (payload.imageUrl !== undefined) scalarUpdate.imageUrl = payload.imageUrl;
   if (payload.macros) {
     if (payload.macros.caloriesPerServing !== undefined)
       scalarUpdate.caloriesPerServing = payload.macros.caloriesPerServing;
@@ -1296,7 +1296,6 @@ export interface RematerializeDishPayload {
   servingsDefault?: number;
   tags?: string[];
   macros?: MaterializeMealMacrosPerServing;
-  imageUrl?: string | null;
   ingredients?: MaterializeMealIngredient[];
   steps?: MaterializeMealStep[];
   sourceType?: "manual" | "wizard" | "directed" | "curated";
@@ -1353,7 +1352,6 @@ export async function rematerializeDish(
   if (payload.servingsDefault !== undefined)
     scalarUpdate.servingsDefault = payload.servingsDefault;
   if (payload.tags !== undefined) scalarUpdate.tags = payload.tags;
-  if (payload.imageUrl !== undefined) scalarUpdate.imageUrl = payload.imageUrl;
   if (payload.macros) {
     if (payload.macros.caloriesPerServing !== undefined)
       scalarUpdate.caloriesPerServing = payload.macros.caloriesPerServing;

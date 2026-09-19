@@ -565,6 +565,45 @@ describe("PATCH /me/meals/:id (body validation)", () => {
       await harness.close();
     }
   });
+
+  // BUG-297 / D-WS9-246 — no client-supplied image, anywhere. The field is
+  // GONE from the schema (not stripped), so it is an unknown key and the
+  // request FAILS — a client that starts sending it is caught here, not
+  // ignored in production. Both the URL form and the quieter null form (a
+  // nulled URL beside imageStatus=ready would be a slot the queue never
+  // revisits) are refused, and NO update reaches the row.
+  it("BUG-297: `imageUrl` is not patchable — a URL is refused with 400 and nothing is written", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "ok",
+        imageUrl: "https://evil.example/anything.png",
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { error: string; details?: { fieldErrors?: Record<string, unknown> } };
+      assert.equal(body.error, "invalid body");
+      assert.equal(captured.mealUpdates.length, 0, "the refused body must not reach the row");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BUG-297: `imageUrl: null` (the quiet form) is refused the same way", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", { imageUrl: null });
+      assert.equal(res.status, 400);
+      assert.equal(captured.mealUpdates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 // ── PATCH /me/meals/:id — scalar-only patch ─────────────────────────────
@@ -1011,6 +1050,25 @@ describe("PATCH /me/dishes/:id (body validation)", () => {
     try {
       const res = await authPatch(harness, "/me/dishes/dish-1", {});
       assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // BUG-297 — the same door on the dish shape (Dish.imageUrl renders on the
+  // dish detail / DishRow), closed the same way.
+  it("BUG-297: `imageUrl` is not patchable on a dish either — 400, nothing written", async () => {
+    const { prisma, captured } = makeStub({
+      dishes: [{ id: "dish-1", userId: USER_ID, isArchived: false }],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/dishes/dish-1", {
+        title: "ok",
+        imageUrl: "https://evil.example/anything.png",
+      });
+      assert.equal(res.status, 400);
+      assert.equal(captured.dishUpdates.length, 0);
     } finally {
       await harness.close();
     }
