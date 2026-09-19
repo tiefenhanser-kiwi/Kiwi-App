@@ -1234,6 +1234,15 @@ model GroceryList {
   // WS6 6c-4 / WS7 sync: drift detection against MealPlanInstance.revisionId.
   lastGeneratedFromPlanRevisionId Int?
   lastGeneratedAt                 DateTime?
+  // Row 8 Block 1 — Instacart link-out. The most recent shopping-list page
+  // Kiwi minted for this list: written on EVERY successful link (a later tap
+  // overwrites — a link is generated at send time, never cached-and-reused),
+  // so these are a record, not a cache. `status` is deliberately NOT touched
+  // by link-out: Kiwi never sees the cart, so it cannot know an order
+  // happened, and `ordered` stays reserved and unused.
+  instacartLinkUrl                String?
+  instacartLinkedAt               DateTime?
+  instacartLinkExpiresAt          DateTime?
   createdAt                       DateTime          @default(now())
   updatedAt                       DateTime          @updatedAt
 
