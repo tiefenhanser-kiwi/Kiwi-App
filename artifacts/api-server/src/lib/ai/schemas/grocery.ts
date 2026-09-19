@@ -266,3 +266,36 @@ export const GenerateGroceryListResultSchema = z.object({
 export type GenerateGroceryListResult = z.infer<
   typeof GenerateGroceryListResultSchema
 >;
+
+// Row 8 Block 1 — POST /grocery-lists/:id/instacart-link body. `items` is the
+// CLIENT's selection (R1: the server enforces ownership and liveness only;
+// the unchecked-rows / opted-in-staples default lives on the phone). Per item
+// the phone may add the pack numbers it derived: `packCount` is the NUMBER OF
+// PACKS from packsToCoverNeed (an integer ≥ 1, never the displayed total —
+// the server multiplies by the row's per-pack size), `packUnit` the pack noun
+// it shows, `packSizeText` an optional size parenthetical for display_text.
+// `retailerKey` lands the shopper on one retailer's storefront (verified in
+// Instacart's tutorial: `?retailer_key=` on the returned URL). Strict: an
+// unknown key is a 400, not a silent drop.
+export const InstacartLinkInputSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            groceryListItemId: z.string().min(1).max(64),
+            packCount: z.number().positive().max(99).optional(),
+            packUnit: z.string().trim().min(1).max(32).optional(),
+            packSizeText: z.string().trim().min(1).max(64).optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(200),
+    retailerKey: z
+      .string()
+      .regex(/^[a-z0-9-]{1,64}$/, "retailerKey must match /^[a-z0-9-]{1,64}$/")
+      .optional(),
+  })
+  .strict();
+export type InstacartLinkInput = z.infer<typeof InstacartLinkInputSchema>;

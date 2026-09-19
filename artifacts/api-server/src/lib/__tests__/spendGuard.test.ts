@@ -518,12 +518,20 @@ describe("validateSpendGuardEnv (BUG-263)", () => {
   it("the summary line owns only the three guard vars — no other env leaks", () => {
     const r = recorder();
     validateSpendGuardEnv(
-      { AI_DAILY_CEILING_USD: "10", DATABASE_URL: "postgres://secret", JWT_SECRET: "s3cr3t" },
+      {
+        AI_DAILY_CEILING_USD: "10",
+        DATABASE_URL: "postgres://secret",
+        JWT_SECRET: "s3cr3t",
+        // Row 8 Block 1 — the Instacart key joins the set of values that must
+        // never reach a boot line (its own line is pinned in instacartClient.test.ts).
+        INSTACART_API_KEY: "keys.instacart-secret-value",
+      },
       r.log,
     );
     const serialized = JSON.stringify(r.infos) + JSON.stringify(r.errors);
     assert.ok(!serialized.includes("postgres://"), "DATABASE_URL leaked");
     assert.ok(!serialized.includes("s3cr3t"), "JWT_SECRET leaked");
+    assert.ok(!serialized.includes("instacart-secret-value"), "INSTACART_API_KEY leaked");
     assert.deepEqual(Object.keys(r.infos[0].obj).sort(), [
       "dailyCeilingUsd", "event", "invalidVars", "killSwitch", "userDailyCalls",
     ]);

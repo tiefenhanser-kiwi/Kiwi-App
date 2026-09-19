@@ -177,6 +177,21 @@ const SETTINGS: SettingSeed[] = [
     defaultValue: 8,
     description: "Image-output USD per million tokens for gpt-image-1-mini.",
   },
+  // Row 8 Block 1 — Instacart link-out feature flag. Read through
+  // lib/systemSettings.readBooleanSetting (60 s cache per router instance):
+  // POST /grocery-lists/:id/instacart-link answers 403 retailer_disabled
+  // while false, and GET /grocery-lists/:id reports it under
+  // `retailers.instacart.enabled` so the phone can gate the CTA. Seeded OFF;
+  // flipping the row's `value` to true turns the feature on for everyone
+  // within a minute, no deploy. The env (INSTACART_API_KEY + BASE_URL) is a
+  // separate gate — the flag on with no env is 503 retailer_not_configured.
+  {
+    key: "retailer.instacart_enabled",
+    value: false,
+    defaultValue: false,
+    description:
+      "Instacart link-out on/off. true: the grocery-list Instacart CTA is live and POST /grocery-lists/:id/instacart-link mints shopping-list pages. false: the route answers 403 and the app shows 'coming soon'.",
+  },
 ];
 
 export async function seedSystemSettings(prisma: PrismaClient): Promise<void> {

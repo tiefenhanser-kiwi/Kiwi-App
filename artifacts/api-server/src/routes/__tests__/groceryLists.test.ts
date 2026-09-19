@@ -16,6 +16,11 @@ import { GroceryListAIError } from "../../lib/groceryListAI";
 import type { ConsolidatedItem, GrocerySource } from "../../lib/groceryList";
 import { createGroceryListsRouter } from "../groceryLists";
 import type { GenerateGroceryListResult } from "../../lib/ai/schemas/grocery";
+import {
+  InstacartApiError,
+  InstacartTimeoutError,
+} from "../../lib/retailers/instacartClient";
+import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 
 // ── stubs ──────────────────────────────────────────────────────────────
@@ -47,6 +52,11 @@ interface ListRow {
   lastGeneratedFromPlanRevisionId: number | null;
   lastGeneratedAt: Date | null;
   createdAt: Date;
+  // Row 8 Block 1 — the Instacart link record. Optional on the stub so every
+  // existing seed stays terse; the route writes all three on a success.
+  instacartLinkUrl?: string | null;
+  instacartLinkedAt?: Date | null;
+  instacartLinkExpiresAt?: Date | null;
 }
 
 interface ListItemRow {
@@ -147,6 +157,9 @@ interface StubState {
   // default, which yields EMPTY_RELATION_INDEX and the pre-A2b fold; a test
   // that wants the reader ACTIVE seeds edges here.
   relations: RelationFixture[];
+  // Row 8 Block 1 — SystemSetting rows by key (retailer.instacart_enabled).
+  // Absent key → null row → readBooleanSetting falls back to false.
+  settings: Map<string, unknown>;
   txCount: number;
   // BUG-116 (1) — the options object each $transaction was opened with, in
   // call order. Lets a test pin the reconcile batch's raised budget.
@@ -165,6 +178,7 @@ function makeState(): StubState {
     ingredientDefaultUnits: new Map(),
     meals: new Map(),
     relations: [],
+    settings: new Map(),
     txCount: 0,
     txOptions: [] as Array<Record<string, unknown> | undefined>,
   };
@@ -260,6 +274,13 @@ function makeStubPrisma(state: StubState) {
   };
 
   return {
+    // Row 8 Block 1 — the feature-flag read (lib/systemSettings).
+    systemSetting: {
+      findUnique: async ({ where }: { where: { key: string } }) =>
+        state.settings.has(where.key)
+          ? { key: where.key, value: state.settings.get(where.key) }
+          : null,
+    },
     // WS9 3e Part 2.2 — meal-title lookup for the detail GET's provenance join.
     meal: {
       findMany: async (args: {
@@ -482,10 +503,17 @@ function makeStubPrisma(state: StubState) {
       findMany: async ({
         where,
       }: {
-        where: { groceryListId: string };
+        where: { groceryListId: string; id?: { in: string[] } };
       }) => {
+        // Row 8 Block 1 — the instacart-link route loads the client's
+        // selection by id (soft-deleted rows INCLUDED; compose skips them).
+        const idFilter = where.id?.in ? new Set(where.id.in) : null;
         return state.listItems
-          .filter((i) => i.groceryListId === where.groceryListId)
+          .filter(
+            (i) =>
+              i.groceryListId === where.groceryListId &&
+              (!idFilter || idFilter.has(i.id ?? "")),
+          )
           .map((i) => ({
             ...i,
             isUserAdded: i.isUserAdded ?? false,
@@ -658,6 +686,17 @@ interface HarnessOpts {
     suggestedQuantity?: string;
   }>;
   categorizeThrows?: Error;
+  // Row 8 Block 1 — the Instacart seam. Default: a config that IS present and
+  // a client that throws, so a test that forgets to inject cannot reach the
+  // network and cannot pass by accident either.
+  instacart?: {
+    readConfig: () => { apiKey: string; baseUrl: string } | null;
+    createShoppingListLink: (
+      payload: unknown,
+      deps: unknown,
+    ) => Promise<{ url: string }>;
+  };
+  instacartLimiterOpts?: { capacity: number; refillPerSec: number };
 }
 
 async function spinUp(opts: HarnessOpts = {}): Promise<Harness> {
@@ -693,6 +732,16 @@ async function spinUp(opts: HarnessOpts = {}): Promise<Harness> {
     // its job cannot masquerade as a broken assertion. The limiter itself is
     // guarded in bug222GenerateLimiter.test.ts.
     generateLimiterOpts: { capacity: 1_000_000, refillPerSec: 0 },
+    instacartLimiterOpts: opts.instacartLimiterOpts ?? {
+      capacity: 1_000_000,
+      refillPerSec: 0,
+    },
+    instacart: (opts.instacart ?? {
+      readConfig: () => ({ apiKey: "keys.test", baseUrl: "https://instacart.test" }),
+      createShoppingListLink: async () => {
+        throw new Error("test did not inject an Instacart client");
+      },
+    }) as never,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     prisma: withSessionUser(stubPrisma) as any,
     consolidatePlanIngredients: (async (args: { relations?: unknown }) => {
@@ -4974,4 +5023,579 @@ describe("BUG-116 — reconcile delta-apply transaction budget", () => {
       await h.close();
     }
   });
+});
+
+// ── Row 8 Block 1 — POST /api/grocery-lists/:id/instacart-link ─────────────
+//
+// Every case goes through the deps seam: a recording fake stands in for the
+// Instacart client, so nothing here can reach a network. The fixture list has
+// nine live rows that exercise every R2 precedence step plus one soft-deleted
+// row; the happy path pins the EXACT payload the fake received.
+
+const R8_USER = "test-user-row8";
+const R8_OTHER = "test-user-row8-stranger";
+const R8_LIST = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const R8_OTHER_LIST = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+const R8_URL = "https://www.instacart.com/store/shopping_lists/42?utm=x";
+
+function r8Item(overrides: Partial<ListItemRow> & { id: string }): ListItemRow {
+  return {
+    groceryListId: R8_LIST,
+    ingredientId: null,
+    displayName: "thing",
+    quantity: 1,
+    unit: "",
+    storeSection: "extras",
+    isUniversalStaple: false,
+    isUserPantryStaple: false,
+    isRecurringItem: false,
+    wasAiInferred: false,
+    isAmbiguous: false,
+    ambiguityOptions: [],
+    isUserAdded: false,
+    isChecked: false,
+    stapleOptedIn: false,
+    userResolvedTo: null,
+    deletedAt: null,
+    notes: null,
+    purchaseUnit: null,
+    purchaseQuantity: null,
+    purchaseDisplay: null,
+    purchaseUnitOverride: null,
+    purchaseQuantityOverride: null,
+    purchaseDisplayOverride: null,
+    ...overrides,
+  };
+}
+
+// `null` = no SystemSetting row at all (the fallback path); a default parameter
+// cannot express that because an explicit undefined re-triggers the default.
+function seedR8(state: StubState, enabled: boolean | string | null = true): void {
+  if (enabled !== null) state.settings.set("retailer.instacart_enabled", enabled);
+  state.lists.push({
+    id: R8_LIST,
+    userId: R8_USER,
+    mealPlanInstanceId: "plan-r8",
+    status: "active",
+    title: "Groceries: Week of Sep 21",
+    sourceType: "plan",
+    lastGeneratedFromPlanRevisionId: 1,
+    lastGeneratedAt: new Date(),
+    createdAt: new Date(),
+  });
+  state.lists.push({
+    id: R8_OTHER_LIST,
+    userId: R8_OTHER,
+    mealPlanInstanceId: "plan-r8-other",
+    status: "active",
+    title: "Not yours",
+    sourceType: "plan",
+    lastGeneratedFromPlanRevisionId: 1,
+    lastGeneratedAt: new Date(),
+    createdAt: new Date(),
+  });
+  state.listItems.push(
+    // step 1 — client packs, countable
+    r8Item({
+      id: "r8-beans",
+      displayName: "canned black beans",
+      quantity: 30,
+      unit: "ounce",
+      purchaseQuantity: 1,
+      purchaseUnit: "can",
+      purchaseDisplay: "1 can (15 oz)",
+    }),
+    // step 1 — client packs, weighed: 2 × 1.5 lb
+    r8Item({
+      id: "r8-turkey",
+      displayName: "1.5 lb ground turkey",
+      quantity: 2.5,
+      unit: "pound",
+      purchaseQuantity: 1.5,
+      purchaseUnit: "lb",
+      purchaseDisplay: "1.5 lb pack",
+    }),
+    // step 2 — the stated buy (user override)
+    r8Item({
+      id: "r8-milk",
+      displayName: "milk",
+      userResolvedTo: "whole milk",
+      quantity: 3,
+      unit: "cup",
+      purchaseQuantity: 1,
+      purchaseUnit: "bottle",
+      purchaseDisplay: "1 bottle (half gallon)",
+      purchaseQuantityOverride: 2,
+      purchaseUnitOverride: "carton",
+      purchaseDisplayOverride: "2 cartons (1 gal)",
+    }),
+    // step 3 — stored pack, container → each
+    r8Item({
+      id: "r8-lemon",
+      displayName: "1 bottle (15 oz) lemon juice",
+      quantity: 2,
+      unit: "tablespoon",
+      purchaseQuantity: 1,
+      purchaseUnit: "bottle",
+      purchaseDisplay: "1 bottle (15 oz)",
+    }),
+    // step 3 — stored pack in dozen
+    r8Item({
+      id: "r8-eggs",
+      displayName: "eggs",
+      quantity: 6,
+      unit: "each",
+      purchaseQuantity: 1,
+      purchaseUnit: "dozen",
+      purchaseDisplay: "1 dozen",
+    }),
+    // step 4 — need unit is an order unit
+    r8Item({ id: "r8-cilantro", displayName: "cilantro, chopped", quantity: 1, unit: "bunch" }),
+    // step 5 — need unit is a measure → 1 each + unmapped
+    r8Item({ id: "r8-cumin", displayName: "ground cumin", quantity: 2, unit: "teaspoon" }),
+    // step 5 — need unit has no Instacart equivalent
+    r8Item({ id: "r8-garlic", displayName: "garlic, minced", quantity: 3, unit: "clove" }),
+    // step 3 — stored pack unit not in the table → each, unmapped
+    r8Item({
+      id: "r8-lasagna",
+      displayName: "lasagna sheets",
+      quantity: 12,
+      unit: "each",
+      purchaseQuantity: 1,
+      purchaseUnit: "sheet",
+      purchaseDisplay: "1 sheet",
+    }),
+    // soft-deleted
+    r8Item({ id: "r8-gone", displayName: "ghost", deletedAt: new Date("2026-09-19T00:00:00Z") }),
+    // a row of the OTHER list
+    r8Item({ id: "r8-foreign", groceryListId: R8_OTHER_LIST, displayName: "not yours" }),
+  );
+}
+
+const R8_ALL_ITEMS = [
+  { groceryListItemId: "r8-beans", packCount: 2, packUnit: "can", packSizeText: "(15 oz)" },
+  { groceryListItemId: "r8-turkey", packCount: 2, packUnit: "lb" },
+  { groceryListItemId: "r8-milk" },
+  { groceryListItemId: "r8-lemon" },
+  { groceryListItemId: "r8-eggs" },
+  { groceryListItemId: "r8-cilantro" },
+  { groceryListItemId: "r8-cumin" },
+  { groceryListItemId: "r8-garlic" },
+  { groceryListItemId: "r8-lasagna" },
+  { groceryListItemId: "r8-gone" },
+];
+
+interface FakeInstacart {
+  calls: Array<{ payload: unknown; deps: unknown }>;
+  seam: NonNullable<HarnessOpts["instacart"]>;
+}
+
+function fakeInstacart(
+  behaviour: { url?: string; throws?: Error; configured?: boolean } = {},
+): FakeInstacart {
+  const calls: FakeInstacart["calls"] = [];
+  return {
+    calls,
+    seam: {
+      readConfig: () =>
+        behaviour.configured === false
+          ? null
+          : { apiKey: "keys.test-never-logged", baseUrl: "https://instacart.test" },
+      createShoppingListLink: async (payload, deps) => {
+        calls.push({ payload, deps });
+        if (behaviour.throws) throw behaviour.throws;
+        return { url: behaviour.url ?? R8_URL };
+      },
+    },
+  };
+}
+
+async function postLink(
+  harness: Harness,
+  body: unknown,
+  opts: { user?: string; listId?: string } = {},
+): Promise<Response> {
+  const token = signToken(opts.user ?? R8_USER);
+  return fetch(`${harness.baseUrl}/grocery-lists/${opts.listId ?? R8_LIST}/instacart-link`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+describe("POST /api/grocery-lists/:id/instacart-link — Row 8 Block 1", () => {
+  it("happy path: the fake client receives the exact composed payload; response, persistence and activity follow", async () => {
+    const fake = fakeInstacart();
+    const harness = await spinUp({ instacart: fake.seam });
+    seedR8(harness.state);
+    try {
+      const before = Date.now();
+      const res = await postLink(harness, { items: R8_ALL_ITEMS });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        url: string;
+        expiresAt: string;
+        itemCount: number;
+        skipped: unknown[];
+        unmappedUnits: unknown[];
+      };
+      assert.equal(body.url, R8_URL);
+      assert.equal(body.itemCount, 9);
+      assert.deepEqual(body.skipped, [{ groceryListItemId: "r8-gone", reason: "deleted" }]);
+      assert.deepEqual(body.unmappedUnits, [
+        { groceryListItemId: "r8-cumin", unit: "teaspoon" },
+        { groceryListItemId: "r8-garlic", unit: "clove" },
+        { groceryListItemId: "r8-lasagna", unit: "sheet" },
+      ]);
+      const expiresAt = Date.parse(body.expiresAt);
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      assert.ok(expiresAt >= before + thirtyDays - 5_000 && expiresAt <= Date.now() + thirtyDays + 5_000);
+
+      // The client was called once, through the seam, with the config the seam read.
+      assert.equal(fake.calls.length, 1);
+      assert.deepEqual(fake.calls[0]!.deps, {
+        config: { apiKey: "keys.test-never-logged", baseUrl: "https://instacart.test" },
+      });
+      assert.deepEqual(fake.calls[0]!.payload, {
+        title: "Groceries: Week of Sep 21",
+        link_type: "shopping_list",
+        expires_in: 30,
+        line_items: [
+          {
+            name: "canned black beans",
+            quantity: 2,
+            unit: "can",
+            display_text: "2 can (15 oz) canned black beans",
+            line_item_measurements: [{ quantity: 30, unit: "ounce" }],
+          },
+          {
+            name: "ground turkey",
+            quantity: 3,
+            unit: "pound",
+            display_text: "3 lb ground turkey",
+            line_item_measurements: [{ quantity: 2.5, unit: "pound" }],
+          },
+          {
+            name: "whole milk",
+            quantity: 2,
+            unit: "each",
+            display_text: "2 cartons (1 gal) whole milk",
+            line_item_measurements: [{ quantity: 3, unit: "cup" }],
+          },
+          {
+            name: "lemon juice",
+            quantity: 1,
+            unit: "each",
+            display_text: "1 bottle (15 oz) lemon juice",
+            line_item_measurements: [{ quantity: 2, unit: "tablespoon" }],
+          },
+          {
+            name: "eggs",
+            quantity: 12,
+            unit: "each",
+            display_text: "1 dozen eggs",
+            line_item_measurements: [{ quantity: 6, unit: "each" }],
+          },
+          {
+            name: "cilantro",
+            quantity: 1,
+            unit: "bunch",
+            display_text: "cilantro, chopped",
+            line_item_measurements: [{ quantity: 1, unit: "bunch" }],
+          },
+          {
+            name: "ground cumin",
+            quantity: 1,
+            unit: "each",
+            display_text: "ground cumin",
+            line_item_measurements: [{ quantity: 2, unit: "teaspoon" }],
+          },
+          { name: "garlic", quantity: 1, unit: "each", display_text: "garlic, minced" },
+          {
+            name: "lasagna sheets",
+            quantity: 1,
+            unit: "each",
+            display_text: "1 sheet lasagna sheets",
+            line_item_measurements: [{ quantity: 12, unit: "each" }],
+          },
+        ],
+      });
+
+      // R6 — the three columns, and NOTHING else on the list moved.
+      const list = harness.state.lists.find((l) => l.id === R8_LIST)!;
+      assert.equal(list.instacartLinkUrl, R8_URL);
+      assert.ok(list.instacartLinkedAt instanceof Date);
+      assert.ok(list.instacartLinkExpiresAt instanceof Date);
+      assert.equal(list.instacartLinkExpiresAt!.toISOString(), body.expiresAt);
+      assert.equal(list.status, "active");
+
+      // order_groceries — first emitter of an enum value that had none.
+      assert.equal(harness.state.activities.length, 1);
+      assert.deepEqual(harness.state.activities[0], {
+        userId: R8_USER,
+        eventType: "order_groceries",
+        entityType: "grocery_list",
+        entityId: R8_LIST,
+        platform: "api",
+        metadata: {
+          provider: "instacart",
+          itemCount: 9,
+          skippedCount: 1,
+          unmappedUnitCount: 3,
+          retailerKey: null,
+        },
+      });
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("appends retailer_key through URL.searchParams (an existing query survives) and persists the final URL", async () => {
+    const fake = fakeInstacart({ url: "https://www.instacart.com/store/shopping_lists/7?a=1&b=2" });
+    const harness = await spinUp({ instacart: fake.seam });
+    seedR8(harness.state);
+    try {
+      const res = await postLink(harness, {
+        items: [{ groceryListItemId: "r8-cilantro" }],
+        retailerKey: "safeway",
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { url: string };
+      assert.equal(body.url, "https://www.instacart.com/store/shopping_lists/7?a=1&b=2&retailer_key=safeway");
+      assert.equal(harness.state.lists.find((l) => l.id === R8_LIST)!.instacartLinkUrl, body.url);
+      assert.equal(
+        (harness.state.activities[0]!.metadata as { retailerKey: string }).retailerKey,
+        "safeway",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a second link overwrites the record (generated at send time, never reused)", async () => {
+    const fake = fakeInstacart({ url: "https://www.instacart.com/store/shopping_lists/first" });
+    const harness = await spinUp({ instacart: fake.seam });
+    seedR8(harness.state);
+    try {
+      assert.equal((await postLink(harness, { items: [{ groceryListItemId: "r8-eggs" }] })).status, 200);
+      const firstAt = harness.state.lists.find((l) => l.id === R8_LIST)!.instacartLinkedAt!;
+      await new Promise((r) => setTimeout(r, 5));
+      assert.equal((await postLink(harness, { items: [{ groceryListItemId: "r8-eggs" }] })).status, 200);
+      const list = harness.state.lists.find((l) => l.id === R8_LIST)!;
+      assert.equal(fake.calls.length, 2);
+      assert.ok(list.instacartLinkedAt!.getTime() > firstAt.getTime());
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("404 for a list the caller does not own (no existence leak), client never called", async () => {
+    const fake = fakeInstacart();
+    const harness = await spinUp({ instacart: fake.seam });
+    seedR8(harness.state);
+    try {
+      const res = await postLink(harness, { items: [{ groceryListItemId: "r8-foreign" }] }, { listId: R8_OTHER_LIST });
+      assert.equal(res.status, 404);
+      assert.deepEqual(await res.json(), { error: "list_not_found" });
+      assert.equal(fake.calls.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("404 for the whole request when one id is foreign or unknown, client never called", async () => {
+    const fake = fakeInstacart();
+    const harness = await spinUp({ instacart: fake.seam });
+    seedR8(harness.state);
+    try {
+      const foreign = await postLink(harness, {
+        items: [{ groceryListItemId: "r8-eggs" }, { groceryListItemId: "r8-foreign" }],
+      });
+      assert.equal(foreign.status, 404);
+      assert.deepEqual(await foreign.json(), { error: "item_not_found" });
+      const unknown = await postLink(harness, {
+        items: [{ groceryListItemId: "r8-eggs" }, { groceryListItemId: "does-not-exist" }],
+      });
+      assert.equal(unknown.status, 404);
+      assert.equal(fake.calls.length, 0);
+      assert.equal(harness.state.activities.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a soft-deleted id is skipped and reported, the rest go through", async () => {
+    const fake = fakeInstacart();
+    const harness = await spinUp({ instacart: fake.seam });
+    seedR8(harness.state);
+    try {
+      const res = await postLink(harness, {
+        items: [{ groceryListItemId: "r8-gone" }, { groceryListItemId: "r8-eggs" }],
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { itemCount: number; skipped: unknown[] };
+      assert.equal(body.itemCount, 1);
+      assert.deepEqual(body.skipped, [{ groceryListItemId: "r8-gone", reason: "deleted" }]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("400 no_items when every selected row is deleted; client never called", async () => {
+    const fake = fakeInstacart();
+    const harness = await spinUp({ instacart: fake.seam });
+    seedR8(harness.state);
+    try {
+      const res = await postLink(harness, { items: [{ groceryListItemId: "r8-gone" }] });
+      assert.equal(res.status, 400);
+      assert.deepEqual(await res.json(), {
+        error: "no_items",
+        skipped: [{ groceryListItemId: "r8-gone", reason: "deleted" }],
+      });
+      assert.equal(fake.calls.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("400 invalid_body: strict schema refuses unknown keys, empty items, bad retailerKey", async () => {
+    const fake = fakeInstacart();
+    const harness = await spinUp({ instacart: fake.seam });
+    seedR8(harness.state);
+    try {
+      for (const body of [
+        { items: [] },
+        { items: [{ groceryListItemId: "r8-eggs" }], extra: 1 },
+        { items: [{ groceryListItemId: "r8-eggs", imageUrl: "x" }] },
+        { items: [{ groceryListItemId: "r8-eggs", packCount: 0 }] },
+        { items: [{ groceryListItemId: "r8-eggs" }], retailerKey: "Not Valid" },
+      ]) {
+        const res = await postLink(harness, body);
+        assert.equal(res.status, 400, JSON.stringify(body));
+        assert.equal(((await res.json()) as { error: string }).error, "invalid_body");
+      }
+      assert.equal(fake.calls.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("403 retailer_disabled when the flag is false or absent; client never called", async () => {
+    for (const flag of [false, null]) {
+      const fake = fakeInstacart();
+      const harness = await spinUp({ instacart: fake.seam });
+      seedR8(harness.state, flag);
+      try {
+        const res = await postLink(harness, { items: [{ groceryListItemId: "r8-eggs" }] });
+        assert.equal(res.status, 403, `flag=${String(flag)}`);
+        assert.deepEqual(await res.json(), { error: "retailer_disabled" });
+        assert.equal(fake.calls.length, 0);
+      } finally {
+        await harness.close();
+      }
+    }
+  });
+
+  it("503 retailer_not_configured when the env is missing; client never called", async () => {
+    const fake = fakeInstacart({ configured: false });
+    const harness = await spinUp({ instacart: fake.seam });
+    seedR8(harness.state);
+    try {
+      const res = await postLink(harness, { items: [{ groceryListItemId: "r8-eggs" }] });
+      assert.equal(res.status, 503);
+      assert.deepEqual(await res.json(), { error: "retailer_not_configured" });
+      assert.equal(fake.calls.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("502 retailer_error on a typed API failure — generic body, nothing persisted, no activity", async () => {
+    for (const status of [422, 500]) {
+      const fake = fakeInstacart({ throws: new InstacartApiError(status, '{"error":"bad"}') });
+      const harness = await spinUp({ instacart: fake.seam });
+      seedR8(harness.state);
+      try {
+        const res = await postLink(harness, { items: [{ groceryListItemId: "r8-eggs" }] });
+        assert.equal(res.status, 502, `upstream ${status}`);
+        const body = (await res.json()) as { error: string; message: string };
+        assert.equal(body.error, "retailer_error");
+        assert.ok(!body.message.includes("bad"), "upstream body leaked to the client");
+        assert.equal(harness.state.lists.find((l) => l.id === R8_LIST)!.instacartLinkUrl, undefined);
+        assert.equal(harness.state.activities.length, 0);
+      } finally {
+        await harness.close();
+      }
+    }
+  });
+
+  it("504 retailer_timeout on the typed timeout — nothing persisted", async () => {
+    const fake = fakeInstacart({ throws: new InstacartTimeoutError(10_000) });
+    const harness = await spinUp({ instacart: fake.seam });
+    seedR8(harness.state);
+    try {
+      const res = await postLink(harness, { items: [{ groceryListItemId: "r8-eggs" }] });
+      assert.equal(res.status, 504);
+      assert.equal(((await res.json()) as { error: string }).error, "retailer_timeout");
+      assert.equal(harness.state.lists.find((l) => l.id === R8_LIST)!.instacartLinkUrl, undefined);
+      assert.equal(harness.state.activities.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("429 once the per-user link bucket is empty (rateLimit reuse, keyed on userId)", async () => {
+    __clearRateLimitStoreForTests();
+    const fake = fakeInstacart();
+    const harness = await spinUp({
+      instacart: fake.seam,
+      instacartLimiterOpts: { capacity: 2, refillPerSec: 0 },
+    });
+    seedR8(harness.state);
+    try {
+      const body = { items: [{ groceryListItemId: "r8-eggs" }] };
+      assert.equal((await postLink(harness, body)).status, 200);
+      assert.equal((await postLink(harness, body)).status, 200);
+      const third = await postLink(harness, body);
+      assert.equal(third.status, 429);
+      assert.ok(third.headers.get("retry-after"), "429 must carry Retry-After");
+      assert.equal(fake.calls.length, 2);
+      // A different user has their own bucket.
+      const other = await postLink(harness, body, { user: R8_OTHER });
+      assert.notEqual(other.status, 429);
+    } finally {
+      await harness.close();
+      __clearRateLimitStoreForTests();
+    }
+  });
+});
+
+describe("GET /api/grocery-lists/:id — retailers.instacart.enabled (Row 8 Block 1, R7b)", () => {
+  const cases: Array<[boolean | string | null, boolean]> = [
+    [true, true],
+    [false, false],
+    [null, false],
+    ["true", true],
+  ];
+  for (const [flag, expected] of cases) {
+    it(`flag ${JSON.stringify(flag)} → enabled ${expected}`, async () => {
+      const harness = await spinUp();
+      seedR8(harness.state, flag);
+      try {
+        const token = signToken(R8_USER);
+        const res = await fetch(`${harness.baseUrl}/grocery-lists/${R8_LIST}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as {
+          list: unknown;
+          reconciled: boolean;
+          retailers: { instacart: { enabled: boolean } };
+        };
+        assert.deepEqual(body.retailers, { instacart: { enabled: expected } });
+      } finally {
+        await harness.close();
+      }
+    });
+  }
 });

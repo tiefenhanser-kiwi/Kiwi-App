@@ -55,6 +55,7 @@ import {
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
+import { readNumberSetting as readNumberSettingShared } from "../lib/systemSettings";
 import {
   subscriptionService as productionSubscriptionService,
   type SubscriptionService,
@@ -311,27 +312,13 @@ export function createWizardRouter(
   let candidateCountCache: CachedSetting<number> | null = null;
   let maxRefreshesCache: CachedSetting<number> | null = null;
 
+  // Row 8 Block 1 — the body moved to lib/systemSettings.ts (readNumberSetting
+  // + its new boolean sibling); same fallback + warn semantics, same call sites.
   async function readNumberSetting(
     key: string,
     fallback: number,
   ): Promise<number> {
-    try {
-      const row = await prisma.systemSetting.findUnique({ where: { key } });
-      if (row && typeof row.value === "number" && Number.isFinite(row.value)) {
-        return row.value;
-      }
-      if (row && typeof row.value === "string") {
-        const n = Number(row.value);
-        if (Number.isFinite(n)) return n;
-      }
-      return fallback;
-    } catch (err) {
-      logger.warn(
-        { event: "system_setting_read", key, err },
-        "Falling back to default",
-      );
-      return fallback;
-    }
+    return readNumberSettingShared(prisma, key, fallback);
   }
 
   async function getCandidateCount(): Promise<number> {

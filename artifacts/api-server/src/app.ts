@@ -5,6 +5,7 @@ import router from "./routes";
 import pagesRouter from "./routes/pages";
 import { logger } from "./lib/logger";
 import { validateSpendGuardEnv } from "./lib/spendGuard";
+import { logInstacartConfig } from "./lib/retailers/instacartClient";
 import { noStore } from "./middleware/cacheControl";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -59,6 +60,12 @@ app.set("trust proxy", trustProxyHops);
 // so the typo is invisible unless something says so at boot. This logs `error`
 // per bad var and one `info` line with the effective config on every revision.
 validateSpendGuardEnv(process.env);
+
+// Row 8 Block 1 — same posture, one line: `instacart: configured` or
+// `instacart: not configured (missing INSTACART_API_KEY, …)` — variable NAMES
+// only, never a value. Neither variable is required at boot: Cloud Run does
+// not have them yet and must keep booting; the route answers 503 until it does.
+logInstacartConfig(process.env);
 
 app.use(
   pinoHttp({

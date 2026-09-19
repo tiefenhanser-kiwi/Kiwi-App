@@ -23,12 +23,31 @@ import type { PrismaClient, Prisma, StoreSection } from "@prisma/client";
 
 import {
   AddGroceryListItemInputSchema,
+  InstacartLinkInputSchema,
   UpdateGroceryListItemInputSchema,
   UpdateGroceryListStatusInputSchema,
   type CategorizeItemResponse,
   type LookupCandidate,
   type SectionKey,
 } from "../lib/ai/schemas/grocery";
+import {
+  createShoppingListLink as productionCreateShoppingListLink,
+  InstacartApiError,
+  InstacartTimeoutError,
+  readInstacartConfig,
+  type CreateShoppingListLink,
+  type InstacartConfig,
+} from "../lib/retailers/instacartClient";
+import {
+  composeInstacartPayload,
+  INSTACART_DEFAULT_TITLE,
+  INSTACART_EXPIRES_IN_DAYS,
+} from "../lib/retailers/instacartPayload";
+import {
+  createCachedSettingReader,
+  readBooleanSetting,
+} from "../lib/systemSettings";
+import { emitActivity } from "../lib/userActivity";
 import {
   bucketKeyOf,
   consolidatePlanIngredients as productionConsolidatePlanIngredients,
@@ -76,7 +95,21 @@ export interface GroceryListsRouterDeps {
   // cooking.ts, so a guard can drain the bucket without waiting on a real
   // refill window.
   generateLimiterOpts?: { capacity: number; refillPerSec: number };
+  // Row 8 Block 1 — the Instacart seam. Production wiring defaults to the
+  // real env reader + fetch client; EVERY router test that reaches
+  // POST /grocery-lists/:id/instacart-link injects a stub, so the suite is
+  // hermetic by construction (`pnpm test` loads .env, and a default-on real
+  // call here would otherwise reach Instacart's dev host from a stub-prisma
+  // test — the BUG-274 estimateDishMacros lesson).
+  instacart?: {
+    readConfig: () => InstacartConfig | null;
+    createShoppingListLink: CreateShoppingListLink;
+  };
+  // Row 8 Block 1 — test seam for the link limiter, same shape as the generate one.
+  instacartLimiterOpts?: { capacity: number; refillPerSec: number };
 }
+
+export const INSTACART_ENABLED_SETTING_KEY = "retailer.instacart_enabled";
 
 const KNOWN_SECTIONS: StoreSection[] = [
   "produce",
@@ -206,6 +239,31 @@ export function createGroceryListsRouter(
     ...(deps.generateLimiterOpts ?? { capacity: 4, refillPerSec: 4 / 300 }),
     keyFn: (req) => `grocerygen:${req.userId ?? "anonymous"}`,
   });
+
+  // Row 8 Block 1 — the Instacart link route's limiter. Phase 0 finding: the
+  // cheap grocery mutations below (add / PATCH / delete / restore) carry NO
+  // limiter — generateLimiter is the only one in this file — so there was no
+  // "mutation limiter" to reuse verbatim. This is a sibling built the same
+  // way (per-user key, BUG-223 reasoning above applies): every tap is an
+  // outbound third-party call, so it sits between the AI tier (4) and the
+  // cheap-write tier (60 in plans.ts). 10 burst covers "tap, change the
+  // selection, tap again" several times over; sustained 10/min is a ceiling
+  // on nothing a person does.
+  const instacartLinkLimiter = rateLimit({
+    ...(deps.instacartLimiterOpts ?? { capacity: 10, refillPerSec: 10 / 60 }),
+    keyFn: (req) => `instacartlink:${req.userId ?? "anonymous"}`,
+  });
+
+  // Row 8 Block 1 — the feature flag, read through the injected client and
+  // cached 60 s per router instance (R7). False on a missing row, a bad
+  // value, or a DB error: the flag can only ever fail CLOSED.
+  const instacart = deps.instacart ?? {
+    readConfig: () => readInstacartConfig(process.env),
+    createShoppingListLink: productionCreateShoppingListLink,
+  };
+  const getInstacartEnabled = createCachedSettingReader(() =>
+    readBooleanSetting(prisma, INSTACART_ENABLED_SETTING_KEY, false),
+  );
 
   router.post(
     "/plans/:id/generate-grocery-list",
@@ -686,9 +744,16 @@ export function createGroceryListsRouter(
             })(),
           }
         : listWithProvenance;
-      return res
-        .status(200)
-        .json({ list: listWithComputedActive, reconciled });
+      // Row 8 Block 1 (R7b) — the retailer flag rides the detail read so the
+      // phone can gate the Instacart CTA (and show "coming soon") without a
+      // second request. The list's own instacartLink* columns arrive through
+      // the spread above with no serialiser change.
+      const instacartEnabled = await getInstacartEnabled();
+      return res.status(200).json({
+        list: listWithComputedActive,
+        reconciled,
+        retailers: { instacart: { enabled: instacartEnabled } },
+      });
     } catch (err) {
       logger.error(
         { event: "get_grocery_list_failed", userId, listId, err },
@@ -1150,6 +1215,190 @@ export function createGroceryListsRouter(
         logger.error(
           { event: "grocery_restore_item_failed", userId, listId, itemId, err },
           "POST /grocery-lists/:id/items/:itemId/restore failed",
+        );
+        return res.status(500).json({ error: "internal server error" });
+      }
+    },
+  );
+
+  // ── Row 8 Block 1 — Instacart link-out ───────────────────────────────
+  //
+  // POST /api/grocery-lists/:id/instacart-link — turn the client's selection
+  // of this list's rows into an Instacart "Create Shopping List Page" call
+  // and hand back the URL. Kiwi never sees the cart, so `status` is NEVER
+  // touched here (`ordered` stays reserved). Flow, in order: body → ownership
+  // (404-for-both, the file's convention) → flag (403) → config (503) → load
+  // rows → skip deleted → compose (lib/retailers) → client → append
+  // `retailer_key` via URL, never string concat → persist the three
+  // instacartLink* columns → emit `order_groceries` → 200.
+  //
+  // Instacart failures map to 502 retailer_error (typed API error: non-2xx,
+  // malformed 2xx, network) and 504 retailer_timeout; the body carries a
+  // generic message and the status + excerpt live in the log only.
+  router.post(
+    "/grocery-lists/:id/instacart-link",
+    requireAuth,
+    instacartLinkLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const listIdRaw = req.params.id;
+      const listId = Array.isArray(listIdRaw) ? listIdRaw[0] : listIdRaw;
+      if (!listId || !UUID_RE.test(listId)) {
+        return res.status(400).json({ error: "invalid_list_id" });
+      }
+
+      const parsed = InstacartLinkInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid_body",
+          details: parsed.error.flatten(),
+        });
+      }
+      const body = parsed.data;
+
+      try {
+        const list = await prisma.groceryList.findFirst({
+          where: { id: listId, userId },
+          select: { id: true, title: true },
+        });
+        if (!list) {
+          return res.status(404).json({ error: "list_not_found" });
+        }
+
+        if (!(await getInstacartEnabled())) {
+          return res.status(403).json({ error: "retailer_disabled" });
+        }
+        const config = instacart.readConfig();
+        if (!config) {
+          return res.status(503).json({ error: "retailer_not_configured" });
+        }
+
+        // R1 — the ids are the client's selection; the server checks that
+        // every one of them is a row OF THIS LIST (the list is already the
+        // caller's). One unknown or foreign id fails the whole request with
+        // the same 404 a missing list gets — no existence leak per id.
+        const ids = [...new Set(body.items.map((i) => i.groceryListItemId))];
+        const rows = await prisma.groceryListItem.findMany({
+          where: { id: { in: ids }, groceryListId: listId },
+          select: {
+            id: true,
+            displayName: true,
+            userResolvedTo: true,
+            quantity: true,
+            unit: true,
+            deletedAt: true,
+            purchaseQuantity: true,
+            purchaseUnit: true,
+            purchaseDisplay: true,
+            purchaseUnitOverride: true,
+            purchaseQuantityOverride: true,
+            purchaseDisplayOverride: true,
+          },
+        });
+        if (rows.length !== ids.length) {
+          return res.status(404).json({ error: "item_not_found" });
+        }
+
+        const composed = composeInstacartPayload(rows, body.items, {
+          title: list.title || INSTACART_DEFAULT_TITLE,
+          expiresInDays: INSTACART_EXPIRES_IN_DAYS,
+        });
+        if (composed.payload.line_items.length === 0) {
+          return res.status(400).json({
+            error: "no_items",
+            skipped: composed.skipped,
+          });
+        }
+
+        let url: string;
+        try {
+          const result = await instacart.createShoppingListLink(
+            composed.payload,
+            { config },
+          );
+          url = result.url;
+        } catch (err) {
+          if (err instanceof InstacartTimeoutError) {
+            logger.warn(
+              { event: "instacart_link_timeout", userId, listId, timeoutMs: err.timeoutMs },
+              "Instacart link-out timed out",
+            );
+            return res.status(504).json({
+              error: "retailer_timeout",
+              message: "Instacart did not answer in time. Try again in a moment.",
+            });
+          }
+          if (err instanceof InstacartApiError) {
+            logger.warn(
+              {
+                event: "instacart_link_failed",
+                userId,
+                listId,
+                status: err.status,
+                bodyExcerpt: err.bodyExcerpt,
+              },
+              "Instacart link-out rejected",
+            );
+            return res.status(502).json({
+              error: "retailer_error",
+              message: "Instacart could not build the list right now. Try again in a moment.",
+            });
+          }
+          throw err;
+        }
+
+        if (body.retailerKey) {
+          const withRetailer = new URL(url);
+          withRetailer.searchParams.set("retailer_key", body.retailerKey);
+          url = withRetailer.toString();
+        }
+
+        // R6 — the record of the latest link. A later tap overwrites.
+        const linkedAt = new Date();
+        const expiresAt = new Date(
+          linkedAt.getTime() + INSTACART_EXPIRES_IN_DAYS * 24 * 60 * 60 * 1000,
+        );
+        await prisma.groceryList.update({
+          where: { id: listId },
+          data: {
+            instacartLinkUrl: url,
+            instacartLinkedAt: linkedAt,
+            instacartLinkExpiresAt: expiresAt,
+          },
+        });
+
+        // The enum already carried `order_groceries` with no emitter; this is
+        // its first. Through the INJECTED client (as `tx`) so the router's
+        // tests record it instead of the singleton reaching a real database.
+        await emitActivity({
+          userId,
+          eventType: "order_groceries",
+          entityType: "grocery_list",
+          entityId: listId,
+          metadata: {
+            provider: "instacart",
+            itemCount: composed.payload.line_items.length,
+            skippedCount: composed.skipped.length,
+            unmappedUnitCount: composed.unmappedUnits.length,
+            retailerKey: body.retailerKey ?? null,
+          },
+          tx: prisma,
+        });
+
+        return res.status(200).json({
+          url,
+          expiresAt: expiresAt.toISOString(),
+          itemCount: composed.payload.line_items.length,
+          skipped: composed.skipped,
+          unmappedUnits: composed.unmappedUnits,
+        });
+      } catch (err) {
+        logger.error(
+          { event: "instacart_link_failed", userId, listId, err },
+          "POST /grocery-lists/:id/instacart-link failed",
         );
         return res.status(500).json({ error: "internal server error" });
       }
