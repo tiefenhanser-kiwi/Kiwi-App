@@ -598,17 +598,18 @@ export const Components = {
   },
   activePlanStrip: {
     background:  Colors.neutral[0],
-    // WS9-2 2c Commit 7 — 42 (ImageTreatment.thumbSize) -> 56. The this-week
-    // card's meal thumbnail now ADOPTS the app's meal-row treatment rather than
-    // carrying its own size: PlanReviewMealRow (the plan-item row) renders
-    // 56 x 56 at Radius.md, and MealRow (catalog rows) 56 x 56 at Radius.sm.
-    // The plan-item value wins — this card shows a plan item.
-    // ImageTreatment.thumbSize stayed 42 as the canonical v4 value. ⚠️ It is
-    // NOT consumer-less (an earlier revision of this comment said so, wrongly):
-    // PlanOptionCard reads it for the plan-option row thumb AND the skeleton
-    // row thumb (row 5 Block 2 found both; row 5 Block 3 / D-WS9-252 moved it
-    // 42 -> 60). THIS token is the this-week card's own 56 and is untouched by
-    // D-WS9-252 — the ruling named four values and this is not one of them.
+    // WS9-2 2c Commit 7 — 42 (ImageTreatment.thumbSize) -> 56, chosen at the
+    // time to MATCH the meal-row treatment (PlanReviewMealRow and MealRow both
+    // rendered 56 x 56 then). ⚠️ That match no longer holds and this value
+    // does NOT adopt the meal row: D-WS9-252 (row 5 Block 3) moved the meal
+    // rows to ImageTreatment.thumb.row = 72 (compact 60 / dense 48) and left
+    // THIS token at 56 — the ruling named four values and this is not one of
+    // them. The this-week card's thumb is its own 56, judged on the device by
+    // Hans, not derived from any meal-row token. (Row 5 Block 4 corrected the
+    // wording; the value is unchanged.)
+    // ImageTreatment.thumbSize is NOT consumer-less (an earlier revision of
+    // this comment said so, wrongly): PlanOptionCard reads it for the
+    // plan-option row thumb AND the skeleton row thumb (D-WS9-252: 42 -> 60).
     thumbSize:   56,
     radius:      Radius.xl,
     // ⚠️ WS9-2 2e Part 4 Item 3 — NO CONSUMER. It coloured the card's filled
