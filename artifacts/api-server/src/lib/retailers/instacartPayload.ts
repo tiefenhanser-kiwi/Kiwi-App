@@ -1,0 +1,229 @@
+// Row 8 · Block 1 — compose the Instacart "Create Shopping List Page" body
+// from Kiwi grocery rows. Pure: rows in, payload + skipped + unmapped out.
+// The route owns ownership, the flag, config, the HTTP call and persistence.
+//
+// ARCHITECTURE RULING (chat-Claude, September 19, 2026, Hans un-objected):
+// the pack-count arithmetic lives on the phone (packsToCoverNeed,
+// artifacts/kiwi/lib/format/grocery.ts) and the server persists ONE unscaled
+// pack per row. It is NOT ported here. The phone contributes the numbers it
+// derives (pack count, pack unit); the server composes everything else from
+// the row it owns and controls the Instacart contract. What the shopper reads
+// on screen is what gets ordered.
+//
+// Order line precedence per item (R2):
+//   1. client pack data (packCount × the row's per-pack size, in packUnit)
+//   2. the row's purchaseQuantityOverride (the user's stated buy)
+//   3. the row's stored pack: purchaseQuantity × purchaseUnit (one pack, unscaled)
+//   4. the need: quantity × unit, when the unit is in the ORDER table
+//   5. `1 each`
+// Then the unit mapping (R3), the measured need into line_item_measurements
+// when the need unit maps (R4), the search name (R5), and display_text = the
+// human pack line + name when a pack line exists, else the raw displayName.
+
+import { instacartSearchName } from "./instacartName";
+import {
+  mapMeasurement,
+  mapOrderUnit,
+  normalizeUnitToken,
+} from "./instacartUnits";
+
+export interface InstacartLineItem {
+  name: string;
+  quantity: number;
+  unit: string;
+  display_text?: string;
+  line_item_measurements?: Array<{ quantity: number; unit: string }>;
+}
+
+export interface InstacartShoppingListPayload {
+  title: string;
+  link_type: "shopping_list";
+  expires_in: number;
+  line_items: InstacartLineItem[];
+}
+
+/** The GroceryListItem columns the composer reads. */
+export interface InstacartRowInput {
+  id: string;
+  displayName: string;
+  userResolvedTo: string | null;
+  quantity: number;
+  unit: string;
+  deletedAt: Date | null;
+  purchaseQuantity: number | null;
+  purchaseUnit: string | null;
+  purchaseDisplay: string | null;
+  purchaseUnitOverride: string | null;
+  purchaseQuantityOverride: number | null;
+  purchaseDisplayOverride: string | null;
+}
+
+/**
+ * One selected item from the phone. `packCount` is the NUMBER OF PACKS the
+ * phone's packsToCoverNeed derived (an integer ≥ 1, never the displayed
+ * total) — the server multiplies it by the row's per-pack size
+ * (purchaseQuantityOverride ?? purchaseQuantity) when `packUnit` names the
+ * same unit as the row's pack, so "1 can (14.5 oz)" × 4 packs orders
+ * `4 can`, and "1.5 lb pack" × 2 orders `3 pound`. A `packUnit` the row
+ * does not know is taken at face value (per-pack size 1).
+ */
+export interface InstacartClientItem {
+  groceryListItemId: string;
+  packCount?: number;
+  packUnit?: string;
+  packSizeText?: string;
+}
+
+export interface ComposeOptions {
+  title: string;
+  /** Instacart: days, no default for shopping lists, max 365. Block ruling: 30. */
+  expiresInDays?: number;
+}
+
+export type SkipReason = "deleted" | "not_found";
+
+export interface ComposeResult {
+  payload: InstacartShoppingListPayload;
+  skipped: Array<{ groceryListItemId: string; reason: SkipReason }>;
+  unmappedUnits: Array<{ groceryListItemId: string; unit: string }>;
+}
+
+export const INSTACART_EXPIRES_IN_DAYS = 30;
+export const INSTACART_DEFAULT_TITLE = "Kiwi grocery list";
+
+function formatCount(n: number): string {
+  return String(parseFloat(n.toFixed(2)));
+}
+
+/**
+ * "cans" and "can" are the same pack unit; so are "lb" and "pound". Compare
+ * through the order table when both sides map, by normalized token otherwise.
+ */
+function sameOrderUnit(a: string, b: string): boolean {
+  const ma = mapOrderUnit(a, 1);
+  const mb = mapOrderUnit(b, 1);
+  if (ma.mapped && mb.mapped) return ma.unit === mb.unit;
+  return normalizeUnitToken(a) === normalizeUnitToken(b);
+}
+
+interface OrderSource {
+  rawUnit: string;
+  total: number;
+  /** The human pack line ("2 cans (14.5 oz each)"); null when the need or the fallback was used. */
+  packLine: string | null;
+  /** The unit to report when the order line could not be mapped (step 5). */
+  unmappedNeedUnit: string | null;
+}
+
+function resolveOrderSource(
+  row: InstacartRowInput,
+  client: InstacartClientItem,
+): OrderSource {
+  const rowPackUnit = row.purchaseUnitOverride ?? row.purchaseUnit;
+  const rowPackQty = row.purchaseQuantityOverride ?? row.purchaseQuantity;
+
+  // 1. Client pack data — the phone's derived count, in the phone's unit.
+  if (client.packCount != null && client.packCount > 0) {
+    const unit = client.packUnit?.trim() || rowPackUnit || "each";
+    const sameUnitAsRow = rowPackUnit != null && sameOrderUnit(unit, rowPackUnit);
+    const perPack =
+      sameUnitAsRow && rowPackQty != null && rowPackQty > 0 ? rowPackQty : 1;
+    const total = client.packCount * perPack;
+    const size = client.packSizeText?.trim();
+    const packLine = `${formatCount(total)} ${unit}${size ? ` ${size}` : ""}`;
+    return { rawUnit: unit, total, packLine, unmappedNeedUnit: null };
+  }
+
+  // 2. The user's stated buy.
+  if (row.purchaseQuantityOverride != null && row.purchaseQuantityOverride > 0) {
+    const unit = rowPackUnit ?? "each";
+    const total = row.purchaseQuantityOverride;
+    const packLine =
+      row.purchaseDisplayOverride?.trim() || `${formatCount(total)} ${unit}`;
+    return { rawUnit: unit, total, packLine, unmappedNeedUnit: null };
+  }
+
+  // 3. The stored pack — one pack, unscaled (today's server semantics).
+  if (row.purchaseQuantity != null && row.purchaseQuantity > 0 && rowPackUnit) {
+    const total = row.purchaseQuantity;
+    const packLine =
+      row.purchaseDisplay?.trim() || `${formatCount(total)} ${rowPackUnit}`;
+    return { rawUnit: rowPackUnit, total, packLine, unmappedNeedUnit: null };
+  }
+
+  // 4. The need, when its unit is an order unit.
+  const needUnit = normalizeUnitToken(row.unit);
+  if (row.quantity > 0 && needUnit.length > 0) {
+    const probe = mapOrderUnit(needUnit, row.quantity);
+    if (probe.mapped) {
+      return { rawUnit: needUnit, total: row.quantity, packLine: null, unmappedNeedUnit: null };
+    }
+  }
+
+  // 5. One of whatever it is. A non-empty need unit that got here is the
+  //    census signal (teaspoon / clove / sprig …) and is reported.
+  return {
+    rawUnit: "each",
+    total: 1,
+    packLine: null,
+    unmappedNeedUnit: needUnit.length > 0 ? needUnit : null,
+  };
+}
+
+export function composeInstacartPayload(
+  rows: InstacartRowInput[],
+  clientItems: InstacartClientItem[],
+  opts: ComposeOptions,
+): ComposeResult {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const seen = new Set<string>();
+  const skipped: ComposeResult["skipped"] = [];
+  const unmappedUnits: ComposeResult["unmappedUnits"] = [];
+  const line_items: InstacartLineItem[] = [];
+
+  for (const client of clientItems) {
+    const id = client.groceryListItemId;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const row = byId.get(id);
+    if (!row) {
+      skipped.push({ groceryListItemId: id, reason: "not_found" });
+      continue;
+    }
+    if (row.deletedAt) {
+      skipped.push({ groceryListItemId: id, reason: "deleted" });
+      continue;
+    }
+
+    const source = resolveOrderSource(row, client);
+    const order = mapOrderUnit(source.rawUnit, source.total);
+    if (!order.mapped) {
+      unmappedUnits.push({ groceryListItemId: id, unit: source.rawUnit });
+    } else if (source.unmappedNeedUnit) {
+      unmappedUnits.push({ groceryListItemId: id, unit: source.unmappedNeedUnit });
+    }
+
+    const name = instacartSearchName(row.displayName, row.userResolvedTo);
+    const item: InstacartLineItem = {
+      name,
+      quantity: order.quantity,
+      unit: order.unit,
+      display_text: source.packLine ? `${source.packLine} ${name}` : row.displayName,
+    };
+    const measurement = mapMeasurement(row.unit, row.quantity);
+    if (measurement) item.line_item_measurements = [measurement];
+    line_items.push(item);
+  }
+
+  const title = opts.title.trim().length > 0 ? opts.title.trim() : INSTACART_DEFAULT_TITLE;
+  return {
+    payload: {
+      title,
+      link_type: "shopping_list",
+      expires_in: opts.expiresInDays ?? INSTACART_EXPIRES_IN_DAYS,
+      line_items,
+    },
+    skipped,
+    unmappedUnits,
+  };
+}
