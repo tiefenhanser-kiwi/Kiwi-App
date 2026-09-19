@@ -289,6 +289,25 @@ describe("composeInstacartPayload — R2", () => {
     assert.equal(result.payload.line_items[0]!.display_text, "4.5 lb ground turkey");
   });
 
+  it("display_text elides the name when the pack line already says it (live +8 list shapes)", () => {
+    const rows: InstacartRowInput[] = [
+      row({ id: "limes", displayName: "Lime", quantity: 5, unit: "each", purchaseQuantity: 2, purchaseUnit: "each", purchaseDisplay: "2 limes" }),
+      row({ id: "lime", displayName: "limes", quantity: 1, unit: "each", purchaseQuantity: 1, purchaseUnit: "each", purchaseDisplay: "1 lime" }),
+      row({ id: "roma", displayName: "roma tomatoes", quantity: 2, unit: "each", purchaseQuantity: 4, purchaseUnit: "each", purchaseDisplay: "4 roma tomatoes" }),
+      row({ id: "onion", displayName: "White onion", quantity: 2.25, unit: "each", purchaseQuantity: 1, purchaseUnit: "each", purchaseDisplay: "1 medium white onion" }),
+      row({ id: "butter", displayName: "unsalted butter", quantity: 14, unit: "tablespoon", purchaseQuantity: 1, purchaseUnit: "lb", purchaseDisplay: "1 lb pack (4 sticks)" }),
+    ];
+    const result = composeInstacartPayload(
+      rows,
+      rows.map((r) => ({ groceryListItemId: r.id })),
+      { title: "t" },
+    );
+    assert.deepEqual(
+      result.payload.line_items.map((li) => li.display_text),
+      ["2 limes", "1 lime", "4 roma tomatoes", "1 medium white onion", "1 lb pack (4 sticks) unsalted butter"],
+    );
+  });
+
   it("a blank title falls back to the default and expiresInDays is honoured", () => {
     const result = composeInstacartPayload(
       [ROWS[7]!],

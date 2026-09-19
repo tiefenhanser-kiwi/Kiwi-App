@@ -18,7 +18,8 @@
 //   5. `1 each`
 // Then the unit mapping (R3), the measured need into line_item_measurements
 // when the need unit maps (R4), the search name (R5), and display_text = the
-// human pack line + name when a pack line exists, else the raw displayName.
+// human pack line + name when a pack line exists (name elided when the pack
+// already says it — humanLine below), else the raw displayName.
 
 import { instacartSearchName } from "./instacartName";
 import {
@@ -93,6 +94,29 @@ export const INSTACART_DEFAULT_TITLE = "Kiwi grocery list";
 
 function formatCount(n: number): string {
   return String(parseFloat(n.toFixed(2)));
+}
+
+/**
+ * The human line for display_text. The phone's two-part line elides the name
+ * when the pack's words already name the item (residueNamesItem in
+ * artifacts/kiwi/lib/format/grocery.ts: "2 limes" + "Lime", "4 roma tomatoes"
+ * + "roma tomatoes"); the live +8 list printed "2 limes Lime" and "1 medium
+ * white onion White onion" without it. Same PRESENTATION rule here — the
+ * residue (pack line minus its leading count) equals the name, is its plural
+ * or singular, or ends with it — and nothing of the pack arithmetic.
+ */
+function humanLine(packLine: string, name: string): string {
+  const residue = packLine.replace(/^\s*~?\d+(?:[./]\d+)?\s+/, "").trim().toLowerCase();
+  const n = name.trim().toLowerCase();
+  if (n.length === 0) return packLine;
+  const same =
+    residue === n ||
+    residue === `${n}s` ||
+    residue === `${n}es` ||
+    n === `${residue}s` ||
+    n === `${residue}es` ||
+    residue.endsWith(` ${n}`);
+  return same ? packLine : `${packLine} ${name}`;
 }
 
 /**
@@ -208,7 +232,7 @@ export function composeInstacartPayload(
       name,
       quantity: order.quantity,
       unit: order.unit,
-      display_text: source.packLine ? `${source.packLine} ${name}` : row.displayName,
+      display_text: source.packLine ? humanLine(source.packLine, name) : row.displayName,
     };
     const measurement = mapMeasurement(row.unit, row.quantity);
     if (measurement) item.line_item_measurements = [measurement];
