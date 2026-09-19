@@ -13,7 +13,8 @@
 // Order line precedence per item (R2):
 //   1. client pack data (packCount × the row's per-pack size, in packUnit)
 //   2. the row's purchaseQuantityOverride (the user's stated buy)
-//   3. the row's stored pack: purchaseQuantity × purchaseUnit (one pack, unscaled)
+//   3. the row's stored pack: purchaseQuantity × purchaseUnit — scaled to the
+//      need ONLY when both carry the same unit token (Part E1), else one pack
 //   4. the need: quantity × unit, when the unit is in the ORDER table
 //   5. `1 each`
 // Then the unit mapping (R3), the measured need into line_item_measurements
@@ -21,6 +22,7 @@
 // human pack line + name when a pack line exists (name elided when the pack
 // already says it — humanLine below), else the raw displayName.
 
+import { canonicalUnitToken } from "../ingredientConversions";
 import { instacartSearchName } from "./instacartName";
 import {
   mapMeasurement,
@@ -96,6 +98,55 @@ function formatCount(n: number): string {
   return String(parseFloat(n.toFixed(2)));
 }
 
+/** Same epsilon as the phone's PACK_EPSILON (grocery.ts:374). */
+const PACK_EPSILON = 1e-9;
+
+/**
+ * Part E — rewrite a stored pack line's leading count to the scaled total:
+ * "2 limes" → "6 limes", "1 can (7 oz)" → "2 cans (7 oz)". Only the leading
+ * number and (when it was 1) the plural of the very next word move; the
+ * parenthetical and everything after it are untouched. No leading number →
+ * "<total> <unit>".
+ */
+function scalePackLine(
+  purchaseDisplay: string | null,
+  total: number,
+  unit: string,
+): string {
+  const display = purchaseDisplay?.trim() ?? "";
+  const m = /^(~?\d+(?:[./]\d+)?)(\s+)(\S+)([\s\S]*)$/.exec(display);
+  if (!m) return `${formatCount(total)} ${unit}`;
+  const wasOne = Number(m[1]) === 1;
+  let noun = m[3]!;
+  if (wasOne && total > 1) {
+    noun = PACK_NOUN_PLURALS[noun.toLowerCase()] ?? noun;
+  }
+  return `${formatCount(total)}${m[2]}${noun}${m[4]}`;
+}
+
+// Only a KNOWN countable pack noun takes a plural; an adjective ("1 medium
+// white onion"), a measure ("1 lb bag" — never "lbs"), or a name word stays.
+const PACK_NOUN_PLURALS: Readonly<Record<string, string>> = {
+  can: "cans",
+  bunch: "bunches",
+  head: "heads",
+  package: "packages",
+  packet: "packets",
+  pack: "packs",
+  bottle: "bottles",
+  jar: "jars",
+  bag: "bags",
+  box: "boxes",
+  block: "blocks",
+  carton: "cartons",
+  container: "containers",
+  loaf: "loaves",
+  tube: "tubes",
+  wedge: "wedges",
+  piece: "pieces",
+  ear: "ears",
+};
+
 /**
  * The human line for display_text. The phone's two-part line elides the name
  * when the pack's words already name the item (residueNamesItem in
@@ -167,11 +218,28 @@ function resolveOrderSource(
     return { rawUnit: unit, total, packLine, unmappedNeedUnit: null };
   }
 
-  // 3. The stored pack — one pack, unscaled (today's server semantics).
+  // 3. The stored pack. Part E (E1): when the need and the pack carry the SAME
+  //    unit token, the server scales — packs = ceil(need / packQuantity) — so
+  //    a caller with no pack data (row 3a's email later, the web surface) does
+  //    not under-order: the live +8 list sent "2 limes" against a need of 5.
+  //    This is the phone's packsToCoverNeed rule 1 VERBATIM
+  //    (artifacts/kiwi/lib/format/grocery.ts:606-610, same-token branch, same
+  //    1e-9 epsilon so a need of exactly one pack cannot ceil to two on float
+  //    noise); the two are meant to agree. DIFFERENT tokens → one pack,
+  //    unscaled, unchanged: cross-system conversion (2 pound against a
+  //    "1 package (12 oz)") stays on the phone by ruling.
   if (row.purchaseQuantity != null && row.purchaseQuantity > 0 && rowPackUnit) {
-    const total = row.purchaseQuantity;
+    const needToken = canonicalUnitToken(row.unit);
+    const packToken = canonicalUnitToken(rowPackUnit);
+    const packs =
+      needToken.length > 0 && needToken === packToken && row.quantity > 0
+        ? Math.max(1, Math.ceil(row.quantity / row.purchaseQuantity - PACK_EPSILON))
+        : 1;
+    const total = packs * row.purchaseQuantity;
     const packLine =
-      row.purchaseDisplay?.trim() || `${formatCount(total)} ${rowPackUnit}`;
+      packs === 1
+        ? row.purchaseDisplay?.trim() || `${formatCount(total)} ${rowPackUnit}`
+        : scalePackLine(row.purchaseDisplay, total, rowPackUnit);
     return { rawUnit: rowPackUnit, total, packLine, unmappedNeedUnit: null };
   }
 

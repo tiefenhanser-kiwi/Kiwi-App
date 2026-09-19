@@ -5289,20 +5289,9 @@ describe("POST /api/grocery-lists/:id/instacart-link — Row 8 Block 1", () => {
             display_text: "1 bottle (15 oz) lemon juice",
             line_item_measurements: [{ quantity: 2, unit: "tablespoon" }],
           },
-          {
-            name: "eggs",
-            quantity: 12,
-            unit: "each",
-            display_text: "1 dozen eggs",
-            line_item_measurements: [{ quantity: 6, unit: "each" }],
-          },
-          {
-            name: "cilantro",
-            quantity: 1,
-            unit: "bunch",
-            display_text: "cilantro, chopped",
-            line_item_measurements: [{ quantity: 1, unit: "bunch" }],
-          },
+          // Part E2 — count needs carry no measurement.
+          { name: "eggs", quantity: 12, unit: "each", display_text: "1 dozen eggs" },
+          { name: "cilantro", quantity: 1, unit: "bunch", display_text: "cilantro, chopped" },
           {
             name: "ground cumin",
             quantity: 1,
@@ -5311,13 +5300,7 @@ describe("POST /api/grocery-lists/:id/instacart-link — Row 8 Block 1", () => {
             line_item_measurements: [{ quantity: 2, unit: "teaspoon" }],
           },
           { name: "garlic", quantity: 1, unit: "each", display_text: "garlic, minced" },
-          {
-            name: "lasagna sheets",
-            quantity: 1,
-            unit: "each",
-            display_text: "1 sheet lasagna sheets",
-            line_item_measurements: [{ quantity: 12, unit: "each" }],
-          },
+          { name: "lasagna sheets", quantity: 1, unit: "each", display_text: "1 sheet lasagna sheets" },
         ],
       });
 

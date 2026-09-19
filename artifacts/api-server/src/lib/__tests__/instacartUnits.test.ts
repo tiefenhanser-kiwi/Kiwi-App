@@ -94,8 +94,8 @@ describe("mapOrderUnit — R3, the order line", () => {
   });
 });
 
-describe("mapMeasurement — R4, the measured need", () => {
-  it("maps the exact-match need units from the census", () => {
+describe("mapMeasurement — R4 (Part E2: true measures only)", () => {
+  it("maps weight and volume need units", () => {
     assert.deepEqual(mapMeasurement("teaspoon", 2), { quantity: 2, unit: "teaspoon" });
     assert.deepEqual(mapMeasurement("tsp", 1), { quantity: 1, unit: "teaspoon" });
     assert.deepEqual(mapMeasurement("tablespoon", 3), { quantity: 3, unit: "tablespoon" });
@@ -105,27 +105,28 @@ describe("mapMeasurement — R4, the measured need", () => {
     assert.deepEqual(mapMeasurement("ounce", 9), { quantity: 9, unit: "ounce" });
     assert.deepEqual(mapMeasurement("oz", 4), { quantity: 4, unit: "ounce" });
     assert.deepEqual(mapMeasurement("gram", 100), { quantity: 100, unit: "gram" });
+    assert.deepEqual(mapMeasurement("kg", 1), { quantity: 1, unit: "kilogram" });
     assert.deepEqual(mapMeasurement("pint", 1), { quantity: 1, unit: "pint" });
     assert.deepEqual(mapMeasurement("quart", 1), { quantity: 1, unit: "quart" });
-    assert.deepEqual(mapMeasurement("each", 2), { quantity: 2, unit: "each" });
-    assert.deepEqual(mapMeasurement("can", 1), { quantity: 1, unit: "can" });
-    assert.deepEqual(mapMeasurement("bunch", 1), { quantity: 1, unit: "bunch" });
-    assert.deepEqual(mapMeasurement("head", 1), { quantity: 1, unit: "head" });
-    assert.deepEqual(mapMeasurement("large", 2), { quantity: 2, unit: "large" });
+    assert.deepEqual(mapMeasurement("ml", 250), { quantity: 250, unit: "milliliter" });
+    assert.deepEqual(mapMeasurement("liter", 1), { quantity: 1, unit: "liter" });
+    assert.deepEqual(mapMeasurement("gallon", 1), { quantity: 1, unit: "gallon" });
   });
 
-  it("tbsp is not in Instacart's list — it becomes tablespoon", () => {
+  it("tbsp is not in Instacart list — it becomes tablespoon", () => {
     assert.deepEqual(mapMeasurement("tbsp", 2), { quantity: 2, unit: "tablespoon" });
   });
 
-  it("dozen becomes twelve each", () => {
-    assert.deepEqual(mapMeasurement("dozen", 1), { quantity: 12, unit: "each" });
+  it("COUNT need units yield NO measurement — the order line carries the count (E2)", () => {
+    for (const u of ["each", "can", "cans", "bunch", "head", "large", "package", "packet", "dozen", "ears"]) {
+      assert.equal(mapMeasurement(u, 2), null, `expected no measurement for "${u}"`);
+    }
   });
 
   it("units with no Instacart equivalent yield NO measurement", () => {
     for (const u of [
       "clove", "cloves", "sprig", "slice", "pinch", "pod", "stalk", "pepper",
-      "second", "jar", "bottle", "bag", "container", "loaf", "",
+      "second", "jar", "bottle", "bag", "container", "loaf", "fl oz", "",
     ]) {
       assert.equal(mapMeasurement(u, 1), null, `expected no measurement for "${u}"`);
     }

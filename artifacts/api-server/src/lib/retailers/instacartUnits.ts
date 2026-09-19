@@ -47,13 +47,12 @@ export type InstacartMeasureUnit =
   | "ounce"
   | "pound"
   | "gram"
+  | "kilogram"
   | "pint"
   | "quart"
-  | "each"
-  | "can"
-  | "bunch"
-  | "head"
-  | "large";
+  | "milliliter"
+  | "liter"
+  | "gallon";
 
 /** Lower-case, trimmed, inner whitespace collapsed. "" for null/undefined. */
 export function normalizeUnitToken(raw: string | null | undefined): string {
@@ -168,7 +167,14 @@ export function mapOrderUnit(rawUnit: string | null | undefined, quantity: numbe
   };
 }
 
-// ── MEASUREMENT (R4) ───────────────────────────────────────────────────
+// ── MEASUREMENT (R4, tightened in Part E2) ──────────────────────────────
+//
+// A measurement is only unambiguous when it is a TRUE MEASURE. The live +8
+// list sent chipotle as order line `1 can` beside measurement `[2 each]` and
+// limes as `2 each` + `[5 each]` — two of WHAT, cans or peppers? — so count
+// needs (each, can, bunch, head, large, package, packet, dozen …) send NO
+// measurement element; the order line carries the count. Only weight and
+// volume units are in this table.
 
 interface MeasureRule {
   unit: InstacartMeasureUnit;
@@ -178,10 +184,11 @@ interface MeasureRule {
 const measure = (unit: InstacartMeasureUnit): MeasureRule => ({ unit, factor: 1 });
 
 /**
- * Need-unit token → Instacart measurement unit. Anything absent here
- * (clove, sprig, slice, pinch, pod, stalk, pepper, second, and the container
- * nouns) has NO measurement — the caller omits the array element rather than
- * sending a unit Instacart does not list.
+ * Need-unit token → Instacart measurement unit, WEIGHT AND VOLUME ONLY.
+ * Anything absent here — every count unit, and the no-equivalent set (clove,
+ * sprig, slice, pinch, pod, stalk, pepper, second, container nouns) — has NO
+ * measurement; the caller omits the array element rather than sending a
+ * count or a unit Instacart does not list.
  */
 export const INSTACART_MEASURE_UNITS: Readonly<Record<string, MeasureRule>> = {
   teaspoon: measure("teaspoon"),
@@ -204,19 +211,21 @@ export const INSTACART_MEASURE_UNITS: Readonly<Record<string, MeasureRule>> = {
   gram: measure("gram"),
   grams: measure("gram"),
   g: measure("gram"),
+  kilogram: measure("kilogram"),
+  kilograms: measure("kilogram"),
+  kg: measure("kilogram"),
   pint: measure("pint"),
   pints: measure("pint"),
   quart: measure("quart"),
   quarts: measure("quart"),
-  each: measure("each"),
-  can: measure("can"),
-  cans: measure("can"),
-  bunch: measure("bunch"),
-  bunches: measure("bunch"),
-  head: measure("head"),
-  heads: measure("head"),
-  large: measure("large"),
-  dozen: { unit: "each", factor: 12 },
+  milliliter: measure("milliliter"),
+  milliliters: measure("milliliter"),
+  ml: measure("milliliter"),
+  liter: measure("liter"),
+  liters: measure("liter"),
+  l: measure("liter"),
+  gallon: measure("gallon"),
+  gallons: measure("gallon"),
 };
 
 export interface Measurement {
