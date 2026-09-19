@@ -59,7 +59,7 @@ const WIRE = candidate("c1", "Grill Nights", ["Burgers", "Tacos", "Kebabs", "Sal
     { slotIndex: 3, storeMealId: "m-salmon" },
   ],
   meals: [
-    { title: "Burgers", description: "Smash patties, toasted buns.", storeMealId: "m-burgers", estimatedTimeMinutes: 25 },
+    { title: "Burgers", description: "Smash patties, toasted buns.", storeMealId: "m-burgers", estimatedTimeMinutes: 25, imageUrl: "https://img.example/burgers.png" },
     { title: "Tacos", description: null, storeMealId: "m-tacos", estimatedTimeMinutes: 40 },
     { title: "Kebabs", description: "Skewered and charred." },
     { title: "Salmon", description: "  ", storeMealId: "m-salmon", estimatedTimeMinutes: 50 },
@@ -297,17 +297,32 @@ test("dismissRequestFor: a legacy candidate sends no storeMealIds key at all", (
 
 test("rowsFor: the wire's meals → title + description (null / blank → no description) + time on store slots", () => {
   assert.deepEqual(rowsFor(WIRE), [
-    { title: "Burgers", description: "Smash patties, toasted buns.", estimatedTimeMinutes: 25 },
-    { title: "Tacos", description: null, estimatedTimeMinutes: 40 },
-    { title: "Kebabs", description: "Skewered and charred." },
-    { title: "Salmon", description: null, estimatedTimeMinutes: 50 },
+    { title: "Burgers", description: "Smash patties, toasted buns.", estimatedTimeMinutes: 25, imageUrl: "https://img.example/burgers.png" },
+    { title: "Tacos", description: null, estimatedTimeMinutes: 40, imageUrl: null },
+    { title: "Kebabs", description: "Skewered and charred.", imageUrl: null },
+    { title: "Salmon", description: null, estimatedTimeMinutes: 50, imageUrl: null },
   ]);
+});
+
+// Row 5 Block 4 — the plan-option thumb. Pinned as a contract, not a mapping:
+// the image comes from the wire row and NOWHERE else.
+test("rowsFor: imageUrl rides ONLY a store-bound row that has one; a live slot is null and never borrows a sibling's", () => {
+  const rows = rowsFor(WIRE);
+  assert.equal(rows[0].imageUrl, "https://img.example/burgers.png", "store slot with an image");
+  assert.equal(rows[1].imageUrl, null, "store slot whose meal has no image yet → ramp");
+  assert.equal(rows[2].imageUrl, null, "LIVE slot (no storeMealId) → ramp, not Burgers' image");
+  // A blank string is not an image.
+  const blank = candidate("c9", "Blank", ["A"], {
+    storeSlots: [{ slotIndex: 0, storeMealId: "m-a" }],
+    meals: [{ title: "A", description: null, storeMealId: "m-a", imageUrl: "   " }],
+  });
+  assert.equal(rowsFor(blank)[0].imageUrl, null);
 });
 
 test("rowsFor: a legacy candidate (no meals) → title-only rows from mealTitles, no crash", () => {
   assert.deepEqual(rowsFor(LEGACY), [
-    { title: "Chili", description: null },
-    { title: "Stew", description: null },
+    { title: "Chili", description: null, imageUrl: null },
+    { title: "Stew", description: null, imageUrl: null },
   ]);
 });
 
@@ -319,9 +334,9 @@ test("rowsFor: a meals array whose length disagrees with mealTitles → titles w
     ],
   });
   assert.deepEqual(rowsFor(skewed), [
-    { title: "Chili", description: null },
-    { title: "Stew", description: "Slow and rich." },
-    { title: "Soup", description: null },
+    { title: "Chili", description: null, imageUrl: null },
+    { title: "Stew", description: "Slow and rich.", imageUrl: null },
+    { title: "Soup", description: null, imageUrl: null },
   ]);
 });
 

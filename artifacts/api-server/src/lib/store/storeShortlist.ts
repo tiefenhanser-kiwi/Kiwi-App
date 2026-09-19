@@ -71,6 +71,9 @@ interface StoreRow {
   allergens: string[];
   /** D-WS9-191 Block 1 — pre-loaded for the wire meals[]; NOT in forPrompt. */
   description: string | null;
+  /** Row 5 Block 4 — pre-loaded for the wire meals[] (the plan-option card's
+   *  thumb); NOT in forPrompt. Null until the queue writes one. */
+  imageUrl: string | null;
 }
 
 export interface StoreShortlist {
@@ -112,6 +115,12 @@ export interface StoreShortlist {
    */
   descriptionById: Map<string, string | null>;
   timeById: Map<string, number>;
+  /**
+   * Row 5 Block 4 — every shelf row's `Meal.imageUrl` keyed by REAL id, the
+   * same pre-load as the two above (a store-bound plan-option row renders its
+   * meal's image; a live slot has no row and no image). Null = no image yet.
+   */
+  imageUrlById: Map<string, string | null>;
 }
 
 export interface BuildStoreShortlistOptions {
@@ -280,6 +289,8 @@ export async function buildStoreShortlist(
     allergens: true,
     // D-WS9-191 — for descriptionById only; never projected into forPrompt.
     description: true,
+    // Row 5 Block 4 — for imageUrlById only; never projected into forPrompt.
+    imageUrl: true,
   } as const;
 
   const rows = (await prisma.meal.findMany({
@@ -457,6 +468,9 @@ export async function buildStoreShortlist(
     timeById: new Map(
       selected.map((e) => [e.row.id, e.row.estimatedTimeMinutes]),
     ),
+    imageUrlById: new Map(
+      selected.map((e) => [e.row.id, e.row.imageUrl ?? null]),
+    ),
   };
 }
 
@@ -471,6 +485,7 @@ export function emptyShortlist(): StoreShortlist {
     poolCount: 0,
     descriptionById: new Map(),
     timeById: new Map(),
+    imageUrlById: new Map(),
   };
 }
 

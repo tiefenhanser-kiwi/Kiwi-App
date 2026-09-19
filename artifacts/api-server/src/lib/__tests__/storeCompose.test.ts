@@ -302,7 +302,7 @@ describe("buildStoreShortlist", () => {
 
   it("projects the lean per-meal shape the AI reasons over", async () => {
     const { prisma } = stubPrisma([
-      mealRow({ id: "a", title: "Ragu", cuisineType: "Italian", tags: ["cozy"], description: "A slow beef ragu." }),
+      mealRow({ id: "a", title: "Ragu", cuisineType: "Italian", tags: ["cozy"], description: "A slow beef ragu.", imageUrl: "https://img.example/ragu.png" }),
     ]);
     const out = await buildStoreShortlist(prisma, {
       ...BASE,
@@ -313,6 +313,9 @@ describe("buildStoreShortlist", () => {
     // byte-identity assertion for the shelf JSON the model sees.
     assert.deepEqual(out.descriptionById.get("a"), "A slow beef ragu.");
     assert.deepEqual(out.timeById.get("a"), 30);
+    // Row 5 Block 4 — the image is pre-loaded the same way, and the deepEqual
+    // below proves it is NOT in the prompt shape either.
+    assert.equal(out.imageUrlById.get("a"), "https://img.example/ragu.png");
     assert.deepEqual(out.forPrompt[0], {
       id: "m1",
       title: "Ragu",

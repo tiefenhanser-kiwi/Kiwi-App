@@ -615,6 +615,8 @@ export interface WizardPlanCandidateMeal {
   description: string | null;
   storeMealId?: string;
   estimatedTimeMinutes?: number;
+  /** Row 5 Block 4 — store-bound slots whose meal has an image; never a live slot. */
+  imageUrl?: string;
 }
 
 /**

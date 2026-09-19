@@ -26,6 +26,12 @@ export interface ComposeCandidateMealsOptions {
   descriptionById: ReadonlyMap<string, string | null>;
   /** Real Meal.id → the shelf row's estimatedTimeMinutes. */
   timeById?: ReadonlyMap<string, number>;
+  /**
+   * Row 5 Block 4 — real Meal.id → the shelf row's imageUrl (null until the
+   * queue writes one). Absent map, or a null entry, → no `imageUrl` key on
+   * the row and the card renders the ramp.
+   */
+  imageUrlById?: ReadonlyMap<string, string | null>;
   /** For the length-mismatch warn only. */
   userId?: string;
 }
@@ -41,9 +47,12 @@ function nonBlank(s: string | null | undefined): string | null {
  * ids). Per slot, in mealTitles order:
  *   - store slot (marked in storeSlots): description = the DB row's, blank →
  *     null, `??` the model's non-empty entry `??` null; storeMealId = the real
- *     id; estimatedTimeMinutes = the shelf row's when known.
+ *     id; estimatedTimeMinutes = the shelf row's when known; imageUrl = the
+ *     shelf row's when it has one (Row 5 Block 4 — the plan-option thumb).
  *   - live slot: the model's non-empty entry ?? null. No id, no time (a fresh
- *     title has no honest minutes yet — BUG-245).
+ *     title has no honest minutes yet — BUG-245), and NO image: a live slot
+ *     has no Meal row, so there is nothing to show — never a sibling's, never
+ *     a fetch. The card renders the ramp.
  * A `mealDescriptions` whose length differs from mealTitles is IGNORED for the
  * whole candidate (one warn) — never a dropped candidate.
  */
@@ -78,11 +87,13 @@ export function composeCandidateMeals(
     }
     const stored = nonBlank(opts.descriptionById.get(realId));
     const time = opts.timeById?.get(realId);
+    const imageUrl = nonBlank(opts.imageUrlById?.get(realId));
     return {
       title,
       description: stored ?? modelEntry,
       storeMealId: realId,
       ...(time !== undefined ? { estimatedTimeMinutes: time } : {}),
+      ...(imageUrl !== null ? { imageUrl } : {}),
     };
   });
 }

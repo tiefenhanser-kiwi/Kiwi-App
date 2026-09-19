@@ -31,6 +31,9 @@ export const WizardPlanCandidateMealSchema = z
     description: z.string().nullable(),
     storeMealId: z.string().optional(),
     estimatedTimeMinutes: z.number().optional(),
+    // Row 5 Block 4 — the store meal's image, only when the row has one; a
+    // live slot never carries it (no Meal row → the card renders the ramp).
+    imageUrl: z.string().optional(),
   })
   .passthrough();
 

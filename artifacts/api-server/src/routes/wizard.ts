@@ -1314,6 +1314,7 @@ export function createWizardRouter(
           const wire = toWireCandidate(reconciled, {
             descriptionById: storeShortlist.descriptionById,
             timeById: storeShortlist.timeById,
+            imageUrlById: storeShortlist.imageUrlById,
             userId,
           });
           sent.add(index);
@@ -1503,6 +1504,7 @@ export function createWizardRouter(
         {
           descriptionById: storeShortlist.descriptionById,
           timeById: storeShortlist.timeById,
+          imageUrlById: storeShortlist.imageUrlById,
           userId,
         },
       );
@@ -1861,6 +1863,7 @@ export function createWizardRouter(
         {
           descriptionById: storeShortlist.descriptionById,
           timeById: storeShortlist.timeById,
+          imageUrlById: storeShortlist.imageUrlById,
           userId,
         },
       );

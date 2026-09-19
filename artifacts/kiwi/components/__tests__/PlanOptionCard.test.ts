@@ -170,6 +170,38 @@ test("fresh: title, meta line, three rows (60px ramp, title, description when pr
   assert.ok(!text.includes("Featured"), "the dead badge field is not rendered");
 });
 
+// Row 5 Block 4 — the plan-option thumb comes from the WIRE ROW and nowhere
+// else: a store slot with `meals[].imageUrl` renders it; a store slot without
+// one, and a live slot, render the ramp; the candidate's dead hero `imageUrl`
+// is never used as a row image.
+test("row images: a store row with imageUrl renders the photo; no-image store row and live row render the ramp; the hero field is never a row image", () => {
+  const withImage: WizardPlanCandidate = {
+    ...WIRE,
+    meals: [
+      { ...WIRE.meals![0], imageUrl: "https://img.example/burgers.png" },
+      WIRE.meals![1], // live — no storeMealId, no imageUrl
+      WIRE.meals![2], // store-bound, the queue has not reached it
+    ],
+  };
+  const { root } = card({ candidate: withImage });
+  const photos = walk(root).filter((n) => n.type === "expo-image");
+  assert.equal(photos.length, 1, "exactly one row photo");
+  assert.deepEqual(photos[0].props.source, { uri: "https://img.example/burgers.png" });
+  assert.equal(
+    walk(root).some((n) => JSON.stringify(n.props.source ?? null).includes("hero.jpg")),
+    false,
+    "the candidate's hero imageUrl must not leak into a row",
+  );
+  // The other two rows are still ramps (gradient present; thumb slot geometry unchanged).
+  const ramps = walk(root).filter((n) => n.type === "rn-linear-gradient");
+  assert.ok(ramps.length >= 2, `two rows keep the ramp, saw ${ramps.length} gradients`);
+  const thumbs = walk(root).filter((n) => {
+    const s = flatten(n.props.style);
+    return s.width === ImageTreatment.thumbSize && s.height === ImageTreatment.thumbSize;
+  });
+  assert.equal(thumbs.length, 3, "three 60px thumb slots regardless of image presence");
+});
+
 test("C.5 (lane-pfc): no testID is keyed on candidate.id — the content identity is the key", () => {
   const { root } = card();
   const ids = walk(root)

@@ -120,6 +120,38 @@ describe("composeCandidateMeals", () => {
     }
   });
 
+  // Row 5 Block 4 — the plan-option card's thumb rides the wire row.
+  it("imageUrl: a store slot carries its row's image; a store slot whose row has none, and a live slot, carry NO key", () => {
+    const IMG = new Map<string, string | null>([
+      ["real-ragu", "https://img.example/ragu.png"],
+      ["real-soup", null], // the queue has not written one yet
+    ]);
+    const meals = composeCandidateMeals(
+      candidate({ mealDescriptions: ["", "Tacos.", ""] }),
+      { descriptionById: DESC, timeById: TIME, imageUrlById: IMG },
+    );
+    assert.equal(meals[0].imageUrl, "https://img.example/ragu.png");
+    // Store-bound, no image yet → the key is ABSENT (not null/undefined) so
+    // the mobile row renders the ramp exactly as a legacy row does.
+    assert.equal("imageUrl" in meals[2], false);
+    // A live slot has no Meal row → never an image, never a sibling's.
+    assert.equal("imageUrl" in meals[1], false);
+    assert.deepEqual(meals[1], { title: "Fresh tacos", description: "Tacos." });
+  });
+
+  it("imageUrl: no map at all (an older caller) → no key on any row", () => {
+    const meals = composeCandidateMeals(candidate(), { descriptionById: DESC, timeById: TIME });
+    for (const m of meals) assert.equal("imageUrl" in m, false);
+  });
+
+  it("imageUrl: a blank stored value is treated as no image", () => {
+    const meals = composeCandidateMeals(candidate(), {
+      descriptionById: DESC,
+      imageUrlById: new Map([["real-ragu", "   "]]),
+    });
+    assert.equal("imageUrl" in meals[0], false);
+  });
+
   it("a fully-live candidate (no storeSlots) reads only the model", () => {
     const meals = composeCandidateMeals(
       candidate({ storeSlots: undefined, mealDescriptions: ["a", "b", "c"] }),

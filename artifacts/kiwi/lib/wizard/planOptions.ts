@@ -336,6 +336,16 @@ export interface PlanOptionRow {
   description: string | null;
   /** Store-bound slots only. */
   estimatedTimeMinutes?: number;
+  /**
+   * Row 5 Block 4 — store-bound slots whose meal has an image. null → the
+   * ramp. A live slot has no Meal row and is ALWAYS null: nothing is
+   * invented, fetched, or borrowed from a sibling.
+   */
+  imageUrl: string | null;
+}
+
+function rowImage(m: WizardPlanCandidateMeal | undefined): string | null {
+  return m && typeof m.imageUrl === "string" && m.imageUrl.trim() ? m.imageUrl : null;
 }
 
 /**
@@ -352,6 +362,7 @@ export function rowsFor(candidate: WizardPlanCandidate): PlanOptionRow[] {
       title: m.title || "",
       description: typeof m.description === "string" && m.description.trim() ? m.description : null,
       ...(typeof m.estimatedTimeMinutes === "number" ? { estimatedTimeMinutes: m.estimatedTimeMinutes } : {}),
+      imageUrl: rowImage(m),
     }));
   }
   const byTitle = new Map<string, WizardPlanCandidateMeal>();
@@ -362,6 +373,7 @@ export function rowsFor(candidate: WizardPlanCandidate): PlanOptionRow[] {
       title,
       description: m && typeof m.description === "string" && m.description.trim() ? m.description : null,
       ...(m && typeof m.estimatedTimeMinutes === "number" ? { estimatedTimeMinutes: m.estimatedTimeMinutes } : {}),
+      imageUrl: rowImage(m),
     };
   });
 }

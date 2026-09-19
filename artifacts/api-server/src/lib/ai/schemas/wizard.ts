@@ -320,11 +320,18 @@ export type WizardPlanCandidate = z.infer<typeof WizardPlanCandidateSchema>;
 // or null. `storeMealId` is the REAL Meal.id (never an alias); `estimatedTime-
 // Minutes` rides only for a store slot (the shelf row's number — a fresh title
 // has no honest time yet, BUG-245). The chooser card renders from this.
+// Row 5 Block 4 — `imageUrl` rides only for a store slot whose Meal row has
+// one (the plan-option card's thumb); a live slot has no row and no image.
+// ⚠️ This schema is ALSO the expand request's `meals` echo (WizardExpand-
+// RequestSchema): an echoed imageUrl validates and is IGNORED — the expand
+// path reads only `description` from the echo (wizardExpansion.ts), and no
+// client-supplied image is ever written (BUG-297 / D-WS9-246).
 export const WizardCandidateMealWireSchema = z.object({
   title: z.string().min(1),
   description: z.string().nullable(),
   storeMealId: z.string().min(1).optional(),
   estimatedTimeMinutes: z.number().int().positive().optional(),
+  imageUrl: z.string().min(1).optional(),
 });
 export type WizardCandidateMealWire = z.infer<
   typeof WizardCandidateMealWireSchema

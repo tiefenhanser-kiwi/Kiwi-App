@@ -168,6 +168,8 @@ export async function addPlaylistToShelf(
         fatGPerServing: true,
         // D-WS9-191 — the wire meals[] reads the row's own description.
         description: true,
+        // Row 5 Block 4 — and its own image (the plan-option thumb).
+        imageUrl: true,
       },
     });
     if (sources.length === 0) return shortlist;
@@ -185,6 +187,7 @@ export async function addPlaylistToShelf(
     // time into the pre-loaded maps (an in-place-marked row is already there).
     const descriptionById = new Map(shortlist.descriptionById);
     const timeById = new Map(shortlist.timeById);
+    const imageUrlById = new Map(shortlist.imageUrlById);
     let n = 0;
     // Keep the playlist's own order (newest first) for the appended rows.
     for (const id of sourceIds) {
@@ -195,6 +198,7 @@ export async function addPlaylistToShelf(
       selectedIds.push(row.id);
       descriptionById.set(row.id, row.description ?? null);
       timeById.set(row.id, row.estimatedTimeMinutes);
+      imageUrlById.set(row.id, row.imageUrl ?? null);
       forPrompt.push({
         id: alias,
         title: row.title,
@@ -218,6 +222,7 @@ export async function addPlaylistToShelf(
       selectedIds,
       descriptionById,
       timeById,
+      imageUrlById,
     };
   } catch (err) {
     logger.warn(

@@ -11,13 +11,15 @@
 // the candidate — Phase 0), no tags row (spec §2). The card body is not a tap
 // target: the actions are the only way in.
 //
-// WS9 row 5 Block 2 — the meal rows still render the placeholder ramp. The
-// candidate's `meals[]` row (D-WS9-191) carries `storeMealId`, not `imageUrl`,
-// and this screen is entered from the wizard's "Complete plans" path and the
-// previous-options link — never from the Pick screen — so no shelf batch is in
-// memory to join against. The image lands when the server puts `imageUrl` on
-// the candidate-meal row (one line in wizardCandidateMeals.ts); until then the
-// ramp is what the wire supports, and no fetch is built to get a photo on a card.
+// WS9 row 5 Block 4 — the meal rows render the STORE meal's image when the
+// wire row carries one (`meals[].imageUrl`, composed server-side from the
+// shelf row in wizardCandidateMeals.ts). This screen is entered from the
+// wizard's "Complete plans" path and the previous-options link — never from
+// the Pick screen — so no shelf batch is in memory to join against; the wire
+// row is the only source, and no fetch is built to get a photo on a card. A
+// live slot (no storeMealId) has no image and renders the ramp; so does a
+// store slot whose meal the queue has not reached yet (D-WS9-253: the gradient
+// is the accepted terminal state).
 //
 // States (lib/wizard/planOptions.ts): fresh → the three actions; busy → the
 // pressed action shows its busy label and everything on every card disables;
@@ -119,7 +121,7 @@ export function PlanOptionCard({
         {rows.map((row, i) => (
           <View key={`${i}-${row.title}`} style={s.row}>
             <TreatedImage
-              source={null}
+              source={row.imageUrl ? { uri: row.imageUrl } : null}
               width={ImageTreatment.thumbSize}
               height={ImageTreatment.thumbSize}
               radius={Radius.md}
