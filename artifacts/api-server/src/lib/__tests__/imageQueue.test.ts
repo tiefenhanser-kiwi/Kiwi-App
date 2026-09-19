@@ -16,12 +16,14 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Jimp } from "jimp";
 
+import { logger } from "../logger";
 import { ImageStore } from "../images/imageStore";
 import {
   IMAGE_DRAIN_BATCH,
   IMAGE_MAX_ATTEMPTS,
   runImageDrain,
   type ClaimedImageRow,
+  type ImageGenerationFailedEvent,
   type ImageQueueStore,
   type ReleaseOutcome,
 } from "../images/imageQueue";
@@ -55,7 +57,7 @@ class MemoryQueueStore implements ImageQueueStore {
       r.imageAttempts++;
       claimed.push({ id: r.id, title: r.title, userId: r.userId, imageAttempts: r.imageAttempts });
     }
-    return { claimed, requeuedStuck: 0, failedOut: 0, budget: { recentSends: 0, inFlight: 0, limit: batch } };
+    return { claimed, requeuedStuck: 0, failedOutIds: [] as string[], budget: { recentSends: 0, inFlight: 0, limit: batch } };
   }
   async loadSubjects(ids: string[]) {
     return ids.map((id) => ({ mealId: id, title: this.rows.get(id)!.title, dishTitles: [] }));
@@ -232,6 +234,104 @@ describe("runImageDrain — the state machine", () => {
     assert.equal(s.ready, IMAGE_DRAIN_BATCH);
     assert.equal(ai.inFlight.peak, IMAGE_DRAIN_BATCH, "five generations in flight at once, not one after another");
     assert.equal([...store.rows.values()].filter((r) => r.imageStatus === "pending").length, 3);
+  });
+
+  // ── D-WS9-253 — the failure event fires on every TRANSITION to `failed` ──
+  //
+  // "if it fails and something gets alerted" — the alert is Hans's console
+  // step on the `image_generation_failed` event; what is pinned here is that
+  // the event exists on each transition path, carries meal id / attempts /
+  // last error, and that a DEFERRAL emits nothing (the reason six meals
+  // survived an unset key on September 19).
+
+  it("D-WS9-253: the THIRD strike emits exactly one image_generation_failed (not the first two)", async () => {
+    const big = await png();
+    const store = new MemoryQueueStore([row("m1"), row("f1", { sourceStoreMealId: "m1" })]);
+    const ai = openaiStub(big, () => "http500");
+    const events: ImageGenerationFailedEvent[] = [];
+    const deps = { store, pipeline: pipeline(ai.fetch, new MemoryWriter()), onFailed: (e: ImageGenerationFailedEvent) => events.push(e) };
+    await runImageDrain(deps);
+    await runImageDrain(deps);
+    assert.equal(events.length, 0, "strikes one and two are retries, not failures");
+    await runImageDrain(deps);
+    assert.equal(events.length, 1, "the transition to failed fires ONCE");
+    assert.deepEqual(events[0], {
+      event: "image_generation_failed",
+      mealId: "m1",
+      attempts: IMAGE_MAX_ATTEMPTS,
+      lastError: events[0].lastError,
+      path: "strike",
+    });
+    assert.match(events[0].lastError, /openai_error|http_500|boom|500/i, `last error carries the reason: ${events[0].lastError}`);
+    // The fork failed with its parent but is NOT its own event (its image IS
+    // the parent's; the parent's event is the alert).
+    assert.equal(store.rows.get("f1")!.imageStatus, "failed");
+    await runImageDrain(deps);
+    assert.equal(events.length, 1, "a failed row is never re-claimed, so it never re-fires — transition, not count");
+  });
+
+  it("D-WS9-253: a DEFERRAL (no API key) emits NO failure event, however many ticks", async () => {
+    const big = await png();
+    const store = new MemoryQueueStore([row("m1")]);
+    const ai = openaiStub(big, () => "ok");
+    const events: ImageGenerationFailedEvent[] = [];
+    const deps = { store, pipeline: pipeline(ai.fetch, new MemoryWriter(), ""), onFailed: (e: ImageGenerationFailedEvent) => events.push(e) };
+    for (let i = 0; i < 5; i++) await runImageDrain(deps);
+    assert.equal(events.length, 0, "no_api_key is the environment's problem, not the row's — never alerted as a failure");
+    assert.equal(store.rows.get("m1")!.imageStatus, "pending");
+  });
+
+  it("D-WS9-253: a throw past the pipeline on the last attempt emits the event with path 'threw' and the error message", async () => {
+    const big = await png();
+    // Two attempts already spent; this one is the third.
+    const store = new MemoryQueueStore([row("m1", { imageAttempts: IMAGE_MAX_ATTEMPTS - 1 })]);
+    store.markReady = async () => {
+      throw new Error("db hiccup");
+    };
+    const ai = openaiStub(big, () => "ok");
+    const events: ImageGenerationFailedEvent[] = [];
+    const s = await runImageDrain({ store, pipeline: pipeline(ai.fetch, new MemoryWriter()), onFailed: (e) => events.push(e) });
+    assert.equal(s.failed, 1);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].path, "threw");
+    assert.equal(events[0].mealId, "m1");
+    assert.equal(events[0].attempts, IMAGE_MAX_ATTEMPTS);
+    assert.equal(events[0].lastError, "db hiccup");
+  });
+
+  it("D-WS9-253: the claim-time sweep (pending rows with no attempts left) emits one event per swept id", async () => {
+    const store = new MemoryQueueStore([]);
+    store.claim = async () => ({ claimed: [], requeuedStuck: 0, failedOutIds: ["stale-a", "stale-b"], budget: { recentSends: 0, inFlight: 0, limit: 5 } });
+    const events: ImageGenerationFailedEvent[] = [];
+    const s = await runImageDrain({ store, pipeline: pipeline(async () => { throw new Error("never"); }, new MemoryWriter()), onFailed: (e) => events.push(e) });
+    assert.equal(s.failedOut, 2, "the summary still counts the sweep");
+    assert.deepEqual(
+      events.map((e) => [e.mealId, e.path, e.attempts, e.lastError]),
+      [
+        ["stale-a", "claim_sweep", IMAGE_MAX_ATTEMPTS, "attempts_exhausted_at_claim"],
+        ["stale-b", "claim_sweep", IMAGE_MAX_ATTEMPTS, "attempts_exhausted_at_claim"],
+      ],
+    );
+  });
+
+  it("D-WS9-253: with no onFailed injected the event goes to the logger at error level", async () => {
+    const big = await png();
+    const store = new MemoryQueueStore([row("m1", { imageAttempts: IMAGE_MAX_ATTEMPTS - 1 })]);
+    const ai = openaiStub(big, () => "http500");
+    const errors: Array<Record<string, unknown>> = [];
+    const realError = logger.error.bind(logger);
+    (logger as unknown as { error: unknown }).error = ((obj: unknown, ...rest: unknown[]) => {
+      if (obj && typeof obj === "object") errors.push(obj as Record<string, unknown>);
+      return realError(obj as never, ...(rest as [never]));
+    }) as never;
+    try {
+      await runImageDrain({ store, pipeline: pipeline(ai.fetch, new MemoryWriter()) });
+    } finally {
+      (logger as unknown as { error: unknown }).error = realError;
+    }
+    const fired = errors.filter((e) => e.event === "image_generation_failed");
+    assert.equal(fired.length, 1, "the production path logs the structured event the GCP alert filters on");
+    assert.equal(fired[0].mealId, "m1");
   });
 
   it("an empty claim is a no-op: no subjects loaded, no fetch, zeroed summary", async () => {

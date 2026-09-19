@@ -169,7 +169,7 @@ describe("image pipeline — network guard (runtime)", () => {
     const ready: string[] = [];
     const row: ClaimedImageRow = { id: "guard-q1", title: "Queued Meal", userId: "u1", imageAttempts: 1 };
     const store: ImageQueueStore = {
-      claim: async () => ({ claimed: [row], requeuedStuck: 0, failedOut: 0, budget: { recentSends: 0, inFlight: 0, limit: 5 } }),
+      claim: async () => ({ claimed: [row], requeuedStuck: 0, failedOutIds: [], budget: { recentSends: 0, inFlight: 0, limit: 5 } }),
       loadSubjects: async () => [{ mealId: row.id, title: row.title, dishTitles: ["Queued Meal"] }],
       markReady: async (id) => {
         ready.push(id);

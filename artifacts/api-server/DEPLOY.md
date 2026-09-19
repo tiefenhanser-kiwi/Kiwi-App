@@ -217,6 +217,60 @@ A `image_drain_not_configured` line means one of the two env vars is unset.
 generation before an image appears; the save never blocks. **The runtime
 service account must be able to write the bucket** (ADC — no key file).
 
+### The failure alert (D-WS9-253) — a Hans step
+
+The gradient is the accepted terminal state at launch on one condition: a
+generation failure has to reach a human. The drain emits one structured log
+line on every **transition** to `failed` (the third strike, a throw on the
+third attempt, or the claim-time sweep of a row with no attempts left):
+
+```json
+{ "event": "image_generation_failed", "mealId": "…", "attempts": 3,
+  "lastError": "openai_error: …", "path": "strike" }
+```
+
+A deferral (`no_api_key`, the spend-guard reasons) puts the row back to
+`pending` and emits **nothing** — it is the environment's problem, not the
+row's, and it must not page. Forks that fail with their parent are covered by
+the parent's line.
+
+Create a log-based alert on that event. **Filter on the event, never on a
+count of `failed` rows:** 282 user-authored meals were backfilled to `failed`
+by Block 1c's migration and never pass through the drain, so a count-based
+condition fires 282 times on its first evaluation.
+
+```powershell
+# 1. A notification channel (email; once).
+gcloud beta monitoring channels create `
+  --display-name "Kiwi image failures" `
+  --type email `
+  --channel-labels "email_address=<your address>"
+$channel = gcloud beta monitoring channels list --filter 'displayName="Kiwi image failures"' --format "value(name)"
+
+# 2. A log-based alert policy: any matching line in a 5-minute window notifies.
+#    jsonPayload.event is the structured field the drain writes.
+@"
+{
+  "displayName": "Kiwi — meal image generation failed",
+  "combiner": "OR",
+  "conditions": [{
+    "displayName": "image_generation_failed logged",
+    "conditionMatchedLog": {
+      "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"kiwi-api\" AND jsonPayload.event=\"image_generation_failed\""
+    }
+  }],
+  "alertStrategy": { "notificationRateLimit": { "period": "300s" }, "autoClose": "1800s" },
+  "notificationChannels": ["$channel"]
+}
+"@ | Set-Content -Encoding utf8 image-failed-policy.json
+gcloud alpha monitoring policies create --policy-from-file image-failed-policy.json
+```
+
+Read it back with the same filter in Logs Explorer: `jsonPayload.event="image_generation_failed"`.
+The notification carries `mealId`, `attempts` and `lastError`; the meal keeps
+the gradient until someone re-queues it by hand (there is deliberately no
+retry console — the expected volume is single digits).
+
 ## Redeploy
 
 Same `gcloud run deploy kiwi-api --source . --region us-east4` from the repo

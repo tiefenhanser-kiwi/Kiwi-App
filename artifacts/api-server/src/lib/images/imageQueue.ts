@@ -49,6 +49,22 @@
 // the row goes back to `pending` with its attempt undone, and the next tick
 // tries again for free (no OpenAI call, no ledger row, no cost).
 //
+// A FAILURE REACHES A HUMAN (D-WS9-253). The gradient is the accepted
+// terminal state at launch on ONE condition Hans attached himself: "if it
+// fails and something gets alerted". So every TRANSITION to `failed` emits a
+// structured `image_generation_failed` event (meal id, attempts, last error,
+// which path) — the third strike, a throw past the pipeline on the third
+// attempt, and the claim-time sweep of a pending row that had already used
+// its attempts. A GCP log-based alert on that event is Hans's console step;
+// DEPLOY.md carries the recipe. 🔴 TRANSITION, NEVER COUNT: 282 user-authored
+// rows were backfilled to `failed` by Block 1c's migration and never pass
+// through here, so a count-based alert would fire 282 times on its first
+// evaluation. 🔴 A DEFERRAL IS NOT A FAILURE: `no_api_key` and the spend-
+// guard reasons put the row back to `pending` and emit nothing — six meals
+// survived an unset key on September 19 for exactly this reason. Forks that
+// fail with their parent do not get their own event: a fork's image IS the
+// parent's, and the parent's event is the alert.
+//
 // FAIRNESS is deliberately NOT built (D-WS9-248): FIFO means one user
 // importing 50 recipes occupies ten minutes of the queue. The cheap fix is a
 // per-user cap inside a batch; build it only if the beta shows it happening.
@@ -82,9 +98,22 @@ export interface ClaimOutcome {
   claimed: ClaimedImageRow[];
   // Rows put back to `pending` by the stuck-row guard this tick.
   requeuedStuck: number;
-  // `pending` rows that had already used every attempt → `failed`.
-  failedOut: number;
+  // `pending` rows that had already used every attempt → `failed`, BY ID
+  // (D-WS9-253: each is a transition to `failed` and gets its own event).
+  failedOutIds: string[];
   budget: { recentSends: number; inFlight: number; limit: number };
+}
+
+// D-WS9-253 — the structured failure event, one per TRANSITION to `failed`.
+export interface ImageGenerationFailedEvent {
+  event: "image_generation_failed";
+  mealId: string;
+  attempts: number;
+  // The generation/store reason + detail from the last attempt, the thrown
+  // error's message, or "attempts_exhausted_at_claim" for the sweep (that
+  // row's last error was logged by the tick that struck it).
+  lastError: string;
+  path: "strike" | "threw" | "claim_sweep";
 }
 
 export type ReleaseOutcome = "strike" | "defer";
@@ -120,9 +149,11 @@ export function createPrismaImageQueueStore(prisma: PrismaClient): ImageQueueSto
           UPDATE "meals" SET "imageStatus" = 'pending'
           WHERE "imageStatus" = 'generating'
             AND "updatedAt" < (now() at time zone 'utc') - (${IMAGE_STUCK_AFTER_MINUTES} * interval '1 minute')`;
-        const failedOut = await tx.$executeRaw`
+        const failedOutRows = await tx.$queryRaw<Array<{ id: string }>>`
           UPDATE "meals" SET "imageStatus" = 'failed'
-          WHERE "imageStatus" = 'pending' AND "imageAttempts" >= ${IMAGE_MAX_ATTEMPTS}`;
+          WHERE "imageStatus" = 'pending' AND "imageAttempts" >= ${IMAGE_MAX_ATTEMPTS}
+          RETURNING "id"`;
+        const failedOutIds = failedOutRows.map((r) => r.id);
 
         // 3. The budget for this minute, from the shared ledger.
         const [recent] = await tx.$queryRaw<Array<{ n: number }>>`
@@ -137,7 +168,7 @@ export function createPrismaImageQueueStore(prisma: PrismaClient): ImageQueueSto
         const limit = Math.max(0, batch - recentSends - generating);
         const budget = { recentSends, inFlight: generating, limit };
         if (limit === 0) {
-          return { claimed: [], requeuedStuck, failedOut, budget };
+          return { claimed: [], requeuedStuck, failedOutIds, budget };
         }
 
         // 4. The claim. FIFO by createdAt; a fork of a not-yet-imaged parent
@@ -159,7 +190,7 @@ export function createPrismaImageQueueStore(prisma: PrismaClient): ImageQueueSto
             LIMIT ${limit}
             FOR UPDATE SKIP LOCKED)
           RETURNING m."id", m."title", m."userId", m."imageAttempts"`;
-        return { claimed: rows, requeuedStuck, failedOut, budget };
+        return { claimed: rows, requeuedStuck, failedOutIds, budget };
       });
     },
 
@@ -222,6 +253,14 @@ export interface ImageDrainDeps {
   pipeline: Omit<PipelineDeps, "generator"> & { generator: Omit<PipelineDeps["generator"], "userId"> };
   batch?: number;
   now?: () => Date;
+  // D-WS9-253 — where the failure event goes. Production: the pino logger at
+  // `error` (below). Injected so the hermetic suite can capture the events
+  // and prove a deferral emits none.
+  onFailed?: (event: ImageGenerationFailedEvent) => void;
+}
+
+function logFailedEvent(event: ImageGenerationFailedEvent): void {
+  logger.error(event, "Meal image generation FAILED — the gradient is permanent for this meal (D-WS9-253)");
 }
 
 export interface ImageDrainSummary {
@@ -245,7 +284,13 @@ const DEFERRAL_REASONS = new Set(["ai_disabled", "spend_cap_global", "spend_cap_
 export async function runImageDrain(deps: ImageDrainDeps): Promise<ImageDrainSummary> {
   const batch = deps.batch ?? IMAGE_DRAIN_BATCH;
   const now = deps.now ?? (() => new Date());
+  const onFailed = deps.onFailed ?? logFailedEvent;
   const claim = await deps.store.claim(batch);
+  // D-WS9-253 — the claim-time sweep is a transition to `failed` too (a row
+  // requeued from `generating` by the stuck guard with no attempts left).
+  for (const mealId of claim.failedOutIds) {
+    onFailed({ event: "image_generation_failed", mealId, attempts: IMAGE_MAX_ATTEMPTS, lastError: "attempts_exhausted_at_claim", path: "claim_sweep" });
+  }
   const summary: ImageDrainSummary = {
     claimed: claim.claimed.length,
     ready: 0,
@@ -254,7 +299,7 @@ export async function runImageDrain(deps: ImageDrainDeps): Promise<ImageDrainSum
     deferred: 0,
     forksStamped: 0,
     requeuedStuck: claim.requeuedStuck,
-    failedOut: claim.failedOut,
+    failedOut: claim.failedOutIds.length,
     budget: claim.budget,
     costEstimateUsd: 0,
   };
@@ -280,15 +325,21 @@ export async function runImageDrain(deps: ImageDrainDeps): Promise<ImageDrainSum
           return;
         }
         const reason = out.trace.generation && !out.trace.generation.ok ? out.trace.generation.reason : "store_error";
+        const detail = out.trace.generation && !out.trace.generation.ok ? out.trace.generation.detail : out.trace.storeError;
         const outcome: ReleaseOutcome = DEFERRAL_REASONS.has(reason) ? "defer" : "strike";
         const status = await deps.store.release(row, outcome);
         if (outcome === "defer") summary.deferred++;
         else if (status === "failed") summary.failed++;
         else summary.retried++;
         logger.warn(
-          { event: "image_drain_row_not_ready", mealId: row.id, attempt: row.imageAttempts, reason, detail: out.trace.generation && !out.trace.generation.ok ? out.trace.generation.detail : out.trace.storeError, outcome, status },
+          { event: "image_drain_row_not_ready", mealId: row.id, attempt: row.imageAttempts, reason, detail, outcome, status },
           "Meal image not produced this tick",
         );
+        // D-WS9-253 — only a STRIKE can transition to `failed`; a deferral
+        // returns "pending" by construction and never reaches this line.
+        if (status === "failed") {
+          onFailed({ event: "image_generation_failed", mealId: row.id, attempts: row.imageAttempts, lastError: detail ? `${reason}: ${detail}` : reason, path: "strike" });
+        }
       } catch (err) {
         // A throw past the pipeline (it catches its own) is a strike too —
         // the row must never be left `generating` by an exception.
@@ -296,6 +347,9 @@ export async function runImageDrain(deps: ImageDrainDeps): Promise<ImageDrainSum
         if (status === "failed") summary.failed++;
         else summary.retried++;
         logger.error({ event: "image_drain_row_threw", mealId: row.id, attempt: row.imageAttempts, err, status }, "Image drain row threw");
+        if (status === "failed") {
+          onFailed({ event: "image_generation_failed", mealId: row.id, attempts: row.imageAttempts, lastError: err instanceof Error ? err.message : String(err), path: "threw" });
+        }
       }
     }),
   );
