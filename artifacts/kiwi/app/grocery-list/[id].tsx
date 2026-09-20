@@ -12,22 +12,31 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as Linking from "expo-linking";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
 import { ClarifySheetView } from "@/components/ClarifySheetView";
 import { Header } from "@/components/Header";
+import { InstacartOrderPanel } from "@/components/InstacartOrderPanel";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { focusAddItemInput } from "@/lib/groceryAddAnchor";
 import { TypeaheadList } from "@/components/TypeaheadList";
 import { useApp } from "@/contexts/AppContext";
 import {
+  createInstacartLink,
   getGroceryList,
   lookupGroceryItemCandidates,
   parseSuggestedQuantity,
   type AddItemPayload,
   type GroceryItemCandidate,
 } from "@/lib/api/grocery";
+import {
+  INSTACART_NO_BROWSER_COPY,
+  INSTACART_NO_ITEMS_COPY,
+  instacartErrorCopy,
+  instacartItemsForList,
+} from "@/lib/instacartOrder";
 import { GROCERY_SECTIONS } from "@/lib/domain";
 import {
   composePackName,
@@ -123,6 +132,14 @@ export default function GroceryListDetail() {
       return "loading";
     },
   );
+  // Row 8 Block 2 — the Instacart link-out. `instacartEnabled` is the
+  // SERVER's flag off the detail GET (false for demo stubs and until the
+  // read lands); `instacartBusy` covers the link call (measured 439–925 ms);
+  // `instacartError` is already Kiwi's copy (instacartErrorCopy), never a
+  // raw server string. All three sit ABOVE the early returns (§0.9).
+  const [instacartEnabled, setInstacartEnabled] = useState(false);
+  const [instacartBusy, setInstacartBusy] = useState(false);
+  const [instacartError, setInstacartError] = useState<string | null>(null);
   // WS9 BUG-140 — the ONE add surface, and the scroller it lives in. The
   // per-section "+ Add item" controls anchor to these instead of owning a
   // second add path (see lib/groceryAddAnchor.ts).
@@ -290,9 +307,11 @@ export default function GroceryListDetail() {
     let cancelled = false;
     (async () => {
       try {
-        const { list: real, reconciled } = await getGroceryList(id);
+        const { list: real, reconciled, instacartEnabled: retailerOn } =
+          await getGroceryList(id);
         if (!cancelled) {
           setList(real);
+          setInstacartEnabled(retailerOn);
           setLoadStatus("ready");
           // The list self-maintained to match plan edits — tell the user so
           // a changed quantity doesn't look like a glitch (PRD: no staleness).
@@ -881,6 +900,59 @@ export default function GroceryListDetail() {
     }
   };
 
+  // Row 8 Block 2 — "Shop on Instacart". The selection (R1: unchecked rows;
+  // universal staples only when opted in) and the per-row pack numbers come
+  // from lib/instacartOrder.ts, which reads the SAME compose this screen
+  // renders each row with (renderedPack → packsToCoverNeed). What the shopper
+  // reads on screen is what gets ordered; the server owns the Instacart
+  // contract. `packCount` is a number of PACKS, never the displayed total.
+  //
+  // An empty selection is refused HERE with the no_items copy rather than
+  // sent: the server's schema needs ≥1 item, and the 400 it would return is
+  // invalid_body, not no_items.
+  //
+  // Linking.openURL is the app's first external URL open. Its rejection (a
+  // device with no browser) gets a plain line; the link itself is already
+  // persisted on the list server-side and is not displayed.
+  //
+  // `skipped` / `unmappedUnits` are diagnostics — logged, never surfaced.
+  const handleShopOnInstacart = async () => {
+    if (instacartBusy) return;
+    setInstacartError(null);
+    const items = instacartItemsForList(list.items);
+    if (items.length === 0) {
+      setInstacartError(INSTACART_NO_ITEMS_COPY);
+      return;
+    }
+    setInstacartBusy(true);
+    let url: string;
+    try {
+      const res = await createInstacartLink(list.id, items);
+      if (res.skipped.length > 0 || res.unmappedUnits.length > 0) {
+        console.warn("[grocery-list] instacart link diagnostics", {
+          listId: list.id,
+          itemCount: res.itemCount,
+          skipped: res.skipped,
+          unmappedUnits: res.unmappedUnits,
+        });
+      }
+      url = res.url;
+    } catch (err) {
+      console.warn("[grocery-list] instacart link failed", err);
+      setInstacartError(instacartErrorCopy(err));
+      setInstacartBusy(false);
+      return;
+    }
+    try {
+      await Linking.openURL(url);
+    } catch (err) {
+      console.warn("[grocery-list] instacart openURL rejected", err);
+      setInstacartError(INSTACART_NO_BROWSER_COPY);
+    } finally {
+      setInstacartBusy(false);
+    }
+  };
+
   const subtitle = list.isThisWeek
     ? `${list.planName} · This Week`
     : list.planName;
@@ -1187,6 +1259,20 @@ export default function GroceryListDetail() {
           </View>
         ) : (
           <View style={s.markDoneWrap}>
+            {/* Row 8 Block 2 — the Instacart order block sits ABOVE "Mark
+                Shopping Done ✓" in the same in-scroll action area (not the
+                header, not a floating bar). Stacked, not side by side: the
+                pill hugs its label (~200 px) and the secondary button is
+                full-width, so a row would crowd both at phone width. The
+                server flag decides CTA vs the coming-soon line inside. Not
+                shown in the completed state: everything is checked, so the
+                R1 selection would be empty. */}
+            <InstacartOrderPanel
+              enabled={instacartEnabled}
+              busy={instacartBusy}
+              error={instacartError}
+              onPress={handleShopOnInstacart}
+            />
             <Button
               label="Mark Shopping Done ✓"
               variant="secondary"
@@ -1977,6 +2063,8 @@ const s = StyleSheet.create({
   },
   markDoneWrap: {
     marginTop: Spacing[4],
+    // Row 8 Block 2 — the Instacart block stacks above the button.
+    gap: Spacing[4],
   },
   completionWrap: {
     marginTop: Spacing[4],

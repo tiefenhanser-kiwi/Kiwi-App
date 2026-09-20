@@ -30,7 +30,6 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import {
   COOK_TIME_CAP_OPTIONS,
   COOK_TIME_COVERAGE_OPTIONS,
-  DEFAULT_RETAILERS,
   PLAN_DURATION_PRESETS,
   SAUCE_PREFERENCE_OPTIONS,
 } from "@/lib/domain";
@@ -411,19 +410,13 @@ export default function Preferences() {
           />
         </Section>
 
-        {/* Section 7: Retailer */}
-        <Section title="Default grocery retailer">
-          <View style={s.chipRow}>
-            {DEFAULT_RETAILERS.map((r) => (
-              <Chip
-                key={r}
-                label={r}
-                selected={form.defaultRetailer === r}
-                onPress={() => update("defaultRetailer", r)}
-              />
-            ))}
-          </View>
-        </Section>
+        {/* Section 7 was "Default grocery retailer" — REMOVED (Row 8 Block 2,
+            D-WS9-099: a dead affordance is removed, not restyled). It offered
+            a choice among retailers that do not exist; the one that does
+            (Instacart) is a server-flagged CTA on the grocery detail screen.
+            The `defaultRetailer` column, the form field and the PATCH field
+            stay (additive-only on a branch Cloud Run serves); only the chips
+            are gone. */}
 
         {/* Section 8: Communication preferences (D-WS7-025) — these toggles
             persist immediately to User via /me/profile; they are not part of
