@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLACEHOLDER — NOT THE INSTACART LOGO. REPLACE BEFORE ANY DEMO.
+
+  Row 8 Block 2 (September 20, 2026). components/InstacartButton.tsx renders
+  this file at 22×22 px inside the "Shop on Instacart" CTA. The Instacart
+  logo is a trademark: it is NOT drawn, traced or approximated here — this
+  file is a valid, EMPTY svg root so the Metro bundle (which runs image-size
+  on every .svg asset) still builds, and so the missing-asset test in
+  components/__tests__/InstacartButton.test.ts can pin that the path the
+  component requires exists.
+
+  TO REPLACE: download the official mark from the Instacart developer portal
+  (CTA-design page) and overwrite THIS file with it, keeping the file name.
+  If the portal only offers a PNG, save it as assets/instacart/
+  instacart-logo.png and change the ONE require() line in
+  components/InstacartButton.tsx to point at it.
+
+  Until replaced, the CTA shows a blank 22 px slot where the mark belongs —
+  visible on a device, invisible to typecheck and to the suite.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22"></svg>
